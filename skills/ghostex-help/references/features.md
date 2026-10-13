@@ -1879,9 +1879,9 @@ Cross-agent orchestration also works through the `$ghostex-cli` skill. For
    `ghostex read-text` or `ghostex read-session-chat`, and wait with
    `ghostex wait-for-text`.
    To pick the worker's model and effort, add `--model <model> --effort <level>`
-   to `create-agent` or `board start-work` (Claude, Codex and Pi; for Pi the
-   model is `<provider>/<model>`, as in Pi's `/model`, and the effort is its
-   thinking level, such as `high`). The choice
+   to `create-agent` or `board start-work` (Claude, Codex, Pi and Antigravity
+   CLI; for Pi the model is `<provider>/<model>`, as in Pi's `/model`, and the
+   effort is its thinking level, such as `high`). The choice
    applies to that session only, survives a resume, and leaves your default
    model unchanged. For `board start-work`, these flags apply only when a new
    worker is created; a reused linked worker keeps its existing model and effort.

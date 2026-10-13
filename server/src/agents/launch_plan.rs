@@ -437,6 +437,7 @@ fn empryo_cwd(
 /// Typing `/model` or `/effort` into Claude Code saves the choice as the default for every new session, so the choice travels as launch flags instead.
 /// The flags live in the session's saved base command, which resume, fork and account wrapping all rebuild from.
 /// Sven extended it to Empryo on 2026-10-06 (Empryo harness spec). Empryo's terminal app ignores launch flags, so the model goes into a session folder Ghostex seeds and launches with `--session`, and the effort is typed with `/effort` once Empryo is up; neither changes Empryo's default. A resume keeps the model (it reopens that tab), but Empryo 3.9.0-beta drops a tab's effort when it resumes it (seen 2026-10-06), so the effort lasts until the session restarts (session_chat_empryo_launch_selection.rs).
+/// Antigravity CLI joined on 2026-10-13 (user: port the launch flags after checking agy still accepts `--effort`): agy 1.2.14 takes `--model <id>` and `--effort low|medium|high|max` for that CLI session only.
 /// SEE-ALSO: server/src/ghostex_cli/actions/create.rs (create-agent), server/src/ghostex_cli/board.rs and server/src/board_start_work.rs (board start-work).
 fn apply_requested_agent_model(
     project: &Value,
@@ -456,12 +457,12 @@ fn apply_requested_agent_model(
         .filter(|family| {
             matches!(
                 family.as_str(),
-                "claude" | "codex" | "pi" | "zcode" | "empryo"
+                "claude" | "codex" | "pi" | "zcode" | "empryo" | "antigravity"
             )
         })
         .ok_or_else(|| {
             DomainStateError::bad_request(
-                "A launch model or effort can only be set for Claude, Codex, Pi, ZCode and Empryo agents.",
+                "A launch model or effort can only be set for Claude, Codex, Pi, ZCode, Empryo and Antigravity CLI agents.",
             )
         })?;
     if family == "empryo" {

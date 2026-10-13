@@ -213,6 +213,26 @@ pub(crate) fn option_takes_value(agent: &str, word: &str) -> bool {
                 | "--export"
                 | "--tui-mode"
         ),
+        "antigravity" => matches!(
+            word,
+            "--model"
+                | "--effort"
+                | "--agent"
+                | "--add-dir"
+                | "--conversation"
+                | "--project"
+                | "--mode"
+                | "--log-file"
+                | "--input-format"
+                | "--output-format"
+                | "--json-schema"
+                | "--print-timeout"
+                | "-p"
+                | "--print"
+                | "--prompt"
+                | "-i"
+                | "--prompt-interactive"
+        ),
         _ => false,
     }
 }
@@ -245,16 +265,20 @@ pub(crate) fn with_agent_model_options(
         let next_value = words.get(index + 1).map(|(_, _, value)| value.as_str());
         let (remove, takes_value) = match (agent, word.as_str()) {
             _ if !is_flag => (false, false),
-            ("claude" | "codex" | "cursor", "--model") | ("codex", "-m") if model.is_some() => {
+            ("claude" | "codex" | "cursor" | "antigravity", "--model") | ("codex", "-m")
+                if model.is_some() =>
+            {
                 (true, true)
             }
-            ("claude" | "codex" | "cursor", value)
+            ("claude" | "codex" | "cursor" | "antigravity", value)
                 if model.is_some() && value.starts_with("--model=") =>
             {
                 (true, false)
             }
-            ("claude", "--effort") if effort.is_some() => (true, true),
-            ("claude", value) if effort.is_some() && value.starts_with("--effort=") => {
+            ("claude" | "antigravity", "--effort") if effort.is_some() => (true, true),
+            ("claude" | "antigravity", value)
+                if effort.is_some() && value.starts_with("--effort=") =>
+            {
                 (true, false)
             }
             // Ghostex's Pi model is `provider/id`, so a pinned `--provider` goes with the old model.

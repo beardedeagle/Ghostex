@@ -115,6 +115,7 @@ pub(crate) fn launch_command_selection(
         SessionChatOptionAgent::Codex => "codex",
         SessionChatOptionAgent::Pi => "pi",
         SessionChatOptionAgent::Cursor => "cursor",
+        SessionChatOptionAgent::Antigravity => "antigravity",
         _ => return None,
     };
     let mut words = Vec::new();
@@ -154,7 +155,11 @@ pub(crate) fn launch_command_selection(
             (_, "--model", Some(model)) | (SessionChatOptionAgent::Codex, "-m", Some(model)) => {
                 selection.model = launch_model_choice(family, model);
             }
-            (SessionChatOptionAgent::Claude, "--effort", Some(effort))
+            (
+                SessionChatOptionAgent::Claude | SessionChatOptionAgent::Antigravity,
+                "--effort",
+                Some(effort),
+            )
             | (SessionChatOptionAgent::Pi, "--thinking", Some(effort)) => {
                 selection.effort = launch_effort_choice(family, effort);
             }
