@@ -491,6 +491,58 @@ async fn settled_accept_steps(
     (identity(&first) == identity(&second)).then_some(steps)
 }
 
+/// CDXC:AgentProviders 2026-10-14 WHY:
+/// An account switch waits for the new login's input box inside the session's send worker, where the detection funnel's dispatch never runs, so it accepts a remembered folder's prompt itself (accounts/restart_verification.rs). Both answered the same prompt 4 s apart on 2026-10-13, and a second answer can land as keystrokes in Claude's input once the first was accepted. The switch therefore takes the funnel's per-session claim (`claim_auto_trust_attempt`), reads the screen again under it, and holds it until the prompt has had time to close, so the keys are typed once. It writes straight to the terminal, since a queued send would wait on the worker it runs in.
+pub(crate) async fn accept_remembered_trust_once(
+    project_id: &str,
+    session_id: &str,
+    zmx_name: &str,
+    agent: &str,
+) {
+    if !claim_auto_trust_attempt(project_id, session_id) {
+        return;
+    }
+    if let Some(steps) = settled_accept_steps(zmx_name, Some(agent))
+        .await
+        .filter(|steps| {
+            steps.iter().all(|step| {
+                matches!(
+                    step,
+                    SessionChatSendStep::Write(_) | SessionChatSendStep::SleepMs(_)
+                )
+            })
+        })
+    {
+        let mut written = true;
+        for step in steps {
+            match step {
+                SessionChatSendStep::Write(payload) => {
+                    written = crate::session_chat_send::write_session_chat_payload(
+                        project_id,
+                        session_id,
+                        zmx_name,
+                        "workspace-trust-remembered",
+                        &payload,
+                    )
+                    .await
+                    .is_ok();
+                    if !written {
+                        break;
+                    }
+                }
+                SessionChatSendStep::SleepMs(ms) => {
+                    tokio::time::sleep(Duration::from_millis(ms)).await
+                }
+                _ => {}
+            }
+        }
+        if written {
+            tokio::time::sleep(AUTO_TRUST_CLEAR_WAIT).await;
+        }
+    }
+    release_auto_trust_attempt(project_id, session_id);
+}
+
 /// Accept the prompt, then re-probe and republish so the chat never shows a
 /// card for it. The card stays hidden while this runs: each try waits for a
 /// settled screen, sends the agent's own accept keys, and gives the prompt
