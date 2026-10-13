@@ -710,6 +710,8 @@ pub(crate) async fn handle_answer_session_chat_prompt_http(
                             crate::session_chat_pi_blocking::pi_trust_answer_key(text, choice_index)
                         } else if option_agent
                             == Some(crate::session_chat_options::SessionChatOptionAgent::Antigravity)
+                            && crate::session_chat_antigravity_permission::detect_antigravity_permission_picker(text)
+                                .is_some()
                         {
                             crate::session_chat_antigravity_permission::detect_antigravity_permission_picker(text)
                                 .and_then(|picker| picker.answer_key(choice_index))
