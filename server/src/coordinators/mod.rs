@@ -10,6 +10,7 @@ mod presentation;
 mod promote;
 mod records;
 mod role;
+mod sleep_threads;
 mod state;
 mod title;
 
@@ -22,5 +23,6 @@ pub use presentation::*;
 pub use promote::*;
 pub use records::*;
 pub use role::*;
+pub use sleep_threads::*;
 pub use state::*;
 pub use title::*;

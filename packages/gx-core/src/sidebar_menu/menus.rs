@@ -7,7 +7,7 @@
 use std::collections::BTreeSet;
 
 use crate::core::Core;
-use crate::keys::{MachineId, CHATS_GROUP_ID};
+use crate::keys::{MachineId, SessionKey, CHATS_GROUP_ID};
 use crate::sidebar_view::collections::CollectionsState;
 use crate::sidebar_view::machine_spaces::spaces_enabled_on;
 use crate::sidebar_view::spaces::SpacesState;
@@ -49,6 +49,9 @@ pub struct SidebarMenus<'a> {
     /// The drawn machine's daemon id (`S…`), the first part of a session's global ref; absent
     /// until a stream frame has named it.
     server_id: Option<String>,
+    /// The drawn orchestrators that have a thread Sleep Inactive Threads would sleep. Left empty
+    /// when no orchestrator is drawn, so a list without one never walks the rows for it.
+    coordinators_with_inactive_threads: std::collections::HashSet<SessionKey>,
     now_ms: u64,
 }
 
@@ -137,6 +140,17 @@ impl<'a> SidebarMenus<'a> {
                 .loaded(&machine)
                 .map(|loaded| loaded.server_id.clone())
                 .filter(|server_id| !server_id.is_empty()),
+            coordinators_with_inactive_threads: if view.groups.iter().any(|group| {
+                group
+                    .core
+                    .sessions
+                    .iter()
+                    .any(|session| session.row.is_coordinator)
+            }) {
+                crate::sidebar_actions::coordinators_with_inactive_threads(core, &machine)
+            } else {
+                Default::default()
+            },
             now_ms,
         }
     }
@@ -411,6 +425,11 @@ impl<'a> SidebarMenus<'a> {
             settings: &self.inputs.settings,
             catalog: &self.catalog,
             below,
+            has_inactive_threads: row.is_coordinator
+                && row
+                    .key
+                    .as_ref()
+                    .is_some_and(|key| self.coordinators_with_inactive_threads.contains(key)),
             now_ms: self.now_ms,
         }
     }

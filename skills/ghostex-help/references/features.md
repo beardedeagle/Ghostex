@@ -1942,7 +1942,13 @@ version of the Projects features in Cursor and Claude Code.
   talk to it directly; answer its questions and approvals there. A thread keeps
   the name its orchestrator gave it, like the orchestrator keeps its own (Rename in
   the sidebar still changes it). Pinning the
-  orchestrator takes its threads along. The phone's session list shows the same
+  orchestrator takes its threads along. Right-click the orchestrator and choose
+  **Sleep Inactive Threads** to put its idle threads to sleep in one go: threads
+  that are working, waiting on a question or approval, or running a background
+  shell stay awake, and so does the orchestrator (the item is greyed out when no
+  thread can be slept). On the phone, long-press the orchestrator for the same
+  item; `ghostex orchestrator sleep-inactive-threads` does it from a terminal.
+  The phone's session list shows the same
   tree: crown, crew count, threads indented under their orchestrator, and the
   chevron to fold them.
 - **Finished threads are closed**: once the orchestrator has checked and

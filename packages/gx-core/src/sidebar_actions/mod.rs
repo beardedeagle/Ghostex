@@ -53,6 +53,7 @@ mod sort;
 mod terminal_lifecycle;
 
 pub use agent_run::{owns_agent_run_command, plan_agent_run};
+pub(crate) use bulk::coordinators_with_inactive_threads;
 pub use bulk::{
     bulk_request_summary, owns_batch_command, owns_bulk_message, plan_batch, plan_bulk_request,
     BatchPlan, BulkAction, BulkRequest, BULK_MESSAGE_TYPES, BULK_SLEEP_INTERVAL_MS,

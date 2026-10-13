@@ -468,6 +468,11 @@ pub(crate) mod message {
         json!({ "type": "sleepInactiveProjectSessions", "groupId": group_id })
     }
 
+    /// Answered by `plan_bulk_request` (sidebar_actions/bulk.rs), which resolves the threads.
+    pub(crate) fn sleep_inactive_coordinator_threads(session_id: &str) -> Value {
+        json!({ "type": "sleepInactiveCoordinatorThreads", "sessionId": session_id })
+    }
+
     pub(crate) fn full_reload_project_sessions(group_id: &str) -> Value {
         json!({ "type": "fullReloadProjectZmxSessions", "groupId": group_id })
     }

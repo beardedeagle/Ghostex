@@ -15,8 +15,8 @@
 //!   So the batch needs no set of its own and no pacing: it is exactly the messages the menu built.
 //! - The plural payloads (`setSessionsSleeping`, `closeSessions`, `setGroupSleeping`,
 //!   `sleepInactiveProjectSessions`, `closeInactiveProjectSessions`,
-//!   `wakeProjectSleepingSessions`) resolve a set here and then fan out into the same per-session
-//!   messages.
+//!   `wakeProjectSleepingSessions`, `sleepInactiveCoordinatorThreads`) resolve a set here and then
+//!   fan out into the same per-session messages.
 //!
 //! **The pacing is a decision, not an implementation detail.** A bulk SLEEP through
 //! `setSessionsSleeping` runs one request at a time with 350 ms between them, and wake and close do
@@ -171,13 +171,14 @@ impl BulkRequest {
 }
 
 /// Every plural payload this file answers.
-pub const BULK_MESSAGE_TYPES: [&str; 6] = [
+pub const BULK_MESSAGE_TYPES: [&str; 7] = [
     "setSessionsSleeping",
     "closeSessions",
     "setGroupSleeping",
     "sleepInactiveProjectSessions",
     "closeInactiveProjectSessions",
     "wakeProjectSleepingSessions",
+    "sleepInactiveCoordinatorThreads",
 ];
 
 /// Whether this payload is one this file answers, without resolving anything.
@@ -246,6 +247,24 @@ pub fn plan_bulk_request(core: &Core, message: &Value) -> Option<BulkRequest> {
         "closeSessions" => {
             let ids = explicit_session_ids(message)?;
             Some(bulk(BulkAction::Close, ids, None, None))
+        }
+        // An orchestrator's own threads, wherever their projects are. Resolved when the item is
+        // clicked, not when the menu opened, so a thread that started working in between stays
+        // awake. Refused, like a project action, on a machine whose rows are not live.
+        "sleepInactiveCoordinatorThreads" => {
+            let coordinator =
+                SessionKey::parse_sidebar_session_id(text_field(message, "sessionId")?)?;
+            core.presentation().loaded_live(&coordinator.machine)?;
+            let ids = coordinator_thread_keys(core, &coordinator, is_inactive)
+                .iter()
+                .map(SessionKey::to_sidebar_session_id)
+                .collect();
+            Some(bulk(
+                BulkAction::Sleep,
+                ids,
+                None,
+                Some(coordinator.project_key()),
+            ))
         }
         // The project-scoped ones resolve their own set.
         kind => {
@@ -406,6 +425,64 @@ pub(super) fn project_rows(
     rows.sort_unstable();
     rows.into_iter()
         .map(|(_, session_id)| session_id.to_string())
+        .collect()
+}
+
+/// Whether a row is one of this orchestrator's own threads (not a thread of one of its threads).
+fn is_thread_of(row: &ghostex_gx_protocol::PresentationSession, coordinator: &SessionKey) -> bool {
+    row.coordinator_session_id.as_deref() == Some(coordinator.session_id.as_str())
+        && row.coordinator_project_id.as_deref() == Some(coordinator.project_id.as_str())
+        && !(row.session_id == coordinator.session_id && row.project_id == coordinator.project_id)
+}
+
+/// An orchestrator's threads that pass a test, in the daemon's own array order (see
+/// `project_rows`). Threads live on the orchestrator's machine but may be in any of its projects.
+///
+/// CDXC:Coordinators 2026-10-13 DECISION:
+/// User: "right click on orchestrator and sleep", "Should just be sleep inactive not park". An orchestrator row's menu offers Sleep Inactive Threads, which sleeps the orchestrator's own threads that the project menu's Sleep Inactive would sleep (`is_inactive`: awake, not working, not waiting on a question or approval, no background work). The orchestrator itself, its threads' own threads and every other session are left alone, and nothing is parked.
+/// SEE-ALSO: sidebar_menu/session.rs (the row), sidebar_menu/menus.rs (`coordinators_with_inactive_threads` decides whether it is enabled).
+pub(crate) fn coordinator_thread_keys(
+    core: &Core,
+    coordinator: &SessionKey,
+    keep: impl Fn(&ghostex_gx_protocol::PresentationSession) -> bool,
+) -> Vec<SessionKey> {
+    let Some(loaded) = core.presentation().loaded_live(&coordinator.machine) else {
+        return Vec::new();
+    };
+    let mut rows: Vec<&ghostex_gx_protocol::PresentationSession> = loaded
+        .server_sessions()
+        .filter(|row| is_thread_of(row, coordinator) && keep(row))
+        .collect();
+    rows.sort_unstable_by(|a, b| a.sort_key.cmp(&b.sort_key));
+    rows.into_iter()
+        .map(|row| SessionKey {
+            machine: coordinator.machine.clone(),
+            project_id: row.project_id.clone(),
+            session_id: row.session_id.clone(),
+        })
+        .collect()
+}
+
+/// The orchestrators on a machine that have at least one thread Sleep Inactive Threads would
+/// sleep, so their menu row is enabled. The same `is_inactive` the click resolves with.
+pub(crate) fn coordinators_with_inactive_threads(
+    core: &Core,
+    machine: &crate::keys::MachineId,
+) -> std::collections::HashSet<SessionKey> {
+    let Some(loaded) = core.presentation().loaded_live(machine) else {
+        return std::collections::HashSet::new();
+    };
+    loaded
+        .server_sessions()
+        .filter(|row| is_inactive(row))
+        .filter_map(|row| {
+            let coordinator = SessionKey {
+                machine: machine.clone(),
+                project_id: row.coordinator_project_id.clone()?,
+                session_id: row.coordinator_session_id.clone()?,
+            };
+            is_thread_of(row, &coordinator).then_some(coordinator)
+        })
         .collect()
 }
 

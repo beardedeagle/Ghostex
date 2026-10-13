@@ -16,6 +16,7 @@ USAGE
   ghostex orchestrator link <session-ref> [--task <text>] [--orchestrator <ref>]
   ghostex orchestrator resolve <thread-ref> [--keep-open] [--json]
   ghostex orchestrator reopen <thread-ref> [--json]
+  ghostex orchestrator sleep-inactive-threads [<orchestrator-ref>] [--orchestrator <ref>] [--json]
   ghostex orchestrator remember <note> [--orchestrator <ref>]
   ghostex orchestrator forget <number> [--orchestrator <ref>]
   ghostex orchestrator set-goal <text> [--orchestrator <ref>]
@@ -90,6 +91,10 @@ THREADS
   its conversation: reopen resumes the same session and puts it back under its
   orchestrator, and the orchestrator's `ghostex agents send <thread-ref> "<text>"`
   to a closed thread resumes it the same way and reopens it.
+  sleep-inactive-threads puts the orchestrator's idle threads to sleep, like
+  Sleep Inactive Threads on its sidebar menu: threads that are working, waiting
+  on a question or approval, or running a background shell stay awake, and so
+  does the orchestrator. Nothing is parked or closed.
 
 MEMORY AND INSTRUCTIONS
   remember saves a one-line note (a preference, a decision, a pitfall); every

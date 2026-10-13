@@ -56,6 +56,8 @@ pub struct SessionMenuInput<'a> {
     /// The rows drawn below this one in its group, for Sleep Below and Close Below. Empty for the
     /// per-publish build, which never offers them.
     pub below: &'a [&'a SessionRow],
+    /// An orchestrator row with at least one thread its Sleep Inactive Threads would sleep.
+    pub has_inactive_threads: bool,
     pub now_ms: u64,
 }
 
@@ -465,6 +467,21 @@ fn full_menu(
         } else {
             item.clone()
         });
+    }
+
+    // CDXC:Coordinators 2026-10-13 SEE-ALSO: the user's decision on `coordinator_thread_keys` in sidebar_actions/bulk.rs ("right click on orchestrator and sleep", "Should just be sleep inactive not park"). Disabled, like the project menu's Sleep Inactive, when no thread can be slept.
+    if row.is_coordinator && !row.is_draft {
+        if !menu.is_empty() {
+            menu.push(MenuItem::separator());
+        }
+        menu.push(
+            MenuItem::row(
+                "Sleep Inactive Threads",
+                "moon",
+                MenuCommand::command(message::sleep_inactive_coordinator_threads(id)),
+            )
+            .with_disabled(!input.has_inactive_threads),
+        );
     }
 
     // A box session's own section. Only this computer's rows: `/api/agentbox` answers for the

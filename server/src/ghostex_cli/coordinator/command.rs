@@ -1,6 +1,6 @@
 use serde_json::{json, Value};
 
-use super::threads;
+use super::{sleep_threads, threads};
 use crate::ghostex_cli::{
     agents,
     args::{parse_args, Flags, ParsedArgs},
@@ -37,6 +37,7 @@ pub(crate) fn run(args: &[String]) -> CliResult<()> {
         "start-thread" => threads::start_thread(&parsed),
         "link" => threads::link(&parsed),
         "resolve" | "reopen" => threads::set_resolved(&parsed, command == "resolve"),
+        "sleep-inactive-threads" => sleep_threads::sleep_inactive_threads(&parsed),
         "remember" | "forget" | "set-goal" | "set-instructions" => update(command, &parsed),
         other => Err(CliError::Other(format!(
             "Unknown orchestrator command: {other}. See ghostex orchestrator --help."
