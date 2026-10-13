@@ -516,8 +516,12 @@ fn full_menu(
         });
     }
 
-    let coordinator_block = coordinator_rows(row, group.is_stale);
+    let mut coordinator_block = coordinator_rows(row, group.is_stale);
     let has_coordinator_block = !coordinator_block.is_empty();
+    // Its separator only divides it from rows above, so a menu never opens on a line.
+    if has_coordinator_block && menu.is_empty() {
+        coordinator_block.remove(0);
+    }
     menu.extend(coordinator_block);
 
     // CDXC:Coordinators 2026-10-13 SEE-ALSO: the user's decision on `coordinator_thread_keys` in sidebar_actions/bulk.rs ("right click on orchestrator and sleep", "Should just be sleep inactive not park"). Disabled, like the project menu's Sleep Inactive, when no thread can be slept.
