@@ -332,7 +332,11 @@ impl NativeChatView {
         {
             let notice = &this.snapshot["terminalNotice"];
             let position = if primary {
-                Some(0)
+                Some(
+                    notice["primaryChoice"]
+                        .as_u64()
+                        .map_or(0, |index| index as usize),
+                )
             } else {
                 notice["secondaryChoice"]
                     .as_u64()

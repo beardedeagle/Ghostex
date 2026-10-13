@@ -123,7 +123,11 @@ fn decorate_notice(raw: &Value, notice: &TerminalNotice) -> Value {
         "collapsedChoiceCount".to_string(),
         json!(COLLAPSED_CHOICE_COUNT),
     );
-    // The visible row Escape answers, so the card puts its hint on that row.
+    // The visible rows Cmd+Enter and Escape answer, so the card puts each hint on its row.
+    object.insert(
+        "primaryChoice".to_string(),
+        json!(notice.primary_choice_position()),
+    );
     object.insert(
         "secondaryChoice".to_string(),
         json!(notice.secondary_choice_position()),

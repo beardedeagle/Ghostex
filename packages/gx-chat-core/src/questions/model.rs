@@ -166,6 +166,25 @@ impl TerminalNotice {
             .collect()
     }
 
+    /// Which visible row Cmd+Enter (Ctrl+Enter) answers.
+    ///
+    /// CDXC:SessionChat 2026-10-01 DECISION: User: the folder-trust card's Cmd+Enter must not mean "No, exit". Claude Code lists "No, exit" above "Yes, I trust this folder", so the first row made the shortcut quit the agent; on a trust card it answers the row that grants trust (the agent's own order is kept on screen), and every other card keeps its first row.
+    pub fn primary_choice_position(&self) -> Option<usize> {
+        let choices = self.visible_choices();
+        if choices.is_empty() {
+            return None;
+        }
+        if self.kind == "trustPrompt" {
+            if let Some(trust) = choices.iter().position(|choice| {
+                let label = choice.label.trim_start();
+                label.starts_with("Yes") || label.starts_with("Trust")
+            }) {
+                return Some(trust);
+            }
+        }
+        Some(0)
+    }
+
     /// Which visible row Escape answers.
     ///
     /// CDXC:SessionChat 2026-09-26 WHY: Escape declines. A permission prompt's rows are Yes, then any "Yes, and don't ask again" / "Yes, and switch to accept edits" rows, then No, and a plan's are "Yes, and switch to bypass permissions", "Yes, manually approve edits", "Tell Claude what to change", so taking the second row made Escape grant a standing permission or start the plan. Escape answers a row that says No; only Claude's two-way choosers (resume, model or effort switch, session paused), whose second row is the alternative rather than a yes, keep it on that row, and anything else leaves Escape unanswered.

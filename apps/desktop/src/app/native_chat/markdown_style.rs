@@ -159,6 +159,8 @@ pub(crate) fn text_style(p: &ChatAppearance) -> TextViewStyle {
     style.inline_code_style = Some(inline_code(p));
     style.prose_swatch = Some(prose_swatch(p));
     style.link = super::markdown_links::transcript_link_color(p);
+    // CDXC:SessionChat 2026-10-01 DECISION: User: "remove the underline for links please I don't like it"; a chat link is marked by its color alone.
+    style.link_underline = false;
     style
 }
 

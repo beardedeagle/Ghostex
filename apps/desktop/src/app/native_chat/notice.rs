@@ -126,11 +126,14 @@ impl NativeChatView {
             let secondary = notice["secondaryChoice"]
                 .as_u64()
                 .map(|index| index as usize);
+            let primary = notice["primaryChoice"]
+                .as_u64()
+                .map_or(0, |index| index as usize);
             let shortcuts: Vec<Option<String>> = (0..count.min(choices.len()))
                 .map(|index| {
                     if self.snapshot["showShortcutLabels"] == false {
                         None
-                    } else if index == 0 {
+                    } else if index == primary {
                         Some(
                             if cfg!(target_os = "macos") {
                                 "⌘Enter"

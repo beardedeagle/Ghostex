@@ -246,7 +246,7 @@ fn notice_answer(
     let notice = notice?;
     let choices = notice.visible_choices();
     let position = if primary {
-        Some(0)
+        notice.primary_choice_position()
     } else {
         notice.secondary_choice_position()
     };
