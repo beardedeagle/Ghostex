@@ -355,21 +355,6 @@ fn sidebar_section(
         false,
         cx,
     ));
-    rows.extend(page.slider(
-        g,
-        s,
-        "projectSessionListCollapsedCount",
-        "Compact Session Rows",
-        "Rows a project shows in Compact mode before its \"Show all\" row. Rows in collapsed sections do not count.",
-        (
-            g.number("MIN_PROJECT_SESSION_LIST_COLLAPSED_COUNT"),
-            g.number("MAX_PROJECT_SESSION_LIST_COLLAPSED_COUNT"),
-            1.0,
-        ),
-        false,
-        window,
-        cx,
-    ));
     // The sidebar's Sort & Filter menu writes the same setting (CDXC:Sidebar 2026-10-05 in gx-core
     // sidebar_view/ordering.rs `is_grouped_working`).
     rows.extend(page.toggle(

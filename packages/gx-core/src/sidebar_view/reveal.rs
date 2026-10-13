@@ -2,10 +2,9 @@
 //!
 //! CDXC:Sidebar 2026-09-20 WHY:
 //! Revealing a session is the one command that reads the list to decide what to change: which
-//! Space shows the row, which group holds it, which collection holds that group, which heading it
-//! falls under, and whether the compact list would still leave it out. The answers are read from
-//! the list that is already built wherever they are in it, and the list is only built again for
-//! the questions that one cannot answer.
+//! Space shows the row, which group holds it, which collection holds that group, and which heading
+//! it falls under. The answers are read from the list that is already built wherever they are in
+//! it, and the list is only built again for the questions that one cannot answer.
 //!
 //! The probe lifts the Space filter as well as Show Hidden and the tag filters, and that is the
 //! whole point of it rather than a detail: the drawn list holds only the groups the selected Space
@@ -19,10 +18,8 @@
 //! drawn list while its projects are still drawn, and passing `None` there would answer the Space
 //! question on a different branch from the one the list itself took.
 //!
-//! The cost is one clone of the inputs, reused, and between zero and two builds: none when the row
-//! is already drawn, one when something filters it out or its heading is closed, two when both.
-//! The second build keeps whichever tag filters the plan leaves in place, because the compact list
-//! it measures is the one the user will be looking at.
+//! The cost is one clone of the inputs and at most one build: none when the row is already in the
+//! drawn list, one when something filters it out.
 //!
 //! Ported from the deleted sidebar page's `reveal.ts` and `rememberNativeSidebarFocus` (frozen in
 //! the deleted `tooling/gx-core/sidebar-page-frozen/space-navigation.ts`; see git history).
@@ -72,8 +69,6 @@ pub struct SidebarRevealPlan {
     pub show_hidden: bool,
     /// The ticked tag filters leave the row out.
     pub clear_tag_filters: bool,
-    /// The compact list would still leave the row out.
-    pub expand_list: bool,
 }
 
 impl SidebarRevealPlan {
@@ -133,16 +128,6 @@ impl SidebarRevealPlan {
                 sidebar_session_id: sidebar_session_id.clone(),
             });
         }
-        if self.expand_list
-            && !ui
-                .collapse
-                .expanded_session_lists
-                .contains(&self.storage_id)
-        {
-            intents.push(SidebarUiIntent::ToggleSessionListExpanded {
-                storage_id: self.storage_id.clone(),
-            });
-        }
         intents
     }
 }
@@ -184,8 +169,6 @@ pub fn reveal_plan(
     };
     let select_mode =
         (row_mode != effective_sidebar_mode(&inputs.settings, &inputs.ui)).then_some(row_mode);
-    // One clone, reused for both questions a rebuild can answer.
-    let mut probe: Option<SidebarInputs> = None;
     let mut built: Option<SidebarView> = None;
     // The drawn list is the OTHER machine's, or the other mode's, when the reveal moves either, so
     // it is not asked at all.
@@ -196,8 +179,8 @@ pub fn reveal_plan(
         Some(found) => found,
         None => {
             // Nothing filtering: no Space, no Show Hidden, no tags. The row is then wherever it is.
-            let probe = probe.insert(unfiltered(inputs, row_mode));
-            let list = built.insert(SidebarViewModel::build_from_scratch(core, probe, now_ms));
+            let probe = unfiltered(inputs, row_mode);
+            let list = built.insert(SidebarViewModel::build_from_scratch(core, &probe, now_ms));
             locate(list, sidebar_session_id, parking, group_working, now_ms)?
         }
     };
@@ -208,7 +191,7 @@ pub fn reveal_plan(
         .as_ref()
         .map(|collection_id| format!("{}:{collection_id}", inputs.ui.section_key()));
 
-    let mut plan = SidebarRevealPlan {
+    Some(SidebarRevealPlan {
         collapsed_group: inputs
             .ui
             .collapse
@@ -264,52 +247,7 @@ pub fn reveal_plan(
         select_mode,
         group_id: found.group_id.clone(),
         storage_id: found.storage_id.clone(),
-        expand_list: false,
-    };
-    if found.drawn {
-        return Some(plan);
-    }
-    // The row is in the group but in no heading's drawn rows, so either its heading is closed or
-    // the compact list cut it. Only a list with that heading open tells the two apart.
-    let probe = match probe.as_mut() {
-        Some(probe) => probe,
-        None => probe.insert(unfiltered(inputs, row_mode)),
-    };
-    // With the filters the user will still have afterwards, which is not always none:
-    // `applyNativeSidebarReveal` works the compact list out after it has decided whether to clear
-    // them, and a filter that stays in place takes rows out of the list the cut is measured on.
-    probe.ui.selected_tag_filters = if plan.clear_tag_filters {
-        Vec::new()
-    } else {
-        inputs.ui.selected_tag_filters.clone()
-    };
-    probe
-        .ui
-        .collapse
-        .section_collapse
-        .entry(found.storage_id.clone())
-        .or_default()
-        .set(found.section, false);
-    for sidebar_session_id in &found.folded_by {
-        probe
-            .ui
-            .collapse
-            .collapsed_coordinators
-            .remove(sidebar_session_id);
-    }
-    // CDXC:Coordinators 2026-10-07 WHY: a reveal never lists a coordinator's older threads; only the user's click on its "N older threads" row does (the user's 2026-10-07 decision in packages/gx-chat-core/src/extras/coordinator_threads.rs). The thread being opened is focused, and a focused thread is listed however old it is (`nest_threads`), so the probe only lists it to judge the compact cut the way the list will draw it.
-    for sidebar_session_id in &found.older_of {
-        probe
-            .ui
-            .collapse
-            .expanded_coordinator_older_threads
-            .insert(sidebar_session_id.clone());
-    }
-    let opened = SidebarViewModel::build_from_scratch(core, probe, now_ms);
-    plan.expand_list = !opened
-        .group(&plan.group_id)
-        .is_some_and(|group| drawn_in_sections(group, sidebar_session_id));
-    Some(plan)
+    })
 }
 
 /// The inputs with everything that hides a row lifted: the Space, Show Hidden and the tag filters,
@@ -447,14 +385,10 @@ struct Located {
     group_id: String,
     storage_id: String,
     section: SectionId,
-    /// The row is one of the rows its heading draws.
-    drawn: bool,
     /// The tag the row is filtered by.
     effective_tag: Option<String>,
     /// The folded coordinators above the row, nearest first.
     folded_by: Vec<String>,
-    /// The coordinators above the row whose older threads it waits behind, nearest first.
-    older_of: Vec<String>,
 }
 
 fn locate(
@@ -473,11 +407,9 @@ fn locate(
     // A thread under a folded coordinator: its ancestors up the tree, and the top one, whose
     // heading is the thread's.
     let mut folded_by = Vec::new();
-    let mut older_of = Vec::new();
     let mut heading_row = sidebar_session_id;
     if let Some(index) = index.filter(|index| sessions[*index].nesting.folded) {
         let mut depth = sessions[index].nesting.depth;
-        let mut tucked = sessions[index].nesting.older_hidden;
         for ancestor in sessions[..index].iter().rev() {
             if ancestor.nesting.depth >= depth {
                 continue;
@@ -486,17 +418,12 @@ fn locate(
             if ancestor.nesting.collapsed {
                 folded_by.push(ancestor.row.sidebar_session_id.clone());
             }
-            if tucked {
-                older_of.push(ancestor.row.sidebar_session_id.clone());
-            }
-            tucked = ancestor.nesting.older_hidden;
             if depth == 0 {
                 heading_row = &ancestor.row.sidebar_session_id;
                 break;
             }
         }
     }
-    let drawn = drawn_in_sections(group, sidebar_session_id);
     let section = group
         .core
         .sections
@@ -522,10 +449,8 @@ fn locate(
         group_id: group.core.group_id.clone(),
         storage_id: group.core.storage_id.clone(),
         section,
-        drawn,
         effective_tag: row.and_then(|row| row.effective_tag.clone()),
         folded_by,
-        older_of,
     })
 }
 
@@ -640,13 +565,4 @@ pub(crate) fn machine_key(machine_id: &str) -> MachineId {
     } else {
         MachineId::Remote(machine_id.to_string())
     }
-}
-
-fn drawn_in_sections(group: &GroupView, sidebar_session_id: &str) -> bool {
-    group.core.sections.iter().any(|section| {
-        section
-            .session_ids
-            .iter()
-            .any(|session_id| session_id == sidebar_session_id)
-    })
 }

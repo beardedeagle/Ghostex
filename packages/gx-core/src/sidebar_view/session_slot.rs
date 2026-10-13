@@ -6,7 +6,7 @@
 //! the sidebar (`createNativeSidebarSnapshot(ui)`, then `renderedNativeSidebarSessionIds`), which is
 //! the drawn list in drawn order: the top-level order, a collection's projects unless the collection
 //! is collapsed, nothing of a collapsed project, and of an open project only the headings that are
-//! not collapsed, each with the rows it draws (the compact "show less" list leaves the rest out).
+//! not collapsed, each with the rows it draws.
 //! Spaces, hidden projects, the tag filter and parked rows need no rule of their own, because the
 //! drawn list already reflects them. The machine tab is the selected one, so on a remote machine's
 //! tab the slot names a REMOTE row, and the host focuses it the way a click on that row is focused;

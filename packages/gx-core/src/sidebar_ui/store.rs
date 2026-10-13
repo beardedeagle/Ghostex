@@ -134,10 +134,6 @@ impl SidebarUiStore {
                 toggle(&mut self.state.collapse.collapsed_groups, group_id);
                 changed(SidebarPersistSet::collapse())
             }
-            SidebarUiIntent::ToggleSessionListExpanded { storage_id } => {
-                toggle(&mut self.state.collapse.expanded_session_lists, storage_id);
-                changed(SidebarPersistSet::collapse())
-            }
             SidebarUiIntent::ToggleHoverActions { storage_id } => {
                 toggle(&mut self.state.collapse.expanded_hover_actions, storage_id);
                 changed(SidebarPersistSet::collapse())
@@ -250,20 +246,10 @@ impl SidebarUiStore {
                     .is_some();
                 outcome(moved, SidebarPersistSet::collapse())
             }
-            SidebarUiIntent::ExpandProjectForSlotJump {
-                group_id,
-                collapse_session_list_storage_id,
-            } => {
-                // DELETE, not toggle: `runNativeProjectSlotHotkey` removes both keys, so a jump to
-                // a project that is already expanded leaves it expanded.
-                let mut moved = self.state.collapse.collapsed_groups.remove(&group_id);
-                if let Some(storage_id) = collapse_session_list_storage_id {
-                    moved |= self
-                        .state
-                        .collapse
-                        .expanded_session_lists
-                        .remove(&storage_id);
-                }
+            SidebarUiIntent::ExpandProjectForSlotJump { group_id } => {
+                // DELETE, not toggle: `runNativeProjectSlotHotkey` removes the key, so a jump to a
+                // project that is already expanded leaves it expanded.
+                let moved = self.state.collapse.collapsed_groups.remove(&group_id);
                 outcome(moved, SidebarPersistSet::collapse())
             }
         }

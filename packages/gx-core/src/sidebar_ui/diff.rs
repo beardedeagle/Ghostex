@@ -26,7 +26,6 @@ use crate::sidebar_view::{SectionCollapse, SidebarCollapseState, SidebarMode};
 pub struct SidebarCollapseDiff {
     collapsed_groups: SetDiff,
     collapsed_collections: SetDiff,
-    expanded_session_lists: SetDiff,
     expanded_hover_actions: SetDiff,
     collapsed_coordinators: SetDiff,
     expanded_coordinator_older_threads: SetDiff,
@@ -82,10 +81,6 @@ impl SidebarCollapseDiff {
                 &base.collapsed_collections,
                 &next.collapsed_collections,
             ),
-            expanded_session_lists: SetDiff::between(
-                &base.expanded_session_lists,
-                &next.expanded_session_lists,
-            ),
             expanded_hover_actions: SetDiff::between(
                 &base.expanded_hover_actions,
                 &next.expanded_hover_actions,
@@ -114,7 +109,6 @@ impl SidebarCollapseDiff {
     pub fn is_empty(&self) -> bool {
         self.collapsed_groups.is_empty()
             && self.collapsed_collections.is_empty()
-            && self.expanded_session_lists.is_empty()
             && self.expanded_hover_actions.is_empty()
             && self.collapsed_coordinators.is_empty()
             && self.expanded_coordinator_older_threads.is_empty()
@@ -149,11 +143,6 @@ impl SidebarCollapseDiff {
             &mut object,
             "collapsedProjectCollectionsByKey",
             &self.collapsed_collections,
-        );
-        apply_set(
-            &mut object,
-            "expandedProjectSessionListsById",
-            &self.expanded_session_lists,
         );
         apply_set(
             &mut object,

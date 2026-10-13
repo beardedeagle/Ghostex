@@ -123,9 +123,6 @@ fn group(group_id: &str, sidebar_session_ids: &[&str]) -> ghostex_gx_core::Group
             project_context: None,
             summary: GroupSummary::default(),
             collapsed: false,
-            expanded: false,
-            hidden_session_count: 0,
-            show_list_toggle: false,
             hover_actions_expanded: false,
             sections: Vec::new(),
             sessions: sidebar_session_ids

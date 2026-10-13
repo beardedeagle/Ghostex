@@ -1157,13 +1157,6 @@ fn check_reveal(
             .or_default()
             .set(section, false);
     }
-    if plan.expand_list {
-        revealed
-            .ui
-            .collapse
-            .expanded_session_lists
-            .insert(plan.storage_id.clone());
-    }
     let after = SidebarViewModel::build_from_scratch(core, &revealed, now_ms);
     let drawn = after.group(&plan.group_id).is_some_and(|group| {
         !group.core.collapsed
@@ -1231,12 +1224,7 @@ fn churn_inputs(inputs: &mut SidebarInputs, ui: &mut UiState, view: &SidebarView
                 ui.apply(SidebarUiIntent::ToggleGroupCollapsed { group_id });
             }
         }
-        1 => {
-            if let Some(storage_id) = storage_id {
-                ui.apply(SidebarUiIntent::ToggleSessionListExpanded { storage_id });
-            }
-        }
-        2 => {
+        1 | 2 => {
             if let Some(storage_id) = storage_id {
                 ui.apply(SidebarUiIntent::ToggleHoverActions { storage_id });
             }
@@ -1265,7 +1253,7 @@ fn churn_inputs(inputs: &mut SidebarInputs, ui: &mut UiState, view: &SidebarView
         }
         5 => inputs.settings.enable_session_parking = !inputs.settings.enable_session_parking,
         6 => {
-            inputs.settings.project_session_list_collapsed_count = 1 + (index as u32 % 20);
+            inputs.settings.group_working_sessions = !inputs.settings.group_working_sessions;
         }
         7 => {
             inputs.settings.sort_mode = match inputs.settings.sort_mode {

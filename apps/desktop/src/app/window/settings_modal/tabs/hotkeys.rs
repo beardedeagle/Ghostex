@@ -280,8 +280,7 @@ impl Render for HotkeysTab {
                 store.search_query().to_string(),
             )
         };
-        let expand_collapsed = values.bool("expandCollapsedProjectsOnJump");
-        let searches = hotkey_section_searches(&query, expand_collapsed, &|id| {
+        let searches = hotkey_section_searches(&query, &|id| {
             ghostex_settings_catalog::built_in_extensions::hotkey_shown_with(id, |key| {
                 Some(values.bool(key))
             })
@@ -334,17 +333,6 @@ impl Render for HotkeysTab {
                         "Expand Collapsed Projects on Jump",
                         "Reveal a collapsed project row before focusing it from Jump to Project hotkeys.",
                         false,
-                        cx,
-                    ));
-                }
-                if expand_collapsed
-                    && should_show_setting(result, "showLessForExpandedProjectJumps", true)
-                {
-                    rows.push(self.toggle(
-                        "showLessForExpandedProjectJumps",
-                        "Use Compact List After Jump Expand",
-                        "After a project jump expands a collapsed project, switch that project session list to Compact.",
-                        true,
                         cx,
                     ));
                 }

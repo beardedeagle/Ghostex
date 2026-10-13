@@ -182,7 +182,6 @@ pub struct SidebarCollapseState {
     pub collapsed_groups: BTreeSet<String>,
     /// Keyed by `<section key>:<collection id>`.
     pub collapsed_collections: BTreeSet<String>,
-    pub expanded_session_lists: BTreeSet<String>,
     pub expanded_hover_actions: BTreeSet<String>,
     /// Coordinators whose threads are folded away, by the coordinator's sidebar row id.
     pub collapsed_coordinators: BTreeSet<String>,
@@ -259,7 +258,6 @@ pub const GROUP_WORKING_SESSIONS_SETTING_KEY: &str = "groupWorkingSessions";
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SidebarSettings {
     pub enable_session_parking: bool,
-    pub project_session_list_collapsed_count: u32,
     /// THIS computer's Spaces switch. A remote machine's section follows that machine's own switch
     /// instead (`machine_spaces::spaces_enabled_on`).
     pub sidebar_spaces_enabled: bool,
@@ -284,8 +282,6 @@ pub struct SidebarSettings {
     pub browser_view_tab_hidden: bool,
     /// A project slot hotkey (cmd+ctrl+1..9 by default) expands the project it jumps to.
     pub expand_collapsed_projects_on_jump: bool,
-    /// That jump also puts the project's session list back to the compact one.
-    pub show_less_for_expanded_project_jumps: bool,
     /// Rows whose agent is working sit in each project's Working section (`groupWorkingSessions`).
     pub group_working_sessions: bool,
     /// The Bots extension is on (`botsHidden` is false), so the sidebar offers its Bots mode.
@@ -302,7 +298,6 @@ impl Default for SidebarSettings {
     fn default() -> Self {
         Self {
             enable_session_parking: true,
-            project_session_list_collapsed_count: 13,
             sidebar_spaces_enabled: false,
             sidebar_space_follow_active_session: false,
             show_last_active_time: true,
@@ -316,7 +311,6 @@ impl Default for SidebarSettings {
             hide_keep_awake_titlebar_control: false,
             browser_view_tab_hidden: false,
             expand_collapsed_projects_on_jump: true,
-            show_less_for_expanded_project_jumps: false,
             group_working_sessions: false,
             bots_enabled: false,
             bot_automations_enabled: false,
@@ -336,20 +330,11 @@ impl SidebarSettings {
                 .and_then(Value::as_bool)
                 .unwrap_or(fallback)
         };
-        let count = settings
-            .get("projectSessionListCollapsedCount")
-            .and_then(Value::as_f64)
-            .map_or(defaults.project_session_list_collapsed_count, |value| {
-                // `Math.round` rounds a half up, towards positive infinity.
-                let rounded = (value + 0.5).floor();
-                rounded.clamp(1.0, 50.0) as u32
-            });
         Self {
             enable_session_parking: boolean(
                 "enableSessionParking",
                 defaults.enable_session_parking,
             ),
-            project_session_list_collapsed_count: count,
             sidebar_spaces_enabled: built_in_extensions::enabled_in_value(
                 Some(settings),
                 built_in_extensions::SPACES,
@@ -389,10 +374,6 @@ impl SidebarSettings {
             expand_collapsed_projects_on_jump: boolean(
                 "expandCollapsedProjectsOnJump",
                 defaults.expand_collapsed_projects_on_jump,
-            ),
-            show_less_for_expanded_project_jumps: boolean(
-                "showLessForExpandedProjectJumps",
-                defaults.show_less_for_expanded_project_jumps,
             ),
             group_working_sessions: boolean(
                 GROUP_WORKING_SESSIONS_SETTING_KEY,

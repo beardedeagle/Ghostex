@@ -137,10 +137,6 @@ pub struct GroupCore {
     pub project_context: Option<ProjectContextView>,
     pub summary: GroupSummary,
     pub collapsed: bool,
-    /// The session list shows every row rather than the compact first rows.
-    pub expanded: bool,
-    pub hidden_session_count: usize,
-    pub show_list_toggle: bool,
     pub hover_actions_expanded: bool,
     pub sections: Vec<SectionView>,
     /// Every row of the group that passes the tag filter, in display order.
@@ -206,9 +202,10 @@ pub struct SectionView {
     pub attention_count: usize,
     pub background_work_count: usize,
     pub question_count: usize,
-    /// The rows this heading draws: its sessions, minus the ones the compact list leaves out.
+    /// The rows this heading draws: its sessions, minus the ones a collapsed heading or a folded
+    /// coordinator hides.
     pub session_ids: Vec<String>,
-    /// Every row of the heading, the compact list's and a collapsed heading's hidden ones too. Only
+    /// Every row of the heading, a collapsed heading's hidden ones too. Only
     /// the Parked heading fills it, for its Sleep All and Close All; empty for every other one.
     pub member_ids: Vec<String>,
 }

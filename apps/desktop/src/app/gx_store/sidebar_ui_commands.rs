@@ -44,11 +44,8 @@ impl GhostexGpuiApp {
             "toggleGroup" => Some(SidebarUiIntent::ToggleGroupCollapsed {
                 group_id: text("groupId")?,
             }),
-            // The three below carry the session-list storage id in `groupId`, which is what the
+            // The two below carry the session-list storage id in `groupId`, which is what the
             // collapse state has always been keyed by below a project row.
-            "toggleList" => Some(SidebarUiIntent::ToggleSessionListExpanded {
-                storage_id: text("groupId")?,
-            }),
             "toggleHoverActions" => Some(SidebarUiIntent::ToggleHoverActions {
                 storage_id: text("groupId")?,
             }),
@@ -323,9 +320,7 @@ fn section_id(value: &str) -> Option<SectionId> {
 
 impl GhostexGpuiApp {
     /// Puts a row on screen: the Space that shows it is selected, the group, its collection and
-    /// its heading are opened, Show Hidden and the tag filters are lifted where they hide it, and
-    /// the full list is shown when the compact one would still leave it out. The old projection
-    /// does the same to its own copy, from the same request, so the two stay in step.
+    /// its heading are opened, and Show Hidden and the tag filters are lifted where they hide it.
     ///
     /// CDXC:Sidebar 2026-09-21 WHY:
     /// A reveal that arrives before the list is ready is HELD, not answered. The whole plan is read

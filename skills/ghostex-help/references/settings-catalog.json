@@ -453,23 +453,6 @@
       "agentWritable": true
     },
     {
-      "key": "projectSessionListCollapsedCount",
-      "title": "Compact Session Rows",
-      "subtitle": "Rows a project shows in Compact mode before its \"Show all\" row. Rows in collapsed sections do not count.",
-      "tab": "settings",
-      "tabTitle": "General",
-      "group": "sidebar",
-      "groupTitle": "Sidebar",
-      "section": "sidebar",
-      "sectionTitle": "Sidebar",
-      "type": "number",
-      "default": 13,
-      "min": 1,
-      "max": 50,
-      "advanced": true,
-      "agentWritable": true
-    },
-    {
       "key": "groupWorkingSessions",
       "title": "Group working sessions",
       "subtitle": "Move sessions into a collapsed Working section under their project while their agent works; they return to Sessions when it stops or needs you. Also in the sidebar's Sort & Filter menu.",
@@ -10853,18 +10836,6 @@
       "sectionTitle": "Projects",
       "type": "boolean",
       "default": true,
-      "agentWritable": true
-    },
-    {
-      "key": "showLessForExpandedProjectJumps",
-      "title": "Compact list after project jumps",
-      "subtitle": "Switch the session list of a project expanded by a jump to Compact.",
-      "tab": "hotkeys",
-      "tabTitle": "Hotkeys",
-      "section": "projects",
-      "sectionTitle": "Projects",
-      "type": "boolean",
-      "default": false,
       "agentWritable": true
     },
     {

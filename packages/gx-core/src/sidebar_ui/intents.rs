@@ -15,10 +15,6 @@ pub enum SidebarUiIntent {
     ToggleGroupCollapsed {
         group_id: String,
     },
-    /// Show every row of a project's session list rather than the compact first rows.
-    ToggleSessionListExpanded {
-        storage_id: String,
-    },
     /// Show the full hover-button row on a project's cards.
     ToggleHoverActions {
         storage_id: String,
@@ -97,15 +93,11 @@ pub enum SidebarUiIntent {
     ForgetSectionSpace {
         section_key: String,
     },
-    /// Expand a project row and, when the setting asks for it, put its session list back to the
-    /// compact one. A slot hotkey DELETES both keys rather than toggling them, which is why this is
-    /// not two `Toggle` intents: pressing cmd+ctrl+1 on an already-expanded project must leave it
-    /// expanded.
+    /// Expand a project row. A slot hotkey DELETES the key rather than toggling it, which is why
+    /// this is not a `ToggleGroupCollapsed`: pressing cmd+ctrl+1 on an already-expanded project
+    /// must leave it expanded.
     ExpandProjectForSlotJump {
         group_id: String,
-        /// The session list to collapse back to its compact form, when
-        /// `showLessForExpandedProjectJumps` is on.
-        collapse_session_list_storage_id: Option<String>,
     },
 }
 

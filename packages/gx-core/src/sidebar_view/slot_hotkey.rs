@@ -3,15 +3,12 @@
 //! CDXC:Sidebar 2026-09-21 WHY:
 //! This one is not a sidebar command and never was. It arrives as `gpuiProjectSlotHotkey`, a THIRD
 //! route beside the two sidebar-command envelopes, and it reaches into the collapse state and
-//! DELETES two keys directly: the project's collapsed flag, and (with
-//! `showLessForExpandedProjectJumps` on) its session list's expanded flag. The second one fought the
-//! Rust reveal that follows the same jump, because `reveal_plan` may ask for exactly the storage id
-//! the hotkey had just removed, so the two wrote opposite values for one key on every jump.
+//! DELETES the project's collapsed flag directly.
 //!
 //! The whole jump is planned here: which project the slot names, what it does to that project's
 //! collapse state, which row it focuses and whether that row is revealed. The reveal itself is
 //! `reveal_plan`, asked by the host AFTER this plan's own intents are applied, which is the order the
-//! TypeScript has (the deletions, then the selection, then the reveal at the next build). Supersedes
+//! TypeScript has (the deletion, then the selection, then the reveal at the next build). Supersedes
 //! the 2026-09-21 note that the focus and the reveal stayed with the old runtime.
 //!
 //! **A slot never names a remote project.** The TypeScript indexes `!group.remoteMachineContext`
@@ -20,7 +17,7 @@
 //! does nothing at all: no deletion, no selection, no reveal. The remote focus machinery is
 //! therefore never reached from here, and nothing here builds a second one.
 //!
-//! DELETE, not toggle. `runNativeProjectSlotHotkey` removes both keys, so a jump to a project that
+//! DELETE, not toggle. `runNativeProjectSlotHotkey` removes the key, so a jump to a project that
 //! is already expanded leaves it expanded, where a toggle would collapse it.
 //!
 //! SEE-ALSO: the deleted sidebar page's `hotkeys.ts` (`runNativeProjectSlotHotkey`),
@@ -40,9 +37,6 @@ pub struct ProjectSlotPlan {
     pub was_collapsed: bool,
     /// Expand the group: it was collapsed and `expandCollapsedProjectsOnJump` is on.
     pub expand_group: bool,
-    /// The session list to put back to its compact form, which is the same branch plus
-    /// `showLessForExpandedProjectJumps`.
-    pub collapse_session_list_storage_id: Option<String>,
     /// The row the jump focuses: the group's focused row, else its first, in the order the group
     /// holds them (`group.sessions.find(isFocused) ?? group.sessions[0]`, which is the list order
     /// and not the drawn heading order). `None` for a project with no row, where the TypeScript
@@ -67,7 +61,6 @@ impl ProjectSlotPlan {
         if self.expand_group {
             intents.push(SidebarUiIntent::ExpandProjectForSlotJump {
                 group_id: self.group_id.clone(),
-                collapse_session_list_storage_id: self.collapse_session_list_storage_id.clone(),
             });
         }
         intents
@@ -114,8 +107,5 @@ pub fn project_slot_plan(
         reveal: target_session_id.is_some()
             && (!was_collapsed || settings.expand_collapsed_projects_on_jump),
         target_session_id,
-        collapse_session_list_storage_id: (expand_group
-            && settings.show_less_for_expanded_project_jumps)
-            .then(|| group.core.storage_id.clone()),
     })
 }

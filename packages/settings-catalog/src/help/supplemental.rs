@@ -531,17 +531,6 @@ pub(crate) const SUPPLEMENTAL_ROWS: &[Supplemental] = &[
         user_only: false,
     },
     Supplemental {
-        key: "showLessForExpandedProjectJumps",
-        tab: HOTKEYS,
-        group: None,
-        section: "projects",
-        section_title: "Projects",
-        title: "Compact list after project jumps",
-        subtitle: "Switch the session list of a project expanded by a jump to Compact.",
-        options: &[],
-        user_only: false,
-    },
-    Supplemental {
         key: "sidebarSessionCycleSkipsSleeping",
         tab: HOTKEYS,
         group: None,

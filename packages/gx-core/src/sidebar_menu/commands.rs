@@ -222,11 +222,6 @@ impl MenuCommand {
         Self(Value::Object(object))
     }
 
-    /// `{ type: 'toggleList', groupId }`: switches a project between the compact and the full session list.
-    pub(crate) fn toggle_list(storage_id: &str) -> Self {
-        Self(json!({ "type": "toggleList", "groupId": storage_id }))
-    }
-
     /// `{ type: 'projectAction', groupId, action, agentId? }`.
     pub(crate) fn project_action(group_id: &str, action: &str, agent_id: Option<&str>) -> Self {
         let mut object = Map::new();

@@ -171,11 +171,6 @@ pub(crate) fn build_group(
         })
         .collect();
 
-    let is_project_group = plan.project.is_some();
-    let expanded = ui
-        .collapse
-        .expanded_session_lists
-        .contains(&plan.storage_id);
     let GroupLayout {
         mut sessions,
         layout,
@@ -185,7 +180,6 @@ pub(crate) fn build_group(
         &store_rows,
         &plan.storage_id,
         is_active,
-        is_project_group,
         ui,
         settings,
         now_ms,
@@ -227,9 +221,6 @@ pub(crate) fn build_group(
         }),
         summary,
         collapsed: ui.collapse.collapsed_groups.contains(&plan.group_id),
-        expanded,
-        hidden_session_count: layout.hidden_session_count,
-        show_list_toggle: layout.show_list_toggle,
         hover_actions_expanded: ui
             .collapse
             .expanded_hover_actions
@@ -262,8 +253,7 @@ pub(crate) struct GroupLayout {
 }
 
 /// A group's rows (in the group's own order) as the list draws them: sorted into display order, tag
-/// filtered, threads nested under their coordinators, and split into sections with the compact
-/// list's cut. Also says whether the tag filter left the group empty.
+/// filtered, threads nested under their coordinators, and split into sections. Also says whether the tag filter left the group empty.
 ///
 /// CDXC:Sidebar 2026-10-01 WHY:
 /// The list and a drag's drop line both call this, so the line is drawn where the row really lands
@@ -274,7 +264,6 @@ pub(crate) fn lay_out_group_rows(
     store_rows: &[SessionView],
     storage_id: &str,
     is_active: bool,
-    is_project_group: bool,
     ui: &SidebarUiState,
     settings: &SidebarSettings,
     now_ms: u64,
@@ -322,16 +311,8 @@ pub(crate) fn lay_out_group_rows(
         .get(storage_id)
         .copied()
         .unwrap_or_default();
-    let expanded = ui.collapse.expanded_session_lists.contains(storage_id);
-    let layout = project_session_sections(
-        &sessions,
-        &section_by_session,
-        is_active,
-        is_project_group,
-        section_collapse,
-        expanded,
-        settings.project_session_list_collapsed_count,
-    );
+    let layout =
+        project_session_sections(&sessions, &section_by_session, is_active, section_collapse);
     GroupLayout {
         sessions,
         section_by_session,

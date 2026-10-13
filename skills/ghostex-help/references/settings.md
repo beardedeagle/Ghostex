@@ -39,7 +39,6 @@ How to use this file:
 - **Minimize after** `commandsPanelAutoMinimizeDelaySeconds` (number one of 15 | 30 | 60 | 120 | 300; default 60): How long the Commands pane stays open after focus and the pointer leave it. Option labels: 15 = 15 seconds, 30 = 30 seconds, 60 = 1 minute, 120 = 2 minutes, 300 = 5 minutes.
 - **Hide New Terminal button** `hideTabStripNewTerminalButton` (boolean, default false): Hide the New Terminal button from the tab strip.
 - **Hide New Browser Tab button** `hideTabStripNewBrowserButton` (boolean, default false): Hide the New Browser Tab button from the tab strip.
-- **Compact Session Rows** `projectSessionListCollapsedCount` (number 1 to 50 default 13) [advanced]: Rows a project shows in Compact mode before its "Show all" row. Rows in collapsed sections do not count.
 - **Group working sessions** `groupWorkingSessions` (boolean, default false): Move sessions into a collapsed Working section under their project while their agent works; they return to Sessions when it stops or needs you. Also in the sidebar's Sort & Filter menu.
 - **Sidebar Interface Size** `agentManagerZoomPercent` (number 50 to 200 default 100): Scale the sidebar interface.
 - **Double-click empty sidebar space to create a session** `createSessionOnSidebarDoubleClick` (boolean, default false) [advanced]: Create a session from empty sidebar space.
@@ -564,7 +563,6 @@ How to use this file:
 ### Projects
 
 - **Expand collapsed projects on jump** `expandCollapsedProjectsOnJump` (boolean, default true): Expand a collapsed project when a project-jump hotkey lands on it.
-- **Compact list after project jumps** `showLessForExpandedProjectJumps` (boolean, default false): Switch the session list of a project expanded by a jump to Compact.
 ### Navigation
 
 - **Skip sleeping sessions** `sidebarSessionCycleSkipsSleeping` (boolean, default false): Next Session and Previous Session jump over sleeping sessions in the sidebar.

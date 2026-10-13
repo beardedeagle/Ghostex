@@ -480,7 +480,6 @@ pub const DEFAULT_GHOSTEX_SETTINGS: &[(&str, J)] = &[
     // value for explicit sidebar-handle double-click resets without changing the
     // last-width restore path used at app restart.
     ("sidebarDefaultWidthPx", J::Num(275.0)),
-    ("projectSessionListCollapsedCount", J::Num(13.0)),
     ("groupWorkingSessions", J::Bool(false)),
     ("sidebarSpacesEnabled", J::Bool(false)),
     ("sidebarSpaceSwitchBehavior", J::Str("restore")),
@@ -488,7 +487,6 @@ pub const DEFAULT_GHOSTEX_SETTINGS: &[(&str, J)] = &[
     ("sidebarSpaceFollowActiveSession", J::Bool(false)),
     ("sidebarVisibilityMemory", J::Str("shared")),
     ("expandCollapsedProjectsOnJump", J::Bool(true)),
-    ("showLessForExpandedProjectJumps", J::Bool(false)),
     // CDXC:Theming 2026-09-14 DECISION: User: default App theme to System, with Chat and Terminal on Follow app. Existing saved theme selections remain unchanged.
     ("sidebarTheme", J::Str("system")),
     ("sessionChatTheme", J::Str("app")),

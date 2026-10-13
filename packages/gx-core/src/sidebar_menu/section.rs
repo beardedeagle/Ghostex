@@ -10,7 +10,7 @@ use super::item::MenuItem;
 /// The menu a right click on a section heading opens, or `None` for a heading that has none.
 ///
 /// CDXC:Sessions 2026-10-09 DECISION:
-/// User: right-clicking the Parked header offers Sleep All and Close All. Both act on every parked session of the project, the ones a collapsed heading or the compact list hides too.
+/// User: right-clicking the Parked header offers Sleep All and Close All. Both act on every parked session of the project, the ones a collapsed heading hides too.
 pub(crate) fn section_menu(group: &GroupView, section: &SectionView) -> Option<Vec<MenuItem>> {
     if section.id != SectionId::Parked || section.member_ids.is_empty() || group.core.is_stale {
         return None;

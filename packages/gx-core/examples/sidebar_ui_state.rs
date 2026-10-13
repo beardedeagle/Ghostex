@@ -113,20 +113,12 @@ fn main() -> ExitCode {
         format!("{:?}", read.collapsed_collections),
     );
     check(
-        "stored expanded lists and hover rows",
-        read.expanded_session_lists
+        "stored hover rows",
+        read.expanded_hover_actions
             .iter()
             .map(String::as_str)
-            .eq(["alpha"])
-            && read
-                .expanded_hover_actions
-                .iter()
-                .map(String::as_str)
-                .eq(["beta"]),
-        format!(
-            "{:?} {:?}",
-            read.expanded_session_lists, read.expanded_hover_actions
-        ),
+            .eq(["beta"]),
+        format!("{:?}", read.expanded_hover_actions),
     );
     let sections = read
         .section_collapse
@@ -220,7 +212,7 @@ fn main() -> ExitCode {
     check(
         "a first write spells out the unowned defaults",
         collapse_into_storage(&Default::default(), None)
-            == r#"{"state":{"collapsedCoordinatorsById":{},"collapsedGroupsById":{},"collapsedProjectCollectionsByKey":{},"collapsedProjectSessionSectionsById":{},"expandedCoordinatorOlderThreadsById":{},"expandedProjectSessionListsById":{},"expandedSessionCardHoverActionsById":{},"isReferenceChatsCollapsed":false,"recentSessionIdsBySpace":{},"selectedSpaceIdBySectionKey":{}},"version":3}"#,
+            == r#"{"state":{"collapsedCoordinatorsById":{},"collapsedGroupsById":{},"collapsedProjectCollectionsByKey":{},"collapsedProjectSessionSectionsById":{},"expandedCoordinatorOlderThreadsById":{},"expandedSessionCardHoverActionsById":{},"isReferenceChatsCollapsed":false,"recentSessionIdsBySpace":{},"selectedSpaceIdBySectionKey":{}},"version":3}"#,
         collapse_into_storage(&Default::default(), None),
     );
 
@@ -300,7 +292,9 @@ fn main() -> ExitCode {
         let storage_id = format!("p{}", step % groups.len());
         let intent = match step % 11 {
             0 => SidebarUiIntent::ToggleGroupCollapsed { group_id },
-            1 => SidebarUiIntent::ToggleSessionListExpanded { storage_id },
+            1 => SidebarUiIntent::ToggleCoordinatorCollapsed {
+                sidebar_session_id: format!("combined-session:{storage_id}:one"),
+            },
             2 => SidebarUiIntent::ToggleHoverActions { storage_id },
             3 => SidebarUiIntent::ToggleSection {
                 storage_id,

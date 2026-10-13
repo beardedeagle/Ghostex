@@ -274,10 +274,6 @@ pub fn exports(module: &str, platform: Platform) -> Vec<(&'static str, Json)> {
                 MAX_CUSTOM_SIDEBAR_TITLEBAR_LIGHT_BACKGROUND_LIGHTNESS_PERCENT.to_json(),
             ),
             (
-                "MAX_PROJECT_SESSION_LIST_COLLAPSED_COUNT",
-                MAX_PROJECT_SESSION_LIST_COLLAPSED_COUNT.to_json(),
-            ),
-            (
                 "MAX_PROJECT_SWITCH_KEEP_ALIVE_MINUTES",
                 MAX_PROJECT_SWITCH_KEEP_ALIVE_MINUTES.to_json(),
             ),
@@ -344,10 +340,6 @@ pub fn exports(module: &str, platform: Platform) -> Vec<(&'static str, Json)> {
             (
                 "MIN_CUSTOM_SIDEBAR_TITLEBAR_LIGHT_BACKGROUND_LIGHTNESS_PERCENT",
                 MIN_CUSTOM_SIDEBAR_TITLEBAR_LIGHT_BACKGROUND_LIGHTNESS_PERCENT.to_json(),
-            ),
-            (
-                "MIN_PROJECT_SESSION_LIST_COLLAPSED_COUNT",
-                MIN_PROJECT_SESSION_LIST_COLLAPSED_COUNT.to_json(),
             ),
             (
                 "MIN_PROJECT_SWITCH_KEEP_ALIVE_MINUTES",

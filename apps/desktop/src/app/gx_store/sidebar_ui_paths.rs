@@ -13,9 +13,7 @@
 //!   naming a Space that is gone. The renderer forwards the dialog's result to the sidebar page,
 //!   which owns the Spaces document; this takes the one consequence the SIDEBAR STATE has.
 //! - **`gpuiProjectSlotHotkey`.** A THIRD route, neither of the two sidebar-command envelopes. It
-//!   deletes the jumped-to project's collapsed flag and, with `showLessForExpandedProjectJumps` on,
-//!   its session list's expanded flag, and that second one fought the Rust reveal that follows the
-//!   same jump over one key on every cmd+ctrl+1..9. What moves here is the state, whether or not
+//!   deletes the jumped-to project's collapsed flag. What moves here is the state, whether or not
 //!   the list is ready to be jumped in; the jump itself (the focus and the reveal) is
 //!   `sidebar_slot_jump.rs`.
 //!

@@ -43,9 +43,6 @@ pub(crate) struct NativeSidebarGroup {
     pub(crate) storage_id: String,
     pub(crate) summary: Value,
     pub(crate) collapsed: bool,
-    pub(crate) expanded: bool,
-    pub(crate) hidden_session_count: usize,
-    pub(crate) show_list_toggle: bool,
     pub(crate) hover_actions_expanded: bool,
     /// Behind an `Arc` because they are the heavy part of a group and never change on their own:
     /// the header buttons carry the agent launcher, whose rows each hold a logo data URL of up to

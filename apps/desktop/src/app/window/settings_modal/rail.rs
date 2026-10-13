@@ -41,7 +41,6 @@ pub(crate) struct RailPage {
 /// and a section left with none of its hotkeys goes with them.
 pub(crate) fn hotkey_section_searches(
     query: &str,
-    expand_collapsed: bool,
     hotkey_shown: &dyn Fn(&str) -> bool,
 ) -> Vec<(String, String, SectionSearch)> {
     let catalog = settings_catalog();
@@ -70,13 +69,6 @@ pub(crate) fn hotkey_section_searches(
                     "Expand collapsed projects on jump",
                     "Reveal a collapsed Projects row before focusing it from Jump to Project hotkeys.",
                 ));
-                if expand_collapsed {
-                    rows.push(row(
-                        "showLessForExpandedProjectJumps",
-                        "Use Compact list after jump expand",
-                        "After a project jump expands a collapsed project, switch that project session list to Compact.",
-                    ));
-                }
             }
             if id == "navigation" {
                 rows.push(row(
@@ -148,12 +140,11 @@ pub(crate) fn rail_pages(store: &SettingsStore) -> Vec<RailPage> {
             title: group.title,
         })
         .collect();
-    let hotkey_sections =
-        hotkey_section_searches(&query, store.bool("expandCollapsedProjectsOnJump"), &|id| {
-            ghostex_settings_catalog::built_in_extensions::hotkey_shown_with(id, |key| {
-                Some(store.bool(key))
-            })
-        });
+    let hotkey_sections = hotkey_section_searches(&query, &|id| {
+        ghostex_settings_catalog::built_in_extensions::hotkey_shown_with(id, |key| {
+            Some(store.bool(key))
+        })
+    });
     let active_hotkey = store
         .active_section(SettingsTabId::Hotkeys)
         .unwrap_or_else(|| "general".to_string());

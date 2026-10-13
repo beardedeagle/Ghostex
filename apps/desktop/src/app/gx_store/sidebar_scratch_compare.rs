@@ -117,15 +117,6 @@ pub(super) fn compare_views(
         note("storageId", kept.storage_id == built.storage_id);
         note("isActive", kept.is_active == built.is_active);
         note("collapsed", kept.collapsed == built.collapsed);
-        note("expanded", kept.expanded == built.expanded);
-        note(
-            "hiddenSessionCount",
-            kept.hidden_session_count == built.hidden_session_count,
-        );
-        note(
-            "showListToggle",
-            kept.show_list_toggle == built.show_list_toggle,
-        );
         note(
             "hoverActionsExpanded",
             kept.hover_actions_expanded == built.hover_actions_expanded,

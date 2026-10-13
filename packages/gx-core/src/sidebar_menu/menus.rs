@@ -17,7 +17,6 @@ use crate::sidebar_view::{
     LOCAL_MACHINE_ID,
 };
 
-use super::commands::MenuCommand;
 use super::group::MenuGroup;
 use super::host::MenuHost;
 use super::hover::HoverAction;
@@ -291,7 +290,8 @@ impl<'a> SidebarMenus<'a> {
     /// A project header's context menu: the buttons the header no longer draws, then the menu proper.
     pub fn project_menu(&self, group: &GroupView) -> Vec<MenuItem> {
         let menu_group = self.menu_group(group);
-        let mut menu = self.project_header_menu_rows(group, &menu_group);
+        let mut menu =
+            header::project_header_menu_rows(&menu_group, &self.inputs.settings, self.host);
         if !menu.is_empty() {
             menu.push(MenuItem::separator());
         }
@@ -328,7 +328,9 @@ impl<'a> SidebarMenus<'a> {
         let menu_group = self.menu_group(group);
         let mut actions =
             header::project_header_actions(&menu_group, &self.inputs.settings, self.host);
-        if !self.project_header_menu_rows(group, &menu_group).is_empty() {
+        if !header::project_header_menu_rows(&menu_group, &self.inputs.settings, self.host)
+            .is_empty()
+        {
             actions.insert(
                 0,
                 MenuItem {
@@ -340,33 +342,6 @@ impl<'a> SidebarMenus<'a> {
             );
         }
         actions
-    }
-
-    /// The rows that moved off the project header into its menu: the Compact/Full list toggle, then
-    /// worktree or PR, History, browser, terminal and the pinned Actions. Empty for a bot or a
-    /// user-made group, whose few header buttons stay.
-    fn project_header_menu_rows(
-        &self,
-        group: &GroupView,
-        menu_group: &MenuGroup<'_>,
-    ) -> Vec<MenuItem> {
-        let mut rows = header::project_header_menu_rows(menu_group, &self.inputs.settings, self.host);
-        if !rows.is_empty() && group.core.show_list_toggle {
-            let (label, icon) = if group.core.expanded {
-                ("Compact", "chevron-up")
-            } else {
-                ("Full", "chevron-down")
-            };
-            rows.insert(
-                0,
-                MenuItem::row(
-                    label,
-                    icon,
-                    MenuCommand::toggle_list(menu_group.storage_id),
-                ),
-            );
-        }
-        rows
     }
 
     /// A collection's context menu.

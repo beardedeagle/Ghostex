@@ -89,7 +89,6 @@ impl SidebarViewModel {
             &rows,
             &core.storage_id,
             core.is_active,
-            core.project_context.is_some(),
             &inputs.ui,
             &inputs.settings,
             now_ms,

@@ -374,7 +374,7 @@ Related settings: `terminalViewWidthMode`, `webLinkOpenTarget`,
 The sidebar lists projects and their sessions. Project headers carry the git
 branch and diff stats and, on hover, the agent launcher (New agent and the
 agent picker) and a ⋯ button. The ⋯ button, or a right-click on the project,
-opens the project menu: Compact/Full list, Add Worktree (or Create PR), History,
+opens the project menu: Add Worktree (or Create PR), History,
 New Browser Tab, Create Terminal, pinned Actions, Open Folder in the file
 manager and Add to Group.
 A project's Sleep, Wake, Sleep Inactive and Close Inactive act on that
@@ -615,15 +615,11 @@ where they are while you open, change and close views.
   `sessionCardHoverButtons` (a list of `{ id, enabled }` with ids `rename`,
   `pin`, `note`, `snooze`, `closeAfterDone`, `tag`, `park`, `sleep`,
   `close`, `chevron`) and `showSessionCardHoverButtonsInContextMenu`.
-- Long projects: a project with more sessions than Compact Session Rows (13
-  by default, up to 50) starts in Compact mode and shows only that many rows
-  plus a "Show all N sessions" row. Rows inside a collapsed Pinned, Drafts,
-  Parked, or Snoozed section do not count. Click that row, or the chevron on
-  the project header, to switch the project to Full mode, which shows every
-  row; the chevron switches it back to Compact. Each project remembers its
-  mode. The sidebar is the only scroller, and a project's header stays pinned
-  at the top while you scroll through its rows. Setting:
-  `projectSessionListCollapsedCount`.
+- Long projects: every project always lists all of its sessions; there is
+  no Show all row or Compact mode. Collapse a section heading (Pinned, Drafts,
+  Sessions, Parked, Snoozed) to tuck its rows away. The sidebar is the only
+  scroller, and a project's header stays pinned at the top while you scroll
+  through its rows.
 - Drag a session onto another section of its project (its heading or any row
   in it) to move it there: Pinned pins it, Sessions unpins and unparks it, and
   Parked parks it. Dropped between two pinned sessions, it is pinned right
@@ -634,7 +630,7 @@ where they are while you open, change and close views.
 - Sidebar section headings (Pinned, Sessions, Drafts, Parked, and
   Snoozed) show an orange dot when a session is working, a blue dot when
   a session is done, and a pink dot when an agent is waiting for an answer,
-  including rows hidden by collapse or Compact mode. Pending questions use
+  including rows hidden by a collapsed heading. Pending questions use
   pink instead of blue; multiple dots appear when multiple states are present,
   including orange and pink when an agent keeps working after asking. Collapsed
   headings show their session count at the right edge and a muted gray hollow

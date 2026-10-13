@@ -86,9 +86,6 @@ impl GhostexGpuiApp {
             "toggleGroup" => Some(SidebarUiIntent::ToggleGroupCollapsed {
                 group_id: text("groupId")?,
             }),
-            "toggleList" => Some(SidebarUiIntent::ToggleSessionListExpanded {
-                storage_id: text("groupId")?,
-            }),
             "toggleHoverActions" => Some(SidebarUiIntent::ToggleHoverActions {
                 storage_id: text("groupId")?,
             }),

@@ -47,7 +47,6 @@ struct GroupKey {
     tag_filters: Vec<String>,
     group_working_sessions: bool,
     collapsed: bool,
-    expanded: bool,
     hover_actions_expanded: bool,
     /// The group's coordinator rows whose threads the user folded, by position.
     collapsed_coordinators: Vec<usize>,
@@ -57,7 +56,6 @@ struct GroupKey {
     coordinator_threads: Vec<(usize, ThreadTally)>,
     section_collapse: SectionCollapse,
     enable_parking: bool,
-    compact_count: u32,
     sort_mode: super::inputs::SessionSortMode,
     /// The machine's stream dropped while its rows are held, which fades the whole group.
     is_stale: bool,
@@ -982,11 +980,6 @@ fn group_key(
         tag_filters: inputs.ui.selected_tag_filters.clone(),
         group_working_sessions: inputs.settings.group_working_sessions,
         collapsed: inputs.ui.collapse.collapsed_groups.contains(&plan.group_id),
-        expanded: inputs
-            .ui
-            .collapse
-            .expanded_session_lists
-            .contains(&plan.storage_id),
         hover_actions_expanded: inputs
             .ui
             .collapse
@@ -1038,7 +1031,6 @@ fn group_key(
             .copied()
             .unwrap_or_default(),
         enable_parking: inputs.settings.enable_session_parking,
-        compact_count: inputs.settings.project_session_list_collapsed_count,
         sort_mode: inputs.settings.sort_mode,
         is_stale: plan.is_stale,
         machine_name: plan

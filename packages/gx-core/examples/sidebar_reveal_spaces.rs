@@ -328,31 +328,17 @@ fn seven_spaces(check: &dyn Fn(&str, bool, String)) {
         format!("{:?}", slot(&all, &all_view, 1)),
     );
     check(
-        "slot hotkey: a collapsed project is expanded, its list untouched",
-        slot(&all, &all_view, collapsed_slot).is_some_and(|plan| {
-            plan.was_collapsed
-                && plan.expand_group
-                && plan.collapse_session_list_storage_id.is_none()
-        }),
+        "slot hotkey: a collapsed project is expanded",
+        slot(&all, &all_view, collapsed_slot)
+            .is_some_and(|plan| plan.was_collapsed && plan.expand_group),
         format!("{:?}", slot(&all, &all_view, collapsed_slot)),
     );
-    let mut show_less = all.clone();
-    show_less.settings.show_less_for_expanded_project_jumps = true;
-    check(
-        "slot hotkey: Show Less also puts the session list back",
-        slot(&show_less, &all_view, collapsed_slot)
-            .is_some_and(|plan| plan.collapse_session_list_storage_id.is_some()),
-        format!("{:?}", slot(&show_less, &all_view, collapsed_slot)),
-    );
-    let mut no_expand = show_less.clone();
+    let mut no_expand = all.clone();
     no_expand.settings.expand_collapsed_projects_on_jump = false;
     check(
-        "slot hotkey: with the jump setting off neither key moves",
-        slot(&no_expand, &all_view, collapsed_slot).is_some_and(|plan| {
-            plan.was_collapsed
-                && !plan.expand_group
-                && plan.collapse_session_list_storage_id.is_none()
-        }),
+        "slot hotkey: with the jump setting off the project stays collapsed",
+        slot(&no_expand, &all_view, collapsed_slot)
+            .is_some_and(|plan| plan.was_collapsed && !plan.expand_group),
         format!("{:?}", slot(&no_expand, &all_view, collapsed_slot)),
     );
 
