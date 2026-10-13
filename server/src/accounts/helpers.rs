@@ -49,10 +49,19 @@ fn install_dirs(home: &Path) -> Vec<PathBuf> {
 }
 
 pub(crate) fn json_command(home: &Path, name: &str, args: &[&str]) -> Result<Value, String> {
+    json_command_env(home, name, args, &[])
+}
+fn json_command_env(
+    home: &Path,
+    name: &str,
+    args: &[&str],
+    envs: &[(&str, &Path)],
+) -> Result<Value, String> {
     let binary =
         executable(home, name).ok_or_else(|| format!("Install {name} on this computer first."))?;
     let mut command = crate::platform::process::background_command(binary);
     command.args(args).env("HOME", home);
+    command.envs(envs.iter().copied());
     // The Windows helpers resolve their registry from USERPROFILE, so both variables must name the same home.
     #[cfg(windows)]
     command.env("USERPROFILE", home);
@@ -188,7 +197,10 @@ fn age_text(seconds: f64) -> String {
 /// CDXC:AgentProviders 2026-09-05 DECISION:
 /// cswap owns Claude credentials and selected-account launches; gxserver schedules usage reads and decides when sessions switch. xswap supplies Codex account homes and launches.
 pub(crate) fn discover(home: &Path, provider: Provider) -> Result<Vec<DiscoveredAccount>, String> {
-    let data = json_command(home, provider.helper(), &["list", "--json"])?;
+    let mut data = json_command(home, provider.helper(), &["list", "--json"])?;
+    if provider == Provider::Claude {
+        reread_signed_out_default_account(home, &mut data);
+    }
     let rows = data
         .get("accounts")
         .and_then(Value::as_array)
@@ -205,6 +217,37 @@ pub(crate) fn discover(home: &Path, provider: Provider) -> Result<Vec<Discovered
             .filter_map(|task| task.join().ok().flatten())
             .collect()
     }))
+}
+/// CDXC:AgentProviders 2026-10-14 WHY:
+/// cswap marks the account the default `claude` profile (`~/.claude.json`) names as `active` and judges that row by the default profile's own live login instead of the slot's saved one. With the default profile signed out, that row read `no_credentials` however often the account signed in again (the sign-in refreshes only the saved login, from a temporary profile), so "Sign in again" ended with "Sign in to this account before adding it." Ghostex starts every account from its saved login (`cswap run`), so that one row is read again with an empty Claude profile, where no slot is active and cswap judges it by its saved login. Only a signed-out default profile is read again: with a live default login the saved and live tokens can share one refresh-token family, and only cswap's active path refreshes that safely.
+fn reread_signed_out_default_account(home: &Path, data: &mut Value) {
+    let Some(rows) = data.get_mut("accounts").and_then(Value::as_array_mut) else {
+        return;
+    };
+    let Some(row) = rows
+        .iter_mut()
+        .find(|row| row["active"] == true && row["usageStatus"] == "no_credentials")
+    else {
+        return;
+    };
+    let Ok(profile) = tempfile::Builder::new().prefix("ghostex-cswap-").tempdir() else {
+        return;
+    };
+    let Ok(saved) = json_command_env(
+        home,
+        "cswap",
+        &["list", "--json"],
+        &[("CLAUDE_CONFIG_DIR", profile.path())],
+    ) else {
+        return;
+    };
+    if let Some(saved_row) = saved["accounts"].as_array().and_then(|saved_rows| {
+        saved_rows
+            .iter()
+            .find(|saved_row| saved_row["number"] == row["number"])
+    }) {
+        *row = saved_row.clone();
+    }
 }
 fn discover_row(home: &Path, provider: Provider, row: &Value) -> Option<DiscoveredAccount> {
     let number = row.get("number").and_then(Value::as_u64)?;
