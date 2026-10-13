@@ -80,8 +80,8 @@ impl DocsFileKind {
     }
 }
 
-/// CDXC:Docs 2026-10-01 DECISION:
-/// User chose (options 1A, 2A, 3A): HTML, Excalidraw and Markdown files pop out to the default browser through a gxserver link, so they work in a real browser and from remote projects; an Open With menu beside the header's pop-out button and in a file's right-click menu offers the other browsers for the link and the apps for the file; the view strip's Open Externally pops out the open file instead of staying disabled in Files.
+/// CDXC:Docs 2026-10-13 DECISION:
+/// User chose (options 1A, 2A, 3A): HTML, Excalidraw and Markdown files pop out to the default browser through a gxserver link, so they work in a real browser and from remote projects; an Open With menu beside the header's pop-out button and in a file's right-click menu offers the other browsers for the link and the apps for the file; the view strip's Open Externally pops out the open file instead of staying disabled in Files. On 2026-10-13 the user added: "add file explorer here as top option please", so a local file's Open With menu starts with the system file manager (File Explorer, Finder), which shows the file selected through the same reveal action as the entry menu.
 pub(crate) fn file_opens_externally(path: &str) -> bool {
     !is_review_path(path) && DocsFileKind::for_path(path).opens_externally()
 }
@@ -252,6 +252,21 @@ impl GhostexGpuiApp {
             }))
         };
         let mut menu = GpuiContextMenu::new();
+        // The system file manager is the top row, for a file on this computer only.
+        if self.native_docs_remote_target().is_none() {
+            let file_manager = if cfg!(target_os = "windows") {
+                "File Explorer"
+            } else if cfg!(target_os = "macos") {
+                "Finder"
+            } else {
+                "File Manager"
+            };
+            menu = menu.menu(
+                file_manager,
+                super::actions::action(json!({ "type": "revealInFinder", "path": path })),
+            );
+            menu = menu.separator();
+        }
         // Apps that take web links but cannot show a page (launchers, chat apps) are left out:
         // a browser is an app that also opens HTML files.
         let browsers = if file_opens_externally(path) {
