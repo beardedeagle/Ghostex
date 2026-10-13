@@ -74,8 +74,11 @@ fn notice_from_picker(
 ) -> SessionChatTerminalNotice {
     use crate::session_chat_resume_prompt::SessionChatTerminalPickerKind;
     let picker = picker.with_catalog_model_names();
-    let guidance =
-        "Claude Code accepts no input until this is answered. Pick an option to answer it here.";
+    let guidance = if picker.kind == SessionChatTerminalPickerKind::AntigravityPermission {
+        "Antigravity CLI accepts no input until this is answered. Pick an option to answer it here."
+    } else {
+        "Claude Code accepts no input until this is answered. Pick an option to answer it here."
+    };
     let detail = match picker.detail.as_deref() {
         Some(prose) => format!("{prose} {guidance}"),
         None => guidance.to_string(),
@@ -100,6 +103,10 @@ fn notice_from_picker(
         SessionChatTerminalPickerKind::PermissionPrompt => (
             SESSION_CHAT_NOTICE_PERMISSION_PROMPT,
             "Claude Code is asking for permission to proceed",
+        ),
+        SessionChatTerminalPickerKind::AntigravityPermission => (
+            SESSION_CHAT_NOTICE_PERMISSION_PROMPT,
+            "Antigravity CLI is asking for permission to proceed",
         ),
     };
     SessionChatTerminalNotice::new(
@@ -344,6 +351,15 @@ pub fn classify_session_chat_terminal_notice(
                 return Some(notice);
             }
             return Some(dialog.into_notice(SESSION_CHAT_NOTICE_CLAUDE_INPUT_BLOCKED));
+        }
+    }
+    if agent == SessionChatOptionAgent::Antigravity {
+        if let Some(picker) =
+            crate::session_chat_antigravity_permission::detect_antigravity_permission_picker(
+                screen_text,
+            )
+        {
+            return Some(notice_from_picker(&screen, picker));
         }
     }
     if agent == SessionChatOptionAgent::Codex {

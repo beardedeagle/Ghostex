@@ -230,6 +230,9 @@ pub enum SessionChatTerminalPickerKind {
     SessionPaused,
     /// A tool permission prompt ("Do you want to proceed?" over Yes/No rows).
     PermissionPrompt,
+    /// Antigravity CLI's tool permission panel
+    /// (`session_chat_antigravity_permission.rs`), answered by row number.
+    AntigravityPermission,
 }
 
 /// One row of an on-screen picker, in the order it is painted.
@@ -366,7 +369,7 @@ fn strip_box_border(line: &str) -> &str {
 
 /// `❯ 2. Resume full session as-is` → (selected, number, label). Rows that are
 /// not a numbered picker row return `None`.
-fn parse_picker_row(line: &str) -> Option<(bool, u32, String)> {
+pub(crate) fn parse_picker_row(line: &str) -> Option<(bool, u32, String)> {
     let trimmed = strip_box_border(line);
     let mut rest = trimmed;
     let mut selected = false;
