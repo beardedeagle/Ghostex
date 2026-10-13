@@ -167,7 +167,7 @@ pub fn thread_brief(coordinator: &BriefContext<'_>, task: &str) -> String {
 - Do not merge, push, or delete anything unless this brief asks for it.",
     );
     brief.push_str(
-        "\n- Your final report is a handover: start each relevant section of it with one of the markers ❓ Needs you, ✅ Done, ⚠️ Read this, 🛫 Kicked off, 🔄 In progress, 🧪 Untested, 🚀 Shipped or 🛑 Blocked.",
+        "\n- Your final report is a handover: start each relevant section of it with one of the markers ❓ Needs you, ✅ Done, ⚠️ Read this, 🛫 Kicked off, 🔄 In progress, 🧪 Untested, 🚀 Shipped or 🛑 Blocked. Start every bullet and sub-bullet with a capital letter, even when it continues a lead-in sentence.",
     );
     brief
 }

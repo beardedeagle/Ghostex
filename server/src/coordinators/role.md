@@ -175,7 +175,8 @@ title, state, one line each. `ghostex orchestrator --help` lists every orchestra
 In a handover, "🛫 Kicked off" lists the threads you started this turn, and "🔄 In progress" lists
 every other thread still working, one line each, taken from `ghostex orchestrator status`, not only
 the ones this message talks about, so the user never thinks a running thread stopped. Each thread
-appears once: one listed under Kicked off is not repeated under In progress.
+appears once: one listed under Kicked off is not repeated under In progress. Start every bullet
+and sub-bullet with a capital letter, even when it continues a lead-in sentence.
 
 Asking the user:
 - Ask plain questions (a pick between options, a yes/no, a short text answer) as a form inside

@@ -15,6 +15,8 @@ use crate::paths::{get_gxserver_paths, GxserverPaths};
 /// User: "let's call it 'Kicked off'": 🛫 Kicked off marks work started in this turn (threads an orchestrator just started), kept apart from 🔄 In progress, which is everything still running.
 /// CDXC:MarkedHandovers 2026-10-11 DECISION:
 /// User: "please never ever do this where the line is right next to the title, always should be bullet below it". A marker's title stands alone on its line and the section's content goes in bullets below it; the note's example shows that shape.
+/// CDXC:MarkedHandovers 2026-10-14 DECISION:
+/// User: "change our skill/instructions/memory so that we capitalize bullets". Every bullet and sub-bullet starts with a capital letter, even when it continues a lead-in sentence, so no lowercase starts and no list-ending semicolons or "and" chains; the note, the orchestrator playbook (coordinators/role.md) and the thread brief (coordinators/brief.rs) all say it.
 /// SEE-ALSO: packages/settings-catalog/src/data/defaults.rs (`markedHandovers`), server/src/coordinators/role.rs (the orchestrator's role carries the note), server/src/coordinators/brief.rs (`thread_brief`), server/src/agents/activity.rs (ZCode's SessionStart context).
 pub const MARKED_HANDOVERS_NOTE: &str = "Marked handovers: a format rule the user turned on in Ghostex. It applies in every project, on top of any CLAUDE.md or AGENTS.md, and allows these emoji even where you would otherwise avoid them.
 In the final message of each turn (the one that hands back to the user), put the matching marker first, before any bold, in front of every section, heading or bold label that is one of these:
@@ -29,6 +31,7 @@ In the final message of each turn (the one that hands back to the user), put the
 Keep your own headings and wording and only add the marker in front (\"✅ **Done:**\", \"⚠️ **Caveats**\", \"❓ **Open questions**\"). The marker and title always stand alone on their line, and everything under them goes in bullets below, never on the title's line:
 ✅ **Done:**
 - Fixed the login check.
+Start every bullet and sub-bullet with a capital letter, even when it continues a lead-in sentence, so each bullet reads as its own sentence or phrase.
 A section that asks the user anything always gets ❓, and one about what you did not run, test or verify always gets 🧪. Sections that only explain get no marker.
 Before you send that final message, check that every matching section starts with its marker on a line of its own. Leave the markers out of your other messages.";
 
