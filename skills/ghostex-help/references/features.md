@@ -813,6 +813,9 @@ when you open it.
   CLI with resume and fork. The History icon immediately to the
   right of Add Worktree on a project header opens Quick Access > Sessions with
   that project selected and Closed active, ready to search sessions you closed.
+  From a terminal, `ghostex previous-sessions [--query text] --json` lists closed
+  sessions and `ghostex restore-previous-session --project-id <id> --session-id <id>`
+  brings one back.
   Quick Access also discovers existing Claude, Codex, and ZCode conversations
   from outside Ghostex. Opening an imported ZCode conversation resumes it in
   a terminal with `zcode --resume <session-id>`; install the ZCode CLI on that
@@ -2174,8 +2177,11 @@ sessions, so any client can control agents on any machine.
   list shows a warning with the failure reason and a Retry button. The warning
   clears once the list successfully refreshes.
   To find a session on the phone, tap the search button at the top right of the
-  Sessions list and type part of its name or tag; it searches the open sessions
-  of every connected computer, newest first, and tapping a result opens it.
+  Sessions list and type part of its name or tag; it searches the open and
+  closed sessions of every connected computer, newest first, like the desktop's
+  Sessions search. Tapping an open session opens it; tapping a closed one (shown
+  with a hollow dot) brings it back on its computer and opens it. Closed
+  sessions appear once that computer runs an up-to-date Ghostex.
   Paired devices are listed and can be removed. On the phone, open Web Preview
   from the machine menu and enter a website address or a port such as `3000`
   immediately, or choose a listening port from the list. The address bar stays
