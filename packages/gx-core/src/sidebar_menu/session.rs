@@ -639,7 +639,10 @@ fn full_menu(
         let sleepable: Vec<String> = input
             .below
             .iter()
-            .filter(|row| can_sleep(row))
+            // CDXC:SessionSleep 2026-10-01 DECISION: User: "please don't sleep terminal sessions that have shell running or a question status", and Sleep Below is a bulk sweep too, so it skips rows with the grey shell-running dot or an unanswered question.
+            .filter(|row| {
+                can_sleep(row) && !row.has_background_work && row.pending_question_count == 0
+            })
             .map(|row| row.sidebar_session_id.clone())
             .collect();
         if !sleepable.is_empty() {
