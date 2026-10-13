@@ -107,63 +107,96 @@ const DIRECTORY_TRUST_ID_PREFIX: &str = "codex-directory-trust:";
 const FOLDER_ACCESS_TRUST_ID_PREFIX: &str = "codex-folder-access-trust:";
 const UPDATE_PROMPT_ID_PREFIX: &str = "codex-update-prompt:";
 
-/// CDXC:AgentScreenDetection 2026-09-11 DECISION:
-/// User: the Codex update prompt card must read nicely, and its option must not show the raw install command.
-/// The card names both versions and says in words how Codex installs the update; the exact command stays readable under the card's terminal output, since the notice keeps the real screen for this dialog.
-/// SEE-ALSO: Codex tui/src/update_prompt.rs (the modal) and tui/src/update_action.rs (the commands it prints); server/src/session_chat_notice/classify.rs keeps the screen tail.
-fn update_prompt_dialog(mut dialog: TerminalDialog) -> TerminalDialog {
+/// Codex's "Update available" prompt as Codex drew it: the running version, the newest one, and the
+/// command Codex's own updater would run.
+pub(crate) struct CodexUpdatePrompt {
+    pub current: String,
+    pub latest: String,
+    pub command: String,
+}
+
+/// The install method (an `agent_cli` catalog method id) Codex's own updater would use, read from the
+/// command it prints (Codex tui/src/update_action.rs).
+pub(crate) fn codex_update_method(command: &str) -> Option<&'static str> {
+    if command.contains("brew ") {
+        Some("brew")
+    } else if command.contains("pnpm ") {
+        Some("pnpm")
+    } else if command.contains("npm ") {
+        Some("npm")
+    } else if command.contains("bun ") {
+        Some("bun")
+    } else if command.contains("vp ") {
+        Some("vp")
+    } else if command.contains("install.sh") || command.contains("install.ps1") {
+        Some("native")
+    } else {
+        None
+    }
+}
+
+fn update_prompt_parts(dialog: &TerminalDialog) -> Option<CodexUpdatePrompt> {
     // "✨ Update available! 0.1.0 -> 0.2.0" before Codex 0.156, "Update available · 0.156.0 → 0.156.1" since.
-    let Some((_, versions)) = dialog
+    let (_, versions) = dialog
         .title
         .split_once("Update available!")
-        .or_else(|| dialog.title.split_once("Update available ·"))
-    else {
-        return dialog;
-    };
-    let Some((current, latest)) = versions
+        .or_else(|| dialog.title.split_once("Update available ·"))?;
+    let (current, latest) = versions
         .split_once("->")
         .or_else(|| versions.split_once('→'))
         .map(|(current, latest)| (current.trim(), latest.trim()))
-        .filter(|(current, latest)| !current.is_empty() && !latest.is_empty())
-    else {
-        return dialog;
-    };
-    let Some(update_row) = dialog
+        .filter(|(current, latest)| !current.is_empty() && !latest.is_empty())?;
+    let update_row = dialog
         .rows
         .first()
-        .filter(|row| row.label.starts_with("Update now"))
-    else {
-        return dialog;
-    };
+        .filter(|row| row.label.starts_with("Update now"))?;
     if dialog.rows.len() < 2
         || dialog.rows[1..]
             .iter()
             .any(|row| !row.label.starts_with("Skip"))
     {
-        return dialog;
+        return None;
     }
     // A narrow screen wraps the command into the row's continuation lines.
     let command = format!(
         "{} {}",
         update_row.label,
         update_row.description.as_deref().unwrap_or_default()
-    );
-    let method = if command.contains("brew ") {
-        "through Homebrew"
-    } else if command.contains("pnpm ") {
-        "through pnpm"
-    } else if command.contains("npm ") {
-        "through npm"
-    } else if command.contains("bun ") {
-        "through bun"
-    } else if command.contains("vp ") {
-        "through Vite+"
-    } else if command.contains("install.sh") || command.contains("install.ps1") {
-        "with the official Codex installer"
-    } else {
-        "with the install method it was set up with"
+    )
+    .split_whitespace()
+    .collect::<Vec<_>>()
+    .join(" ");
+    // "Update now (runs `pnpm add -g @openai/codex`)"
+    let command = match (command.find('`'), command.rfind('`')) {
+        (Some(start), Some(end)) if end > start => command[start + 1..end].to_string(),
+        _ => command
+            .strip_prefix("Update now")
+            .unwrap_or(&command)
+            .trim()
+            .to_string(),
     };
-    let (current, latest) = (current.to_string(), latest.to_string());
+    Some(CodexUpdatePrompt {
+        current: current.to_string(),
+        latest: latest.to_string(),
+        command,
+    })
+}
+
+/// The update prompt on this screen, before the card rewords it.
+pub(crate) fn detect_codex_update_prompt(text: &str) -> Option<CodexUpdatePrompt> {
+    detect_codex_dialog_as_drawn(text).and_then(|dialog| update_prompt_parts(&dialog))
+}
+
+/// CDXC:AgentScreenDetection 2026-10-13 DECISION:
+/// User (Q39): "Update now" updates the copy sessions actually run, using Ghostex's own updater. The card names both versions and says Ghostex updates the copy this session runs and restarts Codex; it never shows the raw install command, which stays readable under the card's terminal output, since the notice keeps the real screen for this dialog. Supersedes the 2026-09-11 wording that described Codex's own installer, which on a mise-managed Codex installed through pnpm into a copy no session ran, so the prompt came back on every launch (session_chat_codex_update.rs).
+/// SEE-ALSO: Codex tui/src/update_prompt.rs (the modal) and tui/src/update_action.rs (the commands it prints); server/src/session_chat_notice/classify.rs keeps the screen tail.
+fn update_prompt_dialog(mut dialog: TerminalDialog) -> TerminalDialog {
+    let Some(CodexUpdatePrompt {
+        current, latest, ..
+    }) = update_prompt_parts(&dialog)
+    else {
+        return dialog;
+    };
     // CDXC:AgentScreenDetection 2026-09-23 WHY:
     // Chat/terminal resizing reflows this prompt without changing its choices; raw screen hashes rejected valid answers. Retain the versions, full installer command and numbered choices in the identity, while the fresh capture supplies the current highlight.
     let choices: Vec<_> = dialog
@@ -190,7 +223,7 @@ fn update_prompt_dialog(mut dialog: TerminalDialog) -> TerminalDialog {
     );
     dialog.title = format!("Update Codex to {latest}?");
     dialog.body = format!(
-        "This session runs Codex {current}. Update now installs {latest} {method}. Codex quits to install it, so start it again in this session afterwards."
+        "This session runs Codex {current}. Update now has Ghostex update the copy of Codex this session runs to {latest}, with the tool that installed it, then restart Codex here on the same conversation."
     );
     dialog.footer = "Choose an option to continue.".to_string();
     dialog.actions.clear();
@@ -407,6 +440,10 @@ fn folder_access_trust_dialog(content: &[&str]) -> Option<TerminalDialog> {
 /// Numbered selectors, searchable menus, checkbox settings, and text forms retain their own selection, navigation, toggle, save, and cancel actions.
 /// SEE-ALSO: apps/desktop/src/app/native_chat/terminal_dialog.rs and Codex tui/src/bottom_pane/list_selection_view.rs.
 pub fn detect_codex_dialog(text: &str) -> Option<TerminalDialog> {
+    detect_codex_dialog_as_drawn(text).map(update_prompt_dialog)
+}
+
+fn detect_codex_dialog_as_drawn(text: &str) -> Option<TerminalDialog> {
     if let Some(pager) = crate::session_chat_codex_pager::detect_codex_transcript_pager(text) {
         return Some(pager);
     }
@@ -837,7 +874,7 @@ pub fn detect_codex_dialog(text: &str) -> Option<TerminalDialog> {
         picker: None,
     };
     dialog.picker = crate::session_chat_resume_picker::codex_resume_picker(&dialog);
-    Some(update_prompt_dialog(dialog))
+    Some(dialog)
 }
 
 impl TerminalDialog {
@@ -1000,6 +1037,7 @@ impl TerminalDialog {
 }
 
 pub(crate) async fn answer_codex_dialog(
+    state: &crate::server::AppState,
     target: &SessionChatSendTarget,
     params: &Map<String, Value>,
 ) -> Result<Value, DomainStateError> {
@@ -1013,6 +1051,27 @@ pub(crate) async fn answer_codex_dialog(
     let dialog = detect_codex_dialog(&screen).ok_or_else(stale)?;
     if params.get("dialogId").and_then(Value::as_str) != Some(dialog.id.as_str()) {
         return Err(stale());
+    }
+    // "Update now" runs Ghostex's updater on the copy this session runs; Codex itself only skips
+    // the prompt (session_chat_codex_update.rs).
+    let mut update = None;
+    let skip_params: Map<String, Value>;
+    let mut params = params;
+    if dialog.is_codex_update_prompt()
+        && params.get("choiceIndex").and_then(Value::as_u64) == Some(0)
+    {
+        update = crate::session_chat_codex_update::plan_for_prompt(state, &screen).await?;
+        if update.is_some() {
+            let skip = dialog
+                .rows
+                .iter()
+                .position(|row| row.label == "Skip for now" || row.label == "Skip")
+                .ok_or_else(stale)?;
+            let mut with_skip = params.clone();
+            with_skip.insert("choiceIndex".to_string(), json!(skip));
+            skip_params = with_skip;
+            params = &skip_params;
+        }
     }
     let payload = dialog.payload(params)?;
     let submitting_text = params.get("dialogAction").and_then(Value::as_str) == Some("submit")
@@ -1074,6 +1133,9 @@ pub(crate) async fn answer_codex_dialog(
             code: "invalidState",
             message: "Codex kept this dialog open. Review its message and try again.".to_string(),
         });
+    }
+    if let Some(update) = update {
+        update.spawn(state, target);
     }
     Ok(json!({"queued": true}))
 }

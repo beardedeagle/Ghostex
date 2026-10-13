@@ -79,6 +79,7 @@ pub(crate) mod session_chat_claude_workflows;
 pub(crate) mod session_chat_codex_async_answer;
 pub mod session_chat_codex_blocking;
 pub mod session_chat_codex_dialog;
+pub(crate) mod session_chat_codex_update;
 pub(crate) mod session_chat_codex_fleet;
 pub mod session_chat_codex_goal;
 pub mod session_chat_codex_lock;

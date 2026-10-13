@@ -49,6 +49,66 @@ pub(crate) async fn dispatch(
     }
 }
 
+/// One agent's state as the Agents page reads it: the copy a new terminal runs, its version, how it was
+/// installed and the update command for it.
+pub(crate) async fn read_agent(home: &Path, agent_id: &str) -> Result<Value, DomainStateError> {
+    let definition = CATALOG
+        .iter()
+        .find(|entry| entry.agent_id == agent_id)
+        .ok_or_else(|| error("Unknown agent CLI."))?;
+    read(definition, home).await
+}
+
+/// Updates an installed agent CLI with `method_id` (the method that installed it), the way `ghostex
+/// agent-cli update` does, and waits for the job. `Err` carries the job's error and the end of its output.
+pub(crate) async fn update_and_wait(
+    paths: &GxserverPaths,
+    agent_id: &str,
+    method_id: &str,
+) -> Result<Value, String> {
+    let mut params = Map::new();
+    params.insert("action".into(), json!("start"));
+    params.insert("agentId".into(), json!(agent_id));
+    params.insert("operation".into(), json!("update"));
+    params.insert("methodId".into(), json!(method_id));
+    let started = dispatch(paths, &params)
+        .await
+        .map_err(|error| error.message)?;
+    let job_id = started["job"]["id"]
+        .as_str()
+        .unwrap_or_default()
+        .to_string();
+    let deadline = std::time::Instant::now() + Duration::from_secs(20 * 60);
+    loop {
+        tokio::time::sleep(Duration::from_secs(1)).await;
+        let state = read_agent(paths.agent_config_home_dir(), agent_id)
+            .await
+            .map_err(|error| error.message)?;
+        let job = &state["job"];
+        if job["id"].as_str() != Some(job_id.as_str()) {
+            return Err("The update job disappeared.".into());
+        }
+        match job["status"].as_str() {
+            Some("succeeded") => return Ok(state),
+            Some("failed") => {
+                let output = job["output"].as_str().unwrap_or_default().trim();
+                let tail: Vec<&str> = output.lines().rev().take(12).collect();
+                let tail = tail.into_iter().rev().collect::<Vec<_>>().join("\n");
+                let reason = job["error"].as_str().unwrap_or("The update failed.");
+                return Err(if tail.is_empty() {
+                    reason.to_string()
+                } else {
+                    format!("{reason}\n{tail}")
+                });
+            }
+            _ if std::time::Instant::now() > deadline => {
+                return Err("The update did not finish within 20 minutes.".into())
+            }
+            _ => {}
+        }
+    }
+}
+
 /// Every catalog agent's state in one reply, for the Agents page and `ghostex agent-cli status`.
 async fn list(home: &Path) -> Result<Value, DomainStateError> {
     let states =

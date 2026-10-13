@@ -932,9 +932,14 @@ text style, the login method, and Sign in to Claude, where you paste the code th
 browser sign-in page shows and press Sign in (Retry appears if the code was wrong).
 `/login` in a running Claude chat opens the same Sign in to Claude card. Codex's
 Sign in with Device Code shows its link and the one-time code to enter in any
-browser, handy on a remote computer. When Codex quits to the terminal (after
-Update now on its update prompt, or `/logout`), the chat says so and offers
-Restart Codex, which starts it again on the same conversation.
+browser, handy on a remote computer. Update now on Codex's update prompt has
+Ghostex update the copy of Codex your sessions actually run, with the tool that
+installed it (mise, npm, pnpm, bun, Homebrew or the official installer, the same
+update as Settings > Agents), and restart Codex on the same conversation once it
+is idle; the chat shows the update's progress. When Ghostex can't tell which tool
+installed that copy, the card says where it is and how to update it. When Codex
+quits to the terminal (after `/logout`, or an update Codex ran itself), the chat
+says so and offers Restart Codex, which starts it again on the same conversation.
 When Cursor isn't signed in, its chat shows Sign in to Cursor: Sign in opens
 Cursor's sign-in page in the browser, and the card then shows the sign-in link,
 which also works from your phone or another computer. The chat continues by

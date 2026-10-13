@@ -335,7 +335,7 @@ async fn has_conversation_to_resume(session: &Value) -> bool {
 
 /// CDXC:SessionChat 2026-10-10 WHY:
 /// On 2026-10-09 a send refused by a mastro_ed orchestrator restarted it on its conversation, which ended its 7 background tasks and monitors while 11 of its threads were still open; an idle turn says nothing about work that runs between turns. A live agent that coordinates threads, or whose Claude footer counts background tasks (`⧉ N`), is never restarted automatically; the send gets its card instead.
-async fn work_a_restart_would_end(
+pub(crate) async fn work_a_restart_would_end(
     state: &AppState,
     target: &crate::session_chat_send::SessionChatSendTarget,
 ) -> Option<&'static str> {
@@ -371,7 +371,7 @@ fn shows_claude_background_tasks(screen: &str) -> bool {
 }
 
 /// Whether a live agent is doing anything a restart would cut short.
-async fn agent_is_busy(session: &Value) -> bool {
+pub(crate) async fn agent_is_busy(session: &Value) -> bool {
     if crate::session_chat_follower::session_chat_hook_working(session)
         || crate::session_chat_compacting::session_chat_compacting_detected_at(session).is_some()
     {

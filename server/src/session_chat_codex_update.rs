@@ -1,0 +1,272 @@
+//! CDXC:AgentProviders 2026-10-13 DECISION:
+//! User (Q39): "Update now" on Codex's update prompt updates the copy sessions actually run, using Ghostex's own updater.
+//! WHY: Codex picks its updater from how the running binary looks to it, not from which `codex` a terminal resolves. On a Mac whose `codex` is mise's (`~/.local/bin/codex` -> mise shim -> `npm:@openai/codex`), Codex ran `pnpm add -g @openai/codex`, which updated a pnpm copy no session runs, so the prompt came back on every launch. The chat card now asks the agent CLI updater (agent_cli/, the Agents page and `ghostex agent-cli update`) which install a new terminal's `codex` is and updates that one with the method that installed it; Codex itself only skips the prompt, and the session restarts Codex with the sleep and wake the existing restart uses once Codex is idle. Codex's own updater runs only when it provably writes the same binary; otherwise the card says which copy runs and how to update it.
+//! SEE-ALSO: session_chat_codex_dialog.rs (the card and its answer), agent_cli/endpoint.rs (`read_agent`, `update_and_wait`), session_chat_agent_restart.rs (the restart cycle).
+
+use serde_json::{json, Map, Value};
+use std::{
+    path::{Path, PathBuf},
+    time::{Duration, Instant},
+};
+
+use crate::agent_cli::latest::{is_newer, version_in};
+use crate::domain::DomainStateError;
+use crate::server::AppState;
+use crate::session_chat_codex_dialog::{codex_update_method, CodexUpdatePrompt};
+use crate::session_chat_send::{resolve_session_chat_send_target, SessionChatSendTarget};
+
+/// What "Update now" does for the copy of Codex this session runs.
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum UpdatePlan {
+    /// Ghostex's updater, with the method that installed the copy.
+    Ghostex { method_id: String, command: String },
+    /// The copy on disk is already the prompt's version (another session updated it): only restart.
+    AlreadyCurrent { version: String },
+    /// Codex's own updater writes the same binary, so Codex runs it as it would in a terminal.
+    CodexOwn,
+    /// Nothing Ghostex can run safely: the card shows this.
+    Explain(String),
+}
+
+/// What runs after Codex has skipped its prompt.
+pub(crate) struct PendingUpdate {
+    plan: UpdatePlan,
+    latest: String,
+}
+
+/// Decides from the Agents page state of `codex` (agent_cli `read_agent`). `codex_targets_copy` answers
+/// whether Codex's own updater writes the binary at the given path.
+pub(crate) fn plan(
+    state: &Value,
+    prompt: &CodexUpdatePrompt,
+    codex_targets_copy: impl FnOnce(&str) -> bool,
+) -> UpdatePlan {
+    let Some(executable) = state["executablePath"].as_str() else {
+        return UpdatePlan::Explain(
+            "Ghostex can't find the codex command new terminals run, so it did not update anything. Install Codex from Settings > Agents, then start it again.".to_string(),
+        );
+    };
+    if let Some(version) = state["version"].as_str().and_then(version_in) {
+        if !is_newer(&prompt.latest, &version) {
+            return UpdatePlan::AlreadyCurrent { version };
+        }
+    }
+    let detected = state["detectedMethodId"]
+        .as_str()
+        .filter(|method| *method != "manual");
+    if let Some(method_id) = detected {
+        let method = state["methods"]
+            .as_array()
+            .and_then(|methods| methods.iter().find(|method| method["id"] == method_id));
+        let label = method
+            .and_then(|method| method["label"].as_str())
+            .unwrap_or(method_id);
+        return match (
+            method.and_then(|method| method["command"].as_str()),
+            method.and_then(|method| method["unavailableReason"].as_str()),
+        ) {
+            (Some(command), None) => UpdatePlan::Ghostex {
+                method_id: method_id.to_string(),
+                command: command.to_string(),
+            },
+            (_, reason) => UpdatePlan::Explain(format!(
+                "This session runs Codex from {executable}, installed with {label}, and Ghostex can't update it here{}. Update it with {label}, then start Codex again.",
+                reason.map(|reason| format!(": {reason}")).unwrap_or_default()
+            )),
+        };
+    }
+    if codex_targets_copy(executable) {
+        return UpdatePlan::CodexOwn;
+    }
+    UpdatePlan::Explain(format!(
+        "This session runs Codex from {executable}. Ghostex can't tell which tool installed that copy, and Codex's own update ({}) would change a different copy, so nothing was updated. Update {executable} with the tool that installed it, then start Codex again.",
+        prompt.command
+    ))
+}
+
+/// `None` lets Codex run its own updater (the answer goes through unchanged). `Some` means Codex only
+/// skips its prompt and `PendingUpdate::spawn` does the rest. `Err` keeps the card with the reason.
+pub(crate) async fn plan_for_prompt(
+    state: &AppState,
+    screen: &str,
+) -> Result<Option<PendingUpdate>, DomainStateError> {
+    let invalid = |message: String| DomainStateError {
+        code: "invalidState",
+        message,
+    };
+    let prompt =
+        crate::session_chat_codex_dialog::detect_codex_update_prompt(screen).ok_or_else(|| {
+            invalid("Codex's dialog changed. Review the current choices and try again.".into())
+        })?;
+    let home = state.paths.agent_config_home_dir().to_path_buf();
+    let agent = crate::agent_cli::endpoint::read_agent(&home, "codex").await?;
+    let codex_method = codex_update_method(&prompt.command);
+    let plan = {
+        let agent = agent.clone();
+        let latest = prompt.latest.clone();
+        let command = prompt.command.clone();
+        tokio::task::spawn_blocking(move || {
+            let prompt = CodexUpdatePrompt {
+                current: String::new(),
+                latest,
+                command,
+            };
+            plan(&agent, &prompt, |executable| {
+                codex_method.is_some_and(|method| writes_binary(method, executable, &home))
+            })
+        })
+        .await
+        .map_err(|error| invalid(error.to_string()))?
+    };
+    match plan {
+        UpdatePlan::CodexOwn => Ok(None),
+        UpdatePlan::Explain(message) => Err(invalid(message)),
+        plan => Ok(Some(PendingUpdate {
+            plan,
+            latest: prompt.latest,
+        })),
+    }
+}
+
+/// Whether `method`'s global install of `codex` is the binary at `executable`. Only the package managers
+/// that can say where their global commands go are checked; anything else is not provable.
+fn writes_binary(method: &str, executable: &str, home: &Path) -> bool {
+    let Some(dir) = global_bin_dir(method, home) else {
+        return false;
+    };
+    let canonical = |path: &Path| std::fs::canonicalize(path).unwrap_or_else(|_| path.into());
+    let name = Path::new(executable)
+        .file_name()
+        .map(PathBuf::from)
+        .unwrap_or_else(|| "codex".into());
+    canonical(&dir.join(name)) == canonical(Path::new(executable))
+}
+
+fn global_bin_dir(method: &str, home: &Path) -> Option<PathBuf> {
+    let (tool, args): (&str, &[&str]) = match method {
+        "npm" => ("npm", &["prefix", "-g"]),
+        "pnpm" => ("pnpm", &["bin", "-g"]),
+        "bun" => ("bun", &["pm", "bin", "-g"]),
+        "brew" => ("brew", &["--prefix"]),
+        _ => return None,
+    };
+    let binary = crate::agent_cli::process::resolve(tool, home)?;
+    let mut command = crate::platform::process::background_command(&binary);
+    command.args(args).current_dir(home).env("HOME", home);
+    #[cfg(not(windows))]
+    command.env(
+        "PATH",
+        crate::agent_hooks::probing::normalize_gxserver_process_path(
+            std::env::var("PATH").ok().as_deref(),
+            home,
+        ),
+    );
+    let output = crate::agent_hooks::probing::run_command_stdout_with_timeout(
+        command,
+        Duration::from_secs(5),
+    )?;
+    let dir = PathBuf::from(output.trim());
+    Some(match method {
+        "npm" if !cfg!(windows) => dir.join("bin"),
+        "brew" => dir.join("bin"),
+        _ => dir,
+    })
+}
+
+/// How long a restart waits for Codex to finish a turn the user started while the update ran.
+const RESTART_WAIT: Duration = Duration::from_secs(30 * 60);
+
+impl PendingUpdate {
+    pub(crate) fn spawn(self, state: &AppState, target: &SessionChatSendTarget) {
+        let state = state.clone();
+        let project_id = target.project_id.clone();
+        let session_id = target.session_id.clone();
+        tokio::spawn(async move {
+            let title = format!("Update Codex to {}", self.latest);
+            let show = |id: Option<&str>, output: &str| {
+                let id = crate::session_chat_app_command::show_session_chat_app_command_output(
+                    &project_id,
+                    &session_id,
+                    id,
+                    &title,
+                    output,
+                );
+                crate::session_chat_options::session_chat_terminal_notice_publisher(
+                    &state,
+                    &project_id,
+                    &session_id,
+                )();
+                id
+            };
+            let row = match &self.plan {
+                UpdatePlan::Ghostex { method_id, command } => {
+                    let row = show(None, &format!("Updating the copy of Codex this session runs: {command}"));
+                    match crate::agent_cli::endpoint::update_and_wait(&state.paths, "codex", method_id).await {
+                        Ok(agent) => {
+                            let version = agent["version"].as_str().and_then(version_in);
+                            show(
+                                Some(&row),
+                                &format!(
+                                    "Updated Codex to {}. Restarting Codex here once it is idle.",
+                                    version.as_deref().unwrap_or(&self.latest)
+                                ),
+                            )
+                        }
+                        Err(reason) => {
+                            show(
+                                Some(&row),
+                                &format!("The update did not finish, so Codex keeps running its current version.\n{reason}"),
+                            );
+                            return;
+                        }
+                    }
+                }
+                UpdatePlan::AlreadyCurrent { version } => show(
+                    None,
+                    &format!("Codex {version} is already installed for this session. Restarting Codex here once it is idle so it runs that version."),
+                ),
+                UpdatePlan::CodexOwn | UpdatePlan::Explain(_) => return,
+            };
+            let outcome = restart_when_idle(&state, &project_id, &session_id).await;
+            show(
+                Some(&row),
+                &match outcome {
+                    Ok(()) => "Codex restarted on the new version.".to_string(),
+                    Err(reason) => format!(
+                        "The new version is installed, but Codex was not restarted: {reason}. It runs the new version the next time Codex starts."
+                    ),
+                },
+            );
+        });
+    }
+}
+
+/// The sleep and wake the existing restart uses (session_chat_agent_restart.rs), once Codex has no turn,
+/// question or compaction going, and never on a session whose background work a restart would end.
+async fn restart_when_idle(
+    state: &AppState,
+    project_id: &str,
+    session_id: &str,
+) -> Result<(), &'static str> {
+    let mut params = Map::new();
+    params.insert("projectId".to_string(), json!(project_id));
+    params.insert("sessionId".to_string(), json!(session_id));
+    let started = Instant::now();
+    loop {
+        let target = resolve_session_chat_send_target(state, &params, "codexUpdate")
+            .map_err(|_| "the session could not be read")?;
+        if let Some(reason) =
+            crate::session_chat_queue_runtime::work_a_restart_would_end(state, &target).await
+        {
+            return Err(reason);
+        }
+        if !crate::session_chat_queue_runtime::agent_is_busy(&target.session).await {
+            return crate::session_chat_queue_runtime::cycle_session(state, project_id, session_id)
+                .await;
+        }
+        if started.elapsed() > RESTART_WAIT {
+            return Err("Codex stayed busy for 30 minutes");
+        }
+        tokio::time::sleep(Duration::from_secs(5)).await;
+    }
+}

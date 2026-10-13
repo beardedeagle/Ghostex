@@ -285,7 +285,8 @@ pub(crate) async fn handle_answer_session_chat_prompt_http(
             ),
             Some(crate::session_chat_options::SessionChatOptionAgent::Codex) => (
                 "codex",
-                crate::session_chat_codex_dialog::answer_codex_dialog(&target, &params).await,
+                crate::session_chat_codex_dialog::answer_codex_dialog(state, &target, &params)
+                    .await,
             ),
             Some(crate::session_chat_options::SessionChatOptionAgent::Claude) => (
                 "claude",

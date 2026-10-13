@@ -164,6 +164,50 @@ pub fn record_session_chat_app_command(project_id: &str, session_id: &str, comma
     record_session_chat_app_command_inner(project_id, session_id, command, None, false, false);
 }
 
+/// Shows something Ghostex does for the session on its own, with its result so far, as a row in the
+/// chat (Codex's "Update now", which Ghostex runs outside the terminal: session_chat_codex_update.rs).
+/// Pass the returned id back to replace that row's output as the work goes on.
+pub(crate) fn show_session_chat_app_command_output(
+    project_id: &str,
+    session_id: &str,
+    id: Option<&str>,
+    command: &str,
+    output: &str,
+) -> String {
+    let now = Instant::now();
+    let sent_at = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+    let Ok(mut guard) = store().lock() else {
+        return String::new();
+    };
+    let rows = guard
+        .entry((project_id.to_string(), session_id.to_string()))
+        .or_default();
+    if let Some(row) = id.and_then(|id| rows.iter_mut().find(|row| row.id == id)) {
+        row.output = Some(output.to_string());
+        row.recorded = now;
+        return row.id.clone();
+    }
+    let id = format!("{sent_at}-{}", rows.len());
+    rows.push(SessionChatAppCommand {
+        id: id.clone(),
+        command: command.to_string(),
+        title: None,
+        output: Some(output.to_string()),
+        goal: None,
+        local_command: false,
+        user_rename: false,
+        durable_id: None,
+        screen_agent: None,
+        screen_baseline: None,
+        sent_at,
+        title_metadata_baseline: None,
+        title_metadata_baseline_captured: false,
+        recorded: now,
+    });
+    prune(rows, now);
+    id
+}
+
 /// Record a rename whose title the user typed, so chat does not call it an auto name.
 pub fn record_session_chat_user_rename_command(project_id: &str, session_id: &str, command: &str) {
     record_session_chat_app_command_inner(project_id, session_id, command, None, false, true);
