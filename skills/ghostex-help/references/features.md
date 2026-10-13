@@ -77,6 +77,12 @@ back. Closing the panel's last tab closes the whole panel; to bring the picker
 back instead, turn off **Close side panel with its last tab** in Settings >
 Sidebar with Show Advanced on (`closeSidePanelWithLastTab`, on by default).
 
+While a view in the side panel has focus, the session shortcuts act on that view
+instead of the session beside it: Cmd+W or Cmd+Shift+Backspace closes its tab,
+Previous/Next Tab in Pane (Cmd+Option+[ and ]) steps through the panel's tabs,
+Sleep and Reload sleep or reload the view, Cmd+F searches in Files or Kanban, and
+Cmd+R renames the file open in Files.
+
 **Work** lists the tickets and pull requests of every work-mode project in the
 window (Linear tickets or GitHub issues, whichever the workspace's primary
 tracker is), Personal ones too (see Work mode under Git and

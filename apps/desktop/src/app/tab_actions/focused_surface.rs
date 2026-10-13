@@ -284,6 +284,8 @@ impl GhostexGpuiApp {
             } else {
                 false
             }
+        } else if self.focused_view_mode().is_some() {
+            self.cycle_focused_view_strip_tab(reverse, window, cx)
         } else {
             false
         };

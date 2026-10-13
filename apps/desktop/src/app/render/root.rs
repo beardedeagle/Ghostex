@@ -450,6 +450,9 @@ impl Render for GhostexGpuiApp {
                 if this.start_find_in_focused_browser(window, cx) {
                     return;
                 }
+                if this.find_in_focused_view(window, cx) {
+                    return;
+                }
                 if this.open_search_in_focused_chat(window, cx) {
                     return;
                 }

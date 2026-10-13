@@ -269,6 +269,8 @@ impl GhostexGpuiApp {
                                         shell_session_id,
                                         cx,
                                     );
+                                } else {
+                                    let _ = self.reload_focused_view(window, cx);
                                 }
                             }
                             GpuiFocusedPaneRuntimeAction::PopOutPane => {}
@@ -279,6 +281,7 @@ impl GhostexGpuiApp {
                         match command_action {
                             GpuiCommandPaneFocusedSessionHotkeyAction::Rename => {
                                 if !self.open_gpui_rename_session_modal_for_focused_command_pane(cx)
+                                    && !self.rename_in_focused_view(window, cx)
                                 {
                                     let _ = self
                                         .open_gpui_rename_session_modal_for_focused_agents_session(
@@ -307,7 +310,9 @@ impl GhostexGpuiApp {
                                 }
                             }
                             GpuiCommandPaneFocusedSessionHotkeyAction::Sleep => {
-                                self.sleep_focused_command_pane_session(cx);
+                                if !self.sleep_focused_command_pane_session(cx) {
+                                    let _ = self.sleep_focused_view(cx);
+                                }
                             }
                             GpuiCommandPaneFocusedSessionHotkeyAction::Wake => {
                                 self.wake_focused_command_pane_session(cx);
@@ -318,6 +323,7 @@ impl GhostexGpuiApp {
                                     &self.command_pane,
                                 )
                                 .is_some()
+                                    || self.focused_view_mode().is_some()
                                 {
                                     self.close_focused_surface(window, cx);
                                 }

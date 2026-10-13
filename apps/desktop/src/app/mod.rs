@@ -127,6 +127,7 @@ pub(crate) mod view_retention;
 pub(crate) mod update_available_modal_lifecycle;
 mod view_pane_state;
 mod view_panel;
+mod view_panel_hotkeys;
 pub(crate) mod view_scopes;
 pub(crate) mod view_skeletons;
 mod view_strip_order;
