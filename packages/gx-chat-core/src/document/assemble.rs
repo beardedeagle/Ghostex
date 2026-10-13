@@ -74,19 +74,14 @@ fn item_identity(state: &ChatState, item: &TranscriptItem) -> u64 {
             final_message,
             earlier_replies,
             work,
-            live,
             ..
-        } => earlier_replies
-            .iter()
-            .chain(work.iter())
-            .chain(live.iter())
-            .fold(
-                mix(
-                    placeholder(user),
-                    final_message.as_ref().map_or(0, placeholder),
-                ),
-                |seed, row| mix(seed, placeholder(row)),
+        } => earlier_replies.iter().chain(work.iter()).fold(
+            mix(
+                placeholder(user),
+                final_message.as_ref().map_or(0, placeholder),
             ),
+            |seed, row| mix(seed, placeholder(row)),
+        ),
         TranscriptItem::CompletedWork {
             id,
             deferred,

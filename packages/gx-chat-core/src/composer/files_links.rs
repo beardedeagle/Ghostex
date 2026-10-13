@@ -330,13 +330,11 @@ fn row_of(rows: &[TranscriptItem], message_id: &str, timestamp: Option<i64>) -> 
                 final_message,
                 earlier_replies,
                 work,
-                live,
                 outcome,
                 ..
             } => std::iter::once(user)
                 .chain(earlier_replies)
                 .chain(work)
-                .chain(live)
                 .chain(outcome)
                 .chain(final_message)
                 .cloned()

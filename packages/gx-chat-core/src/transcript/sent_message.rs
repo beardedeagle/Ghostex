@@ -722,14 +722,12 @@ fn messages_mut(item: &mut TranscriptItem) -> Vec<&mut Value> {
             final_message,
             earlier_replies,
             work,
-            live,
             outcome,
             ..
         } => std::iter::once(user)
             .chain(final_message.iter_mut())
             .chain(earlier_replies.iter_mut())
             .chain(work.iter_mut())
-            .chain(live.iter_mut())
             .chain(outcome.iter_mut())
             .collect(),
         TranscriptItem::CompletedWork {

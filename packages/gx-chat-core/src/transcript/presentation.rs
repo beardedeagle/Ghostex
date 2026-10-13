@@ -626,20 +626,17 @@ pub fn build_scope(
                         .map(|message| builder.message_or_placeholder(message, eager))
                         .collect(),
                     active: turn.active,
+                    work_open: turn.active && turn.final_message.is_none(),
+                    // The running row's tool calls start open, so the call that is running shows.
                     work: turn
                         .active_work
                         .iter()
-                        .filter(|message| !turn.live.iter().any(|live| live.id == message.id))
-                        .map(|message| builder.message_or_placeholder(message, eager))
-                        .collect(),
-                    // The live rows' tool calls start open, so the call that is running shows.
-                    live: turn
-                        .live
-                        .iter()
                         .map(|message| {
                             let mut row = builder.message_or_placeholder(message, eager);
-                            if let Value::Object(fields) = &mut row {
-                                fields.insert("toolsOpen".to_string(), Value::Bool(true));
+                            if turn.running_row.as_deref() == Some(message.id.as_str()) {
+                                if let Value::Object(fields) = &mut row {
+                                    fields.insert("toolsOpen".to_string(), Value::Bool(true));
+                                }
                             }
                             row
                         })

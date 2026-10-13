@@ -88,8 +88,16 @@ impl NativeChatView {
         let s = p.scale;
         self.begin_row_find(index, main, &p);
         let content = if item["kind"] == "summary" {
-            let id = format!("summary:{}", text(&item, "id"));
-            let expanded = self.is_expanded(&id, item["latestReply"] == true);
+            // A running turn's "Active work" fold starts open and has a key of its own, so closing
+            // it holds for that turn without closing the reply fold that replaces it
+            // (gx-chat-core `summary_mode_turns`).
+            let id = if item["final"].is_object() {
+                format!("summary:{}", text(&item, "id"))
+            } else {
+                format!("active-work:{}", text(&item, "id"))
+            };
+            let expanded =
+                self.is_expanded(&id, item["latestReply"] == true || item["workOpen"] == true);
             let motion = self.disclosure_frame(&id, expanded, cx);
             let mut row = div()
                 .flex()
@@ -100,9 +108,7 @@ impl NativeChatView {
             for output in item["outcome"].as_array().into_iter().flatten() {
                 row = row.child(self.message_row(output, &p, window, cx));
             }
-            // A running turn whose only rows are its live ones has nothing left to fold.
-            let has_work = item["work"].as_array().is_some_and(|work| !work.is_empty());
-            if item["final"].is_object() || (item["active"] == true && has_work) {
+            if item["final"].is_object() || item["active"] == true {
                 row = row.child(
                     self.disclosure(
                         id.clone(),
@@ -137,11 +143,6 @@ impl NativeChatView {
                         body.into_any_element(),
                     ));
                 }
-            }
-            // What the agent is saying and doing now stays under the closed fold (gx-chat-core
-            // `live_work` in `transcript/turns.rs`).
-            for message in item["live"].as_array().into_iter().flatten() {
-                row = row.child(self.message_row(message, &p, window, cx));
             }
             row.into_any_element()
         } else if item["kind"] == "completed-work" {
@@ -442,7 +443,7 @@ impl NativeChatView {
                 .is_some_and(|tools| !tools.is_empty());
             if reasoning && tools {
                 let key = format!("reasoning:{id}");
-                // A summary turn's live rows open their tools (gx-chat-core `live_work`).
+                // A running summary turn's newest row opens its tools (gx-chat-core `summary_mode_turns`).
                 let expanded = self.is_expanded(&key, p.verbose || message["toolsOpen"] == true);
                 let motion = self.disclosure_frame(&key, expanded, cx);
                 row = row.child(self.disclosure(

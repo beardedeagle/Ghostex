@@ -364,6 +364,20 @@ pub fn format_tool_input(input: &Value) -> String {
     }
 }
 
+/// The one line the agent wrote to say what a call does (Claude's, OpenCode's and Gemini's
+/// `description`), which Simple mode shows in place of the tool's name; empty when the call has
+/// none. See `summary_mode_turns` in `turns.rs` for the decision.
+pub fn tool_description(input: &Value) -> String {
+    let Value::Object(entries) = input else {
+        return String::new();
+    };
+    let Some(description) = non_empty_string(entries.get("description")) else {
+        return String::new();
+    };
+    let collapsed = js_trim(&collapse_whitespace(description)).to_string();
+    truncate_tool_preview(&collapsed, MAX_PREVIEW_STRING_INPUT)
+}
+
 fn non_empty_string(value: Option<&Value>) -> Option<&str> {
     match value {
         Some(Value::String(text)) if !text.is_empty() => Some(text),

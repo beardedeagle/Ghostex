@@ -36,9 +36,9 @@ pub struct SummaryModeTurn {
     pub user: ChatMessage,
     /// The rows that end a turn the agent wrote no reply to (a command's output, an interruption).
     pub outcome: Vec<ChatMessage>,
-    /// While the turn runs: the agent's newest words and the row it is working on now, drawn under
-    /// the closed "Active work" fold. Empty once the turn has settled.
-    pub live: Vec<ChatMessage>,
+    /// While the turn runs: the id of the agent's newest row, whose tool calls start open so the
+    /// running call shows. `None` once the turn has settled.
+    pub running_row: Option<String>,
 }
 
 /// One entry of the verbose transcript.
@@ -77,6 +77,8 @@ pub fn opens_turn(message: &ChatMessage) -> bool {
 }
 
 /// One compact row per genuine user prompt, paired with its settled final reply.
+///
+/// CDXC:SessionChat 2026-10-13 DECISION: User: "ok if the issue was that i had summary mode on, i think we should just expand the currently running agent's work even in this status you know? (the stuff under the last user message basically needs to not be all hidden like this)" and "also yea why not, if you can show the description of the tool call would be nice". While a summary-mode turn runs, its "Active work" fold starts open (`workOpen`) and the agent's newest row opens its tool calls (`running_row`, `toolsOpen`), so the work under the last prompt shows as it does with summary mode off; the reader can close the fold for the rest of that turn, and the settled turn folds as before. In Simple mode a tool row shows the call's own description in place of the tool's name (`tool_description` in `tool_summary.rs`), the command staying hidden. Supersedes the same day's rule that kept the newest message and running row in view under a closed fold.
 pub fn summary_mode_turns(
     messages: &[ChatMessage],
     final_assistant_message_ids: &[String],
@@ -95,7 +97,7 @@ pub fn summary_mode_turns(
                 final_message: None,
                 user: message.clone(),
                 outcome: Vec::new(),
-                live: Vec::new(),
+                running_row: None,
             });
         } else if let Some(current) = turns.last_mut() {
             current.active_work.push(message.clone());
@@ -133,38 +135,15 @@ pub fn summary_mode_turns(
     if is_working {
         if let Some(newest) = turns.last_mut() {
             newest.active = true;
-            newest.live = live_work(&newest.active_work, newest.final_message.as_ref());
+            newest.running_row = newest
+                .active_work
+                .iter()
+                .rev()
+                .find(|row| matches!(row.role, ChatRole::Assistant | ChatRole::Reasoning))
+                .map(|row| row.id.clone());
         }
     }
     turns
-}
-
-/// CDXC:SessionChat 2026-10-13 DECISION: User: "in chat view i dont see anything about what the agent is doing". While a summary-mode turn runs, its work no longer hides entirely behind the closed "Active work" fold: the agent's newest message (its narration, with the tools folded into it) and the newest agent row after it stay in view under the fold with their tool calls open (`toolsOpen`), the way the terminal shows the latest text and the running command. The fold keeps the rest; once the turn settles the reply takes their place.
-fn live_work(work: &[ChatMessage], final_message: Option<&ChatMessage>) -> Vec<ChatMessage> {
-    let from = final_message
-        .and_then(|final_message| work.iter().position(|row| row.id == final_message.id))
-        .map_or(0, |final_at| final_at + 1);
-    let tail = &work[from..];
-    let is_agent_row =
-        |row: &ChatMessage| matches!(row.role, ChatRole::Assistant | ChatRole::Reasoning);
-    let says_something = |row: &ChatMessage| {
-        row.role == ChatRole::Assistant
-            && row.blocks.iter().any(|block| match block {
-                ChatBlock::ImageRef { .. } => true,
-                ChatBlock::Text { text } => !js_trim(text).is_empty(),
-                _ => false,
-            })
-    };
-    let newest = tail.iter().rposition(is_agent_row);
-    let words = tail.iter().rposition(says_something);
-    let mut live: Vec<ChatMessage> = Vec::new();
-    if let Some(words) = words {
-        live.push(tail[words].clone());
-    }
-    if let Some(newest) = newest.filter(|newest| Some(*newest) != words) {
-        live.push(tail[newest].clone());
-    }
-    live
 }
 
 /// CDXC:SessionChat 2026-09-26 DECISION: User: in summary mode, expanding "Agent reply" must show all of the agent's replies to that prompt, not only the last one. A turn the harness broke up (a background task finishing, a held prompt) gets one reply per stretch, the same replies verbose mode leaves outside its "Worked for" folds; text before the final reply inside its own stretch is still commentary.

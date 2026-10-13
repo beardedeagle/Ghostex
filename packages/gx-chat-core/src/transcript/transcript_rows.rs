@@ -23,7 +23,7 @@ use crate::transcript::tool_fold::ToolPair;
 use crate::transcript::tool_rows::{
     clip_tool_body, is_command_tool, tool_glyph, tool_preview, tool_run_fold,
 };
-use crate::transcript::tool_summary::{command_detail, format_tool_input};
+use crate::transcript::tool_summary::{command_detail, format_tool_input, tool_description};
 use crate::transcript::work_summary::{failure_note, tool_duration_label};
 
 /// The arguments an open tool row shows: a command tool's command line, or the input as text.
@@ -140,6 +140,10 @@ pub fn tool_rows(
             row.insert(
                 "preview".to_string(),
                 tool_preview(pair, working_directory).into(),
+            );
+            row.insert(
+                "description".to_string(),
+                tool_description(pair.call_input().unwrap_or(&Value::Null)).into(),
             );
             row.insert("failed".to_string(), pair.result_is_error().into());
             // The row's right edge: a check once the call answered, a cross when it failed, and

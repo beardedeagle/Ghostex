@@ -1264,7 +1264,9 @@ Each one is its own switch, and the View row names the ones that are on.
 
 Simple mode (More actions > View, or Settings > Chat) applies to every chat. Tool groups
 without a message above them collapse to a tool-call count, and tool rows hide
-command previews; expand a tool to inspect its full input and result. File edits
+command previews and show the one-line description the agent gave the call
+instead of the tool's name, when it gave one; expand a tool to inspect its full
+input and result. File edits
 collapse under "Edited 1 file" or "Edited X files", counting each path once; expand
 the row to see the usual file and diff cards. The menu and Settings use the same
 toggle (`sessionChatSimpleMode`, on by default). The phone app has Simple mode too,
@@ -1324,7 +1326,9 @@ read-session-files-links <session> --json`.
 Summary mode folds each turn down to your prompt and an "Agent reply" row; the
 newest reply stays open, and older ones open with a click. The row holds every
 reply the agent gave to that prompt, including the ones it wrote after a
-background task finished.
+background task finished. While the agent is still working, that turn's work
+shows open under Active work, with the running command visible; close it with a
+click, and it folds into the reply once the turn finishes.
 Summary mode has its own button between More actions and Session note when the
 chat toolbar has room, and is always under More actions > View.
 The button highlights when Summary mode is on; its tooltip shows the Toggle Summary

@@ -36,13 +36,14 @@ pub enum TranscriptItem {
         #[serde(default)]
         earlier_replies: Vec<ProjectedMessage>,
         active: bool,
-        /// The running turn's rows behind its "Active work" fold.
-        work: Vec<ProjectedMessage>,
-        /// While the turn runs: the agent's newest message and the row it is on now, drawn under
-        /// the fold so the work stays in view (`live_work` in `transcript/turns.rs`). Each carries
+        /// The running turn's "Active work" fold starts open (`summary_mode_turns` in
+        /// `transcript/turns.rs`). Its key is the turn's own, so a reader who closes it keeps it
+        /// closed for the rest of that turn without touching the reply fold that follows.
+        #[serde(default)]
+        work_open: bool,
+        /// The running turn's rows behind its "Active work" fold. The agent's newest row carries
         /// `toolsOpen: true`: its tool calls start open, so the running one shows.
-        #[serde(default, skip_serializing_if = "Vec::is_empty")]
-        live: Vec<ProjectedMessage>,
+        work: Vec<ProjectedMessage>,
         /// What ended a turn the agent wrote no reply to: a slash command's output ("Set effort
         /// level to High") or the "Interrupted" marker. Drawn under the prompt without a fold.
         #[serde(default, skip_serializing_if = "Vec::is_empty")]

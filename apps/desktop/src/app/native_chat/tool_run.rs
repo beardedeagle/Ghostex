@@ -469,8 +469,15 @@ impl NativeChatView {
             (false, _) => format!("Tool {name} ({subagent}): {preview}"),
         };
         // The preview is the tool's argument, which simple mode hides, followed by what failed
-        // when it failed, which every mode shows.
+        // when it failed, which every mode shows. Simple mode names the call by the description
+        // the agent gave it, when it gave one (gx-chat-core `tool_description`).
         let preview = if p.simple { String::new() } else { preview };
+        let description = text(tool, "description");
+        let name = if p.simple && !description.is_empty() {
+            description
+        } else {
+            name
+        };
         let preview = match (preview.is_empty(), failure.is_empty()) {
             (_, true) => preview,
             (true, false) => failure,
