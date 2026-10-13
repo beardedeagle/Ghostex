@@ -63,10 +63,11 @@ impl GhostexGpuiApp {
                         Ok(_) => {}
                         Err(error) => this.dispatch_gpui_app_modal_toast(
                             "warning",
-                            if resolved {
-                                "Thread not marked done"
-                            } else {
-                                "Thread not reopened"
+                            match (resolved, error.code.as_deref()) {
+                                // gxserver marked it done; only closing its session failed.
+                                (true, Some("sessionNotClosed")) => "Session not closed",
+                                (true, _) => "Thread not marked done",
+                                (false, _) => "Thread not reopened",
                             },
                             &error.message,
                             cx,

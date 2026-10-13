@@ -3,6 +3,21 @@
 use super::*;
 use crate::presentation::effective_lifecycle_state;
 
+/// What a failed wake or close answered, for the thread's own error message.
+async fn routed_failure(routed: RoutedResponse) -> String {
+    let bytes = to_bytes(routed.response.into_body(), 64 * 1024)
+        .await
+        .unwrap_or_default();
+    serde_json::from_slice::<Value>(&bytes)
+        .ok()
+        .and_then(|body| {
+            body.get("message")
+                .and_then(Value::as_str)
+                .map(str::to_string)
+        })
+        .unwrap_or_else(|| String::from_utf8_lossy(&bytes).trim().to_string())
+}
+
 /// Runs `work` against the gxserver database, answering a database that will not open as an
 /// internal error.
 fn with_repository<T>(
@@ -66,6 +81,7 @@ pub(crate) async fn handle_resolve_coordinator_thread_http(
     let session_body = json!({ "params": { "projectId": project_id, "sessionId": session_id } });
     // Woken before it is reopened: an open thread whose session is still closed is reported to the
     // coordinator as closed and marked done again, and a sleeping one would leave a message waiting.
+    // CDXC:Coordinators 2026-10-12 WHY: a sleeping thread is woken too; reopen used to wake only a closed (`stopped`) one, so it answered "Reopened" and left a sleeping thread asleep with a message waiting for it.
     let resumed = !resolved && lifecycle != "running";
     if resumed {
         let woke = handle_zmx_lifecycle_http(
@@ -76,9 +92,10 @@ pub(crate) async fn handle_resolve_coordinator_thread_http(
         )
         .await;
         if !woke.response.status().is_success() {
-            return fail(DomainStateError::bad_request(
-                "Could not resume the thread's session, so it was not reopened.",
-            ));
+            let detail = routed_failure(woke).await;
+            return fail(DomainStateError::bad_request(format!(
+                "Could not resume the thread's session: {detail}. It was not reopened."
+            )));
         }
     }
     let mut result = match with_repository(state, |db, repository| {
@@ -107,9 +124,14 @@ pub(crate) async fn handle_resolve_coordinator_thread_http(
         )
         .await;
         if !killed.response.status().is_success() {
-            return fail(DomainStateError::bad_request(
-                "The thread was marked done, but its session did not close. Close it by hand.",
-            ));
+            let detail = routed_failure(killed).await;
+            // Its own code, so a client can say how to close it (the CLI names `ghostex agents close`).
+            return fail(DomainStateError {
+                code: "sessionNotClosed",
+                message: format!(
+                    "The thread was marked done, but its session did not close: {detail}."
+                ),
+            });
         }
     }
     result["sessionClosed"] = json!(close_session);
