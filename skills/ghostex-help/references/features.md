@@ -346,8 +346,8 @@ view from the strip.
   that saves back to the file. The arrow beside the button, and Open With in a file's right-click
   menu, list your other browsers and the apps that open that kind of file (on
   Windows, also Choose another app for the system's Open with dialog). For a
-  file on your own computer the first row is File Explorer (Finder on a Mac),
-  which shows the file selected in the system file manager.
+  file on your own computer the first row is Show in Folder, which shows the
+  file selected in File Explorer (Finder on a Mac).
   Browser links stop working when Ghostex restarts; open the file again for a new one.
 - **Terminal**: a command terminal in the view panel that works like the
   Commands pane, only on the right beside your sessions instead of below them.
