@@ -176,7 +176,7 @@ pub fn usage() -> String {
         ),
         format_help_command(
             "restore-previous-session --project-id id --session-id id [--json]",
-            "Bring back a closed session (restored or resumed into a new session) and print it",
+            "Bring back a closed session as a new session (its agent resumes when it is opened) and print it",
         ),
         format_help_command(
             "paired-device-seen --device-id <id> --json",

@@ -529,6 +529,7 @@ pub fn endpoint_for(path: &str) -> Option<EndpointDescriptor> {
         | "/api/promoteCoordinator"
         | "/api/toggleCloseAfterDone"
         | "/api/openConversation"
+        | "/api/restorePreviousSession"
         | "/api/sleepSession"
         | "/api/wakeSession"
         | "/api/startSessionProvider"

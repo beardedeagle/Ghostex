@@ -139,6 +139,7 @@ pub mod commit_message_generation;
 pub mod http_endpoints;
 pub mod http_infra;
 mod open_conversation_http;
+mod previous_session_restore_http;
 pub mod presentation_delta;
 mod project_docs_http;
 pub mod project_paths;

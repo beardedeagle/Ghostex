@@ -40,6 +40,7 @@ pub(crate) mod managed_tools;
 pub mod navigation_history;
 pub mod notification_feed;
 pub mod open_conversation;
+pub mod previous_session_restore;
 pub mod paths;
 pub mod platform;
 pub mod portless;

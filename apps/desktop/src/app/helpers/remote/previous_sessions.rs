@@ -794,219 +794,6 @@ pub(crate) fn gpui_remote_previous_session_source_for_reference<'a>(
         .find(|source| source.remote_machine_id == reference.remote_machine_id)
 }
 
-pub(crate) const GPUI_PREVIOUS_SESSION_RESTORE_DEFAULT_TITLE: &str = "Terminal Session";
-
-#[derive(Clone, Debug)]
-pub(crate) struct GpuiPreviousSessionRestoreMetadata {
-    pub(crate) agent_id: Option<String>,
-    pub(crate) agent_session_id: Option<String>,
-    pub(crate) title: String,
-    pub(crate) session_tag: Option<String>,
-    pub(crate) sidebar_order: Option<serde_json::Number>,
-    pub(crate) session_persistence_name: Option<String>,
-    pub(crate) session_persistence_provider: Option<String>,
-}
-
-impl GpuiPreviousSessionRestoreMetadata {
-    pub(crate) fn default_title() -> Self {
-        Self {
-            agent_id: None,
-            agent_session_id: None,
-            title: GPUI_PREVIOUS_SESSION_RESTORE_DEFAULT_TITLE.to_string(),
-            session_tag: None,
-            sidebar_order: None,
-            session_persistence_name: None,
-            session_persistence_provider: None,
-        }
-    }
-}
-
-pub(crate) fn gpui_previous_session_restore_metadata_from_row(
-    row: &serde_json::Map<String, serde_json::Value>,
-) -> GpuiPreviousSessionRestoreMetadata {
-    let title = gpui_trimmed_json_string_field(row, "displayTitle")
-        .or_else(|| gpui_trimmed_json_string_field(row, "primaryTitle"))
-        .or_else(|| gpui_trimmed_json_string_field(row, "title"))
-        .unwrap_or(GPUI_PREVIOUS_SESSION_RESTORE_DEFAULT_TITLE)
-        .to_string();
-    let agent_id = gpui_trimmed_json_string_field(row, "agentId").map(str::to_string);
-    let agent_session_id =
-        gpui_trimmed_json_string_field(row, "agentSessionId").map(str::to_string);
-    let session_tag = gpui_trimmed_json_string_field(row, "sessionTag").map(str::to_string);
-    let sidebar_order = row
-        .get("sidebarOrder")
-        .and_then(serde_json::Value::as_number)
-        .cloned();
-    let session_persistence_name =
-        gpui_trimmed_json_string_field(row, "sessionPersistenceName").map(str::to_string);
-    let session_persistence_provider =
-        gpui_trimmed_json_string_field(row, "sessionPersistenceProvider").map(str::to_string);
-    GpuiPreviousSessionRestoreMetadata {
-        agent_id,
-        agent_session_id,
-        title,
-        session_tag,
-        sidebar_order,
-        session_persistence_name,
-        session_persistence_provider,
-    }
-}
-
-pub(crate) fn gpui_previous_session_restore_row_matches(
-    row: &serde_json::Map<String, serde_json::Value>,
-    project_id: &str,
-    session_id: &str,
-) -> bool {
-    gpui_trimmed_json_string_field(row, "projectId") == Some(project_id)
-        && gpui_trimmed_json_string_field(row, "sessionId") == Some(session_id)
-}
-
-pub(crate) fn gpui_previous_session_restore_row_is_running(
-    row: &serde_json::Map<String, serde_json::Value>,
-) -> bool {
-    json_bool_field(row, "isRunning") == Some(true)
-        || json_string_field(row, "lifecycleState") == Some("running")
-        || json_string_field(row, "providerSessionState") == Some("running")
-}
-
-pub(crate) fn gpui_previous_session_restore_metadata_params(
-    project_id: &str,
-    session_id: &str,
-) -> serde_json::Value {
-    serde_json::json!({
-        "includeActive": false,
-        "includePrevious": true,
-        "limit": 20,
-        "projectId": project_id,
-        "query": session_id,
-    })
-}
-
-pub(crate) fn gpui_previous_session_restore_metadata_from_result(
-    result: &serde_json::Value,
-    project_id: &str,
-    session_id: &str,
-) -> Option<GpuiPreviousSessionRestoreMetadata> {
-    let results = result
-        .get("results")
-        .and_then(serde_json::Value::as_array)?;
-    let mut running_match = None;
-    for row in results.iter().filter_map(serde_json::Value::as_object) {
-        if !gpui_previous_session_restore_row_matches(row, project_id, session_id) {
-            continue;
-        }
-        let metadata = gpui_previous_session_restore_metadata_from_row(row);
-        if !gpui_previous_session_restore_row_is_running(row) {
-            return Some(metadata);
-        }
-        if running_match.is_none() {
-            running_match = Some(metadata);
-        }
-    }
-    running_match
-}
-
-pub(crate) fn gpui_previous_session_restore_metadata(
-    project_id: &str,
-    session_id: &str,
-) -> Option<GpuiPreviousSessionRestoreMetadata> {
-    let result = gpui_gxserver_rpc_result(
-        "/api/listPreviousSessions",
-        &gpui_previous_session_restore_metadata_params(project_id, session_id),
-        Duration::from_secs(10),
-    )
-    .ok()?;
-    gpui_previous_session_restore_metadata_from_result(&result, project_id, session_id)
-}
-
-pub(crate) fn gpui_remote_previous_session_restore_metadata(
-    target: &GpuiRemoteGxserverRequestTarget,
-    project_id: &str,
-    session_id: &str,
-) -> Option<GpuiPreviousSessionRestoreMetadata> {
-    let result = gpui_remote_gxserver_rpc_result(
-        target,
-        "/api/listPreviousSessions",
-        &gpui_previous_session_restore_metadata_params(project_id, session_id),
-        Duration::from_secs(10),
-    )
-    .ok()?;
-    gpui_previous_session_restore_metadata_from_result(&result, project_id, session_id)
-}
-
-pub(crate) fn gpui_previous_session_restore_create_params(
-    project_id: &str,
-    session_id: &str,
-    metadata: GpuiPreviousSessionRestoreMetadata,
-) -> serde_json::Value {
-    let mut create_params = serde_json::Map::new();
-    create_params.insert(
-        "kind".to_string(),
-        serde_json::Value::String("terminal".to_string()),
-    );
-    if let Some(agent_id) = metadata.agent_id {
-        create_params.insert("agentId".to_string(), serde_json::Value::String(agent_id));
-    }
-    create_params.insert(
-        "lifecycleState".to_string(),
-        serde_json::Value::String("running".to_string()),
-    );
-    create_params.insert(
-        "projectId".to_string(),
-        serde_json::Value::String(project_id.to_string()),
-    );
-    create_params.insert(
-        "restoredFromSessionId".to_string(),
-        serde_json::Value::String(session_id.to_string()),
-    );
-    create_params.insert(
-        "surface".to_string(),
-        serde_json::Value::String("workspace".to_string()),
-    );
-    create_params.insert(
-        "title".to_string(),
-        serde_json::Value::String(metadata.title),
-    );
-    let mut runtime_settings = serde_json::Map::new();
-    if let Some(agent_session_id) = metadata.agent_session_id {
-        runtime_settings.insert(
-            "agentSessionId".to_string(),
-            serde_json::Value::String(agent_session_id),
-        );
-    }
-    if let Some(session_persistence_name) = metadata.session_persistence_name {
-        runtime_settings.insert(
-            "sessionPersistenceName".to_string(),
-            serde_json::Value::String(session_persistence_name),
-        );
-    }
-    if let Some(session_persistence_provider) = metadata.session_persistence_provider {
-        runtime_settings.insert(
-            "sessionPersistenceProvider".to_string(),
-            serde_json::Value::String(session_persistence_provider),
-        );
-    }
-    if !runtime_settings.is_empty() {
-        create_params.insert(
-            "runtimeSettings".to_string(),
-            serde_json::Value::Object(runtime_settings),
-        );
-    }
-    if let Some(session_tag) = metadata.session_tag {
-        create_params.insert(
-            "sessionTag".to_string(),
-            serde_json::Value::String(session_tag),
-        );
-    }
-    if let Some(sidebar_order) = metadata.sidebar_order {
-        create_params.insert(
-            "sidebarOrder".to_string(),
-            serde_json::Value::Number(sidebar_order),
-        );
-    }
-    serde_json::Value::Object(create_params)
-}
-
 pub(crate) fn gpui_delete_previous_session_from_history_id(
     history_id: &str,
     remote_sources: &[GpuiRemotePreviousSessionSource],
@@ -1046,116 +833,76 @@ pub(crate) fn gpui_delete_previous_session_from_history_id(
     );
 }
 
+/// Restores a closed session on the computer that owns it, through that gxserver's
+/// `/api/restorePreviousSession` (CDXC:Sessions 2026-10-14 in server/src/previous_session_restore.rs),
+/// and names the new session for the attach that follows.
 pub(crate) fn gpui_restore_previous_session_from_history_id(
     history_id: &str,
     remote_sources: &[GpuiRemotePreviousSessionSource],
 ) -> Option<GpuiPreviousSessionRestoreResult> {
-    /*
-    CDXC:Sessions 2026-06-24-11:53:
-    Restore/delete commands from the shared Previous Sessions modal are local gxserver mutations only when the modal row carries the canonical `gxserver:<projectId>:<sessionId>` identity created by this projection. Restore creates a replacement workspace terminal with `restoredFromSessionId`, then removes the stopped history row only after create succeeds; unavailable gxserver or malformed history ids remain silent no-ops rather than fake success.
-    */
     if let Some(reference) = gpui_remote_previous_session_reference_from_history_id(history_id) {
         let remote_source =
             gpui_remote_previous_session_source_for_reference(remote_sources, &reference)?;
-        return gpui_restore_remote_previous_session(&reference, remote_source);
+        let restored = gpui_remote_gxserver_rpc_result(
+            &remote_source.target,
+            "/api/restorePreviousSession",
+            &gpui_restore_previous_session_params(
+                reference.project_id.as_str(),
+                reference.session_id.as_str(),
+            ),
+            Duration::from_secs(30),
+        )
+        .ok()?;
+        let (project_id, session_id) =
+            gpui_restored_session_ids(&restored, reference.project_id.as_str())?;
+        if !gpui_remote_sidebar_project_id_allowed(project_id.as_str())
+            || !gpui_remote_sidebar_session_id_allowed(session_id.as_str())
+        {
+            return None;
+        }
+        return Some(GpuiPreviousSessionRestoreResult::Remote {
+            project_id,
+            remote_machine_id: reference.remote_machine_id.clone(),
+            session_id,
+        });
     }
 
     let (project_id, session_id) = gpui_previous_session_reference_from_history_id(history_id)?;
-    let metadata = gpui_previous_session_restore_metadata(project_id, session_id)
-        .unwrap_or_else(GpuiPreviousSessionRestoreMetadata::default_title);
-    let response = gpui_gxserver_rpc_result(
-        "/api/createSession",
-        &gpui_previous_session_restore_create_params(project_id, session_id, metadata),
+    let restored = gpui_gxserver_rpc_result(
+        "/api/restorePreviousSession",
+        &gpui_restore_previous_session_params(project_id, session_id),
         Duration::from_secs(30),
     )
     .ok()?;
-    let _ = gpui_gxserver_rpc_result(
-        "/api/removeSession",
-        &serde_json::json!({
-            "projectId": project_id,
-            "reason": "restorePreviousSession",
-            "sessionId": session_id,
-        }),
-        Duration::from_secs(10),
-    );
-    // macOS opens the restored terminal as the active tab of the focused pane
-    // (`createFocusedTabGroupPlacement`); GPUI follows up by focusing the
-    // created session through the reviewed sidebar focusSession routing.
-    let created = response.get("session")?;
-    let created_project_id = created
-        .get("projectId")
-        .and_then(serde_json::Value::as_str)
-        .unwrap_or(&project_id)
-        .to_string();
-    let created_session_id = created
-        .get("sessionId")
-        .and_then(serde_json::Value::as_str)?
-        .to_string();
+    let (project_id, session_id) = gpui_restored_session_ids(&restored, project_id)?;
     Some(GpuiPreviousSessionRestoreResult::Local {
-        project_id: created_project_id,
-        session_id: created_session_id,
+        project_id,
+        session_id,
     })
 }
 
-pub(crate) fn gpui_restore_remote_previous_session(
-    reference: &GpuiRemotePreviousSessionReference,
-    remote_source: &GpuiRemotePreviousSessionSource,
-) -> Option<GpuiPreviousSessionRestoreResult> {
-    /*
-    CDXC:RemoteMachines 2026-07-04-14:15:
-    App-modal remote previous-session restore follows what the SidebarApp runtime did:
-    recreate the workspace session on the owning remote gxserver, copy only
-    metadata fields from that remote gxserver's previous-session row, then
-    remove the old remote history row. No local gxserver session or renderer
-    supplied remote connection details are involved.
-    */
-    let metadata = gpui_remote_previous_session_restore_metadata(
-        &remote_source.target,
-        reference.project_id.as_str(),
-        reference.session_id.as_str(),
-    )
-    .unwrap_or_else(GpuiPreviousSessionRestoreMetadata::default_title);
-    let response = gpui_remote_gxserver_rpc_result(
-        &remote_source.target,
-        "/api/createSession",
-        &gpui_previous_session_restore_create_params(
-            reference.project_id.as_str(),
-            reference.session_id.as_str(),
-            metadata,
-        ),
-        Duration::from_secs(30),
-    )
-    .ok()?;
-    let _ = gpui_remote_gxserver_rpc_result(
-        &remote_source.target,
-        "/api/removeSession",
-        &serde_json::json!({
-            "projectId": reference.project_id.as_str(),
-            "reason": "restorePreviousSession",
-            "sessionId": reference.session_id.as_str(),
-        }),
-        Duration::from_secs(10),
-    );
-    let created = response.get("session")?;
-    let created_project_id = created
-        .get("projectId")
-        .and_then(serde_json::Value::as_str)
-        .unwrap_or(reference.project_id.as_str())
-        .to_string();
-    let created_session_id = created
+fn gpui_restore_previous_session_params(project_id: &str, session_id: &str) -> serde_json::Value {
+    serde_json::json!({
+        "projectId": project_id,
+        "reason": "restorePreviousSession",
+        "sessionId": session_id,
+    })
+}
+
+fn gpui_restored_session_ids(
+    restored: &serde_json::Value,
+    fallback_project_id: &str,
+) -> Option<(String, String)> {
+    let session_id = restored
         .get("sessionId")
         .and_then(serde_json::Value::as_str)?
         .to_string();
-    if !gpui_remote_sidebar_project_id_allowed(created_project_id.as_str())
-        || !gpui_remote_sidebar_session_id_allowed(created_session_id.as_str())
-    {
-        return None;
-    }
-    Some(GpuiPreviousSessionRestoreResult::Remote {
-        project_id: created_project_id,
-        remote_machine_id: reference.remote_machine_id.clone(),
-        session_id: created_session_id,
-    })
+    let project_id = restored
+        .get("projectId")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or(fallback_project_id)
+        .to_string();
+    Some((project_id, session_id))
 }
 
 pub(crate) fn gpui_combined_presentation_session_focus_id(

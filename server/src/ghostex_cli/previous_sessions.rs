@@ -6,11 +6,11 @@
 //! The phone's session search lists closed sessions like the desktop's Sessions search and restores
 //! one when tapped, but the phone has no HTTP path to gxserver. Both verbs are thin doors onto the
 //! daemon's own endpoints: `/api/listPreviousSessions` (the list the desktop pages through) and
-//! `/api/openConversation` (the daemon-owned restore or resume, already shared with the Project
-//! Board and Saved Prompts), so a client never rebuilds restore parameters itself.
+//! `/api/restorePreviousSession` (the one restore every client uses), so a client never rebuilds
+//! restore parameters itself.
 //!
 //! SEE-ALSO: apps/mobile/app/src/sessions/sessionSearch.ts (the phone's caller and matching rules),
-//! server/src/open_conversation.rs.
+//! server/src/previous_session_restore.rs.
 
 use serde_json::{json, Map, Value};
 
@@ -21,8 +21,8 @@ use crate::ghostex_cli::rpc::{call_gxserver_rpc, CliError, CliResult};
 /// The page size the desktop's Sessions search asks for (`SESSIONS_PAGE_SIZE` in gx-core).
 const DEFAULT_LIMIT: u64 = 80;
 const MAX_LIMIT: u64 = 200;
-/// Above gxserver's own 60 s step timeout for a resume, so its answer (or refusal) reaches the caller.
-const RESTORE_TIMEOUT_MS: u64 = 90_000;
+/// The desktop's restore waits as long for gxserver to create the new session.
+const RESTORE_TIMEOUT_MS: u64 = 30_000;
 
 /// The row fields a client draws, matches and restores by; paths, commands and transcripts stay on
 /// the computer.
@@ -125,15 +125,14 @@ fn compact_row(row: &Value) -> Option<Value> {
     Some(Value::Object(compact))
 }
 
-/// `ghostex restore-previous-session`: bring a closed session back (a live one is only named) and
-/// print the session to open.
+/// `ghostex restore-previous-session`: bring a closed session back as a new session and print it;
+/// its agent resumes when the session is opened.
 pub fn restore_previous_session_command(args: &[String]) -> CliResult<()> {
     if wants_help(args) {
         println!("{}", restore_usage());
         return Ok(());
     }
     let mut flags = parse_args(args).flags;
-    // Resuming a conversation starts its agent, which can outlast the CLI's 15 s default.
     if !flags.contains("timeout") && !flags.contains("timeoutMs") {
         flags.insert_text("timeoutMs", &RESTORE_TIMEOUT_MS.to_string());
     }
@@ -145,12 +144,11 @@ pub fn restore_previous_session_command(args: &[String]) -> CliResult<()> {
         return Err(CliError::Other(restore_usage().to_string()));
     };
     let result = call_gxserver_rpc(
-        "/api/openConversation",
+        "/api/restorePreviousSession",
         &json!({
             "projectId": project_id,
+            "reason": "restorePreviousSession",
             "sessionId": session_id,
-            "restoreReason": "restorePreviousSession",
-            "resumeReason": "restorePreviousSession",
         }),
         flags,
     )?;

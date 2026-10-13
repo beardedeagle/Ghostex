@@ -561,6 +561,15 @@ pub(super) async fn route_sessions_http(
             )
             .await
         }
+        "/api/restorePreviousSession" => {
+            previous_session_restore_http::handle_restore_previous_session_http(
+                &state,
+                endpoint.path,
+                request_id,
+                body_json,
+            )
+            .await
+        }
         "/api/listPreviousSessions" => {
             let worker_state = state.clone();
             let worker_endpoint = endpoint.path.clone();

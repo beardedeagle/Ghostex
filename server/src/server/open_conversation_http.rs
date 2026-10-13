@@ -42,7 +42,7 @@ pub(crate) async fn handle_open_conversation_http(
     }
 }
 
-fn loopback(
+pub(super) fn loopback(
     token: &str,
     path: &str,
     params: Value,

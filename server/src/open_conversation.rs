@@ -20,9 +20,6 @@ use crate::domain::DomainStateError;
 /// Agents whose conversation the board can resume (`GPUI_PROJECT_BOARD_RESUMABLE_AGENT_IDS`).
 const RESUMABLE_AGENT_IDS: [&str; 3] = ["claude", "codex", "pi"];
 
-/// The default title of a restored terminal (`DEFAULT_TERMINAL_SESSION_TITLE`).
-const DEFAULT_TERMINAL_SESSION_TITLE: &str = "Terminal Session";
-
 /// What the caller asks for.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct OpenConversationRequest {
@@ -146,42 +143,15 @@ pub fn open_conversation(
         let resumed_project = non_empty(session, "projectId").unwrap_or(project_id.clone());
         return Ok(outcome("resumed", resumed_project, resumed_id, session));
     }
-    let row = row.expect("a row decides between restore and resume");
-    let mut create = Map::new();
-    create.insert("kind".into(), json!("terminal"));
-    create.insert("lifecycleState".into(), json!("running"));
-    create.insert("projectId".into(), json!(project_id));
-    create.insert("restoredFromSessionId".into(), json!(session_id));
-    if let Some(tag) = row
-        .get("sessionTag")
-        .filter(|tag| tag.as_str().is_some_and(|tag| !tag.is_empty()))
-    {
-        create.insert("sessionTag".into(), tag.clone());
-    }
-    if let Some(order) = row.get("sidebarOrder").filter(|order| !order.is_null()) {
-        create.insert("sidebarOrder".into(), order.clone());
-    }
-    create.insert("surface".into(), json!("workspace"));
-    create.insert("title".into(), json!(row_title(&row)));
-    let created = call("/api/createSession", Value::Object(create))?;
-    let session = created.get("session");
-    let Some(restored_id) = non_empty(session, "sessionId") else {
-        return Err(DomainStateError::bad_request(
-            "The linked Ghostex session could not be restored.",
-        ));
-    };
-    let restored_project = non_empty(session, "projectId").unwrap_or(project_id.clone());
-    // The stopped history row goes, as the Previous Sessions restore removes it; a failure here
-    // leaves an extra history row and changes nothing else.
-    let _ = call(
-        "/api/removeSession",
-        json!({
-            "projectId": project_id,
-            "reason": request.restore_reason,
-            "sessionId": session_id,
-        }),
-    );
-    Ok(outcome("restored", restored_project, restored_id, session))
+    // CDXC:Sessions 2026-10-14 SEE-ALSO: the one restore every client uses (previous_session_restore.rs).
+    crate::previous_session_restore::restore_previous_session(
+        &crate::previous_session_restore::RestorePreviousSessionRequest {
+            project_id: project_id.clone(),
+            session_id: session_id.clone(),
+            reason: request.restore_reason.clone(),
+        },
+        call,
+    )
 }
 
 /// The live session the request means: whichever presentation session now carries the
@@ -219,19 +189,6 @@ fn resumable(result: &Value) -> bool {
     non_empty(plan, "primaryCommand").is_some()
         && non_empty(plan, "agentId")
             .is_some_and(|agent| RESUMABLE_AGENT_IDS.contains(&agent.to_lowercase().as_str()))
-}
-
-/// `gpuiProjectBoardPreviousSessionRowTitle`.
-fn row_title(row: &Value) -> String {
-    ["displayTitle", "primaryTitle", "title"]
-        .iter()
-        .find_map(|key| {
-            row.get(*key)
-                .and_then(Value::as_str)
-                .filter(|title| !title.is_empty())
-        })
-        .unwrap_or(DEFAULT_TERMINAL_SESSION_TITLE)
-        .to_string()
 }
 
 fn non_empty(value: Option<&Value>, key: &str) -> Option<String> {
