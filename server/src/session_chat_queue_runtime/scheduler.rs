@@ -422,6 +422,13 @@ impl SessionChatQueueRuntime {
                     self.reset_gate(&key);
                     continue;
                 }
+                // An agent that could not start on an account without a saved login: the row waits
+                // behind the card and goes out once the user's fix starts the agent (CDXC:SessionChat
+                // 2026-10-14 in session_chat_agent_restart.rs).
+                if notice.missing_login() {
+                    self.reset_gate(&key);
+                    continue;
+                }
                 // CDXC:SessionChat 2026-10-09 WHY: an exited agent is restarted by the send itself and the row waits for it (the 2026-10-09 DECISION in send_heal.rs), so the row is delivered instead of failed with "no longer running".
                 if notice.kind == crate::session_chat_notice::SESSION_CHAT_NOTICE_AGENT_EXITED {
                     ready.push(ReadyDelivery {

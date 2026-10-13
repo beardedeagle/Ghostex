@@ -1530,6 +1530,13 @@ sessions rule, just like the sidebar agent button, while the terminal and your
 unsent chat text stay in place.
 Sign-in and usage-limit notices in Claude and Codex chats offer Switch account
 beside Open terminal, so you can choose another account directly from those notices.
+When a Claude session can't start because its account has no saved login on this
+computer, its chat shows a card naming the account with Switch account, Sign in to
+that account (it runs `ghostex account-login claude --account N` in the session's
+terminal and starts Claude again when the sign-in finishes) and Try again. A message
+you sent waits in the chat and goes out on its own once Claude is up. Waking a
+session on such an account moves it to an account that works first, unless Continue
+automatically is off or you stopped automatic recovery for that session.
 In the chat's More actions menu, and in the ⋯ menu of the bar under a Claude or
 Codex terminal view, click Switch Account to open its submenu of saved accounts
 with their usage; hovering over it does not open it. Open submenus stay open when you move the

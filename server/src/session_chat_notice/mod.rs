@@ -52,11 +52,13 @@ use crate::session_chat_options::{
 mod classify;
 mod rules;
 mod screen;
+mod start_failure;
 mod types;
 mod watchdog_store;
 
 pub use classify::*;
 pub use rules::*;
 use screen::*;
+pub use start_failure::*;
 pub use types::*;
 pub use watchdog_store::*;

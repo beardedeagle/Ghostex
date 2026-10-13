@@ -308,6 +308,11 @@ pub fn classify_session_chat_terminal_notice(
             )]),
         );
     }
+    if agent == SessionChatOptionAgent::Claude {
+        if let Some(notice) = detect_claude_missing_login(&screen) {
+            return Some(notice);
+        }
+    }
     if agent == SessionChatOptionAgent::Codex
         && crate::session_chat_codex_lock::is_locked(screen_text)
     {

@@ -203,15 +203,17 @@ pub fn terminal_notice_action_answer(
     if action.kind == "trustAndRemember" {
         return Some(json!({ "kind": "trustAndRemember" }));
     }
+    // gxserver tells the restarts apart by the action id: Sign in on the card of an agent whose
+    // account has no saved login rides this answer (server/src/session_chat_agent_restart.rs).
     if action.kind == "restartAgent" {
-        return Some(json!({ "kind": "restartAgent" }));
+        return Some(json!({ "kind": "restartAgent", "actionId": action.id }));
     }
     None
 }
 
 /// `terminalNoticeActionShortcutEligible`: whether the primary shortcut may trigger the action.
-/// Trust and Remember is deliberately click-only: a shortcut meant to accept one prompt must not
-/// also change what happens on every later one.
+/// Trust and Remember and Sign in are deliberately click-only: a shortcut meant to accept one
+/// prompt must not also change what happens on every later one, or start a browser sign-in.
 pub fn terminal_notice_action_shortcut_eligible(action: &TerminalNoticeAction) -> bool {
-    action.kind != "trustAndRemember"
+    action.kind != "trustAndRemember" && action.id != "signInAccount"
 }

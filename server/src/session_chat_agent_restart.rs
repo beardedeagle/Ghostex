@@ -1,12 +1,19 @@
 //! CDXC:SessionChat 2026-09-29 WHY:
 //! Codex exits to the shell after "Update now", after /logout and when it crashes, and the chat could only say it was no longer running and point at the terminal, where a new user had to know to type a resume command. Restart puts the session to sleep and wakes it, the same cycle the sidebar uses, so the agent comes back on its own conversation with the resume command Ghostex already keeps for it.
 
-use serde_json::{Map, Value};
+use std::{
+    collections::HashMap,
+    sync::{LazyLock, Mutex},
+    time::{Duration, Instant},
+};
+
+use serde_json::{json, Map, Value};
 
 use crate::domain::{DomainRepository, DomainStateError};
 use crate::server::AppState;
 use crate::session_chat_notice::{
-    classify_session_chat_terminal_notice, SESSION_CHAT_NOTICE_AGENT_EXITED,
+    classify_session_chat_terminal_notice, session_chat_screen_ends_with_shell_prompt,
+    SESSION_CHAT_NOTICE_ACTION_SIGN_IN, SESSION_CHAT_NOTICE_AGENT_EXITED,
 };
 use crate::session_chat_send::resolve_session_chat_send_target;
 use crate::storage::open_gxserver_database;
@@ -27,6 +34,9 @@ pub(crate) async fn restart(
     if let Some(fixed) = fix_refused_send(state, params).await {
         return fixed;
     }
+    if params.get("actionId").and_then(Value::as_str) == Some(SESSION_CHAT_NOTICE_ACTION_SIGN_IN) {
+        return sign_in(state, params).await;
+    }
     let state = state.clone();
     let params = params.clone();
     tokio::task::spawn_blocking(move || {
@@ -41,8 +51,12 @@ pub(crate) async fn restart(
         )
         .map_err(|_| invalid("Could not read the terminal. Nothing was restarted."))?;
         let agent = crate::session_chat_composer::session_chat_composer_agent_id(&target.session);
+        // Try again on the card of an agent that could not start on its account is the same
+        // restart; the wake moves the session to a working account when it may (wake_account.rs).
         let exited = classify_session_chat_terminal_notice(agent.as_deref(), &screen.text)
-            .is_some_and(|notice| notice.kind == SESSION_CHAT_NOTICE_AGENT_EXITED);
+            .is_some_and(|notice| {
+                notice.kind == SESSION_CHAT_NOTICE_AGENT_EXITED || notice.missing_login()
+            });
         if !exited {
             return Err(invalid(
                 "The agent is running in this terminal again, so it was not restarted.",
@@ -96,4 +110,212 @@ async fn fix_refused_send(
         )();
     }
     Some(restarted)
+}
+
+/// Sign in on the card of an agent that could not start because its account has no saved login
+/// (session_chat_notice/start_failure.rs): types `ghostex account-login claude --account <slot>`
+/// into the shell the failed start left, then restarts the agent once that login finishes.
+async fn sign_in(state: &AppState, params: &Map<String, Value>) -> Result<(), DomainStateError> {
+    let target = resolve_session_chat_send_target(state, params, "signInAccount")?;
+    let screen = crate::session_chat_send::capture_session_terminal_text(&target.zmx_name)
+        .await
+        .ok_or_else(|| invalid("Could not read the terminal. Nothing was typed."))?;
+    let agent = crate::session_chat_composer::session_chat_composer_agent_id(&target.session);
+    let slot = classify_session_chat_terminal_notice(agent.as_deref(), &screen)
+        .and_then(|notice| notice.missing_login_slot())
+        .ok_or_else(|| {
+            invalid("This terminal is no longer waiting for a sign-in, so nothing was typed.")
+        })?;
+    let home = crate::resume_lookup::home_dir();
+    let ghostex = crate::accounts::helpers::executable(&home, "ghostex")
+        .ok_or_else(|| invalid("The ghostex command was not found on this computer."))?;
+    // PowerShell runs a quoted path only through the call operator (accounts/launch.rs).
+    let invoke = if cfg!(windows) { "& " } else { "" };
+    let command = format!(
+        "{invoke}{} account-login claude --account {slot}",
+        crate::agents::quote_shell_arg(&ghostex.to_string_lossy())
+    );
+    crate::session_chat_send::write_session_chat_payload(
+        &target.project_id,
+        &target.session_id,
+        &target.zmx_name,
+        "session-chat-sign-in",
+        &crate::agents::as_atuin_ignored_shell_input(&command),
+    )
+    .await
+    .map_err(invalid)?;
+    crate::session_chat_send_diagnostics::record_send_recovery(
+        state,
+        "sessionChatStartSignInTyped",
+        &target.project_id,
+        &target.session_id,
+        &format!("Typed the sign-in for account {slot} into the session's shell."),
+        &[],
+    );
+    let state = state.clone();
+    tokio::spawn(async move {
+        restart_after_sign_in(
+            &state,
+            &target.project_id,
+            &target.session_id,
+            &target.zmx_name,
+        )
+        .await
+    });
+    Ok(())
+}
+
+/// How long the restart after Sign in waits for the login in the terminal to finish.
+const SIGN_IN_WAIT: Duration = Duration::from_secs(30 * 60);
+
+/// Waits until the shell prompt is back (the login finished, failed or was cancelled), then
+/// restarts the agent once: on the new login it comes up and a held message goes out; without
+/// it, the start fails again and the card comes back.
+async fn restart_after_sign_in(state: &AppState, project_id: &str, session_id: &str, zmx: &str) {
+    let started = Instant::now();
+    while started.elapsed() < SIGN_IN_WAIT {
+        tokio::time::sleep(Duration::from_secs(3)).await;
+        let Some(screen) = crate::session_chat_send::capture_session_terminal_text(zmx).await
+        else {
+            // No daemon: the session was slept or restarted meanwhile.
+            return;
+        };
+        if !session_chat_screen_ends_with_shell_prompt(&screen) {
+            continue;
+        }
+        if crate::session_chat_queue_runtime::cycle_session(state, project_id, session_id)
+            .await
+            .is_ok()
+        {
+            crate::session_chat_send_diagnostics::record_send_recovery(
+                state,
+                "sessionChatStartRestartedAfterSignIn",
+                project_id,
+                session_id,
+                "The sign-in in the terminal finished; restarted the agent.",
+                &[],
+            );
+        }
+        return;
+    }
+}
+
+/// One automatic retry of a start that failed on a missing login per session in this window, so
+/// a login cswap reports as saved but the CLI still refuses cannot restart the agent in a loop.
+const START_RETRY_COOLDOWN: Duration = Duration::from_secs(5 * 60);
+
+static START_RETRIES: LazyLock<Mutex<HashMap<String, Instant>>> = LazyLock::new(Default::default);
+
+fn claim_start_retry(project_id: &str, session_id: &str) -> bool {
+    let Ok(mut retries) = START_RETRIES.lock() else {
+        return false;
+    };
+    retries.retain(|_, at| at.elapsed() < START_RETRY_COOLDOWN);
+    retries
+        .insert(format!("{project_id}:{session_id}"), Instant::now())
+        .is_none()
+}
+
+/// CDXC:SessionChat 2026-10-14 DECISION:
+/// User: a chat message queued for a session whose agent cannot start must not sit "queued" forever with no explanation; "failures time can fix retry on their own; a missing login can't, so it must be shown, never silently retried forever". While a session holds a message the user sent (a startup send) and its daemon is up but no input box appears, the queue scheduler calls this on the startup send's wake backoff (every 10 s, settling at every 60 s). An agent that exited to the shell is restarted on its own conversation (at most once in ten minutes, `restart_agent_for_send`). An agent that could not start because its account has no saved login shows its card (session_chat_notice/start_failure.rs) and is restarted only when that can now work: the login was saved meanwhile (Settings > Accounts, the card's Sign in, or `ghostex account-login`), or the wake may move the session to an account that works (accounts/wake_account.rs). The message stays held through all of it and goes out once the input box appears.
+/// SEE-ALSO: session_chat_send_wake.rs (`wake_session_holding_startup_send` calls this), session_chat_queue_runtime/scheduler.rs.
+pub(crate) async fn heal_failed_start(state: &AppState, project_id: &str, session_id: &str) {
+    let mut params = Map::new();
+    params.insert("projectId".to_string(), json!(project_id));
+    params.insert("sessionId".to_string(), json!(session_id));
+    let Ok(target) = resolve_session_chat_send_target(state, &params, "startHeal") else {
+        return;
+    };
+    if crate::agentbox::is_agentbox_session(&target.session) {
+        return;
+    }
+    let notice = crate::session_chat_options::cached_session_chat_terminal_notice(
+        state, project_id, session_id,
+    );
+    if let Some(slot) = notice
+        .as_ref()
+        .and_then(|notice| notice.missing_login_slot())
+    {
+        let owned = state.clone();
+        let (pid, sid) = (project_id.to_string(), session_id.to_string());
+        let fixable = tokio::task::spawn_blocking(move || {
+            claude_slot_has_login(&slot) || wake_moves_account(&owned, &pid, &sid)
+        })
+        .await
+        .unwrap_or(false);
+        if !fixable || !claim_start_retry(project_id, session_id) {
+            return;
+        }
+        if crate::session_chat_queue_runtime::cycle_session(state, project_id, session_id)
+            .await
+            .is_ok()
+        {
+            crate::session_chat_send_diagnostics::record_send_recovery(
+                state,
+                "sessionChatStartRetried",
+                project_id,
+                session_id,
+                "The agent could not start on an account without a saved login; a login or a working account is available now, so it was restarted.",
+                &[],
+            );
+        }
+        return;
+    }
+    let composer = crate::session_chat_options::cached_session_chat_composer_readiness(
+        state, project_id, session_id,
+    );
+    let exited = match notice.as_ref() {
+        Some(notice) => notice.kind == SESSION_CHAT_NOTICE_AGENT_EXITED,
+        None => session_chat_screen_ends_with_shell_prompt(&composer.screen_tail.join("\n")),
+    };
+    if !exited
+        || crate::session_chat_send::session_agent_process_running(
+            &target.zmx_name,
+            &crate::resume_lookup::home_dir(),
+        )
+        .await
+    {
+        return;
+    }
+    // Records its own outcome; a refusal (restarted a few minutes ago, nothing to resume) waits
+    // for the next check.
+    let _ = crate::session_chat_queue_runtime::restart_agent_for_send(state, &target, false).await;
+}
+
+/// Whether claude-swap now holds a usable login for `slot`.
+fn claude_slot_has_login(slot: &str) -> bool {
+    let home = crate::resume_lookup::home_dir();
+    crate::accounts::helpers::json_command(&home, "cswap", &["list", "--json"]).is_ok_and(|list| {
+        list["accounts"].as_array().is_some_and(|rows| {
+            rows.iter().any(|row| {
+                row["number"]
+                    .as_u64()
+                    .map(|number| number.to_string())
+                    .as_deref()
+                    == Some(slot)
+                    && matches!(
+                        row["usageStatus"].as_str(),
+                        Some("ok" | "unavailable" | "api_key")
+                    )
+            })
+        })
+    })
+}
+
+/// Whether waking the session now would move it to another account (accounts/wake_account.rs).
+fn wake_moves_account(state: &AppState, project_id: &str, session_id: &str) -> bool {
+    // The wake reads the shared usage snapshot; keep it no older than the usual two minutes.
+    state.accounts.refresh(&state.paths.home_dir, false);
+    let Ok(db) = open_gxserver_database(&state.paths) else {
+        return false;
+    };
+    let repository = DomainRepository::new(&db, &state.metadata.server_id);
+    let (Ok(Some(project)), Ok(Some(session))) = (
+        repository.get_project(project_id),
+        repository.get_session(project_id, session_id),
+    ) else {
+        return false;
+    };
+    crate::accounts::wake_account::rebind_target(&repository, &project, &session)
+        .is_ok_and(|target| target.is_some())
 }

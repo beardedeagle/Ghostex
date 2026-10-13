@@ -575,6 +575,31 @@ const CLAUDE_RULES: &[NoticeRule] = &[
         actions: &[OPEN_TERMINAL],
         quote_evidence: true,
     },
+    // Ghostex's own restore script, when neither the exact resume nor its fallback started Claude.
+    NoticeRule {
+        kind: SESSION_CHAT_NOTICE_AGENT_EXITED,
+        severity: SessionChatTerminalNoticeSeverity::Error,
+        title: "Claude Code couldn't resume this session",
+        detail: "Claude Code exited before this conversation came back, and the terminal is at a shell prompt. Ghostex starts it again by itself; you can also try again now.",
+        blocks_input: true,
+        signatures: &[NoticeSignature {
+            scope: NoticeScope::Exit,
+            parts: &[NoticePart::Text(
+                "Unable to find restorable Claude session id",
+            )],
+            corroborators: &[],
+        }],
+        actions: &[
+            NoticeActionSpec {
+                id: "restartAgent",
+                label: "Try again",
+                kind: SessionChatTerminalNoticeActionKind::RestartAgent,
+                send: None,
+            },
+            OPEN_TERMINAL,
+        ],
+        quote_evidence: true,
+    },
     NoticeRule {
         kind: SESSION_CHAT_NOTICE_AGENT_ERROR,
         severity: SessionChatTerminalNoticeSeverity::Error,

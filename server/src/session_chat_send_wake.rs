@@ -192,6 +192,19 @@ pub(crate) fn wake_session_holding_startup_send(
     let session_id = session_id.to_string();
     tokio::spawn(async move {
         if !provider_missing(&state, &project_id, &session_id).await {
+            // The daemon is up but the agent never took input: a start that failed is healed or
+            // shown (CDXC:SessionChat 2026-10-14 in session_chat_agent_restart.rs), for a held
+            // message young enough to wake for.
+            if prompt_id.as_deref().is_some_and(|prompt_id| {
+                held_message_young_enough(&state, &project_id, &session_id, prompt_id)
+            }) {
+                crate::session_chat_agent_restart::heal_failed_start(
+                    &state,
+                    &project_id,
+                    &session_id,
+                )
+                .await;
+            }
             return;
         }
         // The scheduler's call is for a held message: once the stale ones are retired, wake only
@@ -224,6 +237,27 @@ pub(crate) fn wake_session_holding_startup_send(
 /// CDXC:SessionChat 2026-10-12 WHY:
 /// A held message wakes its session only while it is younger than this. On the day the wake retry above was added, the user's machine held 6 messages on closed sessions, 58 to 666 hours old (test pings, briefs to threads long since finished), and the first gxserver start would have woken all six agents and typed each stale message into them. A day still covers a machine that was off overnight; an older message is marked Not sent with the reason below, which tells an agent sender through the queue's undelivered report, and the user can still Retry it from the chat. This only gates waking: a held message in a session that is already up keeps waiting for its input box (2026-10-11 decision above).
 const STARTUP_SEND_WAKE_MAX_AGE_HOURS: i64 = 24;
+
+/// Whether the held message `prompt_id` is younger than `STARTUP_SEND_WAKE_MAX_AGE_HOURS`.
+fn held_message_young_enough(
+    state: &AppState,
+    project_id: &str,
+    session_id: &str,
+    prompt_id: &str,
+) -> bool {
+    let Ok(db) = open_gxserver_database(&state.paths) else {
+        return false;
+    };
+    let cutoff = chrono::Utc::now() - chrono::Duration::hours(STARTUP_SEND_WAKE_MAX_AGE_HOURS);
+    crate::session_chat_queue::read_session_chat_queue_snapshot_with(&db, project_id, session_id)
+        .queue
+        .iter()
+        .any(|prompt| {
+            prompt.id == prompt_id
+                && chrono::DateTime::parse_from_rfc3339(&prompt.created_at)
+                    .is_ok_and(|created| created >= cutoff)
+        })
+}
 
 /// Marks Not sent every held startup send of this session too old to wake for.
 fn retire_stale_startup_sends(state: &AppState, project_id: &str, session_id: &str) {
@@ -301,8 +335,13 @@ fn fail_held_message(
 
 /// CDXC:SessionChat 2026-10-11 WHY:
 /// On a Windows machine whose every new PowerShell hung for minutes, a new session's screen stayed blank while the shell loaded, and the send read that as "the agent is gone": it refused the message and tried to restart the session, which would have killed the shell that was still starting. Nothing on screen yet is what a starting agent looks like (an exited agent leaves its shell prompt or its exit text), so a blank screen counts as starting, like the restore banner. `screen_tail` holds only non-blank lines.
+/// CDXC:SessionChat 2026-10-14 WHY: the restore banner stays on screen when the resume fails and the script drops to the shell (cswap's "Account-5 has no stored credentials" left "Restoring session..." above the prompt of session G7v5a), so the banner counts as starting only while no shell prompt has come back after it; otherwise a send to a dead start was held as "still starting" for good.
 pub(crate) fn screen_shows_agent_starting(screen_tail: &[String]) -> bool {
-    screen_tail.is_empty() || screen_tail.iter().any(|line| line.trim() == RESTORE_BANNER)
+    screen_tail.is_empty()
+        || (screen_tail.iter().any(|line| line.trim() == RESTORE_BANNER)
+            && !crate::session_chat_notice::session_chat_screen_ends_with_shell_prompt(
+                &screen_tail.join("\n"),
+            ))
 }
 
 /// CDXC:SessionChat 2026-10-11 DECISION:
