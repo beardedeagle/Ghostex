@@ -354,8 +354,8 @@ pub const MAIN_SETTINGS_SCROLL_TARGET_SETTING_KEYS: &[(&str, &[&str])] = &[
             "sessionChatConfirmEscapeInterrupt",
             "chatCatchMeUp",
             "markedHandovers",
-            "markedHandoversStyle",
             "markedHandoversEmoji",
+            "markedHandoversStyle",
         ],
     ),
     (
@@ -688,8 +688,8 @@ pub const MAIN_SETTINGS_SECTION_SETTING_KEYS: &[(&str, &[&str])] = &[
             "sessionChatConfirmEscapeInterrupt",
             "chatCatchMeUp",
             "markedHandovers",
-            "markedHandoversStyle",
             "markedHandoversEmoji",
+            "markedHandoversStyle",
         ],
     ),
     (

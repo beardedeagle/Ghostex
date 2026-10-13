@@ -1,8 +1,8 @@
 //! Settings > Chat: the Marked sections style dropdown with its Preview button, and the Preview
 //! dialog that draws the same sample reply in all three styles side by side.
 //!
-//! CDXC:MarkedHandovers 2026-10-11 DECISION:
-//! User: a dropdown right under Marked handovers picks the style (coloured labels by default), with an icon button whose tooltip reads "Preview" that opens a modal showing all three styles side by side on the same sample message; both are hidden while Marked handovers is off (the chat keeps colouring orchestrators' and threads' marked handovers in the saved style).
+//! CDXC:MarkedHandovers 2026-10-13 DECISION:
+//! User: a dropdown under Marked handovers picks the style (coloured labels by default), with a Preview button that opens a modal showing all three styles side by side on the same sample message; both are hidden while Marked handovers is off (the chat keeps colouring orchestrators' and threads' marked handovers in the saved style). 2026-10-13, superseding the icon-only eye button and the style-first order: "please swap these 2 and move the eye icon to the left of the dropdown and name it "Preview"" (Show marker emojis comes first; the button is the eye icon with the text Preview, left of the dropdown).
 //!
 //! CDXC:MarkedHandovers 2026-10-11 WHY: the preview is a dialog nested in the Settings window, not an app modal of its own: opening another app modal replaces the open one (`open_native_app_modal`), which would close Settings under the reader. It draws with the chat's own look file, included here as a module of its own because the Settings page also builds into the standalone modal demo, which has no chat renderer.
 
@@ -12,7 +12,7 @@ mod marked_look;
 use super::super::super::super::native_modal_kit::*;
 use super::super::super::fields::{
     ButtonVariant, RowSpec, SELECT_WIDTH, icon, reset_key, setting_row, settings_dialog_sheet,
-    settings_icon_button, settings_select, toggle_field,
+    settings_button, settings_select, toggle_field,
 };
 use super::{GeneralCx, GeneralTab, save};
 use gpui::prelude::FluentBuilder as _;
@@ -39,7 +39,6 @@ impl GeneralTab {
             return Vec::new();
         }
         let mut rows: Vec<AnyElement> = Vec::new();
-        rows.extend(self.marked_style_select_row(g, section, window, cx));
         if g.visible(section, EMOJI_KEY) {
             let spec = g
                 .spec(
@@ -57,6 +56,7 @@ impl GeneralTab {
                 cx,
             ));
         }
+        rows.extend(self.marked_style_select_row(g, section, window, cx));
         rows
     }
 
@@ -93,15 +93,14 @@ impl GeneralTab {
             window,
             cx,
         );
-        let preview = settings_icon_button(
+        let preview = settings_button(
             &g.p,
             "marked-sections-preview",
-            icon::EYE,
-            16.0,
-            32.0,
+            "Preview",
+            Some(icon::EYE),
             ButtonVariant::Outline,
-            Some("Preview".into()),
             false,
+            None,
             |page: &mut Self, window, cx| {
                 let focus = cx.focus_handle();
                 focus.focus(window, cx);
@@ -112,8 +111,8 @@ impl GeneralTab {
         );
         let control = h_flex()
             .gap(px(8.0))
-            .child(select)
             .child(preview)
+            .child(select)
             .into_any_element();
         Some(setting_row(
             &g.p,

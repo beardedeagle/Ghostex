@@ -1054,6 +1054,20 @@
       "agentWritable": true
     },
     {
+      "key": "markedHandoversEmoji",
+      "title": "Show marker emojis",
+      "subtitle": "Show the marker emoji (❓ ✅ ⚠️ and the rest) at the start of each coloured section, in every style. Off: the colour and the label show the kind. Shown while Marked handovers is on.",
+      "tab": "settings",
+      "tabTitle": "General",
+      "group": "chat",
+      "groupTitle": "Chat",
+      "section": "chat",
+      "sectionTitle": "Chat",
+      "type": "boolean",
+      "default": false,
+      "agentWritable": true
+    },
+    {
       "key": "markedHandoversStyle",
       "title": "Marked sections style",
       "subtitle": "How the chat colours the sections an agent marks: coloured labels, a thin left rule, or a coloured badge in place of the emoji. Shown while Marked handovers is on.",
@@ -1079,20 +1093,6 @@
           "value": "badge"
         }
       ],
-      "agentWritable": true
-    },
-    {
-      "key": "markedHandoversEmoji",
-      "title": "Show marker emojis",
-      "subtitle": "Show the marker emoji (❓ ✅ ⚠️ and the rest) at the start of each coloured section, in every style. Off: the colour and the label show the kind. Shown while Marked handovers is on.",
-      "tab": "settings",
-      "tabTitle": "General",
-      "group": "chat",
-      "groupTitle": "Chat",
-      "section": "chat",
-      "sectionTitle": "Chat",
-      "type": "boolean",
-      "default": false,
       "agentWritable": true
     },
     {
