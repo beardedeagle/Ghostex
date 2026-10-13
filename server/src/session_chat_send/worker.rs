@@ -158,11 +158,17 @@ pub(super) async fn run_session_chat_send_worker(
                     home_dir,
                     previous_process_id,
                     timeout_ms,
+                    accept_remembered_trust,
                 } => {
                     let cancelled = || job_generation != generation.load(Ordering::SeqCst);
                     if let Err(error) =
                         crate::accounts::restart_verification::wait_for_account_ready(
-                            &zmx_name,
+                            crate::accounts::restart_verification::AccountReadyTarget {
+                                project_id: &project_id,
+                                session_id: &session_id,
+                                zmx_name: &zmx_name,
+                                accept_remembered_trust,
+                            },
                             &agent,
                             &expected_identity,
                             &home_dir,

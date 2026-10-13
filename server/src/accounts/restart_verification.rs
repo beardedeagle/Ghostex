@@ -1,7 +1,10 @@
 use crate::{
     session_chat_composer::{detect_session_chat_composer_readiness, SessionChatComposerState},
-    session_chat_notice::{classify_session_chat_terminal_notice, SESSION_CHAT_NOTICE_USAGE_LIMIT},
-    session_chat_send::capture_session_terminal_text,
+    session_chat_notice::{
+        classify_session_chat_terminal_notice, SESSION_CHAT_NOTICE_TRUST_PROMPT,
+        SESSION_CHAT_NOTICE_USAGE_LIMIT,
+    },
+    session_chat_send::{capture_session_terminal_text, SessionChatSendStep},
 };
 use std::{
     path::Path,
@@ -23,11 +26,61 @@ fn terminal_tail(screen: &str) -> Option<String> {
     Some(tail.chars().take(400).collect())
 }
 
+/// The session a switch is waiting on.
+pub(crate) struct AccountReadyTarget<'a> {
+    pub project_id: &'a str,
+    pub session_id: &'a str,
+    pub zmx_name: &'a str,
+    /// The session's folders are remembered as trusted (session_chat_trust_memory.rs).
+    pub accept_remembered_trust: bool,
+}
+
+/// How long an accepted trust prompt gets to close before it is accepted again.
+const TRUST_ANSWER_RETRY: Duration = Duration::from_secs(4);
+
+/// CDXC:AgentProviders 2026-10-14 WHY:
+/// Every cswap account is its own Claude profile with its own list of trusted folders, so a session switched to an account that never ran in its folder opens on Claude's "trust this folder" prompt. Ghostex accepts that prompt for remembered folders only from its screen-detection funnel, which nothing ran while this check waited, so the prompt sat there until the 30-second check gave up and the switch failed with "its input box is not ready" (the remembered answer was typed the same millisecond, on G7v5a twice and on the throwaway G9ubo on 2026-10-13). The check now accepts a remembered folder's prompt itself, with the same keys the funnel uses. It writes the keys straight to the terminal because it runs inside the session's send worker, which a queued send would wait on.
+async fn accept_remembered_trust(target: &AccountReadyTarget<'_>, agent: &str, screen: &str) {
+    let Some(steps) =
+        crate::session_chat_trust_memory::workspace_trust_accept_steps(Some(agent), screen)
+    else {
+        return;
+    };
+    if !steps.iter().all(|step| {
+        matches!(
+            step,
+            SessionChatSendStep::Write(_) | SessionChatSendStep::SleepMs(_)
+        )
+    }) {
+        return;
+    }
+    for step in steps {
+        match step {
+            SessionChatSendStep::Write(payload) => {
+                if crate::session_chat_send::write_session_chat_payload(
+                    target.project_id,
+                    target.session_id,
+                    target.zmx_name,
+                    "workspace-trust-remembered",
+                    &payload,
+                )
+                .await
+                .is_err()
+                {
+                    return;
+                }
+            }
+            SessionChatSendStep::SleepMs(ms) => tokio::time::sleep(Duration::from_millis(ms)).await,
+            _ => {}
+        }
+    }
+}
+
 /// CDXC:AgentProviders 2026-09-11 DECISION:
 /// User: verify the new process's account identity and ready input before marking a switch successful or sending its continuation dot.
 /// The live process's configured login is the evidence: the saved account binding and shared transcript folder can both still describe a different account.
 pub(crate) async fn wait_for_account_ready(
-    zmx_name: &str,
+    target: AccountReadyTarget<'_>,
     agent: &str,
     expected_identity: &str,
     home_dir: &Path,
@@ -35,9 +88,11 @@ pub(crate) async fn wait_for_account_ready(
     timeout_ms: u64,
     cancelled: &(dyn Fn() -> bool + Send + Sync),
 ) -> Result<(), String> {
+    let zmx_name = target.zmx_name;
     let deadline = Instant::now() + Duration::from_millis(timeout_ms);
     let mut reason = "The selected account has not started yet.".to_string();
     let mut saw_agent = false;
+    let mut trust_answered_at: Option<Instant> = None;
     loop {
         if cancelled() {
             return Err("The account switch was cancelled.".to_string());
@@ -76,6 +131,16 @@ pub(crate) async fn wait_for_account_ready(
                         );
                         if composer.state == SessionChatComposerState::Ready && !cancelled() {
                             return Ok(());
+                        }
+                        if target.accept_remembered_trust
+                            && notice.as_ref().is_some_and(|notice| {
+                                notice.kind == SESSION_CHAT_NOTICE_TRUST_PROMPT
+                            })
+                            && trust_answered_at.is_none_or(|at| at.elapsed() >= TRUST_ANSWER_RETRY)
+                            && !cancelled()
+                        {
+                            trust_answered_at = Some(Instant::now());
+                            accept_remembered_trust(&target, agent, &screen).await;
                         }
                     }
                     reason = "The selected account started, but its input box is not ready. Check the terminal for a login or setup prompt.".to_string();

@@ -142,6 +142,9 @@ pub enum SessionChatSendStep {
         home_dir: PathBuf,
         previous_process_id: Option<i64>,
         timeout_ms: u64,
+        /// The session's folders are remembered as trusted, so the folder trust prompt the new
+        /// login asks is accepted while waiting (accounts/restart_verification.rs).
+        accept_remembered_trust: bool,
     },
     ClearComposer {
         agent: String,

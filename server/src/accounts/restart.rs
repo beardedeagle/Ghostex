@@ -208,6 +208,11 @@ pub(crate) fn start(
         home_dir: state.paths.home_dir.clone(),
         previous_process_id: plan.previous_process_id,
         timeout_ms: 30_000,
+        accept_remembered_trust: crate::session_chat_trust_memory::session_folders_remembered(
+            repository,
+            &project_id,
+            &session_id,
+        ),
     });
     let progress_state = state.clone();
     let progress_project = project_id.clone();
