@@ -32,6 +32,7 @@ pub(crate) enum UpdatePlan {
 pub(crate) struct PendingUpdate {
     plan: UpdatePlan,
     latest: String,
+    command: String,
 }
 
 /// Decides from the Agents page state of `codex` (agent_cli `read_agent`). `codex_targets_copy` answers
@@ -124,6 +125,7 @@ pub(crate) async fn plan_for_prompt(
         plan => Ok(Some(PendingUpdate {
             plan,
             latest: prompt.latest,
+            command: prompt.command,
         })),
     }
 }
@@ -175,6 +177,8 @@ fn global_bin_dir(method: &str, home: &Path) -> Option<PathBuf> {
 
 /// How long a restart waits for Codex to finish a turn the user started while the update ran.
 const RESTART_WAIT: Duration = Duration::from_secs(30 * 60);
+/// How long a second "Update now" waits for an update already running.
+const UPDATE_WAIT: Duration = Duration::from_secs(20 * 60);
 
 impl PendingUpdate {
     pub(crate) fn spawn(self, state: &AppState, target: &SessionChatSendTarget) {
@@ -183,66 +187,121 @@ impl PendingUpdate {
         let session_id = target.session_id.clone();
         tokio::spawn(async move {
             let title = format!("Update Codex to {}", self.latest);
-            let show = |id: Option<&str>, output: &str| {
-                let id = crate::session_chat_app_command::show_session_chat_app_command_output(
-                    &project_id,
-                    &session_id,
-                    id,
-                    &title,
-                    output,
+            let mut row: Option<String> = None;
+            let mut show = |output: &str| {
+                row = Some(
+                    crate::session_chat_app_command::show_session_chat_app_command_output(
+                        &project_id,
+                        &session_id,
+                        row.as_deref(),
+                        &title,
+                        output,
+                    ),
                 );
                 crate::session_chat_options::session_chat_terminal_notice_publisher(
                     &state,
                     &project_id,
                     &session_id,
                 )();
-                id
             };
-            let row = match &self.plan {
-                UpdatePlan::Ghostex { method_id, command } => {
-                    let row = show(None, &format!("Updating the copy of Codex this session runs: {command}"));
-                    match crate::agent_cli::endpoint::update_and_wait(&state.paths, "codex", method_id).await {
-                        Ok(agent) => {
-                            let version = agent["version"].as_str().and_then(version_in);
-                            show(
-                                Some(&row),
-                                &format!(
-                                    "Updated Codex to {}. Restarting Codex here once it is idle.",
-                                    version.as_deref().unwrap_or(&self.latest)
-                                ),
-                            )
+            let home = state.paths.agent_config_home_dir().to_path_buf();
+            let PendingUpdate {
+                plan: mut plan,
+                latest,
+                command: prompt_command,
+            } = self;
+            loop {
+                match plan {
+                    UpdatePlan::Ghostex { method_id, command } => {
+                        /*
+                        CDXC:AgentProviders 2026-10-14 DECISION:
+                        User (Q74): a second Update now press on another session while an update runs waits for the running update and then re-plans, instead of failing. Once the other update ends, the copy is read again: a finished update leaves only the restart, a failed one is tried again with whatever method now owns the copy.
+                        */
+                        if crate::agent_cli::endpoint::job_active(&home, "codex") {
+                            show("Another update of Codex is running. Waiting for it to finish, then checking this session's copy again.");
+                            let started = Instant::now();
+                            while crate::agent_cli::endpoint::job_active(&home, "codex") {
+                                if started.elapsed() > UPDATE_WAIT {
+                                    show("The other update of Codex did not finish within 20 minutes, so nothing was updated here. Choose Update now again later.");
+                                    return;
+                                }
+                                tokio::time::sleep(Duration::from_secs(1)).await;
+                            }
+                            plan = replan(&home, &latest, &prompt_command).await;
+                            continue;
                         }
-                        Err(reason) => {
-                            show(
-                                Some(&row),
-                                &format!("The update did not finish, so Codex keeps running its current version.\n{reason}"),
-                            );
-                            return;
+                        show(&format!(
+                            "Updating the copy of Codex this session runs: {command}"
+                        ));
+                        match crate::agent_cli::endpoint::update_and_wait(
+                            &state.paths,
+                            "codex",
+                            &method_id,
+                        )
+                        .await
+                        {
+                            Ok(agent) => {
+                                let version = agent["version"].as_str().and_then(version_in);
+                                show(&format!(
+                                    "Updated Codex to {}. Restarting Codex here once it is idle.",
+                                    version.as_deref().unwrap_or(&latest)
+                                ));
+                                break;
+                            }
+                            // Another press or the Agents page started its update first.
+                            Err(_) if crate::agent_cli::endpoint::job_active(&home, "codex") => {
+                                plan = UpdatePlan::Ghostex { method_id, command };
+                            }
+                            Err(reason) => {
+                                show(&format!("The update did not finish, so Codex keeps running its current version.\n{reason}"));
+                                return;
+                            }
                         }
                     }
+                    UpdatePlan::AlreadyCurrent { version } => {
+                        show(&format!("Codex {version} is already installed for this session. Restarting Codex here once it is idle so it runs that version."));
+                        break;
+                    }
+                    UpdatePlan::Explain(message) => {
+                        show(&message);
+                        return;
+                    }
+                    UpdatePlan::CodexOwn => return,
                 }
-                UpdatePlan::AlreadyCurrent { version } => show(
-                    None,
-                    &format!("Codex {version} is already installed for this session. Restarting Codex here once it is idle so it runs that version."),
-                ),
-                UpdatePlan::CodexOwn | UpdatePlan::Explain(_) => return,
-            };
+            }
             let outcome = restart_when_idle(&state, &project_id, &session_id).await;
-            show(
-                Some(&row),
-                &match outcome {
-                    Ok(()) => "Codex restarted on the new version.".to_string(),
-                    Err(reason) => format!(
-                        "The new version is installed, but Codex was not restarted: {reason}. It runs the new version the next time Codex starts."
-                    ),
-                },
-            );
+            show(&match outcome {
+                Ok(()) => "Codex restarted on the new version.".to_string(),
+                Err(reason) => format!(
+                    "The new version is installed, but Codex was not restarted: {reason}. It runs the new version the next time Codex starts."
+                ),
+            });
         });
+    }
+}
+
+/// The plan again from the copy as it is now. Codex's own updater is not offered here: Codex has
+/// already skipped its prompt.
+async fn replan(home: &Path, latest: &str, command: &str) -> UpdatePlan {
+    let prompt = CodexUpdatePrompt {
+        current: String::new(),
+        latest: latest.to_string(),
+        command: command.to_string(),
+    };
+    match crate::agent_cli::endpoint::read_agent(home, "codex").await {
+        Ok(agent) => plan(&agent, &prompt, |_| false),
+        Err(error) => UpdatePlan::Explain(format!(
+            "Ghostex could not read this session's copy of Codex after the other update: {}",
+            error.message
+        )),
     }
 }
 
 /// The sleep and wake the existing restart uses (session_chat_agent_restart.rs), once Codex has no turn,
 /// question or compaction going, and never on a session whose background work a restart would end.
+///
+/// CDXC:AgentProviders 2026-10-14 DECISION:
+/// User (Q74): only restart when there is a conversation to resume and the session is still running; never wake a session the user put to sleep or closed while the update ran. Both are read again on every check, right before the restart.
 async fn restart_when_idle(
     state: &AppState,
     project_id: &str,
@@ -254,7 +313,13 @@ async fn restart_when_idle(
     let started = Instant::now();
     loop {
         let target = resolve_session_chat_send_target(state, &params, "codexUpdate")
-            .map_err(|_| "the session could not be read")?;
+            .map_err(|_| "the session was closed")?;
+        if target.session["lifecycleState"].as_str() != Some("running") {
+            return Err("the session was put to sleep or stopped, so Ghostex left it that way");
+        }
+        if !crate::session_chat_queue_runtime::has_conversation_to_resume(&target.session).await {
+            return Err("this session has no conversation yet for Codex to come back to");
+        }
         if let Some(reason) =
             crate::session_chat_queue_runtime::work_a_restart_would_end(state, &target).await
         {

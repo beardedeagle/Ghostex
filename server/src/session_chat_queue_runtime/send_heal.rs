@@ -306,7 +306,7 @@ pub(crate) async fn cycle_session(
 /// nothing to lose. Any other agent resumes by id alone, so its transcript must exist; on
 /// 2026-10-09 a wake that resumed an unwritten Claude conversation printed "No conversation found"
 /// and went back to the shell.
-async fn has_conversation_to_resume(session: &Value) -> bool {
+pub(crate) async fn has_conversation_to_resume(session: &Value) -> bool {
     let Some(agent_session_id) = read_runtime_text(session, "agentSessionId") else {
         return false;
     };

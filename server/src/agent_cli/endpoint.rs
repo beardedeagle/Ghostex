@@ -59,6 +59,15 @@ pub(crate) async fn read_agent(home: &Path, agent_id: &str) -> Result<Value, Dom
     read(definition, home).await
 }
 
+/// Whether an install or update of `agent_id` is queued or running (the Agents page, the CLI, or another
+/// session's Codex "Update now").
+pub(crate) fn job_active(home: &Path, agent_id: &str) -> bool {
+    JOBS.lock().ok().is_some_and(|jobs| {
+        jobs.get(&(home.to_path_buf(), agent_id.to_string()))
+            .is_some_and(|job| is_active(&job.progress))
+    })
+}
+
 /// Updates an installed agent CLI with `method_id` (the method that installed it), the way `ghostex
 /// agent-cli update` does, and waits for the job. `Err` carries the job's error and the end of its output.
 pub(crate) async fn update_and_wait(
