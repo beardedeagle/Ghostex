@@ -186,6 +186,11 @@ impl GhostexGpuiApp {
         if self.gx_store_run_close_after_done(&command, cx) {
             return;
         }
+        // An orchestrator's Goal & Instructions and Memory, a thread's Mark Thread Done and
+        // Reopen Thread (gx_store/coordinator_actions.rs).
+        if self.gx_store_run_coordinator_action(&command, cx) {
+            return;
+        }
         if self.gx_store_run_session_edit_command(&command, cx) {
             return;
         }

@@ -1964,7 +1964,10 @@ version of the Projects features in Cursor and Claude Code.
   thread is not lost: when a follow-up comes, the orchestrator reopens it or
   messages it, and the same conversation resumes under the orchestrator with
   everything it knew. Ask the orchestrator to keep a thread open if you want to
-  look at it.
+  look at it. You can do it yourself too: right-click a thread and choose
+  **Mark Thread Done** (greyed out while it is working or waiting on you) to
+  mark it done and close its session, or **Reopen Thread** on a done thread to
+  resume it under its orchestrator. On the phone, long-press the thread.
 - **Threads panel in the chat**: above the orchestrator's message box, the
   Threads panel lists the working threads first, then the ones active in the
   last 2 hours, each with one line (what it is doing or how its last report
@@ -2003,7 +2006,11 @@ version of the Projects features in Cursor and Claude Code.
   target or how to verify work) and its memory notes. When you state a lasting
   preference, the orchestrator proposes the exact wording and saves it as a
   note every later thread receives once you confirm; ask it
-  to change the goal or the instructions the same way.
+  to change the goal or the instructions the same way. To edit them yourself,
+  right-click the orchestrator and choose **Goal & Instructions…** (the one-line
+  goal and the standing instructions) or **Memory…** (every note, with a button
+  to remove one and a field to add one); on the phone, long-press it. Save
+  applies to threads it starts from then on; Cancel leaves everything as it was.
 - **Just ask**: "run these three as separate threads", "use worktrees", "give me
   a status of every thread", "use a cheaper model for threads", "don't merge
   anything without asking" all work in plain words.
@@ -2020,7 +2027,9 @@ promote <session> [--goal <text>]` (make an existing session an orchestrator), `
 [--agent <id>] [--model <m>] [--effort <e>]`, `ghostex orchestrator resolve
 <thread> [--keep-open]` (mark done and close its session), `ghostex orchestrator
 reopen <thread>` (resume a closed thread), `ghostex orchestrator remember <note>`, `ghostex
-orchestrator set-goal|set-instructions`, and `ghostex orchestrator guide` (the
+orchestrator set-goal|set-instructions`, `ghostex orchestrator edit [--goal=<text>]
+[--instructions=<text>] [--notes-json=<json list>]` (the goal, instructions and whole
+note list in one call, as the editors save), and `ghostex orchestrator guide` (the
 orchestrator's own playbook). `ghostex orchestrator --help` lists every flag. Older
 Ghostex releases call the orchestrator a coordinator and name the same verbs
 `ghostex coordinator …`; that name still works.

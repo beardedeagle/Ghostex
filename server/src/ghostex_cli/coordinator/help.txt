@@ -21,6 +21,8 @@ USAGE
   ghostex orchestrator forget <number> [--orchestrator <ref>]
   ghostex orchestrator set-goal <text> [--orchestrator <ref>]
   ghostex orchestrator set-instructions (<text> | --body-file <path>) [--orchestrator <ref>]
+  ghostex orchestrator edit [--goal=<text>] [--instructions=<text>] [--notes-json=<json>]
+                              [--orchestrator <ref>] [--json]
   ghostex orchestrator guide
 
 WHAT AN ORCHESTRATOR IS
@@ -73,7 +75,8 @@ THREADS
   the memory notes and the reporting rules to every task, so write only the task
   itself. The agent defaults to the orchestrator's own agent. --worktree gives the
   thread its own git worktree and branch (from --base-branch, or the default
-  branch). --model and --effort apply to this thread only (Claude and Codex).
+  branch). --model and --effort apply to this thread only (Claude, Codex, Pi and
+  Antigravity CLI).
   start-thread then waits up to a minute for the thread's transcript to show
   the brief and answers `started`, or `pending: <reason>` (still starting, or
   its screen shows a question only a person can answer). A brief whose send
@@ -87,6 +90,7 @@ THREADS
   `ghostex agents create` run by an orchestrator also links the new session.
   resolve marks a finished thread done and closes its session, so it leaves the
   sidebar; it refuses while the thread is working or waiting for an answer.
+  Mark Thread Done and Reopen Thread on a thread's sidebar menu do the same.
   --keep-open only marks it done and parks the session. A closed thread keeps
   its conversation: reopen resumes the same session and puts it back under its
   orchestrator, and the orchestrator's `ghostex agents send <thread-ref> "<text>"`
@@ -100,7 +104,10 @@ MEMORY AND INSTRUCTIONS
   remember saves a one-line note (a preference, a decision, a pitfall); every
   new thread receives the notes. forget removes note <number> as numbered by
   status. set-goal and set-instructions replace the goal and the standing
-  instructions; an empty value clears them.
+  instructions; an empty value clears them. edit sets any of the goal, the
+  instructions and the whole note list (--notes-json takes a JSON array of
+  strings) in one call, the way the Goal & Instructions and Memory editors on
+  an orchestrator's sidebar menu save.
 
 STATES
   waiting   a question, an approval or another prompt needs an answer

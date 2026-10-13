@@ -1,0 +1,1 @@
+../../../desktop/src/app/coordinator_details_modal_lifecycle.rs

@@ -234,43 +234,25 @@ pub(super) fn set_resolved(parsed: &ParsedArgs, resolved: bool) -> CliResult<()>
     })?;
     let (thread, flags) = resolve_thread_session(&reference, &server_flags(&parsed.flags))?;
     let global_ref = agents::text(&thread, "globalRef").to_string();
-    let session = json!({
-        "globalRef": global_ref, "projectId": thread["projectId"], "sessionId": thread["sessionId"],
-    });
-    let closed = agents::text(&thread, "lifecycleState") == "stopped";
     let close_session = resolved && !parsed.flags.truthy("keepOpen");
-    // Woken before it is reopened: an open thread whose session is still closed is reported to the
-    // coordinator as closed and marked done again.
-    // CDXC:Coordinators 2026-10-12 WHY: a sleeping thread is woken too; reopen used to wake only a closed (`stopped`) one, so it answered "Reopened" and left a sleeping thread asleep with a message waiting for it.
-    let resumed = !resolved && agents::text(&thread, "lifecycleState") != "running";
-    if resumed {
-        call_gxserver_rpc("/api/wakeSession", &session, &flags).map_err(|error| {
-            CliError::Other(format!(
-                "Could not resume {global_ref}: {error}. It was not reopened."
-            ))
-        })?;
-    }
+    // gxserver wakes a thread it reopens and closes one it marks done
+    // (server/src/server/coordinator_resolve.rs), the same for every client.
     let result = call_gxserver_rpc(
-        "/api/setCoordinatorThreadResolved",
+        "/api/resolveCoordinatorThread",
         &json!({
             "projectId": thread["projectId"],
             "sessionId": thread["sessionId"],
             "resolved": resolved,
-            "closeSession": close_session,
+            "keepOpen": !close_session,
         }),
         &flags,
-    )?;
-    if close_session && !closed {
-        call_gxserver_rpc("/api/killSession", &session, &flags).map_err(|error| {
-            CliError::Other(format!(
-                "Marked {global_ref} done, but its session did not close: {error}. Close it with ghostex agents close {global_ref}."
-            ))
-        })?;
-    }
+    )
+    .map_err(|error| match resolved {
+        true => error,
+        false => CliError::Other(format!("Could not reopen {global_ref}: {error}")),
+    })?;
+    let resumed = result["sessionResumed"].as_bool() == Some(true);
     if parsed.flags.truthy("json") {
-        let mut result = result;
-        result["sessionClosed"] = json!(close_session);
-        result["sessionResumed"] = json!(resumed);
         print_json(&result);
     } else if close_session {
         println!(

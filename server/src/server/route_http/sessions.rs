@@ -485,6 +485,15 @@ pub(super) async fn route_sessions_http(
                 },
             )
         }
+        "/api/resolveCoordinatorThread" => {
+            coordinator_resolve::handle_resolve_coordinator_thread_http(
+                &state,
+                endpoint.path,
+                request_id,
+                &body_json,
+            )
+            .await
+        }
         "/api/promoteCoordinator" => handle_domain_http(
             &state,
             endpoint.path,

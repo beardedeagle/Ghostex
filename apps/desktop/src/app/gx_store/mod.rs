@@ -61,6 +61,7 @@ mod capture_targets;
 mod client_document;
 mod client_storage_init;
 mod collection_menu;
+mod coordinator_actions;
 mod create;
 mod custom_tags_sync;
 mod delayed_send_seed;

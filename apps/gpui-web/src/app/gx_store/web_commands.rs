@@ -138,6 +138,7 @@ impl GhostexGpuiApp {
             || self.gx_store_run_sidebar_lifecycle(&command, cx)
             || self.gx_store_run_sidebar_close(&command, cx)
             || self.gx_store_run_close_after_done(&command, cx)
+            || self.gx_store_run_coordinator_action(&command, cx)
             || self.gx_store_run_session_edit_command(&command, cx)
             || self.gx_store_run_group_sleep(&command, cx)
             || self.gx_store_run_sidebar_fork(&command, cx)

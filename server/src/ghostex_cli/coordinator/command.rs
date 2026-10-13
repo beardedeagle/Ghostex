@@ -39,6 +39,7 @@ pub(crate) fn run(args: &[String]) -> CliResult<()> {
         "resolve" | "reopen" => threads::set_resolved(&parsed, command == "resolve"),
         "sleep-inactive-threads" => sleep_threads::sleep_inactive_threads(&parsed),
         "remember" | "forget" | "set-goal" | "set-instructions" => update(command, &parsed),
+        "edit" => edit(&parsed),
         other => Err(CliError::Other(format!(
             "Unknown orchestrator command: {other}. See ghostex orchestrator --help."
         ))),
@@ -615,6 +616,40 @@ pub(super) fn print_status(view: &Value, all: bool) {
             }
         }
     }
+}
+
+/// `edit`: the goal, the instructions and the whole memory list in one call, the way the Goal &
+/// Instructions and Memory editors on the computer and the phone save. `--goal=` and
+/// `--instructions=` take an empty value to clear; `--notes-json=<JSON array of strings>` replaces
+/// every note (notes kept keep their date).
+fn edit(parsed: &ParsedArgs) -> CliResult<()> {
+    let (session, flags) = target_coordinator(parsed)?;
+    let mut params = json!({
+        "projectId": session["projectId"],
+        "sessionId": session["sessionId"],
+    });
+    for key in ["goal", "instructions"] {
+        if let Some(value) = parsed.flags.string_value(key) {
+            params[key] = json!(value);
+        }
+    }
+    if let Some(notes) = parsed.flags.string_value("notesJson") {
+        let notes: Vec<String> = serde_json::from_str(notes)
+            .map_err(|_| CliError::Other("--notes-json takes a JSON array of strings.".into()))?;
+        params["memory"] = json!(notes);
+    }
+    if params.as_object().map_or(0, |params| params.len()) == 2 {
+        return Err(CliError::Other(
+            "Usage: ghostex orchestrator edit [--goal=<text>] [--instructions=<text>] [--notes-json=<json>]".into(),
+        ));
+    }
+    let view = call_gxserver_rpc("/api/updateCoordinator", &params, &flags)?;
+    if parsed.flags.truthy("json") {
+        print_json(&view);
+    } else {
+        println!("Orchestrator updated. Threads started from now on receive the change.");
+    }
+    Ok(())
 }
 
 fn update(command: &str, parsed: &ParsedArgs) -> CliResult<()> {

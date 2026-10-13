@@ -49,6 +49,8 @@ pub(crate) enum GpuiAppModalKind {
     NewCoordinator,
     /// Make an existing session a coordinator, with an optional goal (new_coordinator_modal_lifecycle.rs).
     MakeCoordinator,
+    /// An orchestrator's Goal & Instructions or Memory editor (coordinator_details_modal_lifecycle.rs).
+    CoordinatorDetails,
     /// Send Feedback, from the sidebar's chat-bubble button (feedback_modal_lifecycle.rs).
     Feedback,
     /// Create a Linear ticket and start work on it, from a work-mode project's menu
@@ -102,6 +104,7 @@ impl GpuiAppModalKind {
             "updateAvailable" => Some(Self::UpdateAvailable),
             "newCoordinator" => Some(Self::NewCoordinator),
             "makeCoordinator" => Some(Self::MakeCoordinator),
+            "coordinatorDetails" => Some(Self::CoordinatorDetails),
             "feedback" => Some(Self::Feedback),
             "createLinearTicket" => Some(Self::CreateLinearTicket),
             "workLinkPicker" => Some(Self::WorkLinkPicker),
@@ -148,6 +151,7 @@ impl GpuiAppModalKind {
             Self::UpdateAvailable => "updateAvailable",
             Self::NewCoordinator => "newCoordinator",
             Self::MakeCoordinator => "makeCoordinator",
+            Self::CoordinatorDetails => "coordinatorDetails",
             Self::Feedback => "feedback",
             Self::CreateLinearTicket => "createLinearTicket",
             Self::WorkLinkPicker => "workLinkPicker",
@@ -191,6 +195,7 @@ impl GpuiAppModalKind {
             Self::UpdateAvailable => "Ghostex Update",
             Self::NewCoordinator => "Ghostex New Orchestrator",
             Self::MakeCoordinator => "Ghostex Make Orchestrator",
+            Self::CoordinatorDetails => "Ghostex Orchestrator",
             Self::Feedback => "Ghostex Send Feedback",
             Self::CreateLinearTicket => "Ghostex Create Linear Ticket",
             Self::WorkLinkPicker => "Ghostex Link Session",
@@ -342,6 +347,10 @@ impl GpuiAppModalKind {
                 px(crate::app::window::NEW_COORDINATOR_MODAL_WIDTH),
                 px(crate::app::window::MAKE_COORDINATOR_MODAL_INITIAL_HEIGHT),
             ),
+            Self::CoordinatorDetails => size(
+                px(crate::app::window::COORDINATOR_DETAILS_MODAL_WIDTH),
+                px(crate::app::window::COORDINATOR_DETAILS_MODAL_INITIAL_HEIGHT),
+            ),
             Self::Feedback => size(
                 px(crate::app::window::FEEDBACK_MODAL_WIDTH),
                 px(crate::app::window::FEEDBACK_MODAL_INITIAL_HEIGHT),
@@ -482,10 +491,11 @@ impl GpuiAppModalKind {
                 "modal": self.modal_id(), "url": "", "type": "open",
             }),
             // A New Coordinator open names its project and a Make Coordinator open its session,
-            // which only the sidebar knows.
+            // which only the sidebar knows; an orchestrator's editor opens with what gxserver read.
             Self::Extension(_)
             | Self::NewCoordinator
             | Self::MakeCoordinator
+            | Self::CoordinatorDetails
             | Self::CreateLinearTicket
             | Self::WorkLinkPicker => {
                 serde_json::Value::Null

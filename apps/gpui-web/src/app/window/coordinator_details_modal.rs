@@ -1,0 +1,1 @@
+../../../../desktop/src/app/window/coordinator_details_modal.rs

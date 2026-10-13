@@ -364,6 +364,41 @@ fn apply_update(
         }
         coordinator.instructions = instructions.to_string();
     }
+    // The whole list at once, from a client's Memory editor: notes kept keep their date.
+    if let Some(notes) = params.get("memory").and_then(Value::as_array) {
+        let mut memory: Vec<CoordinatorMemoryNote> = Vec::new();
+        for note in notes.iter().filter_map(Value::as_str) {
+            let note = note.split_whitespace().collect::<Vec<_>>().join(" ");
+            if note.is_empty()
+                || memory
+                    .iter()
+                    .any(|kept| kept.text.eq_ignore_ascii_case(&note))
+            {
+                continue;
+            }
+            if note.chars().count() > COORDINATOR_MEMORY_NOTE_MAX_CHARS {
+                return Err(DomainStateError::bad_request(format!(
+                    "Keep a note to one line under {COORDINATOR_MEMORY_NOTE_MAX_CHARS} characters."
+                )));
+            }
+            let created_at = coordinator
+                .memory
+                .iter()
+                .find(|existing| existing.text == note)
+                .map(|existing| existing.created_at.clone())
+                .unwrap_or_else(now_iso);
+            memory.push(CoordinatorMemoryNote {
+                text: note,
+                created_at,
+            });
+        }
+        if memory.len() > COORDINATOR_MEMORY_MAX_NOTES {
+            return Err(DomainStateError::bad_request(format!(
+                "Memory holds {COORDINATOR_MEMORY_MAX_NOTES} notes. Forget or merge old ones first."
+            )));
+        }
+        coordinator.memory = memory;
+    }
     if let Some(note) = params.get("remember").and_then(Value::as_str) {
         let note = note.split_whitespace().collect::<Vec<_>>().join(" ");
         if note.is_empty() {

@@ -405,6 +405,53 @@ fn set_session_tag_value(message: &serde_json::Value) -> Option<Option<String>> 
     )
 }
 
+/// An orchestrator's Goal & Instructions and Memory editors, and a thread's Mark Thread Done or
+/// Reopen Thread, after a separator. An orchestrator's block goes on with Sleep Inactive Threads.
+///
+/// CDXC:Coordinators 2026-10-13 DECISION:
+/// User: "Mark done / Reopen on threads, Goal & instructions and Memory editing on coordinators on both the phone and the desktop" (2026-10-01), ported onto the Orchestrator menus ("port all of it, rebased onto main"). Goal & Instructions and Memory open editors that save through gxserver; Mark Thread Done does what `ghostex orchestrator resolve` does (marks the thread done and closes its session) and is disabled while the thread works or waits on an answer, which resolve refuses; Reopen Thread shows instead on a done thread still in the list. A machine that is not connected gets none of them. The phone's menu (`apps/mobile/app/src/screens/sessions-screen/sidebar-menus.ts`) must match.
+fn coordinator_rows(row: &SessionRow, stale: bool) -> Vec<MenuItem> {
+    if stale || row.is_draft {
+        return Vec::new();
+    }
+    let id = row.sidebar_session_id.as_str();
+    let mut rows = vec![MenuItem::separator()];
+    if row.is_coordinator {
+        rows.push(MenuItem::row(
+            "Goal & Instructions…",
+            "checklist",
+            MenuCommand::coordinator_session(id, "goal"),
+        ));
+        rows.push(MenuItem::row(
+            "Memory…",
+            "brain",
+            MenuCommand::coordinator_session(id, "memory"),
+        ));
+    } else if row.coordinator_parent.is_some() {
+        let state = row.thread_state.as_deref();
+        if state == Some("done") {
+            rows.push(MenuItem::row(
+                "Reopen Thread",
+                "rotate-clockwise",
+                MenuCommand::coordinator_session(id, "reopen"),
+            ));
+        } else {
+            rows.push(
+                MenuItem::row(
+                    "Mark Thread Done",
+                    "circle-check",
+                    MenuCommand::coordinator_session(id, "markDone"),
+                )
+                .with_disabled(matches!(state, Some("working" | "waiting"))),
+            );
+        }
+    }
+    if rows.len() == 1 {
+        return Vec::new();
+    }
+    rows
+}
+
 fn full_menu(
     input: &SessionMenuInput<'_>,
     rows: &ActionRows,
@@ -469,9 +516,13 @@ fn full_menu(
         });
     }
 
+    let coordinator_block = coordinator_rows(row, group.is_stale);
+    let has_coordinator_block = !coordinator_block.is_empty();
+    menu.extend(coordinator_block);
+
     // CDXC:Coordinators 2026-10-13 SEE-ALSO: the user's decision on `coordinator_thread_keys` in sidebar_actions/bulk.rs ("right click on orchestrator and sleep", "Should just be sleep inactive not park"). Disabled, like the project menu's Sleep Inactive, when no thread can be slept.
     if row.is_coordinator && !row.is_draft {
-        if !menu.is_empty() {
+        if !has_coordinator_block && !menu.is_empty() {
             menu.push(MenuItem::separator());
         }
         menu.push(

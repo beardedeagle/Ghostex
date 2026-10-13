@@ -132,6 +132,7 @@ mod bot_sync;
 mod browser_tcp;
 mod close_after_done_runtime;
 mod coordinator_open_http;
+mod coordinator_resolve;
 mod coordinator_runtime;
 mod empty_session_cleanup_runtime;
 pub mod commit_message_generation;

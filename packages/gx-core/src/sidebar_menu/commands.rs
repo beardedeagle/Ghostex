@@ -289,6 +289,15 @@ impl MenuCommand {
         Self(json!({ "type": "agentboxSessionAction", "sessionId": session_id, "action": action }))
     }
 
+    /// `{ type: 'coordinatorSessionAction', sessionId, action }`: an orchestrator's Goal &
+    /// Instructions (`goal`) and Memory (`memory`) editors, a thread's Mark Thread Done
+    /// (`markDone`) and Reopen Thread (`reopen`).
+    pub(crate) fn coordinator_session(session_id: &str, action: &str) -> Self {
+        Self(
+            json!({ "type": "coordinatorSessionAction", "sessionId": session_id, "action": action }),
+        )
+    }
+
     /// `{ type: 'sessionAction', sessionId, action: 'linkWork', kind }`: opens the Link to picker
     /// for one kind (`pullRequest`, `linearIssue`, `linearProject`, `githubIssue`).
     pub(crate) fn link_work(session_id: &str, kind: &str) -> Self {
