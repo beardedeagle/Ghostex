@@ -22,6 +22,7 @@ pub mod paired_device;
 pub mod picker;
 mod port_web_metadata;
 pub mod ports;
+mod previous_sessions;
 pub mod resources;
 pub mod rpc;
 pub mod saved_prompts;
@@ -115,6 +116,8 @@ const HELP_GATE_EXCLUDED: &[&str] = &[
     "ports",
     "resources",
     "quick-actions",
+    "previous-sessions",
+    "restore-previous-session",
     "saved-prompts",
     "session-chat-rpc",
     "server",
@@ -265,6 +268,8 @@ fn is_known_command(name: &str) -> bool {
         "tag-session",
         "session-note",
         "saved-prompts",
+        "previous-sessions",
+        "restore-previous-session",
         "paired-device-seen",
         "pin-session",
         "park-session",
@@ -627,6 +632,10 @@ fn run_command(name: &str, args: &[String]) -> CliResult<()> {
             run_bridge_action(action, parser, fail_on_not_ok, rest)
         }
         "saved-prompts" => saved_prompts::saved_prompts_command(args),
+        "previous-sessions" => previous_sessions::previous_sessions_command(args),
+        "restore-previous-session" => {
+            previous_sessions::restore_previous_session_command(args)
+        }
         "paired-device-seen" => paired_device::paired_device_seen_command(args),
         "pin-session" => {
             run_bridge_action("pinSession", Parser::SessionBoolean("pinned"), plain, args)

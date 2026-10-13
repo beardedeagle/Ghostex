@@ -171,6 +171,14 @@ pub fn usage() -> String {
             "Read and update the daemon-owned Saved Prompts library",
         ),
         format_help_command(
+            "previous-sessions [--query text] [--limit n] [--cursor c] [--project-id id] [--json]",
+            "List closed sessions that can be brought back, newest closed first",
+        ),
+        format_help_command(
+            "restore-previous-session --project-id id --session-id id [--json]",
+            "Bring back a closed session (restored or resumed into a new session) and print it",
+        ),
+        format_help_command(
             "paired-device-seen --device-id <id> --json",
             "Mark a paired device as connected now (run by the mobile app over SSH)",
         ),
