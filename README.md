@@ -29,22 +29,7 @@ Ghostex is built for developers who keep many agents alive at once. A chat view 
 ## Features
 
 <table>
-<tr>
-<td width="50%" valign="middle">
 
-<br/>
-
-### Chat & CLI views
-
-Talk to Claude Code, Codex, or any other agent in a proper chat GUI: clickable images, readable diffs, queued prompts, sub-agents in view, and a full editor for long messages. If you ever need the raw CLI, it is one hotkey away and your draft comes with you.
-
-<br/>
-
-</td>
-<td width="50%">
-  <img src="media/readme/gx-diff.png" alt="A chat showing the agent's code change as a diff" width="100%" />
-</td>
-</tr>
 <tr>
 <td width="50%" valign="middle">
 
@@ -59,6 +44,24 @@ Your agents in your pocket. Easy Connect pairs your phone with a single scan, no
 </td>
 <td width="50%">
   <img src="media/readme/gx-phone.gif" alt="Pairing the phone app, then sessions and a chat on the phone" width="100%" />
+</td>
+</tr>
+
+  
+<tr>
+<td width="50%" valign="middle">
+
+<br/>
+
+### Chat & CLI views
+
+Talk to Claude Code, Codex, or any other agent in a proper chat GUI: clickable images, readable diffs, queued prompts, sub-agents in view, and a full editor for long messages. If you ever need the raw CLI, it is one hotkey away and your draft comes with you.
+
+<br/>
+
+</td>
+<td width="50%">
+  <img src="media/readme/gx-diff.png" alt="A chat showing the agent's code change as a diff" width="100%" />
 </td>
 </tr>
 <tr>
