@@ -82,11 +82,17 @@ fn select_remote_code_server_never_falls_through_to_monaco_or_machine_editor() {
     let env = env_map(&[("EDITOR", "nvim")]);
     let (selection, warnings) = select("monaco", Some("code-server"), &env, true);
     assert_eq!(selection.kind, "code-server");
-    assert!(selection
+    // The command is the bundled code-server's own node running the embedded
+    // session-manager script; waiting and window reuse happen inside it, not
+    // through `--wait` / `--reuse-window` arguments.
+    assert_eq!(selection.command_args.len(), 6);
+    assert!(selection.command_args[0].contains("code-server"));
+    assert_eq!(selection.command_args[1], "-e");
+    assert!(selection.command_args[3].ends_with("vscodeSocket.js"));
+    assert!(!selection
         .command_args
         .iter()
-        .any(|arg| arg == "--reuse-window"));
-    assert!(selection.command_args.iter().any(|arg| arg == "--wait"));
+        .any(|arg| arg == "--wait" || arg == "--reuse-window"));
     assert_eq!(
         selection.command_args.last().map(String::as_str),
         Some("/tmp/prompt.md")
