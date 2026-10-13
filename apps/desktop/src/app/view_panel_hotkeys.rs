@@ -89,7 +89,8 @@ impl GhostexGpuiApp {
                 self.native_docs_find_shortcut(window, cx);
                 true
             }
-            Some(TitlebarMode::Kanban) => {
+            // A board out in its own window keeps its search box there (native_kanban/window.rs).
+            Some(TitlebarMode::Kanban) if !self.native_kanban_detached() => {
                 let Some(search) = self.native_kanban.search.clone() else {
                     return false;
                 };
