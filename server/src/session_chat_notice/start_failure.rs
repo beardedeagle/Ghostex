@@ -20,14 +20,7 @@ pub(super) fn detect_claude_missing_login(
         return None;
     }
     let slot = cswap_missing_login_slot(&flatten_tail(&screen.folded, NOTICE_EXIT_SCAN_LINES))?;
-    let email = crate::accounts::runtime::current_snapshot()
-        .accounts
-        .into_iter()
-        .find(|account| {
-            account.provider == crate::accounts::model::Provider::Claude && account.selector == slot
-        })
-        .map(|account| account.email)
-        .filter(|email| !email.is_empty());
+    let email = claude_slot_email(&slot);
     let account = match email {
         Some(email) => format!("account {slot} ({email})"),
         None => format!("account {slot}"),
@@ -60,6 +53,34 @@ pub(super) fn detect_claude_missing_login(
             SessionChatTerminalNoticeAction::switch_to_terminal(OPEN_TERMINAL.label),
         ]),
     )
+}
+
+/// The last email seen for each Claude cswap slot.
+static CLAUDE_SLOT_EMAILS: std::sync::LazyLock<Mutex<HashMap<String, String>>> =
+    std::sync::LazyLock::new(Default::default);
+
+/// The email of Claude cswap `slot`, from the shared account snapshot or, while that has no row
+/// for it, the last one seen.
+/// WHY: a cswap read that fails leaves the snapshot without its Claude rows for a couple of
+/// minutes, and a title without the email made the card a new instance, which brought back a
+/// card the user had dismissed.
+fn claude_slot_email(slot: &str) -> Option<String> {
+    let current = crate::accounts::runtime::current_snapshot()
+        .accounts
+        .into_iter()
+        .find(|account| {
+            account.provider == crate::accounts::model::Provider::Claude && account.selector == slot
+        })
+        .map(|account| account.email)
+        .filter(|email| !email.is_empty());
+    let mut emails = CLAUDE_SLOT_EMAILS.lock().ok()?;
+    match current {
+        Some(email) => {
+            emails.insert(slot.to_string(), email.clone());
+            Some(email)
+        }
+        None => emails.get(slot).cloned(),
+    }
 }
 
 /// The cswap slot named by the last "Account-<slot> has no stored credentials" in `text`.
