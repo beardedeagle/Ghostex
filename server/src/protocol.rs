@@ -516,7 +516,7 @@ pub fn endpoint_for(path: &str) -> Option<EndpointDescriptor> {
         A coordinator and its threads live on the machine that runs them, so a
         client looking at a remote machine reads and steers them there, like
         the session calls around these. They carry project/session ids plus
-        bounded text (goal, instructions, one memory note).
+        bounded text (goal, instructions, memory notes).
         */
         | "/api/readCoordinator"
         | "/api/readCoordinatorThreads"

@@ -617,7 +617,7 @@ where they are while you open, change and close views.
   `close`, `chevron`) and `showSessionCardHoverButtonsInContextMenu`.
 - Long projects: every project always lists all of its sessions; there is
   no Show all row or Compact mode. Collapse a section heading (Pinned, Drafts,
-  Sessions, Parked, Snoozed) to tuck its rows away. The sidebar is the only
+  Working, Sessions, Parked, Snoozed) to tuck its rows away. The sidebar is the only
   scroller, and a project's header stays pinned at the top while you scroll
   through its rows.
 - Drag a session onto another section of its project (its heading or any row
@@ -806,9 +806,9 @@ when you open it.
   at the bottom right of the sidebar opens the same thing, and the gear beside
   it opens Settings in one click.
   Previous Sessions in More Options lists past conversations from every agent
-  CLI with resume and fork. The History icon immediately to the
-  right of Add Worktree on a project header opens Quick Access > Sessions with
-  that project selected and Closed active, ready to search sessions you closed.
+  CLI with resume and fork. History in a project's menu (its ⋯ button or a
+  right-click on the project) opens Quick Access > Sessions with that project
+  selected and Closed active, ready to search sessions you closed.
   From a terminal, `ghostex previous-sessions [--query text] --json` lists closed
   sessions and `ghostex restore-previous-session --project-id <id> --session-id <id>`
   brings one back.
@@ -1880,9 +1880,9 @@ Cross-agent orchestration also works through the `$ghostex-cli` skill. For
    `ghostex read-text` or `ghostex read-session-chat`, and wait with
    `ghostex wait-for-text`.
    To pick the worker's model and effort, add `--model <model> --effort <level>`
-   to `create-agent` or `board start-work` (Claude, Codex, Pi and Antigravity
-   CLI; for Pi the model is `<provider>/<model>`, as in Pi's `/model`, and the
-   effort is its thinking level, such as `high`). The choice
+   to `create-agent` or `board start-work` (Claude, Codex, Pi, Empryo and
+   Antigravity CLI; for Pi and Empryo the model is `<provider>/<model>`, as in
+   Pi's `/model`, and Pi's effort is its thinking level, such as `high`). The choice
    applies to that session only, survives a resume, and leaves your default
    model unchanged. For `board start-work`, these flags apply only when a new
    worker is created; a reused linked worker keeps its existing model and effort.

@@ -75,8 +75,8 @@ THREADS
   the memory notes and the reporting rules to every task, so write only the task
   itself. The agent defaults to the orchestrator's own agent. --worktree gives the
   thread its own git worktree and branch (from --base-branch, or the default
-  branch). --model and --effort apply to this thread only (Claude, Codex, Pi and
-  Antigravity CLI).
+  branch). --model and --effort apply to this thread only (Claude, Codex, Pi, Empryo
+  and Antigravity CLI; a ZCode thread keeps its configured model).
   start-thread then waits up to a minute for the thread's transcript to show
   the brief and answers `started`, or `pending: <reason>` (still starting, or
   its screen shows a question only a person can answer). A brief whose send

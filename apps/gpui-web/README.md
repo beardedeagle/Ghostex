@@ -111,7 +111,7 @@ All are no-ops for native builds; `cargo check --bins` of the desktop crate pass
 - Child windows show a dark pixel at their rounded corners.
 - The console logs `RefCell already borrowed` when a child window opens: an event of the new canvas arrives while the app is mid-update and is dropped. Harmless so far.
 - The chat's native file pickers, attachments from disk and Save as Markdown have no browser implementation yet (they compile and fail softly). Pasting an image works; pasting a copied FILE does not.
-- The header breadcrumb is empty for a session whose row the sidebar is not drawing (a compact list, a deep link).
+- The header breadcrumb is empty for a session whose row the sidebar is not drawing (under a collapsed heading, a deep link).
 - Colour emoji draw as a missing glyph; SVGs with `color(display-p3 ...)` fills fall back to black in resvg.
 - The terminal has no context menu, and Cmd+C / Cmd+V go through gpui_web's clipboard, which cannot read outside a paste event.
 - A terminal attached here is a visible zmx client with its own grid, so a desktop pane showing the same session reflows while both are open.

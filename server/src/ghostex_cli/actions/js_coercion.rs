@@ -575,7 +575,7 @@ mod tests {
         assert_eq!(terminal_text_for_cli_key("ArrowDown"), Some("\u{001b}[B"));
         assert_eq!(terminal_text_for_cli_key("arrow-right"), Some("\u{001b}[C"));
         assert_eq!(terminal_text_for_cli_key("ArrowLeft"), Some("\u{001b}[D"));
-        assert_eq!(terminal_text_for_cli_key("enter"), None);
+        assert_eq!(terminal_text_for_cli_key("enter"), Some("\r"));
     }
 
     #[test]

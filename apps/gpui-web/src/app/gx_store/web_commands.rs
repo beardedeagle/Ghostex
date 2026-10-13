@@ -248,7 +248,7 @@ impl GhostexGpuiApp {
         }) else {
             return;
         };
-        // By store key rather than by drawn row: a compact session list hides most of a project's rows.
+        // By store key rather than by drawn row: a collapsed heading or a folded orchestrator hides its rows.
         if !self.gx_store.sidebar_view().ready {
             return;
         }

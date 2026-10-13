@@ -276,9 +276,9 @@
 }
 
 /*
- * CDXC:Projects 2026-09-12 DECISION:
- * User: a project's session list is either Compact (the first N rows plus a "Show all" row) or Full (every row at natural height), and the sidebar is the only scroller.
- * This removes the bounded inner project scroller from 2026-06-25 together with the measured Show less clip, the JS wheel handoff, the drag-time scroll lock, the 2px scrollbar, the 2026-07-22 no-rubber-band rule, and the 2026-09-09 scroll-edge fade, all of which existed only to make that nested scroller tolerable. Both modes leave the body in normal flow; the collapse shell's measured max-height already animates Compact / Full changes.
+ * CDXC:Projects 2026-10-13 DECISION:
+ * User: "remove this feature, no more show less / show more." Every project shows all its sessions at natural height and the sidebar is the only scroller; this supersedes the 2026-09-12 Compact / Full list.
+ * The 2026-09-12 change removed the bounded inner project scroller from 2026-06-25 together with the measured Show less clip, the JS wheel handoff, the drag-time scroll lock, the 2px scrollbar, the 2026-07-22 no-rubber-band rule, and the 2026-09-09 scroll-edge fade, all of which existed only to make that nested scroller tolerable. The body stays in normal flow.
  */
 
 .sidebar-collapse-content {

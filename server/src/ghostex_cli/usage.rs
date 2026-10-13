@@ -937,8 +937,8 @@ Behavior:
   is returned as {{ \"projectId\": ..., \"sessionId\": ..., \"created\": false }} instead of creating a second worker.
   Without --agent, the bead assignee is matched case-insensitively against configured agents,
   falling back to the default prompt agent.
-  --model and --effort start a new Claude, Codex, Pi or Antigravity CLI worker on that model and effort for this
-  session only (a Pi model is <provider>/<model> and its effort a thinking level); your default
+  --model and --effort start a new Claude, Codex, Pi, Empryo or Antigravity CLI worker on that model and effort for this
+  session only (a Pi or Empryo model is <provider>/<model>, a Pi effort a thinking level); your default
   model is unchanged, and a resumed worker keeps them. A reused worker keeps
   whatever it already runs.
   Pass --project-path <repo> (or --project-id) to start the worker in the project the card is
