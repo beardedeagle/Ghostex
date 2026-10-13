@@ -47,35 +47,58 @@ impl GhostexGpuiApp {
                 .unwrap_or_default(),
             palette: self.gpui_native_modal_palette(),
         };
+        // The editor stays open while the save runs and closes only when gxserver accepted it
+        // (CDXC:Coordinators 2026-10-14 in window/coordinator_details_modal.rs).
         let host = self.native_app_modal_host(cx, move |app, command, cx| {
-            let update = match command {
-                CoordinatorDetailsModalCommand::SaveGoal { goal, instructions } => Some(json!({
-                    "projectId": project_id, "sessionId": session_id,
-                    "goal": goal, "instructions": instructions,
-                })),
-                CoordinatorDetailsModalCommand::SaveMemory { notes } => Some(json!({
-                    "projectId": project_id, "sessionId": session_id, "memory": notes,
-                })),
-                CoordinatorDetailsModalCommand::Cancel => None,
+            let ids = json!({ "projectId": project_id, "sessionId": session_id });
+            let (params, reply) = match command {
+                CoordinatorDetailsModalCommand::SaveGoal {
+                    goal,
+                    instructions,
+                    reply,
+                } => {
+                    let mut params = ids;
+                    params["goal"] = json!(goal);
+                    params["instructions"] = json!(instructions);
+                    (params, reply)
+                }
+                CoordinatorDetailsModalCommand::SaveMemory { notes, reply } => {
+                    let mut params = ids;
+                    params["memory"] = json!(notes);
+                    (params, reply)
+                }
+                CoordinatorDetailsModalCommand::Cancel => {
+                    app.release_native_app_modal_window(GpuiAppModalKind::CoordinatorDetails, cx);
+                    return;
+                }
             };
-            if let Some(params) = update {
-                let remote = remote.clone();
-                cx.spawn(async move |this, cx| {
-                    let saved = gx_rpc(remote, "/api/updateCoordinator", params).await;
-                    if let Err(error) = saved {
-                        let _ = this.update(cx, |this, cx| {
-                            this.dispatch_gpui_app_modal_toast(
-                                "warning",
-                                "Orchestrator not updated",
-                                &error.message,
-                                cx,
-                            );
-                        });
+            let remote = remote.clone();
+            cx.spawn(async move |this, cx| {
+                let saved = gx_rpc(remote, "/api/updateCoordinator", params)
+                    .await
+                    .map(|_| ())
+                    .map_err(|error| error.message);
+                let _ = this.update(cx, |app, cx| {
+                    let succeeded = saved.is_ok();
+                    let failure = saved.as_ref().err().cloned();
+                    let shown = reply.finish(saved, cx);
+                    if succeeded && shown {
+                        app.release_native_app_modal_window(
+                            GpuiAppModalKind::CoordinatorDetails,
+                            cx,
+                        );
+                    } else if let (false, Some(message)) = (shown, failure) {
+                        // Cancelled while the save ran: nothing is left to show the refusal in.
+                        app.dispatch_gpui_app_modal_toast(
+                            "warning",
+                            "Orchestrator not updated",
+                            &message,
+                            cx,
+                        );
                     }
-                })
-                .detach();
-            }
-            app.release_native_app_modal_window(GpuiAppModalKind::CoordinatorDetails, cx);
+                });
+            })
+            .detach();
         });
         self.open_native_app_modal(
             GpuiAppModalKind::CoordinatorDetails,

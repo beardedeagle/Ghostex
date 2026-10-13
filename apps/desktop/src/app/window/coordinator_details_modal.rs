@@ -3,12 +3,16 @@
 //! `/api/updateCoordinator` call (Memory sends the whole list), so Cancel leaves everything as it
 //! was.
 //!
+//!
+//! CDXC:Coordinators 2026-10-14 DECISION:
+//! User (Q76): "the desktop Goal & Instructions and Memory editors must stay open until the save succeeds (like the phone sheet): show a saving state, keep the edits and show the error inline ... close only on success." Save sends the edit with a reply handle and the editor waits on it showing "Saving…"; a rejected save re-enables Save and shows gxserver's message above the buttons. Cancel still closes at once.
 //! SEE-ALSO: the user's decision on `coordinator_rows` in packages/gx-core/src/sidebar_menu/session.rs, apps/desktop/src/app/coordinator_details_modal_lifecycle.rs (open, save), apps/desktop/src/app/gx_store/coordinator_actions.rs (the menu rows), apps/mobile/app/src/screens/sessions-screen/CoordinatorDetailsSheet.tsx (the phone's editors).
 use super::native_modal_kit::*;
 use gpui::{
-    AnyElement, App, AppContext as _, Context, Entity, FocusHandle, Focusable as _,
-    InteractiveElement as _, IntoElement, KeyDownEvent, ParentElement as _, Render, SharedString,
-    StatefulInteractiveElement as _, Styled as _, Subscription, Window, div, px,
+    AnyElement, AnyWindowHandle, App, AppContext as _, Context, Entity, FocusHandle,
+    Focusable as _, InteractiveElement as _, IntoElement, KeyDownEvent, ParentElement as _, Render,
+    SharedString, StatefulInteractiveElement as _, Styled as _, Subscription, WeakEntity, Window,
+    div, px,
 };
 use gpui_component::input::{Enter, Escape, InputEvent, InputState, TextareaState};
 use gpui_component::{h_flex, v_flex};
@@ -26,6 +30,7 @@ const INSTRUCTIONS_PLACEHOLDER: &str = "Rules every thread follows, e.g. Branch 
 const ADD_PLACEHOLDER: &str = "A preference, decision or pitfall, in one line";
 const CANCEL: &str = "Cancel";
 const SAVE: &str = "Save";
+const SAVING: &str = "Saving…";
 const ADD: &str = "Add";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -34,9 +39,35 @@ pub(crate) enum CoordinatorDetailsMode {
     Memory,
 }
 
+/// Where a save's outcome goes: the editor that sent it, in its own window.
+pub(crate) struct CoordinatorDetailsSaveReply {
+    view: WeakEntity<GpuiCoordinatorDetailsModalWindow>,
+    window: AnyWindowHandle,
+}
+
+impl CoordinatorDetailsSaveReply {
+    /// Hands the outcome to the editor: success closes it, a failure shows the message and keeps
+    /// the edits. False when the editor is gone (cancelled meanwhile).
+    pub(crate) fn finish(self, result: Result<(), String>, cx: &mut App) -> bool {
+        let view = self.view;
+        self.window
+            .update(cx, |_root, window, cx| {
+                view.update(cx, |editor, cx| editor.finish_save(result, window, cx))
+            })
+            .is_ok_and(|delivered| delivered.is_ok())
+    }
+}
+
 pub(crate) enum CoordinatorDetailsModalCommand {
-    SaveGoal { goal: String, instructions: String },
-    SaveMemory { notes: Vec<String> },
+    SaveGoal {
+        goal: String,
+        instructions: String,
+        reply: CoordinatorDetailsSaveReply,
+    },
+    SaveMemory {
+        notes: Vec<String>,
+        reply: CoordinatorDetailsSaveReply,
+    },
     Cancel,
 }
 
@@ -63,6 +94,10 @@ pub(crate) struct GpuiCoordinatorDetailsModalWindow {
     instructions: String,
     note: String,
     notes: Vec<String>,
+    /// A save is on its way to gxserver; the editor waits for its answer.
+    saving: bool,
+    /// Why the last save was refused, shown above the buttons.
+    error: Option<String>,
     fit: ModalFit,
     focus_handle: FocusHandle,
     _subscriptions: Vec<Subscription>,
@@ -138,6 +173,8 @@ impl GpuiCoordinatorDetailsModalWindow {
             instructions: config.instructions,
             note: String::new(),
             notes: config.notes,
+            saving: false,
+            error: None,
             fit: ModalFit::fixed(),
             focus_handle: cx.focus_handle(),
             _subscriptions: subscriptions,
@@ -159,20 +196,49 @@ impl GpuiCoordinatorDetailsModalWindow {
     }
 
     fn save(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.saving {
+            return;
+        }
+        let reply = CoordinatorDetailsSaveReply {
+            view: cx.entity().downgrade(),
+            window: window.window_handle(),
+        };
         let command = match self.mode {
             CoordinatorDetailsMode::Goal => CoordinatorDetailsModalCommand::SaveGoal {
                 goal: self.goal.trim().to_string(),
                 instructions: self.instructions.trim().to_string(),
+                reply,
             },
             CoordinatorDetailsMode::Memory => {
                 // A note typed but not added yet is saved too, rather than dropped silently.
                 self.add_note(window, cx);
                 CoordinatorDetailsModalCommand::SaveMemory {
                     notes: self.notes.clone(),
+                    reply,
                 }
             }
         };
-        self.close_window_and_send(command, window, cx);
+        self.saving = true;
+        self.error = None;
+        cx.notify();
+        (self.host)(command, cx);
+    }
+
+    /// The answer to a save: success closes the editor, a refusal keeps it open with the message.
+    fn finish_save(
+        &mut self,
+        result: Result<(), String>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        match result {
+            Ok(()) => window.remove_window(),
+            Err(message) => {
+                self.saving = false;
+                self.error = Some(message);
+                cx.notify();
+            }
+        }
     }
 
     fn add_note(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -386,10 +452,10 @@ impl GpuiCoordinatorDetailsModalWindow {
         let save = modal_action_button(
             &p,
             "coordinator-details-save",
-            SAVE,
+            if self.saving { SAVING } else { SAVE },
             None,
             ModalButtonTone::Primary,
-            false,
+            self.saving,
             |this, window, cx| this.save(window, cx),
             cx,
         );
@@ -414,7 +480,10 @@ impl Render for GpuiCoordinatorDetailsModalWindow {
                 self.title
             ),
         };
-        let content = vec![modal_header(&p, title, Some(description)), body];
+        let mut content = vec![modal_header(&p, title, Some(description)), body];
+        if let Some(error) = &self.error {
+            content.push(modal_error(&p, error.clone()));
+        }
         let footer = self.render_footer(cx);
         modal_shell(
             &p,
