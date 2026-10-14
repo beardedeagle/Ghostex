@@ -58,7 +58,7 @@ pub(crate) use text::*;
 pub(crate) use textarea::*;
 
 use super::store::SettingsStore;
-use gpui::{Entity, SharedString, Subscription};
+use gpui::{Context, Entity, SharedString, Subscription};
 use std::collections::HashMap;
 
 /// Implemented by every Settings page entity so the shared fields can read and save through
@@ -66,6 +66,18 @@ use std::collections::HashMap;
 pub(crate) trait SettingsPage: 'static + Sized {
     fn settings_store(&self) -> &Entity<SettingsStore>;
     fn field_states(&mut self) -> &mut FieldStates;
+
+    /// Called once a drag of item `index` in reorder list `list` is about to lift it. A page whose
+    /// item is taller while open closes it here and returns true; the list then waits for the
+    /// item's new layout before lifting it, so the lifted row is the closed one.
+    fn reorder_prepare_lift(
+        &mut self,
+        _list: &str,
+        _index: usize,
+        _cx: &mut Context<Self>,
+    ) -> bool {
+        false
+    }
 }
 
 /// The widget state of one page's fields, created on first render and keyed by field id
