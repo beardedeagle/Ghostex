@@ -40,6 +40,9 @@ fn error_color(p: &ChatAppearance) -> Hsla {
     rgb(if p.light { 0xb91c1c } else { 0xfb7185 }).into()
 }
 
+/// The form's own notes box's hint; the phone (QuestionForm.tsx) says the same.
+const NOTES_PLACEHOLDER: &str = "Anything else? (optional)";
+
 fn placeholder(question: &Value, draft: &Value) -> String {
     if question["text"] == true {
         let own = text(question, "placeholder");
@@ -75,68 +78,104 @@ impl NativeChatView {
             {
                 let key = format!("{id}:{index}");
                 let draft = &form["drafts"][index];
-                let hint = placeholder(question, draft);
                 wanted.insert(key.clone());
-                let value = text(draft, "other");
-                if let Some(entry) = self.form_inputs.get_mut(&key) {
-                    if entry.placeholder != hint {
-                        entry.placeholder = hint.clone();
-                        entry
-                            .input
-                            .update(cx, |state, cx| state.set_placeholder(hint, window, cx));
-                    }
-                    // The saved draft is read as the form appears, so its text can land after the
-                    // box was made; it fills the box once, never over what the reader typed.
-                    if !entry.settled && !value.is_empty() {
-                        entry.settled = true;
-                        entry
-                            .input
-                            .update(cx, |state, cx| state.set_value(value, window, cx));
-                    }
-                    continue;
-                }
-                let settled = !value.is_empty();
-                let input = cx.new(|cx| {
-                    TextareaState::new(window, cx)
-                        .auto_grow(1, 6)
-                        .placeholder(hint.clone())
-                        .default_value(value)
-                });
-                let typed_key = key.clone();
                 let form_id = id.clone();
-                let subscription = cx.subscribe_in(
-                    &input,
-                    window,
-                    move |this, input, event: &InputEvent, window, cx| match event {
-                        InputEvent::Change => {
-                            if let Some(entry) = this.form_inputs.get_mut(&typed_key) {
-                                entry.settled = true;
-                            }
-                            this.invoke(
-                                json!({"type":"formText","form":form_id,"question":index,"text":input.read(cx).value().to_string()}),
-                                cx,
-                            )
-                        }
-                        // Ctrl+Enter (Cmd+Enter on macOS) sends the form from its note or text box.
-                        InputEvent::PressEnter {
-                            secondary: true, ..
-                        } => this.invoke(json!({"type":"formSend","form":form_id}), cx),
-                        InputEvent::Focus => super::focus::reclaim_keyboard_focus(window),
-                        _ => {}
-                    },
-                );
-                self.form_inputs.insert(
+                self.sync_form_input(
                     key,
-                    FormInput {
-                        input,
-                        _subscription: subscription,
-                        placeholder: hint,
-                        settled,
-                    },
+                    placeholder(question, draft),
+                    text(draft, "other"),
+                    id,
+                    move |text| json!({"type":"formText","form":form_id,"question":index,"text":text}),
+                    window,
+                    cx,
+                );
+            }
+            // The form's own notes box under the last question (see the SessionChat 2026-10-14
+            // DECISION in packages/gx-chat-core/src/questions/forms.rs).
+            if form["takesNotes"] == true {
+                let key = format!("{id}:notes");
+                wanted.insert(key.clone());
+                let form_id = id.clone();
+                self.sync_form_input(
+                    key,
+                    NOTES_PLACEHOLDER.to_string(),
+                    text(form, "notes"),
+                    id,
+                    move |text| json!({"type":"formNotes","form":form_id,"text":text}),
+                    window,
+                    cx,
                 );
             }
         }
         self.form_inputs.retain(|key, _| wanted.contains(key));
+    }
+
+    /// One text box of an open form: made once, its placeholder kept in step, and `change` the
+    /// action each edit sends.
+    #[allow(clippy::too_many_arguments)]
+    fn sync_form_input(
+        &mut self,
+        key: String,
+        hint: String,
+        value: String,
+        form_id: &str,
+        change: impl Fn(String) -> Value + 'static,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if let Some(entry) = self.form_inputs.get_mut(&key) {
+            if entry.placeholder != hint {
+                entry.placeholder = hint.clone();
+                entry
+                    .input
+                    .update(cx, |state, cx| state.set_placeholder(hint, window, cx));
+            }
+            // The saved draft is read as the form appears, so its text can land after the
+            // box was made; it fills the box once, never over what the reader typed.
+            if !entry.settled && !value.is_empty() {
+                entry.settled = true;
+                entry
+                    .input
+                    .update(cx, |state, cx| state.set_value(value, window, cx));
+            }
+            return;
+        }
+        let settled = !value.is_empty();
+        let input = cx.new(|cx| {
+            TextareaState::new(window, cx)
+                .auto_grow(1, 6)
+                .placeholder(hint.clone())
+                .default_value(value)
+        });
+        let typed_key = key.clone();
+        let form_id = form_id.to_string();
+        let subscription = cx.subscribe_in(
+            &input,
+            window,
+            move |this, input, event: &InputEvent, window, cx| match event {
+                InputEvent::Change => {
+                    if let Some(entry) = this.form_inputs.get_mut(&typed_key) {
+                        entry.settled = true;
+                    }
+                    this.invoke(change(input.read(cx).value().to_string()), cx)
+                }
+                // Ctrl+Enter (Cmd+Enter on macOS) sends the form from its note or text box.
+                InputEvent::PressEnter {
+                    secondary: true, ..
+                } => this.invoke(json!({"type":"formSend","form":form_id}), cx),
+                InputEvent::Focus => super::focus::reclaim_keyboard_focus(window),
+                _ => {}
+            },
+        );
+        self.form_inputs.insert(
+            key,
+            FormInput {
+                input,
+                _subscription: subscription,
+                placeholder: hint,
+                settled,
+            },
+        );
     }
 
     /// The form `id` names, or its source as code when the document does not carry it (a form in
@@ -212,6 +251,9 @@ impl NativeChatView {
                     cx,
                 )
             }))
+            .when_some(self.form_notes(id, form, enabled, p), |body, notes| {
+                body.child(notes)
+            })
             .into_any_element();
         if phase == "answered" {
             return self.answered_form(id, title, body, form["collapsed"] != true, p, cx);
@@ -485,29 +527,7 @@ impl NativeChatView {
         let written = text(draft, "other");
         match self.form_inputs.get(&format!("{id}:{index}")) {
             Some(FormInput { input, .. }) if enabled => {
-                column = column.child(
-                    div()
-                        .w_full()
-                        .px(px(10.0 * s))
-                        .py(px(6.0 * s))
-                        .rounded(px(9.0 * s))
-                        .border_1()
-                        .border_color(p.input_border)
-                        .bg(if p.light { p.background } else { p.card_row })
-                        .child(
-                            Textarea::new(input)
-                                .aria_label("Note")
-                                .placeholder_color(p.muted.opacity(0.75))
-                                .caret_color(p.foreground)
-                                .appearance(false)
-                                .bordered(false)
-                                .focus_bordered(false)
-                                .p_0()
-                                .line_height(px(20.0 * s))
-                                .text_color(p.foreground)
-                                .text_size(px(13.5 * s)),
-                        ),
-                );
+                column = column.child(note_box(input, "Note", p));
             }
             _ if !written.trim().is_empty() => {
                 let shown = if question["text"] == true {
@@ -515,13 +535,7 @@ impl NativeChatView {
                 } else {
                     format!("Note: {written}")
                 };
-                column = column.child(
-                    div()
-                        .text_size(px(13.5 * s))
-                        .line_height(px(19.0 * s))
-                        .text_color(p.card_muted)
-                        .child(shown),
-                );
+                column = column.child(sent_note(shown, p));
             }
             _ if question["text"] == true && !enabled => {
                 column = column.child(
@@ -535,6 +549,81 @@ impl NativeChatView {
         }
         column.into_any_element()
     }
+}
+
+impl NativeChatView {
+    /// The form's own notes box under the last question, set off like a further question: the
+    /// box while the form is open, the sent notes once it is not, nothing for a one-question form.
+    fn form_notes(
+        &self,
+        id: &str,
+        form: &Value,
+        enabled: bool,
+        p: &ChatAppearance,
+    ) -> Option<AnyElement> {
+        if form["takesNotes"] != true {
+            return None;
+        }
+        let s = p.scale;
+        let content = match self.form_inputs.get(&format!("{id}:notes")) {
+            Some(FormInput { input, .. }) if enabled => note_box(input, "Notes", p),
+            _ => {
+                let notes = text(form, "notes");
+                if notes.trim().is_empty() {
+                    return None;
+                }
+                sent_note(format!("Notes: {notes}"), p)
+            }
+        };
+        Some(
+            div()
+                .w_full()
+                .min_w_0()
+                .mt(px(16.0 * s))
+                .pt(px(16.0 * s))
+                .border_t_1()
+                .border_color(p.foreground.opacity(0.06))
+                .child(content)
+                .into_any_element(),
+        )
+    }
+}
+
+/// A question's note box, and the form's notes box: one look.
+fn note_box(input: &Entity<TextareaState>, label: &'static str, p: &ChatAppearance) -> AnyElement {
+    let s = p.scale;
+    div()
+        .w_full()
+        .px(px(10.0 * s))
+        .py(px(6.0 * s))
+        .rounded(px(9.0 * s))
+        .border_1()
+        .border_color(p.input_border)
+        .bg(if p.light { p.background } else { p.card_row })
+        .child(
+            Textarea::new(input)
+                .aria_label(label)
+                .placeholder_color(p.muted.opacity(0.75))
+                .caret_color(p.foreground)
+                .appearance(false)
+                .bordered(false)
+                .focus_bordered(false)
+                .p_0()
+                .line_height(px(20.0 * s))
+                .text_color(p.foreground)
+                .text_size(px(13.5 * s)),
+        )
+        .into_any_element()
+}
+
+/// A note as a sent form shows it.
+fn sent_note(shown: String, p: &ChatAppearance) -> AnyElement {
+    div()
+        .text_size(px(13.5 * p.scale))
+        .line_height(px(19.0 * p.scale))
+        .text_color(p.card_muted)
+        .child(shown)
+        .into_any_element()
 }
 
 /// A choice's letter: a, b, c… and numbers past z.

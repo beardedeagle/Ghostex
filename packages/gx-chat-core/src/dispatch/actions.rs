@@ -60,6 +60,7 @@ pub fn owner(kind: &ActionKind) -> Option<Family> {
         | ActionKind::QuestionCancel
         | ActionKind::FormChoice
         | ActionKind::FormText
+        | ActionKind::FormNotes
         | ActionKind::FormSend
         | ActionKind::FormToggle
         | ActionKind::PreviousQuestion

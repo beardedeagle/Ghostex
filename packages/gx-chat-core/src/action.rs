@@ -158,6 +158,7 @@ action_kinds! {
     QuestionCancel => "questionCancel",
     FormChoice => "formChoice",
     FormText => "formText",
+    FormNotes => "formNotes",
     FormSend => "formSend",
     FormToggle => "formToggle",
     PreviousQuestion => "previousQuestion",

@@ -8,8 +8,8 @@
 use ghostex_gx_protocol::{ChatMessage, ChatRole};
 
 pub use ghostex_gx_visual::questions::{
-    answers_message, form_id, is_questions_language, parse_form, FormChoice, FormQuestion,
-    QuestionForm, NOTE_SUFFIX, OTHER_CHOICE,
+    answers_message, form_id, is_questions_language, notes_key, parse_form, takes_notes,
+    FormChoice, FormQuestion, QuestionForm, NOTE_SUFFIX, OTHER_CHOICE,
 };
 
 use crate::transcript::jsstr::{js_trim, split_lf};

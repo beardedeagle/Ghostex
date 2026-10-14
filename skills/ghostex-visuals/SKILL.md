@@ -175,7 +175,7 @@ Ghostex can't show the form, so ask in prose instead.
        {"label": "One long page", "value": "one page"}
      ]},
     {"title": "Which platforms first?", "multiple": true, "choices": ["macOS", "Windows", "Phone"]},
-    {"title": "Anything else?", "type": "text"}
+    {"title": "What should the new page be called?", "type": "text"}
   ]
 }
 ```
@@ -193,6 +193,8 @@ Ghostex can't show the form, so ask in prose instead.
   question with "Other / none of these" and a note box, and adds the Send
   button. Nothing is ever preselected (a pick clicked again clears), and a
   question left blank arrives as `null`. Don't add your own "Other" choice.
+  A form of two or more questions also ends with a notes box for anything
+  else, so don't add your own "Anything else?" question either.
 - Check the block before replying: `ghostex visual check /tmp/questions.json`
   lists the questions and their answer keys, or names the problem.
 - Give questions a `tag` and refer to them by it in your replies ("Q3 is still
@@ -213,7 +215,8 @@ Ghostex can't show the form, so ask in prose instead.
 - Put one form in a reply and end your turn. Don't poll or wait in a loop: the
   answers arrive as the next user message, in the same envelope a question
   page uses, and the form then reads Answered. A note arrives under the
-  question's key plus ` (note)`:
+  question's key plus ` (note)`, and the form's notes box, when filled in,
+  arrives last as `"Additional notes"`:
 
   ```text
   <ghostex-page-answers page="5f0c…" title="Settings redesign">
@@ -222,7 +225,8 @@ Ghostex can't show the form, so ask in prose instead.
     "Which layout should I build? (note)": "keep search at the top",
     "Which platforms first?": ["macOS", "Other / none of these"],
     "Which platforms first? (note)": "Linux too",
-    "Anything else?": null
+    "What should the new page be called?": null,
+    "Additional notes": "ship macOS first, the rest can wait"
   }
   </ghostex-page-answers>
   ```
