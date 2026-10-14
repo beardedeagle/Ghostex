@@ -241,9 +241,15 @@ pub fn rpc_settled(
     match outcome {
         // Queued: the saved picks stay until the transcript carries the answers (`sync`), so a
         // queued message the user removes again leaves the form as it was after a reload.
-        RpcOutcome::Ok { .. } => {
+        RpcOutcome::Ok { result } => {
             if let Some(entry) = state.questions.forms.get_mut(&id) {
                 entry.sent = Some(sent.answers);
+            }
+            // The queue answers with its whole new strip, which carries the answers' row: the card
+            // the send drew keeps its place instead of waiting for the queue's broadcast.
+            if let Some(queue) = result.get("queue").and_then(Value::as_array) {
+                state.session.queue_prompts = Some(queue.clone());
+                state.messages.new_composition_identity();
             }
             Some(Vec::new())
         }

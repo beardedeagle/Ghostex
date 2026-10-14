@@ -76,6 +76,14 @@ pub fn split_page_answers(text: &str) -> Option<(PageAnswers, String)> {
     Some((answers, rest))
 }
 
+/// The page or question form a message's answers envelope answers, when it holds one.
+pub fn answers_page_id(text: &str) -> Option<String> {
+    if !text.contains(OPEN) {
+        return None;
+    }
+    split_page_answers(text).map(|(answers, _)| answers.page_id)
+}
+
 /// The answers a message holds, when the whole message is one answers envelope.
 pub fn parse_page_answers(text: &str) -> Option<PageAnswers> {
     let text = js_trim(text);

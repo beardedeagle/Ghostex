@@ -65,7 +65,13 @@ pub fn pending_with_startup_sends(
             .get("startupSend")
             .and_then(Value::as_bool)
             .unwrap_or(false);
-        if !startup_send && by_receipt.is_none() {
+        // Answers a page or question form sent are drawn in the transcript at once too
+        // (`session/answer_echoes.rs`), never in the strip above the composer.
+        let answers = crate::transcript::page_answers::answers_page_id(
+            queue_field(prompt, "text").unwrap_or_default(),
+        )
+        .is_some();
+        if !startup_send && !answers && by_receipt.is_none() {
             continue;
         }
         // A queue broadcast can beat the send response. Pair identical local sends one at a time

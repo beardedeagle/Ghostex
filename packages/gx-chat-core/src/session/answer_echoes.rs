@@ -1,0 +1,128 @@
+//! Answers a reader sent (from a question page's popup window or a ```questions form) shown in the
+//! transcript the moment they leave, as an echo of the message gxserver will type: the "You
+//! answered" card with its delivery state, while the form or page already reads Answered.
+//!
+//! The answers travel through the session's chat queue (server/src/visual_pages/answers.rs), which
+//! types them once the agent has been idle for a moment, so the recorded message arrives seconds
+//! later. A queued answers row becomes an echo the way a startup send does
+//! (`session/startup_sends.rs`), so it keeps its card through the gap between delivery and the
+//! transcript, and a form's own send draws one before gxserver has even answered. The echo goes
+//! when the transcript carries that page's answers.
+//!
+//! CDXC:SessionChat 2026-10-14 DECISION:
+//! User: "When I answered the question in the chat view (in the HTML visual modal), it took about 5 seconds for the answer to show in the chat. I want it as fast as possible. Could be an optimistic update with a spinner at the bottom left of the answers card until confirmed, but I want the user to see that the action had an effect faster." The answers card shows at once with a spinner at its bottom left, the form or page reads Answered, the confirmed card takes its place without a jump, and a failed delivery turns the card into an error with Retry that keeps the answers.
+
+use ghostex_gx_protocol::{ChatMessage, StartupDelivery};
+
+use crate::session::text::normalize_pending_text;
+use crate::state::{ChatContext, ChatState, PendingSend};
+use crate::transcript::page_answers::{answers_page_id, page_answers_in};
+use crate::transcript::question_forms::answers_message;
+
+/// The id prefix of the echo a form's own send draws before its queue row exists.
+const FORM_ECHO_PREFIX: &str = "answers:";
+
+/// Keeps the answer echoes in step: one for each form send in flight, none for answers the
+/// transcript already carries.
+pub fn settle(state: &mut ChatState, context: &ChatContext, transcript: &[ChatMessage]) {
+    let confirmed: Vec<String> = page_answers_in(transcript)
+        .into_iter()
+        .map(|answers| answers.page_id)
+        .collect();
+    let mut sends = std::mem::take(&mut state.pending.sends);
+    sends.retain(|entry| {
+        let Some(page_id) = answers_page_id(&entry.text) else {
+            return true;
+        };
+        if confirmed.contains(&page_id) {
+            return false;
+        }
+        // A form's echo lives while its send is in flight, and on as the queue row it became.
+        match entry.id.strip_prefix(FORM_ECHO_PREFIX) {
+            Some(form) if entry.queued_prompt_id.is_none() => state
+                .questions
+                .forms
+                .get(form)
+                .is_some_and(|form| form.send.is_some()),
+            _ => true,
+        }
+    });
+    for (id, form_state) in &state.questions.forms {
+        let Some(send) = form_state.send.as_ref() else {
+            continue;
+        };
+        if confirmed.contains(id) {
+            continue;
+        }
+        let Some(form) = state
+            .transcript_view
+            .question_forms
+            .iter()
+            .find(|form| &form.id == id)
+        else {
+            continue;
+        };
+        let text = answers_message(form, &send.answers);
+        let key = normalize_pending_text(&text);
+        if sends
+            .iter()
+            .any(|entry| normalize_pending_text(&entry.text) == key)
+        {
+            continue;
+        }
+        sends.push(PendingSend {
+            id: format!("{FORM_ECHO_PREFIX}{id}"),
+            startup_delivery: Some(StartupDelivery {
+                prompt_id: String::new(),
+                state: "sending".to_string(),
+                error_message: None,
+            }),
+            text,
+            sent_at_ms: context.now_millis(),
+            ..PendingSend::default()
+        });
+    }
+    state.pending.sends = sends;
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::session::startup_sends::pending_with_startup_sends;
+    use serde_json::json;
+
+    const ANSWERS: &str = "<ghostex-page-answers page=\"0123456789abcdef0123456789abcdef\" title=\"Mockups\">\n{\n  \"Which layout?\": \"tabs\"\n}\n</ghostex-page-answers>";
+
+    #[test]
+    fn queued_answers_become_echoes_with_their_delivery_state() {
+        let queue = vec![
+            json!({"id": "a", "text": ANSWERS, "state": "queued", "createdAt": "2026-10-14T01:00:00.000Z"}),
+            json!({"id": "b", "text": "an ordinary queued prompt", "state": "queued"}),
+        ];
+        let echoes = pending_with_startup_sends(&[], &queue, Some("claude"));
+        assert_eq!(
+            echoes.len(),
+            1,
+            "an ordinary queued prompt stays in the strip"
+        );
+        assert_eq!(echoes[0].queued_prompt_id.as_deref(), Some("a"));
+        assert_eq!(echoes[0].startup_delivery.as_ref().unwrap().state, "queued");
+    }
+
+    #[test]
+    fn a_failed_delivery_keeps_its_error_for_retry() {
+        let queue = vec![json!({
+            "id": "a", "text": ANSWERS, "state": "failed", "errorMessage": "The agent is not running."
+        })];
+        let echoes = pending_with_startup_sends(&[], &queue, Some("claude"));
+        let delivery = echoes[0].startup_delivery.as_ref().unwrap();
+        assert_eq!(delivery.state, "failed");
+        assert_eq!(
+            delivery.error_message.as_deref(),
+            Some("The agent is not running.")
+        );
+        assert!(
+            pending_with_startup_sends(&echoes, &[], Some("claude")).is_empty(),
+            "a failed row the reader removed takes its card with it"
+        );
+    }
+}

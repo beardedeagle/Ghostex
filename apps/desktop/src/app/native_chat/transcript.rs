@@ -356,7 +356,12 @@ impl NativeChatView {
                 .into_any_element();
         }
         if message["role"] == "user" && message["pageAnswers"].is_object() {
-            row = row.child(self.page_answers_card(&message["pageAnswers"], p));
+            row = row.child(self.page_answers_card(
+                &message["pageAnswers"],
+                &message["startupDelivery"],
+                p,
+                cx,
+            ));
             // The user's own words besides the answers follow as their ordinary message.
             if message["pageAnswers"]["withText"] != true {
                 return row.into_any_element();

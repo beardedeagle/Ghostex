@@ -169,6 +169,13 @@ pub fn queue(state: &ChatState) -> Queue {
             // A startup send is drawn in the transcript with its own delivery status, not above the
             // composer, and a row an accepted send already echoes would be drawn twice.
             prompt.get("startupSend") != Some(&Value::Bool(true))
+                && crate::transcript::page_answers::answers_page_id(
+                    prompt
+                        .get("text")
+                        .and_then(Value::as_str)
+                        .unwrap_or_default(),
+                )
+                .is_none()
                 && !state.pending.sends.iter().any(|entry| {
                     entry.queued_prompt_id.is_some()
                         && entry.queued_prompt_id.as_deref()

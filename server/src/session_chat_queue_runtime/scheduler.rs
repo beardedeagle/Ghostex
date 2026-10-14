@@ -2,6 +2,18 @@ use super::*;
 
 const SESSION_CHAT_QUEUE_TICK_SECONDS: u64 = 1;
 
+/// Wakes the scheduler for a tick now instead of at the next second (`kick_session_chat_queue`).
+static SESSION_CHAT_QUEUE_KICKED: tokio::sync::Notify = tokio::sync::Notify::const_new();
+
+/// Runs a scheduler tick at once: a row just queued for an idle agent leaves without waiting for
+/// the next one-second tick. Ticks are idempotent, so an extra one only re-reads the queue.
+///
+/// CDXC:SessionChat 2026-10-14 WHY:
+/// Answers sent from a question page or form took about five seconds to reach the chat. Most of it was the queue's own pace: up to a second to the next tick, then a stability window that only started on the first tick to see the session stopped. The kick and the window measured from the agent's own idle stamp (`stability_window_elapsed`) take those out while keeping the two-second rule.
+pub(crate) fn kick_session_chat_queue() {
+    SESSION_CHAT_QUEUE_KICKED.notify_one();
+}
+
 /// How long a session must look stopped before the head row is released.
 /// Tracked exactly like `delayed_sends`' `nonWorkingSinceAt`: it restarts the
 /// instant the session looks busy again, so a blip between two tool calls can
@@ -195,6 +207,7 @@ impl SessionChatQueueRuntime {
                 tokio::select! {
                     _ = shutdown_rx.recv() => break,
                     _ = interval.tick() => runtime.run_tick().await,
+                    _ = SESSION_CHAT_QUEUE_KICKED.notified() => runtime.run_tick().await,
                     _ = crate::session_chat_model_selection::selection_requested() => runtime.run_tick().await,
                 }
             }
@@ -393,7 +406,9 @@ impl SessionChatQueueRuntime {
                 self.reset_gate(&key);
                 continue;
             }
-            if !startup_composer_ready && !self.stability_window_elapsed(&key, now) {
+            if !startup_composer_ready
+                && !self.stability_window_elapsed(&key, now, agent_idle_since(&session))
+            {
                 continue;
             }
             let Some(head) = snapshot.deliverable_head() else {
@@ -573,21 +588,22 @@ impl SessionChatQueueRuntime {
         working
     }
 
-    fn stability_window_elapsed(&self, key: &str, now: DateTime<Utc>) -> bool {
+    /// The window starts when the agent's own activity record last changed to stopped
+    /// (`idle_since`) when there is one, else on this first tick to see it stopped.
+    fn stability_window_elapsed(
+        &self,
+        key: &str,
+        now: DateTime<Utc>,
+        idle_since: Option<DateTime<Utc>>,
+    ) -> bool {
         let Ok(mut gates) = self.gates.lock() else {
             return false;
         };
         let gate = gates.entry(key.to_string()).or_default();
-        match gate.stopped_since {
-            Some(since) => {
-                now.signed_duration_since(since).num_milliseconds()
-                    >= SESSION_CHAT_QUEUE_STABILITY_MS
-            }
-            None => {
-                gate.stopped_since = Some(now);
-                false
-            }
-        }
+        let since = *gate
+            .stopped_since
+            .get_or_insert_with(|| idle_since.filter(|since| *since <= now).unwrap_or(now));
+        now.signed_duration_since(since).num_milliseconds() >= SESSION_CHAT_QUEUE_STABILITY_MS
     }
 
     fn reset_gate(&self, key: &str) {
@@ -658,6 +674,23 @@ fn session_queue_key(project_id: &str, session_id: &str) -> String {
 
 /// Idle, or a finished turn's attention with no interactive card pending.
 /// Working and every other attention hold the queue.
+/// When the agent's recorded activity last changed, if it is recorded as stopped (idle, or the
+/// attention a finished turn enters): the moment the stability window can start from. A record
+/// that still says working (and only reads idle because it went stale) gives none.
+fn agent_idle_since(session: &Value) -> Option<DateTime<Utc>> {
+    let activity = session.pointer("/runtimeSettings/agentActivity")?;
+    if !matches!(
+        activity.get("activity").and_then(Value::as_str),
+        Some("idle" | "attention")
+    ) {
+        return None;
+    }
+    let stamp = activity.get("lastChangedAt").and_then(Value::as_str)?;
+    DateTime::parse_from_rfc3339(stamp)
+        .ok()
+        .map(|stamp| stamp.with_timezone(&Utc))
+}
+
 fn session_chat_queue_activity_is_deliverable(session: &Value, generated_at: &str) -> bool {
     match presentation_activity(session, generated_at).as_str() {
         "idle" => true,

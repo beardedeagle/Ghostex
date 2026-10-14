@@ -7,6 +7,7 @@
 
 pub mod actions;
 pub mod app_commands;
+pub mod answer_echoes;
 pub mod apply;
 pub mod assembler;
 pub mod composition;

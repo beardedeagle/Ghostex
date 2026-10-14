@@ -39,6 +39,7 @@ pub fn before_compose(state: &mut ChatState, context: &ChatContext) {
         );
         state.pending.sends = prune_pending_sends(&hydrated, &transcript);
     }
+    crate::session::answer_echoes::settle(state, context, &transcript);
 
     // Clear the Stop suppression once the live signal settles.
     if state.session.interrupted && !working_signal(state) {

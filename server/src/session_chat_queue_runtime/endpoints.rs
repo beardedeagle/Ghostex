@@ -153,4 +153,5 @@ pub(crate) fn broadcast_session_chat_queue_state(
         screen.borrow(),
     );
     publish_session_chat_queue_presentation_delta(state, project_id, session_id);
+    super::scheduler::kick_session_chat_queue();
 }
