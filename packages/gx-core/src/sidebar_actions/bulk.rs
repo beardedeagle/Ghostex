@@ -33,7 +33,7 @@
 //!
 //! SEE-ALSO: apps/desktop/src/app/gx_store/sidebar_bulk.rs.
 
-use serde_json::{Map, Value, json};
+use serde_json::{json, Map, Value};
 
 use crate::core::Core;
 use crate::keys::{ProjectKey, SessionKey};

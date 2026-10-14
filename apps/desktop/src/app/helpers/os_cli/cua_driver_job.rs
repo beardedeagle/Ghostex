@@ -3,7 +3,8 @@
 
 use crate::app::helpers::*;
 
-pub(crate) static CUA_DRIVER_JOB: GpuiInstallJob = GpuiInstallJob::new("Fast Computer & Browser Use");
+pub(crate) static CUA_DRIVER_JOB: GpuiInstallJob =
+    GpuiInstallJob::new("Fast Computer & Browser Use");
 
 /// Adds the Trycua job, install plan and /Applications check to a `ghostexCliStatus` payload.
 pub(crate) fn gpui_decorate_cua_driver_status(payload: &mut serde_json::Value) {

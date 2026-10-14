@@ -33,7 +33,8 @@ pub use browser::{plan_browser_pane_open, BrowserPaneOpen, DEFAULT_BROWSER_LAUNC
 pub use params::{
     agent_record_params, check_startup_prompt_receipt, created_session, local_agent_launch_params,
     os_integration_command_params, queue_startup_prompt_params, remote_agent_launch_params,
-    replacing_empty_sessions, start_provider_params, terminal_create_params, with_run_location, AgentRecordOptions,
+    replacing_empty_sessions, start_provider_params, terminal_create_params, with_run_location,
+    AgentRecordOptions,
 };
 pub use target::{
     group_project, normalize_project_path, project_name_from_path, terminal_create_target,

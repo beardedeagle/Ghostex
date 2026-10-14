@@ -137,8 +137,8 @@ mod space_switch;
 pub(crate) mod terminal_lifecycle;
 mod work_links;
 mod work_mode;
-mod workspaces;
 mod workspace_groups;
+mod workspaces;
 
 /// The client-storage doors, for the other Rust hosts in this app that own catalogued stores of
 /// their own. The chat host (`src/app/gx_chat/storage.rs`) writes its own catalog rows through the

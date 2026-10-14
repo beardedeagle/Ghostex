@@ -15,11 +15,9 @@ mod sync;
 
 pub use crate::doc_sync::AdoptOutcome;
 pub use custom_tags_push::{CustomTagsPush, CustomTagsPushEffect};
-pub use group_commands::{
-    owns_group_command, plan_group_command, GroupCommandPlan,
-};
 pub use document::{ProjectWorkspaceGroups, WorkspaceGroupsDocument, WorkspaceSubgroup};
 pub use edits::WORKSPACE_SESSION_GROUP_MAX_COUNT;
+pub use group_commands::{owns_group_command, plan_group_command, GroupCommandPlan};
 pub use sync::{
     WorkspaceGroupsEffect, WorkspaceGroupsSync, WORKSPACE_GROUPS_SYNC_DELAY_MS,
     WORKSPACE_GROUPS_SYNC_RETRY_DELAY_MS,

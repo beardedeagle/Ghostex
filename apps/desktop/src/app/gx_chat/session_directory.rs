@@ -57,7 +57,9 @@ pub(crate) fn publish(store: &PresentationStore) {
             ))
         })
         .collect();
-    let mut published = PUBLISHED.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let mut published = PUBLISHED
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     let current = published.get_or_insert_with(Published::default);
     if current.built_from == built_from && current.revision > 0 {
         return;
@@ -94,7 +96,9 @@ pub(crate) fn publish(store: &PresentationStore) {
 
 /// The list and its revision; revision 0 while the store has published nothing.
 pub(super) fn current() -> (u64, Arc<Vec<KnownSession>>) {
-    let published = PUBLISHED.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let published = PUBLISHED
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     published
         .as_ref()
         .map(|published| (published.revision, published.sessions.clone()))

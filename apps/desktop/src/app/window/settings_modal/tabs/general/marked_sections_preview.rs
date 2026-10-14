@@ -11,8 +11,8 @@
 mod marked_look;
 use super::super::super::super::native_modal_kit::*;
 use super::super::super::fields::{
-    ButtonVariant, RowSpec, SELECT_WIDTH, icon, reset_key, setting_row, settings_dialog_sheet,
-    settings_button, settings_select, toggle_field,
+    ButtonVariant, RowSpec, SELECT_WIDTH, icon, reset_key, setting_row, settings_button,
+    settings_dialog_sheet, settings_select, toggle_field,
 };
 use super::{GeneralCx, GeneralTab, save};
 use gpui::prelude::FluentBuilder as _;

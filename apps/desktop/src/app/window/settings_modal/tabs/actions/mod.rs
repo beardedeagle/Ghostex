@@ -9,8 +9,8 @@ mod model;
 
 use super::super::super::native_modal_kit::*;
 use super::super::fields::{
-    ButtonVariant, FieldStates, SearchableList, SettingsPage, card_inset, command_icon,
-    icon, move_index, reorder_handle, reorder_order, reorder_row, reorder_scroll_container,
+    ButtonVariant, FieldStates, SearchableList, SettingsPage, card_inset, command_icon, icon,
+    move_index, reorder_handle, reorder_order, reorder_row, reorder_scroll_container,
     settings_button, settings_icon, settings_icon_button, settings_section,
 };
 use super::super::model::SettingsTabId;

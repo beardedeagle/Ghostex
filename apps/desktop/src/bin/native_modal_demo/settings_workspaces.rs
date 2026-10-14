@@ -165,14 +165,18 @@ pub(super) fn rpc(state: &str, path: &str, params: &Value) -> Option<Result<Valu
         "/api/agentAccounts" => json!({ "accounts": [] }),
         // The Work workspace uses GitHub as its team's tracker, and `gh` cannot read GitHub
         // Projects yet; Personal never picked one and has a Linear key.
-        "/api/readWorkTracker" if params.get("workspaceId").and_then(Value::as_str) == Some("work") => json!({
-            "workspaceId": "work",
-            "tracker": "github",
-            "source": "team",
-            "team": state != "workspaces-join",
-            "canEdit": !is_member(state),
-            "githubProjects": { "access": "missingScope", "command": "gh auth refresh -s read:project", "noticeDismissed": false }
-        }),
+        "/api/readWorkTracker"
+            if params.get("workspaceId").and_then(Value::as_str) == Some("work") =>
+        {
+            json!({
+                "workspaceId": "work",
+                "tracker": "github",
+                "source": "team",
+                "team": state != "workspaces-join",
+                "canEdit": !is_member(state),
+                "githubProjects": { "access": "missingScope", "command": "gh auth refresh -s read:project", "noticeDismissed": false }
+            })
+        }
         "/api/readWorkTracker" => json!({
             "workspaceId": "personal",
             "tracker": "linear",
@@ -181,7 +185,9 @@ pub(super) fn rpc(state: &str, path: &str, params: &Value) -> Option<Result<Valu
             "canEdit": true,
             "githubProjects": { "access": "unknown", "command": "gh auth refresh -s read:project", "noticeDismissed": false }
         }),
-        "/api/setWorkTracker" => json!({ "workspaceId": params.get("workspaceId").cloned().unwrap_or(Value::Null), "tracker": params.get("tracker").cloned().unwrap_or(Value::Null) }),
+        "/api/setWorkTracker" => {
+            json!({ "workspaceId": params.get("workspaceId").cloned().unwrap_or(Value::Null), "tracker": params.get("tracker").cloned().unwrap_or(Value::Null) })
+        }
         "/api/readTeamSyncStatus" => team_status(state),
         "/api/readSlackFlowSettings" | "/api/setSlackFlowSettings" => slack_flow(state),
         "/api/readTeamFlow" | "/api/updateTeamFlow" => team_flow_steps(state),

@@ -375,8 +375,9 @@ impl GpuiCreateLinearTicketModalWindow {
                         None => {
                             let _ = this.update(cx, |this, cx| {
                                 this.busy = None;
-                                this.error =
-                                    Some("Ghostex was not told which ticket was created.".to_string());
+                                this.error = Some(
+                                    "Ghostex was not told which ticket was created.".to_string(),
+                                );
                                 cx.notify();
                             });
                             return;

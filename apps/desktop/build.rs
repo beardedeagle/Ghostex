@@ -546,7 +546,10 @@ fn main() {
     println!("cargo:rerun-if-env-changed=GHOSTEX_GPUI_MARKETING_VERSION");
     let (version, stamped) = marketing_version();
     println!("cargo:rustc-env=GHOSTEX_BUILD_MARKETING_VERSION={version}");
-    println!("cargo:rustc-env=GHOSTEX_BUILD_VERSION_STAMPED={}", u8::from(stamped));
+    println!(
+        "cargo:rustc-env=GHOSTEX_BUILD_VERSION_STAMPED={}",
+        u8::from(stamped)
+    );
     // CDXC:Build 2026-10-02 WHY:
     // Cargo treats a rerun-if-changed path that does not exist as always changed, and GhosttyKit.xcframework only exists on macOS. Emitting these hints on Linux and Windows reran this build script on every build and recompiled the whole ghostex-gpui crate even when nothing had changed.
     if env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("macos") {

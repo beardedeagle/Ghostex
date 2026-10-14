@@ -1,8 +1,8 @@
 use super::{data::*, style::*};
 use crate::app::titlebar::account_usage::popup_account;
+use crate::app::window::native_modal_kit::with_modal_edge_gap;
 use crate::*;
 use gpui::img;
-use crate::app::window::native_modal_kit::with_modal_edge_gap;
 use gpui_component::scroll::{Scrollbar, ScrollbarMode};
 use serde_json::Value;
 use std::{

@@ -4,8 +4,8 @@
 //! anchors the rail and deep links use.
 use super::super::native_modal_kit::*;
 use super::model::SettingsTabId;
-use super::shell::BODY_PADDING;
 use super::palette::SettingsPalette;
+use super::shell::BODY_PADDING;
 use super::store::{SettingsStore, SmoothScroll, scroll_top_for_child};
 use gpui::prelude::FluentBuilder as _;
 use gpui::{

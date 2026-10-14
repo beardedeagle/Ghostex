@@ -12,7 +12,10 @@ impl GhostexGpuiApp {
     ///
     /// CDXC:Workarea 2026-10-09 WHY:
     /// The pane used to read the workspace model's copy of the activity, which `focus_pane` and `select_tab` set to idle at once while the store waits for its own acknowledgement (gx-core `attention.rs`), and an unchanged focus snapshot never reconciles the copy back. So the dot stayed blue while the pane showed nothing. Reading the store keeps one answer for both.
-    pub(crate) fn gx_store_shell_session_has_attention(&self, session_id: TerminalSessionId) -> bool {
+    pub(crate) fn gx_store_shell_session_has_attention(
+        &self,
+        session_id: TerminalSessionId,
+    ) -> bool {
         let key = self
             .local_workspace_session_mappings
             .iter()
@@ -21,15 +24,17 @@ impl GhostexGpuiApp {
                     .then(|| SessionKey::local(key.project_id.clone(), key.session_id.clone()))
             })
             .or_else(|| {
-                self.remote_attach_sessions.iter().find_map(|(key, mapped)| {
-                    (*mapped == session_id).then(|| {
-                        SessionKey::remote(
-                            key.remote_machine_id.clone(),
-                            key.project_id.clone(),
-                            key.session_id.clone(),
-                        )
+                self.remote_attach_sessions
+                    .iter()
+                    .find_map(|(key, mapped)| {
+                        (*mapped == session_id).then(|| {
+                            SessionKey::remote(
+                                key.remote_machine_id.clone(),
+                                key.project_id.clone(),
+                                key.session_id.clone(),
+                            )
+                        })
                     })
-                })
             });
         key.and_then(|key| self.gx_store.core.presentation().session(&key))
             .is_some_and(|session| session.activity.as_str() == "attention")

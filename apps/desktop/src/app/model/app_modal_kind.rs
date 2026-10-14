@@ -497,9 +497,7 @@ impl GpuiAppModalKind {
             | Self::MakeCoordinator
             | Self::CoordinatorDetails
             | Self::CreateLinearTicket
-            | Self::WorkLinkPicker => {
-                serde_json::Value::Null
-            }
+            | Self::WorkLinkPicker => serde_json::Value::Null,
             Self::UpdateAvailable => serde_json::json!({
                 "modal": self.modal_id(),
                 "type": "open",

@@ -12,8 +12,8 @@ use super::tabs::settings_tab_view;
 use gpui::{
     AnyElement, AnyView, App, AppContext as _, Context, Entity, FocusHandle, Focusable,
     InteractiveElement as _, IntoElement, KeyDownEvent, MouseButton, NavigationDirection,
-    ParentElement as _, Render, ScrollHandle,
-    StatefulInteractiveElement as _, Styled as _, Subscription, Window, div, px,
+    ParentElement as _, Render, ScrollHandle, StatefulInteractiveElement as _, Styled as _,
+    Subscription, Window, div, px,
 };
 use gpui_component::input::{Input, InputEvent, InputState};
 use gpui_component::{Sizable as _, Size as ComponentSize, h_flex, v_flex};
@@ -141,7 +141,9 @@ impl GpuiSettingsModalWindow {
         // Skills > Configure / Install more) lands on it.
         if let Some(section) = shell.store.read(cx).request().initial_section.clone() {
             let store = shell.store.clone();
-            store.update(cx, |store, cx| store.scroll_to_section(active, &section, cx));
+            store.update(cx, |store, cx| {
+                store.scroll_to_section(active, &section, cx)
+            });
         }
         shell
     }

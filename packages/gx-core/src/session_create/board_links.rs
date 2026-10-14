@@ -83,7 +83,8 @@ impl BeadConversationLink {
             created_at: date(record, "createdAt").unwrap_or_else(|| now_iso.to_string()),
             ghostex_session_id,
             id,
-            project_id: text(record, "projectId").unwrap_or_else(|| fallback_project_id.to_string()),
+            project_id: text(record, "projectId")
+                .unwrap_or_else(|| fallback_project_id.to_string()),
             session_persistence_name: text(record, "sessionPersistenceName"),
             session_persistence_provider: record
                 .get("sessionPersistenceProvider")
@@ -124,7 +125,10 @@ impl BeadConversationLink {
             }
         };
         put("sessionPersistenceName", &self.session_persistence_name);
-        put("sessionPersistenceProvider", &self.session_persistence_provider);
+        put(
+            "sessionPersistenceProvider",
+            &self.session_persistence_provider,
+        );
         put("sessionProjectId", &self.session_project_id);
         map.insert("status".into(), json!(self.status));
         map.insert("updatedAt".into(), json!(self.updated_at));
@@ -151,7 +155,10 @@ pub fn normalize_bead_conversation_links(
 
 /// The links a project row stores (`projectBoardConfig.beadConversationLinks`).
 pub fn project_board_links(project: &Value, now_iso: &str) -> Vec<BeadConversationLink> {
-    let project_id = project.get("projectId").and_then(Value::as_str).unwrap_or_default();
+    let project_id = project
+        .get("projectId")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
     normalize_bead_conversation_links(
         project
             .get("projectBoardConfig")
@@ -162,7 +169,11 @@ pub fn project_board_links(project: &Value, now_iso: &str) -> Vec<BeadConversati
 }
 
 /// `createBeadConversationLinkId(projectId, beadId, ghostexSessionId)`.
-pub fn bead_conversation_link_id(project_id: &str, bead_id: &str, ghostex_session_id: &str) -> String {
+pub fn bead_conversation_link_id(
+    project_id: &str,
+    bead_id: &str,
+    ghostex_session_id: &str,
+) -> String {
     [project_id, bead_id, ghostex_session_id]
         .iter()
         .map(|part| {
@@ -208,9 +219,7 @@ pub fn bead_conversation_link_store_key(project: &Value, global_beads_directory:
         .and_then(Value::as_str)
         .filter(|directory| !js_trim(directory).is_empty());
     let directory = configured
-        .or_else(|| {
-            (!js_trim(global_beads_directory).is_empty()).then_some(global_beads_directory)
-        })
+        .or_else(|| (!js_trim(global_beads_directory).is_empty()).then_some(global_beads_directory))
         .or_else(|| project.get("path").and_then(Value::as_str));
     directory
         .map(|directory| js_trim(directory).trim_end_matches('/').to_string())
@@ -264,7 +273,11 @@ fn session_owner(link: &BeadConversationLink) -> (bool, String, String) {
         .map(js_trim)
         .filter(|id| !id.is_empty())
     {
-        return (true, project_id.to_string(), link.ghostex_session_id.clone());
+        return (
+            true,
+            project_id.to_string(),
+            link.ghostex_session_id.clone(),
+        );
     }
     if let Some((project_id, session_id)) =
         parse_persistence_name(link.session_persistence_name.as_deref())
@@ -273,7 +286,11 @@ fn session_owner(link: &BeadConversationLink) -> (bool, String, String) {
             return (true, project_id, session_id);
         }
     }
-    (false, link.project_id.clone(), link.ghostex_session_id.clone())
+    (
+        false,
+        link.project_id.clone(),
+        link.ghostex_session_id.clone(),
+    )
 }
 
 /// `resolveBeadConversationLinkReconciledSessionOwner`.

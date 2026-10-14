@@ -72,7 +72,7 @@ impl GhostexGpuiApp {
                     && crate::app::native_chat::child_window::bounds_inside_content_mask(
                         window, bounds,
                     ))
-                    .then_some(bounds);
+                .then_some(bounds);
                 if measured.replace(control) != control {
                     cx.defer(move |cx| {
                         let _ = app.update(cx, |app, cx| {

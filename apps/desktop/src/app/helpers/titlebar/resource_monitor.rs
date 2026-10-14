@@ -261,8 +261,8 @@ pub(crate) fn gpui_read_native_resource_servers() -> Vec<GpuiNativeResourceServe
 pub(crate) fn gpui_read_windows_resource_servers() -> Result<Vec<GpuiNativeResourceServer>, String>
 {
     use windows_sys::Win32::NetworkManagement::IpHelper::{
-        GetExtendedTcpTable, MIB_TCP6ROW_OWNER_PID, MIB_TCP6TABLE_OWNER_PID,
-        MIB_TCPROW_OWNER_PID, MIB_TCPTABLE_OWNER_PID, TCP_TABLE_OWNER_PID_LISTENER,
+        GetExtendedTcpTable, MIB_TCP6ROW_OWNER_PID, MIB_TCP6TABLE_OWNER_PID, MIB_TCPROW_OWNER_PID,
+        MIB_TCPTABLE_OWNER_PID, TCP_TABLE_OWNER_PID_LISTENER,
     };
     const AF_INET: u32 = 2;
     const AF_INET6: u32 = 23;
@@ -301,8 +301,7 @@ pub(crate) fn gpui_read_windows_resource_servers() -> Result<Vec<GpuiNativeResou
         let Some(&count) = table.first() else {
             return Vec::new();
         };
-        let available =
-            (table.len() * 4).saturating_sub(rows_offset) / std::mem::size_of::<Row>();
+        let available = (table.len() * 4).saturating_sub(rows_offset) / std::mem::size_of::<Row>();
         let base = unsafe { table.as_ptr().cast::<u8>().add(rows_offset) };
         (0..(count as usize).min(available))
             .map(|index| unsafe {

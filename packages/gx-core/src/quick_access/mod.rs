@@ -19,7 +19,9 @@ mod store_groups;
 mod text;
 mod wire;
 
-pub use controller::{QuickAccessContext, QuickAccessController, QuickAccessEffect, QuickAccessTab};
+pub use controller::{
+    QuickAccessContext, QuickAccessController, QuickAccessEffect, QuickAccessTab,
+};
 pub use data::{
     HotkeyPlatformWire, QuickAccessCollection, QuickAccessData, QuickAccessHiddenItems,
     QuickAccessOpenTarget, QuickAccessRecoveredDraft, QuickAccessRunState, QuickAccessSession,

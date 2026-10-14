@@ -110,7 +110,11 @@ impl GhostexGpuiApp {
         // app have no buttons and vanish, while the offer has to wait for an answer and leave
         // every client when it is given (gxserver stores it, server/src/work_mode/cleanup.rs).
         if work.offer_cleanup {
-            let pr_number = work.pull_request.as_ref().map(|pr| pr.number).unwrap_or_default();
+            let pr_number = work
+                .pull_request
+                .as_ref()
+                .map(|pr| pr.number)
+                .unwrap_or_default();
             chips.push(Chip {
                 key: "cleanup",
                 icon: "titlebar/archive.svg",
@@ -308,14 +312,11 @@ fn render_chip(
     let muted = appearance.muted;
     let foreground = appearance.foreground;
     let tooltip = chip.tooltip.clone();
-    let click = chip
-        .action
-        .clone()
-        .or_else(|| {
-            chip.url.clone().map(
-                |url| json!({"type": "openWorkLink", "url": url, "workItem": chip.work_item.clone()}),
-            )
-        });
+    let click = chip.action.clone().or_else(|| {
+        chip.url.clone().map(
+            |url| json!({"type": "openWorkLink", "url": url, "workItem": chip.work_item.clone()}),
+        )
+    });
     div()
         .id(format!("native-session-work-{}-{session_id}", chip.key))
         .role(if chip.action.is_some() {
@@ -328,16 +329,18 @@ fn render_chip(
         // An answer chip (Clean up, Keep) keeps its full width; the others give way first and end
         // in an ellipsis, so a narrow card never cuts an answer or a label off mid-letter.
         .when(chip.action.is_some(), |chip| chip.flex_shrink_0())
-        .when(chip.action.is_none(), |chip| chip.min_w_0().overflow_hidden())
+        .when(chip.action.is_none(), |chip| {
+            chip.min_w_0().overflow_hidden()
+        })
         .items_center()
         .gap(px(3.0 * scale))
         .text_size(px(11.5 * scale))
         .text_color(muted)
-        .child(
-            div()
-                .flex_shrink_0()
-                .child(titlebar_svg_icon(chip.icon, 12.0 * scale, chip.icon_color)),
-        )
+        .child(div().flex_shrink_0().child(titlebar_svg_icon(
+            chip.icon,
+            12.0 * scale,
+            chip.icon_color,
+        )))
         .child(
             div()
                 .min_w_0()

@@ -37,7 +37,10 @@ impl WorkspacesTab {
         if !self.rpc_available(cx) {
             return;
         }
-        self.trackers.entry(workspace_id.clone()).or_default().loading = true;
+        self.trackers
+            .entry(workspace_id.clone())
+            .or_default()
+            .loading = true;
         let this = cx.weak_entity();
         store_gxserver_rpc(
             &self.store.clone(),
@@ -81,7 +84,10 @@ impl WorkspacesTab {
             TRACKER_TIMEOUT,
             move |result, cx| {
                 let _ = this.update(cx, |page, cx| {
-                    page.trackers.entry(workspace_id.clone()).or_default().saving = false;
+                    page.trackers
+                        .entry(workspace_id.clone())
+                        .or_default()
+                        .saving = false;
                     if let Err(error) = result {
                         page.toast("error", "Couldn't change the tracker", &error, cx);
                     }
@@ -176,7 +182,9 @@ impl WorkspacesTab {
             cx,
         )];
         if tracker == "github"
-            && answer.pointer("/githubProjects/access").and_then(Value::as_str)
+            && answer
+                .pointer("/githubProjects/access")
+                .and_then(Value::as_str)
                 == Some("missingScope")
         {
             let command = answer
@@ -184,8 +192,9 @@ impl WorkspacesTab {
                 .and_then(Value::as_str)
                 .unwrap_or("gh auth refresh -s read:project")
                 .to_string();
-            let description =
-                format!("To show GitHub Projects, run `{command}` in a terminal, then reopen this page.");
+            let description = format!(
+                "To show GitHub Projects, run `{command}` in a terminal, then reopen this page."
+            );
             rows.push(setting_row(
                 p,
                 format!("workspace-github-projects-{workspace_id}"),

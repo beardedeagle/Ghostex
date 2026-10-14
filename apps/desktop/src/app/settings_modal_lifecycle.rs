@@ -8,11 +8,11 @@ use crate::app::helpers::web_bridge_types::{
 };
 use crate::app::helpers::*;
 use crate::app::window::settings_modal::catalog::settings_catalog;
+use crate::app::window::settings_modal::model::SettingsTabId;
 use crate::app::window::settings_modal::{
     GpuiSettingsModalWindow, SETTINGS_MODAL_HEIGHT, SETTINGS_MODAL_WIDTH, SettingsModalCommand,
     SettingsModalConfig, SettingsOpenRequest,
 };
-use crate::app::window::settings_modal::model::SettingsTabId;
 use crate::*;
 
 /// The per-dialog prompt-agent overrides (`PROMPT_AGENT_MODAL_STORAGE_KEYS` of the React modal host):

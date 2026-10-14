@@ -7,8 +7,7 @@
 //! User: "offer a one-click 'Install PowerShell 7' (via winget) in Settings › Terminal when only 5.1 is present. Sessions keep using 5.1 until 7 is installed, so nothing breaks." The row appears only while 7 is missing (and stays after an install started from it, to show the result); without winget it links to Microsoft's download page instead.
 
 use super::super::super::fields::{
-    ButtonVariant, ListItemStatus, settings_button, settings_icon, settings_list_item,
-    tooltip_text,
+    ButtonVariant, ListItemStatus, settings_button, settings_icon, settings_list_item, tooltip_text,
 };
 use super::super::super::palette::SettingsPalette;
 use super::super::super::store::{post_store_message, store_gxserver_rpc};

@@ -94,7 +94,12 @@ fn project_id_of(project: &Value) -> &str {
 }
 
 impl BoardSessionFacts {
-    fn option(&self, session: &BoardSession, board_project_id: &str, session_id: String) -> BoardSessionOption {
+    fn option(
+        &self,
+        session: &BoardSession,
+        board_project_id: &str,
+        session_id: String,
+    ) -> BoardSessionOption {
         let is_board = session.project_id == board_project_id;
         let label = if is_board {
             session.title.clone()
@@ -143,7 +148,8 @@ impl BoardSessionFacts {
             .iter()
             .filter(|session| related.contains(&session.project_id))
             .map(|session| {
-                let session_id = board_session_id(&session.project_id, &session.session_id, board_id);
+                let session_id =
+                    board_session_id(&session.project_id, &session.session_id, board_id);
                 self.option(session, board_id, session_id)
             })
             .collect()
@@ -167,7 +173,9 @@ impl BoardSessionFacts {
 /// A board session id back to `(projectId, sessionId)`: scoped ids name their project, a raw one
 /// belongs to the board project.
 pub fn board_reference(ghostex_session_id: &str, board_project_id: &str) -> (String, String) {
-    match SessionKey::parse_sidebar_session_id(ghostex_session_id).filter(|key| key.machine.is_local()) {
+    match SessionKey::parse_sidebar_session_id(ghostex_session_id)
+        .filter(|key| key.machine.is_local())
+    {
         Some(key) => (key.project_id, key.session_id),
         None => (board_project_id.to_string(), ghostex_session_id.to_string()),
     }
@@ -236,7 +244,12 @@ pub fn board_agent_options(hud: Option<&Value>) -> Vec<Value> {
                 })
                 .map(|agent| {
                     let mut option = Map::new();
-                    for (from, to) in [("agentId", "agentId"), ("command", "command"), ("icon", "icon"), ("name", "label")] {
+                    for (from, to) in [
+                        ("agentId", "agentId"),
+                        ("command", "command"),
+                        ("icon", "icon"),
+                        ("name", "label"),
+                    ] {
                         if let Some(value) = agent.get(from).filter(|value| !value.is_null()) {
                             option.insert(to.into(), value.clone());
                         }

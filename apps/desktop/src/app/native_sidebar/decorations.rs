@@ -38,9 +38,12 @@ impl GhostexGpuiApp {
                 .is_some();
         let id = session.session_id.clone();
         // CDXC:Coordinators 2026-10-06 DECISION: User: the fold chevron replaces the coordinator's crown while its card is hovered, with no chevron slot of its own. The crown's spot is the single fold hit area and the accessibility button, hovered or not; a pending delayed send or close-after-done keeps its own clock icon and click.
-        let fold = super::threads::coordinator_fold_state(session).filter(|_| !(delayed || closing));
+        let fold =
+            super::threads::coordinator_fold_state(session).filter(|_| !(delayed || closing));
         let icon = match fold {
-            Some(collapsed) if hovered => super::threads::coordinator_fold_chevron(collapsed, appearance),
+            Some(collapsed) if hovered => {
+                super::threads::coordinator_fold_chevron(collapsed, appearance)
+            }
             _ => icon,
         };
         div().id(format!("native-session-identity-{id}")).size(px(15.0 * appearance.scale)).flex_shrink_0().flex().items_center().justify_center().child(icon)

@@ -133,7 +133,11 @@ pub fn plan_modal_action(view: &SidebarView, message: &Value) -> Option<ModalAct
             let kind = text_field(message, "kind").filter(|kind| {
                 matches!(
                     *kind,
-                    "pullRequest" | "linearIssue" | "linearProject" | "githubIssue" | "githubProject"
+                    "pullRequest"
+                        | "linearIssue"
+                        | "linearProject"
+                        | "githubIssue"
+                        | "githubProject"
                 )
             })?;
             // The title the card draws (a work-mode session's branch title), not the rename

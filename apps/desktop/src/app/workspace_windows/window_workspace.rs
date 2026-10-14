@@ -286,7 +286,10 @@ impl GhostexGpuiApp {
     }
 
     /// The workspaces the other open windows show.
-    pub(crate) fn workspaces_shown_in_other_windows(&self, cx: &gpui::Context<Self>) -> Vec<String> {
+    pub(crate) fn workspaces_shown_in_other_windows(
+        &self,
+        cx: &gpui::Context<Self>,
+    ) -> Vec<String> {
         let own = cx.entity_id();
         let apps: Vec<gpui::WeakEntity<GhostexGpuiApp>> = WORKSPACE_WINDOWS.with(|windows| {
             windows

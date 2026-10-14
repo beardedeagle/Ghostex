@@ -114,7 +114,10 @@ impl GhostexGpuiApp {
     /// What a session drop (`moveSession` or `moveSessionToSection`) would post and where the row
     /// would land, for the drop line while dragging and for the drop itself (gx-core
     /// `sidebar_drag/session_drop.rs`). `None` is a drop that does nothing.
-    pub(crate) fn gx_store_plan_sidebar_session_drop(&self, command: &Value) -> Option<SessionDrop> {
+    pub(crate) fn gx_store_plan_sidebar_session_drop(
+        &self,
+        command: &Value,
+    ) -> Option<SessionDrop> {
         if !self.gx_store_sidebar_list_ready() {
             return None;
         }

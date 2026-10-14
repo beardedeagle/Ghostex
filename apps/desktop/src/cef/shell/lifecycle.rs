@@ -131,7 +131,11 @@ pub(crate) fn append_chromium_feature(
     let switch_name = CefString::from(switch_name);
     let existing = CefString::from(&command_line.switch_value(Some(&switch_name))).to_string();
     let existing = existing.trim().trim_end_matches(',');
-    if existing.split(',').map(str::trim).any(|item| item == feature) {
+    if existing
+        .split(',')
+        .map(str::trim)
+        .any(|item| item == feature)
+    {
         return;
     }
     let features = if existing.is_empty() {

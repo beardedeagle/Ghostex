@@ -58,13 +58,13 @@ impl GhostexGpuiApp {
                 has_switchable_agents || **action != TerminalAgentBarAction::SwitchAccount
             })
             .map(|action| {
-                let state = self.terminal_agent_bar_action_state(surface, session_id, *action, None);
-                let shortcut = crate::terminal_element::terminal_overlay_hotkey_label(
-                    state.hotkey_action_id,
-                )
-                .map_or(0.0, |shortcut| {
-                    ROW_GAP + text_width(&shortcut, TERMINAL_AGENT_BAR_MENU_SHORTCUT_SIZE)
-                });
+                let state =
+                    self.terminal_agent_bar_action_state(surface, session_id, *action, None);
+                let shortcut =
+                    crate::terminal_element::terminal_overlay_hotkey_label(state.hotkey_action_id)
+                        .map_or(0.0, |shortcut| {
+                            ROW_GAP + text_width(&shortcut, TERMINAL_AGENT_BAR_MENU_SHORTCUT_SIZE)
+                        });
                 let chevron = if action.opens_flyout() {
                     ROW_GAP + SUBMENU_CHEVRON_SIZE
                 } else {

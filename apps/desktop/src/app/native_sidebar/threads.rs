@@ -159,7 +159,11 @@ pub(crate) fn coordinator_badge(
             .flex()
             .items_center()
             .gap(px(2.0 * scale))
-            .child(titlebar_svg_icon(COORDINATOR_ICON, BADGE_TEXT_SIZE * scale, tint))
+            .child(titlebar_svg_icon(
+                COORDINATOR_ICON,
+                BADGE_TEXT_SIZE * scale,
+                tint,
+            ))
             .when(count > 0, |badge| {
                 badge.child(
                     div()
@@ -204,16 +208,19 @@ impl GhostexGpuiApp {
         appearance: &SidebarAppearance,
         cx: &mut gpui::Context<Self>,
     ) -> AnyElement {
-        if !sessions.iter().any(|session| older_threads_row(session).is_some()) {
+        if !sessions
+            .iter()
+            .any(|session| older_threads_row(session).is_some())
+        {
             return self.render_native_session_list(group, sessions, appearance, cx);
         }
         let mut parts = Vec::new();
         let mut segment = Vec::new();
         let mut open: Vec<OlderThreadsRow> = Vec::new();
         let close = |row: OlderThreadsRow,
-                         segment: &mut Vec<Arc<NativeSidebarSession>>,
-                         parts: &mut Vec<AnyElement>,
-                         cx: &mut gpui::Context<Self>| {
+                     segment: &mut Vec<Arc<NativeSidebarSession>>,
+                     parts: &mut Vec<AnyElement>,
+                     cx: &mut gpui::Context<Self>| {
             if !segment.is_empty() {
                 parts.push(self.render_native_session_list(
                     group,
@@ -241,7 +248,11 @@ impl GhostexGpuiApp {
         if !segment.is_empty() {
             parts.push(self.render_native_session_list(group, segment, appearance, cx));
         }
-        v_flex().w_full().flex_shrink_0().children(parts).into_any_element()
+        v_flex()
+            .w_full()
+            .flex_shrink_0()
+            .children(parts)
+            .into_any_element()
     }
 
     /// The quiet row that lists a coordinator's older threads, or tucks them away again.
@@ -270,7 +281,9 @@ impl GhostexGpuiApp {
             .h(px(24.0 * scale))
             // Lines up with the thread titles: a thread row's inset, its 15px icon and the 6px gap
             // after it (`render_native_sidebar_session`).
-            .pl(px((5.0 + (row.depth + 1.0) * THREAD_INDENT + 15.0 + 6.0) * scale))
+            .pl(px(
+                (5.0 + (row.depth + 1.0) * THREAD_INDENT + 15.0 + 6.0) * scale
+            ))
             .flex()
             .items_center()
             .rounded(px(5.0 * scale))
@@ -304,15 +317,16 @@ pub(crate) fn coordinator_fold_state(session: &NativeSidebarSession) -> Option<b
 ///
 /// CDXC:Coordinators 2026-10-06 DECISION:
 /// User: "Please don't show the chevron here separately, this chevron needs to be shown instead of the coordinator icon when I hover on the coordinator card in the sidebar." The card has no chevron slot of its own; the crown's spot is the one hit area (`render_native_session_identity`) and shows this chevron while the card is hovered. This supersedes the separate chevron beside the crown that `render_coordinator_chevron` drew from 2026-09-30.
-pub(crate) fn coordinator_fold_chevron(collapsed: bool, appearance: &SidebarAppearance) -> AnyElement {
+pub(crate) fn coordinator_fold_chevron(
+    collapsed: bool,
+    appearance: &SidebarAppearance,
+) -> AnyElement {
     gpui::svg()
         .path(crate::app::consts::COMMAND_ICON_CHEVRON_RIGHT)
         .size(px(14.0 * appearance.scale))
         .text_color(appearance.muted)
-        .with_transformation(gpui::Transformation::rotate(gpui::percentage(if collapsed {
-            0.0
-        } else {
-            0.25
-        })))
+        .with_transformation(gpui::Transformation::rotate(gpui::percentage(
+            if collapsed { 0.0 } else { 0.25 },
+        )))
         .into_any_element()
 }

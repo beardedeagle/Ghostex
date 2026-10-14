@@ -797,16 +797,14 @@ impl GhostexGpuiApp {
             };
             if accounts_target.is_some() {
                 if let Some((_, rows)) = self.agents_terminal_action_bar_account_page.clone() {
-                    menu = menu.child(
-                        self.render_terminal_agent_bar_account_page(
-                            menu_width,
-                            opens_left(account_flyout::ACCOUNT_PAGE_WIDTH),
-                            &rows,
-                            suffix,
-                            flyout_bounds,
-                            cx,
-                        ),
-                    );
+                    menu = menu.child(self.render_terminal_agent_bar_account_page(
+                        menu_width,
+                        opens_left(account_flyout::ACCOUNT_PAGE_WIDTH),
+                        &rows,
+                        suffix,
+                        flyout_bounds,
+                        cx,
+                    ));
                 }
             } else if !switchable_agents.is_empty() {
                 menu = menu.child(self.render_terminal_agent_bar_account_submenu(

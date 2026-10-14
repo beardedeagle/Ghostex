@@ -77,9 +77,8 @@ impl GhostexGpuiApp {
             // Files (app/native_docs/) draws the view itself; its slot only runs the embed page
             // as the browser area for an open HTML file, drawing or media file.
             ProjectWorkareaCefSurfaceSlotKey::Manage => self.native_docs_browser_area_url(snapshot),
-            ProjectWorkareaCefSurfaceSlotKey::Work | ProjectWorkareaCefSurfaceSlotKey::Extension(_) => {
-                None
-            }
+            ProjectWorkareaCefSurfaceSlotKey::Work
+            | ProjectWorkareaCefSurfaceSlotKey::Extension(_) => None,
         }
     }
 

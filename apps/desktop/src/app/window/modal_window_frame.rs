@@ -8,10 +8,11 @@ use super::native_modal_kit::*;
 use super::popup_frame::PopupOwner;
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
-    AnyView, AnyWindowHandle, App, AppContext as _, Bounds, Context, DispatchPhase, Entity, InteractiveElement as _,
-    IntoElement, MouseExitEvent, MouseMoveEvent, ParentElement as _, Render,
-    StatefulInteractiveElement as _, Styled as _, Subscription, Window, WindowBackgroundAppearance,
-    WindowBounds, WindowKind, WindowOptions, canvas, div, point, px, size,
+    AnyView, AnyWindowHandle, App, AppContext as _, Bounds, Context, DispatchPhase, Entity,
+    InteractiveElement as _, IntoElement, MouseExitEvent, MouseMoveEvent, ParentElement as _,
+    Render, StatefulInteractiveElement as _, Styled as _, Subscription, Window,
+    WindowBackgroundAppearance, WindowBounds, WindowKind, WindowOptions, canvas, div, point, px,
+    size,
 };
 use gpui_component::Root;
 use std::rc::Rc;
@@ -128,8 +129,7 @@ impl ModalWindowFrame {
                     }
                     let position = event.position;
                     let in_band = bounds.contains(&position)
-                        && f32::from(position.y - bounds.top())
-                            <= MODAL_CORNER_CLOSE_REVEAL_HEIGHT;
+                        && f32::from(position.y - bounds.top()) <= MODAL_CORNER_CLOSE_REVEAL_HEIGHT;
                     set_reveal(&move_reveal, cx, |r| &mut r.pointer_in_band, in_band);
                 });
                 let exit_reveal = reveal.clone();
@@ -156,7 +156,9 @@ impl Render for ModalWindowFrame {
             .relative()
             .size_full()
             .child(self.content.clone())
-            .when(show_close, |this| this.child(Self::top_band_tracker(reveal)))
+            .when(show_close, |this| {
+                this.child(Self::top_band_tracker(reveal))
+            })
     }
 }
 
@@ -278,7 +280,9 @@ impl Render for ModalCornerCloseButton {
                     .bg(hsla(css_mix(p.foreground, 0.08, p.solid_surface)))
                     .cursor_pointer()
                     .opacity(if visible { 1.0 } else { 0.0 })
-                    .when(visible, |this| this.hover(move |style| style.bg(hsla(hover))))
+                    .when(visible, |this| {
+                        this.hover(move |style| style.bg(hsla(hover)))
+                    })
                     .on_press(cx, move |this, _window, cx| {
                         cx.stop_propagation();
                         if !this.reveal.read(cx).enabled {

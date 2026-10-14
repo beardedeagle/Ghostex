@@ -132,7 +132,10 @@ impl GhostexGpuiApp {
             let label = row["label"].as_str().unwrap_or_default().to_owned();
             let detail = row["detail"].as_str().map(str::to_owned);
             let checked = row["checked"] == true;
-            let command = row.get("command").cloned().filter(|_| row["disabled"] != true);
+            let command = row
+                .get("command")
+                .cloned()
+                .filter(|_| row["disabled"] != true);
             let keep_open = row["keepOpen"] == true;
             let text_color = if row["disabled"] == true && !checked {
                 terminal_agent_bar_disabled_icon_color()

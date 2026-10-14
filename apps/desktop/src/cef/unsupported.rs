@@ -183,7 +183,12 @@ pub struct PageScreenshot {
 pub struct CefBrowser;
 
 impl CefBrowser {
-    pub fn capture_page_top(&self, _width: f64, _height: f64, _scale: f64) -> Option<PageScreenshot> {
+    pub fn capture_page_top(
+        &self,
+        _width: f64,
+        _height: f64,
+        _scale: f64,
+    ) -> Option<PageScreenshot> {
         None
     }
 

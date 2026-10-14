@@ -5,8 +5,8 @@
 use super::super::super::super::native_modal_kit::*;
 use super::super::super::catalog::SettingOption;
 use super::super::super::fields::{
-    DropdownAlign, DropdownRow, DropdownState, icon, searchable_dropdown,
-    settings_icon, settings_select, toggle_dropdown,
+    DropdownAlign, DropdownRow, DropdownState, icon, searchable_dropdown, settings_icon,
+    settings_select, toggle_dropdown,
 };
 use super::super::super::model::SettingsTabId;
 use super::super::super::palette::SettingsPalette;

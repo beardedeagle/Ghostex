@@ -250,7 +250,11 @@ impl GhostexGpuiApp {
     ///
     /// CDXC:Sidebar 2026-10-06 WHY:
     /// The line sits in the gap above the row it is drawn before, but the list's first row has no gap above it, so the scroll view clipped the line and a project dragged to the top of the list showed no line. That line is drawn on the first row's top edge instead.
-    pub(crate) fn native_sidebar_project_drop_line(&self, kind: &str, id: &str) -> Option<&'static str> {
+    pub(crate) fn native_sidebar_project_drop_line(
+        &self,
+        kind: &str,
+        id: &str,
+    ) -> Option<&'static str> {
         let landing = self.native_sidebar.drop_command.as_ref()?.get("landing")?;
         let names = |row: &Value| row["kind"] == kind && row["id"] == id;
         if names(&landing["before"]) {
@@ -277,15 +281,18 @@ impl GhostexGpuiApp {
 
     fn with_native_sidebar_session_drop_landing(&mut self, mut command: Value) -> Option<Value> {
         let stale = |session_id: &str| {
-            self.native_sidebar.snapshot.as_ref().is_some_and(|snapshot| {
-                snapshot.groups.iter().any(|group| {
-                    group.is_stale
-                        && group
-                            .sessions
-                            .iter()
-                            .any(|session| session.session_id == session_id)
+            self.native_sidebar
+                .snapshot
+                .as_ref()
+                .is_some_and(|snapshot| {
+                    snapshot.groups.iter().any(|group| {
+                        group.is_stale
+                            && group
+                                .sessions
+                                .iter()
+                                .any(|session| session.session_id == session_id)
+                    })
                 })
-            })
         };
         {
             let session_id = command["sessionId"].as_str()?;
@@ -313,7 +320,10 @@ impl GhostexGpuiApp {
 
     /// Where a session drop's line is drawn on this row: above the row the dropped one lands right
     /// before, or below the one it lands right after when it becomes the last of its section.
-    pub(crate) fn native_sidebar_session_drop_line(&self, session_id: &str) -> Option<&'static str> {
+    pub(crate) fn native_sidebar_session_drop_line(
+        &self,
+        session_id: &str,
+    ) -> Option<&'static str> {
         let landing = self.native_sidebar.drop_command.as_ref()?.get("landing")?;
         let before = landing["beforeSessionId"].as_str();
         if before == Some(session_id) {
