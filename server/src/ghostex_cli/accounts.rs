@@ -10,9 +10,8 @@ const HELP: &str = "Usage: ghostex accounts [--all] [--refresh] [--json] [--serv
 Lists every saved Claude (Claude Swap) and Codex (Codex Swap) account: its number, email,
 state (ready, limitReached, needsSignIn, disabled when turned off in Settings; a ready account
 with no usage reading says so, noUsageReading in --json, and may be at its limit unseen), usage
-per window with reset times, which account
-new sessions use (default), and its running and sleeping sessions, with a count of stopped ones
-(--all lists those too). The same reading Settings > Accounts shows; --refresh reads usage
+per window with reset times, which account new sessions use (default), and its running and
+sleeping sessions, with a count of stopped ones (--all lists those too). The same reading Settings > Accounts shows; --refresh reads usage
 again instead of using a reading up to two minutes old.
 
 Move a session to another account:   ghostex agents switch-account <session-ref> --account <number|email>
