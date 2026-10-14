@@ -1,4 +1,4 @@
-use crate::app::gx_store::{gx_rpc, gx_rpc_with_timeout};
+use crate::app::gx_store::{gx_rpc, gx_rpc_with_timeout, write_client_document_value};
 use crate::app::window::native_modal_kit::*;
 use base64::Engine as _;
 use gpui::{
@@ -28,6 +28,28 @@ pub(crate) struct FeedbackModalConfig {
     /// The relay's `client.app`: `desktop` or `web`.
     pub(crate) app: &'static str,
     pub(crate) palette: ModalPalette,
+    /// The GitHub username the last feedback named, to fill the field with.
+    pub(crate) github_username: String,
+}
+
+/// Client storage's `feedbackGithubUser` store: the GitHub username the last feedback named.
+pub(crate) const FEEDBACK_GITHUB_USERNAME_STORAGE_KEY: &str = "ghostex.feedback.githubUsername";
+
+/// The username in the field, without its `@`: `Ok(None)` when the field is empty, `Err` when it
+/// is not a GitHub username (letters, digits and single hyphens, no hyphen at either end, up to 39
+/// characters).
+pub(super) fn github_username(raw: &str) -> Result<Option<&str>, ()> {
+    let name = raw.trim();
+    let name = name.strip_prefix('@').unwrap_or(name);
+    if name.is_empty() {
+        return Ok(None);
+    }
+    let valid = name.len() <= 39
+        && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
+        && !name.starts_with('-')
+        && !name.ends_with('-')
+        && !name.contains("--");
+    if valid { Ok(Some(name)) } else { Err(()) }
 }
 
 pub(super) enum FeedbackStep {
@@ -40,8 +62,10 @@ pub(super) enum FeedbackStep {
 }
 
 /// CDXC:Feedback 2026-10-04 DECISION:
-/// User: "add a button at the top of the sidebar. It should be a chat bubble icon… When you click that button, it should show a pop-up made with GPUI. This pop-up should have a text area and the ability to paste images. When someone presses send, it's for sending feedback to us. It should … create an issue [on GitHub] with the required information from the user." Decided with them: the issue is posted through the Ghostex feedback relay, pasted images go with it, and the user ALWAYS sees and can edit the final issue text (the Review step) before it is posted. The "Collect more data with an agent" switch is part of the design but its agent flow is a later phase, so it is drawn disabled with "Coming soon" and every send says `collectedByAgent: false`.
-/// SEE-ALSO: server/src/feedback/ (the draft and the relay post), apps/desktop/src/app/native_sidebar/navigation.rs (the button), packages/gx-core/src/sidebar_actions/open.rs (the `feedback` action), apps/gpui-web/src/app/web_host/modals.rs (the web build opens it too).
+/// User: "add a button at the top of the sidebar. It should be a chat bubble icon… When you click that button, it should show a pop-up made with GPUI. This pop-up should have a text area and the ability to paste images. When someone presses send, it's for sending feedback to us. It should … create an issue [on GitHub] with the required information from the user." Decided with them: the issue is posted through the Ghostex feedback relay, pasted images go with it, and the user ALWAYS sees and can edit the final issue text (the Review step) before it is posted.
+/// CDXC:Feedback 2026-10-14 DECISION:
+/// User: "let's hide the collect more data with agent toggle until we implement it" and "add a text field for the person to write their github username so they can get a message when it's fixed". The "Collect more data with an agent" switch is not drawn until its agent flow is built (`COLLECT_WITH_AGENT_READY` in render.rs) and every send says `collectedByAgent: false`; this supersedes the 2026-10-04 rule that drew it disabled with "Coming soon". An optional GitHub username field ("name" or "@name", checked for a GitHub username's shape) adds "Reported by @name" to the drafted issue, so GitHub notifies them and the Review step shows it, and the username is remembered for the next feedback.
+/// SEE-ALSO: server/src/feedback/ (the draft and the relay post), packages/gx-core/src/sidebar_menu/navigation.rs (the More options row), packages/gx-core/src/sidebar_actions/open.rs (the `feedback` action), apps/gpui-web/src/app/web_host/modals.rs (the web build opens it too).
 pub(crate) struct GpuiFeedbackModalWindow {
     pub(super) host: FeedbackModalHost,
     pub(super) palette: ModalPalette,
@@ -51,6 +75,9 @@ pub(crate) struct GpuiFeedbackModalWindow {
     /// Mirror of the message field, refreshed on every change.
     pub(super) message: String,
     pub(super) images: Vec<Arc<Image>>,
+    pub(super) github_input: Entity<InputState>,
+    /// Mirror of the GitHub username field, refreshed on every change.
+    pub(super) github: String,
     /// Pasted images still being checked (and shrunk when too large).
     pub(super) pending_images: usize,
     pub(super) image_error: Option<String>,
@@ -79,6 +106,12 @@ impl GpuiFeedbackModalWindow {
             TextareaState::new(window, cx)
                 .placeholder("What happened, what did you expect, or what would you like to see?")
         });
+        let github = config.github_username;
+        let github_input = cx.new(|cx| {
+            InputState::new(window, cx)
+                .placeholder("name or @name")
+                .default_value(github.clone())
+        });
         let title_input = cx.new(|cx| InputState::new(window, cx));
         let body_input = cx.new(|cx| TextareaState::new(window, cx));
         let subscriptions = vec![
@@ -88,6 +121,16 @@ impl GpuiFeedbackModalWindow {
                 |this: &mut Self, input, event: &InputEvent, _window, cx| {
                     if matches!(event, InputEvent::Change) {
                         this.message = input.read(cx).value().to_string();
+                        cx.notify();
+                    }
+                },
+            ),
+            cx.subscribe_in(
+                &github_input,
+                window,
+                |this: &mut Self, input, event: &InputEvent, _window, cx| {
+                    if matches!(event, InputEvent::Change) {
+                        this.github = input.read(cx).value().to_string();
                         cx.notify();
                     }
                 },
@@ -122,6 +165,8 @@ impl GpuiFeedbackModalWindow {
             message_input,
             message: String::new(),
             images: Vec::new(),
+            github_input,
+            github,
             pending_images: 0,
             image_error: None,
             title_input,
@@ -138,7 +183,10 @@ impl GpuiFeedbackModalWindow {
     }
 
     pub(super) fn can_review(&self) -> bool {
-        !self.busy && self.pending_images == 0 && !self.message.trim().is_empty()
+        !self.busy
+            && self.pending_images == 0
+            && !self.message.trim().is_empty()
+            && github_username(&self.github).is_ok()
     }
 
     pub(super) fn can_send(&self) -> bool {
@@ -159,13 +207,26 @@ impl GpuiFeedbackModalWindow {
         self.busy = true;
         self.error = None;
         cx.notify();
+        let username = github_username(&self.github)
+            .ok()
+            .flatten()
+            .map(str::to_string);
+        let remembered = username.clone();
+        cx.background_executor()
+            .spawn(async move {
+                let _ = write_client_document_value(
+                    FEEDBACK_GITHUB_USERNAME_STORAGE_KEY,
+                    remembered.as_deref(),
+                );
+            })
+            .detach();
         let params = json!({ "app": self.app, "message": self.message.trim() });
         cx.spawn_in(window, async move |this, cx| {
             let result = gx_rpc(None, "/api/draftFeedback", params).await;
             let _ = this.update_in(cx, |this, window, cx| {
                 this.busy = false;
                 match result {
-                    Ok(draft) => this.show_review(&draft, window, cx),
+                    Ok(draft) => this.show_review(&draft, username.as_deref(), window, cx),
                     Err(error) => this.error = Some(error.message),
                 }
                 cx.notify();
@@ -174,10 +235,21 @@ impl GpuiFeedbackModalWindow {
         .detach();
     }
 
-    fn show_review(&mut self, draft: &Value, window: &mut Window, cx: &mut Context<Self>) {
+    /// The reporter's mention goes into the body itself, so the Review step shows it, the user can
+    /// edit it, and the relay posts it unchanged.
+    fn show_review(
+        &mut self,
+        draft: &Value,
+        username: Option<&str>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let text = |key: &str| draft[key].as_str().unwrap_or_default().to_string();
         self.title = text("title");
-        self.body = text("body");
+        self.body = match username {
+            Some(name) => format!("{}\n\nReported by @{name}", text("body")),
+            None => text("body"),
+        };
         self.footer = text("footer");
         let (title, body) = (self.title.clone(), self.body.clone());
         self.title_input

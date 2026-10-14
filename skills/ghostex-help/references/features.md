@@ -2939,17 +2939,19 @@ Related settings: `sidebarTheme`, `darkThemePreset`, `lightThemePreset`,
 
 ## Sending feedback
 
-The chat-bubble button in the sidebar's bottom bar, right of the workspace
-switcher, opens Send Feedback. Write what is broken, confusing or missing and paste
+Send Feedback, in the sidebar's More Options menu right under Join Discord, opens
+the feedback pop-up. Write what is broken, confusing or missing and paste
 screenshots into the text box with Cmd+V (Ctrl+V on Windows and Linux): up to
 five PNG, JPEG or WebP images of 5 MB each; a larger PNG screenshot is scaled
-down to fit. Review then shows the exact GitHub issue, title and description,
+down to fit. Add your GitHub username (optional, "name" or "@name") and the
+issue mentions you with "Reported by @name", so GitHub tells you when it is
+fixed; Ghostex remembers it for your next feedback. Review then shows the exact
+GitHub issue, title and description,
 and you can edit both before Send; Ghostex adds your screenshots and a line with
 the app, its version and your operating system. The issue is public on the
 Ghostex GitHub, and after it is sent Open Issue takes you to it. Cmd+Enter
 (Ctrl+Enter) moves to the next step and Escape closes the pop-up. It works in the
-desktop app and in the web app. The "Collect more data with an agent" switch is
-not available yet.
+desktop app and in the web app.
 
 ## Answering the common questions
 

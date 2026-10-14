@@ -489,6 +489,13 @@ export const storageCatalog = Object.freeze({
     'ghostex.promptAgent.renameSession',
     textCodec
   ),
+  feedbackGithubUser: define(
+    'feedbackGithubUser',
+    'Feedback GitHub username',
+    desktop + 'src/app/window/feedback_modal/state.rs',
+    'ghostex.feedback.githubUsername',
+    textCodec
+  ),
   keepAwake: define(
     'keepAwake',
     'Keep Awake runtime',
