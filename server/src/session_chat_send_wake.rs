@@ -292,6 +292,40 @@ fn retire_stale_startup_sends(state: &AppState, project_id: &str, session_id: &s
     }
 }
 
+/// CDXC:SessionChat 2026-10-14 WHY:
+/// Closing a session ends the messages it still holds for its agent. A held message wakes its session on the queue scheduler's backoff (2026-10-12 above), and nothing told it the session had been closed meanwhile: on 2026-10-14 a test agent created a throwaway Claude session whose agent could not start, sent it a message (held), then closed it with `ghostex kill`; 50 seconds later the wake retry brought it back as a running, untitled "Claude Session", and every time the user closed it again it came back. Closing (`/api/killSession`, the Close transition, from any client, the CLI or a cleanup sweep) now marks those messages Not sent, which also tells an agent sender through the queue's undelivered report. A message sent to a session after it was closed is a new ask and still wakes it.
+/// SEE-ALSO: server/src/server/zmx_http.rs (`dispatch_zmx_lifecycle_http_blocking` calls this after a close).
+pub(crate) fn retire_held_messages_of_closed_session(
+    state: &AppState,
+    project_id: &str,
+    session_id: &str,
+) {
+    let Ok(db) = open_gxserver_database(&state.paths) else {
+        return;
+    };
+    let held: Vec<String> = crate::session_chat_queue::read_session_chat_queue_snapshot_with(
+        &db, project_id, session_id,
+    )
+    .queue
+    .into_iter()
+    .filter(|prompt| {
+        prompt.startup_send
+            && prompt.state == crate::session_chat_queue::SESSION_CHAT_QUEUE_STATE_QUEUED
+    })
+    .map(|prompt| prompt.id)
+    .collect();
+    drop(db);
+    for prompt_id in held {
+        fail_held_message(
+            state,
+            project_id,
+            session_id,
+            &prompt_id,
+            "The session was closed before its agent took this message, so Ghostex stopped waking it. Send it again if it is still needed.",
+        );
+    }
+}
+
 /// Marks a held message Not sent with `reason` and tells its sender when another agent sent it.
 fn fail_held_message(
     state: &AppState,

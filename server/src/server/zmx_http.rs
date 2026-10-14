@@ -190,6 +190,23 @@ pub(crate) fn dispatch_zmx_lifecycle_http_blocking(
                     schedule_first_user_input_draft(state.clone(), target);
                 }
             }
+            if matches!(
+                endpoint_path.as_str(),
+                "/api/killSession" | "/api/transitionSession"
+            ) && output
+                .result
+                .pointer("/session/lifecycleState")
+                .and_then(Value::as_str)
+                == Some("stopped")
+            {
+                if let Ok(lifecycle) = crate::zmx::read_lifecycle_params(&params) {
+                    crate::session_chat_send_wake::retire_held_messages_of_closed_session(
+                        state,
+                        &lifecycle.project_id,
+                        &lifecycle.session_id,
+                    );
+                }
+            }
             routed_json(
                 Some(endpoint_path),
                 StatusCode::OK,
