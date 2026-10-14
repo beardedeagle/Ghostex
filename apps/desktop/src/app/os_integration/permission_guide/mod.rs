@@ -1,4 +1,5 @@
-//! The floating permission bar beside System Settings (window.rs), drawn by bar.rs.
+//! The floating permission guide beside System Settings: the edge tag's window (window.rs), drawn
+//! by tag.rs.
 
-mod bar;
+mod tag;
 mod window;

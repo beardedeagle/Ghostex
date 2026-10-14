@@ -89,8 +89,8 @@ mod rename_worktree_demo;
 mod rename_worktree_modal;
 #[path = "native_modal_demo/permission_guide.rs"]
 mod permission_guide_demo;
-#[path = "../app/os_integration/permission_guide/bar.rs"]
-mod permission_guide_bar;
+#[path = "../app/os_integration/permission_guide/tag.rs"]
+mod permission_guide_tag;
 #[path = "native_modal_demo/session_note.rs"]
 mod session_note_demo;
 #[path = "../app/window/session_note_modal.rs"]

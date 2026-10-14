@@ -1,14 +1,14 @@
-//! The floating permission bar: after Grant opens a Privacy pane for SpaceO, a Ghostex bar sits on
-//! the edge of the System Settings window with a tile of the `spaceo` file to drag into the list,
-//! the switch to turn on, and the grant's live status. It moves on to the other permission once
-//! this one lands, restarts SpaceO if it needs to pick a grant up, and closes when both are done.
+//! The edge tag's window: after Grant opens a Privacy pane for SpaceO, a Ghostex tag sits on the
+//! right edge of System Settings with the `spaceo` file to drag into the list. Dropping it adds
+//! SpaceO and switches it on, so the tag waits for that, opens the other permission's pane, offers
+//! Restart SpaceO when SpaceO started before a grant, and tucks away once both work.
 //!
 //! CDXC:OsIntegration 2026-10-14 DECISION:
-//! User: "it has to be floating bar i can drag the application from to the settings window please! ... but the look needs to be different." The bar docks above System Settings (below it when there is no room), uses Ghostex's own dark panel, and its tile drags the real file macOS lists.
+//! User picked option A, "Edge tag" (docs/2026-10-14/permission-guide-v3): a tag attached outside System Settings' right edge, its notch pointing into the app list, almost all of it the draggable spaceo tile with orange chevrons toward the list, two progress segments along its top, in Ghostex's own look. User: "dragging it from the floating bar into the app toggles it on", so the flow is built around the drop and has no separate switch step: "Drag SpaceO into the list", Screen Recording first, then Accessibility.
 //!
 //! SEE-ALSO: apps/desktop/native/macos/GpuiPermissionGuide.m (System Settings' frame and the file
 //! drag), helpers/os_cli/tool_permissions.rs (the grant states), ../tool_permissions.rs (Grant),
-//! bar.rs (the drawing).
+//! tag.rs (the drawing and each step's words).
 
 use std::cell::RefCell;
 use std::path::PathBuf;
@@ -20,88 +20,65 @@ use gpui::{
     WindowHandle, WindowKind, WindowOptions, point, px, size,
 };
 
-use super::bar::{BAR_HEIGHT, BAR_WIDTH, BarContent, BarStep, render_bar};
+use super::tag::{
+    CLOSING, NOTCH_ROOM, NOTCH_Y, TagActions, TagGrant, TagPermission, TagStage, WINDOW_WIDTH,
+    render_tag, tag_content, tag_height,
+};
 use crate::GhostexGpuiApp;
 use crate::app::helpers::*;
 
-/// The gap between the bar and the System Settings window.
-const BAR_GAP: f32 = 10.0;
-/// Room the menu bar takes at the top of the screen; the bar goes below the window above it.
-const MENU_BAR_ROOM: f32 = 34.0;
+/// The tag's panel starts this far right of System Settings' right edge.
+const EDGE_GAP: f32 = 14.0;
+/// Where the notch points, below System Settings' top edge: about the end of a Privacy pane's
+/// app list. macOS does not say where the list ends without reading its window, which needs
+/// Accessibility for Ghostex.
+const LIST_END_FROM_TOP: f32 = 236.0;
 const TICK: Duration = Duration::from_millis(250);
 const PROBE_EVERY: Duration = Duration::from_millis(1500);
-const GRANTED_PAUSE: Duration = Duration::from_millis(1400);
-const FINISHED_PAUSE: Duration = Duration::from_millis(2500);
+/// How long "SpaceO is in and switched on" shows before the next pane opens.
+const DROPPED_PAUSE: Duration = Duration::from_millis(1400);
 const LIFETIME: Duration = Duration::from_secs(10 * 60);
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum GuidePermission {
-    Accessibility,
-    ScreenRecording,
-}
-
-impl GuidePermission {
-    fn from_id(id: &str) -> Option<Self> {
-        match id {
-            "accessibility" => Some(Self::Accessibility),
-            "screenRecording" => Some(Self::ScreenRecording),
-            _ => None,
-        }
-    }
-
-    fn other(self) -> Self {
-        match self {
-            Self::Accessibility => Self::ScreenRecording,
-            Self::ScreenRecording => Self::Accessibility,
-        }
-    }
-
-    fn pane(self) -> &'static str {
-        match self {
-            Self::Accessibility => "Accessibility",
-            Self::ScreenRecording => "Screen Recording",
-        }
-    }
-
-    fn url(self) -> &'static str {
-        match self {
-            Self::Accessibility => GPUI_MACOS_ACCESSIBILITY_PREFERENCES_URL,
-            Self::ScreenRecording => GPUI_MACOS_SCREEN_RECORDING_PREFERENCES_URL,
-        }
+fn permission_from_id(id: &str) -> Option<TagPermission> {
+    match id {
+        "accessibility" => Some(TagPermission::Accessibility),
+        "screenRecording" => Some(TagPermission::ScreenRecording),
+        _ => None,
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Phase {
-    Waiting,
-    /// The current permission just landed; the bar says so before moving on.
-    Granted(Instant),
-    /// Both permissions are in; the bar closes shortly.
-    Finished(Instant),
+fn pane_url(permission: TagPermission) -> &'static str {
+    match permission {
+        TagPermission::Accessibility => GPUI_MACOS_ACCESSIBILITY_PREFERENCES_URL,
+        TagPermission::ScreenRecording => GPUI_MACOS_SCREEN_RECORDING_PREFERENCES_URL,
+    }
 }
 
-/// macOS has the grant, whether or not SpaceO's daemon picked it up yet.
-fn has(state: GpuiToolPermissionState) -> bool {
-    matches!(
-        state,
-        GpuiToolPermissionState::Granted | GpuiToolPermissionState::NeedsRestart
-    )
+fn grant(state: GpuiToolPermissionState) -> TagGrant {
+    TagGrant {
+        has: matches!(
+            state,
+            GpuiToolPermissionState::Granted | GpuiToolPermissionState::NeedsRestart
+        ),
+        needs_restart: state == GpuiToolPermissionState::NeedsRestart,
+    }
 }
 
 pub(crate) struct PermissionGuideView {
     app: WeakEntity<GhostexGpuiApp>,
     native: usize,
     spaceo: PathBuf,
-    current: GuidePermission,
+    current: TagPermission,
     accessibility: GpuiToolPermissionState,
     screen_recording: GpuiToolPermissionState,
-    phase: Phase,
+    stage: TagStage,
+    /// When the stage began (Dropped's pause, Ready's countdown).
+    stage_since: Instant,
     opened: Instant,
     last_probe: Option<Instant>,
     probing: bool,
     frame: Option<Bounds<Pixels>>,
     visible: bool,
-    restart_requested: bool,
 }
 
 thread_local! {
@@ -146,24 +123,19 @@ fn system_settings_frame() -> Option<Bounds<Pixels>> {
     )
 }
 
-/// Above the window's right edge, where the Privacy list's switches are; below it when the window
-/// reaches the menu bar.
-fn bar_frame(settings: Bounds<Pixels>) -> Bounds<Pixels> {
-    let right = f32::from(settings.origin.x + settings.size.width);
-    let x = (right - BAR_WIDTH)
-        .max(f32::from(settings.origin.x))
-        .max(8.0);
-    let above = f32::from(settings.origin.y) - BAR_GAP - BAR_HEIGHT;
-    let y = if above >= MENU_BAR_ROOM {
-        above
-    } else {
-        f32::from(settings.origin.y + settings.size.height) + BAR_GAP
-    };
-    Bounds::new(point(px(x), px(y)), size(px(BAR_WIDTH), px(BAR_HEIGHT)))
+/// Outside System Settings' right edge, the notch at about the end of its app list.
+fn tag_frame(settings: Bounds<Pixels>, height: f32) -> Bounds<Pixels> {
+    let top = f32::from(settings.origin.y);
+    let list_end = top + LIST_END_FROM_TOP.min(f32::from(settings.size.height) - 80.0);
+    let x = f32::from(settings.origin.x + settings.size.width) + EDGE_GAP - NOTCH_ROOM;
+    Bounds::new(
+        point(px(x), px(list_end - NOTCH_Y)),
+        size(px(WINDOW_WIDTH), px(height)),
+    )
 }
 
 impl GhostexGpuiApp {
-    /// Opens the bar for SpaceO's `permission` (or points the open one at it).
+    /// Opens the tag for SpaceO's `permission` (or points the open one at it).
     pub(crate) fn open_gpui_permission_guide(
         &mut self,
         spaceo: PathBuf,
@@ -173,14 +145,14 @@ impl GhostexGpuiApp {
         if !cfg!(target_os = "macos") {
             return;
         }
-        let Some(permission) = GuidePermission::from_id(permission) else {
+        let Some(permission) = permission_from_id(permission) else {
             return;
         };
         let open = GUIDE.with(|guide| *guide.borrow());
         if let Some(handle) = open {
             let pointed = handle.update(cx, |view, _, cx| {
                 view.current = permission;
-                view.phase = Phase::Waiting;
+                view.set_stage(TagStage::Waiting);
                 view.opened = Instant::now();
                 view.last_probe = None;
                 cx.notify();
@@ -196,7 +168,7 @@ impl GhostexGpuiApp {
         App::defer(cx, move |cx| {
             let start = Bounds::new(
                 point(px(-10_000.0), px(-10_000.0)),
-                size(px(BAR_WIDTH), px(BAR_HEIGHT)),
+                size(px(WINDOW_WIDTH), px(160.0)),
             );
             let (bounds, display_id) = crate::app::window::popup_frame::place_global(start, cx);
             let view_app = app.clone();
@@ -229,13 +201,13 @@ impl GhostexGpuiApp {
                         current: permission,
                         accessibility: GpuiToolPermissionState::Unknown,
                         screen_recording: GpuiToolPermissionState::Unknown,
-                        phase: Phase::Waiting,
+                        stage: TagStage::Waiting,
+                        stage_since: Instant::now(),
                         opened: Instant::now(),
                         last_probe: None,
                         probing: false,
                         frame: None,
                         visible: false,
-                        restart_requested: false,
                     })
                 },
             ) else {
@@ -247,7 +219,7 @@ impl GhostexGpuiApp {
                     .update(cx, |view, _, _| view.native)
                     .unwrap_or_default();
                 if native != 0 {
-                    // SAFETY: the bar's own NSView, alive while its window is.
+                    // SAFETY: the tag's own NSView, alive while its window is.
                     unsafe {
                         GhostexGpuiCapturePrepareFloatingWindow(
                             native as *mut std::ffi::c_void,
@@ -281,32 +253,51 @@ impl GhostexGpuiApp {
 }
 
 impl PermissionGuideView {
-    fn state(&self, permission: GuidePermission) -> GpuiToolPermissionState {
+    fn state(&self, permission: TagPermission) -> GpuiToolPermissionState {
         match permission {
-            GuidePermission::Accessibility => self.accessibility,
-            GuidePermission::ScreenRecording => self.screen_recording,
+            TagPermission::Accessibility => self.accessibility,
+            TagPermission::ScreenRecording => self.screen_recording,
         }
     }
 
-    /// Keeps the bar on System Settings, re-checks the grants, and moves through the steps.
-    /// `false` once the bar closed itself.
+    fn set_stage(&mut self, stage: TagStage) {
+        self.stage = stage;
+        self.stage_since = Instant::now();
+    }
+
+    fn content(&self) -> super::tag::TagContent {
+        let file_name = self
+            .spaceo
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned())
+            .unwrap_or_else(|| "spaceo".to_string());
+        tag_content(
+            self.stage,
+            self.current,
+            grant(self.screen_recording),
+            grant(self.accessibility),
+            &file_name,
+        )
+    }
+
+    /// Keeps the tag on System Settings, re-checks the grants, and moves through the steps.
+    /// `false` once the tag closed itself.
     fn tick(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
         if self.opened.elapsed() >= LIFETIME {
             window.remove_window();
             return false;
         }
-        self.follow_system_settings();
-        match self.phase {
-            Phase::Granted(at) if at.elapsed() >= GRANTED_PAUSE => {
+        match self.stage {
+            TagStage::Dropped if self.stage_since.elapsed() >= DROPPED_PAUSE => {
                 let next = self.current.other();
-                if has(self.state(next)) {
-                    self.finish(cx);
+                if grant(self.state(next)).has {
+                    self.settle();
                 } else {
                     self.current = next;
-                    self.phase = Phase::Waiting;
+                    self.set_stage(TagStage::Waiting);
                     let _ = self.app.update(cx, |app, cx| {
                         app.open_gpui_macos_system_settings_url(
-                            next.url(),
+                            pane_url(next),
                             "grantToolPermission",
                             cx,
                         );
@@ -314,12 +305,13 @@ impl PermissionGuideView {
                 }
                 cx.notify();
             }
-            Phase::Finished(at) if at.elapsed() >= FINISHED_PAUSE => {
+            TagStage::Ready if self.stage_since.elapsed() >= CLOSING => {
                 window.remove_window();
                 return false;
             }
             _ => {}
         }
+        self.follow_system_settings();
         if !self.probing
             && self
                 .last_probe
@@ -330,17 +322,29 @@ impl PermissionGuideView {
         true
     }
 
+    /// Both permissions are in: Restart SpaceO when it started before one of them, else done.
+    fn settle(&mut self) {
+        let needs_restart = [self.accessibility, self.screen_recording]
+            .contains(&GpuiToolPermissionState::NeedsRestart);
+        self.set_stage(if needs_restart {
+            TagStage::NeedsRestart
+        } else {
+            TagStage::Ready
+        });
+    }
+
     #[cfg(target_os = "macos")]
     fn follow_system_settings(&mut self) {
         let native = self.native as *mut std::ffi::c_void;
         if native.is_null() {
             return;
         }
-        match system_settings_frame().map(bar_frame) {
+        let height = tag_height(&self.content());
+        match system_settings_frame().map(|settings| tag_frame(settings, height)) {
             Some(frame) => {
                 if self.frame != Some(frame) {
                     self.frame = Some(frame);
-                    // SAFETY: the bar's own NSView, alive while its window is.
+                    // SAFETY: the tag's own NSView, alive while its window is.
                     unsafe {
                         GhostexGpuiCaptureSetWindowFrame(
                             native,
@@ -357,7 +361,7 @@ impl PermissionGuideView {
                     unsafe { GhostexGpuiPermissionGuideSetVisible(native, true) };
                 }
             }
-            // System Settings closed, minimized or on another Space: the bar waits out of sight.
+            // System Settings closed, minimized or on another desktop: the tag waits out of sight.
             None if self.visible => {
                 self.visible = false;
                 // SAFETY: as above.
@@ -370,7 +374,7 @@ impl PermissionGuideView {
     #[cfg(not(target_os = "macos"))]
     fn follow_system_settings(&mut self) {}
 
-    /// The same fresh-process check Settings uses, so a grant shows the moment macOS has it.
+    /// The same fresh-process check Settings uses, so a drop shows the moment macOS has it.
     fn probe(&mut self, cx: &mut Context<Self>) {
         self.probing = true;
         self.last_probe = Some(Instant::now());
@@ -386,8 +390,18 @@ impl PermissionGuideView {
                     || view.screen_recording != report.screen_recording;
                 view.accessibility = report.accessibility;
                 view.screen_recording = report.screen_recording;
-                if view.phase == Phase::Waiting && has(view.state(view.current)) {
-                    view.phase = Phase::Granted(Instant::now());
+                match view.stage {
+                    TagStage::Waiting if grant(view.state(view.current)).has => {
+                        view.set_stage(TagStage::Dropped);
+                    }
+                    TagStage::Restarting
+                        if [view.accessibility, view.screen_recording]
+                            .iter()
+                            .all(|state| *state == GpuiToolPermissionState::Granted) =>
+                    {
+                        view.set_stage(TagStage::Ready);
+                    }
+                    _ => {}
                 }
                 if changed {
                     // Settings' rows follow without waiting for their own re-check.
@@ -401,15 +415,10 @@ impl PermissionGuideView {
         .detach();
     }
 
-    /// Both grants are in: restart SpaceO if its daemon started without one, then close.
-    fn finish(&mut self, cx: &mut Context<Self>) {
-        self.phase = Phase::Finished(Instant::now());
-        let needs_restart = [self.accessibility, self.screen_recording]
-            .contains(&GpuiToolPermissionState::NeedsRestart);
-        if needs_restart && !self.restart_requested {
-            self.restart_requested = true;
-            let _ = self.app.update(cx, |app, cx| app.restart_gpui_spaceo(cx));
-        }
+    fn restart(&mut self, cx: &mut Context<Self>) {
+        self.set_stage(TagStage::Restarting);
+        let _ = self.app.update(cx, |app, cx| app.restart_gpui_spaceo(cx));
+        cx.notify();
     }
 
     fn begin_drag(&self) {
@@ -419,7 +428,7 @@ impl PermissionGuideView {
             let Ok(path) = std::ffi::CString::new(self.spaceo.as_os_str().as_bytes()) else {
                 return;
             };
-            // SAFETY: the bar's own NSView and a live C string; called inside its mouse-down.
+            // SAFETY: the tag's own NSView and a live C string; called inside its mouse-down.
             unsafe {
                 GhostexGpuiPermissionGuideBeginFileDrag(
                     self.native as *mut std::ffi::c_void,
@@ -432,59 +441,13 @@ impl PermissionGuideView {
 
 impl Render for PermissionGuideView {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let pane = self.current.pane();
-        let landed = !matches!(self.phase, Phase::Waiting);
-        let finished = matches!(self.phase, Phase::Finished(_));
-        let (title, detail) = match self.phase {
-            Phase::Waiting => (
-                format!("{pane} for SpaceO"),
-                "Switch on spaceo. Not listed? Drag the tile in.".to_string(),
-            ),
-            Phase::Granted(_) => (
-                format!("{pane} is on"),
-                format!("Next: {}.", self.current.other().pane()),
-            ),
-            Phase::Finished(_) => (
-                "SpaceO is all set".to_string(),
-                if self.restart_requested {
-                    "SpaceO restarts once the agents using it finish.".to_string()
-                } else {
-                    "Agents can use SpaceO now.".to_string()
-                },
-            ),
-        };
-        let steps = [
-            GuidePermission::Accessibility,
-            GuidePermission::ScreenRecording,
-        ]
-        .map(|permission| {
-            if has(self.state(permission)) || (permission == self.current && landed) {
-                BarStep::Done
-            } else if permission == self.current {
-                BarStep::Current
-            } else {
-                BarStep::Todo
-            }
-        });
-        let file_name = self
-            .spaceo
-            .file_name()
-            .map(|name| name.to_string_lossy().into_owned())
-            .unwrap_or_else(|| "spaceo".to_string());
-        render_bar(
-            BarContent {
-                title,
-                detail,
-                file_name,
-                landed,
-                step: (!finished).then_some(match self.current {
-                    GuidePermission::Accessibility => 1,
-                    GuidePermission::ScreenRecording => 2,
-                }),
-                steps,
+        render_tag(
+            self.content(),
+            TagActions {
+                drag: Box::new(|view: &mut Self, _, _| view.begin_drag()),
+                close: Box::new(|_, window, _| window.remove_window()),
+                restart: Box::new(|view, _, cx| view.restart(cx)),
             },
-            |view: &mut Self, _, _| view.begin_drag(),
-            |_, window, _| window.remove_window(),
             cx,
         )
     }
