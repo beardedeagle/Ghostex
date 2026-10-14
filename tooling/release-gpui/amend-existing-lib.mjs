@@ -194,6 +194,33 @@ export function assertLiveDependencyAlignment({ liveAssets, mutate, packedShaByN
   }
 }
 
+/*
+ * CDXC:Release 2026-10-14 WHY:
+ * Stages of a staged release write the one provenance asset with no
+ * compare-and-swap, so a stage that read the file before a sibling wrote it can
+ * upload "stale plus mine" after that sibling already verified and exited, and
+ * the sibling's records are gone for good (10.23.0 lost macos-arm64,
+ * gxserver-linux-arm64 and android this way). Assets cannot be lost like that:
+ * each name is uploaded by one stage before it writes provenance. So a sibling
+ * record from this run belongs in the file exactly when every artifact it lists
+ * is live with its digest and size, and a writer restores any such record the
+ * live file lacks. The last writer then always leaves a complete file.
+ * SEE-ALSO: amend-existing.mjs (the merge loop), publish-stage.mjs (stageArtifactNames).
+ */
+export function siblingRecordsToRestore({ liveAssets, liveProducts, siblingRecords }) {
+  const live = liveAssetDigestMap(liveAssets);
+  const restore = {};
+  for (const [productId, record] of Object.entries(siblingRecords ?? {})) {
+    if (liveProducts?.[productId]) continue;
+    const allLive = record.artifacts.every((artifact) => {
+      const asset = live.get(artifact.name);
+      return asset?.digest === artifact.sha256 && (asset.size === undefined || Number(asset.size) === artifact.size);
+    });
+    if (allLive) restore[productId] = record;
+  }
+  return restore;
+}
+
 export function mergeReleaseNotes({ assetNames, liveBody, version }) {
   return mergeCustomerDownloadNotes(liveBody, version, assetNames);
 }

@@ -106,15 +106,17 @@ export function plannedAssetNames({ plan, version }) {
 
 /*
  * Actions artifact names a stage's publisher needs: its products, the plan,
- * and every per-product provenance record (they are small, and the amend
- * publisher validates each mutated product against its record).
+ * and the provenance record of every product in the plan, siblings' included
+ * (they are small). Its own records validate what it mutates; a sibling's
+ * record lets it restore that sibling's entry when a concurrent write dropped
+ * it (see the merge loop in amend-existing.mjs).
  */
 export function stageArtifactNames({ plan, stage }) {
   const { products } = resolvePublishStage({ plan, stage });
   return [
     'release-plan',
     ...products.map((productId) => `release-${productId}`),
-    ...products.map((productId) => `release-provenance-${productId}`),
+    ...(plan.expectedPlatforms ?? []).map((productId) => `release-provenance-${productId}`),
   ];
 }
 

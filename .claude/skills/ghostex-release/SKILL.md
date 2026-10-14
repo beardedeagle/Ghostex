@@ -367,9 +367,13 @@ gxserver runtimes and provenance stay as unlisted assets.
 From Windows (the normal case), skip the macOS-only DMG and Homebrew checks.
 Also skip the repo check, because `main` has moved past the tag by now:
 `bun run release:verify -- X.Y.Z --run-id <run-id> --skip-dmg --skip-brew --skip-repo`.
-It prints a PASS/FAIL table covering provenance, Sparkle and Android
-(unverified that it runs on Windows; if it cannot start, the `gh` asset check
-above plus the Homebrew PR check in step 7 are the verification, so say that in the report).
+It prints a PASS/FAIL table covering provenance, Sparkle and Android. Pull
+`main` first: `changelog-section` reads the local `CHANGELOG.md`. On Windows
+`live-appcast` is a WARN, not a FAIL, because xmllint is missing there (the
+appcast fields are still checked; only well-formedness is not). A
+`provenance` or `planned-products-live` FAIL naming products whose assets
+are live means their records are missing from `release-provenance-X.Y.Z.json`;
+report it, since the next release's planner cannot reuse those products.
 Optional, on a Mac after `brew update`, the full check with no skip flags:
 `bun run release:verify -- X.Y.Z --run-id <run-id>`.
 
