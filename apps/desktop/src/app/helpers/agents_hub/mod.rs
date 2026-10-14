@@ -9,6 +9,7 @@
 pub(crate) mod agent_hook_status;
 pub(crate) mod catalog_builder;
 pub(crate) mod catalog_fs_scan;
+pub(crate) mod catalog_skills;
 pub(crate) mod keep_awake;
 pub(crate) mod open_targets;
 pub(crate) mod pet_overlay_status;
@@ -21,6 +22,7 @@ pub(crate) mod workspace_tab_visuals;
 pub(crate) use agent_hook_status::*;
 pub(crate) use catalog_builder::*;
 pub(crate) use catalog_fs_scan::*;
+pub(crate) use catalog_skills::*;
 pub(crate) use keep_awake::*;
 pub(crate) use open_targets::*;
 pub(crate) use pet_overlay_status::*;

@@ -1,7 +1,7 @@
 //! The four file tabs (Skills, MDs, Hooks, Configs & MCPs): the searchable grouped list on the
 //! left and the selected file's editor on the right (`.agents-hub-layout` in
 //! packages/core-ui/styles/agents-hub.css).
-use super::super::native_modal_kit::{MODAL_MONO_FONT, hsla, rgba_of};
+use super::super::native_modal_kit::{hsla, rgba_of, MODAL_MONO_FONT};
 use super::editor::editor_body;
 use super::model::*;
 use super::palette::HubPalette;
@@ -9,9 +9,8 @@ use super::widgets::*;
 use super::window::{AgentsHubModalCommand, GpuiAgentsHubModalWindow};
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
-    AnyElement, ClickEvent, Context, FontWeight, InteractiveElement as _, IntoElement,
-    ParentElement as _, SharedString, StatefulInteractiveElement as _, Styled as _, Window, div,
-    px,
+    div, px, AnyElement, ClickEvent, Context, FontWeight, InteractiveElement as _, IntoElement,
+    ParentElement as _, SharedString, StatefulInteractiveElement as _, Styled as _, Window,
 };
 use gpui_component::scroll::Scrollbar;
 use gpui_component::tooltip::Tooltip;
@@ -168,6 +167,20 @@ impl GpuiAgentsHubModalWindow {
                     .text_color(hsla(hp.foreground))
                     .child(SharedString::from(group.name.clone())),
             )
+            .when(group.variant_count > 1, |this| {
+                this.child(
+                    div()
+                        .flex_shrink_0()
+                        .px(px(6.0))
+                        .rounded(px(4.0))
+                        .border_1()
+                        .border_color(hsla(hp.line))
+                        .text_size(px(11.0))
+                        .line_height(px(16.0))
+                        .text_color(hsla(hp.muted))
+                        .child(format!("{} versions", group.variant_count)),
+                )
+            })
             .when(expanded, |this| {
                 this.child(
                     div()
@@ -540,11 +553,8 @@ fn toolbar_button(
     glyph: &'static str,
     label: &'static str,
     disabled: bool,
-    on_click: impl Fn(
-        &mut GpuiAgentsHubModalWindow,
-        &mut Window,
-        &mut Context<GpuiAgentsHubModalWindow>,
-    ) + 'static,
+    on_click: impl Fn(&mut GpuiAgentsHubModalWindow, &mut Window, &mut Context<GpuiAgentsHubModalWindow>)
+        + 'static,
     cx: &mut Context<GpuiAgentsHubModalWindow>,
 ) -> AnyElement {
     let hover = hp.raised_hover;

@@ -31,8 +31,9 @@ What it does:
   every agent's global skills folder, converts whole-folder links into folders
   of per-skill links, writes the one-line instruction pointer file each agent
   reads, and links the hooks folder and lock file into Claude Code and Codex.
-  Nothing is deleted: anything in the way of a link is renamed to
-  <name>.pre-sync-<stamp>.bak, and dangling links are removed.
+  Nothing is deleted: anything in the way of a link is moved to Ghostex's
+  state folder (agent-sync-backups/<stamp>/, same path as under HOME), and
+  dangling links are removed.
 
 Groups (all on by default except prune-lock):
   remove-dangling        Remove symlinks whose target is gone
@@ -322,14 +323,14 @@ fn print_status(report: &SyncReport) {
 
 fn print_plan(plan: &SyncPlan, enabled: &[PlanGroupKind]) {
     println!(
-        "Plan ({}): {} links, {} writes, {} backups, {} unlinks, {} lock drops; backups use .pre-sync-{}.bak",
+        "Plan ({}): {} links, {} writes, {} backups, {} unlinks, {} lock drops; backups go to {}",
         plan.scope,
         plan.summary.links,
         plan.summary.writes,
         plan.summary.backups,
         plan.summary.unlinks,
         plan.summary.drops,
-        plan.stamp
+        plan.backup_dir
     );
     for group in &plan.groups {
         let on = enabled.contains(&group.kind);

@@ -120,6 +120,9 @@ pub(crate) struct AgentsHubGroup {
     pub(crate) path: String,
     #[serde(default)]
     pub(crate) profiles: Vec<AgentsHubProfile>,
+    /// Skills tab only: how many differing versions of this skill the agent folders hold.
+    #[serde(default)]
+    pub(crate) variant_count: usize,
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]

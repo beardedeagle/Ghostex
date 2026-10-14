@@ -85,7 +85,7 @@
           "agentId": "kiro-cli",
           "note": "identical to the source copy",
           "path": "~/.kiro/skills/ghostex-cli",
-          "target": "~/.kiro/skills/ghostex-cli.pre-sync-20260916-1200.bak",
+          "target": "~/.local/state/ghostex/agent-sync-backups/20260916-1200/.kiro/skills/ghostex-cli",
           "verb": "backup"
         },
         {
@@ -98,7 +98,7 @@
           "agentId": "kiro-cli",
           "note": "identical to the source copy",
           "path": "~/.kiro/skills/ghostex-help",
-          "target": "~/.kiro/skills/ghostex-help.pre-sync-20260916-1200.bak",
+          "target": "~/.local/state/ghostex/agent-sync-backups/20260916-1200/.kiro/skills/ghostex-help",
           "verb": "backup"
         },
         {
@@ -209,7 +209,7 @@
           "agentId": "claude-code:work",
           "note": "older pointer wording",
           "path": "~/.claude-profiles/work/CLAUDE.md",
-          "target": "~/.claude-profiles/work/CLAUDE.md.pre-sync-20260916-1200.bak",
+          "target": "~/.local/state/ghostex/agent-sync-backups/20260916-1200/.claude-profiles/work/CLAUDE.md",
           "verb": "backup"
         },
         {
@@ -270,6 +270,7 @@
   ],
   "scope": "all",
   "stamp": "20260916-1200",
+  "backupDir": "~/.local/state/ghostex/agent-sync-backups/20260916-1200",
   "summary": {
     "backups": 3,
     "defaultChanges": 29,

@@ -15,9 +15,9 @@ use sha1::{Digest, Sha1};
 
 use crate::{
     agent_skills::{
-        agent_skill_global_dir, copy_skill_directory_into_place, path_string,
-        AGENT_SKILL_COPY_EXCLUDED_NAMES, CANONICAL_AGENT_SKILLS_DIR, GHOSTEX_AGENT_SKILL_NAMES,
-        GHOSTEX_SKILLS_CLI_AGENT_IDS,
+        agent_skill_global_dir, copy_skill_directory_into_place, link_skill_into_agent_root,
+        path_string, AGENT_SKILL_COPY_EXCLUDED_NAMES, CANONICAL_AGENT_SKILLS_DIR,
+        GHOSTEX_AGENT_SKILL_NAMES, GHOSTEX_SKILLS_CLI_AGENT_IDS,
     },
     logging::{DiagnosticLogScenario, GxserverLogInput, GxserverLogger, LogLevel},
     paths::GxserverPaths,
@@ -336,7 +336,7 @@ fn collect_local_blob_shas(
 
 /// Every global skill root a bundled skill may have been installed into: the
 /// canonical universal folder plus each agent's own folder, deduplicated.
-fn installed_skill_roots(home_dir: &Path) -> Vec<PathBuf> {
+pub(crate) fn installed_skill_roots(home_dir: &Path) -> Vec<PathBuf> {
     let mut roots = vec![home_dir.join(CANONICAL_AGENT_SKILLS_DIR)];
     for agent_id in GHOSTEX_SKILLS_CLI_AGENT_IDS {
         if let Some(root) = agent_skill_global_dir(home_dir, agent_id) {
@@ -370,7 +370,8 @@ pub fn spawn_startup_skill_refresh(paths: GxserverPaths, logger: Arc<GxserverLog
             let Ok(result) = refresh_installed_bundled_skills(&paths) else {
                 return;
             };
-            let updated_count = result["updated"].as_array().map_or(0, Vec::len);
+            let updated_count = result["updated"].as_array().map_or(0, Vec::len)
+                + result["linked"].as_array().map_or(0, Vec::len);
             let failed_count = result["failed"].as_array().map_or(0, Vec::len);
             if updated_count == 0 && failed_count == 0 {
                 return;
@@ -394,8 +395,15 @@ pub fn spawn_startup_skill_refresh(paths: GxserverPaths, logger: Arc<GxserverLog
 }
 
 /// Replace every installed bundled skill whose files differ from the published
-/// ones. Returns the refresh report, or the reason the listing could not be
-/// fetched (offline, rate limited, downloads disabled).
+/// ones, then turn the real copies older builds left in agents' own folders into
+/// links to the `~/.agents/skills` copy. Returns the refresh report, or the reason
+/// the listing could not be fetched (offline, rate limited, downloads disabled).
+///
+/// CDXC:AgentSkills 2026-10-14 WHY:
+/// Builds before 2026-09-16 copied each bundled skill into every agent's folder, and this pass
+/// then refreshed each copy in place, so one skill lived as up to fifteen separate folders that
+/// drifted apart whenever one was edited. A bundled copy outside `~/.agents/skills` is now
+/// replaced by a link, the shape fresh installs make, so editing the one copy reaches every agent.
 pub fn refresh_installed_bundled_skills(paths: &GxserverPaths) -> Result<Value, String> {
     if !remote_skills_enabled() {
         return Err(format!(
@@ -404,37 +412,60 @@ pub fn refresh_installed_bundled_skills(paths: &GxserverPaths) -> Result<Value, 
     }
     let catalog = RemoteSkillsCatalog::fetch()?;
     let cache_root = remote_skills_cache_root(paths);
-    let roots = installed_skill_roots(paths.agent_config_home_dir());
+    let home_dir = paths.agent_config_home_dir();
+    let roots = installed_skill_roots(home_dir);
+    let canonical_root = home_dir.join(CANONICAL_AGENT_SKILLS_DIR);
     let mut refreshed_names = HashSet::new();
     let mut updated = Vec::new();
+    let mut linked = Vec::new();
     let mut failed = Vec::new();
     for skill_name in GHOSTEX_AGENT_SKILL_NAMES {
         if !refreshed_names.insert(*skill_name) || !catalog.has_skill(skill_name) {
             continue;
         }
-        let stale: Vec<PathBuf> = roots
+        let canonical_dir = canonical_root.join(skill_name);
+        let is_real_dir = |dir: &Path| {
+            fs::symlink_metadata(dir)
+                .map(|metadata| !metadata.file_type().is_symlink() && metadata.is_dir())
+                .unwrap_or(false)
+        };
+        let agent_copies: Vec<PathBuf> = roots
             .iter()
+            .filter(|root| **root != canonical_root)
             .map(|root| root.join(skill_name))
-            .filter(|dir| {
-                fs::symlink_metadata(dir)
-                    .map(|metadata| !metadata.file_type().is_symlink() && metadata.is_dir())
-                    .unwrap_or(false)
-                    && !catalog.local_dir_matches(skill_name, dir)
-            })
+            .filter(|dir| is_real_dir(dir))
             .collect();
-        if stale.is_empty() {
+        let canonical_missing = fs::symlink_metadata(&canonical_dir).is_err();
+        let canonical_stale = (is_real_dir(&canonical_dir)
+            && !catalog.local_dir_matches(skill_name, &canonical_dir))
+            || (canonical_missing && !agent_copies.is_empty());
+        if canonical_stale {
+            let source_dir = match catalog.download_skill(skill_name, &cache_root) {
+                Ok(dir) => dir,
+                Err(error) => {
+                    failed.push(json!({ "error": error, "skill": skill_name }));
+                    continue;
+                }
+            };
+            match copy_skill_directory_into_place(&source_dir, &canonical_dir) {
+                Ok(true) => updated.push(path_string(&canonical_dir)),
+                Ok(false) => {}
+                Err(error) => {
+                    failed.push(json!({
+                        "error": error.message,
+                        "path": path_string(&canonical_dir),
+                        "skill": skill_name,
+                    }));
+                    continue;
+                }
+            }
+        }
+        if !canonical_dir.join("SKILL.md").is_file() {
             continue;
         }
-        let source_dir = match catalog.download_skill(skill_name, &cache_root) {
-            Ok(dir) => dir,
-            Err(error) => {
-                failed.push(json!({ "error": error, "skill": skill_name }));
-                continue;
-            }
-        };
-        for destination in stale {
-            match copy_skill_directory_into_place(&source_dir, &destination) {
-                Ok(true) => updated.push(path_string(&destination)),
+        for destination in agent_copies {
+            match link_skill_into_agent_root(&canonical_dir, &destination) {
+                Ok(true) => linked.push(path_string(&destination)),
                 Ok(false) => {}
                 Err(error) => failed.push(json!({
                     "error": error.message,
@@ -446,6 +477,7 @@ pub fn refresh_installed_bundled_skills(paths: &GxserverPaths) -> Result<Value, 
     }
     Ok(json!({
         "failed": failed,
+        "linked": linked,
         "ref": AGENT_SKILLS_REMOTE_REF,
         "repository": AGENT_SKILLS_REMOTE_REPOSITORY,
         "treeSha": catalog.tree_sha(),

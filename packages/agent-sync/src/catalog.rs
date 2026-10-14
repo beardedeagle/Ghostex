@@ -8,6 +8,13 @@
 //! The instruction-file and hooks columns are Ghostex additions the CLI does not have.
 //! Amp, Cursor and OpenCode read `~/.agents/skills` directly (gxserver already treats them as
 //! universal in `agent_skill_global_dir`), so they are flagged `universal` and never get links.
+//!
+//! CDXC:AgentSync 2026-10-14 WHY:
+//! A probe skill placed only in `~/.agents/skills` was listed by Codex 0.162 (and every Codex
+//! profile, which reads `$HOME/.agents/skills` whatever its CODEX_HOME), Gemini CLI 0.41, GitHub
+//! Copilot CLI 1.0.80 and Pi 0.99, so they are universal too: a link in their own folder made
+//! them load each skill twice (Gemini logs a "Skill conflict" for each one). Claude Code 2.1.284
+//! and Hermes Agent 0.21 did not list it, so they keep per-skill links.
 
 use serde::Serialize;
 use std::path::{Path, PathBuf};
@@ -103,6 +110,7 @@ const ROWS: &[Row] = &[
     },
     Row {
         hooks: true,
+        universal: true,
         ..row(
             "codex",
             "Codex",
@@ -112,14 +120,17 @@ const ROWS: &[Row] = &[
             Some(".codex/AGENTS.md"),
         )
     },
-    row(
-        "gemini-cli",
-        "Gemini CLI",
-        Some("gemini"),
-        ".gemini",
-        Some(".gemini/skills"),
-        Some(".gemini/GEMINI.md"),
-    ),
+    Row {
+        universal: true,
+        ..row(
+            "gemini-cli",
+            "Gemini CLI",
+            Some("gemini"),
+            ".gemini",
+            Some(".gemini/skills"),
+            Some(".gemini/GEMINI.md"),
+        )
+    },
     row(
         "antigravity",
         "Antigravity",
@@ -170,14 +181,17 @@ const ROWS: &[Row] = &[
             Some("$XDG/amp/AGENTS.md"),
         )
     },
-    row(
-        "github-copilot",
-        "GitHub Copilot",
-        Some("copilot"),
-        ".copilot",
-        Some(".copilot/skills"),
-        Some(".copilot/copilot-instructions.md"),
-    ),
+    Row {
+        universal: true,
+        ..row(
+            "github-copilot",
+            "GitHub Copilot",
+            Some("copilot"),
+            ".copilot",
+            Some(".copilot/skills"),
+            Some(".copilot/copilot-instructions.md"),
+        )
+    },
     row(
         "droid",
         "Droid",
@@ -194,14 +208,17 @@ const ROWS: &[Row] = &[
         Some(".kiro/skills"),
         Some(".kiro/steering/ghostex-shared.md"),
     ),
-    row(
-        "pi",
-        "Pi",
-        Some("pi"),
-        ".pi/agent",
-        Some(".pi/agent/skills"),
-        Some(".pi/agent/AGENTS.md"),
-    ),
+    Row {
+        universal: true,
+        ..row(
+            "pi",
+            "Pi",
+            Some("pi"),
+            ".pi/agent",
+            Some(".pi/agent/skills"),
+            Some(".pi/agent/AGENTS.md"),
+        )
+    },
     row(
         "qwen-code",
         "Qwen Code",
@@ -721,7 +738,7 @@ fn profile_specs(
                 icon: Some(icon.to_string()),
                 kind: AgentKind::Profile,
                 skills_dir: Some(root.join("skills")),
-                universal: false,
+                universal: agent_id == "codex",
                 instruction_file: Some(root.join(instruction_name)),
                 instruction_kind: InstructionKind::Plain,
                 hooks_dir: Some(root.join("hooks")),

@@ -1523,8 +1523,8 @@ says "Uses its own login", and Ghostex never moves its sessions to an account,
 not even at a usage limit. Keep such a profile in `~/.claude-profiles/<name>`
 (or `~/.codex-profiles/<name>`) so Ghostex finds its conversations, then choose
 Install hook for that agent in Settings > Agents. Ghostex's skills live in
-`~/.claude/skills` (or `~/.codex/skills`); link the profile's `skills` folder
-there to use them.
+`~/.agents/skills`, which Codex profiles read on their own; for a Claude
+profile, link its `skills` folder to `~/.claude/skills` to use them.
 Each provider on Settings > Accounts also lists its account helper, Claude Swap
 (cswap) or Codex Swap (xswap), with three icon buttons: Update (shown when a
 newer release is out; otherwise a check mark that checks again when clicked),
@@ -1827,7 +1827,11 @@ Quick Access's Action rows are gone, and `ghostex run-action`, `run-command`,
 Actions are kept and come back when you turn it on (`actionsHidden`).
 
 Agents Hub lets you browse and edit agent files in Skills, MDs, Hooks,
-Configs & MCPs, and Agent Sync. In MDs, expand Shared agent markdown to see the
+Configs & MCPs, and Agent Sync. Skills lists each skill once, however many
+agents have it: expand it to see the agents that use it and every folder it is
+in. When the copies in different agents' folders are not the same, the row says
+how many versions there are and lists each version's files. Backup folders
+(names with `.pre-sync-` or ending in `.bak`) are never listed. In MDs, expand Shared agent markdown to see the
 files in your shared agent folder, then select a filename to read or edit it.
 Expand the profile instruction groups the same way. Use Refresh to reload files
 from disk and Save (Cmd+S) to write your edits. Cmd+1 to Cmd+5 switch tabs.
@@ -1846,11 +1850,15 @@ scripts cards. Review and fix all, a row's Fix, or an agent's Review and fix
 opens a plan first:
 one relative symlink per skill in every agent's skills folder, whole-folder links
 converted to per-skill links, the one-line pointer written into each agent's
-instruction file (a file with other content is backed up as
-`<name>.pre-sync-<stamp>.bak` first), and the hooks folder and lock file linked
-into Claude Code and Codex. Nothing is deleted; tidying leftover lock file
-entries is opt-in (the Optional cleanup switch, or the plan's last group). Agents that read `~/.agents/skills` directly (Amp, Cursor,
-OpenCode) get no links. The same scan, plan, and apply run from the CLI:
+instruction file (a file with other content is backed up first), and the hooks
+folder and lock file linked into Claude Code and Codex. Nothing is deleted:
+anything in the way is moved to
+`~/.local/state/ghostex/agent-sync-backups/<stamp>/`, at the same path it had
+under your home folder, so agents never mistake a backup for a skill. Tidying
+leftover lock file entries is opt-in (the Optional cleanup switch, or the plan's
+last group). Agents that read `~/.agents/skills` directly (Codex, Gemini CLI,
+GitHub Copilot, Pi, Amp, Cursor, OpenCode) get no links; Claude Code and the
+others get one link per skill. The same scan, plan, and apply run from the CLI:
 `ghostex agent-sync status`, `ghostex agent-sync plan [--agent <id>]`, and
 `ghostex agent-sync apply --yes [--agent <id>] [--group <group>...]
 [--prune-lock]`; `ghostex agent-sync agents` lists the ids.
@@ -2743,11 +2751,15 @@ backend: `ghostex team deploy|join|invite|identity|status|ping|leave`. Slack:
   Use, SpaceO through SpaceO, Embedded Browser Use, Project Board Beads,
   Ghostex Visuals) and
   shows their install status; an installed skill's row shows the command you
-  type to use it, such as `$ghostex-computer-use`. Skills are copied
-  into the global skill folders every agent CLI reads. When the computer is
+  type to use it, such as `$ghostex-computer-use`. Each skill is installed
+  once, in `~/.agents/skills`; agents that do not read that folder (Claude
+  Code, Kiro, Droid, Hermes and others) get a link to it in their own skills
+  folder, so every agent uses the same copy. When the computer is
   online they are downloaded from the Ghostex GitHub repository, so skill fixes
   arrive between releases, and installed skills are refreshed automatically
-  each time Ghostex starts. Offline installs use the copy inside the app.
+  each time Ghostex starts; a copy an older Ghostex left in an agent's own
+  folder is replaced by a link then. Offline installs use the copy inside the
+  app.
   Its Desktop control section installs Fast Computer & Browser Use, Trycua's
   open-source driver (the `trycua/cua` link next to its name opens the project
   on GitHub). Installing it, Ghostex Computer Use or Ghostex Browser Use also

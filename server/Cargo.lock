@@ -696,6 +696,7 @@ dependencies = [
 name = "ghostex-agent-sync"
 version = "0.1.0"
 dependencies = [
+ "ghostex-paths",
  "serde",
  "serde_json",
  "sha2",

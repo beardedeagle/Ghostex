@@ -544,9 +544,10 @@ pub(crate) fn gpui_agents_hub_catalog_build() -> GpuiAgentsHubCatalogBuild {
             )],
         ),
     ];
+    let mut skill_copies = Vec::new();
     for (id_prefix, root, description, system_description, profiles) in skill_roots {
-        gpui_agents_hub_add_skill_root(
-            &mut builder,
+        gpui_agents_hub_collect_skill_root(
+            &mut skill_copies,
             id_prefix,
             &root,
             description,
@@ -554,6 +555,7 @@ pub(crate) fn gpui_agents_hub_catalog_build() -> GpuiAgentsHubCatalogBuild {
             profiles,
         );
     }
+    gpui_agents_hub_add_merged_skill_groups(&mut builder, skill_copies);
 
     for plugins_root in [
         builder.home_path(&[".codex-profiles"]),
@@ -803,48 +805,6 @@ pub(crate) fn gpui_agents_hub_catalog_build() -> GpuiAgentsHubCatalogBuild {
     );
 
     builder.finish()
-}
-
-pub(crate) fn gpui_agents_hub_add_skill_root(
-    builder: &mut GpuiAgentsHubCatalogBuilder,
-    id_prefix: &str,
-    root: &Path,
-    description: &'static str,
-    system_description: &'static str,
-    profiles: Vec<GpuiAgentsHubProfileItem>,
-) {
-    for skill_dir in gpui_agents_hub_list_directories(root) {
-        let skill_name = gpui_file_name_string(&skill_dir);
-        if skill_name.starts_with('.') && skill_name != ".system" {
-            continue;
-        }
-        if skill_name == ".system" {
-            for system_skill in gpui_agents_hub_list_directories(&skill_dir) {
-                builder.add_group(
-                    "skills",
-                    format!(
-                        "{id_prefix}-system-{}",
-                        gpui_agents_hub_file_id(&system_skill)
-                    ),
-                    gpui_file_name_string(&system_skill),
-                    system_skill.clone(),
-                    system_description,
-                    gpui_agents_hub_walk_files(&system_skill, 3, gpui_agents_hub_is_skill_file),
-                    profiles.clone(),
-                );
-            }
-            continue;
-        }
-        builder.add_group(
-            "skills",
-            format!("{id_prefix}-{}", gpui_agents_hub_file_id(&skill_dir)),
-            skill_name,
-            skill_dir.clone(),
-            description,
-            gpui_agents_hub_walk_files(&skill_dir, 3, gpui_agents_hub_is_skill_file),
-            profiles.clone(),
-        );
-    }
 }
 
 pub(crate) fn gpui_empty_agents_hub_catalog_build() -> GpuiAgentsHubCatalogBuild {

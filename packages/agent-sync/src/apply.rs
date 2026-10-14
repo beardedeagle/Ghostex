@@ -41,6 +41,9 @@ fn run_op(op: &PlanOp) -> Result<(), String> {
                 .abs_target
                 .as_ref()
                 .ok_or("backup without a destination")?;
+            if let Some(parent) = target.parent() {
+                fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+            }
             fs::rename(path, target).map_err(|e| e.to_string())
         }
         PlanVerb::Link => {

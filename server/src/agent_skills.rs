@@ -308,9 +308,20 @@ pub fn agent_skill_global_dir(home_dir: &Path, agent_id: &str) -> Option<PathBuf
     Some(home_dir.join(relative))
 }
 
+/// True when the agent loads `~/.agents/skills` itself, so a link in its own
+/// folder would make it load every skill twice. Agent Sync's catalog owns the list.
+pub(crate) fn agent_reads_canonical_skills(home_dir: &Path, agent_id: &str) -> bool {
+    ghostex_agent_sync::agent_catalog(home_dir)
+        .iter()
+        .any(|spec| spec.id == agent_id && spec.universal)
+}
+
 /// Every global skill root an install writes to: the canonical universal
-/// directory first (it is what Ghostex's own status probe and Codex read), then
-/// one root per requested agent, deduplicated in request order.
+/// directory first (the only real copy), then one link root per requested agent
+/// that does not read the canonical folder itself, deduplicated in request order.
+///
+/// CDXC:AgentSkills 2026-10-14 DECISION:
+/// User: "Users basically want the same skill on all their coding agents... Ghostex should help them update ~/.agents, and that's the one used by all agents." Skills live once in `~/.agents/skills`; agents that read it natively get nothing, the others get a per-skill link, never a copy.
 fn agent_skill_install_target_roots(
     home_dir: &Path,
     agent_ids: &[String],
@@ -319,6 +330,7 @@ fn agent_skill_install_target_roots(
     let mut unknown = Vec::new();
     for agent_id in agent_ids {
         match agent_skill_global_dir(home_dir, agent_id) {
+            Some(_) if agent_reads_canonical_skills(home_dir, agent_id) => {}
             Some(root) => {
                 if !roots.contains(&root) {
                     roots.push(root);
@@ -1122,11 +1134,9 @@ fn retired_skill_dir_is_unmodified_shipped_copy(skill_dir: &Path) -> bool {
 /// Startup migration: delete unmodified shipped copies of the retired skills
 /// from the global agent skill roots. Returns the removed directory paths.
 pub fn remove_retired_ghostex_agent_skills(paths: &GxserverPaths) -> Vec<String> {
-    let roots = [
-        paths.agent_config_home_dir().join(".agents").join("skills"),
-        paths.agent_config_home_dir().join(".codex").join("skills"),
-        paths.agent_config_home_dir().join(".claude").join("skills"),
-    ];
+    // Every agent root, not only the three this started with: older builds copied
+    // bundled skills into each agent's folder (Kiro, Droid, Hermes, Qoder, ...).
+    let roots = agent_skills_remote::installed_skill_roots(paths.agent_config_home_dir());
     let mut removed = Vec::new();
     let mut seen_canonical: HashSet<PathBuf> = HashSet::new();
     for root in roots {

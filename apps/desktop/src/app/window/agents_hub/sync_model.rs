@@ -237,7 +237,7 @@ pub(crate) struct SyncPlan {
     #[serde(default)]
     pub(crate) scope: String,
     #[serde(default)]
-    pub(crate) stamp: String,
+    pub(crate) backup_dir: String,
     #[serde(default)]
     pub(crate) summary: SyncPlanSummary,
     #[serde(default)]
@@ -602,7 +602,7 @@ pub(crate) fn problem_copy(problem: &SyncProblem, report: &SyncReport) -> Proble
                     "Copies that are identical to the original are backed up, then replaced with a link."
                         .to_string(),
                     second,
-                    "Nothing is deleted. Backups sit next to the original and end in .bak."
+                    "Nothing is deleted. Backups go to Ghostex's own folder, outside every agent's skills folder."
                         .to_string(),
                 ],
                 sub: "Copies go out of date when you edit the original.".to_string(),
@@ -734,10 +734,7 @@ pub(crate) fn plan_to_shell_script(plan: &SyncPlan, enabled: &[String]) -> Strin
     let mut lines = vec![
         "#!/usr/bin/env bash".to_string(),
         "# Ghostex Agent Sync plan".to_string(),
-        format!(
-            "# scope: {}, backups use .pre-sync-{}.bak",
-            plan.scope, plan.stamp
-        ),
+        format!("# scope: {}, backups go to {}", plan.scope, plan.backup_dir),
         "set -euo pipefail".to_string(),
         String::new(),
     ];
@@ -753,10 +750,14 @@ pub(crate) fn plan_to_shell_script(plan: &SyncPlan, enabled: &[String]) -> Strin
                 "mkdir" => lines.push(format!("mkdir -p {}", shell_quote(&op.path))),
                 "backup" => {
                     let fallback = format!("{}.bak", op.path);
+                    let target = op.target.as_deref().unwrap_or(&fallback);
+                    if let Some((parent, _)) = target.rsplit_once('/') {
+                        lines.push(format!("mkdir -p {}", shell_quote(parent)));
+                    }
                     lines.push(format!(
                         "mv {} {}",
                         shell_quote(&op.path),
-                        shell_quote(op.target.as_deref().unwrap_or(&fallback))
+                        shell_quote(target)
                     ));
                 }
                 "link" => lines.push(format!(

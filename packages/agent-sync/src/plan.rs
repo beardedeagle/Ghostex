@@ -3,9 +3,14 @@
 //!
 //! CDXC:AgentSync 2026-09-16 WHY:
 //! Five verbs only (link, write, backup, unlink, keep) plus mkdir and the opt-in lock drop.
-//! There is no copy and no delete: anything in the way of a link is renamed to
-//! `<name>.pre-sync-<stamp>.bak`, the convention the user's own sync script established,
-//! so every step can be undone by hand. Dangling links are removed without a backup.
+//! There is no copy and no delete, so every step can be undone by hand. Dangling links are
+//! removed without a backup.
+//!
+//! CDXC:AgentSync 2026-10-14 WHY:
+//! Backups used to sit next to the original as `<name>.pre-sync-<stamp>.bak`. Inside a skills
+//! folder every agent and the Agents Hub then read that backup as one more skill, so the same
+//! skill showed up many times. Anything in the way is now moved to
+//! `<Ghostex state>/agent-sync-backups/<stamp>/<path under HOME>` instead (`fsx::backup_path`).
 
 use crate::catalog::source_root;
 use crate::fsx;
@@ -149,6 +154,8 @@ pub struct SyncPlan {
     pub generated_at: String,
     pub scope: String,
     pub stamp: String,
+    /// Display path of the folder this plan's backups go to (`~/.../<stamp>`).
+    pub backup_dir: String,
     pub groups: Vec<PlanGroup>,
     pub summary: PlanSummary,
 }
@@ -168,6 +175,8 @@ pub enum PointerPolicy {
 pub struct PlanOptions {
     pub scope: SyncScope,
     pub stamp: String,
+    /// Backups go to `<backup_root>/<stamp>/...`.
+    pub backup_root: PathBuf,
     pub pointer_policy: PointerPolicy,
     pub link_hooks: bool,
     pub link_lock: bool,
@@ -178,6 +187,7 @@ impl Default for PlanOptions {
         PlanOptions {
             scope: SyncScope::All,
             stamp: crate::now_backup_stamp(),
+            backup_root: fsx::default_backup_root(),
             pointer_policy: PointerPolicy::Replace,
             link_hooks: true,
             link_lock: true,
@@ -188,6 +198,7 @@ impl Default for PlanOptions {
 struct Builder<'a> {
     home: &'a Path,
     stamp: &'a str,
+    backup_root: &'a Path,
     groups: Vec<Vec<PlanOp>>,
 }
 
@@ -228,7 +239,7 @@ impl<'a> Builder<'a> {
     }
 
     fn backup_op(&self, path: PathBuf, agent_id: Option<&str>, note: &str) -> PlanOp {
-        let backup = fsx::backup_path(&path, self.stamp);
+        let backup = fsx::backup_path(&path, self.home, self.backup_root, self.stamp);
         let mut op = self.with_target(self.op(PlanVerb::Backup, path, agent_id), backup);
         op.note = Some(note.to_string());
         op
@@ -515,6 +526,7 @@ pub fn build_plan(home: &Path, report: &SyncReport, options: &PlanOptions) -> Sy
     let mut builder = Builder {
         home,
         stamp: &options.stamp,
+        backup_root: &options.backup_root,
         groups: vec![Vec::new(); PlanGroupKind::ALL.len()],
     };
 
@@ -602,6 +614,7 @@ pub fn build_plan(home: &Path, report: &SyncReport, options: &PlanOptions) -> Sy
         generated_at: crate::now_iso8601(),
         scope: options.scope.as_str(),
         stamp: options.stamp.clone(),
+        backup_dir: fsx::display_path(&options.backup_root.join(&options.stamp), home),
         groups,
         summary,
     }

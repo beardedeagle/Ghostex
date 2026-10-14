@@ -143,13 +143,25 @@ pub fn remove_link(path: &Path) -> io::Result<()> {
     fs::remove_file(path)
 }
 
-/// `<name>.pre-sync-<stamp>.bak` next to `path`.
-pub fn backup_path(path: &Path, stamp: &str) -> PathBuf {
-    let name = path
-        .file_name()
-        .and_then(|name| name.to_str())
-        .unwrap_or("item");
-    path.with_file_name(format!("{name}.pre-sync-{stamp}.bak"))
+/// Where Agent Sync moves anything in its way: Ghostex's state folder, never the
+/// agent's own folders, so a backed-up skill is not picked up as a second skill.
+pub fn default_backup_root() -> PathBuf {
+    ghostex_paths::GhostexPaths::resolve()
+        .state_dir
+        .join("agent-sync-backups")
+}
+
+/// `<backup_root>/<stamp>/<path relative to home>`, so every backup can be put
+/// back by moving it to the same place under HOME.
+pub fn backup_path(path: &Path, home: &Path, backup_root: &Path, stamp: &str) -> PathBuf {
+    let relative = path.strip_prefix(home).unwrap_or(path);
+    let mut target = backup_root.join(stamp);
+    for component in relative.components() {
+        if let std::path::Component::Normal(part) = component {
+            target.push(part);
+        }
+    }
+    target
 }
 
 /// SHA-256 over every regular file in `dir` (sorted relative path plus bytes),
