@@ -155,21 +155,36 @@ pub(crate) fn modal_switch(p: &ModalPalette, checked: bool, disabled: bool) -> A
         .into_any_element()
 }
 
-/// The vertical scrollbar of a scroll area that runs along the modal window's right edge: mount it
-/// beside the scroll area (never inside it) and let that area reach the window's edge, keeping the
-/// text gutter as padding inside it.
+/// The app's vertical scrollbar, the look of the chat transcript's: gpui-component's own geometry
+/// (a 16px strip, a 6px thumb 4px in from the edge that grows to 8px on hover or drag, the theme's
+/// radius and colours) and shown only while its content scrolls or the pointer is on it. Add
+/// nothing that changes its geometry (`thickness`, a thumb inset) at a call site, or that bar
+/// stops looking like this one.
 ///
-/// CDXC:AppModal 2026-10-08 DECISION:
-/// User: "give the scroll bar 1px gap from the right border of the window. apply this in all modals that have the same kind of scroll bar pls to be consistent" (superseding the same day's flush "without gap" placement). The thumb sits 1px in from the modal window's right border: a 1px inset inside its track (gpui-component's default is 4px) and no window padding beside it; the content keeps its own gutter so text never sits under the thumb. Every modal scroll area that runs along the window's right border uses this one bar; scrollbars inside a bordered inner panel keep the default.
+/// CDXC:AppModal 2026-10-14 DECISION:
+/// User: "give the scrollbar in Settings margin from the right and make it look just like the one we have in the chat view instead of what we have now." The modal scroll areas along a window's edge (`modal_edge_scrollbar`, the Settings rail) and the chat transcript (`transcript_scrollbar` in native_chat/scrollbar.rs) build their bar here, so they cannot drift apart.
+#[track_caller]
+pub(crate) fn app_vertical_scrollbar<H: gpui_component::scroll::ScrollbarHandle + Clone>(
+    handle: &H,
+) -> gpui_component::scroll::Scrollbar {
+    gpui_component::scroll::Scrollbar::vertical(handle)
+        .mode(gpui_component::scroll::ScrollbarMode::Scrolling)
+}
+
+/// The vertical scrollbar of a scroll area that runs along the modal window's right edge: mount it
+/// beside the scroll area (never inside it) and let that area reach the window's edge, keeping a
+/// text gutter of at least the bar's 16px strip as padding inside it. It is the chat transcript's
+/// bar (CDXC:AppModal 2026-10-14 on `app_vertical_scrollbar`, which supersedes the 2026-10-08
+/// decision that put the thumb 1px from the border), so its thumb sits 4px in from that border.
 #[track_caller]
 pub(crate) fn modal_edge_scrollbar<H: gpui_component::scroll::ScrollbarHandle + Clone>(
     handle: &H,
 ) -> gpui_component::scroll::Scrollbar {
-    with_modal_edge_gap(gpui_component::scroll::Scrollbar::vertical(handle))
+    app_vertical_scrollbar(handle)
 }
 
-/// `modal_edge_scrollbar`'s 1px gap from the window border, for an edge bar with its own
-/// thickness. Apply it after `.thickness()`, which resets the inset.
+/// A 1px gap from the window border, for an edge bar with its own thickness (the account usage
+/// popup's). Apply it after `.thickness()`, which resets the inset.
 pub(crate) fn with_modal_edge_gap(
     scrollbar: gpui_component::scroll::Scrollbar,
 ) -> gpui_component::scroll::Scrollbar {

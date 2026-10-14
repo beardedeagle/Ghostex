@@ -16,7 +16,6 @@ use gpui::{
     AnyElement, ClickEvent, Context, FontWeight, InteractiveElement as _, IntoElement,
     ParentElement as _, SharedString, StatefulInteractiveElement as _, Styled as _, div, px,
 };
-use gpui_component::scroll::Scrollbar;
 use gpui_component::{h_flex, v_flex};
 use std::collections::HashMap;
 
@@ -548,21 +547,23 @@ pub(crate) fn render_rail(
                             v_flex()
                                 .w_full()
                                 .min_h_full()
-                                .pr(px(RAIL_PADDING))
+                                .pr(px(RAIL_SCROLLBAR_GUTTER))
                                 .gap(px(4.0))
                                 .children(groups),
                         ),
                 )
-                .child(with_modal_edge_gap(
-                    Scrollbar::vertical(&list_scroll).thickness(px(6.0)),
-                )),
+                .child(app_vertical_scrollbar(&list_scroll)),
         )
         .child(footer)
         .into_any_element()
 }
 
-/// The rail panel's side padding; the right one is the gutter that holds its scrollbar.
+/// The rail panel's side padding.
 const RAIL_PADDING: f32 = 8.0;
+
+/// The rows' right gutter inside the rail's scroll area: room for the scrollbar's thumb, 4px in
+/// from the panel's edge and 8px wide while hovered, plus a 2px gap before the rows.
+const RAIL_SCROLLBAR_GUTTER: f32 = 14.0;
 
 /// `SettingsSearchNoMatchesNotice`: what a page shows when the search leaves nothing on it, with
 /// buttons to the pages that do match.

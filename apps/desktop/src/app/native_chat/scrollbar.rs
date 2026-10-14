@@ -15,7 +15,8 @@
 use super::state::NativeChatView;
 use gpui::prelude::FluentBuilder as _;
 use gpui::{AnyElement, IntoElement as _, ParentElement as _, Styled as _, div, px, size};
-use gpui_component::scroll::{Scrollbar, ScrollbarMode};
+use crate::app::window::native_modal_kit::app_vertical_scrollbar;
+use gpui_component::scroll::Scrollbar;
 
 /// Unscaled track and thumb width of the transcript's table scrollbars, the value in
 /// session-chat-scrollbar.css. The transcript's own scrollbar does not use it (see below).
@@ -60,10 +61,9 @@ impl NativeChatView {
     pub(super) fn transcript_scrollbar(&self) -> AnyElement {
         let track = self.scrollbar_track.get();
         let measured = track > px(0.0);
-        let mut bar = Scrollbar::vertical(&self.list)
+        let mut bar = app_vertical_scrollbar(&self.list)
             .id("chat-transcript-scrollbar")
             .viewport_from_layout()
-            .mode(ScrollbarMode::Scrolling)
             .shown_by_host_scroll(self.transcript_scrolled_at);
         if measured {
             let list = self.list.clone();

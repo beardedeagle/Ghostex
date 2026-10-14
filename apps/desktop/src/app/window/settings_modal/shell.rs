@@ -425,7 +425,7 @@ impl Render for GpuiSettingsModalWindow {
                         .w_full()
                         .items_stretch()
                         // No right padding: the page's scroll area reaches the window's right
-                        // edge so its scrollbar sits flush there (CDXC:AppModal 2026-10-08 on
+                        // edge so its scrollbar sits by it (CDXC:AppModal 2026-10-14 on
                         // `modal_edge_scrollbar`); the search row and the page column pad it back.
                         .pl(px(BODY_PADDING))
                         .pb(px(BODY_PADDING))
