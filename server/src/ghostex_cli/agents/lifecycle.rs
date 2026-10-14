@@ -59,13 +59,7 @@ pub(super) fn create(args: &Arguments) -> CliResult<Value> {
         ));
     }
     let agent_id = &args.positional[0];
-    let hud = call_gxserver_rpc("/api/readSidebarHud", &json!({}), &flags)?;
-    if !hud["agents"]
-        .as_array()
-        .is_some_and(|rows| rows.iter().any(|row| text(row, "agentId") == agent_id))
-    {
-        return Err(CliError::Other(format!("Unknown or hidden agent type: {agent_id}. Run ghostex agents types and use an agentId from that list.")));
-    }
+    super::visibility::require_launchable_agent(agent_id, args.allow_hidden, &flags)?;
     let mut payload = json!({"projectId": project, "agentId": agent_id});
     if let Some(title) = &args.title {
         payload["title"] = json!(title);

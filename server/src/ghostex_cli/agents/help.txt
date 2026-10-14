@@ -4,7 +4,7 @@ USAGE
   ghostex agents whoami [--json]
   ghostex agents types [--json]
   ghostex agents create <agent-id> [--title <name>] [--project-id <id>]
-                       [--task <text> | --body-file <path>]
+                       [--task <text> | --body-file <path>] [--allow-hidden]
   ghostex agents list [--all] [--json]
   ghostex agents send <session-ref> <text> [--interrupt | --queue]
                      [--request-id <id>]
@@ -23,8 +23,11 @@ QUICK START
 
 CHOOSE AND CREATE
   types lists configured launcher IDs, names, and commands, including custom
-  agents. Use its agentId for create, for example codex or claude. A listed
-  launcher does not prove its CLI is installed or signed in.
+  agents. Use its agentId for create, for example codex. Agents turned off in
+  Settings > Agents are not listed, and create refuses them (naming the agent
+  and the visible ones to use instead) unless you pass --allow-hidden; use that
+  only when the user asked for that agent. A listed launcher does not prove its
+  CLI is installed or signed in.
 
   create starts a session in your project; --project-id selects another.
   The agent uses configured model and approval settings. --task submits an

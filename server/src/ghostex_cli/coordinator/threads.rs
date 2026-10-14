@@ -68,16 +68,9 @@ pub(super) fn start_thread(parsed: &ParsedArgs) -> CliResult<()> {
         .unwrap_or_else(|| agents::text(coordinator, "projectId").to_string());
     let agent_id = flag_text(&parsed.flags, "agent")
         .unwrap_or_else(|| agents::text(coordinator, "agentId").to_string());
-    let hud = call_gxserver_rpc("/api/readSidebarHud", &json!({}), &flags)?;
-    let agent_rows = hud["agents"].as_array().cloned().unwrap_or_default();
-    if !agent_rows
-        .iter()
-        .any(|row| agents::text(row, "agentId") == agent_id)
-    {
-        return Err(CliError::Other(format!(
-            "Unknown or hidden agent type: {agent_id}. Run ghostex agents types and use an agentId from that list."
-        )));
-    }
+    let agent_row =
+        agents::require_launchable_agent(&agent_id, parsed.flags.truthy("allowHidden"), &flags)?;
+    let agent_rows = [agent_row];
     let mut create = json!({
         "projectId": project_id,
         "agentId": agent_id,

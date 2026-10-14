@@ -82,7 +82,9 @@ pub(super) fn resolve_thread_session(reference: &str, flags: &Flags) -> CliResul
 /// else the calling session.
 pub(super) fn target_coordinator(parsed: &ParsedArgs) -> CliResult<(Value, Flags)> {
     let base = server_flags(&parsed.flags);
-    match flag_text(&parsed.flags, "orchestrator").or_else(|| flag_text(&parsed.flags, "coordinator")) {
+    match flag_text(&parsed.flags, "orchestrator")
+        .or_else(|| flag_text(&parsed.flags, "coordinator"))
+    {
         Some(reference) => resolve_session(&reference, &base),
         None => {
             let caller = agents::caller().map_err(|error| {
@@ -136,17 +138,21 @@ fn create(parsed: &ParsedArgs) -> CliResult<()> {
         _ => base,
     };
     let hud = call_gxserver_rpc("/api/readSidebarHud", &json!({}), &flags)?;
-    let agent_rows = hud["agents"].as_array().cloned().unwrap_or_default();
+    let mut agent_rows = hud["agents"].as_array().cloned().unwrap_or_default();
     let agent_id = match flag_text(&parsed.flags, "agent") {
         Some(agent) => {
-            if !agent_rows
-                .iter()
-                .any(|row| agents::text(row, "agentId") == agent)
+            let row = agents::require_launchable_agent(
+                &agent,
+                parsed.flags.truthy("allowHidden"),
+                &flags,
+            )?;
+            // A hidden agent allowed by --allow-hidden comes from the Agents roster.
+            if row.is_object()
+                && !agent_rows
+                    .iter()
+                    .any(|row| agents::text(row, "agentId") == agent)
             {
-                return Err(CliError::Other(format!(
-                    "Unknown or hidden agent type: {agent}. Run ghostex agents types and use a {} agentId.",
-                    crate::coordinators::COORDINATOR_AGENT_FAMILIES_TEXT
-                )));
+                agent_rows.push(row);
             }
             agent
         }
@@ -486,7 +492,9 @@ fn list(parsed: &ParsedArgs) -> CliResult<()> {
         .cloned()
         .unwrap_or_default();
     if rows.is_empty() {
-        println!("No orchestrators. Create one with: ghostex orchestrator create --title \"<name>\"");
+        println!(
+            "No orchestrators. Create one with: ghostex orchestrator create --title \"<name>\""
+        );
         return Ok(());
     }
     for row in rows {

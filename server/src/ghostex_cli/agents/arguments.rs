@@ -21,6 +21,8 @@ pub(super) struct Arguments {
     /// `--request-id`: the send's id, reused by a caller that retries it.
     pub request_id: Option<String>,
     pub all: bool,
+    /// `--allow-hidden`: create an agent that is turned off in Settings > Agents.
+    pub allow_hidden: bool,
     pub json: bool,
     pub help: bool,
     pub flags: Flags,
@@ -37,6 +39,7 @@ pub(super) fn parse(args: &[String]) -> CliResult<Arguments> {
         delivery: Delivery::Normal,
         request_id: None,
         all: false,
+        allow_hidden: false,
         json: false,
         help: args.is_empty(),
         flags: Flags::default(),
@@ -51,6 +54,7 @@ pub(super) fn parse(args: &[String]) -> CliResult<Arguments> {
             "-h" | "--help" => parsed.help = true,
             "--json" => parsed.json = true,
             "--all" => parsed.all = true,
+            "--allow-hidden" => parsed.allow_hidden = true,
             "--interrupt" | "--queue" => {
                 if parsed.delivery != Delivery::Normal {
                     return Err(CliError::Other(
@@ -111,10 +115,14 @@ pub(super) fn parse(args: &[String]) -> CliResult<Arguments> {
         ));
     }
     if parsed.command != "create"
-        && (parsed.task.is_some() || parsed.title.is_some() || parsed.project_id.is_some())
+        && (parsed.task.is_some()
+            || parsed.title.is_some()
+            || parsed.project_id.is_some()
+            || parsed.allow_hidden)
     {
         return Err(CliError::Other(
-            "--task, --title, and --project-id are only available for create.".into(),
+            "--task, --title, --project-id, and --allow-hidden are only available for create."
+                .into(),
         ));
     }
     match parsed.command.as_str() {

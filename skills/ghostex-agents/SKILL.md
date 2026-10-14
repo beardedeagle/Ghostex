@@ -92,7 +92,9 @@ step 7 below). Do not poll or sleep to watch it; end your turn and wait.
    the project id explicitly when you create sessions so they land in the
    right project.
 2. **Pick the agent, model, and effort.** List the configured agent types and
-   use their ids. When the user names a model or an effort level, pass them
+   use their ids. An agent the user turned off is not listed and is refused;
+   pick a listed one instead of passing `--allow-hidden`, unless the user asked
+   for that agent. When the user names a model or an effort level, pass them
    through the flags the help documents. If a launch fails on a model or
    effort value, report the exact error; do not substitute another model.
 3. **Hand over a self-contained task.** A new agent starts with none of your

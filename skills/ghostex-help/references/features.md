@@ -1846,7 +1846,11 @@ OpenCode) get no links. The same scan, plan, and apply run from the CLI:
 Use `ghostex agents --help` to create, message, and close other agent sessions.
 `ghostex agents whoami --json` identifies the caller; `agents types` lists
 configured agent IDs; `agents create <agent-id> --task "<task>"` starts one in
-the caller's project (`--project-id` selects another). `agents list` finds
+the caller's project (`--project-id` selects another). An agent turned off in
+Settings > Agents is not listed, and `agents create`, `create-agent`,
+`run-agent`, `orchestrator create`/`start-thread --agent` and `board start-work
+--agent` refuse it, naming the agents to use instead, unless `--allow-hidden` is
+passed. `agents list` finds
 sessions, and `agents send <session-ref> "<text>"` attaches the sender's identity
 and reply reference automatically. A normal send reaches a busy agent at its
 next input boundary and wakes a sleeping one, so it is right for almost every

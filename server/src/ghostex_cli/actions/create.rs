@@ -168,6 +168,11 @@ pub(super) fn create_gxserver_agent_session(payload: &Value, flags: &Flags) -> C
             "create-agent requires an agent id.".to_string(),
         ));
     }
+    crate::ghostex_cli::agents::require_launchable_agent(
+        &agent_id,
+        flags.truthy("allowHidden"),
+        flags,
+    )?;
     /*
     CDXC:Cli 2026-06-19-15:55:
     `ghostex create-agent` is a spawn command for automation and agent

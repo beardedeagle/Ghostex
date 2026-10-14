@@ -2,7 +2,7 @@ Run an orchestrator: one agent you talk to, which hands the work to thread sessi
 keeps track of them, and reports back.
 
 USAGE
-  ghostex orchestrator create [--project-id <id>] [--agent <agent-id>] [--title <name>]
+  ghostex orchestrator create [--project-id <id>] [--agent <agent-id> [--allow-hidden]] [--title <name>]
                               [--model <m>] [--effort <e>] [--goal <text>]
                               [--task <first message>] [--json]
   ghostex orchestrator promote [<session-ref>] [--goal <text>] [--json]
@@ -10,7 +10,7 @@ USAGE
   ghostex orchestrator list [--project-id <id>] [--json]
   ghostex orchestrator status [--orchestrator <ref>] [--all] [--json]
   ghostex orchestrator start-thread --title <title> (--task <text> | --body-file <path>)
-                              [--agent <agent-id>] [--model <m>] [--effort <e>]
+                              [--agent <agent-id> [--allow-hidden]] [--model <m>] [--effort <e>]
                               [--worktree [--base-branch <branch>]] [--project-id <id>]
                               [--orchestrator <ref>] [--json]
   ghostex orchestrator link <session-ref> [--task <text>] [--orchestrator <ref>]
@@ -73,7 +73,8 @@ THREADS
   start-thread creates an agent session in the orchestrator's project, links it,
   and sends it the task. Ghostex appends the goal, the standing instructions,
   the memory notes and the reporting rules to every task, so write only the task
-  itself. The agent defaults to the orchestrator's own agent. --worktree gives the
+  itself. The agent defaults to the orchestrator's own agent; an --agent turned off
+  in Settings > Agents is refused unless --allow-hidden is passed. --worktree gives the
   thread its own git worktree and branch (from --base-branch, or the default
   branch). --model and --effort apply to this thread only (Claude, Codex, Pi, Empryo
   and Antigravity CLI; a ZCode thread keeps its configured model).

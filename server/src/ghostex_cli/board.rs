@@ -64,6 +64,11 @@ fn start_work_command(args: &[String]) -> CliResult<()> {
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
     {
+        crate::ghostex_cli::agents::require_launchable_agent(
+            &agent,
+            parsed.flags.truthy("allowHidden"),
+            &parsed.flags,
+        )?;
         payload.insert("agent".to_string(), Value::String(agent));
     }
     for (flag, key) in [("model", "agentModel"), ("effort", "agentEffort")] {
