@@ -424,8 +424,10 @@ impl NativeChatView {
                 detail: String::new(),
                 trailing,
                 body,
-                footer_start: actions,
-                footer_end,
+                footer_start: Vec::new(),
+                // The notice's own actions sit at the footer's right end, ahead of its dialog
+                // buttons and Dismiss.
+                footer_end: actions.into_iter().chain(footer_end).collect(),
             },
             Some(ToneBodyMotion {
                 key: &body_key,
