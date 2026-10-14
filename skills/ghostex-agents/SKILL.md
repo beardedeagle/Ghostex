@@ -64,8 +64,10 @@ yourself, follow `ghostex orchestrator guide` (older releases:
 thread after the area it owns. If you are a thread and your orchestrator's
 message starts a task in another area than your title says, rename yourself
 first with `ghostex orchestrator rename-self "<area>"` (a release newer than
-10.22.0); if it says the user renamed you, keep that name. Never use
-`ghostex rename-session` on a thread: that counts as the user's own rename.
+10.23.0, so 10.24.0 or later); if it says the user renamed you, keep that name.
+Rename a thread only that way: `ghostex rename-command` records the user's own
+rename, which then locks the name, and `ghostex rename-session` skips the
+user's-rename check.
 
 ## Check what another session is doing
 
@@ -162,8 +164,8 @@ turn; `--force` ends that turn, switches, and sends "." so the agent carries on.
 `reload` loses whatever the current turn
 was doing, so interrupt a merely busy agent instead. Tell the user which
 session you moved or reloaded. These verbs need a Ghostex release newer than
-10.22.0; when `ghostex accounts` is an unknown command, tell the user the
-session is stuck and needs Switch Account or a reload from the app.
+10.23.0 (10.24.0 or later); when `ghostex accounts` is an unknown command, tell
+the user the session is stuck and needs Switch Account or a reload from the app.
 
 ## Read another thread (past or present)
 
@@ -223,6 +225,9 @@ in `$GHOSTEX_GLOBAL_SESSION_REF`.
 ghostex rename-session "$GHOSTEX_GLOBAL_SESSION_REF" "<title>"   # sidebar title
 ghostex rename-command "$GHOSTEX_GLOBAL_SESSION_REF" "<title>"   # the agent's own /rename
 ```
+
+An orchestrator's thread renames itself with `ghostex orchestrator rename-self
+"<title>"` instead (see above), unless the user asked for the new name.
 
 Renaming your own session while you are still working is safe: it only changes
 the name and does not interrupt your turn, so do it right away instead of

@@ -27,6 +27,34 @@ use crate::*;
 use super::terminal_content_layout::terminal_content_frame;
 
 impl GhostexGpuiApp {
+    /// Whether this Agents pane shows a terminal that is cut out of the work area's glass tint
+    /// (`helpers/terminal_glass.rs`). The whole pane is cut out, not only the body, so the grip
+    /// strip above and the agent action bar's strip below share the terminal's thinner tint.
+    pub(crate) fn agents_leaf_cuts_out_terminal_glass(&self, leaf: &WorkspaceLeaf) -> bool {
+        if !terminal_glass_cutout_active() {
+            return false;
+        }
+        if leaf
+            .tab_group
+            .active_session_id()
+            .is_some_and(|session_id| self.agents_chat_mode_sessions.contains(&session_id))
+        {
+            return false;
+        }
+        self.agents_workspace
+            .terminal_body_mount_candidate(leaf)
+            .active_session_id
+            .and_then(|id| self.agents_workspace.session(id))
+            .is_some_and(|session| {
+                matches!(
+                    session.presentation_state,
+                    TerminalSessionPresentationState::Running
+                        | TerminalSessionPresentationState::Sleeping
+                        | TerminalSessionPresentationState::Mounting
+                )
+            })
+    }
+
     pub(crate) fn render_terminal_body_slot(
         &self,
         leaf: &WorkspaceLeaf,
@@ -179,18 +207,6 @@ impl GhostexGpuiApp {
             .min_h_0()
             .w_full()
             .bg(workspace_terminal_body_color(presentation_state))
-            .when(
-                terminal_glass_cutout_active()
-                    && matches!(
-                        presentation_state,
-                        Some(
-                            TerminalSessionPresentationState::Running
-                                | TerminalSessionPresentationState::Sleeping
-                                | TerminalSessionPresentationState::Mounting
-                        )
-                    ),
-                |this| this.child(terminal_glass_pane_fill()),
-            )
             .when(
                 native_mount_slot_id
                     .is_some_and(|slot_id| self.agents_terminal_slot_hovers_link(slot_id)),

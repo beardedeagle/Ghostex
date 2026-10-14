@@ -34,8 +34,9 @@ ghostex orchestrator start-thread --title "<the area it owns, 3 to 6 words>" --t
 - Name a thread after the area it owns ("Accounts settings", "Agent skills", "Sidebar drag and
   drop"), not its first task, so its follow-ups still fit the name. Threads rename themselves:
   when your follow-up starts a task in another area, the thread renames itself before it starts
-  (its brief tells it how), and never when the user renamed it. Never use `ghostex rename-session`
-  on a thread: that counts as the user's rename.
+  (its brief tells it how), and never when the user renamed it. Never rename a thread with
+  `ghostex rename-command` (it records the user's rename and locks the name) or
+  `ghostex rename-session` (it skips the user's-rename check).
 
 - The brief must stand on its own: the thread starts with none of your context. Say what to
   achieve, which files or areas matter, what it must not touch, how to prove the work is done

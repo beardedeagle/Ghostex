@@ -376,6 +376,10 @@ impl GhostexGpuiApp {
             .min_w_0()
             .min_h_0()
             .overflow_hidden()
+            // Before the outline segments, so they paint over it.
+            .when(self.agents_leaf_cuts_out_terminal_glass(leaf), |pane| {
+                pane.relative().child(terminal_glass_pane_fill())
+            })
             // Attention changes only the border color. Keeping its width
             // constant prevents status transitions from resizing the pane's
             // content box and nudging the tab bar, terminal, or action bar.

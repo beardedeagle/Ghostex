@@ -11,14 +11,15 @@ use crate::tri::Tri;
 
 /// Routing and ordering keys shared by all four chat frame types.
 ///
-/// `epoch` and `seq` live in memory per follower and restart from 1 after a daemon restart or a
-/// follower respawn, so compare `server_id` before comparing epochs.
+/// `epoch` and `seq` live in memory per follower. Each follower generation takes a new epoch that is
+/// higher than every epoch gxserver handed out before it, a restarted gxserver included (its
+/// `server_id` stays the same), and `seq` starts again inside it.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ChatFrameBase {
     pub project_id: String,
     pub session_id: String,
-    /// Follower generation, starts at 1.
+    /// Follower generation: rises with every new generation and across gxserver restarts.
     pub epoch: i64,
     /// Frame counter inside the epoch; the first frame is 1.
     pub seq: i64,

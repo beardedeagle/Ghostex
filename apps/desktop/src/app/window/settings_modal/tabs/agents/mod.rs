@@ -342,6 +342,26 @@ impl SettingsPage for AgentsTab {
     fn field_states(&mut self) -> &mut FieldStates {
         &mut self.fields
     }
+
+    /// CDXC:AgentLauncher 2026-10-14 DECISION:
+    /// User: "let's not allow dragging to reorder on any agent here in the list that's expanded. when trying to drag we first collapse it then allow dragging". A drag that starts on an expanded agent row closes the row, and the drag then carries the closed row; the drag list waits one measured frame so the lifted row and its slot are the closed height. Other open rows stay open.
+    fn reorder_prepare_lift(&mut self, list: &str, index: usize, cx: &mut Context<Self>) -> bool {
+        if list != roster::LIST {
+            return false;
+        }
+        let Some(agent_id) = self
+            .ordered_agents(cx)
+            .get(index)
+            .map(|agent| agent.agent_id.clone())
+        else {
+            return false;
+        };
+        if !self.expanded.contains(&agent_id) {
+            return false;
+        }
+        self.toggle_expanded(&agent_id, cx);
+        true
+    }
 }
 
 impl Render for AgentsTab {

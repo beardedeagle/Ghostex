@@ -142,7 +142,8 @@ pub(crate) fn workspace_column_glass_tint() -> impl IntoElement {
 
 /// A terminal pane's own share of the glass tint while terminals are cut out: it records the
 /// pane's rectangle for the column's tint to leave out and paints `terminal_glass_fill` there.
-/// Must be the pane body's first child, so the terminal paints over it.
+/// Must be the first child of the pane (Agents) or body (command pane), so everything in it paints
+/// over it.
 pub(crate) fn terminal_glass_pane_fill() -> impl IntoElement {
     canvas(
         |bounds, window, _cx| {

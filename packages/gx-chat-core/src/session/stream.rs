@@ -47,8 +47,8 @@ pub fn accept_authoritative_frame(
 
 /// Whether a snapshot the store already holds outranks the one that just arrived.
 ///
-/// Only within one server generation: `epoch` and `seq` restart when the daemon or the follower
-/// does, so a different `server_id` is never behind.
+/// Only within one `server_id`: a different one restarts the numbering, so it is never behind.
+/// gxserver keeps its `server_id` across restarts and hands a restarted follower a higher epoch.
 pub fn snapshot_is_stale(
     position: &FramePosition,
     confirmed: bool,

@@ -64,7 +64,7 @@ above. Route to a specialized skill only when its domain applies:
   and verifying other agents (start from `ghostex agents --help`), when
   reading or searching another session's thread, and when a session can't
   start or is stuck (`ghostex accounts`, `ghostex agents switch-account`,
-  `ghostex agents reload`; releases newer than 10.22.0).
+  `ghostex agents reload`; releases newer than 10.23.0, so 10.24.0 or later).
 - Use `$ghostex-auto-rename-session` when asked to generate a session title.
 - Use `$ghostex-move-codex-session` to fork a Codex session into another
   folder.
