@@ -29,6 +29,9 @@ const ROW_GAP: f32 = 2.0;
 const ROW_PAD_X: f32 = 8.0;
 /// The glyph tile's side.
 const TILE: f32 = 22.0;
+/// A described tool row's label: the agent's prose colour, 20% dimmer.
+/// SEE-ALSO: apps/mobile/app/src/chat/native/transcript/ToolRows.tsx (`DESCRIBED_LABEL_OPACITY`).
+const DESCRIBED_LABEL_OPACITY: f32 = 0.8;
 
 /// The bundled icon for each glyph `sessionChatToolGlyph` classifies a tool into.
 fn glyph_icon(glyph: &str) -> &'static str {
@@ -345,6 +348,7 @@ impl NativeChatView {
         name: String,
         preview: String,
         heading: gpui::Hsla,
+        name_weight: gpui::FontWeight,
         p: &ChatAppearance,
     ) -> StyledText {
         let gap = "\u{2002}";
@@ -361,12 +365,7 @@ impl NativeChatView {
             }
         };
         let runs = vec![
-            run(
-                name.len() + gap.len(),
-                p.font.clone(),
-                gpui::FontWeight::MEDIUM,
-                heading,
-            ),
+            run(name.len() + gap.len(), p.font.clone(), name_weight, heading),
             run(
                 preview.len(),
                 CHAT_MONO.to_string(),
@@ -455,28 +454,42 @@ impl NativeChatView {
         let has_detail = tool["hasDetail"] == true;
         let motion = self.disclosure_frame(&key, expanded && has_detail, cx);
         let failed = tool["failed"] == true;
-        let name = text(tool, "name");
+        // A call the agent described is named by that description in every mode, without its
+        // command preview (gx-chat-core `tool_description`); opening the row shows the command.
+        let described = !text(tool, "description").is_empty();
+        let name = match text(tool, "label") {
+            label if label.is_empty() => text(tool, "name"),
+            label => label,
+        };
         let preview = text(tool, "preview");
         let failure = text(tool, "failure");
         let duration = text(tool, "duration");
         let status = text(tool, "status");
         let subagent = text(&tool["subagent"], "name");
-        let heading = if failed { p.error() } else { p.foreground };
+        // A description reads as the agent's own prose, not as a tool name: the reply's font, size
+        // and weight, a fifth dimmer (`DESCRIBED_LABEL_OPACITY`).
+        let heading = match (failed, described) {
+            (true, _) => p.error(),
+            (false, true) => p.prose.opacity(DESCRIBED_LABEL_OPACITY),
+            (false, false) => p.foreground,
+        };
+        let name_weight = if described {
+            gpui::FontWeight::NORMAL
+        } else {
+            gpui::FontWeight::MEDIUM
+        };
         let toggle_key = key.clone();
         let a11y_label = match (subagent.is_empty(), preview.is_empty()) {
             (true, true) => format!("Tool {name}"),
             (true, false) => format!("Tool {name}: {preview}"),
             (false, _) => format!("Tool {name} ({subagent}): {preview}"),
         };
-        // The preview is the tool's argument, which simple mode hides, followed by what failed
-        // when it failed, which every mode shows. Simple mode names the call by the description
-        // the agent gave it, when it gave one (gx-chat-core `tool_description`).
-        let preview = if p.simple { String::new() } else { preview };
-        let description = text(tool, "description");
-        let name = if p.simple && !description.is_empty() {
-            description
+        // The preview is the tool's argument, which simple mode and a description hide, followed
+        // by what failed when it failed, which every mode shows.
+        let preview = if p.simple || described {
+            String::new()
         } else {
-            name
+            preview
         };
         let preview = match (preview.is_empty(), failure.is_empty()) {
             (_, true) => preview,
@@ -530,7 +543,13 @@ impl NativeChatView {
                     .flex_1()
                     .min_w_0()
                     .truncate()
-                    .child(Self::name_and_preview(name, preview, heading, p)),
+                    .child(Self::name_and_preview(
+                        name,
+                        preview,
+                        heading,
+                        name_weight,
+                        p,
+                    )),
             )
         } else {
             trigger.child(
@@ -538,7 +557,8 @@ impl NativeChatView {
                     .when(fills, |this| this.flex_1())
                     .min_w_0()
                     .truncate()
-                    .font_weight(gpui::FontWeight::MEDIUM)
+                    .font_weight(name_weight)
+                    .when(described, |this| this.text_size(px(14.0 * s)))
                     .text_color(heading)
                     .child(name),
             )

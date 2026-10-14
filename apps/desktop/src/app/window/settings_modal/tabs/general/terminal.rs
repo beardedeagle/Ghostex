@@ -353,6 +353,9 @@ fn terminal_section(
             cx,
         ));
     }
+    rows.extend(super::terminal_transparency::transparency_rows(
+        page, g, window, cx,
+    ));
     if g.visible(s, "terminalBackgroundImage") {
         let spec = g.spec(
             "terminalBackgroundImage",

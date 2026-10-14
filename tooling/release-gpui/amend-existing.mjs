@@ -23,6 +23,7 @@ import {
   isNonProductArtifactDirectory,
   readPublishPlan,
   renderReleaseProvenanceReport,
+  validateProductAgainstPlan,
 } from './publish-provenance.mjs';
 import {
   assertLiveDependencyAlignment,
@@ -30,6 +31,7 @@ import {
   mergeAmendProvenance,
   mergeReleaseNotes,
   mutateArtifactNames,
+  siblingRecordsToRestore,
 } from './amend-existing-lib.mjs';
 import { productDefinition } from './product-inputs.mjs';
 import {
@@ -408,25 +410,66 @@ const normalizeBody = (body) =>
     .trimEnd();
 
 /*
- * CDXC:Release 2026-09-10 WHY:
+ * CDXC:Release 2026-10-14 WHY:
  * Sibling stages of a staged release amend this release at the same time, and
  * the provenance record and the notes are the only state they share. Each stage
  * merges its products into whatever is live, writes, then re-reads: when a
  * sibling's write raced past ours and dropped our products, we merge again from
- * its state. Every write is "live plus mine", so the loop converges as soon as
- * the last writer has seen everyone else's products. A standalone amend has no
- * siblings and settles on the first pass.
+ * its state. "Live plus mine" alone is not enough: a writer that read before a
+ * sibling wrote, and writes after that sibling exited, drops it for good
+ * (10.23.0). So every write also restores sibling records whose assets are live,
+ * and a pass settles only when none is missing; the notes are rebuilt from the
+ * live asset names the same way. Supersedes the 2026-09-10 loop that checked
+ * only its own products. A standalone amend has no siblings and settles on the
+ * first pass.
  */
 const provenanceAssetPath = path.join(artifactsRoot, provenanceName);
 const notesPath = path.join(artifactsRoot, `amend-notes-${version}.md`);
+
+/*
+ * A stage also restores sibling records a concurrent write dropped
+ * (siblingRecordsToRestore). Their records come from this run's
+ * `release-provenance-<product>` artifacts and must describe this plan; one
+ * that does not is the sibling's own failure to report, not this stage's.
+ */
+const siblingRecords = {};
+if (publishStage) {
+  for (const productId of plan.expectedPlatforms) {
+    if (mutate.includes(productId)) continue;
+    const file = path.join(artifactsRoot, `release-provenance-${productId}`, PRODUCT_PROVENANCE_FILE);
+    if (!existsSync(file)) continue;
+    try {
+      const record = JSON.parse(readFileSync(file, 'utf8').replace(/^\uFEFF/u, ''));
+      siblingRecords[productId] = validateProductAgainstPlan({
+        manifest: { artifacts: record.artifacts, platform: productId },
+        plan,
+        record,
+        version,
+      });
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      console.log(`::warning::Not restoring ${productId}'s provenance: ${reason}`);
+    }
+  }
+}
+
 let mergedProvenance;
 let verified;
 for (let attempt = 0; ; attempt += 1) {
-  const live = attempt === 0 ? first : readLiveRelease({ deadlineMs: 2 * 60 * 1000 });
+  /* A stage re-reads after its uploads: the first read is minutes old by now and siblings may have written since. */
+  const live = attempt === 0 && !publishStage ? first : readLiveRelease({ deadlineMs: 2 * 60 * 1000 });
+  const restored = siblingRecordsToRestore({
+    liveAssets: live.release.assets,
+    liveProducts: live.provenance.products,
+    siblingRecords,
+  });
+  if (Object.keys(restored).length > 0) {
+    console.log(`Restoring provenance a concurrent write dropped: ${Object.keys(restored).join(', ')}`);
+  }
   mergedProvenance = mergeAmendProvenance({
     amendPlan: plan,
     live: live.provenance,
-    mutatedRecords,
+    mutatedRecords: { ...restored, ...mutatedRecords },
     publishedAt: new Date().toISOString(),
     sourceSha: sourceCommit,
     version,
@@ -459,13 +502,22 @@ for (let attempt = 0; ; attempt += 1) {
   const notesSettled =
     normalizeBody(mergeReleaseNotes({ assetNames: liveNames, liveBody: after.release.body, version })) ===
     normalizeBody(after.release.body);
-  if (provenanceSettled && notesSettled) {
+  const siblingsSettled =
+    Object.keys(
+      siblingRecordsToRestore({
+        liveAssets: after.release.assets,
+        liveProducts: after.provenance.products,
+        siblingRecords,
+      })
+    ).length === 0;
+  if (provenanceSettled && notesSettled && siblingsSettled) {
     verified = after.release;
     break;
   }
   if (attempt >= 8) {
     throw new Error(
-      `${tag} did not settle after ${attempt + 1} merge attempts (provenance ${provenanceSettled}, notes ${notesSettled})`
+      `${tag} did not settle after ${attempt + 1} merge attempts (provenance ${provenanceSettled}, ` +
+        `siblings ${siblingsSettled}, notes ${notesSettled})`
     );
   }
   console.log(`A sibling publish raced this stage's write to ${tag}; merging again (attempt ${attempt + 2}).`);

@@ -83,6 +83,7 @@ impl NativeChatView {
         if !main {
             p.verbose = false;
             p.simple = false;
+            p.work_open = false;
         }
         let p = p;
         let s = p.scale;
@@ -449,7 +450,7 @@ impl NativeChatView {
             if reasoning && tools {
                 let key = format!("reasoning:{id}");
                 // A running summary turn's newest row opens its tools (gx-chat-core `summary_mode_turns`).
-                let expanded = self.is_expanded(&key, p.verbose || message["toolsOpen"] == true);
+                let expanded = self.is_expanded(&key, p.work_open || message["toolsOpen"] == true);
                 let motion = self.disclosure_frame(&key, expanded, cx);
                 row = row.child(self.disclosure(
                     key.clone(),
@@ -503,7 +504,7 @@ impl NativeChatView {
                 // (CDXC:SessionChat 2026-09-13 DECISION in React's rows.tsx, now in git history).
                 let key = format!("tools:{id}");
                 let expanded =
-                    tools && self.is_expanded(&key, p.verbose || message["toolsOpen"] == true);
+                    tools && self.is_expanded(&key, p.work_open || message["toolsOpen"] == true);
                 let motion = self.disclosure_frame(&key, expanded, cx);
                 let flush = self.is_flush_reply(message);
                 let heading = div()

@@ -200,6 +200,55 @@ function shellQuote(value) {
   return `'${String(value).replaceAll("'", "'\\''")}'`;
 }
 
+/*
+ CDXC:Release 2026-10-14 WHY:
+ Read releases through the REST API rather than `gh release view --json assets`:
+ older gh builds (2.67 on the Windows release machine) omit `digest` from that
+ JSON, which made every digest check report "GitHub reports no digest" although
+ GitHub has the digests. The REST release object carries them on every gh.
+*/
+async function githubRelease(tag) {
+  const release = JSON.parse(
+    await capture(
+      `env -u GH_TOKEN -u GITHUB_TOKEN gh api ${shellQuote(`repos/${githubRepo}/releases/tags/${tag}`)}`
+    )
+  );
+  return { assets: release.assets ?? [], body: release.body ?? '', url: release.html_url };
+}
+
+/*
+ The top appcast item's fields, read without xmllint (which Windows does not
+ ship). Values may be CDATA or entity-escaped; both are decoded.
+*/
+export function readAppcastTopItem(xml) {
+  const decode = (value) =>
+    value
+      .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/gu, '$1')
+      .replace(/&#x([0-9a-f]+);/giu, (_, hex) => String.fromCodePoint(Number.parseInt(hex, 16)))
+      .replace(/&#(\d+);/gu, (_, decimal) => String.fromCodePoint(Number(decimal)))
+      .replaceAll('&lt;', '<')
+      .replaceAll('&gt;', '>')
+      .replaceAll('&quot;', '"')
+      .replaceAll('&apos;', "'")
+      .replaceAll('&amp;', '&')
+      .trim();
+  const item = /<item\b[^>]*>([\s\S]*?)<\/item>/u.exec(xml)?.[1] ?? '';
+  const element = (name) =>
+    decode(
+      new RegExp(String.raw`<(?:[\w-]+:)?${name}\b[^>]*>([\s\S]*?)</(?:[\w-]+:)?${name}>`, 'u').exec(item)?.[1] ?? ''
+    );
+  const enclosure = /<enclosure\b([^>]*)>/u.exec(item)?.[1] ?? '';
+  const attribute = (name) =>
+    decode(new RegExp(String.raw`(?:^|\s)(?:[\w-]+:)?${name}\s*=\s*"([^"]*)"`, 'u').exec(enclosure)?.[1] ?? '');
+  return {
+    description: element('description'),
+    edSignature: attribute('edSignature'),
+    shortVersionString: element('shortVersionString'),
+    url: attribute('url'),
+    version: element('version'),
+  };
+}
+
 function parseAssetSha(asset) {
   const digest = asset?.digest;
   return typeof digest === 'string' && digest.startsWith('sha256:') ? digest.slice('sha256:'.length) : null;
@@ -315,12 +364,9 @@ async function verify(cleanupPaths) {
   let releaseAssets = [];
   let releaseBody = '';
   await check('github-release', async () => {
-    const json = await capture(
-      `env -u GH_TOKEN -u GITHUB_TOKEN gh release view ${shellQuote(`v${version}`)} --repo ${shellQuote(githubRepo)} --json tagName,url,assets,body`
-    );
-    const release = JSON.parse(json);
-    releaseAssets = release.assets ?? [];
-    releaseBody = release.body ?? '';
+    const release = await githubRelease(`v${version}`);
+    releaseAssets = release.assets;
+    releaseBody = release.body;
     const dmgName = `ghostex-${version}-arm64.dmg`;
     if (!releaseAssets.some((asset) => asset.name === dmgName)) {
       throw new Error(`Release is missing ${dmgName}.`);
@@ -396,12 +442,7 @@ async function verify(cleanupPaths) {
       if (origin.versionStamped) {
         throw new Error(`${origin.product} is version-stamped but claims reuse from ${origin.tag}.`);
       }
-      const originRelease = JSON.parse(
-        await capture(
-          `env -u GH_TOKEN -u GITHUB_TOKEN gh release view ${shellQuote(origin.tag)} ` +
-            `--repo ${shellQuote(githubRepo)} --json assets`
-        )
-      );
+      const originRelease = await githubRelease(origin.tag);
       for (const artifact of origin.artifacts) {
         const originAsset = (originRelease.assets ?? []).find((asset) => asset.name === artifact.name);
         const originSha = parseAssetSha(originAsset);
@@ -580,23 +621,18 @@ async function verify(cleanupPaths) {
       return SKIPPED;
     }
     const appcastPath = path.join(await tempDir(`ghostex-verify-${version}-`), 'appcast.xml');
-    await writeFile(appcastPath, await githubContent(githubRepo, 'appcast.xml'));
-    await capture(`xmllint --noout ${shellQuote(appcastPath)}`);
-    const topVersion = await capture(
-      `xmllint --xpath "string((//*[local-name()='item'][1]/*[local-name()='version'])[1])" ${shellQuote(appcastPath)}`
-    );
-    const topShortVersion = await capture(
-      `xmllint --xpath "string((//*[local-name()='item'][1]/*[local-name()='shortVersionString'])[1])" ${shellQuote(appcastPath)}`
-    );
-    const topUrl = await capture(
-      `xmllint --xpath "string((//*[local-name()='item'][1]/*[local-name()='enclosure']/@url)[1])" ${shellQuote(appcastPath)}`
-    );
-    liveSignature = await capture(
-      `xmllint --xpath "string((//*[local-name()='item'][1]/*[local-name()='enclosure']/@*[local-name()='edSignature'])[1])" ${shellQuote(appcastPath)}`
-    );
-    const embeddedNotes = await capture(
-      `xmllint --xpath "string((//*[local-name()='item'][1]/*[local-name()='description'])[1])" ${shellQuote(appcastPath)}`
-    );
+    const appcastXml = await githubContent(githubRepo, 'appcast.xml');
+    await writeFile(appcastPath, appcastXml);
+    /* Well-formedness needs a real XML parser; the field checks below run everywhere. */
+    const xmllintAvailable =
+      (await runCommand(process.platform === 'win32' ? 'where xmllint' : 'command -v xmllint')).code === 0;
+    if (xmllintAvailable) await capture(`xmllint --noout ${shellQuote(appcastPath)}`);
+    const topItem = readAppcastTopItem(appcastXml);
+    const topVersion = topItem.version;
+    const topShortVersion = topItem.shortVersionString;
+    const topUrl = topItem.url;
+    liveSignature = topItem.edSignature;
+    const embeddedNotes = topItem.description;
     const expectedUrl = `https://github.com/${githubRepo}/releases/download/v${version}/ghostex-${version}-arm64.dmg`;
     if (topVersion !== String(buildVersion) || topShortVersion !== version) {
       throw new Error(`Top item is ${topShortVersion} (${topVersion}); expected ${version} (${buildVersion}).`);
@@ -615,7 +651,9 @@ async function verify(cleanupPaths) {
     if (notesProbe && !embeddedNotes.includes(notesProbe)) {
       throw new Error(`Embedded notes do not contain expected changelog text: ${notesProbe}`);
     }
-    return `top item ${version} (${buildVersion}) with embedded notes`;
+    const detail = `top item ${version} (${buildVersion}) with embedded notes`;
+    if (!xmllintAvailable) return { warn: `${detail}; xmllint not installed, so well-formedness was not checked` };
+    return detail;
   });
 
   await check('homebrew-cask', async () => {

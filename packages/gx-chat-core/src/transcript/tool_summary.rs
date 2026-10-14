@@ -365,8 +365,10 @@ pub fn format_tool_input(input: &Value) -> String {
 }
 
 /// The one line the agent wrote to say what a call does (Claude's, OpenCode's and Gemini's
-/// `description`), which Simple mode shows in place of the tool's name; empty when the call has
-/// none. See `summary_mode_turns` in `turns.rs` for the decision.
+/// `description`), which a tool row shows in place of the tool's name and its command preview in
+/// every mode; empty when the call has none, and opening the row still shows the full command.
+///
+/// CDXC:SessionChat 2026-10-14 DECISION: User: "i dont want any of the modes to show this (just commands like this)" and "we should always show this (command description) -- even when simple mode is disabled". A described call's row reads the agent's description in Simple and verbose mode alike, with no command preview beside it; a call with no description keeps its tool name and preview. Then: "please also make sure the description of the tool call or command that we show isn't bold, should be same font style as normal agent message just 20% less bright oclor", so the renderers draw a description in the reply prose's font, size and normal weight, in the prose colour at 80%. Supersedes the 2026-10-13 rule that showed the description in Simple mode only.
 pub fn tool_description(input: &Value) -> String {
     let Value::Object(entries) = input else {
         return String::new();

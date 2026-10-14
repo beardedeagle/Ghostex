@@ -606,6 +606,7 @@ pub const DEFAULT_GHOSTEX_SETTINGS: &[(&str, J)] = &[
     ("terminalColorScheme", J::Str("app")),
     ("terminalGhosttyLightTheme", J::Str("GitHub Light Default")),
     ("terminalGhosttyTheme", J::Str("GitHub Dark")),
+    ("terminalBackgroundOpacity", J::Num(100.0)),
     ("terminalBackgroundImage", J::Str("")),
     ("terminalBackgroundImageOpacity", J::Num(1.0)),
     ("terminalBackgroundImageFit", J::Str("cover")),

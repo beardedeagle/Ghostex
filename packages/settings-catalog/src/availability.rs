@@ -33,6 +33,16 @@ const ROWS: &[RowAvailability] = &[
             "desktopAndWindows",
         )),
     },
+    // Settings > Terminal's Background blur is the same `windowGlassBlurRadius` slider.
+    RowAvailability {
+        key: "terminalBackgroundBlur",
+        only_on: &[],
+        hidden_while: Some((
+            Platform::Windows,
+            "windowGlassSource",
+            "desktopAndWindows",
+        )),
+    },
     RowAvailability {
         key: "windowGlassMenuBlurRadius",
         only_on: &[Platform::MacOs],

@@ -115,6 +115,9 @@ impl GhostexGpuiApp {
             .w_full()
             .overflow_hidden()
             .bg(command_terminal_placeholder_color())
+            .when(body_has_session && terminal_glass_cutout_active(), |this| {
+                this.child(terminal_glass_pane_fill())
+            })
             .when(
                 native_mount_slot_id
                     .is_some_and(|slot_id| self.command_terminal_slot_hovers_link(slot_id)),

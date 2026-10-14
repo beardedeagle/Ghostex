@@ -36,6 +36,12 @@ pub(crate) struct ChatAppearance {
     pub(crate) light: bool,
     pub(crate) verbose: bool,
     pub(crate) simple: bool,
+    /// The folds under each agent message (a reply's tool calls, a thought's tools, a finished
+    /// turn's "Worked" log) start open: in verbose mode, and whenever Simple mode is off.
+    ///
+    /// CDXC:SessionChat 2026-10-14 DECISION: User: "if the user disables simple mode we should expand what's under the areas under each agent message by default". With Simple mode off the work under each reply starts open as verbose mode's does; closing one sticks as a manual toggle does, each tool row's own output stays closed, and Simple mode keeps its folds.
+    /// SEE-ALSO: apps/mobile/app/src/chat/native/transcript/Transcript.tsx (`workOpen`).
+    pub(crate) work_open: bool,
     pub(crate) file_previews: bool,
     pub(crate) transcript_width: Option<f32>,
     /// How marked sections in agents' replies are drawn.
@@ -131,6 +137,14 @@ impl ChatAppearance {
         let settings = snapshot.object();
         let color = |dark, light_color| rgb(if light { light_color } else { dark }).into();
         let enabled = |name| settings.get(name).and_then(serde_json::Value::as_bool) == Some(true);
+        let verbose = state["verboseOverride"]
+            .as_bool()
+            .unwrap_or_else(|| enabled("sessionChatVerboseMode"));
+        // A missing key means the shared default, which is on (defaults.ts, CDXC:SessionChat 2026-09-27).
+        let simple = settings
+            .get("sessionChatSimpleMode")
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(true);
         // The transcript and its cards share one backing tone derived from the chat's own theme
         // variant (the chat may be dark while the app is light), see session_chat_background_for_chrome.
         let background_rgb = work_area_background_for_variant(settings, light);
@@ -228,14 +242,9 @@ impl ChatAppearance {
                 .unwrap_or("DM Sans")
                 .to_string(),
             light,
-            verbose: state["verboseOverride"]
-                .as_bool()
-                .unwrap_or_else(|| enabled("sessionChatVerboseMode")),
-            // A missing key means the shared default, which is on (defaults.ts, CDXC:SessionChat 2026-09-27).
-            simple: settings
-                .get("sessionChatSimpleMode")
-                .and_then(serde_json::Value::as_bool)
-                .unwrap_or(true),
+            verbose,
+            simple,
+            work_open: verbose || !simple,
             file_previews: enabled("sessionChatFileEditPreviews"),
             marked_sections: super::marked_sections::MarkerStyle::from_settings(settings),
             transcript_width: enabled("sessionChatCustomTranscriptWidthEnabled").then(|| {

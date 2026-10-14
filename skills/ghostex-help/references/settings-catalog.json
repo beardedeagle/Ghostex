@@ -1416,6 +1416,34 @@
       "agentWritable": true
     },
     {
+      "key": "terminalBackgroundOpacity",
+      "title": "Background opacity (%)",
+      "subtitle": "How much of the work area's glass tint terminals keep while transparency is on (Settings > Theme > Transparency). 100% matches the rest of the work area; lower shows more of what is behind the window. Off while transparency is off.",
+      "tab": "settings",
+      "tabTitle": "General",
+      "group": "terminal",
+      "groupTitle": "Terminal",
+      "section": "terminal",
+      "sectionTitle": "Terminal",
+      "type": "number",
+      "default": 100,
+      "agentWritable": true
+    },
+    {
+      "key": "terminalBackgroundBlur",
+      "title": "Background blur",
+      "subtitle": "How soft what shows behind the window looks, in points; 0 shows it sharp. It is the window's Blur, the same setting as Settings > Theme > Transparency (`windowGlassBlurRadius`), since a window has one blur. Shown while transparency is on.",
+      "tab": "settings",
+      "tabTitle": "General",
+      "group": "terminal",
+      "groupTitle": "Terminal",
+      "section": "terminal",
+      "sectionTitle": "Terminal",
+      "type": "ui",
+      "agentWritable": false,
+      "availability": "Not shown on Windows while What shows behind the glass is Desktop and windows."
+    },
+    {
       "key": "terminalBackgroundImage",
       "title": "Background Image",
       "subtitle": "Absolute path to an image drawn behind terminal panes.",

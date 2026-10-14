@@ -180,6 +180,18 @@ impl GhostexGpuiApp {
             .w_full()
             .bg(workspace_terminal_body_color(presentation_state))
             .when(
+                terminal_glass_cutout_active()
+                    && matches!(
+                        presentation_state,
+                        Some(
+                            TerminalSessionPresentationState::Running
+                                | TerminalSessionPresentationState::Sleeping
+                                | TerminalSessionPresentationState::Mounting
+                        )
+                    ),
+                |this| this.child(terminal_glass_pane_fill()),
+            )
+            .when(
                 native_mount_slot_id
                     .is_some_and(|slot_id| self.agents_terminal_slot_hovers_link(slot_id)),
                 |this| this.cursor_pointer(),
