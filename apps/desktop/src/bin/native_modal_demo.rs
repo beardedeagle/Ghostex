@@ -87,6 +87,10 @@ mod rename_session_modal;
 mod rename_worktree_demo;
 #[path = "../app/window/rename_worktree_modal.rs"]
 mod rename_worktree_modal;
+#[path = "native_modal_demo/permission_guide.rs"]
+mod permission_guide_demo;
+#[path = "../app/os_integration/permission_guide/bar.rs"]
+mod permission_guide_bar;
 #[path = "native_modal_demo/session_note.rs"]
 mod session_note_demo;
 #[path = "../app/window/session_note_modal.rs"]
@@ -340,6 +344,7 @@ fn main() {
                 "missing-project-folder" => missing_project_folder_demo::open(&demo, cx),
                 "rename-session" => rename_session_demo::open(&demo, cx),
                 "session-note" => session_note_demo::open(&demo, cx),
+                "permission-guide" => permission_guide_demo::open(&demo, cx),
                 "install-hooks" => agent_hooks_required_demo::open(&demo, cx),
                 "agents-hub" => agents_hub_demo::open(&demo, cx),
                 "git-commit" => git_commit_demo::open(&demo, cx),

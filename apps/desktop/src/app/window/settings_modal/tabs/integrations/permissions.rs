@@ -130,8 +130,6 @@ fn permission_state(
 struct PermissionWatch {
     tool: PermissionTool,
     started: Instant,
-    /// SpaceO's restart was asked for once the grant landed, so its daemon picks the grant up.
-    restart_requested: bool,
 }
 
 #[derive(Default)]
@@ -198,7 +196,7 @@ impl IntegrationsTab {
         {
             return;
         }
-        if let Some(watch) = self.permissions.watch.as_mut() {
+        if let Some(watch) = self.permissions.watch.as_ref() {
             let states =
                 Permission::ALL.map(|permission| permission_state(status, watch.tool, permission));
             if states
@@ -215,12 +213,6 @@ impl IntegrationsTab {
             } else if watch.started.elapsed() >= WATCH_LIMIT {
                 self.permissions.watch = None;
                 cx.notify();
-            } else if watch.tool == PermissionTool::Spaceo
-                && !watch.restart_requested
-                && states.contains(&PermissionState::NeedsRestart)
-            {
-                watch.restart_requested = true;
-                post_store_message(&self.store, json!({ "type": "restartSpaceo" }), cx);
             }
         }
         let interval = if self.permissions.watch.is_some() {
@@ -256,7 +248,6 @@ impl IntegrationsTab {
         self.permissions.watch = Some(PermissionWatch {
             tool,
             started: Instant::now(),
-            restart_requested: false,
         });
         cx.notify();
     }

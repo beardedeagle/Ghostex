@@ -728,6 +728,13 @@ fn main() {
         .file(gpui_ghostex_capture)
         .compile("ghostex_gpui_ghostex_capture");
 
+    // The floating permission bar beside System Settings (see the file's CDXC:OsIntegration note).
+    let gpui_permission_guide = manifest_dir.join("native/macos/GpuiPermissionGuide.m");
+    println!("cargo:rerun-if-changed={}", gpui_permission_guide.display());
+    gpui_macos_objc_build()
+        .file(gpui_permission_guide)
+        .compile("ghostex_gpui_permission_guide");
+
     /*
     CDXC:Icons 2026-07-12:
     GPUI reuses the shared Settings App Icon picker and ~/.ghostex/icons

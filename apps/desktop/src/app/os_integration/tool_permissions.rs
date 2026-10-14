@@ -29,7 +29,8 @@ impl GhostexGpuiApp {
     }
 
     /// Grant: the tool asks macOS for its own grants, so it appears in System Settings, then
-    /// SpaceO's Privacy pane opens for the switch (CuaDriver.app opens its panes itself).
+    /// SpaceO's Privacy pane opens with the floating permission bar beside it (permission_guide.rs);
+    /// CuaDriver.app opens its panes itself.
     pub(crate) fn grant_gpui_tool_permission(
         &mut self,
         tool: &str,
@@ -53,6 +54,8 @@ impl GhostexGpuiApp {
                     );
                     return;
                 };
+                let permission = permission.to_string();
+                let guide_path = path.clone();
                 cx.spawn(async move |this, cx| {
                     let requested = background
                         .spawn(async move { gpui_spaceo_request_permissions(&path) })
@@ -71,6 +74,7 @@ impl GhostexGpuiApp {
                             "grantToolPermission",
                             cx,
                         );
+                        this.open_gpui_permission_guide(guide_path, &permission, cx);
                         this.refresh_gpui_tool_permission_status(cx);
                     });
                 })

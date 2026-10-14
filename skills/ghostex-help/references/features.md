@@ -2758,9 +2758,14 @@ backend: `ghostex team deploy|join|invite|identity|status|ping|leave`. Slack:
   ask macOS for the permission, so it is listed in System Settings (SpaceO as
   "spaceo", Fast Computer & Browser Use as "CuaDriver"), and opens that
   Privacy & Security pane; turn the switch on there and the row turns to
-  Granted. Needs restart means macOS allowed SpaceO after it started: Restart
-  SpaceO (done for you after a Grant) restarts it once the agents using it
-  finish. Ask agents to use $ghostex-spaceo (or /ghostex-spaceo in Claude).
+  Granted. For SpaceO, a floating bar sits on the edge of System Settings
+  while you do: it says which switch to turn on, shows Waiting until macOS
+  has the permission and then Granted, moves on to the other permission, and
+  closes when both are on (or with its x). If spaceo is not in the list,
+  drag the bar's spaceo tile into it. Needs restart means macOS allowed
+  SpaceO after it started: Restart SpaceO (done for you when the bar
+  finishes) restarts it once the agents using it finish. Ask agents to use
+  $ghostex-spaceo (or /ghostex-spaceo in Claude).
   Commands: `ghostex spaceo install-skill`, `spaceo doctor`.
 - Settings > Integrations > Tools lists the tools Ghostex can install for you
   when something you set up needs them: Node.js and npm, uv, Homebrew (Mac),
