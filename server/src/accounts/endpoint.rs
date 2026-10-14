@@ -444,10 +444,13 @@ pub(crate) fn dispatch(
                     required(params, "sessionId")?,
                 );
             } else {
-                if crate::presentation::presentation_activity(
-                    &session,
-                    &chrono::Utc::now().to_rfc3339(),
-                ) == "working"
+                // `force` (accounts/cli.rs) lets the in-place restart interrupt the turn and continues it with ".".
+                let force = params.get("force").and_then(Value::as_bool) == Some(true);
+                if !force
+                    && crate::presentation::presentation_activity(
+                        &session,
+                        &chrono::Utc::now().to_rfc3339(),
+                    ) == "working"
                 {
                     return Err(DomainStateError::bad_request(
                         "Stop the current turn before switching accounts.",
@@ -461,7 +464,11 @@ pub(crate) fn dispatch(
                     &project,
                     &session,
                     Some(required(params, "accountId")?),
-                    SwitchSource::Manual,
+                    if force && session["lifecycleState"].as_str() == Some("running") {
+                        SwitchSource::Forced
+                    } else {
+                        SwitchSource::Manual
+                    },
                 )?;
                 // Choosing a disabled account by hand is the user saying it works again (disabled.rs); otherwise the next send would move the session straight off it.
                 let chosen = required(params, "accountId")?;
@@ -500,7 +507,12 @@ pub(crate) fn dispatch(
         params,
     )?;
     if operation == "roster" {
-        super::cli::roster(&repository, &snapshot, &mut value)?;
+        super::cli::roster(
+            &repository,
+            &snapshot,
+            &mut value,
+            params.get("allSessions").and_then(Value::as_bool) == Some(true),
+        )?;
     }
     if usage_history.is_some() {
         value["usageHistory"] = state.accounts.history.snapshot();
@@ -682,7 +694,7 @@ pub(crate) fn select(
     runtime.insert("accountSwitch".into(), json!({
         "id": uuid::Uuid::new_v4().to_string(),
         "provider": provider,
-        "source": if source == SwitchSource::Manual { "manual" } else { "automatic" },
+        "source": if source == SwitchSource::Automatic { "automatic" } else { "manual" },
         "phase": "switching",
         "fromAccountId": super::session_identity::display_account_id(registry, provider, session, &state.paths.home_dir),
         "toAccountId": id,

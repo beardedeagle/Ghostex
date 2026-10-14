@@ -11,7 +11,8 @@ USAGE
   ghostex agents send <session-ref> --body-file <path> [--interrupt | --queue]
                      [--request-id <id>]
   ghostex agents close <session-ref>
-  ghostex agents switch-account <session-ref> --account <number|email> [--json]
+  ghostex agents switch-account <session-ref> --account <number|email>
+                               [--force] [--json]
   ghostex agents reload <session-ref> [--json]
 
 QUICK START
@@ -171,13 +172,14 @@ READ ANOTHER THREAD (past or present)
   ghostex read-session-chat --help lists every flag.
 
 ACCOUNTS AND STUCK SESSIONS
-  ghostex accounts [--refresh] [--json]
-  ghostex agents switch-account <session-ref> --account <number|email>
+  ghostex accounts [--all] [--refresh] [--json]
+  ghostex agents switch-account <session-ref> --account <number|email> [--force]
   ghostex agents reload <session-ref>
 
   accounts lists every saved Claude and Codex account: number, email, state
   (ready, limit reached, needs sign-in), usage per window with its reset
-  time, the default for new sessions, and the sessions on each account.
+  time, the default for new sessions, and the running and sleeping sessions
+  on each account (--all adds the stopped ones).
 
   switch-account moves a Claude or Codex session to another saved account of
   the same provider and restarts its agent there on the same conversation,
@@ -185,8 +187,11 @@ ACCOUNTS AND STUCK SESSIONS
   start ("has no saved login") as well as a running one, and waits up to a
   minute for the restart. It refuses an unknown account or one that needs
   signing in, and names the accounts that would work. A busy session is
-  refused: interrupt it first, or reload it. A sleeping session only changes
-  its account and starts on it at its next wake.
+  refused: interrupt it first, reload it, or pass --force. --force ends the
+  running turn (its unfinished work is lost), switches, and then sends "."
+  once the restarted agent is ready so it carries on where it stopped. A
+  sleeping session only changes its account and starts on it at its next
+  wake.
 
   reload stops the session's agent and starts it again on the same
   conversation: for a session that hangs, shows a broken screen, or failed

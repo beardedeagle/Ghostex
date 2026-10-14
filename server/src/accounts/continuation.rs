@@ -10,10 +10,13 @@ use std::{sync::Arc, time::Duration};
 pub(crate) enum SwitchSource {
     Manual,
     Automatic,
+    /// `ghostex agents switch-account --force`: chosen by hand, interrupts a running turn and continues it with "." like an automatic switch (accounts/cli.rs).
+    Forced,
 }
 
 /// CDXC:AgentProviders 2026-09-11 DECISION:
 /// User: manually switching accounts must not send a "." or start a turn, even on a prompted session. This supersedes the earlier continuation after every prompted switch.
+/// The one exception is `ghostex agents switch-account --force` (user, 2026-10-14: "also add --force but force needs to send \".\" after the switch"), which continues like an automatic switch.
 /// Automatic switches send one literal "." once the agent input is ready. Drafts keep their input unsent, and configured same-account error recovery keeps its own continuation flow.
 /// Stop or a manual send cancels the claim; an uncertain delivery is never replayed.
 pub(crate) fn start(

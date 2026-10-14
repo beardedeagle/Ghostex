@@ -162,14 +162,14 @@ pub(super) fn switch_account(args: &Arguments) -> CliResult<Value> {
         &json!({
             "operation": "switchSession",
             "globalRef": recipient["globalRef"], "projectId": recipient["projectId"], "sessionId": recipient["sessionId"],
-            "account": args.account,
+            "account": args.account, "force": args.force,
         }),
         &flags,
     )
     .map_err(|error| {
         let message = error.to_string();
         if message.contains("Stop the current turn") {
-            CliError::Other(format!("{message} Interrupt it with ghostex interrupt-session-chat {0}, or restart it with ghostex agents reload {0} (its current turn is lost).", text(&recipient, "globalRef")))
+            CliError::Other(format!("{message} Interrupt it with ghostex interrupt-session-chat {0}, restart it with ghostex agents reload {0}, or pass --force to end the turn, switch, and send \".\" so it carries on (its current turn is lost).", text(&recipient, "globalRef")))
         } else {
             error
         }

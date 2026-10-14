@@ -152,7 +152,9 @@ ghostex agents reload <ref>                                   # stop and restart
 ```
 
 Pick a ready account with room for `switch-account`; it refuses one that needs
-signing in and names those that work. `reload` loses whatever the current turn
+signing in and names those that work. It refuses a session in the middle of a
+turn; `--force` ends that turn, switches, and sends "." so the agent carries on.
+`reload` loses whatever the current turn
 was doing, so interrupt a merely busy agent instead. Tell the user which
 session you moved or reloaded. These verbs need a Ghostex release newer than
 10.22.0; when `ghostex accounts` is an unknown command, tell the user the

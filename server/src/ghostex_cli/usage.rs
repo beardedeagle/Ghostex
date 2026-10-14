@@ -114,7 +114,7 @@ pub fn usage() -> String {
             "Connect a new Claude account, or reconnect a selected cswap account",
         ),
         format_help_command(
-            "accounts [--refresh] [--json]",
+            "accounts [--all] [--refresh] [--json]",
             "List every Claude and Codex account with its state, usage and reset times, the default, and the sessions on it",
         ),
         format_help_command(
@@ -533,8 +533,8 @@ pub fn usage() -> String {
             "Communicate and coordinate with other agents",
         ),
         format_help_command(
-            "agents switch-account <session-ref> --account <number|email> [--json]",
-            "Move a Claude or Codex session to another account and resume its conversation there",
+            "agents switch-account <session-ref> --account <number|email> [--force] [--json]",
+            "Move a Claude or Codex session to another account and resume its conversation there; --force ends a running turn first and sends \".\" after",
         ),
         format_help_command(
             "agents reload <session-ref> [--json]",

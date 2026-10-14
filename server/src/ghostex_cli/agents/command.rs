@@ -98,6 +98,14 @@ pub(crate) fn run(args: &[String]) -> CliResult<()> {
                     "{}",
                     match identity::text(&result, "status") {
                         "unchanged" => format!("{reference} already runs on {target}."),
+                        "switched" if result["forced"] == true => format!(
+                            "{reference} now runs on {target}; its agent restarted on the same conversation{}, and \".\" was sent so it carries on.",
+                            if result["interruptedTurn"] == true {
+                                " (its running turn was interrupted)"
+                            } else {
+                                ""
+                            }
+                        ),
                         "switched" => format!(
                             "{reference} now runs on {target}; its agent restarted on the same conversation."
                         ),

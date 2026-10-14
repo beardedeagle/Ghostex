@@ -14,14 +14,19 @@ use std::{
 };
 
 /// CDXC:AgentProviders 2026-10-14 DECISION:
-/// User: "we need to have the ability for the orchestrator to switch the account of another thread and to full reload it in case it gets stuck for any reason (should see all available accounts and usages etc) through ghostex cli". `roster` is the Settings > Accounts `list` with each account's sessions, its default flag and whether a usage window is at its limit; `switchSession` finds an account by number, email or id and runs the same `select` as the chat's Switch Account (an in-place restart that resumes the same conversation); `ghostex agents reload` is `reload` in session_chat_agent_restart.rs. All of them work on any session, like `ghostex agents send`, not only an orchestrator's threads.
+/// User: "we need to have the ability for the orchestrator to switch the account of another thread and to full reload it in case it gets stuck for any reason (should see all available accounts and usages etc) through ghostex cli". `roster` is the Settings > Accounts `list` with each account's sessions, its default flag and whether a usage window is at its limit; `switchSession` finds an account by number, email or id and runs the same `select` as the chat's Switch Account (an in-place restart that resumes the same conversation); `ghostex agents reload` is `reload` in session_chat_agent_restart.rs. All of them work on any session, like `ghostex agents send`, not only an orchestrator's threads. A session in the middle of a turn is refused unless `--force` is given (user, 2026-10-14: "also add --force but force needs to send \".\" after the switch"): the restart in place ends the turn, and "." goes out through the normal send path once the restarted agent's input box is ready, like after an automatic switch (continuation.rs). `ghostex accounts` lists only an account's live sessions and counts the stopped ones unless `--all` (orchestrator, 2026-10-14: 201 mostly stopped rows buried the useful part).
 /// SEE-ALSO: server/src/ghostex_cli/accounts.rs, server/src/ghostex_cli/agents/lifecycle.rs, server/src/coordinators/role.md ("Threads that cannot start or are stuck").
+/// Stopped sessions (closed ones, which stay in the table) are only counted unless `all_sessions`
+/// asks for them: an account's live sessions (running, including one whose start failed, and
+/// sleeping) are the ones a caller can act on, and hundreds of stopped rows buried them.
 pub(super) fn roster(
     repository: &DomainRepository<'_>,
     snapshot: &Snapshot,
     value: &mut Value,
+    all_sessions: bool,
 ) -> Result<(), DomainStateError> {
     let mut sessions: HashMap<String, Vec<Value>> = HashMap::new();
+    let mut stopped: HashMap<String, u64> = HashMap::new();
     for session in repository.list_sessions(None)? {
         let Some(id) = session
             .pointer("/runtimeSettings/accountId")
@@ -29,6 +34,12 @@ pub(super) fn roster(
         else {
             continue;
         };
+        if session["lifecycleState"].as_str() == Some("stopped") {
+            *stopped.entry(id.to_string()).or_default() += 1;
+            if !all_sessions {
+                continue;
+            }
+        }
         sessions.entry(id.to_string()).or_default().push(json!({
             "globalRef": session["globalRef"],
             "projectId": session["projectId"],
@@ -61,7 +72,13 @@ pub(super) fn roster(
             other => other,
         });
         row["limitReached"] = json!(limited);
+        if let (Some(found), Some(windows)) = (found, row["usage"].as_array_mut()) {
+            for (window, reading) in windows.iter_mut().zip(&found.usage) {
+                window["label"] = json!(short_label(reading));
+            }
+        }
         row["sessions"] = json!(sessions.remove(&id).unwrap_or_default());
+        row["stoppedSessionCount"] = json!(stopped.remove(&id).unwrap_or(0));
     }
     rows.sort_by_key(|row| {
         (
@@ -91,12 +108,42 @@ fn limited_windows(account: &DiscoveredAccount, now: DateTime<Utc>) -> Vec<Strin
                     .and_then(|at| DateTime::parse_from_rfc3339(at).ok())
                     .is_none_or(|at| at > now)
         })
-        .map(|window| window.label.clone())
+        .map(short_label)
         .collect()
 }
 
-/// How long `switchSession` waits for the in-place restart to report success or failure.
-const SWITCH_WAIT: Duration = Duration::from_secs(60);
+/// CDXC:AgentProviders 2026-10-14 DECISION:
+/// User: "please use 7d and 5h everywhere never use weekly or five hours etc." A window is named by its length (`5h`, `7d`, a Codex window of another length by its own hours or days), after its model when it is model-scoped (`Fable 7d`), and Extra usage stays as it is. Derived from the window's id and length, not its label, so it holds whatever label the reading carries.
+fn short_label(window: &UsageWindow) -> String {
+    if window.id == "spend" {
+        return window.label.clone();
+    }
+    let span = match (window.id.as_str(), window.limit_window_seconds) {
+        ("fiveHour", _) => "5h".to_string(),
+        ("sevenDay", _) => "7d".to_string(),
+        (_, Some(seconds)) if seconds >= 604_800 => "7d".to_string(),
+        (_, Some(seconds)) if seconds > 0 && seconds % 86_400 == 0 => {
+            format!("{}d", seconds / 86_400)
+        }
+        (_, Some(seconds)) if seconds > 0 => format!("{}h", (seconds as f64 / 3600.0).round()),
+        // Claude's model-scoped windows (`Fable weekly`) carry no length and are weekly.
+        _ => "7d".to_string(),
+    };
+    let model = window.model.clone().or_else(|| {
+        window
+            .id
+            .split_once(':')
+            .map(|(model, _)| model.to_string())
+            .filter(|model| !model.is_empty())
+    });
+    match model {
+        Some(model) => format!("{model} {span}"),
+        None => span,
+    }
+}
+
+/// How long `switchSession` waits for the in-place restart (and with `force`, the "." after it) to report success or failure.
+const SWITCH_WAIT: Duration = Duration::from_secs(90);
 
 /// Moves a session to the account named by `account` (cswap/xswap number, email or id) through
 /// `select`, then waits for the restart to finish so the caller learns whether it worked.
@@ -229,9 +276,18 @@ pub(super) fn switch_session(
             json!({ "status": "unchanged", "account": account, "session": summary(&session) }),
         );
     }
+    // `force` restarts a running session even mid-turn (the restart's Escape and Ctrl+C end the
+    // turn) and then sends "." once the agent is ready (continuation.rs); a sleeping session has
+    // no turn to end, so it switches without one.
+    let running = session["lifecycleState"].as_str() == Some("running");
+    let force = params.get("force").and_then(Value::as_bool) == Some(true) && running;
+    let interrupted = force
+        && crate::presentation::presentation_activity(&session, &Utc::now().to_rfc3339())
+            == "working";
     let mut select = params.clone();
     select.insert("operation".into(), json!("select"));
     select.insert("accountId".into(), json!(target.id));
+    select.insert("force".into(), json!(force));
     endpoint::dispatch(state, &select)?;
     // `select` restarts a live agent in place on its own thread; a sleeping session only changes
     // its row and starts on the new account at its next wake.
@@ -242,12 +298,11 @@ pub(super) fn switch_session(
             .pointer("/runtimeSettings/accountSwitch/phase")
             .and_then(Value::as_str)
             .unwrap_or_default();
-        if !matches!(phase, "switching" | "resuming")
-            || row
+        let restarting = matches!(phase, "switching" | "resuming")
+            && row
                 .pointer("/runtimeSettings/accountSwitchAttempt")
-                .is_none()
-            || started.elapsed() >= SWITCH_WAIT
-        {
+                .is_some();
+        if !(restarting || phase == "continuing") || started.elapsed() >= SWITCH_WAIT {
             break row;
         }
         std::thread::sleep(Duration::from_millis(500));
@@ -258,7 +313,8 @@ pub(super) fn switch_session(
         .unwrap_or_default();
     let still_restarting = row
         .pointer("/runtimeSettings/accountSwitchAttempt")
-        .is_some();
+        .is_some()
+        || phase == "continuing";
     let status = if phase == "failed" {
         "failed"
     } else if still_restarting {
@@ -273,6 +329,9 @@ pub(super) fn switch_session(
         "account": account,
         "previousAccountId": previous,
         "session": summary(&row),
+        "forced": force,
+        "interruptedTurn": interrupted,
+        "continueSent": force && status == "switched",
     });
     if phase == "failed" {
         result["error"] = row

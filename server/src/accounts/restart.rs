@@ -98,6 +98,7 @@ pub(crate) fn plan(
                     "This account switch needs an exact saved conversation and a single-line agent command.",
                 )
             })?;
+    let resume_command = typed_resume_command(state, session, resume_command)?;
     let zmx_name = crate::zmx::provider_zmx_session_name(session)?;
     let identities = crate::zmx::read_zmx_session_process_identities(
         std::slice::from_ref(&zmx_name),
@@ -140,6 +141,35 @@ pub(crate) fn plan(
         previous_process_id,
         background,
     })
+}
+
+/// The longest resume command typed into the shell as it is.
+const TYPED_COMMAND_LIMIT: usize = 768;
+
+/// CDXC:AgentProviders 2026-10-14 WHY:
+/// A Codex resume command carries Marked handovers inline (`-c developer_instructions=…`, Codex has no file form for it) and ran past 1 KB. Typed into the shell right after Codex exited, it arrived while the terminal was still in line mode, which keeps at most 1,024 bytes of a line on macOS: the shell got the command cut inside its quote, the agent never started and the switch failed. A command longer than `TYPED_COMMAND_LIMIT` is written to a script file in gxserver's state and the shell is given only `source '<file>'` (`. '<file>'` in PowerShell), which every shell Ghostex runs reads in full.
+fn typed_resume_command(
+    state: &AppState,
+    session: &Value,
+    command: String,
+) -> Result<String, DomainStateError> {
+    if command.len() <= TYPED_COMMAND_LIMIT {
+        return Ok(command);
+    }
+    let dir = state.paths.root_dir.join("account-switch");
+    std::fs::create_dir_all(&dir).map_err(super::store::error)?;
+    let file = dir.join(format!(
+        "{}-{}.{}",
+        session["projectId"].as_str().unwrap_or_default(),
+        session["sessionId"].as_str().unwrap_or_default(),
+        if cfg!(windows) { "ps1" } else { "sh" }
+    ));
+    std::fs::write(&file, format!("{command}\n")).map_err(super::store::error)?;
+    Ok(format!(
+        "{} {}",
+        if cfg!(windows) { "." } else { "source" },
+        crate::agents::quote_shell_arg(&file.to_string_lossy())
+    ))
 }
 
 /// Exits the CLI and resumes it on the saved account. Automatic switches continue only after the new login and its ready composer have been verified.
@@ -310,7 +340,7 @@ async fn finish(
             apply_account_settings(&mut runtime, &account_settings);
             super::switch_progress::set_phase(
                 &mut runtime,
-                if continue_turn && source == SwitchSource::Automatic {
+                if continue_turn && source != SwitchSource::Manual {
                     "continuing"
                 } else {
                     "success"

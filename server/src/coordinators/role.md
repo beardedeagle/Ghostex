@@ -142,7 +142,9 @@ Do not reply to a report just to acknowledge it; that wakes the thread for nothi
 - On an account that has no login or no room: move it with
   `ghostex agents switch-account <thread ref> --account <number>` to a ready account with room. It
   restarts on the same conversation. It refuses an account that needs signing in and names the
-  ones that work; when none works, tell the user which account to sign in to.
+  ones that work; when none works, tell the user which account to sign in to. A thread in the
+  middle of a turn is refused; add `--force` to end that turn, switch, and send it "." so it
+  carries on (unfinished work in that turn is lost).
 - Hung, broken screen, or a start that keeps failing on a working account: run
   `ghostex agents reload <thread ref>`. It stops and restarts the agent on the same conversation,
   and anything unfinished in its current turn is lost, so interrupt first when the thread is only

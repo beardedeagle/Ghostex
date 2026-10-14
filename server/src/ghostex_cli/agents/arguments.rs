@@ -25,6 +25,8 @@ pub(super) struct Arguments {
     pub allow_hidden: bool,
     /// `--account`: the account number, email or id switch-account moves the session to.
     pub account: Option<String>,
+    /// `--force`: switch-account interrupts a running turn and sends "." after the switch.
+    pub force: bool,
     pub json: bool,
     pub help: bool,
     pub flags: Flags,
@@ -43,6 +45,7 @@ pub(super) fn parse(args: &[String]) -> CliResult<Arguments> {
         all: false,
         allow_hidden: false,
         account: None,
+        force: false,
         json: false,
         help: args.is_empty(),
         flags: Flags::default(),
@@ -58,6 +61,7 @@ pub(super) fn parse(args: &[String]) -> CliResult<Arguments> {
             "--json" => parsed.json = true,
             "--all" => parsed.all = true,
             "--allow-hidden" => parsed.allow_hidden = true,
+            "--force" => parsed.force = true,
             "--interrupt" | "--queue" => {
                 if parsed.delivery != Delivery::Normal {
                     return Err(CliError::Other(
@@ -110,9 +114,9 @@ pub(super) fn parse(args: &[String]) -> CliResult<Arguments> {
             "--request-id is only available for send.".into(),
         ));
     }
-    if parsed.account.is_some() && parsed.command != "switch-account" {
+    if (parsed.account.is_some() || parsed.force) && parsed.command != "switch-account" {
         return Err(CliError::Other(
-            "--account is only available for switch-account.".into(),
+            "--account and --force are only available for switch-account.".into(),
         ));
     }
     if parsed
@@ -209,7 +213,7 @@ pub(super) fn parse(args: &[String]) -> CliResult<Arguments> {
                     if parsed.command == "reload" {
                         "reload <session-ref>"
                     } else {
-                        "switch-account <session-ref> --account <number|email>"
+                        "switch-account <session-ref> --account <number|email> [--force]"
                     }
                 )));
             }

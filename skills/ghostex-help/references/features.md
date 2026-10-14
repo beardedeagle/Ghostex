@@ -1571,7 +1571,8 @@ sign-in), its usage per window with reset times, the default for new sessions
 and the sessions on it; `ghostex agents switch-account <session> --account
 <number or email>` moves a session to another account and resumes its
 conversation there, also when it could not start, and refuses an account that
-needs signing in; `ghostex agents reload <session>` stops a stuck session's
+needs signing in (and a session in the middle of a turn, unless `--force` ends
+that turn and sends "." afterwards so it carries on); `ghostex agents reload <session>` stops a stuck session's
 agent and starts it again on the same conversation, losing what its current turn
 was doing. An orchestrator uses them when a thread can't start or gets stuck,
 and tells you what it did.
