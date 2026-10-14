@@ -112,6 +112,25 @@ impl AddProjectSkin {
         css_fade(self.muted_fill, alpha)
     }
 
+    /// The one fill every button in this dialog takes, in both appearances, with its label in
+    /// `button_text`: a solid near-black that reads as a button on the light dialog and on the
+    /// dark path bar alike, lighter on hover and again while pressed.
+    ///
+    /// CDXC:AddProject 2026-10-14 DECISION:
+    /// User: "I want the buttons in the Add Project dialog to not be white; they should be a darker background color", then: the buttons' background should be the same colour in light and dark mode, darker still than the dark-mode fill, with a bit heavier text, and an icon on Create & Add. Every Add Project button (the path bar's actions, the clone review's footer, Setup Required / Install) is this solid #262626 with #f5f5f5 text, one font weight heavier than before. This supersedes the 2026-10-02 white bar buttons; the bar's actions still share one look.
+    pub(super) fn button_fills(&self) -> ButtonFills {
+        ButtonFills {
+            rest: rgb(0x262626),
+            hover: rgb(0x303030),
+            pressed: rgb(0x3a3a3a),
+        }
+    }
+
+    /// The label colour on `button_fills`.
+    pub(super) fn button_text(&self) -> Rgba {
+        rgb(0xf5f5f5)
+    }
+
     /// A fill for a control that can carry a ring, on the clone-options panel. gpui paints a box
     /// shadow under the element, so a translucent fill would let the ring colour through; on the
     /// opaque dialog the fill is composited onto the panel colour instead. Under window glass the

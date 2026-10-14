@@ -253,7 +253,7 @@ impl GpuiAddProjectModalWindow {
                 skin,
                 "add-project-submit",
                 label,
-                None,
+                (label == "Create & Add").then_some(ICON_FOLDER_CHECK),
                 !d.can_submit_browse_path || self.busy.is_some(),
                 |this, window, cx| this.submit_resolved_path(window, cx),
                 cx,
@@ -310,12 +310,9 @@ impl GpuiAddProjectModalWindow {
             .into_any_element()
     }
 
-    /// A path-bar action: a filled pill inset in the bar, in the primary colour (white in dark
-    /// mode) with a slightly dimmer hover, so it reads as a button. Every action in the bar shares
-    /// this one look.
-    ///
-    /// CDXC:AddProject 2026-10-02 DECISION:
-    /// User: "i want the new folder button to match the style of the add project button. and they kind of don't look clickable now, please make them look clickable (i think white bg for example and hovering over them should change the bg slightly to indicate that htye're clickable)". This supersedes the flush full-height actions with hairline separators (2026-08-18 titlebar-strip rule) and the ghost New Folder button.
+    /// A path-bar action: a filled pill inset in the bar in the dialog's button fill
+    /// (`AddProjectSkin::button_fills`, CDXC:AddProject 2026-10-14), lighter on hover and press. Every action in the bar shares this one look (the 2026-10-02 rule that New
+    /// Folder matches the Add button and both read as clickable).
     #[allow(clippy::too_many_arguments)]
     fn bar_button(
         &self,
@@ -327,10 +324,8 @@ impl GpuiAddProjectModalWindow {
         on_click: impl Fn(&mut Self, &mut Window, &mut Context<Self>) + 'static,
         cx: &mut Context<Self>,
     ) -> AnyElement {
-        let p = skin.p;
-        let background = p.primary;
-        let text = p.primary_foreground;
-        let hover_background = css_mix(p.primary, 0.86, p.solid_surface);
+        let fills = skin.button_fills();
+        let text = skin.button_text();
         h_flex()
             .id(id)
             .flex_shrink_0()
@@ -340,16 +335,17 @@ impl GpuiAddProjectModalWindow {
             .pl(px(if icon.is_some() { 8.0 } else { 10.0 }))
             .pr(px(10.0))
             .rounded(px(6.0))
-            .bg(hsla(background))
+            .bg(hsla(fills.rest))
             .text_size(px(14.0))
             .line_height(px(20.0))
-            .font_weight(FontWeight::MEDIUM)
+            .font_weight(FontWeight::SEMIBOLD)
             .text_color(hsla(text))
             .whitespace_nowrap()
             .when(disabled, |this| this.opacity(0.5))
             .when(!disabled, |this| {
                 this.cursor_pointer()
-                    .hover(move |this| this.bg(hsla(hover_background)))
+                    .hover(move |this| this.bg(hsla(fills.hover)))
+                    .active(move |this| this.bg(hsla(fills.pressed)))
                     .on_mouse_down(MouseButton::Left, |_, window, _| window.prevent_default())
                     .on_click(cx.listener(move |this, _: &ClickEvent, window, cx| {
                         on_click(this, window, cx);
@@ -492,8 +488,8 @@ impl GpuiAddProjectModalWindow {
             .map(|(source, hint, install_tool)| {
                 let handle = self.chrome_focus_handle(FocusSlot::SetupRequired(index), cx);
                 let focused = handle.is_focused(window);
-                // A neutral filled button (CDXC:AppModal 2026-10-14 on `neutral_button_fills`).
-                let fills = neutral_button_fills(skin.p.light);
+                // The dialog's button fill (CDXC:AddProject 2026-10-14).
+                let fills = skin.button_fills();
                 let hint: SharedString = hint.clone().into();
                 let installing = installing_source == Some(*source);
                 let label: SharedString = match install_tool {
@@ -525,8 +521,8 @@ impl GpuiAddProjectModalWindow {
                     .bg(hsla(fills.rest))
                     .text_size(px(14.0))
                     .line_height(px(20.0))
-                    .font_weight(FontWeight::MEDIUM)
-                    .text_color(hsla(skin.fg()))
+                    .font_weight(FontWeight::SEMIBOLD)
+                    .text_color(hsla(skin.button_text()))
                     .whitespace_nowrap()
                     .hover(move |this| this.bg(hsla(fills.hover)))
                     .active(move |this| this.bg(hsla(fills.pressed)))

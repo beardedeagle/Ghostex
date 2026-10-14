@@ -130,16 +130,14 @@ impl GpuiAddProjectModalWindow {
             .into_any_element()
     }
 
-    /// A shadcn footer button inside the dialog: 32px, 8px radius, 14px/400. `primary` is the
-    /// filled default variant, else the neutral filled one (CDXC:AppModal 2026-10-14 on
-    /// `neutral_button_fills`).
+    /// A shadcn footer button inside the dialog: 32px, 8px radius, 14px/500, in the dialog's
+    /// `button_fills` (CDXC:AddProject 2026-10-14).
     #[allow(clippy::too_many_arguments)]
     fn footer_button(
         &mut self,
         skin: &AddProjectSkin,
         slot: FocusSlot,
         label: &'static str,
-        primary: bool,
         disabled: bool,
         on_click: impl Fn(&mut Self, &mut Window, &mut Context<Self>) + 'static,
         window: &mut Window,
@@ -147,18 +145,8 @@ impl GpuiAddProjectModalWindow {
     ) -> AnyElement {
         let handle = self.chrome_focus_handle(slot, cx);
         let focused = handle.is_focused(window) && !disabled;
-        let p = skin.p;
-        let (background, text, hover_background, pressed_background) = if primary {
-            (
-                p.primary,
-                p.primary_foreground,
-                css_fade(p.primary, 0.8),
-                css_mix(p.primary, 0.8, gpui::rgb(0xffffff)),
-            )
-        } else {
-            let fills = neutral_button_fills(p.light);
-            (fills.rest, p.foreground, fills.hover, fills.pressed)
-        };
+        let fills = skin.button_fills();
+        let text = skin.button_text();
         let button = h_flex()
             .id(match slot {
                 FocusSlot::FooterClone => "add-project-clone",
@@ -173,15 +161,16 @@ impl GpuiAddProjectModalWindow {
             .rounded(px(8.0))
             .border_1()
             .border_color(transparent())
-            .bg(hsla(background))
+            .bg(hsla(fills.rest))
             .text_size(px(14.0))
             .line_height(px(20.0))
+            .font_weight(FontWeight::MEDIUM)
             .text_color(hsla(text))
             .whitespace_nowrap()
             .when(disabled, |this| this.opacity(0.5))
             .when(!disabled, |this| {
-                this.hover(move |this| this.bg(hsla(hover_background)))
-                    .active(move |this| this.bg(hsla(pressed_background)))
+                this.hover(move |this| this.bg(hsla(fills.hover)))
+                    .active(move |this| this.bg(hsla(fills.pressed)))
                     .on_click(cx.listener(move |this, _: &ClickEvent, window, cx| {
                         on_click(this, window, cx);
                     }))
@@ -488,7 +477,6 @@ impl GpuiAddProjectModalWindow {
             skin,
             FocusSlot::FooterBack,
             "Back",
-            false,
             busy,
             |this, window, cx| this.return_to_clone_destination(window, cx),
             window,
@@ -498,7 +486,6 @@ impl GpuiAddProjectModalWindow {
             skin,
             FocusSlot::FooterClone,
             if cloning { "Cloning..." } else { "Clone & Add" },
-            true,
             !can_clone,
             |this, window, cx| this.submit_clone(window, cx),
             window,

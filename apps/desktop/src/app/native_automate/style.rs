@@ -42,6 +42,8 @@ pub(crate) struct AutomatePalette {
     pub(crate) success: Hsla,
     pub(crate) danger: Hsla,
     pub(crate) control_primary: Hsla,
+    /// The neutral filled button (CDXC:AppModal 2026-10-14 on `neutral_button_fills`).
+    pub(crate) button: crate::app::native_chat::appearance::ChatButtonFills,
     pub(crate) switch_off: Hsla,
     pub(crate) switch_thumb: Hsla,
 }
@@ -76,6 +78,7 @@ impl AutomatePalette {
             success: rgb(if chat.light { 0x059669 } else { 0x34d399 }).into(),
             danger: chat.error(),
             control_primary: chat.control_primary,
+            button: chat.neutral_button_fills(),
             switch_off: ink.opacity(if chat.light { 0.15 } else { 0.18 }),
             switch_thumb: chat.background,
         }
@@ -133,7 +136,7 @@ pub(crate) fn icon_button<V: 'static>(
         .child(icon(icon_path, 16.0, p.foreground.opacity(0.85)))
 }
 
-/// A secondary text button (shadcn `variant='secondary'`), optionally with a leading icon.
+/// A secondary text button in the neutral fill, optionally with a leading icon.
 pub(crate) fn secondary_button<V: 'static>(
     p: &AutomatePalette,
     id: impl Into<ElementId>,
@@ -142,7 +145,7 @@ pub(crate) fn secondary_button<V: 'static>(
     on_click: impl Fn(&mut V, &mut Window, &mut Context<V>) + 'static,
     cx: &mut Context<V>,
 ) -> Stateful<Div> {
-    let hover = p.selected;
+    let fills = p.button;
     h_flex()
         .id(id)
         .flex_shrink_0()
@@ -152,12 +155,13 @@ pub(crate) fn secondary_button<V: 'static>(
         .items_center()
         .rounded(px(ROW_RADIUS))
         .border_1()
-        .border_color(p.border)
-        .bg(p.card)
+        .border_color(gpui::transparent_black())
+        .bg(fills.rest)
         .text_size(px(13.0))
         .text_color(p.foreground)
         .cursor_pointer()
-        .hover(move |this| this.bg(hover))
+        .hover(move |this| this.bg(fills.hover))
+        .active(move |this| this.bg(fills.pressed))
         .on_click(cx.listener(move |this, _: &ClickEvent, window, cx| {
             on_click(this, window, cx);
         }))
