@@ -710,6 +710,15 @@ pub(crate) fn reorder_row<V: SettingsPage>(
                         ensure_ticker(page, &list, cx);
                         return;
                     }
+                    // An item that is taller while open closes first; it lifts on a later move,
+                    // once its closed layout was measured.
+                    if page.reorder_prepare_lift(&list, index, cx) {
+                        state_of(page, &list).bounds.borrow_mut().remove(&index);
+                        ensure_ticker(page, &list, cx);
+                        cx.notify();
+                        return;
+                    }
+                    let state = state_of(page, &list);
                     let Some(origin) = state.bounds_of(index).map(|bounds| bounds.origin) else {
                         return;
                     };

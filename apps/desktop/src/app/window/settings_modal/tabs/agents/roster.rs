@@ -28,7 +28,7 @@ use gpui::{
 };
 use gpui_component::{h_flex, v_flex};
 
-const LIST: &str = "settings-agents";
+pub(super) const LIST: &str = "settings-agents";
 
 /// The pill colours of a hook status (`getAgentHookStatusClassName` and the icon tints).
 fn pill_colors(
@@ -109,7 +109,7 @@ fn custom_tag_color(p: &SettingsPalette) -> gpui::Rgba {
 }
 
 impl AgentsTab {
-    fn toggle_expanded(&mut self, agent_id: &str, cx: &mut Context<Self>) {
+    pub(super) fn toggle_expanded(&mut self, agent_id: &str, cx: &mut Context<Self>) {
         if let Some(position) = self.expanded.iter().position(|id| id == agent_id) {
             self.expanded.remove(position);
             self.cli_unmount(super::cli::CliSlot::Panel, agent_id);
