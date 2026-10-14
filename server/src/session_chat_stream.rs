@@ -8,6 +8,16 @@ use crate::session_chat::*;
 use crate::session_chat_follower::SUCCESSOR_SCAN_INTERVAL;
 use crate::session_chat_successor::SUCCESSOR_STALE_SUBSTANTIVE_IDLE_MS;
 
+/// CDXC:SessionChat 2026-10-14 WHY:
+/// Clients order chat frames by `(serverId, epoch, seq)` and drop a frame at or behind the position they hold as a duplicate. `serverId` is the machine's id, which a gxserver restart keeps, and every follower counted its epochs from 1, so after a restart (or a follower entry made again) the desktop chat read the new follower's snapshot and frames as stale copies of the old one's and dropped them until the new seq passed the old: the transcript froze, and a message sent then stayed drawn as "Queued" after the agent had already answered it (2026-10-14, 20 s after a restart). Every generation now takes its epoch from one counter for the whole process that starts at the wall clock in milliseconds, so a new process or a new follower always starts above every epoch handed out before it.
+/// SEE-ALSO: `snapshot_is_stale` and `accept_sequenced_frame` in packages/gx-chat-core/src/session/stream.rs; `notePosition` in apps/mobile/app/src/chat/rust/transport.ts.
+fn next_stream_epoch() -> i64 {
+    static NEXT: std::sync::OnceLock<AtomicI64> = std::sync::OnceLock::new();
+    NEXT.get_or_init(|| AtomicI64::new(now_epoch_ms()))
+        .fetch_add(1, Ordering::SeqCst)
+        + 1
+}
+
 pub struct SessionChatStream {
     epoch: AtomicI64,
     seq: AtomicI64,
@@ -33,11 +43,13 @@ impl SessionChatStream {
         }
     }
 
-    /// Starts a new follower generation: bumps epoch, resets seq to 0.
+    /// Starts a new follower generation: takes a fresh epoch, resets seq to 0.
     pub fn begin_generation(&self) -> i64 {
         let _order = self.lock_emit_order();
         self.seq.store(0, Ordering::SeqCst);
-        self.epoch.fetch_add(1, Ordering::SeqCst) + 1
+        let epoch = next_stream_epoch();
+        self.epoch.store(epoch, Ordering::SeqCst);
+        epoch
     }
 
     pub fn current(&self) -> (i64, i64) {
