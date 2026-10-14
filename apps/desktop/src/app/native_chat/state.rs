@@ -98,6 +98,8 @@ pub(crate) struct NativeChatView {
     /// A model pop-up asked for before this view had its first snapshot: the trigger and its window.
     pub(super) pending_model_menu: Option<(gpui::Bounds<gpui::Pixels>, gpui::AnyWindowHandle)>,
     pub(crate) window_subscription: Option<Subscription>,
+    /// Redraws the view when an app modal opens or closes over the window (`AppModalOverChat`).
+    _app_modal_subscription: Subscription,
     pub(crate) send_hold_task: Option<gpui::Task<()>>,
     pub(crate) send_hold_fired: bool,
     pub(crate) stop_cooldown_task: Option<gpui::Task<()>>,
@@ -364,6 +366,10 @@ impl NativeChatView {
             menu_outside_pane: false,
             pending_model_menu: None,
             window_subscription: None,
+            _app_modal_subscription: cx
+                .observe_global::<super::frosted_overlay_window::AppModalOverChat>(|_, cx| {
+                    cx.notify()
+                }),
             send_hold_task: None,
             send_hold_fired: false,
             stop_cooldown_task: None,

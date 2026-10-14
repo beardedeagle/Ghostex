@@ -36,7 +36,7 @@ mod file_change_card;
 mod focus;
 pub(crate) mod fonts;
 mod fork_branches;
-mod frosted_overlay_window;
+pub(crate) mod frosted_overlay_window;
 mod image_viewer;
 mod images;
 mod inter_agent_message;

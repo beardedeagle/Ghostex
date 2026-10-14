@@ -121,6 +121,16 @@ impl GhostexGpuiApp {
             (Some(window), Some(view)) => Some(NativeAppModal { kind, window, view }),
             _ => None,
         };
+        self.sync_app_modal_over_chat(cx);
+    }
+
+    /// Tells every chat whether an app modal is open over the main window, so their floating
+    /// controls (which sit at a higher window level than the modal) step down while it is.
+    pub(crate) fn sync_app_modal_over_chat(&self, cx: &mut gpui::App) {
+        crate::app::native_chat::frosted_overlay_window::set_app_modal_over_chat(
+            self.native_app_modal.is_some() || self.app_modal_window.is_some(),
+            cx,
+        );
     }
 
     pub(crate) fn native_app_modal_kind(&self) -> Option<GpuiAppModalKind> {
@@ -341,6 +351,7 @@ impl GhostexGpuiApp {
             Ok(result) => Some(result),
             Err(_) => {
                 self.native_app_modal = None;
+                self.sync_app_modal_over_chat(cx);
                 None
             }
         }
@@ -357,6 +368,7 @@ impl GhostexGpuiApp {
             return;
         }
         self.native_app_modal = None;
+        self.sync_app_modal_over_chat(cx);
         self.restore_keyboard_focus_after_app_modal(cx);
         self.resume_deferred_gpui_portless_setup_prompt(cx);
     }
@@ -386,6 +398,7 @@ impl GhostexGpuiApp {
         let Some(modal) = self.native_app_modal.take() else {
             return false;
         };
+        self.sync_app_modal_over_chat(cx);
         self.app_modal_command_return_focus_target = None;
         if modal.kind == GpuiAppModalKind::ExportTranscriptResult {
             self.pending_export_transcript_reveal_path = None;

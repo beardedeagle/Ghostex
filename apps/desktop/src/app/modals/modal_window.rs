@@ -527,6 +527,7 @@ impl GhostexGpuiApp {
             self.app_modal_window_id.set(None);
             self.app_modal_command_return_focus_target = None;
         }
+        self.sync_app_modal_over_chat(cx);
     }
 
     pub(crate) fn remove_gpui_app_modal_window_without_focus_restore(
@@ -538,6 +539,7 @@ impl GhostexGpuiApp {
         let Some(handle) = self.app_modal_window.take() else {
             return false;
         };
+        self.sync_app_modal_over_chat(cx);
         handle
             .update(cx, |_host, modal_window, _cx| {
                 modal_window.remove_window();
@@ -589,6 +591,7 @@ impl GhostexGpuiApp {
         self.app_modal_window = None;
         self.app_modal_window_id.set(None);
         self.app_modal_open_attempt_id = self.app_modal_open_attempt_id.wrapping_add(1);
+        self.sync_app_modal_over_chat(cx);
         self.restore_keyboard_focus_after_app_modal(cx);
         self.resume_deferred_gpui_portless_setup_prompt(cx);
         if closed_modal == Some(GpuiAppModalKind::ExportTranscriptResult) {
@@ -643,6 +646,7 @@ impl GhostexGpuiApp {
                 })
                 .is_ok();
         }
+        self.sync_app_modal_over_chat(cx);
         if !removed_modal_window {
             self.clear_lost_gpui_app_modal_window_handle();
             return;

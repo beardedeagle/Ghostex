@@ -360,7 +360,7 @@ impl NativeChatView {
     /// User: the scroll-to-bottom pill "should match the color and everything of the composer box", then, when the composer's see-through wash let the transcript read through it, "can't we make it's bg more frosted glass??". Under window glass the pill wears the composer's wash and border over a real blur of what is behind it. Supersedes the same day's opaque menu tone and the plain see-through wash.
     ///
     /// CDXC:SessionChat 2026-09-23 WHY:
-    /// GPUI cannot blur behind an element inside a window, only behind a whole window, so the pill is drawn in a small blurred child window of its own (frosted_overlay_window.rs). This placeholder lays out an invisible pill of the same size where the in-window one would be and hands its bounds to that window. The pill stays down while something else sits over the pane (a chat popup window, the account-switch card, the subagent viewer), or while it would stick out of the pane, because a window of its own would float above all of them.
+    /// GPUI cannot blur behind an element inside a window, only behind a whole window, so the pill is drawn in a small blurred child window of its own (frosted_overlay_window.rs). This placeholder lays out an invisible pill of the same size where the in-window one would be and hands its bounds to that window. The pill stays down while something else sits over the pane (an app modal such as a floating page, a chat popup window, the account-switch card, the subagent viewer), or while it would stick out of the pane, because a window of its own would float above all of them.
     fn scroll_bottom_window_placeholder(
         &self,
         shown: bool,
@@ -369,7 +369,7 @@ impl NativeChatView {
         cx: &Context<Self>,
     ) -> AnyElement {
         let overlay = super::frosted_overlay_window::FrostedOverlay::ScrollBottom;
-        let shown = shown && !self.frosted_overlay_covered(overlay);
+        let shown = shown && !self.frosted_overlay_covered(overlay, cx);
         let report = self.frosted_overlay_reporter(overlay, shown, cx);
         if !shown {
             return div().absolute().size_0().child(report).into_any_element();

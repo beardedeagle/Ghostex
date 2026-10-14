@@ -167,16 +167,27 @@ impl GhostexGpuiApp {
             (Some(window), Some(view)) => Some(NativeAppModal { kind, window, view }),
             _ => None,
         };
+        self.sync_app_modal_over_chat(cx);
+    }
+
+    /// The desktop's helper of the same name (native_app_modal_lifecycle.rs): every chat's floating
+    /// controls step down while a dialog is open over the page.
+    pub(crate) fn sync_app_modal_over_chat(&self, cx: &mut gpui::App) {
+        crate::app::native_chat::frosted_overlay_window::set_app_modal_over_chat(
+            self.native_app_modal.is_some(),
+            cx,
+        );
     }
 
     /// Drops the handle after a dialog removed its own window.
     pub(crate) fn release_native_app_modal_window(
         &mut self,
         kind: GpuiAppModalKind,
-        _cx: &mut Context<Self>,
+        cx: &mut Context<Self>,
     ) {
         if self.native_app_modal_kind() == Some(kind) {
             self.native_app_modal = None;
+            self.sync_app_modal_over_chat(cx);
         }
     }
 
@@ -184,6 +195,7 @@ impl GhostexGpuiApp {
         let Some(modal) = self.native_app_modal.take() else {
             return false;
         };
+        self.sync_app_modal_over_chat(cx);
         // Quick Access's controller stops publishing when its window goes, as on the desktop.
         if crate::app::window::quick_access::QuickAccessTabId::from_modal_kind(modal.kind).is_some()
         {

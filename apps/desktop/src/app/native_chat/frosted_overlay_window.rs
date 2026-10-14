@@ -18,6 +18,31 @@ use gpui::{
 use gpui_component::{Root, tooltip::ManagedTooltipPlacement};
 use std::{cell::Cell, rc::Rc, time::Duration};
 
+/// Whether an app modal window (the floating page window, Settings, Quick Access, any modal the
+/// app opens over the main window) is open, which every chat's floating controls stay down for.
+///
+/// CDXC:SessionChat 2026-10-14 WHY:
+/// A control's window is a pop-up so it floats over its own chat, which puts it at a higher level
+/// than an app modal (a normal-level child of the main window), so a "Scroll to bottom" pill drew on
+/// top of a page opened with `"open": "popup"`. Ordering cannot fix that, since the pill window
+/// reopens (and so reorders) on every move; the pill steps down instead, like it does for the chat's
+/// own popup windows.
+#[derive(Default)]
+pub(crate) struct AppModalOverChat(pub(crate) bool);
+
+impl gpui::Global for AppModalOverChat {}
+
+/// Records whether an app modal is open over the main window; chats redraw only when it changes.
+pub(crate) fn set_app_modal_over_chat(open: bool, cx: &mut gpui::App) {
+    if cx
+        .try_global::<AppModalOverChat>()
+        .is_some_and(|over| over.0)
+        != open
+    {
+        cx.set_global(AppModalOverChat(open));
+    }
+}
+
 /// Which floating control a window carries.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(in crate::app::native_chat) enum FrostedOverlay {
@@ -106,10 +131,13 @@ impl NativeChatView {
     }
 
     /// Whether something else sits over the pane, so a control's own window (which would float
-    /// above all of it) stays down: a chat popup window, the account-switch card or the subagent
-    /// viewer.
-    pub(super) fn frosted_overlay_covered(&self, _overlay: FrostedOverlay) -> bool {
+    /// above all of it) stays down: an app modal over the window (a floating page, Settings), a
+    /// chat popup window, the account-switch card or the subagent viewer.
+    pub(super) fn frosted_overlay_covered(&self, _overlay: FrostedOverlay, cx: &gpui::App) -> bool {
         self.pane_hidden
+            || cx
+                .try_global::<AppModalOverChat>()
+                .is_some_and(|over| over.0)
             || self.pane_windows_open()
             || self.option_menu.is_some()
             || self.suggestions.is_open()
@@ -156,12 +184,7 @@ fn apply_frosted_overlay(
     let (wanted, handle, parent, main) = chat.update(cx, |chat, cx| {
         let parent = chat.child_window_parent(cx);
         let state = chat.frosted_overlays.state(overlay);
-        (
-            state.wanted,
-            state.handle.take(),
-            parent,
-            chat.main_window,
-        )
+        (state.wanted, state.handle.take(), parent, chat.main_window)
     });
     // An open control follows its pane in place instead of being closed and reopened.
     if let (Some(frame), Some(handle)) = (wanted, handle)
