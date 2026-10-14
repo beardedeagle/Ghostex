@@ -2751,9 +2751,14 @@ backend: `ghostex team deploy|join|invite|identity|status|ping|leave`. Slack:
   keep your own screen, pointer and focus. Install SpaceO runs its official
   installer, keeps SpaceO running in the background and installs the Ghostex
   SpaceO skill; it does not add SpaceO to your agents' MCP settings. Its row
-  gets the same update, reinstall and uninstall buttons (an update waits for
-  agents using SpaceO to finish; uninstalling ends their SpaceO sessions and
-  keeps the permissions). On a Mac, both tools get an Accessibility row and a
+  gets the same update, reinstall and uninstall buttons: Settings checks
+  SpaceO's latest GitHub release the way it checks Fast Computer & Browser
+  Use's, the update button turns blue when a newer version is out (hover it
+  for the versions; click the check mark to check again), and an update
+  runs SpaceO's official installer, then restarts SpaceO once the agents
+  using it finish. Its Accessibility and Screen Recording permissions carry
+  over an update; if one is still missing afterwards, the update says so.
+  Uninstalling ends agents' SpaceO sessions and keeps the permissions. On a Mac, both tools get an Accessibility row and a
   Screen Recording row that always show Granted, Not granted or Needs restart
   and update on their own while Settings is open. Grant makes the tool itself
   ask macOS for the permission, so it is listed in System Settings (SpaceO as

@@ -29,6 +29,7 @@ use std::time::Duration;
 mod permissions;
 mod spaceo;
 mod tools;
+mod updates;
 
 const SKILLS_MODULE: &str = super::super::catalog::module::AGENT_SKILLS;
 
@@ -645,7 +646,6 @@ impl IntegrationsTab {
     ) -> Vec<AnyElement> {
         let name = trycua_name();
         let current = text(status, "cuaDriverVersion");
-        let latest = text(status, "cuaDriverLatestVersion");
         let installed_suffix = current
             .map(|current| format!(" (installed v{current})"))
             .unwrap_or_default();
@@ -662,50 +662,18 @@ impl IntegrationsTab {
         };
         let mut actions = Vec::new();
         if flag(status, "cuaDriverManagedUpdatesSupported") == Some(true) {
-            let (icon, color, tooltip, message) = match flag(status, "cuaDriverUpdateAvailable") {
-                Some(true) => (
-                    ICON_CIRCLE_ARROW_UP,
-                    rgb(SKY_400),
-                    match latest {
-                        Some(latest) => format!("Update {name} to v{latest}{installed_suffix}"),
-                        None => format!("Update {name}{installed_suffix}"),
-                    },
-                    "installCuaDriver",
-                ),
-                Some(false) => (
-                    ICON_CIRCLE_CHECK,
-                    p.muted,
-                    format!(
-                        "{name}{} is up to date. Click to check again.",
-                        current
-                            .or(latest)
-                            .map(|version| format!(" v{version}"))
-                            .unwrap_or_default()
-                    ),
-                    "checkCuaDriverUpdate",
-                ),
-                None => (
-                    ICON_CLOUD_SEARCH,
-                    p.foreground,
-                    format!("Check for {name} updates{installed_suffix}"),
-                    "checkCuaDriverUpdate",
-                ),
+            let button = updates::UpdateButton {
+                id: "integrations-trycua-update",
+                name: name.clone(),
+                prefix: "cuaDriver",
+                update_message: "installCuaDriver",
+                check_message: "checkCuaDriverUpdate",
+                update_note: None,
+                updating: running(&["update"]),
+                disabled: busy,
+                disabled_reason: checking_reason.clone(),
             };
-            actions.push(ghost_icon_button(
-                p,
-                "integrations-trycua-update",
-                if running(&["update"]) {
-                    ICON_LOADER
-                } else {
-                    icon
-                },
-                color,
-                tooltip,
-                busy,
-                checking_reason.clone(),
-                move |page, _window, cx| page.post(message, cx),
-                cx,
-            ));
+            actions.push(self.update_button(p, status, button, cx));
         }
         actions.push(ghost_icon_button(
             p,
@@ -999,7 +967,12 @@ impl IntegrationsTab {
             ));
         }
         if show_permissions {
-            rows.extend(self.permission_rows(p, status, permissions::PermissionTool::CuaDriver, cx));
+            rows.extend(self.permission_rows(
+                p,
+                status,
+                permissions::PermissionTool::CuaDriver,
+                cx,
+            ));
         }
         rows.extend(self.spaceo_rows(
             p,

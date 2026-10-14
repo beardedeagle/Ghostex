@@ -74,6 +74,17 @@ impl GhostexGpuiApp {
     }
 
     pub(crate) fn check_gpui_cua_driver_update(&mut self, cx: &mut gpui::Context<Self>) {
+        self.check_gpui_tool_update("Fast Computer & Browser Use", "cuaDriver", cx);
+    }
+
+    /// Settings' explicit "check for updates" click on a desktop-control tool: a fresh status
+    /// (skipping the cached latest-release answers) and a toast saying what it found.
+    pub(crate) fn check_gpui_tool_update(
+        &mut self,
+        name: &'static str,
+        prefix: &'static str,
+        cx: &mut gpui::Context<Self>,
+    ) {
         let background = cx.background_executor().clone();
         cx.spawn(async move |this, cx| {
             let payload =
@@ -82,11 +93,11 @@ impl GhostexGpuiApp {
                         gpui_ghostex_cli_status_message_with_cua_update_check(None, true)
                     })
                     .await;
-            let (level, title, message) = gpui_cua_driver_update_check_toast(&payload);
+            let (level, title, message) = gpui_tool_update_check_toast(&payload, name, prefix);
             let _ = this.update(cx, |this, cx| {
                 this.dispatch_open_gpui_app_modal_sidebar_state_payload(payload.clone(), cx);
                 this.dispatch_gpui_titlebar_tips_sidebar_state_payload(&payload, cx);
-                this.dispatch_gpui_app_modal_toast(level, title, &message, cx);
+                this.dispatch_gpui_app_modal_toast(level, &title, &message, cx);
             });
         })
         .detach();

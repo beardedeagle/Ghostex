@@ -111,43 +111,6 @@ pub(crate) fn gpui_cua_driver_update_status(
     }
 }
 
-/// Toast for Settings' explicit "check for Trycua updates" click, read from the refreshed status.
-pub(crate) fn gpui_cua_driver_update_check_toast(
-    status: &serde_json::Value,
-) -> (&'static str, &'static str, String) {
-    let text = |key: &str| status.get(key).and_then(serde_json::Value::as_str);
-    let installed = text("cuaDriverVersion");
-    let latest = text("cuaDriverLatestVersion");
-    match status
-        .get("cuaDriverUpdateAvailable")
-        .and_then(serde_json::Value::as_bool)
-    {
-        Some(true) => (
-            "info",
-            "Fast Computer & Browser Use update available",
-            match (installed, latest) {
-                (Some(installed), Some(latest)) => {
-                    format!("Version {latest} is available; {installed} is installed.")
-                }
-                _ => "A newer Fast Computer & Browser Use release is available.".to_string(),
-            },
-        ),
-        Some(false) => (
-            "success",
-            "Fast Computer & Browser Use is up to date",
-            match installed.or(latest) {
-                Some(version) => format!("Version {version} is the latest release."),
-                None => "You have the latest Fast Computer & Browser Use release.".to_string(),
-            },
-        ),
-        None => (
-            "warning",
-            "Couldn't check for Fast Computer & Browser Use updates",
-            "The update check did not answer. Check your connection and try again.".to_string(),
-        ),
-    }
-}
-
 pub(crate) fn gpui_cua_driver_update_payload(stdout: &str) -> Option<serde_json::Value> {
     // A fresh Cua install can print its telemetry notice before JSON even when
     // --json is requested. Isolate the object so the Plugins status still gets

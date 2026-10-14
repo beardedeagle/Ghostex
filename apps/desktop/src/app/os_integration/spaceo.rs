@@ -59,22 +59,7 @@ impl GhostexGpuiApp {
     }
 
     pub(crate) fn check_gpui_spaceo_update(&mut self, cx: &mut gpui::Context<Self>) {
-        let background = cx.background_executor().clone();
-        cx.spawn(async move |this, cx| {
-            let payload =
-                background
-                    .spawn(async move {
-                        gpui_ghostex_cli_status_message_with_cua_update_check(None, true)
-                    })
-                    .await;
-            let (level, title, message) = gpui_spaceo_update_check_toast(&payload);
-            let _ = this.update(cx, |this, cx| {
-                this.dispatch_open_gpui_app_modal_sidebar_state_payload(payload.clone(), cx);
-                this.dispatch_gpui_titlebar_tips_sidebar_state_payload(&payload, cx);
-                this.dispatch_gpui_app_modal_toast(level, title, &message, cx);
-            });
-        })
-        .detach();
+        self.check_gpui_tool_update("SpaceO", "spaceo", cx);
     }
 
     /// Installs and updates finish by installing the Ghostex SpaceO skill; uninstalls report

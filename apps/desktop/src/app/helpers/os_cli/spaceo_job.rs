@@ -97,7 +97,10 @@ pub(crate) fn gpui_finish_spaceo_setup(
     }
     match gpui_install_bundled_ghostex_skill(&["spaceo", "install-skill"], "Ghostex SpaceO") {
         Ok(_) => Ok(if was_update {
-            "SpaceO is up to date. Ghostex SpaceO is ready.".to_string()
+            format!(
+                "SpaceO is up to date. Ghostex SpaceO is ready.{}",
+                gpui_spaceo_permissions_lost_after_update()
+            )
         } else {
             "SpaceO installed. Grant its Accessibility and Screen Recording permissions in Settings."
                 .to_string()
@@ -106,5 +109,30 @@ pub(crate) fn gpui_finish_spaceo_setup(
             "SpaceO {}, but the Ghostex SpaceO skill could not be installed. {message}",
             if was_update { "updated" } else { "installed" }
         )),
+    }
+}
+
+/// CDXC:ManagedTools 2026-10-14 WHY:
+/// macOS keeps SpaceO's grants across updates because they are tied to its signing identity (`dev.spaceo.cli` from SpaceO's team), not to the file, and the official installer refuses any build signed otherwise. An update is still re-checked from a fresh SpaceO process after its daemon restarted, so the result names any permission the updated SpaceO still lacks (one a release with a new identity lost, or one never granted) instead of leaving agents failing.
+fn gpui_spaceo_permissions_lost_after_update() -> String {
+    let Some(path) = gpui_spaceo_executable_path() else {
+        return String::new();
+    };
+    let report = gpui_spaceo_permission_report(&path);
+    let lost: Vec<&str> = [
+        ("Accessibility", report.accessibility),
+        ("Screen Recording", report.screen_recording),
+    ]
+    .into_iter()
+    .filter(|(_, state)| *state == GpuiToolPermissionState::NotGranted)
+    .map(|(name, _)| name)
+    .collect();
+    if lost.is_empty() {
+        String::new()
+    } else {
+        format!(
+            " The updated SpaceO still needs {}: grant it in Settings > Integrations.",
+            lost.join(" and ")
+        )
     }
 }

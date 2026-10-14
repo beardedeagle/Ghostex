@@ -143,7 +143,12 @@ impl IntegrationsTab {
             }
         }
         if show_permissions {
-            rows.extend(self.permission_rows(p, status, super::permissions::PermissionTool::Spaceo, cx));
+            rows.extend(self.permission_rows(
+                p,
+                status,
+                super::permissions::PermissionTool::Spaceo,
+                cx,
+            ));
         }
         rows
     }
@@ -159,7 +164,6 @@ impl IntegrationsTab {
     ) -> Vec<AnyElement> {
         let name = spaceo_name();
         let current = text(status, "spaceoVersion");
-        let latest = text(status, "spaceoLatestVersion");
         let installed_suffix = current
             .map(|current| format!(" (installed v{current})"))
             .unwrap_or_default();
@@ -173,53 +177,19 @@ impl IntegrationsTab {
                 .as_deref()
                 .is_some_and(|operation| operations.contains(&operation))
         };
-        let (icon, color, tooltip, message) = match flag(status, "spaceoUpdateAvailable") {
-            Some(true) => (
-                ICON_CIRCLE_ARROW_UP,
-                rgb(SKY_400),
-                match latest {
-                    Some(latest) => format!(
-                        "Update {name} to v{latest}{installed_suffix}. Agents using {name} finish first."
-                    ),
-                    None => format!("Update {name}{installed_suffix}"),
-                },
-                "installSpaceo",
-            ),
-            Some(false) => (
-                ICON_CIRCLE_CHECK,
-                p.muted,
-                format!(
-                    "{name}{} is up to date. Click to check again.",
-                    current
-                        .or(latest)
-                        .map(|version| format!(" v{version}"))
-                        .unwrap_or_default()
-                ),
-                "checkSpaceoUpdate",
-            ),
-            None => (
-                ICON_CLOUD_SEARCH,
-                p.foreground,
-                format!("Check for {name} updates{installed_suffix}"),
-                "checkSpaceoUpdate",
-            ),
+        let update = updates::UpdateButton {
+            id: "integrations-spaceo-update",
+            name: name.clone(),
+            prefix: "spaceo",
+            update_message: "installSpaceo",
+            check_message: "checkSpaceoUpdate",
+            update_note: Some(format!("Agents using {name} finish first.")),
+            updating: running(&["update"]),
+            disabled: busy,
+            disabled_reason: checking_reason.clone(),
         };
         vec![
-            ghost_icon_button(
-                p,
-                "integrations-spaceo-update",
-                if running(&["update"]) {
-                    ICON_LOADER
-                } else {
-                    icon
-                },
-                color,
-                tooltip,
-                busy,
-                checking_reason.clone(),
-                move |page, _window, cx| page.post(message, cx),
-                cx,
-            ),
+            self.update_button(p, status, update, cx),
             ghost_icon_button(
                 p,
                 "integrations-spaceo-reinstall",
