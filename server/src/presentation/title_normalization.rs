@@ -42,7 +42,7 @@ pub(crate) fn session_card_primary_title(title: &str, agent_id: Option<&str>) ->
         || is_ignored_generic_agent_terminal_title(&normalized)
         || is_path_like_terminal_title(&normalized)
         || is_shell_location_terminal_title(&normalized)
-        || is_windows_default_powershell_title(&normalized)
+        || is_windows_console_default_title(&normalized)
     {
         return Some(agent_default_title(agent_id));
     }
@@ -92,7 +92,7 @@ pub(crate) fn visible_terminal_title(title: Option<&str>) -> Option<String> {
         || is_ignored_placeholder_session_title(&normalized)
         || is_ignored_generic_agent_terminal_title(&normalized)
         || is_agent_status_word_title(&normalized)
-        || is_windows_default_powershell_title(&normalized)
+        || is_windows_console_default_title(&normalized)
     {
         return None;
     }
@@ -639,8 +639,8 @@ pub(crate) fn is_agent_status_boundary_char(ch: char) -> bool {
 }
 
 /// See CDXC:SessionTitles 2026-10-04 in server/src/agents/terminal_title.rs.
-pub(crate) fn is_windows_default_powershell_title(title: &str) -> bool {
-    if crate::agents::is_windows_default_powershell_title(title) {
+pub(crate) fn is_windows_console_default_title(title: &str) -> bool {
+    if crate::agents::is_windows_console_default_title(title) {
         return true;
     }
     let lower = title.to_lowercase();

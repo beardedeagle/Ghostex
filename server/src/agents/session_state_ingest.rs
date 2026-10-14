@@ -463,7 +463,12 @@ pub(crate) fn repair_session_working_directory_title(
     let title_came_only_from_terminal =
         read_text_from_map(&runtime_settings, "titleSource").as_deref() == Some("terminal-auto")
             && read_text_from_map(&runtime_settings, "titleMetadataSource").is_none();
-    if title_came_only_from_terminal && is_terminal_auto_working_directory_title(&session) {
+    // A console-default title (`C:\WINDOWS\system32\wsl.exe`, see CDXC:SessionTitles 2026-10-14) stored before the visible-title filter knew it stays in `title`, which names the pane on attach, so it is put back to the default name here too.
+    let title_is_console_default = read_text_value(&session, "title")
+        .is_some_and(|title| is_windows_console_default_title(&title));
+    if title_came_only_from_terminal
+        && (is_terminal_auto_working_directory_title(&session) || title_is_console_default)
+    {
         let default_title = if session.get("kind").and_then(Value::as_str) == Some("agent") {
             let project = repository.get_project(&lifecycle.project_id)?;
             project_agent_session_default_title(project.as_ref().unwrap_or(&Value::Null), &session)

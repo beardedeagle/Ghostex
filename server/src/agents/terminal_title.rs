@@ -11,7 +11,7 @@ pub(crate) fn get_visible_terminal_title(title: &str) -> Option<String> {
         || is_ignored_placeholder_session_title(&normalized)
         || is_generic_agent_title(&normalized)
         || is_status_word_title(&normalized)
-        || is_windows_default_powershell_title(&normalized)
+        || is_windows_console_default_title(&normalized)
     {
         return None;
     }
@@ -508,7 +508,10 @@ pub(crate) fn is_agent_status_boundary_char(ch: char) -> bool {
 ///
 /// CDXC:SessionTitles 2026-10-04 DECISION:
 /// User: new Freebuff sessions (and maybe the others) were titled "Windows PowerShell"; "this shouldn't be the case". The console's own default titles (`Windows PowerShell`, `PowerShell`) are shell context like the executable path, so they never name a session.
-pub(crate) fn is_windows_default_powershell_title(title: &str) -> bool {
+///
+/// CDXC:SessionTitles 2026-10-14 DECISION:
+/// User: "for WSL please fix the name of the sessions showing up like this" (sessions named `C:\WINDOWS\system32\wsl.exe`). A Windows console's default title is the path of the program that opened it, so with the WSL backend every terminal starts titled with the wsl.exe path. Any absolute `.exe` path is that console default, not a name, which also covers cmd.exe and a CLI launched directly; the 2026-10-04 rule only knew powershell.exe and pwsh.exe.
+pub(crate) fn is_windows_console_default_title(title: &str) -> bool {
     let normalized = title.trim().to_ascii_lowercase().replace('/', "\\");
     let path = normalized
         .strip_prefix("administrator:")
@@ -522,7 +525,7 @@ pub(crate) fn is_windows_default_powershell_title(title: &str) -> bool {
     bytes.len() >= 3
         && bytes[0].is_ascii_alphabetic()
         && bytes[1..3] == *b":\\"
-        && (path.ends_with("\\powershell.exe") || path.ends_with("\\pwsh.exe"))
+        && path.ends_with(".exe")
 }
 
 pub(crate) fn is_agent_command_noise_title(title: &str) -> bool {
