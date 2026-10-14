@@ -319,3 +319,79 @@ fn wake_moves_account(state: &AppState, project_id: &str, session_id: &str) -> b
     crate::accounts::wake_account::rebind_target(&repository, &project, &session)
         .is_ok_and(|target| target.is_some())
 }
+
+/// `/api/reloadSessionAgent` (`ghostex agents reload`): stops the session's agent and starts it
+/// again on its own conversation, whatever its screen shows: a hung turn, a broken screen, a
+/// start that failed. It is the sleep-and-wake cycle the send heal and Sign in restart with,
+/// asked for by hand, so it runs without their idle and cooldown checks; whatever the agent was
+/// doing in that turn is lost. The wake may move the session to a working account when its own
+/// cannot start (accounts/wake_account.rs).
+/// SEE-ALSO: server/src/accounts/cli.rs (the user's decision behind the CLI verbs).
+pub(crate) async fn reload(
+    state: &AppState,
+    params: &Map<String, Value>,
+) -> Result<Value, DomainStateError> {
+    let read = |key: &str| {
+        params
+            .get(key)
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|text| !text.is_empty())
+            .map(str::to_string)
+            .ok_or_else(|| DomainStateError::bad_request(format!("{key} is required.")))
+    };
+    let (project_id, session_id) = (read("projectId")?, read("sessionId")?);
+    let session = read_session(state, &project_id, &session_id).await?;
+    crate::agentbox::refuse_for_agentbox_session(&session, "Reloading the agent")?;
+    if !crate::session_chat_queue_runtime::has_conversation_to_resume(&session).await {
+        return Err(invalid(
+            "This session has no saved conversation to resume yet, so a reload would start a new one. Nothing was reloaded.",
+        ));
+    }
+    crate::session_chat_queue_runtime::cycle_session(state, &project_id, &session_id)
+        .await
+        .map_err(|reason| invalid(format!("Ghostex could not reload this session: {reason}.")))?;
+    crate::session_chat_notice::clear_session_chat_watchdog_notice(&project_id, &session_id);
+    crate::session_chat_options::session_chat_terminal_notice_publisher(
+        state,
+        &project_id,
+        &session_id,
+    )();
+    crate::session_chat_send_diagnostics::record_send_recovery(
+        state,
+        "sessionAgentReloaded",
+        &project_id,
+        &session_id,
+        "Reloaded the agent on its own conversation on request (ghostex agents reload).",
+        &[],
+    );
+    let session = read_session(state, &project_id, &session_id).await?;
+    Ok(json!({
+        "status": "reloaded",
+        "session": {
+            "globalRef": session["globalRef"],
+            "title": session["title"],
+            "lifecycleState": session["lifecycleState"],
+            "accountId": session.pointer("/runtimeSettings/accountId"),
+            "agentSessionId": session.pointer("/runtimeSettings/agentSessionId"),
+        },
+    }))
+}
+
+async fn read_session(
+    state: &AppState,
+    project_id: &str,
+    session_id: &str,
+) -> Result<Value, DomainStateError> {
+    let state = state.clone();
+    let (project_id, session_id) = (project_id.to_string(), session_id.to_string());
+    tokio::task::spawn_blocking(move || {
+        let db =
+            open_gxserver_database(&state.paths).map_err(|error| invalid(error.to_string()))?;
+        DomainRepository::new(&db, &state.metadata.server_id)
+            .get_session(&project_id, &session_id)?
+            .ok_or_else(|| DomainStateError::not_found("Session not found."))
+    })
+    .await
+    .map_err(|error| invalid(error.to_string()))?
+}

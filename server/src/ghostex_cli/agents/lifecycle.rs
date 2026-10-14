@@ -136,3 +136,59 @@ pub(super) fn close(args: &Arguments) -> CliResult<Value> {
         json!({"ok": true, "status": "closed", "session": identity::summary(&recipient), "receipt": super::delivery::receipt(&result)}),
     )
 }
+
+/// The agent session `reference` names, from the session list on its server.
+fn agent_recipient(args: &Arguments) -> CliResult<(Value, crate::ghostex_cli::args::Flags)> {
+    let reference = &args.positional[0];
+    let mut flags = identity::inventory_flags(&args.flags, reference)?;
+    let rows = sessions::fetch_session_list(&flags, false)?;
+    let recipient = selector::resolve_one_listed_session(reference, &rows, &flags)?;
+    if !identity::is_agent(&recipient) {
+        return Err(CliError::Other(
+            "The target is not an agent session.".into(),
+        ));
+    }
+    // gxserver waits for the restart before it answers.
+    flags.insert_text("timeout", "120000");
+    Ok((recipient, flags))
+}
+
+/// `ghostex agents switch-account`: `/api/agentAccounts` `switchSession`, the chat's own Switch
+/// Account (server/src/accounts/cli.rs).
+pub(super) fn switch_account(args: &Arguments) -> CliResult<Value> {
+    let (recipient, flags) = agent_recipient(args)?;
+    let result = call_gxserver_rpc(
+        "/api/agentAccounts",
+        &json!({
+            "operation": "switchSession",
+            "globalRef": recipient["globalRef"], "projectId": recipient["projectId"], "sessionId": recipient["sessionId"],
+            "account": args.account,
+        }),
+        &flags,
+    )
+    .map_err(|error| {
+        let message = error.to_string();
+        if message.contains("Stop the current turn") {
+            CliError::Other(format!("{message} Interrupt it with ghostex interrupt-session-chat {0}, or restart it with ghostex agents reload {0} (its current turn is lost).", text(&recipient, "globalRef")))
+        } else {
+            error
+        }
+    })?;
+    let mut result = result;
+    result["ok"] = json!(result["status"] != "failed");
+    Ok(result)
+}
+
+/// `ghostex agents reload`: `/api/reloadSessionAgent` (server/src/session_chat_agent_restart.rs).
+pub(super) fn reload(args: &Arguments) -> CliResult<Value> {
+    let (recipient, flags) = agent_recipient(args)?;
+    let mut result = call_gxserver_rpc(
+        "/api/reloadSessionAgent",
+        &json!({
+            "globalRef": recipient["globalRef"], "projectId": recipient["projectId"], "sessionId": recipient["sessionId"],
+        }),
+        &flags,
+    )?;
+    result["ok"] = json!(true);
+    Ok(result)
+}

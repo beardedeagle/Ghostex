@@ -66,6 +66,20 @@ pub(super) async fn route_agents_http(
         | "/api/killSession" => {
             handle_zmx_lifecycle_http(&state, endpoint.path, request_id, &body_json).await
         }
+        "/api/reloadSessionAgent" => {
+            let params = match read_domain_rpc_params(&body_json) {
+                Ok(params) => params,
+                Err(error) => return Ok(domain_error_response(endpoint.path, request_id, error)),
+            };
+            match crate::session_chat_agent_restart::reload(&state, &params).await {
+                Ok(result) => routed_json(
+                    Some(endpoint.path),
+                    StatusCode::OK,
+                    rpc_success(request_id, result),
+                ),
+                Err(error) => domain_error_response(endpoint.path, request_id, error),
+            }
+        }
         "/api/readSessionText"
         | "/api/sendSessionText"
         | "/api/sendSessionMessage"

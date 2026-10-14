@@ -41,6 +41,9 @@ pub(crate) fn dispatch(
     if operation == "resetWatch" {
         return super::reset_watch::endpoint(state, params);
     }
+    if operation == "switchSession" {
+        return super::cli::switch_session(state, params);
+    }
     let titlebar_has_accounts = if operation == "titlebar" {
         let db = crate::storage::open_gxserver_database(&state.paths).map_err(store::error)?;
         store::read(&db)?
@@ -81,7 +84,7 @@ pub(crate) fn dispatch(
     let mut registry = store::read(&db)?;
     let mut changed_sessions = Vec::new();
     match operation {
-        "list" | "session" | "titlebar" => {}
+        "list" | "roster" | "session" | "titlebar" => {}
         // CDXC:AgentProviders 2026-09-08 DECISION: Starring a saved account pins its own usage button before extensions in the titlebar; multiple Claude and Codex accounts can be pinned independently.
         "setTitlebar" => {
             let id = required(params, "id")?;
@@ -496,6 +499,9 @@ pub(crate) fn dispatch(
         &state.paths.home_dir,
         params,
     )?;
+    if operation == "roster" {
+        super::cli::roster(&repository, &snapshot, &mut value)?;
+    }
     if usage_history.is_some() {
         value["usageHistory"] = state.accounts.history.snapshot();
         value["accountCounts"] = json!({

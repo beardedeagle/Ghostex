@@ -534,6 +534,8 @@ pub fn endpoint_for(path: &str) -> Option<EndpointDescriptor> {
         | "/api/restorePreviousSession"
         | "/api/sleepSession"
         | "/api/wakeSession"
+        // CDXC:AgentProviders 2026-10-14 WHY: `ghostex agents reload` is the sleep and wake above in one call, so it is remote-allowed like they are; it carries only project and session ids.
+        | "/api/reloadSessionAgent"
         | "/api/startSessionProvider"
         | "/api/killSession"
         | "/api/probeSessionProvider"

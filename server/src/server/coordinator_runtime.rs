@@ -1000,6 +1000,11 @@ fn refresh_thread_screen_waits(
             coordinators::ThreadScreenWait::from_screen(
                 screen.notice.as_ref(),
                 screen.prompt.as_ref(),
+                &crate::ids::create_global_session_ref(
+                    state.metadata.server_id.as_str(),
+                    &thread.project_id,
+                    &thread.session_id,
+                ),
             )
             .map(|wait| (thread.key(), wait))
         })

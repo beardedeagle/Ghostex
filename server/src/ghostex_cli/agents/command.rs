@@ -82,6 +82,51 @@ pub(crate) fn run(args: &[String]) -> CliResult<()> {
         "close" => {
             print_json(&lifecycle::close(&args)?);
         }
+        "switch-account" => {
+            let result = lifecycle::switch_account(&args)?;
+            if args.json {
+                print_json(&result);
+            } else {
+                let account = &result["account"];
+                let target = format!(
+                    "account {} ({})",
+                    identity::text(account, "number"),
+                    identity::text(account, "email")
+                );
+                let reference = identity::text(&result["session"], "globalRef");
+                println!(
+                    "{}",
+                    match identity::text(&result, "status") {
+                        "unchanged" => format!("{reference} already runs on {target}."),
+                        "switched" => format!(
+                            "{reference} now runs on {target}; its agent restarted on the same conversation."
+                        ),
+                        "switchedWhileAsleep" => format!(
+                            "{reference} is asleep; it starts on {target} the next time it wakes (a message to it wakes it)."
+                        ),
+                        "switching" => format!(
+                            "{reference} is still restarting on {target}. Check it with ghostex read-session-chat {reference} --last 2 --format text."
+                        ),
+                        _ => format!(
+                            "The switch of {reference} to {target} failed: {}",
+                            identity::text(&result, "error")
+                        ),
+                    }
+                );
+            }
+            if result["ok"] != json!(true) {
+                crate::ghostex_cli::set_exit_code(1);
+            }
+        }
+        "reload" => {
+            let result = lifecycle::reload(&args)?;
+            if args.json {
+                print_json(&result);
+            } else {
+                let reference = identity::text(&result["session"], "globalRef");
+                println!("{reference} reloaded: its agent was stopped and started again on the same conversation.");
+            }
+        }
         "types" => {
             let result = lifecycle::types(&args)?;
             if args.json {

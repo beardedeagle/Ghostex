@@ -14,7 +14,8 @@ use crate::session_chat_interactive::{
     parse_stored_session_chat_prompt, SessionChatInteractivePrompt,
 };
 use crate::session_chat_notice::{
-    SessionChatTerminalNotice, SESSION_CHAT_NOTICE_PERMISSION_PROMPT,
+    SessionChatTerminalNotice, SESSION_CHAT_NOTICE_AGENT_EXITED,
+    SESSION_CHAT_NOTICE_PERMISSION_PROMPT, SESSION_CHAT_NOTICE_USAGE_LIMIT,
 };
 use crate::session_status::TURN_COMPLETE_ATTENTION_SOURCE;
 
@@ -249,6 +250,7 @@ impl ThreadScreenWait {
     pub fn from_screen(
         notice: Option<&SessionChatTerminalNotice>,
         prompt: Option<&SessionChatInteractivePrompt>,
+        thread_ref: &str,
     ) -> Option<Self> {
         if let Some(notice) = notice.filter(|notice| notice.blocks_input() && !notice.auto_trust) {
             let title = notice.title.trim();
@@ -259,9 +261,9 @@ impl ThreadScreenWait {
                 .filter(|detail| !detail.is_empty())
                 .map(|detail| format!("{detail}\n\n"))
                 .unwrap_or_default();
-            let summary = format!(
-                "Its screen shows: {title}\n\n{detail}Someone has to answer it in that thread."
-            );
+            let next = screen_fix(notice, thread_ref)
+                .unwrap_or_else(|| "Someone has to answer it in that thread.".to_string());
+            let summary = format!("Its screen shows: {title}\n\n{detail}{next}");
             return Some(Self {
                 prompt: ThreadPrompt {
                     key: format!("notice:{}:{}", notice.kind, notice.title),
@@ -281,6 +283,32 @@ impl ThreadScreenWait {
             asks: true,
         })
     }
+}
+
+/// The `ghostex` verbs that fix a screen an orchestrator can fix itself: a start that failed on an
+/// account without a saved login, a usage limit, an agent that exited.
+fn screen_fix(notice: &SessionChatTerminalNotice, thread_ref: &str) -> Option<String> {
+    let switch = format!(
+        "run `ghostex accounts`, then `ghostex agents switch-account {thread_ref} --account <number>` with a ready account that has room; it resumes the same conversation there"
+    );
+    if notice.missing_login() {
+        let slot = notice
+            .missing_login_slot()
+            .map(|slot| format!(" {slot}"))
+            .unwrap_or_default();
+        return Some(format!(
+            "To fix it, {switch}. If no account works, ask the user to sign in to account{slot} (Settings > Accounts)."
+        ));
+    }
+    if notice.kind == SESSION_CHAT_NOTICE_USAGE_LIMIT {
+        return Some(format!("To continue before the reset, {switch}."));
+    }
+    if notice.kind == SESSION_CHAT_NOTICE_AGENT_EXITED {
+        return Some(format!(
+            "`ghostex agents reload {thread_ref}` starts it again on the same conversation."
+        ));
+    }
+    None
 }
 
 /// CDXC:Coordinators 2026-10-06 WHY:

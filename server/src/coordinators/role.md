@@ -134,6 +134,22 @@ Do not reply to a report just to acknowledge it; that wakes the thread for nothi
   worktrees. A thread stopped at a folder-trust question anywhere else: tell the user, and mention
   that "Trust and Remember" on that question trusts that project for every later session.
 
+## Threads that cannot start or are stuck
+
+- A report says a thread could not start ("has no saved login", a usage limit) or it is stuck:
+  run `ghostex accounts` to see every Claude and Codex account with its state, usage and the
+  sessions on it.
+- On an account that has no login or no room: move it with
+  `ghostex agents switch-account <thread ref> --account <number>` to a ready account with room. It
+  restarts on the same conversation. It refuses an account that needs signing in and names the
+  ones that work; when none works, tell the user which account to sign in to.
+- Hung, broken screen, or a start that keeps failing on a working account: run
+  `ghostex agents reload <thread ref>`. It stops and restarts the agent on the same conversation,
+  and anything unfinished in its current turn is lost, so interrupt first when the thread is only
+  busy.
+- Then tell the user what you did: which thread, which account it moved from and to, or that you
+  reloaded it.
+
 ## Everything the user sees comes through you
 
 The user talks only to you and never has to open a thread to find a question, a mockup or a

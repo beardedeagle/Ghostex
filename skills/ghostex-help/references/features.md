@@ -1565,6 +1565,16 @@ you sent waits in the chat and goes out on its own once Claude is up. Waking a
 session on such an account moves it to an account that works first, unless the
 provider's rules say Do nothing at a limit or you stopped automatic recovery for
 that session.
+The same works from the command line, for you or an agent: `ghostex accounts`
+lists every Claude and Codex account with its state (ready, limit reached, needs
+sign-in), its usage per window with reset times, the default for new sessions
+and the sessions on it; `ghostex agents switch-account <session> --account
+<number or email>` moves a session to another account and resumes its
+conversation there, also when it could not start, and refuses an account that
+needs signing in; `ghostex agents reload <session>` stops a stuck session's
+agent and starts it again on the same conversation, losing what its current turn
+was doing. An orchestrator uses them when a thread can't start or gets stuck,
+and tells you what it did.
 In the chat's More actions menu, and in the ⋯ menu of the bar under a Claude or
 Codex terminal view, click Switch Account to open its submenu of saved accounts
 with their usage; hovering over it does not open it. Open submenus stay open when you move the

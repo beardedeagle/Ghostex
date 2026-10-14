@@ -1,3 +1,4 @@
+mod accounts;
 mod account_login;
 pub mod actions;
 pub mod agent_sync;
@@ -85,6 +86,7 @@ pub fn run() -> i32 {
 /// global help gate.
 const HELP_GATE_EXCLUDED: &[&str] = &[
     "account-login",
+    "accounts",
     "agent-cli",
     "agentbox",
     "agents",
@@ -187,6 +189,7 @@ fn exit_code() -> i32 {
 fn is_known_command(name: &str) -> bool {
     const NAMES: &[&str] = &[
         "account-login",
+        "accounts",
         "agent-cli",
         "agentbox",
         "agents",
@@ -384,6 +387,7 @@ fn run_command(name: &str, args: &[String]) -> CliResult<()> {
     };
     match name {
         "account-login" => account_login::run(args),
+        "accounts" => accounts::run(args),
         "agent-cli" => agent_cli::run(args),
         "agentbox" => {
             require_built_in(ghostex_settings_catalog::built_in_extensions::CLOUD_BOXES)?;

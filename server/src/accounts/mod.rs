@@ -1,5 +1,6 @@
 pub(crate) mod claude_background;
 pub(crate) mod claude_resets;
+mod cli;
 mod codex_blockers;
 pub(crate) mod continuation;
 pub(crate) mod default_account;

@@ -23,6 +23,8 @@ pub(super) struct Arguments {
     pub all: bool,
     /// `--allow-hidden`: create an agent that is turned off in Settings > Agents.
     pub allow_hidden: bool,
+    /// `--account`: the account number, email or id switch-account moves the session to.
+    pub account: Option<String>,
     pub json: bool,
     pub help: bool,
     pub flags: Flags,
@@ -40,6 +42,7 @@ pub(super) fn parse(args: &[String]) -> CliResult<Arguments> {
         request_id: None,
         all: false,
         allow_hidden: false,
+        account: None,
         json: false,
         help: args.is_empty(),
         flags: Flags::default(),
@@ -67,7 +70,8 @@ pub(super) fn parse(args: &[String]) -> CliResult<Arguments> {
                     Delivery::Queue
                 };
             }
-            "--body-file" | "--server" | "--task" | "--title" | "--project-id" | "--request-id" => {
+            "--body-file" | "--server" | "--task" | "--title" | "--project-id" | "--request-id"
+            | "--account" => {
                 let value = args
                     .next()
                     .filter(|value| !value.starts_with("--") && !value.is_empty())
@@ -78,6 +82,7 @@ pub(super) fn parse(args: &[String]) -> CliResult<Arguments> {
                     "--title" => Some(&mut parsed.title),
                     "--project-id" => Some(&mut parsed.project_id),
                     "--request-id" => Some(&mut parsed.request_id),
+                    "--account" => Some(&mut parsed.account),
                     _ => None,
                 };
                 if let Some(slot) = slot {
@@ -103,6 +108,11 @@ pub(super) fn parse(args: &[String]) -> CliResult<Arguments> {
     if parsed.request_id.is_some() && parsed.command != "send" {
         return Err(CliError::Other(
             "--request-id is only available for send.".into(),
+        ));
+    }
+    if parsed.account.is_some() && parsed.command != "switch-account" {
+        return Err(CliError::Other(
+            "--account is only available for switch-account.".into(),
         ));
     }
     if parsed
@@ -185,6 +195,27 @@ pub(super) fn parse(args: &[String]) -> CliResult<Arguments> {
             {
                 return Err(CliError::Other(
                     "Creating on --server requires --project-id.".into(),
+                ));
+            }
+        }
+        "switch-account" | "reload" => {
+            if parsed.positional.len() != 1
+                || parsed.all
+                || parsed.body_file.is_some()
+                || parsed.delivery != Delivery::Normal
+            {
+                return Err(CliError::Other(format!(
+                    "Usage: ghostex agents {}. See ghostex agents --help.",
+                    if parsed.command == "reload" {
+                        "reload <session-ref>"
+                    } else {
+                        "switch-account <session-ref> --account <number|email>"
+                    }
+                )));
+            }
+            if parsed.command == "switch-account" && parsed.account.is_none() {
+                return Err(CliError::Other(
+                    "switch-account requires --account <number|email>. Run ghostex accounts to see them.".into(),
                 ));
             }
         }

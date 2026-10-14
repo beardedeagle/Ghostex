@@ -1,4 +1,4 @@
-Create, message, and close agent sessions in Ghostex.
+Create, message, switch the account of, reload, and close agent sessions in Ghostex.
 
 USAGE
   ghostex agents whoami [--json]
@@ -11,6 +11,8 @@ USAGE
   ghostex agents send <session-ref> --body-file <path> [--interrupt | --queue]
                      [--request-id <id>]
   ghostex agents close <session-ref>
+  ghostex agents switch-account <session-ref> --account <number|email> [--json]
+  ghostex agents reload <session-ref> [--json]
 
 QUICK START
   ghostex agents whoami --json
@@ -168,6 +170,34 @@ READ ANOTHER THREAD (past or present)
   with the UTC offset. Add --history-mode detail for every tool call.
   ghostex read-session-chat --help lists every flag.
 
+ACCOUNTS AND STUCK SESSIONS
+  ghostex accounts [--refresh] [--json]
+  ghostex agents switch-account <session-ref> --account <number|email>
+  ghostex agents reload <session-ref>
+
+  accounts lists every saved Claude and Codex account: number, email, state
+  (ready, limit reached, needs sign-in), usage per window with its reset
+  time, the default for new sessions, and the sessions on each account.
+
+  switch-account moves a Claude or Codex session to another saved account of
+  the same provider and restarts its agent there on the same conversation,
+  like Switch Account in the chat. It works on a session that could not
+  start ("has no saved login") as well as a running one, and waits up to a
+  minute for the restart. It refuses an unknown account or one that needs
+  signing in, and names the accounts that would work. A busy session is
+  refused: interrupt it first, or reload it. A sleeping session only changes
+  its account and starts on it at its next wake.
+
+  reload stops the session's agent and starts it again on the same
+  conversation: for a session that hangs, shows a broken screen, or failed
+  to start. Whatever it was doing in its current turn is lost (unfinished
+  tool calls, subagents and background jobs), so try interrupting first
+  when the agent is only busy. A session whose own account cannot start may
+  come back on a working account.
+
+  Both work on any agent session, not only your own threads, and accept
+  --server <profile>. Tell the user which session you moved or reloaded.
+
 CLOSE
   close ends one session and stops its agent, including unfinished work.
   Read its result and confirm the handoff before closing it. Use --interrupt
@@ -190,3 +220,5 @@ TROUBLESHOOTING
   Delivery uncertain: inspect chat and queue before sending again, and resend
   with the first attempt's --request-id so it cannot arrive twice.
   Session idle: check its reply and work; idle alone does not prove completion.
+  Can't start or stuck: ghostex accounts, then switch-account to an account
+  with room, or reload it.

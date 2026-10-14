@@ -140,6 +140,24 @@ step 7 below). Do not poll or sleep to watch it; end your turn and wait.
    yourself when it matters, and only then close the session or send the next
    task.
 
+## A session that can't start or is stuck
+
+When an agent session could not start ("has no saved login", a usage limit) or
+hangs:
+
+```bash
+ghostex accounts                                              # every Claude/Codex account: state, usage, resets, sessions
+ghostex agents switch-account <ref> --account <number|email>  # move it to a ready account, same conversation
+ghostex agents reload <ref>                                   # stop and restart its agent, same conversation
+```
+
+Pick a ready account with room for `switch-account`; it refuses one that needs
+signing in and names those that work. `reload` loses whatever the current turn
+was doing, so interrupt a merely busy agent instead. Tell the user which
+session you moved or reloaded. These verbs need a Ghostex release newer than
+10.22.0; when `ghostex accounts` is an unknown command, tell the user the
+session is stuck and needs Switch Account or a reload from the app.
+
 ## Read another thread (past or present)
 
 Use this when the user asks what was said or decided in another session ("check

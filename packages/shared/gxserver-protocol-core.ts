@@ -209,6 +209,7 @@ export type GxserverEndpointPath =
   | "/api/holdSessionsAwake"
   | "/api/sleepSession"
   | "/api/wakeSession"
+  | "/api/reloadSessionAgent"
   | "/api/startSessionProvider"
   | "/api/killSession"
   | "/api/probeSessionProvider"

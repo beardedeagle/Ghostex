@@ -114,6 +114,10 @@ pub fn usage() -> String {
             "Connect a new Claude account, or reconnect a selected cswap account",
         ),
         format_help_command(
+            "accounts [--refresh] [--json]",
+            "List every Claude and Codex account with its state, usage and reset times, the default, and the sessions on it",
+        ),
+        format_help_command(
             "sessions | s | ls [--ungrouped|-u] [--json [--full]] [--mobile-summary]",
             "List running terminal sessions",
         ),
@@ -527,6 +531,14 @@ pub fn usage() -> String {
         format_help_command(
             "agents --help",
             "Communicate and coordinate with other agents",
+        ),
+        format_help_command(
+            "agents switch-account <session-ref> --account <number|email> [--json]",
+            "Move a Claude or Codex session to another account and resume its conversation there",
+        ),
+        format_help_command(
+            "agents reload <session-ref> [--json]",
+            "Stop a stuck session's agent and start it again on the same conversation (its current turn is lost)",
         ),
         format_help_command(
             "orchestrator --help",
