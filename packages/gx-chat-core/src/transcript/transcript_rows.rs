@@ -141,10 +141,20 @@ pub fn tool_rows(
                 "preview".to_string(),
                 tool_preview(pair, working_directory).into(),
             );
+            // A call the agent described is named by that description in every mode, and its
+            // command preview gives way to it (`tool_description`); the call's own name is the
+            // label otherwise.
+            let description = tool_description(pair.call_input().unwrap_or(&Value::Null));
             row.insert(
-                "description".to_string(),
-                tool_description(pair.call_input().unwrap_or(&Value::Null)).into(),
+                "label".to_string(),
+                if description.is_empty() {
+                    pair.call_name().unwrap_or("Result").to_string()
+                } else {
+                    description.clone()
+                }
+                .into(),
             );
+            row.insert("description".to_string(), description.into());
             row.insert("failed".to_string(), pair.result_is_error().into());
             // The row's right edge: a check once the call answered, a cross when it failed, and
             // nothing while it runs; then what failed, and how long the call took.

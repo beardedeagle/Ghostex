@@ -55,7 +55,7 @@ impl NativeChatView {
     ) -> AnyElement {
         let s = p.scale;
         let id = format!("work:{}", text(item, "id"));
-        let expanded = self.is_expanded(&id, p.verbose);
+        let expanded = self.is_expanded(&id, p.work_open);
         self.disclosure_motion
             .borrow_mut()
             .arrived(&id, !expanded, cx.reduce_motion());

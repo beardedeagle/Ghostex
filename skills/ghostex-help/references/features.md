@@ -1230,11 +1230,17 @@ the agent.
 When an assistant message
 has tool calls, click its text or the chevron beside it to expand the tools directly
 under that message. Its full text and formatting stay visible when collapsed;
-links and code controls keep their own actions. Verbose mode opens these tools
-by default (`sessionChatVerboseMode`). File writes and code
+links and code controls keep their own actions. Verbose mode, and any chat with
+Simple mode off, opens these tools by default (`sessionChatVerboseMode`,
+`sessionChatSimpleMode`), along with each finished turn's "Worked for" log; close
+one with a click and it stays closed. A tool call the agent described (for
+example "Search for config files") is named by that description in every mode,
+in the reply's own font and a slightly dimmer colour, instead of the tool's name
+and its command; click the row to see the full command and its result. File writes and code
 edits appear outside the tool groups while the agent works. As soon as the agent
 finishes a turn, its tool work folds away under "Worked for Xs" above the final
-reply; click that line to open or close it. When a turn shows
+reply (open by default with Simple mode off or Verbose mode on); click that
+line to open or close it. When a turn shows
 "Worked for", all its file changes are grouped in a collapsed "N files changed"
 section directly below it. Older history loads with completed turns already
 collapsed, so you can scroll through prompts and answers without passing through
@@ -1282,10 +1288,9 @@ More actions > View holds the chat's display modes: Simple, Verbose and Summary.
 Each one is its own switch, and the View row names the ones that are on.
 
 Simple mode (More actions > View, or Settings > Chat) applies to every chat. Tool groups
-without a message above them collapse to a tool-call count, and tool rows hide
-command previews and show the one-line description the agent gave the call
-instead of the tool's name, when it gave one; expand a tool to inspect its full
-input and result. File edits
+without a message above them collapse to a tool-call count, tool rows hide
+command previews, and the work under each reply stays folded until you open it;
+expand a tool to inspect its full input and result. File edits
 collapse under "Edited 1 file" or "Edited X files", counting each path once; expand
 the row to see the usual file and diff cards. The menu and Settings use the same
 toggle (`sessionChatSimpleMode`, on by default). The phone app has Simple mode too,
