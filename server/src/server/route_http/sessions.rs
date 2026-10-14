@@ -471,7 +471,8 @@ pub(super) async fn route_sessions_http(
         | "/api/listCoordinators"
         | "/api/updateCoordinator"
         | "/api/linkCoordinatorThread"
-        | "/api/setCoordinatorThreadResolved" => {
+        | "/api/setCoordinatorThreadResolved"
+        | "/api/renameCoordinatorThread" => {
             let path = endpoint.path.clone();
             handle_domain_http(
                 &state,

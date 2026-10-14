@@ -524,6 +524,7 @@ pub fn endpoint_for(path: &str) -> Option<EndpointDescriptor> {
         | "/api/updateCoordinator"
         | "/api/linkCoordinatorThread"
         | "/api/setCoordinatorThreadResolved"
+        | "/api/renameCoordinatorThread"
         | "/api/resolveCoordinatorThread"
         // CDXC:SessionChat 2026-10-14 WHY: `ghostex agents send` hands gxserver a message it left waiting so the sender's chat card can say when it arrived (agent_message_deliveries.rs); like `linkCoordinatorThread` it carries project/session ids, a send id and the message text.
         | "/api/watchAgentMessageDelivery"

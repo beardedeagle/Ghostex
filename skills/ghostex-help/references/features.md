@@ -1506,12 +1506,20 @@ first.
 Settings > Accounts saves Claude and Codex logins. The left side lists each
 provider's accounts with a usage bar (or a Reconnect button when a login stopped
 working) and the provider's rules; click one to see it on the right: its usage
-bars with reset times, Name, Auto-switch (whether Ghostex may move sessions to
+bars with reset times (labelled 5h, 7d and Fable), Enabled, Name, Auto-switch (whether Ghostex may move sessions to
 it at a limit, shown as an Auto-switch on or off tag), Show usage in the sidebar,
 and under Advanced the Session badge (up to two letters or numbers on its
 session icons) and its Account number, which you can swap with another
 account's. Changes save as you make them; Sign in again and Remove sit at the
 bottom, and Remove asks first and says how many sessions use the account.
+Turn Enabled off to keep an account you no longer use (for example one whose
+subscription ended) saved but out of use: it shows dimmed with a Disabled tag,
+Ghostex never starts new sessions on it, switches to it at a limit or offers it
+in Switch Account menus, stops reading its usage and sign-in state (so it never
+asks you to reconnect it), and drops its usage from the sidebar. Sessions already
+on it keep running, and the account says how many still use it. Turn Enabled on
+to use it again. This is separate from "Subscription access disabled", which
+Ghostex sets on its own when Claude refuses an account.
 Reconnect is one click: your browser opens on the provider's sign-in page with
 the account's email filled in, Settings shows "Waiting for you to sign in…" (a
 box for a sign-in code appears only if the browser shows one, and the sign-in
@@ -1613,7 +1621,7 @@ open More actions > Switch Account and click Customize under Keep going at a
 limit; Use session defaults returns it to the Settings values.
 A sleeping session whose account is already at its limit wakes on another
 account that has room. When every account with Auto-switch on is full, the
-session's chat shows "Weekly limit reached on every account" (or whichever limit
+session's chat shows "7d limit reached on every account" (or whichever limit
 it hit) with when it continues on its own, and the bell gets one notification;
 both go away once the session switches or resumes.
 Account sign-in terminals open in the active local project's folder and appear
@@ -2020,9 +2028,12 @@ version of the Projects features in Cursor and Claude Code.
   and back, and a folded orchestrator keeps its number and colour. Opening a
   orchestrator's chat leaves both as you set them; opening one of its threads
   unfolds the orchestrator so the thread shows. Click a thread to watch it or
-  talk to it directly; answer its questions and approvals there. A thread keeps
-  the name its orchestrator gave it, like the orchestrator keeps its own (Rename in
-  the sidebar still changes it). Pinning the
+  talk to it directly; answer its questions and approvals there. A thread is
+  named after the area it works on and keeps the name its orchestrator gave it,
+  like the orchestrator keeps its own; when a follow-up moves a thread to other
+  work, the orchestrator renames it (`ghostex orchestrator rename`). Your own
+  Rename in the sidebar always wins: the orchestrator never renames a thread you
+  renamed. Pinning the
   orchestrator takes its threads along. Right-click the orchestrator and choose
   **Sleep Inactive Threads** to put its idle threads to sleep in one go: threads
   that are working, waiting on a question or approval, or running a background
@@ -2732,7 +2743,7 @@ backend: `ghostex team deploy|join|invite|identity|status|ping|leave`. Slack:
   (the pin shows filled while they are pinned) to unpin them. Ghostex remembers
   whether they are pinned. The button itself is only there once you have
   starred an account.
-  Claude meters show the two tightest of the weekly, five-hour, and Fable
+  Claude meters show the two tightest of the 7d, 5h, and Fable
   limits, so the Fable limit is never hidden when it is running out; launcher
   and picker rows and the Accounts figures use the same two numbers. Each
   meter opens that login's live limits, reset times, and extra usage or rate

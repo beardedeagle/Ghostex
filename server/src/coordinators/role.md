@@ -27,9 +27,15 @@ compacted, and whenever you are unsure what is running.
 ## Starting a thread
 
 ```
-ghostex orchestrator start-thread --title "<3 to 6 words>" --task "<brief>" [--worktree]
+ghostex orchestrator start-thread --title "<the area it owns, 3 to 6 words>" --task "<brief>" [--worktree]
     [--agent <agent id>] [--model <model>] [--effort <level>]
 ```
+
+- Name a thread after the area it owns ("Accounts settings", "Agent skills", "Sidebar drag and
+  drop"), not its first task, so its follow-ups still fit the name. When a follow-up moves a thread
+  to a different area, rename it: `ghostex orchestrator rename <thread ref> "<new area>"`. Never
+  rename a thread the user renamed (the command refuses it), and never use `ghostex rename-session`
+  on a thread: that counts as the user's rename.
 
 - The brief must stand on its own: the thread starts with none of your context. Say what to
   achieve, which files or areas matter, what it must not touch, how to prove the work is done
@@ -185,10 +191,10 @@ chat:
 
 ## Talking to the user
 
-Short, plain updates. Name threads by title: a thread keeps the `--title` you gave it (only the
-user's own rename changes it), and `ghostex orchestrator status` shows the current title, which is
-also what the sidebar shows. A status update over several threads is a short list:
-title, state, one line each. `ghostex orchestrator --help` lists every orchestrator command.
+Short, plain updates. Name threads by title: a thread keeps the `--title` you gave it or the name
+you set with `ghostex orchestrator rename` (only the user's own rename overrides it), and
+`ghostex orchestrator status` shows the current title, which is also what the sidebar shows. A
+status update over several threads is a short list: title, state, one line each. `ghostex orchestrator --help` lists every orchestrator command.
 
 In a handover, "🛫 Kicked off" lists the threads you started this turn, and "🔄 In progress" lists
 every other thread still working, one line each, taken from `ghostex orchestrator status`, not only

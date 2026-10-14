@@ -31,6 +31,7 @@ pub const COORDINATOR_ENDPOINTS: &[&str] = &[
     "/api/updateCoordinator",
     "/api/linkCoordinatorThread",
     "/api/setCoordinatorThreadResolved",
+    "/api/renameCoordinatorThread",
 ];
 
 fn text(params: &Map<String, Value>, key: &str) -> Option<String> {
@@ -232,6 +233,13 @@ pub fn handle_coordinator_endpoint(
             let view = thread_view(repository, &thread)?;
             Ok(CoordinatorEndpointOutput {
                 result: json!({ "changed": changed, "thread": view }),
+                changed_sessions: vec![thread_key],
+            })
+        }
+        "/api/renameCoordinatorThread" => {
+            let (result, thread_key) = super::rename::rename_thread(repository, db, params)?;
+            Ok(CoordinatorEndpointOutput {
+                result,
                 changed_sessions: vec![thread_key],
             })
         }

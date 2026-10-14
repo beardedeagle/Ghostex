@@ -36,6 +36,7 @@ pub(crate) fn run(args: &[String]) -> CliResult<()> {
         "status" => status(&parsed),
         "start-thread" => threads::start_thread(&parsed),
         "link" => threads::link(&parsed),
+        "rename" => threads::rename(&parsed),
         "resolve" | "reopen" => threads::set_resolved(&parsed, command == "resolve"),
         "sleep-inactive-threads" => sleep_threads::sleep_inactive_threads(&parsed),
         "remember" | "forget" | "set-goal" | "set-instructions" => update(command, &parsed),

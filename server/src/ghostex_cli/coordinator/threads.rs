@@ -267,3 +267,40 @@ pub(super) fn set_resolved(parsed: &ParsedArgs, resolved: bool) -> CliResult<()>
     }
     Ok(())
 }
+
+/// `rename` gives one of the orchestrator's threads a new title through gxserver, which refuses
+/// a thread the user renamed themselves (server/src/coordinators/rename.rs).
+pub(super) fn rename(parsed: &ParsedArgs) -> CliResult<()> {
+    let [reference, title] = parsed.rest.as_slice() else {
+        return Err(CliError::Other(
+            "Usage: ghostex orchestrator rename <thread-ref> \"<title>\" [--orchestrator <ref>] [--json]"
+                .into(),
+        ));
+    };
+    let (coordinator, _) = target_coordinator(parsed)?;
+    let (thread, flags) = resolve_thread_session(reference, &server_flags(&parsed.flags))?;
+    let global_ref = agents::text(&thread, "globalRef").to_string();
+    let result = call_gxserver_rpc(
+        "/api/renameCoordinatorThread",
+        &json!({
+            "coordinatorProjectId": coordinator["projectId"],
+            "coordinatorSessionId": coordinator["sessionId"],
+            "projectId": thread["projectId"],
+            "sessionId": thread["sessionId"],
+            "title": title,
+        }),
+        &flags,
+    )?;
+    if parsed.flags.truthy("json") {
+        print_json(&result);
+    } else if result["changed"] == json!(true) {
+        println!(
+            "Renamed {global_ref} from \"{}\" to \"{}\".",
+            agents::text(&result, "previousTitle"),
+            agents::text(&result, "title")
+        );
+    } else {
+        println!("{global_ref} is already called \"{title}\".");
+    }
+    Ok(())
+}
