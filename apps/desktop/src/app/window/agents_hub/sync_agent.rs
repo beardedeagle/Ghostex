@@ -10,8 +10,8 @@ use super::widgets::*;
 use super::window::{AgentsHubModalCommand, GpuiAgentsHubModalWindow};
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
-    AnyElement, Context, FontWeight, InteractiveElement as _, IntoElement, ParentElement as _,
-    SharedString, StatefulInteractiveElement as _, Styled as _, div, px,
+    div, px, AnyElement, Context, FontWeight, InteractiveElement as _, IntoElement,
+    ParentElement as _, SharedString, StatefulInteractiveElement as _, Styled as _,
 };
 use gpui_component::{h_flex, v_flex};
 
@@ -214,7 +214,28 @@ impl GpuiAgentsHubModalWindow {
                     Some(SyncTone::Err),
                 ));
             }
-            if skills.dir_state == "wholeFolderLink" {
+            if counts.redundant_links > 0 {
+                lines.push(line(
+                    ICON_LINK_OFF,
+                    format!(
+                        "{} in this folder, but {} reads ~/.agents/skills itself; they will be removed",
+                        plural(counts.redundant_links, "shared skill is linked", "shared skills are linked"),
+                        agent.display_name
+                    ),
+                    Some(SyncTone::Warn),
+                ));
+            }
+            if counts.backups > 0 {
+                lines.push(line(
+                    ICON_COPY,
+                    format!(
+                        "{} will be moved to Ghostex's backup folder",
+                        plural(counts.backups, "old backup folder", "old backup folders")
+                    ),
+                    Some(SyncTone::Warn),
+                ));
+            }
+            if skills.dir_state == "wholeFolderLink" && !agent.universal {
                 lines.push(line(
                     ICON_FOLDER,
                     "The whole skills folder is one link. It becomes a real folder with one link per skill."
@@ -280,7 +301,7 @@ impl GpuiAgentsHubModalWindow {
                 agent.display_name
             ),
             Some(_) if agent.universal => format!(
-                "{} reads the shared skills folder directly. Sync only removes dead links here.",
+                "{} reads the shared skills folder directly, so it needs no links. Sync removes links and dead links here.",
                 agent.display_name
             ),
             Some(skills) if groups.is_empty() => format!(

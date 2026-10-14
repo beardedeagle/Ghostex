@@ -31,12 +31,19 @@ What it does:
   every agent's global skills folder, converts whole-folder links into folders
   of per-skill links, writes the one-line instruction pointer file each agent
   reads, and links the hooks folder and lock file into Claude Code and Codex.
-  Nothing is deleted: anything in the way of a link is moved to Ghostex's
+  Agents that read ~/.agents/skills themselves (Codex, Gemini CLI, GitHub
+  Copilot, Pi, Cursor, OpenCode, Amp) get no links, and links already in their
+  folders are removed so they do not load each skill twice.
+  Nothing is deleted: anything in the way of a link, and any leftover
+  <name>.pre-sync-<stamp>.bak folder in a skills folder, is moved to Ghostex's
   state folder (agent-sync-backups/<stamp>/, same path as under HOME), and
   dangling links are removed.
 
 Groups (all on by default except prune-lock):
   remove-dangling        Remove symlinks whose target is gone
+  remove-redundant-links Remove links into ~/.agents/skills from agents that
+                         read that folder themselves
+  move-backups           Move .pre-sync-*.bak folders out of skills folders
   convert-whole-folder   Replace a skills folder symlink with per-skill links
   per-skill-links        Link every source skill into the agent folder
   pointer-files          Write the instruction pointer files
@@ -266,7 +273,7 @@ fn print_status(report: &SyncReport) {
     );
     let summary = &report.summary;
     println!(
-        "Agents: {} detected, {} linked, {} need attention. Dangling links {}, copied folders {}, whole-folder links {}, missing pointers {}, stale lock entries {}.",
+        "Agents: {} detected, {} linked, {} need attention. Dangling links {}, copied folders {}, whole-folder links {}, missing pointers {}, stale lock entries {}, unneeded links {}, backup folders {}.",
         summary.agents_detected,
         summary.agents_linked,
         summary.agents_attention,
@@ -274,7 +281,9 @@ fn print_status(report: &SyncReport) {
         summary.copied_skill_folders,
         summary.whole_folder_links,
         summary.missing_pointers,
-        summary.stale_lock_entries
+        summary.stale_lock_entries,
+        summary.redundant_links,
+        summary.backup_folders
     );
     println!();
     for agent in report.agents.iter().filter(|agent| agent.detected) {

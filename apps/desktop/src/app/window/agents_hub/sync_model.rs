@@ -41,6 +41,10 @@ pub(crate) struct SyncSkillCounts {
     pub(crate) only_here: usize,
     #[serde(default)]
     pub(crate) via_whole_folder: usize,
+    #[serde(default)]
+    pub(crate) redundant_links: usize,
+    #[serde(default)]
+    pub(crate) backups: usize,
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
@@ -300,8 +304,10 @@ pub(crate) enum SyncPart {
 pub(crate) const SYNC_PARTS: [SyncPart; 3] =
     [SyncPart::Skills, SyncPart::Instructions, SyncPart::Hooks];
 
-pub(crate) const PLAN_GROUP_KINDS: [&str; 6] = [
+pub(crate) const PLAN_GROUP_KINDS: [&str; 8] = [
     "removeDangling",
+    "removeRedundantLinks",
+    "moveBackups",
     "convertWholeFolder",
     "perSkillLinks",
     "pointerFiles",
@@ -313,6 +319,8 @@ pub(crate) const PLAN_GROUP_KINDS: [&str; 6] = [
 pub(crate) fn problem_fix_groups(kind: &str) -> Vec<&'static str> {
     match kind {
         "danglingLinks" | "sourceBrokenLinks" => vec!["removeDangling"],
+        "redundantLinks" => vec!["removeRedundantLinks"],
+        "backupFolders" => vec!["moveBackups"],
         "wholeFolderLinks" => vec!["convertWholeFolder"],
         "copiedFolders" => vec!["perSkillLinks"],
         "missingPointers" => vec!["pointerFiles"],
@@ -360,6 +368,8 @@ pub(crate) fn skills_tone(agent: &SyncAgentReport) -> SyncTone {
         return SyncTone::Err;
     }
     if skills.dir_state == "wholeFolderLink"
+        || skills.counts.redundant_links > 0
+        || skills.counts.backups > 0
         || skills.counts.copies_identical > 0
         || skills.counts.copies_drifted > 0
         || (!agent.universal && skills.counts.missing > 0)
@@ -402,7 +412,13 @@ pub(crate) fn part_fix_groups(agent: &SyncAgentReport, part: SyncPart) -> Vec<&'
             if skills.counts.dangling > 0 {
                 groups.push("removeDangling");
             }
-            if skills.dir_state == "wholeFolderLink" {
+            if skills.counts.redundant_links > 0 {
+                groups.push("removeRedundantLinks");
+            }
+            if skills.counts.backups > 0 {
+                groups.push("moveBackups");
+            }
+            if skills.dir_state == "wholeFolderLink" && !agent.universal {
                 groups.push("convertWholeFolder");
             }
             if agent.detected
@@ -475,7 +491,8 @@ pub(crate) fn worst_tone(agent: &SyncAgentReport) -> SyncTone {
 /// Which of the three shared things a problem belongs to; the shared folder's own problems have none.
 pub(crate) fn problem_part(kind: &str) -> Option<SyncPart> {
     match kind {
-        "danglingLinks" | "copiedFolders" | "wholeFolderLinks" => Some(SyncPart::Skills),
+        "danglingLinks" | "copiedFolders" | "wholeFolderLinks" | "redundantLinks"
+        | "backupFolders" => Some(SyncPart::Skills),
         "missingPointers" => Some(SyncPart::Instructions),
         _ => None,
     }
@@ -614,6 +631,32 @@ pub(crate) fn problem_copy(problem: &SyncProblem, report: &SyncReport) -> Proble
                 tone: SyncTone::Warn,
             }
         }
+        "redundantLinks" => ProblemCopy {
+            steps: vec![
+                "The links are removed from those agents' own skills folders.".to_string(),
+                "The skills stay in ~/.agents/skills, which these agents read anyway.".to_string(),
+            ],
+            sub: "These agents read your shared folder themselves, so each linked skill loads twice."
+                .to_string(),
+            title: format!(
+                "{} that these agents do not need",
+                plural(count, "skill link", "skill links")
+            ),
+            tone: SyncTone::Warn,
+        },
+        "backupFolders" => ProblemCopy {
+            steps: vec![
+                "Each backup folder is moved to Ghostex's own backup folder, at the same path it had under your home folder."
+                    .to_string(),
+                "Nothing is deleted.".to_string(),
+            ],
+            sub: "Agents read a backup inside a skills folder as one more skill.".to_string(),
+            title: format!(
+                "{} inside agents' skills folders",
+                plural(count, "old backup sits", "old backups sit")
+            ),
+            tone: SyncTone::Warn,
+        },
         "wholeFolderLinks" => ProblemCopy {
             steps: vec![
                 "The folder link is replaced with a real folder.".to_string(),
@@ -632,7 +675,7 @@ pub(crate) fn problem_copy(problem: &SyncProblem, report: &SyncReport) -> Proble
             steps: vec![
                 "Each agent gets a one-line instruction file that tells it to read ~/.agents/main.md."
                     .to_string(),
-                "A file that already has other content is backed up first, next to the original."
+                "A file that already has other content is first moved to Ghostex's backup folder."
                     .to_string(),
             ],
             sub: "Their instruction file does not mention ~/.agents/main.md.".to_string(),
@@ -662,10 +705,14 @@ fn agent_problem_count(agent: &SyncAgentReport, kind: &str) -> usize {
     let skills = agent.skills.as_ref();
     match kind {
         "danglingLinks" => skills.map_or(0, |s| s.counts.dangling),
+        "redundantLinks" => skills.map_or(0, |s| s.counts.redundant_links),
+        "backupFolders" => skills.map_or(0, |s| s.counts.backups),
         "copiedFolders" => {
             skills.map_or(0, |s| s.counts.copies_identical + s.counts.copies_drifted)
         }
-        "wholeFolderLinks" => usize::from(skills.is_some_and(|s| s.dir_state == "wholeFolderLink")),
+        "wholeFolderLinks" => usize::from(
+            !agent.universal && skills.is_some_and(|s| s.dir_state == "wholeFolderLink"),
+        ),
         "missingPointers" => {
             let state = agent
                 .instructions
@@ -686,8 +733,9 @@ pub(crate) fn problem_agents<'a>(
     report: &'a SyncReport,
 ) -> Vec<ProblemAgentCount<'a>> {
     let unit = match problem.kind.as_str() {
-        "danglingLinks" => "link",
+        "danglingLinks" | "redundantLinks" => "link",
         "copiedFolders" => "skill",
+        "backupFolders" => "backup",
         _ => "",
     };
     let mut agents: Vec<ProblemAgentCount<'a>> = report

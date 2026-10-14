@@ -8,9 +8,9 @@ use super::widgets::*;
 use super::window::GpuiAgentsHubModalWindow;
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
-    AnyElement, Bounds, ClickEvent, Context, FontWeight, InteractiveElement as _, IntoElement,
-    ParentElement as _, Pixels, SharedString, StatefulInteractiveElement as _, Styled as _, Window,
-    canvas, div, point, px,
+    canvas, div, point, px, AnyElement, Bounds, ClickEvent, Context, FontWeight,
+    InteractiveElement as _, IntoElement, ParentElement as _, Pixels, SharedString,
+    StatefulInteractiveElement as _, Styled as _, Window,
 };
 use gpui_component::{h_flex, v_flex};
 
@@ -250,8 +250,8 @@ fn paint_ring(
 /// The problem glyph (`ProblemIcon`).
 fn problem_icon(kind: &str) -> &'static str {
     match kind {
-        "danglingLinks" | "sourceBrokenLinks" => ICON_LINK_OFF,
-        "copiedFolders" => ICON_COPY,
+        "danglingLinks" | "sourceBrokenLinks" | "redundantLinks" => ICON_LINK_OFF,
+        "copiedFolders" | "backupFolders" => ICON_COPY,
         "wholeFolderLinks" => ICON_FOLDER,
         "missingPointers" => ICON_FILE_TEXT,
         _ => ICON_ALERT,

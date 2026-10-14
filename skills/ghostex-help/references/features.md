@@ -1876,8 +1876,10 @@ anything in the way is moved to
 under your home folder, so agents never mistake a backup for a skill. Tidying
 leftover lock file entries is opt-in (the Optional cleanup switch, or the plan's
 last group). Agents that read `~/.agents/skills` directly (Codex, Gemini CLI,
-GitHub Copilot, Pi, Amp, Cursor, OpenCode) get no links; Claude Code and the
-others get one link per skill. The same scan, plan, and apply run from the CLI:
+GitHub Copilot, Pi, Amp, Cursor, OpenCode) get no links, and links already in
+their folders are removed so they do not load each skill twice; Claude Code and
+the others get one link per skill. Old `<name>.pre-sync-<stamp>.bak` backup
+folders left inside skills folders are moved to the same backup folder. The same scan, plan, and apply run from the CLI:
 `ghostex agent-sync status`, `ghostex agent-sync plan [--agent <id>]`, and
 `ghostex agent-sync apply --yes [--agent <id>] [--group <group>...]
 [--prune-lock]`; `ghostex agent-sync agents` lists the ids.

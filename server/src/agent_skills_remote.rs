@@ -15,9 +15,9 @@ use sha1::{Digest, Sha1};
 
 use crate::{
     agent_skills::{
-        agent_skill_global_dir, copy_skill_directory_into_place, link_skill_into_agent_root,
-        path_string, AGENT_SKILL_COPY_EXCLUDED_NAMES, CANONICAL_AGENT_SKILLS_DIR,
-        GHOSTEX_AGENT_SKILL_NAMES, GHOSTEX_SKILLS_CLI_AGENT_IDS,
+        agent_reads_canonical_skills, agent_skill_global_dir, copy_skill_directory_into_place,
+        link_skill_into_agent_root, path_string, AGENT_SKILL_COPY_EXCLUDED_NAMES,
+        CANONICAL_AGENT_SKILLS_DIR, GHOSTEX_AGENT_SKILL_NAMES, GHOSTEX_SKILLS_CLI_AGENT_IDS,
     },
     logging::{DiagnosticLogScenario, GxserverLogInput, GxserverLogger, LogLevel},
     paths::GxserverPaths,
@@ -371,7 +371,8 @@ pub fn spawn_startup_skill_refresh(paths: GxserverPaths, logger: Arc<GxserverLog
                 return;
             };
             let updated_count = result["updated"].as_array().map_or(0, Vec::len)
-                + result["linked"].as_array().map_or(0, Vec::len);
+                + result["linked"].as_array().map_or(0, Vec::len)
+                + result["removed"].as_array().map_or(0, Vec::len);
             let failed_count = result["failed"].as_array().map_or(0, Vec::len);
             if updated_count == 0 && failed_count == 0 {
                 return;
@@ -396,7 +397,8 @@ pub fn spawn_startup_skill_refresh(paths: GxserverPaths, logger: Arc<GxserverLog
 
 /// Replace every installed bundled skill whose files differ from the published
 /// ones, then turn the real copies older builds left in agents' own folders into
-/// links to the `~/.agents/skills` copy. Returns the refresh report, or the reason
+/// links to the `~/.agents/skills` copy, or remove them from the folders of
+/// agents that read `~/.agents/skills` themselves. Returns the refresh report, or the reason
 /// the listing could not be fetched (offline, rate limited, downloads disabled).
 ///
 /// CDXC:AgentSkills 2026-10-14 WHY:
@@ -418,7 +420,15 @@ pub fn refresh_installed_bundled_skills(paths: &GxserverPaths) -> Result<Value, 
     let mut refreshed_names = HashSet::new();
     let mut updated = Vec::new();
     let mut linked = Vec::new();
+    let mut removed = Vec::new();
     let mut failed = Vec::new();
+    // Agents that load `~/.agents/skills` themselves need no copy and no link in their own folder.
+    let native_reader_roots: HashSet<PathBuf> = GHOSTEX_SKILLS_CLI_AGENT_IDS
+        .iter()
+        .filter(|agent_id| agent_reads_canonical_skills(home_dir, agent_id))
+        .filter_map(|agent_id| agent_skill_global_dir(home_dir, agent_id))
+        .filter(|root| *root != canonical_root)
+        .collect();
     for skill_name in GHOSTEX_AGENT_SKILL_NAMES {
         if !refreshed_names.insert(*skill_name) || !catalog.has_skill(skill_name) {
             continue;
@@ -464,6 +474,20 @@ pub fn refresh_installed_bundled_skills(paths: &GxserverPaths) -> Result<Value, 
             continue;
         }
         for destination in agent_copies {
+            let reads_canonical = destination
+                .parent()
+                .is_some_and(|root| native_reader_roots.contains(root));
+            if reads_canonical {
+                match fs::remove_dir_all(&destination) {
+                    Ok(()) => removed.push(path_string(&destination)),
+                    Err(error) => failed.push(json!({
+                        "error": error.to_string(),
+                        "path": path_string(&destination),
+                        "skill": skill_name,
+                    })),
+                }
+                continue;
+            }
             match link_skill_into_agent_root(&canonical_dir, &destination) {
                 Ok(true) => linked.push(path_string(&destination)),
                 Ok(false) => {}
@@ -479,6 +503,7 @@ pub fn refresh_installed_bundled_skills(paths: &GxserverPaths) -> Result<Value, 
         "failed": failed,
         "linked": linked,
         "ref": AGENT_SKILLS_REMOTE_REF,
+        "removed": removed,
         "repository": AGENT_SKILLS_REMOTE_REPOSITORY,
         "treeSha": catalog.tree_sha(),
         "type": "agentSkillRefresh",

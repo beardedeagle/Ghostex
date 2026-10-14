@@ -11,6 +11,12 @@
 //! folder every agent and the Agents Hub then read that backup as one more skill, so the same
 //! skill showed up many times. Anything in the way is now moved to
 //! `<Ghostex state>/agent-sync-backups/<stamp>/<path under HOME>` instead (`fsx::backup_path`).
+//!
+//! CDXC:AgentSync 2026-10-14 DECISION:
+//! User: add a plan group, on by default, that removes only links pointing into `~/.agents/skills`
+//! from the folders of agents that read that folder themselves (`RemoveRedundantLinks`), and move
+//! leftover `<name>.pre-sync-*.bak` folders out of agents' skills folders into the backup folder
+//! (`MoveBackups`): "Move, never delete, for other users."
 
 use crate::catalog::source_root;
 use crate::fsx;
@@ -38,6 +44,8 @@ pub enum PlanVerb {
 #[serde(rename_all = "camelCase")]
 pub enum PlanGroupKind {
     RemoveDangling,
+    RemoveRedundantLinks,
+    MoveBackups,
     ConvertWholeFolder,
     PerSkillLinks,
     PointerFiles,
@@ -46,8 +54,10 @@ pub enum PlanGroupKind {
 }
 
 impl PlanGroupKind {
-    pub const ALL: [PlanGroupKind; 6] = [
+    pub const ALL: [PlanGroupKind; 8] = [
         PlanGroupKind::RemoveDangling,
+        PlanGroupKind::RemoveRedundantLinks,
+        PlanGroupKind::MoveBackups,
         PlanGroupKind::ConvertWholeFolder,
         PlanGroupKind::PerSkillLinks,
         PlanGroupKind::PointerFiles,
@@ -60,6 +70,10 @@ impl PlanGroupKind {
             "removeDangling" | "remove-dangling" | "dangling" => {
                 Some(PlanGroupKind::RemoveDangling)
             }
+            "removeRedundantLinks" | "remove-redundant-links" | "redundant-links" | "redundant" => {
+                Some(PlanGroupKind::RemoveRedundantLinks)
+            }
+            "moveBackups" | "move-backups" | "backups" => Some(PlanGroupKind::MoveBackups),
             "convertWholeFolder" | "convert-whole-folder" | "whole-folder" => {
                 Some(PlanGroupKind::ConvertWholeFolder)
             }
@@ -78,6 +92,8 @@ impl PlanGroupKind {
     pub fn id(self) -> &'static str {
         match self {
             PlanGroupKind::RemoveDangling => "removeDangling",
+            PlanGroupKind::RemoveRedundantLinks => "removeRedundantLinks",
+            PlanGroupKind::MoveBackups => "moveBackups",
             PlanGroupKind::ConvertWholeFolder => "convertWholeFolder",
             PlanGroupKind::PerSkillLinks => "perSkillLinks",
             PlanGroupKind::PointerFiles => "pointerFiles",
@@ -89,6 +105,10 @@ impl PlanGroupKind {
     fn title(self) -> &'static str {
         match self {
             PlanGroupKind::RemoveDangling => "Remove dangling links",
+            PlanGroupKind::RemoveRedundantLinks => {
+                "Remove links agents that read ~/.agents/skills do not need"
+            }
+            PlanGroupKind::MoveBackups => "Move backup folders out of skills folders",
             PlanGroupKind::ConvertWholeFolder => "Convert whole-folder links to per-skill links",
             PlanGroupKind::PerSkillLinks => "Per-skill links",
             PlanGroupKind::PointerFiles => "Instruction pointer files",
@@ -274,7 +294,20 @@ fn plan_agent(
     let agent_id = agent.id.as_str();
 
     if let (Some(skills), Some(dir)) = (&agent.skills, spec.skills_dir.as_ref()) {
+        for backup in &skills.backups {
+            let path = abs_from_display(b.home, backup);
+            let op = b.backup_op(path, Some(agent_id), "left over from an earlier sync");
+            b.push(PlanGroupKind::MoveBackups, op);
+        }
         match skills.dir_state {
+            SkillDirState::WholeFolderLink if agent.universal => {
+                let mut unlink = b.op(PlanVerb::Unlink, dir.clone(), Some(agent_id));
+                unlink.note = Some(
+                    "folder link to ~/.agents/skills; this agent reads that folder itself"
+                        .to_string(),
+                );
+                b.push(PlanGroupKind::RemoveRedundantLinks, unlink);
+            }
             SkillDirState::WholeFolderLink => {
                 let mut unlink = b.op(PlanVerb::Unlink, dir.clone(), Some(agent_id));
                 unlink.note = Some(
@@ -325,6 +358,11 @@ fn plan_agent(
                                 .map(|t| format!("target missing: {t}"));
                             b.push(PlanGroupKind::RemoveDangling, op);
                         }
+                        SkillEntryState::Linked if agent.universal => {
+                            let mut op = b.op(PlanVerb::Unlink, path, Some(agent_id));
+                            op.note = Some("this agent reads ~/.agents/skills itself".to_string());
+                            b.push(PlanGroupKind::RemoveRedundantLinks, op);
+                        }
                         SkillEntryState::Linked => {
                             let op = b.keep_op(path, Some(agent_id), "already linked");
                             b.push(PlanGroupKind::PerSkillLinks, op);
@@ -344,8 +382,10 @@ fn plan_agent(
                                 "identical to the source copy",
                             );
                             b.push(PlanGroupKind::PerSkillLinks, backup);
-                            let op = b.link_op(path, &source_path, agent_id, true);
-                            b.push(PlanGroupKind::PerSkillLinks, op);
+                            if !agent.universal {
+                                let op = b.link_op(path, &source_path, agent_id, true);
+                                b.push(PlanGroupKind::PerSkillLinks, op);
+                            }
                         }
                         SkillEntryState::CopyDrifted => {
                             let op = b.keep_op(
@@ -563,6 +603,11 @@ pub fn build_plan(home: &Path, report: &SyncReport, options: &PlanOptions) -> Sy
                     );
                     builder.push(PlanGroupKind::RemoveDangling, op);
                 }
+            }
+            for backup in &skills.backups {
+                let path = abs_from_display(home, backup);
+                let op = builder.backup_op(path, Some(&agent.id), "left over from an earlier sync");
+                builder.push(PlanGroupKind::MoveBackups, op);
             }
         }
     }

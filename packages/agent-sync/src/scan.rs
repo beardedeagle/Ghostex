@@ -78,6 +78,11 @@ pub struct SkillCounts {
     pub only_here: usize,
     pub missing: usize,
     pub via_whole_folder: usize,
+    /// Links into `~/.agents/skills` inside the folder of an agent that reads that folder
+    /// itself (a whole-folder link counts as one); they make it load every skill twice.
+    pub redundant_links: usize,
+    /// Leftover `<name>.pre-sync-<stamp>.bak` folders, which agents read as more skills.
+    pub backups: usize,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -88,6 +93,8 @@ pub struct SkillsReport {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dir_link_target: Option<String>,
     pub entries: Vec<SkillEntry>,
+    /// Display paths of the leftover backup folders counted in `counts.backups`.
+    pub backups: Vec<String>,
     pub counts: SkillCounts,
 }
 
@@ -213,6 +220,8 @@ pub enum ProblemKind {
     CopiedFolders,
     WholeFolderLinks,
     MissingPointers,
+    RedundantLinks,
+    BackupFolders,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -239,6 +248,8 @@ pub struct ReportSummary {
     pub copied_skill_folders: usize,
     pub whole_folder_links: usize,
     pub missing_pointers: usize,
+    pub redundant_links: usize,
+    pub backup_folders: usize,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -365,7 +376,34 @@ fn scan_source(home: &Path) -> SourceInfo {
     }
 }
 
+/// Agent Sync's own backup name, `<name>.pre-sync-<stamp>.bak`.
+pub fn is_sync_backup_name(name: &str) -> bool {
+    name.contains(".pre-sync-") && name.ends_with(".bak")
+}
+
+/// `scan_skill_entries` plus the two checks that need the agent's kind: links an
+/// agent reading `~/.agents/skills` does not need, and leftover backup folders.
 fn scan_skills(home: &Path, spec: &AgentSpec, source: &SourceInfo) -> Option<SkillsReport> {
+    let mut report = scan_skill_entries(home, spec, source)?;
+    let dir = spec.skills_dir.as_ref()?;
+    if report.dir_state == SkillDirState::RealDir {
+        report.backups = fsx::child_names(dir)
+            .into_iter()
+            .filter(|name| is_sync_backup_name(name))
+            .map(|name| fsx::display_path(&dir.join(name), home))
+            .collect();
+    }
+    report.counts.backups = report.backups.len();
+    if spec.universal {
+        report.counts.redundant_links = match report.dir_state {
+            SkillDirState::WholeFolderLink => 1,
+            _ => report.counts.linked,
+        };
+    }
+    Some(report)
+}
+
+fn scan_skill_entries(home: &Path, spec: &AgentSpec, source: &SourceInfo) -> Option<SkillsReport> {
     let dir = spec.skills_dir.as_ref()?;
     let source_skills_dir = source_root(home).join("skills");
     let display_dir = fsx::display_path(dir, home);
@@ -376,6 +414,7 @@ fn scan_skills(home: &Path, spec: &AgentSpec, source: &SourceInfo) -> Option<Ski
             dir_state: SkillDirState::Missing,
             dir_link_target: None,
             entries: missing_entries(home, dir, source, spec.universal),
+            backups: Vec::new(),
             counts: SkillCounts::default(),
         })
         .map(with_counts);
@@ -400,6 +439,7 @@ fn scan_skills(home: &Path, spec: &AgentSpec, source: &SourceInfo) -> Option<Ski
                 dir_state: SkillDirState::WholeFolderLink,
                 dir_link_target: display_target,
                 entries,
+                backups: Vec::new(),
                 counts: SkillCounts::default(),
             }));
         }
@@ -408,6 +448,7 @@ fn scan_skills(home: &Path, spec: &AgentSpec, source: &SourceInfo) -> Option<Ski
             dir_state: SkillDirState::OtherLink,
             dir_link_target: display_target,
             entries: Vec::new(),
+            backups: Vec::new(),
             counts: SkillCounts::default(),
         }));
     }
@@ -417,6 +458,7 @@ fn scan_skills(home: &Path, spec: &AgentSpec, source: &SourceInfo) -> Option<Ski
             dir_state: SkillDirState::NotADir,
             dir_link_target: None,
             entries: Vec::new(),
+            backups: Vec::new(),
             counts: SkillCounts::default(),
         }));
     }
@@ -493,6 +535,7 @@ fn scan_skills(home: &Path, spec: &AgentSpec, source: &SourceInfo) -> Option<Ski
         dir_state: SkillDirState::RealDir,
         dir_link_target: None,
         entries,
+        backups: Vec::new(),
         counts: SkillCounts::default(),
     }))
 }
@@ -522,7 +565,10 @@ fn missing_entries(
 }
 
 fn with_counts(mut report: SkillsReport) -> SkillsReport {
-    let mut counts = SkillCounts::default();
+    let mut counts = SkillCounts {
+        backups: report.backups.len(),
+        ..SkillCounts::default()
+    };
     for entry in &report.entries {
         match entry.state {
             SkillEntryState::Linked => counts.linked += 1,
@@ -657,7 +703,7 @@ fn scan_agent(home: &Path, spec: &AgentSpec, source: &SourceInfo) -> AgentReport
                     skills
                         .entries
                         .retain(|entry| entry.state == SkillEntryState::Dangling);
-                    if !skills.entries.is_empty() {
+                    if !skills.entries.is_empty() || !skills.backups.is_empty() {
                         report.skills = Some(with_counts(skills.clone()));
                     }
                 }
@@ -697,6 +743,8 @@ fn agent_needs_attention(report: &AgentReport) -> bool {
         }
         let c = &skills.counts;
         if c.dangling > 0
+            || c.redundant_links > 0
+            || c.backups > 0
             || c.copies_identical > 0
             || c.copies_drifted > 0
             || (!report.universal && c.missing > 0)
@@ -728,8 +776,22 @@ fn build_problems(source: &SourceInfo, agents: &[AgentReport]) -> Vec<Problem> {
     let mut copies = Vec::new();
     let mut whole = Vec::new();
     let mut pointers = Vec::new();
+    let mut redundant = Vec::new();
+    let mut backups = Vec::new();
     for agent in agents {
         if let Some(skills) = &agent.skills {
+            backups.extend(skills.backups.iter().cloned());
+            if agent.universal && skills.dir_state == SkillDirState::WholeFolderLink {
+                redundant.push(skills.dir.clone());
+            } else if agent.universal {
+                redundant.extend(
+                    skills
+                        .entries
+                        .iter()
+                        .filter(|entry| entry.state == SkillEntryState::Linked)
+                        .map(|entry| entry.path.clone()),
+                );
+            }
             for entry in &skills.entries {
                 match entry.state {
                     SkillEntryState::Dangling => dangling.push(entry.path.clone()),
@@ -739,7 +801,7 @@ fn build_problems(source: &SourceInfo, agents: &[AgentReport]) -> Vec<Problem> {
                     _ => {}
                 }
             }
-            if skills.dir_state == SkillDirState::WholeFolderLink {
+            if skills.dir_state == SkillDirState::WholeFolderLink && !agent.universal {
                 whole.push(skills.dir.clone());
             }
         }
@@ -796,6 +858,34 @@ fn build_problems(source: &SourceInfo, agents: &[AgentReport]) -> Vec<Problem> {
             title: format!("{} skill folder{} are copies, not links", copies.len(), plural(copies.len())),
             detail: "Identical copies are backed up and replaced by links. Copies that differ from the source are kept and listed on the agent.".to_string(),
             items: copies,
+            fixable: true,
+        });
+    }
+    if !redundant.is_empty() {
+        problems.push(Problem {
+            kind: ProblemKind::RedundantLinks,
+            count: redundant.len(),
+            title: format!(
+                "{} link{} in the folders of agents that already read ~/.agents/skills",
+                redundant.len(),
+                plural(redundant.len())
+            ),
+            detail: "Those agents load each linked skill twice. Sync removes the links; the skills stay in ~/.agents/skills.".to_string(),
+            items: redundant,
+            fixable: true,
+        });
+    }
+    if !backups.is_empty() {
+        problems.push(Problem {
+            kind: ProblemKind::BackupFolders,
+            count: backups.len(),
+            title: format!(
+                "{} backup folder{} inside agent skills folders",
+                backups.len(),
+                plural(backups.len())
+            ),
+            detail: "Agents read a .pre-sync-*.bak folder as one more skill. Sync moves them to the Agent Sync backup folder; nothing is deleted.".to_string(),
+            items: backups,
             fixable: true,
         });
     }
@@ -876,6 +966,8 @@ pub fn scan(home: &Path) -> SyncReport {
             ProblemKind::CopiedFolders => summary.copied_skill_folders = problem.count,
             ProblemKind::WholeFolderLinks => summary.whole_folder_links = problem.count,
             ProblemKind::MissingPointers => summary.missing_pointers = problem.count,
+            ProblemKind::RedundantLinks => summary.redundant_links = problem.count,
+            ProblemKind::BackupFolders => summary.backup_folders = problem.count,
             ProblemKind::UntrackedSkills => {}
         }
     }
