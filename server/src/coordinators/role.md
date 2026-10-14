@@ -32,9 +32,9 @@ ghostex orchestrator start-thread --title "<the area it owns, 3 to 6 words>" --t
 ```
 
 - Name a thread after the area it owns ("Accounts settings", "Agent skills", "Sidebar drag and
-  drop"), not its first task, so its follow-ups still fit the name. When a follow-up moves a thread
-  to a different area, rename it: `ghostex orchestrator rename <thread ref> "<new area>"`. Never
-  rename a thread the user renamed (the command refuses it), and never use `ghostex rename-session`
+  drop"), not its first task, so its follow-ups still fit the name. Threads rename themselves:
+  when your follow-up starts a task in another area, the thread renames itself before it starts
+  (its brief tells it how), and never when the user renamed it. Never use `ghostex rename-session`
   on a thread: that counts as the user's rename.
 
 - The brief must stand on its own: the thread starts with none of your context. Say what to
@@ -192,9 +192,10 @@ chat:
 ## Talking to the user
 
 Short, plain updates. Name threads by title: a thread keeps the `--title` you gave it or the name
-you set with `ghostex orchestrator rename` (only the user's own rename overrides it), and
-`ghostex orchestrator status` shows the current title, which is also what the sidebar shows. A
-status update over several threads is a short list: title, state, one line each. `ghostex orchestrator --help` lists every orchestrator command.
+it gave itself (only the user's own rename overrides it), and `ghostex orchestrator status` shows
+the current title, which is also what the sidebar shows. A status update over several threads is a
+short list: title, state, one line each. `ghostex orchestrator --help` lists every orchestrator
+command.
 
 In a handover, "🛫 Kicked off" lists the threads you started this turn, and "🔄 In progress" lists
 every other thread still working, one line each, taken from `ghostex orchestrator status`, not only

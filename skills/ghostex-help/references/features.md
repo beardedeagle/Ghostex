@@ -2030,10 +2030,9 @@ version of the Projects features in Cursor and Claude Code.
   unfolds the orchestrator so the thread shows. Click a thread to watch it or
   talk to it directly; answer its questions and approvals there. A thread is
   named after the area it works on and keeps the name its orchestrator gave it,
-  like the orchestrator keeps its own; when a follow-up moves a thread to other
-  work, the orchestrator renames it (`ghostex orchestrator rename`). Your own
-  Rename in the sidebar always wins: the orchestrator never renames a thread you
-  renamed. Pinning the
+  like the orchestrator keeps its own; when its orchestrator starts it on work
+  in another area, the thread renames itself to match. Your own Rename in the
+  sidebar always wins: a thread you renamed keeps your name. Pinning the
   orchestrator takes its threads along. Right-click the orchestrator and choose
   **Sleep Inactive Threads** to put its idle threads to sleep in one go: threads
   that are working, waiting on a question or approval, or running a background

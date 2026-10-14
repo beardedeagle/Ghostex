@@ -1,4 +1,5 @@
-//! `/api/renameCoordinatorThread`: an orchestrator renames one of its threads.
+//! `/api/renameCoordinatorThread`: a thread renames itself (`ghostex orchestrator rename-self`),
+//! or its orchestrator renames it (`ghostex orchestrator rename`).
 
 use serde_json::{json, Map, Value};
 
@@ -9,7 +10,7 @@ use crate::domain::{DomainRepository, DomainStateError};
 const THREAD_TITLE_MAX_CHARS: usize = 120;
 
 /// CDXC:Coordinators 2026-10-14 DECISION:
-/// User: "we need to rename the sub sessions better i think no? ex this one: Accounts page redesign mockups is not about mockups since a long time now". They picked: threads are named after the area they own, the orchestrator renames a thread when a follow-up moves it to another area (`ghostex orchestrator rename`), and the user's own renames always win. The title is written straight to the session as the orchestrator's (`titleSource: "orchestrator"`), never typed into the agent as `/rename`, so the agent's own naming stays out of it and `keeps_its_given_title` keeps it. A thread the user renamed (a rename request from the sidebar or `ghostex rename-session` leaves `pendingAgentTitleRequestTitleSource: "user"`) is refused and left alone.
+/// User: "we need to rename the sub sessions better i think no? ex this one: Accounts page redesign mockups is not about mockups since a long time now", and picked "Let each thread rename itself when it starts a new task"; the user's own renames always win. A thread is named after the area of its current task: the brief tells it so (brief.rs), and when its orchestrator's message starts a task in another area it renames itself with `ghostex orchestrator rename-self` (`selfRename`, `titleSource: "thread"`). The orchestrator's own `ghostex orchestrator rename` stays as a quiet tool (`titleSource: "orchestrator"`), which the user approved for renaming the threads that already exist. Either way the title is written straight to the session, never typed into the agent as `/rename`, so the agent's auto-naming stays out of it and `keeps_its_given_title` keeps it. A thread the user renamed (a rename request from the sidebar or `ghostex rename-session` leaves `pendingAgentTitleRequestTitleSource: "user"`) is refused and keeps its name.
 /// SEE-ALSO: server/src/coordinators/title.rs (`keeps_its_given_title`), server/src/agents/fork.rs (`request_session_rename`, where a user rename is recorded), server/src/ghostex_cli/coordinator/threads.rs (`rename`), server/src/coordinators/role.md.
 pub fn rename_thread(
     repository: &DomainRepository<'_>,
@@ -29,13 +30,13 @@ pub fn rename_thread(
             "Renaming a thread needs projectId and sessionId.",
         ));
     };
-    let (Some(coordinator_project_id), Some(coordinator_session_id)) =
-        (text("coordinatorProjectId"), text("coordinatorSessionId"))
-    else {
+    let self_rename = params.get("selfRename").and_then(Value::as_bool) == Some(true);
+    let coordinator = (text("coordinatorProjectId"), text("coordinatorSessionId"));
+    if !self_rename && (coordinator.0.is_none() || coordinator.1.is_none()) {
         return Err(DomainStateError::bad_request(
             "Renaming a thread needs the orchestrator's coordinatorProjectId and coordinatorSessionId.",
         ));
-    };
+    }
     let title = text("title")
         .filter(|title| !title.chars().any(char::is_control))
         .filter(|title| title.chars().count() <= THREAD_TITLE_MAX_CHARS)
@@ -46,13 +47,16 @@ pub fn rename_thread(
         })?;
     let thread = read_thread(db, &project_id, &session_id)?
         .filter(|thread| {
-            thread.coordinator_project_id == coordinator_project_id
-                && thread.coordinator_session_id == coordinator_session_id
+            self_rename
+                || (coordinator.0.as_deref() == Some(thread.coordinator_project_id.as_str())
+                    && coordinator.1.as_deref() == Some(thread.coordinator_session_id.as_str()))
         })
         .ok_or_else(|| {
-            DomainStateError::not_found(
-                "That session is not a thread of this orchestrator, so it was not renamed.",
-            )
+            DomainStateError::not_found(if self_rename {
+                "This session is not an orchestrator's thread, so rename-self does not apply. Only a thread renames itself this way."
+            } else {
+                "That session is not a thread of this orchestrator, so it was not renamed."
+            })
         })?;
     let session = repository
         .get_session(&thread.project_id, &thread.session_id)?
@@ -65,9 +69,15 @@ pub fn rename_thread(
     {
         return Err(DomainStateError {
             code: "userRenamed",
-            message: format!(
-                "The user renamed this thread to \"{current}\" themselves, so it keeps that name. Ask the user if it should change."
-            ),
+            message: if self_rename {
+                format!(
+                    "The user renamed you to \"{current}\" themselves, so keep that name and do not rename yourself."
+                )
+            } else {
+                format!(
+                    "The user renamed this thread to \"{current}\" themselves, so it keeps that name. Ask the user if it should change."
+                )
+            },
         });
     }
     let key = (thread.project_id.clone(), thread.session_id.clone());
@@ -81,7 +91,14 @@ pub fn rename_thread(
         .as_object()
         .cloned()
         .unwrap_or_default();
-    runtime.insert("titleSource".into(), json!("orchestrator"));
+    runtime.insert(
+        "titleSource".into(),
+        json!(if self_rename {
+            "thread"
+        } else {
+            "orchestrator"
+        }),
+    );
     repository.update_session(
         json!({
             "projectId": thread.project_id,

@@ -61,9 +61,10 @@ is missing, use `ghostex coordinator` instead; if both are missing, the installe
 Ghostex is older, so use the workflow below instead. If you are an orchestrator
 yourself, follow `ghostex orchestrator guide` (older releases:
 `ghostex coordinator guide`) rather than the waiting habits below. Name a
-thread after the area it owns, and when a follow-up moves it elsewhere rename
-it with `ghostex orchestrator rename <thread ref> "<title>"` (a release newer
-than 10.22.0; it refuses a thread the user renamed). Never use
+thread after the area it owns. If you are a thread and your orchestrator's
+message starts a task in another area than your title says, rename yourself
+first with `ghostex orchestrator rename-self "<area>"` (a release newer than
+10.22.0); if it says the user renamed you, keep that name. Never use
 `ghostex rename-session` on a thread: that counts as the user's own rename.
 
 ## Check what another session is doing

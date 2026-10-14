@@ -304,3 +304,39 @@ pub(super) fn rename(parsed: &ParsedArgs) -> CliResult<()> {
     }
     Ok(())
 }
+
+/// `rename-self` is a thread renaming its own session when its orchestrator starts it on a task
+/// in another area; gxserver refuses it when the user renamed the thread
+/// (server/src/coordinators/rename.rs).
+pub(super) fn rename_self(parsed: &ParsedArgs) -> CliResult<()> {
+    let [title] = parsed.rest.as_slice() else {
+        return Err(CliError::Other(
+            "Usage: ghostex orchestrator rename-self \"<title>\" [--json]".into(),
+        ));
+    };
+    let caller = agents::caller()?;
+    let global_ref = agents::text(&caller, "globalRef").to_string();
+    let flags = agents::inventory_flags(&server_flags(&parsed.flags), &global_ref)?;
+    let result = call_gxserver_rpc(
+        "/api/renameCoordinatorThread",
+        &json!({
+            "projectId": caller["projectId"],
+            "sessionId": caller["sessionId"],
+            "selfRename": true,
+            "title": title,
+        }),
+        &flags,
+    )?;
+    if parsed.flags.truthy("json") {
+        print_json(&result);
+    } else if result["changed"] == json!(true) {
+        println!(
+            "Renamed this thread from \"{}\" to \"{}\".",
+            agents::text(&result, "previousTitle"),
+            agents::text(&result, "title")
+        );
+    } else {
+        println!("This thread is already called \"{title}\".");
+    }
+    Ok(())
+}

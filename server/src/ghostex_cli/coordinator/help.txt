@@ -14,6 +14,7 @@ USAGE
                               [--worktree [--base-branch <branch>]] [--project-id <id>]
                               [--orchestrator <ref>] [--json]
   ghostex orchestrator link <session-ref> [--task <text>] [--orchestrator <ref>]
+  ghostex orchestrator rename-self "<title>" [--json]
   ghostex orchestrator rename <thread-ref> "<title>" [--orchestrator <ref>] [--json]
   ghostex orchestrator resolve <thread-ref> [--keep-open] [--json]
   ghostex orchestrator reopen <thread-ref> [--json]
@@ -88,11 +89,14 @@ THREADS
   did not reach it.", and does the same for a follow-up that never arrives.
   link adopts a session that already exists as a thread.
   Name a thread (--title) after the area it owns, not its first task.
-  rename gives one of the orchestrator's threads a new title, for when a
-  follow-up moves it to another area; the sidebar, status and thread reports
-  show it, and the agent's own naming never replaces it. It refuses a thread
-  the user renamed themselves, and a session that is not this orchestrator's
-  thread. Put flags after the title.
+  Threads rename themselves: rename-self, run inside a thread, gives that
+  thread a new title when its orchestrator starts it on a task in another
+  area (its brief says so). rename does the same for one of the
+  orchestrator's threads, from the orchestrator. The sidebar, status and
+  thread reports show the new title, and the agent's own naming never
+  replaces it. Both refuse a thread the user renamed themselves; rename also
+  refuses a session that is not this orchestrator's thread. Put flags after
+  the title.
   `ghostex agents send <thread-ref> "<text>"` sends a thread a follow-up;
   `ghostex read-session-chat <thread-ref> --last 2 --format text` reads it.
   `ghostex agents create` run by an orchestrator also links the new session.
