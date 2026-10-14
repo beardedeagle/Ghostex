@@ -25,8 +25,6 @@ const PANEL: u32 = 0x161616;
 const INK: u32 = 0xe8eaee;
 const TEXT: u32 = 0xc8cdd5;
 const MUTED: u32 = 0x8a9099;
-const PRIMARY: u32 = 0xe5e5e5;
-const PRIMARY_INK: u32 = 0x171717;
 const ORANGE: u32 = 0xf5a524;
 const GREEN: u32 = 0x4ade80;
 
@@ -46,6 +44,14 @@ pub(crate) enum TagSegment {
     Restart,
 }
 
+/// Which side of System Settings the tag sits on: the right, or the left when the right has no
+/// room on screen. The notch, chevrons and lean all point at the window.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum TagSide {
+    Right,
+    Left,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum TagFoot {
     /// "Waiting for the drop" and "1 of 2".
@@ -53,9 +59,10 @@ pub(crate) enum TagFoot {
         step: usize,
     },
     Granted,
-    /// Restart SpaceO (primary) and Later.
-    Restart,
-    Restarting,
+    /// "Restarting", or "Waiting for agents" while an agent is using SpaceO.
+    Restarting {
+        busy: bool,
+    },
     /// A draining line, then the tag tucks away.
     Closing,
 }
@@ -63,7 +70,7 @@ pub(crate) enum TagFoot {
 pub(crate) struct TagContent {
     pub(crate) title: String,
     pub(crate) subtitle: String,
-    /// Two lines are kept for a subtitle that wraps (the restart step's).
+    /// Lines kept for the subtitle; every step's fits on one.
     pub(crate) subtitle_lines: usize,
     /// "Screen Recording granted" under the title once one permission is in.
     pub(crate) done_line: Option<String>,
@@ -73,6 +80,7 @@ pub(crate) struct TagContent {
     pub(crate) file_name: String,
     pub(crate) foot: TagFoot,
     pub(crate) segments: [TagSegment; 2],
+    pub(crate) side: TagSide,
 }
 
 /// The tag's height for `content`; every line has a fixed height, so the window fits it exactly.
@@ -108,31 +116,33 @@ fn segment_color(segment: TagSegment) -> Rgba {
 
 /// A dot and a word: orange and breathing while waiting, green once granted.
 fn status(label: &'static str, color: u32, breathing: bool) -> AnyElement {
-    let dot = div().size(px(7.0)).rounded_full().bg(ink(color));
-    let dot = if breathing {
-        dot.with_animation(
+    // While waiting, a round ring grows out of the dot and fades, every 1.8s.
+    let ring = breathing.then(|| {
+        div().absolute().rounded_full().with_animation(
             "tag-status-breathe",
             Animation::new(Duration::from_millis(1800)).repeat(),
-            move |dot, delta| {
-                let spread = if delta < 0.6 { delta / 0.6 * 5.0 } else { 0.0 };
+            move |ring, delta| {
+                let grow = if delta < 0.6 { delta / 0.6 } else { 0.0 };
+                let spread = 5.0 * grow;
                 let fade = if delta < 0.6 {
-                    0.55 * (1.0 - delta / 0.6)
+                    0.55 * (1.0 - grow)
                 } else {
                     0.0
                 };
-                dot.shadow(vec![BoxShadow {
-                    color: alpha(ORANGE, fade),
-                    offset: point(px(0.0), px(0.0)),
-                    blur_radius: px(0.0),
-                    spread_radius: px(spread),
-                    inset: false,
-                }])
+                ring.left(px(-spread))
+                    .top(px(-spread))
+                    .size(px(7.0 + 2.0 * spread))
+                    .bg(alpha(color, fade))
             },
         )
-        .into_any_element()
-    } else {
-        dot.into_any_element()
-    };
+    });
+    let dot = div()
+        .relative()
+        .flex_none()
+        .size(px(7.0))
+        .children(ring)
+        .child(div().absolute().size_full().rounded_full().bg(ink(color)))
+        .into_any_element();
     div()
         .flex()
         .items_center()
@@ -146,15 +156,22 @@ fn status(label: &'static str, color: u32, breathing: bool) -> AnyElement {
 }
 
 /// Three chevrons pointing at the list, lighting up one after another toward it.
-fn trail() -> AnyElement {
+fn trail(side: TagSide) -> AnyElement {
+    let (path, lags) = match side {
+        TagSide::Right => ("modals/permission-guide/chevron-left.svg", [0.3, 0.15, 0.0]),
+        TagSide::Left => (
+            "modals/permission-guide/chevron-right.svg",
+            [0.0, 0.15, 0.3],
+        ),
+    };
     div()
         .flex()
         .flex_none()
         .children((0..3).map(|index| {
             // The chevron nearest the list lights first.
-            let lag = [0.3, 0.15, 0.0][index] / 1.5;
+            let lag = lags[index] / 1.5;
             svg()
-                .path("modals/permission-guide/chevron-left.svg")
+                .path(path)
                 .w(px(9.0))
                 .h(px(14.0))
                 .text_color(ink(ORANGE))
@@ -212,40 +229,9 @@ fn grip() -> AnyElement {
         .into_any_element()
 }
 
-fn button<V: 'static>(
-    id: &'static str,
-    label: &'static str,
-    primary: bool,
-    on_click: impl Fn(&mut V, &mut Window, &mut Context<V>) + 'static,
-    cx: &mut Context<V>,
-) -> AnyElement {
-    let (fill, hover, text) = if primary {
-        (rgb(PRIMARY), rgb(0xf2f2f2), rgb(PRIMARY_INK))
-    } else {
-        (rgba(0xffffff1a), rgba(0xffffff24), rgb(INK))
-    };
-    div()
-        .id(id)
-        .h(px(26.0))
-        .px(px(10.0))
-        .flex()
-        .items_center()
-        .rounded(px(7.0))
-        .bg(fill)
-        .hover(move |style| style.bg(hover))
-        .text_size(px(12.0))
-        .font_weight(gpui::FontWeight::MEDIUM)
-        .text_color(text)
-        .cursor_pointer()
-        .on_click(cx.listener(move |view, _, window, cx| on_click(view, window, cx)))
-        .child(label)
-        .into_any_element()
-}
-
 pub(crate) struct TagActions<V: 'static> {
     pub(crate) drag: Box<dyn Fn(&mut V, &mut Window, &mut Context<V>)>,
     pub(crate) close: Box<dyn Fn(&mut V, &mut Window, &mut Context<V>)>,
-    pub(crate) restart: Box<dyn Fn(&mut V, &mut Window, &mut Context<V>)>,
 }
 
 pub(crate) fn render_tag<V: 'static>(
@@ -253,12 +239,8 @@ pub(crate) fn render_tag<V: 'static>(
     actions: TagActions<V>,
     cx: &mut Context<V>,
 ) -> AnyElement {
-    let TagActions {
-        drag,
-        close,
-        restart,
-    } = actions;
-    let close: std::rc::Rc<dyn Fn(&mut V, &mut Window, &mut Context<V>)> = close.into();
+    let TagActions { drag, close } = actions;
+    let side = content.side;
     let progress = div()
         .absolute()
         .top_0()
@@ -305,7 +287,7 @@ pub(crate) fn render_tag<V: 'static>(
                 MouseButton::Left,
                 cx.listener(move |view, _: &MouseDownEvent, window, cx| drag(view, window, cx)),
             )
-            .child(trail())
+            .when(side == TagSide::Right, |tile| tile.child(trail(side)))
             .child(exec_icon())
             .child(
                 div()
@@ -328,11 +310,12 @@ pub(crate) fn render_tag<V: 'static>(
                     ),
             )
             .child(grip())
+            .when(side == TagSide::Left, |tile| tile.child(trail(side)))
             // Every 2.6s the tile leans toward the list, then settles.
             .with_animation(
                 "permission-guide-lean",
                 Animation::new(Duration::from_millis(2600)).repeat(),
-                |tile, delta| {
+                move |tile, delta| {
                     let shift = if delta < 0.7 {
                         0.0
                     } else if delta < 0.8 {
@@ -342,11 +325,11 @@ pub(crate) fn render_tag<V: 'static>(
                     } else {
                         1.0 - (delta - 0.9) / 0.1
                     };
-                    tile.relative().left(px(shift))
+                    let toward = if side == TagSide::Right { 1.0 } else { -1.0 };
+                    tile.relative().left(px(shift * toward))
                 },
             )
     });
-    let close_for_x = close.clone();
     let top = div()
         .flex()
         .items_start()
@@ -410,7 +393,7 @@ pub(crate) fn render_tag<V: 'static>(
                 .text_color(rgb(MUTED))
                 .hover(|style| style.bg(rgba(0xffffff1a)).text_color(rgb(INK)))
                 .cursor_pointer()
-                .on_click(cx.listener(move |view, _, window, cx| close_for_x(view, window, cx)))
+                .on_click(cx.listener(move |view, _, window, cx| close(view, window, cx)))
                 .child(
                     svg()
                         .path("modals/permission-guide/close.svg")
@@ -436,24 +419,15 @@ pub(crate) fn render_tag<V: 'static>(
                     .child(format!("{step} of 2")),
             ),
         TagFoot::Granted => foot.child(status("Granted", GREEN, false)),
-        TagFoot::Restarting => foot.child(status("Restarting", ORANGE, true)),
-        TagFoot::Restart => {
-            let later = close.clone();
-            foot.child(button(
-                "permission-guide-restart",
-                "Restart SpaceO",
-                true,
-                move |view, window, cx| restart(view, window, cx),
-                cx,
-            ))
-            .child(button(
-                "permission-guide-later",
-                "Later",
-                false,
-                move |view, window, cx| later(view, window, cx),
-                cx,
-            ))
-        }
+        TagFoot::Restarting { busy } => foot.child(status(
+            if busy {
+                "Waiting for agents"
+            } else {
+                "Restarting"
+            },
+            ORANGE,
+            true,
+        )),
         TagFoot::Closing => foot
             .child(
                 div()
@@ -475,30 +449,39 @@ pub(crate) fn render_tag<V: 'static>(
                     .child("Closing"),
             ),
     };
+    let (notch_path, notch_left, edge_shift, panel_left) = match side {
+        TagSide::Right => ("modals/permission-guide/notch.svg", 0.0, 1.0, NOTCH_ROOM),
+        TagSide::Left => (
+            "modals/permission-guide/notch-right.svg",
+            TAG_WIDTH - 1.0,
+            -1.0,
+            0.0,
+        ),
+    };
     let notch = div()
         .absolute()
-        .left_0()
+        .left(px(notch_left))
         .top(px(NOTCH_Y - 10.0))
         .w(px(NOTCH_ROOM + 1.0))
         .h(px(20.0))
         .child(
             svg()
                 .absolute()
-                .left_0()
+                .left(px(if edge_shift > 0.0 { 0.0 } else { 1.0 }))
                 .top_0()
                 .w(px(NOTCH_ROOM))
                 .h(px(20.0))
-                .path("modals/permission-guide/notch.svg")
+                .path(notch_path)
                 .text_color(rgba(0xffffff21)),
         )
         .child(
             svg()
                 .absolute()
-                .left(px(1.0))
+                .left(px(if edge_shift > 0.0 { 1.0 } else { 0.0 }))
                 .top_0()
                 .w(px(NOTCH_ROOM))
                 .h(px(20.0))
-                .path("modals/permission-guide/notch.svg")
+                .path(notch_path)
                 .text_color(rgb(PANEL)),
         );
     div()
@@ -509,7 +492,7 @@ pub(crate) fn render_tag<V: 'static>(
         .child(
             div()
                 .absolute()
-                .left(px(NOTCH_ROOM))
+                .left(px(panel_left))
                 .top_0()
                 .w(px(TAG_WIDTH))
                 .h_full()
@@ -561,9 +544,9 @@ pub(crate) enum TagStage {
     Waiting,
     /// The current permission just landed; the next pane opens.
     Dropped,
-    /// Both are in, but SpaceO started before one of them.
-    NeedsRestart,
-    Restarting,
+    /// Both are in, but SpaceO started before one of them: it restarts by itself, after the
+    /// `agents` using it finish.
+    Restarting { agents: usize },
     /// Both work; the tag closes after a short countdown.
     Ready,
 }
@@ -583,12 +566,13 @@ pub(crate) fn tag_content(
     screen_recording: TagGrant,
     accessibility: TagGrant,
     file_name: &str,
+    side: TagSide,
 ) -> TagContent {
     let grant = |permission: TagPermission| match permission {
         TagPermission::ScreenRecording => screen_recording,
         TagPermission::Accessibility => accessibility,
     };
-    let restarting = matches!(stage, TagStage::NeedsRestart | TagStage::Restarting);
+    let restarting = matches!(stage, TagStage::Restarting { .. });
     let segments =
         [TagPermission::ScreenRecording, TagPermission::Accessibility].map(|permission| {
             let grant = grant(permission);
@@ -630,30 +614,25 @@ pub(crate) fn tag_content(
             false,
             TagFoot::Granted,
         ),
-        TagStage::NeedsRestart => {
-            let pending: Vec<_> = [TagPermission::ScreenRecording, TagPermission::Accessibility]
-                .into_iter()
-                .filter(|permission| grant(*permission).needs_restart)
-                .collect();
-            (
-                "Restart SpaceO to finish".to_string(),
-                match pending.as_slice() {
-                    [one] => format!("{} starts working once SpaceO restarts.", one.name()),
-                    _ => "Both permissions start working once SpaceO restarts.".to_string(),
-                },
-                2,
-                None,
-                false,
-                TagFoot::Restart,
-            )
-        }
-        TagStage::Restarting => (
+        TagStage::Restarting { agents: 0 } => (
             "Restarting SpaceO".to_string(),
-            "Once the agents using it finish.".to_string(),
+            "So it can use the new permissions.".to_string(),
             1,
             None,
             false,
-            TagFoot::Restarting,
+            TagFoot::Restarting { busy: false },
+        ),
+        TagStage::Restarting { agents } => (
+            "Restarts when SpaceO is free".to_string(),
+            if agents == 1 {
+                "An agent is using it right now.".to_string()
+            } else {
+                format!("{agents} agents are using it right now.")
+            },
+            1,
+            None,
+            false,
+            TagFoot::Restarting { busy: true },
         ),
         TagStage::Ready => (
             "SpaceO is ready".to_string(),
@@ -673,5 +652,6 @@ pub(crate) fn tag_content(
         file_name: file_name.to_string(),
         foot,
         segments,
+        side,
     }
 }

@@ -106,3 +106,35 @@ bool GhostexGpuiPermissionGuideBeginFileDrag(void *native_view, const char *path
   session.animatesToStartingPositionsOnCancelOrFail = YES;
   return session != nil;
 }
+
+/// The visible frame (without the menu bar and Dock) of the screen holding most of the given
+/// rect, all in GPUI's global space. False when no screen holds any of it.
+bool GhostexGpuiPermissionGuideScreenFrame(double x, double y, double width, double height,
+                                           double *out_x, double *out_y, double *out_width,
+                                           double *out_height) {
+  NSScreen *primary = NSScreen.screens.firstObject;
+  if (!primary) {
+    return false;
+  }
+  CGFloat top = NSMaxY(primary.frame);
+  NSRect target = NSMakeRect(x, top - y - height, width, height);
+  NSScreen *best = nil;
+  CGFloat best_area = 0;
+  for (NSScreen *screen in NSScreen.screens) {
+    NSRect overlap = NSIntersectionRect(screen.frame, target);
+    CGFloat area = overlap.size.width * overlap.size.height;
+    if (area > best_area) {
+      best_area = area;
+      best = screen;
+    }
+  }
+  if (!best) {
+    return false;
+  }
+  NSRect visible = best.visibleFrame;
+  *out_x = visible.origin.x;
+  *out_y = top - NSMaxY(visible);
+  *out_width = visible.size.width;
+  *out_height = visible.size.height;
+  return true;
+}

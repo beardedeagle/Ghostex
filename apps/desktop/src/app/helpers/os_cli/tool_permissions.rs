@@ -196,3 +196,20 @@ pub(crate) fn gpui_tool_permission_status_message() -> serde_json::Value {
     }
     payload
 }
+
+/// How many sessions are running in SpaceO right now (`session list --operator`, read-only);
+/// `None` when no daemon answers. SpaceO restarts by itself only once this reaches 0.
+pub(crate) fn gpui_spaceo_live_sessions(path: &Path) -> Option<usize> {
+    let output = gpui_run_command_with_captured_output_timeout(
+        path,
+        &["session", "list", "--operator", "--json"],
+        Duration::from_secs(5),
+        256 * 1024,
+    )
+    .ok()
+    .filter(|output| output.success)?;
+    gpui_spaceo_json_object(&output.stdout)?
+        .get("sessions")?
+        .as_array()
+        .map(Vec::len)
+}

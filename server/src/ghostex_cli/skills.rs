@@ -351,7 +351,14 @@ pub fn spaceo_command(args: &[String]) -> CliResult<()> {
     )
 }
 
+/// CDXC:ManagedTools 2026-10-14 DECISION:
+/// User: "SpaceO is macOS-only for now": on Windows and Linux every SpaceO surface is hidden, and the CLI refuses with a clear "SpaceO is only available on macOS" instead of failing oddly.
 pub fn install_spaceo_skill_command(args: &[String]) -> CliResult<()> {
+    if !cfg!(target_os = "macos") {
+        return Err(CliError::Other(
+            crate::agent_skills::SPACEO_MACOS_ONLY_MESSAGE.to_string(),
+        ));
+    }
     install_ghostex_agent_skill(
         args,
         "spaceo help",

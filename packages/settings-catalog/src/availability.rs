@@ -38,6 +38,17 @@ const ROWS: &[RowAvailability] = &[
         only_on: &[Platform::MacOs],
         hidden_while: None,
     },
+    // CDXC:ManagedTools 2026-10-14 DECISION: User: "SpaceO is macOS-only for now"; its Integrations rows leave Settings, its search and the Help files on Windows and Linux.
+    RowAvailability {
+        key: "spaceo",
+        only_on: &[Platform::MacOs],
+        hidden_while: None,
+    },
+    RowAvailability {
+        key: "spaceoPermissions",
+        only_on: &[Platform::MacOs],
+        hidden_while: None,
+    },
 ];
 
 /// A default that differs from `DEFAULT_GHOSTEX_SETTINGS` on one platform.

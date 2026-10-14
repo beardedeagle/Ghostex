@@ -8765,7 +8765,8 @@
       "section": "integrations",
       "sectionTitle": "Integrations",
       "type": "ui",
-      "agentWritable": false
+      "agentWritable": false,
+      "availability": "Only on macOS."
     },
     {
       "key": "spaceoPermissions",
@@ -8776,7 +8777,8 @@
       "section": "integrations",
       "sectionTitle": "Integrations",
       "type": "ui",
-      "agentWritable": false
+      "agentWritable": false,
+      "availability": "Only on macOS."
     },
     {
       "key": "managedTools",

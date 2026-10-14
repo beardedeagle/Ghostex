@@ -2760,13 +2760,16 @@ backend: `ghostex team deploy|join|invite|identity|status|ping|leave`. Slack:
   "spaceo", Fast Computer & Browser Use as "CuaDriver"), and opens that
   Privacy & Security pane; turn the switch on there and the row turns to
   Granted. For SpaceO, a small Ghostex tag sits on the right edge of System
-  Settings, pointing into its app list: drag its spaceo tile into the list,
-  which adds SpaceO and switches it on. The tag shows Waiting for the drop
-  until macOS has the permission, then opens the other permission's pane
-  (Screen Recording first, then Accessibility). If SpaceO started before a
-  permission, the tag offers Restart SpaceO (it waits for the agents using
-  SpaceO to finish) or Later; Needs restart on the rows means the same, with
-  their Restart SpaceO button. Close the tag any time with its x. Ask agents
+  Settings (its left edge when the right has no room), pointing into its app
+  list: drag its spaceo tile into the list, which adds SpaceO and switches it
+  on. The tag shows Waiting for the drop until macOS has the permission, then
+  opens the other permission's pane (Screen Recording first, then
+  Accessibility). If SpaceO started before a permission, it restarts by
+  itself once no agent is using it (the tag says Restarts when SpaceO is free
+  while one is), then shows SpaceO is ready and closes; the rows' Needs
+  restart has a Restart SpaceO button that waits the same way. Close the tag
+  any time with its x. SpaceO is macOS only: on Windows and Linux its rows
+  are hidden and `ghostex spaceo install-skill` says so. Ask agents
   to use $ghostex-spaceo (or /ghostex-spaceo in Claude).
   Commands: `ghostex spaceo install-skill`, `spaceo doctor`.
 - Settings > Integrations > Tools lists the tools Ghostex can install for you

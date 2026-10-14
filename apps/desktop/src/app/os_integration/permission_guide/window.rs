@@ -1,7 +1,7 @@
 //! The edge tag's window: after Grant opens a Privacy pane for SpaceO, a Ghostex tag sits on the
 //! right edge of System Settings with the `spaceo` file to drag into the list. Dropping it adds
-//! SpaceO and switches it on, so the tag waits for that, opens the other permission's pane, offers
-//! Restart SpaceO when SpaceO started before a grant, and tucks away once both work.
+//! SpaceO and switches it on, so the tag waits for that, opens the other permission's pane,
+//! restarts SpaceO by itself when SpaceO started before a grant, and tucks away once both work.
 //!
 //! CDXC:OsIntegration 2026-10-14 DECISION:
 //! User picked option A, "Edge tag" (docs/2026-10-14/permission-guide-v3): a tag attached outside System Settings' right edge, its notch pointing into the app list, almost all of it the draggable spaceo tile with orange chevrons toward the list, two progress segments along its top, in Ghostex's own look. User: "dragging it from the floating bar into the app toggles it on", so the flow is built around the drop and has no separate switch step: "Drag SpaceO into the list", Screen Recording first, then Accessibility.
@@ -21,8 +21,8 @@ use gpui::{
 };
 
 use super::tag::{
-    CLOSING, NOTCH_ROOM, NOTCH_Y, TagActions, TagGrant, TagPermission, TagStage, WINDOW_WIDTH,
-    render_tag, tag_content, tag_height,
+    CLOSING, NOTCH_ROOM, NOTCH_Y, TAG_WIDTH, TagActions, TagGrant, TagPermission, TagSide,
+    TagStage, WINDOW_WIDTH, render_tag, tag_content, tag_height,
 };
 use crate::GhostexGpuiApp;
 use crate::app::helpers::*;
@@ -38,6 +38,9 @@ const PROBE_EVERY: Duration = Duration::from_millis(1500);
 /// How long "SpaceO is in and switched on" shows before the next pane opens.
 const DROPPED_PAUSE: Duration = Duration::from_millis(1400);
 const LIFETIME: Duration = Duration::from_secs(10 * 60);
+/// How soon SpaceO's restart is asked for again when the last one ended without picking the
+/// grants up (it gave up waiting for a busy agent).
+const RESTART_RETRY: Duration = Duration::from_secs(5);
 
 fn permission_from_id(id: &str) -> Option<TagPermission> {
     match id {
@@ -78,7 +81,9 @@ pub(crate) struct PermissionGuideView {
     last_probe: Option<Instant>,
     probing: bool,
     frame: Option<Bounds<Pixels>>,
+    side: TagSide,
     visible: bool,
+    restart_requested: Option<Instant>,
 }
 
 thread_local! {
@@ -94,6 +99,16 @@ unsafe extern "C" {
         height: *mut f64,
     ) -> bool;
     fn GhostexGpuiPermissionGuideSetVisible(native_view: *mut std::ffi::c_void, visible: bool);
+    fn GhostexGpuiPermissionGuideScreenFrame(
+        x: f64,
+        y: f64,
+        width: f64,
+        height: f64,
+        out_x: *mut f64,
+        out_y: *mut f64,
+        out_width: *mut f64,
+        out_height: *mut f64,
+    ) -> bool;
     fn GhostexGpuiPermissionGuideBeginFileDrag(
         native_view: *mut std::ffi::c_void,
         path: *const std::ffi::c_char,
@@ -123,14 +138,60 @@ fn system_settings_frame() -> Option<Bounds<Pixels>> {
     )
 }
 
-/// Outside System Settings' right edge, the notch at about the end of its app list.
-fn tag_frame(settings: Bounds<Pixels>, height: f32) -> Bounds<Pixels> {
+/// The visible part of the screen System Settings is on.
+#[cfg(target_os = "macos")]
+fn screen_frame(settings: Bounds<Pixels>) -> Option<Bounds<Pixels>> {
+    let [mut x, mut y, mut width, mut height] = [0f64; 4];
+    // SAFETY: plain values in, four writable doubles out.
+    unsafe {
+        GhostexGpuiPermissionGuideScreenFrame(
+            f32::from(settings.origin.x) as f64,
+            f32::from(settings.origin.y) as f64,
+            f32::from(settings.size.width) as f64,
+            f32::from(settings.size.height) as f64,
+            &mut x,
+            &mut y,
+            &mut width,
+            &mut height,
+        )
+    }
+    .then(|| {
+        Bounds::new(
+            point(px(x as f32), px(y as f32)),
+            size(px(width as f32), px(height as f32)),
+        )
+    })
+}
+
+/// Outside System Settings' right edge with the notch at about the end of its app list, or
+/// outside its left edge when the right side would run off the screen.
+///
+/// CDXC:OsIntegration 2026-10-14 DECISION:
+/// User: flip the tag to System Settings' left side when there isn't room on the right, mirroring the notch and chevrons, and re-check as the window moves.
+fn tag_frame(
+    settings: Bounds<Pixels>,
+    screen: Option<Bounds<Pixels>>,
+    height: f32,
+) -> (Bounds<Pixels>, TagSide) {
     let top = f32::from(settings.origin.y);
     let list_end = top + LIST_END_FROM_TOP.min(f32::from(settings.size.height) - 80.0);
-    let x = f32::from(settings.origin.x + settings.size.width) + EDGE_GAP - NOTCH_ROOM;
-    Bounds::new(
-        point(px(x), px(list_end - NOTCH_Y)),
-        size(px(WINDOW_WIDTH), px(height)),
+    let right_x = f32::from(settings.origin.x + settings.size.width) + EDGE_GAP - NOTCH_ROOM;
+    let fits_right = screen.is_none_or(|screen| {
+        right_x + WINDOW_WIDTH <= f32::from(screen.origin.x + screen.size.width)
+    });
+    let left_x = f32::from(settings.origin.x) - EDGE_GAP - TAG_WIDTH;
+    let fits_left = screen.is_some_and(|screen| left_x >= f32::from(screen.origin.x));
+    let (x, side) = if fits_right || !fits_left {
+        (right_x, TagSide::Right)
+    } else {
+        (left_x, TagSide::Left)
+    };
+    (
+        Bounds::new(
+            point(px(x), px(list_end - NOTCH_Y)),
+            size(px(WINDOW_WIDTH), px(height)),
+        ),
+        side,
     )
 }
 
@@ -207,7 +268,9 @@ impl GhostexGpuiApp {
                         last_probe: None,
                         probing: false,
                         frame: None,
+                        side: TagSide::Right,
                         visible: false,
+                        restart_requested: None,
                     })
                 },
             ) else {
@@ -277,6 +340,7 @@ impl PermissionGuideView {
             grant(self.screen_recording),
             grant(self.accessibility),
             &file_name,
+            self.side,
         )
     }
 
@@ -291,7 +355,7 @@ impl PermissionGuideView {
             TagStage::Dropped if self.stage_since.elapsed() >= DROPPED_PAUSE => {
                 let next = self.current.other();
                 if grant(self.state(next)).has {
-                    self.settle();
+                    self.settle(cx);
                 } else {
                     self.current = next;
                     self.set_stage(TagStage::Waiting);
@@ -309,6 +373,18 @@ impl PermissionGuideView {
                 window.remove_window();
                 return false;
             }
+            // A restart that ended without picking the grants up (it gave up waiting for a busy
+            // agent) is asked for again.
+            TagStage::Restarting { .. }
+                if !gpui_spaceo_restarting()
+                    && [self.accessibility, self.screen_recording]
+                        .contains(&GpuiToolPermissionState::NeedsRestart)
+                    && self
+                        .restart_requested
+                        .is_none_or(|asked| asked.elapsed() >= RESTART_RETRY) =>
+            {
+                self.request_restart(cx);
+            }
             _ => {}
         }
         self.follow_system_settings();
@@ -322,15 +398,25 @@ impl PermissionGuideView {
         true
     }
 
-    /// Both permissions are in: Restart SpaceO when it started before one of them, else done.
-    fn settle(&mut self) {
+    /// Both permissions are in: SpaceO restarts by itself when it started before one of them
+    /// (once no agent is using it), else done.
+    ///
+    /// CDXC:OsIntegration 2026-10-14 DECISION:
+    /// User: restart SpaceO by itself when no agent is using it instead of asking Restart SpaceO / Later; show "Restarting SpaceO" then "SpaceO is ready", and while an agent is using SpaceO wait for it and say so. Supersedes the earlier ask-first step. The restart is SpaceO's own waiting `daemon restart --operator`; there is no "Restart now", because restarting before the agents finish would end their sessions.
+    fn settle(&mut self, cx: &mut Context<Self>) {
         let needs_restart = [self.accessibility, self.screen_recording]
             .contains(&GpuiToolPermissionState::NeedsRestart);
-        self.set_stage(if needs_restart {
-            TagStage::NeedsRestart
+        if needs_restart {
+            self.set_stage(TagStage::Restarting { agents: 0 });
+            self.request_restart(cx);
         } else {
-            TagStage::Ready
-        });
+            self.set_stage(TagStage::Ready);
+        }
+    }
+
+    fn request_restart(&mut self, cx: &mut Context<Self>) {
+        self.restart_requested = Some(Instant::now());
+        let _ = self.app.update(cx, |app, cx| app.restart_gpui_spaceo(cx));
     }
 
     #[cfg(target_os = "macos")]
@@ -340,8 +426,11 @@ impl PermissionGuideView {
             return;
         }
         let height = tag_height(&self.content());
-        match system_settings_frame().map(|settings| tag_frame(settings, height)) {
-            Some(frame) => {
+        let placed = system_settings_frame()
+            .map(|settings| tag_frame(settings, screen_frame(settings), height));
+        match placed {
+            Some((frame, side)) => {
+                self.side = side;
                 if self.frame != Some(frame) {
                     self.frame = Some(frame);
                     // SAFETY: the tag's own NSView, alive while its window is.
@@ -379,11 +468,15 @@ impl PermissionGuideView {
         self.probing = true;
         self.last_probe = Some(Instant::now());
         let spaceo = self.spaceo.clone();
-        let report = cx
-            .background_executor()
-            .spawn(async move { gpui_spaceo_permission_report(&spaceo) });
+        let restarting = matches!(self.stage, TagStage::Restarting { .. });
+        let report = cx.background_executor().spawn(async move {
+            let sessions = restarting
+                .then(|| gpui_spaceo_live_sessions(&spaceo))
+                .flatten();
+            (gpui_spaceo_permission_report(&spaceo), sessions)
+        });
         cx.spawn(async move |view, cx| {
-            let report = report.await;
+            let (report, sessions) = report.await;
             let _ = view.update(cx, |view, cx| {
                 view.probing = false;
                 let changed = view.accessibility != report.accessibility
@@ -394,12 +487,18 @@ impl PermissionGuideView {
                     TagStage::Waiting if grant(view.state(view.current)).has => {
                         view.set_stage(TagStage::Dropped);
                     }
-                    TagStage::Restarting
+                    TagStage::Restarting { .. }
                         if [view.accessibility, view.screen_recording]
                             .iter()
                             .all(|state| *state == GpuiToolPermissionState::Granted) =>
                     {
                         view.set_stage(TagStage::Ready);
+                    }
+                    TagStage::Restarting { agents } => {
+                        let now = sessions.unwrap_or(agents);
+                        if now != agents {
+                            view.stage = TagStage::Restarting { agents: now };
+                        }
                     }
                     _ => {}
                 }
@@ -413,12 +512,6 @@ impl PermissionGuideView {
             });
         })
         .detach();
-    }
-
-    fn restart(&mut self, cx: &mut Context<Self>) {
-        self.set_stage(TagStage::Restarting);
-        let _ = self.app.update(cx, |app, cx| app.restart_gpui_spaceo(cx));
-        cx.notify();
     }
 
     fn begin_drag(&self) {
@@ -446,7 +539,6 @@ impl Render for PermissionGuideView {
             TagActions {
                 drag: Box::new(|view: &mut Self, _, _| view.begin_drag()),
                 close: Box::new(|_, window, _| window.remove_window()),
-                restart: Box::new(|view, _, cx| view.restart(cx)),
             },
             cx,
         )

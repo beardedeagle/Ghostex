@@ -44,6 +44,14 @@ impl GhostexGpuiApp {
         };
         let background = cx.background_executor().clone();
         match tool {
+            "spaceo" if !cfg!(target_os = "macos") => {
+                self.dispatch_gpui_app_modal_toast(
+                    "warning",
+                    "SpaceO can't run here",
+                    "SpaceO is only available on macOS.",
+                    cx,
+                );
+            }
             "spaceo" => {
                 let Some(path) = gpui_spaceo_executable_path() else {
                     self.dispatch_gpui_app_modal_toast(

@@ -48,7 +48,11 @@ impl GhostexGpuiApp {
         self.dispatch_gpui_app_modal_toast(
             "warning",
             "SpaceO can't run here",
-            "SpaceO needs an Apple Silicon Mac with macOS 14 or later.",
+            if cfg!(target_os = "macos") {
+                "SpaceO needs an Apple Silicon Mac with macOS 14 or later."
+            } else {
+                "SpaceO is only available on macOS."
+            },
             cx,
         );
         true

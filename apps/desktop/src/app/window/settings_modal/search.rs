@@ -329,6 +329,17 @@ pub(crate) fn extra_tab_search(query: &str, tab: &str, debugging_mode: bool) -> 
         } else {
             section.settings.clone()
         };
+        // Rows this platform does not have (SpaceO's off macOS) never match a search.
+        let rows: Vec<SettingRowDef> = rows
+            .into_iter()
+            .filter(|row| {
+                !ghostex_settings_catalog::availability::row_hidden(
+                    ghostex_settings_catalog::Platform::current(),
+                    &row.key,
+                    |_| None,
+                )
+            })
+            .collect();
         let title = if rows.is_empty() {
             ""
         } else {

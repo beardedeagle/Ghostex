@@ -37,6 +37,12 @@ pub const GHOSTEX_AGENT_SKILL_NAMES: &[&str] = &[
     "ghostex-visuals",
 ];
 
+/// Bundled skills that only work on macOS: left out of the default install set elsewhere, and
+/// refused when asked for by name (`SPACEO_MACOS_ONLY_MESSAGE`).
+pub const MACOS_ONLY_GHOSTEX_AGENT_SKILL_NAMES: &[&str] = &["ghostex-spaceo"];
+
+pub const SPACEO_MACOS_ONLY_MESSAGE: &str = "SpaceO is only available on macOS.";
+
 pub const GHOSTEX_SKILLS_CLI_AGENT_IDS: &[&str] = &[
     "claude-code",
     "codex",
@@ -131,6 +137,13 @@ fn install_agent_skills_blocking(
         return Err(DomainStateError::bad_request(
             "Agent skill installs require at least one Ghostex agent skill.",
         ));
+    }
+    if !cfg!(target_os = "macos")
+        && skill_names
+            .iter()
+            .any(|name| MACOS_ONLY_GHOSTEX_AGENT_SKILL_NAMES.contains(&name.as_str()))
+    {
+        return Err(DomainStateError::bad_request(SPACEO_MACOS_ONLY_MESSAGE));
     }
     if is_uri_like(&package_source) {
         return Err(DomainStateError::bad_request(
@@ -570,6 +583,10 @@ pub fn normalize_agent_skill_names(
     let source = skill_names.unwrap_or_else(|| {
         GHOSTEX_AGENT_SKILL_NAMES
             .iter()
+            .filter(|skill_name| {
+                cfg!(target_os = "macos")
+                    || !MACOS_ONLY_GHOSTEX_AGENT_SKILL_NAMES.contains(skill_name)
+            })
             .map(|skill_name| (*skill_name).to_string())
             .collect()
     });

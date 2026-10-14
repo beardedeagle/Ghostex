@@ -515,7 +515,7 @@ pub fn usage() -> String {
         ),
         format_help_command(
             "spaceo --help",
-            "Show Ghostex SpaceO skill setup for driving Mac apps on SpaceO's virtual displays",
+            "Show Ghostex SpaceO skill setup for driving Mac apps on SpaceO's virtual displays (macOS only)",
         ),
         format_help_command(
             "cli --help",
@@ -1350,9 +1350,10 @@ Agent skill:
   user keeps their own screen, pointer and focus.
 
 Requirements:
-  An Apple Silicon Mac with macOS 14 or later. Install SpaceO from
-  Settings > Integrations, then turn on Accessibility and Screen Recording for
-  the app SpaceO names there. `spaceo doctor` checks the Mac without changing it.
+  macOS only: an Apple Silicon Mac with macOS 14 or later. On Windows and Linux
+  install-skill refuses: SpaceO is only available on macOS. Install SpaceO
+  from Settings > Integrations, then grant Accessibility and Screen Recording
+  from its rows there. `spaceo doctor` checks the Mac without changing it.
 
 Boundary:
   Use $ghostex-spaceo for Mac apps that should run off-screen.
