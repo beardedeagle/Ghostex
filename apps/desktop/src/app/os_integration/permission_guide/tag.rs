@@ -67,6 +67,15 @@ pub(crate) enum TagFoot {
     Closing,
 }
 
+/// The spaceo tile: to drag while there is something to drop, then shown landed (a check
+/// instead of the chevrons) so the tag keeps the same shape from step to step.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum TagTile {
+    Drag,
+    /// Not draggable; the line under the name says where it is ("Added to Screen Recording").
+    Landed(String),
+}
+
 pub(crate) struct TagContent {
     pub(crate) title: String,
     pub(crate) subtitle: String,
@@ -74,8 +83,7 @@ pub(crate) struct TagContent {
     pub(crate) subtitle_lines: usize,
     /// "Screen Recording granted" under the title once one permission is in.
     pub(crate) done_line: Option<String>,
-    /// The spaceo tile, while there is something to drop.
-    pub(crate) tile: bool,
+    pub(crate) tile: TagTile,
     /// The file name on the tile.
     pub(crate) file_name: String,
     pub(crate) foot: TagFoot,
@@ -83,13 +91,22 @@ pub(crate) struct TagContent {
     pub(crate) side: TagSide,
 }
 
+/// Space above the title row (its `pt`).
+const TOP_ROW_PAD: f32 = 2.0;
+
 /// The tag's height for `content`; every line has a fixed height, so the window fits it exactly.
+/// Every step has the tile, so the words never jump up under the progress segments.
 pub(crate) fn tag_height(content: &TagContent) -> f32 {
-    let mut height =
-        PAD + TITLE_LINE + 2.0 + SUB_LINE * content.subtitle_lines as f32 + GAP + FOOT + PAD;
-    if content.tile {
-        height += HERO + GAP;
-    }
+    let mut height = PAD
+        + HERO
+        + GAP
+        + TOP_ROW_PAD
+        + TITLE_LINE
+        + 2.0
+        + SUB_LINE * content.subtitle_lines as f32
+        + GAP
+        + FOOT
+        + PAD;
     if content.done_line.is_some() {
         height += DONE_LINE;
     }
@@ -256,86 +273,111 @@ pub(crate) fn render_tag<V: 'static>(
                 .rounded_b(px(2.0))
                 .bg(segment_color(segment))
         }));
-    let tile = content.tile.then(|| {
-        div()
-            .id("permission-guide-tile")
-            .h(px(HERO))
-            .mb(px(GAP))
-            .pl(px(11.0))
-            .pr(px(12.0))
-            .flex()
-            .items_center()
-            .gap(px(12.0))
-            .rounded(px(11.0))
-            .bg(linear_gradient(
-                180.0,
-                linear_color_stop(rgb(0x2a2a2a), 0.0),
-                linear_color_stop(rgb(0x222222), 1.0),
-            ))
-            .border_1()
-            .border_color(rgba(0xffffff1c))
-            .shadow(vec![BoxShadow {
-                color: gpui::hsla(0.0, 0.0, 0.0, 0.45),
-                offset: point(px(0.0), px(8.0)),
-                blur_radius: px(18.0),
-                spread_radius: px(0.0),
-                inset: false,
-            }])
-            .cursor_grab()
-            .text_color(rgb(INK))
-            .on_mouse_down(
+    let dragging = content.tile == TagTile::Drag;
+    let tile_note = match &content.tile {
+        TagTile::Drag => "Drop it on the list".to_string(),
+        TagTile::Landed(note) => note.clone(),
+    };
+    let tile = div()
+        .id("permission-guide-tile")
+        .h(px(HERO))
+        .mb(px(GAP))
+        .pl(px(11.0))
+        .pr(px(12.0))
+        .flex()
+        .items_center()
+        .gap(px(12.0))
+        .rounded(px(11.0))
+        .bg(linear_gradient(
+            180.0,
+            linear_color_stop(rgb(0x2a2a2a), 0.0),
+            linear_color_stop(rgb(0x222222), 1.0),
+        ))
+        .border_1()
+        .border_color(rgba(0xffffff1c))
+        .shadow(vec![BoxShadow {
+            color: gpui::hsla(0.0, 0.0, 0.0, 0.45),
+            offset: point(px(0.0), px(8.0)),
+            blur_radius: px(18.0),
+            spread_radius: px(0.0),
+            inset: false,
+        }])
+        .text_color(rgb(INK))
+        .when(dragging, |tile| {
+            tile.cursor_grab().on_mouse_down(
                 MouseButton::Left,
                 cx.listener(move |view, _: &MouseDownEvent, window, cx| drag(view, window, cx)),
             )
-            .when(side == TagSide::Right, |tile| tile.child(trail(side)))
-            .child(exec_icon())
-            .child(
-                div()
-                    .flex_1()
-                    .min_w_0()
-                    .child(
-                        div()
-                            .text_size(px(14.5))
-                            .line_height(px(18.0))
-                            .font_weight(gpui::FontWeight::SEMIBOLD)
-                            .child(content.file_name.clone()),
-                    )
-                    .child(
-                        div()
-                            .mt(px(1.0))
-                            .text_size(px(11.5))
-                            .line_height(px(14.0))
-                            .text_color(rgb(MUTED))
-                            .child("Drop it on the list"),
-                    ),
-            )
-            .child(grip())
-            .when(side == TagSide::Left, |tile| tile.child(trail(side)))
-            // Every 2.6s the tile leans toward the list, then settles.
-            .with_animation(
-                "permission-guide-lean",
-                Animation::new(Duration::from_millis(2600)).repeat(),
-                move |tile, delta| {
-                    let shift = if delta < 0.7 {
-                        0.0
-                    } else if delta < 0.8 {
-                        -5.0 * (delta - 0.7) / 0.1
-                    } else if delta < 0.9 {
-                        -5.0 + 6.0 * (delta - 0.8) / 0.1
-                    } else {
-                        1.0 - (delta - 0.9) / 0.1
-                    };
-                    let toward = if side == TagSide::Right { 1.0 } else { -1.0 };
-                    tile.relative().left(px(shift * toward))
-                },
-            )
-    });
+        })
+        .when(dragging && side == TagSide::Right, |tile| {
+            tile.child(trail(side))
+        })
+        .child(exec_icon())
+        .child(
+            div()
+                .flex_1()
+                .min_w_0()
+                .child(
+                    div()
+                        .text_size(px(14.5))
+                        .line_height(px(18.0))
+                        .font_weight(gpui::FontWeight::SEMIBOLD)
+                        .child(content.file_name.clone()),
+                )
+                .child(
+                    div()
+                        .mt(px(1.0))
+                        .text_size(px(11.5))
+                        .line_height(px(14.0))
+                        .text_color(rgb(MUTED))
+                        .child(tile_note),
+                ),
+        )
+        .map(|tile| {
+            if dragging {
+                tile.child(grip())
+            } else {
+                tile.child(
+                    svg()
+                        .path("modals/permission-guide/check.svg")
+                        .flex_none()
+                        .size(px(16.0))
+                        .text_color(rgb(GREEN)),
+                )
+            }
+        })
+        .when(dragging && side == TagSide::Left, |tile| {
+            tile.child(trail(side))
+        });
+    let tile = if dragging {
+        // Every 2.6s the tile leans toward the list, then settles.
+        tile.with_animation(
+            "permission-guide-lean",
+            Animation::new(Duration::from_millis(2600)).repeat(),
+            move |tile, delta| {
+                let shift = if delta < 0.7 {
+                    0.0
+                } else if delta < 0.8 {
+                    -5.0 * (delta - 0.7) / 0.1
+                } else if delta < 0.9 {
+                    -5.0 + 6.0 * (delta - 0.8) / 0.1
+                } else {
+                    1.0 - (delta - 0.9) / 0.1
+                };
+                let toward = if side == TagSide::Right { 1.0 } else { -1.0 };
+                tile.relative().left(px(shift * toward))
+            },
+        )
+        .into_any_element()
+    } else {
+        tile.into_any_element()
+    };
     let top = div()
         .flex()
         .items_start()
         .gap(px(9.0))
         .pl(px(2.0))
-        .pt(px(2.0))
+        .pt(px(TOP_ROW_PAD))
         .child(
             img("app-icon.png")
                 .mt(px(2.0))
@@ -501,7 +543,7 @@ pub(crate) fn render_tag<V: 'static>(
                 .border_1()
                 .border_color(rgba(0xffffff21))
                 .child(progress)
-                .child(div().p(px(PAD - 1.0)).children(tile).child(top).child(foot)),
+                .child(div().p(px(PAD - 1.0)).child(tile).child(top).child(foot)),
         )
         .child(notch)
         .into_any_element()
@@ -600,7 +642,7 @@ pub(crate) fn tag_content(
                 current.pane().to_string(),
                 1,
                 second.then(|| format!("{} granted", other.name())),
-                true,
+                TagTile::Drag,
                 TagFoot::Waiting {
                     step: if second { 2 } else { 1 },
                 },
@@ -611,7 +653,7 @@ pub(crate) fn tag_content(
             format!("Opening {} next", other.name()),
             1,
             None,
-            false,
+            TagTile::Landed(format!("Added to {}", current.name())),
             TagFoot::Granted,
         ),
         TagStage::Restarting { agents: 0 } => (
@@ -619,7 +661,7 @@ pub(crate) fn tag_content(
             "So it can use the new permissions.".to_string(),
             1,
             None,
-            false,
+            TagTile::Landed("In both lists".to_string()),
             TagFoot::Restarting { busy: false },
         ),
         TagStage::Restarting { agents } => (
@@ -631,7 +673,7 @@ pub(crate) fn tag_content(
             },
             1,
             None,
-            false,
+            TagTile::Landed("In both lists".to_string()),
             TagFoot::Restarting { busy: true },
         ),
         TagStage::Ready => (
@@ -639,7 +681,7 @@ pub(crate) fn tag_content(
             "Both permissions granted".to_string(),
             1,
             None,
-            false,
+            TagTile::Landed("In both lists".to_string()),
             TagFoot::Closing,
         ),
     };

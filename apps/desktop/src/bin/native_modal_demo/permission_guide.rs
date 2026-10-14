@@ -3,7 +3,8 @@
 //! drop into Screen Recording), `left` (the same, flipped to System Settings' left side because
 //! the right has no room), `dropped` (it landed, Accessibility opens next), `next` (waiting for
 //! the drop into Accessibility), `restarting` (SpaceO restarts by itself), `restarting-busy` (it
-//! waits for two agents using SpaceO), `ready` (All set, closing).
+//! waits for two agents using SpaceO), `ready` (All set, closing), `flow` (steps through
+//! waiting, dropped, next, restarting and ready every 1.5 seconds, the way a real grant goes).
 use super::permission_guide_tag::*;
 use gpui::prelude::*;
 use gpui::{App, Context, IntoElement, Render, Window, div, px, rgb, rgba};
@@ -18,7 +19,11 @@ const EDGE_GAP: f32 = 14.0;
 
 struct PermissionGuideDemo {
     state: String,
+    /// `flow`'s step.
+    step: usize,
 }
+
+const FLOW: [&str; 5] = ["waiting", "dropped", "next", "restarting", "ready"];
 
 fn switch(on: bool) -> impl IntoElement {
     div()
@@ -179,7 +184,12 @@ impl Render for PermissionGuideDemo {
             has: true,
             needs_restart: true,
         };
-        let (stage, current, screen, access) = match self.state.as_str() {
+        let state = if self.state == "flow" {
+            FLOW[self.step % FLOW.len()]
+        } else {
+            self.state.as_str()
+        };
+        let (stage, current, screen, access) = match state {
             "dropped" => (TagStage::Dropped, TagPermission::ScreenRecording, on, off),
             "next" => (TagStage::Waiting, TagPermission::Accessibility, on, off),
             "restarting" => (
@@ -198,7 +208,7 @@ impl Render for PermissionGuideDemo {
             _ => (TagStage::Waiting, TagPermission::ScreenRecording, off, off),
         };
         // `left`: System Settings sits against the screen's right edge, so the tag flips left.
-        let side = if self.state == "left" {
+        let side = if state == "left" {
             TagSide::Left
         } else {
             TagSide::Right
@@ -249,7 +259,30 @@ pub(super) fn open(demo: &super::DemoEnv, cx: &mut App) {
     let _ = super::open_modal_window(
         DEMO_WIDTH,
         SETTINGS_Y + SETTINGS_H + 40.0,
-        move |_, cx| cx.new(|_| PermissionGuideDemo { state }),
+        move |_, cx| {
+            cx.new(|cx| {
+                if state == "flow" {
+                    cx.spawn(async move |demo, cx| {
+                        loop {
+                            cx.background_executor()
+                                .timer(std::time::Duration::from_millis(1500))
+                                .await;
+                            if demo
+                                .update(cx, |demo: &mut PermissionGuideDemo, cx| {
+                                    demo.step += 1;
+                                    cx.notify();
+                                })
+                                .is_err()
+                            {
+                                break;
+                            }
+                        }
+                    })
+                    .detach();
+                }
+                PermissionGuideDemo { state, step: 0 }
+            })
+        },
         cx,
     );
 }

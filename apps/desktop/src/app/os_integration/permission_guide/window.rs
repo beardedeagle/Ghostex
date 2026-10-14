@@ -216,6 +216,7 @@ impl GhostexGpuiApp {
                 view.set_stage(TagStage::Waiting);
                 view.opened = Instant::now();
                 view.last_probe = None;
+                view.follow_system_settings();
                 cx.notify();
             });
             if pointed.is_ok() {
@@ -502,6 +503,9 @@ impl PermissionGuideView {
                     }
                     _ => {}
                 }
+                // A new step can change the tag's height: resize now, before it draws, instead of
+                // at the next tick, so the new words never show squeezed into the old size.
+                view.follow_system_settings();
                 if changed {
                     // Settings' rows follow without waiting for their own re-check.
                     let _ = view
