@@ -17,7 +17,7 @@ use gpui::{
 };
 use gpui_component::{h_flex, v_flex};
 
-/// The list pane's width; the detail pane takes the rest of the 770px column.
+/// The list pane's width; the detail pane takes the rest of the page column.
 pub(crate) const LIST_WIDTH: f32 = 212.0;
 
 impl AccountsTab {

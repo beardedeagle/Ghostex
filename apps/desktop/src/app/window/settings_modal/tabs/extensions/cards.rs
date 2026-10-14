@@ -40,7 +40,7 @@ pub(crate) fn grid_columns(width: f32) -> usize {
     }
 }
 
-/// The width of the page column the grids fill: the 770px column, or less in a narrow window
+/// The width of the page column the grids fill: the page column, or less in a narrow window
 /// (the Settings body's 16px padding and gap around the 192px rail, and the page's 20px gutters).
 pub(crate) fn page_column_width(window: &Window) -> f32 {
     let viewport = f32::from(window.viewport_size().width);

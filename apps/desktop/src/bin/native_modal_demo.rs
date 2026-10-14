@@ -208,6 +208,18 @@ fn open_large_modal_window<V: Render>(
     open_modal_window(width, height, build, cx)
 }
 
+/// `open_modal_window` for the Settings dialog, which the app opens 20% bigger than the other
+/// large panels (CDXC:Settings 2026-10-14 in app/model/app_modal_kind.rs).
+fn open_settings_dialog_window<V: Render>(
+    width: f32,
+    height: f32,
+    build: impl FnOnce(&mut gpui::Window, &mut App) -> Entity<V>,
+    cx: &mut App,
+) -> (WindowHandle<Root>, Entity<V>) {
+    let (width, height) = native_modal_kit::settings_dialog_modal_size(width, height);
+    open_modal_window(width, height, build, cx)
+}
+
 fn deliver_export_result(
     window: WindowHandle<Root>,
     view: Entity<GpuiExportTranscriptModalWindow>,

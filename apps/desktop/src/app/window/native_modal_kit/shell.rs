@@ -181,6 +181,14 @@ pub(crate) fn large_panel_modal_size(width: f32, height: f32) -> (f32, f32) {
     ((width * 1.1).round(), (height * 1.1).round())
 }
 
+/// The Settings dialog's opening size: the large panel size 20% wider and taller again
+/// (CDXC:Settings 2026-10-14 in app/model/app_modal_kind.rs). Search by Prompt, the Agents Hub,
+/// Commit Changes and File Diff share the 10% step only and do not use this.
+pub(crate) fn settings_dialog_modal_size(width: f32, height: f32) -> (f32, f32) {
+    let (width, height) = large_panel_modal_size(width, height);
+    ((width * 1.2).round(), (height * 1.2).round())
+}
+
 /// The window fit for a modal whose body scrolls (Remote Setup): the window is
 /// sized once, on open, to the header plus the body's own content and never
 /// past the display's visible bottom. Anything taller later (the Android

@@ -1,5 +1,5 @@
 //! The scrolling body every Settings page renders into (`SettingsNativeScrollArea` +
-//! `.settings-page-width`): the 770px column centered in the content area with 20px gutters,
+//! `.settings-page-width`): the 924px column centered in the content area with 20px gutters,
 //! 12px above each section and 24px between them, 80px below the last one, and the scroll
 //! anchors the rail and deep links use.
 use super::super::native_modal_kit::*;
@@ -14,8 +14,10 @@ use gpui::{
 };
 use gpui_component::v_flex;
 
-/// `--settings-content-max-width`.
-pub(crate) const CONTENT_MAX_WIDTH: f32 = 770.0;
+/// `--settings-content-max-width`, 20% wider than the React 770px column so the page fills the
+/// 20% bigger window (CDXC:Settings 2026-10-14 in app/model/app_modal_kind.rs) instead of
+/// floating in it with empty bands on both sides.
+pub(crate) const CONTENT_MAX_WIDTH: f32 = 924.0;
 /// `--settings-content-inline-padding`.
 pub(crate) const CONTENT_GUTTER: f32 = 20.0;
 

@@ -228,9 +228,28 @@ impl GpuiAppModalKind {
         )
     }
 
+    /// The Settings dialog in every entry (Hotkeys, Configure Agents, Configure Actions and Open
+    /// Targets render it too); the only large panels that open 20% bigger than the others.
+    pub(crate) fn is_settings_dialog(self) -> bool {
+        matches!(
+            self,
+            Self::Settings
+                | Self::Hotkeys
+                | Self::ConfigureAgents
+                | Self::ConfigureActions
+                | Self::OpenTargets
+        )
+    }
+
     /// CDXC:AppModal 2026-10-01 DECISION:
-    /// User: Settings and Search by Prompt "open way too big. they should open centered in the page like the size that the quick access modal opens, not biggger", then "please make the settings and find by prompt modals to be bigger by 30% width and height" (2026-09-30), then "the bigger modals that pop up in the centre of the screen, like Find by Prompt and Settings: the size needs to be 10% bigger." Settings and Search by Prompt keep the Quick Access frame 30% wider and taller as their base (900 x 663), and every large panel modal opens 10% wider and taller than its base frame (Settings and Search by Prompt 990 x 729); the opener still shrinks it to fit the screen it opens on. This supersedes the 2026-09-30 opening size.
+    /// User: Settings and Search by Prompt "open way too big. they should open centered in the page like the size that the quick access modal opens, not biggger", then "please make the settings and find by prompt modals to be bigger by 30% width and height" (2026-09-30), then "the bigger modals that pop up in the centre of the screen, like Find by Prompt and Settings: the size needs to be 10% bigger." Settings and Search by Prompt keep the Quick Access frame 30% wider and taller as their base (900 x 663), and every large panel modal opens 10% wider and taller than its base frame (Search by Prompt 990 x 729); the opener still shrinks it to fit the screen it opens on. This supersedes the 2026-09-30 opening size.
+    ///
+    /// CDXC:Settings 2026-10-14 DECISION:
+    /// User: "please make settings for ghostex bigger by 20%". The Settings dialog (every entry that renders it, `is_settings_dialog`) opens another 20% wider and taller than the large panel size: 1188 x 875 instead of 990 x 729. Only the window grows, not the fonts or controls, and the other large panels keep the 10% step. This supersedes the 990 x 729 Settings size above.
     pub(crate) fn large_panel_size(self, width: f32, height: f32) -> (f32, f32) {
+        if self.is_settings_dialog() {
+            return crate::app::window::settings_dialog_modal_size(width, height);
+        }
         if !self.is_large_panel() {
             return (width, height);
         }
@@ -281,7 +300,7 @@ impl GpuiAppModalKind {
             CDXC:AppModal 2026-07-26-07:20:
             Settings, Hotkeys, Configure Agents, Configure Actions, and Open Targets all render the one tabbed Settings dialog in the modal host, so they must keep the full Settings frame even though their legacy standalone stylesheets are narrower.
             */
-            // The Settings and Search by Prompt base frame; they open 10% bigger (CDXC:AppModal 2026-10-01 on `large_panel_size`).
+            // The Settings and Search by Prompt base frame; they open 10% bigger, Settings another 20% (CDXC:AppModal 2026-10-01 and CDXC:Settings 2026-10-14 on `large_panel_size`).
             Self::Settings
             | Self::Hotkeys
             | Self::FindPrompts

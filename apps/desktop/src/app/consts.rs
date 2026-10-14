@@ -712,8 +712,8 @@ pub(crate) const APP_MODAL_HOST_SIDEBAR_SPACE_EDITOR_WINDOW_HEIGHT: f32 = 380.0;
 /// User: make the height of the Ghostex Quick Access modal 25% less. All four Quick Access tabs open on this one frame, 510px instead of the previous 680px.
 pub(crate) const APP_MODAL_HOST_PREVIOUS_SESSIONS_WINDOW_HEIGHT: f32 = 510.0;
 
-/// The Settings and Search by Prompt base frame: the Quick Access frame, 30% wider and taller; they open 10% bigger
-/// (CDXC:AppModal 2026-10-01 in app/model/app_modal_kind.rs).
+/// The Settings and Search by Prompt base frame: the Quick Access frame, 30% wider and taller; they open 10% bigger,
+/// and the Settings dialog another 20% (CDXC:AppModal 2026-10-01 and CDXC:Settings 2026-10-14 in app/model/app_modal_kind.rs).
 pub(crate) const APP_MODAL_HOST_SETTINGS_WINDOW_WIDTH: f32 = 900.0;
 
 pub(crate) const APP_MODAL_HOST_SETTINGS_WINDOW_HEIGHT: f32 = 663.0;

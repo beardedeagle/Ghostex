@@ -20,8 +20,8 @@ use gpui_component::{Sizable as _, Size as ComponentSize, h_flex, v_flex};
 use serde_json::Value;
 use std::collections::HashMap;
 
-/// The Settings frame (CDXC:AppModal 2026-10-01 in app/model/app_modal_kind.rs):
-/// `APP_MODAL_HOST_SETTINGS_WINDOW_WIDTH` x `APP_MODAL_HOST_SETTINGS_WINDOW_HEIGHT`.
+/// The Settings base frame, `APP_MODAL_HOST_SETTINGS_WINDOW_WIDTH` x `APP_MODAL_HOST_SETTINGS_WINDOW_HEIGHT`;
+/// the window opens 1188 x 875 (CDXC:Settings 2026-10-14 in app/model/app_modal_kind.rs).
 pub(crate) const SETTINGS_MODAL_WIDTH: f32 = 900.0;
 pub(crate) const SETTINGS_MODAL_HEIGHT: f32 = 663.0;
 /// The hidden title row above the body (`.ghostex-modal-heading-bar` with an sr-only title).
