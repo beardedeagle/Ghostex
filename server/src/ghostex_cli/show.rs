@@ -9,9 +9,9 @@ use crate::ghostex_cli::args::parse_args;
 use crate::ghostex_cli::rpc::{
     request_gxserver_rpc, resolve_gxserver_server_target, CliError, CliResult,
 };
-use crate::visual_pages::{prepare_page, PUBLISH_VISUAL_PAGE_ENDPOINT};
-
-const SOURCE_MAX_BYTES: u64 = 512 * 1024;
+use crate::visual_pages::{
+    page_too_large, prepare_page, PUBLISH_VISUAL_PAGE_ENDPOINT, VISUAL_PAGE_MAX_BYTES,
+};
 
 /// `ghostex show <file.html> [--title <text>] [--json]`: publishes a self-contained HTML page
 /// through gxserver and prints the ```visual block that shows it as a card in the chat.
@@ -41,7 +41,8 @@ pub fn show_command(args: &[String]) -> CliResult<()> {
     };
     let path = absolute_path(file);
     let source = read_source(&path)?;
-    let prepared = prepare_page(&source).map_err(CliError::Other)?;
+    let base_dir = path.parent().unwrap_or(Path::new("/"));
+    let prepared = prepare_page(&source, base_dir).map_err(CliError::Other)?;
     let title = parsed
         .flags
         .string_value("title")
@@ -201,10 +202,11 @@ fn read_source(path: &Path) -> CliResult<String> {
             path.display()
         )));
     }
-    if metadata.len() > SOURCE_MAX_BYTES {
-        return Err(CliError::Other(format!(
-            "The page is {} KiB; the limit is 512 KiB.",
-            metadata.len().div_ceil(1024)
+    // The page only grows once its head and images are added, so a source already over the
+    // finished page's limit is refused before it is read.
+    if metadata.len() > VISUAL_PAGE_MAX_BYTES as u64 {
+        return Err(CliError::Other(page_too_large(
+            usize::try_from(metadata.len()).unwrap_or(usize::MAX),
         )));
     }
     let bytes = fs::read(path)

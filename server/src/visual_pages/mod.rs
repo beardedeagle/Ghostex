@@ -15,12 +15,13 @@ mod thumbnail;
 
 pub(crate) use answers::{is_answers_route, submit as submit_answers};
 pub(crate) use drafts::{is_draft_route, save as save_draft};
-pub(crate) use prepare::prepare_page;
+pub(crate) use prepare::{page_too_large, prepare_page};
 pub(crate) use publish::{
     handle_publish_visual_page_http, PUBLISH_VISUAL_PAGE_BODY_LIMIT_BYTES,
     PUBLISH_VISUAL_PAGE_ENDPOINT,
 };
 pub(crate) use serve::{serve, VISUAL_PAGE_ROUTE_PREFIX};
+pub(crate) use store::VISUAL_PAGE_MAX_BYTES;
 pub(crate) use thumbnail::{
     handle_read_http as handle_read_visual_page_thumbnail_http,
     handle_store_http as handle_store_visual_page_thumbnail_http,

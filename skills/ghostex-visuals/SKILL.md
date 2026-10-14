@@ -232,9 +232,14 @@ Ghostex can't show the form, so ask in prose instead.
 For a mockup or a small interactive tool:
 
 1. Write **one self-contained HTML file**: inline CSS and JS. Libraries from an
-   https CDN load fine. Local images referenced by absolute path
-   (`<img src="/Users/me/shot.png">`, `url(C:/shots/a.png)`) are embedded
-   automatically; every other request must be https.
+   https CDN load fine. Local images are embedded automatically, by absolute
+   path (`<img src="/Users/me/shot.png">`, `url(C:/shots/a.png)`) or, from
+   Ghostex 10.23, by a path relative to the HTML file (`<img src="img/a.png">`,
+   `srcset`, CSS `url(img/a.png)`). On older versions use absolute paths.
+   `ghostex show` refuses a page whose local images are missing or not images
+   and names them; fix those paths. The finished page, images included, can be
+   up to 8 MiB (older versions also cap the HTML file itself at 512 KiB).
+   Every other request must be https.
 2. Style it with the theme variables Ghostex adds, so it matches the app in
    dark and light: `--background`, `--foreground`, `--muted-foreground`,
    `--border`, `--card`, `--primary` (accent color), `--accent` (hover and
