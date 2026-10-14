@@ -409,6 +409,12 @@ impl NativeChatView {
         } else {
             (p.prose, "titlebar/arrow-down-left.svg")
         };
+        // CDXC:SessionChat 2026-10-14 WHY: the arrow used to take `card_panel`, which under window glass is a 6% white wash, so it painted nothing on the badge and the row showed a plain grey dot ("it's supposed to be an arrow or graphic in that circle"). The badge fill is opaque and light in dark mode (dark in light mode), so its arrow is a fixed opposite ink instead of a theme wash.
+        let arrow_ink = if p.light {
+            gpui::Hsla::from(rgb(0xffffff))
+        } else {
+            gpui::Hsla::from(rgb(0x161616))
+        };
         let agent = text(card, "agentIcon");
         let logo = match workspace_tab_agent_icon_path(&agent) {
             // OMP's artwork is deliberately multicolour (`new_session_agent_mark`).
@@ -439,7 +445,7 @@ impl NativeChatView {
                     // The ring that parts the badge from the logo is the card's own panel.
                     .border_1()
                     .border_color(p.card_panel)
-                    .child(icon(arrow, 7.0 * s, p.card_panel)),
+                    .child(icon(arrow, 8.0 * s, arrow_ink)),
             )
             .into_any_element()
     }
