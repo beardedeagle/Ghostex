@@ -76,6 +76,17 @@ pub fn handle(state: &mut ChatState, action: &UserAction, context: &ChatContext)
         ActionKind::PreviousQuestion => {
             effects.extend(crate::questions::open_questions::previous(state, context));
         }
+        ActionKind::FormNotes => {
+            let id = action
+                .param("form")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            let text = action
+                .param("text")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            effects.extend(crate::questions::forms::write_notes(state, id, text));
+        }
         ActionKind::FormToggle => {
             let id = action
                 .param("form")

@@ -74,9 +74,10 @@ impl GhostexGpuiApp {
         CDXC:Sidebar 2026-10-11 DECISION:
         User: "i actually want search and notifications to be always shown, there's space for those
         too in all cases" (2026-10-05). Search, the bell and the menu button stay in the top row at
-        every sidebar width, and nothing collapses into the sidebar menu any more now that Send
-        Feedback sits in the bottom bar. This supersedes the 2026-09-23 rule that moved Search and
-        Notifications into the menu together and the 2026-10-05 rule that moved Send Feedback there.
+        every sidebar width, and nothing collapses into the sidebar menu any more. Send Feedback is a
+        row of the More options menu (CDXC:Feedback 2026-10-14 in
+        packages/gx-core/src/sidebar_menu/navigation.rs). This supersedes the 2026-09-23 rule that
+        moved Search and Notifications into the menu together.
         */
         /*
         CDXC:Sidebar 2026-09-21 DECISION:
@@ -195,43 +196,7 @@ impl GhostexGpuiApp {
             // CDXC:Workspaces 2026-10-11 DECISION: User: move the workspace picker out of the Spaces row to the bottom left of the app, in the sidebar's bottom bar, with 5px more margin from the sidebar's left side than the bar's own padding so it lines up with the account row above it. The bar's other buttons sit right of the spacer.
             .when(footer, |row| {
                 let tile = self.render_native_sidebar_footer_workspace_tile(appearance, cx);
-                let tile_shown = tile.is_some();
                 row.children(tile.map(|tile| div().flex_shrink_0().ml(px(5.0 * scale)).child(tile)))
-                    // CDXC:Feedback 2026-10-11 DECISION:
-                    // User: "move the feedback button to be to the right of the workspace switcher button please". The chat-bubble Send Feedback button sits in the sidebar's bottom bar, directly right of the workspace switcher, and still opens the Send Feedback pop-up (window/feedback_modal/). This supersedes the 2026-10-04 rule that put it at the top of the sidebar after Search ("add a button at the top of the sidebar. It should be a chat bubble icon") and the 2026-10-05 rule that moved it into the sidebar menu when that row was narrow.
-                    .child(
-                        div()
-                            .id("native-sidebar-feedback")
-                            .role(gpui::Role::Button)
-                            .aria_label("Send Feedback")
-                            .when(!tile_shown, |button| button.ml(px(5.0 * scale)))
-                            .h(px(28.0 * scale))
-                            .w(px(34.0 * scale))
-                            .rounded(px(5.0 * scale))
-                            .flex()
-                            .flex_shrink_0()
-                            .items_center()
-                            .justify_center()
-                            .cursor_default()
-                            .hover(|row| row.bg(appearance.hover))
-                            .child(titlebar_svg_icon(
-                                "titlebar/message-circle.svg",
-                                15.0 * scale,
-                                appearance.muted,
-                            ))
-                            .on_click(cx.listener(move |app, _, _, cx| {
-                                cx.stop_propagation();
-                                app.dispatch_native_sidebar_ui(
-                                    json!({"type": "sidebarAction", "action": "feedback"}),
-                                    cx,
-                                );
-                            }))
-                            .managed_discrete_tooltip_with_placement(
-                                ManagedTooltipPlacement::Right,
-                                tooltip_delay,
-                                |window, cx| titlebar_tooltip("Send Feedback", window, cx),
-                            ),
-                    )
                     .child(div().flex_1())
             })
             .child(

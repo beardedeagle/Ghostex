@@ -193,6 +193,11 @@ pub fn more_menu(input: &MoreMenuInput<'_>) -> Vec<MenuItem> {
         "users-group",
         MenuCommand::command(message::open_external_url(DISCORD_URL)),
     ));
+    /*
+    CDXC:Feedback 2026-10-14 DECISION:
+    User: "please move the feedback button to be inside the more options dropdown in the sidebar under join discord." Send Feedback is the row directly under Join Discord, with the chat-bubble icon, and opens the Send Feedback pop-up (apps/desktop/src/app/window/feedback_modal/). This supersedes the 2026-10-11 rule that put a chat-bubble button in the sidebar's bottom bar right of the workspace switcher.
+    */
+    more.push(intent("Send Feedback", "message-circle", "feedback"));
     if input.host.app_lifecycle {
         more.push(MenuItem::separator());
         for action in APP_LIFECYCLE_ACTIONS {

@@ -589,6 +589,12 @@ pub(crate) async fn handle_read_session_chat_http(
     }
     // CDXC:Coordinators 2026-09-30 WHY: outside the running gate, because a sleeping coordinator's threads keep working and its panel must still show them.
     crate::coordinators::insert_coordinator_threads(&mut result, &project_id, &session_id);
+    crate::agent_message_deliveries::insert_agent_message_deliveries(
+        &mut result,
+        &project_id,
+        &session_id,
+        crate::agent_message_deliveries::DeliveriesFrame::Whole,
+    );
     let mut screen_prompt = None;
     /*
     The pills' "what is the agent ACTUALLY running" value. Structured

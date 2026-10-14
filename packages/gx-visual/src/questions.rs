@@ -11,7 +11,7 @@
 //!      "choices": [{"label": "Tabs", "detail": "One page per area.", "recommended": true},
 //!                  "One long page"]},
 //!     {"title": "Which platforms first?", "multiple": true, "choices": ["macOS", "Windows"]},
-//!     {"title": "Anything else?", "type": "text"}
+//!     {"title": "What should it be called?", "type": "text"}
 //!   ]
 //! }
 //! ```
@@ -20,7 +20,8 @@
 //! The model is the page kit's (`server/src/visual_pages/kit.rs`): a choice question ends with
 //! "Other / none of these" and a note box, nothing is preselected, and the answers go back to the
 //! agent as the same `<ghostex-page-answers>` message a page sends, keyed by each question's `name`
-//! (its title when it has none), a note as `"<key> (note)"`.
+//! (its title when it has none), a note as `"<key> (note)"`, and a form of two or more questions
+//! ends with a notes box whose text arrives last, as `"Additional notes"` ([`notes_key`]).
 //!
 //! CDXC:SessionChat 2026-10-11 DECISION:
 //! User: questions an agent asks are answered in a form inside the chat itself (desktop and phone), not one question at a time and not by typing letters: all questions at once, selectable choices with nothing preselected (clicking again clears), the automatic "Other / none of these" with a note box, text questions, and one Send button. Any agent writes it as a ```questions block, the answers go back as a message, and the form then shows as answered. Pages (gx-questions) stay only for questions that need visuals.
@@ -35,6 +36,9 @@ use serde_json::{Map, Value};
 pub const OTHER_CHOICE: &str = "Other / none of these";
 /// How a question's note is keyed in the answers.
 pub const NOTE_SUFFIX: &str = " (note)";
+/// How the form's own notes box (a form of two or more questions) is keyed in the answers, after
+/// every question's answer.
+pub const NOTES_KEY: &str = "Additional notes";
 
 const MAX_QUESTIONS: usize = 20;
 const MAX_CHOICES: usize = 26;
@@ -291,6 +295,28 @@ pub fn parse_form(body: &str) -> QuestionForm {
         error,
         ..QuestionForm::default()
     })
+}
+
+/// Whether the form ends with its own notes box: a form of two or more questions does.
+pub fn takes_notes(form: &QuestionForm) -> bool {
+    form.questions.len() >= 2
+}
+
+/// The answers key the form's notes arrive under: [`NOTES_KEY`], numbered like a repeated
+/// question's key when a question already answers under it.
+pub fn notes_key(form: &QuestionForm) -> String {
+    let taken = |key: &str| {
+        form.questions.iter().any(|question| {
+            question.key == key || format!("{}{NOTE_SUFFIX}", question.key) == key
+        })
+    };
+    let mut key = NOTES_KEY.to_string();
+    let mut copy = 2;
+    while taken(&key) {
+        key = format!("{NOTES_KEY} ({copy})");
+        copy += 1;
+    }
+    key
 }
 
 /// The message that carries a form's answers to the agent: the envelope a published page's

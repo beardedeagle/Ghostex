@@ -210,6 +210,12 @@ pub(crate) fn emit_session_chat_options_state_frame(
                     map, project_id, session_id,
                 );
                 crate::coordinators::insert_coordinator_threads(map, project_id, session_id);
+                crate::agent_message_deliveries::insert_agent_message_deliveries(
+                    map,
+                    project_id,
+                    session_id,
+                    crate::agent_message_deliveries::DeliveriesFrame::State,
+                );
             }
             frame
         },

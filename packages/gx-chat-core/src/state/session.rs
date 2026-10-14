@@ -67,6 +67,9 @@ pub struct SessionState {
     /// A coordinator's threads (`{ threads }`); present only for a coordinator.
     /// Unchanged on omission.
     pub coordinator_threads: Option<Value>,
+    /// How the messages this session sent other agents and left waiting ended, by send id.
+    /// Unchanged on omission.
+    pub agent_message_deliveries: Option<Value>,
     /// Latched once gxserver has read this session's screen; an omission never unsets it.
     pub screen_probed: bool,
     /// Live work as the chat channel itself reports it.
@@ -131,6 +134,7 @@ impl Default for SessionState {
             app_commands: Vec::new(),
             returned_prompt: None,
             coordinator_threads: None,
+            agent_message_deliveries: None,
             screen_probed: false,
             server_working: false,
             session_activity_working: false,

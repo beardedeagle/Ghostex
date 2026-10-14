@@ -1,6 +1,7 @@
 pub(crate) mod accounts;
 pub(crate) mod agent_cli;
 pub mod agent_hooks;
+pub mod agent_message_deliveries;
 pub mod agent_model_catalog;
 pub mod agent_model_pins;
 pub mod agent_prompt_search;

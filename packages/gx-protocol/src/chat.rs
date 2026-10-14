@@ -231,7 +231,7 @@ pub struct TurnLifecycle {
 /// | Key | Absent means |
 /// | --- | --- |
 /// | `prompt`, `terminalNotice`, `terminalActivity`, `agentFleet`, `agentTasks` | CLEARED |
-/// | `selectedOptions`, `draft`, `appCommands`, `returnedPrompt`, `coordinatorThreads` | UNCHANGED |
+/// | `selectedOptions`, `draft`, `appCommands`, `returnedPrompt`, `coordinatorThreads`, `agentMessageDeliveries` | UNCHANGED |
 /// | `queue` | the daemon has no queue support (present even when empty otherwise) |
 /// | `screenProbed` | not probed yet (sticky once true) |
 /// | `agentSessionId` | snapshot or replaced: cleared; state: unchanged |
@@ -269,6 +269,11 @@ pub struct ChatSideState {
     /// session; the Threads panel above its composer. Absent means unchanged.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub coordinator_threads: Option<Value>,
+    /// How the messages this session's agent sent with `ghostex agents send` and left waiting
+    /// ended, by `sendRequestId` (`{ "<id>": { state: "delivered" | "failed", failure? } }`;
+    /// server/src/agent_message_deliveries.rs). Absent means unchanged.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent_message_deliveries: Option<Value>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub agent_session_id: Option<String>,
     #[serde(default, skip_serializing_if = "Tri::is_absent")]

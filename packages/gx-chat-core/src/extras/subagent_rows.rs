@@ -58,6 +58,7 @@ fn scope<'a>(
         // A subagent's transcript draws no forms, so its words link to nothing.
         askers: Vec::new(),
         question_tags: Vec::new(),
+        agent_message_deliveries: None,
     }
 }
 
@@ -105,6 +106,7 @@ pub fn refresh(state: &mut ChatState, context: &ChatContext) {
         line_breaks: crate::transcript::presentation::line_breaks(state),
         live_side_question: None,
         session_directory_revision: 0,
+        agent_message_deliveries: None,
     };
     if state.extras.subagent.view.projection_inputs.as_ref() == Some(&inputs) {
         return;

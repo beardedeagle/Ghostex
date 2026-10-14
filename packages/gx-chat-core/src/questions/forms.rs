@@ -17,7 +17,9 @@ use crate::effect::Effect;
 use crate::event::StorageKey;
 use crate::questions::drafts::{decode_drafts, encode_drafts, form_drafts_key, AnswerDrafts};
 use crate::state::{ChatContext, ChatState, FormSend, FormState};
-use crate::transcript::question_forms::{answers_message, QuestionForm, NOTE_SUFFIX, OTHER_CHOICE};
+use crate::transcript::question_forms::{
+    answers_message, notes_key, takes_notes, QuestionForm, NOTE_SUFFIX, OTHER_CHOICE,
+};
 use crate::wire::{ChatRpcMethod, RpcOutcome};
 
 fn form<'a>(state: &'a ChatState, id: &str) -> Option<&'a QuestionForm> {
@@ -54,17 +56,29 @@ fn answered(draft: &QuestionDraft) -> bool {
     !draft.indices.is_empty() || draft.other_picked || !draft.other.trim().is_empty()
 }
 
+/// The key the form's notes are saved under in its drafts record, beside the questions' indices.
+const NOTES_DRAFT: &str = "notes";
+
 fn save(state: &ChatState, id: &str) -> Vec<Effect> {
     let Some(entry) = state.questions.forms.get(id) else {
         return Vec::new();
     };
-    let drafts: AnswerDrafts = entry
+    let mut drafts: AnswerDrafts = entry
         .drafts
         .iter()
         .enumerate()
         .filter(|(_, draft)| answered(draft))
         .map(|(index, draft)| (index.to_string(), draft.clone()))
         .collect();
+    if !entry.notes.trim().is_empty() {
+        drafts.insert(
+            NOTES_DRAFT.to_string(),
+            QuestionDraft {
+                other: entry.notes.clone(),
+                ..QuestionDraft::default()
+            },
+        );
+    }
     vec![Effect::WriteStorage {
         key: form_drafts_key(&state.identity.session_key, id),
         value: encode_drafts(&drafts),
@@ -137,8 +151,24 @@ pub fn write(state: &mut ChatState, id: &str, question: usize, text: &str) -> Ve
     save(state, id)
 }
 
+/// `formNotes {form, text}`: the form's own notes box, under the last question.
+///
+/// CDXC:SessionChat 2026-10-14 DECISION: User: "please add a text area below the last question when asking questions inline in the chat view if there's more than 1 questino being asked which lets the user add more notes there if he wants (make it consisnt with the rest of the question card UI pls)". A form of two or more questions ends with an optional notes box (desktop and phone, drawn like a question's note box); its text reaches the agent last in the answers, under "Additional notes", is kept with the form's saved picks, and an empty box sends exactly what the form sent before.
+pub fn write_notes(state: &mut ChatState, id: &str, text: &str) -> Vec<Effect> {
+    if !open(state, id) || !form(state, id).is_some_and(takes_notes) {
+        return Vec::new();
+    }
+    let Some(entry) = state.questions.forms.get_mut(id) else {
+        return Vec::new();
+    };
+    entry.touched = true;
+    entry.notes = text.to_string();
+    state.core.request_publish();
+    save(state, id)
+}
+
 /// The answers as the agent receives them, keyed like the page kit's.
-fn answers(form: &QuestionForm, drafts: &[QuestionDraft]) -> Value {
+fn answers(form: &QuestionForm, drafts: &[QuestionDraft], notes: &str) -> Value {
     let mut out = Map::new();
     for (asked, draft) in form.questions.iter().zip(drafts) {
         let note = draft.other.trim();
@@ -176,6 +206,10 @@ fn answers(form: &QuestionForm, drafts: &[QuestionDraft]) -> Value {
             out.insert(format!("{}{NOTE_SUFFIX}", asked.key), json!(note));
         }
     }
+    let notes = notes.trim();
+    if takes_notes(form) && !notes.is_empty() {
+        out.insert(notes_key(form), json!(notes));
+    }
     Value::Object(out)
 }
 
@@ -187,16 +221,16 @@ pub fn send(state: &mut ChatState, context: &ChatContext, id: &str) -> Vec<Effec
     let Some(form) = form(state, id).cloned() else {
         return Vec::new();
     };
-    let drafts = state
+    let (drafts, notes) = state
         .questions
         .forms
         .get(id)
-        .map(|entry| entry.drafts.clone())
+        .map(|entry| (entry.drafts.clone(), entry.notes.clone()))
         .unwrap_or_default();
-    if !drafts.iter().any(answered) {
+    if !drafts.iter().any(answered) && !(takes_notes(&form) && !notes.trim().is_empty()) {
         return Vec::new();
     }
-    let answers = answers(&form, &drafts);
+    let answers = answers(&form, &drafts, &notes);
     // See the SessionChat 2026-10-11 DECISION in server/src/visual_pages/answers.rs: answers go
     // into the session's chat queue, which types them once the agent is idle, like a page's.
     let request_id = state.core.allocate_request_id();
@@ -275,6 +309,9 @@ pub fn storage_loaded(state: &mut ChatState, id: &str, value: Option<&str>) {
             if let Some(stored) = saved.get(&index.to_string()) {
                 *draft = stored.clone();
             }
+        }
+        if let Some(stored) = saved.get(NOTES_DRAFT) {
+            entry.notes = stored.other.clone();
         }
     }
     state.core.request_publish();
@@ -358,6 +395,15 @@ fn drafts_from_answers(form: &QuestionForm, answers: &Value) -> Vec<QuestionDraf
         .collect()
 }
 
+/// The form's notes as the answers carry them.
+fn notes_from_answers(form: &QuestionForm, answers: &Value) -> String {
+    answers
+        .get(notes_key(form))
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string()
+}
+
 /// The document's `questionForms`: each form with what the reader picked, or what was sent.
 pub fn project(state: &ChatState) -> BTreeMap<String, Value> {
     state
@@ -369,23 +415,42 @@ pub fn project(state: &ChatState) -> BTreeMap<String, Value> {
             let fallback = FormState::default();
             let entry = entry.unwrap_or(&fallback);
             let sent = received_answers(state, &form.id).or(entry.sent.as_ref());
-            let (phase, drafts) = match (sent, entry.send.as_ref()) {
-                (Some(answers), _) if received_answers(state, &form.id).is_some() => {
-                    ("answered", drafts_from_answers(form, answers))
-                }
-                (Some(answers), _) => ("queued", drafts_from_answers(form, answers)),
-                (None, Some(send)) => ("sending", drafts_from_answers(form, &send.answers)),
+            let (phase, drafts, notes) = match (sent, entry.send.as_ref()) {
+                (Some(answers), _) if received_answers(state, &form.id).is_some() => (
+                    "answered",
+                    drafts_from_answers(form, answers),
+                    notes_from_answers(form, answers),
+                ),
+                (Some(answers), _) => (
+                    "queued",
+                    drafts_from_answers(form, answers),
+                    notes_from_answers(form, answers),
+                ),
+                (None, Some(send)) => (
+                    "sending",
+                    drafts_from_answers(form, &send.answers),
+                    notes_from_answers(form, &send.answers),
+                ),
                 (None, None) if entry.drafts.len() == form.questions.len() => {
-                    ("open", entry.drafts.clone())
+                    ("open", entry.drafts.clone(), entry.notes.clone())
                 }
-                (None, None) => ("open", vec![QuestionDraft::default(); form.questions.len()]),
+                (None, None) => (
+                    "open",
+                    vec![QuestionDraft::default(); form.questions.len()],
+                    String::new(),
+                ),
             };
+            let takes_notes = takes_notes(form);
             let mut value = serde_json::to_value(form).unwrap_or_default();
             if let Some(object) = value.as_object_mut() {
                 object.insert("state".to_string(), json!(phase));
                 object.insert(
                     "canSend".to_string(),
-                    json!(phase == "open" && drafts.iter().any(answered)),
+                    json!(
+                        phase == "open"
+                            && (drafts.iter().any(answered)
+                                || (takes_notes && !notes.trim().is_empty()))
+                    ),
                 );
                 // CDXC:SessionChat 2026-10-12 DECISION: User: "i see the answer twice fam" (the answered form showed the picks and "Sent to the agent" while the answer message below repeated them); picked option c of docs/2026-10-12/handover-colors-and-answers/index.html: once the transcript carries a form's answers it collapses to one line (a check, the title, "Answered", a chevron) that opens the full read-only form and closes it again, collapsed by default and after a reload; the "You answered" card below stays as the record.
                 object.insert(
@@ -394,6 +459,8 @@ pub fn project(state: &ChatState) -> BTreeMap<String, Value> {
                 );
                 object.insert("otherLabel".to_string(), json!(OTHER_CHOICE));
                 object.insert("drafts".to_string(), json!(drafts));
+                object.insert("takesNotes".to_string(), json!(takes_notes));
+                object.insert("notes".to_string(), json!(notes));
                 object.insert(
                     "sendError".to_string(),
                     json!(entry.error.clone().unwrap_or_default()),

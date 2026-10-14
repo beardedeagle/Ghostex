@@ -96,6 +96,8 @@ pub struct FormState {
     /// One draft per question: the picked choices, whether "Other / none of these" is picked, and
     /// the note (or a text question's answer).
     pub drafts: Vec<QuestionDraft>,
+    /// What the reader wrote in the form's own notes box (a form of two or more questions).
+    pub notes: String,
     /// The saved picks have been asked for.
     pub load_requested: bool,
     /// The reader changed the form, so saved picks that arrive later no longer replace it.

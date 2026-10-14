@@ -246,6 +246,12 @@ fn report_question_form(form: &ghostex_gx_visual::questions::QuestionForm) -> Cl
             question.title, question.key
         );
     }
+    if ghostex_gx_visual::questions::takes_notes(form) {
+        println!(
+            "- then a notes box for anything else (answer key \"{}\", only when filled in)",
+            ghostex_gx_visual::questions::notes_key(form)
+        );
+    }
     Ok(())
 }
 

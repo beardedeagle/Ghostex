@@ -1,5 +1,5 @@
 use super::images::FEEDBACK_MAX_IMAGES;
-use super::state::{FeedbackStep, GpuiFeedbackModalWindow};
+use super::state::{FeedbackStep, GpuiFeedbackModalWindow, github_username};
 use crate::app::window::native_modal_kit::*;
 use gpui::{
     AnyElement, Context, InteractiveElement as _, IntoElement, ParentElement as _, Render,
@@ -7,6 +7,10 @@ use gpui::{
 };
 use gpui_component::v_flex;
 use std::rc::Rc;
+
+/// Whether the "Collect more data with an agent" switch is drawn (CDXC:Feedback 2026-10-14 in
+/// state.rs): off until its agent flow is built.
+const COLLECT_WITH_AGENT_READY: bool = false;
 
 impl GpuiFeedbackModalWindow {
     fn render_compose(&self, window: &Window, cx: &mut Context<Self>) -> Vec<AnyElement> {
@@ -35,16 +39,29 @@ impl GpuiFeedbackModalWindow {
             .child(modal_hint(&p, paste_hint))
             .children(self.image_error.clone().map(|error| modal_error(&p, error)))
             .into_any_element();
-        let agent = modal_panel(&p)
-            .child(modal_panel_row(
+        let github = v_flex()
+            .w_full()
+            .flex_shrink_0()
+            .gap(px(8.0))
+            .child(modal_section_title(&p, "GitHub username (optional)"))
+            .child(modal_text_input(
                 &p,
-                "Collect more data with an agent",
-                Some("Coming soon: an agent gathers the logs and details that help us fix it."),
-                modal_switch(&p, false, true),
-                false,
+                &self.github_input,
+                self.busy,
+                window,
+                cx,
             ))
+            .child(match github_username(&self.github) {
+                Ok(_) => modal_hint(&p, "So we can let you know on GitHub when it's fixed.")
+                    .into_any_element(),
+                Err(()) => modal_error(
+                    &p,
+                    "That isn't a GitHub username: letters, digits and single hyphens, up to 39 \
+                     characters.",
+                ),
+            })
             .into_any_element();
-        vec![
+        let mut content = vec![
             modal_header(
                 &p,
                 "Send Feedback",
@@ -54,8 +71,22 @@ impl GpuiFeedbackModalWindow {
                 ),
             ),
             message,
-            agent,
-        ]
+            github,
+        ];
+        if COLLECT_WITH_AGENT_READY {
+            content.push(
+                modal_panel(&p)
+                    .child(modal_panel_row(
+                        &p,
+                        "Collect more data with an agent",
+                        Some("An agent gathers the logs and details that help us fix it."),
+                        modal_switch(&p, false, false),
+                        false,
+                    ))
+                    .into_any_element(),
+            );
+        }
+        content
     }
 
     fn render_review(&self, window: &Window, cx: &mut Context<Self>) -> Vec<AnyElement> {

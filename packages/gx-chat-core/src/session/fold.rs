@@ -181,6 +181,11 @@ pub fn fold_state(previous: Option<&FoldedSnapshot>, incoming: StateCarrier<'_>)
         .clone()
         .or_else(|| previous_side.and_then(|state| state.coordinator_threads.clone()));
 
+    folded.result.state.agent_message_deliveries = side
+        .agent_message_deliveries
+        .clone()
+        .or_else(|| previous_side.and_then(|state| state.agent_message_deliveries.clone()));
+
     folded.result.state.account_switch = match &side.account_switch {
         Tri::Absent => previous_side
             .map(|state| state.account_switch.clone())

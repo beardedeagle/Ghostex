@@ -142,4 +142,5 @@ pub const GXSERVER_MIGRATION_IDS: &[&str] = &[
     "0042_coordinator_pending_messages",
     "0043_session_chat_send_requests",
     "0044_session_chat_queued_images",
+    "0045_agent_message_deliveries",
 ];

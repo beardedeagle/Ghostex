@@ -294,6 +294,12 @@ pub const CATALOG: &[CatalogStore] = &[
         Local,
     ),
     store(
+        "feedbackGithubUser",
+        "ghostex.feedback.githubUsername",
+        false,
+        Local,
+    ),
+    store(
         "keepAwake",
         "ghostex.titlebar.keepAwakeRuntime",
         false,

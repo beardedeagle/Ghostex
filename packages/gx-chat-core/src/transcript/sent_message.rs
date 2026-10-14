@@ -13,7 +13,7 @@ use serde_json::{json, Value};
 use crate::document::TranscriptItem;
 use crate::event::KnownSession;
 use crate::transcript::agent_message_card::{
-    agent_display_name, dress_received, dress_sent, subagent_label,
+    agent_display_name, apply_live_delivery, dress_received, dress_sent, subagent_label,
 };
 use crate::transcript::jsstr::{ascii_lower, js_trim, last_path_segment};
 use crate::transcript::line_breaks::{agent_line_breaks, AgentLineBreaks};
@@ -45,6 +45,8 @@ pub struct SentAgentMessage {
     pub status: String,
     /// Why the send did not go out, when its result said.
     pub failure: String,
+    /// The id the send's result named it by, which gxserver's delivery watch reports on.
+    pub send_request_id: String,
     /// `target` is a name the agent called its teammate by (Claude's `SendMessage`), not a
     /// reference, so it may head the card when nothing else names the recipient.
     pub by_name: bool,
@@ -121,6 +123,7 @@ pub fn sent_agent_messages(pair: &ToolPair<'_>, written: &[(&str, &str)]) -> Vec
                 };
                 message.status = said("status");
                 message.failure = said("error");
+                message.send_request_id = said("sendRequestId");
                 // What the CLI echoes is what went out, whatever the script built it from.
                 let echoed = result
                     .get("message")
@@ -414,7 +417,12 @@ pub fn project_sent_messages(
                 "recipients": group.iter().map(recipient).collect::<Vec<_>>(),
             });
             // Named again once the whole transcript is read (`resolve_recipients`).
-            complete(&Directory::new(), &HostDirectory::default(), std::slice::from_mut(&mut card));
+            complete(
+                &Directory::new(),
+                &HostDirectory::default(),
+                None,
+                std::slice::from_mut(&mut card),
+            );
             card
         })
         .collect()
@@ -452,6 +460,7 @@ fn recipient(sent: &SentAgentMessage) -> Value {
         "failed": sent.failed,
         "status": sent.status,
         "failure": sent.failure,
+        "sendRequestId": sent.send_request_id,
         "byName": sent.by_name,
         "name": "",
         "titled": false,
@@ -702,12 +711,26 @@ fn name_recipient(directory: &Directory, hosts: &HostDirectory, recipient: &mut 
     recipient["name"] = name.into();
 }
 
-/// Names each card's recipients and writes its `card`.
-fn complete(directory: &Directory, hosts: &HostDirectory, cards: &mut [Value]) {
+/// Names each card's recipients, brings their status up to date from gxserver's delivery watch
+/// (`deliveries`), and writes its `card`.
+fn complete(
+    directory: &Directory,
+    hosts: &HostDirectory,
+    deliveries: Option<&Value>,
+    cards: &mut [Value],
+) {
     for sent in cards.iter_mut() {
         if let Some(recipients) = sent["recipients"].as_array_mut() {
-            for recipient in recipients {
+            for recipient in recipients.iter_mut() {
                 name_recipient(directory, hosts, recipient);
+                apply_live_delivery(recipient, deliveries);
+            }
+            if let Some(first) = recipients.first() {
+                let (status, failure) = (first["status"].clone(), first["failure"].clone());
+                let failed = recipients.iter().all(|recipient| recipient["failed"] == true);
+                sent["status"] = status;
+                sent["failure"] = failure;
+                sent["failed"] = failed.into();
             }
         }
         dress_sent(sent);
@@ -746,11 +769,13 @@ fn messages_mut(item: &mut TranscriptItem) -> Vec<&mut Value> {
 
 /// Names every message between agents by what the host's session list and the whole transcript
 /// know about the other session: an agent that filtered away its send's result, or addressed a
-/// session by reference only, still gets that session's title.
+/// session by reference only, still gets that session's title. `deliveries` is gxserver's word on
+/// the sends that were left waiting (`apply_live_delivery`).
 pub fn resolve_recipients(
     items: &mut [TranscriptItem],
     agent_fleet: Option<&Value>,
     sessions: &[KnownSession],
+    deliveries: Option<&Value>,
 ) {
     let hosts = HostDirectory::new(sessions);
     let mut directory = Directory::new();
@@ -767,12 +792,12 @@ pub fn resolve_recipients(
                 .get_mut("sentMessages")
                 .and_then(Value::as_array_mut)
             {
-                complete(&directory, &hosts, cards);
+                complete(&directory, &hosts, deliveries, cards);
             }
         }
         // A finished turn's hoisted cards are copies of its work rows' own.
         if let TranscriptItem::CompletedWork { sent_messages, .. } = item {
-            complete(&directory, &hosts, sent_messages);
+            complete(&directory, &hosts, deliveries, sent_messages);
         }
     }
 }

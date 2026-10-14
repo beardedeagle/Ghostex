@@ -124,6 +124,7 @@ use crate::{
 pub(crate) mod accounts_http;
 pub(crate) mod agent_cli_http;
 pub(crate) mod agentbox_http;
+mod agent_message_delivery_runtime;
 pub(crate) mod managed_tools_http;
 pub mod agent_http;
 pub mod agent_prompt_search_http;

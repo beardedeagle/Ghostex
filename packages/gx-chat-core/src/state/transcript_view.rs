@@ -172,6 +172,8 @@ pub struct ProjectionInputs {
     pub live_side_question: Option<String>,
     /// [`TranscriptViewState::session_directory_revision`]: the names on agent message cards.
     pub session_directory_revision: u64,
+    /// `SessionState::agent_message_deliveries`: the statuses on sent agent message cards.
+    pub agent_message_deliveries: Option<serde_json::Value>,
 }
 
 impl Default for TranscriptViewState {

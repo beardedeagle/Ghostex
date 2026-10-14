@@ -251,6 +251,17 @@ pub(super) async fn route_chat_http(
                 &body_json,
             )
         }
+        crate::agent_message_deliveries::WATCH_AGENT_MESSAGE_DELIVERY_ENDPOINT => {
+            handle_domain_http(
+                &state,
+                endpoint.path,
+                request_id,
+                &body_json,
+                |_, db, params, _| {
+                    crate::agent_message_deliveries::handle_watch_agent_message_delivery(db, params)
+                },
+            )
+        }
         crate::visual_pages::PUBLISH_VISUAL_PAGE_ENDPOINT => {
             crate::visual_pages::handle_publish_visual_page_http(
                 &state,
