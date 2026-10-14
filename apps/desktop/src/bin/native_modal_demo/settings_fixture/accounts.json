@@ -14,17 +14,25 @@
       "usage": [
         {
           "id": "fiveHour",
-          "label": "5-hour",
+          "label": "5h",
           "usedPercent": 41,
           "limitWindowSeconds": 18000,
           "resetsAt": "in:134"
         },
         {
           "id": "sevenDay",
-          "label": "Weekly",
+          "label": "7d",
           "usedPercent": 12,
           "limitWindowSeconds": 604800,
           "resetsAt": "in:4300"
+        },
+        {
+          "id": "Fable",
+          "label": "Fable 7d",
+          "usedPercent": 67,
+          "limitWindowSeconds": null,
+          "resetsAt": "in:3100",
+          "model": "Fable"
         }
       ],
       "showInTitlebar": true,
@@ -44,14 +52,14 @@
       "usage": [
         {
           "id": "fiveHour",
-          "label": "5-hour",
+          "label": "5h",
           "usedPercent": 88,
           "limitWindowSeconds": 18000,
           "resetsAt": "in:46"
         },
         {
           "id": "sevenDay",
-          "label": "Weekly",
+          "label": "7d",
           "usedPercent": 64,
           "limitWindowSeconds": 604800,
           "resetsAt": "in:5500"
@@ -75,14 +83,14 @@
       "usage": [
         {
           "id": "fiveHour",
-          "label": "5-hour",
+          "label": "5h",
           "usedPercent": 0,
           "limitWindowSeconds": 18000,
           "resetsAt": ""
         },
         {
           "id": "sevenDay",
-          "label": "Weekly",
+          "label": "7d",
           "usedPercent": 5,
           "limitWindowSeconds": 604800,
           "resetsAt": "in:7000"
@@ -107,6 +115,22 @@
       "showInTitlebar": false,
       "sessionCount": 37,
       "usageError": "Sign in again to read usage."
+    },
+    {
+      "id": "claude-5",
+      "provider": "claude",
+      "selector": "5",
+      "name": "Old trial",
+      "email": "xyzt71@gmail.com",
+      "color": "neutral",
+      "eligible": true,
+      "registered": true,
+      "userDisabled": true,
+      "sharedHistory": true,
+      "status": "disabled",
+      "usage": [],
+      "showInTitlebar": false,
+      "sessionCount": 2
     },
     {
       "id": "codex-1",
@@ -139,14 +163,14 @@
       "usage": [
         {
           "id": "fiveHour",
-          "label": "5-hour",
+          "label": "5h",
           "usedPercent": 72,
           "limitWindowSeconds": 18000,
           "resetsAt": "in:80"
         },
         {
           "id": "sevenDay",
-          "label": "Weekly",
+          "label": "7d",
           "usedPercent": 40,
           "limitWindowSeconds": 604800,
           "resetsAt": "in:6200"
@@ -170,14 +194,14 @@
       "usage": [
         {
           "id": "fiveHour",
-          "label": "5-hour",
+          "label": "5h",
           "usedPercent": 30,
           "limitWindowSeconds": 18000,
           "resetsAt": "in:182"
         },
         {
           "id": "sevenDay",
-          "label": "Weekly",
+          "label": "7d",
           "usedPercent": 55,
           "limitWindowSeconds": 604800,
           "resetsAt": "in:2900"

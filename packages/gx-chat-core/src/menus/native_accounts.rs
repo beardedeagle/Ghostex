@@ -205,6 +205,7 @@ pub fn native_account_panel(
         .iter()
         .filter(|account| {
             account.registered
+                && !account.user_disabled
                 && account.provider.as_deref() == session.provider.as_deref()
                 && account.id.as_deref() != session.account_id.as_deref()
         })

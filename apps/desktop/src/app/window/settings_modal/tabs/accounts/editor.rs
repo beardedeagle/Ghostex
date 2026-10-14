@@ -183,7 +183,29 @@ impl AccountsTab {
             .is_some_and(|(shown, _)| *shown == id);
         let mut blocks: Vec<AnyElement> =
             vec![self.render_detail_header(p, account, &draft, connected, hide)];
-        if flow_started {
+        if account.user_disabled() {
+            blocks.push(
+                div()
+                    .mx(px(DETAIL_INSET))
+                    .p(px(12.0))
+                    .rounded(px(MODAL_RADIUS_CONTROL))
+                    .border_1()
+                    .border_color(hsla(p.hairline))
+                    .bg(hsla(p.foreground_alpha(0.03)))
+                    .text_size(px(12.5))
+                    .line_height(px(17.0))
+                    .text_color(hsla(p.muted))
+                    .child(format!(
+                        "This account is turned off. Ghostex keeps it saved but doesn't start sessions on it, switch to it, read its usage or ask you to sign in.{}",
+                        match account.session_count() {
+                            0 => String::new(),
+                            1 => " 1 session still uses it and keeps running.".to_string(),
+                            count => format!(" {count} sessions still use it and keep running."),
+                        }
+                    ))
+                    .into_any_element(),
+            );
+        } else if flow_started {
             let flow = self.render_connect_flow(
                 p,
                 flow_key,
@@ -325,7 +347,9 @@ impl AccountsTab {
             }
         };
         // CDXC:AgentProviders 2026-10-14 DECISION: User picked an "Auto-switch on/off" tag instead of the Automatic or Manual label with its info icon (supersedes the 2026-09-09 label). The tag's tooltip explains it.
-        let tag = if connected && !account.needs_sign_in() {
+        let tag = if account.user_disabled() {
+            status_tag(p, "Disabled", TagTone::Off)
+        } else if connected && !account.needs_sign_in() {
             status_tag(p, "Connected", TagTone::Success)
         } else if account.needs_sign_in() {
             status_tag(p, "Needs sign-in", TagTone::Warning)
@@ -334,7 +358,9 @@ impl AccountsTab {
         } else {
             status_tag(p, "Auto-switch off", TagTone::Off)
         };
-        let tag_tip = if account.needs_sign_in() {
+        let tag_tip = if account.user_disabled() {
+            "You turned this account off. Turn Enabled back on to use it again."
+        } else if account.needs_sign_in() {
             "Reconnect this account to read its usage and use it again."
         } else if draft.eligible {
             "Ghostex can move a session to this account when another account hits its limit."
@@ -368,6 +394,7 @@ impl AccountsTab {
                     .border_color(hsla(p.hairline))
                     .bg(hsla(p.foreground_alpha(0.03)))
                     .when(account.needs_sign_in(), |this| this.opacity(0.6))
+                    .when(account.user_disabled(), |this| this.opacity(0.35))
                     .child(account_mark(p, &account.provider(), &badge, 1.5)),
             )
             .child(
@@ -412,7 +439,49 @@ impl AccountsTab {
             .into_any_element()
     }
 
-    /// Name, Auto-switch, Show usage in the sidebar, and Advanced.
+    /// Enabled: the user's switch that keeps an account saved but out of use.
+    ///
+    /// SEE-ALSO: the user's decision (CDXC:AgentProviders 2026-10-14) on `SavedAccount::user_disabled` in server/src/accounts/model.rs, which owns what turning an account off does.
+    fn render_enabled_row(
+        &mut self,
+        p: &SettingsPalette,
+        account: &Account,
+        busy: bool,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let id = account.id();
+        let switch_id = id.clone();
+        setting_row(
+            p,
+            SharedString::from(format!("account-editor-{id}-enabled")),
+            RowSpec::new("Enabled")
+                .description(
+                    "Turn off an account you no longer use but want to keep. Ghostex won't start sessions on it, switch to it, read its usage or ask you to sign in; sessions already on it keep running.",
+                )
+                .inset_x(0.0),
+            None,
+            switch_control(
+                p,
+                SharedString::from(format!("account-editor-{id}-enabled-switch")),
+                "Enabled",
+                !account.user_disabled(),
+                busy,
+                Some("Accounts are being updated.".into()),
+                move |page: &mut Self, next, _window, cx| {
+                    page.flows.remove(&format!("reconnect:{switch_id}"));
+                    page.account_request(
+                        json!({ "operation": "setEnabled", "id": switch_id, "enabled": next }),
+                        None,
+                        cx,
+                    );
+                },
+                cx,
+            ),
+            cx,
+        )
+    }
+
+    /// Enabled, Name, Auto-switch, Show usage in the sidebar, and Advanced.
     #[allow(clippy::too_many_arguments)]
     fn render_detail_rows(
         &mut self,
@@ -426,7 +495,8 @@ impl AccountsTab {
         cx: &mut Context<Self>,
     ) -> AnyElement {
         let id = account.id();
-        let mut rows: Vec<AnyElement> = Vec::new();
+        let mut rows: Vec<AnyElement> = vec![self.render_enabled_row(p, account, busy, cx)];
+        let enabled = !account.user_disabled();
         // Name.
         let name_id = SharedString::from(format!("account-editor-{id}-name"));
         let name_input = FieldStates::text_state(
@@ -470,8 +540,10 @@ impl AccountsTab {
             ),
             cx,
         ));
-        // Auto-switch.
-        rows.push(setting_row(
+        // Auto-switch and Show usage in the sidebar mean nothing while the account is turned off.
+        if enabled {
+            // Auto-switch.
+            rows.push(setting_row(
             p,
             SharedString::from(format!("account-editor-{id}-eligible")),
             RowSpec::new("Auto-switch")
@@ -498,30 +570,31 @@ impl AccountsTab {
             ),
             cx,
         ));
-        // Show usage in the sidebar.
-        let shown = account.show_in_titlebar();
-        let sidebar_account = account.clone();
-        rows.push(setting_row(
-            p,
-            SharedString::from(format!("account-editor-{id}-sidebar")),
-            RowSpec::new("Show usage in the sidebar")
-                .description("Keeps this account's usage bars at the bottom of the sidebar.")
-                .inset_x(0.0),
-            None,
-            switch_control(
+            // Show usage in the sidebar.
+            let shown = account.show_in_titlebar();
+            let sidebar_account = account.clone();
+            rows.push(setting_row(
                 p,
-                SharedString::from(format!("account-editor-{id}-sidebar-switch")),
-                "Show usage in the sidebar",
-                shown,
-                busy,
-                Some("Accounts are being updated.".into()),
-                move |page: &mut Self, next, _window, cx| {
-                    page.set_sidebar_usage(&sidebar_account, next, cx)
-                },
+                SharedString::from(format!("account-editor-{id}-sidebar")),
+                RowSpec::new("Show usage in the sidebar")
+                    .description("Keeps this account's usage bars at the bottom of the sidebar.")
+                    .inset_x(0.0),
+                None,
+                switch_control(
+                    p,
+                    SharedString::from(format!("account-editor-{id}-sidebar-switch")),
+                    "Show usage in the sidebar",
+                    shown,
+                    busy,
+                    Some("Accounts are being updated.".into()),
+                    move |page: &mut Self, next, _window, cx| {
+                        page.set_sidebar_usage(&sidebar_account, next, cx)
+                    },
+                    cx,
+                ),
                 cx,
-            ),
-            cx,
-        ));
+            ));
+        }
         // Advanced.
         let advanced_id = id.clone();
         let open = draft.advanced;
@@ -765,7 +838,7 @@ impl AccountsTab {
     ) -> AnyElement {
         let id = account.id();
         let mut buttons: Vec<AnyElement> = Vec::new();
-        if !account.needs_sign_in() {
+        if !account.needs_sign_in() && !account.user_disabled() {
             let sign_in_account = account.clone();
             buttons.push(settings_sized_button(
                 p,

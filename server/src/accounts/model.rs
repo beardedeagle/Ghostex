@@ -99,6 +99,20 @@ pub(crate) struct SavedAccount {
     /// Set when the login stopped working for good (see `disabled.rs`); cleared when the user sets the account back to Automatic or reconnects it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub disabled: Option<DisabledAccount>,
+    /// The user turned the account off in Settings > Accounts (Enabled switch). Unrelated to
+    /// `disabled`, which gxserver sets after a refusal.
+    ///
+    /// CDXC:AgentProviders 2026-10-14 DECISION:
+    /// User: "that account is deaded (not subscribed on it) so i didn't continue the connection. we need an Enable Disable account toggle so i can keep an account there but disable it". An account turned off stays saved but out of use: no rule, default, workspace or automatic switch picks it and a manual switch to it is refused; it is not polled for usage or sign-in state (gxserver reports it as status `disabled` with no usage, so nothing asks to reconnect it); its usage leaves the sidebar; clients leave it out of their switch menus (`userDisabled`). Sessions already on it keep running. Kept apart from the automatic Subscription access disabled state (`disabled`).
+    /// SEE-ALSO: helpers.rs (`discover_row` skips it), store.rs (`user_disabled`), default_account.rs, recovery.rs, limit_wait.rs, launch.rs, endpoint.rs (`setEnabled`, `select`, `state_value`), packages/gx-core/src/sidebar_accounts/data.rs, packages/gx-chat-core/src/menus/native_accounts.rs, apps/desktop/src/app/new_thread_picker_lifecycle.rs, Settings > Accounts (`editor.rs`).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub user_disabled: bool,
+}
+impl SavedAccount {
+    /// Automatic switching and the automatic new-session rules may pick this account.
+    pub(crate) fn auto_switchable(&self) -> bool {
+        self.eligible && !self.user_disabled
+    }
 }
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]

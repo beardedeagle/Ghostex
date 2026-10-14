@@ -66,6 +66,13 @@ pub(crate) fn dispatch(
     let cached_list = operation == "list"
         && params.get("cachedOnly").and_then(Value::as_bool) == Some(true)
         && state.accounts.snapshot().fetched_at.is_some();
+    // Usage discovery skips the logins the user turned off, so a fresh gxserver reads the
+    // registry before its first poll.
+    if !store::loaded() {
+        if let Ok(db) = crate::storage::open_gxserver_database(&state.paths) {
+            let _ = store::read(&db);
+        }
+    }
     let mut snapshot = if matches!(operation, "select" | "setTitlebar" | "dismissSwitch")
         || !titlebar_has_accounts
         || cached_titlebar
@@ -103,6 +110,25 @@ pub(crate) fn dispatch(
                 .ok_or_else(|| DomainStateError::not_found("Account not found."))?;
             account.show_in_titlebar = shown;
             store::write(&db, &registry)?;
+        }
+        // The Enabled switch in Settings > Accounts (CDXC:AgentProviders 2026-10-14 on `SavedAccount::user_disabled`). Turning an account back on reads its usage and sign-in state again at once.
+        "setEnabled" => {
+            let id = required(params, "id")?;
+            let enabled = params
+                .get("enabled")
+                .and_then(Value::as_bool)
+                .ok_or_else(|| {
+                    DomainStateError::bad_request("Choose whether this account is enabled.")
+                })?;
+            let account = registry
+                .accounts
+                .iter_mut()
+                .find(|a| a.id == id)
+                .ok_or_else(|| DomainStateError::not_found("Account not found."))?;
+            account.user_disabled = !enabled;
+            store::write(&db, &registry)?;
+            state.accounts.invalidate();
+            snapshot = state.accounts.refresh(&state.paths.home_dir, true);
         }
         // CDXC:AgentProviders 2026-09-08 DECISION: Settings can exchange two account slots through cswap or xswap. Defaults and session bindings follow account identity, and cached launch plans must be regenerated for the new slot.
         "swapSlots" => {
@@ -244,6 +270,7 @@ pub(crate) fn dispatch(
                     eligible: true,
                     shared_history: true,
                     disabled: None,
+                    user_disabled: false,
                 });
             }
             store::write(&db, &registry)?;
@@ -612,6 +639,11 @@ pub(crate) fn select(
             .ok_or_else(|| {
                 DomainStateError::bad_request("Choose a registered account for this provider.")
             })?;
+        if account.user_disabled {
+            return Err(DomainStateError::bad_request(
+                "This account is turned off in Settings > Accounts. Turn it on there to switch to it.",
+            ));
+        }
         if !snapshot.accounts.iter().any(|a| {
             a.provider == provider
                 && a.selector == account.selector
@@ -814,12 +846,12 @@ fn state_value(
     for found in &snapshot.accounts {
         let id = account_id(found);
         let saved = registry.accounts.iter().find(|a| a.id == id);
-        rows.push(json!({"id":id,"provider":found.provider,"selector":found.selector,"name":saved.map(|a|a.name.as_str()).unwrap_or(&found.name),"email":found.email,"indicator":saved.map(|a|a.indicator.as_str()).unwrap_or(""),"color":saved.map(|a|a.color.as_str()).unwrap_or("neutral"),"eligible":saved.is_some_and(|a|a.eligible),"registered":saved.is_some(),"showInTitlebar":saved.is_some_and(|a|a.show_in_titlebar),"sharedHistory":saved.is_some_and(|a|a.shared_history)||found.shared_history,"disabledReason":saved.and_then(|a|a.disabled.as_ref()).map(|d|d.reason.as_str()),"status":found.status,"usage":found.usage,"resetCredits":found.reset_credits,"resetCreditDetails":found.reset_credit_details,"resetCreditsError":found.reset_credits_error,"usageUpdatedAt":found.usage_updated_at,"usageError":found.usage_error,"usageStale":found.usage_stale,"sessionCount":session_counts.get(&id).copied().unwrap_or(0)}));
+        rows.push(json!({"id":id,"provider":found.provider,"selector":found.selector,"name":saved.map(|a|a.name.as_str()).unwrap_or(&found.name),"email":found.email,"indicator":saved.map(|a|a.indicator.as_str()).unwrap_or(""),"color":saved.map(|a|a.color.as_str()).unwrap_or("neutral"),"eligible":saved.is_some_and(|a|a.eligible),"registered":saved.is_some(),"showInTitlebar":saved.is_some_and(|a|a.show_in_titlebar&&!a.user_disabled),"userDisabled":saved.is_some_and(|a|a.user_disabled),"sharedHistory":saved.is_some_and(|a|a.shared_history)||found.shared_history,"disabledReason":saved.and_then(|a|a.disabled.as_ref()).map(|d|d.reason.as_str()),"status":found.status,"usage":found.usage,"resetCredits":found.reset_credits,"resetCreditDetails":found.reset_credit_details,"resetCreditsError":found.reset_credits_error,"usageUpdatedAt":found.usage_updated_at,"usageError":found.usage_error,"usageStale":found.usage_stale,"sessionCount":session_counts.get(&id).copied().unwrap_or(0)}));
     }
     let loading = titlebar && snapshot.fetched_at.is_none();
     for saved in &registry.accounts {
         if !rows.iter().any(|r| r["id"].as_str() == Some(&saved.id)) {
-            rows.push(json!({"id":saved.id,"provider":saved.provider,"selector":saved.selector,"name":saved.name,"email":"","indicator":saved.indicator,"color":saved.color,"eligible":saved.eligible,"registered":true,"showInTitlebar":saved.show_in_titlebar,"sharedHistory":saved.shared_history,"status":if loading {"loading"} else {"unavailable"},"usage":[],"usageError":if loading {None} else {Some("The helper could not find this saved login. Refresh or reconnect it.")},"sessionCount":session_counts.get(&saved.id).copied().unwrap_or(0)}));
+            rows.push(json!({"id":saved.id,"provider":saved.provider,"selector":saved.selector,"name":saved.name,"email":"","indicator":saved.indicator,"color":saved.color,"eligible":saved.eligible,"registered":true,"showInTitlebar":saved.show_in_titlebar&&!saved.user_disabled,"userDisabled":saved.user_disabled,"sharedHistory":saved.shared_history,"status":if saved.user_disabled {"disabled"} else if loading {"loading"} else {"unavailable"},"usage":[],"usageError":if loading || saved.user_disabled {None} else {Some("The helper could not find this saved login. Refresh or reconnect it.")},"sessionCount":session_counts.get(&saved.id).copied().unwrap_or(0)}));
         }
     }
     if titlebar {

@@ -276,11 +276,7 @@ pub(crate) fn usage_bar(p: &SettingsPalette, used_percent: f64, height: f32) -> 
 
 /// One usage window as a row: its label, the bar, and "41% used · resets in 2h 14m".
 pub(crate) fn usage_line(p: &SettingsPalette, window: &UsageWindow) -> AnyElement {
-    let label = if window.label.is_empty() {
-        "Usage".to_string()
-    } else {
-        window.label.clone()
-    };
+    let label = window.short_label();
     h_flex()
         .w_full()
         .items_center()

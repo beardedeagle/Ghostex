@@ -56,6 +56,9 @@ pub struct AgentAccount {
     pub name: String,
     pub email: Option<String>,
     pub registered: bool,
+    /// The user turned the account off in Settings > Accounts: it stays saved but no menu offers
+    /// it (gxserver's `CDXC:AgentProviders 2026-10-14` on `SavedAccount::user_disabled`).
+    pub user_disabled: bool,
     pub status: Option<String>,
     pub usage: Vec<AccountUsageWindow>,
     pub reset_credits: Option<ResetCredits>,
@@ -159,14 +162,15 @@ impl AccountsState {
     }
 
     /// `accounts.filter((account) => account.registered && account.provider === provider)`, where
-    /// `undefined === undefined` holds, as it does in the session page's filter.
+    /// `undefined === undefined` holds, as it does in the session page's filter, leaving out the
+    /// accounts the user turned off.
     pub(crate) fn registered_for<'a>(
         &'a self,
         provider: Option<&'a str>,
     ) -> impl Iterator<Item = &'a AgentAccount> + 'a {
-        self.accounts
-            .iter()
-            .filter(move |account| account.registered && account.provider.as_deref() == provider)
+        self.accounts.iter().filter(move |account| {
+            account.registered && !account.user_disabled && account.provider.as_deref() == provider
+        })
     }
 
     /// `data.session?.accountId`.
@@ -234,6 +238,7 @@ fn account(value: &Value) -> Option<AgentAccount> {
         name,
         email: optional_text(object.get("email"))?,
         registered: truthy(object.get("registered")),
+        user_disabled: truthy(object.get("userDisabled")),
         status: optional_text(object.get("status"))?,
         usage,
         reset_credits,
@@ -267,6 +272,9 @@ fn account_json(account: &AgentAccount) -> Value {
     object.insert("name".to_string(), Value::String(account.name.clone()));
     put_text(&mut object, "email", &account.email);
     object.insert("registered".to_string(), Value::Bool(account.registered));
+    if account.user_disabled {
+        object.insert("userDisabled".to_string(), Value::Bool(true));
+    }
     put_text(&mut object, "status", &account.status);
     object.insert(
         "usage".to_string(),

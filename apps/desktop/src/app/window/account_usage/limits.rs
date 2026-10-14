@@ -46,12 +46,12 @@ impl AccountUsagePanel {
         let mut bars = v_flex()
             .w_full()
             .gap(px(13.0))
-            .child(self.render_bar(session, "5-hour limit".into(), 12.0))
-            .child(self.render_bar(weekly, "Weekly limit".into(), 12.0));
+            .child(self.render_bar(session, "5h limit".into(), 12.0))
+            .child(self.render_bar(weekly, "7d limit".into(), 12.0));
         if let Some(fable) = fable {
             bars = bars.child(self.render_bar(
                 Some(fable),
-                format!("{} weekly limit", text(fable, "model")),
+                format!("{} 7d limit", text(fable, "model")),
                 12.0,
             ));
         }

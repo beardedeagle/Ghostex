@@ -118,12 +118,12 @@ mod tests {
     #[test]
     fn names_the_limit_the_account_and_the_local_reset() {
         let mut object = notice(json!({
-            "limit": "Weekly limit",
+            "limit": "7d limit",
             "resetsAt": "2026-10-12T08:00:00+00:00",
             "account": "sharptabs.com@gmail.com",
         }));
         decorate(&mut object, false, NOW, DUBAI);
-        assert_eq!(object["title"], "Weekly limit reached on every account");
+        assert_eq!(object["title"], "7d limit reached on every account");
         assert_eq!(object["tone"], "warning");
         assert_eq!(
             object["detail"],
@@ -142,7 +142,7 @@ mod tests {
             .ends_with("as soon as an account has room."));
 
         let mut object = notice(json!({
-            "limit": "Five-hour limit",
+            "limit": "5h limit",
             "resetsAt": "2026-10-11T12:30:00Z",
             "account": "sharptabs.com@gmail.com",
         }));
@@ -154,7 +154,7 @@ mod tests {
 
     #[test]
     fn leaves_other_notices_alone() {
-        let mut object = notice(json!({ "limit": "Weekly limit" }));
+        let mut object = notice(json!({ "limit": "7d limit" }));
         object.insert("kind".to_string(), json!("loginExpired"));
         decorate(&mut object, false, NOW, DUBAI);
         assert_eq!(object["title"], "Usage limit reached");

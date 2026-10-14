@@ -9,11 +9,12 @@ pub(crate) fn quick_launch_account<'a>(
     snapshot: &Snapshot,
     provider: Provider,
 ) -> Option<&'a SavedAccount> {
+    // An account the user turned off is never picked, pinned or not.
     let registered = |id: &str| {
         registry
             .accounts
             .iter()
-            .find(|a| a.id == id && a.provider == provider)
+            .find(|a| a.id == id && a.provider == provider && !a.user_disabled)
     };
     let rule = registry
         .new_session_accounts
@@ -21,7 +22,13 @@ pub(crate) fn quick_launch_account<'a>(
         .cloned()
         .unwrap_or(NewSessionAccount::Auto);
     let rule = match rule {
-        NewSessionAccount::Pinned { id } => return registered(&id),
+        NewSessionAccount::Pinned { id } => match registered(&id) {
+            Some(account) => return Some(account),
+            // A pinned account the user turned off falls back to Auto; a removed one keeps the
+            // CLI login as before.
+            None if registry.accounts.iter().any(|a| a.id == id) => NewSessionAccount::Auto,
+            None => return None,
+        },
         NewSessionAccount::LastUsed => {
             if let Some(account) = registry
                 .last_used_accounts
@@ -47,7 +54,7 @@ pub(crate) fn quick_launch_account<'a>(
     registry
         .accounts
         .iter()
-        .filter(|a| a.provider == provider && a.eligible)
+        .filter(|a| a.provider == provider && a.auto_switchable())
         .map(|a| (a, usage(a)))
         .min_by(|(a, left), (b, right)| {
             let by_usage = match (left, right) {

@@ -17,6 +17,7 @@
 //! `accounts-editor` (an account's pane), `accounts-advanced` (its Advanced open),
 //! `accounts-editor-actions` (scrolled to its buttons), `accounts-remove` (the Remove
 //! confirmation), `accounts-needs-sign-in` (an account whose login stopped working),
+//! `accounts-disabled` (an account the user turned off),
 //! `accounts-reconnect` (its sign-in waiting), `accounts-code` (waiting with the code box and
 //! Details open), `accounts-connected`, `accounts-wrong` (signed in to another account),
 //! `accounts-blockers` (Codex sessions to pause), `accounts-defaults` / `accounts-rules` (Claude
@@ -250,6 +251,18 @@ fn accounts_rpc(state: &str, params: &Value) -> Answer {
                 .and_then(|accounts| accounts.iter_mut().find(|account| account["id"] == id))
             {
                 account["showInTitlebar"] = params["shown"].clone();
+            }
+            ACCOUNT_STATE.with(|stored| *stored.borrow_mut() = Some(data.clone()));
+        }
+        Some("setEnabled") => {
+            let id = params["id"].as_str().unwrap_or_default();
+            let enabled = params["enabled"].as_bool() == Some(true);
+            if let Some(account) = data["accounts"]
+                .as_array_mut()
+                .and_then(|accounts| accounts.iter_mut().find(|account| account["id"] == id))
+            {
+                account["userDisabled"] = json!(!enabled);
+                account["status"] = json!(if enabled { "ready" } else { "disabled" });
             }
             ACCOUNT_STATE.with(|stored| *stored.borrow_mut() = Some(data.clone()));
         }

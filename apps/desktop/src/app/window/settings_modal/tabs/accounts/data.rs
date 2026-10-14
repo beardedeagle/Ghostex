@@ -91,6 +91,36 @@ impl UsageWindow {
         })
     }
 
+    /// The window's short name: `5h`, `7d`, `Fable`, `<Model> 7d`, or `<n>h` / `<n>d` from its
+    /// length, whatever label an older gxserver sent (gxserver's `CDXC:AgentProviders 2026-10-14`
+    /// on `duration_label`; Fable stays "Fable" per gx-core's 2026-09-12 decision on
+    /// `account_usage_label`).
+    pub(crate) fn short_label(&self) -> String {
+        if self
+            .model
+            .as_deref()
+            .is_some_and(|model| model.eq_ignore_ascii_case("fable"))
+        {
+            return "Fable".into();
+        }
+        let duration = match self.limit_window_seconds {
+            Some(seconds) if seconds >= 604_800.0 => Some("7d".to_string()),
+            Some(seconds) if seconds > 0.0 && seconds % 86_400.0 == 0.0 => {
+                Some(format!("{}d", (seconds / 86_400.0) as i64))
+            }
+            Some(seconds) if seconds > 0.0 && seconds % 3_600.0 == 0.0 => {
+                Some(format!("{}h", (seconds / 3_600.0) as i64))
+            }
+            _ if self.is_five_hour() => Some("5h".into()),
+            _ if self.is_weekly() || self.model.is_some() => Some("7d".into()),
+            _ => None,
+        };
+        match (self.model.as_deref(), duration) {
+            (Some(model), Some(duration)) => format!("{model} {duration}"),
+            (None, Some(duration)) => duration,
+            _ => self.label.clone(),
+        }
+    }
     fn is_weekly(&self) -> bool {
         self.id == "sevenDay" || self.limit_window_seconds.unwrap_or(0.0) >= 604_800.0
     }
@@ -160,12 +190,21 @@ impl Account {
     pub(crate) fn status(&self) -> String {
         text(&self.raw, "status")
     }
-    /// The saved login stopped working (or is missing): the account needs Reconnect.
+    /// The saved login stopped working (or is missing): the account needs Reconnect. An account
+    /// the user turned off never does.
     pub(crate) fn needs_sign_in(&self) -> bool {
-        self.status() != "ready"
+        self.status() != "ready" && !self.user_disabled()
+    }
+    /// The user turned the account off (the Enabled switch; gxserver's `CDXC:AgentProviders
+    /// 2026-10-14` on `SavedAccount::user_disabled`).
+    pub(crate) fn user_disabled(&self) -> bool {
+        self.raw["userDisabled"].as_bool() == Some(true)
     }
     /// The figure the account list shows: the most used of its headline windows.
     pub(crate) fn tightest_percent(&self) -> Option<f64> {
+        if self.user_disabled() {
+            return None;
+        }
         self.headline_windows()
             .iter()
             .map(|window| window.used_percent)

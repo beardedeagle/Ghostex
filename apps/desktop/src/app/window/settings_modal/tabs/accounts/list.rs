@@ -8,7 +8,9 @@ use super::super::super::fields::{
 };
 use super::super::super::palette::SettingsPalette;
 use super::data::{Account, AccountsState, provider_label};
-use super::widgets::{account_badge, account_logo, account_mark, account_text, usage_bar};
+use super::widgets::{
+    TagTone, account_badge, account_logo, account_mark, account_text, status_tag, usage_bar,
+};
 use super::{AccountsTab, Pane};
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
@@ -172,6 +174,7 @@ impl AccountsTab {
             .items_center()
             .justify_center()
             .when(account.needs_sign_in(), |this| this.opacity(0.6))
+            .when(account.user_disabled(), |this| this.opacity(0.35))
             .child(account_mark(
                 p,
                 &account.provider(),
@@ -185,7 +188,11 @@ impl AccountsTab {
             .is_some_and(|flow| {
                 flow.starting || flow.job.as_ref().is_some_and(super::connect::job_active)
             });
-        let detail: AnyElement = if account.needs_sign_in() {
+        let detail: AnyElement = if account.user_disabled() {
+            h_flex()
+                .child(status_tag(p, "Disabled", TagTone::Off))
+                .into_any_element()
+        } else if account.needs_sign_in() {
             if signing_in {
                 div()
                     .text_color(hsla(p.muted))

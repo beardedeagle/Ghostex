@@ -49,8 +49,10 @@ export interface AgentAccount {
   color: AccountIconColor;
   eligible: boolean;
   registered: boolean;
+  /** The user turned the account off in Settings > Accounts; it stays saved but out of use. */
+  userDisabled?: boolean;
   sharedHistory: boolean;
-  status: 'ready' | 'loginRequired' | 'unavailable' | 'identityChanged';
+  status: 'ready' | 'loginRequired' | 'unavailable' | 'identityChanged' | 'disabled';
   usage: AccountUsageWindow[];
   resetCredits?: number;
   resetCreditDetails?: { id: string; expiresAt: string | null; note?: string }[] | null;

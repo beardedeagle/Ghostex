@@ -653,7 +653,7 @@ fn plan_session(
                 let candidates: Vec<Value> = registry
                     .accounts
                     .iter()
-                    .filter(|a| a.provider == provider && a.eligible)
+                    .filter(|a| a.provider == provider && a.auto_switchable())
                     .map(|a| {
                         let found = snapshot
                             .accounts
@@ -803,7 +803,7 @@ pub(super) fn ranked<'a>(
     let mut rows: Vec<_> = registry
         .accounts
         .iter()
-        .filter(|a| a.provider == provider && a.eligible && Some(a.id.as_str()) != current)
+        .filter(|a| a.provider == provider && a.auto_switchable() && Some(a.id.as_str()) != current)
         .filter_map(|a| {
             snapshot
                 .accounts

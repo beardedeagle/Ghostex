@@ -120,6 +120,7 @@ impl AccountsTab {
         options.extend(
             data.registered(provider)
                 .iter()
+                .filter(|account| !account.user_disabled() || account.id() == value)
                 .map(|account| SettingOption {
                     label: account_text(&account.name(), hide),
                     value: account.id(),

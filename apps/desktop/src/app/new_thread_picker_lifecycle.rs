@@ -186,15 +186,18 @@ fn new_thread_picker_boxes(
     }
 }
 
-/// The registered accounts of the `/api/agentAccounts` list, masked and
-/// summarised for the picker's rows.
+/// The registered accounts of the `/api/agentAccounts` list the user has not turned off, masked
+/// and summarised for the picker's rows.
 fn new_thread_picker_accounts(state: &Value) -> Vec<NewThreadPickerAccount> {
     state["accounts"]
         .as_array()
         .map(Vec::as_slice)
         .unwrap_or(&[])
         .iter()
-        .filter(|account| account["registered"].as_bool() == Some(true))
+        .filter(|account| {
+            account["registered"].as_bool() == Some(true)
+                && account["userDisabled"].as_bool() != Some(true)
+        })
         .filter_map(|account| {
             let id = account["id"].as_str()?.to_string();
             let provider = account["provider"].as_str()?.to_string();

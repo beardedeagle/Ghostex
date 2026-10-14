@@ -76,13 +76,15 @@ pub(super) fn describe(
         full(d)
             .into_iter()
             .max_by_key(|w| resets(w))
-            .map(|w| w.label)
+            .map(|w| format!("{} limit", w.label))
     });
     // An account frees up when every window it has used up has reset.
     let soonest = registry
         .accounts
         .iter()
-        .filter(|a| a.provider == provider && (a.eligible || Some(a.id.as_str()) == current))
+        .filter(|a| {
+            a.provider == provider && (a.auto_switchable() || Some(a.id.as_str()) == current)
+        })
         .filter_map(|a| {
             let windows = full(reading(&a.id)?);
             let free_at = windows

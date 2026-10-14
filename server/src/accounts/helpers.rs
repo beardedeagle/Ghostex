@@ -114,6 +114,23 @@ fn json_command_env(
     }
     Ok(data)
 }
+/// A usage window's label: its length as `5h`, `7d` (a week or longer), or `<n>h` / `<n>d` /
+/// `<n>m`; a model's window puts the model first ("Fable 7d").
+///
+/// CDXC:AgentProviders 2026-10-14 DECISION:
+/// User: "please use 7d and 5h everywhere never use weekly or five hours etc." gxserver names every usage window by its length (5h, 7d, <Model> 7d), so every client and the CLI show the same short labels; text that needs a noun says "7d limit". Supersedes the Five-hour limit / Weekly limit / <model> weekly labels.
+/// SEE-ALSO: packages/gx-core/src/sidebar_accounts/usage.rs (`account_usage_label`, whose compact Fable label stays "Fable" per its 2026-09-12 decision), packages/gx-chat-core/src/menus/context/rows.rs, apps/desktop/src/app/window/account_usage/limits.rs, Settings > Accounts (`usage_line`).
+pub(crate) fn duration_label(seconds: i64) -> String {
+    if seconds >= 604_800 {
+        "7d".into()
+    } else if seconds % 86_400 == 0 {
+        format!("{}d", seconds / 86_400)
+    } else if seconds % 3_600 == 0 {
+        format!("{}h", seconds / 3_600)
+    } else {
+        format!("{}m", (seconds / 60).max(1))
+    }
+}
 fn text(v: &Value, k: &str) -> String {
     v.get(k)
         .and_then(Value::as_str)
@@ -275,6 +292,11 @@ fn discover_row(home: &Path, provider: Provider, row: &Value) -> Option<Discover
     };
     if provider == Provider::Claude {
         account.identity = format!("{}:{}", email.to_lowercase(), text(row, "organizationUuid"));
+        // Turned off in Settings: no usage, reset or sign-in reading (CDXC:AgentProviders 2026-10-14 on `SavedAccount::user_disabled`).
+        if super::store::user_disabled(provider, &account.selector) {
+            account.status = "disabled".into();
+            return Some(account);
+        }
         if email.is_empty() {
             account.status = "loginRequired".into();
         }
@@ -301,16 +323,10 @@ fn discover_row(home: &Path, provider: Provider, row: &Value) -> Option<Discover
         };
         account.usage_error = claude_usage_notice(&status, usage.is_object(), last_good_age);
         account.usage_stale = !row["usage"].is_object() && usage.is_object();
-        if let Some(w) = window(
-            "fiveHour",
-            "Five-hour limit",
-            &usage["fiveHour"],
-            "pct",
-            None,
-        ) {
+        if let Some(w) = window("fiveHour", "5h", &usage["fiveHour"], "pct", None) {
             account.usage.push(w);
         }
-        if let Some(w) = window("sevenDay", "Weekly limit", &usage["sevenDay"], "pct", None) {
+        if let Some(w) = window("sevenDay", "7d", &usage["sevenDay"], "pct", None) {
             account.usage.push(w);
         }
         if let Some(scoped) = usage.get("scoped").and_then(Value::as_array) {
@@ -318,7 +334,7 @@ fn discover_row(home: &Path, provider: Provider, row: &Value) -> Option<Discover
                 let model = text(item, "name");
                 if let Some(w) = window(
                     &model,
-                    &format!("{model} weekly"),
+                    &format!("{model} 7d"),
                     item,
                     "pct",
                     Some(model.clone()),
@@ -350,6 +366,10 @@ fn discover_row(home: &Path, provider: Provider, row: &Value) -> Option<Discover
         }
         .into();
         account.shared_history = row.get("shareHistory").and_then(Value::as_bool) == Some(true);
+        if super::store::user_disabled(provider, &account.selector) {
+            account.status = "disabled".into();
+            return Some(account);
+        }
         if account.status == "ready" {
             // The reset credits are read alongside the usage, and kept only when the usage answered.
             let (usage, credits) = std::thread::scope(|scope| {
@@ -466,13 +486,7 @@ fn codex_windows(out: &mut Vec<UsageWindow>, model: &str, value: &Value) {
         if seconds <= 0 || !used.is_finite() {
             continue;
         }
-        let label = if seconds >= 604800 {
-            "Weekly limit"
-        } else if seconds == 18000 {
-            "Five-hour limit"
-        } else {
-            "Usage limit"
-        };
+        let label = duration_label(seconds);
         let reset = v
             .get("reset_at")
             .and_then(Value::as_i64)
@@ -481,9 +495,9 @@ fn codex_windows(out: &mut Vec<UsageWindow>, model: &str, value: &Value) {
         out.push(UsageWindow {
             id: format!("{model}:{key}"),
             label: if model.is_empty() {
-                label.into()
+                label
             } else {
-                format!("{model} · {label}")
+                format!("{model} {label}")
             },
             used_percent: used.clamp(0., 100.),
             limit_window_seconds: Some(seconds),

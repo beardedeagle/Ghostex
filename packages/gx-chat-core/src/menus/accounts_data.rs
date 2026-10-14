@@ -63,6 +63,9 @@ pub struct Account {
     pub name: String,
     pub email: Option<String>,
     pub registered: bool,
+    /// The user turned the account off in Settings > Accounts: it is never offered as a switch
+    /// target (gxserver's `CDXC:AgentProviders 2026-10-14` on `SavedAccount::user_disabled`).
+    pub user_disabled: bool,
     pub status: Option<String>,
     pub usage: Vec<UsageWindow>,
     /// `resetCredits` as the template string writes it, or absent.
@@ -87,6 +90,7 @@ impl Account {
             name: text("name").unwrap_or_default(),
             email: text("email"),
             registered: truthy(object.and_then(|object| object.get("registered"))),
+            user_disabled: truthy(object.and_then(|object| object.get("userDisabled"))),
             status: text("status"),
             usage: object
                 .and_then(|object| object.get("usage"))

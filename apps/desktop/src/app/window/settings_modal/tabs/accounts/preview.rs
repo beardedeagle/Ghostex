@@ -79,6 +79,7 @@ impl AccountsTab {
             }
             "accounts-menu" => self.helpers.menu = Some("claude".into()),
             "accounts-needs-sign-in" => self.pane = Some(Pane::Account("codex-1".into())),
+            "accounts-disabled" => self.pane = Some(Pane::Account("claude-5".into())),
             "accounts-reconnect" => {
                 self.pane = Some(Pane::Account("codex-1".into()));
                 self.flows.insert(

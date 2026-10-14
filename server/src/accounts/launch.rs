@@ -234,10 +234,9 @@ pub(crate) fn apply_new_session(
     let workspace_account = workspace_claude_account_id
         .filter(|_| provider == Provider::Claude)
         .filter(|id| {
-            registry
-                .accounts
-                .iter()
-                .any(|account| account.id == *id && account.provider == provider)
+            registry.accounts.iter().any(|account| {
+                account.id == *id && account.provider == provider && !account.user_disabled
+            })
         })
         .map(str::to_string);
     let id = runtime
