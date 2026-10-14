@@ -72,6 +72,10 @@ pub(super) fn roster(
             other => other,
         });
         row["limitReached"] = json!(limited);
+        // A ready account with no usage windows (Codex #3 on 2026-10-14) can be at its limit
+        // unseen, so a caller must not take its room on trust.
+        row["noUsageReading"] =
+            json!(status == "ready" && found.is_none_or(|account| account.usage.is_empty()));
         if let (Some(found), Some(windows)) = (found, row["usage"].as_array_mut()) {
             for (window, reading) in windows.iter_mut().zip(&found.usage) {
                 window["label"] = json!(short_label(reading));
@@ -204,6 +208,8 @@ pub(super) fn switch_session(
             let limited = limited_windows(found, Utc::now());
             if !limited.is_empty() {
                 text.push_str(&format!(", {} reached", limited.join(" and ")));
+            } else if found.status == "ready" && found.usage.is_empty() {
+                text.push_str(", no usage reading");
             }
         }
         text
@@ -245,6 +251,14 @@ pub(super) fn switch_session(
                 working()
             ))
         })?;
+    if target.user_disabled {
+        return Err(DomainStateError::bad_request(format!(
+            "Account {} ({}) is turned off in Settings > Accounts; turn it on there to use it. {}",
+            target.selector,
+            email(target),
+            working()
+        )));
+    }
     if !ready(target) {
         return Err(DomainStateError::bad_request(format!(
             "Account {} needs to be signed in again on this computer before a session can use it. {}",

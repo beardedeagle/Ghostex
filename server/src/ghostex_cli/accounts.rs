@@ -8,7 +8,9 @@ use serde_json::{json, Value};
 const HELP: &str = "Usage: ghostex accounts [--all] [--refresh] [--json] [--server <profile>]
 
 Lists every saved Claude (Claude Swap) and Codex (Codex Swap) account: its number, email,
-state (ready, limitReached, needsSignIn), usage per window with reset times, which account
+state (ready, limitReached, needsSignIn, disabled when turned off in Settings; a ready account
+with no usage reading says so, noUsageReading in --json, and may be at its limit unseen), usage
+per window with reset times, which account
 new sessions use (default), and its running and sleeping sessions, with a count of stopped ones
 (--all lists those too). The same reading Settings > Accounts shows; --refresh reads usage
 again instead of using a reading up to two minutes old.
@@ -97,6 +99,7 @@ fn print_account(row: &Value, all_sessions: bool) {
         text("email")
     };
     let mut marks = vec![match text("state") {
+        "ready" if row["noUsageReading"] == true => "ready, no usage reading".to_string(),
         "ready" => "ready".to_string(),
         "limitReached" => "limit reached".to_string(),
         "needsSignIn" => "needs sign-in".to_string(),
