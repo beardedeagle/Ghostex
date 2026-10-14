@@ -18,7 +18,7 @@ use super::quick_access::palette::{
 };
 use crate::app::consts::{BROWSER_ICON_HISTORY, BROWSER_ICON_WORLD};
 use crate::app::model::BrowserFaviconFetchSource;
-use crate::app::window::native_modal_kit::MODAL_UI_FONT;
+use crate::app::window::native_modal_kit::{MODAL_UI_FONT, neutral_button_fills, rgba_of};
 use crate::browser_history::HistoryEntry;
 use chrono::TimeZone as _;
 use gpui::prelude::FluentBuilder as _;
@@ -440,6 +440,8 @@ impl GpuiBrowserHistoryModalWindow {
             );
         }
         if self.has_more && !self.loading {
+            // A neutral filled button (CDXC:AppModal 2026-10-14 on `neutral_button_fills`).
+            let fills = neutral_button_fills(p.light);
             children.push(
                 div()
                     .id("browser-history-load-more")
@@ -452,12 +454,13 @@ impl GpuiBrowserHistoryModalWindow {
                     .items_center()
                     .rounded(px(7.0))
                     .border_1()
-                    .border_color(hsla(p.hairline))
-                    .bg(hsla(p.raised))
+                    .border_color(hsla(rgba_of(p.hairline, 0.0)))
+                    .bg(hsla(fills.rest))
                     .text_size(px(12.5))
                     .text_color(hsla(p.item))
                     .cursor_pointer()
-                    .hover(move |this| this.bg(hsla(p.raised_hover)))
+                    .hover(move |this| this.bg(hsla(fills.hover)))
+                    .active(move |this| this.bg(hsla(fills.pressed)))
                     .on_click(cx.listener(|this, _: &ClickEvent, _window, cx| {
                         this.request(true, cx);
                     }))

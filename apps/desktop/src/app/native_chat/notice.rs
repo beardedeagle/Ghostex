@@ -1,5 +1,9 @@
 use super::tone_card::{ToneBodyMotion, ToneButton, ToneCardParts, tone_look};
-use super::{appearance::ChatAppearance, state::NativeChatView, transcript::text};
+use super::{
+    appearance::{ChatAppearance, ChatFilledButton as _},
+    state::NativeChatView,
+    transcript::text,
+};
 use crate::app::native_chat::cursor::ChatCursor as _;
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
@@ -231,7 +235,7 @@ impl NativeChatView {
                         .h(px(32.0 * p.scale))
                         .px(px(12.0 * p.scale))
                         .border_1()
-                        .border_color(p.control_border)
+                        .chat_filled(p.neutral_button_fills(), true)
                         .rounded(px(6.0 * p.scale))
                         .text_size(px(14.0 * p.scale))
                         .text_color(p.foreground)
@@ -357,7 +361,7 @@ impl NativeChatView {
                     "dismiss-notice",
                     "Dismiss",
                     None,
-                    ToneButton::Ghost,
+                    ToneButton::Secondary,
                     None,
                     false,
                     p,

@@ -1,5 +1,5 @@
 use super::window::ChatOptionMenuPanel;
-use crate::app::native_chat::cursor::ChatCursor as _;
+use crate::app::native_chat::{appearance::ChatFilledButton as _, cursor::ChatCursor as _};
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
     AnyElement, Context, InteractiveElement as _, IntoElement, ParentElement as _,
@@ -114,6 +114,7 @@ impl ChatOptionMenuPanel {
         }
         let disabled = context["compactDisabled"] == true;
         let reason = text("compactDisabledReason");
+        let fills = appearance.neutral_button_fills();
         content = content
             .child(
                 div()
@@ -123,7 +124,6 @@ impl ChatOptionMenuPanel {
             .child(
                 div()
                     .id("compact-context")
-                    .when(self.selected == Some(0), |item| item.bg(hover))
                     .role(gpui::Role::Button)
                     .aria_label("Compact context")
                     .mt(px(4.0 * scale))
@@ -135,12 +135,11 @@ impl ChatOptionMenuPanel {
                     .justify_center()
                     .rounded(px(6.0 * scale))
                     .border_1()
-                    .border_color(border)
+                    .chat_filled(fills, !disabled)
+                    .when(self.selected == Some(0), |item| item.bg(fills.hover))
                     .text_color(appearance.primary)
                     .when(disabled, |item| item.opacity(0.5))
-                    .when(!disabled, |item| {
-                        item.chat_cursor_pointer().hover(|style| style.bg(hover))
-                    })
+                    .when(!disabled, |item| item.chat_cursor_pointer())
                     // CDXC:SessionChat 2026-09-26 DECISION: User: a button whose static text already says what the tooltip would say gets no tooltip; only the disabled button keeps one, to say why.
                     .when(disabled, |item| {
                         item.tooltip(move |window, cx| {

@@ -41,7 +41,7 @@ impl NativeChatView {
                     "approval-copy",
                     "Copy",
                     Some("titlebar/copy.svg"),
-                    ToneButton::Ghost,
+                    ToneButton::Secondary,
                     None,
                     false,
                     p,
@@ -92,7 +92,7 @@ impl NativeChatView {
             }
         })
         .collect();
-        // CDXC:SessionChat 2026-09-07 DECISION: User: card X buttons match Open terminal's color, outline and background, rather than a custom border and background of their own.
+        // CDXC:SessionChat 2026-10-14 DECISION: User (2026-09-07): card X buttons match Open terminal's (now Terminal view) color, outline and background, rather than a custom border and background of their own. Since "always use filled buttons everywhere" (CDXC:AppModal 2026-10-14 on `neutral_button_fills`) that is the neutral fill with no outline.
         let dismiss = self
             .tone_icon_button("approval-cancel", "titlebar/x.svg", "Dismiss", p)
             .on_click(

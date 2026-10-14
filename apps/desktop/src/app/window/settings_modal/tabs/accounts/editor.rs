@@ -7,7 +7,7 @@
 //! their field loses focus or takes Enter (and when the editor closes), automatic switching saves
 //! when it is flipped, so Cancel, which only discarded unsaved edits, is gone too. Removing an
 //! account and swapping slots still ask for their own confirmation click. Every button here is the
-//! 32px outlined Settings button, the height and corners of the editor's fields.
+//! 32px filled Settings button (CDXC:AppModal 2026-10-14 on `neutral_button_fills`), the height and corners of the editor's fields.
 use super::super::super::super::native_modal_kit::*;
 use super::super::super::catalog::SettingOption;
 use super::super::super::fields::{
@@ -362,9 +362,9 @@ impl AccountsTab {
             "{sessions} session{} use this account.",
             if sessions == 1 { "" } else { "s" }
         );
-        let outline = |label: &'static str,
-                       action: Box<dyn Fn(&mut Self, &mut Window, &mut Context<Self>)>,
-                       cx: &mut Context<Self>| {
+        let filled_button = |label: &'static str,
+                             action: Box<dyn Fn(&mut Self, &mut Window, &mut Context<Self>)>,
+                             cx: &mut Context<Self>| {
             settings_sized_button(
                 p,
                 SharedString::from(format!("account-editor-{id}-{label}")),
@@ -381,7 +381,7 @@ impl AccountsTab {
         };
         let remove = {
             let id = id.clone();
-            outline(
+            filled_button(
                 "Remove",
                 Box::new(move |page, _window, cx| {
                     page.update_editor(&id, cx, |draft| draft.remove = !draft.remove)
@@ -391,7 +391,7 @@ impl AccountsTab {
         };
         let sign_in = {
             let id = id.clone();
-            outline(
+            filled_button(
                 "Sign in again",
                 Box::new(move |page, _window, cx| {
                     page.update_editor(&id, cx, |draft| draft.reconnect = !draft.reconnect)

@@ -346,7 +346,7 @@ impl ExtensionsTab {
             "Reset",
             Some("modals/settings/arrow-back-up.svg"),
             None,
-            SizedButtonVariant::Ghost,
+            SizedButtonVariant::Outline,
             SizedButtonSize::Xs,
             is_default,
             None,

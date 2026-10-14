@@ -123,9 +123,7 @@ impl AgentsTab {
     ) -> AnyElement {
         let found = self.cli_found(&self.cli_agent_id(agent));
         let (_, dot) = emerald(p);
-        let border = p.hairline;
-        let hover_border = css_fade(p.foreground, 0.25);
-        let hover = p.raised_hover;
+        let fills = neutral_button_fills(p.light);
         let target = agent.clone();
         h_flex()
             .id(SharedString::from(format!("agent-chip-{}", agent.agent_id)))
@@ -138,9 +136,11 @@ impl AgentsTab {
             .items_center()
             .rounded(px(9.0))
             .border_1()
-            .border_color(hsla(border))
+            .border_color(transparent())
+            .bg(hsla(fills.rest))
             .cursor_pointer()
-            .hover(move |this| this.bg(hsla(hover)).border_color(hsla(hover_border)))
+            .hover(move |this| this.bg(hsla(fills.hover)))
+            .active(move |this| this.bg(hsla(fills.pressed)))
             .tooltip(tooltip_text(if found {
                 format!("Turn on {} (already on this computer)", agent.name)
             } else {

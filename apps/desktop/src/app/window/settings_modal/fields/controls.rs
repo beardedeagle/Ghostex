@@ -1,6 +1,6 @@
 //! The Settings skins of the shadcn primitives the fields build on: the switch
-//! (`.ghostex-settings-shadcn [data-slot='switch']`), buttons in the Settings type scale
-//! (CDXC:Settings 2026-09-09 DECISION: no white buttons), and `ToggleField`.
+//! (`.ghostex-settings-shadcn [data-slot='switch']`), buttons in the Settings type scale (filled,
+//! never white: CDXC:AppModal 2026-10-14 on `neutral_button_fills`), and `ToggleField`.
 use super::super::super::native_modal_kit::*;
 use super::super::palette::SettingsPalette;
 use super::SettingsPage;
@@ -98,11 +98,12 @@ pub(crate) fn switch_control<V: 'static>(
 /// The shadcn button variants Settings uses.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ButtonVariant {
-    /// `variant='outline'`.
+    /// `variant='outline'`: the neutral fill.
     Outline,
-    /// `variant='default'`, which Settings turns into the same quiet bordered button.
+    /// `variant='default'`: the same neutral fill (Settings has no white buttons).
     Default,
-    /// `variant='ghost'`.
+    /// `variant='ghost'`: borderless and unfilled at rest, for icon-only buttons; a labelled
+    /// ghost button draws as `Outline`.
     Ghost,
     /// The stock shadcn primary of a dialog portaled out of Settings (Pick Color's Done): the
     /// filled `--primary` with medium text and the 10px `rounded-lg` corners.
@@ -113,7 +114,7 @@ pub(crate) enum ButtonVariant {
     /// `variant='destructive'` in a dialog portaled out of Settings (no `.dark` ancestor): the
     /// 10% tint in both appearances.
     DestructiveDialog,
-    /// `variant='secondary'` (the stock zinc secondary: `#27272a` dark, `#f4f4f5` light).
+    /// `variant='secondary'`: the neutral fill.
     Secondary,
 }
 
@@ -144,69 +145,36 @@ fn button_text(p: &SettingsPalette, variant: ButtonVariant) -> gpui::Rgba {
     match variant {
         ButtonVariant::Primary => p.modal.primary_foreground,
         ButtonVariant::Destructive | ButtonVariant::DestructiveDialog => p.destructive,
-        ButtonVariant::Secondary => {
-            if p.light {
-                gpui::rgb(0x18181b)
-            } else {
-                gpui::rgb(0xfafafa)
-            }
-        }
         _ => p.foreground,
     }
 }
 
-fn button_colors(
-    p: &SettingsPalette,
-    variant: ButtonVariant,
-) -> (gpui::Hsla, gpui::Hsla, gpui::Rgba) {
+fn button_colors(p: &SettingsPalette, variant: ButtonVariant) -> ButtonFills {
     match variant {
-        ButtonVariant::Outline => (
-            if p.light {
-                hsla(p.surface)
-            } else {
-                transparent()
-            },
-            hsla(p.hairline),
-            if p.light {
-                gpui::rgb(0xf1f1f1)
-            } else {
-                css_fade(p.hairline, 0.3)
-            },
-        ),
-        ButtonVariant::Default => (transparent(), hsla(p.hairline), p.raised_hover),
-        ButtonVariant::Ghost => (
-            transparent(),
-            transparent(),
-            if p.light {
+        ButtonVariant::Outline | ButtonVariant::Default | ButtonVariant::Secondary => {
+            neutral_button_fills(p.light)
+        }
+        ButtonVariant::Ghost => {
+            let hover = if p.light {
                 gpui::rgb(0xf1f1f1)
             } else {
                 css_fade(gpui::rgb(0x262626), 0.5)
-            },
-        ),
-        // `hover:bg-primary/80`.
-        ButtonVariant::Primary => (hsla(p.primary), transparent(), css_fade(p.primary, 0.8)),
-        ButtonVariant::Destructive => {
-            let (rest, hover) = if p.light { (0.1, 0.2) } else { (0.2, 0.3) };
-            (
-                hsla(css_fade(p.destructive, rest)),
-                transparent(),
-                css_fade(p.destructive, hover),
-            )
-        }
-        ButtonVariant::DestructiveDialog => (
-            hsla(css_fade(p.destructive, 0.1)),
-            transparent(),
-            css_fade(p.destructive, 0.2),
-        ),
-        // `hover:bg-[color-mix(in_oklch,var(--secondary),var(--foreground)_5%)]`.
-        ButtonVariant::Secondary => {
-            let (rest, foreground) = if p.light {
-                (gpui::rgb(0xf4f4f5), gpui::rgb(0x18181b))
-            } else {
-                (gpui::rgb(0x27272a), gpui::rgb(0xfafafa))
             };
-            (hsla(rest), transparent(), css_mix(rest, 0.95, foreground))
+            ButtonFills {
+                rest: modal_rgba(0x000000, 0.0),
+                hover,
+                pressed: hover,
+            }
         }
+        // `hover:bg-primary/80`.
+        ButtonVariant::Primary => ButtonFills {
+            rest: p.primary,
+            hover: css_fade(p.primary, 0.8),
+            pressed: css_fade(p.primary, 0.7),
+        },
+        ButtonVariant::Destructive => destructive_button_fills(p.destructive, p.light),
+        // A dialog portaled out of Settings keeps the light tint in both appearances.
+        ButtonVariant::DestructiveDialog => destructive_button_fills(p.destructive, true),
     }
 }
 
@@ -241,8 +209,9 @@ pub(crate) fn settings_button<V: 'static>(
 /// `settings_button` at a shadcn size (`sm` 28px, `xs` 24px; `data-icon='inline-start'` trims
 /// the leading side by 2px).
 ///
-/// CDXC:AppModal 2026-10-09 DECISION:
-/// User: "why does this "Save" button (and other buttons in the app in settings and other places) not have an outline? I dont like this please make the buttons look the same." A button with a text label always draws the outline: `Ghost` renders as `Outline` here and in the Agents Hub's `hub_button`. Borderless ghost stays only for icon-only buttons (`settings_icon_button`, the modal corner X), menu rows, links inside running text, segmented controls and switches.
+/// A button with a text label is always filled (CDXC:AppModal 2026-10-14 on
+/// `neutral_button_fills`): `Ghost` renders as `Outline` here and in the Agents Hub's
+/// `hub_button`.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn settings_button_sized<V: 'static>(
     p: &SettingsPalette,
@@ -260,7 +229,7 @@ pub(crate) fn settings_button_sized<V: 'static>(
         ButtonVariant::Ghost => ButtonVariant::Outline,
         other => other,
     };
-    let (background, border, hover) = button_colors(p, variant);
+    let fills = button_colors(p, variant);
     let primary = variant == ButtonVariant::Primary;
     let text = button_text(p, variant);
     let (height, side, gap, line_height) = size.metrics();
@@ -286,8 +255,8 @@ pub(crate) fn settings_button_sized<V: 'static>(
         .rounded(px(if primary { 10.0 } else { MODAL_RADIUS_CONTROL }))
         .when(primary, |this| this.font_weight(gpui::FontWeight::MEDIUM))
         .border_1()
-        .border_color(border)
-        .bg(background)
+        .border_color(transparent())
+        .bg(hsla(fills.rest))
         .text_size(px(14.0))
         .line_height(px(line_height))
         .text_color(hsla(text))
@@ -298,7 +267,8 @@ pub(crate) fn settings_button_sized<V: 'static>(
         })
         .when(!disabled, |this| {
             this.cursor_pointer()
-                .hover(move |this| this.bg(hsla(hover)))
+                .hover(move |this| this.bg(hsla(fills.hover)))
+                .active(move |this| this.bg(hsla(fills.pressed)))
                 .on_press(cx, move |this, window, cx| {
                     on_click(this, window, cx);
                 })
@@ -322,7 +292,7 @@ pub(crate) fn settings_icon_button<V: 'static>(
     on_click: impl Fn(&mut V, &mut Window, &mut Context<V>) + 'static,
     cx: &mut Context<V>,
 ) -> AnyElement {
-    let (background, border, hover) = button_colors(p, variant);
+    let fills = button_colors(p, variant);
     let color = button_text(p, variant);
     let id: ElementId = id.into();
     div()
@@ -336,13 +306,14 @@ pub(crate) fn settings_icon_button<V: 'static>(
         .justify_center()
         .rounded(px(MODAL_RADIUS_CONTROL))
         .border_1()
-        .border_color(border)
-        .bg(background)
+        .border_color(transparent())
+        .bg(hsla(fills.rest))
         .when(disabled, |this| this.opacity(0.5))
         .when_some(tooltip, |this, tooltip| this.tooltip(tooltip_text(tooltip)))
         .when(!disabled, |this| {
             this.cursor_pointer()
-                .hover(move |this| this.bg(hsla(hover)))
+                .hover(move |this| this.bg(hsla(fills.hover)))
+                .active(move |this| this.bg(hsla(fills.pressed)))
                 .on_press(cx, move |this, window, cx| {
                     on_click(this, window, cx);
                 })
@@ -398,7 +369,7 @@ pub(crate) fn toggle_field_with<V: SettingsPage>(
     setting_row(p, id, spec, on_reset, control, cx)
 }
 
-/// `ActionButtonPairField`: a row of outline buttons on the right.
+/// `ActionButtonPairField`: a row of neutral filled buttons on the right.
 pub(crate) fn action_buttons_field<V: SettingsPage>(
     p: &SettingsPalette,
     id: &'static str,

@@ -49,10 +49,6 @@ pub(crate) struct ModalLegacyPalette {
     /// `--settings-focus-border-color` (dark) or the light `#525252` focus rule.
     pub(crate) focus_border: Rgba,
     pub(crate) destructive: Rgba,
-    /// `--muted`: the outline button's hover fill in light mode.
-    pub(crate) muted_fill: Rgba,
-    /// `--settings-raised-hover`: the default button's hover fill.
-    pub(crate) raised_hover: Rgba,
     /// The modal's window is frosted (`ModalPalette::frosted`).
     pub(crate) glass: bool,
     pub(crate) light: bool,
@@ -73,8 +69,6 @@ impl ModalLegacyPalette {
                 raised: rgb(0xf0f0f0),
                 focus_border: rgb(0x525252),
                 destructive: p.destructive,
-                muted_fill: rgb(0xf1f1f1),
-                raised_hover: p.raised_hover,
                 glass: false,
                 light: true,
             }
@@ -102,8 +96,6 @@ impl ModalLegacyPalette {
                 focus_border: css_mix(p.foreground, 0.58, p.hairline),
                 // shadcn's dark `--destructive: oklch(0.704 0.191 22.216)`, Tailwind red-400.
                 destructive: rgb(0xff6467),
-                muted_fill: p.raised,
-                raised_hover: p.raised,
                 glass: false,
                 light: false,
             }
@@ -117,7 +109,6 @@ impl ModalLegacyPalette {
             window: p.surface,
             surface: css_fade(p.surface, 0.0),
             raised: p.raised,
-            muted_fill: p.raised,
             glass: true,
             ..lp
         }
@@ -168,13 +159,13 @@ pub(crate) fn modal_square_checkbox(
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ModalLegacyButtonTone {
-    /// shadcn `variant='outline'`.
+    /// shadcn `variant='outline'`, drawn with the neutral fill (CDXC:AppModal 2026-10-14 on
+    /// [`neutral_button_fills`]).
     Outline,
-    /// shadcn `variant='default'`, which `.ghostex-settings-shadcn button[data-variant='default']`
-    /// in packages/core-ui/styles.css turns into the quiet bordered button (no white buttons in
-    /// this skin): transparent, hairline border, raised-hover fill on hover.
+    /// shadcn `variant='default'`. This skin has no white buttons, so it takes the same neutral
+    /// fill as `Outline`.
     Primary,
-    /// shadcn `variant='destructive'`: the tinted destructive fill.
+    /// shadcn `variant='destructive'`: the destructive fill.
     Destructive,
 }
 
@@ -192,36 +183,13 @@ pub(crate) fn modal_legacy_action_button<V: 'static>(
     cx: &mut Context<V>,
 ) -> AnyElement {
     let lp = *lp;
-    let (background, border, text, hover) = match tone {
-        // `border-border bg-background hover:bg-muted dark:bg-transparent dark:hover:bg-input/30`.
-        ModalLegacyButtonTone::Outline => (
-            if lp.light {
-                hsla(lp.surface)
-            } else {
-                transparent()
-            },
-            hsla(lp.border),
-            lp.foreground,
-            if lp.light {
-                lp.muted_fill
-            } else {
-                css_fade(lp.input, 0.30)
-            },
-        ),
-        // `background: transparent; border-color: var(--settings-hairline); color: var(--foreground)`,
-        // `:hover { background: var(--settings-raised-hover) }`.
-        ModalLegacyButtonTone::Primary => (
-            transparent(),
-            hsla(lp.border),
-            lp.foreground,
-            lp.raised_hover,
-        ),
-        // `bg-destructive/10 hover:bg-destructive/20` in light, `/20` and `/30` in dark.
+    let (fills, text) = match tone {
+        ModalLegacyButtonTone::Outline | ModalLegacyButtonTone::Primary => {
+            (neutral_button_fills(lp.light), lp.foreground)
+        }
         ModalLegacyButtonTone::Destructive => (
-            hsla(css_fade(lp.destructive, if lp.light { 0.10 } else { 0.20 })),
-            transparent(),
+            destructive_button_fills(lp.destructive, lp.light),
             lp.destructive,
-            css_fade(lp.destructive, if lp.light { 0.20 } else { 0.30 }),
         ),
     };
     h_flex()
@@ -235,8 +203,8 @@ pub(crate) fn modal_legacy_action_button<V: 'static>(
         .justify_center()
         .rounded(px(MODAL_RADIUS_CONTROL))
         .border_1()
-        .border_color(border)
-        .bg(background)
+        .border_color(transparent())
+        .bg(hsla(fills.rest))
         .text_size(px(14.0))
         .line_height(px(20.0))
         .text_color(hsla(text))
@@ -244,7 +212,8 @@ pub(crate) fn modal_legacy_action_button<V: 'static>(
         .when(disabled, |this| this.opacity(0.5).cursor_default())
         .when(!disabled, |this| {
             this.cursor_pointer()
-                .hover(move |this| this.bg(hsla(hover)))
+                .hover(move |this| this.bg(hsla(fills.hover)))
+                .active(move |this| this.bg(hsla(fills.pressed)))
                 .on_click(cx.listener(move |this, _: &ClickEvent, window, cx| {
                     on_click(this, window, cx);
                 }))

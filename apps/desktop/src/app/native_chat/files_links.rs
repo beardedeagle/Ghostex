@@ -5,7 +5,11 @@
 //! scrolls the transcript once per jump.
 
 use super::side_question::{answering_placeholder, side_button};
-use super::{appearance::ChatAppearance, state::NativeChatView, transcript::text};
+use super::{
+    appearance::{ChatAppearance, ChatFilledButton as _},
+    state::NativeChatView,
+    transcript::text,
+};
 use crate::app::native_chat::cursor::ChatCursor as _;
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
@@ -124,11 +128,10 @@ impl NativeChatView {
                     .py(px(2.0 * s))
                     .rounded(px(5.0 * s))
                     .border_1()
-                    .border_color(p.border)
+                    .chat_filled(p.neutral_button_fills(), true)
                     .text_size(px(11.0 * s))
                     .text_color(p.primary)
                     .chat_cursor_pointer()
-                    .hover(|style| style.bg(p.border))
                     .child(label)
                     .tooltip(move |window, cx| {
                         gpui_component::tooltip::Tooltip::new(tooltip.clone()).build(window, cx)

@@ -1,4 +1,7 @@
-use super::super::{appearance::ChatAppearance, state::NativeChatView};
+use super::super::{
+    appearance::{ChatAppearance, ChatFilledButton as _},
+    state::NativeChatView,
+};
 use super::layout::SPEC;
 use super::window::SuggestionPanel;
 use crate::app::helpers::ThrottledAnimationExt as _;
@@ -126,7 +129,8 @@ impl Render for SuggestionPanel {
                     })
                     .child(div().flex_1().min_w_0().truncate().child(status.to_owned()))
                     .when(retry, |row| {
-                        // React's `<Button size="sm" variant="outline">`.
+                        // React's `<Button size="sm" variant="outline">`, now the neutral fill
+                        // (CDXC:AppModal 2026-10-14 on `neutral_button_fills`).
                         row.child(
                             div()
                                 .id("retry-skills")
@@ -140,16 +144,8 @@ impl Render for SuggestionPanel {
                                 .px(px(spec.retry_padding_inline_px * s))
                                 .rounded(px(spec.retry_radius_px * s))
                                 .border(px(spec.border_px))
-                                .border_color(p.border)
-                                .when(p.light, |button| button.bg(p.background))
+                                .chat_filled(p.neutral_button_fills(), true)
                                 .font_weight(gpui::FontWeight::MEDIUM)
-                                .hover(|button| {
-                                    button.bg(if p.light {
-                                        highlight
-                                    } else {
-                                        Hsla::from(rgb(0xffffff)).opacity(0.024)
-                                    })
-                                })
                                 .child("Retry")
                                 .on_mouse_down(
                                     gpui::MouseButton::Left,

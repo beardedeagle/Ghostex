@@ -548,7 +548,7 @@ impl AccountsTab {
                 "Cancel",
                 None,
                 None,
-                SizedButtonVariant::Ghost,
+                SizedButtonVariant::Outline,
                 SizedButtonSize::Sm,
                 false,
                 None,

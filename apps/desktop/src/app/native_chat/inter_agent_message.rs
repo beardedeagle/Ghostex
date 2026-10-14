@@ -10,7 +10,11 @@
 
 use super::cards::card_hover_fill;
 use super::new_session_welcome::brand_logo_color;
-use super::{appearance::ChatAppearance, state::NativeChatView, transcript::text};
+use super::{
+    appearance::{ChatAppearance, ChatFilledButton as _},
+    state::NativeChatView,
+    transcript::text,
+};
 use crate::app::helpers::workspace_tab_agent_icon_path;
 use crate::app::native_chat::cursor::ChatCursor as _;
 use gpui::prelude::FluentBuilder as _;
@@ -474,8 +478,8 @@ impl NativeChatView {
                 .px(px(6.0 * s))
                 .py(px(2.0 * s))
                 .rounded(px(5.0 * s))
+                .chat_filled(p.neutral_button_fills(), true)
                 .text_color(p.primary)
-                .hover(|style| style.bg(p.border))
                 .child(label)
                 .on_click(cx.listener(move |this, _, _, cx| this.invoke(command.clone(), cx)))
         };

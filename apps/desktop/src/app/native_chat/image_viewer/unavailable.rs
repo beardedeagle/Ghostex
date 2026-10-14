@@ -1,7 +1,10 @@
 //! What the image preview shows in place of a picture it cannot show.
 
 use super::super::images::ChatImageFailure;
-use super::super::{appearance::ChatAppearance, transcript::text};
+use super::super::{
+    appearance::{ChatAppearance, ChatFilledButton as _},
+    transcript::text,
+};
 use super::window::ImageViewerWindow;
 use crate::app::native_chat::cursor::ChatCursor as _;
 use gpui::prelude::FluentBuilder as _;
@@ -64,7 +67,7 @@ pub(in crate::app::native_chat) fn failure_copy(
 }
 
 impl ImageViewerWindow {
-    /// One labelled button in the card's action row.
+    /// One labelled neutral filled button in the card's action row.
     fn card_button(
         &self,
         id: &'static str,
@@ -87,11 +90,10 @@ impl ImageViewerWindow {
             .gap(px(6.0))
             .rounded(px(7.0))
             .border_1()
-            .border_color(p.control_border)
+            .chat_filled(p.neutral_button_fills(), true)
             .text_size(px(12.5))
             .text_color(p.foreground)
             .chat_cursor_pointer()
-            .hover(|style| style.bg(p.input))
             .focus_visible(|style| style.border_color(p.ring))
             .child(
                 svg()
@@ -303,9 +305,7 @@ impl ImageViewerWindow {
                             .child(div().text_size(px(12.5)).text_color(p.muted).child(detail)),
                     ),
             )
-            .when(has_file, |card| {
-                card.child(file_block)
-            })
+            .when(has_file, |card| card.child(file_block))
             .when(!copy_path.is_empty() || openable, |card| {
                 card.child(actions)
             })

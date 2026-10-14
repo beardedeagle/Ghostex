@@ -345,60 +345,34 @@ pub(super) fn raised_segmented<V: 'static>(
 
 /// The shadcn `Button` looks the Remote page draws itself (spinners, inherited text colours,
 /// the stock 12px `xs` popover triggers); the field library's `settings_button_sized` covers the
-/// plain ones.
+/// plain ones. Every look is filled (CDXC:AppModal 2026-10-14 on `neutral_button_fills`).
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum Look {
-    /// `variant='default'` in Settings: transparent with a hairline edge.
-    Bordered,
-    /// `variant='outline'`.
-    Outline,
-    Ghost,
-    /// `variant='secondary'`: the stock zinc fill.
+    /// The neutral fill every Settings button wears.
+    Filled,
+    /// `variant='secondary'`: the stock zinc fill (the current OS among the SSH instruction
+    /// buttons).
     Secondary,
     Destructive,
 }
 
-fn look_colors(p: &SettingsPalette, look: Look) -> (gpui::Hsla, gpui::Hsla, Rgba) {
+fn look_colors(p: &SettingsPalette, look: Look) -> ButtonFills {
     match look {
-        Look::Bordered => (transparent(), hsla(p.hairline), p.raised_hover),
-        Look::Outline => (
-            if p.light {
-                hsla(p.surface)
-            } else {
-                transparent()
-            },
-            hsla(p.hairline),
-            if p.light {
-                rgb(0xf1f1f1)
-            } else {
-                css_fade(p.hairline, 0.3)
-            },
-        ),
-        Look::Ghost => (
-            transparent(),
-            transparent(),
-            if p.light {
-                rgb(0xf1f1f1)
-            } else {
-                rgb(0x2a2a2a)
-            },
-        ),
+        Look::Filled => neutral_button_fills(p.light),
         Look::Secondary => {
             let (rest, foreground) = if p.light {
                 (rgb(0xf4f4f5), rgb(0x18181b))
             } else {
                 (rgb(0x27272a), rgb(0xfafafa))
             };
-            (hsla(rest), transparent(), css_mix(rest, 0.95, foreground))
+            let hover = css_mix(rest, 0.95, foreground);
+            ButtonFills {
+                rest,
+                hover,
+                pressed: css_mix(rest, 0.90, foreground),
+            }
         }
-        Look::Destructive => {
-            let (rest, hover) = if p.light { (0.1, 0.2) } else { (0.2, 0.3) };
-            (
-                hsla(css_fade(p.destructive, rest)),
-                transparent(),
-                css_fade(p.destructive, hover),
-            )
-        }
+        Look::Destructive => destructive_button_fills(p.destructive, p.light),
     }
 }
 
@@ -412,7 +386,7 @@ fn look_text(p: &SettingsPalette, look: Look) -> Rgba {
                 rgb(0xfafafa)
             }
         }
-        _ => p.foreground,
+        Look::Filled => p.foreground,
     }
 }
 
@@ -433,7 +407,7 @@ pub(super) fn compact_button<V: 'static>(
     on_click: impl Fn(&mut V, &mut Window, &mut Context<V>) + 'static,
     cx: &mut Context<V>,
 ) -> AnyElement {
-    let (background, border, hover) = look_colors(p, look);
+    let fills = look_colors(p, look);
     let text = color.unwrap_or_else(|| look_text(p, look));
     let side = if height <= 24.0 { 10.0 } else { 12.0 };
     let has_leading = leading.is_some();
@@ -448,8 +422,8 @@ pub(super) fn compact_button<V: 'static>(
         .justify_center()
         .rounded(px(MODAL_RADIUS_CONTROL))
         .border_1()
-        .border_color(border)
-        .bg(background)
+        .border_color(transparent())
+        .bg(hsla(fills.rest))
         .text_size(px(text_size))
         .line_height(px(if text_size <= 12.0 { 16.0 } else { 18.67 }))
         .text_color(hsla(text))
@@ -460,7 +434,8 @@ pub(super) fn compact_button<V: 'static>(
         })
         .when(!disabled, |this| {
             this.cursor_pointer()
-                .hover(move |this| this.bg(hsla(hover)))
+                .hover(move |this| this.bg(hsla(fills.hover)))
+                .active(move |this| this.bg(hsla(fills.pressed)))
                 .on_click(cx.listener(move |page, _: &ClickEvent, window, cx| {
                     on_click(page, window, cx);
                 }))

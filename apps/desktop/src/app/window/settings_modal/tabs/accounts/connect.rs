@@ -364,7 +364,7 @@ impl AccountsTab {
                     },
                     None,
                     None,
-                    SizedButtonVariant::Ghost,
+                    SizedButtonVariant::Outline,
                     SizedButtonSize::Sm,
                     false,
                     None,
@@ -386,7 +386,7 @@ impl AccountsTab {
                     "Cancel",
                     None,
                     None,
-                    SizedButtonVariant::Ghost,
+                    SizedButtonVariant::Outline,
                     SizedButtonSize::Sm,
                     false,
                     None,
@@ -583,8 +583,7 @@ impl AccountsTab {
                 "Add account"
             };
             let enabled = !starting && consent && email.contains('@');
-            let (background, _, hover, text) =
-                sized_button_colors(p, SizedButtonVariant::Secondary);
+            let (fills, text) = sized_button_colors(p, SizedButtonVariant::Secondary);
             let start_key = key.clone();
             let start_account = account.clone();
             children.push(
@@ -600,7 +599,7 @@ impl AccountsTab {
                             .items_center()
                             .justify_center()
                             .rounded(px(if guide { 10.0 } else { MODAL_RADIUS_CONTROL }))
-                            .bg(background)
+                            .bg(hsla(fills.rest))
                             .text_size(px(text_size))
                             .when(guide, |this| this.font_weight(FontWeight::MEDIUM))
                             .text_color(hsla(text))
@@ -608,7 +607,8 @@ impl AccountsTab {
                             .when(!enabled, |this| this.opacity(0.5))
                             .when(enabled, |this| {
                                 this.cursor_pointer()
-                                    .hover(move |this| this.bg(hsla(hover)))
+                                    .hover(move |this| this.bg(hsla(fills.hover)))
+                                    .active(move |this| this.bg(hsla(fills.pressed)))
                                     .on_click(cx.listener(
                                         move |page, _: &ClickEvent, _window, cx| {
                                             page.start_flow(

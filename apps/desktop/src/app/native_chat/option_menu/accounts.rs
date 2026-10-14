@@ -10,7 +10,10 @@ The panel is laid out as a list of blocks so the popup window can be sized to th
 same heights the renderer draws, the way the context panel is.
 */
 
-use super::super::{appearance::ChatAppearance, new_session_welcome::brand_logo_color};
+use super::super::{
+    appearance::{ChatAppearance, ChatButtonFills, ChatFilledButton as _},
+    new_session_welcome::brand_logo_color,
+};
 use super::window::ChatOptionMenuPanel;
 use crate::app::native_chat::cursor::ChatCursor as _;
 use gpui::prelude::FluentBuilder as _;
@@ -102,7 +105,6 @@ enum Block {
         id: &'static str,
         label: &'static str,
         icon: Option<&'static str>,
-        outline: bool,
         disabled: bool,
         action: Action,
     },
@@ -142,7 +144,6 @@ fn blocks(panel: &Value, customize: bool) -> Vec<Block> {
             id: "account-add",
             label: "Add account",
             icon: None,
-            outline: true,
             disabled: false,
             action: Action::Close(json!({"type":"openAccountsSettings"})),
         });
@@ -308,7 +309,6 @@ fn blocks(panel: &Value, customize: bool) -> Vec<Block> {
             id: "account-policy-reset",
             label: "Use session defaults",
             icon: Some("titlebar/arrow-back-up.svg"),
-            outline: false,
             disabled: busy,
             action: Action::UseDefaults,
         });
@@ -416,6 +416,8 @@ struct Colors {
     switch_on: Hsla,
     switch_off: Hsla,
     thumb: Hsla,
+    /// The panel's labelled buttons (CDXC:AppModal 2026-10-14 on `neutral_button_fills`).
+    button: ChatButtonFills,
     segment_track: Hsla,
     segment_text: Hsla,
     segment_pressed: Hsla,
@@ -457,6 +459,7 @@ impl Colors {
                 gpui::Hsla::from(rgb(0xffffff)).opacity(0.135)
             },
             thumb: background,
+            button: appearance.neutral_button_fills(),
             segment_track: rail.track.into(),
             segment_text: rail.text.into(),
             segment_pressed: rail.pressed.into(),
@@ -636,14 +639,12 @@ impl ChatOptionMenuPanel {
         id: impl Into<gpui::ElementId>,
         label: &'static str,
         icon_path: Option<&'static str>,
-        outline: bool,
         disabled: bool,
         action: Action,
         colors: &Colors,
         s: f32,
         cx: &Context<Self>,
     ) -> AnyElement {
-        let muted = !outline;
         div()
             .flex()
             .child(
@@ -658,30 +659,16 @@ impl ChatOptionMenuPanel {
                     .gap(px(6.0 * s))
                     .rounded(px(8.0 * s))
                     .text_size(px(12.0 * s))
-                    .text_color(if muted {
-                        colors.muted
-                    } else {
-                        colors.foreground
-                    })
-                    .when(outline, |this| this.border_1().border_color(colors.border))
+                    .text_color(colors.foreground)
+                    .chat_filled(colors.button, !disabled)
                     .when(disabled, |this| this.opacity(0.5))
                     .when(!disabled, |this| {
-                        this.chat_cursor_pointer()
-                            .hover(|style| style.bg(colors.hover))
-                            .on_click(cx.listener(move |this, _, window, cx| {
-                                this.account_action(&action, window, cx)
-                            }))
+                        this.chat_cursor_pointer().on_click(cx.listener(
+                            move |this, _, window, cx| this.account_action(&action, window, cx),
+                        ))
                     })
                     .when_some(icon_path, |this, path| {
-                        this.child(icon(
-                            path,
-                            14.0 * s,
-                            if muted {
-                                colors.muted
-                            } else {
-                                colors.foreground
-                            },
-                        ))
+                        this.child(icon(path, 14.0 * s, colors.foreground))
                     })
                     .child(label),
             )
@@ -836,7 +823,6 @@ impl ChatOptionMenuPanel {
                     "account-stop-recovery",
                     "Stop automatic recovery",
                     None,
-                    true,
                     busy,
                     Action::Keep(json!({"type":"accounts","request":{"operation":"stopRecovery"}})),
                     colors,
@@ -1174,12 +1160,9 @@ impl ChatOptionMenuPanel {
                 id,
                 label,
                 icon: icon_path,
-                outline,
                 disabled,
                 action,
-            } => self.button(
-                id, label, icon_path, outline, disabled, action, colors, s, cx,
-            ),
+            } => self.button(id, label, icon_path, disabled, action, colors, s, cx),
         }
     }
 }

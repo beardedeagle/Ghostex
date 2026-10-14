@@ -1,4 +1,8 @@
-use super::{appearance::ChatAppearance, state::NativeChatView, transcript::text};
+use super::{
+    appearance::{ChatAppearance, ChatFilledButton as _},
+    state::NativeChatView,
+    transcript::text,
+};
 use crate::app::native_chat::cursor::ChatCursor as _;
 use gpui::StatefulInteractiveElement;
 use gpui::prelude::FluentBuilder as _;
@@ -106,6 +110,8 @@ impl NativeChatView {
         self.invoke(submission, cx);
     }
 
+    /// The chat's neutral filled text button (Load earlier turns, Retry, Use / Dismiss, the
+    /// terminal picker's actions).
     pub(crate) fn chat_button(
         &self,
         id: String,
@@ -123,9 +129,8 @@ impl NativeChatView {
             .py(px(4.0 * p.scale))
             .rounded(px(6.0 * p.scale))
             .border_1()
-            .border_color(p.border)
+            .chat_filled(p.neutral_button_fills(), true)
             .text_color(p.primary)
-            .hover(|style| style.bg(p.border))
             .child(label)
             .on_click(cx.listener(move |this, _, _, cx| this.invoke(command.clone(), cx)))
             .into_any_element()

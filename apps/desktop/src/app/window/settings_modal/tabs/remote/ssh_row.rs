@@ -120,7 +120,7 @@ pub(super) fn ssh_access_row(
                 900,
             )
         }),
-        Look::Bordered,
+        Look::Filled,
         24.0,
         14.0,
         None,
@@ -173,7 +173,7 @@ fn os_buttons(
         let look = if is_current {
             Look::Secondary
         } else {
-            Look::Ghost
+            Look::Filled
         };
         let text = if is_current {
             if t.p.light {
@@ -212,14 +212,10 @@ fn os_buttons(
             cx,
         );
         if open && !is_current {
-            // `data-popup-open` keeps the trigger in its hover fill.
+            // `data-popup-open` keeps the trigger a step stronger than its rest fill.
             button = div()
                 .rounded(px(MODAL_RADIUS_CONTROL))
-                .bg(hsla(if t.p.light {
-                    rgb(0xf1f1f1)
-                } else {
-                    rgb(0x2a2a2a)
-                }))
+                .bg(hsla(neutral_button_fills(t.p.light).rest))
                 .child(button)
                 .into_any_element();
         }

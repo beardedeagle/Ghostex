@@ -32,6 +32,8 @@ pub(crate) const QUICK_ACCESS_FOOTER_HEIGHT: f32 = 44.0;
 
 #[derive(Clone, Copy)]
 pub(crate) struct QuickAccessPalette {
+    /// The light appearance, for the shared button fills (`neutral_button_fills`).
+    pub(crate) light: bool,
     /// The child window's own fill; the React surface is transparent over it.
     pub(crate) window: Rgba,
     /// `window` as an opaque colour, for text drawn on a foreground fill. Equal to `window`
@@ -84,6 +86,7 @@ impl QuickAccessPalette {
             let foreground = rgb(0x262626);
             let hairline = modal_rgba(0x000000, 0.14);
             Self {
+                light,
                 window,
                 solid_window: window,
                 raised: rgb(0xf0f0f0),
@@ -115,6 +118,7 @@ impl QuickAccessPalette {
             let foreground = rgb(0xb4b8bf);
             let hairline = modal_rgba(0xffffff, 0.08);
             Self {
+                light,
                 window,
                 solid_window: window,
                 raised: rgb(0x161616),

@@ -1,4 +1,7 @@
-use super::super::{appearance::ChatAppearance, transcript::text};
+use super::super::{
+    appearance::{ChatAppearance, ChatFilledButton as _},
+    transcript::text,
+};
 use super::window::ContextEditorWindow;
 use crate::app::native_chat::cursor::ChatCursor as _;
 use gpui::prelude::FluentBuilder as _;
@@ -53,9 +56,15 @@ impl ContextEditorWindow {
             .when(primary, |item| {
                 item.bg(p.foreground.opacity(if p.light { 0.08 } else { 0.12 }))
                     .text_color(p.foreground)
+                    .when(!disabled, |item| {
+                        item.hover(|style| {
+                            style.bg(p.foreground.opacity(if p.light { 0.1 } else { 0.16 }))
+                        })
+                    })
             })
-            .when(!disabled, |item| {
-                item.hover(|style| style.bg(p.foreground.opacity(if p.light { 0.1 } else { 0.16 })))
+            // The other actions take the chat's neutral fill (CDXC:AppModal 2026-10-14 on `neutral_button_fills`).
+            .when(!primary, |item| {
+                item.chat_filled(p.neutral_button_fills(), !disabled)
             })
             .when(disabled, |item| item.opacity(0.5))
             .when(!disabled, |item| item.chat_cursor_pointer())

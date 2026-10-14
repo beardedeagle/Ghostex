@@ -20,7 +20,9 @@ use super::model::{
 use super::window::{
     FIND_PLACEHOLDER, FIND_PLACEHOLDER_SHORT, FindMenu, FindNoticeKind, GpuiFindPromptsModalWindow,
 };
-use crate::app::window::native_modal_kit::{hsla, modal_edge_scrollbar};
+use crate::app::window::native_modal_kit::{
+    hsla, modal_edge_scrollbar, neutral_button_fills, rgba_of,
+};
 use crate::app::window::quick_access::chrome::quick_access_tooltip;
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
@@ -300,7 +302,8 @@ impl GpuiFindPromptsModalWindow {
             .into_any_element()
     }
 
-    /// An outline toolbar button (`FIND_TOOLBAR_BUTTON_CLASS`); `active` draws the toggle's pressed state.
+    /// A filled toolbar button (`FIND_TOOLBAR_BUTTON_CLASS`, the neutral fill per CDXC:AppModal
+    /// 2026-10-14 on `neutral_button_fills`); `active` draws the toggle's pressed state.
     #[allow(clippy::too_many_arguments)]
     fn toolbar_button(
         &self,
@@ -327,6 +330,7 @@ impl GpuiFindPromptsModalWindow {
         } else {
             p.foreground
         };
+        let fills = neutral_button_fills(p.light);
         h_flex()
             .id(id)
             .flex_shrink_0()
@@ -339,13 +343,9 @@ impl GpuiFindPromptsModalWindow {
             .border_color(hsla(if active {
                 p.foreground_at(0.35)
             } else {
-                p.border
+                rgba_of(p.border, 0.0)
             }))
-            .bg(hsla(if active {
-                p.foreground_at(0.09)
-            } else {
-                p.button
-            }))
+            .bg(hsla(if active { fills.pressed } else { fills.rest }))
             .text_size(px(13.0))
             .line_height(px(18.2))
             .text_color(hsla(text))
@@ -357,9 +357,10 @@ impl GpuiFindPromptsModalWindow {
                         if active {
                             this
                         } else {
-                            this.bg(hsla(p.button_hover))
+                            this.bg(hsla(fills.hover))
                         }
                     })
+                    .active(move |this| this.bg(hsla(fills.pressed)))
                     .on_click(cx.listener(move |this, _: &ClickEvent, window, cx| {
                         this.run_action(action, window, cx);
                     }))
@@ -1166,11 +1167,17 @@ impl GpuiFindPromptsModalWindow {
                                 .flex_shrink_0()
                                 .rounded(px(8.0))
                                 .border_1()
-                                .border_color(hsla(p.border))
+                                .border_color(rgba_of(p.border, 0.0))
+                                .bg(hsla(neutral_button_fills(p.light).rest))
                                 .px(px(10.0))
                                 .py(px(4.0))
                                 .cursor_pointer()
-                                .hover(move |this| this.bg(hsla(p.accent_at(0.6))))
+                                .hover(move |this| {
+                                    this.bg(hsla(neutral_button_fills(p.light).hover))
+                                })
+                                .active(move |this| {
+                                    this.bg(hsla(neutral_button_fills(p.light).pressed))
+                                })
                                 .on_mouse_down(
                                     MouseButton::Left,
                                     cx.listener(|this, _: &MouseDownEvent, _window, cx| {

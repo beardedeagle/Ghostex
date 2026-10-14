@@ -2,7 +2,7 @@ use crate::app::helpers::{
     gpui_session_chat_uses_light_theme, sidebar_titlebar_pack_rgb, sidebar_titlebar_rgb_channels,
     work_area_background_for_variant,
 };
-use gpui::{Hsla, rgb};
+use gpui::{Hsla, Styled as _, rgb};
 
 #[derive(Clone)]
 pub(crate) struct ChatAppearance {
@@ -207,7 +207,7 @@ impl ChatAppearance {
             card_row: lifted(0.015, 0.032),
             ring: color(0x737373, 0x9f9fa9),
             prose: color(0xb4b8c0, 0x4d4d50),
-            // CDXC:SessionChat 2026-09-13 DECISION: User: fix unreadable chat cards in light mode through the shared theme. Dark mode keeps #fcfcfc titles and actions (`foreground`) and #b4b8bf content (`card_muted`); light mode uses the light palette; sizes, weights and outlined actions stay the same.
+            // CDXC:SessionChat 2026-09-13 DECISION: User: fix unreadable chat cards in light mode through the shared theme. Dark mode keeps #fcfcfc titles and actions (`foreground`) and #b4b8bf content (`card_muted`); light mode uses the light palette; sizes and weights stay the same; card actions are filled (CDXC:AppModal 2026-10-14 on `neutral_button_fills`).
             card_muted: color(0xb4b8bf, 0x71717b),
             muted: color(0x9e9e9e, 0x71717b),
             border: lifted(0.062, 0.095),
@@ -248,3 +248,65 @@ impl ChatAppearance {
         }
     }
 }
+
+/// A filled chat button's background at rest, under the pointer and while pressed.
+#[derive(Clone, Copy)]
+pub(crate) struct ChatButtonFills {
+    pub(crate) rest: Hsla,
+    pub(crate) hover: Hsla,
+    pub(crate) pressed: Hsla,
+}
+
+impl From<crate::app::window::native_modal_kit::ButtonFills> for ChatButtonFills {
+    fn from(fills: crate::app::window::native_modal_kit::ButtonFills) -> Self {
+        Self {
+            rest: fills.rest.into(),
+            hover: fills.hover.into(),
+            pressed: fills.pressed.into(),
+        }
+    }
+}
+
+impl ChatAppearance {
+    /// The neutral filled button every secondary text action in the chat's cards and dialogs
+    /// uses, the same ink wash as the app modals (CDXC:AppModal 2026-10-14 on
+    /// `neutral_button_fills`: no border-only buttons).
+    pub(crate) fn neutral_button_fills(&self) -> ChatButtonFills {
+        crate::app::window::native_modal_kit::neutral_button_fills(self.light).into()
+    }
+}
+
+/// Paints a chat text button with `fills`: the rest fill, plus the hover and pressed steps while
+/// it is enabled. Its border, if any, turns transparent so it keeps a bordered neighbour's size.
+/// These set the button's hover style, so the button must not call `hover` itself.
+pub(crate) trait ChatFilledButton:
+    gpui::StatefulInteractiveElement + gpui::Styled + Sized
+{
+    fn chat_filled(self, fills: ChatButtonFills, enabled: bool) -> Self {
+        self.chat_filled_hover_text(fills, enabled, None)
+    }
+
+    /// [`Self::chat_filled`] for a button whose label also brightens to `hover_text` on hover.
+    fn chat_filled_hover_text(
+        self,
+        fills: ChatButtonFills,
+        enabled: bool,
+        hover_text: Option<Hsla>,
+    ) -> Self {
+        let button = self.border_color(gpui::transparent_black()).bg(fills.rest);
+        if !enabled {
+            return button;
+        }
+        button
+            .hover(move |style| {
+                let style = style.bg(fills.hover);
+                match hover_text {
+                    Some(color) => style.text_color(color),
+                    None => style,
+                }
+            })
+            .active(move |style| style.bg(fills.pressed))
+    }
+}
+
+impl ChatFilledButton for gpui::Stateful<gpui::Div> {}

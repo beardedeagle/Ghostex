@@ -609,6 +609,7 @@ pub(crate) fn render_no_matches(
                     .child("Matches on:")
                     .children(others.into_iter().map(|tab| {
                         let on_select = on_select.clone();
+                        let fills = neutral_button_fills(p.light);
                         h_flex()
                             .id(SharedString::from(format!("no-matches-{}", tab.id())))
                             .role(gpui::Role::Button)
@@ -620,10 +621,12 @@ pub(crate) fn render_no_matches(
                             .items_center()
                             .rounded(px(MODAL_RADIUS_CONTROL))
                             .border_1()
-                            .border_color(hsla(p.hairline))
+                            .border_color(transparent())
+                            .bg(hsla(fills.rest))
                             .text_color(hsla(p.foreground))
                             .cursor_pointer()
-                            .hover(|this| this.bg(hsla(css_fade(p.hairline, 0.3))))
+                            .hover(move |this| this.bg(hsla(fills.hover)))
+                            .active(move |this| this.bg(hsla(fills.pressed)))
                             .on_click(move |_: &ClickEvent, window, cx| on_select(tab, window, cx))
                             .child(settings_icon(tab.icon(), 16.0, p.foreground))
                             .child(tab.title())

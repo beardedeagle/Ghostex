@@ -2,7 +2,7 @@
 //! `PortlessSetupModal` in packages/core-ui/portless-setup-modal.tsx (deleted 2026-10-01).
 //!
 //! CDXC:Portless 2026-09-15 DECISION:
-//! User: the React app modals are being rebuilt in native GPUI one at a time, and each native modal must be EXACTLY 1 to 1 with its React twin: the same layout, copy, colors, radii, spacing, states, keyboard behaviour and bridge messages in both appearances. The primary action (Install / Reconfigure) stays a plain neutral outline button, exactly as the React footer draws it, with Disable as the danger-tinted outline in the middle.
+//! User: the React app modals are being rebuilt in native GPUI one at a time, and each native modal must be EXACTLY 1 to 1 with its React twin: the same layout, copy, colors, radii, spacing, states, keyboard behaviour and bridge messages in both appearances. The primary action (Install / Reconfigure) is the neutral filled button, with Disable as the destructive filled button in the middle (CDXC:AppModal 2026-10-14 on `neutral_button_fills` superseded the React footer's outline buttons).
 //! SEE-ALSO: packages/core-ui/portless-setup-modal.tsx (deleted 2026-10-01) (the React twin and `PORTLESS_SETUP_MODAL_COPY`, mirrored below), apps/desktop/src/app/portless_setup_modal_lifecycle.rs (open, close, Portless admin actions), apps/desktop/src/app/os_integration/notifications_and_portless.rs (the opener and the action handlers).
 use super::native_modal_kit::*;
 use gpui::{

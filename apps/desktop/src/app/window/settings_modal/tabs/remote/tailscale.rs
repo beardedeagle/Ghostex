@@ -237,7 +237,7 @@ fn tailscale_body(
             "remote-tailscale-manual-toggle",
             "Or type these in",
             Some(chevron(tab.manual_open, 16.0, t.p.foreground)),
-            Look::Ghost,
+            Look::Filled,
             24.0,
             14.0,
             None,

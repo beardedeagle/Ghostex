@@ -123,7 +123,7 @@ impl ExtensionsTab {
 
     /// The editor inside its list card.
     /// CDXC:Settings 2026-09-09 DECISION:
-    /// User: the custom view editor reuses the new settings look and shared controls. Keep Cancel bordered like the other editor actions.
+    /// User: the custom view editor reuses the new settings look and shared controls. Keep Cancel bordered like the other editor actions. Since CDXC:AppModal 2026-10-14 (`neutral_button_fills`) Cancel and the other editor actions are filled instead of bordered.
     pub(crate) fn render_view_editor(
         &mut self,
         p: &SettingsPalette,
@@ -997,7 +997,7 @@ impl ExtensionsTab {
             "Cancel",
             None,
             None,
-            SizedButtonVariant::Ghost,
+            SizedButtonVariant::Outline,
             SizedButtonSize::Default,
             false,
             None,

@@ -87,6 +87,49 @@ pub(crate) fn css_mix(a: Rgba, weight_a: f32, b: Rgba) -> Rgba {
     }
 }
 
+/// A filled button's background at rest, under the pointer and while pressed.
+#[derive(Clone, Copy)]
+pub(crate) struct ButtonFills {
+    pub(crate) rest: Rgba,
+    pub(crate) hover: Rgba,
+    pub(crate) pressed: Rgba,
+}
+
+/// The neutral filled button every secondary text button in the app modals uses: a wash of the
+/// ink (white in dark, black in light) over whatever it sits on, so it reads as a solid button on
+/// the window surface, a section panel, a tinted chrome or window glass alike.
+///
+/// CDXC:AppModal 2026-10-14 DECISION:
+/// User: "I don't want any outline buttons all over the app in those modals. Users don't know these are clickable, and an outline button beside a filled button looks wrong, so always use filled buttons everywhere." Every text button in a modal, dialog or Settings page is filled: the primary keeps its own fill, secondary actions take this neutral fill and destructive ones [`destructive_button_fills`], never a border-only button. This supersedes the 2026-10-09 decision that every labelled button draws an outline and the 2026-09-09 Settings rule that the default button is the quiet bordered one (Settings still has no white buttons: its default button takes this neutral fill). Icon-only ghost buttons, menu rows, links in running text, segmented controls and switches keep their own look.
+pub(crate) fn neutral_button_fills(light: bool) -> ButtonFills {
+    let ink = if light { 0x000000 } else { 0xffffff };
+    let (rest, hover, pressed) = if light {
+        (0.07, 0.11, 0.15)
+    } else {
+        (0.10, 0.14, 0.18)
+    };
+    ButtonFills {
+        rest: modal_rgba(ink, rest),
+        hover: modal_rgba(ink, hover),
+        pressed: modal_rgba(ink, pressed),
+    }
+}
+
+/// The filled destructive button (Remove, Delete, Disable): a tint of the destructive colour under
+/// the destructive label, one step stronger on hover and again while pressed.
+pub(crate) fn destructive_button_fills(destructive: Rgba, light: bool) -> ButtonFills {
+    let (rest, hover, pressed) = if light {
+        (0.10, 0.16, 0.22)
+    } else {
+        (0.18, 0.26, 0.32)
+    };
+    ButtonFills {
+        rest: rgba_of(destructive, rest),
+        hover: rgba_of(destructive, hover),
+        pressed: rgba_of(destructive, pressed),
+    }
+}
+
 pub(crate) fn hsla(color: Rgba) -> Hsla {
     color.into()
 }

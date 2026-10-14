@@ -7,6 +7,7 @@ use super::palette::{
     QUICK_ACCESS_CONTROL_HEIGHT, QUICK_ACCESS_ITEM_FONT_SIZE, QUICK_ACCESS_RADIUS_CONTROL,
     QuickAccessPalette, hsla, parse_css_color,
 };
+use crate::app::window::native_modal_kit::{neutral_button_fills, rgba_of};
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
     AnyElement, ClickEvent, Context, Entity, FontWeight, InteractiveElement as _, IntoElement,
@@ -191,7 +192,8 @@ where
         .into_any_element()
 }
 
-/// `.ghostex-stashed-prompt-editor-button`: a 12px outline pill, filled for the primary.
+/// `.ghostex-stashed-prompt-editor-button`: a 12px pill, the foreground fill for the primary and
+/// the neutral fill otherwise (CDXC:AppModal 2026-10-14 on `neutral_button_fills`).
 fn editor_button<V: 'static>(
     p: &QuickAccessPalette,
     id: &'static str,
@@ -202,6 +204,7 @@ fn editor_button<V: 'static>(
     cx: &mut Context<V>,
 ) -> AnyElement {
     let p = *p;
+    let fills = neutral_button_fills(p.light);
     h_flex()
         .id(id)
         .flex_shrink_0()
@@ -211,12 +214,18 @@ fn editor_button<V: 'static>(
         .justify_center()
         .rounded(px(QUICK_ACCESS_RADIUS_CONTROL))
         .border_1()
-        .border_color(hsla(p.hairline))
+        .border_color(hsla(if primary {
+            p.hairline
+        } else {
+            rgba_of(p.hairline, 0.0)
+        }))
         .text_size(px(12.0))
-        .when(primary, |this| {
-            this.bg(hsla(p.foreground)).text_color(hsla(p.solid_window))
-        })
-        .when(!primary, |this| this.text_color(hsla(p.foreground)))
+        .text_color(hsla(if primary {
+            p.solid_window
+        } else {
+            p.foreground
+        }))
+        .bg(hsla(if primary { p.foreground } else { fills.rest }))
         .when(disabled, |this| this.opacity(0.45).cursor_default())
         .when(!disabled, |this| {
             this.cursor_pointer()
@@ -227,7 +236,17 @@ fn editor_button<V: 'static>(
                             ..p.foreground
                         }
                     } else {
-                        p.raised
+                        fills.hover
+                    }))
+                })
+                .active(move |this| {
+                    this.bg(hsla(if primary {
+                        Rgba {
+                            a: 0.76,
+                            ..p.foreground
+                        }
+                    } else {
+                        fills.pressed
                     }))
                 })
                 .on_click(cx.listener(move |this, _: &ClickEvent, _window, cx| {

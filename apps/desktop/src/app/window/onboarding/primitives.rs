@@ -16,8 +16,9 @@ use super::text::tracked;
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
     AnyElement, BoxShadow, Div, FontWeight, Hsla, InteractiveElement as _, IntoElement,
-    ParentElement as _, Radians, SharedString, Stateful, Styled as _, Svg, Transformation, canvas,
-    div, img, linear_color_stop, linear_gradient, point, px, size, svg,
+    ParentElement as _, Radians, SharedString, Stateful, StatefulInteractiveElement as _,
+    Styled as _, Svg, Transformation, canvas, div, img, linear_color_stop, linear_gradient, point,
+    px, size, svg,
 };
 use std::time::Instant;
 
@@ -453,8 +454,10 @@ pub(crate) fn cta(
     let (bg, border) = match (filled, hover) {
         (true, false) => (hex(0x3c4570), white(0.14)),
         (true, true) => (hex(0x485282), white(0.22)),
-        (false, false) => (rgba(8, 10, 14, 0.55), rgba(215, 222, 238, 0.62)),
-        (false, true) => (white(0.05), gpui::white()),
+        // The secondary call to action is a neutral white wash, never an outline
+        // (CDXC:AppModal 2026-10-14 on `neutral_button_fills`).
+        (false, false) => (white(0.10), white(0.0)),
+        (false, true) => (white(0.14), white(0.0)),
     };
     let bg = tween_color(&id, "bg", bg, 200);
     let border = tween_color(&id, "border", border, 200);
@@ -486,6 +489,9 @@ pub(crate) fn cta(
         })
         .when(disabled, |this| this.opacity(0.5))
         .when(!disabled, |this| this.cursor_pointer())
+        .when(!disabled && !filled, |this| {
+            this.active(|this| this.bg(white(0.18)))
+        })
         .child(label)
         .when(arrow, |this| {
             this.child(div().relative().left(s.px(nudge)).child(icon(
@@ -976,11 +982,12 @@ pub(crate) fn install_button(
 
 pub(crate) const INSTALL_BUTTON_DEFAULT: (f32, f32, f32, f32, f32) = (36.0, 13.0, 16.0, 14.0, 15.0);
 
-/// `.guide-btn`: the outlined "Install guide" button.
+/// `.guide-btn`: the "Install guide" button, a neutral white wash rather than the prototype's
+/// outline (CDXC:AppModal 2026-10-14 on `neutral_button_fills`).
 pub(crate) fn guide_button(s: S, id: impl Into<SharedString>) -> Stateful<Div> {
     let id: SharedString = id.into();
     // No transition of its own: the host's 120ms button transition.
-    let border = hover_color(&id, "border", white(0.14), white(0.3), BUTTON_MS);
+    let bg = hover_color(&id, "bg", white(0.10), white(0.14), BUTTON_MS);
     div()
         .id(id)
         .relative()
@@ -991,8 +998,9 @@ pub(crate) fn guide_button(s: S, id: impl Into<SharedString>) -> Stateful<Div> {
         .px(s.px(18.0))
         .rounded(s.px(10.0))
         .border_1()
-        .border_color(border)
-        .bg(rgba(22, 25, 34, 0.85))
+        .border_color(white(0.0))
+        .bg(bg)
+        .active(|this| this.bg(white(0.18)))
         .font_family(super::fonts::dm_sans())
         .font_weight(FontWeight(500.0))
         .text_size(s.px(15.0))

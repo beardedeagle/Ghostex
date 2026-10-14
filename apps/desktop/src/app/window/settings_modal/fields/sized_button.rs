@@ -1,7 +1,8 @@
 //! The shadcn `Button` sizes and variants the Settings management pages use besides the 32px
 //! `SettingButton` of controls.rs: `xs` (24px, 10px sides, 12px icons: the extension card
-//! actions), `sm` (28px, 12px sides: the account and detail-page actions), the default 32px, and
-//! the `secondary` and `destructive` fills, all in the Settings type scale (14px, weight 400).
+//! actions), `sm` (28px, 12px sides: the account and detail-page actions) and the default 32px,
+//! all in the Settings type scale (14px, weight 400). Every labelled variant is filled
+//! (CDXC:AppModal 2026-10-14 on `neutral_button_fills`).
 use super::super::super::native_modal_kit::*;
 use super::super::palette::SettingsPalette;
 use super::row::{CONTROL_HEIGHT, settings_icon, tooltip_text};
@@ -24,10 +25,13 @@ pub(crate) enum SizedButtonSize {
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum SizedButtonVariant {
+    /// `variant='outline'`: the neutral fill.
     Outline,
+    /// Borderless and unfilled at rest: only for icon-only buttons.
     Ghost,
-    /// `variant='default'`: Settings draws it as the quiet bordered button.
+    /// `variant='default'`: the neutral fill (Settings has no white buttons).
     Default,
+    /// The neutral fill.
     Secondary,
     Destructive,
     /// The stock filled primary (a dialog's confirm button outside the Settings skin).
@@ -45,65 +49,40 @@ pub(crate) fn secondary_fill(p: &SettingsPalette) -> gpui::Rgba {
     }
 }
 
-/// `(background, border, hover background, text)` of a variant.
+/// `(fills, text)` of a variant.
 pub(crate) fn sized_button_colors(
     p: &SettingsPalette,
     variant: SizedButtonVariant,
-) -> (gpui::Hsla, gpui::Hsla, gpui::Rgba, gpui::Rgba) {
+) -> (ButtonFills, gpui::Rgba) {
     match variant {
-        SizedButtonVariant::Outline => (
-            if p.light {
-                hsla(p.surface)
-            } else {
-                transparent()
-            },
-            hsla(p.hairline),
-            if p.light {
-                gpui::rgb(0xf1f1f1)
-            } else {
-                css_fade(p.hairline, 0.3)
-            },
-            p.foreground,
-        ),
-        SizedButtonVariant::Default => (
-            transparent(),
-            hsla(p.hairline),
-            p.raised_hover,
-            p.foreground,
-        ),
-        SizedButtonVariant::Ghost => (
-            transparent(),
-            transparent(),
-            if p.light {
+        SizedButtonVariant::Outline
+        | SizedButtonVariant::Default
+        | SizedButtonVariant::Secondary => (neutral_button_fills(p.light), p.foreground),
+        SizedButtonVariant::Ghost => {
+            let hover = if p.light {
                 gpui::rgb(0xf1f1f1)
             } else {
                 css_fade(gpui::rgb(0x262626), 0.5)
-            },
-            p.foreground,
-        ),
-        SizedButtonVariant::Secondary => {
-            // `bg-secondary text-secondary-foreground`: Settings leaves the stock tokens in place.
-            let fill = secondary_fill(p);
-            let text = if p.light {
-                p.foreground
-            } else {
-                gpui::rgb(0xfafafa)
             };
-            (hsla(fill), transparent(), css_mix(text, 0.05, fill), text)
-        }
-        SizedButtonVariant::Destructive => {
-            let (rest, hover) = if p.light { (0.10, 0.20) } else { (0.20, 0.30) };
             (
-                hsla(css_fade(p.destructive, rest)),
-                transparent(),
-                css_fade(p.destructive, hover),
-                p.destructive,
+                ButtonFills {
+                    rest: modal_rgba(0x000000, 0.0),
+                    hover,
+                    pressed: hover,
+                },
+                p.foreground,
             )
         }
+        SizedButtonVariant::Destructive => (
+            destructive_button_fills(p.destructive, p.light),
+            p.destructive,
+        ),
         SizedButtonVariant::Primary => (
-            hsla(p.primary),
-            transparent(),
-            css_fade(p.primary, 0.8),
+            ButtonFills {
+                rest: p.primary,
+                hover: css_fade(p.primary, 0.8),
+                pressed: css_fade(p.primary, 0.7),
+            },
             p.modal.primary_foreground,
         ),
     }
@@ -125,7 +104,7 @@ pub(crate) fn settings_sized_button<V: 'static>(
     on_click: impl Fn(&mut V, &mut Window, &mut Context<V>) + 'static,
     cx: &mut Context<V>,
 ) -> AnyElement {
-    let (background, border, hover, text) = sized_button_colors(p, variant);
+    let (fills, text) = sized_button_colors(p, variant);
     let (height, side, gap, icon_size, line_height) = match size {
         SizedButtonSize::Xs => (24.0, 10.0, 4.0, 12.0, 18.67),
         SizedButtonSize::Sm => (28.0, 12.0, 4.0, 16.0, 20.0),
@@ -150,8 +129,8 @@ pub(crate) fn settings_sized_button<V: 'static>(
         .justify_center()
         .rounded(px(MODAL_RADIUS_CONTROL))
         .border_1()
-        .border_color(border)
-        .bg(background)
+        .border_color(transparent())
+        .bg(hsla(fills.rest))
         .text_size(px(14.0))
         .line_height(px(line_height))
         .text_color(hsla(text))
@@ -162,7 +141,8 @@ pub(crate) fn settings_sized_button<V: 'static>(
         })
         .when(!disabled, |this| {
             this.cursor_pointer()
-                .hover(move |this| this.bg(hsla(hover)))
+                .hover(move |this| this.bg(hsla(fills.hover)))
+                .active(move |this| this.bg(hsla(fills.pressed)))
                 .on_press(cx, move |this, window, cx| {
                     on_click(this, window, cx);
                 })
@@ -189,7 +169,7 @@ pub(crate) fn settings_square_button<V: 'static>(
     on_click: impl Fn(&mut V, &mut Window, &mut Context<V>) + 'static,
     cx: &mut Context<V>,
 ) -> AnyElement {
-    let (background, border, hover, text) = sized_button_colors(p, variant);
+    let (fills, text) = sized_button_colors(p, variant);
     let icon_size = if size <= 24.0 { 12.0 } else { 16.0 };
     let tip = if disabled {
         disabled_reason.or(tooltip)
@@ -209,13 +189,14 @@ pub(crate) fn settings_square_button<V: 'static>(
         .justify_center()
         .rounded(px(MODAL_RADIUS_CONTROL))
         .border_1()
-        .border_color(border)
-        .bg(background)
+        .border_color(transparent())
+        .bg(hsla(fills.rest))
         .when(disabled, |this| this.opacity(0.5))
         .when_some(tip, |this, tip| this.tooltip(tooltip_text(tip)))
         .when(!disabled, |this| {
             this.cursor_pointer()
-                .hover(move |this| this.bg(hsla(hover)))
+                .hover(move |this| this.bg(hsla(fills.hover)))
+                .active(move |this| this.bg(hsla(fills.pressed)))
                 .on_press(cx, move |this, window, cx| {
                     on_click(this, window, cx);
                 })

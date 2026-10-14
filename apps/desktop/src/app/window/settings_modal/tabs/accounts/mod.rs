@@ -305,9 +305,7 @@ impl AccountsTab {
         }
         self.preview_applied = true;
         match state.as_str() {
-            "accounts-editor" | "accounts-editor-actions" => {
-                self.editing = Some("claude-1".into())
-            }
+            "accounts-editor" | "accounts-editor-actions" => self.editing = Some("claude-1".into()),
             "accounts-defaults" => self.defaults_open = Some("claude".into()),
             "accounts-add" => self.adding = Some("claude".into()),
             "accounts-guide" => self.open_guide("claude".into(), window, cx),
@@ -347,7 +345,7 @@ impl AccountsTab {
                 },
                 Some("modals/settings/refresh.svg"),
                 None,
-                SizedButtonVariant::Ghost,
+                SizedButtonVariant::Outline,
                 SizedButtonSize::Default,
                 busy || refreshing,
                 Some("Accounts are being read.".into()),

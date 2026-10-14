@@ -302,7 +302,7 @@ fn install_block(
                 "Install Easy Connect"
             },
             Some(leading),
-            Look::Bordered,
+            Look::Filled,
             28.0,
             14.0,
             None,
@@ -440,7 +440,7 @@ fn phone_panel(tab: &mut RemoteTab, t: &RemoteTokens, cx: &mut Context<RemoteTab
                         settings_icon(ICON_ARROWS_MAXIMIZE, 16.0, t.p.foreground)
                             .into_any_element(),
                     ),
-                    Look::Outline,
+                    Look::Filled,
                     28.0,
                     14.0,
                     None,
@@ -650,7 +650,7 @@ fn off_block(t: &RemoteTokens, can_turn_on: bool, cx: &mut Context<RemoteTab>) -
                     "remote-turn-on-easy-connect",
                     "Turn on Easy Connect",
                     Some(settings_icon(ICON_POWER, 16.0, t.p.foreground).into_any_element()),
-                    Look::Bordered,
+                    Look::Filled,
                     28.0,
                     14.0,
                     None,

@@ -3,7 +3,11 @@
 //!
 //! CDXC:SessionChat 2026-10-11 SEE-ALSO: the user's mirror and pass-through decision in packages/gx-chat-core/src/questions/terminal_picker.rs; server/src/session_chat_resume_picker.rs, apps/mobile/app/src/chat/native/cards/TerminalPickerCard.tsx.
 
-use super::{appearance::ChatAppearance, state::NativeChatView, transcript::text};
+use super::{
+    appearance::{ChatAppearance, ChatFilledButton as _},
+    state::NativeChatView,
+    transcript::text,
+};
 use crate::app::native_chat::cursor::ChatCursor as _;
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
@@ -541,9 +545,8 @@ impl NativeChatView {
                 .py(px(4.0 * s))
                 .rounded(px(6.0 * s))
                 .border_1()
-                .border_color(p.border)
+                .chat_filled(p.neutral_button_fills(), true)
                 .text_color(p.primary)
-                .hover(|style| style.bg(p.border))
                 .child("Terminal View")
                 .on_click(cx.listener(|this, event: &gpui::ClickEvent, window, cx| {
                     this.perform_composer_action("terminalView", event.position(), window, cx)

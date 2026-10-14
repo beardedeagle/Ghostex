@@ -3,7 +3,11 @@
 
 use super::disclosure_motion::measured;
 use super::thinking::estimated_lines;
-use super::{appearance::ChatAppearance, state::NativeChatView, transcript::text};
+use super::{
+    appearance::{ChatAppearance, ChatFilledButton as _},
+    state::NativeChatView,
+    transcript::text,
+};
 use crate::app::native_chat::cursor::ChatCursor as _;
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
@@ -456,7 +460,7 @@ pub(super) fn answering_placeholder(p: &ChatAppearance) -> AnyElement {
         .into_any_element()
 }
 
-/// A footer button with an optional icon and the key that does the same thing.
+/// A neutral filled footer button with an optional icon and the key that does the same thing.
 pub(super) fn side_button(
     id: &str,
     icon: Option<&'static str>,
@@ -479,7 +483,7 @@ pub(super) fn side_button(
         .py(px(4.0 * s))
         .rounded(px(6.0 * s))
         .border_1()
-        .border_color(p.border)
+        .chat_filled(p.neutral_button_fills(), !disabled)
         .text_color(p.primary)
         .when(disabled, |button| button.opacity(0.45))
         .when_some(tooltip, |button, tooltip| {
@@ -488,10 +492,7 @@ pub(super) fn side_button(
             })
         })
         .when(!disabled, |button| {
-            button
-                .chat_cursor_pointer()
-                .hover(|style| style.bg(p.border))
-                .on_click(on_click)
+            button.chat_cursor_pointer().on_click(on_click)
         })
         .when_some(icon, |button, icon| {
             button.child(svg().path(icon).size(px(14.0 * s)).text_color(p.primary))

@@ -131,7 +131,8 @@ impl GpuiAddProjectModalWindow {
     }
 
     /// A shadcn footer button inside the dialog: 32px, 8px radius, 14px/400. `primary` is the
-    /// filled default variant, else the outline one (muted label, `--background` fill).
+    /// filled default variant, else the neutral filled one (CDXC:AppModal 2026-10-14 on
+    /// `neutral_button_fills`).
     #[allow(clippy::too_many_arguments)]
     fn footer_button(
         &mut self,
@@ -147,22 +148,16 @@ impl GpuiAddProjectModalWindow {
         let handle = self.chrome_focus_handle(slot, cx);
         let focused = handle.is_focused(window) && !disabled;
         let p = skin.p;
-        let (background, border, text, hover_background, hover_text) = if primary {
+        let (background, text, hover_background, pressed_background) = if primary {
             (
                 p.primary,
-                css_fade(p.primary, 0.0),
                 p.primary_foreground,
                 css_fade(p.primary, 0.8),
-                p.primary_foreground,
+                css_mix(p.primary, 0.8, gpui::rgb(0xffffff)),
             )
         } else {
-            (
-                p.surface,
-                skin.border,
-                skin.muted(),
-                skin.muted_fill,
-                p.foreground,
-            )
+            let fills = neutral_button_fills(p.light);
+            (fills.rest, p.foreground, fills.hover, fills.pressed)
         };
         let button = h_flex()
             .id(match slot {
@@ -177,7 +172,7 @@ impl GpuiAddProjectModalWindow {
             .justify_center()
             .rounded(px(8.0))
             .border_1()
-            .border_color(hsla(border))
+            .border_color(transparent())
             .bg(hsla(background))
             .text_size(px(14.0))
             .line_height(px(20.0))
@@ -185,7 +180,8 @@ impl GpuiAddProjectModalWindow {
             .whitespace_nowrap()
             .when(disabled, |this| this.opacity(0.5))
             .when(!disabled, |this| {
-                this.hover(move |this| this.bg(hsla(hover_background)).text_color(hsla(hover_text)))
+                this.hover(move |this| this.bg(hsla(hover_background)))
+                    .active(move |this| this.bg(hsla(pressed_background)))
                     .on_click(cx.listener(move |this, _: &ClickEvent, window, cx| {
                         on_click(this, window, cx);
                     }))

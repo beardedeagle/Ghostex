@@ -1337,7 +1337,7 @@ pub(super) fn ghost_icon_button(
         .into_any_element()
 }
 
-/// An outline `size='sm'` button whose leading icon is any element (a spinner while busy).
+/// A filled `size='sm'` button whose leading icon is any element (a spinner while busy).
 fn cli_icon_button(
     p: &SettingsPalette,
     id: SharedString,
@@ -1347,11 +1347,7 @@ fn cli_icon_button(
     on_click: impl Fn(&mut AgentsTab, &mut Window, &mut Context<AgentsTab>) + 'static,
     cx: &mut Context<AgentsTab>,
 ) -> AnyElement {
-    let hover = if p.light {
-        gpui::rgb(0xf1f1f1)
-    } else {
-        css_fade(p.hairline, 0.3)
-    };
+    let fills = neutral_button_fills(p.light);
     h_flex()
         .id(id)
         .role(gpui::Role::Button)
@@ -1365,8 +1361,8 @@ fn cli_icon_button(
         .justify_center()
         .rounded(px(MODAL_RADIUS_CONTROL))
         .border_1()
-        .border_color(hsla(p.hairline))
-        .when(p.light, |this| this.bg(hsla(p.surface)))
+        .border_color(transparent())
+        .bg(hsla(fills.rest))
         .text_size(px(14.0))
         .line_height(px(20.0))
         .text_color(hsla(p.foreground))
@@ -1374,7 +1370,8 @@ fn cli_icon_button(
         .when(disabled, |this| this.opacity(0.5))
         .when(!disabled, |this| {
             this.cursor_pointer()
-                .hover(move |this| this.bg(hsla(hover)))
+                .hover(move |this| this.bg(hsla(fills.hover)))
+                .active(move |this| this.bg(hsla(fills.pressed)))
                 .on_press(cx, move |page, window, cx| {
                     on_click(page, window, cx);
                 })
@@ -1433,7 +1430,7 @@ fn cli_quiet_link(
         .into_any_element()
 }
 
-/// An outline `size='sm'` action with a `title` (the Kit tooltip stands in for the native one).
+/// A filled `size='sm'` action with a `title` (the Kit tooltip stands in for the native one).
 fn cli_titled_button(
     p: &SettingsPalette,
     id: SharedString,

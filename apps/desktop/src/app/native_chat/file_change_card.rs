@@ -8,7 +8,11 @@
 //! `CDXC:SessionChat 2026-10-11 DECISION` on `file_change_card` there); this file only lays it out.
 //! The phone draws the same card in `apps/mobile/app/src/chat/native/transcript/FileChanges.tsx`.
 
-use super::{appearance::ChatAppearance, state::NativeChatView, transcript::text};
+use super::{
+    appearance::{ChatAppearance, ChatFilledButton as _},
+    state::NativeChatView,
+    transcript::text,
+};
 use crate::app::native_chat::cursor::ChatCursor as _;
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
@@ -352,8 +356,8 @@ impl NativeChatView {
                     .text_size(px(13.0 * s))
                     .font_weight(FontWeight::MEDIUM)
                     .text_color(p.muted)
+                    .chat_filled_hover_text(p.neutral_button_fills(), true, Some(p.foreground))
                     .chat_cursor_pointer()
-                    .hover(|style| style.text_color(p.foreground).bg(p.foreground.opacity(0.06)))
                     .child("Review all")
                     .on_click(cx.listener(move |view, _, _, cx| {
                         cx.stop_propagation();
@@ -604,8 +608,8 @@ impl NativeChatView {
                 .text_size(px(13.0 * s))
                 .font_weight(FontWeight::MEDIUM)
                 .text_color(p.muted)
+                .chat_filled_hover_text(p.neutral_button_fills(), true, Some(p.foreground))
                 .chat_cursor_pointer()
-                .hover(|style| style.text_color(p.foreground).bg(p.foreground.opacity(0.06)))
                 .child(icon(glyph, 13.0 * s, p.muted))
                 .child(label)
         };

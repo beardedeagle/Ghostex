@@ -1,4 +1,7 @@
-use super::super::{appearance::ChatAppearance, transcript::text};
+use super::super::{
+    appearance::{ChatAppearance, ChatFilledButton as _},
+    transcript::text,
+};
 use super::window::SaveMarkdownWindow;
 use crate::app::helpers::ThrottledAnimationExt as _;
 use crate::app::native_chat::cursor::ChatCursor as _;
@@ -38,12 +41,10 @@ impl SaveMarkdownWindow {
             .gap(px(6.0))
             .rounded(px(10.0))
             .border_1()
-            .border_color(p.border)
+            .chat_filled(p.neutral_button_fills(), !disabled)
             .font_weight(gpui::FontWeight::MEDIUM)
             .when(disabled, |item| item.opacity(0.5).tab_stop(false))
-            .when(!disabled, |item| {
-                item.chat_cursor_pointer().hover(|style| style.bg(p.input))
-            })
+            .when(!disabled, |item| item.chat_cursor_pointer())
             .focus_visible(|style| style.border_color(p.ring))
             .when(saving, |item| {
                 item.child(

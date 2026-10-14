@@ -492,7 +492,8 @@ impl GpuiAddProjectModalWindow {
             .map(|(source, hint, install_tool)| {
                 let handle = self.chrome_focus_handle(FocusSlot::SetupRequired(index), cx);
                 let focused = handle.is_focused(window);
-                let muted_fill = skin.muted_fill;
+                // A neutral filled button (CDXC:AppModal 2026-10-14 on `neutral_button_fills`).
+                let fills = neutral_button_fills(skin.p.light);
                 let hint: SharedString = hint.clone().into();
                 let installing = installing_source == Some(*source);
                 let label: SharedString = match install_tool {
@@ -520,14 +521,15 @@ impl GpuiAddProjectModalWindow {
                     .px(px(8.0))
                     .rounded(px(6.0))
                     .border_1()
-                    .border_color(hsla(skin.border))
-                    .bg(hsla(skin.p.surface))
+                    .border_color(transparent())
+                    .bg(hsla(fills.rest))
                     .text_size(px(14.0))
                     .line_height(px(20.0))
                     .font_weight(FontWeight::MEDIUM)
                     .text_color(hsla(skin.fg()))
                     .whitespace_nowrap()
-                    .hover(move |this| this.bg(hsla(muted_fill)))
+                    .hover(move |this| this.bg(hsla(fills.hover)))
+                    .active(move |this| this.bg(hsla(fills.pressed)))
                     .tooltip(move |window, cx| Tooltip::new(hint.clone()).build(window, cx))
                     .on_mouse_down(MouseButton::Left, |_, window, cx| {
                         window.prevent_default();

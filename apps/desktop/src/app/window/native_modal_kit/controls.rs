@@ -198,9 +198,9 @@ pub(crate) enum ModalButtonTone {
     Danger,
 }
 
-/// A footer pill button (`.gx-app-modal-action-button`): 32px tall, 8px radius,
-/// outline by default, filled for the primary tone, destructive-tinted outline
-/// for the danger tone, half opacity when disabled.
+/// A footer pill button (`.gx-app-modal-action-button`): 32px tall, 8px radius, the neutral fill
+/// by default, the primary fill for the primary tone, the destructive fill for the danger tone
+/// (CDXC:AppModal 2026-10-14 on [`neutral_button_fills`]), half opacity when disabled.
 pub(crate) fn modal_action_button<V: 'static>(
     p: &ModalPalette,
     id: &'static str,
@@ -212,20 +212,19 @@ pub(crate) fn modal_action_button<V: 'static>(
     cx: &mut Context<V>,
 ) -> AnyElement {
     let p = *p;
-    let (background, border, text, hover) = match tone {
-        ModalButtonTone::Neutral => (transparent(), p.hairline, p.foreground, p.raised_hover),
+    let (fills, text) = match tone {
+        ModalButtonTone::Neutral => (neutral_button_fills(p.light), p.foreground),
         ModalButtonTone::Primary => (
-            hsla(p.primary),
-            p.primary,
+            ButtonFills {
+                rest: p.primary,
+                hover: p.primary_hover(),
+                pressed: css_mix(p.primary, 0.8, gpui::rgb(0xffffff)),
+            },
             p.primary_foreground,
-            p.primary_hover(),
         ),
-        // `.gx-app-modal-action-danger`: an outline tint, never a fill.
         ModalButtonTone::Danger => (
-            transparent(),
-            rgba_of(p.destructive, 0.45),
+            destructive_button_fills(p.destructive, p.light),
             p.destructive,
-            rgba_of(p.destructive, 0.12),
         ),
     };
     let label: SharedString = label.into();
@@ -244,8 +243,8 @@ pub(crate) fn modal_action_button<V: 'static>(
         .justify_center()
         .rounded(px(MODAL_RADIUS_CONTROL))
         .border_1()
-        .border_color(hsla(border))
-        .bg(background)
+        .border_color(transparent())
+        .bg(hsla(fills.rest))
         .text_size(px(14.0))
         .line_height(px(20.0))
         .text_color(hsla(text))
@@ -253,7 +252,8 @@ pub(crate) fn modal_action_button<V: 'static>(
         .when(disabled, |this| this.opacity(0.5).cursor_default())
         .when(!disabled, |this| {
             this.cursor_pointer()
-                .hover(move |this| this.bg(hsla(hover)))
+                .hover(move |this| this.bg(hsla(fills.hover)))
+                .active(move |this| this.bg(hsla(fills.pressed)))
                 .on_press(cx, move |this, window, cx| {
                     on_click(this, window, cx);
                 })

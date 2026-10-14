@@ -1,7 +1,11 @@
 use super::ask_card::{
     AskBodyMotion, AskOption, AskTone, ask_head, chevron, press_head, progress_dots,
 };
-use super::{appearance::ChatAppearance, state::NativeChatView, transcript::text};
+use super::{
+    appearance::{ChatAppearance, ChatFilledButton as _},
+    state::NativeChatView,
+    transcript::text,
+};
 use crate::app::native_chat::cursor::ChatCursor as _;
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
@@ -287,8 +291,8 @@ impl NativeChatView {
         ))
     }
 
-    /// CDXC:SessionChat 2026-10-09 DECISION:
-    /// User: "please make the buttons look the same" (no borderless text buttons). Every question, async-question and approval footer button (Back, Cancel, Skip included) draws the control border; the borderless ghost variant is gone here and in the phone's `CardButton` (apps/mobile/app/src/chat/native/cards/primitives.tsx).
+    /// CDXC:SessionChat 2026-10-14 DECISION:
+    /// User: "please make the buttons look the same" (2026-10-09, no borderless text buttons), then "always use filled buttons everywhere" (CDXC:AppModal 2026-10-14 on `neutral_button_fills`). Every question, async-question and approval footer button (Back, Cancel, Skip included) takes the chat's neutral fill instead of the 2026-10-09 control border; the ghost variant stays gone here and in the phone's `CardButton` (apps/mobile/app/src/chat/native/cards/primitives.tsx).
     pub(super) fn question_button(
         &self,
         id: &'static str,
@@ -312,17 +316,12 @@ impl NativeChatView {
             .justify_center()
             .rounded(px(8.0 * s))
             .border_1()
-            .border_color(p.control_border)
+            .chat_filled(p.neutral_button_fills(), !disabled)
             .text_color(p.foreground)
             .font_weight(gpui::FontWeight::NORMAL)
             .when(wide, |button| button.min_w(px(96.0 * s)))
             .when(disabled, |button| button.opacity(0.5))
-            .when(!disabled, |button| {
-                button
-                    .chat_cursor_pointer()
-                    .hover(|style| style.bg(p.input))
-            })
-            .when(p.light, |button| button.bg(p.background))
+            .when(!disabled, |button| button.chat_cursor_pointer())
             .child(label.to_owned())
             .when(!disabled, |button| {
                 button.on_click(cx.listener(move |this, _, _, cx| this.invoke(action.clone(), cx)))

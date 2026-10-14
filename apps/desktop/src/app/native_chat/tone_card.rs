@@ -1,6 +1,6 @@
 //! The tone card the notices and approvals above the composer are drawn in: a faint wash of the
 //! card's tone, a tinted icon tile beside a title and a muted detail line, the body, and a footer
-//! with one primary action, secondary buttons and quiet ghost buttons.
+//! with one primary action and neutral filled secondary buttons.
 //!
 //! The tone comes from the chat core (`tone` on `terminalNotice`, always `approval` for an
 //! approval card); its hue, glyph and the shell's measurements are the shared
@@ -8,7 +8,10 @@
 //! The decision is on `notice_tone` in `packages/gx-chat-core/src/questions/notice_tone.rs`.
 
 use super::disclosure_motion::{FoldFrame, measured, motion_clip};
-use super::{appearance::ChatAppearance, state::NativeChatView};
+use super::{
+    appearance::{ChatAppearance, ChatButtonFills, ChatFilledButton as _},
+    state::NativeChatView,
+};
 use crate::app::native_chat::cursor::ChatCursor as _;
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
@@ -93,12 +96,12 @@ pub(super) fn tone_look(tone: &str, p: &ChatAppearance) -> ToneLook {
     }
 }
 
-/// How much a footer button stands out.
+/// How much a footer button stands out. There is no ghost or outlined footer button: every
+/// labelled one is filled (CDXC:AppModal 2026-10-14 on `neutral_button_fills`).
 #[derive(Clone, Copy, PartialEq)]
 pub(super) enum ToneButton {
     Primary,
     Secondary,
-    Ghost,
 }
 
 /// The card's parts, laid out by [`NativeChatView::tone_card`].
@@ -287,23 +290,16 @@ impl NativeChatView {
     ) -> Stateful<Div> {
         let s = p.scale;
         let v = &VISUAL.shell;
-        let (fill, text, border) = match kind {
-            ToneButton::Primary => (p.control_primary, p.background, p.control_primary),
-            ToneButton::Secondary => (p.foreground.opacity(0.05), p.foreground, p.control_border),
-            ToneButton::Ghost => (
-                gpui::transparent_black(),
-                p.muted,
-                gpui::transparent_black(),
+        let (fills, text) = match kind {
+            ToneButton::Primary => (
+                ChatButtonFills {
+                    rest: p.control_primary,
+                    hover: p.control_primary.opacity(0.88),
+                    pressed: p.control_primary.opacity(0.8),
+                },
+                p.background,
             ),
-        };
-        let hover_fill = match kind {
-            ToneButton::Primary => p.control_primary.opacity(0.88),
-            ToneButton::Secondary => p.foreground.opacity(0.09),
-            ToneButton::Ghost => p.foreground.opacity(0.05),
-        };
-        let hover_text = match kind {
-            ToneButton::Ghost => p.foreground,
-            _ => text,
+            ToneButton::Secondary => (p.neutral_button_fills(), p.foreground),
         };
         div()
             .id(id)
@@ -317,17 +313,12 @@ impl NativeChatView {
             .gap(px(6.0 * s))
             .rounded(px(v.button_radius * s))
             .border_1()
-            .border_color(border)
-            .bg(fill)
+            .chat_filled(fills, !disabled)
             .text_size(px(v.button_text_size * s))
             .font_weight(FontWeight::MEDIUM)
             .text_color(text)
             .when(disabled, |button| button.opacity(0.5))
-            .when(!disabled, |button| {
-                button
-                    .chat_cursor_pointer()
-                    .hover(move |style| style.bg(hover_fill).text_color(hover_text))
-            })
+            .when(!disabled, |button| button.chat_cursor_pointer())
             .when_some(icon, |button, icon| {
                 button.child(
                     gpui::svg()
@@ -363,8 +354,8 @@ impl NativeChatView {
             })
     }
 
-    /// The dismiss button at a tone card header's right end, the circled X every chat card uses
-    /// (the 2026-09-07 decision in approval.rs).
+    /// The dismiss button at a tone card header's right end, the circled X every chat card uses,
+    /// filled like the Secondary footer buttons (the 2026-09-07 decision in approval.rs).
     pub(super) fn tone_icon_button(
         &self,
         id: impl Into<gpui::ElementId>,
@@ -383,11 +374,8 @@ impl NativeChatView {
             .items_center()
             .justify_center()
             .rounded_full()
-            .border_1()
-            .border_color(p.control_border.opacity(0.65))
-            .bg(p.background.opacity(0.4))
+            .chat_filled(p.neutral_button_fills(), true)
             .chat_cursor_pointer()
-            .hover(|style| style.bg(p.background.opacity(0.7)).text_color(p.foreground))
             .child(
                 gpui::svg()
                     .path(icon)

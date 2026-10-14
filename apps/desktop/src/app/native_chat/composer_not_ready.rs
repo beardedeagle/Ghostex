@@ -7,7 +7,11 @@
 //! ready.tsx): a read-only excerpt of the CURRENT screen, re-read on every
 //! expand, and a switch to the session's terminal surface.
 
-use super::{appearance::ChatAppearance, state::NativeChatView, transcript::text};
+use super::{
+    appearance::{ChatAppearance, ChatFilledButton as _},
+    state::NativeChatView,
+    transcript::text,
+};
 use crate::app::native_chat::cursor::ChatCursor as _;
 use gpui::{
     AnyElement, Context, InteractiveElement as _, IntoElement, ParentElement as _,
@@ -115,9 +119,8 @@ impl NativeChatView {
                 .py(px(4.0 * s))
                 .rounded(px(6.0 * s))
                 .border_1()
-                .border_color(p.border)
+                .chat_filled(p.neutral_button_fills(), true)
                 .text_color(p.primary)
-                .hover(|style| style.bg(p.border))
                 .child(
                     gpui::svg()
                         .path(if open {

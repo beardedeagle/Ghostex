@@ -879,7 +879,7 @@ pub(super) fn machine_dialog(
             "remote-machine-advanced-toggle",
             "Advanced",
             Some(chevron(advanced_open, 16.0, colors.foreground)),
-            Look::Ghost,
+            Look::Filled,
             28.0,
             14.0,
             Some(colors.foreground),

@@ -8,7 +8,11 @@
 //! in the composer" rule live in packages/gx-chat-core (the rewind sheet in `transcript/actions.rs`),
 //! ported from the deleted packages/shared/session-chat-controller/native-message-actions.ts.
 
-use super::{appearance::ChatAppearance, state::NativeChatView, transcript::text};
+use super::{
+    appearance::{ChatAppearance, ChatFilledButton as _},
+    state::NativeChatView,
+    transcript::text,
+};
 use crate::app::native_chat::cursor::ChatCursor as _;
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
@@ -179,12 +183,10 @@ impl RewindWindow {
             .justify_center()
             .rounded(px(10.0))
             .border_1()
-            .border_color(p.border)
+            .chat_filled(p.neutral_button_fills(), !disabled)
             .font_weight(gpui::FontWeight::MEDIUM)
             .when(disabled, |item| item.opacity(0.5).tab_stop(false))
-            .when(!disabled, |item| {
-                item.chat_cursor_pointer().hover(|style| style.bg(p.input))
-            })
+            .when(!disabled, |item| item.chat_cursor_pointer())
             .focus_visible(|style| style.border_color(p.ring))
             .child(label)
             .on_click(cx.listener(move |this, _, _, cx| {

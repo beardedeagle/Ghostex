@@ -186,6 +186,7 @@ pub(crate) struct ModalButtonSkin {
     pub(crate) text: Rgba,
     pub(crate) hover_background: Rgba,
     pub(crate) hover_text: Rgba,
+    pub(crate) pressed_background: Rgba,
 }
 
 /// A shadcn `Button` (packages/components/ui/button.tsx (deleted 2026-10-01)): content-sized, 8px radius, a 1px edge,
@@ -231,6 +232,7 @@ pub(crate) fn modal_skinned_button<V: 'static>(
                 this.bg(hsla(skin.hover_background))
                     .text_color(hsla(skin.hover_text))
             })
+            .active(move |this| this.bg(hsla(skin.pressed_background)))
             .on_click(cx.listener(move |this, _: &ClickEvent, window, cx| {
                 on_click(this, window, cx);
             }))

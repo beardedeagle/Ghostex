@@ -14,8 +14,8 @@ use super::primitives::*;
 use super::stage::*;
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
-    AnyElement, Context, InteractiveElement as _, IntoElement, ParentElement as _, Styled as _,
-    div, linear_color_stop, linear_gradient,
+    AnyElement, Context, InteractiveElement as _, IntoElement, ParentElement as _,
+    StatefulInteractiveElement as _, Styled as _, div, linear_color_stop, linear_gradient,
 };
 use std::collections::{HashSet, VecDeque};
 use std::time::{Duration, Instant};
@@ -369,13 +369,15 @@ impl GpuiOnboardingWindow {
                             },
                             interact::BUTTON_MS,
                         );
-                        let border = interact::tween_color(
+                        // A neutral white wash rather than the prototype's outline
+                        // (CDXC:AppModal 2026-10-14 on `neutral_button_fills`).
+                        let bg = interact::tween_color(
                             "scan-rescan",
-                            "border",
+                            "bg",
                             if rescan_enabled && interact::hovered("scan-rescan") {
-                                white(0.32)
-                            } else {
                                 white(0.14)
+                            } else {
+                                white(0.10)
                             },
                             interact::BUTTON_MS,
                         );
@@ -389,13 +391,15 @@ impl GpuiOnboardingWindow {
                             .px(s.px(12.0))
                             .rounded(s.px(8.0))
                             .border_1()
-                            .border_color(border)
-                            .bg(rgba(12, 14, 20, 0.6))
+                            .border_color(white(0.0))
+                            .bg(bg)
                             .font_family(super::fonts::dm_sans())
                             .font_weight(gpui::FontWeight(500.0))
                             .text_size(s.px(13.5))
                             .text_color(color)
-                            .when(rescan_enabled, |this| this.cursor_pointer())
+                            .when(rescan_enabled, |this| {
+                                this.cursor_pointer().active(|this| this.bg(white(0.18)))
+                            })
                             .when(!rescan_enabled, |this| {
                                 this.opacity(DISABLED_BUTTON_OPACITY)
                             })

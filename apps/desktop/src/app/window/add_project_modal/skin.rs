@@ -14,7 +14,7 @@ use gpui_component::kbd::Kbd;
 #[derive(Clone, Copy)]
 pub(super) struct AddProjectSkin {
     pub(super) p: ModalPalette,
-    /// `--border`: hairlines, the review cards, the outline buttons.
+    /// `--border`: hairlines and the review cards.
     pub(super) border: Rgba,
     /// `--input`: the branch field and the checkboxes.
     pub(super) input: Rgba,

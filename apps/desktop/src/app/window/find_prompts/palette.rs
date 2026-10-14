@@ -26,7 +26,7 @@ pub(crate) struct FindPalette {
     pub(crate) primary: Rgba,
     pub(crate) popover: Rgba,
     pub(crate) popover_border: Rgba,
-    /// An outline button's fill at rest and on hover.
+    /// A filter trigger's fill at rest and on hover.
     pub(crate) button: Rgba,
     pub(crate) button_hover: Rgba,
     /// The filter menu's search field (`input/30`) and its focus border and ring.

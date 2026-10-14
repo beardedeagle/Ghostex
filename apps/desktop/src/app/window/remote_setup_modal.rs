@@ -291,15 +291,6 @@ impl GpuiRemoteSetupModalWindow {
         }
     }
 
-    /// shadcn `--border`: white at 10% in dark, black at 14% in light (modals-light.css).
-    fn shadcn_border(&self) -> Rgba {
-        if self.palette.light {
-            self.palette.hairline
-        } else {
-            modal_rgba(0xffffff, 0.10)
-        }
-    }
-
     /// shadcn `--muted`: `oklch(0.269 0 0)` = #262626 in dark, #f1f1f1 in light; the button hover fill.
     fn shadcn_muted(&self) -> Rgba {
         if self.palette.light {
@@ -348,9 +339,9 @@ impl GpuiRemoteSetupModalWindow {
             .into_any_element()
     }
 
-    /// shadcn `variant='outline'` inside the modal: surface fill, `--border`
-    /// edge, 8px radius, 32px tall, 14px text, muted fill on hover.
-    fn outline_button(
+    /// A labelled button inside the modal: the neutral fill (CDXC:AppModal 2026-10-14 on
+    /// `neutral_button_fills`), 8px radius, 32px tall, 14px text.
+    fn filled_button(
         &self,
         id: &'static str,
         padding_x: f32,
@@ -358,7 +349,7 @@ impl GpuiRemoteSetupModalWindow {
         cx: &mut Context<Self>,
     ) -> Stateful<Div> {
         let p = self.palette;
-        let hover = self.shadcn_muted();
+        let fills = neutral_button_fills(p.light);
         h_flex()
             .id(id)
             .flex_shrink_0()
@@ -369,19 +360,16 @@ impl GpuiRemoteSetupModalWindow {
             .justify_center()
             .rounded(px(MODAL_RADIUS_CONTROL))
             .border_1()
-            .border_color(hsla(self.shadcn_border()))
-            .bg(if p.glass {
-                transparent()
-            } else {
-                hsla(p.background)
-            })
+            .border_color(transparent())
+            .bg(hsla(fills.rest))
             .text_size(px(14.0))
             .line_height(px(20.0))
             .font_weight(FontWeight::NORMAL)
             .text_color(hsla(p.foreground))
             .whitespace_nowrap()
             .cursor_pointer()
-            .hover(move |this| this.bg(hsla(hover)))
+            .hover(move |this| this.bg(hsla(fills.hover)))
+            .active(move |this| this.bg(hsla(fills.pressed)))
             .on_click(cx.listener(move |this, _: &ClickEvent, window, cx| {
                 on_click(this, window, cx);
             }))
@@ -603,7 +591,7 @@ impl GpuiRemoteSetupModalWindow {
         let p = self.palette;
         let android_open = self.android_open;
         let install_button = self
-            .outline_button(
+            .filled_button(
                 "remote-setup-android-install",
                 10.0,
                 |this, _window, cx| this.toggle_android(cx),
@@ -621,7 +609,7 @@ impl GpuiRemoteSetupModalWindow {
             )
             .into_any_element();
         let discord_button = self
-            .outline_button(
+            .filled_button(
                 "remote-setup-join-discord",
                 10.0,
                 |this, _window, cx| this.open_discord(cx),
@@ -859,7 +847,7 @@ impl GpuiRemoteSetupModalWindow {
                     .gap(px(12.0))
                     .child(self.render_muted(TAILSCALE_FOOT))
                     .child(
-                        self.outline_button(
+                        self.filled_button(
                             "remote-setup-tailscale-instructions",
                             12.0,
                             |this, window, cx| this.show_tailscale_instructions(window, cx),

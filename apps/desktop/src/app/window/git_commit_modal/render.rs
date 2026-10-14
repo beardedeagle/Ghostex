@@ -737,7 +737,7 @@ impl GpuiGitCommitModalWindow {
             .into_any_element()
     }
 
-    /// A `.git-commit-modal-button`: the shell's outline pill, sized to its label, at least 132px,
+    /// A `.git-commit-modal-button`: the shell's neutral filled pill, sized to its label, at least 132px,
     /// with shadcn's keyboard ring. A disabled button is not a tab stop.
     fn footer_button(
         &self,

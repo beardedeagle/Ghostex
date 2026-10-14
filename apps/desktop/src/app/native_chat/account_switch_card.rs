@@ -11,7 +11,9 @@ User: drop the bars under the usage tiles, stop the tile name (Fable) looking th
 */
 
 use super::{
-    appearance::ChatAppearance, new_session_welcome::brand_logo_color, state::NativeChatView,
+    appearance::{ChatAppearance, ChatFilledButton as _},
+    new_session_welcome::brand_logo_color,
+    state::NativeChatView,
     working_spark::css_ease_in_out,
 };
 use crate::app::helpers::ThrottledAnimationExt as _;
@@ -431,13 +433,12 @@ impl NativeChatView {
                                 .gap(px(6.0 * s))
                                 .rounded(px(8.0 * s))
                                 .border_1()
-                                .border_color(palette.line)
+                                .chat_filled(appearance.neutral_button_fills(), !busy)
                                 .text_size(px(11.0 * s))
                                 .text_color(palette.foreground)
                                 .when(busy, |this| this.opacity(0.5))
                                 .when(!busy, |this| {
                                     this.chat_cursor_pointer()
-                                        .hover(|style| style.bg(palette.tile))
                                         .on_click(cx.listener(move |this, _, _, cx| {
                                             this.invoke(command.clone(), cx)
                                         }))

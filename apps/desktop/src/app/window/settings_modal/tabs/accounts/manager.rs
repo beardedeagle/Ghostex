@@ -60,7 +60,7 @@ impl AccountsTab {
     /// One provider's section.
     ///
     /// CDXC:Settings 2026-09-10 DECISION:
-    /// User: the Accounts page is organized like the General page. One Accounts section holds the page-wide rows, and each provider is its own section whose card lists the saved accounts as expandable management rows, with Connection guide and Add account as quiet header actions. Refresh accounts is a quiet header action too, superseding the 2026-09-07 decision that made it a brighter standalone button above the list. The Accounts page uses the General page's section cards and rows; account-specific chrome is limited to the identity figures, the status caption, and inset form blocks.
+    /// User: the Accounts page is organized like the General page. One Accounts section holds the page-wide rows, and each provider is its own section whose card lists the saved accounts as expandable management rows, with Connection guide and Add account as quiet header actions. Refresh accounts is a quiet header action too, superseding the 2026-09-07 decision that made it a brighter standalone button above the list. The Accounts page uses the General page's section cards and rows; account-specific chrome is limited to the identity figures, the status caption, and inset form blocks. The header actions wear the neutral fill of every labelled button since CDXC:AppModal 2026-10-14 (`neutral_button_fills`).
     pub(crate) fn render_provider_section(
         &mut self,
         p: &SettingsPalette,
@@ -97,7 +97,7 @@ impl AccountsTab {
             "Connection guide",
             Some("modals/settings/book.svg"),
             None,
-            SizedButtonVariant::Ghost,
+            SizedButtonVariant::Outline,
             SizedButtonSize::Default,
             false,
             None,
@@ -111,7 +111,7 @@ impl AccountsTab {
                 "Add account",
                 Some(icon::PLUS),
                 None,
-                SizedButtonVariant::Ghost,
+                SizedButtonVariant::Outline,
                 SizedButtonSize::Default,
                 false,
                 None,
@@ -127,15 +127,11 @@ impl AccountsTab {
                 },
                 cx,
             );
-            // `aria-expanded:bg-muted`.
+            // `aria-expanded`: a step stronger than the button's rest fill.
             div()
                 .rounded(px(MODAL_RADIUS_CONTROL))
                 .when(adding, |this| {
-                    this.bg(hsla(if p.light {
-                        gpui::rgb(0xf1f1f1)
-                    } else {
-                        gpui::rgb(0x27272a)
-                    }))
+                    this.bg(hsla(neutral_button_fills(p.light).rest))
                 })
                 .child(button)
                 .into_any_element()

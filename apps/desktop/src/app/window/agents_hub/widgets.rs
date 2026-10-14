@@ -2,8 +2,8 @@
 //! tokens: the three shadcn `Button` variants it uses, icons, agent logos, status dots, pills
 //! and tinted icon tiles (packages/core-ui/agents-hub-sync/shared.tsx (deleted 2026-10-01)).
 use super::super::native_modal_kit::{
-    ModalButtonSkin, ModalFieldSkin, hsla, modal_skinned_button, modal_text_input_skinned, rgba_of,
-    transparent,
+    ModalButtonSkin, ModalFieldSkin, hsla, modal_skinned_button, modal_text_input_skinned,
+    neutral_button_fills, rgba_of, transparent,
 };
 use super::palette::HubPalette;
 use super::sync_model::SyncTone;
@@ -66,26 +66,25 @@ pub(crate) enum HubButtonSize {
 
 fn hub_button_skin(hp: &HubPalette, variant: HubButtonVariant) -> ModalButtonSkin {
     match variant {
-        HubButtonVariant::Quiet => ModalButtonSkin {
-            background: rgba_of(hp.background, 0.0),
-            border: hp.hairline,
-            text: hp.foreground,
-            hover_background: hp.settings_raised_hover,
-            hover_text: hp.foreground,
-        },
-        HubButtonVariant::Outline => ModalButtonSkin {
-            background: hp.background,
-            border: hp.hairline,
-            text: hp.foreground,
-            hover_background: hp.muted_fill,
-            hover_text: hp.foreground,
-        },
+        // Every labelled Hub button is filled (CDXC:AppModal 2026-10-14 on `neutral_button_fills`).
+        HubButtonVariant::Quiet | HubButtonVariant::Outline => {
+            let fills = neutral_button_fills(hp.light);
+            ModalButtonSkin {
+                background: fills.rest,
+                border: rgba_of(hp.background, 0.0),
+                text: hp.foreground,
+                hover_background: fills.hover,
+                hover_text: hp.foreground,
+                pressed_background: fills.pressed,
+            }
+        }
         HubButtonVariant::Ghost => ModalButtonSkin {
             background: rgba_of(hp.background, 0.0),
             border: rgba_of(hp.background, 0.0),
             text: hp.foreground,
             hover_background: hp.muted_fill,
             hover_text: hp.foreground,
+            pressed_background: hp.muted_fill,
         },
     }
 }
@@ -103,7 +102,7 @@ pub(crate) fn hub_button<V: 'static>(
     on_click: impl Fn(&mut V, &mut Window, &mut Context<V>) + 'static,
     cx: &mut Context<V>,
 ) -> Stateful<Div> {
-    // A labelled button always draws the outline (CDXC:AppModal 2026-10-09 on `settings_button_sized`).
+    // A labelled button is always filled (CDXC:AppModal 2026-10-14 on `neutral_button_fills`).
     let variant = match variant {
         HubButtonVariant::Ghost if label.is_some() => HubButtonVariant::Outline,
         other => other,
