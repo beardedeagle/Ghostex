@@ -82,8 +82,14 @@ pub(crate) fn dispatch(
         let provider: Provider =
             serde_json::from_value(params.get("provider").cloned().unwrap_or_default())
                 .map_err(store::error)?;
-        let email = field(params, "email")?.trim();
-        if !email.contains('@') || email.chars().any(char::is_whitespace) {
+        let email = params
+            .get("email")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|email| !email.is_empty());
+        if email.is_some_and(|email| {
+            email.len() >= 512 || !email.contains('@') || email.chars().any(char::is_whitespace)
+        }) {
             return Err(DomainStateError::bad_request("Enter the account email."));
         }
         if params.get("shareHistory").and_then(Value::as_bool) != Some(true) {
@@ -125,13 +131,20 @@ pub(crate) fn dispatch(
         .ok_or_else(|| DomainStateError::bad_request("Install the account login helper first."))?;
         let mut command = CommandBuilder::new(binary);
         if provider == Provider::Claude {
-            command.args(["account-login", "claude", "--email", email, "--json"]);
+            command.args(["account-login", "claude", "--json"]);
             if let Some(selector) = selector {
+                // The CLI pre-fills the browser with the saved account's own email.
                 command.args(["--account", selector]);
+            } else if let Some(email) = email {
+                command.args(["--email", email]);
             }
         } else if let Some(selector) = selector {
             command.args(["login", selector]);
         } else {
+            // xswap checks the browser login against the email it was given and prompts for one
+            // when it has none, which a Settings login cannot answer.
+            let email = email
+                .ok_or_else(|| DomainStateError::bad_request("Enter the Codex account's email."))?;
             command.args([
                 "add",
                 "--login",
@@ -217,6 +230,10 @@ pub(crate) fn dispatch(
             }
             drop(pair.master);
             let transcript = output.join().unwrap_or_default();
+            let wrong_account = result
+                .as_ref()
+                .err()
+                .and_then(|_| wrong_account(&transcript));
             let blockers = (provider == Provider::Codex && result.is_err())
                 .then(|| codex_blockers::pids_in_refusal(&transcript))
                 .filter(|pids| !pids.is_empty())
@@ -243,6 +260,10 @@ pub(crate) fn dispatch(
                         if let Some(blockers) = blockers {
                             job.view["error"] = json!("Codex is still running and has to stop before this login can finish.");
                             job.view["blockers"] = blockers;
+                        } else if let Some(signed_in) = wrong_account {
+                            job.view["error"] =
+                                json!("The browser signed in to a different account.");
+                            job.view["wrongAccount"] = json!({ "signedIn": signed_in });
                         } else {
                             job.view["error"] = json!(error.message);
                         }
@@ -290,6 +311,25 @@ pub(crate) fn dispatch(
         .collect();
     views.sort_by_key(|view| view["createdAt"].as_i64().unwrap_or_default());
     Ok(response(views))
+}
+/// The login ended on another account than the one asked for: the email the browser signed in to
+/// (empty when the helper did not say), from `ghostex account-login`'s "signed in to <email>
+/// instead of" or xswap's "signed in to a different email".
+fn wrong_account(transcript: &str) -> Option<String> {
+    const CLAUDE: &str = "The browser signed in to ";
+    if let Some(start) = transcript.find(CLAUDE) {
+        let rest = &transcript[start + CLAUDE.len()..];
+        let email = rest
+            .split_whitespace()
+            .next()
+            .filter(|word| word.contains('@'))
+            .unwrap_or_default();
+        return Some(email.to_string());
+    }
+    let lower = transcript.to_lowercase();
+    (lower.contains("signed in to a different email")
+        || lower.contains("now signed into another account"))
+    .then(String::new)
 }
 fn read_output(mut reader: Box<dyn Read + Send>, job: Arc<Mutex<SetupJob>>) -> String {
     let mut terminal = LoginTerminal::new();

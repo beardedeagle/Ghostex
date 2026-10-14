@@ -1,8 +1,9 @@
 //! The Accounts page (settings-modal/tabs/accounts.tsx (deleted 2026-10-01) wrapping accounts/manager.tsx (deleted 2026-10-01)): the Accounts
-//! section (Refresh accounts, Hide emails, the read state), then one section per provider with its
-//! saved accounts (expandable into their editor), New session defaults, the add-account setup, the
-//! sign-in flow in progress, Claude Swap / Codex Swap maintenance, and the Connect your accounts
-//! guide.
+//! section (Refresh accounts, Hide emails, the read state), then the account manager: a list of
+//! each provider's saved accounts with its rules on the left (`list.rs`), the selected account, the
+//! provider's rules or the Add account setup on the right (`editor.rs`, `rules.rs`, `manager.rs`),
+//! the sign-in flows (`connect.rs`), Claude Swap / Codex Swap as quiet footer lines
+//! (`helper_tools.rs`), and the Connect your accounts guide.
 //!
 //! CDXC:Settings 2026-09-28 WHY:
 //! The page reads and changes accounts through the Settings host's gxserver call
@@ -15,7 +16,10 @@ pub(crate) mod data;
 mod editor;
 mod guide;
 mod helper_tools;
+mod list;
 mod manager;
+mod preview;
+mod rules;
 mod sign_in_watch;
 pub(crate) mod widgets;
 
@@ -66,12 +70,10 @@ pub(crate) struct AccountsTab {
     /// The provider whose Connection guide is open.
     pub(crate) guide: Option<String>,
     pub(crate) guide_focus: FocusHandle,
-    /// The provider whose Add account setup is open.
-    pub(crate) adding: Option<String>,
-    /// The account whose editor is open.
-    pub(crate) editing: Option<String>,
-    pub(crate) defaults_open: Option<String>,
-    pub(crate) highlighted: Option<String>,
+    /// What the right-hand pane shows; `None` until the user picks, which shows the first account.
+    pub(crate) pane: Option<Pane>,
+    /// The account whose sign-in just finished: its pane says Connected for a few seconds.
+    pub(crate) connected: Option<(String, Task<()>)>,
     /// The sign-in in progress (`pendingJob`).
     pub(crate) pending_job: Option<Value>,
     completed_job: String,
@@ -90,10 +92,24 @@ pub(crate) struct AccountsTab {
     pub(crate) commit_inputs: HashSet<SharedString>,
 }
 
+/// What the account manager's right-hand pane shows.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum Pane {
+    /// A saved account (its id).
+    Account(String),
+    /// A provider's rules for new sessions and limits.
+    Rules(&'static str),
+    /// A provider's Add account setup.
+    Add(&'static str),
+}
+
 impl super::HoldsUnsavedInput for AccountsTab {
-    /// An Add account setup, an account editor or an Uninstall confirmation is open.
+    /// An Add account setup, a Remove confirmation or an Uninstall confirmation is open (account
+    /// edits save as they are made).
     fn holds_unsaved_input(&self, _cx: &gpui::App) -> bool {
-        self.adding.is_some() || self.editing.is_some() || self.helpers.confirm_uninstall.is_some()
+        matches!(self.pane, Some(Pane::Add(_)))
+            || self.editors.values().any(|draft| draft.remove)
+            || self.helpers.confirm_uninstall.is_some()
     }
 }
 
@@ -138,10 +154,8 @@ impl AccountsTab {
             client,
             guide: None,
             guide_focus: cx.focus_handle(),
-            adding: None,
-            editing: None,
-            defaults_open: None,
-            highlighted: None,
+            pane: None,
+            connected: None,
             pending_job: None,
             completed_job: String::new(),
             setup_poll: None,
@@ -235,17 +249,9 @@ impl AccountsTab {
                     {
                         page.completed_job =
                             complete["id"].as_str().unwrap_or_default().to_string();
-                        page.highlighted = Some(account_id.to_string());
-                        page.adding = None;
                         page.guide = None;
-                        page.editing = Some(account_id.to_string());
-                        page.client.update(cx, |client, cx| {
-                            client.request(
-                                json!({ "operation": "list", "refresh": true }),
-                                None,
-                                cx,
-                            )
-                        });
+                        page.select_pane(Pane::Account(account_id.to_string()), cx);
+                        page.mark_connected(account_id.to_string(), cx);
                     }
                     cx.notify();
                 });
@@ -304,17 +310,85 @@ impl AccountsTab {
             return;
         }
         self.preview_applied = true;
-        match state.as_str() {
-            "accounts-editor" | "accounts-editor-actions" => self.editing = Some("claude-1".into()),
-            "accounts-defaults" => self.defaults_open = Some("claude".into()),
-            "accounts-add" => self.adding = Some("claude".into()),
-            "accounts-guide" => self.open_guide("claude".into(), window, cx),
-            "accounts-uninstall" => {
-                self.helpers.confirm_uninstall = Some("claude".into());
-            }
-            _ => {}
-        }
+        self.apply_preview_pane(&state, window, cx);
         cx.notify();
+    }
+
+    /// Shows `pane`. Leaving an account saves what its focused field still holds and forgets its
+    /// draft, so returning starts fresh; a finished sign-in's flow is dropped too.
+    pub(crate) fn select_pane(&mut self, pane: Pane, cx: &mut Context<Self>) {
+        if self.pane.as_ref() == Some(&pane) {
+            return;
+        }
+        if let Some(Pane::Account(id)) = self.pane.clone() {
+            self.commit_editor(&id, cx);
+            self.editors.remove(&id);
+            let key = format!("reconnect:{id}");
+            if self
+                .flows
+                .get(&key)
+                .and_then(|flow| flow.job.as_ref())
+                .is_none_or(|job| !connect::job_active(job))
+                && self.flows.get(&key).is_none_or(|flow| !flow.starting)
+            {
+                self.flows.remove(&key);
+            }
+        }
+        if let Pane::Add(provider) = &pane {
+            // CDXC:AgentProviders 2026-10-04 WHY: the setup flow is keyed per provider and keeps its finished job, so without this reset a second Add account showed the first add's "Account connected" message instead of the sign-in button.
+            self.reset_setup_flows(provider);
+            self.setups.remove(*provider);
+        }
+        self.pane = Some(pane);
+        cx.notify();
+    }
+
+    /// The account's pane says Connected for six seconds and the list is read again.
+    pub(crate) fn mark_connected(&mut self, account_id: String, cx: &mut Context<Self>) {
+        let id = account_id.clone();
+        let clear = cx.spawn(async move |this, cx| {
+            cx.background_executor().timer(Duration::from_secs(6)).await;
+            let _ = this.update(cx, |page, cx| {
+                if page
+                    .connected
+                    .as_ref()
+                    .is_some_and(|(shown, _)| *shown == id)
+                {
+                    page.connected = None;
+                    page.flows.remove(&format!("reconnect:{id}"));
+                    cx.notify();
+                }
+            });
+        });
+        self.connected = Some((account_id, clear));
+        self.client.update(cx, |client, cx| {
+            client.request(json!({ "operation": "list", "refresh": true }), None, cx)
+        });
+        cx.notify();
+    }
+
+    /// The pane shown: the chosen one while it still exists, else the first saved account, else
+    /// the first provider's Add account setup.
+    pub(crate) fn effective_pane(&self, data: &data::AccountsState) -> Pane {
+        let exists = |pane: &Pane| match pane {
+            Pane::Account(id) => data
+                .accounts()
+                .iter()
+                .any(|account| account.id() == *id && account.registered()),
+            Pane::Rules(_) | Pane::Add(_) => true,
+        };
+        if let Some(pane) = self.pane.clone().filter(exists) {
+            return pane;
+        }
+        data::PROVIDERS
+            .iter()
+            .find_map(|provider| {
+                data.registered(provider)
+                    .first()
+                    .map(|account| account.id())
+            })
+            .map(Pane::Account)
+            .unwrap_or(Pane::Add("claude"))
     }
 
     /// The Accounts section.
@@ -446,7 +520,7 @@ impl AccountsTab {
         settings_section(
             &p,
             "Accounts",
-            Some("Add your account to see usage and reset times in Ghostex, even if you only use one account. Star an account to show its stats in the sidebar; in chat context details, star Account limits to show usage in the status line.".into()),
+            Some("Add your account to see usage and reset times in Ghostex, even if you only use one account. Turn on Show usage in the sidebar for an account to keep its stats there.".into()),
             refresh,
             rows,
         )
@@ -489,13 +563,8 @@ impl Render for AccountsTab {
             self.render_accounts_section(cx),
         ));
         if self.client.read(cx).data.is_some() {
-            for provider in data::PROVIDERS {
-                let section = self.render_provider_section(&p, provider, window, cx);
-                blocks.push(PageBlock::section(
-                    SharedString::from(format!("accounts-{provider}")).to_string(),
-                    section,
-                ));
-            }
+            let manager = self.render_manager(&p, window, cx);
+            blocks.push(PageBlock::section("accounts-manager", manager));
         }
         if let Some(guide) = self.render_guide(&p, window, cx) {
             blocks.push(PageBlock::plain(guide));

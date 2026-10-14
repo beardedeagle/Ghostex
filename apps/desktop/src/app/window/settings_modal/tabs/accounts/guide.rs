@@ -87,9 +87,9 @@ impl AccountsTab {
                     "Codex accounts use Codex Swap (xswap CLI) by Mohamad Yahia (maddada)."
                 }),
                 paragraph(if id == "claude" {
-                    "Enter the new account’s email below and choose it in the browser. Ghostex uses a separate login profile and verifies the account before saving it with cswap. To refresh an existing login, use that account’s Reconnect action."
+                    "Choose Sign in with browser and pick the account in the browser. Ghostex uses a separate login profile and saves the account with cswap. To refresh an existing login, use that account’s Reconnect button."
                 } else {
-                    "Enter the new account’s email below and choose it in the browser. xswap verifies the login before saving a separate account home with shared session history. To refresh an existing login, use that account’s Reconnect action."
+                    "Enter the new account’s email, then choose Sign in with browser and pick that account. xswap checks the login before saving a separate account home with shared session history. To refresh an existing login, use that account’s Reconnect button."
                 }),
             ];
             if let Some(helper) =
@@ -134,15 +134,20 @@ impl AccountsTab {
             } else {
                 "codex"
             };
+            let consent_needed = !data
+                .registered(provider_id)
+                .iter()
+                .any(|account| account.raw["sharedHistory"] == true);
             div()
                 .w_full()
                 .my(px(12.0))
-                .child(self.render_connect_flow_sized(
+                .child(self.render_connect_flow(
                     p,
                     format!("guide:{provider}"),
                     provider_id,
                     None,
                     None,
+                    consent_needed,
                     true,
                     window,
                     cx,
@@ -152,7 +157,7 @@ impl AccountsTab {
         let mut first: Vec<AnyElement> = vec![
             heading("1. Save a login"),
             paragraph(
-                "Enter the account email and allow shared conversations, then choose Add account. Finish signing in through your browser; Settings shows the progress automatically.",
+                "Allow shared chat history the first time, then choose Sign in with browser. Finish signing in through your browser; Settings shows the progress automatically.",
             ),
             v_flex()
                 .w_full()
@@ -167,10 +172,10 @@ impl AccountsTab {
             section(vec![
                 heading("2. Your account is ready"),
                 paragraph(
-                    "Ghostex verifies and adds the connected account automatically, then opens Settings > Accounts with it highlighted. Star the account to show its usage in the titlebar. In chat context details, star Account limits to show usage in the status line.",
+                    "Ghostex checks and adds the connected account automatically, then opens Settings > Accounts with it selected. Turn on Show usage in the sidebar to keep its usage there. In chat context details, star Account limits to show usage in the status line.",
                 ),
                 paragraph(
-                    "Give the account a name or swap its slot with another account. A small label centered over the session’s agent icon identifies the account. Use its slot number or set up to two custom letters or numbers in the account’s settings.",
+                    "Give the account a name. A small badge centered over the session’s agent icon identifies the account: its number, or up to two letters or numbers you set under the account’s Advanced settings, where you can also swap its number with another account.",
                 ),
             ]),
             section(vec![
@@ -179,13 +184,13 @@ impl AccountsTab {
                     "Open the agent dropdown in a project’s sidebar header. Choose Claude or Codex, then an account to start a session immediately. Custom agents keep their own settings.",
                 ),
                 paragraph(
-                    "Quick launch uses the account chosen under Account for new sessions in Settings. Choosing another account from the launcher applies only to that new session. Until you add an account for a provider, Ghostex uses its current CLI login without an account switcher.",
+                    "Quick launch uses the account chosen under New sessions start on in the provider’s rules. Choosing another account from the launcher applies only to that new session. Until you add an account for a provider, Ghostex uses its current CLI login without an account switcher.",
                 ),
             ]),
             section(vec![
                 heading("Let work continue"),
                 paragraph(
-                    "Under New session defaults, enable auto-continue and choose whether to wait for a usage reset or switch to an available account of the same provider. Automatic switching uses only connected accounts you have marked available, following your priority setting. Shared history lets the conversation resume.",
+                    "In the provider’s rules, choose what happens when an account hits its limit: switch to another account, wait for it to reset, or do nothing. Switching uses only connected accounts with Auto-switch on, trying them in the order you pick. Shared history lets the conversation resume.",
                 ),
                 paragraph(
                     "With error retries enabled, temporary failures retry after 5, 10, 20, 40, then 60 minutes between attempts. Login and permission problems need your attention. The computer and Ghostex server must stay running.",

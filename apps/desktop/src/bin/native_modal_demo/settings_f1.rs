@@ -14,9 +14,16 @@
 //! link), `extensions-scope-menu` (its picker open), `extensions-arrange` (Arrange views), `extensions-delete-view` (Delete
 //! confirmation over the Configure view deep link),
 //! `extensions-select` (the type filter open), `extensions-offline` (no gxserver); `accounts`,
-//! `accounts-editor`, `accounts-editor-actions` (scrolled to its buttons), `accounts-defaults`, `accounts-add`, `accounts-guide`, `accounts-connect`
-//! (a sign-in in progress), `accounts-uninstall`, `accounts-error`, `accounts-loading`,
-//! `accounts-empty` (no saved accounts).
+//! `accounts-editor` (an account's pane), `accounts-advanced` (its Advanced open),
+//! `accounts-editor-actions` (scrolled to its buttons), `accounts-remove` (the Remove
+//! confirmation), `accounts-needs-sign-in` (an account whose login stopped working),
+//! `accounts-reconnect` (its sign-in waiting), `accounts-code` (waiting with the code box and
+//! Details open), `accounts-connected`, `accounts-wrong` (signed in to another account),
+//! `accounts-blockers` (Codex sessions to pause), `accounts-defaults` / `accounts-rules` (Claude
+//! rules), `accounts-add`, `accounts-add-codex`, `accounts-add-waiting`, `accounts-menu` (the
+//! helper's ⋯ menu), `accounts-guide`, `accounts-connect` (a sign-in in progress),
+//! `accounts-uninstall`, `accounts-error`, `accounts-loading`, `accounts-empty` (no saved
+//! accounts).
 use serde_json::{Map, Value, json};
 use std::cell::RefCell;
 
@@ -37,9 +44,36 @@ fn accounts() -> Value {
     ACCOUNT_STATE.with(|state| {
         state
             .borrow_mut()
-            .get_or_insert_with(|| serde_json::from_str(ACCOUNTS).unwrap_or(Value::Null))
+            .get_or_insert_with(|| {
+                let mut data: Value = serde_json::from_str(ACCOUNTS).unwrap_or(Value::Null);
+                relative_resets(&mut data);
+                data
+            })
             .clone()
     })
+}
+
+/// The fixture writes reset times as `in:<minutes>` so the page always shows "resets in 2h 14m".
+fn relative_resets(data: &mut Value) {
+    let Some(accounts) = data["accounts"].as_array_mut() else {
+        return;
+    };
+    for window in accounts
+        .iter_mut()
+        .filter_map(|account| account["usage"].as_array_mut())
+        .flatten()
+    {
+        if let Some(minutes) = window["resetsAt"]
+            .as_str()
+            .and_then(|reset| reset.strip_prefix("in:"))
+            .and_then(|minutes| minutes.parse::<i64>().ok())
+        {
+            let at = chrono::Utc::now()
+                + chrono::Duration::minutes(minutes)
+                + chrono::Duration::seconds(30);
+            window["resetsAt"] = json!(at.to_rfc3339());
+        }
+    }
 }
 
 fn installed() -> Vec<Value> {
@@ -70,7 +104,10 @@ pub(super) fn story_settings(state: &str, settings: &mut Map<String, Value>) {
     }
     let fixture = extensions();
     settings.insert("customViews".into(), fixture["customViews"].clone());
-    if state == "accounts-editor-actions" {
+    if matches!(
+        state,
+        "accounts-editor-actions" | "accounts-remove" | "accounts-menu" | "accounts-uninstall"
+    ) {
         settings.insert(
             "settingsModalNavigation".into(),
             json!({ "activeTab": "accounts", "scrollTopByTab": { "accounts": 420 }, "version": 1 }),

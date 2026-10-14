@@ -5,7 +5,7 @@
 use super::super::super::super::native_modal_kit::*;
 use super::super::super::fields::{SizedButtonVariant, settings_square_button, tooltip_text};
 use super::super::super::palette::SettingsPalette;
-use super::data::{Account, mask_account_text};
+use super::data::{Account, UsageWindow, mask_account_text};
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
     AnyElement, Context, InteractiveElement as _, IntoElement, ParentElement as _, SharedString,
@@ -103,11 +103,11 @@ pub(crate) fn account_identity(p: &SettingsPalette, account: &Account) -> AnyEle
         .into_any_element()
 }
 
-/// `AccountTitlebarStar`: shows or hides the account's usage in the sidebar.
+/// `AccountTitlebarStar`: shows or hides the account's usage in the sidebar, on the Extensions
+/// page's Account usage list. The Accounts page uses a switch instead (`render_account_detail`).
 ///
-/// CDXC:AgentProviders 2026-09-08 DECISION:
-/// User: a star with the tooltip "Show this account's stats in the titlebar" pins each account independently.
-/// The tooltip says "in the sidebar" (as the React star already did when it was deleted) because the usage meters moved from the titlebar to the sidebar usage strip; see the Settings 2026-09-20 decision in mod.rs.
+/// CDXC:AgentProviders 2026-10-14 DECISION:
+/// User picked "Replace the star with a Show usage in the sidebar switch" for Settings > Accounts: each account's detail pane has a Show usage in the sidebar switch and the account list shows no star. Supersedes the 2026-09-08 star on the Accounts page; the Extensions page's Account usage list keeps this star, with the "in the sidebar" tooltip.
 pub(crate) fn account_star<V: 'static>(
     p: &SettingsPalette,
     account: &Account,
@@ -196,5 +196,192 @@ pub(crate) fn copy_command<V: 'static>(
             on_copy,
             cx,
         ))
+        .into_any_element()
+}
+
+/// `.gx-account-mark` with its indicator: the provider logo at 30% under the badge label (Codex in
+/// `#7db8fb`); a `-` indicator shows the plain logo. `scale` 1.0 is the sidebar's 19.2px mark.
+///
+/// CDXC:AgentProviders 2026-09-09 DECISION:
+/// User wants the same account-label font centered over a larger provider icon as its background. Account icons always use original provider colors; labels and adjacent usage figures share the chat indicator's monospace font. Claude keeps its label color; Codex uses #7db8fb. The background icon is 19.2px (20% smaller) and the label is 9.9px (10% bigger). This replaces the label-underneath design. Sidebar icons and account menus have no indicator. Labels accept up to two letters or digits; - hides the label and an empty setting uses the slot number.
+pub(crate) fn account_mark(
+    p: &SettingsPalette,
+    provider: &str,
+    indicator: &str,
+    scale: f32,
+) -> AnyElement {
+    if indicator == "-" {
+        return account_logo(p, provider, 21.0 * scale);
+    }
+    let size = 19.2 * scale;
+    div()
+        .relative()
+        .flex_shrink_0()
+        .size(px(size))
+        .flex()
+        .items_center()
+        .justify_center()
+        .child(
+            div()
+                .absolute()
+                .inset_0()
+                .opacity(0.3)
+                .child(account_logo(p, provider, size)),
+        )
+        .child(
+            div()
+                .font_family(MODAL_MONO_FONT)
+                .font_weight(gpui::FontWeight::SEMIBOLD)
+                .text_size(px(9.9 * scale))
+                .line_height(px(9.9 * scale))
+                .text_color(hsla(if provider == "codex" {
+                    gpui::rgb(0x7db8fb)
+                } else {
+                    p.muted
+                }))
+                .child(indicator.to_string()),
+        )
+        .into_any_element()
+}
+
+/// The badge an account's sessions show: its indicator, or its slot number when it has none.
+pub(crate) fn account_badge(account: &Account) -> String {
+    let indicator = account.indicator();
+    if indicator.is_empty() {
+        account.selector()
+    } else {
+        indicator
+    }
+}
+
+/// A neutral usage bar (CDXC:AgentProviders 2026-09-08: usage bars remain neutral).
+pub(crate) fn usage_bar(p: &SettingsPalette, used_percent: f64, height: f32) -> AnyElement {
+    let fraction = (used_percent / 100.0).clamp(0.0, 1.0) as f32;
+    div()
+        .flex_1()
+        .min_w(px(24.0))
+        .h(px(height))
+        .rounded(px(height / 2.0))
+        .bg(hsla(p.foreground_alpha(0.1)))
+        .overflow_hidden()
+        .child(
+            div()
+                .h_full()
+                .w(gpui::relative(fraction))
+                .rounded(px(height / 2.0))
+                .bg(hsla(p.foreground_alpha(0.6))),
+        )
+        .into_any_element()
+}
+
+/// One usage window as a row: its label, the bar, and "41% used · resets in 2h 14m".
+pub(crate) fn usage_line(p: &SettingsPalette, window: &UsageWindow) -> AnyElement {
+    let label = if window.label.is_empty() {
+        "Usage".to_string()
+    } else {
+        window.label.clone()
+    };
+    h_flex()
+        .w_full()
+        .items_center()
+        .gap(px(10.0))
+        .text_size(px(12.0))
+        .line_height(px(16.0))
+        .child(
+            div()
+                .w(px(56.0))
+                .flex_shrink_0()
+                .overflow_hidden()
+                .whitespace_nowrap()
+                .text_ellipsis()
+                .text_color(hsla(p.muted))
+                .child(label),
+        )
+        .child(usage_bar(p, window.used_percent, 6.0))
+        .child(
+            h_flex()
+                .flex_shrink_0()
+                .gap(px(4.0))
+                .whitespace_nowrap()
+                .child(
+                    div()
+                        .text_color(hsla(p.foreground))
+                        .child(format!("{}% used", window.used_percent.round() as i64)),
+                )
+                .children(
+                    window
+                        .reset_text()
+                        .map(|reset| div().text_color(hsla(p.muted)).child(format!("· {reset}"))),
+                ),
+        )
+        .into_any_element()
+}
+
+/// The tone of a `status_tag`.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum TagTone {
+    /// A grey dot: Auto-switch off.
+    Off,
+    /// A green dot: Auto-switch on.
+    On,
+    /// Amber: Needs sign-in.
+    Warning,
+    /// Green: Connected.
+    Success,
+    /// No dot (saved resets).
+    Plain,
+}
+
+/// A small rounded tag with an optional status dot ("Auto-switch on", "Needs sign-in").
+pub(crate) fn status_tag(
+    p: &SettingsPalette,
+    text: impl Into<SharedString>,
+    tone: TagTone,
+) -> AnyElement {
+    let (background, foreground, dot) = match tone {
+        TagTone::Warning => (
+            modal_rgba(0xfbbf24, 0.13),
+            if p.light {
+                gpui::rgb(0xb45309)
+            } else {
+                gpui::rgb(0xfcd34d)
+            },
+            Some(modal_rgba(0xfbbf24, 0.95)),
+        ),
+        TagTone::Success => (
+            modal_rgba(0x34d399, 0.14),
+            if p.light {
+                gpui::rgb(0x047857)
+            } else {
+                gpui::rgb(0x6ee7b7)
+            },
+            Some(modal_rgba(0x34d399, 0.95)),
+        ),
+        TagTone::On => (
+            p.foreground_alpha(0.07),
+            p.muted,
+            Some(modal_rgba(0x34d399, 0.9)),
+        ),
+        TagTone::Off => (
+            p.foreground_alpha(0.07),
+            p.muted,
+            Some(p.foreground_alpha(0.3)),
+        ),
+        TagTone::Plain => (p.foreground_alpha(0.07), p.muted, None),
+    };
+    h_flex()
+        .flex_shrink_0()
+        .h(px(22.0))
+        .px(px(8.0))
+        .gap(px(6.0))
+        .items_center()
+        .rounded_full()
+        .bg(hsla(background))
+        .text_size(px(11.5))
+        .line_height(px(14.0))
+        .whitespace_nowrap()
+        .text_color(hsla(foreground))
+        .children(dot.map(|dot| div().size(px(6.0)).rounded_full().bg(hsla(dot))))
+        .child(text.into())
         .into_any_element()
 }

@@ -2,15 +2,16 @@ use super::rpc::{CliError, CliResult};
 use crate::accounts::helpers;
 use serde_json::Value;
 use std::{
-    io::{self, Write},
     path::Path,
     process::{Command, Stdio},
 };
 
-const HELP: &str = "Usage: ghostex account-login claude [--account NUMBER] [--email EMAIL] [--json]\n\nSign in with a separate Claude profile and save it with cswap.\nWithout --account, asks for a new account's email.\nWith --account, reconnects only that saved account.";
+const HELP: &str = "Usage: ghostex account-login claude [--account NUMBER] [--email EMAIL] [--json]\n\nSign in with a separate Claude profile and save it with cswap.\nWithout --account, saves the account you choose in the browser; --email pre-fills it and requires that account.\nWith --account, reconnects only that saved account.";
 
 /// CDXC:AgentProviders 2026-09-07 WHY:
 /// Running `claude auth login && cswap add` against the active profile refreshed the last-used account when browser login reused its identity. New logins need a fresh profile and an identity check before cswap captures anything; reconnect must match the selected saved identity.
+/// CDXC:AgentProviders 2026-10-14 DECISION:
+/// User picked "Add account without typing the email" for Settings > Accounts. A new account no longer asks for an email: the browser sign-in decides which account is saved, and an optional --email only pre-fills it and requires that account. Reconnect always pre-fills and requires the saved account's own email.
 pub(crate) fn run(args: &[String]) -> CliResult<()> {
     if args
         .iter()
@@ -71,26 +72,23 @@ pub(crate) fn run(args: &[String]) -> CliResult<()> {
                 })
         })
         .transpose()?;
-    let email = if let Some(target) = target {
-        target["email"]
-            .as_str()
-            .filter(|email| !email.is_empty())
-            .ok_or_else(|| {
-                failure("The saved account has no email identity. Refresh Accounts first.")
-            })?
-            .to_string()
-    } else if let Some(email) = supplied_email {
-        email
+    let email: Option<String> = if let Some(target) = target {
+        Some(
+            target["email"]
+                .as_str()
+                .filter(|email| !email.is_empty())
+                .ok_or_else(|| {
+                    failure("The saved account has no email identity. Refresh Accounts first.")
+                })?
+                .to_string(),
+        )
     } else {
-        print!("Email for the new Claude account: ");
-        io::stdout().flush().map_err(|e| failure(e.to_string()))?;
-        let mut email = String::new();
-        io::stdin()
-            .read_line(&mut email)
-            .map_err(|e| failure(e.to_string()))?;
-        email.trim().to_string()
+        supplied_email.map(|email| email.trim().to_string())
     };
-    if !email.contains('@') || email.chars().any(char::is_whitespace) {
+    if email
+        .as_deref()
+        .is_some_and(|email| !email.contains('@') || email.chars().any(char::is_whitespace))
+    {
         return Err(failure(
             "Enter the email address of the Claude account you want to connect.",
         ));
@@ -106,9 +104,12 @@ pub(crate) fn run(args: &[String]) -> CliResult<()> {
     println!(
         "Choose the requested account in the browser. If another account appears, choose a different account before authorizing."
     );
-    let status = profile
-        .command(&claude)
-        .args(["auth", "login", "--claudeai", "--email", &email])
+    let mut login = profile.command(&claude);
+    login.args(["auth", "login", "--claudeai"]);
+    if let Some(email) = &email {
+        login.args(["--email", email]);
+    }
+    let status = login
         .status()
         .map_err(|e| failure(format!("Could not start Claude login: {e}")))?;
     if !status.success() {
@@ -125,10 +126,19 @@ pub(crate) fn run(args: &[String]) -> CliResult<()> {
     let identity = &config["oauthAccount"];
     let signed_in_email = identity["emailAddress"].as_str().unwrap_or_default();
     let organization = identity["organizationUuid"].as_str().unwrap_or_default();
-    if !signed_in_email.eq_ignore_ascii_case(&email) {
+    if signed_in_email.is_empty() {
         return Err(failure(
-            "The browser signed in to a different email. Run login again and choose the requested account. No saved account was changed.",
+            "Claude did not report which account signed in. No saved account was changed.",
         ));
+    }
+    // SEE-ALSO: `wrong_account` in server/src/accounts/setup.rs reads this sentence.
+    if let Some(email) = email
+        .as_deref()
+        .filter(|email| !signed_in_email.eq_ignore_ascii_case(email))
+    {
+        return Err(failure(format!(
+            "The browser signed in to {signed_in_email} instead of {email}. Run login again and choose the requested account. No saved account was changed."
+        )));
     }
     let matches_identity = |row: &Value| {
         row["email"]

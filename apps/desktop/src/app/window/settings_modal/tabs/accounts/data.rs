@@ -50,6 +50,7 @@ pub(crate) struct UsageWindow {
     pub(crate) used_percent: f64,
     pub(crate) limit_window_seconds: Option<f64>,
     pub(crate) model: Option<String>,
+    pub(crate) resets_at: Option<String>,
 }
 
 impl UsageWindow {
@@ -64,7 +65,30 @@ impl UsageWindow {
                 .and_then(Value::as_str)
                 .filter(|model| !model.is_empty())
                 .map(str::to_string),
+            resets_at: value
+                .get("resetsAt")
+                .and_then(Value::as_str)
+                .filter(|reset| !reset.is_empty())
+                .map(str::to_string),
         }
+    }
+
+    /// "resets in 2h 14m" within a day, otherwise the local weekday and time ("resets Thu 9:00").
+    pub(crate) fn reset_text(&self) -> Option<String> {
+        let reset = chrono::DateTime::parse_from_rfc3339(self.resets_at.as_deref()?).ok()?;
+        let seconds = reset.timestamp() - chrono::Utc::now().timestamp();
+        if seconds <= 0 {
+            return Some("resets now".into());
+        }
+        let minutes = seconds / 60;
+        Some(if minutes < 60 {
+            format!("resets in {}m", minutes.max(1))
+        } else if minutes < 24 * 60 {
+            format!("resets in {}h {}m", minutes / 60, minutes % 60)
+        } else {
+            let local = reset.with_timezone(&chrono::Local);
+            format!("resets {}", local.format("%a %-H:%M"))
+        })
     }
 
     fn is_weekly(&self) -> bool {
@@ -135,6 +159,25 @@ impl Account {
 
     pub(crate) fn status(&self) -> String {
         text(&self.raw, "status")
+    }
+    /// The saved login stopped working (or is missing): the account needs Reconnect.
+    pub(crate) fn needs_sign_in(&self) -> bool {
+        self.status() != "ready"
+    }
+    /// The figure the account list shows: the most used of its headline windows.
+    pub(crate) fn tightest_percent(&self) -> Option<f64> {
+        self.headline_windows()
+            .iter()
+            .map(|window| window.used_percent)
+            .fold(None, |most, used| {
+                Some(most.map_or(used, |most: f64| most.max(used)))
+            })
+    }
+    /// The windows the detail pane draws as bars: five-hour first, then the others.
+    pub(crate) fn usage_bars(&self) -> Vec<UsageWindow> {
+        let mut windows = self.headline_windows();
+        windows.sort_by_key(|window| !window.is_five_hour());
+        windows
     }
 
     pub(crate) fn show_in_titlebar(&self) -> bool {

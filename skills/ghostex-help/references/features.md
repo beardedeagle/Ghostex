@@ -1503,11 +1503,29 @@ available". Choose Use to load it into your input, or Dismiss to keep what you
 have; hover over or click its preview icon to read the full text above the icon
 first.
 
-Settings > Accounts saves Claude and Codex logins and marks each one Automatic
-or Manual. Quick launch, the main launcher row, and any session started without
-picking an account use the Account for new sessions rule under each
-provider's New session defaults. The automatic rules only consider Automatic
-accounts: Auto (the default) weighs remaining limit against time to reset and
+Settings > Accounts saves Claude and Codex logins. The left side lists each
+provider's accounts with a usage bar (or a Reconnect button when a login stopped
+working) and the provider's rules; click one to see it on the right: its usage
+bars with reset times, Name, Auto-switch (whether Ghostex may move sessions to
+it at a limit, shown as an Auto-switch on or off tag), Show usage in the sidebar,
+and under Advanced the Session badge (up to two letters or numbers on its
+session icons) and its Account number, which you can swap with another
+account's. Changes save as you make them; Sign in again and Remove sit at the
+bottom, and Remove asks first and says how many sessions use the account.
+Reconnect is one click: your browser opens on the provider's sign-in page with
+the account's email filled in, Settings shows "Waiting for you to sign in…" (a
+box for a sign-in code appears only if the browser shows one, and the sign-in
+log stays under Details), and the account shows Connected with fresh usage when
+you finish. If the browser signed in to another account, Settings names it and
+offers Try again or adding it as a new account. To add an account, click + next
+to Claude or Codex and choose Sign in with browser; a Claude account needs no
+email (pick it in the browser), while Codex asks for the new account's email
+first. The first account of a provider also asks to share chat history between
+your accounts, which lets a conversation carry on with another account.
+Quick launch, the main launcher row, and any session started without
+picking an account use New sessions start on in each provider's rules (Claude
+rules or Codex rules in the list). The automatic rules only consider accounts
+with Auto-switch on: Auto (the default) weighs remaining limit against time to reset and
 picks the account that can absorb the most usage before any of its limits
 resets, Most limit remaining picks the account with the most limit left, Soonest
 reset the one whose limit resets first, Most used first keeps draining the
@@ -1525,17 +1543,17 @@ not even at a usage limit. Keep such a profile in `~/.claude-profiles/<name>`
 Install hook for that agent in Settings > Agents. Ghostex's skills live in
 `~/.agents/skills`, which Codex profiles read on their own; for a Claude
 profile, link its `skills` folder to `~/.claude/skills` to use them.
-Each provider on Settings > Accounts also lists its account helper, Claude Swap
-(cswap) or Codex Swap (xswap), with three icon buttons: Update (shown when a
-newer release is out; otherwise a check mark that checks again when clicked),
-Reinstall, and Uninstall, which asks first and keeps saved logins and shared
-conversations. Hover a button to see the installed and latest versions. Ghostex
-runs the update with the tool that installed the helper (uv or pipx for cswap;
-Homebrew, Cargo or the Windows installer for xswap); for a helper installed some
-other way the buttons are off, so update it the way you installed it.
+Under the account list, Settings > Accounts shows one line per account helper,
+Claude Swap (cswap) and Codex Swap (xswap), with its version and an Update button
+when a newer release is out (otherwise Check for updates). Its ⋯ menu holds
+Reinstall and Uninstall, which asks first and keeps saved logins and shared
+conversations. Ghostex runs the update with the tool that installed the helper
+(uv or pipx for cswap; Homebrew, Cargo or the Windows installer for xswap); for
+a helper installed some other way the buttons are off, so update it the way you
+installed it.
 Before sending a session's first message, use the model menu's Switch Agent CLI
-to change between Claude and Codex. The new agent uses its Account for new
-sessions rule, just like the sidebar agent button, while the terminal and your
+to change between Claude and Codex. The new agent uses its New sessions start
+on rule, just like the sidebar agent button, while the terminal and your
 unsent chat text stay in place.
 Sign-in and usage-limit notices in Claude and Codex chats offer Switch account
 beside Open terminal, so you can choose another account directly from those notices.
@@ -1544,8 +1562,9 @@ computer, its chat shows a card naming the account with Switch account, Sign in 
 that account (it runs `ghostex account-login claude --account N` in the session's
 terminal and starts Claude again when the sign-in finishes) and Try again. A message
 you sent waits in the chat and goes out on its own once Claude is up. Waking a
-session on such an account moves it to an account that works first, unless Continue
-automatically is off or you stopped automatic recovery for that session.
+session on such an account moves it to an account that works first, unless the
+provider's rules say Do nothing at a limit or you stopped automatic recovery for
+that session.
 In the chat's More actions menu, and in the ⋯ menu of the bar under a Claude or
 Codex terminal view, click Switch Account to open its submenu of saved accounts
 with their usage; hovering over it does not open it. Open submenus stay open when you move the
@@ -1571,18 +1590,18 @@ A manual switch waits for your next
 message without sending anything. An automatic switch sends a "." to continue
 the interrupted work once the new account is ready. Configured recovery after
 errors can also continue work on the same account.
-Whether a session keeps going at a limit comes from Continue automatically and
-When the account runs out under the provider's New session defaults in Settings >
-Accounts. Both start on: Continue automatically is on and When the account runs
-out is Use another account, so a session moves to another account set to
-Automatic when it hits a limit; turn Continue automatically off there to stop
-that. Every Claude and Codex session follows those settings as they are now,
+Whether a session keeps going at a limit comes from When an account hits its
+limit in the provider's rules in Settings > Accounts: Switch accounts (the
+default) moves the session to another account with Auto-switch on, Wait for
+reset picks up on the same account when its usage resets, and Do nothing leaves
+the session stopped. With Switch accounts, Try first picks which account Ghostex
+tries first. Every Claude and Codex session follows those settings as they are now,
 including sessions that are already open, forks, and restored sessions, so a
 change there applies everywhere at once. To make one session behave differently,
 open More actions > Switch Account and click Customize under Keep going at a
 limit; Use session defaults returns it to the Settings values.
 A sleeping session whose account is already at its limit wakes on another
-account that has room. When every account set to Automatic is full, the
+account that has room. When every account with Auto-switch on is full, the
 session's chat shows "Weekly limit reached on every account" (or whichever limit
 it hit) with when it continues on its own, and the bell gets one notification;
 both go away once the session switches or resumes.
@@ -1592,22 +1611,22 @@ When a newer usage reading cannot be fetched for a Claude account, for example
 while the usage service rate limits checks for an hour at a time, Settings >
 Accounts, the account usage popup, and the chat's Switch account rows show the
 last reading with its age ("Usage is from 3 hours ago") and Ghostex keeps
-retrying on its own. Automatic switching and the Account for new sessions rule
+retrying on its own. Automatic switching and the New sessions start on rule
 skip that account until its usage refreshes. A login problem shows what to do
 instead, such as "The saved login expired. Reconnect this account."
-A newly added account starts with Available for automatic switching on; turn it
-off in the account's editor in Settings > Accounts to keep that account out of
-automatic switching.
+A newly added account starts with Auto-switch on; turn it off on the account in
+Settings > Accounts to keep that account out of automatic switching.
 When Claude says "Your organization has disabled Claude subscription access",
-that account cannot be used any more: Ghostex turns its Available for automatic
-switching off, and the next message you send to a session on it first moves the
-session to the best account set to Automatic, resuming the same conversation.
-With Continue automatically on, Ghostex moves the session by itself and
-continues the message that failed. Turn the option back on, reconnect the
-account, or pick it for a session when its access works again.
+that account cannot be used any more: Ghostex turns its Auto-switch off (the
+account shows "Subscription access disabled"), and the next message you send to
+a session on it first moves the session to the best account with Auto-switch on,
+resuming the same conversation. When the rules say Switch accounts or Wait for
+reset, Ghostex moves the session by itself and continues the message that
+failed. Turn Auto-switch back on, reconnect the account, or pick it for a
+session when its access works again.
 Reconnecting a Codex account works while that account's sessions keep running.
 When Codex still has to stop first, Settings lists the sessions in the way and
-offers Sleep sessions and continue; sleeping keeps them in the sidebar and they
+offers Pause sessions and continue; paused sessions stay in the sidebar and
 resume when you open them.
 
 Hide emails in Settings > Accounts keeps the first and last characters before

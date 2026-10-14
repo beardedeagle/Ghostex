@@ -1,27 +1,34 @@
-//! `AccountConnectFlow` (accounts/connect-flow.tsx (deleted 2026-10-01)): the email and shared-conversations consent,
-//! Add / Reconnect account (its login command in the tooltip), then while the sign-in runs its
-//! status, Open sign-in page, Show terminal, Cancel and a sign-in code field, the Codex windows
-//! that stopped it, and the helper's output.
+//! `AccountConnectFlow` (accounts/connect-flow.tsx (deleted 2026-10-01)): signing in from Settings.
+//! Reconnect starts at once from the account's Reconnect button; Add account asks only what it
+//! must (shared conversations the first time, and the email for Codex), then Sign in with
+//! browser. While the sign-in runs the flow waits ("Waiting for you to sign in…") with Open the
+//! page again, Cancel, a code box when the helper asks for one, and the helper's output under
+//! Details; it ends Connected, on the account the browser chose instead ("You signed in as …"),
+//! or on the Codex windows that stopped it.
 //!
 //! CDXC:Settings 2026-09-07 DECISION:
 //! Login commands are hidden in Accounts and its tutorial. Click to run login starts the flow; hovering the button reveals the command. This replaces the visible login command boxes and Log in to fix label.
-//! The command stays hidden behind the start button's tooltip, but that button reads Add account or Reconnect account and runs the sign-in inside Settings (server/src/accounts/setup.rs, 2026-09-08 DECISION); React stopped using its Click to run login button (`AccountLoginButton`) on 2026-09-08, well before it was deleted.
+//! The command stays hidden behind the start button's tooltip, and the sign-in runs inside Settings (server/src/accounts/setup.rs, 2026-09-08 DECISION).
+//!
+//! CDXC:AgentProviders 2026-10-14 DECISION:
+//! User picked "One-click Reconnect: no email box, no second click; the log hides under Details" and "Add account without typing the email". Reconnect starts the sign-in the moment it is clicked and gxserver pre-fills the browser with the saved account's email; a Claude account is added without an email (the browser decides). Codex Swap (xswap) still needs the email of a new Codex account up front, so Add account asks for it there only. The flow shows Waiting for you to sign in…, a code box only when the helper asks for a code, Connected when done, and the account the browser signed in to when it was the wrong one. Supersedes the 2026-09-07 email field and the separate Reconnect account button.
 use super::super::super::super::native_modal_kit::*;
 use super::super::super::fields::{
-    FieldStates, SizedButtonSize, SizedButtonVariant, checkbox_control, settings_sized_button,
-    settings_text_input, sized_button_colors, tooltip_text,
+    FieldStates, SizedButtonSize, SizedButtonVariant, checkbox_control, settings_icon,
+    settings_sized_button, settings_text_input, tooltip_text,
 };
 use super::super::super::palette::SettingsPalette;
 use super::super::super::store::post_store_message;
-use super::AccountsTab;
 use super::client::ACCOUNT_SETUP_OWNER;
 use super::data::{Account, provider_label};
 use super::widgets::account_text;
+use super::{AccountsTab, Pane};
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
-    AnyElement, ClickEvent, Context, FontWeight, InteractiveElement as _, IntoElement,
-    ParentElement as _, SharedString, StatefulInteractiveElement as _, Styled as _, Task, Window,
-    div, px,
+    Animation, AnimationExt as _, AnyElement, ClickEvent, Context, FontWeight,
+    InteractiveElement as _, IntoElement, ParentElement as _, SharedString,
+    StatefulInteractiveElement as _, Styled as _, Task, Transformation, Window, div, percentage,
+    px, svg,
 };
 use gpui_component::{h_flex, v_flex};
 use serde_json::{Value, json};
@@ -37,12 +44,28 @@ pub(crate) struct FlowState {
     pub(crate) job: Option<Value>,
     pub(crate) error: String,
     pub(crate) starting: bool,
+    /// Details (the helper's output) is open.
     pub(crate) terminal: bool,
     pub(crate) code: String,
     pub(crate) poll: Option<Task<()>>,
 }
 
-fn job_active(job: &Value) -> bool {
+impl FlowState {
+    pub(crate) fn new(email: String, consent: bool, job: Option<Value>) -> Self {
+        Self {
+            email,
+            consent,
+            job,
+            error: String::new(),
+            starting: false,
+            terminal: false,
+            code: String::new(),
+            poll: None,
+        }
+    }
+}
+
+pub(crate) fn job_active(job: &Value) -> bool {
     !matches!(job["status"].as_str(), Some("complete" | "failed"))
 }
 
@@ -51,12 +74,68 @@ fn quote(value: &str) -> String {
     format!("'{}'", value.replace('\'', "'\\''"))
 }
 
+/// The helper is asking for a code the browser shows (Claude's "Paste code here if prompted").
+fn asks_for_code(output: &str) -> bool {
+    let output = output.to_lowercase();
+    output.contains("paste code")
+        || output.contains("enter code")
+        || output.contains("authorization code")
+        || output.contains("paste the code")
+}
+
+/// The login command a flow runs, for the start button's tooltip.
+fn login_command(provider: &str, account: Option<&Account>, email: &str) -> String {
+    match (provider, account) {
+        ("claude", Some(account)) => format!(
+            "ghostex account-login claude --account {} --json",
+            quote(&account.selector())
+        ),
+        ("claude", None) => "ghostex account-login claude --json".to_string(),
+        (_, Some(account)) => format!("xswap login {}", quote(&account.selector())),
+        (_, None) => format!(
+            "xswap add --login --share-history --email {} --json",
+            quote(email)
+        ),
+    }
+}
+
+/// A spinning loader icon.
+fn spinner(id: impl Into<SharedString>, color: gpui::Rgba) -> AnyElement {
+    svg()
+        .path("modals/settings/loader-2.svg")
+        .size(px(16.0))
+        .flex_shrink_0()
+        .text_color(hsla(color))
+        .with_animation(
+            gpui::ElementId::Name(id.into()),
+            Animation::new(Duration::from_millis(900)).repeat(),
+            |icon, delta| icon.with_transformation(Transformation::rotate(percentage(delta))),
+        )
+        .into_any_element()
+}
+
 impl AccountsTab {
     /// Forgets the Add account flows of `provider` (a finished sign-in's success message, its
     /// email and consent) so the next Add account starts from an empty form.
     pub(crate) fn reset_setup_flows(&mut self, provider: &str) {
         let prefix = format!("setup:{provider}:");
         self.flows.retain(|key, _| !key.starts_with(&prefix));
+    }
+
+    /// Reconnect: the account's sign-in starts at once, the browser pre-filled with its email.
+    pub(crate) fn start_reconnect(&mut self, account: &Account, cx: &mut Context<Self>) {
+        let key = format!("reconnect:{}", account.id());
+        if self.flow_running(&key) {
+            return;
+        }
+        self.flows
+            .insert(key.clone(), FlowState::new(account.email(), true, None));
+        let provider = if account.provider() == "claude" {
+            "claude"
+        } else {
+            "codex"
+        };
+        self.start_flow(&key, provider, Some(account.clone()), None, cx);
     }
 
     /// Starts the one-second status poll of a flow whose job is running.
@@ -110,15 +189,26 @@ impl AccountsTab {
                     let Some(flow) = page.flows.get_mut(&key) else {
                         return;
                     };
+                    let mut connected = None;
                     match result {
                         Ok(state) => {
                             if let Some(next) = state["setupJobs"].as_array().and_then(|jobs| {
                                 jobs.iter().find(|job| job["id"] == job_id.as_str())
                             }) {
+                                if next["status"] == "complete" {
+                                    connected = next["accountId"]
+                                        .as_str()
+                                        .filter(|id| !id.is_empty())
+                                        .map(str::to_string);
+                                }
                                 flow.job = Some(next.clone());
                             }
                         }
                         Err(error) => flow.error = error,
+                    }
+                    if let Some(account_id) = connected {
+                        page.select_pane(Pane::Account(account_id.clone()), cx);
+                        page.mark_connected(account_id, cx);
                     }
                     cx.notify();
                 });
@@ -130,7 +220,7 @@ impl AccountsTab {
 
     /// `start(stop?)`: `setupStart`, optionally sleeping the sessions and closing the Codex
     /// windows that stopped the last attempt.
-    fn start_flow(
+    pub(crate) fn start_flow(
         &mut self,
         key: &str,
         provider: &'static str,
@@ -143,13 +233,16 @@ impl AccountsTab {
         };
         flow.starting = true;
         flow.error.clear();
+        flow.terminal = false;
         let mut params = json!({
             "operation": "setupStart",
             "owner": ACCOUNT_SETUP_OWNER,
             "provider": provider,
-            "email": flow.email,
             "shareHistory": true,
         });
+        if !flow.email.trim().is_empty() {
+            params["email"] = json!(flow.email.trim());
+        }
         if let Some(account) = &account {
             if account.registered() {
                 params["accountId"] = json!(account.id());
@@ -196,7 +289,7 @@ impl AccountsTab {
                             }
                             Err(error) => {
                                 flow.error = if error.trim().is_empty() {
-                                    "Could not start login.".into()
+                                    "Could not start the sign-in.".into()
                                 } else {
                                     error
                                 };
@@ -240,8 +333,23 @@ impl AccountsTab {
         );
     }
 
-    /// The flow keyed `key` (created on first render). `guide` draws it in the guide dialog's
-    /// 12px type instead of the Settings 14px.
+    /// Whether the flow keyed `key` is starting or waiting for its sign-in.
+    pub(crate) fn flow_running(&self, key: &str) -> bool {
+        self.flows
+            .get(key)
+            .is_some_and(|flow| flow.starting || flow.job.as_ref().is_some_and(job_active))
+    }
+
+    /// Whether the flow keyed `key` has started (running, or finished with a result to show).
+    pub(crate) fn flow_started(&self, key: &str) -> bool {
+        self.flows
+            .get(key)
+            .is_some_and(|flow| flow.starting || flow.job.is_some() || !flow.error.is_empty())
+    }
+
+    /// The flow keyed `key` (created on first render). `consent_needed` asks to share
+    /// conversations (only for a provider's first account); `guide` draws it in the guide dialog's
+    /// 12px type instead of the Settings 13px.
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn render_connect_flow(
         &mut self,
@@ -250,20 +358,7 @@ impl AccountsTab {
         provider: &'static str,
         account: Option<Account>,
         initial_job: Option<Value>,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> AnyElement {
-        self.render_connect_flow_sized(p, key, provider, account, initial_job, false, window, cx)
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub(crate) fn render_connect_flow_sized(
-        &mut self,
-        p: &SettingsPalette,
-        key: String,
-        provider: &'static str,
-        account: Option<Account>,
-        initial_job: Option<Value>,
+        consent_needed: bool,
         guide: bool,
         window: &mut Window,
         cx: &mut Context<Self>,
@@ -272,16 +367,11 @@ impl AccountsTab {
         if !self.flows.contains_key(&key) {
             self.flows.insert(
                 key.clone(),
-                FlowState {
-                    email: account.as_ref().map(Account::email).unwrap_or_default(),
-                    consent: account.as_ref().is_some_and(Account::registered),
-                    job: initial_job,
-                    error: String::new(),
-                    starting: false,
-                    terminal: false,
-                    code: String::new(),
-                    poll: None,
-                },
+                FlowState::new(
+                    account.as_ref().map(Account::email).unwrap_or_default(),
+                    account.is_some() || !consent_needed,
+                    initial_job,
+                ),
             );
         }
         self.ensure_flow_poll(&key, cx);
@@ -297,71 +387,67 @@ impl AccountsTab {
                 flow.code.clone(),
             )
         };
-        let (text_size, line_height) = if guide { (12.0, 19.2) } else { (14.0, 20.0) };
-        let paragraph = |text: String| {
-            div()
-                .text_size(px(text_size))
-                .line_height(px(line_height))
-                .text_color(hsla(if guide { p.muted } else { p.foreground }))
-                .child(text)
-                .into_any_element()
-        };
-        let mut children: Vec<AnyElement> = Vec::new();
+        let text_size = if guide { 12.0 } else { 13.0 };
+        let label = provider_label(provider);
         let status = job
             .as_ref()
             .and_then(|job| job["status"].as_str().map(str::to_string));
-        let active = job.as_ref().is_some_and(job_active);
-        if status.as_deref() == Some("complete") {
-            let email = job
+        let active = starting || job.as_ref().is_some_and(job_active);
+        let mut children: Vec<AnyElement> = Vec::new();
+        let output = job
+            .as_ref()
+            .and_then(|job| job["output"].as_str())
+            .filter(|output| !output.is_empty())
+            .map(str::to_string);
+        if active {
+            let saving = job.as_ref().is_some_and(|job| job["status"] == "saving");
+            let shown_email = job
                 .as_ref()
                 .and_then(|job| job["email"].as_str())
-                .unwrap_or_default();
-            children.push(paragraph(format!(
-                "Account connected. {}",
-                account_text(email, hide)
-            )));
-        } else if active {
-            let job = job.clone().unwrap_or(Value::Null);
-            children.push(paragraph(
-                if job["status"] == "saving" {
-                    "Verifying and adding your account…"
-                } else {
-                    "Finish signing in through your browser. We’ll finish adding the account automatically."
-                }
-                .to_string(),
+                .filter(|email| !email.is_empty())
+                .map(str::to_string)
+                .or_else(|| (!email.is_empty()).then(|| email.clone()));
+            let (title, detail) = if starting && job.is_none() {
+                (
+                    "Opening your browser…".to_string(),
+                    format!("Ghostex is starting the {label} sign-in."),
+                )
+            } else if saving {
+                (
+                    "Saving the account…".to_string(),
+                    "Signed in. Ghostex is checking and saving the login.".to_string(),
+                )
+            } else {
+                (
+                    "Waiting for you to sign in…".to_string(),
+                    match &shown_email {
+                        Some(email) => format!(
+                            "Finish in your browser as {}, then come back here.",
+                            account_text(email, hide)
+                        ),
+                        None => format!(
+                            "Finish in your browser with the {label} account you want to add, then come back here."
+                        ),
+                    },
+                )
+            };
+            children.push(notice_box(
+                p,
+                spinner(format!("{key}-spinner"), p.foreground),
+                title,
+                detail,
             ));
             let mut actions: Vec<AnyElement> = Vec::new();
-            if let Some(url) = job["url"].as_str().filter(|url| !url.is_empty()) {
-                let url = url.to_string();
-                let foreground = p.foreground;
-                actions.push(
-                    div()
-                        .id(SharedString::from(format!("{key}-signin-link")))
-                        .text_size(px(12.0))
-                        .underline()
-                        .text_color(hsla(foreground))
-                        .cursor_pointer()
-                        .on_click(cx.listener(move |page, _: &ClickEvent, _window, cx| {
-                            post_store_message(
-                                &page.store,
-                                json!({ "type": "openExternalUrl", "url": url }),
-                                cx,
-                            );
-                        }))
-                        .child("Open sign-in page")
-                        .into_any_element(),
-                );
-            }
+            if let Some(url) = job
+                .as_ref()
+                .and_then(|job| job["url"].as_str())
+                .filter(|url| !url.is_empty())
             {
-                let key = key.clone();
+                let url = url.to_string();
                 actions.push(settings_sized_button(
                     p,
-                    SharedString::from(format!("{key}-terminal")),
-                    if terminal {
-                        "Hide terminal"
-                    } else {
-                        "Show terminal"
-                    },
+                    SharedString::from(format!("{key}-open-page")),
+                    "Open the page again",
                     None,
                     None,
                     SizedButtonVariant::Outline,
@@ -369,17 +455,17 @@ impl AccountsTab {
                     false,
                     None,
                     move |page: &mut Self, _window, cx| {
-                        if let Some(flow) = page.flows.get_mut(&key) {
-                            flow.terminal = !flow.terminal;
-                        }
-                        cx.notify();
+                        post_store_message(
+                            &page.store,
+                            json!({ "type": "openExternalUrl", "url": url }),
+                            cx,
+                        );
                     },
                     cx,
                 ));
             }
-            {
-                let key = key.clone();
-                let job_id = job["id"].clone();
+            if let Some(job_id) = job.as_ref().map(|job| job["id"].clone()) {
+                let cancel_key = key.clone();
                 actions.push(settings_sized_button(
                     p,
                     SharedString::from(format!("{key}-cancel")),
@@ -392,7 +478,7 @@ impl AccountsTab {
                     None,
                     move |page: &mut Self, _window, cx| {
                         page.flow_job_call(
-                            &key,
+                            &cancel_key,
                             json!({ "operation": "setupCancel", "owner": ACCOUNT_SETUP_OWNER, "jobId": job_id }),
                             false,
                             cx,
@@ -401,255 +487,401 @@ impl AccountsTab {
                     cx,
                 ));
             }
-            children.push(
-                h_flex()
-                    .flex_wrap()
-                    .items_center()
-                    .gap(px(8.0))
-                    .children(actions)
-                    .into_any_element(),
-            );
-            let code_id = SharedString::from(format!("{key}-code"));
-            let input = FieldStates::text_state(
-                self,
-                &code_id,
-                &code,
-                Some("Paste a sign-in code here if prompted"),
-                {
-                    let key = key.clone();
+            if !actions.is_empty() {
+                children.push(
+                    h_flex()
+                        .flex_wrap()
+                        .items_center()
+                        .gap(px(8.0))
+                        .children(actions)
+                        .into_any_element(),
+                );
+            }
+            if !saving
+                && let Some(job) = job.as_ref()
+                && output.as_deref().is_some_and(asks_for_code)
+            {
+                children.push(self.render_code_box(p, &key, job, &code, window, cx));
+            }
+        } else if status.as_deref() == Some("complete") {
+            let email = job
+                .as_ref()
+                .and_then(|job| job["email"].as_str())
+                .filter(|email| !email.is_empty())
+                .map(|email| format!(" as {}", account_text(email, hide)))
+                .unwrap_or_default();
+            children.push(notice_box(
+                p,
+                check_mark(),
+                "Connected".to_string(),
+                format!("Signed in{email}. Usage is up to date."),
+            ));
+        } else if status.as_deref() == Some("failed") || !error.is_empty() {
+            let job = job.clone().unwrap_or(Value::Null);
+            children.push(self.render_flow_failure(
+                p,
+                &key,
+                provider,
+                account.as_ref(),
+                &job,
+                &error,
+                hide,
+                cx,
+            ));
+        } else if account.is_none() {
+            // Add account: only what the helper cannot do without.
+            if consent_needed {
+                let consent_key = key.clone();
+                let label_key = key.clone();
+                children.push(
+                    h_flex()
+                        .w_full()
+                        .items_start()
+                        .gap(px(10.0))
+                        .p(px(12.0))
+                        .rounded(px(MODAL_RADIUS_CONTROL))
+                        .border_1()
+                        .border_color(hsla(p.hairline))
+                        .child(div().pt(px(1.0)).child(checkbox_control(
+                            p,
+                            SharedString::from(format!("{key}-consent")),
+                            consent,
+                            None,
+                            0.0,
+                            move |page: &mut Self, next, _window, cx| {
+                                if let Some(flow) = page.flows.get_mut(&consent_key) {
+                                    flow.consent = next;
+                                }
+                                cx.notify();
+                            },
+                            cx,
+                        )))
+                        .child(
+                            v_flex()
+                                .id(SharedString::from(format!("{key}-consent-label")))
+                                .flex_1()
+                                .min_w_0()
+                                .gap(px(2.0))
+                                .cursor_pointer()
+                                .on_click(cx.listener(move |page, _: &ClickEvent, _window, cx| {
+                                    if let Some(flow) = page.flows.get_mut(&label_key) {
+                                        flow.consent = !flow.consent;
+                                    }
+                                    cx.notify();
+                                }))
+                                .child(
+                                    div()
+                                        .text_size(px(text_size))
+                                        .line_height(px(18.0))
+                                        .text_color(hsla(p.foreground))
+                                        .child(format!(
+                                            "Share chat history between my {label} accounts"
+                                        )),
+                                )
+                                .child(
+                                    div()
+                                        .text_size(px(12.0))
+                                        .line_height(px(16.0))
+                                        .text_color(hsla(p.muted))
+                                        .child("Lets a conversation carry on with another account when one runs out. Needed to add an account."),
+                                ),
+                        )
+                        .into_any_element(),
+                );
+            }
+            let needs_email = provider == "codex";
+            if needs_email {
+                let email_id = SharedString::from(format!("{key}-email"));
+                let email_key = key.clone();
+                let input = FieldStates::text_state(
+                    self,
+                    &email_id,
+                    &email,
+                    Some("Email of the Codex account"),
                     move |page: &mut Self, text, _window, cx| {
-                        if let Some(flow) = page.flows.get_mut(&key) {
-                            flow.code = text;
+                        if let Some(flow) = page.flows.get_mut(&email_key) {
+                            flow.email = text;
                         }
                         cx.notify();
-                    }
-                },
-                window,
-                cx,
+                    },
+                    window,
+                    cx,
+                );
+                super::widgets::sync_masked(
+                    &mut self.masked_inputs,
+                    &email_id,
+                    &input,
+                    hide,
+                    window,
+                    cx,
+                );
+                children.push(
+                    v_flex()
+                        .w_full()
+                        .gap(px(6.0))
+                        .child(
+                            div()
+                                .text_size(px(text_size))
+                                .text_color(hsla(p.foreground))
+                                .child("Email"),
+                        )
+                        .child(settings_text_input(p, &input, None, false, window, cx))
+                        .child(
+                            div()
+                                .text_size(px(12.0))
+                                .line_height(px(16.0))
+                                .text_color(hsla(p.muted))
+                                .child(
+                                    "Codex Swap checks that the browser signs in to this account.",
+                                ),
+                        )
+                        .into_any_element(),
+                );
+            }
+            let enabled = consent && (!needs_email || email.contains('@'));
+            let command = login_command(provider, None, &email);
+            let start_key = key.clone();
+            children.push(
+                h_flex()
+                    .gap(px(8.0))
+                    .child(
+                        div()
+                            .id(SharedString::from(format!("{key}-start-tooltip")))
+                            .flex()
+                            .tooltip(tooltip_text(account_text(&command, hide)))
+                            .child(settings_sized_button(
+                                p,
+                                SharedString::from(format!("{key}-start")),
+                                "Sign in with browser",
+                                None,
+                                None,
+                                SizedButtonVariant::Primary,
+                                SizedButtonSize::Default,
+                                !enabled,
+                                Some(if consent {
+                                    "Enter the account's email first.".into()
+                                } else {
+                                    "Allow shared chat history first.".into()
+                                }),
+                                move |page: &mut Self, _window, cx| {
+                                    page.start_flow(&start_key, provider, None, None, cx)
+                                },
+                                cx,
+                            )),
+                    )
+                    .into_any_element(),
             );
-            let send = {
-                let key = key.clone();
-                let job_id = job["id"].clone();
-                settings_sized_button(
+        }
+        if let Some(output) = output
+            && (active || status.as_deref() == Some("failed"))
+        {
+            children.push(self.render_details(p, &key, terminal, &output, hide, cx));
+        }
+        v_flex()
+            .w_full()
+            .items_stretch()
+            .gap(px(10.0))
+            .text_size(px(text_size))
+            .children(children)
+            .into_any_element()
+    }
+
+    /// The code box: shown while the helper asks for a code the browser displays.
+    fn render_code_box(
+        &mut self,
+        p: &SettingsPalette,
+        key: &str,
+        job: &Value,
+        code: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let code_id = SharedString::from(format!("{key}-code"));
+        let code_key = key.to_string();
+        let input = FieldStates::text_state(
+            self,
+            &code_id,
+            code,
+            Some("Code"),
+            move |page: &mut Self, text, _window, cx| {
+                if let Some(flow) = page.flows.get_mut(&code_key) {
+                    flow.code = text;
+                }
+                cx.notify();
+            },
+            window,
+            cx,
+        );
+        let send_key = key.to_string();
+        let job_id = job["id"].clone();
+        let send = settings_sized_button(
+            p,
+            SharedString::from(format!("{key}-send-code")),
+            "Continue",
+            None,
+            None,
+            SizedButtonVariant::Primary,
+            SizedButtonSize::Default,
+            code.trim().is_empty(),
+            None,
+            move |page: &mut Self, _window, cx| {
+                let input = page
+                    .flows
+                    .get(&send_key)
+                    .map(|flow| flow.code.clone())
+                    .unwrap_or_default();
+                page.flow_job_call(
+                    &send_key,
+                    json!({ "operation": "setupInput", "owner": ACCOUNT_SETUP_OWNER, "jobId": job_id, "input": input }),
+                    true,
+                    cx,
+                )
+            },
+            cx,
+        );
+        v_flex()
+            .w_full()
+            .gap(px(6.0))
+            .child(
+                div()
+                    .text_size(px(12.0))
+                    .text_color(hsla(p.muted))
+                    .child("If your browser shows a code, paste it here."),
+            )
+            .child(
+                h_flex()
+                    .w_full()
+                    .gap(px(8.0))
+                    .items_center()
+                    .child(
+                        div()
+                            .flex_1()
+                            .min_w_0()
+                            .child(settings_text_input(p, &input, None, false, window, cx)),
+                    )
+                    .child(send),
+            )
+            .into_any_element()
+    }
+
+    /// A finished sign-in that did not save the account: the wrong account, Codex still running,
+    /// or the helper's error, each with its way forward.
+    #[allow(clippy::too_many_arguments)]
+    fn render_flow_failure(
+        &mut self,
+        p: &SettingsPalette,
+        key: &str,
+        provider: &'static str,
+        account: Option<&Account>,
+        job: &Value,
+        error: &str,
+        hide: bool,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let mut children: Vec<AnyElement> = Vec::new();
+        let retry_key = key.to_string();
+        let retry_account = account.cloned();
+        let try_again = settings_sized_button(
+            p,
+            SharedString::from(format!("{key}-retry")),
+            "Try again",
+            None,
+            None,
+            SizedButtonVariant::Primary,
+            SizedButtonSize::Sm,
+            false,
+            None,
+            move |page: &mut Self, _window, cx| {
+                page.start_flow(&retry_key, provider, retry_account.clone(), None, cx)
+            },
+            cx,
+        );
+        if job["wrongAccount"].is_object() {
+            let signed_in = job["wrongAccount"]["signedIn"]
+                .as_str()
+                .unwrap_or_default()
+                .to_string();
+            let wanted = account
+                .map(Account::email)
+                .unwrap_or_else(|| job["email"].as_str().unwrap_or_default().to_string());
+            let message = match (signed_in.is_empty(), wanted.is_empty()) {
+                (false, false) => format!(
+                    "You signed in as {}, not {}.",
+                    account_text(&signed_in, hide),
+                    account_text(&wanted, hide)
+                ),
+                (false, true) => format!(
+                    "You signed in as {}, a different account.",
+                    account_text(&signed_in, hide)
+                ),
+                _ => "The browser signed in to a different account.".to_string(),
+            };
+            children.push(warning_text(p, message));
+            let mut actions = vec![try_again];
+            if account.is_some() {
+                let label = if signed_in.is_empty() {
+                    "Add it as a new account".to_string()
+                } else {
+                    format!("Add {} as a new account", account_text(&signed_in, hide))
+                };
+                actions.push(settings_sized_button(
                     p,
-                    SharedString::from(format!("{key}-send-code")),
-                    "Send code",
+                    SharedString::from(format!("{key}-add-instead")),
+                    label,
                     None,
                     None,
                     SizedButtonVariant::Outline,
                     SizedButtonSize::Sm,
-                    code.trim().is_empty(),
+                    false,
                     None,
                     move |page: &mut Self, _window, cx| {
-                        let input = page
-                            .flows
-                            .get(&key)
-                            .map(|flow| flow.code.clone())
-                            .unwrap_or_default();
-                        page.flow_job_call(
-                            &key,
-                            json!({ "operation": "setupInput", "owner": ACCOUNT_SETUP_OWNER, "jobId": job_id, "input": input }),
-                            true,
-                            cx,
-                        )
-                    },
-                    cx,
-                )
-            };
-            children.push(
-                h_flex()
-                    .w_full()
-                    .items_center()
-                    .gap(px(8.0))
-                    .child(settings_text_input(p, &input, None, false, window, cx))
-                    .child(send)
-                    .into_any_element(),
-            );
-        } else {
-            let email_id = SharedString::from(format!("{key}-email"));
-            let input = FieldStates::text_state(
-                self,
-                &email_id,
-                &email,
-                None,
-                {
-                    let key = key.clone();
-                    move |page: &mut Self, text, _window, cx| {
-                        if let Some(flow) = page.flows.get_mut(&key) {
-                            flow.email = text;
-                        }
-                        cx.notify();
-                    }
-                },
-                window,
-                cx,
-            );
-            super::widgets::sync_masked(
-                &mut self.masked_inputs,
-                &email_id,
-                &input,
-                hide,
-                window,
-                cx,
-            );
-            let disabled = account.is_some();
-            children.push(
-                // `.gx-account-field { margin: 15px 0 }`, `margin: 0 0 12px` inside `.gx-account-inset`.
-                v_flex()
-                    .w_full()
-                    .gap(px(7.0))
-                    .when(guide, |field| field.my(px(15.0)))
-                    .when(!guide, |field| field.mb(px(12.0)))
-                    .text_size(px(text_size))
-                    .line_height(px(if guide { 17.14 } else { 20.0 }))
-                    .text_color(hsla(p.foreground))
-                    .child("Email")
-                    .child(if disabled {
-                        // `<SettingsInput disabled>`: the saved address, not editable.
-                        div()
-                            .w_full()
-                            .h(px(32.0))
-                            .px(px(12.0))
-                            .flex()
-                            .items_center()
-                            .rounded(px(MODAL_RADIUS_CONTROL))
-                            .border_1()
-                            .border_color(hsla(p.hairline))
-                            .bg(hsla(p.input_background()))
-                            .opacity(0.5)
-                            .text_size(px(14.0))
-                            .child(if hide {
-                                "•".repeat(email.chars().count())
-                            } else {
-                                email.clone()
-                            })
-                            .into_any_element()
-                    } else {
-                        settings_text_input(p, &input, None, false, window, cx)
-                    })
-                    .into_any_element(),
-            );
-            if !account.as_ref().is_some_and(Account::registered) {
-                let key = key.clone();
-                children.push(checkbox_control(
-                    p,
-                    SharedString::from(format!("{key}-consent")),
-                    consent,
-                    Some(
-                        div()
-                            .text_size(px(if guide { 11.0 } else { 13.0 }))
-                            .line_height(px(if guide { 15.71 } else { 18.57 }))
-                            .text_color(hsla(p.foreground))
-                            .child(format!(
-                                "Share conversations between my {} accounts.",
-                                provider_label(provider)
-                            ))
-                            .into_any_element(),
-                    ),
-                    8.0,
-                    move |page: &mut Self, next, _window, cx| {
-                        if let Some(flow) = page.flows.get_mut(&key) {
-                            flow.consent = next;
-                        }
+                        page.select_pane(Pane::Add(provider), cx);
+                        let setup_key = format!("setup:{provider}:new");
+                        page.flows
+                            .insert(setup_key, FlowState::new(signed_in.clone(), true, None));
                         cx.notify();
                     },
                     cx,
                 ));
             }
-            let command = if provider == "claude" {
-                format!(
-                    "ghostex account-login claude --email {} --json{}",
-                    quote(&email),
-                    account
-                        .as_ref()
-                        .map(|account| format!(" --account {}", quote(&account.selector())))
-                        .unwrap_or_default()
-                )
-            } else if let Some(account) = &account {
-                format!("xswap login {}", quote(&account.selector()))
-            } else {
-                format!(
-                    "xswap add --login --share-history --email {} --json",
-                    quote(&email)
-                )
-            };
-            let label = if starting {
-                "Starting sign-in…"
-            } else if status.as_deref() == Some("failed") {
-                "Try again"
-            } else if account.is_some() {
-                "Reconnect account"
-            } else {
-                "Add account"
-            };
-            let enabled = !starting && consent && email.contains('@');
-            let (fills, text) = sized_button_colors(p, SizedButtonVariant::Secondary);
-            let start_key = key.clone();
-            let start_account = account.clone();
-            children.push(
-                div()
-                    .id(SharedString::from(format!("{key}-start-tooltip")))
-                    .flex()
-                    .tooltip(tooltip_text(account_text(&command, hide)))
-                    .child(
-                        h_flex()
-                            .id(SharedString::from(format!("{key}-start")))
-                            .h(px(32.0))
-                            .px(px(12.0))
-                            .items_center()
-                            .justify_center()
-                            .rounded(px(if guide { 10.0 } else { MODAL_RADIUS_CONTROL }))
-                            .bg(hsla(fills.rest))
-                            .text_size(px(text_size))
-                            .when(guide, |this| this.font_weight(FontWeight::MEDIUM))
-                            .text_color(hsla(text))
-                            .whitespace_nowrap()
-                            .when(!enabled, |this| this.opacity(0.5))
-                            .when(enabled, |this| {
-                                this.cursor_pointer()
-                                    .hover(move |this| this.bg(hsla(fills.hover)))
-                                    .active(move |this| this.bg(hsla(fills.pressed)))
-                                    .on_click(cx.listener(
-                                        move |page, _: &ClickEvent, _window, cx| {
-                                            page.start_flow(
-                                                &start_key,
-                                                provider,
-                                                start_account.clone(),
-                                                None,
-                                                cx,
-                                            )
-                                        },
-                                    ))
-                            })
-                            .child(label),
-                    )
-                    .into_any_element(),
-            );
-        }
-        let job_error = job
-            .as_ref()
-            .and_then(|job| job["error"].as_str())
-            .filter(|error| !error.is_empty())
-            .map(str::to_string);
-        if let Some(message) = (!error.is_empty()).then(|| error.clone()).or(job_error) {
-            children.push(paragraph(account_text(&message, hide)));
-        }
-        let blockers = job
-            .as_ref()
-            .filter(|job| job["status"] == "failed")
-            .map(|job| job["blockers"].clone())
-            .filter(Value::is_object);
-        if let Some(blockers) = blockers {
-            let sessions: Vec<Value> = blockers["sessions"].as_array().cloned().unwrap_or_default();
-            let others = blockers["others"].as_u64().unwrap_or(0);
+            children.push(button_row(actions));
+        } else if let Some(blockers) = job
+            .get("blockers")
+            .filter(|blockers| blockers.is_object())
+            .cloned()
+        {
+            let sessions = blockers["sessions"].as_array().cloned().unwrap_or_default();
+            let others = blockers["others"].as_u64().unwrap_or(0) as usize;
             let plural = |count: usize, word: &str| {
                 format!("{count} {word}{}", if count == 1 { "" } else { "s" })
             };
-            let mut block: Vec<AnyElement> = Vec::new();
+            let mut message = if sessions.is_empty() {
+                format!("Codex is open in {}.", plural(others.max(1), "window"))
+            } else {
+                format!(
+                    "{} running Codex on this account. They pause while you sign in and pick up when you open them.",
+                    if sessions.len() == 1 {
+                        "1 session is".to_string()
+                    } else {
+                        format!("{} sessions are", sessions.len())
+                    }
+                )
+            };
+            if !sessions.is_empty() && others > 0 {
+                message.push_str(&format!(
+                    " Also closes {} outside Ghostex.",
+                    plural(others, "Codex window")
+                ));
+            } else if sessions.is_empty() {
+                message.push_str(" Signing in closes it.");
+            }
+            children.push(warning_text(p, message));
             if !sessions.is_empty() {
-                block.push(
+                children.push(
                     v_flex()
-                        .pl(px(18.0))
+                        .pl(px(12.0))
+                        .text_size(px(12.0))
+                        .text_color(hsla(p.muted))
                         .children(sessions.iter().map(|session| {
                             div().child(format!(
                                 "• {}",
@@ -659,93 +891,193 @@ impl AccountsTab {
                         .into_any_element(),
                 );
             }
-            if others > 0 {
-                block.push(
-                    div()
-                        .text_color(hsla(p.muted))
-                        .child(format!(
-                            "{}{} outside Ghostex.",
-                            if sessions.is_empty() {
-                                "Closes "
-                            } else {
-                                "Also closes "
-                            },
-                            plural(others as usize, "Codex window")
-                        ))
-                        .into_any_element(),
-                );
-            }
-            let stop_key = key.clone();
-            let stop_account = account.clone();
-            let stop = blockers.clone();
-            block.push(settings_sized_button(
+            let stop_key = key.to_string();
+            let stop_account = account.cloned();
+            let label = if sessions.is_empty() {
+                "Close Codex and continue".to_string()
+            } else {
+                format!("Pause {} and continue", plural(sessions.len(), "session"))
+            };
+            children.push(button_row(vec![settings_sized_button(
                 p,
                 SharedString::from(format!("{key}-stop-codex")),
-                if sessions.is_empty() {
-                    "Close Codex and continue".to_string()
-                } else {
-                    format!("Sleep {} and continue", plural(sessions.len(), "session"))
-                },
+                label,
                 None,
                 None,
-                SizedButtonVariant::Secondary,
-                SizedButtonSize::Default,
-                starting,
+                SizedButtonVariant::Primary,
+                SizedButtonSize::Sm,
+                false,
                 None,
                 move |page: &mut Self, _window, cx| {
                     page.start_flow(
                         &stop_key,
                         provider,
                         stop_account.clone(),
-                        Some(stop.clone()),
+                        Some(blockers.clone()),
                         cx,
                     )
                 },
                 cx,
-            ));
-            children.push(
-                v_flex()
-                    .items_start()
-                    .gap(px(6.0))
-                    .text_size(px(12.0))
-                    .children(block)
-                    .into_any_element(),
-            );
-        }
-        let output = job
-            .as_ref()
-            .and_then(|job| job["output"].as_str())
-            .filter(|output| !output.is_empty())
-            .map(str::to_string);
-        if (terminal || status.as_deref() == Some("failed"))
-            && let Some(output) = output
-        {
-            children.push(
-                div()
-                    .id(SharedString::from(format!("{key}-output")))
-                    .w_full()
-                    .max_h(px(240.0))
-                    .overflow_y_scroll()
-                    .p(px(12.0))
-                    .rounded(px(MODAL_RADIUS_CONTROL))
-                    .bg(hsla(if p.glass {
-                        p.modal.solid_surface
-                    } else {
-                        p.surface
-                    }))
-                    .font_family(MODAL_MONO_FONT)
-                    .text_size(px(11.0))
-                    .line_height(px(16.0))
-                    .text_color(hsla(p.foreground))
-                    .child(account_text(&output, hide))
-                    .into_any_element(),
-            );
+            )]));
+        } else {
+            let message = if !error.is_empty() {
+                error.to_string()
+            } else {
+                job["error"]
+                    .as_str()
+                    .filter(|error| !error.is_empty())
+                    .unwrap_or("The sign-in did not finish.")
+                    .to_string()
+            };
+            children.push(warning_text(p, account_text(&message, hide)));
+            children.push(button_row(vec![try_again]));
         }
         v_flex()
             .w_full()
-            .items_stretch()
-            .gap(px(8.0))
+            .gap(px(10.0))
+            .p(px(12.0))
+            .rounded(px(MODAL_RADIUS_CONTROL))
+            .border_1()
+            .border_color(hsla(modal_rgba(0xfbbf24, 0.3)))
+            .bg(hsla(modal_rgba(0xfbbf24, 0.05)))
             .children(children)
             .into_any_element()
     }
+
+    /// Details: the helper's output, closed until asked for.
+    fn render_details(
+        &mut self,
+        p: &SettingsPalette,
+        key: &str,
+        open: bool,
+        output: &str,
+        hide: bool,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let toggle_key = key.to_string();
+        let toggle = h_flex()
+            .id(SharedString::from(format!("{key}-details")))
+            .gap(px(6.0))
+            .items_center()
+            .cursor_pointer()
+            .text_size(px(12.0))
+            .text_color(hsla(p.muted))
+            .on_click(cx.listener(move |page, _: &ClickEvent, _window, cx| {
+                if let Some(flow) = page.flows.get_mut(&toggle_key) {
+                    flow.terminal = !flow.terminal;
+                }
+                cx.notify();
+            }))
+            .child(settings_icon(
+                if open {
+                    "modals/settings/chevron-down.svg"
+                } else {
+                    "modals/settings/chevron-right.svg"
+                },
+                12.0,
+                p.muted,
+            ))
+            .child("Details");
+        v_flex()
+            .w_full()
+            .gap(px(6.0))
+            .child(toggle)
+            .when(open, |this| {
+                this.child(
+                    div()
+                        .id(SharedString::from(format!("{key}-output")))
+                        .w_full()
+                        .max_h(px(200.0))
+                        .overflow_y_scroll()
+                        .p(px(10.0))
+                        .rounded(px(MODAL_RADIUS_CONTROL))
+                        .bg(hsla(if p.glass {
+                            p.modal.solid_surface
+                        } else {
+                            p.surface
+                        }))
+                        .font_family(MODAL_MONO_FONT)
+                        .text_size(px(11.0))
+                        .line_height(px(16.0))
+                        .text_color(hsla(p.foreground))
+                        .child(account_text(output, hide)),
+                )
+            })
+            .into_any_element()
+    }
+}
+
+/// A rounded box with an icon, a bold line and a muted line ("Waiting for you to sign in…").
+fn notice_box(p: &SettingsPalette, icon: AnyElement, title: String, detail: String) -> AnyElement {
+    h_flex()
+        .w_full()
+        .items_start()
+        .gap(px(10.0))
+        .p(px(12.0))
+        .rounded(px(MODAL_RADIUS_CONTROL))
+        .border_1()
+        .border_color(hsla(p.hairline))
+        .bg(hsla(p.foreground_alpha(0.03)))
+        .child(div().pt(px(1.0)).child(icon))
+        .child(
+            v_flex()
+                .flex_1()
+                .min_w_0()
+                .gap(px(2.0))
+                .child(
+                    div()
+                        .text_size(px(13.0))
+                        .line_height(px(18.0))
+                        .font_weight(FontWeight::MEDIUM)
+                        .text_color(hsla(p.foreground))
+                        .child(title),
+                )
+                .child(
+                    div()
+                        .text_size(px(12.0))
+                        .line_height(px(16.0))
+                        .text_color(hsla(p.muted))
+                        .child(detail),
+                ),
+        )
+        .into_any_element()
+}
+
+/// The green check of a finished sign-in.
+fn check_mark() -> AnyElement {
+    div()
+        .size(px(18.0))
+        .rounded_full()
+        .flex()
+        .items_center()
+        .justify_center()
+        .bg(hsla(modal_rgba(0x34d399, 0.16)))
+        .child(settings_icon(
+            super::super::super::fields::CHECK_ICON,
+            12.0,
+            gpui::rgb(0x34d399),
+        ))
+        .into_any_element()
+}
+
+fn warning_text(p: &SettingsPalette, text: String) -> AnyElement {
+    div()
+        .text_size(px(12.5))
+        .line_height(px(17.0))
+        .text_color(hsla(if p.light {
+            gpui::rgb(0xb45309)
+        } else {
+            gpui::rgb(0xfcd34d)
+        }))
+        .child(text)
+        .into_any_element()
+}
+
+fn button_row(buttons: Vec<AnyElement>) -> AnyElement {
+    h_flex()
+        .flex_wrap()
+        .gap(px(8.0))
+        .items_center()
+        .children(buttons)
+        .into_any_element()
 }
