@@ -352,6 +352,9 @@ pub struct SessionRow {
     /// The model change the user picked failed and the messages behind it are held; drawn as a red
     /// dot ahead of every other status.
     pub model_selection_failed: bool,
+    /// The session's own program reported `error` over OSC 7501 and the session's status comes
+    /// from those reports; drawn as the same red dot until the user has seen it.
+    pub program_status_failed: bool,
     pub pending_question_count: u64,
     pub agent_icon: Option<String>,
     /// `terminal`, `browser`, or whatever else a newer daemon publishes.

@@ -24,6 +24,7 @@ mod machines;
 pub(crate) mod membership;
 mod model;
 pub(crate) mod ordering;
+mod program_status;
 pub(crate) mod projects;
 mod project_drop_landing;
 mod reveal;

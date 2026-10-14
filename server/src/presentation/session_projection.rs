@@ -428,6 +428,16 @@ pub(crate) fn project_presentation_session(
         "modelSelectionFailure",
         crate::session_chat_model_selection_alert::session_model_selection_failure(session),
     );
+    if let (Some(project_id), Some(session_id)) = (
+        string_field(session, "projectId"),
+        string_field(session, "sessionId"),
+    ) {
+        if let Some(program_status) =
+            crate::program_status::presentation_program_status(&project_id, &session_id)
+        {
+            output.insert("programStatus".to_string(), program_status);
+        }
+    }
     output.insert("zmxName".to_string(), value_field(session, "zmxName"));
     Value::Object(output)
 }

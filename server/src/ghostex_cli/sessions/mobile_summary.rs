@@ -553,6 +553,8 @@ fn to_mobile_session_summary(session: &Value) -> Value {
     insert_js(&mut map, "isDraft", &[s("isDraft")]);
     insert_js(&mut map, "hasComposerDraft", &[s("hasComposerDraft")]);
     insert_js(&mut map, "activity", &[s("activity")]);
+    // CDXC:SessionStatus 2026-10-14 SEE-ALSO: the session's OSC 7501 records (server/src/program_status/presentation.rs), for a phone that wants the program's own message.
+    insert_non_null(&mut map, "programStatus", s("programStatus"));
     insert_js(&mut map, "agent", &[s("agent"), s("agentId")]);
     insert_js(&mut map, "agentIcon", &[s("agentIcon")]);
     // CDXC:AgentBox 2026-10-01 SEE-ALSO: the box a session runs in (`PresentationAgentbox`); the phone keeps a started box session on its terminal like gx-core's `session_chat_view_unavailable`.

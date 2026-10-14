@@ -920,6 +920,7 @@ fn build_session(
         activity: row.activity.clone(),
         has_background_work: row.has_background_work,
         model_selection_failed: row.model_selection_failed,
+        program_status_failed: row.program_status_failed,
         agent_icon: row.agent_icon.clone(),
         kind: row.is_browser.then(|| "browser".to_string()),
         session_kind: row.session_kind.clone(),

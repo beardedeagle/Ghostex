@@ -2451,7 +2451,20 @@ Scripts and agent hooks can post their own rows with
 A banked Claude or Codex usage reset that is about to expire shows as a red
 row; it opens that account's usage dropdown instead of a session.
 
-Related settings: `completionSound`, `actionCompletionSound`, `copySound`,
+Session status from (Settings > Sidebar) chooses how Ghostex knows a session is
+working, waiting for you, or done. Ghostex detection, the default, reads each
+agent's hooks, terminal title and screen. Some programs report their own status
+with the Program Status Protocol (OSC 7501): Claude Code 2.1.295 and newer does,
+and so can your own scripts. Program status only takes every session's status
+from those reports alone; Auto uses them for sessions whose program sends them
+and Ghostex detection for the rest. With the program's own status, working shows
+the orange dot, waiting for permission, an answer or a sign-in shows the blue
+dot, finished shows the blue dot until you look, and a failure shows a red dot.
+Hover the session to read the program's one-line message (and its progress
+when it reports one). `ghostex sessions --json --full` shows each session's
+reports under `programStatus`.
+
+Related settings: `sessionStatusSource`, `completionSound`, `actionCompletionSound`, `copySound`,
 `showMacOSAttentionNotifications`, `resetExpirySystemNotifications`,
 `showNotificationOnTerminalBell`,
 `hideMenuBarSessionStatusIndicators`, `petOverlayEnabled`,

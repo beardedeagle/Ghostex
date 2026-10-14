@@ -192,6 +192,34 @@
       "agentWritable": true
     },
     {
+      "key": "sessionStatusSource",
+      "title": "Session status from",
+      "subtitle": "Choose how Ghostex knows a session is working, needs you or is done. Ghostex detection reads each agent's hooks, terminal title and screen. Program status only uses the status the program itself reports (OSC 7501, sent by Claude Code 2.1.295 and newer and recent Codex betas), with its message shown when you hover the session. Auto uses the program's own status for sessions that send it and Ghostex detection for the rest.",
+      "tab": "settings",
+      "tabTitle": "General",
+      "group": "sidebar",
+      "groupTitle": "Sidebar",
+      "section": "sidebar",
+      "sectionTitle": "Sidebar",
+      "type": "enum",
+      "default": "detection",
+      "options": [
+        {
+          "label": "Ghostex detection",
+          "value": "detection"
+        },
+        {
+          "label": "Auto",
+          "value": "auto"
+        },
+        {
+          "label": "Program status only",
+          "value": "programStatus"
+        }
+      ],
+      "agentWritable": true
+    },
+    {
       "key": "hideProjectHeaderDiffStats",
       "title": "Hide project git stats",
       "subtitle": "Hide +added/-removed line counts in sidebar project rows.",

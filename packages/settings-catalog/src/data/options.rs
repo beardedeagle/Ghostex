@@ -641,6 +641,13 @@ pub const TERMINAL_VIEW_WIDTH_MODE_OPTIONS: &[Opt] = &[
     opt("Custom", "custom"),
 ];
 
+/// Where a session's working / needs-attention status comes from (CDXC:SessionStatus), in the Settings dropdown's order.
+pub const SESSION_STATUS_SOURCE_OPTIONS: &[Opt] = &[
+    opt("Ghostex detection", "detection"),
+    opt("Auto", "auto"),
+    opt("Program status only", "programStatus"),
+];
+
 /// How the chat colours the sections an agent marks (Marked handovers), in the Settings dropdown's order.
 pub const MARKED_HANDOVERS_STYLE_OPTIONS: &[Opt] = &[
     opt("Coloured labels", "labels"),

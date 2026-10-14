@@ -308,12 +308,40 @@ export interface GxserverPresentationAgentbox {
   pending?: true;
 }
 
+/** One OSC 7501 record of a session (`ProgramStatusRecord` in gx-protocol). */
+export interface GxserverProgramStatusRecord {
+  /** `a/b/c` path; empty for the root record. */
+  id: string;
+  state: "idle" | "working" | "done" | "blocked" | "error";
+  kind?: "permission" | "question" | "auth";
+  progress?: number;
+  app?: string;
+  title?: string;
+  /** One line from the program; shown on hover, never as markup. */
+  msg?: string;
+  updatedAtMs: number;
+}
+
+/** What the session's own program reported over OSC 7501 (`ProgramStatus` in gx-protocol). */
+export interface GxserverProgramStatus {
+  /** The records drive `activity` under the Session status setting. */
+  governs: boolean;
+  state: "idle" | "working" | "done" | "blocked" | "error";
+  kind?: "permission" | "question" | "auth";
+  progress?: number;
+  app?: string;
+  message?: string;
+  records: GxserverProgramStatusRecord[];
+}
+
 export interface GxserverPresentationSession {
   accountId?: string;
   accountName?: string;
   accountSlot?: string;
   /** Present only when the agent runs inside an agentbox sandbox instead of on this machine. */
   agentbox?: GxserverPresentationAgentbox;
+  /** The session's OSC 7501 program status; absent when it has no records to show. */
+  programStatus?: GxserverProgramStatus;
   actions: GxserverPresentationSessionActions;
   activity: GxserverPresentationSessionActivity;
   /** Unanswered async questions, independent of working/completion activity. */

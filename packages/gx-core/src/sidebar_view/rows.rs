@@ -198,6 +198,17 @@ pub(crate) fn session_row(
         Some(reason) => format!("{reason}\n\n{tooltip}"),
         None => tooltip,
     };
+    let program_status = session
+        .program_status
+        .as_ref()
+        .filter(|status| status.governs);
+    let tooltip = match program_status.and_then(super::program_status::program_status_hover_line) {
+        Some(line) if tooltip.is_empty() => line,
+        Some(line) => format!("{line}\n\n{tooltip}"),
+        None => tooltip,
+    };
+    let program_status_failed = program_status.is_some_and(|status| status.state == "error")
+        && session.activity.as_str() == "attention";
     let last_interaction_at = session
         .meaningful_activity_at
         .clone()
@@ -238,6 +249,7 @@ pub(crate) fn session_row(
         activity: session.activity.as_str().to_string(),
         has_background_work: session.background_work_detected_at.is_some(),
         model_selection_failed: session.model_selection_failure.is_some(),
+        program_status_failed,
         pending_question_count: session.pending_question_count,
         agent_icon: agent_icon.map(str::to_string),
         session_kind: Some(session_kind),

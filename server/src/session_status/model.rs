@@ -104,6 +104,8 @@ pub(super) struct ActivityInput {
     pub(super) previous: ActivityState,
     pub(super) settled_title: Option<String>,
     pub(super) title: Option<String>,
+    /// Activity derived from the session's OSC 7501 records (`programStatusActivity`).
+    pub(super) program_status_activity: Option<String>,
 }
 
 /*
@@ -133,6 +135,24 @@ pub fn compute_activity_update(
         .or_else(|| read_text(params, "event"))
         .filter(|value| normalize_activity_event(Some(value.as_str())).is_some());
     let previous_state = previous.clone();
+    let program_status_activity = read_text(params, "programStatusActivity")
+        .filter(|value| matches!(value.as_str(), "idle" | "working" | "attention"));
+    /*
+    CDXC:SessionStatus 2026-10-14 DECISION:
+    User: use OSC 7501 "instead of all the weird stuff we're doing to track when the agent is working or has attention status". While a session's program status governs it (Session status set to Program status only, or Auto once the session reported), hooks, terminal titles, bells, Escape and every other detected signal leave its activity alone; only its records (`programStatusActivity`) and the user's own acknowledgement change it. Titles, identity, transcripts, chat cards and limit detection keep running: this gate covers activity only.
+    SEE-ALSO: server/src/program_status/ingest.rs (the writer), server/src/presentation/session_attributes.rs (the projection-side gate).
+    */
+    if program_status_activity.is_none()
+        && event.as_deref() != Some("acknowledge")
+        && crate::program_status::program_status_governs_session(session)
+    {
+        return ActivityUpdate {
+            activity: previous_state.to_value(),
+            entered_attention: false,
+            last_active_at: read_text_value(session, "lastActiveAt"),
+            previous_activity,
+        };
+    }
     let activity = apply_agent_activity_transition(ActivityInput {
         activity: params
             .get("activity")
@@ -150,6 +170,7 @@ pub fn compute_activity_update(
         previous,
         settled_title: read_text(params, "settledTitle"),
         title: read_text(params, "title"),
+        program_status_activity,
     });
     /*
     Sessions that predate the meaningful-activity clock seed it from their

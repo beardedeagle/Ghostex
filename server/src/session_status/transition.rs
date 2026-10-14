@@ -28,6 +28,10 @@ pub(super) fn apply_agent_activity_transition(input: ActivityInput) -> ActivityS
         return next;
     }
 
+    if let Some(activity) = input.program_status_activity.as_deref() {
+        return program_status_transition(&input, &previous, activity);
+    }
+
     if input.event.as_deref() == Some("escape") {
         let mut next = previous.clone();
         next.agent_name =

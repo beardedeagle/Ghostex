@@ -46,6 +46,7 @@ pub mod paths;
 pub mod platform;
 pub mod portless;
 pub mod presentation;
+pub(crate) mod program_status;
 pub mod project_docs;
 pub mod project_git_remote;
 pub mod project_git_state;
