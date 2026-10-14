@@ -1313,7 +1313,15 @@ impl Render for GhostexGpuiApp {
                             .min_w_0()
                             .min_h_0()
                             .overflow_hidden()
-                            .bg(workspace_column_background())
+                            .map(|this| {
+                                // Terminals cut out of the tint paint their own share of it
+                                // (helpers/terminal_glass.rs).
+                                if terminal_glass_cutout_active() {
+                                    this.child(workspace_column_glass_tint())
+                                } else {
+                                    this.bg(workspace_column_background())
+                                }
+                            })
                             .child(self.render_workspace_with_command_pane(window, cx))
                             .child(self.render_workarea_header(window, cx)),
                     )

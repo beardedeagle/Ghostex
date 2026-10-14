@@ -359,6 +359,7 @@ pub(crate) fn refresh_window_glass(object: &serde_json::Map<String, serde_json::
             != Some(false);
     }
     window_glass_live::refresh_window_glass_live(object);
+    terminal_glass::refresh_terminal_glass(object);
     let active = cfg!(any(
         target_os = "macos",
         target_os = "windows",
@@ -817,14 +818,19 @@ pub(crate) fn sidebar_glass_tint() -> Hsla {
 pub(crate) fn workspace_column_background() -> Hsla {
     let workspace = workspace_background_color();
     if window_glass_active() {
-        let alpha = if CHROME_LIGHT_APPEARANCE.load(Ordering::Relaxed) {
-            load_glass_alpha(&WORK_AREA_GLASS_PERCENT_LIGHT)
-        } else {
-            load_glass_alpha(&WORK_AREA_GLASS_PERCENT_DARK)
-        };
-        workspace.opacity(alpha)
+        workspace.opacity(work_area_glass_alpha())
     } else {
         workspace
+    }
+}
+
+/// How much of the blurred desktop the work area's tint covers in the current appearance
+/// (`windowGlassWorkAreaTintDark` / `Light`).
+pub(crate) fn work_area_glass_alpha() -> f32 {
+    if CHROME_LIGHT_APPEARANCE.load(Ordering::Relaxed) {
+        load_glass_alpha(&WORK_AREA_GLASS_PERCENT_LIGHT)
+    } else {
+        load_glass_alpha(&WORK_AREA_GLASS_PERCENT_DARK)
     }
 }
 

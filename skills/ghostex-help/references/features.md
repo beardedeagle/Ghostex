@@ -1729,6 +1729,15 @@ Terminal background (Settings, Terminal) is Black / white by default: pure black
 behind dark terminals and pure white behind light ones. Choose Follow theme to use
 the theme's background color instead, or Custom color to pick your own for dark mode.
 
+Terminals are see-through only while the window is: turn on Enable transparency
+(Settings, Theme, Transparency; it starts off on Windows and on in dark mode on
+macOS and Linux). Background opacity (Settings, Terminal) then sets how much of the
+work area's tint terminals keep: 100% matches the rest of the work area, lower
+shows more of your desktop through them. While transparency is off the row offers
+Turn on transparency instead. Background blur in the same place is the window's
+Blur, the same setting as on the Theme page. Ghostty's own `background-opacity`
+and `background-blur` lines in the terminal config do not change Ghostex's panes.
+
 On macOS, Custom shaders (experimental) runs the `custom-shader` files from
 Ghostex's terminal config over its terminal panes, in the order the config lists them.
 Turn on Enable Experimental Features (Settings, Advanced) to see it at the bottom of
@@ -1744,7 +1753,8 @@ project. A folder supplied in the link takes precedence.
 
 Related settings: `terminalFontFamily`, `terminalFontSize`,
 `terminalGhosttyTheme`, `terminalColorScheme`, `terminalGhosttyLightTheme`,
-`terminalBackgroundMode`, `workspaceBackgroundColor`, `terminalCursorStyle`, `terminalPane*PaddingPx`,
+`terminalBackgroundMode`, `workspaceBackgroundColor`, `terminalBackgroundOpacity`,
+`windowGlass`, `windowGlassBlurRadius`, `terminalCursorStyle`, `terminalPane*PaddingPx`,
 `terminalScrollbackLimitMb`, `terminalCopyOnSelect`, `promptEditorBackend`,
 `terminalDevServerDetectionEnabled`, `terminalShadersEnabled`.
 
