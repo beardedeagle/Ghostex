@@ -8,6 +8,77 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
         <link>https://github.com/maddada/Ghostex/releases</link>
         <description>Sparkle appcast for Ghostex macOS releases.</description>
         <item>
+            <title>10.23.0</title>
+            <pubDate>Wed, 14 Oct 2026 05:07:38 +0000</pubDate>
+            <sparkle:fullReleaseNotesLink>https://github.com/maddada/Ghostex/releases/tag/v10.23.0</sparkle:fullReleaseNotesLink>
+            <sparkle:version>102300</sparkle:version>
+            <sparkle:shortVersionString>10.23.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[# Ghostex 10.23.0
+
+## 10.23.0 - 2026-10-14
+
+**Ghostex 10.23.0 is out.** Question forms take a closing note and answers show at once, sent agent messages turn Delivered when they arrive, orchestrators get Sleep Inactive Threads and editors for their goal and memory, closed sessions come back from anywhere, SpaceO gets a guided permission setup on macOS, and agents start properly under WSL with zsh and Powerlevel10k.
+
+### 💬 Chat
+- **A question form with more than one question ends with an optional notes box** for anything else you want the agent to know; it arrives with your answers. On the computer, the web and the phone.
+- **Answers show at once:** a question form or page reads Answered the moment you send, and your answers appear right away as a pending card that settles once the agent has them.
+- **A Previous question ↑ button** beside Scroll to bottom jumps to the next unanswered question; turn it on in Settings > Chat > Previous question button. Q-tags in an agent's reply (Q80) link to the question they name.
+- **A message one agent sends another now turns Delivered** once the other session takes it, or Not sent with the reason, instead of staying on Waiting for agent. On the computer, the web and the phone.
+- **In summary mode the turn that is still running shows its work open,** with the running command visible, and folds into the reply once the turn ends.
+- **Simple mode names a tool call by the description the agent gave it** instead of the tool's name.
+- **An agent that can't start says why:** a missing account login becomes a card with Switch account, Sign in and Try again, and a message waiting for that agent goes out once it is up.
+- **Antigravity CLI's Run this command? panel becomes a permission card in the chat,** and its folder-trust card answers from the chat again.
+- **Cmd+Enter on a folder-trust card picks Yes, I trust,** and links in the chat no longer show an underline.
+- **A marked section's label stands on its own line,** with the text that followed it underneath.
+
+### 🧭 Orchestrators
+- **Sleep Inactive Threads** on an orchestrator's right-click menu sleeps every one of its threads that is idle. On the computer and the phone.
+- **Goal & Instructions and Memory editors** open from an orchestrator's menu, and a thread's menu has Mark Thread Done and Reopen Thread, each saying why when a session can't close or wake. On the computer and the phone.
+
+### 🗂️ Sessions and sidebar
+- **Closed sessions come back from anywhere:** `ghostex previous-sessions` lists them and `ghostex restore-previous-session` restores one, and the phone's session search lists closed sessions and restores the one you tap.
+- **Every project always shows all its sessions:** the compact list and Show more / Show less are gone, on the computer and the phone.
+- **Send Feedback moved into the sidebar's More options menu,** under Join Discord, and takes an optional GitHub username so you hear back on GitHub when your report is fixed.
+- **Sleep Below skips sessions that are running a shell command or asking a question.**
+- **A row's menu opens where you right-clicked,** or lined up with the button that opened it.
+- **Session hotkeys act on a focused side-panel view:** with Kanban, Files or the Browser focused, Close, Previous/Next Tab, Sleep, Reload, Cmd+F and Cmd+R work on that view.
+
+### 📂 Files
+- **Open With starts with Show in Folder** for a file on your computer, which shows it selected in File Explorer (Finder on a Mac).
+
+### 🔐 macOS permissions
+- **SpaceO and Fast Computer & Browser Use each ask macOS for their own permissions,** and Settings > Integrations shows Granted, Not granted or Needs restart for each one.
+- **A guide beside System Settings walks you through SpaceO's permissions:** drag SpaceO from the tag into the list, it moves to the other side when there is no room, and SpaceO restarts by itself once its agents are done.
+- **SpaceO updates from the same Update button as Fast Computer & Browser Use.**
+
+### 🤖 Agents and accounts
+- **Codex's Update now updates the copy your sessions actually run,** with the tool that installed it, then restarts Codex once it is idle.
+- **`ghostex create-agent` and the board set an Antigravity CLI worker's model and effort at launch.**
+- **Switching a session's account answers the folder-trust prompt once,** including for an account that never ran in that folder, and Sign in again works when the default Claude profile is signed out.
+
+### 🐧 Linux and Windows
+- **Agents start properly under zsh with Powerlevel10k:** Codex no longer quits with "stdin is not a terminal" in WSL (and on Linux and macOS), thanks to @omegafrog for the report.
+- **WSL sessions no longer take `C:\WINDOWS\system32\wsl.exe` as their name;** sessions already named that way go back to their usual name.
+
+### 🖥️ Terminal
+- **Ghostex terminals have their own Ghostty config,** so Settings > Terminal never writes to the Ghostty app's config again; your current look is copied over once, and Import from Ghostty brings over fonts, spacing and the cursor whenever you want.
+
+### 🎨 Look
+- **Every text button in the app's dialogs, Settings and chat cards is filled;** secondary actions take one neutral fill, on the computer and the phone.
+- **Settings > Chat: Show marker emojis comes before Marked sections style,** and Preview is a labelled button beside the style dropdown.
+
+### 🩹 Fixes and polish
+- **`ghostex show` embeds images a page points to by a relative path,** and a page with inlined images is no longer refused for its source size.
+- **Closing a session ends the messages it was holding,** so it can't come back by itself.
+- **Starting an agent that is turned off in Settings > Agents from the CLI is refused** and names the agents you can use, unless you pass `--allow-hidden`.
+- **Settings' scrollbars look and sit like the chat's,** and the rail's no longer covers its rows.
+- **The Goal & Instructions and Memory editors stay open until the save succeeds.**
+]]></description>
+            <enclosure url="https://github.com/maddada/Ghostex/releases/download/v10.23.0/ghostex-10.23.0-arm64.dmg" length="112650253" type="application/octet-stream" sparkle:edSignature="4Av1YCnJVuOKdT9o7Ier4tcGMVZYhnZyT4tm/knT+it441pdBx/N//5PcXxfVb2pVUgdc0/J3/D1bS+QthQmAA=="/>
+        </item>
+        <item>
             <title>10.22.0</title>
             <pubDate>Tue, 13 Oct 2026 08:06:06 +0000</pubDate>
             <sparkle:fullReleaseNotesLink>https://github.com/maddada/Ghostex/releases/tag/v10.22.0</sparkle:fullReleaseNotesLink>
@@ -222,49 +293,6 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
             <enclosure url="https://github.com/maddada/Ghostex/releases/download/v10.19.0/ghostex-10.19.0-arm64.dmg" length="120129611" type="application/octet-stream" sparkle:edSignature="DLxrS5hteHFQNn2vby74ClifGG65c6U67zeM5dTTRvXuxLawTqif4eck9C/gpbBoiRPT1k0KPj22waen2QYgAw=="/>
         </item>
         <item>
-            <title>10.18.0</title>
-            <pubDate>Fri, 09 Oct 2026 23:04:43 +0000</pubDate>
-            <sparkle:fullReleaseNotesLink>https://github.com/maddada/Ghostex/releases/tag/v10.18.0</sparkle:fullReleaseNotesLink>
-            <sparkle:version>101800</sparkle:version>
-            <sparkle:shortVersionString>10.18.0</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[# Ghostex 10.18.0
-
-## 10.18.0 - 2026-10-10
-
-**Ghostex 10.18.0 is out.** Coordinators are now called Orchestrators, failed sends fix themselves, the phone app stops crashing and reaches your Windows computer again, and Windows hooks, cloning and helper windows behave.
-
-### 🧭 Orchestrators
-- **Coordinators are now called Orchestrators** across the app, the phone, Help and the CLI; `ghostex orchestrator` is the new command and `ghostex coordinator` still works.
-
-### 💬 Chat
-- **Failed sends fix themselves:** Ghostex redraws a stuck screen, retypes once, or restarts the agent on its own conversation and delivers your message, and shows a card with one Fix it button only when that fails. It never restarts an orchestrator or a session with background work.
-- **A Claude session that quit before its first message starts fresh** instead of failing to resume.
-- **Messages from other agents show their real text,** and Not sent appears only when a send really failed.
-- **Claude Code's internal suggestion queries no longer show up as questions in the chat,** and its faint guess at your next message is no longer mistaken for typed text.
-- **Sliding a panel no longer re-wraps or rebuilds the chat every frame,** and the question card's buttons have an outline.
-
-### 🪟 Windows
-- **Agent hooks no longer time out on Windows** for Claude, Codex, Grok, OpenClaude and OpenCode, thanks to @gvastethecreator.
-- **No more console windows flashing** from anything Ghostex starts in the background.
-- **Window glass uses Windows 11's own blur,** so sidebar and panel slides run about three times faster, menus share the panels' bluish fill, and toasts no longer show a square blur; new installs on Windows still start with glass off.
-
-### 📂 Projects and Files
-- **Add Project's clone shows git's progress,** can be cancelled, never hangs on a password prompt, and starts at your drives on Windows.
-- **Project websites like GitHub, Linear and Jira open straight to the page** instead of a command screen.
-- **Confirm delete in the files list is bold red,** and text buttons in Settings and the Agents Hub have an outline.
-- **The hooks card shows Install all only when needed,** with Uninstall all (now confirmed first) in a ⋯ menu and Refresh as an icon, and long extension descriptions show in full on hover.
-
-### 📱 Phone
-- **The Android app no longer crashes** and can send to a Windows computer again; Ghostex on the computer also listens where older phone apps look.
-
-### 🧩 Workspaces and Work Mode
-- **Work Mode adds team Linear keys and GitHub as a workspace's tracker,** with work cards on the phone (Settings > Extensions > Workspaces and Work Mode).
-]]></description>
-            <enclosure url="https://github.com/maddada/Ghostex/releases/download/v10.18.0/ghostex-10.18.0-arm64.dmg" length="120128470" type="application/octet-stream" sparkle:edSignature="PhwpIo7++SZ1mqq9EkdkgzYkHydnimuChwr8RjX5T8kWNDh0/yZM9GuDfEvloOb+hfxS8ais4wxCFs0ke5zaBA=="/>
-        </item>
-        <item>
             <title>3.26.1</title>
             <pubDate>Mon, 01 Jun 2026 18:43:20 +0400</pubDate>
             <sparkle:fullReleaseNotesLink>https://github.com/maddada/Ghostex/releases/tag/v3.26.1</sparkle:fullReleaseNotesLink>
@@ -276,6 +304,6 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
     </channel>
 </rss>
 <!-- sparkle-signatures:
-edSignature: waB0AigY4BalMFLwDpv8vb+4YfMZSTtVQa77AMSGRDuIk78z+yJJeD0neTqUG5OY3n52Y0mxlwfuTPM3VAwOAQ==
-length: 25165
+edSignature: omGYCMWPKS2mufj+UBwyOg7a3R4KkcRQxxopdt87G8ptWSJ/EWByf8b73uJENURVtn/Pe1caMYYAnTwhxP8DBQ==
+length: 28488
 -->
