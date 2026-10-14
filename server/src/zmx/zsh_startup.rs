@@ -3,6 +3,9 @@ use super::scripts::shell_quote;
 /// CDXC:Terminal 2026-09-05 WHY:
 /// Running an agent with `zsh -lic 'agent; exec zsh -li'` reloads the user's profiles after the agent exits; a second Ctrl+C can interrupt that startup and leave the default prompt with a partially loaded .zshrc.
 /// Launch once from the login shell's first precmd instead, so the same fully initialized shell survives the agent, including repeated interrupts.
+///
+/// CDXC:Terminal 2026-10-14 WHY:
+/// Powerlevel10k's instant prompt points stdin at /dev/null and stdout/stderr at a temp file while .zshrc loads, and gives the terminal back only when the first prompt is expanded, after every precmd hook and `sched +0` event (moving the launch to `sched +0` was tried and still saw /dev/null). An agent started from the first precmd therefore had no terminal: Codex quit with "stdin is not a terminal" (GitHub #228, zsh with p10k under WSL). So the hook first asks p10k to end its instant prompt (`p10k clear-instant-prompt`, a no-op when none is showing), which restores the terminal and erases the cached prompt before the agent draws.
 pub(super) fn agent_shell_command(shell_path: &str, startup: &str) -> String {
     let zshenv = format!(
         r#"
@@ -18,6 +21,7 @@ builtin unset GHOSTEX_ZSH_ORIGINAL_ZDOTDIR
 function _ghostex_start_agent() {{
   precmd_functions=("${{(@)precmd_functions:#_ghostex_start_agent}}")
   builtin unfunction _ghostex_start_agent
+  (( ! ${{+functions[p10k]}} )) || p10k clear-instant-prompt
   builtin eval {}
   return 0
 }}
