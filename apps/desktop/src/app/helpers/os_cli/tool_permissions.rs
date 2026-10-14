@@ -12,7 +12,7 @@ use std::{
 use crate::app::helpers::*;
 
 /// CDXC:ManagedTools 2026-10-14 DECISION:
-/// User: "We need to apply the exact same permissions flow as Synara. Also we should always show the status of each permission after it's done." Each grant is its own Settings row with Granted, Not granted or Needs restart; Grant makes the tool itself ask macOS (so it is listed in System Settings), opens that Privacy pane, and Settings re-checks from a fresh process until the grant lands, as Synara does.
+/// User: "We should always show the status of each permission after it's done." One row per permission with a live status that stays visible after the grant (Granted, Not granted, Needs restart); Grant makes the tool request its own permission (so it is listed in System Settings) and opens that Privacy pane; Settings re-checks from a fresh process, since a running process never sees a new grant, until the grant lands.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) enum GpuiToolPermissionState {
     Granted,

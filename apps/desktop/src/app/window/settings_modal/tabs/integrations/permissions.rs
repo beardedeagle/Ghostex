@@ -9,8 +9,8 @@ use std::time::Instant;
 const ICON_ACCESSIBILITY: &str = "modals/settings/shield.svg";
 const ICON_SCREEN_RECORDING: &str = "modals/settings/eye.svg";
 
-/// While a Grant is pending the page re-checks every 2 seconds for at most 10 minutes, like
-/// Synara's guide; otherwise every 10 seconds, like its Computer status.
+/// While a Grant is pending the page re-checks every 2 seconds for at most 10 minutes;
+/// otherwise every 10 seconds.
 const WATCH_INTERVAL: Duration = Duration::from_secs(2);
 const WATCH_LIMIT: Duration = Duration::from_secs(10 * 60);
 const IDLE_INTERVAL: Duration = Duration::from_secs(10);
@@ -130,7 +130,7 @@ fn permission_state(
 struct PermissionWatch {
     tool: PermissionTool,
     started: Instant,
-    /// SpaceO's restart was asked for once the grant landed (Synara retires its driver then).
+    /// SpaceO's restart was asked for once the grant landed, so its daemon picks the grant up.
     restart_requested: bool,
 }
 
