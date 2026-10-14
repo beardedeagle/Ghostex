@@ -53,6 +53,9 @@ pub struct CoreState {
     pub hide_account_emails: bool,
     /// The Catch me up setting (`chatCatchMeUp`), from the chat settings or the latest read.
     pub catch_up_enabled: bool,
+    /// The Previous question setting (`chatPreviousQuestion`), from the chat settings or the
+    /// latest read; off by default.
+    pub previous_question_enabled: bool,
     /// The session's display title, or `None` when it has none.
     pub title: Option<String>,
     /// Every deadline the core is waiting on. Any family may arm one by key; the host only ever

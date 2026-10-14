@@ -45,8 +45,13 @@ const GENERATION_TIMEOUT: Duration = Duration::from_secs(50);
 
 /// Whether the Catch me up setting is on, read fresh from the shared settings file.
 pub(crate) fn catch_up_enabled(paths: &GxserverPaths) -> bool {
+    chat_setting_enabled(paths, SETTING_KEY)
+}
+
+/// Whether an off-by-default chat switch is on, read fresh from the shared settings file.
+pub(crate) fn chat_setting_enabled(paths: &GxserverPaths, key: &str) -> bool {
     read_settings(paths)
-        .get(SETTING_KEY)
+        .get(key)
         .and_then(Value::as_bool)
         .unwrap_or(false)
 }

@@ -5,7 +5,7 @@
 //! highlight `jump.target` briefly.
 //!
 //! CDXC:SessionChat 2026-10-14 DECISION:
-//! User (Q81 = C): a "❓ 2 · Previous question ↑" pill next to Scroll to bottom while the chat has unanswered questions; each click scrolls to the next older unanswered one, wrapping, and highlights it briefly. A form whose answers are queued or sending is no longer waiting on the reader.
+//! User (Q81 = C): a "Previous question ↑" pill next to Scroll to bottom while the chat has unanswered questions; each click scrolls to the next older unanswered one, wrapping, and highlights it briefly. A form whose answers are queued or sending is no longer waiting on the reader. Then: "I don't like the emoji in the Previous question thing. Remove that icon and remove the number." and "Disable this feature by default unless the user has it enabled in Settings, since I want to test it more.": the pill reads "Previous question ↑" and shows only while Settings > Chat > Previous question button (`chatPreviousQuestion`) is on. Supersedes the same day's "❓ 2 · Previous question ↑" pill shown to everyone. Q-tag links stay on either way: they only appear where the agent names a question and do nothing until clicked.
 
 use serde::{Deserialize, Serialize};
 
@@ -18,8 +18,9 @@ use crate::transcript::open_questions::{tag_target, Asker, AskerKind};
 #[serde(rename_all = "camelCase")]
 pub struct OpenQuestions {
     /// How many forms and question pages are unanswered; the pill shows while this is above zero.
+    /// Zero while the Previous question setting is off, so the pill never shows.
     pub count: u32,
-    /// The pill's text: "❓ 2 · Previous question ↑".
+    /// The pill's text: "Previous question ↑".
     pub text: String,
     /// What a screen reader says for it.
     pub accessibility_label: String,
@@ -65,10 +66,14 @@ pub fn unanswered(state: &ChatState) -> Vec<&Asker> {
 
 /// The document's `openQuestions`.
 pub fn project(state: &ChatState) -> OpenQuestions {
-    let count = unanswered(state).len() as u32;
+    let count = if state.core.previous_question_enabled {
+        unanswered(state).len() as u32
+    } else {
+        0
+    };
     OpenQuestions {
         count,
-        text: format!("\u{2753} {count} \u{b7} Previous question \u{2191}"),
+        text: "Previous question \u{2191}".to_string(),
         accessibility_label: match count {
             1 => "1 unanswered question: go to it".to_string(),
             _ => format!("{count} unanswered questions: go to the previous one"),
@@ -161,6 +166,24 @@ mod tests {
             2,
             "after the oldest it wraps to the newest"
         );
+    }
+
+    #[test]
+    fn the_pill_shows_only_while_the_setting_is_on() {
+        let mut state = ChatState::default();
+        state.transcript_view.askers.push(Asker {
+            id: "form".to_string(),
+            kind: AskerKind::Form,
+            message_id: "a".to_string(),
+            tags: vec!["Q1".to_string()],
+            answered: false,
+            obsolete: false,
+        });
+        assert_eq!(project(&state).count, 0, "off by default");
+        state.core.previous_question_enabled = true;
+        let pill = project(&state);
+        assert_eq!(pill.count, 1);
+        assert_eq!(pill.text, "Previous question \u{2191}");
     }
 
     #[test]

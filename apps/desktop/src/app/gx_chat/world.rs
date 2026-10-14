@@ -490,7 +490,10 @@ fn settings_moved(world: &World, key: &str) -> Option<Event> {
         || settings.title != state.core.title
         || settings
             .catch_up
-            .is_some_and(|catch_up| catch_up != state.core.catch_up_enabled))
+            .is_some_and(|catch_up| catch_up != state.core.catch_up_enabled)
+        || settings
+            .previous_question
+            .is_some_and(|enabled| enabled != state.core.previous_question_enabled))
     .then(|| Event::SettingsChanged(Box::new(settings)))
 }
 

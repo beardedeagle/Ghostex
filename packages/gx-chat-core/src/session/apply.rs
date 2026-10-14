@@ -240,6 +240,9 @@ pub fn apply_draft_agent_carriage(state: &mut ChatState, result: &ReadSessionCha
     if let Some(catch_up) = result.catch_up {
         state.core.catch_up_enabled = catch_up;
     }
+    if let Some(previous_question) = result.previous_question {
+        state.core.previous_question_enabled = previous_question;
+    }
 }
 
 /// Applies one authoritative result: a seed read, a resync read, a snapshot, or the cached

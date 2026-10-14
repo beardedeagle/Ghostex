@@ -136,6 +136,10 @@ fn route(state: &mut ChatState, event: &Event, context: &ChatContext) -> Vec<Eff
             if let Some(catch_up) = settings.catch_up {
                 state.core.catch_up_enabled = catch_up;
             }
+            if let Some(previous_question) = settings.previous_question {
+                state.core.previous_question_enabled = previous_question;
+            }
+            state.core.request_publish();
             Vec::new()
         }
         _ => Vec::new(),
@@ -218,6 +222,9 @@ pub fn boot_read(
         state.core.title = settings.title;
         if let Some(catch_up) = settings.catch_up {
             state.core.catch_up_enabled = catch_up;
+        }
+        if let Some(previous_question) = settings.previous_question {
+            state.core.previous_question_enabled = previous_question;
         }
     }
     let config = state.session.boot_config.clone().unwrap_or_default();

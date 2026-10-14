@@ -417,6 +417,9 @@ pub struct ReadSessionChatResult {
     /// or a frame) leaves what the core already knows.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub catch_up: Option<bool>,
+    /// Whether the Previous question setting is on, the same way as `catch_up`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub previous_question: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fork_info: Option<ChatForkInfo>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

@@ -1023,6 +1023,20 @@
       "agentWritable": true
     },
     {
+      "key": "chatPreviousQuestion",
+      "title": "Previous question button",
+      "subtitle": "Show a Previous question button next to Scroll to bottom while the chat has questions you haven't answered yet. Each click goes to the next older one and briefly outlines it.",
+      "tab": "settings",
+      "tabTitle": "General",
+      "group": "chat",
+      "groupTitle": "Chat",
+      "section": "chat",
+      "sectionTitle": "Chat",
+      "type": "boolean",
+      "default": false,
+      "agentWritable": true
+    },
+    {
       "key": "markedHandovers",
       "title": "Marked handovers in every session",
       "subtitle": "Orchestrators and their threads always start each part of the message they hand back with a marker such as ❓ Needs you, ✅ Done, ⚠️ Read this, 🧪 Untested or 🛑 Blocked, so a quick skim shows what needs you. Turn this on to have every other agent session do the same. Applies to sessions started or resumed after you change it.",
@@ -3020,6 +3034,18 @@
       "type": "string",
       "default": "",
       "advanced": true,
+      "agentWritable": false
+    },
+    {
+      "key": "chatPreviousQuestionUserSet",
+      "title": "chatPreviousQuestionUserSet",
+      "subtitle": "App-managed state saved with the settings; not a user preference.",
+      "tab": "settings",
+      "tabTitle": "General",
+      "section": "internalState",
+      "sectionTitle": "Internal state (not user settings)",
+      "type": "boolean",
+      "default": false,
       "agentWritable": false
     },
     {

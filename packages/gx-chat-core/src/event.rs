@@ -229,6 +229,9 @@ pub struct ChatSettings {
     /// (the phone), which learns it from the chat read instead.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub catch_up: Option<bool>,
+    /// The Previous question setting (`chatPreviousQuestion`), the same way as `catch_up`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub previous_question: Option<bool>,
 }
 
 /// A size or position only the renderer can know, folded back into the document.

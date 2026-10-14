@@ -569,6 +569,15 @@ pub(crate) async fn handle_read_session_chat_http(
         "catchUp".to_string(),
         json!(crate::session_chat_catch_up::catch_up_enabled(&state.paths)),
     );
+    // The Previous question switch rides every read the same way (CDXC:SessionChat 2026-10-14 in
+    // packages/gx-chat-core/src/questions/open_questions.rs).
+    result.insert(
+        "previousQuestion".to_string(),
+        json!(crate::session_chat_catch_up::chat_setting_enabled(
+            &state.paths,
+            "chatPreviousQuestion"
+        )),
+    );
     if let Some(session_agent_id) = session_agent_id.as_deref() {
         result.insert("sessionAgentId".to_string(), json!(session_agent_id));
     }

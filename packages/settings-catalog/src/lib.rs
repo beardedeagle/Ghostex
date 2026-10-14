@@ -90,6 +90,15 @@ pub fn default_value(key: &str) -> Option<&'static J> {
         .map(|(_, value)| value)
 }
 
+/// The key that records that someone changed `key` themselves, for settings whose default may
+/// later flip (`USER_SET_COMPANIONS`).
+pub fn user_set_companion(key: &str) -> Option<&'static str> {
+    data::USER_SET_COMPANIONS
+        .iter()
+        .find(|(setting, _)| *setting == key)
+        .map(|(_, companion)| *companion)
+}
+
 /// Rows shown only while Show Advanced is on (`isAdvancedMainSetting`).
 pub fn is_advanced_setting(key: &str) -> bool {
     data::ADVANCED_MAIN_SETTING_KEYS.contains(&key)
