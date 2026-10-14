@@ -2,7 +2,11 @@
 //! owns when either shows and what the card holds (`packages/gx-chat-core/src/composer/catch_up.rs`).
 
 use super::side_question::{answering_placeholder, side_button};
-use super::{appearance::ChatAppearance, state::NativeChatView, transcript::text};
+use super::{
+    appearance::{ChatAppearance, ChatFilledButton as _},
+    state::NativeChatView,
+    transcript::text,
+};
 use crate::app::native_chat::cursor::ChatCursor as _;
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
@@ -79,12 +83,21 @@ impl NativeChatView {
             .h(px(24.0 * s))
             .rounded_full()
             .border_1()
-            .border_color(p.border)
+            .chat_filled(
+                {
+                    // Filled like every chat text button (CDXC:AppModal 2026-10-14); open, it
+                    // rests at the pressed step.
+                    let mut fills = p.neutral_button_fills();
+                    if open {
+                        fills.rest = fills.pressed;
+                    }
+                    fills
+                },
+                true,
+            )
             .text_size(px(12.0 * s))
             .text_color(if open { p.control_primary } else { p.primary })
-            .when(open, |this| this.bg(p.border))
             .chat_cursor_pointer()
-            .hover(|style| style.bg(p.border))
             .child(
                 svg()
                     .path("titlebar/sparkles.svg")
