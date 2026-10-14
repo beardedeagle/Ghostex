@@ -5,7 +5,8 @@
 //!
 //! States: `about`, `debugging`, `open-in`, `open-in-editor` (Add target open),
 //! `os-integration`, `os-integration-status` (a status with handler updates that need
-//! attention), `integrations` (permissions off), `integrations-trycua-missing`,
+//! attention), `integrations` (permissions off), `integrations-permissions` (SpaceO needs a restart
+//! for Accessibility and lacks Screen Recording), `integrations-trycua-missing`,
 //! `integrations-update` (a Trycua update available), `integrations-skills` (some skills installed),
 //! `hotkeys-page` (the Hotkeys page), `hotkeys-recording` (a recorder listening),
 //! `hotkeys-duplicate` (two actions on one chord), `theme`, `theme-light-scheme`, `theme-more`
@@ -131,6 +132,7 @@ pub(super) fn open_message(state: &str) -> Option<Value> {
         "open-in" | "open-in-editor" => "openTargets",
         "os-integration" | "os-integration-status" => "osIntegration",
         "integrations"
+        | "integrations-permissions"
         | "integrations-trycua-missing"
         | "integrations-update"
         | "integrations-skills" => "integrations",
@@ -138,6 +140,11 @@ pub(super) fn open_message(state: &str) -> Option<Value> {
         state if state.starts_with("theme") => "theme",
         _ => return None,
     };
+    // `GHOSTEX_NATIVE_MODAL_DEMO_QUERY` filters the page, e.g. "permissions" for the grant rows.
+    let query = super::super::env("GHOSTEX_NATIVE_MODAL_DEMO_QUERY");
+    if !query.is_empty() {
+        return Some(json!({ "initialTab": tab, "initialSearchQuery": query }));
+    }
     Some(json!({ "initialTab": tab }))
 }
 
@@ -149,6 +156,16 @@ fn ghostex_cli_status(state: &str) -> Value {
         _ => None,
     };
     let driver_installed = state != "integrations-trycua-missing";
+    // `integrations-permissions`: SpaceO granted Accessibility after it started and still lacks
+    // Screen Recording; Fast Computer & Browser Use has both.
+    let mixed = state == "integrations-permissions";
+    let spaceo_permission = |mixed_state: &str| match permissions_granted {
+        _ if mixed => json!(mixed_state),
+        Some(true) => json!("granted"),
+        Some(false) => json!("notGranted"),
+        None => json!("unknown"),
+    };
+    let cua_permission = if mixed { Some(true) } else { permissions_granted };
     let update_available = state == "integrations-update";
     let skills = state == "integrations-skills";
     json!({
@@ -158,21 +175,22 @@ fn ghostex_cli_status(state: &str) -> Value {
         "embeddedBrowserSkillInstalled": false,
         "helpSkillInstalled": skills,
         "cuaAppInstalled": false,
-        "cuaDriverAccessibilityPermissionGranted": permissions_granted,
+        "cuaDriverAccessibilityPermissionGranted": cua_permission,
         "cuaDriverInstallCommand": "/bin/bash -c \"$(curl -fsSL https://cua.ai/driver/install.sh)\"",
         "cuaDriverInstalled": driver_installed,
         "cuaDriverLatestVersion": if update_available { "0.29.1" } else { "0.23.2" },
         "cuaDriverManagedUpdatesSupported": true,
-        "cuaDriverScreenRecordingPermissionGranted": permissions_granted,
+        "cuaDriverScreenRecordingPermissionGranted": cua_permission,
         "cuaDriverUpdateAvailable": update_available,
         "cuaDriverVersion": "0.23.2",
-        "spaceoAccessibilityPermissionGranted": permissions_granted,
+        "spaceoAccessibilityPermission": spaceo_permission("needsRestart"),
         "spaceoDaemonRunning": driver_installed,
         "spaceoInstallCommand": "curl -fsSL https://raw.githubusercontent.com/ParthJadhav/SpaceO/main/install.sh | bash -s -- --no-clients",
         "spaceoInstalled": driver_installed,
         "spaceoLatestVersion": if update_available { "1.0.6" } else { "1.0.5" },
         "spaceoPermissionApp": "spaceo (/Users/you/.local/bin/spaceo)",
-        "spaceoScreenRecordingPermissionGranted": permissions_granted,
+        "spaceoScreenRecordingPermission": spaceo_permission("notGranted"),
+        "spaceoRestarting": false,
         "spaceoSkillInstalled": skills,
         "spaceoSupported": true,
         "spaceoUpdateAvailable": update_available,
@@ -230,7 +248,8 @@ pub(super) fn answers(message: &Value) -> Vec<Value> {
             | "checkCuaDriverUpdate"
             | "reinstallCuaDriver"
             | "checkSpaceoUpdate"
-            | "reinstallSpaceo",
+            | "reinstallSpaceo"
+            | "requestToolPermissionStatus",
         ) => vec![ghostex_cli_status(state)],
         Some("pickWindowGlassImageFile") => vec![json!({
             "appearance": message.get("appearance").cloned().unwrap_or(json!("dark")),

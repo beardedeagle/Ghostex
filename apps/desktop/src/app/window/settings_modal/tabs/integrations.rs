@@ -26,6 +26,7 @@ use gpui_component::{h_flex, v_flex};
 use serde_json::{Value, json};
 use std::time::Duration;
 
+mod permissions;
 mod spaceo;
 mod tools;
 
@@ -266,33 +267,6 @@ fn trycua_name() -> String {
     }
 }
 
-/// `getCuaPermissionStatus`.
-fn cua_permission_status(status: Option<&Value>, loading: bool) -> (&'static str, ListItemStatus) {
-    if loading || status.is_none() {
-        return ("Checking", ListItemStatus::Neutral);
-    }
-    if flag(status, "cuaDriverInstalled") != Some(true) {
-        return (
-            "Fast Computer & Browser Use Not Installed",
-            ListItemStatus::Warning,
-        );
-    }
-    let accessibility = flag(status, "cuaDriverAccessibilityPermissionGranted");
-    let screen = flag(status, "cuaDriverScreenRecordingPermissionGranted");
-    match (accessibility, screen) {
-        (Some(true), Some(true)) => ("Permissions Allowed", ListItemStatus::Success),
-        (Some(false), Some(false)) => ("Permissions Off - Open Settings", ListItemStatus::Warning),
-        (Some(false), _) => ("Accessibility Off - Open Settings", ListItemStatus::Warning),
-        (_, Some(false)) => (
-            "Screen Recording Off - Open Settings",
-            ListItemStatus::Warning,
-        ),
-        (Some(true), _) => ("Screen Recording Unknown", ListItemStatus::Warning),
-        (_, Some(true)) => ("Accessibility Unknown", ListItemStatus::Warning),
-        _ => ("Permission Status Unknown", ListItemStatus::Warning),
-    }
-}
-
 /// The `IntegrationStatusPill` / badge colours: `border-<hue>-500/40 bg-<hue>-500/10 text-<hue>-200`,
 /// with the light theme's darker text (styles/settings-light.css).
 fn tinted_label(
@@ -352,6 +326,8 @@ pub(crate) struct IntegrationsTab {
     copied_task: Option<Task<()>>,
     /// The Tools section (tools.rs).
     managed: tools::ManagedToolsState,
+    /// The permission rows' live re-checks (permissions.rs).
+    permissions: permissions::PermissionPolling,
 }
 
 impl IntegrationsTab {
@@ -381,14 +357,17 @@ impl IntegrationsTab {
             let _ = page.update(cx, |page, cx| page.load_managed_tools(cx));
         })
         .detach();
-        Self {
+        let mut page = Self {
             store,
             fields: FieldStates::default(),
             loading: missing,
             copied: None,
             copied_task: None,
             managed: tools::ManagedToolsState::default(),
-        }
+            permissions: permissions::PermissionPolling::default(),
+        };
+        page.start_permission_polling(cx);
+        page
     }
 
     /// Posts `{ type }` with the checking state on, as every React handler did.
@@ -1020,59 +999,7 @@ impl IntegrationsTab {
             ));
         }
         if show_permissions {
-            let (permission, tone) = cua_permission_status(status, checking);
-            let controls = vec![
-                settings_button(
-                    p,
-                    "integrations-accessibility",
-                    "Accessibility",
-                    None,
-                    ButtonVariant::Ghost,
-                    false,
-                    None,
-                    |page: &mut Self, _window, cx| {
-                        post_store_message(
-                            &page.store,
-                            json!({ "type": "openAccessibilityPreferences" }),
-                            cx,
-                        );
-                    },
-                    cx,
-                ),
-                settings_button(
-                    p,
-                    "integrations-screen-recording",
-                    "Screen Recording",
-                    None,
-                    ButtonVariant::Ghost,
-                    false,
-                    None,
-                    |page: &mut Self, _window, cx| {
-                        post_store_message(
-                            &page.store,
-                            json!({ "type": "openScreenRecordingPreferences" }),
-                            cx,
-                        );
-                    },
-                    cx,
-                ),
-            ];
-            rows.push(integration_row(
-                p,
-                "system-permissions",
-                Some(tone),
-                Some(ICON_SETTINGS),
-                RowTitle {
-                    link: None,
-                    label: "System permissions".to_string(),
-                    description: format!(
-                        "{permission}. {name} needs Accessibility to click and type in apps, and Screen Recording to understand what is visible on the desktop."
-                    ),
-                    badge: None,
-                    pill: None,
-                },
-                controls,
-            ));
+            rows.extend(self.permission_rows(p, status, permissions::PermissionTool::CuaDriver, cx));
         }
         rows.extend(self.spaceo_rows(
             p,
@@ -1386,7 +1313,8 @@ fn save(
 }
 
 impl Render for IntegrationsTab {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        self.observe_permission_window(window, cx);
         let (p, search, matching, status) = {
             let store = self.store.read(cx);
             let matching: Vec<SettingsTabId> = if store.is_searching() {

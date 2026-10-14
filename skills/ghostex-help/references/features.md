@@ -2745,10 +2745,16 @@ backend: `ghostex team deploy|join|invite|identity|status|ping|leave`. Slack:
   SpaceO skill; it does not add SpaceO to your agents' MCP settings. Its row
   gets the same update, reinstall and uninstall buttons (an update waits for
   agents using SpaceO to finish; uninstalling ends their SpaceO sessions and
-  keeps the permissions). Its permissions row says which app needs
-  Accessibility and Screen Recording turned on and opens those settings. Ask
-  agents to use $ghostex-spaceo (or /ghostex-spaceo in Claude). Commands:
-  `ghostex spaceo install-skill`, `spaceo doctor`.
+  keeps the permissions). On a Mac, both tools get an Accessibility row and a
+  Screen Recording row that always show Granted, Not granted or Needs restart
+  and update on their own while Settings is open. Grant makes the tool itself
+  ask macOS for the permission, so it is listed in System Settings (SpaceO as
+  "spaceo", Fast Computer & Browser Use as "CuaDriver"), and opens that
+  Privacy & Security pane; turn the switch on there and the row turns to
+  Granted. Needs restart means macOS allowed SpaceO after it started: Restart
+  SpaceO (done for you after a Grant) restarts it once the agents using it
+  finish. Ask agents to use $ghostex-spaceo (or /ghostex-spaceo in Claude).
+  Commands: `ghostex spaceo install-skill`, `spaceo doctor`.
 - Settings > Integrations > Tools lists the tools Ghostex can install for you
   when something you set up needs them: Node.js and npm, uv, Homebrew (Mac),
   System tools (curl, certificates, unzip and git on Linux), Beads, and the

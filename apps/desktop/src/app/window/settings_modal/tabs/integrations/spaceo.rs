@@ -1,6 +1,6 @@
 //! SpaceO's rows in the Desktop control section, laid out like Fast Computer & Browser Use's: the SpaceO row
 //! (Install, or Update, Reinstall and Uninstall once installed), its job progress, its install
-//! command, and the permissions its background daemon reports.
+//! command, and its Accessibility and Screen Recording rows (permissions.rs).
 
 use super::*;
 
@@ -24,36 +24,6 @@ fn spaceo_job(status: Option<&Value>) -> InstallJob {
         "spaceoInstallPlan",
         None,
     )
-}
-
-/// The permissions row's label: the grants SpaceO's daemon reports, like `getCuaPermissionStatus`.
-fn spaceo_permission_status(
-    status: Option<&Value>,
-    loading: bool,
-) -> (&'static str, ListItemStatus) {
-    if loading || status.is_none() {
-        return ("Checking", ListItemStatus::Neutral);
-    }
-    if flag(status, "spaceoInstalled") != Some(true) {
-        return ("SpaceO Not Installed", ListItemStatus::Warning);
-    }
-    if flag(status, "spaceoDaemonRunning") != Some(true) {
-        return ("SpaceO Not Running", ListItemStatus::Warning);
-    }
-    let accessibility = flag(status, "spaceoAccessibilityPermissionGranted");
-    let screen = flag(status, "spaceoScreenRecordingPermissionGranted");
-    match (accessibility, screen) {
-        (Some(true), Some(true)) => ("Permissions Allowed", ListItemStatus::Success),
-        (Some(false), Some(false)) => ("Permissions Off - Open Settings", ListItemStatus::Warning),
-        (Some(false), _) => ("Accessibility Off - Open Settings", ListItemStatus::Warning),
-        (_, Some(false)) => (
-            "Screen Recording Off - Open Settings",
-            ListItemStatus::Warning,
-        ),
-        (Some(true), _) => ("Screen Recording Unknown", ListItemStatus::Warning),
-        (_, Some(true)) => ("Accessibility Unknown", ListItemStatus::Warning),
-        _ => ("Permission Status Unknown", ListItemStatus::Warning),
-    }
 }
 
 impl IntegrationsTab {
@@ -173,66 +143,7 @@ impl IntegrationsTab {
             }
         }
         if show_permissions {
-            let (permission, tone) = spaceo_permission_status(status, checking);
-            let grant_target = text(status, "spaceoPermissionApp")
-                .map(|app| {
-                    format!(
-                        " Turn both on for {app}; if it is not listed, add it with the + button."
-                    )
-                })
-                .unwrap_or_default();
-            let controls = vec![
-                settings_button(
-                    p,
-                    "integrations-spaceo-accessibility",
-                    "Accessibility",
-                    None,
-                    ButtonVariant::Ghost,
-                    false,
-                    None,
-                    |page: &mut Self, _window, cx| {
-                        post_store_message(
-                            &page.store,
-                            json!({ "type": "openAccessibilityPreferences" }),
-                            cx,
-                        );
-                    },
-                    cx,
-                ),
-                settings_button(
-                    p,
-                    "integrations-spaceo-screen-recording",
-                    "Screen Recording",
-                    None,
-                    ButtonVariant::Ghost,
-                    false,
-                    None,
-                    |page: &mut Self, _window, cx| {
-                        post_store_message(
-                            &page.store,
-                            json!({ "type": "openScreenRecordingPreferences" }),
-                            cx,
-                        );
-                    },
-                    cx,
-                ),
-            ];
-            rows.push(integration_row(
-                p,
-                "spaceo-permissions",
-                Some(tone),
-                Some(ICON_SETTINGS),
-                RowTitle {
-                    link: None,
-                    label: format!("{name} permissions"),
-                    description: format!(
-                        "{permission}. {name} needs Accessibility to click and type in apps, and Screen Recording to take screenshots of the apps it runs.{grant_target}"
-                    ),
-                    badge: None,
-                    pill: None,
-                },
-                controls,
-            ));
+            rows.extend(self.permission_rows(p, status, super::permissions::PermissionTool::Spaceo, cx));
         }
         rows
     }

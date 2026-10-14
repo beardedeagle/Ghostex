@@ -16,6 +16,7 @@ pub(crate) mod command_exec;
 pub(crate) mod cua_driver_job;
 pub(crate) mod cua_driver_skill;
 pub(crate) mod cua_driver_status;
+pub(crate) mod disclaimed_spawn;
 pub(crate) mod folder_stats_and_zmx;
 pub(crate) mod install_job;
 pub(crate) mod keyboard_router;
@@ -28,6 +29,7 @@ pub(crate) mod process_and_constants;
 pub(crate) mod source_code_server_spawn;
 pub(crate) mod spaceo_job;
 pub(crate) mod spaceo_status;
+pub(crate) mod tool_permissions;
 #[cfg(target_os = "windows")]
 pub(crate) mod windows_notifications;
 #[cfg(target_os = "windows")]
@@ -43,6 +45,7 @@ pub(crate) use command_exec::*;
 pub(crate) use cua_driver_job::*;
 pub(crate) use cua_driver_skill::*;
 pub(crate) use cua_driver_status::*;
+pub(crate) use disclaimed_spawn::*;
 pub(crate) use folder_stats_and_zmx::*;
 pub(crate) use install_job::*;
 pub(crate) use keyboard_router::*;
@@ -55,6 +58,7 @@ pub(crate) use process_and_constants::*;
 pub(crate) use source_code_server_spawn::*;
 pub(crate) use spaceo_job::*;
 pub(crate) use spaceo_status::*;
+pub(crate) use tool_permissions::*;
 #[cfg(target_os = "windows")]
 pub(crate) use windows_notifications::*;
 #[cfg(target_os = "windows")]

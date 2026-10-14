@@ -514,6 +514,28 @@ impl SettingsStore {
         else {
             return;
         };
+        // A `partial` payload (the permission rows' quick re-check) updates only its own fields
+        // of the last full answer, and waits for a full one when there is none yet.
+        if payload.get("partial").and_then(Value::as_bool) == Some(true) {
+            let Some(existing) = self
+                .host_payloads
+                .get_mut(&kind)
+                .and_then(Value::as_object_mut)
+            else {
+                return;
+            };
+            if let Some(fields) = payload.as_object() {
+                for (key, value) in fields {
+                    if key != "partial" {
+                        existing.insert(key.clone(), value.clone());
+                    }
+                }
+            }
+            // Its own event kind, so a page waiting for the full answer keeps waiting.
+            cx.emit(SettingsStoreEvent::HostPayload(format!("{kind}:partial")));
+            cx.notify();
+            return;
+        }
         self.apply_host_answer(&kind, &payload, cx);
         self.host_payloads.insert(kind.clone(), payload);
         cx.emit(SettingsStoreEvent::HostPayload(kind));

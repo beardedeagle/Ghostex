@@ -157,6 +157,22 @@ impl GhostexGpuiApp {
             "checkSpaceoUpdate" => {
                 self.check_gpui_spaceo_update(cx);
             }
+            "requestToolPermissionStatus" => {
+                self.refresh_gpui_tool_permission_status(cx);
+            }
+            "grantToolPermission" => {
+                let text = |key: &str| {
+                    command
+                        .get(key)
+                        .and_then(serde_json::Value::as_str)
+                        .unwrap_or_default()
+                        .to_string()
+                };
+                self.grant_gpui_tool_permission(&text("tool"), &text("permission"), cx);
+            }
+            "restartSpaceo" => {
+                self.restart_gpui_spaceo(cx);
+            }
             "runManagedToolTerminalCommand" => {
                 if let Some(tool_id) = command.get("toolId").and_then(serde_json::Value::as_str) {
                     self.run_managed_tool_terminal_command(tool_id.to_string(), window, cx);

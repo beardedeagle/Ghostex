@@ -1,6 +1,6 @@
 //! SpaceO (github.com/ParthJadhav/SpaceO) for Settings > Integrations: whether this Mac can run
-//! it, where `spaceo` is, its installed and latest versions, and the Accessibility and Screen
-//! Recording grants its daemon reports. Every probe is read-only.
+//! it, where `spaceo` is, its installed and latest versions, and its Accessibility and Screen
+//! Recording grants (tool_permissions.rs). Every probe is read-only.
 
 use std::{
     path::{Path, PathBuf},
@@ -107,21 +107,13 @@ pub(crate) struct GpuiSpaceoStatus {
     pub(crate) version: Option<String>,
     pub(crate) latest_version: Option<String>,
     pub(crate) update_available: Option<bool>,
-    pub(crate) daemon_running: bool,
-    /// The app macOS attributes the daemon's grants to, as the daemon reports it.
-    pub(crate) permission_app: Option<String>,
-    pub(crate) accessibility_granted: Option<bool>,
-    pub(crate) screen_recording_granted: Option<bool>,
-    pub(crate) permission_detail: String,
+    pub(crate) permissions: GpuiSpaceoPermissionReport,
 }
 
 /// `fresh` skips the cached latest-release answer; Settings' "check again" button asks for it.
 pub(crate) fn gpui_spaceo_status(fresh: bool) -> GpuiSpaceoStatus {
     let Some(path) = gpui_spaceo_executable_path() else {
-        return GpuiSpaceoStatus {
-            permission_detail: "SpaceO is not installed.".to_string(),
-            ..GpuiSpaceoStatus::default()
-        };
+        return GpuiSpaceoStatus::default();
     };
     let version = gpui_spaceo_version(&path);
     let latest_version = gpui_spaceo_latest_version(fresh);
@@ -131,30 +123,13 @@ pub(crate) fn gpui_spaceo_status(fresh: bool) -> GpuiSpaceoStatus {
         }
         _ => None,
     };
-    let daemon = gpui_spaceo_daemon_runtime(&path);
-    let field = |key: &str| daemon.as_ref().and_then(|daemon| daemon.get(key));
-    let accessibility_granted = field("accessibilityGranted").and_then(serde_json::Value::as_bool);
-    let screen_recording_granted =
-        field("screenRecordingGranted").and_then(serde_json::Value::as_bool);
-    let permission_app = field("responsibleProcess")
-        .and_then(serde_json::Value::as_str)
-        .map(str::trim)
-        .filter(|app| !app.is_empty())
-        .map(str::to_string);
+    let permissions = gpui_spaceo_permission_report(&path);
     GpuiSpaceoStatus {
-        permission_detail: gpui_spaceo_permission_detail(
-            daemon.is_some(),
-            accessibility_granted,
-            screen_recording_granted,
-        ),
         path: Some(path),
         version,
         latest_version,
         update_available,
-        daemon_running: daemon.is_some(),
-        permission_app,
-        accessibility_granted,
-        screen_recording_granted,
+        permissions,
     }
 }
 
@@ -234,52 +209,12 @@ fn gpui_compare_release_versions(left: &str, right: &str) -> std::cmp::Ordering 
     parts(left).cmp(&parts(right))
 }
 
-/// The running daemon's runtime report (`daemon` in `spaceo daemon wait --json`): a socket ping
-/// that changes nothing and never prompts. `None` when no daemon answers.
-fn gpui_spaceo_daemon_runtime(path: &Path) -> Option<serde_json::Value> {
-    let output = gpui_run_command_with_captured_output_timeout(
-        path,
-        &["daemon", "wait", "--timeout", "1", "--json"],
-        Duration::from_secs(4),
-        64 * 1024,
-    )
-    .ok()
-    .filter(|output| output.success)?;
-    let payload = gpui_spaceo_json_object(&output.stdout)?;
-    if payload.get("ok").and_then(serde_json::Value::as_bool) != Some(true) {
-        return None;
-    }
-    payload
-        .get("daemon")
-        .filter(|daemon| daemon.is_object())
-        .cloned()
-}
-
-fn gpui_spaceo_json_object(stdout: &str) -> Option<serde_json::Value> {
+pub(crate) fn gpui_spaceo_json_object(stdout: &str) -> Option<serde_json::Value> {
     let start = stdout.find('{')?;
     let end = stdout.rfind('}')?;
     (start <= end)
         .then(|| serde_json::from_str::<serde_json::Value>(&stdout[start..=end]).ok())
         .flatten()
-}
-
-fn gpui_spaceo_permission_detail(
-    daemon_running: bool,
-    accessibility_granted: Option<bool>,
-    screen_recording_granted: Option<bool>,
-) -> String {
-    if !daemon_running {
-        return "SpaceO's background service is not running, so its permissions can't be checked. Reinstall SpaceO to start it.".to_string();
-    }
-    match (accessibility_granted, screen_recording_granted) {
-        (Some(true), Some(true)) => {
-            "SpaceO reports Accessibility and Screen Recording permissions are granted.".to_string()
-        }
-        (Some(false), Some(false)) => "SpaceO permissions need attention.".to_string(),
-        (Some(false), _) => "SpaceO Accessibility permission needs attention.".to_string(),
-        (_, Some(false)) => "SpaceO Screen Recording permission needs attention.".to_string(),
-        _ => "SpaceO's background service did not report its permissions.".to_string(),
-    }
 }
 
 /// The SpaceO fields of the `ghostexCliStatus` payload (`SidebarGhostexCliStatusMessage`).
@@ -298,11 +233,11 @@ pub(crate) fn gpui_spaceo_status_fields(
         "spaceoLatestVersion": status.latest_version,
         "spaceoUpdateAvailable": status.update_available,
         "spaceoInstallCommand": GPUI_SPACEO_INSTALL_COMMAND,
-        "spaceoDaemonRunning": status.daemon_running,
-        "spaceoPermissionApp": status.permission_app,
-        "spaceoAccessibilityPermissionGranted": status.accessibility_granted,
-        "spaceoScreenRecordingPermissionGranted": status.screen_recording_granted,
-        "spaceoPermissionDetail": status.permission_detail,
+        "spaceoDaemonRunning": status.permissions.daemon_running,
+        "spaceoPermissionApp": status.permissions.permission_app,
+        "spaceoAccessibilityPermission": status.permissions.accessibility.as_str(),
+        "spaceoScreenRecordingPermission": status.permissions.screen_recording.as_str(),
+        "spaceoRestarting": gpui_spaceo_restarting(),
         "spaceoSkillInstalled": skill_path.is_some(),
         "spaceoSkillPath": skill_path,
     })

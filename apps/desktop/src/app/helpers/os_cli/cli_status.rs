@@ -263,7 +263,11 @@ pub(crate) fn gpui_ghostex_cli_status_message_with_cua_update_check(
             });
             parts.push(cua_permission_status.detail.clone());
             if let Some(spaceo_status) = spaceo_status.as_ref() {
-                parts.push(spaceo_status.permission_detail.clone());
+                parts.push(if spaceo_status.path.is_some() {
+                    spaceo_status.permissions.detail()
+                } else {
+                    "SpaceO is not installed.".to_string()
+                });
             }
             parts.join(" ")
         });

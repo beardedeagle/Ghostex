@@ -36,7 +36,7 @@ pub(crate) fn gpui_decorate_spaceo_status(payload: &mut serde_json::Value) {
 /// Tooltip for Install, Update and Reinstall: exactly what one click runs.
 pub(crate) fn gpui_spaceo_install_plan() -> String {
     format!(
-        "Runs SpaceO's official installer from GitHub ({GPUI_SPACEO_INSTALL_COMMAND}) in the background. It checks the release's signature and notarization, puts the spaceo command in ~/.local/bin and SpaceO Viewer in ~/Applications, and adds ~/.local/bin to your PATH. Ghostex then keeps SpaceO running in the background and installs the Ghostex SpaceO skill. No password needed; afterwards turn on Accessibility and Screen Recording for the app Settings names."
+        "Runs SpaceO's official installer from GitHub ({GPUI_SPACEO_INSTALL_COMMAND}) in the background. It checks the release's signature and notarization, puts the spaceo command in ~/.local/bin and SpaceO Viewer in ~/Applications, and adds ~/.local/bin to your PATH. Ghostex then keeps SpaceO running in the background and installs the Ghostex SpaceO skill. No password needed; afterwards grant Accessibility and Screen Recording from their rows in Settings."
     )
 }
 
@@ -99,7 +99,7 @@ pub(crate) fn gpui_finish_spaceo_setup(
         Ok(_) => Ok(if was_update {
             "SpaceO is up to date. Ghostex SpaceO is ready.".to_string()
         } else {
-            "SpaceO installed. Turn on Accessibility and Screen Recording for the app Settings names."
+            "SpaceO installed. Grant its Accessibility and Screen Recording permissions in Settings."
                 .to_string()
         }),
         Err(message) => Err(format!(
