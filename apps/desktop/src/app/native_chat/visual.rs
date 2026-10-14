@@ -376,7 +376,9 @@ impl NativeChatView {
     ) -> AnyElement {
         let source = super::mermaid::fence_source(fence);
         if let Some(page) = gxv::page_reference(&source) {
-            return self.visual_page_card(&key, page, p, cx);
+            let page_id = page.page_id().map(str::to_string);
+            let card = self.visual_page_card(&key, page, p, cx);
+            return self.open_question_frame(page_id.as_deref(), card, p);
         }
         let s = p.scale;
         let width = self

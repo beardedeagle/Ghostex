@@ -55,6 +55,9 @@ fn scope<'a>(
         live_side_question: None,
         agent_fleet: None,
         session_directory: &view.session_directory,
+        // A subagent's transcript draws no forms, so its words link to nothing.
+        askers: Vec::new(),
+        question_tags: Vec::new(),
     }
 }
 

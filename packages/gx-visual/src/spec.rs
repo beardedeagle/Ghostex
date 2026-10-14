@@ -122,11 +122,30 @@ fn parse_page(page: &Value) -> Result<PageRef, String> {
             ))
         }
     };
+    // `"questions": ["Q1", "Q2"]`, written by `ghostex show` for a page that asks questions.
+    let questions = match page.get("questions") {
+        None | Some(Value::Null) => None,
+        Some(Value::Array(tags)) => Some(
+            tags.iter()
+                .filter_map(Value::as_str)
+                .map(str::trim)
+                .filter(|tag| !tag.is_empty())
+                .map(str::to_string)
+                .collect(),
+        ),
+        Some(_) => {
+            return Err(
+                "The page's \"questions\" is the list of its question tags, such as [\"Q1\"]."
+                    .to_string(),
+            )
+        }
+    };
     Ok(PageRef {
         title: title.to_string(),
         url: url.to_string(),
         file,
         popup,
+        questions,
     })
 }
 

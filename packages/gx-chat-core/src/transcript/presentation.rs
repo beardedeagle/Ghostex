@@ -31,6 +31,9 @@ use crate::transcript::message_text::{
 use crate::transcript::message_time::message_time;
 use crate::transcript::native_markdown::{native_markdown, without_question_forms};
 use crate::transcript::noise::suppressed_turn_presentation;
+use crate::transcript::open_questions::{
+    askers, link_question_tags, linkable_tags, linked_words, tag_words, Asker,
+};
 use crate::transcript::page_answers::{
     page_answers_in, project_page_answers, split_page_answers, PageAnswers,
 };
@@ -109,6 +112,7 @@ pub fn project_message(
     line_breaks: AgentLineBreaks,
     context: &ChatContext,
     durations: &std::collections::HashMap<String, i64>,
+    question_tags: &[String],
 ) -> Value {
     let (prose, tools) = split_blocks(&message.blocks);
     let images = image_blocks(&prose);
@@ -123,7 +127,10 @@ pub fn project_message(
     };
     let displayed_body = if is_user {
         normalize_user_message_markdown(user_words)
-    } else if matches!(message.role, ChatRole::Assistant | ChatRole::Reasoning) {
+    } else if message.role == ChatRole::Assistant {
+        // Q-tags become links to the question that asked them (`open_questions.rs`).
+        link_question_tags(&agent_line_breaks(&body, line_breaks), question_tags)
+    } else if message.role == ChatRole::Reasoning {
         agent_line_breaks(&body, line_breaks)
     } else {
         body.clone()
@@ -390,6 +397,8 @@ pub struct Projection {
     pub question_forms: Vec<QuestionForm>,
     /// The answers that arrived, for pages and forms alike.
     pub page_answers: Vec<PageAnswers>,
+    /// The forms and question pages, oldest first (`open_questions.rs`).
+    pub askers: Vec<Asker>,
     /// Ids that shipped as placeholders and want a backfill batch.
     pub backfill: Vec<ChatMessage>,
     /// The minimap rail for this pass.
@@ -427,6 +436,10 @@ pub struct ProjectionScope<'a> {
     pub agent_fleet: Option<&'a Value>,
     /// The host's session list, which names the other session on a message between agents.
     pub session_directory: &'a [crate::event::KnownSession],
+    /// The forms and question pages these messages hold, before their answers are read
+    /// (`open_questions.rs`), and the tags a reply's words link to.
+    pub askers: Vec<Asker>,
+    pub question_tags: Vec<String>,
 }
 
 /// The session's line-break rule, which the subagent viewer shares: a child runs the same agent.
@@ -439,6 +452,7 @@ pub fn line_breaks(state: &ChatState) -> AgentLineBreaks {
 
 /// The session's own scope, off the composed list family a builds.
 pub fn scope<'a>(state: &'a ChatState, view: &'a TranscriptViewState) -> ProjectionScope<'a> {
+    let found = askers(&state.messages.composed, &[]);
     ProjectionScope {
         messages: &state.messages.composed,
         working: is_working(state),
@@ -450,6 +464,8 @@ pub fn scope<'a>(state: &'a ChatState, view: &'a TranscriptViewState) -> Project
         live_side_question: crate::transcript::side_question::live_side_question(state),
         agent_fleet: state.session.agent_fleet.as_ref(),
         session_directory: &view.session_directory,
+        question_tags: linkable_tags(&found),
+        askers: found,
     }
 }
 
@@ -465,7 +481,7 @@ pub fn project_cached(
     message: &ChatMessage,
 ) -> Value {
     if let Some(entry) = cache.get(&message.id) {
-        if entry.source == *message && entry.line_breaks == scope.line_breaks {
+        if fresh(entry, message, scope) {
             return entry.model.clone();
         }
     }
@@ -482,16 +498,32 @@ pub fn project_cached(
         scope.line_breaks,
         context,
         &durations,
+        &scope.question_tags,
     );
+    let words = if message.role == ChatRole::Assistant {
+        tag_words(&prose_markdown(&message.blocks))
+    } else {
+        Vec::new()
+    };
     cache.insert(
         message.id.clone(),
         ProjectedMessage {
             source: message.clone(),
             model: model.clone(),
             line_breaks: scope.line_breaks,
+            linked_tags: linked_words(&words, &scope.question_tags),
+            tag_words: words,
         },
     );
     model
+}
+
+/// The cached model still stands: the same message, projected under the same line-break rule, and
+/// the same of its words are question tags (a new question links words an older reply already had).
+fn fresh(entry: &ProjectedMessage, message: &ChatMessage, scope: &ProjectionScope<'_>) -> bool {
+    entry.source == *message
+        && entry.line_breaks == scope.line_breaks
+        && linked_words(&entry.tag_words, &scope.question_tags) == entry.linked_tags
 }
 
 /// `pruneModels`: once the cache is well past the transcript's size, drop every entry whose id is
@@ -531,7 +563,7 @@ impl Builder<'_> {
     fn projected(&self, message: &ChatMessage) -> Option<Value> {
         self.cache
             .get(&message.id)
-            .filter(|entry| entry.source == *message && entry.line_breaks == self.scope.line_breaks)
+            .filter(|entry| fresh(entry, message, self.scope))
             .map(|entry| entry.model.clone())
     }
 
@@ -805,15 +837,26 @@ pub fn build_scope(
     let backfill = builder.backfill;
     prune_cache(cache, scope);
     let page_answers = page_answers_in(scope.messages);
+    let answered_pages: Vec<String> = page_answers
+        .iter()
+        .map(|answers| answers.page_id.clone())
+        .collect();
+    let askers = scope
+        .askers
+        .iter()
+        .cloned()
+        .map(|mut asker| {
+            asker.answered = answered_pages.contains(&asker.id);
+            asker
+        })
+        .collect();
     Projection {
         items,
         final_ids: projection.final_ids,
-        answered_pages: page_answers
-            .iter()
-            .map(|answers| answers.page_id.clone())
-            .collect(),
+        answered_pages,
         question_forms: question_forms(scope.messages),
         page_answers,
+        askers,
         backfill,
         minimap,
     }

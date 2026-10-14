@@ -160,6 +160,7 @@ action_kinds! {
     FormText => "formText",
     FormSend => "formSend",
     FormToggle => "formToggle",
+    PreviousQuestion => "previousQuestion",
     AsyncQuestionToggle => "asyncQuestionToggle",
     AsyncQuestionNavigate => "asyncQuestionNavigate",
     AsyncQuestionText => "asyncQuestionText",

@@ -8,5 +8,11 @@
   "errorTone": {
     "dark": { "background": "#1c1617", "border": "#f87171", "borderAlpha": 0.18, "text": "#e8a5a5" },
     "light": { "background": "#fdf8f8", "border": "#dc2626", "borderAlpha": 0.15, "text": "#b43a3a" }
-  }
+  },
+  "questionTone": {
+    "dark": { "background": "#1d1712", "border": "#fb923c", "borderAlpha": 0.4, "text": "#fdba74" },
+    "light": { "background": "#fff7ed", "border": "#ea580c", "borderAlpha": 0.35, "text": "#c2410c" }
+  },
+  "pillGap": 8,
+  "questionFlashMs": 1600
 }

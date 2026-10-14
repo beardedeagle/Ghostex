@@ -563,7 +563,10 @@ impl NativeChatView {
             }
             Segment::Mermaid(fence) => self.mermaid_card(format!("{id}:{index}"), fence, p, cx),
             Segment::Visual(fence) => self.visual_card(format!("{id}:{index}"), fence, p, cx),
-            Segment::Questions { id: form, fence } => self.question_form(form, fence, p, cx),
+            Segment::Questions { id: form, fence } => {
+                let card = self.question_form(form, fence, p, cx);
+                self.open_question_frame(Some(form), card, p)
+            }
             // The air around an inline picture is the picture's own margin, exactly as React's
             // frame carries it, so the row itself adds nothing between a word and the picture
             // beside it. It wraps because a sentence with two pictures in it still has to fit the

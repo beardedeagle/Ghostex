@@ -84,6 +84,10 @@ pub struct QuestionsState {
     // ---- question forms ---------------------------------------------------
     /// The reader's side of each ```questions form, by form id (`crate::questions::forms`).
     pub forms: std::collections::BTreeMap<String, FormState>,
+
+    // ---- unanswered questions --------------------------------------------
+    /// The Previous question pill's place and the last jump (`crate::questions::open_questions`).
+    pub open_questions: crate::questions::open_questions::OpenQuestionsState,
 }
 
 /// One question form's picks while it is open, and its send.

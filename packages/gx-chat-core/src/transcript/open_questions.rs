@@ -1,0 +1,531 @@
+//! The questions the agent asked and where they sit: every ```questions form and every question
+//! page card (`ghostex show` of a page with `<gx-questions>`, whose block carries `"questions"`),
+//! oldest first, with the tags they ask, whether their answers came back, and whether a later
+//! question made them obsolete. Also the Q-tag links in the agent's replies.
+//!
+//! An asked question is unanswered while the transcript carries no answers for it and nothing
+//! later made it obsolete: a form or page that asks every one of its tags again (it supersedes
+//! the earlier one), or a ```questions block whose `"withdraw"` names them. A question without
+//! tags can only be answered, since nothing can name it.
+//!
+//! CDXC:SessionChat 2026-10-14 DECISION:
+//! User (Q81 = C, Q82): a "Previous question" pill beside Scroll to bottom steps through the unanswered question forms and question pages, and Q-tags (Q80, Q81…) in the agent's messages are links to the form or page that asked that tag (the latest one, answered or not). Questions the agent marks obsolete drop off the count: a later form or page asking the same tags supersedes the earlier one, and a later ```questions block can withdraw tags with `"withdraw": ["Q40"]`.
+//!
+//! CDXC:SessionChat 2026-10-14 SEE-ALSO:
+//! questions/open_questions.rs steps the pill and lands the jumps (the document's `openQuestions`); apps/desktop/src/app/native_chat/open_questions.rs and apps/mobile/app/src/chat/native/transcript/OpenQuestions.tsx draw the pill and the highlight; server/src/ghostex_cli/show.rs writes a page block's `"questions"`; skills/ghostex-visuals/SKILL.md teaches tags and `withdraw`. Change them together.
+
+use ghostex_gx_protocol::{ChatMessage, ChatRole};
+
+use crate::transcript::jsstr::{js_trim, split_lf};
+use crate::transcript::native_markdown::{fence_close, fence_open};
+use crate::transcript::prose::prose_markdown;
+use crate::transcript::question_forms::{finished_fences, is_questions_language, parse_form};
+
+/// The href a Q-tag link carries; the chat jumps to the question instead of opening anything.
+pub const QUESTION_LINK_PREFIX: &str = "#gx-question=";
+
+/// What asked a question.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AskerKind {
+    /// A ```questions block, drawn as a form.
+    Form,
+    /// A question page's card.
+    Page,
+}
+
+/// One form or question page, as the transcript holds it.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Asker {
+    /// The form's id or the page's id: the key `questionForms` and `answeredPages` use.
+    pub id: String,
+    pub kind: AskerKind,
+    /// The reply that holds it.
+    pub message_id: String,
+    pub tags: Vec<String>,
+    /// The transcript carries its answers.
+    pub answered: bool,
+    /// A later form or page asks all of its tags again, or a later block withdrew them.
+    pub obsolete: bool,
+}
+
+enum Found {
+    Asker(Asker),
+    Withdraw(Vec<String>),
+}
+
+fn same_tag(a: &str, b: &str) -> bool {
+    a.eq_ignore_ascii_case(b)
+}
+
+/// Every form and question page the agent's replies hold, oldest first, once each.
+/// `answered` lists the ids whose answers the transcript carries (`page_answers.rs`).
+pub fn askers(messages: &[ChatMessage], answered: &[String]) -> Vec<Asker> {
+    let mut found: Vec<Found> = Vec::new();
+    for message in messages
+        .iter()
+        .filter(|message| message.role == ChatRole::Assistant)
+    {
+        let markdown = prose_markdown(&message.blocks);
+        if !markdown.contains("```") && !markdown.contains("~~~") {
+            continue;
+        }
+        for (language, body) in finished_fences(&markdown) {
+            let asker = if is_questions_language(&language) {
+                let form = parse_form(&body);
+                if !form.error.is_empty() {
+                    continue;
+                }
+                // A block's withdrawals apply to what came before it, not to its own questions.
+                if !form.withdraw.is_empty() {
+                    found.push(Found::Withdraw(form.withdraw.clone()));
+                }
+                if form.questions.is_empty() {
+                    continue;
+                }
+                let mut tags: Vec<String> = Vec::new();
+                for tag in form.questions.iter().map(|question| question.tag.as_str()) {
+                    if !tag.is_empty() && !tags.iter().any(|known| same_tag(known, tag)) {
+                        tags.push(tag.to_string());
+                    }
+                }
+                Asker {
+                    id: form.id,
+                    kind: AskerKind::Form,
+                    message_id: message.id.clone(),
+                    tags,
+                    answered: false,
+                    obsolete: false,
+                }
+            } else if ghostex_gx_visual::is_visual_language(&language) {
+                let Some(page) = ghostex_gx_visual::page_reference(&body) else {
+                    continue;
+                };
+                let (Some(id), Some(tags)) = (page.page_id(), page.questions.clone()) else {
+                    continue;
+                };
+                Asker {
+                    id: id.to_string(),
+                    kind: AskerKind::Page,
+                    message_id: message.id.clone(),
+                    tags,
+                    answered: false,
+                    obsolete: false,
+                }
+            } else {
+                continue;
+            };
+            let seen = found
+                .iter()
+                .any(|known| matches!(known, Found::Asker(known) if known.id == asker.id));
+            if !seen {
+                found.push(Found::Asker(asker));
+            }
+        }
+    }
+    let mut askers = Vec::new();
+    for (index, entry) in found.iter().enumerate() {
+        let Found::Asker(asker) = entry else {
+            continue;
+        };
+        let asked_again = |tag: &str| {
+            found[index + 1..].iter().any(|later| match later {
+                Found::Asker(later) => later.tags.iter().any(|known| same_tag(known, tag)),
+                Found::Withdraw(tags) => tags.iter().any(|known| same_tag(known, tag)),
+            })
+        };
+        let mut asker = asker.clone();
+        asker.answered = answered.contains(&asker.id);
+        asker.obsolete = !asker.tags.is_empty() && asker.tags.iter().all(|tag| asked_again(tag));
+        askers.push(asker);
+    }
+    askers
+}
+
+/// The form or page a Q-tag link goes to: the latest one that asked the tag, answered or not.
+pub fn tag_target<'a>(askers: &'a [Asker], tag: &str) -> Option<&'a Asker> {
+    askers
+        .iter()
+        .rev()
+        .find(|asker| asker.tags.iter().any(|known| same_tag(known, tag)))
+}
+
+/// The tags a reply's words can link to, uppercased and sorted: the tags some form or page asked
+/// that look like a tag (`Q80`, `GX-12`), so a tag that is an ordinary word never turns words into
+/// links.
+pub fn linkable_tags(askers: &[Asker]) -> Vec<String> {
+    let mut tags: Vec<String> = askers
+        .iter()
+        .flat_map(|asker| asker.tags.iter())
+        .filter(|tag| tag_length(tag, 0) == Some(tag.len()))
+        .map(|tag| tag.to_ascii_uppercase())
+        .collect();
+    tags.sort();
+    tags.dedup();
+    tags
+}
+
+/// The length of a tag-shaped word starting at `at` (`[A-Za-z]{1,8}-?[0-9]{1,6}`), when the word
+/// ends there too.
+fn tag_length(text: &str, at: usize) -> Option<usize> {
+    let bytes = text.as_bytes();
+    let mut end = at;
+    while end < bytes.len() && bytes[end].is_ascii_alphabetic() {
+        end += 1;
+    }
+    let letters = end - at;
+    if letters == 0 || letters > 8 {
+        return None;
+    }
+    if bytes.get(end) == Some(&b'-') {
+        end += 1;
+    }
+    let digits_start = end;
+    while end < bytes.len() && bytes[end].is_ascii_digit() {
+        end += 1;
+    }
+    let digits = end - digits_start;
+    if digits == 0 || digits > 6 {
+        return None;
+    }
+    if bytes.get(end).is_some_and(|byte| is_word_byte(*byte)) {
+        return None;
+    }
+    Some(end - at)
+}
+
+fn is_word_byte(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric() || byte == b'_' || byte >= 0x80
+}
+
+/// The tag-shaped words in a reply's prose outside code and links, uppercased, sorted and once
+/// each: what the projection cache compares against the session's tags.
+pub fn tag_words(markdown: &str) -> Vec<String> {
+    let mut words = Vec::new();
+    walk_prose(markdown, &mut |line, out| {
+        for_each_word(line, out, &mut |word, out| {
+            words.push(word.to_ascii_uppercase());
+            out.push_str(word);
+        });
+    });
+    words.sort();
+    words.dedup();
+    words
+}
+
+/// The words of `words` that are among `tags` (both uppercased and sorted).
+pub fn linked_words(words: &[String], tags: &[String]) -> Vec<String> {
+    words
+        .iter()
+        .filter(|word| tags.binary_search(word).is_ok())
+        .cloned()
+        .collect()
+}
+
+/// The reply with each word that names one of `tags` (uppercased, sorted) turned into a link to its
+/// question, and each ```questions block that only withdraws questions turned into a line naming
+/// them. Code, links and addresses are left alone.
+pub fn link_question_tags(markdown: &str, tags: &[String]) -> String {
+    let withdrawals = markdown.contains("withdraw");
+    if tags.is_empty() && !withdrawals {
+        return markdown.to_string();
+    }
+    let mut result = String::with_capacity(markdown.len() + 64);
+    let lines = split_lf(markdown);
+    let mut index = 0;
+    let mut first = true;
+    let mut push_line = |result: &mut String, line: &str| {
+        if !std::mem::take(&mut first) {
+            result.push('\n');
+        }
+        result.push_str(line);
+    };
+    while index < lines.len() {
+        let line = lines[index];
+        let Some((character, run, info)) = fence_open(line) else {
+            let mut linked = String::with_capacity(line.len());
+            link_line(line, tags, &mut linked);
+            push_line(&mut result, &linked);
+            index += 1;
+            continue;
+        };
+        let close = lines[index + 1..]
+            .iter()
+            .position(|line| {
+                fence_close(line)
+                    .is_some_and(|(closing, length)| closing == character && length >= run)
+            })
+            .map(|offset| index + 1 + offset);
+        let language = js_trim(info)
+            .split(char::is_whitespace)
+            .next()
+            .unwrap_or_default();
+        if let Some(close) = close.filter(|_| withdrawals && is_questions_language(language)) {
+            let body = lines[index + 1..close].join("\n");
+            let form = parse_form(&body);
+            if form.is_withdrawal() {
+                push_line(&mut result, &withdrawal_line(&form.withdraw, tags));
+                index = close + 1;
+                continue;
+            }
+        }
+        // The fence and its body stay as written; an unclosed fence runs to the end.
+        let end = close.unwrap_or(lines.len() - 1);
+        for line in &lines[index..=end] {
+            push_line(&mut result, line);
+        }
+        index = end + 1;
+    }
+    result
+}
+
+/// What a withdraw-only block reads as: the tags it withdrew, each a link when its question is in
+/// the transcript.
+fn withdrawal_line(withdrawn: &[String], tags: &[String]) -> String {
+    let named: Vec<String> = withdrawn
+        .iter()
+        .map(|tag| {
+            if tags.binary_search(&tag.to_ascii_uppercase()).is_ok() {
+                format!("[{tag}]({QUESTION_LINK_PREFIX}{tag})")
+            } else {
+                tag.clone()
+            }
+        })
+        .collect();
+    format!("_Withdrawn, no answer needed: {}_", named.join(", "))
+}
+
+/// Links the tags in one line of prose.
+fn link_line(line: &str, tags: &[String], out: &mut String) {
+    if tags.is_empty() {
+        out.push_str(line);
+        return;
+    }
+    for_each_word(line, out, &mut |word, out| {
+        if tags.binary_search(&word.to_ascii_uppercase()).is_ok() {
+            out.push_str(&format!("[{word}]({QUESTION_LINK_PREFIX}{word})"));
+        } else {
+            out.push_str(word);
+        }
+    });
+}
+
+/// Calls `line_fn` with each line of prose outside fenced code.
+fn walk_prose(markdown: &str, line_fn: &mut dyn FnMut(&str, &mut String)) {
+    let lines = split_lf(markdown);
+    let mut scratch = String::new();
+    let mut index = 0;
+    while index < lines.len() {
+        if let Some((character, run, _)) = fence_open(lines[index]) {
+            let close = lines[index + 1..].iter().position(|line| {
+                fence_close(line)
+                    .is_some_and(|(closing, length)| closing == character && length >= run)
+            });
+            index = close.map_or(lines.len(), |offset| index + 1 + offset + 1);
+            continue;
+        }
+        scratch.clear();
+        line_fn(lines[index], &mut scratch);
+        index += 1;
+    }
+}
+
+/// Copies `line` into `out`, handing every tag-shaped word outside inline code, links, autolinks
+/// and addresses to `word_fn`, which writes it (or its link) itself.
+fn for_each_word(line: &str, out: &mut String, word_fn: &mut dyn FnMut(&str, &mut String)) {
+    let bytes = line.as_bytes();
+    let mut at = 0;
+    let mut copied = 0;
+    while at < bytes.len() {
+        let skip_to = match bytes[at] {
+            // Inline code: up to the closing run of the same length.
+            b'`' => {
+                let run = bytes[at..].iter().take_while(|byte| **byte == b'`').count();
+                let fence = &line[at..at + run];
+                line[at + run..]
+                    .find(fence)
+                    .map_or(at + run, |offset| at + run + offset + run)
+            }
+            // A link or picture: its label and destination stay as written.
+            b'[' => line[at..]
+                .find("](")
+                .and_then(|label_end| {
+                    let destination = at + label_end + 2;
+                    line[destination..]
+                        .find(')')
+                        .map(|close| destination + close + 1)
+                })
+                .unwrap_or(at + 1),
+            // An autolink or a tag-like `<…>`.
+            b'<' => line[at..]
+                .find('>')
+                .filter(|close| !line[at + 1..at + close].contains(' '))
+                .map_or(at + 1, |close| at + close + 1),
+            byte if byte.is_ascii_alphabetic()
+                && (at == 0 || !is_word_byte(bytes[at - 1]) && bytes[at - 1] != b'/') =>
+            {
+                let rest = &line[at..];
+                if rest.starts_with("http://")
+                    || rest.starts_with("https://")
+                    || rest.starts_with("www.")
+                {
+                    at + rest.find(char::is_whitespace).unwrap_or(rest.len())
+                } else if let Some(length) = tag_length(line, at) {
+                    out.push_str(&line[copied..at]);
+                    word_fn(&line[at..at + length], out);
+                    at += length;
+                    copied = at;
+                    continue;
+                } else {
+                    at + rest
+                        .bytes()
+                        .take_while(|byte| is_word_byte(*byte))
+                        .count()
+                        .max(1)
+                }
+            }
+            _ => at + 1,
+        };
+        at = skip_to.min(bytes.len());
+        // Never stop inside a character.
+        while !line.is_char_boundary(at) {
+            at += 1;
+        }
+    }
+    out.push_str(&line[copied..]);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn reply(id: &str, text: &str) -> ChatMessage {
+        serde_json::from_value(serde_json::json!({
+            "id": id,
+            "role": "assistant",
+            "source": "transcript",
+            "blocks": [{"type": "text", "text": text}],
+        }))
+        .unwrap()
+    }
+
+    fn form(tags: &[&str]) -> String {
+        let questions: Vec<_> = tags
+            .iter()
+            .map(|tag| serde_json::json!({"tag": tag, "title": format!("About {tag}?"), "choices": ["Yes", "No"]}))
+            .collect();
+        format!(
+            "```questions\n{}\n```",
+            serde_json::json!({"title": "Open questions", "questions": questions})
+        )
+    }
+
+    fn page(id: &str, tags: &[&str]) -> String {
+        format!(
+            "```visual\n{}\n```",
+            serde_json::json!({"page": {"title": "Mockups", "url": format!("http://127.0.0.1:1/visual/{id}"), "questions": tags}})
+        )
+    }
+
+    const PAGE: &str = "0123456789abcdef0123456789abcdef";
+
+    #[test]
+    fn forms_and_question_pages_are_found_oldest_first() {
+        let messages = vec![
+            reply("a", &format!("First.\n\n{}", form(&["Q1", "Q2"]))),
+            reply("b", &page(PAGE, &["Q3"])),
+            reply("c", "```visual\n{\"page\":{\"title\":\"Plain\",\"url\":\"http://127.0.0.1:1/visual/ffffffffffffffffffffffffffffffff\"}}\n```"),
+        ];
+        let found = askers(&messages, &[]);
+        assert_eq!(found.len(), 2, "a page that asks nothing is not a question");
+        assert_eq!(found[0].kind, AskerKind::Form);
+        assert_eq!(found[0].tags, vec!["Q1", "Q2"]);
+        assert_eq!(found[0].message_id, "a");
+        assert_eq!(found[1].kind, AskerKind::Page);
+        assert_eq!(found[1].id, PAGE);
+        assert!(found.iter().all(|asker| !asker.answered && !asker.obsolete));
+    }
+
+    #[test]
+    fn answers_mark_the_question_answered() {
+        let messages = vec![reply("b", &page(PAGE, &["Q3"]))];
+        assert!(askers(&messages, &[PAGE.to_string()])[0].answered);
+    }
+
+    #[test]
+    fn asking_every_tag_again_supersedes_and_a_partial_repeat_does_not() {
+        let messages = vec![
+            reply("a", &form(&["Q1", "Q2"])),
+            reply("b", &form(&["Q2"])),
+            reply("c", &form(&["Q5"])),
+            reply("d", &page(PAGE, &["q5"])),
+        ];
+        let found = askers(&messages, &[]);
+        assert!(
+            !found[0].obsolete,
+            "Q1 is still only asked by the first form"
+        );
+        assert!(!found[1].obsolete);
+        assert!(
+            found[2].obsolete,
+            "the page asks Q5 again (tags match whatever their case)"
+        );
+        assert!(!found[3].obsolete);
+    }
+
+    #[test]
+    fn a_withdrawal_drops_earlier_questions_only() {
+        let withdraw = "```questions\n{\"withdraw\": [\"Q1\", \"Q2\"]}\n```";
+        let messages = vec![
+            reply("a", &form(&["Q1"])),
+            reply("b", withdraw),
+            reply("c", &form(&["Q2"])),
+        ];
+        let found = askers(&messages, &[]);
+        assert_eq!(found.len(), 2, "a withdrawal asks nothing");
+        assert!(found[0].obsolete);
+        assert!(!found[1].obsolete, "Q2 was asked after it was withdrawn");
+    }
+
+    #[test]
+    fn untagged_questions_never_go_obsolete() {
+        let untagged =
+            "```questions\n{\"questions\":[{\"title\":\"Anything else?\",\"type\":\"text\"}]}\n```";
+        let messages = vec![
+            reply("a", untagged),
+            reply("b", "```questions\n{\"withdraw\": [\"Q1\"]}\n```"),
+        ];
+        assert!(!askers(&messages, &[])[0].obsolete);
+    }
+
+    #[test]
+    fn a_tag_links_to_the_latest_question_that_asked_it() {
+        let messages = vec![reply("a", &form(&["Q1"])), reply("b", &page(PAGE, &["Q1"]))];
+        let found = askers(&messages, &[]);
+        assert_eq!(
+            tag_target(&found, "q1").map(|asker| asker.id.as_str()),
+            Some(PAGE)
+        );
+        assert_eq!(linkable_tags(&found), vec!["Q1"]);
+    }
+
+    #[test]
+    fn tag_words_are_linked_outside_code_and_links() {
+        let tags = vec!["Q80".to_string(), "Q81".to_string()];
+        let text = "See Q80 and (Q81). Not Q800, `Q80`, [Q80](https://x/Q80), https://x/Q81 or AQ80.\n```\nQ80\n```\nq80!";
+        assert_eq!(
+            link_question_tags(text, &tags),
+            "See [Q80](#gx-question=Q80) and ([Q81](#gx-question=Q81)). Not Q800, `Q80`, [Q80](https://x/Q80), https://x/Q81 or AQ80.\n```\nQ80\n```\n[q80](#gx-question=q80)!"
+        );
+        assert_eq!(tag_words(text), vec!["AQ80", "Q80", "Q800", "Q81"]);
+    }
+
+    #[test]
+    fn a_withdraw_only_block_reads_as_a_line() {
+        let tags = vec!["Q40".to_string()];
+        let text = "Done.\n\n```questions\n{\"withdraw\": [\"Q40\", \"Q41\"]}\n```";
+        assert_eq!(
+            link_question_tags(text, &tags),
+            "Done.\n\n_Withdrawn, no answer needed: [Q40](#gx-question=Q40), Q41_"
+        );
+    }
+}

@@ -315,7 +315,11 @@ pub fn advance_jump(state: &mut ChatState, context: &ChatContext) -> Vec<Effect>
 }
 
 /// The row that draws the message, else the last row that started before it.
-fn row_of(rows: &[TranscriptItem], message_id: &str, timestamp: Option<i64>) -> Option<usize> {
+pub(crate) fn row_of(
+    rows: &[TranscriptItem],
+    message_id: &str,
+    timestamp: Option<i64>,
+) -> Option<usize> {
     let id_of = |message: &Value| {
         message
             .get("id")

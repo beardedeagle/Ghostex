@@ -236,6 +236,9 @@ pub fn handle(state: &mut ChatState, action: &UserAction, context: &ChatContext)
         }
         ActionKind::OpenMarkdownLink => {
             let href = text(action, "href");
+            if let Some(tag) = crate::questions::open_questions::link_tag(&href) {
+                return crate::questions::open_questions::jump_to_tag(state, context, tag);
+            }
             match classify_link_href(&href) {
                 LinkTarget::File(path) => vec![position_effect(&href, path)],
                 LinkTarget::Url(url) => vec![Effect::Open(OpenTarget::Url { url })],

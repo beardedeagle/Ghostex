@@ -1053,7 +1053,14 @@ page works the same way: its card reads Answered once you send, and opening it
 again shows what you sent. On desktop the floating window closes once your answers are
 sent, and stays open with the error if they could not be. Until you send,
 what you picked and typed is kept, in a form and on a page alike, even when
-you close the page or the chat, switch sessions, or restart. Commands:
+you close the page or the chat, switch sessions, or restart. While a form or
+question page in the chat is still waiting for your answers, a "❓ 2 · Previous
+question ↑" pill sits next to Scroll to bottom (desktop, web and mobile): each
+click goes to the next older unanswered one, round again after the oldest, and
+briefly outlines it. Question tags the agent writes in its messages, such as Q3,
+are links to the form or page that asked them, answered or not. A question
+stops counting once the agent asks the same tag again in a later form or page,
+or withdraws it. Commands:
 `ghostex show <file.html>`
 publishes a page and prints the block that shows its card (`--browser` opens it
 in the browser instead of floating), and

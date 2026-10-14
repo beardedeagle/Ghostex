@@ -193,3 +193,8 @@ Asking the user:
   thread's questions into your count when you bring them to the user.
 - The answers come back as your next message; end your turn after asking. Do not send a question
   the user already answered again unless they ask for it.
+- The chat counts unanswered questions in a "Previous question" pill and turns each tag you write
+  (Q40) into a link to the form or page that asked it, so refer to questions by tag. When a
+  question no longer matters, withdraw it so it stops counting: put `"withdraw": ["Q40"]` in your
+  next ```questions block (alone, or beside new questions). Asking every tag of an earlier form
+  again in a later form or page replaces it.

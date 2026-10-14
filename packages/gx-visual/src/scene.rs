@@ -105,6 +105,11 @@ pub struct PageRef {
     /// The agent marked the page `"open": "popup"`: the card opens it in a floating window over
     /// the chat, which closes on a click away, instead of in the browser.
     pub popup: bool,
+    /// The page asks the reader questions (a `<gx-questions>` kit or its own `ghostex.submit`):
+    /// the tags its questions carry, empty when they have none. `None` for a page that asks
+    /// nothing, and for blocks printed before `ghostex show` wrote the key.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub questions: Option<Vec<String>>,
 }
 
 impl PageRef {

@@ -10,8 +10,9 @@
 //!
 //! The block grammar:
 //!
-//! - `{"page": {"title": …, "url": "https://…", "file"?: …, "open"?: "popup"}}`: a published page,
-//!   shown as a card; `"open": "popup"` opens it in a floating window over the chat.
+//! - `{"page": {"title": …, "url": "https://…", "file"?: …, "open"?: "popup", "questions"?: […]}}`: a
+//!   published page, shown as a card; `"open": "popup"` opens it in a floating window over the
+//!   chat, and `"questions"` (the tags its questions carry) marks a page that asks the reader.
 //! - A Vega-Lite spec (an object with `"mark"`): one chart in a strict subset (marks `bar`, `line`,
 //!   `area`, `point`/`circle`/`square`, `arc`; channels `x`, `y`, `color`, `theta`, `xOffset`,
 //!   `tooltip`; inline `data.values` only).
@@ -161,6 +162,7 @@ pub fn render_json_at(
             "file": page.file,
             "open": if page.popup { "popup" } else { "browser" },
             "pageId": page.page_id(),
+            "questions": page.questions,
         }),
         Err(message) => json!({
             "kind": "error",

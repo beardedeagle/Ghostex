@@ -135,6 +135,9 @@ pub struct Document {
     /// The question forms (```questions blocks) by id, with the reader's picks or the sent answers
     /// (`questions/forms.rs`); the transcript's Markdown names each by id where it is drawn.
     pub question_forms: BTreeMap<String, Value>,
+    /// The Previous question pill and the jumps to a question (`questions/open_questions.rs`).
+    #[serde(default)]
+    pub open_questions: crate::questions::open_questions::OpenQuestions,
     pub notice_visible: bool,
     #[serde(default, skip_serializing_if = "Tri::is_absent")]
     pub notice_error: Tri<String>,

@@ -93,6 +93,7 @@ pub fn document(state: &ChatState, context: &ChatContext, into: &mut Document) {
     };
 
     into.question_forms = crate::questions::forms::project(state);
+    into.open_questions = crate::questions::open_questions::project(state);
 
     into.async_questions = async_controller::project(
         &questions.async_questions,

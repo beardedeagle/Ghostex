@@ -195,6 +195,21 @@ Ghostex can't show the form, so ask in prose instead.
   question left blank arrives as `null`. Don't add your own "Other" choice.
 - Check the block before replying: `ghostex visual check /tmp/questions.json`
   lists the questions and their answer keys, or names the problem.
+- Give questions a `tag` and refer to them by it in your replies ("Q3 is still
+  open"): newer Ghostex versions turn the tag into a link to the form, and a
+  "Previous question" pill steps through the questions still waiting for an
+  answer.
+- A question that no longer matters should stop counting as unanswered. Asking
+  every tag of an earlier form again, in a later form or page, replaces it. To
+  drop tags without asking anything, write a block with only `withdraw`; it
+  also works beside new questions:
+
+  ```questions
+  {"withdraw": ["Q3", "Q4"]}
+  ```
+
+  Only when `ghostex visual --help` mentions `withdraw`: older Ghostex
+  versions show this block as an error.
 - Put one form in a reply and end your turn. Don't poll or wait in a loop: the
   answers arrive as the next user message, in the same envelope a question
   page uses, and the form then reads Answered. A note arrives under the
@@ -314,6 +329,9 @@ chat instead.
   own form, button, "Other" choice or note box.
 - Once sent, the page is locked; opening it again shows the answers and an
   Answered note.
+- Paste the block exactly as `ghostex show` printed it: for a question page it
+  lists the page's tags (`"questions": ["Q1", "Q2"]`), which is how the chat
+  counts the page as unanswered and links its tags.
 - After pasting the card, end your turn. Don't poll or wait in a loop: the
   answers arrive as the next user message, which the chat shows as an answers
   card while the page's card reads Answered. A note arrives under the

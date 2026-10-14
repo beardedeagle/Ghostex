@@ -16,9 +16,9 @@ use crate::transcript::jsstr::{js_trim, split_lf};
 use crate::transcript::native_markdown::{fence_close, fence_open};
 use crate::transcript::prose::prose_markdown;
 
-/// The finished ```questions fences in one message's Markdown, as `(id, body)`: a fence still
-/// streaming is not a form yet.
-pub fn form_fences(markdown: &str) -> Vec<(String, String)> {
+/// The finished fences in one message's Markdown, as `(language, body)`: a fence still streaming
+/// is not one yet.
+pub fn finished_fences(markdown: &str) -> Vec<(String, String)> {
     let lines = split_lf(markdown);
     let mut found = Vec::new();
     let mut index = 0;
@@ -41,16 +41,23 @@ pub fn form_fences(markdown: &str) -> Vec<(String, String)> {
             .split(char::is_whitespace)
             .next()
             .unwrap_or_default();
-        if is_questions_language(language) {
-            let body = lines[index + 1..close].join("\n");
-            found.push((form_id(&body), body));
-        }
+        found.push((language.to_string(), lines[index + 1..close].join("\n")));
         index = close + 1;
     }
     found
 }
 
-/// Every form the agent's replies hold, oldest first, once each.
+/// The finished ```questions fences in one message's Markdown, as `(id, body)`.
+pub fn form_fences(markdown: &str) -> Vec<(String, String)> {
+    finished_fences(markdown)
+        .into_iter()
+        .filter(|(language, _)| is_questions_language(language))
+        .map(|(_, body)| (form_id(&body), body))
+        .collect()
+}
+
+/// Every form the agent's replies hold, oldest first, once each. A block that only withdraws
+/// earlier questions (`open_questions.rs`) is not a form.
 pub fn question_forms(messages: &[ChatMessage]) -> Vec<QuestionForm> {
     let mut forms: Vec<QuestionForm> = Vec::new();
     for message in messages
@@ -59,7 +66,10 @@ pub fn question_forms(messages: &[ChatMessage]) -> Vec<QuestionForm> {
     {
         for (id, body) in form_fences(&prose_markdown(&message.blocks)) {
             if !forms.iter().any(|form| form.id == id) {
-                forms.push(parse_form(&body));
+                let form = parse_form(&body);
+                if !form.is_withdrawal() {
+                    forms.push(form);
+                }
             }
         }
     }

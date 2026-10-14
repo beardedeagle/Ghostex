@@ -24,6 +24,9 @@ struct ScrollBottom {
     padding_x: f32,
     bottom: f32,
     error_tone: ErrorTone,
+    question_tone: ErrorTone,
+    pill_gap: f32,
+    question_flash_ms: u64,
 }
 
 #[derive(Deserialize)]
@@ -54,6 +57,11 @@ pub(super) fn label() -> &'static str {
 
 pub(super) fn font_size() -> f32 {
     SPEC.font_size
+}
+
+/// How long a jump's highlight stays on the question it landed on.
+pub(super) fn question_flash_ms() -> u64 {
+    SPEC.question_flash_ms
 }
 
 /// CDXC:SessionChat 2026-09-29 DECISION:
@@ -213,26 +221,31 @@ impl NativeChatView {
         .into_any_element()
     }
 
+    /// The pills over the transcript's bottom edge: "Previous question" while the chat has
+    /// unanswered questions (open_questions.rs) and "Scroll to bottom" once the reader has left the
+    /// bottom, side by side, or the toast that takes their place.
     pub(super) fn scroll_bottom_button(&self, cx: &Context<Self>) -> AnyElement {
         let glass = crate::app::helpers::window_glass_active_for(self.main_window);
         let p = ChatAppearance::current(&self.snapshot).on_window_glass(glass);
         let toast = self.pill_toast();
         let left_bottom = transcript_left_bottom(&self.list);
         self.scroll_bottom_drawn.set(left_bottom);
+        // A toast stands alone in the pills' place.
+        let question = self
+            .open_question_pill_text()
+            .filter(|_| toast.is_none() && !self.transcript_only);
         let shown = toast.is_some() || left_bottom;
         if glass {
             let label = toast.map_or_else(|| SPEC.label.clone(), |toast| toast.text);
-            return self.scroll_bottom_window_placeholder(shown, label, &p, cx);
+            return pill_row(&p)
+                .child(self.previous_question_placeholder(question, &p, cx))
+                .child(self.scroll_bottom_window_placeholder(shown, label, &p, cx))
+                .into_any_element();
         }
-        if !shown {
+        if !shown && question.is_none() {
             return div().into_any_element();
         }
-        let row = div()
-            .absolute()
-            .bottom(px(SPEC.bottom * p.scale))
-            .w_full()
-            .flex()
-            .justify_center();
+        let row = pill_row(&p);
         // The pill wears the composer's own chrome: the same opaque card fill, the 1px outline and
         // the inset top highlight session-chat-composer-focus.css gives both of them.
         let outline = if p.light {
@@ -262,28 +275,44 @@ impl NativeChatView {
         }
         let label = SPEC.label.clone();
         let shortcut = shortcut_label();
-        row.child(
-            pill_shape(div(), p.scale)
-                .id("chat-scroll-bottom")
-                .tab_index(0)
-                .role(gpui::Role::Button)
-                .aria_label(label.clone())
-                .chat_cursor_pointer()
-                .when_some(shortcut, |pill, key| {
-                    pill.managed_tooltip_with_placement(TOOLTIP_PLACEMENT, move |window, cx| {
-                        shortcut_tooltip(key.clone(), window, cx)
+        row.when_some(question, |row, text| {
+            row.child(self.previous_question_pill(text, &p, cx))
+        })
+        .when(left_bottom, |row| {
+            row.child(
+                pill_shape(div(), p.scale)
+                    .id("chat-scroll-bottom")
+                    .tab_index(0)
+                    .role(gpui::Role::Button)
+                    .aria_label(label.clone())
+                    .chat_cursor_pointer()
+                    .when_some(shortcut, |pill, key| {
+                        pill.managed_tooltip_with_placement(TOOLTIP_PLACEMENT, move |window, cx| {
+                            shortcut_tooltip(key.clone(), window, cx)
+                        })
                     })
-                })
-                .border_color(outline)
-                .bg(p.composer_background)
-                .text_color(p.primary)
-                .focus_visible(|style| style.border_color(p.ring))
-                .child(pill_highlight(highlight))
-                .child(label)
-                .on_click(cx.listener(|chat, _, _, cx| chat.jump_to_bottom(cx))),
-        )
+                    .border_color(outline)
+                    .bg(p.composer_background)
+                    .text_color(p.primary)
+                    .focus_visible(|style| style.border_color(p.ring))
+                    .child(pill_highlight(highlight))
+                    .child(label)
+                    .on_click(cx.listener(|chat, _, _, cx| chat.jump_to_bottom(cx))),
+            )
+        })
         .into_any_element()
     }
+}
+
+/// The centred row the pills sit in, just above the composer.
+fn pill_row(p: &ChatAppearance) -> gpui::Div {
+    div()
+        .absolute()
+        .bottom(px(SPEC.bottom * p.scale))
+        .w_full()
+        .flex()
+        .justify_center()
+        .gap(px(SPEC.pill_gap * p.scale))
 }
 
 /// How far the viewport's bottom is above the transcript's end, as of the list's last layout.
@@ -311,8 +340,9 @@ pub(super) struct PillToast {
     pub(super) error: bool,
 }
 
-/// The pill's shape, shared by "Scroll to bottom" and the toasts that take its place.
-fn pill_shape(pill: gpui::Div, scale: f32) -> gpui::Div {
+/// The pill's shape, shared by "Scroll to bottom", "Previous question" and the toasts that take
+/// their place.
+pub(super) fn pill_shape(pill: gpui::Div, scale: f32) -> gpui::Div {
     pill.relative()
         .overflow_hidden()
         .flex()
@@ -340,11 +370,16 @@ fn pill_highlight(highlight: gpui::Hsla) -> gpui::Div {
 
 /// The red tone's fill, border and text (`errorTone` in `scroll-bottom.json`).
 pub(super) fn error_tone(light: bool) -> (gpui::Hsla, gpui::Hsla, gpui::Hsla) {
-    let tone = if light {
-        &SPEC.error_tone.light
-    } else {
-        &SPEC.error_tone.dark
-    };
+    tone_colors(&SPEC.error_tone, light)
+}
+
+/// The Previous question pill's fill, border and text (`questionTone` in `scroll-bottom.json`).
+pub(super) fn question_tone(light: bool) -> (gpui::Hsla, gpui::Hsla, gpui::Hsla) {
+    tone_colors(&SPEC.question_tone, light)
+}
+
+fn tone_colors(tone: &ErrorTone, light: bool) -> (gpui::Hsla, gpui::Hsla, gpui::Hsla) {
+    let tone = if light { &tone.light } else { &tone.dark };
     let hex = |value: &str| -> gpui::Hsla {
         gpui::rgb(u32::from_str_radix(value.trim_start_matches('#'), 16).unwrap_or(0)).into()
     };
@@ -374,28 +409,23 @@ impl NativeChatView {
         if !shown {
             return div().absolute().size_0().child(report).into_any_element();
         }
-        div()
-            .absolute()
-            .bottom(px(SPEC.bottom * p.scale))
-            .w_full()
-            .flex()
-            .justify_center()
-            .child(
-                div()
-                    .relative()
-                    .flex()
-                    .items_center()
-                    .h(px(SPEC.height * p.scale))
-                    .px(px(SPEC.padding_x * p.scale))
-                    .border_1()
-                    .border_color(gpui::transparent_black())
-                    .text_color(gpui::transparent_black())
-                    .text_size(px(SPEC.font_size * p.scale))
-                    .font_weight(FontWeight::MEDIUM)
-                    .whitespace_nowrap()
-                    .child(label)
-                    .child(report),
-            )
-            .into_any_element()
+        placeholder_pill(label, p).child(report).into_any_element()
     }
+}
+
+/// An invisible pill the size of the visible one, which a floating control's window is placed on.
+pub(super) fn placeholder_pill(label: String, p: &ChatAppearance) -> gpui::Div {
+    div()
+        .relative()
+        .flex()
+        .items_center()
+        .h(px(SPEC.height * p.scale))
+        .px(px(SPEC.padding_x * p.scale))
+        .border_1()
+        .border_color(gpui::transparent_black())
+        .text_color(gpui::transparent_black())
+        .text_size(px(SPEC.font_size * p.scale))
+        .font_weight(FontWeight::MEDIUM)
+        .whitespace_nowrap()
+        .child(label)
 }

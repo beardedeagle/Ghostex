@@ -73,6 +73,9 @@ pub fn handle(state: &mut ChatState, action: &UserAction, context: &ChatContext)
                 _ => crate::questions::forms::send(state, context, &id),
             });
         }
+        ActionKind::PreviousQuestion => {
+            effects.extend(crate::questions::open_questions::previous(state, context));
+        }
         ActionKind::FormToggle => {
             let id = action
                 .param("form")

@@ -159,6 +159,10 @@ pub(crate) struct NativeChatView {
     pub(super) files_links_input: Option<Entity<InputState>>,
     pub(super) files_links_subscription: Option<Subscription>,
     pub(super) files_links_jump_revision: u64,
+    /// The question jump this pane last scrolled to (`None` before its first document), and the
+    /// highlight on the question it landed on (open_questions.rs).
+    pub(super) open_question_jump_revision: Option<u64>,
+    pub(super) question_flash: Option<super::open_questions::QuestionFlash>,
     /// The find the row being drawn gives its text views, set only while a searched row is drawn
     /// (search.rs, `begin_row_find`).
     pub(super) row_find: Option<gpui_component::text::TextFind>,
@@ -411,6 +415,8 @@ impl NativeChatView {
             files_links_input: None,
             files_links_subscription: None,
             files_links_jump_revision: 0,
+            open_question_jump_revision: None,
+            question_flash: None,
             row_find: None,
             issue_link_base: None,
             search_pending_open: None,

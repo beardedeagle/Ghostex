@@ -53,9 +53,21 @@ pub struct QuestionForm {
     /// The send button's label.
     pub submit: String,
     pub questions: Vec<FormQuestion>,
+    /// The tags of earlier questions this block withdraws (`"withdraw": ["Q40"]`): they no longer
+    /// count as unanswered. A block may hold only this, with no questions of its own.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub withdraw: Vec<String>,
     /// Why the block could not be read, shown in place of the form.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub error: String,
+}
+
+impl QuestionForm {
+    /// A block that only withdraws earlier questions and asks none: the chat draws a line naming
+    /// the withdrawn tags instead of a form.
+    pub fn is_withdrawal(&self) -> bool {
+        self.error.is_empty() && self.questions.is_empty() && !self.withdraw.is_empty()
+    }
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize)]
@@ -197,6 +209,31 @@ fn question(
     })
 }
 
+/// A block's `withdraw` list: the tags of earlier questions it withdraws.
+///
+/// CDXC:SessionChat 2026-10-14 DECISION:
+/// User (Q82): questions the agent marks obsolete drop off the chat's unanswered count. A later form or page that asks the same tag supersedes the earlier question, and `"withdraw": ["Q40"]` in a later ```questions block (alone, or beside new questions) withdraws a tag without asking anything.
+fn withdrawn_tags(value: Option<&Value>) -> Result<Vec<String>, String> {
+    let Some(value) = value else {
+        return Ok(Vec::new());
+    };
+    let items = value
+        .as_array()
+        .ok_or("\"withdraw\" must be a list of question tags, such as [\"Q40\"].")?;
+    let mut tags: Vec<String> = Vec::new();
+    for item in items {
+        let tag = item
+            .as_str()
+            .map(str::trim)
+            .filter(|tag| !tag.is_empty())
+            .ok_or("Each entry in \"withdraw\" must be a question tag, such as \"Q40\".")?;
+        if !tags.iter().any(|known| known.eq_ignore_ascii_case(tag)) {
+            tags.push(tag.to_string());
+        }
+    }
+    Ok(tags)
+}
+
 /// Reads one block. A block that cannot be read is still a form, with `error` saying why, so the
 /// chat shows the problem in place of the questions.
 pub fn parse_form(body: &str) -> QuestionForm {
@@ -207,11 +244,17 @@ pub fn parse_form(body: &str) -> QuestionForm {
         let object = value
             .as_object()
             .ok_or("A questions block is one JSON object with a \"questions\" list.")?;
-        let list = object
-            .get("questions")
-            .and_then(Value::as_array)
-            .filter(|list| !list.is_empty())
-            .ok_or("A questions block needs a \"questions\" list with at least one question.")?;
+        let withdraw = withdrawn_tags(object.get("withdraw"))?;
+        let list = match object.get("questions") {
+            None if !withdraw.is_empty() => Vec::new(),
+            questions => questions
+                .and_then(Value::as_array)
+                .filter(|list| !list.is_empty())
+                .cloned()
+                .ok_or(
+                    "A questions block needs a \"questions\" list with at least one question.",
+                )?,
+        };
         if list.len() > MAX_QUESTIONS {
             return Err(format!(
                 "The block asks {} questions; a form takes at most {MAX_QUESTIONS}.",
@@ -238,6 +281,7 @@ pub fn parse_form(body: &str) -> QuestionForm {
                 .filter(|label| !label.is_empty())
                 .unwrap_or_else(|| "Send answers".to_string()),
             questions,
+            withdraw,
             error: String::new(),
         })
     };

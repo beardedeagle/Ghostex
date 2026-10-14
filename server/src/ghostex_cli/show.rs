@@ -77,7 +77,13 @@ pub fn show_command(args: &[String]) -> CliResult<()> {
         .file_name()
         .map(|name| name.to_string_lossy().into_owned())
         .unwrap_or_default();
-    let block = visual_page_block(title, &url, &file_name, popup);
+    let block = visual_page_block(
+        title,
+        &url,
+        &file_name,
+        popup,
+        page_question_tags(&source).as_deref(),
+    );
     if parsed.flags.truthy("json") {
         println!(
             "{{\"ok\":true,\"id\":{},\"title\":{},\"url\":{},\"block\":{}}}",
@@ -99,14 +105,73 @@ pub fn show_command(args: &[String]) -> CliResult<()> {
     Ok(())
 }
 
+/// The tags of the questions a page asks (`<gx-question tag="Q1">`), or `None` when it asks none:
+/// the page holds the question kit (`<gx-questions>`) or sends answers of its own
+/// (`ghostex.submit`).
+///
+/// CDXC:SessionChat 2026-10-14 WHY:
+/// The chat counts a question page as unanswered until its answers come back, and links its tags, but the card only knows what the block says; the page's HTML is not in the transcript. So the block names the tags it asks (`"questions": [...]`), read here from the file being published.
+fn page_question_tags(source: &str) -> Option<Vec<String>> {
+    if !source.contains("<gx-questions") && !source.contains("ghostex.submit(") {
+        return None;
+    }
+    let mut tags: Vec<String> = Vec::new();
+    for (at, _) in source.match_indices("<gx-question") {
+        let rest = &source[at + "<gx-question".len()..];
+        if !rest.starts_with(|character: char| character.is_whitespace() || character == '>') {
+            continue;
+        }
+        let head = &rest[..rest.find('>').unwrap_or(rest.len())];
+        if let Some(tag) = attribute(head, "tag").filter(|tag| !tag.is_empty()) {
+            if !tags.iter().any(|known| known.eq_ignore_ascii_case(&tag)) {
+                tags.push(tag);
+            }
+        }
+    }
+    Some(tags)
+}
+
+/// An attribute's value in a start tag's text (`tag="Q1"` or `tag='Q1'`).
+fn attribute(head: &str, name: &str) -> Option<String> {
+    let mut search = head;
+    while let Some(at) = search.find(name) {
+        let before = search[..at].chars().next_back();
+        let after = search[at + name.len()..].trim_start();
+        search = &search[at + name.len()..];
+        if !before.is_some_and(char::is_whitespace) {
+            continue;
+        }
+        let Some(value) = after.strip_prefix('=') else {
+            continue;
+        };
+        let value = value.trim_start();
+        let quote = value
+            .chars()
+            .next()
+            .filter(|quote| *quote == '"' || *quote == '\'')?;
+        let value = &value[1..];
+        return Some(value[..value.find(quote)?].trim().to_string());
+    }
+    None
+}
+
 /// CDXC:SessionChat 2026-10-06 SEE-ALSO:
-/// The page block `{"page":{"title","url","file","open"}}` is a contract with the chat's visual parser in packages/gx-visual, which draws it as a card whose Open button opens the URL, and with skills/ghostex-visuals/SKILL.md, which tells agents to paste it exactly as printed.
+/// The page block `{"page":{"title","url","file","open","questions"}}` is a contract with the chat's visual parser in packages/gx-visual, which draws it as a card whose Open button opens the URL, and with skills/ghostex-visuals/SKILL.md, which tells agents to paste it exactly as printed.
 /// CDXC:SessionChat 2026-10-09 DECISION:
 /// User: the agent gives its HTML link "some mark so when we click to open it it's intended to be opened floating", so the agent can show a card for its page in the chat. The mark is `"open": "popup"`, printed by default; `--browser` leaves it out so the card opens the page in the browser instead.
-fn visual_page_block(title: &str, url: &str, file: &str, popup: bool) -> String {
+fn visual_page_block(
+    title: &str,
+    url: &str,
+    file: &str,
+    popup: bool,
+    questions: Option<&[String]>,
+) -> String {
     let open = if popup { ",\"open\":\"popup\"" } else { "" };
+    let questions = questions
+        .map(|tags| format!(",\"questions\":{}", json!(tags)))
+        .unwrap_or_default();
     format!(
-        "```visual\n{{\"page\":{{\"title\":{},\"url\":{},\"file\":{}{open}}}}}\n```",
+        "```visual\n{{\"page\":{{\"title\":{},\"url\":{},\"file\":{}{open}{questions}}}}}\n```",
         json_string(title),
         json_string(url),
         json_string(file)

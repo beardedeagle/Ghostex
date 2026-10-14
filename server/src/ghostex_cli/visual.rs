@@ -198,9 +198,7 @@ fn default_out(source: &str, options: &CheckOptions) -> PathBuf {
 /// The form a ```questions block describes, when the source is one (an object with `questions`).
 fn question_form(source: &str) -> Option<ghostex_gx_visual::questions::QuestionForm> {
     let value: serde_json::Value = serde_json::from_str(source).ok()?;
-    value
-        .get("questions")
-        .is_some()
+    (value.get("questions").is_some() || value.get("withdraw").is_some())
         .then(|| ghostex_gx_visual::questions::parse_form(source))
 }
 
@@ -211,6 +209,15 @@ fn report_question_form(form: &ghostex_gx_visual::questions::QuestionForm) -> Cl
             "The questions block can't be shown: {}",
             form.error
         )));
+    }
+    if !form.withdraw.is_empty() {
+        println!(
+            "Withdraws {}: they no longer count as unanswered.",
+            form.withdraw.join(", ")
+        );
+    }
+    if form.is_withdrawal() {
+        return Ok(());
     }
     println!(
         "A question form, \"{}\", with {} question{}:",

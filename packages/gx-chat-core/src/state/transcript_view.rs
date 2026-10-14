@@ -86,6 +86,8 @@ pub struct TranscriptViewState {
     pub question_forms: Vec<crate::transcript::question_forms::QuestionForm>,
     /// The answers that arrived, for pages and forms alike.
     pub page_answers: Vec<crate::transcript::page_answers::PageAnswers>,
+    /// The forms and question pages, oldest first (`transcript/open_questions.rs`).
+    pub askers: Vec<crate::transcript::open_questions::Asker>,
     /// The `loadWork` reads in flight or failed, keyed by the turn's user-message id. This is the
     /// document's `deferredWork`, which reports the READ's state, not the rows it brought back.
     pub deferred_work: BTreeMap<String, DeferredWorkRow>,
@@ -141,6 +143,10 @@ pub struct ProjectedMessage {
     pub model: Value,
     /// The line-break rule the model was projected under; a change of agent family re-projects.
     pub line_breaks: crate::transcript::line_breaks::AgentLineBreaks,
+    /// The tag-shaped words of the reply's prose (`transcript/open_questions.rs`), and those of
+    /// them the model links to a question; a question asking one of the others re-projects.
+    pub tag_words: Vec<String>,
+    pub linked_tags: Vec<String>,
 }
 
 /// What `NativeChatPresentation.update` decides on.
@@ -187,6 +193,7 @@ impl Default for TranscriptViewState {
             answered_pages: Vec::new(),
             question_forms: Vec::new(),
             page_answers: Vec::new(),
+            askers: Vec::new(),
             deferred_work: BTreeMap::new(),
             detail_revision: 0,
             row_details: RowDetails::new(),
