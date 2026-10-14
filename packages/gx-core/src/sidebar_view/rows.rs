@@ -202,9 +202,14 @@ pub(crate) fn session_row(
         .program_status
         .as_ref()
         .filter(|status| status.governs);
+    // The tooltip's first line is the session's title (drawn as its heading); the program's line
+    // goes right under it.
     let tooltip = match program_status.and_then(super::program_status::program_status_hover_line) {
         Some(line) if tooltip.is_empty() => line,
-        Some(line) => format!("{line}\n\n{tooltip}"),
+        Some(line) => match tooltip.split_once('\n') {
+            Some((heading, rest)) => format!("{heading}\n{line}\n{rest}"),
+            None => format!("{tooltip}\n{line}"),
+        },
         None => tooltip,
     };
     let program_status_failed = program_status.is_some_and(|status| status.state == "error")
