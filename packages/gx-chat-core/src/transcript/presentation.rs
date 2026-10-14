@@ -440,6 +440,8 @@ pub struct ProjectionScope<'a> {
     /// (`open_questions.rs`), and the tags a reply's words link to.
     pub askers: Vec<Asker>,
     pub question_tags: Vec<String>,
+    /// How the messages this session sent other agents and left waiting ended, by send id.
+    pub agent_message_deliveries: Option<&'a Value>,
 }
 
 /// The session's line-break rule, which the subagent viewer shares: a child runs the same agent.
@@ -466,6 +468,7 @@ pub fn scope<'a>(state: &'a ChatState, view: &'a TranscriptViewState) -> Project
         session_directory: &view.session_directory,
         question_tags: linkable_tags(&found),
         askers: found,
+        agent_message_deliveries: state.session.agent_message_deliveries.as_ref(),
     }
 }
 
@@ -818,7 +821,12 @@ pub fn build_scope(
             .collect()
     };
 
-    resolve_recipients(&mut items, scope.agent_fleet, scope.session_directory);
+    resolve_recipients(
+        &mut items,
+        scope.agent_fleet,
+        scope.session_directory,
+        scope.agent_message_deliveries,
+    );
 
     // `itemIndex`: the first row that draws a given id, which is what a dash jumps to.
     let mut item_index: Vec<(String, usize)> = Vec::with_capacity(items.len());

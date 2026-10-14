@@ -85,6 +85,10 @@ pub fn side_state_moves(
             .coordinator_threads
             .as_ref()
             .is_some_and(|threads| session.coordinator_threads.as_ref() != Some(threads))
+        || side
+            .agent_message_deliveries
+            .as_ref()
+            .is_some_and(|deliveries| session.agent_message_deliveries.as_ref() != Some(deliveries))
         || side.retired_async_question_ids.is_some()
         || nullable(&side.account_switch, &session.account_switch)
         || nullable(

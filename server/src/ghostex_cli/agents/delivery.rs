@@ -130,6 +130,18 @@ pub(super) fn send(args: &Arguments) -> CliResult<Value> {
     };
     if status == "delivered" {
         confirm_coordinator_delivery(&sender, &recipient, &flags);
+    } else {
+        // The sender's chat card follows the message until it arrives (agent_message_deliveries.rs);
+        // an older gxserver without the watch refuses the call and the card keeps this status.
+        let _ = call_gxserver_rpc(
+            "/api/watchAgentMessageDelivery",
+            &json!({
+                "senderProjectId": sender["projectId"], "senderSessionId": sender["sessionId"],
+                "projectId": recipient["projectId"], "sessionId": recipient["sessionId"],
+                "sendRequestId": send_request_id, "message": body, "sentAtMs": sent_at_ms,
+            }),
+            &flags,
+        );
     }
     Ok(json!({
         "ok": true,

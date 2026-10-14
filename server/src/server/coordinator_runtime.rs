@@ -23,10 +23,10 @@ const FINISH_STABILITY_MS: i64 = 4_000;
 /// Waits after a failed delivery, doubled per failure up to the last value.
 const RETRY_DELAYS_MS: [i64; 4] = [10_000, 20_000, 40_000, 60_000];
 /// A message handed to a thread is reported undelivered only once it is this old...
-const UNDELIVERED_MIN_AGE_MS: i64 = 60_000;
+pub(super) const UNDELIVERED_MIN_AGE_MS: i64 = 60_000;
 /// ...and the thread has sat idle without it this long: a busy thread takes a message typed during
 /// its turn at its next input boundary, and a starting one once its input box appears.
-const UNDELIVERED_IDLE_MS: i64 = 20_000;
+pub(super) const UNDELIVERED_IDLE_MS: i64 = 20_000;
 /// How often one thread's transcript is read for a pending message.
 const DELIVERY_CHECK_EVERY_MS: i64 = 6_000;
 
@@ -213,7 +213,7 @@ fn tick(state: &AppState, memory: &Mutex<SupervisorMemory>) -> Vec<Delivery> {
     for (project_id, session_id) in
         crate::coordinators::refresh_coordinator_panels(&db, &repository)
     {
-        republish_coordinator_chat(state, &project_id, &session_id);
+        republish_session_chat(state, &project_id, &session_id);
     }
     let Ok(mut memory) = memory.lock() else {
         return Vec::new();
@@ -928,9 +928,10 @@ async fn send_to_coordinator(
     Err(String::from_utf8_lossy(&bytes).to_string())
 }
 
-/// Re-sends an open coordinator chat its current state, now carrying the refreshed Threads panel;
-/// the same frame a queue change sends, without its presentation delta.
-fn republish_coordinator_chat(state: &AppState, project_id: &str, session_id: &str) {
+/// Re-sends an open chat its current state, now carrying a refreshed Threads panel (or, for the
+/// delivery watch, its settled agent messages); the same frame a queue change sends, without its
+/// presentation delta.
+pub(super) fn republish_session_chat(state: &AppState, project_id: &str, session_id: &str) {
     let key = session_observer_key(project_id, session_id);
     let options = state
         .session_chat_option_cache

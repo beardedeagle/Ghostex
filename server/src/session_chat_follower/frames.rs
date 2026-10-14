@@ -244,6 +244,12 @@ pub(super) fn emit_state_frame(
                 &config.project_id,
                 &config.session_id,
             );
+            crate::agent_message_deliveries::insert_agent_message_deliveries(
+                &mut frame,
+                &config.project_id,
+                &config.session_id,
+                crate::agent_message_deliveries::DeliveriesFrame::State,
+            );
             insert_optional_agent_session_id(&mut frame, config);
             Value::Object(frame)
         },
@@ -319,6 +325,12 @@ pub(super) fn emit_snapshot_frame(
                 &mut frame,
                 &config.project_id,
                 &config.session_id,
+            );
+            crate::agent_message_deliveries::insert_agent_message_deliveries(
+                &mut frame,
+                &config.project_id,
+                &config.session_id,
+                crate::agent_message_deliveries::DeliveriesFrame::Whole,
             );
             insert_optional_agent_session_id(&mut frame, config);
             Value::Object(frame)

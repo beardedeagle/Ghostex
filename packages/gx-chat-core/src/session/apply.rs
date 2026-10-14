@@ -87,6 +87,9 @@ pub fn apply_state_frame(
     if let Some(threads) = frame.state.coordinator_threads.clone() {
         state.session.coordinator_threads = Some(threads);
     }
+    if let Some(deliveries) = frame.state.agent_message_deliveries.clone() {
+        state.session.agent_message_deliveries = Some(deliveries);
+    }
     if frame.state.screen_probed == Some(true) {
         state.session.screen_probed = true;
     }
@@ -385,6 +388,9 @@ pub fn apply_authoritative(
     }
     if let Some(threads) = result.state.coordinator_threads.clone() {
         state.session.coordinator_threads = Some(threads);
+    }
+    if let Some(deliveries) = result.state.agent_message_deliveries.clone() {
+        state.session.agent_message_deliveries = Some(deliveries);
     }
     if result.state.screen_probed == Some(true) {
         state.session.screen_probed = true;
