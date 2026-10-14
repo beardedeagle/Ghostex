@@ -473,6 +473,7 @@ pub(crate) fn render_rail(
         .w_full()
         .flex_shrink_0()
         .pt(px(10.0))
+        .pr(px(RAIL_PADDING))
         .border_t_1()
         .border_color(hsla(p.hairline))
         .child(
@@ -520,7 +521,7 @@ pub(crate) fn render_rail(
         .flex_shrink_0()
         .h_full()
         .mt(px(-1.0))
-        .px(px(8.0))
+        .pl(px(RAIL_PADDING))
         .py(px(10.0))
         .gap(px(12.0))
         .rounded(px(MODAL_RADIUS_SECTION))
@@ -528,7 +529,9 @@ pub(crate) fn render_rail(
         .border_color(hsla(p.hairline))
         .bg(hsla(p.raised))
         .overflow_hidden()
-        // The bar sits beside the scroll area, as on the page (CDXC:Settings 2026-10-08 in page.rs).
+        // The bar sits beside the scroll area, as on the page (CDXC:Settings 2026-10-08 in page.rs),
+        // and the rows keep a right gutter inside the scroll area (the panel's old right padding),
+        // so the bar never covers a row, its chevron or its hover background.
         .child(
             div()
                 .relative()
@@ -541,13 +544,25 @@ pub(crate) fn render_rail(
                         .size_full()
                         .overflow_y_scroll()
                         .track_scroll(&list_scroll)
-                        .child(v_flex().w_full().min_h_full().gap(px(4.0)).children(groups)),
+                        .child(
+                            v_flex()
+                                .w_full()
+                                .min_h_full()
+                                .pr(px(RAIL_PADDING))
+                                .gap(px(4.0))
+                                .children(groups),
+                        ),
                 )
-                .child(Scrollbar::vertical(&list_scroll)),
+                .child(with_modal_edge_gap(
+                    Scrollbar::vertical(&list_scroll).thickness(px(6.0)),
+                )),
         )
         .child(footer)
         .into_any_element()
 }
+
+/// The rail panel's side padding; the right one is the gutter that holds its scrollbar.
+const RAIL_PADDING: f32 = 8.0;
 
 /// `SettingsSearchNoMatchesNotice`: what a page shows when the search leaves nothing on it, with
 /// buttons to the pages that do match.
