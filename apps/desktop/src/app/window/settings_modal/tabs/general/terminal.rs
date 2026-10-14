@@ -1,27 +1,28 @@
-//! The Terminal group of General: Terminal (with the shared Ghostty config notice and buttons and
+//! The Terminal group of General: Terminal (with the terminal config buttons and
 //! the Windows environment rows), Terminal Behavior and Terminal Scrolling.
-use super::super::super::super::native_modal_kit::*;
+use super::super::super::super::native_modal_kit::hsla;
 use super::super::super::catalog::{SettingOption, module, settings_catalog};
 #[cfg(target_os = "macos")]
 use super::super::super::fields::toggle_field_with;
 use super::super::super::fields::{
-    ButtonVariant, card_inset, color_field, icon, reset_key, select_field, settings_button,
-    settings_icon, settings_section, text_field, tooltip_text,
+    ButtonVariant, card_inset, color_field, reset_key, select_field, settings_button,
+    settings_section, text_field, tooltip_text,
 };
 use super::super::super::page::PageBlock;
+use super::super::super::palette::SettingsPalette;
 use super::super::super::store::SettingsStore;
 use super::terminal_font::normalize_ghostty_font_family;
 use super::{GeneralCx, GeneralTab, save};
 use gpui::{
-    AnyElement, Context, InteractiveElement as _, ParentElement as _,
-    StatefulInteractiveElement as _, Styled as _, Window, div, px,
+    AnyElement, ClickEvent, Context, InteractiveElement as _, IntoElement as _, ParentElement as _,
+    SharedString, StatefulInteractiveElement as _, Styled as _, Window, div, px,
 };
-use gpui_component::h_flex;
+use gpui_component::{h_flex, v_flex};
 use serde_json::{Value, json};
 
 /// The colour Terminal background starts from when Follow theme is turned off.
 const TERMINAL_BACKGROUND_STARTING_COLOR: &str = "#111111";
-const SHADER_BACKGROUND_OVERRIDE_REASON: &str = "Custom shaders use the background from your Ghostty config. To edit this override, turn Custom shaders off (enable Experimental Features first if the switch is hidden); your saved choice will return.";
+const SHADER_BACKGROUND_OVERRIDE_REASON: &str = "Custom shaders use the background from Ghostex's terminal config. To edit this override, turn Custom shaders off (enable Experimental Features first if the switch is hidden); your saved choice will return.";
 
 fn option(label: &str, value: &str) -> SettingOption {
     SettingOption {
@@ -92,6 +93,124 @@ fn post(page: &mut GeneralTab, message: Value, cx: &mut Context<GeneralTab>) {
     super::super::super::store::post_store_message(&store, message, cx);
 }
 
+/// One cell of the Terminal config grid: every column takes an equal share of the row, and the
+/// button inside stretches to fill it.
+fn grid_cell(child: AnyElement) -> AnyElement {
+    v_flex()
+        .flex_1()
+        .flex_basis(px(0.0))
+        .min_w_0()
+        .child(child)
+        .into_any_element()
+}
+
+/// CDXC:Terminal 2026-10-14 DECISION:
+/// User: "organise them better and give them equal widths", grouped by purpose, "each group laid out as an equal-width grid that fills the row, with short labels that fit at the Settings window's minimum width", all buttons filled, the docs link a quieter action. Row one is the config files (Ghostex's, the Ghostty app's, Import), row two the presets, and the docs link sits in the last cell so every button keeps the same width.
+fn terminal_config_actions(p: &SettingsPalette, cx: &mut Context<GeneralTab>) -> AnyElement {
+    let recommended_lines = settings_catalog()
+        .string_list(
+            module::GHOSTTY_CONFIG_ACTIONS,
+            "GHOSTEX_RECOMMENDED_GHOSTTY_CONFIG_LINES",
+            None,
+        )
+        .join("\n");
+    let button = |id: &'static str,
+                  label: &'static str,
+                  tooltip: String,
+                  message: &'static str,
+                  cx: &mut Context<GeneralTab>| {
+        grid_cell(
+            v_flex()
+                .id(SharedString::from(format!("{id}-tooltip")))
+                .tooltip(tooltip_text(tooltip))
+                .child(settings_button(
+                    p,
+                    id,
+                    label,
+                    None,
+                    ButtonVariant::Outline,
+                    false,
+                    None,
+                    move |page: &mut GeneralTab, _window, cx| match message {
+                        "applyRecommendedGhosttySettings" => ghostty_preset(page, true, cx),
+                        "resetGhosttySettingsToDefault" => ghostty_preset(page, false, cx),
+                        message => post(page, json!({ "type": message }), cx),
+                    },
+                    cx,
+                ))
+                .into_any_element(),
+        )
+    };
+    let docs_link = grid_cell(
+        h_flex()
+            .h_full()
+            .justify_center()
+            .child(
+                div()
+                    .id("ghostty-open-docs")
+                    .cursor_pointer()
+                    .text_size(px(13.0))
+                    .text_color(hsla(p.muted))
+                    .hover(|this| this.underline())
+                    .on_click(cx.listener(|page, _: &ClickEvent, _window, cx| {
+                        post(page, json!({ "type": "openGhosttySettingsDocs" }), cx)
+                    }))
+                    .child("Ghostty docs \u{2197}"),
+            )
+            .into_any_element(),
+    );
+    v_flex()
+        .w_full()
+        .gap(px(8.0))
+        .child(
+            h_flex()
+                .w_full()
+                .gap(px(8.0))
+                .child(button(
+                    "ghostex-open-terminal-config",
+                    "Open Ghostex config",
+                    "Ghostex's terminals read only this file.".to_string(),
+                    "openGhostexTerminalConfigFile",
+                    cx,
+                ))
+                .child(button(
+                    "ghostty-open-config",
+                    "Open Ghostty config",
+                    "The Ghostty app's own config. Ghostex never changes it.".to_string(),
+                    "openGhosttyConfigFile",
+                    cx,
+                ))
+                .child(button(
+                    "ghostty-import-config",
+                    "Import from Ghostty",
+                    "Copy your Ghostty fonts, line height and cursor into Ghostex. The theme and colors stay as they are.".to_string(),
+                    "importGhosttyConfig",
+                    cx,
+                )),
+        )
+        .child(
+            h_flex()
+                .w_full()
+                .gap(px(8.0))
+                .child(button(
+                    "ghostty-apply-recommended",
+                    "Apply recommended",
+                    recommended_lines,
+                    "applyRecommendedGhosttySettings",
+                    cx,
+                ))
+                .child(button(
+                    "ghostty-reset-defaults",
+                    "Reset to defaults",
+                    "Put the terminal settings back to Ghostex's defaults.".to_string(),
+                    "resetGhosttySettingsToDefault",
+                    cx,
+                ))
+                .child(docs_link),
+        )
+        .into_any_element()
+}
+
 fn terminal_section(
     page: &mut GeneralTab,
     g: &GeneralCx,
@@ -105,84 +224,7 @@ fn terminal_section(
     let p = g.p;
     let mut rows: Vec<AnyElement> = Vec::new();
     if g.visible(s, "ghosttySettingsActions") {
-        let reload = settings_catalog().hotkey_label("cmd+shift+,");
-        rows.push(card_inset(
-            h_flex()
-                .items_start()
-                .gap(px(12.0))
-                .text_size(px(13.0))
-                .line_height(px(20.0))
-                .text_color(hsla(p.muted))
-                .child(div().mt(px(2.0)).child(settings_icon(icon::INFO_CIRCLE, 16.0, p.muted)))
-                .child(div().min_w_0().child(format!(
-                    "The Ghostty controls also apply to your external Ghostty terminal because this Ghostty terminal uses the same settings file. ghostex reloads its embedded Ghostty terminal about 3 seconds after you stop changing these controls; external Ghostty windows may still need {reload} to reload. Theme overrides and the terminal light palette apply only to Ghostex."
-                ))),
-        ));
-        let recommended_lines = settings_catalog()
-            .string_list(
-                module::GHOSTTY_CONFIG_ACTIONS,
-                "GHOSTEX_RECOMMENDED_GHOSTTY_CONFIG_LINES",
-                None,
-            )
-            .join("\n");
-        rows.push(card_inset(
-            h_flex()
-                .flex_wrap()
-                .gap(px(8.0))
-                .child(settings_button(
-                    &p,
-                    "ghostty-reset-defaults",
-                    "Reset Ghostty defaults",
-                    None,
-                    ButtonVariant::Outline,
-                    false,
-                    None,
-                    |page: &mut GeneralTab, _window, cx| ghostty_preset(page, false, cx),
-                    cx,
-                ))
-                .child(
-                    div()
-                        .id("ghostty-apply-recommended-tooltip")
-                        .tooltip(tooltip_text(recommended_lines))
-                        .child(settings_button(
-                            &p,
-                            "ghostty-apply-recommended",
-                            "Apply recommended",
-                            None,
-                            ButtonVariant::Outline,
-                            false,
-                            None,
-                            |page: &mut GeneralTab, _window, cx| ghostty_preset(page, true, cx),
-                            cx,
-                        )),
-                )
-                .child(settings_button(
-                    &p,
-                    "ghostty-open-docs",
-                    "Open Ghostty docs",
-                    None,
-                    ButtonVariant::Outline,
-                    false,
-                    None,
-                    |page: &mut GeneralTab, _window, cx| {
-                        post(page, json!({ "type": "openGhosttySettingsDocs" }), cx)
-                    },
-                    cx,
-                ))
-                .child(settings_button(
-                    &p,
-                    "ghostty-open-config",
-                    "Open Ghostty config",
-                    None,
-                    ButtonVariant::Outline,
-                    false,
-                    None,
-                    |page: &mut GeneralTab, _window, cx| {
-                        post(page, json!({ "type": "openGhosttyConfigFile" }), cx)
-                    },
-                    cx,
-                )),
-        ));
+        rows.push(card_inset(terminal_config_actions(&p, cx)));
     }
     if settings_catalog().flag(module::SEARCH_CATALOG, "IS_WINDOWS_HOST") {
         // `WindowsTerminalFields`.
@@ -375,7 +417,7 @@ fn terminal_section(
         let spec = g.spec(
             "terminalFontFamily",
             "Font Family",
-            "Type a Ghostty font-family name. Leave blank to use existing Ghostty config or Ghostty's platform default.",
+            "Type a Ghostty font-family name. Leave blank to use Ghostex's terminal config or the platform default.",
         );
         // The draft React shows is `normalizeghostexSettings(settings)`, so a legacy preset name
         // reads as the family it saves as.
@@ -569,7 +611,7 @@ fn terminal_section(
             g.spec(
                 "terminalShadersEnabled",
                 "Custom shaders (experimental)",
-                "Apply the shaders from your Ghostty config in order. macOS with Metal only; tested on Apple Silicon. Intel Mac rendering is not yet validated. Windows and Linux are unsupported. Turn off to restore ordinary rendering in the same sessions.",
+                "Apply the shaders from Ghostex's terminal config in order. macOS with Metal only; tested on Apple Silicon. Intel Mac rendering is not yet validated. Windows and Linux are unsupported. Turn off to restore ordinary rendering in the same sessions.",
             ).experimental(),
             g.values.bool("terminalShadersEnabled"),
             Some(reset_key::<GeneralTab>("terminalShadersEnabled")),

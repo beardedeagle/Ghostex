@@ -613,17 +613,7 @@ impl GhostexGpuiApp {
     ) -> Option<terminal_gpui_engine::GpuiEngineTerminalRecord> {
         #[cfg(target_os = "macos")]
         let mut engine_config = {
-            let config_path = match shared_settings::selected_ghostty_config_path() {
-                Ok(path) => path,
-                Err(error) => {
-                    support_logs::append(
-                        support_logs::GpuiSupportLog::TerminalFocus,
-                        "gpui.terminalEngine.configLoadFailed",
-                        serde_json::json!({ "error": format!("{error:?}") }),
-                    );
-                    return None;
-                }
-            };
+            let config_path = shared_settings::ghostex_terminal_config_path();
             match terminal_ghostty_surface::load_ghostty_terminal_engine_config_from_path(
                 &config_path,
                 terminal_gpui_engine::ghostty_theme_source(&settings.ghostty_theme),

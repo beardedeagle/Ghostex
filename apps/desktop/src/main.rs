@@ -248,11 +248,14 @@ fn main() {
     // NativeCrashDiagnostics).
     support_logs::install_panic_hook();
     app::gx_store::initialize_client_storage_at_start();
+    // Before anything reads or writes terminal settings, so the first config Ghostex
+    // terminals load is the copied one.
+    shared_settings::ghostty_config_migration::migrate_terminal_config_from_ghostty_once();
     cef::prepare_application();
     #[cfg(target_os = "macos")]
     reconcile_gpui_managed_ghostty_config();
-    // Workspace chrome background follows the user's Ghostty `background`
-    // config color (macOS defaultWorkspaceBackgroundColor parity). Read once
+    // Workspace chrome background follows the `background` color of
+    // Ghostex's terminal config (macOS defaultWorkspaceBackgroundColor parity). Read once
     // before the window opens so first paint already uses the real color.
     initialize_workspace_background_color_from_ghostty_config();
     refresh_gpui_visual_settings(&shared_settings::shared_sidebar_settings_snapshot());

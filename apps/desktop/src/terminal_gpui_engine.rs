@@ -246,6 +246,8 @@ fn gpui_terminal_theme(name: &str) -> Option<GpuiTerminalTheme> {
 
 /// CDXC:Theming 2026-09-14 SEE-ALSO:
 /// shared_settings/ghostty_themes.rs imports configured theme names, including user-defined files that are absent from the embedded catalog.
+/// CDXC:Theming 2026-10-14 WHY:
+/// The `themes/` folder beside Ghostex's own terminal config comes first. Ghostty's themes folders stay as read-only lookups because libghostty resolves `theme = <name>` there too, and a custom theme name carried over from the Ghostty app's config must keep finding its file.
 fn custom_ghostty_theme_source(name: &str) -> Option<String> {
     if name.is_empty() {
         return None;
@@ -262,7 +264,11 @@ fn custom_ghostty_theme_source(name: &str) -> Option<String> {
         .map(PathBuf::from)
         .filter(|path| path.is_absolute())
         .unwrap_or_else(|| home.join(".config"));
-    let mut paths = vec![xdg.join("ghostty/themes").join(name)];
+    let mut paths = Vec::new();
+    if let Some(parent) = crate::shared_settings::ghostex_terminal_config_path().parent() {
+        paths.push(parent.join("themes").join(name));
+    }
+    paths.push(xdg.join("ghostty/themes").join(name));
     if let Ok(config) = crate::shared_settings::selected_ghostty_config_path() {
         if let Some(parent) = config.parent() {
             paths.push(parent.join("themes").join(name));

@@ -69,7 +69,7 @@ pub const GHOSTTY_SCROLLBAR_OPTIONS: &[Opt] = &[opt("System", "system"), opt("Ne
 
 pub const GHOSTTY_THEME_SETTING_OPTIONS: &[Opt] = &[
     opt(
-        "Use existing Ghostty config",
+        "Use terminal config file",
         "__ghostex_ghostty_theme_unmanaged__",
     ),
     opt("0x96f", "0x96f"),

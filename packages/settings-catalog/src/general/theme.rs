@@ -24,8 +24,8 @@ pub(crate) fn theming() -> Section {
             row("customSidebarTitlebarLightBackgroundTintColor", "Custom light mode tint", "The hue of the custom light mode colour, while Custom colour in light mode is on."),
             row("sessionChatTheme", "Chat theme", "Follow the app theme by default, or override chat with Light, Dark, or System.").options(SESSION_CHAT_THEME_OPTIONS),
             row("terminalColorScheme", "Terminal theme", "Follow the app theme by default, or override terminals with Light, Dark, or System.").options(SESSION_CHAT_THEME_OPTIONS),
-            row("terminalGhosttyLightTheme", "Terminal palette in light mode", "Uses your configured Ghostty light theme, or GitHub Light when no theme is configured.").options(&ghostty_themes_without_unmanaged()),
-            row("terminalGhosttyTheme", "Terminal palette in dark mode", "Uses your configured Ghostty dark theme, or GitHub Dark when no theme is configured.").options(GHOSTTY_THEME_SETTING_OPTIONS),
+            row("terminalGhosttyLightTheme", "Terminal palette in light mode", "Uses the light theme set in Ghostex's terminal config, or GitHub Light when none is set.").options(&ghostty_themes_without_unmanaged()),
+            row("terminalGhosttyTheme", "Terminal palette in dark mode", "Uses the dark theme set in Ghostex's terminal config, or GitHub Dark when none is set.").options(GHOSTTY_THEME_SETTING_OPTIONS),
             row("windowGlass", "Enable transparency", "Let your desktop show through the window. Use transparency picks Dark only, Always or Never.").options(WINDOW_GLASS_OPTIONS),
             row("windowGlassSource", "What shows behind the glass", "Desktop and windows, your wallpaper, a picture you choose, or Live: a calm animation in your theme colours or your own video.").options(WINDOW_GLASS_SOURCE_OPTIONS),
             row("windowGlassImagePlacement", "Picture position", "Where the wallpaper, custom picture or your own Live video sits behind the glass. Stays with the desktop can trail the window while you drag it.").options(WINDOW_GLASS_IMAGE_PLACEMENT_OPTIONS),
@@ -50,7 +50,7 @@ pub(crate) fn theming() -> Section {
     )
 }
 
-/// `GHOSTTY_THEME_SETTING_OPTIONS` without "Use existing Ghostty config": the light palette always names a theme.
+/// `GHOSTTY_THEME_SETTING_OPTIONS` without "Use terminal config file": the light palette always names a theme.
 fn ghostty_themes_without_unmanaged() -> Vec<Opt> {
     GHOSTTY_THEME_SETTING_OPTIONS
         .iter()

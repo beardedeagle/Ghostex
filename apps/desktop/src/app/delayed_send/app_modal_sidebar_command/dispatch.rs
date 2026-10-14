@@ -45,6 +45,8 @@ impl GhostexGpuiApp {
             | "applyRecommendedGhosttySettings"
             | "resetGhosttySettingsToDefault"
             | "openGhosttyConfigFile"
+            | "openGhostexTerminalConfigFile"
+            | "importGhosttyConfig"
             | "runPortlessSettingsAdminAction"
             | "runPortlessSetupPromptAdminAction"
             | "setPortlessEnabled"

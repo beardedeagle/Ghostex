@@ -50,7 +50,8 @@ impl GhosttyAppOwner {
     fn new_after_runtime_init(
         functions: GhosttyKitFunctionTable,
     ) -> Result<Self, GhosttySurfaceRuntimeError> {
-        let config = GhosttyConfigOwner::load_default_finalized_with_functions(functions)?;
+        let config =
+            GhosttyConfigOwner::load_ghostex_terminal_config_finalized_with_functions(functions)?;
         let runtime_state = Box::new(GhosttyRuntimeCallbackState::new());
         let runtime_config = runtime_config_for_state(&runtime_state);
         let app = unsafe { (functions.app_new)(&runtime_config, config.as_raw()) };

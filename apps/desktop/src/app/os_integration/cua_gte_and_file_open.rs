@@ -3,7 +3,7 @@
 // (the only edit from the original app/os_integration.rs body is wrapping
 // each group of `impl GhostexGpuiApp` methods in its own impl block;
 // multiple impl blocks for the same type across files is the established
-// pattern used by every sibling file in apps/desktop/src/app/). This file holds cua-driver/GTE install helpers, daemon/quick-access session refresh accessors, Ghostty settings sync, and Ghostex folder/config/agents-hub file open commands.
+// pattern used by every sibling file in apps/desktop/src/app/). This file holds cua-driver/GTE install helpers, daemon/quick-access session refresh accessors, terminal settings presets, and Ghostex folder/config/agents-hub file open commands.
 // See docs/2026-08-22/repo-restructure/SPLITS.md C1.
 
 // C1 wave-4 extraction: `impl GhostexGpuiApp` methods moved verbatim out of
@@ -228,10 +228,8 @@ impl GhostexGpuiApp {
         >,
         cx: &mut gpui::Context<Self>,
     ) {
-        /*
-        CDXC:Terminal 2026-06-24-12:24:
-        Apply/reset Ghostty actions must mirror macOS by updating the visible shared Settings keys and merging the bounded managed Ghostty config file. They may not accept a React-provided config path, create a fallback file after failure, or claim live embedded reload because GPUI has no safe Ghostty app config reload/update FFI yet.
-        */
+        // Apply/reset update the visible Settings keys and the managed block of Ghostex's own
+        // terminal config; neither ever touches the Ghostty app's config.
         let mut settings_object = shared_settings::shared_sidebar_settings_snapshot()
             .object()
             .clone();
@@ -242,7 +240,7 @@ impl GhostexGpuiApp {
             self.dispatch_gpui_settings_action_status(
                 "ghosttySettings",
                 false,
-                "GPUI could not update shared Ghostty Settings.",
+                "Ghostex could not save the terminal settings.",
                 cx,
             );
             return;
@@ -253,16 +251,16 @@ impl GhostexGpuiApp {
                 self.dispatch_gpui_settings_action_status(
                     "ghosttySettings",
                     true,
-                    "Shared Ghostty Settings and the managed Ghostty config file were saved. Existing GPUI terminals are not live reloaded; changes affect external Ghostty reloads and future/recreated GPUI surfaces.",
+                    "Terminal settings and Ghostex's terminal config were saved.",
                     cx,
                 );
             }
             Err(_) => {
-                let message = "Shared Ghostty Settings were saved, but GPUI could not write the managed Ghostty config file. Existing embedded terminals were not live reloaded.";
+                let message = "Terminal settings were saved, but Ghostex could not write its terminal config file.";
                 self.dispatch_gpui_settings_action_status("ghosttySettings", false, message, cx);
                 self.dispatch_gpui_app_modal_toast(
                     "warning",
-                    "Could not update Ghostty config",
+                    "Could not update terminal config",
                     message,
                     cx,
                 );
@@ -290,14 +288,12 @@ impl GhostexGpuiApp {
     }
 
     pub(crate) fn open_gpui_ghostty_config_file(&mut self, cx: &mut gpui::Context<Self>) {
-        /*
-        CDXC:Terminal 2026-06-24-12:24:
-        The Settings config-file button should open the bounded selected Ghostty config path. Prepare only that path, create an empty file if it is missing, avoid surfacing raw paths in status/toast copy, and report failure honestly instead of opening a parent folder or a second fallback config file.
-        */
+        // The Ghostty app's own config, opened for the user to read or edit; Ghostex never
+        // creates it, so a missing file is reported instead.
         let path = match shared_settings::prepare_ghostty_config_file_for_open() {
             Ok(path) => path,
             Err(_) => {
-                let message = "GPUI could not prepare the selected Ghostty config file.";
+                let message = "The Ghostty app has no config file on this computer yet.";
                 self.dispatch_gpui_settings_action_status(
                     "openGhosttyConfigFile",
                     false,

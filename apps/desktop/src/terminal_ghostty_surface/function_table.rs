@@ -7,7 +7,6 @@ pub(crate) struct GhosttyKitFunctionTable {
     pub(crate) init: unsafe fn(usize, *mut *mut c_char) -> c_int,
     pub(crate) config_new: unsafe fn() -> ffi::ghostty_config_t,
     pub(crate) config_free: unsafe fn(ffi::ghostty_config_t),
-    pub(crate) config_load_default_files: unsafe fn(ffi::ghostty_config_t),
     pub(crate) config_load_file: unsafe fn(ffi::ghostty_config_t, *const c_char),
     pub(crate) config_load_string: unsafe fn(ffi::ghostty_config_t, *const c_char, usize),
     pub(crate) config_load_recursive_files: unsafe fn(ffi::ghostty_config_t),
@@ -86,7 +85,6 @@ impl GhosttyKitFunctionTable {
             init: production_ghostty_init,
             config_new: production_ghostty_config_new,
             config_free: production_ghostty_config_free,
-            config_load_default_files: production_ghostty_config_load_default_files,
             config_load_file: production_ghostty_config_load_file,
             config_load_string: production_ghostty_config_load_string,
             config_load_recursive_files: production_ghostty_config_load_recursive_files,
@@ -141,11 +139,6 @@ unsafe fn production_ghostty_config_new() -> ffi::ghostty_config_t {
 #[cfg(target_os = "macos")]
 unsafe fn production_ghostty_config_free(config: ffi::ghostty_config_t) {
     unsafe { ffi::ghostty_config_free(config) }
-}
-
-#[cfg(target_os = "macos")]
-unsafe fn production_ghostty_config_load_default_files(config: ffi::ghostty_config_t) {
-    unsafe { ffi::ghostty_config_load_default_files(config) }
 }
 
 #[cfg(target_os = "macos")]

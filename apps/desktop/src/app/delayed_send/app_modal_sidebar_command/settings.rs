@@ -133,6 +133,12 @@ impl GhostexGpuiApp {
             "openGhosttyConfigFile" => {
                 self.open_gpui_ghostty_config_file(cx);
             }
+            "openGhostexTerminalConfigFile" => {
+                self.open_gpui_ghostex_terminal_config_file(cx);
+            }
+            "importGhosttyConfig" => {
+                self.import_gpui_ghostty_config(cx);
+            }
             "runPortlessSettingsAdminAction" | "runPortlessSetupPromptAdminAction" => {
                 self.handle_gpui_portless_admin_action_message(command, cx);
             }

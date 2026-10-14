@@ -14,10 +14,8 @@ impl GhostexGpuiApp {
         settings_snapshot: &shared_settings::SharedSidebarSettingsSnapshot,
         cx: &mut gpui::Context<Self>,
     ) {
-        /*
-        CDXC:Terminal 2026-06-24-12:24:
-        Normal GPUI `updateSettings` saves should write generated Ghostty managed terminal settings only when a config-backed terminal value changed. The current GPUI GhosttyKit wrapper has load/create surface FFI but no safe live reload/update API, so this write affects Ghostty's config file, external Ghostty reloads, and future/recreated GPUI surfaces without claiming live embedded terminal reload.
-        */
+        // Only config-backed terminal values are written, into Ghostex's own terminal config; the
+        // live reload that follows the save reads it back.
         if ghostty_config_backed_setting_keys_changed.is_empty() {
             return;
         }
@@ -29,11 +27,11 @@ impl GhostexGpuiApp {
         {
             return;
         }
-        let message = "Settings were saved, but GPUI could not write the managed Ghostty config file. Existing embedded terminals were not live reloaded.";
+        let message = "Settings were saved, but Ghostex could not write its terminal config file. Existing terminals were not reloaded.";
         self.dispatch_gpui_settings_action_status("ghosttySettings", false, message, cx);
         self.dispatch_gpui_app_modal_toast(
             "warning",
-            "Could not update Ghostty config",
+            "Could not update terminal config",
             message,
             cx,
         );
@@ -281,9 +279,7 @@ impl GhostexGpuiApp {
             shared_settings::shared_sidebar_settings_snapshot().gpui_terminal_engine_settings();
         #[cfg(target_os = "macos")]
         let mut config = {
-            let Ok(path) = shared_settings::selected_ghostty_config_path() else {
-                return;
-            };
+            let path = shared_settings::ghostex_terminal_config_path();
             let Ok(config) =
                 terminal_ghostty_surface::load_ghostty_terminal_engine_config_from_path(
                     &path,

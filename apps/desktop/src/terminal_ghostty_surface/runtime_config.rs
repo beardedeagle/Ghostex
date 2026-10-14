@@ -108,7 +108,9 @@ fn leaked_ghostty_process_argv() -> (usize, *mut *mut c_char) {
 pub(crate) fn load_default_ghostty_background_color() -> Option<ffi::ghostty_config_color_s> {
     let functions = GhosttyKitFunctionTable::production();
     initialize_production_ghostty_once(functions).ok()?;
-    let config = GhosttyConfigOwner::load_default_finalized_with_functions(functions).ok()?;
+    let config =
+        GhosttyConfigOwner::load_ghostex_terminal_config_finalized_with_functions(functions)
+            .ok()?;
 
     let key = b"background";
     let mut color = ffi::ghostty_config_color_s { r: 0, g: 0, b: 0 };
@@ -124,11 +126,10 @@ pub(crate) fn load_default_ghostty_background_color() -> Option<ffi::ghostty_con
     has_value.then_some(color)
 }
 
-/// Load the finalized terminal-relevant configuration through Ghostty itself.
-/// The exact path matters because the GPUI bundle identifier differs from
-/// Ghostty's while both apps intentionally share the user's Ghostty config.
-/// Themes, defaults, and recursive `config-file` entries are resolved before
-/// the canonical snapshot crosses into Rust.
+/// Load the finalized terminal-relevant configuration through Ghostty itself
+/// from Ghostex's own terminal config (`shared_settings::ghostex_terminal_config_path`),
+/// never the Ghostty app's. Themes, defaults, and recursive `config-file`
+/// entries are resolved before the canonical snapshot crosses into Rust.
 #[cfg(target_os = "macos")]
 pub(crate) fn load_ghostty_terminal_engine_config_from_path(
     path: &Path,

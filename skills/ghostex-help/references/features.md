@@ -1668,10 +1668,21 @@ Microsoft's download page). New terminals and agents use PowerShell 7 right afte
 it is installed; terminals that are already open keep their shell.
 Keys: `windowsTerminalBackend`, `windowsWslDistribution`.
 
-Terminals are embedded Ghostty surfaces. Font, theme, cursor, padding,
-scrollback, clipboard, and scrolling are Settings > General > Terminal rows and
-are written into a managed Ghostty config; the Ghostty settings actions row
-applies the recommended set or opens the raw config. Command-click opens links;
+Terminals are embedded Ghostty surfaces with their own config file, separate
+from the Ghostty app: Ghostex never reads or changes Ghostty's own config. Font,
+theme, cursor, padding, scrollback, clipboard, and scrolling are Settings >
+General > Terminal rows and are written into Ghostex's terminal config
+(`~/.config/ghostex/ghostty/config.ghostty` on macOS and Linux,
+`%APPDATA%\Ghostex\ghostty\config.ghostty` on Windows). The Ghostty settings
+actions row applies the recommended set, resets the defaults, opens the Ghostty
+app's config or Ghostex's terminal config, and has **Import from Ghostty**, which
+copies your Ghostty fonts (family and fallbacks, size, weight, bold and italic
+families, font features), line height, letter spacing and cursor style into
+Ghostex; it never imports the theme or colors. When you first updated to this
+version, a terminal look Ghostex had been taking from your Ghostty config was
+copied into Ghostex's terminal config once, so nothing changed; the old "Ghostex
+managed terminal settings" section in Ghostty's config was left in place and you
+can delete it. Command-click opens links;
 Cmd+V pastes images as previewable links. On Windows and Linux, Ctrl+V or
 Ctrl+Shift+V pastes from the client computer's clipboard into the focused
 terminal, including a remote terminal. Shift+Insert also pastes, in terminals
@@ -1701,8 +1712,8 @@ scrollback, type `/tui` in Codex, choose Scrollback, then restart the session
 Terminals follow the app theme by default. The Theme page in Settings holds
 Appearance, and its Advanced part holds Chat theme and Terminal theme.
 Terminal theme can override the app with Light, Dark, or System. The palette
-selectors show your existing Ghostty theme names, including separate light and
-dark selections when configured. A single Ghostty theme is used for both appearances
+selectors show the theme set in Ghostex's terminal config, including separate light
+and dark selections when configured. A single theme is used for both appearances
 unless you select a separate light palette. Without a configured theme, the defaults
 are GitHub Light and GitHub Dark. All open terminals refresh automatically when their
 app, system, or terminal theme changes, including idle terminals and terminals in
@@ -1712,11 +1723,11 @@ Terminal background (Settings, Terminal) is Black / white by default: pure black
 behind dark terminals and pure white behind light ones. Choose Follow theme to use
 the theme's background color instead, or Custom color to pick your own for dark mode.
 
-On macOS, Custom shaders (experimental) runs the `custom-shader` files from your
-Ghostty config over Ghostex's terminal panes, in the order the config lists them.
+On macOS, Custom shaders (experimental) runs the `custom-shader` files from
+Ghostex's terminal config over its terminal panes, in the order the config lists them.
 Turn on Enable Experimental Features (Settings, Advanced) to see it at the bottom of
 the Terminal section. While it is on, terminals use the background color and
-opacity from your Ghostty config, so Terminal background and its color are greyed
+opacity from Ghostex's terminal config, so Terminal background and its color are greyed
 out. Shader animation follows Ghostty's `custom-shader-animation`. Turn the switch
 off to go back to normal rendering; running sessions keep going. If a shader file
 does not compile, terminals keep their normal look. Windows and Linux are not

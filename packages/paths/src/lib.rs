@@ -80,6 +80,17 @@ impl GhostexPaths {
         self.extensions_dir().join("extensions-store.json")
     }
 
+    /// The Ghostty config Ghostex's own terminals load (Ghostty syntax), kept apart from the
+    /// Ghostty app's config. A `themes/` folder beside it holds custom terminal themes.
+    pub fn terminal_ghostty_config_file(&self) -> PathBuf {
+        self.config_dir.join("ghostty").join("config.ghostty")
+    }
+
+    /// Written once the one-time copy out of the Ghostty app's config has run.
+    pub fn terminal_ghostty_config_migration_marker_file(&self) -> PathBuf {
+        self.state_dir.join("terminal-ghostty-config-migrated")
+    }
+
     pub fn gxserver_config_dir(&self) -> PathBuf {
         self.config_dir.join("gxserver")
     }

@@ -1336,7 +1336,7 @@
     {
       "key": "ghosttySettingsActions",
       "title": "Ghostty settings actions",
-      "subtitle": "Recommended Ghostty settings, Ghostty config file, Ghostty docs, and Ghostty defaults.",
+      "subtitle": "Recommended terminal settings, Import from Ghostty (fonts and cursor, not the theme), the Ghostty app's config, Ghostex's own terminal config, Ghostty docs, and defaults.",
       "tab": "settings",
       "tabTitle": "General",
       "group": "terminal",
@@ -1346,20 +1346,28 @@
       "type": "ui",
       "options": [
         {
-          "label": "Apply recommended",
-          "value": "applyRecommendedGhosttySettings"
+          "label": "Open Ghostex config",
+          "value": "openGhostexTerminalConfigFile"
         },
         {
           "label": "Open Ghostty config",
           "value": "openGhosttyConfigFile"
         },
         {
-          "label": "Open Ghostty docs",
-          "value": "openGhosttySettingsDocs"
+          "label": "Import from Ghostty",
+          "value": "importGhosttyConfig"
         },
         {
-          "label": "Reset Ghostty defaults",
+          "label": "Apply recommended",
+          "value": "applyRecommendedGhosttySettings"
+        },
+        {
+          "label": "Reset to defaults",
           "value": "resetGhosttySettingsToDefault"
+        },
+        {
+          "label": "Ghostty docs",
+          "value": "openGhosttySettingsDocs"
         }
       ],
       "advanced": true,
@@ -1766,7 +1774,7 @@
     {
       "key": "terminalShadersEnabled",
       "title": "Custom shaders (experimental)",
-      "subtitle": "Apply the shaders from your Ghostty config in order. macOS with Metal only; tested on Apple Silicon. Intel Mac rendering is not yet validated. Windows and Linux are unsupported. Turn off to restore ordinary rendering in the same sessions.",
+      "subtitle": "Apply the shaders from Ghostex's terminal config in order. macOS with Metal only; tested on Apple Silicon. Intel Mac rendering is not yet validated. Windows and Linux are unsupported. Turn off to restore ordinary rendering in the same sessions.",
       "tab": "settings",
       "tabTitle": "General",
       "group": "terminal",
@@ -3641,7 +3649,7 @@
     {
       "key": "terminalGhosttyLightTheme",
       "title": "Terminal palette in light mode",
-      "subtitle": "Uses your configured Ghostty light theme, or GitHub Light when no theme is configured.",
+      "subtitle": "Uses the light theme set in Ghostex's terminal config, or GitHub Light when none is set.",
       "tab": "theme",
       "tabTitle": "Theme",
       "group": "appearance",
@@ -5601,7 +5609,7 @@
     {
       "key": "terminalGhosttyTheme",
       "title": "Terminal palette in dark mode",
-      "subtitle": "Uses your configured Ghostty dark theme, or GitHub Dark when no theme is configured.",
+      "subtitle": "Uses the dark theme set in Ghostex's terminal config, or GitHub Dark when none is set.",
       "tab": "theme",
       "tabTitle": "Theme",
       "group": "appearance",
@@ -5612,7 +5620,7 @@
       "default": "GitHub Dark",
       "options": [
         {
-          "label": "Use existing Ghostty config",
+          "label": "Use terminal config file",
           "value": "__ghostex_ghostty_theme_unmanaged__"
         },
         {

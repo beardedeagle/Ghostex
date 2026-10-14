@@ -86,53 +86,89 @@ pub fn write_ghostty_terminal_config_from_settings_object(
     changed_keys: &[&str],
 ) -> Result<SharedGhosttyConfigFileWriteStatus, SharedGhosttyConfigFileError> {
     let values = SharedGhosttyTerminalConfigValues::from_settings_object(object);
-    merge_selected_ghostty_config_file(|existing_config| {
+    merge_ghostex_terminal_config_file(|existing_config| {
         merge_ghostty_terminal_settings(existing_config, &values, changed_keys)
     })
 }
 
 pub fn apply_recommended_ghostty_config_file()
 -> Result<SharedGhosttyConfigFileWriteStatus, SharedGhosttyConfigFileError> {
-    merge_selected_ghostty_config_file(|existing_config| {
+    merge_ghostex_terminal_config_file(|existing_config| {
         merge_ghostty_config_lines(existing_config, GHOSTEX_RECOMMENDED_GHOSTTY_CONFIG_LINES)
     })
 }
 
 pub fn reset_ghostty_config_file_to_defaults()
 -> Result<SharedGhosttyConfigFileWriteStatus, SharedGhosttyConfigFileError> {
-    merge_selected_ghostty_config_file(|existing_config| {
+    merge_ghostex_terminal_config_file(|existing_config| {
         merge_ghostty_config_lines(existing_config, &[])
     })
 }
 
+/// Replaces every line of `keys` in the managed block of Ghostex's terminal config with `lines`.
+pub(crate) fn merge_ghostex_terminal_config_lines(
+    keys: &[&str],
+    lines: Vec<String>,
+) -> Result<SharedGhosttyConfigFileWriteStatus, SharedGhosttyConfigFileError> {
+    merge_ghostex_terminal_config_file(|existing_config| {
+        merge_ghostty_managed_config_block_entries(existing_config, keys, lines)
+    })
+}
+
+/// The Ghostty app's own config, opened from Settings only to look at or edit by hand. Ghostex
+/// never creates or writes it, so a missing file is reported instead of created.
 pub fn prepare_ghostty_config_file_for_open() -> Result<PathBuf, SharedGhosttyConfigFileError> {
     let path = selected_ghostty_config_path()?;
+    fs::metadata(&path)?;
+    Ok(path)
+}
+
+pub fn prepare_ghostex_terminal_config_file_for_open()
+-> Result<PathBuf, SharedGhosttyConfigFileError> {
+    let path = ghostex_terminal_config_path();
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
     match fs::metadata(&path) {
         Ok(_) => {}
         Err(error) if error.kind() == io::ErrorKind::NotFound => {
-            atomic_write_file(&path, b"")?;
+            atomic_write_file(&path, GHOSTEX_TERMINAL_CONFIG_HEADER.as_bytes())?;
         }
         Err(error) => return Err(error.into()),
     }
     Ok(path)
 }
 
-fn merge_selected_ghostty_config_file<F>(
+/// CDXC:Terminal 2026-10-14 DECISION:
+/// User: "I want to completely separate our Ghostty config in this app from the one the regular Ghostty uses (we just import fonts and a few things like that from Ghostty itself, but not the theme for example). And we should fully stop messing with users' Ghostty outside of Ghostex: no more section at the bottom of the Ghostty config for Ghostex. Don't delete it if it's already there, but migrate from that config to our own without changing things for users who already have this Ghostex config area."
+/// Ghostex's terminals load only this file and every Settings write lands here; the Ghostty app's config is read only by the one-time migration (ghostty_config_migration.rs) and by Import from Ghostty. Supersedes the 2026-06-24 shared-config design, which wrote a marked block into the Ghostty app's config and loaded that file.
+pub(crate) fn ghostex_terminal_config_path() -> PathBuf {
+    ghostex_storage_paths().terminal_ghostty_config_file()
+}
+
+pub(crate) const GHOSTEX_TERMINAL_CONFIG_HEADER: &str = "\
+# Ghostex terminal config (Ghostty syntax: https://ghostty.org/docs/config)
+#
+# Ghostex's terminals read only this file; the Ghostty app's own config is never
+# read or changed. Settings > Terminal rewrites the lines between the
+# \"Ghostex managed terminal settings\" markers; anything else here is yours.
+";
+
+fn merge_ghostex_terminal_config_file<F>(
     merge: F,
 ) -> Result<SharedGhosttyConfigFileWriteStatus, SharedGhosttyConfigFileError>
 where
     F: FnOnce(&str) -> String,
 {
-    let path = selected_ghostty_config_path()?;
-    let existing_config = match fs::read_to_string(&path) {
-        Ok(config) => config,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => String::new(),
+    let path = ghostex_terminal_config_path();
+    let (existing_config, base_config) = match fs::read_to_string(&path) {
+        Ok(config) => (config.clone(), config),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            (String::new(), GHOSTEX_TERMINAL_CONFIG_HEADER.to_string())
+        }
         Err(error) => return Err(error.into()),
     };
-    let merged_config = merge(&existing_config);
+    let merged_config = merge(&base_config);
     if existing_config == merged_config {
         return Ok(SharedGhosttyConfigFileWriteStatus::Unchanged);
     }
@@ -143,6 +179,7 @@ where
     Ok(SharedGhosttyConfigFileWriteStatus::Changed)
 }
 
+/// The Ghostty app's config path (read only: the migration, Import from Ghostty, Open Ghostty config).
 pub(crate) fn selected_ghostty_config_path() -> Result<PathBuf, SharedGhosttyConfigFileError> {
     selected_ghostty_config_path_from_home(user_home_dir())
         .ok_or(SharedGhosttyConfigFileError::HomeUnavailable)
@@ -267,7 +304,7 @@ fn merge_ghostty_managed_config_block(config: &str, managed_lines: Vec<String>) 
     }
 }
 
-fn merge_ghostty_managed_config_block_entries(
+pub(super) fn merge_ghostty_managed_config_block_entries(
     config: &str,
     replacing_keys: &[&str],
     managed_lines: Vec<String>,
@@ -321,7 +358,7 @@ fn trim_trailing_blank_ghostty_config_lines(lines: &mut Vec<String>) {
     }
 }
 
-fn read_ghostty_config_key(line: &str) -> String {
+pub(super) fn read_ghostty_config_key(line: &str) -> String {
     let trimmed_line = line.trim();
     if trimmed_line.is_empty() || trimmed_line.starts_with('#') {
         return String::new();
@@ -332,7 +369,7 @@ fn read_ghostty_config_key(line: &str) -> String {
         .unwrap_or_else(|| trimmed_line.trim().to_string())
 }
 
-fn atomic_write_file(path: &Path, bytes: &[u8]) -> io::Result<()> {
+pub(super) fn atomic_write_file(path: &Path, bytes: &[u8]) -> io::Result<()> {
     let temp_path = atomic_temp_path(path);
     fs::write(&temp_path, bytes)?;
     if let Err(error) = fs::rename(&temp_path, path) {

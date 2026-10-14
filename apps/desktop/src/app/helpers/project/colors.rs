@@ -50,7 +50,7 @@ pub(crate) fn source_view_background_color() -> Hsla {
     chrome_color(0x0e0e0e, 0xffffff).into()
 }
 
-/// One-shot startup read of the Ghostty config `background` color (macOS
+/// One-shot startup read of the `background` color in Ghostex's terminal config (macOS
 /// parity: `ghostexRootView(defaultWorkspaceBackgroundColor:
 /// ghosttyConfigColor("background") ?? .black)`). Runs before the GPUI window
 /// opens; when the config carries no background value the fixed shell default

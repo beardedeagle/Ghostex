@@ -433,9 +433,14 @@ pub(crate) struct GhosttyConfigOwner {
 }
 
 impl GhosttyConfigOwner {
-    pub(crate) fn load_default_finalized_with_functions(
+    /// Ghostex's own terminal config, never Ghostty's default files: those are the Ghostty app's
+    /// config (`~/.config/ghostty`, `com.mitchellh.ghostty`), which Ghostex no longer reads.
+    pub(crate) fn load_ghostex_terminal_config_finalized_with_functions(
         functions: GhosttyKitFunctionTable,
     ) -> Result<Self, GhosttySurfaceRuntimeError> {
+        let path = crate::shared_settings::ghostex_terminal_config_path();
+        let path = CString::new(path.to_string_lossy().into_owned())
+            .map_err(|_| GhosttySurfaceRuntimeError::ConfigPathContainsInteriorNul)?;
         let config = unsafe { (functions.config_new)() };
         let config =
             NonNull::new(config).ok_or(GhosttySurfaceRuntimeError::ConfigCreateReturnedNull)?;
@@ -449,7 +454,8 @@ impl GhosttyConfigOwner {
                 let alias = "keybind = shift+insert=paste_from_clipboard\n";
                 (functions.config_load_string)(owner.as_raw(), alias.as_ptr().cast(), alias.len());
             }
-            (functions.config_load_default_files)(owner.as_raw());
+            (functions.config_load_file)(owner.as_raw(), path.as_ptr());
+            (functions.config_load_recursive_files)(owner.as_raw());
             (functions.config_finalize)(owner.as_raw());
         }
 

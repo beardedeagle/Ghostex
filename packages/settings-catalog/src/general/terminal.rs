@@ -18,7 +18,7 @@ pub(crate) fn terminal(platform: Platform) -> Section {
         ]);
     }
     settings.extend([
-        row("ghosttySettingsActions", "Ghostty settings actions", "Recommended Ghostty settings, Ghostty config file, Ghostty docs, and Ghostty defaults.").options(&[opt("Apply recommended", "applyRecommendedGhosttySettings"), opt("Open Ghostty config", "openGhosttyConfigFile"), opt("Open Ghostty docs", "openGhosttySettingsDocs"), opt("Reset Ghostty defaults", "resetGhosttySettingsToDefault")]),
+        row("ghosttySettingsActions", "Ghostty settings actions", "Recommended terminal settings, Import from Ghostty (fonts and cursor, not the theme), the Ghostty app's config, Ghostex's own terminal config, Ghostty docs, and defaults.").options(&[opt("Open Ghostex config", "openGhostexTerminalConfigFile"), opt("Open Ghostty config", "openGhosttyConfigFile"), opt("Import from Ghostty", "importGhosttyConfig"), opt("Apply recommended", "applyRecommendedGhosttySettings"), opt("Reset to defaults", "resetGhosttySettingsToDefault"), opt("Ghostty docs", "openGhosttySettingsDocs")]),
         row("terminalBackgroundMode", "Terminal background", "Only changes the terminal panes. Black / white is pure black in dark mode and pure white in light mode.").options(&[opt("Black / white", "pure"), opt("Follow theme", "theme"), opt("Custom color", "custom")]),
         row("workspaceBackgroundColor", "Terminal background color", "Custom terminal background, painted behind terminal text in dark mode."),
         row("terminalBackgroundImage", "Background Image", "Absolute path to an image drawn behind terminal panes."),
@@ -48,7 +48,7 @@ pub(crate) fn terminal(platform: Platform) -> Section {
         settings.push(row(
             "terminalShadersEnabled",
             "Custom shaders (experimental)",
-            "Apply the shaders from your Ghostty config in order. macOS with Metal only; tested on Apple Silicon. Intel Mac rendering is not yet validated. Windows and Linux are unsupported. Turn off to restore ordinary rendering in the same sessions.",
+            "Apply the shaders from Ghostex's terminal config in order. macOS with Metal only; tested on Apple Silicon. Intel Mac rendering is not yet validated. Windows and Linux are unsupported. Turn off to restore ordinary rendering in the same sessions.",
         ));
     }
     section("terminal", "Terminal", settings)

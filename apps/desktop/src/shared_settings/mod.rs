@@ -1,5 +1,6 @@
 //! The shared sidebar settings file as the desktop reads and writes it: defaults, the typed settings
-//! values, the snapshot readers, the Ghostty config file writer, the settings service and the field
+//! values, the snapshot readers, the writer of Ghostex's own terminal Ghostty config and its one-time
+//! migration out of the Ghostty app's config, the settings service and the field
 //! normalizers.
 
 /*
@@ -27,11 +28,6 @@ GPUI image paste preview is runtime-only app behavior and defaults on for parity
 CDXC:AgentProviders 2026-06-24-11:39:
 GPUI Settings matches macOS for gxserver-owned agent launch policy: `agentAcceptAllEnabled` and `defaultPromptAgentId` remain in shared Settings only as a synchronous render cache. Parse them with the same default/normalization semantics as the TypeScript settings schema so GPUI can compare saves and reconcile gxserver canonical responses without duplicating the full settings model.
 
-CDXC:Terminal 2026-06-24-12:24:
-GPUI Settings owns a bounded Ghostty config-file writer, not an arbitrary path bridge. Select only the same Application Support config candidates used by macOS, create the preferred `com.mitchellh.ghostty/config.ghostty` file when none exist, replace only Ghostex's marked managed block, and never accept config paths from React or shared Settings JSON.
-
-CDXC:Terminal 2026-06-24-12:24:
-GPUI can write Ghostty's config file for external Ghostty reloads and future/recreated embedded surfaces, but the current GPUI GhosttyKit wrapper exposes no safe app config reload/update FFI. Do not claim live embedded terminal reload, do not drop running surfaces as a fallback, and surface file write/open failures explicitly without creating a second config file.
 */
 
 mod appearance;
@@ -40,6 +36,7 @@ mod ghostty_themes;
 
 pub(crate) mod defaults;
 pub(crate) mod ghostty_config_file;
+pub(crate) mod ghostty_config_migration;
 pub(crate) mod ghostty_config_values;
 pub(crate) mod normalize;
 pub(crate) mod service;
