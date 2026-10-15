@@ -200,38 +200,34 @@ pub fn compute_activity_update(
     );
     /*
     CDXC:SessionStatus 2026-10-15 DECISION:
-    User (Q120): under Combined, detection stays in charge and the program's report is one more signal; in a disagreement "the more urgent signal wins": while the program says blocked, detection cannot take the session out of attention (the program knows it waits on the user), and while the program says working, detection cannot set it idle. Every other disagreement goes to detection, which keeps what only it knows (subagent fleets and compaction, applied when the session is presented). The user's acknowledgement and Escape always pass. Each disagreement goes to the mismatch log (program_status/mismatch.rs).
+    User (Q120): under Combined, detection stays in charge and the program's report is one more signal; in a disagreement "the more urgent signal wins": while the program says blocked, detection cannot take the session out of attention (the program knows it waits on the user), and while the program says working, detection cannot set it idle. Every other disagreement goes to detection, which keeps what only it knows (subagent fleets and compaction, applied when the session is presented). The user's acknowledgement and Escape always pass. Detection's own result is recorded for the mismatch log, which keeps only disagreements that outlast its settle window (program_status/mismatch.rs).
     */
     if program_status_activity.is_none()
         && !matches!(event.as_deref(), Some("acknowledge" | "escape"))
     {
         if let Some(program_state) = crate::program_status::program_status_combined_state(session) {
             let detected = activity.activity.as_str();
-            if detected != crate::program_status::program_state_activity(program_state) {
-                let program_wins = (program_state == "blocked" && detected != "attention")
-                    || (program_state == "working" && detected == "idle");
-                let title = read_text(params, "title")
-                    .or_else(|| read_text(params, "rawTitle"))
-                    .map(|title| title.chars().take(80).collect::<String>());
-                crate::program_status::log_program_status_mismatch(
-                    session,
-                    detected,
-                    program_state,
-                    if program_wins { "program" } else { "detection" },
-                    serde_json::json!({
-                        "kind": event.clone().or_else(|| params.get("activity").map(|_| "activity".to_string())),
-                        "hookEvent": read_text(params, "eventName"),
-                        "title": title,
-                    }),
-                );
-                if program_wins {
-                    return ActivityUpdate {
-                        activity: previous_state.to_value(),
-                        entered_attention: false,
-                        last_active_at: read_text_value(session, "lastActiveAt"),
-                        previous_activity,
-                    };
-                }
+            let title = read_text(params, "title")
+                .or_else(|| read_text(params, "rawTitle"))
+                .map(|title| title.chars().take(80).collect::<String>());
+            crate::program_status::observe_detection_opinion(
+                session,
+                detected,
+                serde_json::json!({
+                    "kind": event.clone().or_else(|| params.get("activity").map(|_| "activity".to_string())),
+                    "hookEvent": read_text(params, "eventName"),
+                    "title": title,
+                }),
+            );
+            let program_wins = (program_state == "blocked" && detected != "attention")
+                || (program_state == "working" && detected == "idle");
+            if program_wins {
+                return ActivityUpdate {
+                    activity: previous_state.to_value(),
+                    entered_attention: false,
+                    last_active_at: read_text_value(session, "lastActiveAt"),
+                    previous_activity,
+                };
             }
         }
     }

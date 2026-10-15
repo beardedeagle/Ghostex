@@ -60,8 +60,121 @@ pub(crate) struct SessionProgramStatus {
     /// one's: it is a turn (a prompt typed ahead during the last turn counts).
     /// A program's own start-up (idle, working while it loads, idle) has none.
     pub working_after_input: bool,
-    /// The last disagreement written to the mismatch log (detection, program, winner).
+    /// The last disagreement written to the mismatch log (detection, program).
     pub last_mismatch: Option<String>,
+    /// Under Combined: the activity Ghostex's detection last computed for the
+    /// session on its own (before the Combined guard).
+    pub detection_activity: Option<String>,
+    /// Under Combined: detection and the program disagree, since when, and
+    /// what detection last saw. Logged only once it outlasts the settle window.
+    pub disagreement: Option<Disagreement>,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct Disagreement {
+    pub since_ms: i64,
+    pub detected: String,
+    pub program_state: String,
+    pub agent: Option<String>,
+    pub input: Value,
+}
+
+fn unix_now_ms() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|elapsed| elapsed.as_millis() as i64)
+        .unwrap_or(0)
+}
+
+/// Compare detection's last opinion with the program's state for a session
+/// and start, keep or end its pending disagreement. `detected` updates
+/// detection's opinion when given; `input` is what detection last saw.
+pub(crate) fn track_program_status_agreement(
+    project_id: &str,
+    session_id: &str,
+    detected: Option<&str>,
+    agent: Option<&str>,
+    input: Option<Value>,
+) {
+    let Ok(mut registry) = registry().lock() else {
+        return;
+    };
+    let Some(entry) = registry.get_mut(&registry_key(project_id, session_id)) else {
+        return;
+    };
+    if let Some(detected) = detected {
+        entry.detection_activity = Some(detected.to_string());
+    }
+    let program_state = entry.applied_state.clone().unwrap_or_else(|| {
+        super::derive_program_status(&entry.records)
+            .state
+            .to_string()
+    });
+    let detected = entry
+        .detection_activity
+        .clone()
+        .unwrap_or_else(|| "idle".to_string());
+    if detected == super::program_state_activity(&program_state) {
+        entry.disagreement = None;
+        entry.last_mismatch = None;
+        return;
+    }
+    let same = entry.disagreement.as_ref().is_some_and(|pending| {
+        pending.detected == detected && pending.program_state == program_state
+    });
+    if same {
+        if let (Some(pending), Some(input)) = (entry.disagreement.as_mut(), input) {
+            pending.input = input;
+        }
+        return;
+    }
+    entry.disagreement = Some(Disagreement {
+        since_ms: unix_now_ms(),
+        detected,
+        program_state,
+        agent: agent.map(str::to_string),
+        input: input.unwrap_or(Value::Null),
+    });
+}
+
+/// Disagreements that outlasted `window_ms` and were not logged yet, as
+/// (project, session, disagreement); each is returned once.
+pub(crate) fn take_settled_program_status_disagreements(
+    window_ms: i64,
+) -> Vec<(String, String, Disagreement)> {
+    let Ok(mut registry) = registry().lock() else {
+        return Vec::new();
+    };
+    let now = unix_now_ms();
+    let mut due = Vec::new();
+    for (key, entry) in registry.iter_mut() {
+        let Some(pending) = entry.disagreement.as_ref() else {
+            continue;
+        };
+        if now - pending.since_ms < window_ms {
+            continue;
+        }
+        let mark = format!("{}|{}", pending.detected, pending.program_state);
+        if entry.last_mismatch.as_deref() == Some(mark.as_str()) {
+            continue;
+        }
+        entry.last_mismatch = Some(mark);
+        if let Some((project, session)) = key.split_once('\u{0}') {
+            due.push((project.to_string(), session.to_string(), pending.clone()));
+        }
+    }
+    due
+}
+
+/// Forget the applied report's identity but keep the state the program
+/// raised, so re-applying after a setting change can still hand a working or
+/// blocked state back to detection.
+pub(crate) fn reset_program_status_applied_key(project_id: &str, session_id: &str) {
+    if let Ok(mut registry) = registry().lock() {
+        if let Some(entry) = registry.get_mut(&registry_key(project_id, session_id)) {
+            entry.applied_key = None;
+        }
+    }
 }
 
 fn registry() -> &'static Mutex<HashMap<String, SessionProgramStatus>> {
@@ -221,22 +334,6 @@ pub(crate) fn program_status_combined_state(session: &Value) -> Option<&'static 
     let entry = program_status_entry(project_id, session_id)?;
     program_status_combines_entry(Some(&entry), source)
         .then(|| super::derive_program_status(&entry.records).state)
-}
-
-/// Remember the last mismatch logged for a session; true when `key` is new,
-/// so a disagreement that lasts across many title ticks is logged once.
-pub(crate) fn note_program_status_mismatch(project_id: &str, session_id: &str, key: &str) -> bool {
-    let Ok(mut registry) = registry().lock() else {
-        return false;
-    };
-    let Some(entry) = registry.get_mut(&registry_key(project_id, session_id)) else {
-        return false;
-    };
-    if entry.last_mismatch.as_deref() == Some(key) {
-        return false;
-    }
-    entry.last_mismatch = Some(key.to_string());
-    true
 }
 
 pub(crate) fn program_status_governs(project_id: &str, session_id: &str) -> bool {
