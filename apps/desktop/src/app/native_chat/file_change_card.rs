@@ -162,7 +162,9 @@ impl NativeChatView {
         let id = text(message, "id");
         let mut rows = Vec::new();
         let simple_key = format!("files:{id}");
-        let simple_expanded = self.expanded.contains(&simple_key);
+        // A write waiting on an approval opens the group (gx-chat-core `approval_wait.rs`).
+        let awaiting = files.iter().any(|file| file["awaitingApproval"] == true);
+        let simple_expanded = self.is_expanded(&simple_key, awaiting);
         if p.simple {
             let motion = self.disclosure_frame(&simple_key, simple_expanded, cx);
             rows.push(self.disclosure(
@@ -378,8 +380,10 @@ impl NativeChatView {
     ) -> AnyElement {
         let s = p.scale;
         let key = format!("file:{stack_id}:{index}");
-        // Settings > Chat > Show file edit previews opens every row to its preview.
-        let open = self.is_expanded(&key, p.file_previews);
+        // Settings > Chat > Show file edit previews opens every row to its preview, and a write
+        // waiting on an approval opens its own row so the diff shows beside the card (gx-chat-core
+        // `approval_wait.rs`).
+        let open = self.is_expanded(&key, p.file_previews || file["awaitingApproval"] == true);
         let motion = self.disclosure_frame(&key, open, cx);
         let status = file["status"].as_str().unwrap_or("edited");
         let hue = palette.status(status);

@@ -216,7 +216,7 @@ fn edit_lines(edit: &Value) -> Option<Vec<DiffLine>> {
     Some(lines)
 }
 
-fn file_changes<'a>(name: &str, input: &Value) -> Vec<FileChange<'a>> {
+pub(crate) fn file_changes<'a>(name: &str, input: &Value) -> Vec<FileChange<'a>> {
     let kind = tool_kind(name);
     let input = decoded_input(input);
     if kind == "apply_patch" {

@@ -1,9 +1,10 @@
-//! The tool call an approval is waiting on, opened in the transcript so its command shows beside
-//! the approval card.
+//! The tool call an approval is waiting on, opened in the transcript so its command (or, for a
+//! file edit, its diff) shows beside the approval card.
 //!
-//! SEE-ALSO: `apps/desktop/src/app/native_chat/tool_run.rs` and
-//! `apps/mobile/app/src/chat/native/transcript/ToolRows.tsx` read `awaitingApproval` as the row's
-//! open default, and record a reader's own open or close against it.
+//! SEE-ALSO: `apps/desktop/src/app/native_chat/tool_run.rs`, `file_change_card.rs` and
+//! `apps/mobile/app/src/chat/native/transcript/ToolRows.tsx`, `FileChanges.tsx`, `MessageRow.tsx`
+//! read `awaitingApproval` as the row's open default, and record a reader's own open or close
+//! against it.
 
 use serde_json::Value;
 
@@ -12,6 +13,7 @@ use crate::questions::gates::{notice_visible, prompt_key};
 use crate::questions::model::{InteractivePrompt, TerminalNotice};
 use crate::questions::notice_state::notice_dismiss_key;
 use crate::state::ChatState;
+use crate::transcript::file_changes::file_changes;
 use crate::transcript::presentation::{message_tool_rows, ProjectionCache};
 use crate::transcript::tool_fold::{pair_tool_blocks, split_blocks, ToolPair};
 use crate::transcript::tool_rows::tool_fold_label;
@@ -51,36 +53,61 @@ pub fn approval_wait(state: &ChatState) -> Option<ApprovalWait> {
 }
 
 /// Where the waiting call is drawn: the item, the row inside a summary turn's work, and the call's
-/// index in that row's `tools`.
+/// place in that row: its index in `tools`, and the `files` rows its writes became.
 struct Target {
     item: usize,
     work: Option<usize>,
-    tool: usize,
+    place: Place,
+}
+
+/// The waiting call's rows inside one message. A write is drawn as file rows (one per file it
+/// touches) and an `exec` wrapper as both.
+struct Place {
+    tool: Option<usize>,
+    files: std::ops::Range<usize>,
 }
 
 /// What one projected row says about the waiting call.
 enum Search {
-    /// The call is this row's tool at that index.
-    Found(usize),
-    /// The call is in this row but drawn as something other than a tool row (a file card).
-    Elsewhere,
+    Found(Place),
+    /// The newest row that called anything holds no waiting call: an older call is not the one.
+    Stop,
     NotHere,
 }
 
-/// The tool row index of `call` among the message's tool rows, or `Elsewhere` when the call is a
-/// file change the row draws as a file card.
-fn tool_row_of(
+/// Where `call` is drawn among the message's tool rows and file rows, counted in the order
+/// `split_file_changes` builds them.
+fn place_of(
     source: &ghostex_gx_protocol::ChatMessage,
     call: &ghostex_gx_protocol::ChatBlock,
 ) -> Search {
     let (_, rows) = message_tool_rows(source);
-    match rows.iter().position(|pair| {
+    let tool = rows.iter().position(|pair| {
         pair.call
             .is_some_and(|row_call| std::ptr::eq(row_call, call))
-    }) {
-        Some(index) => Search::Found(index),
-        None => Search::Elsewhere,
+    });
+    let mut offset = 0;
+    let mut files = 0..0;
+    for pair in calls(source) {
+        let count = match pair.call {
+            Some(ghostex_gx_protocol::ChatBlock::ToolCall { name, input, .. }) => {
+                file_changes(name, input).len()
+            }
+            _ => 0,
+        };
+        if pair
+            .call
+            .is_some_and(|pair_call| std::ptr::eq(pair_call, call))
+        {
+            files = offset..offset + count;
+            break;
+        }
+        offset += count;
     }
+    if tool.is_none() && files.is_empty() {
+        return Search::Stop;
+    }
+    Search::Found(Place { tool, files })
 }
 
 fn calls(source: &ghostex_gx_protocol::ChatMessage) -> Vec<ToolPair<'_>> {
@@ -100,7 +127,7 @@ fn by_id(source: &ghostex_gx_protocol::ChatMessage, id: &str) -> Search {
         _ => None,
     });
     match found {
-        Some(call) => tool_row_of(source, call),
+        Some(call) => place_of(source, call),
         None => Search::NotHere,
     }
 }
@@ -117,10 +144,10 @@ fn newest_open_call(source: &ghostex_gx_protocol::ChatMessage) -> Search {
         .find(|pair| pair.call.is_some() && pair.result.is_none())
         .and_then(|pair| pair.call)
     {
-        Some(call) => tool_row_of(source, call),
+        Some(call) => place_of(source, call),
         // The newest row that called anything has every answer back: the waiting call is not in
         // the transcript yet, and an older finished call is not what the approval asks about.
-        None => Search::Elsewhere,
+        None => Search::Stop,
     }
 }
 
@@ -158,14 +185,14 @@ fn locate(
                 continue;
             };
             match find(&entry.source) {
-                Search::Found(tool) => {
+                Search::Found(place) => {
                     return Some(Some(Target {
                         item: *item,
                         work: *work,
-                        tool,
+                        place,
                     }))
                 }
-                Search::Elsewhere => return Some(None),
+                Search::Stop => return Some(None),
                 Search::NotHere => {}
             }
         }
@@ -181,7 +208,7 @@ fn locate(
     search(&newest_open_call).flatten()
 }
 
-/// CDXC:SessionChat 2026-10-15 DECISION: User (a Ghostex customer): "when I run Claude Code in manual Mode I always have to expand the bash commands to see what ghostex is asking permission for. (in chat view) It would be better if we expand to show the last command so i know what it needs approval for. (collapse after i approve)". While an agent waits on a tool approval, the call it waits on starts open (`awaitingApproval` on the tool row, `toolsOpen` on its message, and the run fold and a summary turn's work fold keep it in view), so the command shows beside the approval card without a click. Once the approval is answered, from the chat, the terminal or anywhere, the mark goes and the row folds back to how it normally draws; a row the reader opened or closed by hand while it waited keeps their choice, because the renderers record that against this default.
+/// CDXC:SessionChat 2026-10-15 DECISION: User (a Ghostex customer): "when I run Claude Code in manual Mode I always have to expand the bash commands to see what ghostex is asking permission for. (in chat view) It would be better if we expand to show the last command so i know what it needs approval for. (collapse after i approve)". While an agent waits on a tool approval, the call it waits on starts open (`awaitingApproval` on the tool row, `toolsOpen` on its message, and the run fold and a summary turn's work fold keep it in view), so the command shows beside the approval card without a click; a file edit or write waiting the same way (Edit, Write and the like, drawn as file cards) opens its file rows to the diff (`awaitingApproval` on each, user 2026-10-15). Once the approval is answered, from the chat, the terminal or anywhere, the mark goes and the row folds back to how it normally draws; a row the reader opened or closed by hand while it waited keeps their choice, because the renderers record that against this default.
 pub fn open_waiting_call(
     items: &mut [TranscriptItem],
     cache: &ProjectionCache,
@@ -207,23 +234,38 @@ pub fn open_waiting_call(
     let Value::Object(fields) = message else {
         return;
     };
+    // A write waiting on its approval opens its file rows to the diff it asks to make.
+    if let Some(Value::Array(files)) = fields.get_mut("files") {
+        for file in files
+            .iter_mut()
+            .take(target.place.files.end)
+            .skip(target.place.files.start)
+        {
+            if let Value::Object(file) = file {
+                file.insert("awaitingApproval".to_string(), Value::Bool(true));
+            }
+        }
+    }
+    let Some(tool) = target.place.tool else {
+        return;
+    };
     fields.insert("toolsOpen".to_string(), Value::Bool(true));
-    if let Some(Value::Object(tool)) = fields
+    if let Some(Value::Object(row)) = fields
         .get_mut("tools")
-        .and_then(|tools| tools.get_mut(target.tool))
+        .and_then(|tools| tools.get_mut(tool))
     {
-        tool.insert("awaitingApproval".to_string(), Value::Bool(true));
+        row.insert("awaitingApproval".to_string(), Value::Bool(true));
     }
     // The "+N previous tool calls" fold keeps only the last call in view; a waiting call earlier in
     // the run (parallel calls) stays out of it.
     if let Some(Value::Object(fold)) = fields.get_mut("toolFold") {
         let hidden = fold
             .get("visible")
-            .and_then(|visible| visible.get(target.tool))
+            .and_then(|visible| visible.get(tool))
             .is_some_and(|shown| shown == &Value::Bool(false));
         if hidden {
             if let Some(Value::Array(visible)) = fold.get_mut("visible") {
-                visible[target.tool] = Value::Bool(true);
+                visible[tool] = Value::Bool(true);
             }
             let count = fold
                 .get("hiddenCount")
