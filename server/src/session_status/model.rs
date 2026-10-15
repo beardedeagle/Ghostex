@@ -146,6 +146,15 @@ pub fn compute_activity_update(
         && event.as_deref() != Some("acknowledge")
         && crate::program_status::program_status_governs_session(session)
     {
+        // An Escape still says the user stopped this turn, so its idle is not a finished turn.
+        if event.as_deref() == Some("escape") {
+            if let (Some(project_id), Some(session_id)) = (
+                read_text_value(session, "projectId"),
+                read_text_value(session, "sessionId"),
+            ) {
+                crate::program_status::note_program_status_interrupt(&project_id, &session_id);
+            }
+        }
         return ActivityUpdate {
             activity: previous_state.to_value(),
             entered_attention: false,

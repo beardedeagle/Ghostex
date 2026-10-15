@@ -42,6 +42,12 @@ pub(crate) struct SessionProgramStatus {
     /// so a re-sent snapshot (another record changed) never re-raises a
     /// finished turn the user already acknowledged.
     pub applied_key: Option<String>,
+    /// The derived state behind `applied_key` (idle, working, ...), so a
+    /// working → idle step can be told apart from a session that was idle.
+    pub applied_state: Option<String>,
+    /// The user interrupted the current turn from Ghostex (Escape in the
+    /// terminal pane or Stop in the chat) since the session last went working.
+    pub interrupted: bool,
 }
 
 fn registry() -> &'static Mutex<HashMap<String, SessionProgramStatus>> {
@@ -99,9 +105,33 @@ pub(crate) fn set_program_status_applied_key(
     session_id: &str,
     key: Option<String>,
 ) {
+    set_program_status_applied(project_id, session_id, key, None);
+}
+
+/// Record what was last written to the session's activity. A working state
+/// starts a new turn, so it forgets an earlier interrupt.
+pub(crate) fn set_program_status_applied(
+    project_id: &str,
+    session_id: &str,
+    key: Option<String>,
+    state: Option<&str>,
+) {
     if let Ok(mut registry) = registry().lock() {
         if let Some(entry) = registry.get_mut(&registry_key(project_id, session_id)) {
             entry.applied_key = key;
+            entry.applied_state = state.map(str::to_string);
+            if state == Some("working") {
+                entry.interrupted = false;
+            }
+        }
+    }
+}
+
+/// The user pressed Escape in the terminal pane or Stop in the chat.
+pub(crate) fn note_program_status_interrupt(project_id: &str, session_id: &str) {
+    if let Ok(mut registry) = registry().lock() {
+        if let Some(entry) = registry.get_mut(&registry_key(project_id, session_id)) {
+            entry.interrupted = true;
         }
     }
 }

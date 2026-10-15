@@ -81,7 +81,8 @@ pub(crate) fn program_status_activity(state: &str) -> (&'static str, Option<&'st
     match state {
         "working" => ("working", None),
         "blocked" => ("attention", None),
-        "done" | "error" => ("attention", Some(TURN_COMPLETE_ATTENTION_SOURCE)),
+        // `finished` is an agent's working → idle step (ingest.rs `finished_turn_step`).
+        "done" | "error" | "finished" => ("attention", Some(TURN_COMPLETE_ATTENTION_SOURCE)),
         _ => ("idle", None),
     }
 }

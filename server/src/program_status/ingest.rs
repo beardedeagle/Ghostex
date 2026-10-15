@@ -16,7 +16,8 @@ use super::{
     current_status_source, derive_program_status, forget_program_status,
     mark_program_status_unsupported, program_status_activity, program_status_applied_key,
     program_status_entry, program_status_governs_entry, program_status_sessions,
-    set_program_status_applied_key, store_program_status_snapshot, ProgramStatusRecord,
+    set_program_status_applied, set_program_status_applied_key, store_program_status_snapshot,
+    ProgramStatusRecord,
 };
 
 /// One program-status line of `zmx watch-title` / `wmx watch-title`.
@@ -128,7 +129,24 @@ pub(crate) fn apply_program_status(
     let Ok(Some(session)) = repository.get_session(project_id, session_id) else {
         return;
     };
-    set_program_status_applied_key(project_id, session_id, Some(key));
+    let effective = match finished_turn_step(&entry, &derived, &session) {
+        FinishedTurnStep::Promote => "finished",
+        FinishedTurnStep::StillFinished => {
+            set_program_status_applied(project_id, session_id, Some(key), Some("finished"));
+            if records_changed {
+                let _ = schedule_presentation_session_delta(
+                    state,
+                    &db,
+                    &repository,
+                    project_id,
+                    session_id,
+                );
+            }
+            return;
+        }
+        FinishedTurnStep::None => derived.state,
+    };
+    set_program_status_applied(project_id, session_id, Some(key), Some(effective));
     if entry.applied_key.is_none() && already_seen(&session, derived.state, derived.record.as_ref())
     {
         if records_changed {
@@ -142,7 +160,7 @@ pub(crate) fn apply_program_status(
         }
         return;
     }
-    let (activity, attention_source) = program_status_activity(derived.state);
+    let (activity, attention_source) = program_status_activity(effective);
     let mut params = Map::new();
     params.insert("projectId".to_string(), json!(project_id));
     params.insert("sessionId".to_string(), json!(session_id));
@@ -172,6 +190,44 @@ pub(crate) fn apply_program_status(
     if let Ok(Some(session)) = repository.get_session(project_id, session_id) {
         schedule_stale_activity_presentation_refresh(state, &session, "program-status");
     }
+}
+
+enum FinishedTurnStep {
+    /// working → idle on an agent session the user did not interrupt: finished.
+    Promote,
+    /// The idle that followed a promoted finish, re-sent: keep the finished mark.
+    StillFinished,
+    None,
+}
+
+/// CDXC:SessionStatus 2026-10-15 DECISION:
+/// User (Q116): "treat an agent's working → idle as finished" (blue finished dot until the user looks), so an agent that ends its turn with `idle` instead of `done` (Codex 0.163 does) still shows as finished. Only for agent sessions, only while the program is still there (its idle record, not an empty list after it exited), and not when the user interrupted the turn from Ghostex: Escape in the terminal pane and Stop in the chat both send `escape`, which `compute_activity_update` notes for the session. A Ctrl-C typed straight into the terminal cannot be told apart and does count as finished.
+fn finished_turn_step(
+    entry: &super::SessionProgramStatus,
+    derived: &super::DerivedProgramStatus,
+    session: &Value,
+) -> FinishedTurnStep {
+    if derived.state != "idle" || derived.record.is_none() {
+        return FinishedTurnStep::None;
+    }
+    match entry.applied_state.as_deref() {
+        Some("finished") => FinishedTurnStep::StillFinished,
+        Some("working") if !entry.interrupted && is_agent_session(session) => {
+            FinishedTurnStep::Promote
+        }
+        _ => FinishedTurnStep::None,
+    }
+}
+
+fn is_agent_session(session: &Value) -> bool {
+    let text = |key: &str| {
+        session
+            .get(key)
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+    };
+    text("kind") == Some("agent") || text("agentId").is_some()
 }
 
 /// A finished or failed record that was already there when gxserver first
