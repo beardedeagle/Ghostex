@@ -22,7 +22,46 @@ use crate::transcript::prose::prose_markdown;
 use crate::transcript::question_forms::{finished_fences, is_questions_language, parse_form};
 
 /// The href a Q-tag link carries; the chat jumps to the question instead of opening anything.
+/// The tag follows it, then `;` and its [`TagState`] (`#gx-question=Q80;open`).
 pub const QUESTION_LINK_PREFIX: &str = "#gx-question=";
+
+/// What became of the question a Q-tag names, which the renderers draw the tag's pill from.
+///
+/// CDXC:SessionChat 2026-10-15 DECISION:
+/// User: "i want them to show different pill color when not answered and greenish one when answered so i dont keep clicking on them thinking they need answering and finding i already replied", then picked option B, outline tags (docs/2026-10-15/chat-visual-options/question-tags.html, Q137): a Q-tag in an agent's reply is an outlined pill, amber with a ? while its question waits for an answer, green with a check once answered, grey and struck through once withdrawn; the "Previous question" ? pill takes the same amber outline. The state is the latest form or page that asked the tag, as the link's jump is.
+/// SEE-ALSO: packages/gx-chat-core/visual/question-tags.json (the colours), apps/desktop/src/app/native_chat/markdown_links.rs and chat_pills.rs, apps/mobile/app/src/chat/native/transcript/markdown/Markdown.tsx and cards/ChatPills.tsx, gpui-component's `InlineLinkFrame`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TagState {
+    Open,
+    Answered,
+    Withdrawn,
+}
+
+impl TagState {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Open => "open",
+            Self::Answered => "answered",
+            Self::Withdrawn => "withdrawn",
+        }
+    }
+
+    pub fn parse(word: &str) -> Option<Self> {
+        match word {
+            "open" => Some(Self::Open),
+            "answered" => Some(Self::Answered),
+            "withdrawn" => Some(Self::Withdrawn),
+            _ => None,
+        }
+    }
+}
+
+/// A tag a reply's words can link to, uppercased, with the state of its question.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct QuestionTag {
+    pub tag: String,
+    pub state: TagState,
+}
 
 /// What asked a question.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -46,6 +85,8 @@ pub struct Asker {
     pub answered: bool,
     /// A later form or page asks all of its tags again, or a later block withdrew them.
     pub obsolete: bool,
+    /// Its tags a later ```questions block withdrew.
+    pub withdrawn: Vec<String>,
 }
 
 enum Found {
@@ -95,6 +136,7 @@ pub fn askers(messages: &[ChatMessage], answered: &[String]) -> Vec<Asker> {
                     tags,
                     answered: false,
                     obsolete: false,
+                    withdrawn: Vec::new(),
                 }
             } else if ghostex_gx_visual::is_visual_language(&language) {
                 let Some(page) = ghostex_gx_visual::page_reference(&body) else {
@@ -110,6 +152,7 @@ pub fn askers(messages: &[ChatMessage], answered: &[String]) -> Vec<Asker> {
                     tags,
                     answered: false,
                     obsolete: false,
+                    withdrawn: Vec::new(),
                 }
             } else {
                 continue;
@@ -133,9 +176,20 @@ pub fn askers(messages: &[ChatMessage], answered: &[String]) -> Vec<Asker> {
                 Found::Withdraw(tags) => tags.iter().any(|known| same_tag(known, tag)),
             })
         };
+        let withdrawn_later = |tag: &str| {
+            found[index + 1..].iter().any(|later| {
+                matches!(later, Found::Withdraw(tags) if tags.iter().any(|known| same_tag(known, tag)))
+            })
+        };
         let mut asker = asker.clone();
         asker.answered = answered.contains(&asker.id);
         asker.obsolete = !asker.tags.is_empty() && asker.tags.iter().all(|tag| asked_again(tag));
+        asker.withdrawn = asker
+            .tags
+            .iter()
+            .filter(|tag| withdrawn_later(tag))
+            .cloned()
+            .collect();
         askers.push(asker);
     }
     askers
@@ -149,10 +203,23 @@ pub fn tag_target<'a>(askers: &'a [Asker], tag: &str) -> Option<&'a Asker> {
         .find(|asker| asker.tags.iter().any(|known| same_tag(known, tag)))
 }
 
-/// The tags a reply's words can link to, uppercased and sorted: the tags some form or page asked
-/// that look like a tag (`Q80`, `GX-12`), so a tag that is an ordinary word never turns words into
-/// links.
-pub fn linkable_tags(askers: &[Asker]) -> Vec<String> {
+/// The state of the question a tag names: answered once the latest form or page that asked it has
+/// its answers, withdrawn once a later block withdrew it there, open otherwise.
+pub fn tag_state(askers: &[Asker], tag: &str) -> Option<TagState> {
+    let asker = tag_target(askers, tag)?;
+    Some(if asker.answered {
+        TagState::Answered
+    } else if asker.obsolete || asker.withdrawn.iter().any(|known| same_tag(known, tag)) {
+        TagState::Withdrawn
+    } else {
+        TagState::Open
+    })
+}
+
+/// The tags a reply's words can link to, uppercased and sorted, with their states: the tags some
+/// form or page asked that look like a tag (`Q80`, `GX-12`), so a tag that is an ordinary word
+/// never turns words into links.
+pub fn linkable_tags(askers: &[Asker]) -> Vec<QuestionTag> {
     let mut tags: Vec<String> = askers
         .iter()
         .flat_map(|asker| asker.tags.iter())
@@ -161,7 +228,25 @@ pub fn linkable_tags(askers: &[Asker]) -> Vec<String> {
         .collect();
     tags.sort();
     tags.dedup();
-    tags
+    tags.into_iter()
+        .filter_map(|tag| {
+            let state = tag_state(askers, &tag)?;
+            Some(QuestionTag { tag, state })
+        })
+        .collect()
+}
+
+/// The entry of `tags` (sorted) for a word, whatever its case.
+fn find_tag<'a>(tags: &'a [QuestionTag], word: &str) -> Option<&'a QuestionTag> {
+    let word = word.to_ascii_uppercase();
+    tags.binary_search_by(|known| known.tag.as_str().cmp(&word))
+        .ok()
+        .map(|at| &tags[at])
+}
+
+/// A Q-tag link's destination: the tag as written and its question's state.
+fn question_href(word: &str, state: TagState) -> String {
+    format!("{QUESTION_LINK_PREFIX}{word};{}", state.as_str())
 }
 
 /// The length of a tag-shaped word starting at `at` (`[A-Za-z]{1,8}-?[0-9]{1,6}`), when the word
@@ -212,19 +297,22 @@ pub fn tag_words(markdown: &str) -> Vec<String> {
     words
 }
 
-/// The words of `words` that are among `tags` (both uppercased and sorted).
-pub fn linked_words(words: &[String], tags: &[String]) -> Vec<String> {
+/// The words of `words` (uppercased, sorted) that are among `tags`, each with its state
+/// (`Q80;open`), so a cached reply re-projects when one of its tags is answered or withdrawn.
+pub fn linked_words(words: &[String], tags: &[QuestionTag]) -> Vec<String> {
     words
         .iter()
-        .filter(|word| tags.binary_search(word).is_ok())
-        .cloned()
+        .filter_map(|word| {
+            let found = find_tag(tags, word)?;
+            Some(format!("{word};{}", found.state.as_str()))
+        })
         .collect()
 }
 
 /// The reply with each word that names one of `tags` (uppercased, sorted) turned into a link to its
 /// question, and each ```questions block that only withdraws questions turned into a line naming
 /// them. Code, links and addresses are left alone.
-pub fn link_question_tags(markdown: &str, tags: &[String]) -> String {
+pub fn link_question_tags(markdown: &str, tags: &[QuestionTag]) -> String {
     let withdrawals = markdown.contains("withdraw");
     if tags.is_empty() && !withdrawals {
         return markdown.to_string();
@@ -280,32 +368,26 @@ pub fn link_question_tags(markdown: &str, tags: &[String]) -> String {
 
 /// What a withdraw-only block reads as: the tags it withdrew, each a link when its question is in
 /// the transcript.
-fn withdrawal_line(withdrawn: &[String], tags: &[String]) -> String {
+fn withdrawal_line(withdrawn: &[String], tags: &[QuestionTag]) -> String {
     let named: Vec<String> = withdrawn
         .iter()
-        .map(|tag| {
-            if tags.binary_search(&tag.to_ascii_uppercase()).is_ok() {
-                format!("[{tag}]({QUESTION_LINK_PREFIX}{tag})")
-            } else {
-                tag.clone()
-            }
+        .map(|tag| match find_tag(tags, tag) {
+            Some(found) => format!("[{tag}]({})", question_href(tag, found.state)),
+            None => tag.clone(),
         })
         .collect();
     format!("_Withdrawn, no answer needed: {}_", named.join(", "))
 }
 
 /// Links the tags in one line of prose.
-fn link_line(line: &str, tags: &[String], out: &mut String) {
+fn link_line(line: &str, tags: &[QuestionTag], out: &mut String) {
     if tags.is_empty() {
         out.push_str(line);
         return;
     }
-    for_each_word(line, out, &mut |word, out| {
-        if tags.binary_search(&word.to_ascii_uppercase()).is_ok() {
-            out.push_str(&format!("[{word}]({QUESTION_LINK_PREFIX}{word})"));
-        } else {
-            out.push_str(word);
-        }
+    for_each_word(line, out, &mut |word, out| match find_tag(tags, word) {
+        Some(found) => out.push_str(&format!("[{word}]({})", question_href(word, found.state))),
+        None => out.push_str(word),
     });
 }
 
@@ -505,27 +587,45 @@ mod tests {
             tag_target(&found, "q1").map(|asker| asker.id.as_str()),
             Some(PAGE)
         );
-        assert_eq!(linkable_tags(&found), vec!["Q1"]);
+        assert_eq!(
+            linkable_tags(&found),
+            vec![QuestionTag {
+                tag: "Q1".to_string(),
+                state: TagState::Open
+            }]
+        );
     }
 
     #[test]
     fn tag_words_are_linked_outside_code_and_links() {
-        let tags = vec!["Q80".to_string(), "Q81".to_string()];
+        let tags = vec![
+            QuestionTag {
+                tag: "Q80".to_string(),
+                state: TagState::Open,
+            },
+            QuestionTag {
+                tag: "Q81".to_string(),
+                state: TagState::Answered,
+            },
+        ];
         let text = "See Q80 and (Q81). Not Q800, `Q80`, [Q80](https://x/Q80), https://x/Q81 or AQ80.\n```\nQ80\n```\nq80!";
         assert_eq!(
             link_question_tags(text, &tags),
-            "See [Q80](#gx-question=Q80) and ([Q81](#gx-question=Q81)). Not Q800, `Q80`, [Q80](https://x/Q80), https://x/Q81 or AQ80.\n```\nQ80\n```\n[q80](#gx-question=q80)!"
+            "See [Q80](#gx-question=Q80;open) and ([Q81](#gx-question=Q81;answered)). Not Q800, `Q80`, [Q80](https://x/Q80), https://x/Q81 or AQ80.\n```\nQ80\n```\n[q80](#gx-question=q80;open)!"
         );
         assert_eq!(tag_words(text), vec!["AQ80", "Q80", "Q800", "Q81"]);
     }
 
     #[test]
     fn a_withdraw_only_block_reads_as_a_line() {
-        let tags = vec!["Q40".to_string()];
+        let tags = vec![QuestionTag {
+            tag: "Q40".to_string(),
+            state: TagState::Withdrawn,
+        }];
         let text = "Done.\n\n```questions\n{\"withdraw\": [\"Q40\", \"Q41\"]}\n```";
         assert_eq!(
             link_question_tags(text, &tags),
-            "Done.\n\n_Withdrawn, no answer needed: [Q40](#gx-question=Q40), Q41_"
+            "Done.\n\n_Withdrawn, no answer needed: [Q40](#gx-question=Q40;withdrawn), Q41_"
         );
     }
 }

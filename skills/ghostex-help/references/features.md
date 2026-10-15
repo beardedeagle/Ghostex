@@ -1064,7 +1064,10 @@ click goes to the next older unanswered one, round again after the oldest, and
 briefly outlines it. A question stops counting once the agent asks the same tag
 again in a later form or page, or withdraws it. Question tags the agent writes
 in its messages, such as Q3, are always links to the form or page that asked
-them, answered or not. Setting: `chatPreviousQuestion`. Commands:
+them, answered or not, drawn as small outlined tags that show where each
+question stands: amber with a ? while it still waits for your answer, green
+with a check once you answered it, and grey and struck through once the agent
+withdrew it. Setting: `chatPreviousQuestion`. Commands:
 `ghostex show <file.html>`
 publishes a page and prints the block that shows its card (`--browser` opens it
 in the browser instead of floating), and

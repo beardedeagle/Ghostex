@@ -8,9 +8,13 @@
 //! The phone draws the same pill and highlight in apps/mobile/app/src/chat/native/transcript/Transcript.tsx and OpenQuestions.tsx; the rules are packages/gx-chat-core/src/transcript/open_questions.rs. Change them together.
 
 use super::{appearance::ChatAppearance, state::NativeChatView};
-use gpui::{AnyElement, Context, IntoElement, ParentElement as _, Styled as _, Window, div, px};
-use serde_json::json;
-use std::time::Duration;
+use gpui::{
+    AnyElement, Context, Hsla, IntoElement, ParentElement as _, Styled as _, Window, div, px, rgb,
+};
+use gpui_component::text::{InlineLink, InlineLinkFrame};
+use serde::Deserialize;
+use serde_json::{Value, json};
+use std::{collections::HashMap, sync::LazyLock, time::Duration};
 use web_time::Instant;
 
 /// The question a jump landed on, highlighted for a moment, and the row the transcript still has
@@ -151,7 +155,112 @@ fn flash_duration() -> Duration {
     Duration::from_millis(super::scroll_bottom::question_flash_ms())
 }
 
-/// The pill's fill, border and text (`questionTone` in `scroll-bottom.json`).
+/// The jump highlight's fill, border and text (`questionTone` in `scroll-bottom.json`).
 pub(super) fn question_tone(light: bool) -> (gpui::Hsla, gpui::Hsla, gpui::Hsla) {
     super::scroll_bottom::question_tone(light)
+}
+
+/// How a Q-tag pill is drawn, read from `question-tags.json`.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TagVisual {
+    radius: f32,
+    padding_x: f32,
+    border_width: f32,
+    icon_size: f32,
+    gap: f32,
+    states: HashMap<String, Themed<TagTone>>,
+    hover: Themed<Wash>,
+}
+
+#[derive(Deserialize)]
+struct Themed<T> {
+    dark: T,
+    light: T,
+}
+
+impl<T> Themed<T> {
+    fn get(&self, light: bool) -> &T {
+        if light { &self.light } else { &self.dark }
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TagTone {
+    text: String,
+    border: String,
+    border_alpha: f32,
+}
+
+#[derive(Deserialize)]
+struct Wash {
+    color: String,
+    alpha: f32,
+}
+
+/// CDXC:SessionChat 2026-10-15 SEE-ALSO: The Q-tag pills' colours and shape come from packages/gx-chat-core/visual/question-tags.json, which the phone's Markdown.tsx and ChatPills.tsx read too; the state is gx-chat-core's `TagState` (transcript/open_questions.rs).
+static TAG_VISUAL: LazyLock<TagVisual> = LazyLock::new(|| {
+    serde_json::from_str(include_str!(
+        "../../../../../packages/gx-chat-core/visual/question-tags.json"
+    ))
+    .expect("shared question tag appearance")
+});
+
+fn hex(value: &str) -> Hsla {
+    rgb(u32::from_str_radix(value.trim_start_matches('#'), 16).unwrap_or(0)).into()
+}
+
+/// A tag state's text and border colours.
+fn tag_tone(state: &str, light: bool) -> Option<(Hsla, Hsla)> {
+    let tone = TAG_VISUAL.states.get(state)?.get(light);
+    Some((
+        hex(&tone.text),
+        hex(&tone.border).opacity(tone.border_alpha),
+    ))
+}
+
+/// The Previous question pill's text and border: the amber outline an open Q-tag has.
+pub(super) fn question_pill_tone(light: bool) -> (Hsla, Hsla) {
+    tag_tone("open", light).unwrap_or_else(|| {
+        let (_, border, text) = question_tone(light);
+        (text, border)
+    })
+}
+
+/// A `question` reference (a Q-tag link, gx-chat-core `question_reference`) as an outlined pill in
+/// its state's colour: a ? while open, a check once answered, struck through once withdrawn.
+pub(super) fn question_tag_link(reference: &Value, p: &ChatAppearance) -> Option<InlineLink> {
+    let state = reference["state"].as_str()?;
+    let (color, border) = tag_tone(state, p.light)?;
+    let visual = &*TAG_VISUAL;
+    let s = p.scale;
+    let icon = match state {
+        "open" => "titlebar/question-mark.svg",
+        "answered" => "titlebar/check-bold.svg",
+        _ => "",
+    };
+    let wash = visual.hover.get(p.light);
+    Some(InlineLink {
+        label: reference["label"].as_str()?.to_owned().into(),
+        title: reference["title"].as_str()?.to_owned().into(),
+        icon: icon.into(),
+        icon_size: px(if icon.is_empty() {
+            0.0
+        } else {
+            visual.icon_size * s
+        }),
+        gap: px(if icon.is_empty() { 0.0 } else { visual.gap * s }),
+        color,
+        truncate_start: false,
+        frame: Some(InlineLinkFrame {
+            padding_x: px(visual.padding_x * s),
+            border_width: px(visual.border_width),
+            border_color: border,
+            radius: px(visual.radius * s),
+            hover_background: Some(hex(&wash.color).opacity(wash.alpha)),
+        }),
+        font_weight: Some(gpui::FontWeight::SEMIBOLD),
+        strikethrough: state == "withdrawn",
+    })
 }

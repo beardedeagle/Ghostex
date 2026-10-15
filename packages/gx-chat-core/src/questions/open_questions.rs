@@ -144,11 +144,11 @@ fn jump_to(state: &mut ChatState, context: &ChatContext, asker: &Asker) -> Vec<E
     Vec::new()
 }
 
-/// The tag a Markdown link names, when it is a Q-tag link.
+/// The tag a Markdown link names, when it is a Q-tag link (`#gx-question=Q80;open`).
 pub fn link_tag(href: &str) -> Option<&str> {
     href.trim()
         .strip_prefix(crate::transcript::open_questions::QUESTION_LINK_PREFIX)
-        .map(str::trim)
+        .map(|rest| rest.split(';').next().unwrap_or_default().trim())
         .filter(|tag| !tag.is_empty())
 }
 
@@ -178,6 +178,7 @@ mod tests {
             tags: vec!["Q1".to_string()],
             answered: false,
             obsolete: false,
+            withdrawn: Vec::new(),
         });
         assert_eq!(project(&state).count, 0, "off by default");
         state.core.previous_question_enabled = true;
@@ -189,6 +190,7 @@ mod tests {
     #[test]
     fn a_question_link_names_its_tag() {
         assert_eq!(link_tag("#gx-question=Q80"), Some("Q80"));
+        assert_eq!(link_tag("#gx-question=Q80;answered"), Some("Q80"));
         assert_eq!(link_tag("https://example.com"), None);
     }
 }

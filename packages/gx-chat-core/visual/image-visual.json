@@ -7,5 +7,14 @@
   "rowPaddingY": 4,
   "inlineMarginX": 4,
   "inlineMarginY": 2,
-  "loadingIconSize": 16
+  "loadingIconSize": 16,
+  "stripHeight": 136,
+  "stripMaxWidth": 230,
+  "singleHeight": 252,
+  "singleMaxWidth": 420,
+  "stripGap": 10,
+  "stripRadius": 8,
+  "captionGap": 5,
+  "captionSize": 11.5,
+  "stripPaddingBottom": 4
 }

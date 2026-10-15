@@ -84,7 +84,7 @@ pub(crate) fn highlight_theme(light: bool) -> Arc<HighlightTheme> {
 }
 
 /// React's `--chat-list-gutter`: the column a list's markers are right-aligned into.
-const LIST_GUTTER: f32 = 20.0;
+pub(super) const LIST_GUTTER: f32 = 20.0;
 /// React's `li + li` margin.
 const LIST_ITEM_GAP: f32 = 4.0;
 

@@ -32,7 +32,7 @@ use crate::transcript::message_time::message_time;
 use crate::transcript::native_markdown::{native_markdown, without_question_forms};
 use crate::transcript::noise::suppressed_turn_presentation;
 use crate::transcript::open_questions::{
-    askers, link_question_tags, linkable_tags, linked_words, tag_words, Asker,
+    askers, link_question_tags, linkable_tags, linked_words, tag_words, Asker, QuestionTag,
 };
 use crate::transcript::page_answers::{
     page_answers_in, project_page_answers, split_page_answers, PageAnswers,
@@ -112,7 +112,7 @@ pub fn project_message(
     line_breaks: AgentLineBreaks,
     context: &ChatContext,
     durations: &std::collections::HashMap<String, i64>,
-    question_tags: &[String],
+    question_tags: &[QuestionTag],
 ) -> Value {
     let (prose, tools) = split_blocks(&message.blocks);
     let images = image_blocks(&prose);
@@ -441,7 +441,7 @@ pub struct ProjectionScope<'a> {
     /// The forms and question pages these messages hold, before their answers are read
     /// (`open_questions.rs`), and the tags a reply's words link to.
     pub askers: Vec<Asker>,
-    pub question_tags: Vec<String>,
+    pub question_tags: Vec<QuestionTag>,
     /// How the messages this session sent other agents and left waiting ended, by send id.
     pub agent_message_deliveries: Option<&'a Value>,
 }
@@ -456,7 +456,12 @@ pub fn line_breaks(state: &ChatState) -> AgentLineBreaks {
 
 /// The session's own scope, off the composed list family a builds.
 pub fn scope<'a>(state: &'a ChatState, view: &'a TranscriptViewState) -> ProjectionScope<'a> {
-    let found = askers(&state.messages.composed, &[]);
+    // The answers are read here too, so each tag's link carries whether its question is answered.
+    let answered: Vec<String> = page_answers_in(&state.messages.composed)
+        .into_iter()
+        .map(|answers| answers.page_id)
+        .collect();
+    let found = askers(&state.messages.composed, &answered);
     ProjectionScope {
         messages: &state.messages.composed,
         working: is_working(state),

@@ -40,6 +40,19 @@ pub(super) struct ChatImageVisual {
     pub(super) inline_margin_x: f32,
     pub(super) inline_margin_y: f32,
     pub(super) loading_icon_size: f32,
+    /// The filmstrip an agent's pictures on lines of their own sit in: each picture this tall at
+    /// its own shape, no wider than the cap, and a lone picture larger.
+    pub(super) strip_height: f32,
+    pub(super) strip_max_width: f32,
+    pub(super) single_height: f32,
+    pub(super) single_max_width: f32,
+    pub(super) strip_gap: f32,
+    pub(super) strip_radius: f32,
+    /// Between a picture and the file name under it.
+    pub(super) caption_gap: f32,
+    pub(super) caption_size: f32,
+    /// Room under the strip for its sideways scrollbar.
+    pub(super) strip_padding_bottom: f32,
 }
 
 /// CDXC:SessionChat 2026-09-19 SEE-ALSO: The thumbnail's size, radius, hairline and row gaps come
@@ -115,6 +128,16 @@ pub(crate) struct ChatImageCache {
     /// Cover-cropped copies keyed by the picture and the device pixels it is painted at, so a zoom
     /// change rasterizes once more and scrolling never resizes anything.
     thumbnails: RefCell<HashMap<(u64, u32), ChatImageThumbnail>>,
+    /// Filmstrip copies at the picture's own shape, keyed like `thumbnails` by the strip's height.
+    strip: RefCell<HashMap<(u64, u32), ChatStripPicture>>,
+}
+
+/// One picture shrunk to a filmstrip's height, never cropped.
+enum ChatStripPicture {
+    Loading,
+    Ready(Arc<RenderImage>, (u32, u32)),
+    /// Painted whole: an SVG, or a picture too large to shrink; its size when the header says it.
+    Whole(Option<(u32, u32)>),
 }
 
 /// What a renderer can do with one picture right now.
@@ -312,6 +335,50 @@ fn build_thumbnail(picture: &gpui::Image, pixels: u32) -> Option<RenderImage> {
         pixel.swap(0, 2);
     }
     Some(RenderImage::new(vec![image::Frame::new(data)]))
+}
+
+/// Shrinks one picture to `height` device pixels at its own shape, off the UI thread, with the
+/// source's size for the caption. `None` paints the original, as `build_thumbnail` does.
+fn build_strip_picture(
+    picture: &gpui::Image,
+    height: u32,
+) -> (Option<RenderImage>, Option<(u32, u32)>) {
+    if picture.format == ImageFormat::Svg {
+        return (None, None);
+    }
+    let Some(reader) = image::ImageReader::new(std::io::Cursor::new(picture.bytes.as_slice()))
+        .with_guessed_format()
+        .ok()
+    else {
+        return (None, None);
+    };
+    let Ok((width, source_height)) = reader.into_dimensions() else {
+        return (None, None);
+    };
+    let size = Some((width, source_height));
+    if width == 0
+        || source_height == 0
+        || u64::from(width) * u64::from(source_height) > THUMBNAIL_MAX_SOURCE_PIXELS
+    {
+        return (None, size);
+    }
+    let Ok(decoded) = image::load_from_memory(&picture.bytes) else {
+        return (None, size);
+    };
+    let decoded = decoded.into_rgba8();
+    let target_height = height.min(source_height).max(1);
+    let target_width =
+        ((u64::from(width) * u64::from(target_height)) / u64::from(source_height)).max(1) as u32;
+    let mut data = if target_height < source_height {
+        image::imageops::thumbnail(&decoded, target_width, target_height)
+    } else {
+        decoded
+    };
+    // gpui uploads sprite atlas tiles as BGRA.
+    for pixel in data.chunks_exact_mut(4) {
+        pixel.swap(0, 2);
+    }
+    (Some(RenderImage::new(vec![image::Frame::new(data)])), size)
 }
 
 fn decode_read_result(result: &Value) -> Result<gpui::Image, ChatImageFailure> {
@@ -613,51 +680,7 @@ impl NativeChatView {
                 )
                 .into_any_element();
         }
-        // React's `Attachment size='xs'`: a 12px-radius card with a 4px inset, a 28px rounded
-        // media well for the icon, and a medium-weight title in the card's own colour. Its
-        // `min-w-40` is what keeps a short file name from shrinking the card to a pill.
-        tile.child(
-            div()
-                .flex()
-                .items_center()
-                .gap(px(6.0 * s))
-                .min_w(px(160.0 * s))
-                .max_w(px(220.0 * s))
-                .p(px(4.0 * s))
-                .rounded(px(12.0 * s))
-                .border(px(s))
-                .border_color(p.border)
-                .bg(p.card_background)
-                .text_size(px(12.0 * s))
-                .text_color(p.foreground)
-                .child(
-                    div()
-                        .flex_shrink_0()
-                        .size(px(28.0 * s))
-                        .flex()
-                        .items_center()
-                        .justify_center()
-                        .rounded(px(8.0 * s))
-                        .bg(p.input)
-                        .child(
-                            svg()
-                                .path("titlebar/photo-off.svg")
-                                .size(px(14.0 * s))
-                                .flex_shrink_0()
-                                .text_color(p.muted),
-                        ),
-                )
-                .child(
-                    div()
-                        .min_w_0()
-                        .px(px(6.0 * s))
-                        .py(px(4.0 * s))
-                        .truncate()
-                        .font_weight(gpui::FontWeight::MEDIUM)
-                        .child(named),
-                ),
-        )
-        .into_any_element()
+        tile.child(missing_chip(&named, p)).into_any_element()
     }
 
     /// A picture written into prose, at the position its author wrote it.
@@ -751,4 +774,300 @@ impl NativeChatView {
             }
         }
     }
+
+    /// The picture a filmstrip tile paints, shrunk once to the strip's height at its own shape, with
+    /// the source's size when it is known.
+    fn chat_strip_picture(
+        &self,
+        image: &Value,
+        height: f32,
+        cx: &Context<Self>,
+    ) -> (ChatImageTile, Option<(u32, u32)>) {
+        let picture = match self.chat_image(image, cx) {
+            ChatImageSource::Uri(url) => return (ChatImageTile::Uri(url), None),
+            ChatImageSource::Loading => return (ChatImageTile::Loading, None),
+            ChatImageSource::Unavailable(failure) => {
+                return (ChatImageTile::Unavailable(failure), None);
+            }
+            ChatImageSource::Bytes(picture) => picture,
+        };
+        let key = (
+            picture.id,
+            (height * THUMBNAIL_PIXEL_RATIO).ceil().max(1.0) as u32,
+        );
+        match self.images.strip.borrow().get(&key) {
+            Some(ChatStripPicture::Ready(shrunk, size)) => {
+                return (ChatImageTile::Thumbnail(shrunk.clone()), Some(*size));
+            }
+            Some(ChatStripPicture::Whole(size)) => return (ChatImageTile::Whole(picture), *size),
+            Some(ChatStripPicture::Loading) => return (ChatImageTile::Loading, None),
+            None => {}
+        }
+        self.images
+            .strip
+            .borrow_mut()
+            .insert(key, ChatStripPicture::Loading);
+        let source = picture.clone();
+        let task = cx
+            .background_executor()
+            .spawn(async move { build_strip_picture(&source, key.1) });
+        cx.spawn(async move |this, cx| {
+            let (shrunk, size) = task.await;
+            let _ = this.update(cx, |this, cx| {
+                this.images.strip.borrow_mut().insert(
+                    key,
+                    match (shrunk, size) {
+                        (Some(shrunk), Some(size)) => {
+                            ChatStripPicture::Ready(Arc::new(shrunk), size)
+                        }
+                        (_, size) => ChatStripPicture::Whole(size),
+                    },
+                );
+                this.list.remeasure();
+                cx.notify();
+            });
+        })
+        .detach();
+        (ChatImageTile::Loading, None)
+    }
+
+    /// Pictures an agent wrote on lines of their own: one row at each picture's own shape with its
+    /// file name under it, scrolling sideways when the row is wider than the transcript.
+    ///
+    /// The rule that groups the lines is `parse` in rich_markdown.rs; this only draws the strip.
+    pub(super) fn picture_strip(
+        &self,
+        id: &str,
+        strip: &super::rich_markdown::PictureLines,
+        p: &ChatAppearance,
+        cx: &Context<Self>,
+    ) -> AnyElement {
+        let s = p.scale;
+        let gutter = super::markdown_style::LIST_GUTTER * s;
+        let single = strip.images.len() == 1;
+        let (height, max_width) = if single {
+            (VISUAL.single_height, VISUAL.single_max_width)
+        } else {
+            (VISUAL.strip_height, VISUAL.strip_max_width)
+        };
+        let row =
+            div()
+                .id(gpui::SharedString::from(format!("chat-image-strip:{id}")))
+                .flex()
+                .items_start()
+                .gap(px(VISUAL.strip_gap * s))
+                .min_w_0()
+                .flex_1()
+                .pb(px(VISUAL.strip_padding_bottom * s))
+                .overflow_x_scroll()
+                // A wheel turned over the strip still scrolls the transcript; only a sideways swipe
+                // moves the strip.
+                .restrict_scroll_to_axis()
+                .children((0..strip.images.len()).map(|index| {
+                    self.strip_tile(id, &strip.images, index, height, max_width, p, cx)
+                }));
+        div()
+            .flex()
+            .items_start()
+            .w_full()
+            .min_w_0()
+            .pl(px(gutter * strip.depth as f32))
+            .when_some(strip.marker.clone(), |line, marker| {
+                // The list item the pictures open, its marker in the gutter the list's own uses.
+                line.child(
+                    div()
+                        .flex()
+                        .justify_end()
+                        .flex_shrink_0()
+                        .min_w(px(gutter))
+                        .pr(px(4.0 * s))
+                        .text_size(px(14.0 * s))
+                        .text_color(p.muted)
+                        .child(marker),
+                )
+            })
+            .child(row)
+            .into_any_element()
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn strip_tile(
+        &self,
+        id: &str,
+        images: &[Value],
+        index: usize,
+        height: f32,
+        max_width: f32,
+        p: &ChatAppearance,
+        cx: &Context<Self>,
+    ) -> AnyElement {
+        let s = p.scale;
+        let image = &images[index];
+        let label = text(image, "label");
+        let alt = text(image, "alt");
+        let named = if label.is_empty() {
+            format!("Image #{}", index + 1)
+        } else {
+            file_name_of(&label)
+        };
+        let (source, size) = self.chat_strip_picture(image, height * s, cx);
+        let open = images.to_vec();
+        let tile = div()
+            .id(gpui::SharedString::from(format!(
+                "chat-strip-image:{id}:{index}"
+            )))
+            .role(gpui::Role::Button)
+            .aria_label(if alt.is_empty() {
+                format!("View {named}")
+            } else {
+                format!("View {alt}")
+            })
+            .flex_shrink_0()
+            .chat_cursor_pointer()
+            .on_click(cx.listener(move |chat, _, _, cx| {
+                cx.stop_propagation();
+                chat.open_image_viewer(open.clone(), index, cx);
+            }));
+        if let ChatImageTile::Unavailable(failure) = &source {
+            // The same named chip the agent's own attachments draw for a picture that is gone.
+            let tooltip = gpui::SharedString::from(format!(
+                "{}: {named}",
+                super::image_viewer::failure_copy(failure).0
+            ));
+            return tile
+                .tooltip(move |window, cx| {
+                    gpui_component::tooltip::Tooltip::new(tooltip.clone()).build(window, cx)
+                })
+                .child(missing_chip(&named, p))
+                .into_any_element();
+        }
+        // A picture keeps its own shape: as wide as its height allows, up to the cap, and an
+        // unknown shape (still loading, or fetched by GPUI) takes a screenshot's 16:10.
+        let aspect = size
+            .filter(|(width, height)| *width > 0 && *height > 0)
+            .map_or(1.6, |(width, height)| width as f32 / height as f32);
+        let width = (height * aspect).clamp(height * 0.4, max_width);
+        let frame = div()
+            .w(px(width * s))
+            .h(px(height * s))
+            .flex()
+            .items_center()
+            .justify_center()
+            .overflow_hidden()
+            .rounded(px(VISUAL.strip_radius * s))
+            .border(px(VISUAL.border_width * s))
+            .border_color(p.border)
+            .bg(gpui::black())
+            .group_hover("chat-strip-tile", |frame| {
+                frame.border_color(gpui::white().opacity(0.28))
+            });
+        let picture = |picture: gpui::Img| {
+            picture
+                .size_full()
+                .object_fit(gpui::ObjectFit::Contain)
+                .into_any_element()
+        };
+        let frame = match source {
+            ChatImageTile::Uri(url) => frame.child(picture(img(url))),
+            ChatImageTile::Thumbnail(shrunk) => frame.child(picture(img(shrunk))),
+            ChatImageTile::Whole(bytes) => frame.child(picture(img(bytes))),
+            _ => frame.border_dashed().bg(gpui::transparent_black()).child(
+                svg()
+                    .path("titlebar/loader2.svg")
+                    .size(px(VISUAL.loading_icon_size * s))
+                    .text_color(p.muted)
+                    .with_throttled_animation(
+                        "chat-image-spinner",
+                        std::time::Duration::from_millis(900),
+                        |svg, delta| {
+                            svg.with_transformation(gpui::Transformation::rotate(gpui::radians(
+                                delta * std::f32::consts::TAU,
+                            )))
+                        },
+                    ),
+            ),
+        };
+        tile.group("chat-strip-tile")
+            .w(px(width * s))
+            .flex()
+            .flex_col()
+            .gap(px(VISUAL.caption_gap * s))
+            .child(frame)
+            .child(
+                div()
+                    .flex()
+                    .items_baseline()
+                    .gap(px(6.0 * s))
+                    .min_w_0()
+                    .text_size(px(VISUAL.caption_size * s))
+                    .line_height(px(VISUAL.caption_size * 1.3 * s))
+                    .child(
+                        div()
+                            .min_w_0()
+                            .truncate()
+                            .text_color(p.card_muted)
+                            .child(named),
+                    )
+                    .when_some(size, |caption, (width, height)| {
+                        caption.child(
+                            div()
+                                .flex_shrink_0()
+                                .whitespace_nowrap()
+                                .text_color(p.muted)
+                                .child(format!("{width}×{height}")),
+                        )
+                    }),
+            )
+            .into_any_element()
+    }
+}
+
+/// The card an agent's picture becomes when its bytes cannot be shown: the crossed photo in a
+/// small well and the file's name.
+///
+/// React's `Attachment size='xs'`: a 12px-radius card with a 4px inset, a 28px rounded media well
+/// for the icon, and a medium-weight title in the card's own colour. Its `min-w-40` is what keeps
+/// a short file name from shrinking the card to a pill.
+fn missing_chip(named: &str, p: &ChatAppearance) -> AnyElement {
+    let s = p.scale;
+    div()
+        .flex()
+        .items_center()
+        .gap(px(6.0 * s))
+        .min_w(px(160.0 * s))
+        .max_w(px(220.0 * s))
+        .p(px(4.0 * s))
+        .rounded(px(12.0 * s))
+        .border(px(s))
+        .border_color(p.border)
+        .bg(p.card_background)
+        .text_size(px(12.0 * s))
+        .text_color(p.foreground)
+        .child(
+            div()
+                .flex_shrink_0()
+                .size(px(28.0 * s))
+                .flex()
+                .items_center()
+                .justify_center()
+                .rounded(px(8.0 * s))
+                .bg(p.input)
+                .child(
+                    svg()
+                        .path("titlebar/photo-off.svg")
+                        .size(px(14.0 * s))
+                        .flex_shrink_0()
+                        .text_color(p.muted),
+                ),
+        )
+        .child(
+            div()
+                .min_w_0()
+                .px(px(6.0 * s))
+                .py(px(4.0 * s))
+                .truncate()
+                .font_weight(gpui::FontWeight::MEDIUM)
+                .child(named.to_owned()),
+        )
+        .into_any_element()
 }

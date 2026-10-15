@@ -17,6 +17,9 @@ use crate::transcript::links::{classify_link_href, file_position_from_href, Link
 
 /// One Markdown reference as the renderer looks it up.
 pub fn markdown_link(href: &str, label: &str) -> Option<Value> {
+    if let Some(reference) = question_reference(href, label) {
+        return Some(reference);
+    }
     if let LinkTarget::Url(url) = classify_link_href(href) {
         let mut entry = Map::new();
         entry.insert("href".to_string(), href.into());
@@ -35,6 +38,27 @@ pub fn markdown_link(href: &str, label: &str) -> Option<Value> {
         return Some(Value::Object(entry));
     }
     markdown_reference(href, label)
+}
+
+/// A Q-tag link (`#gx-question=Q80;open`, `open_questions.rs`) as a `question` reference whose
+/// `state` the renderers draw its pill from.
+fn question_reference(href: &str, label: &str) -> Option<Value> {
+    use crate::transcript::open_questions::{TagState, QUESTION_LINK_PREFIX};
+    let (tag, state) = href.strip_prefix(QUESTION_LINK_PREFIX)?.split_once(';')?;
+    let state = TagState::parse(state)?;
+    let title = match state {
+        TagState::Open => format!("{tag}: waiting for your answer"),
+        TagState::Answered => format!("{tag}: answered"),
+        TagState::Withdrawn => format!("{tag}: withdrawn, no answer needed"),
+    };
+    let mut entry = Map::new();
+    entry.insert("href".to_string(), href.into());
+    entry.insert("sourceLabel".to_string(), label.into());
+    entry.insert("label".to_string(), label.into());
+    entry.insert("title".to_string(), title.into());
+    entry.insert("kind".to_string(), "question".into());
+    entry.insert("state".to_string(), state.as_str().into());
+    Some(Value::Object(entry))
 }
 
 /// The same, restricted to the file references a pill is drawn from.

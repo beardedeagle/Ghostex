@@ -245,8 +245,9 @@ impl NativeChatView {
         )
     }
 
-    /// "Previous question" as a ? pill in the question tone, while the chat has unanswered questions;
-    /// a click jumps to the previous one (open_questions.rs).
+    /// "Previous question" as a ? pill in the open Q-tags' amber outline (CDXC:SessionChat 2026-10-15
+    /// on gx-chat-core's `TagState`), while the chat has unanswered questions; a click jumps to the
+    /// previous one (open_questions.rs).
     ///
     /// CDXC:SessionChat 2026-10-15 DECISION:
     /// User: "make the Question pill and scroll to bottom pill not floating, make them appear as the leftmost in the pills row and they should both just be icons. (down arrow for scroll to bottom and ? icon for the question button) always leftmost pls". Both are icon pills at the left end of the working row's pills, with their name in a tooltip; they keep what they did. Then: "make the scroll to bottom appear left most so it doesn't push stuff when it appears", so scroll-to-bottom comes first, then the question pill; the row is right-aligned, so the one that comes and goes most sits where it moves nothing. This supersedes their floating spot over the transcript's bottom edge (2026-09-23, 2026-10-14), which the Escape and "Agent was interrupted" toasts keep on their own (scroll_bottom.rs). The phone does the same in ChatPills.tsx.
@@ -256,18 +257,18 @@ impl NativeChatView {
         cx: &Context<Self>,
     ) -> Option<AnyElement> {
         self.open_question_pill_text()?;
-        let (fill, border, color) = super::open_questions::question_tone(p.light);
+        let (color, border) = super::open_questions::question_pill_tone(p.light);
         let label = text(&self.snapshot["openQuestions"], "accessibilityLabel");
         Some(
             icon_pill(
                 "chat-previous-question",
-                "titlebar/help-circle.svg",
+                "titlebar/question-mark.svg",
                 color,
                 p,
             )
             .aria_label(label)
             .border_color(border)
-            .bg(fill)
+            .hover(move |style| style.bg(color.opacity(0.08)))
             .tooltip(|window, cx| {
                 gpui_component::tooltip::Tooltip::new("Previous question").build(window, cx)
             })

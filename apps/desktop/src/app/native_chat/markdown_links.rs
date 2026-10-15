@@ -122,6 +122,16 @@ pub(super) fn presentations(
         .flatten()
         .filter_map(|reference| {
             let kind = reference["kind"].as_str()?;
+            if kind == "question" {
+                let link = super::open_questions::question_tag_link(reference, appearance)?;
+                return Some((
+                    (
+                        reference["href"].as_str()?.to_owned(),
+                        reference["sourceLabel"].as_str()?.to_owned(),
+                    ),
+                    link,
+                ));
+            }
             let color = hex_color(palette.get(kind)?)?;
             Some((
                 (
@@ -142,6 +152,7 @@ pub(super) fn presentations(
                     // A path keeps its file name when the pill is wider than the line
                     // (`reference_path_label` in gx-chat-core).
                     truncate_start: matches!(kind, "file" | "folder" | "image"),
+                    ..Default::default()
                 },
             ))
         })

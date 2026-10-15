@@ -96,6 +96,17 @@ pub(super) enum Segment {
     },
     /// A line that has a picture in it, as the run of text and pictures it is made of.
     Flow(Vec<FlowPart>),
+    /// Consecutive lines made of pictures and nothing else, drawn as one filmstrip (`images.rs`).
+    Strip(PictureLines),
+}
+
+/// Pictures written on lines of their own, at the list depth they sit under.
+pub(super) struct PictureLines {
+    /// How many list items the lines are nested in: the strip starts on their text's column.
+    pub(super) depth: usize,
+    /// The bullet or number the first line opens with, when it is a list item of its own.
+    pub(super) marker: Option<String>,
+    pub(super) images: Vec<Value>,
 }
 
 pub(super) enum FlowPart {
@@ -131,6 +142,93 @@ fn flow(line: &str) -> Vec<FlowPart> {
     }
     push_text(&mut parts, rest);
     parts
+}
+
+/// Bullets by depth, as GPUI Kit's list draws them.
+const BULLETS: [&str; 5] = ["•", "◦", "▪", "‣", "⁃"];
+
+/// The leading spaces of a line, a tab counting as four.
+fn indent_of(line: &str) -> usize {
+    line.chars()
+        .take_while(|character| matches!(character, ' ' | '\t'))
+        .map(|character| if character == '\t' { 4 } else { 1 })
+        .sum()
+}
+
+/// The list marker a line's text opens with (`-`, `*`, `+`, `1.`, `1)`), and its length with the
+/// space after it.
+fn list_marker(text: &str) -> Option<(&str, usize)> {
+    let digits = text.bytes().take_while(u8::is_ascii_digit).count();
+    let marker =
+        if digits > 0 && digits <= 9 && matches!(text.as_bytes().get(digits), Some(b'.' | b')')) {
+            digits + 1
+        } else if matches!(text.as_bytes().first(), Some(b'-' | b'*' | b'+')) {
+            1
+        } else {
+            return None;
+        };
+    let gap = text[marker..]
+        .bytes()
+        .take_while(|byte| *byte == b' ')
+        .count();
+    (gap > 0 || marker == text.len()).then(|| (&text[..marker], marker + gap.max(1)))
+}
+
+/// How many list items a line at `indent` sits inside, from the lines before it.
+fn list_depth(before: &[&str], indent: usize) -> usize {
+    // Each open item: the column its marker sits at and the column its text starts on.
+    let mut open: Vec<(usize, usize)> = Vec::new();
+    for line in before {
+        if line.trim().is_empty() {
+            continue;
+        }
+        let at = indent_of(line);
+        match list_marker(line.trim_start()) {
+            Some((_, length)) => {
+                open.retain(|(marker, _)| *marker < at);
+                open.push((at, at + length));
+            }
+            None => open.retain(|(_, text)| *text <= at),
+        }
+    }
+    open.retain(|(marker, _)| *marker < indent);
+    open.iter().filter(|(_, text)| *text <= indent).count()
+}
+
+/// A line without the hard break it ends with (a backslash, or two spaces), which means nothing
+/// once the line is drawn as a block of its own or ends the block before one.
+fn without_hard_break(line: &str) -> &str {
+    if line.ends_with("  ") {
+        return line.trim_end();
+    }
+    let trimmed = line.trim_end();
+    let run = trimmed.len() - trimmed.trim_end_matches('\\').len();
+    if run % 2 == 1 {
+        &trimmed[..trimmed.len() - 1]
+    } else {
+        line
+    }
+}
+
+/// A line made of pictures and nothing else: its indent, the list marker it opens with, and its
+/// pictures.
+fn picture_line(line: &str) -> Option<(usize, Option<String>, Vec<Value>)> {
+    if !line.contains(IMAGE_OPEN) {
+        return None;
+    }
+    let text = without_hard_break(line).trim_start();
+    let (marker, rest) = match list_marker(text) {
+        Some((marker, length)) => (Some(marker.to_owned()), &text[length.min(text.len())..]),
+        None => (None, text),
+    };
+    let images = flow(rest)
+        .into_iter()
+        .map(|part| match part {
+            FlowPart::Image(image) => Some(image),
+            FlowPart::Text(_) => None,
+        })
+        .collect::<Option<Vec<_>>>()?;
+    (!images.is_empty()).then(|| (indent_of(line), marker, images))
 }
 
 /// GitHub's five alert kinds: label, glyph, and the accent each one is tinted with.
@@ -258,9 +356,53 @@ pub(super) fn parse(lines: &[&str]) -> Vec<Segment> {
             index = end + 1;
             continue;
         }
+        /*
+        CDXC:SessionChat 2026-10-15 DECISION:
+        User picked option B, Filmstrip (Q134): pictures an agent writes on lines of their own sit
+        side by side in one strip at their own shape, about 136px tall, scrolling sideways, with
+        the file name always under each. This supersedes the 48pt squares, one per line, the
+        pictures used to stack into. A picture inside a sentence keeps its small inline thumbnail.
+        SEE-ALSO: `PictureStrip` in apps/mobile/app/src/chat/native/transcript/Images.tsx draws the
+        same strip for a paragraph made only of pictures.
+        */
+        if line.contains(IMAGE_OPEN) {
+            // The break the line above ends with led into the pictures, which now start a block of
+            // their own, so it would only be drawn as a stray backslash.
+            if let Some(last) = prose.last_mut() {
+                *last = without_hard_break(last);
+            }
+        }
+        if let Some((indent, marker, mut images)) = picture_line(line) {
+            flush(&mut prose, &mut segments);
+            let depth = list_depth(&lines[..index], indent);
+            index += 1;
+            // The following lines join the strip while they stay pictures at the same indent, the
+            // way Markdown keeps them one paragraph.
+            while let Some((next_indent, None, more)) =
+                lines.get(index).and_then(|line| picture_line(line))
+            {
+                if next_indent != indent && marker.is_none() {
+                    break;
+                }
+                images.extend(more);
+                index += 1;
+            }
+            segments.push(Segment::Strip(PictureLines {
+                depth,
+                marker: marker.map(|marker| {
+                    if marker.ends_with(['.', ')']) {
+                        marker
+                    } else {
+                        BULLETS[depth.min(BULLETS.len() - 1)].to_owned()
+                    }
+                }),
+                images,
+            }));
+            continue;
+        }
         if line.contains(IMAGE_OPEN) {
             flush(&mut prose, &mut segments);
-            segments.push(Segment::Flow(flow(line)));
+            segments.push(Segment::Flow(flow(without_hard_break(line))));
             index += 1;
             continue;
         }
@@ -598,6 +740,7 @@ impl NativeChatView {
                     }
                 }))
                 .into_any_element(),
+            Segment::Strip(strip) => self.picture_strip(&format!("{id}:{index}"), strip, p, cx),
             Segment::Section { meta, lines } => {
                 let key = format!("{id}:{index}");
                 let lines: Vec<&str> = lines.iter().map(String::as_str).collect();
