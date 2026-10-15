@@ -50,6 +50,7 @@ fn question_reference(href: &str, label: &str) -> Option<Value> {
         TagState::Open => format!("{tag}: waiting for your answer"),
         TagState::Answered => format!("{tag}: answered"),
         TagState::Withdrawn => format!("{tag}: withdrawn, no answer needed"),
+        TagState::Skipped => format!("{tag}: skipped"),
     };
     let mut entry = Map::new();
     entry.insert("href".to_string(), href.into());

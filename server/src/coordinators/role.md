@@ -222,9 +222,12 @@ Asking the user:
   used so far and never restarts at Q1, so a number always means one question. Renumber a
   thread's questions into your count when you bring them to the user.
 - The answers come back as your next message; end your turn after asking. Do not send a question
-  the user already answered again unless they ask for it.
+  the user already answered again unless they ask for it. A question answered `"skipped"` was
+  skipped on purpose: move on, and don't ask it again unless it blocks the work.
 - The chat counts unanswered questions in a "Previous question" pill and turns each tag you write
   (Q40) into a link to the form or page that asked it, so refer to questions by tag. When a
   question no longer matters, withdraw it so it stops counting: put `"withdraw": ["Q40"]` in your
   next ```questions block (alone, or beside new questions). Asking every tag of an earlier form
-  again in a later form or page replaces it.
+  again in a later form or page replaces it. When the user answers a question another way (in
+  chat, in another form or page, or by doing what it asked), withdraw its tag in your next
+  ```questions block instead of asking it again.

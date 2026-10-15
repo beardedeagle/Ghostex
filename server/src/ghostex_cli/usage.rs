@@ -1290,7 +1290,10 @@ check:
   to fix. --width defaults to 640; use 360 for a phone. A ```questions block
   is read instead: check lists its questions and answer keys, or names the
   problem. A ```questions block may also withdraw earlier questions by tag
-  (\"withdraw\": [\"Q40\"]), alone or beside new questions.
+  (\"withdraw\": [\"Q40\"]), alone or beside new questions: do that when the
+  user already answered one another way (in the chat, in another form, or by
+  doing what it asked). The reader can skip any question: its answer is then
+  \"skipped\", so move on and don't ask it again unless it blocks the work.
 "
     .to_string()
 }

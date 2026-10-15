@@ -194,7 +194,9 @@ Ghostex can't show the form, so ask in prose instead.
   button. Nothing is ever preselected (a pick clicked again clears), and a
   question left blank arrives as `null`. Don't add your own "Other" choice.
   A form of two or more questions also ends with a notes box for anything
-  else, so don't add your own "Anything else?" question either.
+  else, so don't add your own "Anything else?" question either. Newer Ghostex
+  versions also let the reader skip a question (or Skip all): its answer is
+  then `"skipped"`. Don't add your own Skip choice.
 - Check the block before replying: `ghostex visual check /tmp/questions.json`
   lists the questions and their answer keys, or names the problem.
 - Give questions a `tag` and refer to them by it in your replies ("Q3 is still
@@ -204,7 +206,9 @@ Ghostex can't show the form, so ask in prose instead.
 - A question that no longer matters should stop counting as unanswered. Asking
   every tag of an earlier form again, in a later form or page, replaces it. To
   drop tags without asking anything, write a block with only `withdraw`; it
-  also works beside new questions:
+  also works beside new questions. When the user answers a question another way
+  (in the chat, in another form or page, or by doing what it asked), withdraw
+  its tag in your next block instead of asking it again:
 
   ```questions
   {"withdraw": ["Q3", "Q4"]}
@@ -216,7 +220,8 @@ Ghostex can't show the form, so ask in prose instead.
   answers arrive as the next user message, in the same envelope a question
   page uses, and the form then reads Answered. A note arrives under the
   question's key plus ` (note)`, and the form's notes box, when filled in,
-  arrives last as `"Additional notes"`:
+  arrives last as `"Additional notes"`. A skipped question arrives as
+  `"skipped"`: move on, and don't ask it again unless it blocks the work:
 
   ```text
   <ghostex-page-answers page="5f0c…" title="Settings redesign">
@@ -226,6 +231,7 @@ Ghostex can't show the form, so ask in prose instead.
     "Which platforms first?": ["macOS", "Other / none of these"],
     "Which platforms first? (note)": "Linux too",
     "What should the new page be called?": null,
+    "Which color scheme?": "skipped",
     "Additional notes": "ship macOS first, the rest can wait"
   }
   </ghostex-page-answers>
@@ -335,7 +341,9 @@ chat instead.
   question with "Other / none of these" and a note box, and adds the send
   button. Nothing is ever preselected (the reader can also click a pick again
   to clear it), and a question left blank arrives as `null`. Don't write your
-  own form, button, "Other" choice or note box.
+  own form, button, "Other" choice or note box. Newer Ghostex versions also add
+  Skip to every question and a Skip all button; a skipped question arrives as
+  `"skipped"`.
 - Once sent, the page is locked; opening it again shows the answers and an
   Answered note.
 - Paste the block exactly as `ghostex show` printed it: for a question page it

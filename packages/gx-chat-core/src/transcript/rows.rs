@@ -78,7 +78,10 @@ pub fn refresh(state: &mut ChatState, context: &ChatContext) {
         detail_revision: state.transcript_view.detail_revision,
         backfill_revision: state.transcript_view.backfill_revision,
         queue: state.session.queue_prompts.clone(),
-        answers_on_the_way: crate::questions::open_questions::answers_on_the_way(state),
+        answers_on_the_way: crate::questions::open_questions::answers_on_the_way(state)
+            .into_iter()
+            .map(|answers| answers.page_id)
+            .collect(),
         line_breaks: presentation::line_breaks(state),
         live_side_question: crate::transcript::side_question::live_side_question(state),
         approval_wait: crate::transcript::approval_wait::approval_wait(state),

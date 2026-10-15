@@ -159,6 +159,8 @@ action_kinds! {
     FormText => "formText",
     FormNotes => "formNotes",
     FormSend => "formSend",
+    FormSkip => "formSkip",
+    FormSkipAll => "formSkipAll",
     FormToggle => "formToggle",
     PreviousQuestion => "previousQuestion",
     AsyncQuestionToggle => "asyncQuestionToggle",

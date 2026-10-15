@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 use crate::effect::Effect;
 use crate::state::{ChatContext, ChatState};
 use crate::transcript::open_questions::{tag_target, Asker, AskerKind};
+use crate::transcript::page_answers::PageAnswers;
 
 /// The document's `openQuestions`.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -67,26 +68,39 @@ pub fn unanswered(state: &ChatState) -> Vec<&Asker> {
 /// The forms and pages whose answers are on their way but not in the transcript yet: a form whose
 /// answers are sending or queued (as `unanswered` reads it), and a page or form whose answers wait
 /// in the prompt queue. Their Q-tags read answered already, as the pill already skips them.
-pub fn answers_on_the_way(state: &ChatState) -> Vec<String> {
-    let mut ids: Vec<String> = state
+pub fn answers_on_the_way(state: &ChatState) -> Vec<PageAnswers> {
+    let mut found: Vec<PageAnswers> = state
         .questions
         .forms
         .iter()
-        .filter(|(_, form)| form.send.is_some() || form.sent.is_some())
-        .map(|(id, _)| id.clone())
+        .filter_map(|(id, form)| {
+            let answers = form
+                .send
+                .as_ref()
+                .map(|send| &send.answers)
+                .or(form.sent.as_ref())?;
+            Some(PageAnswers {
+                page_id: id.clone(),
+                title: String::new(),
+                answers: answers.clone(),
+            })
+        })
         .collect();
     for entry in state.session.queue_prompts.iter().flatten() {
         let text = entry["prompt"]["text"]
             .as_str()
             .or_else(|| entry["text"].as_str())
             .unwrap_or_default();
-        if let Some(id) = crate::transcript::page_answers::answers_page_id(text) {
-            ids.push(id);
+        if !text.contains("<ghostex-page-answers") {
+            continue;
+        }
+        if let Some((answers, _)) = crate::transcript::page_answers::split_page_answers(text) {
+            if !found.iter().any(|known| known.page_id == answers.page_id) {
+                found.push(answers);
+            }
         }
     }
-    ids.sort();
-    ids.dedup();
-    ids
+    found
 }
 
 /// The document's `openQuestions`.
@@ -204,6 +218,8 @@ mod tests {
             answered: false,
             obsolete: false,
             withdrawn: Vec::new(),
+            keys: Vec::new(),
+            skipped: Vec::new(),
         });
         assert_eq!(project(&state).count, 0, "off by default");
         state.core.previous_question_enabled = true;

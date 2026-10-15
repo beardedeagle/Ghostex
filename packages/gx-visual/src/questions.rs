@@ -21,7 +21,8 @@
 //! "Other / none of these" and a note box, nothing is preselected, and the answers go back to the
 //! agent as the same `<ghostex-page-answers>` message a page sends, keyed by each question's `name`
 //! (its title when it has none), a note as `"<key> (note)"`, and a form of two or more questions
-//! ends with a notes box whose text arrives last, as `"Additional notes"` ([`notes_key`]).
+//! ends with a notes box whose text arrives last, as `"Additional notes"` ([`notes_key`]). Every
+//! question, text questions too, also offers Skip, sent as the value `"skipped"` ([`SKIPPED`]).
 //!
 //! CDXC:SessionChat 2026-10-11 DECISION:
 //! User: questions an agent asks are answered in a form inside the chat itself (desktop and phone), not one question at a time and not by typing letters: all questions at once, selectable choices with nothing preselected (clicking again clears), the automatic "Other / none of these" with a note box, text questions, and one Send button. Any agent writes it as a ```questions block, the answers go back as a message, and the form then shows as answered. Pages (gx-questions) stay only for questions that need visuals.
@@ -34,6 +35,13 @@ use serde_json::{Map, Value};
 
 /// The choice every choice question ends with.
 pub const OTHER_CHOICE: &str = "Other / none of these";
+/// The row every question offers after "Other / none of these" (a text question, under its box).
+pub const SKIP_LABEL: &str = "Skip";
+/// The answer a skipped question sends, whatever kind of question it is.
+///
+/// CDXC:SessionChat 2026-10-16 DECISION:
+/// User: "i want a way to skip answering a question (maybe we send the agent something simple like "user skipped q155" ?? not sure u tell me about this one what's best options", then picked "Per-question Skip + Skip all": "i think if we skip all then we send that right away but skip for 1 question is just a selection then you can click on send answers to actually send that skip if u get me". Every question in a form or on a question page has a Skip row after "Other / none of these" (a text question has it under its box); picking it is only a pick, sent with Send answers. A "Skip all" button beside Send answers sends at once, every question not yet answered marked skipped while the answered ones keep their answers. The agent reads `"skipped"` under the question's key and moves on without asking again unless it blocks the work; a skipped question counts as answered, and its tag turns grey.
+pub const SKIPPED: &str = "skipped";
 /// How a question's note is keyed in the answers.
 pub const NOTE_SUFFIX: &str = " (note)";
 /// How the form's own notes box (a form of two or more questions) is keyed in the answers, after

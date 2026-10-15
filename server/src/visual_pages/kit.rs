@@ -28,7 +28,10 @@
 //! `<gx-wide>` child span the page's full width; what a wide section holds that is narrower than
 //! the page is centred, so it lines up symmetrically with the column. A choice question
 //! (`multiple` for several picks) letters its choices, ends with "Other / none of these", and has
-//! a note box; a `type="text"` question is a text box. The kit adds the send button, posts the answers with `ghostex.submit`
+//! a note box; a `type="text"` question is a text box. Every question also offers Skip (after
+//! "Other / none of these", or under a text box), sent as `"skipped"`, and the kit adds a Skip all
+//! button that skips every question left blank and sends at once (see the SessionChat 2026-10-16
+//! DECISION on `SKIPPED` in packages/gx-visual/src/questions.rs). The kit adds the send button, posts the answers with `ghostex.submit`
 //! keyed by each question's `name` (its title when it has none), with a non-empty note as
 //! `"<key> (note)"`, and shows a sent page's answers locked when it is opened again. Until then it
 //! keeps the reader's picks as the page's draft on the host (theme.rs `PAGE_API`), so closing and
@@ -121,6 +124,10 @@ gx-question.gx-answered .gx-choice[aria-checked=true] .gx-mark{border-color:var(
 .gx-send-button{display:inline-flex;align-items:center;gap:6px;margin-left:auto;height:28px;box-sizing:border-box;padding:0 11px;font:inherit;font-size:13px;font-weight:500;border-radius:8px;border:1px solid var(--gx-control);background:var(--gx-control);color:var(--background);cursor:pointer}
 .gx-send-button:hover:not(:disabled){opacity:.9}
 .gx-send-button:disabled{opacity:.5;cursor:default}
+.gx-skip-all{display:inline-flex;align-items:center;gap:6px;margin-left:auto;height:28px;box-sizing:border-box;padding:0 11px;font:inherit;font-size:13px;font-weight:500;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--foreground);cursor:pointer}
+.gx-skip-all:hover{background:color-mix(in srgb,var(--foreground) 6%,transparent)}
+.gx-skip-all+.gx-send-button{margin-left:0}
+.gx-skip-keys{font:500 11px/16px var(--font-mono);padding:0 5px;border-radius:5px;border:1px solid var(--border);color:var(--muted-foreground)}
 .gx-send-keys{font:500 11px/16px var(--font-mono);padding:0 5px;border-radius:5px;border:1px solid color-mix(in srgb,var(--background) 18%,transparent);background:color-mix(in srgb,var(--background) 6%,transparent);color:color-mix(in srgb,var(--background) 70%,transparent)}
 .gx-send-status{flex:1;min-width:0;font-size:12.5px;color:var(--muted-foreground)}
 .gx-send-status.gx-error{color:var(--destructive)}
@@ -129,7 +136,7 @@ gx-question.gx-answered .gx-choice[aria-checked=true] .gx-mark{border-color:var(
 /// The kit's behaviour: turns the first `<gx-questions>` into a working form once the page has
 /// loaded, after `PAGE_API` (theme.rs) has its answered state.
 pub(super) const KIT_SCRIPT: &str = r#"<script>(function(){
-var OTHER="Other / none of these";
+var OTHER="Other / none of these",SKIP="Skip",SKIPPED="skipped";
 var ASK_ICON='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0"/><path d="M12 16v.01"/><path d="M12 13a2 2 0 0 0 .914 -3.782a1.98 1.98 0 0 0 -2.414 .483"/></svg>';
 var DONE_ICON='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>';
 function el(tag,cls,text){var e=document.createElement(tag);if(cls)e.className=cls;if(text!=null)e.textContent=text;return e;}
@@ -152,10 +159,18 @@ function question(qe,index,used,changed){
   qe.textContent="";qe.append(head);
   if(desc.textContent.trim()||desc.querySelector("img,svg,canvas,table"))qe.append(desc);
   if(text){
-    var area=el("textarea","gx-text");area.placeholder=qe.getAttribute("placeholder")||"Your answer (optional)";area.setAttribute("aria-labelledby",titleId);area.addEventListener("input",changed);qe.append(area);
-    return{key:key,tag:(tag||"").trim(),choices:[],collect:function(out){out[key]=area.value.trim()||null;},
-      restore:function(answers){if(typeof answers[key]==="string")area.value=answers[key];},
-      lock:function(){answered(!!area.value.trim());area.readOnly=true;if(!area.value)area.hidden=true;}};
+    var area=el("textarea","gx-text");area.placeholder=qe.getAttribute("placeholder")||"Your answer (optional)";area.setAttribute("aria-labelledby",titleId);
+    /* Skip, under the box: typing an answer takes it back. */
+    var skipList=el("div","gx-choices"),skipButton=el("button","gx-choice gx-other");skipButton.type="button";skipButton.setAttribute("role","radio");skipButton.setAttribute("aria-checked","false");
+    skipButton.append(el("span","gx-mark"),el("span","gx-choice-body",SKIP),el("span","gx-letter","a"));skipList.append(skipButton);
+    function skipped(){return skipButton.getAttribute("aria-checked")==="true";}
+    function setSkipped(v){skipButton.setAttribute("aria-checked",v?"true":"false");}
+    skipButton.addEventListener("click",function(){setSkipped(!skipped());changed();});
+    area.addEventListener("input",function(){if(area.value.trim())setSkipped(false);changed();});qe.append(area,skipList);
+    return{key:key,tag:(tag||"").trim(),choices:[],collect:function(out){out[key]=skipped()?SKIPPED:area.value.trim()||null;},
+      restore:function(answers){if(answers[key]===SKIPPED)setSkipped(true);else if(typeof answers[key]==="string")area.value=answers[key];},
+      blank:function(){return !skipped()&&!area.value.trim();},skip:function(){setSkipped(true);},
+      lock:function(){answered(skipped()||!!area.value.trim());area.readOnly=true;skipButton.disabled=true;if(!area.value)area.hidden=true;if(!skipped())skipList.hidden=true;}};
   }
   var list=el("div","gx-choices"),choices=[];
   list.setAttribute("role",multiple?"group":"radiogroup");list.setAttribute("aria-labelledby",titleId);
@@ -169,14 +184,17 @@ function question(qe,index,used,changed){
     if(recommended)body.insertBefore(el("span","gx-rec","Recommended"),body.querySelector(":scope>small"));
     button.append(el("span","gx-mark"),body,el("span","gx-letter",letter));list.append(button);
     var c={button:button,value:value,label:label,letter:letter,on:function(){return button.getAttribute("aria-checked")==="true";},set:function(v){button.setAttribute("aria-checked",v?"true":"false");}};
-    button.addEventListener("click",function(){var on=!c.on();if(on&&!multiple)choices.forEach(function(o){o.set(false);});c.set(on);sync();changed();if(on&&c===other)note.focus();});
+    /* Skip stands alone: picking it clears the question's picks, and any pick clears it. */
+    button.addEventListener("click",function(){var on=!c.on();if(on)choices.forEach(function(o){if(!multiple||o.exclusive||c.exclusive)o.set(false);});c.set(on);sync();changed();if(on&&c===other)note.focus();});
     choices.push(c);return c;
   }
   choiceEls.forEach(function(ce){var label=labelText(ce);choice(kids(ce),(ce.getAttribute("value")||"").trim()||label,ce.hasAttribute("recommended"),label);});
   var other=choice([document.createTextNode(OTHER)],OTHER,false,OTHER);other.button.classList.add("gx-other");
+  var skip=choice([document.createTextNode(SKIP)],SKIPPED,false,SKIP);skip.button.classList.add("gx-other");skip.exclusive=true;
   sync();qe.append(list,note);
   return{key:key,tag:(tag||"").trim(),choices:choices,collect:function(out){var on=choices.filter(function(c){return c.on();}).map(function(c){return c.value;});
-      out[key]=multiple?(on.length?on:null):on[0]||null;var written=note.value.trim();if(written)out[key+" (note)"]=written;},
+      out[key]=skip.on()?SKIPPED:multiple?(on.length?on:null):on[0]||null;var written=note.value.trim();if(written)out[key+" (note)"]=written;},
+    blank:function(){return !choices.some(function(c){return c.on();})&&!note.value.trim();},skip:function(){skip.set(true);sync();},
     restore:function(answers){var v=answers[key],picked=Array.isArray(v)?v:v==null?[]:[v];
       choices.forEach(function(c){c.set(picked.indexOf(c.value)>=0);});
       if(typeof answers[key+" (note)"]==="string")note.value=answers[key+" (note)"];sync();},
@@ -220,10 +238,13 @@ function setup(root){
   questions=Array.prototype.map.call(root.querySelectorAll("gx-question"),function(qe,index){return question(qe,index,used,changed);});
   options=bindOptions(questions,changed);syncOptions();
   var bar=el("div","gx-send"),button=el("button","gx-send-button"),label=el("span",null,root.getAttribute("submit")||"Send answers"),status=el("span","gx-send-status","Questions you leave blank are sent as unanswered.");
-  var keys=el("span","gx-send-keys",/Mac|iPhone|iPad/.test(navigator.platform||"")?"\u2318\u21b5":"Ctrl \u21b5");
-  button.type="button";button.append(label,keys);bar.append(status,button);root.append(bar);
-  function lock(){questions.forEach(function(q){q.lock();});options.forEach(function(o){o.lock();});syncOptions();button.disabled=true;label.textContent="Sent";keys.remove();status.textContent="Sent to the agent.";}
-  if(!window.ghostex){button.disabled=true;status.textContent="This Ghostex can't send answers from a page; type them in the chat.";return;}
+  var mac=/Mac|iPhone|iPad/.test(navigator.platform||""),keys=el("span","gx-send-keys",mac?"\u2318\u21b5":"Ctrl \u21b5");
+  /* Skip all: every question left blank is skipped and the answers go at once. */
+  var skipAll=el("button","gx-skip-all");skipAll.type="button";skipAll.append(el("span",null,"Skip all"),el("span","gx-skip-keys",mac?"\u2318\u21e7\u21b5":"Ctrl \u21e7 \u21b5"));
+  button.type="button";button.append(label,keys);bar.append(status,skipAll,button);root.append(bar);
+  skipAll.addEventListener("click",function(){if(button.disabled)return;questions.forEach(function(q){if(q.blank())q.skip();});changed();button.click();});
+  function lock(){questions.forEach(function(q){q.lock();});options.forEach(function(o){o.lock();});syncOptions();button.disabled=true;skipAll.remove();label.textContent="Sent";keys.remove();status.textContent="Sent to the agent.";}
+  if(!window.ghostex){button.disabled=true;skipAll.remove();status.textContent="This Ghostex can't send answers from a page; type them in the chat.";return;}
   if(ghostex.answered){restore(ghostex.answers||{});lock();return;}
   var saved=ghostex.__draft&&ghostex.__draft("kit");if(saved&&typeof saved==="object"){restore(saved);syncOptions();}
   button.addEventListener("click",function(){
@@ -231,8 +252,8 @@ function setup(root){
     button.disabled=true;status.classList.remove("gx-error");status.textContent="Sending…";
     ghostex.submit(out).then(lock,function(error){button.disabled=false;status.classList.add("gx-error");status.textContent=error&&error.message||"Your answers were not sent.";});
   });
-  /* Ctrl+Enter (Cmd+Enter on macOS) presses the send button from anywhere on the page, a note box included. */
-  document.addEventListener("keydown",function(e){if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)&&!e.isComposing&&!button.disabled){e.preventDefault();button.click();}});
+  /* Ctrl+Enter (Cmd+Enter on macOS) presses the send button from anywhere on the page, a note box included; with Shift it presses Skip all. */
+  document.addEventListener("keydown",function(e){if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)&&!e.isComposing&&!button.disabled){e.preventDefault();(e.shiftKey?skipAll:button).click();}});
 }
 function init(){var root=document.querySelector("gx-questions");if(root)setup(root);}
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();

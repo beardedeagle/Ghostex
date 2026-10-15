@@ -41,7 +41,11 @@ pub fn handle(state: &mut ChatState, action: &UserAction, context: &ChatContext)
                 effects.extend(answer_prompt(state, &answer));
             }
         }
-        ActionKind::FormChoice | ActionKind::FormText | ActionKind::FormSend => {
+        ActionKind::FormChoice
+        | ActionKind::FormText
+        | ActionKind::FormSend
+        | ActionKind::FormSkip
+        | ActionKind::FormSkipAll => {
             let id = action
                 .param("form")
                 .and_then(Value::as_str)
@@ -70,6 +74,8 @@ pub fn handle(state: &mut ChatState, action: &UserAction, context: &ChatContext)
                         .and_then(Value::as_str)
                         .unwrap_or_default(),
                 ),
+                ActionKind::FormSkip => crate::questions::forms::skip(state, &id, question),
+                ActionKind::FormSkipAll => crate::questions::forms::skip_all(state, context, &id),
                 _ => crate::questions::forms::send(state, context, &id),
             });
         }

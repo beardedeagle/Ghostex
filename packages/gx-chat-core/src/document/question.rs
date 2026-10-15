@@ -47,6 +47,9 @@ pub struct QuestionDraft {
     /// A question form's "Other / none of these" is picked; `other` is then its note.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub other_picked: bool,
+    /// A question form's Skip is picked: the question is sent as `"skipped"`.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub skipped: bool,
 }
 
 /// The async question strip a working agent shows above the composer.

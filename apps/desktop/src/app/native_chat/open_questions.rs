@@ -221,7 +221,8 @@ fn tag_tone(state: &str, light: bool) -> Option<(Hsla, Hsla)> {
 }
 
 /// A `question` reference (a Q-tag link, gx-chat-core `question_reference`) as an outlined pill in
-/// its state's colour: a ? while open, a check once answered, struck through once withdrawn.
+/// its state's colour: a ? while open, a check once answered, grey once skipped, and grey and
+/// struck through once withdrawn.
 pub(super) fn question_tag_link(reference: &Value, p: &ChatAppearance) -> Option<InlineLink> {
     let state = reference["state"].as_str()?;
     let (color, border) = tag_tone(state, p.light)?;

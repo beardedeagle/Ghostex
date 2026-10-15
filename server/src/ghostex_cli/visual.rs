@@ -252,6 +252,10 @@ fn report_question_form(form: &ghostex_gx_visual::questions::QuestionForm) -> Cl
             ghostex_gx_visual::questions::notes_key(form)
         );
     }
+    println!(
+        "Every question can also be skipped: its answer is then \"{}\" (move on, and don't ask it again unless it blocks the work). A question left blank arrives as null.",
+        ghostex_gx_visual::questions::SKIPPED
+    );
     Ok(())
 }
 

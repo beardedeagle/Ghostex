@@ -16,6 +16,10 @@
     "withdrawn": {
       "dark": { "text": "#838383", "border": "#ffffff", "borderAlpha": 0.13 },
       "light": { "text": "#71717a", "border": "#000000", "borderAlpha": 0.16 }
+    },
+    "skipped": {
+      "dark": { "text": "#838383", "border": "#ffffff", "borderAlpha": 0.13 },
+      "light": { "text": "#71717a", "border": "#000000", "borderAlpha": 0.16 }
     }
   },
   "hover": {

@@ -4,7 +4,8 @@
 //! A choice question's picks follow the page kit (`server/src/visual_pages/kit.rs`): nothing starts
 //! picked, clicking a pick again clears it, one of N replaces the pick while many of N toggles, and
 //! "Other / none of these" (the row after the last choice) is a pick of its own whose note says
-//! what instead. The answers go into the session's chat queue as the `<ghostex-page-answers>`
+//! what instead. Skip (`skip`, every question) is a pick that stands alone and is sent as
+//! `"skipped"`, and Skip all (`skip_all`) skips every question left blank and sends at once. The answers go into the session's chat queue as the `<ghostex-page-answers>`
 //! message, which gxserver types once the agent is idle; the form reads Queued until then and
 //! Answered once the transcript carries the message.
 
@@ -18,7 +19,8 @@ use crate::event::StorageKey;
 use crate::questions::drafts::{decode_drafts, encode_drafts, form_drafts_key, AnswerDrafts};
 use crate::state::{ChatContext, ChatState, FormSend, FormState};
 use crate::transcript::question_forms::{
-    answers_message, notes_key, takes_notes, QuestionForm, NOTE_SUFFIX, OTHER_CHOICE,
+    answers_message, notes_key, takes_notes, QuestionForm, NOTE_SUFFIX, OTHER_CHOICE, SKIPPED,
+    SKIP_LABEL,
 };
 use crate::wire::{ChatRpcMethod, RpcOutcome};
 
@@ -53,7 +55,10 @@ fn open(state: &ChatState, id: &str) -> bool {
 }
 
 fn answered(draft: &QuestionDraft) -> bool {
-    !draft.indices.is_empty() || draft.other_picked || !draft.other.trim().is_empty()
+    draft.skipped
+        || !draft.indices.is_empty()
+        || draft.other_picked
+        || !draft.other.trim().is_empty()
 }
 
 /// The key the form's notes are saved under in its drafts record, beside the questions' indices.
@@ -108,6 +113,8 @@ pub fn pick(state: &mut ChatState, id: &str, question: usize, choice: usize) -> 
     let Some(draft) = entry.drafts.get_mut(question) else {
         return Vec::new();
     };
+    // A choice replaces a Skip, as Skip replaces the choices (`skip`).
+    draft.skipped = false;
     let index = choice as u32;
     if choice == asked.choices.len() {
         draft.other_picked = !draft.other_picked;
@@ -139,6 +146,8 @@ pub fn write(state: &mut ChatState, id: &str, question: usize, text: &str) -> Ve
     if !open(state, id) {
         return Vec::new();
     }
+    // Typing a text question's answer takes back its Skip; a choice question's note does not.
+    let unskips = asked_text(state, id, question) && !text.trim().is_empty();
     let Some(entry) = state.questions.forms.get_mut(id) else {
         return Vec::new();
     };
@@ -147,8 +156,64 @@ pub fn write(state: &mut ChatState, id: &str, question: usize, text: &str) -> Ve
         return Vec::new();
     };
     draft.other = text.to_string();
+    if unskips {
+        draft.skipped = false;
+    }
     state.core.request_publish();
     save(state, id)
+}
+
+fn asked_text(state: &ChatState, id: &str, question: usize) -> bool {
+    form(state, id)
+        .and_then(|form| form.questions.get(question))
+        .is_some_and(|asked| asked.text)
+}
+
+/// `formSkip {form, question}`: the question's Skip row, a pick like any other (see the
+/// SessionChat 2026-10-16 DECISION on `SKIPPED` in packages/gx-visual/src/questions.rs). Picking it
+/// clears the question's choices; clicking it again clears it.
+pub fn skip(state: &mut ChatState, id: &str, question: usize) -> Vec<Effect> {
+    if !open(state, id)
+        || form(state, id)
+            .and_then(|form| form.questions.get(question))
+            .is_none()
+    {
+        return Vec::new();
+    }
+    let Some(entry) = state.questions.forms.get_mut(id) else {
+        return Vec::new();
+    };
+    entry.touched = true;
+    let Some(draft) = entry.drafts.get_mut(question) else {
+        return Vec::new();
+    };
+    draft.skipped = !draft.skipped;
+    if draft.skipped {
+        draft.indices.clear();
+        draft.other_picked = false;
+    }
+    state.core.request_publish();
+    save(state, id)
+}
+
+/// `formSkipAll {form}`: every question not yet answered is skipped, and the form is sent at once;
+/// the questions the reader answered keep their answers.
+pub fn skip_all(state: &mut ChatState, context: &ChatContext, id: &str) -> Vec<Effect> {
+    if !open(state, id) {
+        return Vec::new();
+    }
+    let Some(count) = form(state, id).map(|form| form.questions.len()) else {
+        return Vec::new();
+    };
+    let entry = state.questions.forms.entry(id.to_string()).or_default();
+    entry.touched = true;
+    entry.drafts.resize(count, QuestionDraft::default());
+    for draft in entry.drafts.iter_mut().filter(|draft| !answered(draft)) {
+        draft.skipped = true;
+    }
+    let mut effects = save(state, id);
+    effects.extend(send(state, context, id));
+    effects
 }
 
 /// `formNotes {form, text}`: the form's own notes box, under the last question.
@@ -172,6 +237,13 @@ fn answers(form: &QuestionForm, drafts: &[QuestionDraft], notes: &str) -> Value 
     let mut out = Map::new();
     for (asked, draft) in form.questions.iter().zip(drafts) {
         let note = draft.other.trim();
+        if draft.skipped {
+            out.insert(asked.key.clone(), json!(SKIPPED));
+            if !asked.text && !note.is_empty() {
+                out.insert(format!("{}{NOTE_SUFFIX}", asked.key), json!(note));
+            }
+            continue;
+        }
         if asked.text {
             out.insert(
                 asked.key.clone(),
@@ -369,6 +441,17 @@ fn drafts_from_answers(form: &QuestionForm, answers: &Value) -> Vec<QuestionDraf
                 .get(format!("{}{NOTE_SUFFIX}", asked.key))
                 .and_then(Value::as_str)
                 .unwrap_or_default();
+            if value.as_str() == Some(SKIPPED) {
+                return QuestionDraft {
+                    other: if asked.text {
+                        String::new()
+                    } else {
+                        note.to_string()
+                    },
+                    skipped: true,
+                    ..QuestionDraft::default()
+                };
+            }
             if asked.text {
                 return QuestionDraft {
                     other: value.as_str().unwrap_or_default().to_string(),
@@ -390,6 +473,7 @@ fn drafts_from_answers(form: &QuestionForm, answers: &Value) -> Vec<QuestionDraf
                     .collect(),
                 other: note.to_string(),
                 other_picked: values.contains(&OTHER_CHOICE),
+                skipped: false,
             }
         })
         .collect()
@@ -458,6 +542,7 @@ pub fn project(state: &ChatState) -> BTreeMap<String, Value> {
                     json!(phase == "answered" && !entry.expanded),
                 );
                 object.insert("otherLabel".to_string(), json!(OTHER_CHOICE));
+                object.insert("skipLabel".to_string(), json!(SKIP_LABEL));
                 object.insert("drafts".to_string(), json!(drafts));
                 object.insert("takesNotes".to_string(), json!(takes_notes));
                 object.insert("notes".to_string(), json!(notes));

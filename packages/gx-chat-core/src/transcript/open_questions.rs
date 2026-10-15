@@ -15,6 +15,7 @@
 //! questions/open_questions.rs steps the pill and lands the jumps (the document's `openQuestions`); apps/desktop/src/app/native_chat/open_questions.rs and apps/mobile/app/src/chat/native/transcript/OpenQuestions.tsx draw the pill and the highlight; server/src/ghostex_cli/show.rs writes a page block's `"questions"`; skills/ghostex-visuals/SKILL.md teaches tags and `withdraw`. Change them together.
 
 use ghostex_gx_protocol::{ChatMessage, ChatRole};
+use serde_json::Value;
 
 use crate::transcript::jsstr::{js_trim, split_lf};
 use crate::transcript::native_markdown::{fence_close, fence_open};
@@ -35,6 +36,8 @@ pub enum TagState {
     Open,
     Answered,
     Withdrawn,
+    /// Answered with Skip (`"skipped"`): drawn in the withdrawn grey, without the strike-through.
+    Skipped,
 }
 
 impl TagState {
@@ -43,6 +46,7 @@ impl TagState {
             Self::Open => "open",
             Self::Answered => "answered",
             Self::Withdrawn => "withdrawn",
+            Self::Skipped => "skipped",
         }
     }
 
@@ -51,6 +55,7 @@ impl TagState {
             "open" => Some(Self::Open),
             "answered" => Some(Self::Answered),
             "withdrawn" => Some(Self::Withdrawn),
+            "skipped" => Some(Self::Skipped),
             _ => None,
         }
     }
@@ -87,6 +92,11 @@ pub struct Asker {
     pub obsolete: bool,
     /// Its tags a later ```questions block withdrew.
     pub withdrawn: Vec<String>,
+    /// A form's tags with the answer key each one's question answers under (a page's are not known
+    /// to the chat).
+    pub keys: Vec<(String, String)>,
+    /// Its tags whose answers came back as Skip (`mark_skipped`).
+    pub skipped: Vec<String>,
 }
 
 enum Found {
@@ -129,6 +139,12 @@ pub fn askers(messages: &[ChatMessage], answered: &[String]) -> Vec<Asker> {
                         tags.push(tag.to_string());
                     }
                 }
+                let keys = form
+                    .questions
+                    .iter()
+                    .filter(|question| !question.tag.is_empty())
+                    .map(|question| (question.tag.clone(), question.key.clone()))
+                    .collect();
                 Asker {
                     id: form.id,
                     kind: AskerKind::Form,
@@ -137,6 +153,8 @@ pub fn askers(messages: &[ChatMessage], answered: &[String]) -> Vec<Asker> {
                     answered: false,
                     obsolete: false,
                     withdrawn: Vec::new(),
+                    keys,
+                    skipped: Vec::new(),
                 }
             } else if ghostex_gx_visual::is_visual_language(&language) {
                 let Some(page) = ghostex_gx_visual::page_reference(&body) else {
@@ -153,6 +171,8 @@ pub fn askers(messages: &[ChatMessage], answered: &[String]) -> Vec<Asker> {
                     answered: false,
                     obsolete: false,
                     withdrawn: Vec::new(),
+                    keys: Vec::new(),
+                    skipped: Vec::new(),
                 }
             } else {
                 continue;
@@ -203,17 +223,60 @@ pub fn tag_target<'a>(askers: &'a [Asker], tag: &str) -> Option<&'a Asker> {
         .find(|asker| asker.tags.iter().any(|known| same_tag(known, tag)))
 }
 
-/// The state of the question a tag names: answered once the latest form or page that asked it has
-/// its answers, withdrawn once a later block withdrew it there, open otherwise.
+/// Marks the tags whose questions came back skipped (see the SessionChat 2026-10-16 DECISION on
+/// `SKIPPED` in packages/gx-visual/src/questions.rs): a form's by each tag's answer key, and a
+/// page's (whose keys the chat does not know) only when every answer it sent is a skip.
+pub fn mark_skipped(
+    askers: &mut [Asker],
+    answers: &[crate::transcript::page_answers::PageAnswers],
+) {
+    use crate::transcript::question_forms::{NOTE_SUFFIX, SKIPPED};
+    for asker in askers.iter_mut() {
+        let Some(sent) = answers.iter().find(|sent| sent.page_id == asker.id) else {
+            continue;
+        };
+        let Some(values) = sent.answers.as_object() else {
+            continue;
+        };
+        asker.skipped = match asker.kind {
+            AskerKind::Form => asker
+                .keys
+                .iter()
+                .filter(|(_, key)| values.get(key).and_then(Value::as_str) == Some(SKIPPED))
+                .map(|(tag, _)| tag.clone())
+                .collect(),
+            AskerKind::Page => {
+                let mut asked = values
+                    .iter()
+                    .filter(|(key, _)| !key.ends_with(NOTE_SUFFIX))
+                    .peekable();
+                let all_skipped = asked.peek().is_some()
+                    && asked.all(|(_, value)| value.as_str() == Some(SKIPPED));
+                if all_skipped {
+                    asker.tags.clone()
+                } else {
+                    Vec::new()
+                }
+            }
+        };
+    }
+}
+
+/// The state of the question a tag names: answered (or skipped) once the latest form or page that
+/// asked it has its answers, withdrawn once a later block withdrew it there, open otherwise.
 pub fn tag_state(askers: &[Asker], tag: &str) -> Option<TagState> {
     let asker = tag_target(askers, tag)?;
-    Some(if asker.answered {
-        TagState::Answered
-    } else if asker.obsolete || asker.withdrawn.iter().any(|known| same_tag(known, tag)) {
-        TagState::Withdrawn
-    } else {
-        TagState::Open
-    })
+    Some(
+        if asker.answered && asker.skipped.iter().any(|known| same_tag(known, tag)) {
+            TagState::Skipped
+        } else if asker.answered {
+            TagState::Answered
+        } else if asker.obsolete || asker.withdrawn.iter().any(|known| same_tag(known, tag)) {
+            TagState::Withdrawn
+        } else {
+            TagState::Open
+        },
+    )
 }
 
 /// The tags a reply's words can link to, uppercased and sorted, with their states: the tags some

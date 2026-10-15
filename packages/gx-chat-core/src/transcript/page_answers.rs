@@ -134,6 +134,9 @@ fn clip(text: String) -> String {
 /// A value as the card shows it: text as written, a list joined, anything else as compact JSON.
 fn display_value(value: &Value) -> String {
     clip(match value {
+        Value::String(text) if text == crate::transcript::question_forms::SKIPPED => {
+            "Skipped".to_string()
+        }
         Value::String(text) => text.clone(),
         Value::Null => "Not answered".to_string(),
         Value::Bool(true) => "Yes".to_string(),

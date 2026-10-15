@@ -139,6 +139,10 @@ pub fn decode_drafts(raw: &str) -> AnswerDrafts {
                     .get("otherPicked")
                     .and_then(Value::as_bool)
                     .unwrap_or(false),
+                skipped: entry
+                    .get("skipped")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false),
             },
         );
     }

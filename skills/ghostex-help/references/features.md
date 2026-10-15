@@ -1048,7 +1048,10 @@ on desktop, web, and mobile: every question at once, with choices you click
 and a note box for each. Nothing is picked for you (the agent may mark the
 option it recommends), every choice question has an Other / none of these
 choice, and you can leave any question blank or click a choice again to clear
-it. A form with more than one question also ends with an optional notes box
+it. Every question also has a Skip choice, which tells the agent you skipped it
+so it moves on, and Skip all (or Ctrl+Shift+Enter, Cmd+Shift+Enter on macOS)
+sends right away with every question you haven't answered marked skipped. A
+form with more than one question also ends with an optional notes box
 for anything else you want the agent to know. Send (or Ctrl+Enter, Cmd+Enter
 on macOS, from anywhere in the form or page) delivers your answers to the agent as a message (when the agent is
 busy, they wait in the chat's queue and go as soon as it is free), the chat
@@ -1071,8 +1074,10 @@ again in a later form or page, or withdraws it. Question tags the agent writes
 in its messages, such as Q3, are always links to the form or page that asked
 them, answered or not, drawn as small outlined tags that show where each
 question stands: amber with a ? while it still waits for your answer, green
-with a check once you answered it, and grey and struck through once the agent
-withdrew it. Setting: `chatPreviousQuestion`. Commands:
+with a check once you answered it, grey once you skipped it, and grey and
+struck through once the agent withdrew it. When you answer a question another
+way, by telling the agent in the chat or by doing what it asked, the agent
+withdraws it so it stops counting as open. Setting: `chatPreviousQuestion`. Commands:
 `ghostex show <file.html>`
 publishes a page and prints the block that shows its card (`--browser` opens it
 in the browser instead of floating), and
