@@ -51,6 +51,8 @@ pub(super) struct ChatImageVisual {
     /// Between a picture and the file name under it.
     pub(super) caption_gap: f32,
     pub(super) caption_size: f32,
+    /// The narrowest a tile gets, so a tall, thin picture's name still reads.
+    pub(super) caption_min_width: f32,
     /// Room under the strip for its sideways scrollbar.
     pub(super) strip_padding_bottom: f32,
 }
@@ -941,15 +943,17 @@ impl NativeChatView {
                 .child(missing_chip(&named, p))
                 .into_any_element();
         }
-        // A picture keeps its own shape: as wide as its height allows, up to the cap, and an
-        // unknown shape (still loading, or fetched by GPUI) takes a screenshot's 16:10.
+        // The frame is the picture's own shape: as wide as the strip's height allows, and a picture
+        // wider than the cap gets shorter rather than black bars. An unknown shape (still loading,
+        // or fetched by GPUI) takes a screenshot's 16:10.
         let aspect = size
             .filter(|(width, height)| *width > 0 && *height > 0)
             .map_or(1.6, |(width, height)| width as f32 / height as f32);
-        let width = (height * aspect).clamp(height * 0.4, max_width);
+        let width = (height * aspect).min(max_width);
+        let frame_height = width / aspect;
         let frame = div()
             .w(px(width * s))
-            .h(px(height * s))
+            .h(px(frame_height * s))
             .flex()
             .items_center()
             .justify_center()
@@ -988,7 +992,8 @@ impl NativeChatView {
             ),
         };
         tile.group("chat-strip-tile")
-            .w(px(width * s))
+            // A narrow picture still leaves its name room to be read.
+            .w(px(width.max(VISUAL.caption_min_width) * s))
             .flex()
             .flex_col()
             .gap(px(VISUAL.caption_gap * s))

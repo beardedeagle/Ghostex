@@ -16,5 +16,6 @@
   "stripRadius": 8,
   "captionGap": 5,
   "captionSize": 11.5,
-  "stripPaddingBottom": 4
+  "stripPaddingBottom": 4,
+  "captionMinWidth": 96
 }

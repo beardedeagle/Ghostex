@@ -252,7 +252,9 @@ fn alert_style(kind: &str, light: bool) -> (&'static str, &'static str, gpui::Hs
     )
 }
 
-pub(super) fn parse(lines: &[&str]) -> Vec<Segment> {
+/// The segments of one marked body. `strips` is false for a prompt somebody sent, whose pictures
+/// keep their small thumbnails rather than becoming a filmstrip.
+pub(super) fn parse(lines: &[&str], strips: bool) -> Vec<Segment> {
     let mut segments = Vec::new();
     let mut prose: Vec<&str> = Vec::new();
     let mut index = 0;
@@ -281,7 +283,7 @@ pub(super) fn parse(lines: &[&str]) -> Vec<Segment> {
             flush(&mut prose, &mut segments);
             segments.push(Segment::Alert {
                 kind: kind.trim().to_owned(),
-                children: parse(&lines[index + 1..end.min(lines.len())]),
+                children: parse(&lines[index + 1..end.min(lines.len())], strips),
             });
             index = end + 1;
             continue;
@@ -357,11 +359,15 @@ pub(super) fn parse(lines: &[&str]) -> Vec<Segment> {
             continue;
         }
         /*
-        CDXC:SessionChat 2026-10-15 DECISION:
+        CDXC:SessionChat 2026-10-16 DECISION:
         User picked option B, Filmstrip (Q134): pictures an agent writes on lines of their own sit
-        side by side in one strip at their own shape, about 136px tall, scrolling sideways, with
-        the file name always under each. This supersedes the 48pt squares, one per line, the
-        pictures used to stack into. A picture inside a sentence keeps its small inline thumbnail.
+        side by side in one strip, about 136px tall, scrolling sideways, with the file name always
+        under each, and each frame follows its picture's shape so a wide, short picture never gets
+        black bars. Only in an agent's messages: of the strip in a sent prompt the user said "this
+        is too big my fam … in the sent user messages no need for massive image like this. revert
+        it there to how it was before", so a prompt's pictures keep the small inline thumbnails
+        (`strips` is false). Supersedes the 2026-10-15 decision, which drew the strip in prompts
+        too and letterboxed a wide picture. A picture inside a sentence keeps its thumbnail.
         SEE-ALSO: `PictureStrip` in apps/mobile/app/src/chat/native/transcript/Images.tsx draws the
         same strip for a paragraph made only of pictures.
         */
@@ -372,7 +378,7 @@ pub(super) fn parse(lines: &[&str]) -> Vec<Segment> {
                 *last = without_hard_break(last);
             }
         }
-        if let Some((indent, marker, mut images)) = picture_line(line) {
+        if let Some((indent, marker, mut images)) = picture_line(line).filter(|_| strips) {
             flush(&mut prose, &mut segments);
             let depth = list_depth(&lines[..index], indent);
             index += 1;
@@ -745,7 +751,8 @@ impl NativeChatView {
                 let key = format!("{id}:{index}");
                 let lines: Vec<&str> = lines.iter().map(String::as_str).collect();
                 let draw = |lines: &[&str]| -> Vec<AnyElement> {
-                    parse(lines)
+                    // A marked section only ever comes from an agent's reply.
+                    parse(lines, true)
                         .iter()
                         .enumerate()
                         .map(|(child, segment)| {
@@ -821,13 +828,37 @@ impl NativeChatView {
         p: &ChatAppearance,
         cx: &gpui::Context<Self>,
     ) -> AnyElement {
+        self.marked_markdown(id, content, references, p, true, cx)
+    }
+
+    /// A prompt somebody sent: its pictures stay small thumbnails (see `parse`).
+    pub(super) fn prompt_markdown(
+        &self,
+        id: String,
+        content: String,
+        references: &Value,
+        p: &ChatAppearance,
+        cx: &gpui::Context<Self>,
+    ) -> AnyElement {
+        self.marked_markdown(id, content, references, p, false, cx)
+    }
+
+    fn marked_markdown(
+        &self,
+        id: String,
+        content: String,
+        references: &Value,
+        p: &ChatAppearance,
+        strips: bool,
+        cx: &gpui::Context<Self>,
+    ) -> AnyElement {
         // Card and notice text reaches this without the core's message pass; the rule is idempotent.
         let content = escaped_raw_html(content);
         if !content.contains('\u{E000}') {
             return self.text_view(id, content, references, p, cx);
         }
         let lines = content.lines().collect::<Vec<_>>();
-        let segments = parse(&lines);
+        let segments = parse(&lines, strips);
         if segments.is_empty() {
             return self.text_view(id, String::new(), references, p, cx);
         }

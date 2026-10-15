@@ -615,7 +615,7 @@ impl NativeChatView {
     ) -> AnyElement {
         let collapsed = text(message, "collapsedText");
         if collapsed.is_empty() {
-            return self.markdown(
+            return self.prompt_markdown(
                 format!("user:{id}"),
                 body,
                 &message["markdownReferences"],
@@ -626,7 +626,7 @@ impl NativeChatView {
         let key = format!("prompt:{id}");
         let expanded = self.expanded.contains(&key);
         let prose = if expanded {
-            self.markdown(
+            self.prompt_markdown(
                 format!("user:{id}"),
                 body,
                 &message["markdownReferences"],
@@ -634,7 +634,7 @@ impl NativeChatView {
                 cx,
             )
         } else {
-            self.markdown(
+            self.prompt_markdown(
                 format!("user-collapsed:{id}"),
                 collapsed,
                 &message["collapsedReferences"],
