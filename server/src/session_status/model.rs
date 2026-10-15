@@ -200,7 +200,7 @@ pub fn compute_activity_update(
     );
     /*
     CDXC:SessionStatus 2026-10-15 DECISION:
-    User (Q120): under Combined, detection stays in charge and the program's report is one more signal; in a disagreement "the more urgent signal wins": while the program says blocked, detection cannot take the session out of attention (the program knows it waits on the user), and while the program says working, detection cannot set it idle. Every other disagreement goes to detection, which keeps what only it knows (subagent fleets and compaction, applied when the session is presented). The user's acknowledgement and Escape always pass. Detection's own result is recorded for the mismatch log, which keeps only disagreements that outlast its settle window (program_status/mismatch.rs).
+    User (Q120): under Combined, detection stays in charge and the program's report is one more signal; in a disagreement "the more urgent signal wins": while the program says blocked, detection cannot take the session out of attention (the program knows it waits on the user), and while the program says working, done or error, detection cannot set it idle (a finished turn stays until the user sees it; found when Claude's Notification hook cleared a reported done). Every other disagreement goes to detection, which keeps what only it knows (subagent fleets and compaction, applied when the session is presented). The user's acknowledgement and Escape always pass. Detection's own result is recorded for the mismatch log, which keeps only disagreements that outlast its settle window (program_status/mismatch.rs).
     */
     if program_status_activity.is_none()
         && !matches!(event.as_deref(), Some("acknowledge" | "escape"))
@@ -219,8 +219,7 @@ pub fn compute_activity_update(
                     "title": title,
                 }),
             );
-            let program_wins = (program_state == "blocked" && detected != "attention")
-                || (program_state == "working" && detected == "idle");
+            let program_wins = crate::program_status::combined_program_wins(program_state, detected);
             if program_wins {
                 return ActivityUpdate {
                     activity: previous_state.to_value(),

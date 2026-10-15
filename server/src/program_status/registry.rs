@@ -146,8 +146,15 @@ pub(crate) fn take_settled_program_status_disagreements(
         return Vec::new();
     };
     let now = unix_now_ms();
+    let source = current_status_source();
     let mut due = Vec::new();
     for (key, entry) in registry.iter_mut() {
+        // A session that stopped combining (its program exited, or the
+        // setting changed) has nothing left to disagree about.
+        if !program_status_combines_entry(Some(entry), source) {
+            entry.disagreement = None;
+            continue;
+        }
         let Some(pending) = entry.disagreement.as_ref() else {
             continue;
         };

@@ -12,6 +12,19 @@ use super::{
 /// improvement Combined is for, not a mismatch.
 const SETTLE_WINDOW_MS: i64 = 10_000;
 
+/// Under Combined, whether the program's state wins over detection's result:
+/// the more urgent one wins. The program saying blocked keeps the session in
+/// attention; saying done, error or working, it beats detection's idle (so a
+/// finished turn is not cleared before the user sees it, and a program's own
+/// working is not lost). Everything else goes to detection.
+pub(crate) fn combined_program_wins(program_state: &str, detected: &str) -> bool {
+    match program_state {
+        "blocked" => detected != "attention",
+        "done" | "error" | "working" => detected == "idle",
+        _ => false,
+    }
+}
+
 /// The activity a program state stands for (`program_status_activity` without
 /// the attention source).
 pub(crate) fn program_state_activity(program_state: &str) -> &'static str {
@@ -64,8 +77,7 @@ pub(crate) fn log_settled_program_status_mismatches() {
         return;
     };
     for (project_id, session_id, pending) in settled {
-        let program_wins = (pending.program_state == "blocked" && pending.detected != "attention")
-            || (pending.program_state == "working" && pending.detected == "idle");
+        let program_wins = super::combined_program_wins(&pending.program_state, &pending.detected);
         let _ = logger.log_routine(
             DiagnosticLogScenario::ProgramStatusMismatch,
             GxserverLogInput {
