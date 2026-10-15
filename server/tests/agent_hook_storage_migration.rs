@@ -229,7 +229,7 @@ fn repairs_installed_agent_hooks_after_storage_directory_migration() {
     assert!(repaired.contains(&current_notify_text));
     assert!(fs::read_to_string(&current_notify)
         .expect("notify hook")
-        .contains("ghostex-gxserver-agent-notify-hook-marker v9"));
+        .contains("ghostex-gxserver-agent-notify-hook-marker v11"));
     assert_ne!(
         fs::metadata(&current_notify)
             .expect("notify hook metadata")
@@ -329,7 +329,7 @@ fn repairs_installed_agent_hooks_after_storage_directory_migration() {
             .join("ghostex-session.ts"),
     )
     .expect("migrated Pi extension");
-    assert!(migrated_pi_text.contains("ghostex-pi-session-extension-marker v4"));
+    assert!(migrated_pi_text.contains("ghostex-pi-session-extension-marker v5"));
     assert!(migrated_pi_text.contains(&current_notify_text));
     assert!(!migrated_pi_text.contains(&legacy_notify_text));
     assert!(
