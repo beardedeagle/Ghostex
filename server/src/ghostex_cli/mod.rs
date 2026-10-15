@@ -6,6 +6,7 @@ mod agent_cli;
 mod agentbox_cli;
 mod agents;
 mod connectors;
+mod connectors_executor;
 mod coordinator;
 pub mod args;
 pub mod attach;

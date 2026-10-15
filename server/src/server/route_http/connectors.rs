@@ -1,9 +1,12 @@
 //! Connectors routes (crate::connectors): read every workspace's connectors, sign a workspace in
-//! to and out of Composio, list its tools again, connect one of its apps and call one of its tools.
+//! to and out of Composio, list its tools again, connect one of its apps and call one of its tools;
+//! turn a workspace's Executor on or off and manage its apps and tools.
 
 use crate::connectors::{
-    broadcast_connectors_changed, call_composio_tool, connect_composio_app, list_composio_tools,
-    read_connectors, refresh_composio, sign_in_composio, sign_out_composio,
+    add_executor_app, add_executor_mcp_server, broadcast_connectors_changed, call_composio_tool,
+    call_executor_tool, connect_composio_app, connect_executor_app, disable_executor,
+    enable_executor, list_composio_tools, list_executor_tools, read_connectors, refresh_composio,
+    remove_executor_app, search_executor_catalog, sign_in_composio, sign_out_composio,
 };
 use crate::domain::DomainStateError;
 use crate::protocol::rpc_success;
@@ -21,6 +24,15 @@ pub(super) async fn route_connectors_http(
         "/api/connectComposioApp" => connect_composio_app,
         "/api/listComposioTools" => list_composio_tools,
         "/api/callComposioTool" => call_composio_tool,
+        "/api/enableExecutor" => enable_executor,
+        "/api/disableExecutor" => disable_executor,
+        "/api/searchExecutorCatalog" => search_executor_catalog,
+        "/api/addExecutorApp" => add_executor_app,
+        "/api/addExecutorMcpServer" => add_executor_mcp_server,
+        "/api/removeExecutorApp" => remove_executor_app,
+        "/api/connectExecutorApp" => connect_executor_app,
+        "/api/listExecutorTools" => list_executor_tools,
+        "/api/callExecutorTool" => call_executor_tool,
         _ => return Err(request),
     };
     let RouteHttpRequest {

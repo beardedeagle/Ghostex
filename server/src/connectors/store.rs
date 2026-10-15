@@ -10,7 +10,7 @@ use crate::vault;
 
 /// A workspace id as a file name: ids are `personal` or `ws-<uuid>`, so anything else is
 /// hex-encoded rather than trusted as a path part.
-fn file_stem(workspace_id: &str) -> String {
+pub(super) fn file_stem(workspace_id: &str) -> String {
     let plain = !workspace_id.is_empty()
         && workspace_id.len() <= 128
         && workspace_id

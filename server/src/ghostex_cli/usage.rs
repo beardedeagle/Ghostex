@@ -481,6 +481,10 @@ pub fn usage() -> String {
             "A workspace's connectors: sign it in to Composio in your browser, connect one of its apps (gmail, slack…), list the apps and tools its agents get, and run a tool that only reads",
         ),
         format_help_command(
+            "connectors executor [status] | enable | disable | catalog [words] | add <app> | add-mcp <name> <url> | connect <app> | remove <app> | tools [app] | call <app> <tool> [--args <json>]  (each takes --workspace name|id)",
+            "A workspace's Executor: turn it on (Ghostex downloads Executor the first time), add apps from its catalog or by MCP server address, sign them in, list their tools and run one that only reads",
+        ),
+        format_help_command(
             "team join <invite link> [--name n] [--slack-user U…] | status | invite | identity [--slack-user U…] [--linear-user id] | threads <ticket> | ping | leave | deploy [--team-name n] [--project slug] [--convex-team slug] [--dev]  (each takes --workspace name|id)",
             "Connect a Work workspace to its team's Convex project: join with an invite link, or deploy Ghostex's functions with your Convex CLI login",
         ),

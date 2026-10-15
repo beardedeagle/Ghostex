@@ -13,7 +13,7 @@ use crate::server::AppState;
 use super::composio;
 use super::workspace::{connector_workspaces, resolve_workspace};
 
-fn workspace_param(
+pub(super) fn workspace_param(
     state: &AppState,
     params: &Map<String, Value>,
 ) -> Result<String, DomainStateError> {
@@ -23,7 +23,7 @@ fn workspace_param(
     )
 }
 
-fn failed(message: String) -> DomainStateError {
+pub(super) fn failed(message: String) -> DomainStateError {
     DomainStateError::bad_request(message)
 }
 
@@ -62,6 +62,7 @@ pub(crate) fn read_connectors(
                 "workspaceId": workspace.id,
                 "name": workspace.name,
                 "composio": composio_status(state, &workspace.id),
+                "executor": super::executor::status(&state.paths, &workspace.id),
             })
         })
         .collect::<Vec<_>>();

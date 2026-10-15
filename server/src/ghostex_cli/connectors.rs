@@ -12,7 +12,8 @@ use super::rpc::{self, CliError, CliResult};
 use super::web::browser_open_command;
 
 /// `ghostex connectors [status] | sign-in [--no-open] | sign-out | refresh | connect <app>
-/// [--no-open] | tools | call <tool> [--args <json>]`, each with `[--workspace name|id]`.
+/// [--no-open] | tools | call <tool> [--args <json>] | executor …`, each with
+/// `[--workspace name|id]`.
 pub(super) fn connectors_command(args: &[String]) -> CliResult<()> {
     let parsed = parse_args(args);
     let flags = &parsed.flags;
@@ -40,7 +41,7 @@ pub(super) fn connectors_command(args: &[String]) -> CliResult<()> {
             Ok(())
         }
         "sign-out" | "signout" | "logout" => call_and_print("/api/signOutComposio", params, flags),
-        "refresh" => call_and_print("/api/refreshComposio", params, flags),
+        "refresh" => call_and_print("/api/refreshComposio", params, &slow(flags)),
         "connect" => {
             let app = rest.join(" ");
             let app = app.trim();
@@ -51,7 +52,7 @@ pub(super) fn connectors_command(args: &[String]) -> CliResult<()> {
             }
             params.insert("app".to_string(), json!(app));
             let result =
-                rpc::call_gxserver_rpc("/api/connectComposioApp", &Value::Object(params), flags)?;
+                rpc::call_gxserver_rpc("/api/connectComposioApp", &Value::Object(params), &slow(flags))?;
             let name = result.get("name").and_then(Value::as_str).unwrap_or(app);
             if result.get("alreadyConnected").and_then(Value::as_bool) == Some(true) {
                 println!("{name} is already connected.");
@@ -67,7 +68,7 @@ pub(super) fn connectors_command(args: &[String]) -> CliResult<()> {
             if flags.contains("full") {
                 params.insert("full".to_string(), json!(true));
             }
-            call_and_print("/api/listComposioTools", params, flags)
+            call_and_print("/api/listComposioTools", params, &slow(flags))
         }
         "call" => {
             let Some(tool) = rest.first().map(|tool| tool.trim().to_uppercase()) else {
@@ -96,15 +97,16 @@ pub(super) fn connectors_command(args: &[String]) -> CliResult<()> {
             params.insert("tool".to_string(), json!(tool));
             params.insert("arguments".to_string(), arguments);
             let result =
-                rpc::call_gxserver_rpc("/api/callComposioTool", &Value::Object(params), flags)?;
+                rpc::call_gxserver_rpc("/api/callComposioTool", &Value::Object(params), &slow(flags))?;
             println!(
                 "{}",
                 result.get("output").and_then(Value::as_str).unwrap_or_default()
             );
             Ok(())
         }
+        "executor" => super::connectors_executor::executor_command(rest, params, flags, open_in_browser),
         other => Err(CliError::Other(format!(
-            "Unknown connectors command \"{other}\". Use status, sign-in, sign-out, refresh, connect, tools or call."
+            "Unknown connectors command \"{other}\". Use status, sign-in, sign-out, refresh, connect, tools, call or executor."
         ))),
     }
 }
@@ -117,6 +119,16 @@ fn open_in_browser(url: &str) -> CliResult<()> {
         .spawn()
         .map(|_| ())
         .map_err(|error| CliError::Other(format!("Couldn't open the browser: {error}")))
+}
+
+/// A longer RPC timeout than the CLI's 15 seconds for commands that wait on Composio or Executor:
+/// a tool call may run for minutes, Executor may have to start first, and adding an app builds it.
+pub(super) fn slow(flags: &Flags) -> Flags {
+    let mut flags = flags.clone();
+    if !flags.contains("timeout") && !flags.contains("timeoutMs") {
+        flags.insert_text("timeout", "300000");
+    }
+    flags
 }
 
 fn call_and_print(path: &str, params: Map<String, Value>, flags: &Flags) -> CliResult<()> {
