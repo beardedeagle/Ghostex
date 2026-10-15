@@ -193,7 +193,7 @@ impl AccountsTab {
                     "In the provider’s rules, choose what happens when an account hits its limit: switch to another account, wait for it to reset, or do nothing. Switching uses only connected accounts with Auto-switch on, trying them in the order you pick. Shared history lets the conversation resume.",
                 ),
                 paragraph(
-                    "With error retries enabled, temporary failures retry after 5, 10, 20, 40, then 60 minutes between attempts. Login and permission problems need your attention. The computer and Ghostex server must stay running.",
+                    "With error retries enabled, a lost connection or server error retries once the network is back, after 5s, 15s, 1m, 2m and 5m, then like other temporary failures after 5, 10, 20, 40, then 60 minutes between attempts. Login and permission problems need your attention. The computer and Ghostex server must stay running.",
                 ),
                 paragraph(
                     "Existing sessions keep their saved settings. Change one session through More actions → Switch account, where you can choose a login or override auto-continue.",

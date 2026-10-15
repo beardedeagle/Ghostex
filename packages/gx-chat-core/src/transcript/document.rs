@@ -78,6 +78,7 @@ pub fn document(state: &ChatState, context: &ChatContext, into: &mut Document) {
         (view.final_ids.clone(), view.answered_pages.clone())
     };
     into.deferred_work = view.deferred_work.clone();
+    into.api_error_card = crate::transcript::api_errors::api_error_card(state, context);
     /*
     The user rail's own actions. `rewindAvailable` is React's `rewindToMessage` gate (a host that can
     reach `/api/rewindSessionChat` and an agent whose rewind Ghostex drives); `rewindEnabled` is its

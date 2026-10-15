@@ -131,6 +131,7 @@ pub fn streaming_message(text: &str) -> ChatMessage {
         queued: false,
         deferred_work: None,
         startup_delivery: None,
+        api_error: None,
     }
 }
 

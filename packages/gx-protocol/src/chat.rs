@@ -203,6 +203,10 @@ pub struct ChatMessage {
     /// "Queued" or "Failed" label from it. Not the agent CLI's own queue, which is `queued`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub startup_delivery: Option<StartupDelivery>,
+    /// The agent's own record that its API call failed, with the code it recorded
+    /// (`server_error`, `rate_limit`, …). Omitted on every other row.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub api_error: Option<String>,
 }
 
 /// Where an accepted send stands with the terminal, as the sending client sees it.
@@ -236,7 +240,7 @@ pub struct TurnLifecycle {
 /// | `queue` | the daemon has no queue support (present even when empty otherwise) |
 /// | `screenProbed` | not probed yet (sticky once true) |
 /// | `agentSessionId` | snapshot or replaced: cleared; state: unchanged |
-/// | `accountSwitch`, `pendingModelSelection`, `asyncQuestionsSince` | a daemon without queue support; otherwise always written, `null` meaning none |
+/// | `accountSwitch`, `apiRetry`, `pendingModelSelection`, `asyncQuestionsSince` | a daemon without queue support; otherwise always written, `null` meaning none |
 /// | `retiredAsyncQuestionIds` | a daemon without queue support; otherwise always written |
 ///
 /// Payload shapes are kept loose (`Value`) until the native chat needs each one typed; every one
@@ -279,6 +283,10 @@ pub struct ChatSideState {
     pub agent_session_id: Option<String>,
     #[serde(default, skip_serializing_if = "Tri::is_absent")]
     pub account_switch: Tri<Value>,
+    /// Ghostex's automatic retry after the agent's API call failed on a connection or server
+    /// error (server/src/accounts/api_errors.rs), or `null` when none is running.
+    #[serde(default, skip_serializing_if = "Tri::is_absent")]
+    pub api_retry: Tri<Value>,
     #[serde(default, skip_serializing_if = "Tri::is_absent")]
     pub pending_model_selection: Tri<Value>,
     #[serde(default, skip_serializing_if = "Tri::is_absent")]

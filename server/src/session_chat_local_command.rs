@@ -410,6 +410,7 @@ fn message(id: String, text: String, timestamp: i64) -> SessionChatMessage {
         byte_offset: None,
         async_questions: None,
         queued: false,
+        api_error: None,
     }
 }
 
@@ -918,6 +919,7 @@ mod tests {
             byte_offset: None,
             async_questions: None,
             queued: false,
+            api_error: None,
         }
     }
 

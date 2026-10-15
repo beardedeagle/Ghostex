@@ -73,8 +73,10 @@ pub(crate) fn dispatch(
             let _ = store::read(&db);
         }
     }
-    let mut snapshot = if matches!(operation, "select" | "setTitlebar" | "dismissSwitch")
-        || !titlebar_has_accounts
+    let mut snapshot = if matches!(
+        operation,
+        "select" | "setTitlebar" | "dismissSwitch" | "retryNow"
+    ) || !titlebar_has_accounts
         || cached_titlebar
         || cached_list
     {
@@ -435,6 +437,11 @@ pub(crate) fn dispatch(
                 update_session(&repository, &session, runtime)?;
                 changed_sessions.push(session);
             }
+        }
+        "retryNow" => {
+            let session = get_session(&repository, params)?;
+            super::recovery::retry_now(state, &repository, &db, &session)?;
+            changed_sessions.push(session);
         }
         "sessionPolicy" | "select" | "stopRecovery" => {
             let session = get_session(&repository, params)?;

@@ -286,7 +286,7 @@ impl AccountsTab {
             SharedString::from(format!("accounts-{provider}-policy-retry")),
             RowSpec::new("Retry after temporary errors")
                 .description(
-                    "Retry after 5, 10, 20, 40, then every 60 minutes. Login and permission requests need your attention. Stop cancels recovery for the current task.",
+                    "A lost connection or server error retries once the network is back, after 5s, 15s, 1m, 2m and 5m, then after 5, 10, 20, 40, then every 60 minutes. Other temporary errors use the slower schedule. Login and permission requests need your attention. Stop cancels recovery for the current task.",
                 )
                 .inset_x(0.0),
             None,

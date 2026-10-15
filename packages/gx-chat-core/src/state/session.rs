@@ -90,6 +90,8 @@ pub struct SessionState {
     pub working_started_at_ms: Option<f64>,
     /// The account switch gxserver reports. Three-state on the wire.
     pub account_switch: Tri<Value>,
+    /// Ghostex's automatic retry after an API connection or server error. Three-state on the wire.
+    pub api_retry: Tri<Value>,
     /// A model selection waiting on the agent. Three-state on the wire.
     pub pending_model_selection: Tri<Value>,
     /// Ghostex's own prompt queue. `None` means no frame has carried a `queue` field yet, which is
@@ -142,6 +144,7 @@ impl Default for SessionState {
             interrupted: false,
             working_started_at_ms: None,
             account_switch: Tri::Absent,
+            api_retry: Tri::Absent,
             pending_model_selection: Tri::Absent,
             queue_prompts: None,
             synced_draft: None,

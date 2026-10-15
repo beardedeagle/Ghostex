@@ -80,6 +80,7 @@ pub fn markers_as_messages(
                 queued: false,
                 deferred_work: None,
                 startup_delivery: None,
+                api_error: None,
             })
         })
         .collect()

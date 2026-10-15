@@ -209,7 +209,7 @@ pub fn account_policy_at_limit_description(policy: &serde_json::Value) -> String
 }
 
 /// `ACCOUNT_POLICY_RETRY_DESCRIPTION`.
-pub const ACCOUNT_POLICY_RETRY_DESCRIPTION: &str = "Retry after 5, 10, 20, 40, then every 60 minutes. Login and permission requests need your attention. Stop cancels recovery for the current task.";
+pub const ACCOUNT_POLICY_RETRY_DESCRIPTION: &str = "A lost connection or server error retries once the network is back, after 5s, 15s, 1m, 2m and 5m, then after 5, 10, 20, 40, then every 60 minutes. Other temporary errors use the slower schedule. Login and permission requests need your attention. Stop cancels recovery for the current task.";
 
 /// How close one limit is to running out.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]

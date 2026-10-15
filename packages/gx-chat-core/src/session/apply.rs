@@ -96,6 +96,7 @@ pub fn apply_state_frame(
     apply_queue_carriage(
         state,
         &frame.state.account_switch,
+        &frame.state.api_retry,
         &frame.state.pending_model_selection,
         frame.state.queue.as_ref(),
         frame.state.draft.as_ref(),
@@ -188,12 +189,16 @@ pub fn apply_returned_prompt(state: &mut ChatState, prompt: &Value) {
 pub fn apply_queue_carriage(
     state: &mut ChatState,
     account_switch: &Tri<Value>,
+    api_retry: &Tri<Value>,
     pending_model_selection: &Tri<Value>,
     queue: Option<&Vec<Value>>,
     draft: Option<&Value>,
 ) {
     if !matches!(account_switch, Tri::Absent) {
         state.session.account_switch = account_switch.clone();
+    }
+    if !matches!(api_retry, Tri::Absent) {
+        state.session.api_retry = api_retry.clone();
     }
     if !matches!(pending_model_selection, Tri::Absent) {
         state.session.pending_model_selection = pending_model_selection.clone();
@@ -398,6 +403,7 @@ pub fn apply_authoritative(
     apply_queue_carriage(
         state,
         &result.state.account_switch,
+        &result.state.api_retry,
         &result.state.pending_model_selection,
         result.state.queue.as_ref(),
         result.state.draft.as_ref(),

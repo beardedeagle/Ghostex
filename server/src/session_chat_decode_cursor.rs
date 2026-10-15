@@ -231,6 +231,7 @@ pub fn decode_cursor_transcript_line(line: &str, fallback_id: &str) -> Option<Se
             byte_offset: None,
             async_questions: None,
             queued: false,
+            api_error: None,
         });
     }
 
@@ -262,6 +263,7 @@ pub fn decode_cursor_transcript_line(line: &str, fallback_id: &str) -> Option<Se
         byte_offset: None,
         async_questions: None,
         queued: false,
+        api_error: None,
     })
 }
 

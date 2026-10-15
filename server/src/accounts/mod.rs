@@ -1,3 +1,4 @@
+pub(crate) mod api_errors;
 pub(crate) mod claude_background;
 pub(crate) mod claude_resets;
 mod cli;

@@ -623,6 +623,14 @@ async fn deliver(state: Arc<AppState>, memory: Arc<Mutex<SupervisorMemory>>, del
                     },
                     &thread_ref,
                 );
+                let body = match report
+                    .session
+                    .as_ref()
+                    .and_then(crate::accounts::api_errors::slow_retry_note)
+                {
+                    Some(note) => format!("{body}\n\n{note}"),
+                    None => body,
+                };
                 (body, Some(message.unwrap_or_default()))
             }
             ReportKind::Waiting { summary, .. } => (

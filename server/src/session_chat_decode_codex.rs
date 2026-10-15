@@ -58,6 +58,7 @@ fn codex_response_item(
         byte_offset: None,
         async_questions: None,
         queued: false,
+        api_error: None,
     };
     match payload.get("type").and_then(Value::as_str) {
         Some("reasoning") => {
@@ -187,6 +188,7 @@ fn codex_event_message(
         byte_offset: None,
         async_questions: None,
         queued: false,
+        api_error: None,
     };
     match payload.get("type").and_then(Value::as_str) {
         Some(CODEX_EVENT_TURN_ABORTED) => Some(transcript_message(
@@ -255,6 +257,7 @@ fn codex_event_message(
                     byte_offset: None,
                     async_questions: None,
                     queued: false,
+                    api_error: None,
                 });
             }
             /*
@@ -305,6 +308,7 @@ fn codex_event_message(
                     byte_offset: None,
                     async_questions: None,
                     queued: false,
+                    api_error: None,
                 });
             }
             /*
@@ -331,6 +335,7 @@ fn codex_event_message(
                     byte_offset: None,
                     async_questions: None,
                     queued: false,
+                    api_error: None,
                 });
             }
             // CDXC:SessionChat 2026-09-29 WHY:
@@ -347,6 +352,7 @@ fn codex_event_message(
                     byte_offset: None,
                     async_questions: None,
                     queued: false,
+                    api_error: None,
                 });
             }
             let role = match item_type {
@@ -399,6 +405,7 @@ fn codex_event_message(
                 byte_offset: None,
                 async_questions,
                 queued: false,
+                api_error: None,
             })
         }
         _ => None,

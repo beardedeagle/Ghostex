@@ -273,6 +273,10 @@ pub fn project_message(
     );
     projected.insert("suppressed".to_string(), suppressed);
     projected.insert(
+        "apiError".to_string(),
+        crate::transcript::api_errors::api_error_presentation(message),
+    );
+    projected.insert(
         "sideQuestion".to_string(),
         crate::transcript::side_question::side_question_presentation(message),
     );

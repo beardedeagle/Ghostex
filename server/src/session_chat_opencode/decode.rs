@@ -18,6 +18,7 @@ fn row(
         byte_offset: None,
         queued: false,
         async_questions: None,
+        api_error: None,
     }
 }
 

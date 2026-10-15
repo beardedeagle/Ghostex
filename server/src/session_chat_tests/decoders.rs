@@ -30,6 +30,7 @@ fn message_serialization_matches_shared_ts_shape() {
         byte_offset: None,
         async_questions: None,
         queued: false,
+        api_error: None,
     };
     let serialized = serde_json::to_value(&message).expect("serialize");
     assert_eq!(

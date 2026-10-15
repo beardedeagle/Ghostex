@@ -137,6 +137,8 @@ export interface GxserverReadSessionChatResult {
    * See CDXC:SessionChat in ./session-chat-queue.
    */
   accountSwitch?: AccountSwitchProgress | null;
+  /** Ghostex's automatic retry after a connection or server error (server/src/accounts/api_errors.rs `chat_state`), or null. */
+  apiRetry?: Record<string, unknown> | null;
   pendingModelSelection?: SessionChatPendingModelSelection | null;
   queue?: SessionChatQueuedPrompt[];
   /**

@@ -31,6 +31,7 @@ pub fn decode_zcode_transcript_line(line: &str, fallback_id: &str) -> Option<Ses
             byte_offset: None,
             async_questions: None,
             queued: false,
+            api_error: None,
         });
     }
     if record.get("kind")?.as_str()? != "part" {
@@ -127,6 +128,7 @@ pub fn decode_zcode_transcript_line(line: &str, fallback_id: &str) -> Option<Ses
         byte_offset: None,
         async_questions: None,
         queued: false,
+        api_error: None,
     })
 }
 

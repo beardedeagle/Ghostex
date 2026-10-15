@@ -116,6 +116,10 @@ pub fn classify_thread_session(
         "sleeping" => return ThreadState::Sleeping,
         _ => return ThreadState::Closed,
     }
+    // CDXC:Coordinators 2026-10-15 DECISION: User: "report to the orchestrator once the fast stage gives up". A thread whose turn ended on a connection or server error is still working while one of Ghostex's quick tries is ahead; it is reported, with the slow schedule noted, only after they all failed (accounts/api_errors.rs).
+    if crate::accounts::api_errors::quick_retry_pending(session) {
+        return ThreadState::Working;
+    }
     let activity = presentation_activity(session, now_iso);
     let working = activity == "working" || transcript_working;
     if applicable_screen_wait(session, working).is_some() {

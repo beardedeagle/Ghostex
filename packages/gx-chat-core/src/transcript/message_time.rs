@@ -83,6 +83,11 @@ fn clock_time(at: Civil) -> String {
     format!("{hour}:{:02} {meridiem}", at.minute)
 }
 
+/// The local clock time of an epoch stamp, `6:20 PM`.
+pub(crate) fn clock_label(epoch_ms: i64, context: &ChatContext) -> String {
+    clock_time(civil(epoch_ms, context.utc_offset_minutes))
+}
+
 fn ordinal_suffix(day: u32) -> &'static str {
     if (11..=13).contains(&(day % 100)) {
         return "th";

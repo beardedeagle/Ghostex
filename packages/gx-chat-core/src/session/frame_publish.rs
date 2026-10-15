@@ -91,6 +91,7 @@ pub fn side_state_moves(
             .is_some_and(|deliveries| session.agent_message_deliveries.as_ref() != Some(deliveries))
         || side.retired_async_question_ids.is_some()
         || nullable(&side.account_switch, &session.account_switch)
+        || nullable(&side.api_retry, &session.api_retry)
         || nullable(
             &side.pending_model_selection,
             &session.pending_model_selection,

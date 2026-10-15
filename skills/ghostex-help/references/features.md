@@ -1649,6 +1649,12 @@ including sessions that are already open, forks, and restored sessions, so a
 change there applies everywhere at once. To make one session behave differently,
 open More actions > Switch Account and click Customize under Keep going at a
 limit; Use session defaults returns it to the Settings values.
+When a Claude or Codex turn ends on a lost connection or a server error (such as
+"API Error: Can't reach the API server"), the chat shows it as a card and
+Ghostex resumes the turn by itself once the network is back, after 5s, 15s, 1m,
+2m and 5m, then on the slower schedule; the card's Retry now and Stop retrying
+buttons override it, and Retry after temporary errors in Settings > Accounts
+turns it off.
 A sleeping session whose account is already at its limit wakes on another
 account that has room. When every account with Auto-switch on is full, the
 session's chat shows "7d limit reached on every account" (or whichever limit

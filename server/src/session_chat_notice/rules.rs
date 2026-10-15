@@ -288,6 +288,12 @@ const CODEX_RULES: &[NoticeRule] = &[
                 parts: &[NoticePart::Text("We're currently experiencing high demand")],
                 corroborators: &[],
             },
+            // codex-rs/protocol/src/error.rs spells this one with a typographic apostrophe.
+            NoticeSignature {
+                scope: NoticeScope::Banner,
+                parts: &[NoticePart::Text("We\u{2019}re currently experiencing high demand")],
+                corroborators: &[],
+            },
             NoticeSignature {
                 scope: NoticeScope::Banner,
                 parts: &[NoticePart::Text("Selected model is at capacity")],
@@ -536,6 +542,41 @@ const CLAUDE_RULES: &[NoticeRule] = &[
             NoticeSignature {
                 scope: NoticeScope::Banner,
                 parts: &[NoticePart::Text("API Error: Server error mid-response")],
+                corroborators: &[],
+            },
+            // CDXC:AgentProviders 2026-10-15 WHY: Claude Code 2.1.296's own wordings for a dropped network; without them the screen showed no notice and the recovery pass never retried (accounts/api_errors.rs reads the transcript first now).
+            NoticeSignature {
+                scope: NoticeScope::Banner,
+                parts: &[
+                    NoticePart::Text("API Error: Can"),
+                    NoticePart::Gap(3),
+                    NoticePart::Text("t reach the API server"),
+                ],
+                corroborators: &[],
+            },
+            NoticeSignature {
+                scope: NoticeScope::Banner,
+                parts: &[NoticePart::Text("API Error: Connection refused")],
+                corroborators: &[],
+            },
+            NoticeSignature {
+                scope: NoticeScope::Banner,
+                parts: &[NoticePart::Text("API Error: Connection lost mid-response")],
+                corroborators: &[],
+            },
+            NoticeSignature {
+                scope: NoticeScope::Banner,
+                parts: &[NoticePart::Text("API Error: Connection closed mid-response")],
+                corroborators: &[],
+            },
+            NoticeSignature {
+                scope: NoticeScope::Banner,
+                parts: &[NoticePart::Text("API Error: Response stalled")],
+                corroborators: &[],
+            },
+            NoticeSignature {
+                scope: NoticeScope::Banner,
+                parts: &[NoticePart::Text("API Error: The response stopped arriving")],
                 corroborators: &[],
             },
             NoticeSignature {

@@ -120,6 +120,7 @@ fn row(id: String, role: ChatRole, blocks: Vec<&str>, timestamp: Option<i64>) ->
         queued: false,
         deferred_work: None,
         startup_delivery: None,
+        api_error: None,
     }
 }
 

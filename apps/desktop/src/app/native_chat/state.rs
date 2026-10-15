@@ -246,6 +246,8 @@ pub(crate) struct NativeChatView {
     pub(crate) last_render: Option<web_time::Instant>,
     last_notified: Option<web_time::Instant>,
     notify_scheduled: bool,
+    /// A redraw is booked for the API error card's countdown (api_error_card.rs).
+    pub(super) api_error_tick: std::cell::Cell<bool>,
     /// The transcript starts at the window's top edge under the floating work area header, so its
     /// first row reserves the header's height (`set_under_workarea_header`).
     pub(crate) under_workarea_header: bool,
@@ -473,6 +475,7 @@ impl NativeChatView {
             last_render: None,
             last_notified: None,
             notify_scheduled: false,
+            api_error_tick: std::cell::Cell::new(false),
             under_workarea_header: false,
             transcript_only: false,
             host_composer: false,

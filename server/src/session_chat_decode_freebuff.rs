@@ -72,6 +72,7 @@ pub fn decode_freebuff_transcript_line(
         byte_offset: None,
         async_questions: None,
         queued: false,
+        api_error: None,
     })
 }
 

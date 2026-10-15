@@ -16,6 +16,7 @@ fn transcript_prompt_state_detects_and_retires_question_cards() {
         byte_offset: None,
         async_questions: None,
         queued: false,
+        api_error: None,
     };
     let result = SessionChatMessage {
         id: "res".to_string(),
@@ -32,6 +33,7 @@ fn transcript_prompt_state_detects_and_retires_question_cards() {
         byte_offset: None,
         async_questions: None,
         queued: false,
+        api_error: None,
     };
     let input = json!({
         "questions": [{"question": "Which approach?", "options": ["Fast", "Careful"]}],
@@ -142,6 +144,7 @@ fn earlier_answered_question_does_not_retire_a_newer_stored_card() {
         byte_offset: None,
         async_questions: None,
         queued: false,
+        api_error: None,
     };
     let result = SessionChatMessage {
         id: "res-old".to_string(),
@@ -158,6 +161,7 @@ fn earlier_answered_question_does_not_retire_a_newer_stored_card() {
         byte_offset: None,
         async_questions: None,
         queued: false,
+        api_error: None,
     };
     let old_question = json!({
         "questions": [{"question": "Which color do you prefer?", "options": ["Red", "Blue"]}],

@@ -358,6 +358,9 @@ impl NativeChatView {
         if let Some(notice) = self.render_notice(p, window, cx) {
             footer = footer.child(notice);
         }
+        if let Some(card) = self.render_unrecorded_api_error(p, cx) {
+            footer = footer.child(card);
+        }
         if let Some(questions) = self.render_async_questions(p, window, cx) {
             footer = footer.child(questions);
         }

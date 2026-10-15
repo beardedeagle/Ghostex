@@ -119,6 +119,7 @@ fn decode_pi_record(record: &Map<String, Value>, fallback_id: &str) -> Option<Se
         byte_offset: None,
         async_questions: None,
         queued: false,
+        api_error: None,
     };
 
     if record_type == "compaction" || record_type == "branch_summary" {

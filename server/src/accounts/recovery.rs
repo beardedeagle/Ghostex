@@ -49,13 +49,23 @@ impl RecoverySignals {
         state.pending.insert(key);
         self.changed.notify_one();
     }
+    /// Runs a targeted pass for one session now (api_errors.rs: a failed turn, a quick try due).
+    pub(crate) fn wake(&self, project: &str, session: &str) {
+        let key = (project.to_string(), session.to_string());
+        self.state
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .pending
+            .insert(key);
+        self.changed.notify_one();
+    }
     fn take(&self) -> BTreeSet<SessionKey> {
         std::mem::take(&mut self.state.lock().unwrap_or_else(|e| e.into_inner()).pending)
     }
 }
 const CONTINUE: &str = "Continue the unfinished task from the last confirmed progress after the temporary error or usage limit. Check the current state first and do not repeat completed actions. If the task is already complete, report that and stop.";
-/// CDXC:AgentProviders 2026-09-05 DECISION:
-/// User requested automatic continuation after errors with increasingly slower retries so unattended work can recover. Temporary errors retry after 5, 10, 20, 40, then 60 minutes; the one-hour cap continues until recovery or Stop.
+/// CDXC:AgentProviders 2026-10-15 DECISION:
+/// User (2026-10-15): "also i noticed you didn't retry when i got this error please fix! should've retried!", then chose "fast first then the existing schedule: wait for the network, retry after 5s, 15s, 1m, 2m, 5m; if all fail, fall back to the 5/10/20/40/60-minute schedule until it works or Stop; report to the orchestrator once the fast stage gives up", and "keep the one existing 'Retry after temporary errors' switch". This extends the 2026-09-05 decision ("automatic continuation after errors with increasingly slower retries so unattended work can recover. Temporary errors retry after 5, 10, 20, 40, then 60 minutes; the one-hour cap continues until recovery or Stop"): a connection or server error (`streamError`) now gets the five quick tries first, each one sent only once the provider's API host answers again, and other temporary errors keep the slow schedule alone. Schedule and detection: api_errors.rs.
 /// WHY: A durable claim precedes every send. An interrupted or ambiguous send requires attention rather than replaying a possibly accepted prompt. Authentication, approvals, refusals and uncertain delivery are not temporary errors.
 pub(crate) fn start(state: Arc<AppState>) {
     let mut shutdown = state.shutdown_tx.subscribe();
@@ -160,7 +170,7 @@ fn time(value: Option<&Value>) -> Option<DateTime<Utc>> {
         .and_then(|s| DateTime::parse_from_rfc3339(s).ok())
         .map(|t| t.with_timezone(&Utc))
 }
-fn backoff(attempt: u64) -> chrono::Duration {
+pub(super) fn backoff(attempt: u64) -> chrono::Duration {
     chrono::Duration::minutes((5_i64.saturating_mul(1_i64 << attempt.min(4))).min(60))
 }
 pub(super) fn save(
@@ -510,7 +520,19 @@ fn plan_session(
     {
         return Ok(None);
     }
-    let notice = crate::session_chat_options::cached_session_chat_terminal_notice(state, pid, sid);
+    // Claude records a failed call itself, which the screen list can miss; a screen notice that
+    // is retryable or blocks the input still comes first (api_errors.rs).
+    let transcript_failure = (provider == Provider::Claude)
+        .then(|| super::api_errors::claude_open_failure(&session))
+        .flatten();
+    let notice =
+        match crate::session_chat_options::cached_session_chat_terminal_notice(state, pid, sid) {
+            Some(notice) if retryable(&notice) || notice.blocks_input() => Some(notice),
+            other => transcript_failure
+                .as_ref()
+                .map(super::api_errors::OpenFailure::notice)
+                .or(other),
+        };
     let Some(notice) = notice else {
         return Ok(None);
     };
@@ -527,7 +549,26 @@ fn plan_session(
         }
         return Ok(None);
     }
-    let attempts = recovery["attempt"].as_u64().unwrap_or(0);
+    let connection_error =
+        notice.kind == crate::session_chat_notice::SESSION_CHAT_NOTICE_STREAM_ERROR;
+    // The API answered after the last try: that try worked, so this is a new failure and the quick tries start over.
+    let answered_since_last_try = recovery["status"].as_str() == Some("resumed")
+        && transcript_failure.as_ref().is_some_and(|failure| {
+            failure.replied_at_ms.is_some_and(|replied| {
+                time(recovery.get("lastAttemptAt"))
+                    .is_none_or(|tried| replied > tried.timestamp_millis())
+            })
+        });
+    let attempts = if answered_since_last_try {
+        0
+    } else {
+        recovery["attempt"].as_u64().unwrap_or(0)
+    };
+    let delay = if connection_error {
+        super::api_errors::error_backoff(attempts)
+    } else {
+        backoff(attempts)
+    };
     // CDXC:AgentProviders 2026-09-11 WHY:
     // Restored sessions can display a saved login through its configured home without a persisted accountId. Checking only that field delayed their first usage-limit switch by five minutes even when another account was ready.
     // Use the same identity as the account panel, exclude it from candidates, and let an available replacement release that initial wait. Failed switch attempts still keep their retry backoff.
@@ -585,7 +626,11 @@ fn plan_session(
         None
     };
     if recovery.is_null() || recovery["status"].as_str() != Some("waiting") {
-        recovery = json!({"status":"waiting","reason":notice.title,"trigger":notice.kind,"attempt":attempts,"nextAttemptAt":(now+backoff(attempts)).to_rfc3339(),"updatedAt":now.to_rfc3339()});
+        let last_attempt_at = recovery["lastAttemptAt"].clone();
+        recovery = json!({"status":"waiting","reason":notice.title,"trigger":notice.kind,"attempt":attempts,"nextAttemptAt":(now+delay).to_rfc3339(),"updatedAt":now.to_rfc3339(),"lastAttemptAt":last_attempt_at,"errorText":notice.detail});
+        if connection_error {
+            super::api_errors::wake_at(state, pid, sid, now + delay);
+        }
         if notice.kind == "usageLimit"
             && (current_id.is_some() || switch_account.is_some())
             && attempts == 0
@@ -598,6 +643,28 @@ fn plan_session(
         && !(attempts == 0 && switch_account.is_some())
     {
         return Ok(None);
+    }
+    // A try sent while the API host cannot be reached fails the same way and spends a try for
+    // nothing, so a connection error waits here, looking again every few seconds.
+    if connection_error {
+        if !super::api_errors::api_reachable(provider) {
+            if recovery["waitingForNetwork"] != true {
+                recovery["waitingForNetwork"] = json!(true);
+                recovery["updatedAt"] = json!(now.to_rfc3339());
+                save(state, repo, &session, recovery)?;
+            }
+            super::api_errors::wake_at(
+                state,
+                pid,
+                sid,
+                now + chrono::Duration::from_std(super::api_errors::NETWORK_RECHECK)
+                    .unwrap_or_default(),
+            );
+            return Ok(None);
+        }
+        if let Some(fields) = recovery.as_object_mut() {
+            fields.remove("waitingForNetwork");
+        }
     }
     let mut session = session;
     if notice.kind == "usageLimit" {
@@ -747,6 +814,7 @@ fn plan_session(
     recovery["claim"] = json!(claim);
     recovery["attempt"] = json!(attempts + 1);
     recovery["updatedAt"] = json!(now.to_rfc3339());
+    recovery["lastAttemptAt"] = json!(now.to_rfc3339());
     recovery["healthySince"] = Value::Null;
     save(state, repo, &session, recovery)?;
     Ok(Some(Plan {
@@ -974,10 +1042,16 @@ async fn deliver(state: Arc<AppState>, plan: Plan) {
             if matches!(error.code, "composerNotReady" | "accountRecoveryNotReady")
                 && plan.prompt.is_none()
             {
+                let attempt = recovery["attempt"].as_u64().unwrap_or(1);
+                let next = Utc::now()
+                    + if super::api_errors::is_connection_trigger(&recovery) {
+                        super::api_errors::error_backoff(attempt)
+                    } else {
+                        backoff(attempt)
+                    };
                 recovery["status"] = json!("waiting");
-                recovery["nextAttemptAt"] = json!((Utc::now()
-                    + backoff(recovery["attempt"].as_u64().unwrap_or(1)))
-                .to_rfc3339());
+                recovery["nextAttemptAt"] = json!(next.to_rfc3339());
+                super::api_errors::wake_at(&state, &plan.project, &plan.session, next);
             } else {
                 recovery["status"] = json!("needsAttention");
             }
@@ -985,6 +1059,69 @@ async fn deliver(state: Arc<AppState>, plan: Plan) {
         }
     }
     let _ = save(&state, &repo, &session, recovery);
+}
+/// Retry now on an API error card: resume the turn at once, whatever the schedule, the network
+/// wait, Stop retrying, or the Continue automatically switch say, because the user asked. The
+/// caller holds `accounts.mutations`.
+pub(crate) fn retry_now(
+    state: &AppState,
+    repo: &DomainRepository<'_>,
+    db: &rusqlite::Connection,
+    session: &Value,
+) -> Result<(), DomainStateError> {
+    let (Some(pid), Some(sid)) = (session["projectId"].as_str(), session["sessionId"].as_str())
+    else {
+        return Ok(());
+    };
+    if session["lifecycleState"].as_str() != Some("running") {
+        return Err(DomainStateError::bad_request(
+            "Wake the session before retrying.",
+        ));
+    }
+    if crate::presentation::presentation_activity(session, &Utc::now().to_rfc3339()) == "working" {
+        return Err(DomainStateError::bad_request(
+            "The agent is already working.",
+        ));
+    }
+    let mut runtime = session["runtimeSettings"]
+        .as_object()
+        .cloned()
+        .unwrap_or_default();
+    let previous = runtime
+        .get("accountRecovery")
+        .cloned()
+        .unwrap_or(Value::Null);
+    let error_text = previous["errorText"]
+        .as_str()
+        .map(str::to_string)
+        .or_else(|| super::api_errors::claude_open_failure(session).map(|failure| failure.text));
+    let claim = uuid::Uuid::new_v4().to_string();
+    let now = Utc::now().to_rfc3339();
+    runtime.insert("accountRecoverySuppressed".into(), json!(false));
+    runtime.insert(
+        "accountRecovery".into(),
+        json!({
+            "status": "retrying",
+            "trigger": crate::session_chat_notice::SESSION_CHAT_NOTICE_STREAM_ERROR,
+            "claim": claim,
+            "attempt": previous["attempt"].as_u64().unwrap_or(0),
+            "reason": "Retrying now.",
+            "errorText": error_text,
+            "lastAttemptAt": now,
+            "updatedAt": now,
+        }),
+    );
+    endpoint::update_session(repo, session, runtime)?;
+    let queue = crate::session_chat_queue::read_session_chat_queue_snapshot_with(db, pid, sid);
+    let plan = Plan {
+        project: pid.into(),
+        session: sid.into(),
+        claim,
+        prompt: queue.deliverable_head().map(|p| p.id.clone()),
+    };
+    let state = Arc::new(state.clone());
+    tokio::spawn(async move { deliver(state, plan).await });
+    Ok(())
 }
 /// Whether a session without its own Customize settings is covered by an enabled provider default, so Stop and the next send still record the recovery suppression flag.
 fn follows_enabled_defaults(

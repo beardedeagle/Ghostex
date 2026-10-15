@@ -178,6 +178,7 @@ pub fn decode_hermes_transcript_line(line: &str, fallback_id: &str) -> Option<Se
         byte_offset: None,
         async_questions: None,
         queued: false,
+        api_error: None,
     };
 
     match role {

@@ -78,6 +78,8 @@ export interface SessionChatMessage {
    * rename, extend or reuse this field for that feature.
    */
   queued?: boolean;
+  /** The agent's own record that its API call failed, with the code it recorded (`server_error`, `rate_limit`, ...). */
+  apiError?: string;
   /** Client presentation of an accepted send waiting for the terminal, separate from the agent CLI queue. */
   startupDelivery?: {
     promptId: string;

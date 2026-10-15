@@ -97,6 +97,8 @@ pub struct SessionChatQueueSnapshot {
     pub queue: Vec<SessionChatQueuedPrompt>,
     pub draft: Option<SessionChatDraft>,
     pub account_switch: Option<Value>,
+    /// The retry after a connection or server error (accounts/api_errors.rs `chat_state`).
+    pub api_retry: Option<Value>,
     pub async_questions_since: Option<i64>,
     pub retired_async_question_ids: Vec<String>,
     pub pending_model_selection: Option<crate::session_chat_model_selection::PendingModelSelection>,
@@ -119,6 +121,10 @@ impl SessionChatQueueSnapshot {
         target.insert(
             "accountSwitch".to_string(),
             self.account_switch.clone().unwrap_or(Value::Null),
+        );
+        target.insert(
+            "apiRetry".to_string(),
+            self.api_retry.clone().unwrap_or(Value::Null),
         );
         target.insert(
             "pendingModelSelection".to_string(),
@@ -145,6 +151,7 @@ impl SessionChatQueueSnapshot {
     pub fn revision(&self) -> String {
         let mut revision = serde_json::to_string(&self.pending_model_selection).unwrap_or_default();
         revision.push_str(&serde_json::to_string(&self.account_switch).unwrap_or_default());
+        revision.push_str(&serde_json::to_string(&self.api_retry).unwrap_or_default());
         revision.push_str(&serde_json::to_string(&self.async_questions_since).unwrap_or_default());
         revision
             .push_str(&serde_json::to_string(&self.retired_async_question_ids).unwrap_or_default());
@@ -774,12 +781,32 @@ fn read_snapshot(
             db, project_id, session_id,
         ),
         account_switch: crate::accounts::switch_progress::read(db, project_id, session_id),
+        api_retry: read_api_retry(db, project_id, session_id),
         queue,
         draft,
         pending_model_selection: crate::session_chat_model_selection::read_pending(
             db, project_id, session_id,
         ),
     })
+}
+
+fn read_api_retry(db: &Connection, project_id: &str, session_id: &str) -> Option<Value> {
+    let (recovery, suppressed): (Option<String>, Option<i64>) = db
+        .query_row(
+            "SELECT json_extract(runtimeSettingsJson, '$.accountRecovery'), json_extract(runtimeSettingsJson, '$.accountRecoverySuppressed') FROM sessions WHERE projectId = ?1 AND sessionId = ?2",
+            params![project_id, session_id],
+            |row| Ok((row.get(0).ok().flatten(), row.get(1).ok().flatten())),
+        )
+        .optional()
+        .ok()
+        .flatten()?;
+    let runtime = json!({
+        "accountRecovery": recovery
+            .and_then(|text| serde_json::from_str::<Value>(&text).ok())
+            .unwrap_or(Value::Null),
+        "accountRecoverySuppressed": suppressed == Some(1),
+    });
+    crate::accounts::api_errors::chat_state(&runtime)
 }
 
 fn append_prompt(

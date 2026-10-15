@@ -358,6 +358,7 @@ fn user_submission_record(text: String) -> Option<WatchdogRecord> {
         byte_offset: None,
         async_questions: None,
         queued: false,
+        api_error: None,
     };
     (!is_noise_message(&probe)).then_some(WatchdogRecord::UserSubmission(text))
 }

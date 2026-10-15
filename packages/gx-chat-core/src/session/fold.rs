@@ -192,6 +192,12 @@ pub fn fold_state(previous: Option<&FoldedSnapshot>, incoming: StateCarrier<'_>)
             .unwrap_or(Tri::Absent),
         present => present.clone(),
     };
+    folded.result.state.api_retry = match &side.api_retry {
+        Tri::Absent => previous_side
+            .map(|state| state.api_retry.clone())
+            .unwrap_or(Tri::Absent),
+        present => present.clone(),
+    };
     folded.result.state.pending_model_selection = match &side.pending_model_selection {
         Tri::Absent => previous_side
             .map(|state| state.pending_model_selection.clone())

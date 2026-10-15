@@ -213,6 +213,9 @@ pub struct Document {
     pub fork_branches: Tri<Value>,
     /// The Save to Markdown sheet, or `null` when closed. Family f.
     pub save_markdown: Tri<Value>,
+    /// The card of the failed API call nothing has answered yet, with gxserver's retry, or
+    /// `null` (`transcript/api_errors.rs`). Family b.
+    pub api_error_card: Value,
     /// The rewind confirmation, or `null` when closed. Family b.
     pub rewind: Tri<Value>,
     /// Whether this host can rewind at all.

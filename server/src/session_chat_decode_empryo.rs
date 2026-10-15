@@ -39,6 +39,7 @@ fn empryo_message(
         turn_id: None,
         byte_offset: None,
         queued: false,
+        api_error: None,
     }
 }
 

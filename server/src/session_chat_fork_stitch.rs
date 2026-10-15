@@ -523,6 +523,7 @@ fn fork_boundary_message(
         byte_offset: Some(0),
         async_questions: None,
         queued: false,
+        api_error: None,
     }
 }
 

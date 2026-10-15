@@ -223,6 +223,12 @@ pub struct SessionChatMessage {
     */
     #[serde(default, skip_serializing_if = "is_not_queued")]
     pub queued: bool,
+    /// The agent's own record that its API call failed (Claude's synthetic `isApiErrorMessage`
+    /// row), with the error code it recorded (`server_error`, `rate_limit`, …). The chat draws a
+    /// connection or server failure as an error card instead of prose; see
+    /// `crate::api_error_retry`.
+    #[serde(rename = "apiError", skip_serializing_if = "Option::is_none", default)]
+    pub api_error: Option<String>,
 }
 
 fn is_not_queued(queued: &bool) -> bool {

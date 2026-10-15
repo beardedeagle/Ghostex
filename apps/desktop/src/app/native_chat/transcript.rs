@@ -430,6 +430,11 @@ impl NativeChatView {
                 .child(self.suppressed_row(&id, message, p, cx))
                 .into_any_element();
         }
+        if message["apiError"].is_object() {
+            return row
+                .child(self.api_error_row(&id, message, p, cx))
+                .into_any_element();
+        }
         if message["systemCard"].is_object() {
             return row
                 .child(self.system_card(&id, message, p, cx))

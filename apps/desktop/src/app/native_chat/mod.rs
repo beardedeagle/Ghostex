@@ -10,6 +10,7 @@ mod actions;
 mod agent_fleet;
 mod agent_tasks;
 mod answer_attachments;
+mod api_error_card;
 mod approval;
 mod ask_card;
 mod async_questions;

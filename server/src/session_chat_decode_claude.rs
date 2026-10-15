@@ -445,6 +445,7 @@ fn decode_claude_queued_command(
         byte_offset: None,
         async_questions: None,
         queued: false,
+        api_error: None,
     })
 }
 
@@ -472,6 +473,7 @@ fn decode_claude_queued_prompt(
         byte_offset: None,
         async_questions: None,
         queued: true,
+        api_error: None,
     })
 }
 
@@ -541,6 +543,7 @@ pub fn decode_claude_transcript_line(line: &str, fallback_id: &str) -> Option<Se
             byte_offset: None,
             async_questions: None,
             queued: false,
+            api_error: None,
         });
     }
     if role != "user" && role != "assistant" {
@@ -562,6 +565,7 @@ pub fn decode_claude_transcript_line(line: &str, fallback_id: &str) -> Option<Se
             byte_offset: None,
             async_questions: None,
             queued: false,
+            api_error: None,
         });
     }
 
@@ -625,6 +629,10 @@ pub fn decode_claude_transcript_line(line: &str, fallback_id: &str) -> Option<Se
     } else {
         SessionChatRole::Assistant
     };
+    // Claude's own record of a failed call (a `<synthetic>` row): the chat draws the transient ones as an error card (accounts/api_errors.rs).
+    let api_error = (final_role == SessionChatRole::Assistant
+        && record.get("isApiErrorMessage") == Some(&Value::Bool(true)))
+    .then(|| extract_string(record.get("error")).unwrap_or_else(|| "unknown".to_string()));
     Some(SessionChatMessage {
         id: message_id.unwrap_or_else(|| fallback_id.to_string()),
         role: final_role,
@@ -635,6 +643,7 @@ pub fn decode_claude_transcript_line(line: &str, fallback_id: &str) -> Option<Se
         byte_offset: None,
         async_questions: None,
         queued: false,
+        api_error,
     })
 }
 

@@ -39,6 +39,11 @@ pub fn notice_visible(state: &ChatState) -> bool {
     if key == questions.answered_notice_key || key == questions.released_notice_key {
         return false;
     }
+    if notice.kind == "streamError"
+        && crate::transcript::api_errors::card_covers_stream_notice(state)
+    {
+        return false;
+    }
     !is_notice_dismissed(&notice, questions.dismissed_notice.as_ref())
 }
 
