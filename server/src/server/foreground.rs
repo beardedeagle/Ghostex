@@ -357,6 +357,8 @@ pub async fn run_gxserver_foreground(
     let session_chat_async_question_status_task =
         crate::session_chat_async_questions::spawn_async_question_status_task(&state);
     let freebuff_activity_task = crate::freebuff_activity::spawn_freebuff_activity_task(&state);
+    let zcode_turn_activity_task =
+        crate::zcode_turn_activity::spawn_zcode_turn_activity_task(&state);
     let program_status_source_task = tokio::spawn(crate::program_status::run_status_source_watch(
         (*state).clone(),
     ));
@@ -435,6 +437,7 @@ pub async fn run_gxserver_foreground(
     session_chat_fleet_status_task.abort();
     session_chat_async_question_status_task.abort();
     freebuff_activity_task.abort();
+    zcode_turn_activity_task.abort();
     program_status_source_task.abort();
     team_sync_task.abort();
     /*

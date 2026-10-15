@@ -214,6 +214,7 @@ pub(crate) mod visual_pages;
 pub(crate) mod work_mode;
 pub mod workspace_groups;
 pub mod worktree_sessions;
+pub(crate) mod zcode_turn_activity;
 pub mod zmx;
 
 mod external_sessions;
