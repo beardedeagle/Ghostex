@@ -17,7 +17,7 @@
 //! parked request, so a plain Handoff / Export never inherits an earlier target.
 //!
 //! SEE-ALSO: apps/desktop/src/app/window/export_transcript_modal.rs (`targetAgentId`),
-//! server/src/agents/launch_plan.rs (`agentModel` / `agentEffort`, Claude and Codex only).
+//! server/src/agents/launch_plan.rs (`agentModel` / `agentEffort`, Claude, Codex and Antigravity CLI).
 
 use ghostex_gx_core::git_menu::GitToastLevel;
 use ghostex_gx_core::{MachineId, ProjectKey, SessionKey};
@@ -487,7 +487,7 @@ impl GhostexGpuiApp {
         // The user may pick another agent in the dialog; the model only means something to the
         // family that offers it.
         let launch_model = exported.handoff_target.as_ref().filter(|target| {
-            matches!(target.provider.as_str(), "claude" | "codex")
+            matches!(target.provider.as_str(), "claude" | "codex" | "antigravity")
                 && model_picker_provider(agent.icon.as_deref()) == Some(target.provider.as_str())
         });
         let remote = scope.is_remote();
