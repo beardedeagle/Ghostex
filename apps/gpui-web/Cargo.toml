@@ -57,6 +57,7 @@ web-sys = { version = "0.3", features = [
     "HtmlElement",
     "CssStyleDeclaration",
     "Crypto",
+    "Navigator",
     "Window",
 ] }
 

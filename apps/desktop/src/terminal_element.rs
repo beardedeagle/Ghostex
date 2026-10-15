@@ -1515,14 +1515,21 @@ impl TerminalView {
             return;
         }
 
+        if let Some(input) = terminal_line_editing_input(keystroke) {
+            let _ = self.model.write_input(input);
+            self.after_send_input(cx);
+            cx.stop_propagation();
+            return;
+        }
+
         /*
         CDXC:Terminal 2026-07-12:
         The composited libghostty-vt path owns terminal encoding but not the
         embedded surface's AppKit key-equivalent layer. Preserve the managed
-        macOS pane contract here: natural line editing uses Ctrl-A/E, Cmd-G is
-        the rich-editor Ctrl-G chord, and the main editing commands are sent as
-        explicit Super CSI-u sequences before GPUI application bindings can
-        claim them.
+        macOS pane contract here: natural line editing is
+        `terminal_line_editing_input`, Cmd-G is the rich-editor Ctrl-G chord,
+        and the main editing commands are sent as explicit Super CSI-u
+        sequences before GPUI application bindings can claim them.
         */
         if cfg!(target_os = "macos")
             && modifiers.platform
@@ -1532,8 +1539,6 @@ impl TerminalView {
         {
             let managed_editing_input: Option<Vec<u8>> =
                 match (modifiers.shift, keystroke.key.as_str()) {
-                    (false, "left") => Some(b"\x01".to_vec()),
-                    (false, "right") => Some(b"\x05".to_vec()),
                     (false, key @ ("a" | "c" | "s" | "y" | "z")) => key
                         .chars()
                         .next()
@@ -1744,7 +1749,9 @@ impl TerminalView {
         {
             return;
         }
-        if terminal_word_navigation_input(keystroke).is_some() {
+        if terminal_word_navigation_input(keystroke).is_some()
+            || terminal_line_editing_input(keystroke).is_some()
+        {
             return;
         }
         let (key, unshifted_codepoint) = keystroke_vt_key(keystroke);
@@ -4300,7 +4307,7 @@ fn build_row_layout(
 /// Passing these arrows to the encoder instead produces modified-arrow sequences that shell prompts can leave behind as literal D/C characters.
 fn terminal_word_navigation_input(keystroke: &Keystroke) -> Option<&'static [u8]> {
     let modifiers = &keystroke.modifiers;
-    if !cfg!(target_os = "macos")
+    if !terminal_uses_macos_text_editing()
         || !modifiers.alt
         || modifiers.shift
         || modifiers.control
@@ -4314,6 +4321,47 @@ fn terminal_word_navigation_input(keystroke: &Keystroke) -> Option<&'static [u8]
         "right" => Some(b"\x1bf"),
         _ => None,
     }
+}
+
+/// CDXC:Terminal 2026-10-16 DECISION:
+/// The user: "in our ghostty in this app Cmd + Backspace is not deleting whole row while in normal ghostty app it does". Ghostty's macOS default keybinds send Cmd+Left as Ctrl-A, Cmd+Right as Ctrl-E and Cmd+Backspace as Ctrl-U; libghostty-vt only encodes keys and does not apply keybinds, so the pane sends them itself. Ghostty binds none of these on Linux or Windows.
+fn terminal_line_editing_input(keystroke: &Keystroke) -> Option<&'static [u8]> {
+    let modifiers = &keystroke.modifiers;
+    if !terminal_uses_macos_text_editing()
+        || !modifiers.platform
+        || modifiers.shift
+        || modifiers.control
+        || modifiers.alt
+        || modifiers.function
+    {
+        return None;
+    }
+    match keystroke.key.as_str() {
+        "left" => Some(b"\x01"),
+        "right" => Some(b"\x05"),
+        "backspace" => Some(b"\x15"),
+        _ => None,
+    }
+}
+
+/// CDXC:Terminal 2026-10-16 WHY:
+/// Ghostty's natural text editing keybinds are macOS-only. The browser build is compiled for wasm32, so it asks the browser whether the keyboard in use is a Mac's (the same test gpui's web platform uses to map Cmd).
+#[cfg(not(target_arch = "wasm32"))]
+fn terminal_uses_macos_text_editing() -> bool {
+    cfg!(target_os = "macos")
+}
+
+#[cfg(target_arch = "wasm32")]
+fn terminal_uses_macos_text_editing() -> bool {
+    thread_local! {
+        static IS_MAC: bool = web_sys::window().is_some_and(|window| {
+            let navigator = window.navigator();
+            #[allow(deprecated)]
+            let platform = navigator.platform().unwrap_or_default();
+            platform.contains("Mac") || navigator.user_agent().unwrap_or_default().contains("Mac")
+        });
+    }
+    IS_MAC.with(|is_mac| *is_mac)
 }
 
 /// gpui modifiers -> vt modifier bitmask (sides unavailable from gpui).
