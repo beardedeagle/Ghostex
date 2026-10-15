@@ -13,7 +13,7 @@ use gpui::{
 };
 use serde_json::json;
 
-use super::files_list::ROW_STRIP_HEIGHT;
+use super::files_list::{HEADER_TEXT_SIZE, ROW_STRIP_HEIGHT};
 use super::palette::DocsPalette;
 use super::state::{DocsDiskState, DocsFileKind};
 use crate::GhostexGpuiApp;
@@ -239,7 +239,7 @@ impl GhostexGpuiApp {
                 .rounded(px(TITLEBAR_BUTTON_RADIUS))
                 .bg(p.control_hover)
                 .text_color(p.text)
-                .text_size(px(12.0))
+                .text_size(px(HEADER_TEXT_SIZE))
                 .cursor_pointer()
                 .hover(|style| style.bg(p.row_surface))
                 .child(label)
@@ -262,7 +262,7 @@ impl GhostexGpuiApp {
                 .border_b_1()
                 .border_color(p.border)
                 .bg(p.chrome)
-                .text_size(px(12.0))
+                .text_size(px(HEADER_TEXT_SIZE))
                 .text_color(p.muted)
                 .child(
                     div()

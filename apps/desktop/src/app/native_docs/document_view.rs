@@ -12,7 +12,7 @@ use gpui::{
 use gpui_component::input::Editor;
 use gpui_component::scroll::ScrollbarMode;
 
-use super::files_list::{ROW_STRIP_HEIGHT, header_icon, header_tile};
+use super::files_list::{HEADER_TEXT_SIZE, ROW_STRIP_HEIGHT, header_icon, header_tile};
 use super::palette::DocsPalette;
 use super::sidebar::DocsSidebarLayout;
 use super::state::{DocsDocumentLoad, DocsFileKind, DocsMarkdownMode};
@@ -203,7 +203,7 @@ impl GhostexGpuiApp {
                             .overflow_hidden()
                             .whitespace_nowrap()
                             .text_ellipsis_start()
-                            .text_size(px(12.0))
+                            .text_size(px(HEADER_TEXT_SIZE))
                             .font_weight(FontWeight::MEDIUM)
                             .text_color(p.text)
                             // VS Code strikes through a file deleted on disk.
@@ -235,7 +235,7 @@ impl GhostexGpuiApp {
                     .whitespace_nowrap()
                     .items_center()
                     .gap(px(9.0))
-                    .text_size(px(10.5))
+                    .text_size(px(HEADER_TEXT_SIZE))
                     .text_color(p.subtle)
                     .when(review.is_some(), |this| this.child("Agent reply"))
                     .children(review.clone().filter(|title| !title.is_empty()))
