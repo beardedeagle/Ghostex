@@ -477,6 +477,10 @@ pub fn usage() -> String {
             "List this computer's workspaces and their projects, create, rename or delete one, or move a project (by id, name or folder) into one; a workspace is named by id or name",
         ),
         format_help_command(
+            "connectors [status] | sign-in | sign-out | refresh | connect <app> | tools | call <tool> [--args <json>]  (each takes --workspace name|id; sign-in and connect take --no-open)",
+            "A workspace's connectors: sign it in to Composio in your browser, connect one of its apps (gmail, slack…), list the apps and tools its agents get, and run a tool that only reads",
+        ),
+        format_help_command(
             "team join <invite link> [--name n] [--slack-user U…] | status | invite | identity [--slack-user U…] [--linear-user id] | threads <ticket> | ping | leave | deploy [--team-name n] [--project slug] [--convex-team slug] [--dev]  (each takes --workspace name|id)",
             "Connect a Work workspace to its team's Convex project: join with an invite link, or deploy Ghostex's functions with your Convex CLI login",
         ),

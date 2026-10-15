@@ -790,6 +790,17 @@ pub fn endpoint_for(path: &str) -> Option<EndpointDescriptor> {
         */
         "/api/setLinearApiKey" | "/api/readWorkModeStatus" => full_local(path),
         /*
+        CDXC:Connectors 2026-10-15 WHY:
+        A workspace's Composio sign-in is a secret on this computer and its browser sign-in comes back to this computer's listener, so only this computer's clients may read or change connectors.
+        */
+        "/api/readConnectors"
+        | "/api/signInComposio"
+        | "/api/signOutComposio"
+        | "/api/refreshComposio"
+        | "/api/connectComposioApp"
+        | "/api/listComposioTools"
+        | "/api/callComposioTool" => full_local(path),
+        /*
         CDXC:TeamSync 2026-10-09 WHY:
         These hold or use this computer's member token for the team's Convex project, so only this
         computer's clients may call them; a remote sidebar gets its own machine's team data there.

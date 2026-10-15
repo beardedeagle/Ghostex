@@ -295,6 +295,7 @@ pub async fn run_gxserver_foreground(
     session_auto_sleep_sweep::start_session_auto_sleep_sweep(state.clone());
     sidebar_spaces_switch::start_sidebar_spaces_switch_watch(state.clone());
     workspaces_switch::start_workspaces_switch_watch(state.clone());
+    crate::connectors::start_connectors(state.clone());
     bot_sync::start_bot_project_sync(state.clone());
     close_after_done_runtime::start_close_after_done_runtime(state.clone());
     coordinator_runtime::start_coordinator_runtime(state.clone());

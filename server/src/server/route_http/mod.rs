@@ -4,6 +4,7 @@ use super::*;
 
 mod agents;
 mod chat;
+mod connectors;
 mod control;
 mod dispatch;
 mod git;
@@ -23,6 +24,7 @@ mod work_tracker;
 
 use agents::route_agents_http;
 use chat::route_chat_http;
+use connectors::route_connectors_http;
 use control::route_control_http;
 pub(in crate::server) use dispatch::route_http;
 use dispatch::RouteHttpRequest;

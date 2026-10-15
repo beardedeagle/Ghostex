@@ -5,6 +5,7 @@ pub mod agent_sync;
 mod agent_cli;
 mod agentbox_cli;
 mod agents;
+mod connectors;
 mod coordinator;
 pub mod args;
 pub mod attach;
@@ -278,6 +279,7 @@ fn is_known_command(name: &str) -> bool {
         "park-session",
         "work-mode",
         "workspace",
+        "connectors",
         "team",
         "slack",
         "link-session",
@@ -658,6 +660,7 @@ fn run_command(name: &str, args: &[String]) -> CliResult<()> {
             require_built_in(ghostex_settings_catalog::built_in_extensions::WORKSPACES)?;
             workspace::workspace_command(args)
         }
+        "connectors" => connectors::connectors_command(args),
         "team" => {
             require_built_in(ghostex_settings_catalog::built_in_extensions::WORKSPACES)?;
             team::team_command(args)

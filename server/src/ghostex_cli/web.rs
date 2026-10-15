@@ -148,24 +148,24 @@ async fn handle_request(State(state): State<Arc<WebState>>, request: Request<Bod
 }
 
 #[cfg(target_os = "macos")]
-fn browser_open_command() -> CliResult<Command> {
+pub(super) fn browser_open_command() -> CliResult<Command> {
     Ok(Command::new("open"))
 }
 
 #[cfg(target_os = "linux")]
-fn browser_open_command() -> CliResult<Command> {
+pub(super) fn browser_open_command() -> CliResult<Command> {
     Ok(Command::new("xdg-open"))
 }
 
 #[cfg(target_os = "windows")]
-fn browser_open_command() -> CliResult<Command> {
+pub(super) fn browser_open_command() -> CliResult<Command> {
     let mut command = Command::new("rundll32.exe");
     command.arg("url.dll,FileProtocolHandler");
     Ok(command)
 }
 
 #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
-fn browser_open_command() -> CliResult<Command> {
+pub(super) fn browser_open_command() -> CliResult<Command> {
     Err(CliError::Other(
         "Browser opening is unsupported on this platform. Use --no-open.".into(),
     ))

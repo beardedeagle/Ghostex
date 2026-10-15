@@ -2903,6 +2903,20 @@ backend: `ghostex team deploy|join|invite|identity|status|ping|leave`. Slack:
   Tools Ghostex installed get Update (or a check mark to check again),
   Reinstall and Uninstall buttons, and installing an agent that needs npm
   installs Node.js first on its own.
+- Connectors link a workspace to your apps (Gmail, Google Calendar, Slack,
+  Notion, GitHub, Linear, Outlook and many more) through Composio. Sign the
+  workspace in to Composio once with `ghostex connectors sign-in` (it opens
+  your browser), then connect each app with `ghostex connectors connect
+  <app>`, for example `gmail`. Each workspace has its own Composio sign-in
+  and its own connected apps, so work apps stay in your Work workspace; while
+  Workspaces is off, everything belongs to Personal. The sign-in stays on this
+  computer, sealed with a key kept in the system keychain. `ghostex connectors
+  status` shows every workspace's sign-in and apps, `ghostex connectors tools`
+  lists the Composio tools, and `ghostex connectors call <tool> --args
+  '<json>'` runs a tool that only reads, such as `GMAIL_FETCH_EMAILS`;
+  anything that would send, post, create, edit or delete is refused.
+  `ghostex connectors sign-out` removes a workspace's sign-in. Every command
+  takes `--workspace <name>`.
 - The header's ⋯ menu holds Ask Ghostex, Tips & Tricks, Resources, Dev
   servers, Extensions and Customize. Each of the first five opens a panel
   under the ⋯ button that closes when you click away. Ask Ghostex, Tips &
