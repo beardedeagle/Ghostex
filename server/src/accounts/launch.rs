@@ -187,34 +187,53 @@ pub(crate) fn launch_command(
     account: &SavedAccount,
 ) -> Result<String, DomainStateError> {
     let command = command(home, account)?;
-    if account.provider == Provider::Claude {
-        if let Some(refusal) = helpers::executable(home, account.provider.helper())
-            .and_then(|executable| share_history_refusal(&executable))
-        {
-            return Err(DomainStateError::bad_request(refusal));
-        }
+    if account.provider != Provider::Claude {
+        return Ok(command);
     }
-    Ok(command)
+    let support = helpers::executable(home, account.provider.helper())
+        .and_then(|executable| share_history_support(&executable));
+    let refusal = match support {
+        None | Some(ShareHistory::Supported) => return Ok(command),
+        // CDXC:AgentProviders 2026-10-16 DECISION in claude_swap_windows.rs: Windows gets Ghostex's own build, which shares history.
+        Some(_) if super::claude_swap_windows::applies() => {
+            match super::helper_tools::install_windows_build_in_background(home) {
+                Ok(()) => "Claude Swap on this computer can't share conversation history on Windows, so Ghostex is installing its own Windows build of Claude Swap now (Settings > Accounts shows the progress). Start the session again in a minute.".to_string(),
+                Err(reason) => format!("Claude Swap on this computer can't share conversation history on Windows, so this account's conversations would never reach the chat. {reason}"),
+            }
+        }
+        Some(_) => "Claude Swap on this computer is too old to share conversation history between accounts. Update it in Settings > Accounts, then try again.".to_string(),
+    };
+    Err(DomainStateError::bad_request(refusal))
 }
 
-/// The refusal `cswap run --help` led to, per executable and modification time, so an update is read again.
+/// Whether a cswap can start an account with `--share-history` here, from its `run --help`.
+#[derive(Clone, Copy)]
+enum ShareHistory {
+    Supported,
+    /// The flag does not exist (before 0.16.0).
+    Missing,
+    /// Every released cswap refuses the flag on Windows.
+    RefusedOnWindows,
+}
+
+/// What `cswap run --help` said, per executable and modification time, so an update is read again.
 type ShareHistoryReadings =
-    std::collections::HashMap<PathBuf, (std::time::SystemTime, Option<String>)>;
+    std::collections::HashMap<PathBuf, (std::time::SystemTime, ShareHistory)>;
 static SHARE_HISTORY_HELP: std::sync::LazyLock<std::sync::Mutex<ShareHistoryReadings>> =
     std::sync::LazyLock::new(Default::default);
 
 /// CDXC:AgentProviders 2026-10-16 WHY:
-/// Ghostex starts every Claude account as `cswap run <N> --share-history`, and without the flag the account's conversations fork into its own profile where the chat never looks, so the flag is never dropped. No released Claude Swap (0.16.0, which added the flag, through 0.27.2) runs it on Windows: `cswap run` printed "--share-history is not supported on Windows yet", PowerShell stayed open, and a customer's chat sat at "starting" with "hello" queued for good (2026-10-16). Windows support is pending upstream (realiti4/claude-swap PR #429, junctions and hard links), and a cswap built from it keeps the version number of the release it forked from, so the version cannot tell. cswap's own `run --help` can: every refusing release ends the flag's help with "Not supported on Windows.", and the PR removes that sentence. A cswap that says so on Windows, or that has no `--share-history` at all, is refused here before anything is launched.
-fn share_history_refusal(executable: &Path) -> Option<String> {
+/// Ghostex starts every Claude account as `cswap run <N> --share-history`, and without the flag the account's conversations fork into its own profile where the chat never looks, so the flag is never dropped. No released Claude Swap (0.16.0, which added the flag, through 0.27.2) runs it on Windows: `cswap run` printed "--share-history is not supported on Windows yet", PowerShell stayed open, and a customer's chat sat at "starting" with "hello" queued for good (2026-10-16). Ghostex's Windows build (claude_swap_windows.rs) and any cswap built from realiti4/claude-swap#429 can, and the version number cannot tell them apart, but cswap's own `run --help` can: every refusing release ends the flag's help with "Not supported on Windows.", and the PR removes that sentence. `None` when the help could not be read, which refuses nothing.
+fn share_history_support(executable: &Path) -> Option<ShareHistory> {
     let modified = std::fs::metadata(executable)
         .and_then(|metadata| metadata.modified())
         .ok()?;
     let mut cache = SHARE_HISTORY_HELP
         .lock()
         .unwrap_or_else(|error| error.into_inner());
-    if let Some((at, refusal)) = cache.get(executable) {
+    if let Some((at, support)) = cache.get(executable) {
         if *at == modified {
-            return refusal.clone();
+            return Some(*support);
         }
     }
     let output = crate::platform::process::background_command(executable)
@@ -229,15 +248,15 @@ fn share_history_refusal(executable: &Path) -> Option<String> {
         .split_whitespace()
         .collect::<Vec<_>>()
         .join(" ");
-    let refusal = if !help.contains("--share-history") {
-        Some("Claude Swap on this computer is too old to share conversation history between accounts. Update it in Settings > Accounts, then try again.".to_string())
+    let support = if !help.contains("--share-history") {
+        ShareHistory::Missing
     } else if cfg!(windows) && help.contains("Not supported on Windows") {
-        Some("Claude can't start on a saved account on this computer yet: Claude Swap can't share conversation history on Windows, so this account's conversations would never reach the chat. To use Claude now, remove the Claude accounts in Settings > Accounts and sessions start on your current Claude login.".to_string())
+        ShareHistory::RefusedOnWindows
     } else {
-        None
+        ShareHistory::Supported
     };
-    cache.insert(executable.to_path_buf(), (modified, refusal.clone()));
-    refusal
+    cache.insert(executable.to_path_buf(), (modified, support));
+    Some(support)
 }
 
 pub(crate) fn assign(

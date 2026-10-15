@@ -35,3 +35,8 @@
 [submodule ".dependencies/wmx"]
 	path = .dependencies/wmx
 	url = https://github.com/maddada/wmx.git
+# CDXC:AgentProviders 2026-10-16 DECISION: User: "ship our own fork of claude swap that's just used for windows until this is fixed". Ghostex's Windows build of Claude Swap (upstream release plus realiti4/claude-swap#429, --share-history on Windows) lives on the fork's `ghostex` branch; gxserver installs its release wheel on Windows only (server/src/accounts/claude_swap_windows.rs). Remove this submodule once an upstream release supports --share-history on Windows.
+[submodule ".dependencies/claude-swap"]
+	path = .dependencies/claude-swap
+	url = https://github.com/maddada/claude-swap.git
+	branch = ghostex

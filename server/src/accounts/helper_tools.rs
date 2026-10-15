@@ -2,7 +2,7 @@
 //! Install, installed and latest versions, and Update, Reinstall and Uninstall run here so every
 //! client (desktop, web, a remote computer's Settings) gets the same answer.
 
-use super::{helpers, model::Provider};
+use super::{claude_swap_windows, helpers, model::Provider};
 use crate::{domain::DomainStateError, managed_tools, server::AppState};
 use serde_json::{json, Map, Value};
 use std::{
@@ -59,6 +59,16 @@ enum Work {
     Remove(Vec<PathBuf>),
     /// Ghostex installs uv first, then runs `uv tool install claude-swap`.
     UvInstall,
+    /// Ghostex's Windows build of Claude Swap, checked and installed from its pinned wheel
+    /// (claude_swap_windows.rs) by the tool that owns the install.
+    WindowsBuild(WheelInstaller),
+}
+
+/// What installs the Windows build's wheel: the uv that owns the install (Ghostex installs uv
+/// first when there is none) or pipx.
+enum WheelInstaller {
+    Uv(Option<PathBuf>),
+    Pipx(PathBuf),
 }
 
 /// How the helper on this computer was installed, read from where its executable lives.
@@ -100,6 +110,17 @@ impl InstallMethod {
         };
         match (self, action) {
             (_, Action::Install) => None,
+            // PyPI's release would bring back a cswap that refuses to share history on Windows.
+            (Self::Uv(uv), Action::Update | Action::Reinstall)
+                if claude_swap_windows::applies() =>
+            {
+                Some(Work::WindowsBuild(WheelInstaller::Uv(Some(uv.clone()))))
+            }
+            (Self::Pipx(pipx), Action::Update | Action::Reinstall)
+                if claude_swap_windows::applies() =>
+            {
+                Some(Work::WindowsBuild(WheelInstaller::Pipx(pipx.clone())))
+            }
             (Self::Uv(uv), Action::Update) => Some(Work::Program(
                 uv.clone(),
                 args(&["tool", "upgrade", "claude-swap"]),
@@ -272,6 +293,12 @@ fn windows_installer(xswap: &Path) -> InstallMethod {
 /// How Install sets up the helper on this computer: tooltip text, and why it cannot when so.
 fn install_plan(home: &Path, provider: Provider) -> (String, Option<String>) {
     match provider {
+        Provider::Claude if claude_swap_windows::applies() => (
+            format!("Downloads Ghostex's Windows build of Claude Swap ({}: the current release plus history sharing on Windows) from GitHub, checks its checksum and installs it with uv, which Ghostex installs first when needed. No password needed.", claude_swap_windows::VERSION),
+            managed_tools::platform::arch()
+                .is_none()
+                .then(managed_tools::platform::unsupported_cpu_reason),
+        ),
         Provider::Claude => {
             if helpers::executable(home, "uv").is_some() {
                 ("Runs uv tool install claude-swap; uv downloads the Python it needs. No password needed.".into(), None)
@@ -317,6 +344,9 @@ static LATEST: Mutex<Option<HashMap<&'static str, (Instant, Result<String, Strin
 /// for xswap. Cached for six hours; `fresh` is the Settings "check again" click.
 fn latest_version(provider: Provider, fresh: bool) -> Result<String, String> {
     let key = provider.helper();
+    if provider == Provider::Claude && claude_swap_windows::applies() {
+        return Ok(claude_swap_windows::VERSION.to_string());
+    }
     if !fresh {
         let cache = LATEST.lock().unwrap_or_else(|e| e.into_inner());
         if let Some((at, answer)) = cache.as_ref().and_then(|cache| cache.get(key)) {
@@ -391,6 +421,13 @@ fn tool_view(home: &Path, provider: Provider, fresh: bool) -> Value {
     let version = (!running).then(|| installed_version(&executable)).flatten();
     let latest = latest_version(provider, fresh);
     let update_available = match (&version, &latest) {
+        // Any other version than Ghostex's Windows build (PyPI's, which refuses to share history
+        // there) is one to replace; `newer` reads only the numbers before `.post1+ghostex`.
+        (Some(current), Ok(latest))
+            if provider == Provider::Claude && claude_swap_windows::applies() =>
+        {
+            Some(current != latest)
+        }
         (Some(current), Ok(latest)) => Some(managed_tools::tools::newer(latest, current)),
         _ => None,
     };
@@ -461,6 +498,9 @@ pub(crate) fn dispatch(
                         return Err(DomainStateError::bad_request(reason));
                     }
                     match provider {
+                        Provider::Claude if claude_swap_windows::applies() => {
+                            Work::WindowsBuild(WheelInstaller::Uv(None))
+                        }
                         Provider::Claude => Work::UvInstall,
                         Provider::Codex if cfg!(windows) => Work::Script(
                             format!("irm {CODEX_SWAP_INSTALL_PS1} | iex"),
@@ -481,25 +521,67 @@ pub(crate) fn dispatch(
                         )
                     })?,
             };
-            let key = job_key(provider);
-            managed_tools::jobs::begin(&key, action.id()).map_err(DomainStateError::bad_request)?;
-            let job_home = home.clone();
-            tokio::runtime::Handle::current().spawn(async move {
-                let _turn = managed_tools::INSTALL_LOCK.lock().await;
-                managed_tools::jobs::set_status(&key, "running");
-                let log = managed_tools::jobs::log_for(&key);
-                let result = run_work(work, provider, &job_home, &log).await;
-                if let Err(error) = &result {
-                    log.line(error);
-                }
-                managed_tools::jobs::finish(&key, &result);
-            });
+            start_job(
+                &tokio::runtime::Handle::current(),
+                &home,
+                provider,
+                action,
+                work,
+            )
+            .map_err(DomainStateError::bad_request)?;
             Ok(response(&home, false))
         }
         _ => Err(DomainStateError::bad_request(
             "Unknown account helper operation.",
         )),
     }
+}
+
+fn start_job(
+    runtime: &tokio::runtime::Handle,
+    home: &Path,
+    provider: Provider,
+    action: Action,
+    work: Work,
+) -> Result<(), String> {
+    let key = job_key(provider);
+    managed_tools::jobs::begin(&key, action.id())?;
+    let job_home = home.to_path_buf();
+    runtime.spawn(async move {
+        let _turn = managed_tools::INSTALL_LOCK.lock().await;
+        managed_tools::jobs::set_status(&key, "running");
+        let log = managed_tools::jobs::log_for(&key);
+        let result = run_work(work, provider, &job_home, &log).await;
+        if let Err(error) = &result {
+            log.line(error);
+        }
+        managed_tools::jobs::finish(&key, &result);
+    });
+    Ok(())
+}
+
+/// Replaces a Windows cswap that refuses to share history with Ghostex's Windows build, in the
+/// background, as the Update button in Settings > Accounts would (`Ok` while one already runs).
+/// `Err` says why Ghostex cannot place it.
+pub(super) fn install_windows_build_in_background(home: &Path) -> Result<(), String> {
+    let work = match helpers::executable(home, Provider::Claude.helper()) {
+        None => Work::WindowsBuild(WheelInstaller::Uv(None)),
+        Some(executable) => install_method(home, Provider::Claude, &executable)
+            .work(Action::Update)
+            .filter(|work| matches!(work, Work::WindowsBuild(_)))
+            .ok_or_else(|| {
+                format!(
+                    "Ghostex can't replace the Claude Swap at {}. Uninstall it with the tool you installed it with, then click Install next to Claude Swap in Settings > Accounts.",
+                    executable.display()
+                )
+            })?,
+    };
+    let runtime = tokio::runtime::Handle::try_current()
+        .map_err(|_| "Ghostex could not start the install. Click Update next to Claude Swap in Settings > Accounts.".to_string())?;
+    if managed_tools::jobs::get(&job_key(Provider::Claude)).is_some_and(|job| job.active()) {
+        return Ok(());
+    }
+    start_job(&runtime, home, Provider::Claude, Action::Update, work)
 }
 
 async fn run_work(
@@ -509,8 +591,10 @@ async fn run_work(
     log: &managed_tools::Log,
 ) -> Result<(), String> {
     let timeout = Duration::from_secs(20 * 60);
-    let installs_into_local_bin = matches!(&work, Work::UvInstall)
-        || matches!(&work, Work::Script(script, env) if script.contains("install.sh") && !env.contains_key("XSWAP_INSTALL_DIR"));
+    let installs_into_local_bin = matches!(
+        &work,
+        Work::UvInstall | Work::WindowsBuild(WheelInstaller::Uv(_))
+    ) || matches!(&work, Work::Script(script, env) if script.contains("install.sh") && !env.contains_key("XSWAP_INSTALL_DIR"));
     match work {
         Work::UvInstall => {
             let uv = managed_tools::ensure_uv(home, log).await?;
@@ -524,6 +608,27 @@ async fn run_work(
                     &owned_log,
                     timeout,
                 )
+            })
+            .await
+            .map_err(|error| error.to_string())??;
+        }
+        Work::WindowsBuild(installer) => {
+            let (program, uv) = match installer {
+                WheelInstaller::Uv(Some(uv)) => (uv, true),
+                WheelInstaller::Uv(None) => (managed_tools::ensure_uv(home, log).await?, true),
+                WheelInstaller::Pipx(pipx) => (pipx, false),
+            };
+            let owned_log = log.clone();
+            tokio::task::spawn_blocking(move || {
+                let wheel = claude_swap_windows::wheel(&owned_log)?;
+                let wheel = wheel.to_string_lossy().into_owned();
+                // `--force` replaces a cswap installed from PyPI under the same name.
+                let args: Vec<&str> = if uv {
+                    vec!["tool", "install", "--force", &wheel]
+                } else {
+                    vec!["install", "--force", &wheel]
+                };
+                managed_tools::run::run(&program, &args, &[], &[], &owned_log, timeout)
             })
             .await
             .map_err(|error| error.to_string())??;

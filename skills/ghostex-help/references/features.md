@@ -1589,11 +1589,10 @@ conversations. Ghostex runs the update with the tool that installed the helper
 (uv or pipx for cswap; Homebrew, Cargo or the Windows installer for xswap); for
 a helper installed some other way the buttons are off, so update it the way you
 installed it.
-On Windows, Claude accounts need a Claude Swap that can share conversation
-history on Windows, and no released Claude Swap can yet. Until one does, starting
-or switching a Claude session on a saved account says so instead of starting;
-remove the Claude accounts in Settings > Accounts and Claude sessions start on
-your current Claude login.
+On Windows, Ghostex installs its own build of Claude Swap, because the released
+one can't share conversation history between accounts there yet. Install and
+Update in Settings > Accounts use it, and if a session finds the released Claude
+Swap, Ghostex replaces it on its own; start the session again once it finishes.
 Before sending a session's first message, use the model menu's Switch Agent CLI
 to change between Claude and Codex. The new agent uses its New sessions start
 on rule, just like the sidebar agent button, while the terminal and your

@@ -1,6 +1,7 @@
 pub(crate) mod api_errors;
 pub(crate) mod claude_background;
 pub(crate) mod claude_resets;
+pub(crate) mod claude_swap_windows;
 mod cli;
 mod codex_blockers;
 pub(crate) mod continuation;
