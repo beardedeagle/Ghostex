@@ -70,7 +70,7 @@ pub(crate) const WORKAREA_VIEW_TAB_HEIGHT: f32 = 26.0;
 /// The work area header's session title size, which the view tab labels and the Files view's
 /// header and disk notice text follow.
 ///
-/// CDXC:Docs 2026-10-16 DECISION: User: "are all these same font size? pls make them all match "Main Coordinator" font size if not" (after "make the font size here match the font size of the buttons pls"). The breadcrumb's session title, every view tab label, the Files header's path and its Edited/Saved/Deleted marks, and the disk notice's sentence and buttons all use this one size. Supersedes the same-day 12px Files header size.
+/// CDXC:Docs 2026-10-16 DECISION: User: "are all these same font size? pls make them all match "Main Coordinator" font size if not" (after "make the font size here match the font size of the buttons pls"). The breadcrumb's session title, every view tab label, the Files header's path and its Edited/Saved/Deleted marks, and every Files notice (the disk notice row over the file, and the messages shown in place of a file: Select a file, Loading file, a load error, opens in its own app, open as code) with their buttons all use this one size. Then: "please match the font size of the notice for file was editor and other notices that appear above the file content to chat title". Supersedes the same-day 12px Files header size.
 pub(crate) const WORKAREA_HEADER_TITLE_TEXT_SIZE: f32 = 13.5;
 
 pub(crate) const WORKAREA_VIEW_TAB_RADIUS: f32 = 7.0;
