@@ -2339,6 +2339,8 @@ sessions, so any client can control agents on any machine.
   Localhost links in chat, terminals, and browser
   actions open in Web Preview through the connected computer, including their
   path and query, instead of the phone's external browser.
+  To paste into a session's terminal on the phone, press and hold the terminal
+  and choose Paste (Copy is there too when text is selected).
   To read a project's docs on the phone, long-press the project and choose
   Docs, or choose Docs from a session's ⋯ menu. It lists the project's Markdown
   and HTML files from the same folders the desktop Files view shows, with search
