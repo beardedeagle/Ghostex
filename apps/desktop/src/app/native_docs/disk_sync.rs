@@ -13,9 +13,11 @@ use gpui::{
 };
 use serde_json::json;
 
+use super::files_list::ROW_STRIP_HEIGHT;
 use super::palette::DocsPalette;
 use super::state::{DocsDiskState, DocsFileKind};
 use crate::GhostexGpuiApp;
+use crate::app::consts::{TITLEBAR_BUTTON_RADIUS, TITLEBAR_CONTROL_HEIGHT};
 
 impl GhostexGpuiApp {
     /// The watch saw the file missing on disk.
@@ -196,6 +198,8 @@ impl GhostexGpuiApp {
 
     /// The row under the header while the open file is in conflict with the disk or deleted from
     /// it: what happened, and the ways out.
+    ///
+    /// CDXC:Docs 2026-10-16 DECISION: User: "make height as big as these pls" (the header's wrap and panel buttons) about the notice's "too small" buttons. The row is as tall as the header row and its buttons as tall as the header's tiles, from the same constants, so the gaps above and below match the header's.
     pub(crate) fn render_native_docs_disk_notice(
         &mut self,
         p: &DocsPalette,
@@ -227,13 +231,15 @@ impl GhostexGpuiApp {
             let path = path.clone();
             div()
                 .id(SharedString::from(format!("docs-disk-{label}")))
+                .flex()
                 .flex_none()
-                .px(px(8.0))
-                .py(px(2.0))
-                .rounded(px(4.0))
+                .items_center()
+                .h(px(TITLEBAR_CONTROL_HEIGHT))
+                .px(px(10.0))
+                .rounded(px(TITLEBAR_BUTTON_RADIUS))
                 .bg(p.control_hover)
                 .text_color(p.text)
-                .text_size(px(11.0))
+                .text_size(px(12.0))
                 .cursor_pointer()
                 .hover(|style| style.bg(p.row_surface))
                 .child(label)
@@ -251,9 +257,8 @@ impl GhostexGpuiApp {
                 .flex_none()
                 .items_center()
                 .gap(px(6.0))
-                .min_h(px(30.0))
+                .h(px(ROW_STRIP_HEIGHT))
                 .px(px(13.0))
-                .py(px(4.0))
                 .border_b_1()
                 .border_color(p.border)
                 .bg(p.chrome)
