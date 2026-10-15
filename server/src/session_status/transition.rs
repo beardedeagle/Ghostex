@@ -81,6 +81,26 @@ pub(super) fn apply_agent_activity_transition(input: ActivityInput) -> ActivityS
     );
     let title_transition = resolve_title_transition(&input, &previous, title_signal.as_ref());
 
+    /*
+    CDXC:SessionStatus 2026-10-16 WHY:
+    For agents whose titles carry no status, a title event cannot end an attention. Run through the rules below it fell to the closing idle: ZCode 3.15 repaints its spinner title every 120ms while it waits at its permission picker, so the attention its PermissionRequest hook set lasted half a second (observed live 2026-10-16, throwaway G2jmr). Their hooks end it. Other states keep the rules below, which settle a turn interrupted with Escape on the next title.
+    */
+    if input.event.as_deref() == Some("title")
+        && !has_explicit_activity
+        && previous.activity == "attention"
+        && title_signal.is_none()
+        && titles_carry_no_status(
+            normalize_status_agent_name(input.agent_id.as_deref())
+                .or_else(|| previous.agent_name.clone())
+                .as_deref(),
+        )
+    {
+        let mut next = previous.clone();
+        next.last_title = title_transition.last_title;
+        next.last_title_change_at = title_transition.last_title_change_at;
+        return next;
+    }
+
     if input.event.as_deref() == Some("title")
         && !has_explicit_activity
         && previous.activity == "working"

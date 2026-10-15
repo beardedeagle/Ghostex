@@ -24,7 +24,11 @@ pub(super) fn classify_terminal_title_status(
             CDXC:AgentScreenDetection 2026-10-06 WHY:
             Empryo titles its terminal "<tab> · working — Empryo (beta)". The middle dot is one of Claude Code's spinner frames, so the scan for unrecognised agents read every Empryo title as Claude's and the next title tick idled the turn Empryo's hooks had just started (observed live 2026-10-06, session G8p0d). Empryo's status comes from its hooks alone, so its titles carry no status signal.
             */
-            "opencode" | "empryo" => None,
+            /*
+            CDXC:AgentScreenDetection 2026-10-16 WHY:
+            ZCode 3.15 titles its terminal "ZC | ⠋ <activity>" for as long as a submission is active, including while it waits at its permission picker, so the spinner cannot tell working from waiting on the user. Unrecognised, the title fell through to the other agents' spinner scans, which claimed it for another agent; the attention a PermissionRequest hook had set turned into that agent's working, and the identity check then dropped the record as the wrong agent's, leaving the session idle while ZCode waited for an answer (observed live 2026-10-16, throwaway G0n25). ZCode's hooks report working, attention and finished turns, so its titles carry no status signal.
+            */
+            "opencode" | "empryo" | "zcode" => None,
             _ => None,
         };
         return state.map(|state| signal(agent_name, state));
@@ -54,6 +58,11 @@ pub(super) fn classify_terminal_title_status(
         return Some(signal("copilot", state));
     }
     None
+}
+
+/// Agents whose terminal titles say nothing about their activity; their hooks own it.
+pub(super) fn titles_carry_no_status(agent_name: Option<&str>) -> bool {
+    matches!(agent_name, Some("opencode" | "empryo" | "zcode"))
 }
 
 pub(super) fn signal(agent_name: &str, state: &str) -> TitleStatusSignal {
@@ -88,6 +97,7 @@ pub(super) fn normalize_status_agent_name(value: Option<&str>) -> Option<String>
             | "opencode"
             | "empryo"
             | "pi"
+            | "zcode"
     )
     .then(|| mapped.to_string())
 }
