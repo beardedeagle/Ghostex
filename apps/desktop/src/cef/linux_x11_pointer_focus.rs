@@ -41,14 +41,21 @@ pub(super) fn install(cx: &gpui::App) {
         .spawn(async move {
             while let Some((owner, child, time)) = rx.next().await {
                 let native_view = owner as usize as *mut c_void;
-                if super::super::shell::cef_native_view_is_hidden(native_view)
-                    || embed_host_for_cef_window(owner).is_none()
-                {
+                if super::super::shell::cef_native_view_is_hidden(native_view) {
                     continue;
                 }
+                let Some(host) = embed_host_for_cef_window(owner) else {
+                    continue;
+                };
                 // A click in a page never reaches GPUI's own mouse-down, so it clicks away from
-                // open popups here (popup_dismissal.rs).
-                app.update(crate::app::window::popup_dismissal::note_main_window_pointer_press);
+                // open popups here (popup_dismissal.rs), except from the window the page is in.
+                if let Some(window) = gpui_window_of_embed_host(host) {
+                    app.update(|cx| {
+                        crate::app::window::popup_dismissal::note_main_window_pointer_press(
+                            window, cx,
+                        )
+                    });
+                }
                 let (connection, _) = x11_connection();
                 let _ = connection.set_input_focus(InputFocus::PARENT, child, time);
                 let _ = connection.flush();
@@ -59,6 +66,13 @@ pub(super) fn install(cx: &gpui::App) {
             }
         })
         .detach();
+}
+
+/// The GPUI window an embed host was created in (its X11 parent).
+fn gpui_window_of_embed_host(host: X11Window) -> Option<gpui::WindowId> {
+    let (connection, _) = x11_connection();
+    let parent = connection.query_tree(host).ok()?.reply().ok()?.parent;
+    super::super::shell::gpui_window_of_native_parent(parent as usize)
 }
 
 pub(super) fn observe(owner: X11Window) {

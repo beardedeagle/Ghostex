@@ -7,10 +7,14 @@
 //! On Linux the window manager can move keyboard focus without a click: Hyprland (Omarchy's default) and other focus-follows-mouse setups focus the main window as soon as the pointer crosses onto it, so every popup that closed on focus loss closed when the mouse moved (Cmd+N's picker, the Saved Prompts Quick Access from a right-click, the chat's model menu, which flashed and vanished because the pointer is still over its trigger). Taking focus back fights the window manager on every pointer motion. So on Linux a focus loss dismisses a popup only once no Ghostex window holds focus (focus left the app), and a press in the main window after the popup opened is the click-away. macOS and Windows focus only on a click, so their focus loss stays the dismissal.
 use gpui::{Context, Subscription, Window};
 
-/// The latest pointer press in the main window, which Linux popups close on.
+/// The latest pointer press in a Ghostex window (the main window, or a page shown in any window),
+/// which Linux popups close on, and the window it landed in.
 #[cfg(target_os = "linux")]
 #[derive(Clone, Copy)]
-struct MainWindowPointerPress(std::time::Instant);
+struct MainWindowPointerPress {
+    at: std::time::Instant,
+    window: gpui::WindowId,
+}
 
 #[cfg(target_os = "linux")]
 impl gpui::Global for MainWindowPointerPress {}
@@ -20,12 +24,16 @@ impl gpui::Global for MainWindowPointerPress {}
 #[cfg(target_os = "linux")]
 const FOCUS_SETTLE: std::time::Duration = std::time::Duration::from_millis(120);
 
-/// Records a pointer press in the main window, closing the popups open before it (Linux).
-pub(crate) fn note_main_window_pointer_press(cx: &mut gpui::App) {
+/// Records a pointer press in `window`, closing the popups open before it except the one it landed
+/// in (Linux).
+pub(crate) fn note_main_window_pointer_press(window: gpui::WindowId, cx: &mut gpui::App) {
     #[cfg(target_os = "linux")]
-    cx.set_global(MainWindowPointerPress(std::time::Instant::now()));
+    cx.set_global(MainWindowPointerPress {
+        at: std::time::Instant::now(),
+        window,
+    });
     #[cfg(not(target_os = "linux"))]
-    let _ = cx;
+    let _ = (window, cx);
 }
 
 /// Call when a popup that closes on click-away has lost focus. Runs `dismiss` now, except on
@@ -55,6 +63,9 @@ pub(crate) fn dismiss_on_focus_loss<T: 'static>(
 
 /// Runs `dismiss` when the main window is pressed after this popup opened. Only Linux needs it:
 /// elsewhere that press takes focus from the popup and `dismiss_on_focus_loss` covers it.
+///
+/// CDXC:AppModal 2026-10-16 WHY:
+/// A click in a web page is reported from Chromium's own X11 child (cef/linux_x11_pointer_focus.rs), whichever window the page is in. When that counted as a main-window press, a click on any button of a page in the floating page window (or an extension modal's page) closed that very window on Linux (reported on KDE). A press is a click away only from the popups in other windows.
 pub(crate) fn observe_main_window_press<T: 'static>(
     window: &mut Window,
     cx: &mut Context<T>,
@@ -63,8 +74,10 @@ pub(crate) fn observe_main_window_press<T: 'static>(
     #[cfg(target_os = "linux")]
     {
         let opened_at = std::time::Instant::now();
+        let own_window = window.window_handle().window_id();
         cx.observe_global_in::<MainWindowPointerPress>(window, move |this, window, cx| {
-            if cx.global::<MainWindowPointerPress>().0 > opened_at {
+            let press = *cx.global::<MainWindowPointerPress>();
+            if press.at > opened_at && press.window != own_window {
                 dismiss(this, window, cx);
             }
         })

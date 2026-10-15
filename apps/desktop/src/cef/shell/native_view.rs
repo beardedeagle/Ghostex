@@ -42,6 +42,17 @@ pub(crate) fn note_gpui_window_native_parent(window_id: gpui::WindowId, native_v
     });
 }
 
+/// The GPUI window whose X11 window is `native_parent` (the parent CEF children were placed on).
+#[cfg(target_os = "linux")]
+pub(crate) fn gpui_window_of_native_parent(native_parent: usize) -> Option<gpui::WindowId> {
+    NATIVE_PARENT_BY_GPUI_WINDOW.with(|parents| {
+        parents
+            .borrow()
+            .iter()
+            .find_map(|(window, parent)| (*parent == native_parent).then_some(*window))
+    })
+}
+
 /// CDXC:CefRuntime 2026-09-30 WHY:
 /// GPUI destroys a removed window's X11 window (and with it every embed host and Chromium child inside it) before it releases the window's entities, so `CefBrowser::drop` detaches the embed host too late: opening Settings on Linux dropped the React modal window while Chromium's GPU process was still creating that page's surface, and ANGLE's WindowSurfaceGLX crashed on the vanished window. GPUI's `on_window_closed` observers run while the X11 window still exists, so the embed hosts leave it there and the browser then closes through the same path as a browser dropped from a live window.
 #[cfg(target_os = "linux")]
