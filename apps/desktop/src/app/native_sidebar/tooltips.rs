@@ -80,7 +80,8 @@ fn sidebar_tooltip_sized(
     // and the host's bubble corners (see app/window/frosted_host.rs).
     let frosted = window_glass_active_in(window)
         && crate::app::window::frosted_host::frosted_hosting_active();
-    // Dark mode darkens it and fills more of the blur (`tooltip_background`, CDXC:Tooltips 2026-09-30).
+    // Without glass dark mode darkens it (`tooltip_background`); under glass it is the frosted
+    // menus' material (CDXC:Tooltips 2026-10-15).
     let background = if frosted {
         crate::app::helpers::frosted_tooltip_fill(menu)
     } else if window_glass_active_in(window) {

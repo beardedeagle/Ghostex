@@ -673,7 +673,10 @@ fn frosted_lift(color: Hsla) -> Hsla {
 }
 
 /// CDXC:Tooltips 2026-09-30 DECISION:
-/// User: "make tooltips always have darker color in dark mode pls", "even if transparency enabled they should have dimmed bg". In dark mode a tooltip takes the menu colour darkened toward black (`TOOLTIP_DARKEN_DARK`), and under glass that colour covers most of the tooltip's blur (`FROSTED_TOOLTIP_ALPHA_DARK`) without the menus' lift toward white, so a tinted wallpaper no longer shows through as a coloured bubble. Light mode keeps the menus' colour and fill. Supersedes the 2026-09-25 frosted menu fill for dark-mode tooltips.
+/// User: "make tooltips always have darker color in dark mode pls". Without window glass a dark-mode tooltip takes the menu colour darkened toward black (`TOOLTIP_DARKEN_DARK`), the solid dark surface; light mode keeps the menus' colour.
+///
+/// CDXC:Tooltips 2026-10-15 DECISION:
+/// User picked "mini menu + frosted glass (when transparency enabled)": under window glass a tooltip is the frosted menus' material (`frosted_tooltip_fill`, the same fill and blur as the frosted menus), replacing the 2026-09-30 "even if transparency enabled they should have dimmed bg" (a darkened fill covering 90% of the blur in dark mode).
 pub(crate) fn tooltip_background(menu: Hsla) -> Hsla {
     if CHROME_LIGHT_APPEARANCE.load(Ordering::Relaxed) {
         menu
@@ -685,27 +688,14 @@ pub(crate) fn tooltip_background(menu: Hsla) -> Hsla {
 /// How far a dark-mode tooltip's colour moves from the menu colour toward black.
 const TOOLTIP_DARKEN_DARK: f32 = 0.55;
 
-/// Fill coverage of a dark-mode tooltip under glass on macOS and Windows.
-const FROSTED_TOOLTIP_ALPHA_DARK: f32 = 0.9;
-
-/// How much of a frosted tooltip its fill covers: the menus' coverage in light mode, most of the
-/// blur in dark mode (see `tooltip_background`).
+/// How much of a frosted tooltip its fill covers: the frosted menus' coverage.
 pub(crate) fn frosted_tooltip_alpha() -> f32 {
-    if cfg!(target_os = "linux") || CHROME_LIGHT_APPEARANCE.load(Ordering::Relaxed) {
-        frosted_menu_alpha()
-    } else {
-        FROSTED_TOOLTIP_ALPHA_DARK
-    }
+    frosted_menu_alpha()
 }
 
-/// The fill of a frosted tooltip under glass: `tooltip_background` at `frosted_tooltip_alpha`,
-/// lifted toward white only in light mode, like the menus.
+/// The fill of a frosted tooltip under glass: the frosted menus' fill (CDXC:Tooltips 2026-10-15).
 pub(crate) fn frosted_tooltip_fill(menu: Hsla) -> Hsla {
-    if CHROME_LIGHT_APPEARANCE.load(Ordering::Relaxed) {
-        frosted_menu_fill(menu)
-    } else {
-        tooltip_background(menu).opacity(frosted_tooltip_alpha())
-    }
+    frosted_menu_fill(menu)
 }
 
 /// How much of a frosted menu or tooltip its fill covers: little in dark mode, where the menu's

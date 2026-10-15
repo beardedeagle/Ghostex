@@ -82,22 +82,32 @@ impl NativeChatView {
         };
         let blocked = !stop && self.snapshot["sendBlockedReason"].is_string();
         // As React's Send label did: the gesture hints appear only while the draft can queue.
-        let label: gpui::SharedString = if stop {
-            "Stop the agent".into()
+        // The tooltip is a mini menu: one row per gesture, its keys on the right (CDXC:Tooltips 2026-10-15).
+        use gpui_component::tooltip::TooltipRow;
+        let chord = crate::hotkey_label::terminal_overlay_hotkey_chord_label;
+        let (label, keys, rows): (gpui::SharedString, String, Vec<TooltipRow>) = if stop {
+            ("Stop the agent".into(), String::new(), Vec::new())
         } else if has_draft && self.snapshot["working"] == true {
-            format!(
-                "Send ({} interrupts the agent and sends now, right-click for more)",
-                crate::hotkey_label::terminal_overlay_hotkey_chord_label("ctrl+enter")
+            (
+                "Send".into(),
+                chord("enter"),
+                vec![
+                    TooltipRow::new("Interrupt and send now").keys(chord("ctrl+enter")),
+                    TooltipRow::new("More options").hint("Right-click"),
+                ],
             )
-            .into()
         } else if has_draft && self.snapshot["queue"]["capabilities"]["canQueue"] == true {
-            format!(
-                "Send (hold to queue, {}-click or right-click for Compact & Send)",
-                crate::hotkey_label::terminal_overlay_hotkey_chord_label("alt")
+            (
+                "Send".into(),
+                chord("enter"),
+                vec![
+                    TooltipRow::new("Queue").hint("Hold"),
+                    TooltipRow::new("Compact & Send")
+                        .hint(format!("{}-click or right-click", chord("alt"))),
+                ],
             )
-            .into()
         } else {
-            "Send".into()
+            ("Send".into(), chord("enter"), Vec::new())
         };
         let fill = gpui::rgb(if stop {
             if p.light { 0xf6b5b5 } else { 0x171717 }
@@ -126,7 +136,10 @@ impl NativeChatView {
             .bg(fill)
             .when(disabled || blocked, |this| this.opacity(0.5))
             .tooltip(move |window, cx| {
-                gpui_component::tooltip::Tooltip::new(label.clone()).build(window, cx)
+                gpui_component::tooltip::Tooltip::new(label.clone())
+                    .keys(keys.clone())
+                    .rows(rows.clone())
+                    .build(window, cx)
             })
             .when(!disabled, |this| {
                 this.chat_cursor_pointer()

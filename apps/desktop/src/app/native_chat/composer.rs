@@ -224,7 +224,8 @@ impl NativeChatView {
                     "maximizeComposer" => Some("toggleChatComposerMaximized"),
                     _ => None,
                 };
-                gpui_component::tooltip::Tooltip::new(tooltip_with_hotkey(label, hotkey_id))
+                gpui_component::tooltip::Tooltip::new(label)
+                    .keys(hotkey_chord(hotkey_id))
                     .build(window, cx)
             })
             .on_click(
@@ -609,13 +610,9 @@ impl NativeChatView {
     }
 }
 
-/// The tooltip text with the action's configured chord after it, so rebinding it in Settings > Hotkeys changes the tooltip too.
-pub(super) fn tooltip_with_hotkey(label: &str, hotkey_id: Option<&str>) -> String {
-    match hotkey_id
+/// The action's configured chord for a tooltip's key caps (empty when unbound), so rebinding it in Settings > Hotkeys changes the tooltip too.
+pub(super) fn hotkey_chord(hotkey_id: Option<&str>) -> String {
+    hotkey_id
         .and_then(crate::app::hotkeys::gpui_configured_hotkey_label)
-        .filter(|hotkey| !hotkey.is_empty())
-    {
-        Some(hotkey) => format!("{label} ({hotkey})"),
-        None => label.to_owned(),
-    }
+        .unwrap_or_default()
 }

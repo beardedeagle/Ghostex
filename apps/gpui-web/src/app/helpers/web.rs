@@ -109,6 +109,26 @@ pub(crate) fn tooltip_background(menu: gpui::Hsla) -> gpui::Hsla {
     }
 }
 
+/// The desktop's `apply_gpui_component_theme` (chrome_colors.rs) without window glass, so
+/// gpui-component's tooltips take the app's tooltip colours instead of the stock light theme.
+pub(crate) fn apply_gpui_component_theme(cx: &mut gpui::App) {
+    use gpui_component::{Theme, ThemeMode};
+    let mode = if crate::CHROME_LIGHT_APPEARANCE.load(std::sync::atomic::Ordering::Relaxed) {
+        ThemeMode::Light
+    } else {
+        ThemeMode::Dark
+    };
+    if Theme::global(cx).mode != mode {
+        Theme::change(mode, None, cx);
+    }
+    let menu = crate::app::helpers::titlebar_popup_menu_background();
+    let theme = Theme::global_mut(cx);
+    theme.popover = menu;
+    theme.tokens.popover = tooltip_background(menu).into();
+    theme.popover_foreground = crate::app::helpers::titlebar_popup_menu_foreground();
+    theme.border = crate::app::helpers::titlebar_popup_menu_border_color();
+}
+
 /// A page has no window glass, so a tooltip keeps its solid fill.
 pub(crate) fn frosted_tooltip_fill(menu: gpui::Hsla) -> gpui::Hsla {
     tooltip_background(menu)

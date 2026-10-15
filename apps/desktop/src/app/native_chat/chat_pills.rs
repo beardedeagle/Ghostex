@@ -288,10 +288,8 @@ impl NativeChatView {
             return None;
         }
         let label = super::scroll_bottom::label().to_string();
-        let tooltip = match super::scroll_bottom::shortcut_label() {
-            Some(key) => format!("{label}  {key}"),
-            None => label.clone(),
-        };
+        let tooltip = label.clone();
+        let shortcut = super::scroll_bottom::shortcut_label().unwrap_or_default();
         Some(
             icon_pill(
                 "chat-scroll-bottom",
@@ -303,7 +301,9 @@ impl NativeChatView {
             .border_color(p.foreground.opacity(0.1))
             .hover(|style| style.bg(p.foreground.opacity(0.06)))
             .tooltip(move |window, cx| {
-                gpui_component::tooltip::Tooltip::new(tooltip.clone()).build(window, cx)
+                gpui_component::tooltip::Tooltip::new(tooltip.clone())
+                    .keys(shortcut.clone())
+                    .build(window, cx)
             })
             .on_click(cx.listener(|chat, _, _, cx| chat.jump_to_bottom(cx)))
             .into_any_element(),

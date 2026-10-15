@@ -176,6 +176,7 @@ pub fn run() -> Result<(), JsValue> {
         cx.text_system()
             .add_fonts(platform_fonts())
             .expect("Failed to load the platform fonts");
+        app::helpers::apply_gpui_component_theme(cx);
         cx.global_mut::<Theme>().mono_font_family = "JetBrains Mono".into();
 
         cx.open_window(WindowOptions::default(), |window, cx| {

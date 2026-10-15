@@ -64,11 +64,9 @@ impl NativeChatView {
             //     gpui_component::tooltip::Tooltip::new(tooltip.clone()).build(window, cx)
             // })
             .tooltip(|window, cx| {
-                gpui_component::tooltip::Tooltip::new(super::composer::tooltip_with_hotkey(
-                    "Switch to Terminal",
-                    Some("toggleChatView"),
-                ))
-                .build(window, cx)
+                gpui_component::tooltip::Tooltip::new("Switch to Terminal")
+                    .keys(super::composer::hotkey_chord(Some("toggleChatView")))
+                    .build(window, cx)
             })
             // Hovering still reads the terminal tail so the glyph's readiness tint stays current.
             .on_hover(cx.listener(|this, hovered: &bool, _, cx| {
