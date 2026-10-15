@@ -68,6 +68,11 @@ first with `ghostex orchestrator rename-self "<area>"` (a release newer than
 Rename a thread only that way: `ghostex rename-command` records the user's own
 rename, which then locks the name, and `ghostex rename-session` skips the
 user's-rename check.
+Run by an orchestrator, `ghostex agents create` also links the new session as one
+of its threads. When the user wants a separate session they chat to directly, add
+`--standalone` (not linked, no reports to the orchestrator), and use
+`ghostex orchestrator unlink <thread-ref>` to turn an existing thread into one
+(both need 10.24.0 or later).
 
 ## Check what another session is doing
 

@@ -2114,6 +2114,9 @@ version of the Projects features in Cursor and Claude Code.
 - **Just ask**: "run these three as separate threads", "use worktrees", "give me
   a status of every thread", "use a cheaper model for threads", "don't merge
   anything without asking" all work in plain words.
+- **A session that is not a thread**: ask the orchestrator for "a separate session I
+  can chat to directly" and it creates one that sits in the sidebar on its own and
+  reports to nobody; "unlink that thread" turns an existing thread into one.
 
 Orchestrators run on Claude, Codex, ZCode or Empryo; threads can be any configured
 agent. An Empryo orchestrator runs as the Empryo agent `ghostex-coordinator`: Ghostex
@@ -2126,7 +2129,11 @@ promote <session> [--goal <text>]` (make an existing session an orchestrator), `
 `ghostex orchestrator start-thread --title <title> --task <brief> [--worktree]
 [--agent <id>] [--model <m>] [--effort <e>]`, `ghostex orchestrator resolve
 <thread> [--keep-open]` (mark done and close its session), `ghostex orchestrator
-reopen <thread>` (resume a closed thread), `ghostex orchestrator remember <note>`, `ghostex
+reopen <thread>` (resume a closed thread), `ghostex orchestrator unlink <thread>` (take a
+thread out of the orchestrator's tree: it stays running as an ordinary session of its
+project, shown as its own sidebar row with no more reports to the orchestrator; 10.24.0 or
+later), `ghostex agents create <agent> --standalone` (run by an orchestrator, create a session
+for the user to chat to directly instead of one of its threads; 10.24.0 or later), `ghostex orchestrator remember <note>`, `ghostex
 orchestrator set-goal|set-instructions`, `ghostex orchestrator edit [--goal=<text>]
 [--instructions=<text>] [--notes-json=<json list>]` (the goal, instructions and whole
 note list in one call, as the editors save), and `ghostex orchestrator guide` (the

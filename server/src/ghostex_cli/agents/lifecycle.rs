@@ -87,7 +87,10 @@ pub(super) fn create(args: &Arguments) -> CliResult<Value> {
         .unwrap_or(session);
     let mut result = json!({"ok": true, "status": "created", "globalRef": reference, "session": identity::summary(live_session)});
     // CDXC:Coordinators 2026-09-30 WHY: a coordinator that starts a worker the `$ghostex-agents` way still gets it as a tracked thread; for any other caller the link is a no-op.
-    if let Some(caller) = caller.clone().or_else(|| identity::caller().ok()) {
+    // CDXC:Coordinators 2026-10-15 DECISION: User: "a new thread ... that i just chat to about this ... maybe could be a thread not actually under you but separate in the sidebar, better." `--standalone` skips the link, so the session is a plain sidebar row that reports to nobody.
+    if args.standalone {
+        result["coordinatorThread"] = json!(false);
+    } else if let Some(caller) = caller.clone().or_else(|| identity::caller().ok()) {
         let linked = call_gxserver_rpc(
             "/api/linkCoordinatorThread",
             &json!({

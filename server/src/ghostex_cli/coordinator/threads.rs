@@ -218,6 +218,43 @@ pub(super) fn link(parsed: &ParsedArgs) -> CliResult<()> {
     Ok(())
 }
 
+/// `unlink` takes one of the orchestrator's threads out of its tree: gxserver deletes the thread
+/// record and the session becomes an ordinary one in its project, left running as it is
+/// (server/src/coordinators/endpoint.rs).
+///
+/// CDXC:Coordinators 2026-10-15 DECISION:
+/// User: "a new thread ... that i just chat to about this ... maybe could be a thread not actually under you but separate in the sidebar, better." An orchestrator can start a session that is not its thread (`ghostex agents create --standalone`) and detach one that is (`unlink`), so a session the user chats to directly neither nests under the orchestrator nor sends it turn-end reports.
+pub(super) fn unlink(parsed: &ParsedArgs) -> CliResult<()> {
+    let [reference] = parsed.rest.as_slice() else {
+        return Err(CliError::Other(
+            "Usage: ghostex orchestrator unlink <thread-ref> [--orchestrator <ref>] [--json]"
+                .into(),
+        ));
+    };
+    let (coordinator, _) = target_coordinator(parsed)?;
+    let (thread, flags) = resolve_thread_session(reference, &server_flags(&parsed.flags))?;
+    let global_ref = agents::text(&thread, "globalRef").to_string();
+    let result = call_gxserver_rpc(
+        "/api/unlinkCoordinatorThread",
+        &json!({
+            "coordinatorProjectId": coordinator["projectId"],
+            "coordinatorSessionId": coordinator["sessionId"],
+            "projectId": thread["projectId"],
+            "sessionId": thread["sessionId"],
+        }),
+        &flags,
+    )?;
+    if parsed.flags.truthy("json") {
+        print_json(&result);
+    } else {
+        println!(
+            "Unlinked {global_ref}: it is a standalone session now, no longer a thread of {}. Its session was left as it is.",
+            agents::text(&coordinator, "title")
+        );
+    }
+    Ok(())
+}
+
 /// `resolve` marks a thread done and closes its session (`--keep-open` parks it instead);
 /// `reopen` resumes a closed thread's session, then puts it back in its coordinator's tree.
 pub(super) fn set_resolved(parsed: &ParsedArgs, resolved: bool) -> CliResult<()> {

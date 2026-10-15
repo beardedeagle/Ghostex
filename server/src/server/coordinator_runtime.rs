@@ -1142,5 +1142,14 @@ pub(crate) fn handle_coordinator_http(
     for (project_id, session_id) in &output.changed_sessions {
         schedule_presentation_session_delta(state, db, repository, project_id, session_id)?;
     }
+    // The orchestrator's Threads panel is a cache the supervisor rebuilds every tick; an unlinked
+    // thread must leave it now, not on the next tick.
+    if endpoint_path == "/api/unlinkCoordinatorThread" {
+        for (project_id, session_id) in
+            crate::coordinators::refresh_coordinator_panels(db, repository)
+        {
+            republish_session_chat(state, &project_id, &session_id);
+        }
+    }
     Ok(output.result)
 }

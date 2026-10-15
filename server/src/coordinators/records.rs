@@ -324,6 +324,22 @@ pub fn link_thread(
     Ok(())
 }
 
+/// Removes a session's thread record, so it is an ordinary session again. Returns whether a record
+/// existed.
+pub fn unlink_thread(
+    db: &Connection,
+    project_id: &str,
+    session_id: &str,
+) -> Result<bool, DomainStateError> {
+    let removed = db
+        .execute(
+            "DELETE FROM coordinator_threads WHERE projectId = ?1 AND sessionId = ?2",
+            params![project_id, session_id],
+        )
+        .map_err(sql_error)?;
+    Ok(removed > 0)
+}
+
 pub fn set_thread_resolved(
     db: &Connection,
     project_id: &str,

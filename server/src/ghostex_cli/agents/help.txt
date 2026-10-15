@@ -5,6 +5,7 @@ USAGE
   ghostex agents types [--json]
   ghostex agents create <agent-id> [--title <name>] [--project-id <id>]
                        [--task <text> | --body-file <path>] [--allow-hidden]
+                       [--standalone]
   ghostex agents list [--all] [--json]
   ghostex agents send <session-ref> <text> [--interrupt | --queue]
                      [--request-id <id>]
@@ -40,6 +41,13 @@ CHOOSE AND CREATE
   created by an orchestrator, which keeps its --title (only a user's rename
   changes it). Copy globalRef from the result for follow-ups. Created does
   not mean the task has completed.
+
+  Run by an orchestrator, create also makes the new session one of its
+  threads (it nests under the orchestrator and its turn-end reports go there).
+  Pass --standalone to create an ordinary session instead, for one the user
+  chats to directly; it is not linked and reports to nobody. Needs Ghostex
+  10.24.0 or later. `ghostex orchestrator unlink <thread-ref>` turns an
+  existing thread into such a session.
 
 IDENTITY AND RECIPIENTS
   whoami resolves your calling session from its Ghostex environment, never

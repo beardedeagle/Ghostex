@@ -7,7 +7,7 @@ use serde_json::{json, Map, Value};
 use super::records::{
     drop_thread_pending_message, link_thread, list_coordinators, list_threads, list_threads_for,
     now_iso, read_coordinator, read_thread, set_thread_pending_message, set_thread_resolved,
-    write_coordinator, CoordinatorMemoryNote, CoordinatorRecord, SessionKey, ThreadRecord,
+    unlink_thread, write_coordinator, CoordinatorMemoryNote, CoordinatorRecord, SessionKey, ThreadRecord,
     COORDINATOR_GOAL_MAX_CHARS, COORDINATOR_INSTRUCTIONS_MAX_CHARS, COORDINATOR_MEMORY_MAX_NOTES,
     COORDINATOR_MEMORY_NOTE_MAX_CHARS,
 };
@@ -30,6 +30,7 @@ pub const COORDINATOR_ENDPOINTS: &[&str] = &[
     "/api/listCoordinators",
     "/api/updateCoordinator",
     "/api/linkCoordinatorThread",
+    "/api/unlinkCoordinatorThread",
     "/api/setCoordinatorThreadResolved",
     "/api/renameCoordinatorThread",
 ];
@@ -203,6 +204,27 @@ pub fn handle_coordinator_endpoint(
                 result: json!({
                     "linked": true,
                     "watchingDelivery": watching,
+                    "globalRef": create_global_session_ref(repository.server_id.as_str(), &thread_key.0, &thread_key.1),
+                }),
+                changed_sessions: vec![thread_key],
+            })
+        }
+        "/api/unlinkCoordinatorThread" => {
+            let coordinator_key =
+                required_ids(params, "coordinatorProjectId", "coordinatorSessionId")?;
+            let thread_key = required_ids(params, "projectId", "sessionId")?;
+            if read_thread(db, &thread_key.0, &thread_key.1)?
+                .filter(|thread| thread.coordinator_key() == coordinator_key)
+                .is_none()
+            {
+                return Err(DomainStateError::not_found(
+                    "That session is not a thread of this orchestrator, so it was not unlinked.",
+                ));
+            }
+            unlink_thread(db, &thread_key.0, &thread_key.1)?;
+            Ok(CoordinatorEndpointOutput {
+                result: json!({
+                    "unlinked": true,
                     "globalRef": create_global_session_ref(repository.server_id.as_str(), &thread_key.0, &thread_key.1),
                 }),
                 changed_sessions: vec![thread_key],
