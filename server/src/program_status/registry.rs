@@ -72,6 +72,80 @@ pub(crate) struct SessionProgramStatus {
     /// `None` for a plain shell or script, which detection is not meant to
     /// detect, so its disagreements are never logged.
     pub agent: Option<String>,
+    /// While the program drives the session: Ghostex detection's own view of
+    /// it (an `agentActivity` object), moved by every detection input, and
+    /// what the session shows again when the program stops driving it.
+    pub detection_shadow: Option<Value>,
+    /// The shadow started from detection's own view (the program appeared
+    /// after a snapshot with no records). After a gxserver restart the first
+    /// snapshot already has records, so the shadow can only start from what
+    /// the program wrote and is not trusted to say idle or working.
+    pub shadow_known: bool,
+    /// A snapshot with no records was seen for this daemon.
+    pub saw_empty_records: bool,
+}
+
+fn session_ids(session: &Value) -> Option<(String, String)> {
+    let text = |key: &str| {
+        session
+            .get(key)
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_string)
+    };
+    Some((text("projectId")?, text("sessionId")?))
+}
+
+/// Detection's shadow view of a stored session row, when one is kept.
+pub(crate) fn program_status_detection_shadow(session: &Value) -> Option<Value> {
+    let (project_id, session_id) = session_ids(session)?;
+    program_status_entry(&project_id, &session_id)?.detection_shadow
+}
+
+pub(crate) fn set_program_status_detection_shadow(session: &Value, shadow: Value) {
+    let Some((project_id, session_id)) = session_ids(session) else {
+        return;
+    };
+    if let Ok(mut registry) = registry().lock() {
+        if let Some(entry) = registry.get_mut(&registry_key(&project_id, &session_id)) {
+            entry.detection_shadow = Some(shadow);
+        }
+    }
+}
+
+/// Start detection's shadow from the session's current activity when the
+/// program begins to drive it (detection's view up to that moment).
+pub(crate) fn start_program_status_detection_shadow(
+    project_id: &str,
+    session_id: &str,
+    current: Option<&Value>,
+) {
+    if let Ok(mut registry) = registry().lock() {
+        if let Some(entry) = registry.get_mut(&registry_key(project_id, session_id)) {
+            if entry.detection_shadow.is_none() {
+                entry.detection_shadow = Some(
+                    current
+                        .cloned()
+                        .unwrap_or_else(|| serde_json::json!({"activity": "idle"})),
+                );
+                entry.shadow_known = entry.saw_empty_records;
+            }
+        }
+    }
+}
+
+/// Take detection's shadow (it stops being kept) when the program stops
+/// driving the session.
+pub(crate) fn take_program_status_detection_shadow(
+    project_id: &str,
+    session_id: &str,
+) -> Option<Value> {
+    let mut registry = registry().lock().ok()?;
+    registry
+        .get_mut(&registry_key(project_id, session_id))?
+        .detection_shadow
+        .take()
 }
 
 #[derive(Clone, Debug)]
@@ -229,6 +303,9 @@ pub(crate) fn store_program_status_snapshot(
     entry.supported = true;
     entry.reported = reported;
     entry.submits = submits;
+    if records.is_empty() {
+        entry.saw_empty_records = true;
+    }
     entry.records = records;
     changed
 }
