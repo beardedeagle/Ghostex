@@ -2,22 +2,19 @@ use super::images::FEEDBACK_MAX_IMAGES;
 use super::state::{FeedbackStep, GpuiFeedbackModalWindow, github_username};
 use crate::app::window::native_modal_kit::*;
 use gpui::{
-    AnyElement, Context, InteractiveElement as _, IntoElement, ParentElement as _, Render,
-    Styled as _, Window, div, px,
+    AnyElement, ClickEvent, Context, InteractiveElement as _, IntoElement, ParentElement as _,
+    Render, StatefulInteractiveElement as _, Styled as _, Window, div, px,
 };
 use gpui_component::v_flex;
 use std::rc::Rc;
-
-/// Whether the "Collect more data with an agent" switch is drawn (CDXC:Feedback 2026-10-14 in
-/// state.rs): off until its agent flow is built.
-const COLLECT_WITH_AGENT_READY: bool = false;
 
 impl GpuiFeedbackModalWindow {
     fn render_compose(&self, window: &Window, cx: &mut Context<Self>) -> Vec<AnyElement> {
         let p = self.palette;
         let paste: ModalPasteHandler = Rc::new(Self::paste_handler(cx.entity().downgrade()));
         let paste_hint = format!(
-            "Paste screenshots with {}: up to {FEEDBACK_MAX_IMAGES} PNG, JPEG or WebP images.",
+            "You can paste screenshots into this box with {}: up to {FEEDBACK_MAX_IMAGES} PNG, \
+             JPEG or WebP images.",
             crate::hotkey_label::terminal_overlay_hotkey_chord_label("cmd+v")
         );
         let message = v_flex()
@@ -43,7 +40,7 @@ impl GpuiFeedbackModalWindow {
             .w_full()
             .flex_shrink_0()
             .gap(px(8.0))
-            .child(modal_section_title(&p, "GitHub username (optional)"))
+            .child(modal_section_title(&p, "GitHub username"))
             .child(modal_text_input(
                 &p,
                 &self.github_input,
@@ -52,8 +49,11 @@ impl GpuiFeedbackModalWindow {
                 cx,
             ))
             .child(match github_username(&self.github) {
-                Ok(_) => modal_hint(&p, "So we can let you know on GitHub when it's fixed.")
-                    .into_any_element(),
+                Ok(_) => modal_hint(
+                    &p,
+                    "Required. The issue mentions you, so GitHub lets you know when it's fixed.",
+                )
+                .into_any_element(),
                 Err(()) => modal_error(
                     &p,
                     "That isn't a GitHub username: letters, digits and single hyphens, up to 39 \
@@ -61,32 +61,43 @@ impl GpuiFeedbackModalWindow {
                 ),
             })
             .into_any_element();
-        let mut content = vec![
-            modal_header(
-                &p,
-                "Send Feedback",
-                Some(
-                    "Tell us what is broken, confusing or missing. You review the issue before it \
-                     is posted publicly on the Ghostex GitHub.",
-                ),
-            ),
-            message,
+        let busy = self.busy;
+        let agent = modal_panel(&p)
+            .child(
+                modal_panel_row(
+                    &p,
+                    "Collect more data with an agent",
+                    Some(
+                        "An agent reads this computer's Ghostex logs and settings, looks into the \
+                         problem without changing anything, and shows you the issue before it \
+                         posts it.",
+                    ),
+                    modal_switch(&p, self.collect_with_agent, busy),
+                    false,
+                )
+                .id("feedback-collect-with-agent")
+                .role(gpui::Role::Switch)
+                .aria_toggled(a11y_toggled(self.collect_with_agent))
+                .aria_label("Collect more data with an agent")
+                .cursor_pointer()
+                .on_click(cx.listener(|this, _: &ClickEvent, _window, cx| {
+                    this.toggle_collect_with_agent(cx)
+                })),
+            )
+            .into_any_element();
+        let subtitle = if self.collect_with_agent {
+            "Tell us what is broken, confusing or missing. Start Agent opens a session where an \
+             agent gathers the details and drafts the issue for the Ghostex GitHub."
+        } else {
+            "Tell us what is broken, confusing or missing. You review the issue before it is \
+             posted publicly on the Ghostex GitHub."
+        };
+        vec![
+            modal_header(&p, "Send Bug / Feedback", Some(subtitle)),
             github,
-        ];
-        if COLLECT_WITH_AGENT_READY {
-            content.push(
-                modal_panel(&p)
-                    .child(modal_panel_row(
-                        &p,
-                        "Collect more data with an agent",
-                        Some("An agent gathers the logs and details that help us fix it."),
-                        modal_switch(&p, false, false),
-                        false,
-                    ))
-                    .into_any_element(),
-            );
-        }
-        content
+            message,
+            agent,
+        ]
     }
 
     fn render_review(&self, window: &Window, cx: &mut Context<Self>) -> Vec<AnyElement> {
@@ -168,16 +179,29 @@ impl GpuiFeedbackModalWindow {
                     |this, window, cx| this.close(window, cx),
                     cx,
                 ),
-                modal_action_button(
-                    &p,
-                    "feedback-review",
-                    "Review",
-                    spinner(),
-                    ModalButtonTone::Primary,
-                    !self.can_review(),
-                    |this, window, cx| this.review(window, cx),
-                    cx,
-                ),
+                if self.collect_with_agent {
+                    modal_action_button(
+                        &p,
+                        "feedback-start-agent",
+                        "Start Agent",
+                        spinner(),
+                        ModalButtonTone::Primary,
+                        !self.can_review(),
+                        |this, window, cx| this.start_agent(window, cx),
+                        cx,
+                    )
+                } else {
+                    modal_action_button(
+                        &p,
+                        "feedback-review",
+                        "Review",
+                        spinner(),
+                        ModalButtonTone::Primary,
+                        !self.can_review(),
+                        |this, window, cx| this.review(window, cx),
+                        cx,
+                    )
+                },
             ],
             FeedbackStep::Review => vec![
                 modal_action_button(

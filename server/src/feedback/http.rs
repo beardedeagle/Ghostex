@@ -9,13 +9,15 @@ use crate::{
     server::{routed_json, RoutedResponse},
 };
 
-use super::draft::{draft_title, FeedbackClient};
+use super::draft::{draft_title, github_username, with_reporter, FeedbackClient};
 use super::relay::FeedbackSubmission;
 
-/// `draftFeedback { app, message }` answers `{ title, body, footer }`: the issue the message
-/// becomes, which the client shows for review and the user may edit, plus the line the relay adds
-/// under it. `sendFeedback { app, title, body, images }` posts the reviewed issue and answers
-/// `{ issueNumber, issueUrl }`.
+/// `draftFeedback { app, message, githubUsername? }` answers `{ title, body, footer }`: the issue
+/// the message becomes (the reporter line on top when a username is given), which the client shows
+/// for review and the user may edit, plus the line the relay adds under it.
+/// `sendFeedback { app, title, body, images, githubUsername?, collectedByAgent?, dryRun? }` posts
+/// the reviewed issue and answers `{ issueNumber, issueUrl }`; with `dryRun` it answers the request
+/// it would post instead (`ghostex feedback send --dry-run`).
 pub(crate) async fn handle_feedback_http(
     endpoint_path: String,
     request_id: String,
@@ -81,9 +83,16 @@ fn draft_feedback(params: &Map<String, Value>) -> Result<Value, FeedbackFailure>
             "Write your feedback first.".to_string(),
         ));
     }
+    let reporter = github_username(
+        params
+            .get("githubUsername")
+            .and_then(Value::as_str)
+            .unwrap_or_default(),
+    )
+    .map_err(|message| (StatusCode::BAD_REQUEST, "badRequest", message))?;
     Ok(json!({
         "title": draft_title(message),
-        "body": message,
+        "body": with_reporter(message, reporter.as_deref()),
         "footer": client.footer(),
     }))
 }
@@ -92,6 +101,9 @@ fn send_feedback(params: &Map<String, Value>) -> Result<Value, FeedbackFailure> 
     let client = client_for(params)?;
     let submission = FeedbackSubmission::from_params(params, client)
         .map_err(|message| (StatusCode::BAD_REQUEST, "badRequest", message))?;
+    if params.get("dryRun").and_then(Value::as_bool) == Some(true) {
+        return Ok(submission.dry_run());
+    }
     let (issue_number, issue_url) = submission
         .send()
         .map_err(|message| (StatusCode::BAD_GATEWAY, "feedbackRelay", message))?;

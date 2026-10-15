@@ -3114,19 +3114,28 @@ Related settings: `sidebarTheme`, `darkThemePreset`, `lightThemePreset`,
 
 ## Sending feedback
 
-Send Feedback, in the sidebar's More Options menu right under Join Discord, opens
-the feedback pop-up. Write what is broken, confusing or missing and paste
-screenshots into the text box with Cmd+V (Ctrl+V on Windows and Linux): up to
-five PNG, JPEG or WebP images of 5 MB each; a larger PNG screenshot is scaled
-down to fit. Add your GitHub username (optional, "name" or "@name") and the
-issue mentions you with "Reported by @name", so GitHub tells you when it is
-fixed; Ghostex remembers it for your next feedback. Review then shows the exact
-GitHub issue, title and description,
-and you can edit both before Send; Ghostex adds your screenshots and a line with
-the app, its version and your operating system. The issue is public on the
-Ghostex GitHub, and after it is sent Open Issue takes you to it. Cmd+Enter
-(Ctrl+Enter) moves to the next step and Escape closes the pop-up. It works in the
-desktop app and in the web app.
+Send Bug / Feedback, in the sidebar's More Options menu right under Join Discord,
+opens the feedback pop-up. Enter your GitHub username first ("name" or "@name");
+it is required, the issue starts with "Reported by @name" so GitHub tells you
+when it is fixed, and Ghostex remembers it for next time. Then write what is
+broken, confusing or missing and paste screenshots into the text box with Cmd+V
+(Ctrl+V on Windows and Linux): up to five PNG, JPEG or WebP images of 5 MB each;
+a larger PNG screenshot is scaled down to fit. Review then shows the exact
+GitHub issue, title and description, and you can edit both before Send; Ghostex
+adds your screenshots and a line with the app, its version and your operating
+system. The issue is public on the Ghostex GitHub, and after it is sent Open
+Issue takes you to it. Cmd+Enter (Ctrl+Enter) moves to the next step and Escape
+closes the pop-up. It works in the desktop app and in the web app.
+
+Turn on "Collect more data with an agent" and the button becomes Start Agent: it
+opens a new Quick chat session with your default agent, which gets your message,
+username and screenshots. The agent reads this computer's Ghostex version,
+settings and logs, looks into the problem and tries to reproduce it without
+changing anything, keeps tokens, passwords and your files' contents out of the
+issue, then shows you the whole draft in the chat and posts it once you say yes.
+It files the issue with `ghostex feedback send --title <text> --body-file <file>
+--github-user <name> [--image <file>]...`, which you or any agent can also run
+by hand (`--dry-run` prints what would be sent without posting).
 
 ## Answering the common questions
 

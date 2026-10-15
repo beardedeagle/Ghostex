@@ -17,6 +17,7 @@ pub mod browser_mcp;
 pub mod diagnostics;
 pub mod editors;
 pub mod extensions;
+mod feedback;
 pub mod guide;
 pub mod launchers;
 pub mod notify;
@@ -105,6 +106,7 @@ const HELP_GATE_EXCLUDED: &[&str] = &[
     "cli",
     "editor-daemon",
     "extensions",
+    "feedback",
     "f",
     "agents-orchestration",
     "find",
@@ -358,6 +360,7 @@ fn is_known_command(name: &str) -> bool {
         "install-move-codex-session-skill",
         "guide",
         "agent-sync",
+        "feedback",
         "notify",
         "show",
         "visual",
@@ -879,6 +882,7 @@ fn run_command(name: &str, args: &[String]) -> CliResult<()> {
         "bd" | "beads" => launchers::beads_command(args),
         "board" => board::board_command(args),
         "notify" => notify::notify_command(args),
+        "feedback" => feedback::feedback_command(args),
         "show" => show::show_command(args),
         "visual" => visual::visual_command(args),
         "server" => server_command(args),

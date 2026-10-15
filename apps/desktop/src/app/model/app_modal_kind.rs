@@ -51,7 +51,7 @@ pub(crate) enum GpuiAppModalKind {
     MakeCoordinator,
     /// An orchestrator's Goal & Instructions or Memory editor (coordinator_details_modal_lifecycle.rs).
     CoordinatorDetails,
-    /// Send Feedback, from the sidebar's chat-bubble button (feedback_modal_lifecycle.rs).
+    /// Send Bug / Feedback, from the More options menu (feedback_modal_lifecycle.rs).
     Feedback,
     /// Create a Linear ticket and start work on it, from a work-mode project's menu
     /// (create_linear_ticket_modal_lifecycle.rs).
@@ -196,7 +196,7 @@ impl GpuiAppModalKind {
             Self::NewCoordinator => "Ghostex New Orchestrator",
             Self::MakeCoordinator => "Ghostex Make Orchestrator",
             Self::CoordinatorDetails => "Ghostex Orchestrator",
-            Self::Feedback => "Ghostex Send Feedback",
+            Self::Feedback => "Ghostex Send Bug / Feedback",
             Self::CreateLinearTicket => "Ghostex Create Linear Ticket",
             Self::WorkLinkPicker => "Ghostex Link Session",
             Self::TerminalPasteConfirm => "Ghostex Paste",

@@ -130,6 +130,44 @@ pub(super) fn draft_title(message: &str) -> String {
     format!("{cut}…")
 }
 
+/// The GitHub username in `raw`, without its `@`: `Ok(None)` when it is empty, `Err` when it is
+/// not a GitHub username (letters, digits and single hyphens, no hyphen at either end, up to 39
+/// characters). The pop-up checks the same shape (`github_username` in
+/// apps/desktop/src/app/window/feedback_modal/state.rs).
+pub(super) fn github_username(raw: &str) -> Result<Option<String>, String> {
+    let name = raw.trim();
+    let name = name.strip_prefix('@').unwrap_or(name);
+    if name.is_empty() {
+        return Ok(None);
+    }
+    let valid = name.len() <= 39
+        && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
+        && !name.starts_with('-')
+        && !name.ends_with('-')
+        && !name.contains("--");
+    if valid {
+        Ok(Some(name.to_string()))
+    } else {
+        Err(format!("\"{name}\" is not a GitHub username."))
+    }
+}
+
+/// The issue's first line, which mentions the reporter so GitHub notifies them about the issue.
+pub(super) fn reporter_line(name: &str) -> String {
+    format!("Reported by @{name}")
+}
+
+/// `body` with the reporter line on top, unless it is already there.
+pub(super) fn with_reporter(body: &str, name: Option<&str>) -> String {
+    let body = body.trim();
+    match name {
+        Some(name) if body.lines().next().map(str::trim) != Some(reporter_line(name).as_str()) => {
+            format!("{}\n\n{body}", reporter_line(name))
+        }
+        _ => body.to_string(),
+    }
+}
+
 pub(super) fn utf16_len(text: &str) -> usize {
     text.encode_utf16().count()
 }

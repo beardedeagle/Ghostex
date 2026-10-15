@@ -950,7 +950,7 @@ pub fn endpoint_for(path: &str) -> Option<EndpointDescriptor> {
         relay, so only this computer's own app may ask for it; a remote
         listener caller must never post issues in this user's name.
         */
-        "/api/draftFeedback" | "/api/sendFeedback" => full_local(path),
+        "/api/draftFeedback" | "/api/sendFeedback" | "/api/startFeedbackAgent" => full_local(path),
         /*
         CDXC:ServerApi 2026-10-06 WHY:
         `ghostex show` publishes a page an agent on this computer wrote, so only the loopback listener accepts it; the remote listener must not let another machine store pages that this gxserver then serves.

@@ -74,7 +74,7 @@ impl GhostexGpuiApp {
         CDXC:Sidebar 2026-10-11 DECISION:
         User: "i actually want search and notifications to be always shown, there's space for those
         too in all cases" (2026-10-05). Search, the bell and the menu button stay in the top row at
-        every sidebar width, and nothing collapses into the sidebar menu any more. Send Feedback is a
+        every sidebar width, and nothing collapses into the sidebar menu any more. Send Bug / Feedback is a
         row of the More options menu (CDXC:Feedback 2026-10-14 in
         packages/gx-core/src/sidebar_menu/navigation.rs). This supersedes the 2026-09-23 rule that
         moved Search and Notifications into the menu together.

@@ -6,7 +6,10 @@ use std::time::Duration;
 use base64::Engine as _;
 use serde_json::{json, Value};
 
-use super::draft::{utf16_len, FeedbackClient, FEEDBACK_BODY_MAX_UNITS, FEEDBACK_TITLE_MAX_UNITS};
+use super::draft::{
+    github_username, utf16_len, with_reporter, FeedbackClient, FEEDBACK_BODY_MAX_UNITS,
+    FEEDBACK_TITLE_MAX_UNITS,
+};
 
 /// CDXC:Feedback 2026-10-04 WHY:
 /// The relay is the only holder of the GitHub credentials, so every client posts through it, and
@@ -14,7 +17,8 @@ use super::draft::{utf16_len, FeedbackClient, FEEDBACK_BODY_MAX_UNITS, FEEDBACK_
 /// phone all ask gxserver, which keeps the relay address and its app key in one place and spares
 /// the web page a cross-origin request. `GHOSTEX_FEEDBACK_RELAY_URL` points a test at a local mock.
 /// SEE-ALSO: the relay's own checkout (`ghostex-feedback-relay`, `src/validate.ts` for the limits
-/// mirrored here), apps/desktop/src/app/window/feedback_modal.rs (the dialog that drafts and sends).
+/// mirrored here), apps/desktop/src/app/window/feedback_modal/ (the dialog that drafts and sends),
+/// server/src/ghostex_cli/feedback.rs (`ghostex feedback send`, the feedback agent's door).
 const FEEDBACK_RELAY_URL: &str = "https://feedback.ghostex.dev";
 const FEEDBACK_RELAY_URL_ENV: &str = "GHOSTEX_FEEDBACK_RELAY_URL";
 /// The relay's `X-Ghostex-App-Key`. Not a secret: it ships inside every build and only lets the
@@ -32,6 +36,8 @@ pub(super) struct FeedbackSubmission {
     body: String,
     images: Vec<FeedbackImage>,
     client: FeedbackClient,
+    /// The issue was gathered and written by the feedback agent (`ghostex feedback send`).
+    collected_by_agent: bool,
 }
 
 pub(super) struct FeedbackImage {
@@ -41,8 +47,10 @@ pub(super) struct FeedbackImage {
 }
 
 impl FeedbackSubmission {
-    /// Reads `{ title, body, images: [{ name, dataBase64 }] }` and checks it against the relay's
-    /// limits, so a rejected send says what to fix without a round trip.
+    /// Reads `{ title, body, images: [{ name, dataBase64 }], githubUsername?, collectedByAgent? }`
+    /// and checks it against the relay's limits, so a rejected send says what to fix without a
+    /// round trip. A `githubUsername` puts the reporter line on top of the body when it is not
+    /// there yet (the pop-up's Review step already shows it in the body it sends).
     pub(super) fn from_params(
         params: &serde_json::Map<String, Value>,
         client: FeedbackClient,
@@ -56,7 +64,8 @@ impl FeedbackSubmission {
                 .to_string()
         };
         let title = text("title");
-        let body = text("body");
+        let reporter = github_username(&text("githubUsername"))?;
+        let body = with_reporter(&text("body"), reporter.as_deref());
         if title.is_empty() {
             return Err(String::from("Add a title for the issue."));
         }
@@ -73,35 +82,22 @@ impl FeedbackSubmission {
                 "The description can be at most 20,000 characters.",
             ));
         }
-        let raw_images = match params.get("images") {
-            None | Some(Value::Null) => Vec::new(),
-            Some(Value::Array(images)) => images.clone(),
-            Some(_) => return Err(String::from("images must be a list.")),
-        };
-        if raw_images.len() > FEEDBACK_MAX_IMAGES {
-            return Err(format!("Attach at most {FEEDBACK_MAX_IMAGES} images."));
-        }
-        let images = raw_images
-            .iter()
-            .enumerate()
-            .map(|(index, image)| FeedbackImage::from_param(index, image))
-            .collect::<Result<Vec<_>, _>>()?;
+        let images = FeedbackImage::from_params(params)?;
         Ok(Self {
             title,
             body,
             images,
             client,
+            collected_by_agent: params
+                .get("collectedByAgent")
+                .and_then(Value::as_bool)
+                .unwrap_or(false),
         })
     }
 
-    /// Posts the issue and returns its number and URL.
-    pub(super) fn send(&self) -> Result<(u64, String), String> {
-        let base = std::env::var(FEEDBACK_RELAY_URL_ENV)
-            .ok()
-            .filter(|url| !url.trim().is_empty())
-            .unwrap_or_else(|| FEEDBACK_RELAY_URL.to_string());
-        let url = format!("{}/v1/feedback", base.trim().trim_end_matches('/'));
-        let payload = json!({
+    /// The relay request body.
+    fn payload(&self) -> Value {
+        json!({
             "title": self.title,
             "body": self.body,
             "images": self.images.iter().map(|image| json!({
@@ -110,8 +106,34 @@ impl FeedbackSubmission {
                 "dataBase64": image.data_base64,
             })).collect::<Vec<_>>(),
             "client": self.client.to_json(),
-            "collectedByAgent": false,
-        });
+            "collectedByAgent": self.collected_by_agent,
+        })
+    }
+
+    /// What `send` would post and where, with each image's data replaced by its size, so a dry run
+    /// shows the exact issue without filing it.
+    pub(super) fn dry_run(&self) -> Value {
+        let mut payload = self.payload();
+        payload["images"] = Value::Array(
+            self.images
+                .iter()
+                .map(|image| {
+                    json!({
+                        "name": image.name,
+                        "contentType": image.content_type,
+                        "bytes": image.data_base64.len() / 4 * 3
+                            - image.data_base64.bytes().rev().take_while(|b| *b == b'=').count(),
+                    })
+                })
+                .collect(),
+        );
+        json!({ "dryRun": true, "url": relay_feedback_url(), "payload": payload })
+    }
+
+    /// Posts the issue and returns its number and URL.
+    pub(super) fn send(&self) -> Result<(u64, String), String> {
+        let url = relay_feedback_url();
+        let payload = self.payload();
         let response = ureq::AgentBuilder::new()
             .timeout(FEEDBACK_RELAY_TIMEOUT)
             .build()
@@ -146,6 +168,14 @@ impl FeedbackSubmission {
             )),
         }
     }
+}
+
+fn relay_feedback_url() -> String {
+    let base = std::env::var(FEEDBACK_RELAY_URL_ENV)
+        .ok()
+        .filter(|url| !url.trim().is_empty())
+        .unwrap_or_else(|| FEEDBACK_RELAY_URL.to_string());
+    format!("{}/v1/feedback", base.trim().trim_end_matches('/'))
 }
 
 /// What the user reads when the relay refused the issue (its `{ error: { code, message } }`).
@@ -240,6 +270,44 @@ fn wait_label(seconds: u64) -> String {
 }
 
 impl FeedbackImage {
+    /// The `images` list of a request: `[{ name, dataBase64 }]`, at most five.
+    pub(super) fn from_params(
+        params: &serde_json::Map<String, Value>,
+    ) -> Result<Vec<Self>, String> {
+        let raw_images = match params.get("images") {
+            None | Some(Value::Null) => Vec::new(),
+            Some(Value::Array(images)) => images.clone(),
+            Some(_) => return Err(String::from("images must be a list.")),
+        };
+        if raw_images.len() > FEEDBACK_MAX_IMAGES {
+            return Err(format!("Attach at most {FEEDBACK_MAX_IMAGES} images."));
+        }
+        raw_images
+            .iter()
+            .enumerate()
+            .map(|(index, image)| Self::from_param(index, image))
+            .collect()
+    }
+
+    pub(super) fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub(super) fn extension(&self) -> &'static str {
+        match self.content_type {
+            "image/jpeg" => "jpg",
+            "image/webp" => "webp",
+            _ => "png",
+        }
+    }
+
+    /// The image file's bytes; `from_param` already checked that they decode.
+    pub(super) fn bytes(&self) -> Vec<u8> {
+        base64::engine::general_purpose::STANDARD
+            .decode(&self.data_base64)
+            .unwrap_or_default()
+    }
+
     /// The relay takes PNG, JPEG and WebP. The type is read from the bytes, not from the caller.
     fn from_param(index: usize, value: &Value) -> Result<Self, String> {
         let number = index + 1;

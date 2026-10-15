@@ -233,6 +233,10 @@ pub fn usage() -> String {
             "Post a notification to the Ghostex bell for a session; defaults to the calling session",
         ),
         format_help_command(
+            "feedback send --title text --body-file file --github-user name [--image file]... [--dry-run]",
+            "File a Ghostex bug or feedback issue on GitHub through the Ghostex feedback relay; --dry-run prints the request instead",
+        ),
+        format_help_command(
             "show <file.html> [--title text] [--browser] [--json]",
             "Publish a self-contained HTML page and print the ```visual block that shows it as a card in the chat; the card opens it in a floating window over the chat (--browser: in the browser). Questions written as <gx-questions> (or the page's own ghostex.submit(answers)) send the reader's answers back to you as a message; the block then lists the questions' tags, so the chat counts the page as unanswered until they arrive",
         ),
@@ -1512,6 +1516,19 @@ mod tests {
             "ghostex rename-command --session-id \"${GHOSTEX_GLOBAL_SESSION_REF:-${GHOSTEX_SESSION_ID:-${ZMX_SESSION:-}}}\" --title \"<title>\""
         ));
     }
+}
+
+pub fn feedback_usage() -> String {
+    r#"Usage:
+  ghostex feedback send --title <text> --body-file <file> --github-user <name> [--image <file>]... [--dry-run] [--json]
+  ghostex feedback send --title <text> --body <text> --github-user <name>
+
+Files a Ghostex bug or feedback issue on the Ghostex GitHub through the Ghostex feedback relay,
+the same way Send Bug / Feedback does. The issue starts with "Reported by @<name>" so GitHub
+notifies that user, and Ghostex adds a line with its version and the operating system. Attach
+up to five PNG, JPEG or WebP screenshots of 5 MB each with --image. The issue is public.
+--dry-run prints the exact request (images shown by size) without posting it."#
+        .to_string()
 }
 
 pub fn notify_usage() -> String {
