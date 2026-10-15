@@ -6,12 +6,15 @@
 //! CDXC:SessionChat 2026-10-11 SEE-ALSO:
 //! The phone draws the same form in apps/mobile/app/src/chat/native/transcript/QuestionForm.tsx; the grammar is packages/gx-chat-core/src/transcript/question_forms.rs. Change them together.
 
+use std::cell::Cell;
 use std::collections::HashSet;
+use std::rc::Rc;
 
 use super::ask_card::{
     AskBodyMotion, AskOption, AskTone, ask_head, chevron, press_head, send_keys,
 };
 use super::{appearance::ChatAppearance, state::NativeChatView, transcript::text};
+use gpui::Focusable as _;
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
     AnyElement, AppContext as _, Context, Entity, FontWeight, Hsla, InteractiveElement as _,
@@ -34,6 +37,8 @@ pub(super) struct FormInput {
     placeholder: String,
     /// It holds the reader's text: typed into, or filled from the saved draft once.
     settled: bool,
+    /// Its height when it was last painted, for `form_input_reveal_sync`.
+    painted_height: Rc<Cell<f32>>,
 }
 
 fn error_color(p: &ChatAppearance) -> Hsla {
@@ -174,8 +179,56 @@ impl NativeChatView {
                 _subscription: subscription,
                 placeholder: hint,
                 settled,
+                painted_height: Rc::new(Cell::new(0.0)),
             },
         );
+    }
+
+    /// Paints nothing; placed after the transcript list so its paint reads the bounds the form's
+    /// boxes were just painted with. When the focused box grew (a new line while typing) and its
+    /// bottom, where the cursor is, went past the transcript's visible bottom while part of it was
+    /// still on screen, the list scrolls by exactly that much so the line being typed stays in view.
+    ///
+    /// CDXC:SessionChat 2026-10-16 WHY: the list keeps its scroll position while a row grows, so a box at the transcript's bottom edge (the reader scrolled up) slid its newest line under the composer. Only a box that grew moves the list: typing in a box already in view, or one the reader scrolled away from, leaves the transcript alone. A list following its tail already keeps the bottom in view. The phone does the same (apps/mobile/app/src/chat/native/transcript/fieldReveal.ts).
+    pub(super) fn form_input_reveal_sync(&self, p: &ChatAppearance) -> AnyElement {
+        let list = self.list.clone();
+        let boxes: Vec<_> = self
+            .form_inputs
+            .values()
+            .map(|entry| (entry.input.clone(), entry.painted_height.clone()))
+            .collect();
+        // Above the fade band painted over the list's last rows (composer_scroll.rs), plus a gap.
+        let fade = if crate::app::helpers::window_glass_active_for(self.main_window) {
+            0.0
+        } else {
+            24.0
+        };
+        let margin = px((fade + 8.0) * p.scale);
+        gpui::canvas(
+            |_, _, _| {},
+            move |_, _, window, cx| {
+                let viewport = list.viewport_bounds();
+                for (input, painted_height) in &boxes {
+                    let state = input.read(cx);
+                    let bounds = state.input_bounds();
+                    let height = bounds.size.height.as_f32();
+                    let grew = height > painted_height.get() + 0.5 && painted_height.get() > 0.0;
+                    painted_height.set(height);
+                    if !grew || !state.focus_handle(cx).is_focused(window) {
+                        continue;
+                    }
+                    let visible_bottom = viewport.bottom() - margin;
+                    let overflow = bounds.bottom() - visible_bottom;
+                    if overflow > px(0.0) && bounds.top() < viewport.bottom() {
+                        list.scroll_by(overflow);
+                        window.request_animation_frame();
+                    }
+                }
+            },
+        )
+        .absolute()
+        .size_0()
+        .into_any_element()
     }
 
     /// The form `id` names, or its source as code when the document does not carry it (a form in

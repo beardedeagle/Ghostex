@@ -105,6 +105,7 @@ impl NativeChatView {
             .child(self.transcript_scrollbar())
             .child(self.scroll_bottom_button(cx))
             .child(self.scroll_bottom_sync(cx))
+            .child(self.form_input_reveal_sync(&p))
             .child(
                 gpui::canvas(
                     |bounds, _, _| bounds,
