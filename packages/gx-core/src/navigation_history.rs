@@ -183,6 +183,9 @@ pub fn sidebar_navigation_entry(
 struct Settle {
     key: String,
     project_id: String,
+    /// The target named a session. Only a project-only target can be refined by the session that
+    /// takes focus inside it a moment later.
+    target_has_session: bool,
     deadline_ms: u64,
 }
 
@@ -198,6 +201,9 @@ pub struct NavigationTrail {
 impl NavigationTrail {
     /// `recordVisit`, called whenever the sidebar may have moved. Returns whether a visit is now
     /// pending and the debounce should be armed.
+    ///
+    /// CDXC:Navigation 2026-10-15 WHY:
+    /// The user: "when i click on a thread here [the orchestrator chat's Threads panel] i see that it's not saving that to the list of threads to go forward/backwards between." Activating a Back/Forward target focuses it before `landed` opens the settle window, so no update names the target while the window is open, and the first update after it is the user's next click. That click, a session of the same project, used to be taken for the landing refining its own target and replaced the stop the user had walked to instead of pushing a new one. Only a project-only target is refined that way now, and only inside the window.
     pub fn record_visit(&mut self, entry: NavigationHistoryEntry, now_ms: u64) -> bool {
         let key = entry.key();
         if let Some(settle) = &self.settle {
@@ -207,7 +213,11 @@ impl NavigationTrail {
                 self.last_visit = Some(entry);
                 return false;
             }
-            if entry.project_id == settle.project_id {
+            if now_ms >= settle.deadline_ms {
+                // The landing is long over: whatever is active now is the user's own move, even
+                // in the target's project.
+                self.settle = None;
+            } else if entry.project_id == settle.project_id && !settle.target_has_session {
                 // Landing refined the target (Back went to a project, then a session in it took
                 // focus): update the stop in place rather than truncating the forward branch.
                 self.settle = None;
@@ -215,11 +225,9 @@ impl NavigationTrail {
                 self.pending = Some(entry);
                 self.pending_replaces_current = true;
                 return true;
-            }
-            if now_ms < settle.deadline_ms {
+            } else {
                 return false;
             }
-            self.settle = None;
         }
         if self.last_visit.as_ref() == Some(&entry) {
             return false;
@@ -250,6 +258,7 @@ impl NavigationTrail {
         self.settle = Some(Settle {
             key: target.key(),
             project_id: target.project_id.clone(),
+            target_has_session: target.session_id.is_some(),
             deadline_ms: now_ms + NAVIGATION_SETTLE_TIMEOUT_MS,
         });
         self.last_visit = Some(target);
