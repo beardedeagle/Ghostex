@@ -148,6 +148,10 @@ impl ModalWindowFrame {
 
 impl Render for ModalWindowFrame {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        // An open modal follows the Menu blur slider (CDXC:Theming 2026-10-15 on
+        // `apply_frosted_menu_blur`).
+        #[cfg(target_os = "macos")]
+        crate::app::helpers::apply_frosted_menu_blur(window);
         let show_close = (self.shows_corner_close)(cx);
         let reveal = self.corner_close_reveal(window, cx);
         set_reveal(&reveal, cx, |r| &mut r.enabled, show_close);

@@ -356,6 +356,10 @@ impl FrostedHostView {
 
 impl Render for FrostedHostView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        // The host window is reused, so it follows the Menu blur slider here rather than at open
+        // (CDXC:Theming 2026-10-15 on `apply_frosted_menu_blur`).
+        #[cfg(target_os = "macos")]
+        crate::app::helpers::apply_frosted_menu_blur(window);
         let content = with_slot(self.kind, |slot| slot.content.clone());
         let mut host = div().size_full();
         if let Some(content) = content {

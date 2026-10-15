@@ -734,6 +734,9 @@ pub(crate) const FROSTED_MENU_KEEP_SATURATION: bool = true;
 
 /// Gives a menu or tooltip window the frosted menus' blur (`windowGlassMenuBlurRadius`,
 /// `FROSTED_MENU_KEEP_SATURATION`). Call it where the window sets its corner radius.
+///
+/// CDXC:Theming 2026-10-15 WHY:
+/// The user's "moving the blur slider does nothing": a window that stays open (Settings and every app modal, the reused frosted menu and tooltip hosts) took the Menu blur only when it opened, so those call this from their render on macOS, where an unchanged radius costs nothing. Windows and Linux have no menu blur radius, and Windows refuses a backdrop change during a draw.
 pub(crate) fn apply_frosted_menu_blur(window: &gpui::Window) {
     window.set_background_blur_style(
         gpui::px(f32::from(
