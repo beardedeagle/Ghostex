@@ -296,21 +296,6 @@ fn packaged_source_runtime_platform() -> &'static str {
     return "linux-arm64";
 }
 
-fn verified_packaged_source_runtime(
-    archive_path: PathBuf,
-    component_version: String,
-) -> Result<PackagedSourceRuntime, String> {
-    crate::component_store::verify_code_server_archive(
-        &archive_path,
-        &component_version,
-        packaged_source_runtime_platform(),
-    )?;
-    Ok(PackagedSourceRuntime {
-        archive_path,
-        component_version,
-    })
-}
-
 fn packaged_source_runtime_version(archive_path: &Path) -> Result<String, String> {
     let archive_name = archive_path
         .file_name()
@@ -371,6 +356,8 @@ fn bundled_source_runtime_archive(resources_dir: &Path) -> Result<Option<PathBuf
     Ok(archives.pop())
 }
 
+/// CDXC:CodeEditor 2026-10-16 WHY:
+/// This runs on every WSL Source launch. Verifying the 240MB archive here (a SHA-256 and two gunzip passes, twice through the component store) cost seconds on each open although WSL already held that exact version; `install_packaged_source_runtime` verifies the archive before it unpacks it, the only time its bytes are used.
 fn resolve_packaged_source_runtime() -> Result<Option<PackagedSourceRuntime>, String> {
     if let Some(path) = env::var_os("GHOSTEX_WSL_CODE_SERVER_ARCHIVE") {
         let path = PathBuf::from(path);
@@ -381,7 +368,10 @@ fn resolve_packaged_source_runtime() -> Result<Option<PackagedSourceRuntime>, St
             );
         }
         let component_version = packaged_source_runtime_version(&path)?;
-        return verified_packaged_source_runtime(path, component_version).map(Some);
+        return Ok(Some(PackagedSourceRuntime {
+            archive_path: path,
+            component_version,
+        }));
     }
     let executable_dir = env::current_exe()
         .map_err(|error| format!("Could not locate the Ghostex executable: {error}"))?
@@ -391,7 +381,10 @@ fn resolve_packaged_source_runtime() -> Result<Option<PackagedSourceRuntime>, St
     let resources_dir = executable_dir.join("resources");
     if let Some(archive_path) = bundled_source_runtime_archive(&resources_dir)? {
         let component_version = packaged_source_runtime_version(&archive_path)?;
-        return verified_packaged_source_runtime(archive_path, component_version).map(Some);
+        return Ok(Some(PackagedSourceRuntime {
+            archive_path,
+            component_version,
+        }));
     }
     let manifest_path = resources_dir.join("on-demand-resources.json");
     if !manifest_path.is_file() {
@@ -399,16 +392,19 @@ fn resolve_packaged_source_runtime() -> Result<Option<PackagedSourceRuntime>, St
     }
     let manifest = crate::component_store::OnDemandManifest::load(&manifest_path)?;
     let store = crate::component_store::ComponentStore::from_manifest(manifest)?;
-    let installed = store.query_current("code-server")?;
-    if !installed.installed {
+    let Some((component_version, component_path)) = store.current_marked_install("code-server")?
+    else {
         return Ok(None);
-    }
+    };
     let archive_name = format!(
         "code-server-{}-{}.tar.gz",
-        installed.version,
+        component_version,
         packaged_source_runtime_platform()
     );
-    verified_packaged_source_runtime(installed.path.join(archive_name), installed.version).map(Some)
+    Ok(Some(PackagedSourceRuntime {
+        archive_path: component_path.join(archive_name),
+        component_version,
+    }))
 }
 
 fn packaged_archive_identity(archive_path: &Path) -> Option<String> {

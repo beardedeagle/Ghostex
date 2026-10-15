@@ -211,6 +211,39 @@ impl ComponentStore {
         self.query_for_platform(&component.name, &component.component_version, platform)
     }
 
+    /// The current version's folder on this platform when its install marker matches, without
+    /// verifying the payload again: for a caller that verifies the files before it unpacks them.
+    pub fn current_marked_install(&self, name: &str) -> Result<Option<(String, PathBuf)>, String> {
+        let platform = current_platform()?;
+        let component = self
+            .manifest
+            .components
+            .get(name)
+            .ok_or_else(|| format!("Sealed manifest does not define component {name}"))?;
+        let asset = component.platforms.get(&platform).ok_or_else(|| {
+            format!(
+                "Sealed manifest does not define {} {} for {platform}",
+                component.name, component.component_version
+            )
+        })?;
+        require_identifier(&component.name, "component name")?;
+        require_identifier(&component.component_version, "component version")?;
+        require_identifier(&platform, "component platform")?;
+        let path = self
+            .root
+            .join(&component.name)
+            .join(&component.component_version)
+            .join(&platform);
+        let installed = installed_marker_matches(
+            &path,
+            &component.name,
+            &component.component_version,
+            &platform,
+            Some(asset.sha256.as_str()),
+        )?;
+        Ok(installed.then(|| (component.component_version.clone(), path)))
+    }
+
     pub fn install(
         &self,
         name: &str,

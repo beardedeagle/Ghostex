@@ -459,6 +459,7 @@ pub(in crate::windows_terminal_backend) fn source_code_server_command(
     bind_address: &str,
     link_vscode_user_config: bool,
     use_vscode_insiders_user_config: bool,
+    owned_node_entry: &str,
 ) -> Result<Command, String> {
     let ResolvedWindowsTerminalBackend::Wsl { distribution } =
         resolve(super::current_preference())?
@@ -478,6 +479,7 @@ required_node_major="$4"
 bind_address="$5"
 link_vscode_user_config="$6"
 use_vscode_insiders_user_config="$7"
+owned_node_entry="$8"
 
 test -f "$repo_root/out/node/entry.js"
 test -d "$project_path"
@@ -495,7 +497,7 @@ user_data_dir="$storage_root/user-data"
 extensions_dir="$storage_root/extensions"
 mkdir -p "$user_data_dir" "$extensions_dir"
 
-set -- "$node" "$repo_root/out/node/entry.js"
+set -- "$node" --eval "$owned_node_entry" -- "$repo_root/out/node/entry.js"
 if [ "$use_vscode_insiders_user_config" = "1" ]; then
     vscode_user_config_dir="$HOME/.config/Code - Insiders/User"
 else
@@ -546,6 +548,7 @@ exec "$@" \
         } else {
             "0"
         },
+        owned_node_entry,
     ]);
     Ok(command)
 }

@@ -5,9 +5,10 @@ use anyhow::Result;
 use crate::app::helpers::*;
 use crate::*;
 
-/// CDXC:CodeEditor 2026-09-15 WHY:
+/// CDXC:CodeEditor 2026-10-16 WHY:
 /// An editor orphaned by an app crash kept port 3777 occupied, so every subsequent Code launch failed.
 /// Keep its stdin pipe owned by the Rust Child and shut down through code-server's SIGTERM handler when that pipe closes, including when a pending launch is dropped or the app exits without running destructors.
+/// The WSL launch needs it as much: ending the Windows `wsl.exe` leaves the Linux code-server running under WSL's init with the port still bound (so every Retry failed, issue #232), but it does close that process's stdin. This extends the 2026-09-15 reason to WSL.
 const SOURCE_CODE_SERVER_OWNED_ENTRY: &str = r#"
 process.stdin.on('end', () => process.kill(process.pid, 'SIGTERM'));
 process.stdin.resume();
@@ -148,6 +149,7 @@ pub(crate) fn source_code_server_spawn_runtime(
     launch parameters cross the boundary as argv values, while the fixed WSL
     script owns Linux storage, environment, and working-directory setup.
     */
+    let readiness_timeout = startup_deadline.saturating_duration_since(Instant::now());
     if source_code_server_health_check() {
         let remaining = startup_deadline.saturating_duration_since(Instant::now());
         if !source_code_server_wait_until_not_responsive(
@@ -160,9 +162,6 @@ pub(crate) fn source_code_server_spawn_runtime(
         }
     }
 
-    if Instant::now() >= startup_deadline {
-        return Err("Source runtime startup timed out".to_string());
-    }
     let bind_address = format!(
         "{}:{}",
         SOURCE_CODE_SERVER_EDITOR_HOST,
@@ -174,12 +173,16 @@ pub(crate) fn source_code_server_spawn_runtime(
         &bind_address,
         settings.link_vscode_user_config,
         settings.use_vscode_insiders_user_config,
+        SOURCE_CODE_SERVER_OWNED_ENTRY,
     )?;
     command
-        .stdin(Stdio::null())
+        .stdin(Stdio::piped())
         .stdout(Stdio::null())
         .stderr(Stdio::null());
 
+    // CDXC:CodeEditor 2026-10-16 WHY:
+    // Building the WSL command installs or checks the Linux runtime inside WSL (several wsl.exe round trips, and on first use a 240MB archive verified and unpacked), which took longer than the whole readiness budget, so the editor was started with no time left and every open failed with "VS Code didn't start in time" (issue #232). The budget starts when code-server is spawned, as for remote launches.
+    let startup_deadline = Instant::now() + readiness_timeout;
     let started_at = Instant::now();
     let child = command
         .spawn()

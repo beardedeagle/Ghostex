@@ -216,6 +216,7 @@ pub(crate) fn source_code_server_command(
     bind_address: &str,
     link_vscode_user_config: bool,
     use_vscode_insiders_user_config: bool,
+    owned_node_entry: &str,
 ) -> Result<std::process::Command, String> {
     platform::source_code_server_command(
         project_path,
@@ -223,6 +224,7 @@ pub(crate) fn source_code_server_command(
         bind_address,
         link_vscode_user_config,
         use_vscode_insiders_user_config,
+        owned_node_entry,
     )
 }
 
