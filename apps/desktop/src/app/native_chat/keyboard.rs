@@ -10,6 +10,38 @@ struct ComposerKey {
 struct ComposerKeysRegistered;
 impl gpui::Global for ComposerKeysRegistered {}
 
+/// Whether the chat's own chords and their labels use the Mac keys (Cmd for the primary
+/// modifier, ⌘⌥⌃⇧ glyphs). The desktop decides when it is compiled; the browser build asks the
+/// browser, so a Mac browser gets Cmd like the desktop.
+///
+/// CDXC:WebGpui 2026-10-16 DECISION:
+/// User: "Fix them", for the chat's chords that a Mac browser got as Ctrl: Cmd+Enter (send), Cmd+Home/End, the notice's Cmd+Enter and the ⌘ shortcut labels use Cmd like the desktop. gpui's `secondary-` and `cfg!(target_os = "macos")` are fixed at compile time (Ctrl and the Windows labels in wasm), so chat-owned chords and labels go through this instead. App hotkeys keep their own bindings and labels (`app/hotkeys.rs`).
+pub(super) fn chat_mac_keys() -> bool {
+    crate::terminal_element::uses_macos_text_editing()
+}
+
+/// A chat chord with the primary modifier (`cmd-` on a Mac keyboard, `ctrl-` elsewhere): what
+/// gpui's `secondary-` means, decided by [`chat_mac_keys`].
+pub(super) fn primary_chord(rest: &str) -> String {
+    format!("{}-{rest}", if chat_mac_keys() { "cmd" } else { "ctrl" })
+}
+
+/// Whether `modifiers` hold exactly the primary modifier's key out of Cmd and Ctrl
+/// (`Modifiers::secondary`, decided by [`chat_mac_keys`]).
+pub(super) fn primary_held(modifiers: &gpui::Modifiers) -> bool {
+    if chat_mac_keys() {
+        modifiers.platform
+    } else {
+        modifiers.control
+    }
+}
+
+/// A shortcut label for a chat-owned chord, in the Mac or the Windows/Linux spelling by
+/// [`chat_mac_keys`].
+pub(super) fn chat_chord_label(chord: &str) -> String {
+    crate::hotkey_label::hotkey_chord_label(chord, chat_mac_keys())
+}
+
 pub(super) fn register(cx: &mut gpui::App) {
     if cx.has_global::<ComposerKeysRegistered>() {
         return;
@@ -19,40 +51,35 @@ pub(super) fn register(cx: &mut gpui::App) {
     // React's session-chat-lexical-input.tsx uses the primary modifier with Home/End for document movement and Shift selection. The native input only supplies macOS document-arrow defaults.
     cx.bind_keys([
         gpui::KeyBinding::new(
-            "secondary-home",
+            &primary_chord("home"),
             gpui_component::input::MoveToStart,
             Some("NativeChat > Input"),
         ),
         gpui::KeyBinding::new(
-            "secondary-end",
+            &primary_chord("end"),
             gpui_component::input::MoveToEnd,
             Some("NativeChat > Input"),
         ),
         gpui::KeyBinding::new(
-            "secondary-shift-home",
+            &primary_chord("shift-home"),
             gpui_component::input::SelectToStart,
             Some("NativeChat > Input"),
         ),
         gpui::KeyBinding::new(
-            "secondary-shift-end",
+            &primary_chord("shift-end"),
             gpui_component::input::SelectToEnd,
             Some("NativeChat > Input"),
         ),
     ]);
-    // gpui's `secondary-` is fixed when the app is compiled, so a Mac browser running the wasm build would get Ctrl; the line commands follow the same Mac check as the text inputs' key table instead.
-    let primary = if crate::terminal_element::uses_macos_text_editing() {
-        "cmd"
-    } else {
-        "ctrl"
-    };
-    let select_line = format!("{primary}-l");
-    let delete_line = format!("{primary}-shift-k");
+    let send = primary_chord("enter");
+    let select_line = primary_chord("l");
+    let delete_line = primary_chord("shift-k");
     cx.bind_keys(
         [
             ("enter", "enter"),
             ("shift-enter", "enter"),
-            ("secondary-enter", "enter"),
-            // Interrupt and send; on Windows and Linux this is `secondary-enter` too.
+            (send.as_str(), "enter"),
+            // Interrupt and send; on Windows and Linux this is the send chord too.
             ("ctrl-enter", "enter"),
             ("alt-enter", "enter"),
             ("up", "up"),
@@ -352,11 +379,8 @@ impl NativeChatView {
         let primary = key.key == "enter"
             && !key.modifiers.shift
             && !key.modifiers.alt
-            && if cfg!(target_os = "macos") {
-                key.modifiers.platform && !key.modifiers.control
-            } else {
-                key.modifiers.control && !key.modifiers.platform
-            };
+            && primary_held(&key.modifiers)
+            && !(key.modifiers.platform && key.modifiers.control);
         let secondary = key.key == "escape"
             && !key.modifiers.shift
             && !key.modifiers.alt

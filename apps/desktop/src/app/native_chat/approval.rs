@@ -62,7 +62,7 @@ impl NativeChatView {
                 "approval-allow",
                 "Allow",
                 ToneButton::Primary,
-                if cfg!(target_os = "macos") {
+                if super::keyboard::chat_mac_keys() {
                     "⌘ ↵"
                 } else {
                     "Ctrl ↵"

@@ -253,7 +253,7 @@ impl ChatOptionMenuPanel {
                         .font_family(crate::app::native_chat::fonts::CHAT_MONO)
                         .text_size(px(10.0 * scale))
                         .text_color(palette.muted)
-                        .child(if cfg!(target_os = "macos") {
+                        .child(if crate::app::native_chat::keyboard::chat_mac_keys() {
                             format!("⌥{slot}")
                         } else {
                             format!("Alt+{slot}")
@@ -615,17 +615,17 @@ fn render_key_hints(
     palette: &Palette,
 ) -> AnyElement {
     // The Option glyph means nothing on a Windows or Linux keyboard, where the key is Alt.
-    const SESSION_KEYS: &str = if cfg!(target_os = "macos") {
+    let session_keys = if crate::app::native_chat::keyboard::chat_mac_keys() {
         "⌥⏎"
     } else {
         "Alt+⏎"
     };
-    const HINTS: [(&str, &str); 6] = [
+    let hints: [(&str, &str); 6] = [
         ("↑↓", "model"),
         ("←→", "effort"),
         ("⇥", "agent"),
         ("⏎", "default"),
-        (SESSION_KEYS, "session"),
+        (session_keys, "session"),
         ("esc", "close"),
     ];
     let scale = appearance.scale;
@@ -641,9 +641,9 @@ fn render_key_hints(
         .text_size(px(10.5 * scale))
         .text_color(palette.muted)
         .children(
-            HINTS
+            hints
                 .into_iter()
-                .filter(|(keys, _)| *keys != if session_scope { "esc" } else { SESSION_KEYS })
+                .filter(|(keys, _)| *keys != if session_scope { "esc" } else { session_keys })
                 .map(|(keys, label)| {
                     div()
                         .flex()

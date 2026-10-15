@@ -72,10 +72,11 @@ pub(super) fn register(cx: &mut App) {
     cx.set_global(ChatZoomRegistered);
     let mut bindings = Vec::new();
     for context in ["NativeChat", "NativeChat > Input"] {
-        bindings.push(KeyBinding::new("secondary-=", ChatZoomIn, Some(context)));
-        bindings.push(KeyBinding::new("secondary-+", ChatZoomIn, Some(context)));
-        bindings.push(KeyBinding::new("secondary--", ChatZoomOut, Some(context)));
-        bindings.push(KeyBinding::new("secondary-0", ChatZoomReset, Some(context)));
+        let chord = super::keyboard::primary_chord;
+        bindings.push(KeyBinding::new(&chord("="), ChatZoomIn, Some(context)));
+        bindings.push(KeyBinding::new(&chord("+"), ChatZoomIn, Some(context)));
+        bindings.push(KeyBinding::new(&chord("-"), ChatZoomOut, Some(context)));
+        bindings.push(KeyBinding::new(&chord("0"), ChatZoomReset, Some(context)));
     }
     cx.bind_keys(bindings);
 }

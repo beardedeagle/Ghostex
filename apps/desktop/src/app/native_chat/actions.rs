@@ -50,13 +50,13 @@ impl NativeChatView {
         let rows = vec![
             json!({
                 "label":"Interrupt & Send",
-                "detail":crate::hotkey_label::terminal_overlay_hotkey_chord_label("ctrl+enter"),
+                "detail":super::keyboard::chat_chord_label("ctrl+enter"),
                 "disabled":!enabled || self.snapshot["working"] != true,
                 "command":{"type":"submit","mode":"interrupt"},
             }),
             json!({
                 "label":"Compact & Send",
-                "detail":crate::hotkey_label::terminal_overlay_hotkey_chord_label("alt+enter"),
+                "detail":super::keyboard::chat_chord_label("alt+enter"),
                 "disabled":!can_queue,
                 "command":{"type":"submit","mode":"compact"},
             }),

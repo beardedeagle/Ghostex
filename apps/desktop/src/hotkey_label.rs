@@ -9,6 +9,14 @@
 //! SEE-ALSO: packages/shared/hotkey-label.ts, the TypeScript twin.
 
 pub(crate) fn terminal_overlay_hotkey_chord_label(chord: &str) -> String {
+    hotkey_chord_label(chord, cfg!(target_os = "macos"))
+}
+
+/// The label in the Mac spelling (glyphs, no separator) or the Windows/Linux one (`Ctrl+Enter`).
+/// The browser build's chat passes whether the browser is on a Mac; everything else uses
+/// [`terminal_overlay_hotkey_chord_label`], which follows the compiled platform like the app
+/// hotkey bindings it labels.
+pub(crate) fn hotkey_chord_label(chord: &str, mac: bool) -> String {
     let parts = chord
         .split('+')
         .map(|part| part.trim().to_ascii_lowercase())
@@ -21,7 +29,7 @@ pub(crate) fn terminal_overlay_hotkey_chord_label(chord: &str) -> String {
         .any(|part| matches!(part.as_str(), "alt" | "opt" | "option"));
     let mut labels = Vec::with_capacity(parts.len());
     for part in parts {
-        let label = if cfg!(target_os = "macos") {
+        let label = if mac {
             match part.as_str() {
                 "cmd" | "command" | "meta" => "⌘".to_string(),
                 "ctrl" | "control" => "⌃".to_string(),
@@ -63,7 +71,7 @@ pub(crate) fn terminal_overlay_hotkey_chord_label(chord: &str) -> String {
             labels.push(label);
         }
     }
-    labels.join(if cfg!(target_os = "macos") { "" } else { "+" })
+    labels.join(if mac { "" } else { "+" })
 }
 
 /// Named keys (`space`, `backspace`) read with a capital first letter, as in

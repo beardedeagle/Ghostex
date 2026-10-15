@@ -168,7 +168,7 @@ impl NativeChatView {
                         None
                     } else if Some(index) == primary {
                         Some(
-                            if cfg!(target_os = "macos") {
+                            if super::keyboard::chat_mac_keys() {
                                 "⌘Enter"
                             } else {
                                 "Ctrl+Enter"

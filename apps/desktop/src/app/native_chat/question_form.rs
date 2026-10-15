@@ -382,7 +382,9 @@ impl NativeChatView {
         div()
             .w_full()
             .on_key_down(cx.listener(move |this, event: &KeyDownEvent, _, cx| {
-                if event.keystroke.key == "enter" && event.keystroke.modifiers.secondary() {
+                if event.keystroke.key == "enter"
+                    && super::keyboard::primary_held(&event.keystroke.modifiers)
+                {
                     this.invoke(json!({"type":"formSend","form":send_form}), cx);
                     cx.stop_propagation();
                 }

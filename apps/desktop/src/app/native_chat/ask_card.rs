@@ -220,7 +220,7 @@ pub(super) fn keycap(label: String, lit: bool, on_primary: bool, p: &ChatAppeara
 
 /// The key that sends from a note box: Ctrl+Enter, Cmd+Enter on macOS.
 pub(super) fn send_keys() -> String {
-    if cfg!(target_os = "macos") {
+    if super::keyboard::chat_mac_keys() {
         "⌘↵".to_string()
     } else {
         "Ctrl ↵".to_string()

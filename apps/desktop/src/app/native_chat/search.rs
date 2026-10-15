@@ -39,10 +39,13 @@ pub(super) fn register(cx: &mut App) {
         return;
     }
     cx.set_global(ChatSearchRegistered);
-    cx.bind_keys(
-        ["NativeChat", "NativeChat > Input"]
-            .map(|context| KeyBinding::new("secondary-f", OpenChatSearch, Some(context))),
-    );
+    cx.bind_keys(["NativeChat", "NativeChat > Input"].map(|context| {
+        KeyBinding::new(
+            &super::keyboard::primary_chord("f"),
+            OpenChatSearch,
+            Some(context),
+        )
+    }));
 }
 
 impl NativeChatView {

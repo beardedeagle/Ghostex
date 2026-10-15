@@ -84,7 +84,7 @@ impl NativeChatView {
         // As React's Send label did: the gesture hints appear only while the draft can queue.
         // The tooltip is a mini menu: one row per gesture, its keys on the right (CDXC:Tooltips 2026-10-15).
         use gpui_component::tooltip::TooltipRow;
-        let chord = crate::hotkey_label::terminal_overlay_hotkey_chord_label;
+        let chord = super::keyboard::chat_chord_label;
         let (label, keys, rows): (gpui::SharedString, String, Vec<TooltipRow>) = if stop {
             ("Stop the agent".into(), String::new(), Vec::new())
         } else if has_draft && self.snapshot["working"] == true {
