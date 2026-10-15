@@ -2572,7 +2572,9 @@ commit, sync with main, PR review by a prompt agent, and related actions with
 persistent running toasts. Add Worktree on a project header creates a git
 worktree as its own project so a second agent works on a branch without
 touching the main checkout; worktrees can be renamed, merged back, and
-deleted from the sidebar.
+deleted from the sidebar. When a worktree's folder is deleted, the sessions that
+worked in it continue in the project's folder with the same conversation, so a
+finished session or thread still opens and can be messaged.
 
 Work mode links a project's sessions to the work they belong to. It comes with
 Workspaces: turn Workspaces on in Settings > Extensions (Features) first; while
