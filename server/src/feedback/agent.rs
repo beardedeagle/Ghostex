@@ -31,11 +31,8 @@ const FEEDBACK_AGENT_SESSION_TITLE: &str = "Bug / Feedback";
 
 /// Whether the agent shows the user its draft and waits for a yes before it posts.
 ///
-/// CDXC:Feedback 2026-10-16 WHY:
-/// The 2026-10-04 Feedback DECISION (apps/desktop/src/app/window/feedback_modal/state.rs) says the
-/// user always sees and can edit the final issue before it is posted, and the user's answer on
-/// whether the agent may post by itself is pending, so the agent asks first. Dropping the step is
-/// this switch: `feedback_agent_prompt` words the last step from it.
+/// CDXC:Feedback 2026-10-16 DECISION:
+/// User, asked whether the feedback agent may post the issue straight away: "Show me the draft in its chat first". The agent shows its full draft (title, body and the screenshots it will attach) in its chat and posts only after the user says yes there, as the 2026-10-04 rule has the pop-up's Review step do (apps/desktop/src/app/window/feedback_modal/state.rs). `feedback_agent_prompt` words the last step from this switch.
 const FEEDBACK_AGENT_ASKS_BEFORE_POSTING: bool = true;
 
 /// `startFeedbackAgent { message, githubUsername, images: [{ name, dataBase64 }], agentId? }`
