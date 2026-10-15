@@ -130,13 +130,12 @@ impl GhostexGpuiApp {
                     .px(px(3.0))
                     .ml(px(5.0))
                     // The label's line box is as tall as the icon buttons and Inter's glyphs sit
-                    // on their centre line, so macOS and Linux need no offset. The old 3pt nudge
-                    // was measured against the system font, before Inter was bundled
-                    // (2026-09-26), and put the title 3pt below the buttons (2026-10-16).
-                    // Windows keeps its own 1pt from c2acbf508; it was not re-measured.
-                    .when(cfg!(target_os = "windows"), |this| {
-                        this.relative().top(px(1.0))
-                    })
+                    // almost on their centre line; 1pt down lines the title up with the buttons'
+                    // visual centre (measured 2026-10-16: with no offset it sat 1pt high, the
+                    // old 3pt nudge from before Inter was bundled sat it 3pt low). Windows
+                    // already used 1pt (c2acbf508), so every platform now shares it.
+                    .relative()
+                    .top(px(1.0))
                     .text_size(px(13.5))
                     .line_height(px(TITLEBAR_CONTROL_HEIGHT))
                     .when_some(project_icon, |this, image| {
