@@ -49,10 +49,23 @@ pub(crate) struct SessionProgramStatus {
     /// terminal pane or Stop in the chat) since the session last went working.
     pub interrupted: bool,
     /// The current working stint began after an earlier report that was not
-    /// working (the program sat at its prompt, or waited on the user). A
-    /// program that starts out working (Codex 0.163 while it loads) has had
-    /// no turn yet, so its first idle is not a finished turn.
+    /// working (the program sat at its prompt, or waited on the user) and
+    /// after the program's start-up grace, so it is a turn.
     pub working_from_report: bool,
+    /// When the program showed up: the first snapshot with records after an
+    /// empty one (unix ms).
+    pub program_started_at_ms: Option<i64>,
+}
+
+/// A program's own start-up is not a turn: Codex 0.163 reports idle, then
+/// working while it loads, then idle again within a couple of seconds.
+const STARTUP_GRACE_MS: i64 = 10_000;
+
+fn unix_now_ms() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|elapsed| elapsed.as_millis() as i64)
+        .unwrap_or(0)
 }
 
 fn registry() -> &'static Mutex<HashMap<String, SessionProgramStatus>> {
@@ -91,6 +104,11 @@ pub(crate) fn store_program_status_snapshot(
     let changed = !entry.supported || entry.reported != reported || entry.records != records;
     entry.supported = true;
     entry.reported = reported;
+    if entry.records.is_empty() && !records.is_empty() {
+        entry.program_started_at_ms = Some(unix_now_ms());
+    } else if records.is_empty() {
+        entry.program_started_at_ms = None;
+    }
     entry.records = records;
     changed
 }
@@ -125,7 +143,10 @@ pub(crate) fn set_program_status_applied(
         if let Some(entry) = registry.get_mut(&registry_key(project_id, session_id)) {
             if state == Some("working") && entry.applied_state.as_deref() != Some("working") {
                 entry.interrupted = false;
-                entry.working_from_report = entry.applied_state.is_some();
+                entry.working_from_report = entry.applied_state.is_some()
+                    && entry
+                        .program_started_at_ms
+                        .is_some_and(|started| unix_now_ms() - started >= STARTUP_GRACE_MS);
             }
             entry.applied_key = key;
             entry.applied_state = state.map(str::to_string);
