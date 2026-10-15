@@ -42,7 +42,9 @@ pub enum TranscriptItem {
         #[serde(default)]
         work_open: bool,
         /// The running turn's rows behind its "Active work" fold. The agent's newest row carries
-        /// `toolsOpen: true`: its tool calls start open, so the running one shows.
+        /// `toolsOpen: true`: its tool calls start open, so the running one shows. A call waiting
+        /// on an approval carries `awaitingApproval: true` and starts open itself
+        /// (`transcript/approval_wait.rs`), in every transcript mode.
         work: Vec<ProjectedMessage>,
         /// What ended a turn the agent wrote no reply to: a slash command's output ("Set effort
         /// level to High") or the "Interrupted" marker. Drawn under the prompt without a fold.

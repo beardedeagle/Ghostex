@@ -80,6 +80,7 @@ pub fn refresh(state: &mut ChatState, context: &ChatContext) {
         queue: state.session.queue_prompts.clone(),
         line_breaks: presentation::line_breaks(state),
         live_side_question: crate::transcript::side_question::live_side_question(state),
+        approval_wait: crate::transcript::approval_wait::approval_wait(state),
         session_directory_revision: state.transcript_view.session_directory_revision,
         agent_message_deliveries: state.session.agent_message_deliveries.clone(),
     };

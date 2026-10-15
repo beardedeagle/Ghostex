@@ -7,6 +7,7 @@
 pub mod actions;
 pub mod agent_message;
 pub mod agent_message_card;
+pub mod approval_wait;
 pub mod deferred_work;
 pub mod diff;
 pub mod document;

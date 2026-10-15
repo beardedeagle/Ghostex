@@ -76,8 +76,10 @@ impl NativeChatView {
         }
         if p.simple && !show_all {
             let key = format!("tools:{id}");
-            // The run disclosure opens on demand and is never opened by verbose mode, as React's was.
-            let expanded = self.expanded.contains(&key);
+            // The run disclosure opens on demand and is never opened by verbose mode, as React's was;
+            // only a call waiting on an approval opens it (gx-chat-core `approval_wait.rs`).
+            let awaiting = tools.iter().any(|tool| tool["awaitingApproval"] == true);
+            let expanded = self.is_expanded(&key, awaiting);
             let motion = self.disclosure_frame(&key, expanded, cx);
             let mut rows = vec![self.disclosure(
                 key.clone(),
@@ -450,7 +452,10 @@ impl NativeChatView {
     ) -> AnyElement {
         let s = p.scale;
         let key = format!("tool:{message_id}:{index}");
-        let expanded = self.expanded.contains(&key);
+        // A call waiting on an approval starts open so its command shows beside the card, and
+        // folds back once it is answered unless the reader toggled it (gx-chat-core
+        // `approval_wait.rs`).
+        let expanded = self.is_expanded(&key, tool["awaitingApproval"] == true);
         let has_detail = tool["hasDetail"] == true;
         let motion = self.disclosure_frame(&key, expanded && has_detail, cx);
         let failed = tool["failed"] == true;
@@ -514,9 +519,9 @@ impl NativeChatView {
             .when(has_detail, |this| {
                 this.chat_cursor_pointer()
                     .hover(|style| style.bg(p.foreground.opacity(0.03)))
-                    .on_click(
-                        cx.listener(move |view, _, _, cx| view.toggle_disclosure(&toggle_key, cx)),
-                    )
+                    .on_click(cx.listener(move |view, _, _, cx| {
+                        view.toggle_marker_disclosure(toggle_key.clone(), expanded, cx)
+                    }))
             })
             .child(
                 div()

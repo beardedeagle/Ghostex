@@ -53,6 +53,7 @@ fn scope<'a>(
         working_directory,
         line_breaks,
         live_side_question: None,
+        approval_wait: None,
         agent_fleet: None,
         session_directory: &view.session_directory,
         // A subagent's transcript draws no forms, so its words link to nothing.
@@ -105,6 +106,7 @@ pub fn refresh(state: &mut ChatState, context: &ChatContext) {
         queue: None,
         line_breaks: crate::transcript::presentation::line_breaks(state),
         live_side_question: None,
+        approval_wait: None,
         session_directory_revision: 0,
         agent_message_deliveries: None,
     };

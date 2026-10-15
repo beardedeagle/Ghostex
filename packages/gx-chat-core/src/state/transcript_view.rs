@@ -170,6 +170,8 @@ pub struct ProjectionInputs {
     pub line_breaks: crate::transcript::line_breaks::AgentLineBreaks,
     /// The side question whose card is open above the composer, which the list leaves out.
     pub live_side_question: Option<String>,
+    /// The tool approval the agent is blocked on, whose call the list draws open.
+    pub approval_wait: Option<crate::transcript::approval_wait::ApprovalWait>,
     /// [`TranscriptViewState::session_directory_revision`]: the names on agent message cards.
     pub session_directory_revision: u64,
     /// `SessionState::agent_message_deliveries`: the statuses on sent agent message cards.

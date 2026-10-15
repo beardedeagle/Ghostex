@@ -432,6 +432,8 @@ pub struct ProjectionScope<'a> {
     pub line_breaks: AgentLineBreaks,
     /// The side question whose card is open above the composer; its row waits for Close.
     pub live_side_question: Option<String>,
+    /// The tool approval the agent is blocked on, whose call the list draws open.
+    pub approval_wait: Option<crate::transcript::approval_wait::ApprovalWait>,
     /// The Subagents roster, which names the background agents whose messages the session gets.
     pub agent_fleet: Option<&'a Value>,
     /// The host's session list, which names the other session on a message between agents.
@@ -464,6 +466,7 @@ pub fn scope<'a>(state: &'a ChatState, view: &'a TranscriptViewState) -> Project
         working_directory: view.working_directory.as_deref(),
         line_breaks: line_breaks(state),
         live_side_question: crate::transcript::side_question::live_side_question(state),
+        approval_wait: crate::transcript::approval_wait::approval_wait(state),
         agent_fleet: state.session.agent_fleet.as_ref(),
         session_directory: &view.session_directory,
         question_tags: linkable_tags(&found),
@@ -843,6 +846,11 @@ pub fn build_scope(
         .collect();
     let minimap = crate::extras::minimap::project_minimap_turns(&turns, &item_index);
     let backfill = builder.backfill;
+    crate::transcript::approval_wait::open_waiting_call(
+        &mut items,
+        cache,
+        scope.approval_wait.as_ref(),
+    );
     prune_cache(cache, scope);
     let page_answers = page_answers_in(scope.messages);
     let answered_pages: Vec<String> = page_answers
