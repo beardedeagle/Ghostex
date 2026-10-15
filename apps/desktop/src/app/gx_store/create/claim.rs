@@ -165,13 +165,9 @@ impl GhostexGpuiApp {
                 self.gx_store_create_quick_terminal(cx);
                 true
             }
+            // Every door makes the launched agent the last-used one, as the host message door does.
             Some("runSidebarAgent") => {
-                let Some(agent_id) = message.get("agentId").and_then(Value::as_str) else {
-                    return true;
-                };
-                let group_id = message.get("groupId").and_then(Value::as_str);
-                let account_id = message.get("accountId").and_then(Value::as_str);
-                self.gx_store_request_agent_launch(agent_id, group_id, account_id, cx);
+                self.gx_store_run_sidebar_agent_message(message, cx);
                 true
             }
             Some("confirmAgentHookLaunch") => {

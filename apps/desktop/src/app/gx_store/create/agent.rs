@@ -85,6 +85,9 @@ impl GhostexGpuiApp {
     /// CDXC:AgentLauncher 2026-09-09 WHY:
     /// A launch forwarded from the New Thread picker must also become the sidebar's highlighted
     /// default agent, which is read from the launcher key in client storage.
+    ///
+    /// CDXC:AgentLauncher 2026-10-15 WHY:
+    /// The app's own field (New Agent Session and the New Thread picker's order) is set here with the key, so every launcher door updates both. Only the picker's own path set it before, so a launch from the project row's agent menu left Cmd+Shift+O starting the previous agent until the app restarted.
     pub(super) fn gx_store_run_sidebar_agent_message(
         &mut self,
         message: &Value,
@@ -94,6 +97,7 @@ impl GhostexGpuiApp {
             return;
         };
         let agent_id = agent_id.to_string();
+        self.note_primary_agent_launcher(&agent_id);
         let background = cx.background_executor().clone();
         let stored = agent_id.clone();
         cx.spawn(async move |this, cx| {

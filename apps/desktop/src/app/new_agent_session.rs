@@ -101,6 +101,12 @@ impl GhostexGpuiApp {
         self.launch_agent_in_active_project(agent.agent_id, None, run_location, cx);
     }
 
+    /// Every `runSidebarAgent` launch calls this as it stores the launcher key
+    /// (gx_store/create/agent.rs), so this order follows every launcher, not only the picker.
+    pub(crate) fn note_primary_agent_launcher(&mut self, agent_id: &str) {
+        self.sidebar_primary_agent_launcher_id = Some(agent_id.to_string());
+    }
+
     fn last_used_agent(&self) -> Option<NewThreadPickerAgent> {
         let hud_agents = self.new_thread_picker_agents.clone().or_else(|| {
             self.native_sidebar
@@ -136,7 +142,6 @@ impl GhostexGpuiApp {
         if let Some(run_location) = run_location {
             message["runLocation"] = json!(run_location);
         }
-        self.sidebar_primary_agent_launcher_id = Some(agent_id);
         self.stage_agent_launch_placeholder(&message, cx);
         self.focus_staged_chat_after_picker(cx);
         self.dispatch_gpui_sidebar_host_message(message, cx);

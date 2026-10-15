@@ -97,6 +97,9 @@ impl GhostexGpuiApp {
 
     /// The desktop drops its cached menu inputs after a write; the page builds its menu inputs on every update.
     pub(crate) fn gx_store_note_menu_host_write(&mut self, _command: &Value) {}
+
+    /// The desktop keeps the last-used agent in a field; the page reads the stored key whenever it builds its menus.
+    pub(crate) fn note_primary_agent_launcher(&mut self, _agent_id: &str) {}
 }
 
 impl GhostexGpuiApp {
