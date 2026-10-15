@@ -48,6 +48,11 @@ pub(crate) struct SessionProgramStatus {
     /// The user interrupted the current turn from Ghostex (Escape in the
     /// terminal pane or Stop in the chat) since the session last went working.
     pub interrupted: bool,
+    /// The current working stint began after an earlier report that was not
+    /// working (the program sat at its prompt, or waited on the user). A
+    /// program that starts out working (Codex 0.163 while it loads) has had
+    /// no turn yet, so its first idle is not a finished turn.
+    pub working_from_report: bool,
 }
 
 fn registry() -> &'static Mutex<HashMap<String, SessionProgramStatus>> {
@@ -118,11 +123,12 @@ pub(crate) fn set_program_status_applied(
 ) {
     if let Ok(mut registry) = registry().lock() {
         if let Some(entry) = registry.get_mut(&registry_key(project_id, session_id)) {
+            if state == Some("working") && entry.applied_state.as_deref() != Some("working") {
+                entry.interrupted = false;
+                entry.working_from_report = entry.applied_state.is_some();
+            }
             entry.applied_key = key;
             entry.applied_state = state.map(str::to_string);
-            if state == Some("working") {
-                entry.interrupted = false;
-            }
         }
     }
 }

@@ -201,7 +201,7 @@ enum FinishedTurnStep {
 }
 
 /// CDXC:SessionStatus 2026-10-15 DECISION:
-/// User (Q116): "treat an agent's working → idle as finished" (blue finished dot until the user looks), so an agent that ends its turn with `idle` instead of `done` (Codex 0.163 does) still shows as finished. Only for agent sessions, only while the program is still there (its idle record, not an empty list after it exited), and not when the user interrupted the turn from Ghostex: Escape in the terminal pane and Stop in the chat both send `escape`, which `compute_activity_update` notes for the session. A Ctrl-C typed straight into the terminal cannot be told apart and does count as finished.
+/// User (Q116): "treat an agent's working → idle as finished" (blue finished dot until the user looks), so an agent that ends its turn with `idle` instead of `done` (Codex 0.163 does) still shows as finished. Only for agent sessions, only for a working stint that began after an earlier report (a program that starts out working while it loads has had no turn), only while the program is still there (its idle record, not an empty list after it exited), and not when the user interrupted the turn from Ghostex: Escape in the terminal pane and Stop in the chat both send `escape`, which `compute_activity_update` notes for the session. A Ctrl-C typed straight into the terminal cannot be told apart and does count as finished.
 fn finished_turn_step(
     entry: &super::SessionProgramStatus,
     derived: &super::DerivedProgramStatus,
@@ -212,7 +212,9 @@ fn finished_turn_step(
     }
     match entry.applied_state.as_deref() {
         Some("finished") => FinishedTurnStep::StillFinished,
-        Some("working") if !entry.interrupted && is_agent_session(session) => {
+        Some("working")
+            if entry.working_from_report && !entry.interrupted && is_agent_session(session) =>
+        {
             FinishedTurnStep::Promote
         }
         _ => FinishedTurnStep::None,
