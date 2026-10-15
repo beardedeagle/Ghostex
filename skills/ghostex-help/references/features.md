@@ -2456,8 +2456,9 @@ working, waiting for you, or done. Ghostex detection, the default, reads each
 agent's hooks, terminal title and screen. Some programs report their own status
 with the Program Status Protocol (OSC 7501): Claude Code 2.1.295 and newer does,
 and so can your own scripts. Program status only takes every session's status
-from those reports alone; Auto uses them for sessions whose program sends them
-and Ghostex detection for the rest. With the program's own status, working shows
+from those reports alone; Auto uses them while a session's program sends them
+and Ghostex detection for the rest, including a session whose reporting program
+has exited. With the program's own status, working shows
 the orange dot, waiting for permission, an answer or a sign-in shows the blue
 dot, finished shows the blue dot until you look, and a failure shows a red dot.
 An agent that goes from working back to idle also counts as finished, unless

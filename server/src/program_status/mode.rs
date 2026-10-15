@@ -8,7 +8,7 @@ use crate::paths::GxserverPaths;
 pub(crate) const STATUS_SOURCE_SETTING_KEY: &str = "sessionStatusSource";
 
 /// CDXC:SessionStatus 2026-10-14 DECISION:
-/// User (Q112): the setting has three values. Detection is today's behaviour (hooks, terminal titles, screen reading). Auto trusts OSC 7501 for a session once that session has reported a record and keeps today's detection for sessions that never reported. Program status only takes status only from OSC 7501 records. Detection stays the default: Auto would change what every current user sees as soon as Claude Code reports, and Ghostex's detection still knows things the protocol does not carry (subagent fleets, compaction, a Stop hook's "finished" before the agent repaints).
+/// User (Q112): the setting has three values. Detection is today's behaviour (hooks, terminal titles, screen reading). Auto trusts OSC 7501 for a session once that session has reported a record and keeps today's detection for sessions that never reported; since 2026-10-15 (user: "fix that") only while the program that reported is still running, so a session goes back to detection when that program exits. Program status only takes status only from OSC 7501 records. Detection stays the default: Auto would change what every current user sees as soon as Claude Code reports, and Ghostex's detection still knows things the protocol does not carry (subagent fleets, compaction, a Stop hook's "finished" before the agent repaints).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum StatusSource {
     Detection,

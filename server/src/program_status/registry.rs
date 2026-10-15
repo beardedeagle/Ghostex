@@ -35,7 +35,8 @@ pub(crate) struct ProgramStatusRecord {
 pub(crate) struct SessionProgramStatus {
     /// The daemon answered the subscribe (it keeps OSC 7501 records).
     pub supported: bool,
-    /// The session reported at least once while this daemon ran.
+    /// A program in the session reported and is still running (the daemon
+    /// clears it once that program exits, so Auto goes back to detection).
     pub reported: bool,
     pub records: Vec<ProgramStatusRecord>,
     /// Identity of the record state last written to the session's activity,
