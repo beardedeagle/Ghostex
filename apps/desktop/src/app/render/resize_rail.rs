@@ -219,17 +219,16 @@ pub(crate) fn resize_rail_outline_segments(
     let inset = |faces_rail: bool| if faces_rail { 0.0 } else { -1.0 };
     let mut segments = Vec::new();
     // CDXC:Workarea 2026-10-15 WHY:
-    // The user: the top-right corner "isn't showing the border correct" and the bottom-right "should be very slightly more rounded". A lone chat's outline is one bordered frame from the window's top edge to the pane's bottom, on the pane's own border column where it has one and over the rail where it faces one, and it follows the window's rounded corners wherever it meets them (`window_corner_outline`). The separate straight segments it replaces ran beside the header one column outside the pane, off the window at its right edge, and were cut off square by the window's corner mask.
+    // The user: the top-right corner "isn't showing the border correct" and the bottom-right "should be very slightly more rounded". A lone chat's outline is one bordered frame from the window's top edge to the pane's bottom that follows the window's rounded corners wherever it meets them (`window_corner_outline`); the separate straight segments it replaces were cut off square by the window's corner mask. Absolute children are placed against the pane's padding box, inside its own border, so every side sits one thickness out: on the pane's own border where it has one and over the rail where it faces one. Placing a bordered side at zero drew a second line beside the pane's own, so that side read one pixel thicker than the top.
     if let Some(reach) = header_reach {
-        let outside = |faces_rail: bool| if faces_rail { -thickness } else { 0.0 };
         let outline = div()
             .absolute()
             // CDXC:Workarea 2026-10-11 WHY:
             // Where the outline closes along the window's top edge, the window's own frame covers the client area's top rows (on Windows 11 the DWM border is drawn over them, 2 device pixels at 150%), so the segment sits just below what the frame covers, on the first row the app really paints; the header's layout is unchanged. This supersedes the 2026-10-09 fixed one-pixel offset, which GPUI snaps to device row 1 at 150% (1.5 rounds toward zero), still under the frame.
             .top(px(-reach.above + reach.frame_cover))
-            .left(px(outside(edges.left)))
-            .right(px(outside(edges.right)))
-            .bottom(px(outside(edges.bottom)))
+            .left(px(-thickness))
+            .right(px(-thickness))
+            .bottom(px(-thickness))
             .border_1()
             .border_color(color)
             .window_corner_outline();
