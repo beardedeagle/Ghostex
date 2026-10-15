@@ -314,7 +314,7 @@ impl GhostexGpuiApp {
             .border_1()
             .border_color(titlebar_split_button_border_color())
             .px(px(WORKAREA_VIEW_TAB_HORIZONTAL_PADDING))
-            .text_size(px(12.5))
+            .text_size(px(WORKAREA_HEADER_TITLE_TEXT_SIZE))
             .line_height(px(WORKAREA_VIEW_TAB_HEIGHT))
             .cursor_default()
             .when(slot.shows_drop_marker, |this| {

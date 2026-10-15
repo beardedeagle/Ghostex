@@ -136,7 +136,7 @@ impl GhostexGpuiApp {
                     // already used 1pt (c2acbf508), so every platform now shares it.
                     .relative()
                     .top(px(1.0))
-                    .text_size(px(13.5))
+                    .text_size(px(WORKAREA_HEADER_TITLE_TEXT_SIZE))
                     .line_height(px(TITLEBAR_CONTROL_HEIGHT))
                     .when_some(project_icon, |this, image| {
                         this.child(

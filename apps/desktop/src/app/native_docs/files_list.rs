@@ -27,8 +27,6 @@ use crate::app::helpers::{titlebar_svg_icon, titlebar_tooltip};
 
 /// The header row, the search row and the document header share this height.
 pub(crate) const ROW_STRIP_HEIGHT: f32 = 35.0;
-/// CDXC:Docs 2026-10-16 DECISION: User: "make the font size here match the font size of the buttons pls (for all shown: file path and The file changed on disk....". The document header's path and its Edited/Saved/Deleted marks, and the disk notice's sentence and buttons, share this one size.
-pub(crate) const HEADER_TEXT_SIZE: f32 = 12.0;
 const HEADER_BUTTON_WIDTH: f32 = 32.0;
 const HEADER_BUTTON_GAP: f32 = 2.0;
 const OPEN_FILE_ROW_HEIGHT: f32 = 28.0;
