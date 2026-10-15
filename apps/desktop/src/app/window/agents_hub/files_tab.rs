@@ -1,7 +1,7 @@
 //! The four file tabs (Skills, MDs, Hooks, Configs & MCPs): the searchable grouped list on the
 //! left and the selected file's editor on the right (`.agents-hub-layout` in
 //! packages/core-ui/styles/agents-hub.css).
-use super::super::native_modal_kit::{hsla, rgba_of, MODAL_MONO_FONT};
+use super::super::native_modal_kit::{MODAL_MONO_FONT, hsla, rgba_of};
 use super::editor::editor_body;
 use super::model::*;
 use super::palette::HubPalette;
@@ -9,8 +9,9 @@ use super::widgets::*;
 use super::window::{AgentsHubModalCommand, GpuiAgentsHubModalWindow};
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
-    div, px, AnyElement, ClickEvent, Context, FontWeight, InteractiveElement as _, IntoElement,
-    ParentElement as _, SharedString, StatefulInteractiveElement as _, Styled as _, Window,
+    AnyElement, ClickEvent, Context, FontWeight, InteractiveElement as _, IntoElement,
+    ParentElement as _, SharedString, StatefulInteractiveElement as _, Styled as _, Window, div,
+    px,
 };
 use gpui_component::scroll::Scrollbar;
 use gpui_component::tooltip::Tooltip;
@@ -554,8 +555,11 @@ fn toolbar_button(
     glyph: &'static str,
     label: &'static str,
     disabled: bool,
-    on_click: impl Fn(&mut GpuiAgentsHubModalWindow, &mut Window, &mut Context<GpuiAgentsHubModalWindow>)
-        + 'static,
+    on_click: impl Fn(
+        &mut GpuiAgentsHubModalWindow,
+        &mut Window,
+        &mut Context<GpuiAgentsHubModalWindow>,
+    ) + 'static,
     cx: &mut Context<GpuiAgentsHubModalWindow>,
 ) -> AnyElement {
     let hover = hp.raised_hover;

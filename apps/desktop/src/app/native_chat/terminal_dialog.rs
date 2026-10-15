@@ -229,11 +229,13 @@ impl NativeChatView {
                 gpui_component::tooltip::Tooltip::new(tooltip.clone()).build(window, cx)
             })
             .when(!disabled, |row| {
-                row.on_click(cx.listener(move |this, _, _, cx| match (&answer, &on_more) {
-                    (Some(answer), _) => this.invoke(answer.clone(), cx),
-                    (None, Some(on_more)) => on_more(this, cx),
-                    (None, None) => {}
-                }))
+                row.on_click(
+                    cx.listener(move |this, _, _, cx| match (&answer, &on_more) {
+                        (Some(answer), _) => this.invoke(answer.clone(), cx),
+                        (None, Some(on_more)) => on_more(this, cx),
+                        (None, None) => {}
+                    }),
+                )
             })
             .into_any_element()
     }
@@ -280,9 +282,21 @@ impl NativeChatView {
             body.push(div().child(text(dialog, "body")).into_any_element());
             let restore = json!({"type":"answer","answer":{"kind":"terminalDialog","dialogId":dialog_id,"dialogAction":"cancel"}});
             actions.push(
-                self.tone_button("restore-chat", if busy { "Restoring chat…" } else { "Restore chat" }, None, ToneButton::Primary, None, false, p)
-                    .on_click(cx.listener(move |this, _, _, cx| this.invoke(restore.clone(), cx)))
-                    .into_any_element(),
+                self.tone_button(
+                    "restore-chat",
+                    if busy {
+                        "Restoring chat…"
+                    } else {
+                        "Restore chat"
+                    },
+                    None,
+                    ToneButton::Primary,
+                    None,
+                    false,
+                    p,
+                )
+                .on_click(cx.listener(move |this, _, _, cx| this.invoke(restore.clone(), cx)))
+                .into_any_element(),
             );
             return (body, actions);
         }

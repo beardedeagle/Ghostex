@@ -50,7 +50,8 @@ struct Palette {
 
 impl Palette {
     fn of(p: &ChatAppearance) -> Self {
-        let hue = |dark: u32, light: u32| -> Hsla { rgb(if p.light { light } else { dark }).into() };
+        let hue =
+            |dark: u32, light: u32| -> Hsla { rgb(if p.light { light } else { dark }).into() };
         Self {
             surface: p.input,
             border: if p.light {
@@ -230,7 +231,13 @@ impl NativeChatView {
             let body = if unread {
                 self.deferred_work_notice(item, p, cx)
             } else {
-                Some(self.file_change_card(&format!("work:{id}"), &item["filesCard"], &files, p, cx))
+                Some(self.file_change_card(
+                    &format!("work:{id}"),
+                    &item["filesCard"],
+                    &files,
+                    p,
+                    cx,
+                ))
             };
             if let Some(body) = body {
                 group = group.child(self.disclosure_body_motion(&key, motion, 8.0 * p.scale, body));
@@ -279,7 +286,8 @@ impl NativeChatView {
         let s = p.scale;
         let folder = text(summary, "folder");
         let share = summary["addShare"].as_f64().unwrap_or(0.0).clamp(0.0, 1.0) as f32;
-        let changed = summary["added"].as_u64().unwrap_or(0) + summary["removed"].as_u64().unwrap_or(0);
+        let changed =
+            summary["added"].as_u64().unwrap_or(0) + summary["removed"].as_u64().unwrap_or(0);
         let paths = summary["paths"].clone();
         let ratio_width = 90.0 * s;
         div()
@@ -318,12 +326,11 @@ impl NativeChatView {
                             .child(text(summary, "title")),
                     )
                     .when(!folder.is_empty(), |this| {
-                        this.child(
-                            div()
-                                .flex()
-                                .line_height(px(16.0 * s))
-                                .child(folder_label(folder, p.muted, 12.0 * s)),
-                        )
+                        this.child(div().flex().line_height(px(16.0 * s)).child(folder_label(
+                            folder,
+                            p.muted,
+                            12.0 * s,
+                        )))
                     }),
             )
             .child(counts(
@@ -342,7 +349,12 @@ impl NativeChatView {
                         .rounded(px(3.0 * s))
                         .overflow_hidden()
                         .bg(palette.bar_none)
-                        .child(div().h_full().w(px(ratio_width * share)).bg(palette.bar_add))
+                        .child(
+                            div()
+                                .h_full()
+                                .w(px(ratio_width * share))
+                                .bg(palette.bar_add),
+                        )
                         .child(div().h_full().flex_1().bg(palette.bar_del)),
                 )
             })
@@ -440,20 +452,18 @@ impl NativeChatView {
                 palette,
                 s,
             ))
-            .child(
-                div().flex().flex_shrink_0().gap(px(2.0 * s)).children(
-                    file["bars"].as_array().into_iter().flatten().map(|bar| {
-                        div()
-                            .size(px(6.0 * s))
-                            .rounded(px(1.5 * s))
-                            .bg(match bar.as_str() {
-                                Some("add") => palette.bar_add,
-                                Some("del") => palette.bar_del,
-                                _ => palette.bar_none,
-                            })
-                    }),
-                ),
-            );
+            .child(div().flex().flex_shrink_0().gap(px(2.0 * s)).children(
+                file["bars"].as_array().into_iter().flatten().map(|bar| {
+                    div()
+                        .size(px(6.0 * s))
+                        .rounded(px(1.5 * s))
+                        .bg(match bar.as_str() {
+                            Some("add") => palette.bar_add,
+                            Some("del") => palette.bar_del,
+                            _ => palette.bar_none,
+                        })
+                }),
+            ));
         let mut row = div().flex().flex_col().w_full().min_w_0().child(header);
         if !open && motion.is_none() {
             return row.into_any_element();
@@ -514,16 +524,13 @@ impl NativeChatView {
             .text_size(px(12.4 * s))
             .line_height(px(20.0 * s));
         if shown.is_empty() {
-            well = well.child(
-                div()
-                    .px(px(14.0 * s))
-                    .text_color(p.muted)
-                    .child(if file["status"] == "deleted" {
-                        "File removed"
-                    } else {
-                        "Empty file"
-                    }),
-            );
+            well = well.child(div().px(px(14.0 * s)).text_color(p.muted).child(
+                if file["status"] == "deleted" {
+                    "File removed"
+                } else {
+                    "Empty file"
+                },
+            ));
         }
         let number = |value: &Value| -> AnyElement {
             div()

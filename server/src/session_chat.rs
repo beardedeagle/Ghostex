@@ -11,10 +11,10 @@ use std::os::unix::fs::{FileExt, MetadataExt};
 #[cfg(windows)]
 use std::os::windows::fs::{FileExt, MetadataExt};
 
+pub use crate::session_chat_file_patch::{SessionChatPatchHunk, SessionChatToolPatch};
 use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
-pub use crate::session_chat_file_patch::{SessionChatPatchHunk, SessionChatToolPatch};
 
 /*
 CDXC:SessionChat 2026-07-31:

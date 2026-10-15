@@ -211,7 +211,8 @@ fn github_issues_url(origin: &str) -> Option<String> {
             let (_, rest) = origin.split_once("://")?;
             let (authority, path) = rest.split_once('/')?;
             let host = authority.rsplit('@').next()?.split(':').next()?;
-            if !host.eq_ignore_ascii_case("github.com") && !host.eq_ignore_ascii_case("www.github.com")
+            if !host.eq_ignore_ascii_case("github.com")
+                && !host.eq_ignore_ascii_case("www.github.com")
             {
                 return None;
             }

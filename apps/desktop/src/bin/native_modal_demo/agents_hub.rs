@@ -165,7 +165,9 @@ fn file_body(path: &str) -> String {
         .strip_suffix("/SKILL.md")
         .and_then(|root| root.rsplit('/').next())
     {
-        return format!("---\nname: {name}\n---\n\nSkill instructions. Run all CLI commands using the project's package runner, check the registries before writing anything by hand, and keep each component composable so the wrap toggle has a long line to fold.\n\n## Next\n\nMore instructions.");
+        return format!(
+            "---\nname: {name}\n---\n\nSkill instructions. Run all CLI commands using the project's package runner, check the registries before writing anything by hand, and keep each component composable so the wrap toggle has a long line to fold.\n\n## Next\n\nMore instructions."
+        );
     }
     match path {
         "/Users/madda/.codex/config.toml" => "{\n  \"mcpServers\": {}\n}\n".to_string(),

@@ -1108,7 +1108,12 @@ pub(crate) fn enrich_claude_panel_notice(
         let Some(rows) = panel_rows(styled) else {
             return;
         };
-        if rows.iter().find(|row| !row.is_blank()).and_then(tabs).is_none() {
+        if rows
+            .iter()
+            .find(|row| !row.is_blank())
+            .and_then(tabs)
+            .is_none()
+        {
             return;
         }
         let is_option_line = |row: &Row| {
@@ -1126,7 +1131,10 @@ pub(crate) fn enrich_claude_panel_notice(
                             .is_some_and(|description| description.contains(line))
                 })
         };
-        let rest: Vec<Row> = rows.into_iter().filter(|row| !is_option_line(row)).collect();
+        let rest: Vec<Row> = rows
+            .into_iter()
+            .filter(|row| !is_option_line(row))
+            .collect();
         dialog.blocks = panel_blocks(&rest);
         return;
     }

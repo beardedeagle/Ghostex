@@ -187,7 +187,13 @@ fn filtered_receipts(output: &str, sends: &[SentAgentMessage]) -> Vec<Option<Rec
         let send = sends.iter().enumerate().position(|(index, send)| {
             by_prefix[index].is_none()
                 && !token.is_empty()
-                && send.target.rsplit(':').next().unwrap_or_default().to_lowercase() == token
+                && send
+                    .target
+                    .rsplit(':')
+                    .next()
+                    .unwrap_or_default()
+                    .to_lowercase()
+                    == token
         });
         if let Some(index) = send {
             // `G0hh9 Message delivery failed …`: the id the agent printed is not part of why.
@@ -211,7 +217,10 @@ fn filtered_receipts(output: &str, sends: &[SentAgentMessage]) -> Vec<Option<Rec
         return by_prefix;
     }
     if in_order.len() == sends.len() {
-        return in_order.into_iter().map(|status| Some(Receipt::Status(status))).collect();
+        return in_order
+            .into_iter()
+            .map(|status| Some(Receipt::Status(status)))
+            .collect();
     }
     Vec::new()
 }
@@ -274,8 +283,21 @@ fn cli_send(shell: &ShellCommand, at: usize, script: &Script<'_>) -> Option<Sent
         (word.contains('=') && !word.starts_with('-'))
             || matches!(
                 word.as_str(),
-                "env" | "command" | "exec" | "bash" | "sh" | "zsh" | "-c" | "-lc" | "-l"
-                    | "timeout" | "nohup" | "time" | "-k" | "-s" | "--foreground"
+                "env"
+                    | "command"
+                    | "exec"
+                    | "bash"
+                    | "sh"
+                    | "zsh"
+                    | "-c"
+                    | "-lc"
+                    | "-l"
+                    | "timeout"
+                    | "nohup"
+                    | "time"
+                    | "-k"
+                    | "-s"
+                    | "--foreground"
             )
             || word
                 .trim_end_matches(['s', 'm', 'h'])
@@ -433,7 +455,10 @@ pub fn project_sent_messages(
 fn group_by_body(sent: Vec<SentAgentMessage>) -> Vec<Vec<SentAgentMessage>> {
     let mut groups: Vec<Vec<SentAgentMessage>> = Vec::new();
     for message in sent {
-        let Some(group) = groups.iter_mut().find(|group| group[0].body == message.body) else {
+        let Some(group) = groups
+            .iter_mut()
+            .find(|group| group[0].body == message.body)
+        else {
             groups.push(vec![message]);
             continue;
         };
@@ -610,7 +635,9 @@ fn looks_like_reference(target: &str) -> bool {
     let target = js_trim(target);
     target.contains(':')
         || (target.len() >= 8
-            && target.chars().all(|character| character.is_ascii_alphanumeric())
+            && target
+                .chars()
+                .all(|character| character.is_ascii_alphanumeric())
             && target.chars().any(|character| character.is_ascii_digit()))
 }
 
@@ -729,7 +756,9 @@ fn complete(
             }
             if let Some(first) = recipients.first() {
                 let (status, failure) = (first["status"].clone(), first["failure"].clone());
-                let failed = recipients.iter().all(|recipient| recipient["failed"] == true);
+                let failed = recipients
+                    .iter()
+                    .all(|recipient| recipient["failed"] == true);
                 sent["status"] = status;
                 sent["failure"] = failure;
                 sent["failed"] = failed.into();

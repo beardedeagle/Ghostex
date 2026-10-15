@@ -111,7 +111,13 @@ impl<E: Element + Styled> Element for WindowCornerPane<E> {
         let at_top = self.1 && !window.is_fullscreen() && bounds.top().abs() <= edge_inset;
         let at_left = bounds.left().abs() <= edge_inset;
         let at_right = (bounds.right() - viewport.width).abs() <= edge_inset;
-        let radius = |round: bool| px(if round { MACOS_WINDOW_CORNER_RADIUS } else { 0.0 });
+        let radius = |round: bool| {
+            px(if round {
+                MACOS_WINDOW_CORNER_RADIUS
+            } else {
+                0.0
+            })
+        };
         // SEE-ALSO: native/macos/GpuiWindowCorners.h clips native child content
         // to the same window corner, leaving the pane border visible.
         let radii = &mut self.0.style().corner_radii;

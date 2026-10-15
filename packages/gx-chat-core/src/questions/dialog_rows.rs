@@ -5,7 +5,7 @@
 //! User picked option D, "Numbered choices", for the terminal dialog cards (docs/2026-10-15/chat-visual-options/dialogs.html): every row of a live terminal dialog is a numbered row like the question cards' (press its number or click it), the row highlighted in the terminal is marked, and rarely used actions (homepage, repository, back to the list) fold into a "More" row. This replaces, for cards backed by a live dialog, the 2026-09-27 collapsed layout ("make buttons appear full width and on top of each other", notice.rs): those cards open with every row showing.
 //! SEE-ALSO: apps/desktop/src/app/native_chat/notice.rs, apps/mobile/app/src/chat/native/cards/NoticeCard.tsx, server/src/session_chat_claude_dialog.rs.
 
-use serde_json::{Map, Value, json};
+use serde_json::{json, Map, Value};
 
 use crate::questions::model::TerminalDialog;
 
@@ -48,7 +48,10 @@ fn parts(label: &str) -> (String, Option<String>, Option<String>, bool) {
         None => (text, None),
     };
     let name = name.trim_matches(|c: char| c == '✻' || c.is_whitespace());
-    let (name, suffix) = match name.strip_suffix(')').and_then(|head| head.rsplit_once(" (")) {
+    let (name, suffix) = match name
+        .strip_suffix(')')
+        .and_then(|head| head.rsplit_once(" ("))
+    {
         Some((title, suffix)) if !title.is_empty() => (title.trim(), Some(suffix.to_string())),
         _ => (name, None),
     };

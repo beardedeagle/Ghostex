@@ -298,7 +298,11 @@ fn patch_lines(patch: &ToolPatch) -> Vec<DiffLine> {
             hunk.new_start,
             count('+')
         );
-        if let Some(heading) = hunk.heading.as_deref().filter(|heading| !heading.is_empty()) {
+        if let Some(heading) = hunk
+            .heading
+            .as_deref()
+            .filter(|heading| !heading.is_empty())
+        {
             header.push(' ');
             header.push_str(heading);
         }

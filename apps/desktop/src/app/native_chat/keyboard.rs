@@ -362,9 +362,7 @@ impl NativeChatView {
             let notice = &this.snapshot["terminalNotice"];
             // No primary row (a y/n prompt's Yes, dialog_rows.rs) means Cmd+Enter answers nothing.
             let position = if primary {
-                notice["primaryChoice"]
-                    .as_u64()
-                    .map(|index| index as usize)
+                notice["primaryChoice"].as_u64().map(|index| index as usize)
             } else {
                 notice["secondaryChoice"]
                     .as_u64()

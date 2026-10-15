@@ -133,7 +133,7 @@ impl NativeChatView {
                 .flex()
                 .gap(px(6.0 * p.scale))
                 .max_h(px(
-                    f32::from(window.viewport_size().height) * if panel { 0.3 } else { 0.45 },
+                    f32::from(window.viewport_size().height) * if panel { 0.3 } else { 0.45 }
                 ))
                 .overflow_y_scroll();
             if !collapsed {
@@ -148,9 +148,7 @@ impl NativeChatView {
                 .as_u64()
                 .map(|index| index as usize);
             // A y/n prompt's rows have no Cmd+Enter row (dialog_rows.rs `key_rows`).
-            let primary = notice["primaryChoice"]
-                .as_u64()
-                .map(|index| index as usize);
+            let primary = notice["primaryChoice"].as_u64().map(|index| index as usize);
             let shortcuts: Vec<Option<String>> = (0..count.min(choices.len()))
                 .map(|index| {
                     if self.snapshot["showShortcutLabels"] == false {
@@ -436,8 +434,8 @@ impl NativeChatView {
                     .into_any_element(),
             );
         }
-        let press: Option<Box<dyn FnOnce(gpui::Div) -> gpui::Stateful<gpui::Div>>> = foldable
-            .then(|| {
+        let press: Option<Box<dyn FnOnce(gpui::Div) -> gpui::Stateful<gpui::Div>>> =
+            foldable.then(|| {
                 let toggle = cx.listener(move |this, _: &gpui::ClickEvent, _, cx| {
                     if !this.expanded.remove(&key) {
                         this.expanded.insert(key.clone());
@@ -473,37 +471,39 @@ impl NativeChatView {
         } else {
             Vec::new()
         };
-        Some(self.tone_card(
-            ToneCardParts {
-                look: tone_look(&text(notice, "tone"), p),
-                title: Some(text(&notice["dialog"]["presentation"], "title"))
-                    .filter(|title| panel && !title.is_empty())
-                    .unwrap_or_else(|| text(notice, "title")),
-                detail: String::new(),
-                trailing,
-                body,
-                footer_start: if numbered {
-                    vec![
-                        div()
-                            .text_size(px(12.5 * p.scale))
-                            .text_color(p.muted)
-                            .child("Press a number, or click a row")
-                            .into_any_element(),
-                    ]
-                } else {
-                    Vec::new()
+        Some(
+            self.tone_card(
+                ToneCardParts {
+                    look: tone_look(&text(notice, "tone"), p),
+                    title: Some(text(&notice["dialog"]["presentation"], "title"))
+                        .filter(|title| panel && !title.is_empty())
+                        .unwrap_or_else(|| text(notice, "title")),
+                    detail: String::new(),
+                    trailing,
+                    body,
+                    footer_start: if numbered {
+                        vec![
+                            div()
+                                .text_size(px(12.5 * p.scale))
+                                .text_color(p.muted)
+                                .child("Press a number, or click a row")
+                                .into_any_element(),
+                        ]
+                    } else {
+                        Vec::new()
+                    },
+                    // The notice's own actions sit at the footer's right end, ahead of its dialog
+                    // buttons and Dismiss.
+                    footer_end: actions.into_iter().chain(footer_end).collect(),
                 },
-                // The notice's own actions sit at the footer's right end, ahead of its dialog
-                // buttons and Dismiss.
-                footer_end: actions.into_iter().chain(footer_end).collect(),
-            },
-            Some(ToneBodyMotion {
-                key: &body_key,
-                frame: motion,
-                shut: collapsed,
-            }),
-            press,
-            p,
-        ))
+                Some(ToneBodyMotion {
+                    key: &body_key,
+                    frame: motion,
+                    shut: collapsed,
+                }),
+                press,
+                p,
+            ),
+        )
     }
 }

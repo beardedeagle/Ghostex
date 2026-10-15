@@ -192,11 +192,12 @@ fn highlighted_row(dialog: &TerminalDialog) -> Option<String> {
         .flatten()
         .filter(|tail| tail.chars().count() < MAX / 2)
         .unwrap_or_default();
-    let head: String = label
-        .chars()
-        .take(MAX - 1 - tail.chars().count())
-        .collect();
-    Some(format!("{}…{}{tail}", head.trim_end(), if tail.is_empty() { "" } else { " " }))
+    let head: String = label.chars().take(MAX - 1 - tail.chars().count()).collect();
+    Some(format!(
+        "{}…{}{tail}",
+        head.trim_end(),
+        if tail.is_empty() { "" } else { " " }
+    ))
 }
 
 /// The side question card: the question, the answer as Markdown for the renderer and as the raw

@@ -5,9 +5,9 @@
 //! listed for family b in `docs/2026-09-21/rust-chat/FAMILIES.md`.
 
 pub mod actions;
-pub mod api_errors;
 pub mod agent_message;
 pub mod agent_message_card;
+pub mod api_errors;
 pub mod approval_wait;
 pub mod deferred_work;
 pub mod diff;

@@ -167,7 +167,9 @@ fn attach_claude_tool_patch(record: &Map<String, Value>, blocks: &mut [SessionCh
     let mut results = blocks
         .iter_mut()
         .filter(|block| matches!(block, SessionChatBlock::ToolResult { .. }));
-    if let (Some(SessionChatBlock::ToolResult { patch, .. }), None) = (results.next(), results.next()) {
+    if let (Some(SessionChatBlock::ToolResult { patch, .. }), None) =
+        (results.next(), results.next())
+    {
         *patch = Some(found);
     }
 }

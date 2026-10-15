@@ -140,10 +140,8 @@ fn option_rows(remainder: &[String]) -> (Vec<TerminalDialogRow>, RangeInclusive<
         return (Vec::new(), 1..=0);
     };
     let after_pointer = remainder[selected].trim_start().trim_start_matches('❯');
-    let label_column = indent(&remainder[selected])
-        + 1
-        + indent(after_pointer)
-        + mark(after_pointer);
+    let label_column =
+        indent(&remainder[selected]) + 1 + indent(after_pointer) + mark(after_pointer);
     let label_start = |line: &str| indent(line) + mark(line);
     let is_row = |index: usize| {
         index == selected
