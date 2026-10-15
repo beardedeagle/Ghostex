@@ -101,7 +101,7 @@ impl Render for NativeChatView {
             self.ensure_input(window, cx);
         }
         self.sync_form_inputs(window, cx);
-        self.sync_chat_zoom_default();
+        self.sync_chat_zoom();
         let p = ChatAppearance::current(&self.snapshot).on_window_glass(
             crate::app::helpers::window_glass_active_for(self.main_window),
         );

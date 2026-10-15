@@ -171,8 +171,8 @@ pub(crate) struct NativeChatView {
     pub(super) issue_link_base: Option<gpui::SharedString>,
     /// Open or closed as this pane last asked the shared runtime, held until its snapshot agrees.
     pub(super) search_pending_open: Option<bool>,
-    /// Keyboard zoom (Cmd+= / Cmd+- / Cmd+0): this pane's temporary size (zoom.rs).
-    pub(super) zoom: super::zoom::ChatZoomState,
+    /// The chat zoom this view's transcript rows were last measured at (zoom.rs).
+    pub(super) drawn_zoom_percent: Option<f32>,
     pub(crate) draft: String,
     pub(crate) draft_revision: u64,
     pub(crate) draft_id: String,
@@ -420,7 +420,7 @@ impl NativeChatView {
             row_find: None,
             issue_link_base: None,
             search_pending_open: None,
-            zoom: Default::default(),
+            drawn_zoom_percent: None,
             draft: String::new(),
             draft_revision: 0,
             pending_send: false,
@@ -821,8 +821,6 @@ impl NativeChatView {
             .as_object_mut()
             .and_then(|output| output.remove("snapshot"))
         {
-            // The pane's keyboard zoom is its own, and outlives the snapshots the host publishes.
-            self.apply_chat_zoom(&mut snapshot);
             self.retain_launch_welcome(&mut snapshot);
             if let Some(measured) = self
                 .composer_measurements

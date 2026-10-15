@@ -1,29 +1,38 @@
-//! Keyboard zoom for the chat pane: Cmd+= / Cmd+- / Cmd+0 (Ctrl on Windows and Linux).
+//! Keyboard zoom for the chat: Cmd+= / Cmd+- / Cmd+0 (Ctrl on Windows and Linux).
 //!
-//! GPUI chat paints everything at `ChatAppearance::scale`, so the chords step a per-pane override
-//! that the appearance prefers over the configured `sessionChatZoomPercent`. Like Chromium's page
-//! zoom the override is temporary: it belongs to this view, is never written to Settings, and a
-//! change to the configured default drops it.
+//! GPUI chat paints everything at `ChatAppearance::scale`, which is the saved
+//! `sessionChatZoomPercent` (Settings > Chat > Default chat zoom). The chords step that setting,
+//! so every open chat on the computer, and every window drawn from one (the maximized composer,
+//! the pickers, the image viewer), changes size together.
 
-use super::{appearance::ChatAppearance, state::NativeChatView};
-use gpui::{App, Context, KeyBinding, Window};
-use serde_json::Value;
-use std::sync::Arc;
+use super::state::NativeChatView;
+use gpui::{App, Context, KeyBinding, Task, Window};
+use std::cell::Cell;
+use std::time::Duration;
 
-/// The override rides in the snapshot so every window drawn from it (the maximized composer, the
-/// pickers, the image viewer) paints at the pane's size without a second zoom channel.
-const ZOOM_PERCENT_KEY: &str = "keyboardZoomPercent";
-
+/// CDXC:SessionChat 2026-10-15 DECISION:
+/// User: "let's please make the size of the chats all the same (so when i zoom in 1 chat it zoomes all of them not individual one)". The zoom chords step the saved `sessionChatZoomPercent` instead of a per-pane override, so every open chat follows at once and Settings > Chat shows the new value. Cmd+0 sets 100%. Supersedes the 2026-09-19 per-pane temporary override (the `keyboardZoomPercent` snapshot key).
+///
 /// CDXC:SessionChat 2026-09-19 WHY:
 /// The rungs are Chromium's preset zoom factors kept inside the 70% to 200% range Settings offers,
 /// so the same number of presses lands on the same percentage as the React chat did on web and mobile, and
-/// every rung is also a multiple of the shared 5% step. Cmd+0 drops the override and returns the pane to the
-/// configured default instead of to a flat 100%, which is what a reset means once the default is a
-/// user setting.
-/// SEE-ALSO: packages/shared/ghostex-settings/types.ts (deleted 2026-10-01) owns the range, step and default.
+/// every rung is also a multiple of the shared 5% step.
+/// SEE-ALSO: packages/settings-catalog/src/data/limits.rs owns the range and step; packages/settings-catalog/src/data/defaults.rs the default.
 const ZOOM_PERCENT_RUNGS: [f32; 10] = [
     70.0, 75.0, 80.0, 90.0, 100.0, 110.0, 125.0, 150.0, 175.0, 200.0,
 ];
+
+/// Matches the Settings sliders' debounce (`NUMERIC_SETTINGS_DEBOUNCE`): a held chord shows
+/// every rung at once and saves once, after the keys go quiet.
+const ZOOM_SAVE_DEBOUNCE: Duration = Duration::from_millis(180);
+
+const RESET_ZOOM_PERCENT: f32 = 100.0;
+
+thread_local! {
+    /// The zoom the chords asked for that the debounced save has not written yet; every chat
+    /// paints at it meanwhile, so the next press steps from what is on screen.
+    static PENDING_ZOOM_PERCENT: Cell<Option<f32>> = const { Cell::new(None) };
+}
 
 #[derive(Clone, Debug, PartialEq, gpui::Action)]
 #[action(namespace = ghostex_gpui, no_json)]
@@ -44,13 +53,9 @@ enum ZoomStep {
     Reset,
 }
 
-/// The temporary zoom this pane's keyboard asked for, and the configured default it was stepped
-/// from, so a later change to that default can drop it.
-#[derive(Default)]
-pub(super) struct ChatZoomState {
-    override_percent: Option<f32>,
-    default_percent: Option<f32>,
-}
+/// The one debounced save, whichever chat's chord started it; a later press replaces it.
+struct ChatZoomSave(#[allow(dead_code)] Task<()>);
+impl gpui::Global for ChatZoomSave {}
 
 struct ChatZoomRegistered;
 impl gpui::Global for ChatZoomRegistered {}
@@ -75,25 +80,20 @@ pub(super) fn register(cx: &mut App) {
     cx.bind_keys(bindings);
 }
 
-/// The temporary zoom a snapshot carries, if its pane has one.
-pub(super) fn keyboard_zoom_percent(state: &Value) -> Option<f32> {
-    state[ZOOM_PERCENT_KEY]
-        .as_f64()
-        .map(|percent| percent as f32)
+/// The chat zoom every chat paints at: a chord's value still waiting to be saved, else the saved
+/// `sessionChatZoomPercent`.
+pub(super) fn chat_zoom_percent(settings: &serde_json::Map<String, serde_json::Value>) -> f32 {
+    PENDING_ZOOM_PERCENT.with(Cell::get).unwrap_or_else(|| {
+        settings
+            .get("sessionChatZoomPercent")
+            .and_then(serde_json::Value::as_f64)
+            .unwrap_or(100.0) as f32
+    })
 }
 
-fn write_keyboard_zoom_percent(state: &mut Value, percent: Option<f32>) {
-    let Some(object) = state.as_object_mut() else {
-        return;
-    };
-    match percent {
-        Some(percent) => {
-            object.insert(ZOOM_PERCENT_KEY.to_string(), serde_json::json!(percent));
-        }
-        None => {
-            object.remove(ZOOM_PERCENT_KEY);
-        }
-    }
+fn current_chat_zoom_percent() -> f32 {
+    let snapshot = crate::shared_settings::shared_sidebar_settings_snapshot();
+    chat_zoom_percent(snapshot.object())
 }
 
 impl NativeChatView {
@@ -124,41 +124,29 @@ impl NativeChatView {
         self.step_chat_zoom(ZoomStep::Reset, cx);
     }
 
-    /// Carries this pane's temporary zoom into a freshly published snapshot.
-    pub(super) fn apply_chat_zoom(&self, state: &mut Value) {
-        write_keyboard_zoom_percent(state, self.zoom.override_percent);
-    }
-
-    /// Drops the temporary zoom when the configured default changes, so Settings > Chat stays in
-    /// charge of what this pane returns to.
-    pub(super) fn sync_chat_zoom_default(&mut self) {
-        let default = ChatAppearance::default_zoom_percent();
-        if self.zoom.default_percent == Some(default) {
+    /// Drops the transcript's cached row heights when the chat zoom changed since this view last
+    /// drew, from a chord in any chat or from Settings: `ListState` keeps a measured height per
+    /// row and only re-measures them when the list's width changes, which a zoom does not. A
+    /// parked view catches up the next time it draws.
+    pub(super) fn sync_chat_zoom(&mut self) {
+        let percent = current_chat_zoom_percent();
+        if self.drawn_zoom_percent == Some(percent) {
             return;
         }
-        self.zoom.default_percent = Some(default);
-        if self.zoom.override_percent.take().is_some() {
-            self.rescale_chat();
+        let first_draw = self.drawn_zoom_percent.is_none();
+        self.drawn_zoom_percent = Some(percent);
+        if !first_draw {
+            let rows = self.list.item_count();
+            self.splice_transcript(0, rows, rows);
         }
-    }
-
-    /// Publishes the new size to this pane's snapshot and drops the transcript's cached row
-    /// heights: `ListState` keeps a measured height per row and only re-measures them when the
-    /// list's width changes, which a zoom does not.
-    fn rescale_chat(&mut self) {
-        let percent = self.zoom.override_percent;
-        write_keyboard_zoom_percent(Arc::make_mut(&mut self.snapshot), percent);
-        let rows = self.list.item_count();
-        self.splice_transcript(0, rows, rows);
     }
 
     fn step_chat_zoom(&mut self, step: ZoomStep, cx: &mut Context<Self>) {
-        let default = ChatAppearance::default_zoom_percent();
-        self.zoom.default_percent = Some(default);
-        let current = self.zoom.override_percent.unwrap_or(default);
+        cx.stop_propagation();
+        let current = current_chat_zoom_percent();
         let next = match step {
-            ZoomStep::Reset => default,
-            // No rung left in that direction: the pane stays where it is, clamped by the range.
+            ZoomStep::Reset => RESET_ZOOM_PERCENT,
+            // No rung left in that direction: the zoom stays where it is, clamped by the range.
             ZoomStep::In => ZOOM_PERCENT_RUNGS
                 .iter()
                 .copied()
@@ -171,9 +159,30 @@ impl NativeChatView {
                 .find(|rung| *rung < current - 0.01)
                 .unwrap_or(current),
         };
-        self.zoom.override_percent = (next != default).then_some(next);
-        self.rescale_chat();
-        cx.stop_propagation();
-        cx.notify();
+        if next == current {
+            return;
+        }
+        PENDING_ZOOM_PERCENT.with(|pending| pending.set(Some(next)));
+        // Every chat window redraws at the new size now; each view re-measures its rows in
+        // `sync_chat_zoom` as it draws.
+        cx.refresh_windows();
+        let save = cx.spawn(async move |this, cx| {
+            cx.background_executor().timer(ZOOM_SAVE_DEBOUNCE).await;
+            let _ = cx.update(|cx| {
+                // Saved through the host's Settings patch, which updates the shared settings
+                // snapshot in the same effect cycle, so no frame paints the old value between.
+                if let Some(percent) = PENDING_ZOOM_PERCENT.with(Cell::take) {
+                    let _ = this.update(cx, |this, cx| {
+                        this.host(
+                            "setChatZoomPercent",
+                            serde_json::json!({ "percent": percent }),
+                            cx,
+                        );
+                    });
+                }
+                cx.refresh_windows();
+            });
+        });
+        cx.set_global(ChatZoomSave(save));
     }
 }

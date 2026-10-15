@@ -44,6 +44,18 @@ impl GhostexGpuiApp {
                     );
                 }
             }
+            // A chat's zoom chords. The page cannot save Settings, so the zoom changes every chat
+            // on this page until it reloads.
+            Some("setChatZoomPercent") => {
+                if let Some(percent) = message["percent"].as_f64() {
+                    let mut settings = crate::shared_settings::shared_sidebar_settings_snapshot()
+                        .object()
+                        .clone();
+                    settings.insert("sessionChatZoomPercent".into(), percent.into());
+                    crate::shared_settings::install(settings);
+                    cx.refresh_windows();
+                }
+            }
             Some("composerReady") => {}
             other => log::info!("chat host action not handled on web yet: {other:?}"),
         }

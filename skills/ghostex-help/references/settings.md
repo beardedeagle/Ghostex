@@ -62,7 +62,7 @@ How to use this file:
 - **Default view for compatible agents** `preferredAgentInterface` (one of terminal | chat; default chat): Automatically switch to chat as soon as Ghostex detects that an agent session supports it. Option labels: terminal = Terminal, chat = Chat.
 - **Close empty sessions when starting a new one** `closeEmptySessionsOnNew` (boolean, default false) [advanced]: When you start a new session, close this project's other sessions that have nothing typed, drafted or queued. Only applies when Chat is the default view for that agent; with Terminal it never runs.
 - **Chat font family** `sessionChatFontFamily` (text, default (empty)): Use any installed font in chat messages and the prompt composer.
-- **Default chat zoom (%)** `sessionChatZoomPercent` (number 70 to 200 step 5 default 100): Scale the desktop chat interface, including messages and the prompt composer, from 70% to 200% in 5% steps. Default: 100%.
+- **Default chat zoom (%)** `sessionChatZoomPercent` (number 70 to 200 step 5 default 100): Scale every desktop chat, including messages and the prompt composer, from 70% to 200% in 5% steps. Cmd+= and Cmd+- in a chat change it too, and Cmd+0 sets 100%. Default: 100%.
 - **Custom transcript width** `sessionChatCustomTranscriptWidthEnabled` (boolean, default false): Let the transcript use a different width from the prompt composer.
 - **Transcript width** `sessionChatTranscriptWidthPercent` (number 50 to 100 step 5 default 75): Set the centered transcript width without changing the prompt composer.
 - **Show file edit previews** `sessionChatFileEditPreviews` (boolean, default false): Show the first seven code lines in each file edit. Turn off to show only the path and change counts.

@@ -175,6 +175,19 @@ impl GhostexGpuiApp {
             }
             return;
         }
+        // A chat's zoom chords, already debounced by the chat (native_chat/zoom.rs).
+        if action == "setChatZoomPercent" {
+            if let Some(percent) = message.get("percent").and_then(serde_json::Value::as_f64) {
+                self.handle_gpui_app_modal_update_settings_patch_message(
+                    &serde_json::json!({
+                        "patch": { "sessionChatZoomPercent": percent },
+                        "source": "chat:zoom",
+                    }),
+                    cx,
+                );
+            }
+            return;
+        }
         if action == "setSimpleMode" {
             if let Some(enabled) = message.get("enabled").and_then(serde_json::Value::as_bool) {
                 self.handle_gpui_app_modal_update_settings_patch_message(

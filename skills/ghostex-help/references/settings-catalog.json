@@ -935,7 +935,7 @@
     {
       "key": "sessionChatZoomPercent",
       "title": "Default chat zoom (%)",
-      "subtitle": "Scale the desktop chat interface, including messages and the prompt composer, from 70% to 200% in 5% steps. Default: 100%.",
+      "subtitle": "Scale every desktop chat, including messages and the prompt composer, from 70% to 200% in 5% steps. Cmd+= and Cmd+- in a chat change it too, and Cmd+0 sets 100%. Default: 100%.",
       "tab": "settings",
       "tabTitle": "General",
       "group": "chat",
