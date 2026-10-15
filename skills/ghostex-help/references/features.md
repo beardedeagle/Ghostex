@@ -2970,6 +2970,24 @@ backend: `ghostex team deploy|join|invite|identity|status|ping|leave`. Slack:
   anything that would send, post, create, edit or delete is refused.
   `ghostex connectors sign-out` removes a workspace's sign-in. Every command
   takes `--workspace <name>`.
+- Executor is the second way Connectors links apps, next to Composio, and
+  runs on this computer. `ghostex connectors executor enable` turns it on for
+  a workspace (the first time, Ghostex downloads Executor). Each workspace
+  gets its own Executor with its own apps and sign-ins; it starts when needed
+  and stops after 15 minutes unused. Find an app in Executor's catalog with
+  `ghostex connectors executor catalog <words>` and add it with `ghostex
+  connectors executor add <app>`, or add any remote MCP server with `ghostex
+  connectors executor add-mcp <name> <url>` (Linear's is
+  `https://mcp.linear.app/mcp`). Sign it in with `ghostex connectors executor
+  connect <app>`, which opens your browser; some catalog apps, Google's for
+  example, first need your own OAuth client from that app's developer
+  console. `ghostex connectors executor tools [app]` lists an app's tools and
+  `ghostex connectors executor call <app> <tool> --args '<json>'` runs one
+  that only reads; anything else is refused for now. `ghostex connectors
+  executor remove <app>` removes an app, and `ghostex connectors executor
+  disable` turns Executor off for the workspace but keeps its apps and
+  sign-ins for next time. `ghostex connectors executor` shows its state.
+  Every command takes `--workspace <name>`.
 - The header's ⋯ menu holds Ask Ghostex, Tips & Tricks, Resources, Dev
   servers, Extensions and Customize. Each of the first five opens a panel
   under the ⋯ button that closes when you click away. Ask Ghostex, Tips &

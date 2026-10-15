@@ -35,6 +35,58 @@ pub(super) fn list(endpoint: &Endpoint, app: &Value) -> Result<Vec<Value>, Strin
         .collect())
 }
 
+/// The account ids a tool of a signed-in app lets a call pick: Executor takes such a call as
+/// `{ accountId, input }`, its input schema one `anyOf` branch per linked account.
+fn account_choices(schema: &Value) -> Vec<String> {
+    schema
+        .get("anyOf")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|branch| {
+            branch
+                .pointer("/properties/accountId/const")
+                .and_then(Value::as_str)
+        })
+        .map(str::to_string)
+        .collect()
+}
+
+/// The input as Executor takes it: wrapped with the app's account when it has exactly one, so
+/// callers never name accounts; an input that already picks one of them goes through as is.
+fn with_account(
+    endpoint: &Endpoint,
+    app: &Value,
+    tool: &str,
+    input: &Value,
+) -> Result<Value, String> {
+    let encoded: String = url::form_urlencoded::byte_serialize(tool.as_bytes()).collect();
+    let described = client::request(
+        endpoint,
+        "GET",
+        &format!("/v1/tools/get?app={}&tool={encoded}", apps::app_id(app)),
+        None,
+    )?;
+    let accounts = account_choices(described.get("inputSchema").unwrap_or(&Value::Null));
+    let picked = input
+        .as_object()
+        .filter(|fields| fields.len() == 2 && fields.contains_key("input"))
+        .and_then(|fields| fields.get("accountId"))
+        .and_then(Value::as_str)
+        .is_some_and(|id| accounts.iter().any(|account| account == id));
+    match accounts.as_slice() {
+        [] => Ok(input.clone()),
+        _ if picked => Ok(input.clone()),
+        [only] => Ok(json!({ "accountId": only, "input": input })),
+        several => Err(format!(
+            "{} is signed in with {} accounts. Pick one by passing {{\"accountId\": \"<id>\", \"input\": {{…}}}} with one of: {}.",
+            apps::app_name(app),
+            several.len(),
+            several.join(", ")
+        )),
+    }
+}
+
 fn clip(text: &str) -> String {
     match text.char_indices().nth(OUTPUT_LIMIT) {
         Some((index, _)) => format!("{}…", &text[..index]),
@@ -63,6 +115,7 @@ pub(super) fn call_read_only(
             apps::app_name(app)
         ));
     }
+    let input = with_account(endpoint, app, tool, input)?;
     let result = client::request(
         endpoint,
         "POST",
