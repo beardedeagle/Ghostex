@@ -14,7 +14,6 @@ pub(crate) fn page(platform: Platform) -> Page {
             official(platform),
             store(),
             custom_views(),
-            account_usage(),
         ],
     }
 }
@@ -86,16 +85,6 @@ pub(crate) fn custom_views() -> Section {
         "Your views",
         vec![
             row("customViews", "Your views", "Project views, templates, Storybook, Linear, GitHub Issues, dev server commands, and HTML reports."),
-        ],
-    )
-}
-
-pub(crate) fn account_usage() -> Section {
-    section(
-        "accountUsage",
-        "Account usage in the sidebar",
-        vec![
-            row("accountTitlebarUsage", "Account usage in the sidebar", "Show or hide usage stats for saved Claude and Codex accounts at the bottom of the desktop sidebar. Star accounts to pin their usage."),
         ],
     )
 }

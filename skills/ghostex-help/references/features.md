@@ -2797,10 +2797,9 @@ backend: `ghostex team deploy|join|invite|identity|status|ping|leave`. Slack:
   tab closes. Built-in views and the built-in templates cannot be deleted, only
   switched off; a template you saved yourself has its own remove button in the
   Add view template list.
-  Its Account usage in the sidebar section lets you star saved Claude and Codex
-  accounts to show their usage at the bottom of the desktop sidebar, or unstar
-  them to hide it. These are the same per-account stars available in
-  Settings > Accounts. The meters are hidden until you ask for them: hover the
+  Star saved Claude and Codex accounts in Settings > Accounts (the Related
+  settings links at the bottom of this page open it) to show their usage at the
+  bottom of the desktop sidebar, or unstar them to hide it. The meters are hidden until you ask for them: hover the
   chart button in the sidebar's bottom bar, just left of the Settings gear,
   and every starred account floats over the bottom of the list, four per row,
   without moving the list. The button turns into a pin while you hover it:

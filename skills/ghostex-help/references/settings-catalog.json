@@ -8260,6 +8260,17 @@
       "agentWritable": false
     },
     {
+      "key": "accountTitlebarUsage",
+      "title": "Account usage in the sidebar",
+      "subtitle": "Show or hide usage stats for saved Claude and Codex accounts at the bottom of the desktop sidebar. Star accounts to pin their usage.",
+      "tab": "accounts",
+      "tabTitle": "Accounts",
+      "section": "accounts",
+      "sectionTitle": "Accounts",
+      "type": "ui",
+      "agentWritable": false
+    },
+    {
       "key": "claudeAutoRedeemExpiringResets",
       "title": "Auto-redeem expiring Claude resets",
       "subtitle": "Ghostex automatically uses a banked Claude reset 5 minutes before it expires, so it isn't lost.",
@@ -9863,17 +9874,6 @@
       "sectionTitle": "Your views",
       "type": "json",
       "default": [],
-      "agentWritable": false
-    },
-    {
-      "key": "accountTitlebarUsage",
-      "title": "Account usage in the sidebar",
-      "subtitle": "Show or hide usage stats for saved Claude and Codex accounts at the bottom of the desktop sidebar. Star accounts to pin their usage.",
-      "tab": "extensions",
-      "tabTitle": "Extensions",
-      "section": "accountUsage",
-      "sectionTitle": "Account usage in the sidebar",
-      "type": "ui",
       "agentWritable": false
     },
     {

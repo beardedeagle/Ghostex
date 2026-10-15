@@ -1,20 +1,20 @@
 //! The Extensions page (packages/core-ui/settings-modal/tabs/extensions.tsx (deleted 2026-10-01)): Views (Arrange views),
 //! one filter bar over every extension, the Built-in cards grouped by category, the Extensions
 //! Store (installed and available cards, the detail page that replaces the whole page, the install
-//! consent), Your views (custom views with their editor and templates), and Account usage in the
-//! sidebar.
+//! consent), Your views (custom views with their editor and templates), and Related settings
+//! (links to the Accounts, Projects, Actions, Sidebar and Hotkeys sections).
 //!
 //! CDXC:Extensions 2026-09-28 WHY:
 //! The page calls gxserver through the Settings host (`GxserverRpc`, `HttpGet`) instead of the
 //! React page's `fetch` with the injected bootstrap, so it works without CEF; `has_transport` is
 //! the host's "gxserver reachable" flag, the React `createExtensionsModalTransport()` check.
-mod account_usage;
 mod browser;
 mod cards;
 pub(crate) mod data;
 mod delete_view;
 mod detail;
 mod filter_bar;
+mod related_settings;
 mod scope_editor;
 mod sections;
 mod view_editor;
@@ -27,7 +27,6 @@ use super::super::page::{PageBlock, settings_page};
 use super::super::rail::{rail_pages, render_no_matches};
 use super::super::search::should_show_section;
 use super::super::store::{SettingsStore, SettingsStoreEvent, post_store_message};
-use super::accounts::client::AccountsClient;
 use browser::BrowserState;
 use data::{ExtensionFilter, ViewScope, custom_views, official_agent_clis, view_scope};
 use gpui::prelude::FluentBuilder as _;
@@ -102,7 +101,6 @@ pub(crate) struct ExtensionsTab {
     detail_was_open: bool,
     was_active: bool,
     pub(crate) plugin_status_loading: bool,
-    pub(crate) accounts: Entity<AccountsClient>,
     /// The custom view card being dragged (`DragDropProvider` of "Your views").
     pub(crate) grid_drag: Option<GridDrag>,
     /// Where the filter bar sits in the page (for the sticky copy) and the page's viewport.
@@ -128,7 +126,7 @@ impl SettingsPage for ExtensionsTab {
 impl ExtensionsTab {
     pub(crate) fn new(
         store: Entity<SettingsStore>,
-        window: &mut Window,
+        _window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
         // The page view outlives a switch to another page, which is when it closes and reopens.
@@ -142,15 +140,6 @@ impl ExtensionsTab {
             if kind == "pluginSettingsStatus" {
                 page.plugin_status_loading = false;
                 cx.notify();
-            }
-        })
-        .detach();
-        let accounts = cx.new(|cx| AccountsClient::new(store.clone(), false, cx));
-        cx.observe(&accounts, |_, _, cx| cx.notify()).detach();
-        cx.observe_window_activation(window, |page: &mut Self, window, cx| {
-            if window.is_window_active() {
-                page.accounts
-                    .update(cx, |client, cx| client.refresh_on_focus(cx));
             }
         })
         .detach();
@@ -182,7 +171,6 @@ impl ExtensionsTab {
             detail_was_open: false,
             was_active: false,
             plugin_status_loading: false,
-            accounts,
             grid_drag: None,
             filter_slot: Rc::new(Cell::new(None)),
             preferences_draft: None,
@@ -299,15 +287,13 @@ impl ExtensionsTab {
     }
 
     /// The page became (in)active: the browser state resets and reloads as the React effect on
-    /// `active` did; the account list is read again.
+    /// `active` did.
     fn sync_active(&mut self, cx: &mut Context<Self>) {
         let active = self.store.read(cx).active_tab() == SettingsTabId::Extensions;
         if active == self.was_active {
             return;
         }
         self.was_active = active;
-        self.accounts
-            .update(cx, |accounts, cx| accounts.set_active(active, cx));
         if !active {
             self.targeted_view = None;
             self.targeted_scope = None;
@@ -450,16 +436,19 @@ impl ExtensionsTab {
                 self.preview_applied = true;
                 self.request_delete_view(view.id(), view.name().to_string(), window, cx);
             }
-            "extensions-store" | "extensions-views" | "extensions-templates" => {
+            "extensions-store"
+            | "extensions-views"
+            | "extensions-templates"
+            | "extensions-related" => {
                 if self.browser.catalog.is_none() {
                     return;
                 }
                 self.preview_applied = true;
                 self.choosing_template = state == "extensions-templates";
-                let section = if state == "extensions-store" {
-                    "store"
-                } else {
-                    "customViews"
+                let section = match state.as_str() {
+                    "extensions-store" => "store",
+                    "extensions-related" => "relatedSettings",
+                    _ => "customViews",
                 };
                 let store = self.store.clone();
                 store.update(cx, |store, cx| {
@@ -572,9 +561,10 @@ impl Render for ExtensionsTab {
             let section = self.render_custom_views_section(&p, window, cx);
             blocks.push(PageBlock::section("customViews", section));
         }
-        if should_show_section(&search.section("accountUsage"), true) {
-            let section = self.render_account_usage_section(&p, cx);
-            blocks.push(PageBlock::section("accountUsage", section));
+        // Navigation, not settings: no catalog rows, so a search hides it.
+        if !searching {
+            let section = self.render_related_settings_section(&p, cx);
+            blocks.push(PageBlock::section("relatedSettings", section));
         }
         if let Some(dialog) = self.render_arrange_dialog(&p, window, cx) {
             blocks.push(PageBlock::plain(dialog));
