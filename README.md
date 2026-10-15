@@ -24,6 +24,13 @@
   </a>
 </p>
 
+<p align="center">
+  <a href="https://github.com/user-attachments/assets/1013fbfc-a556-4624-8794-1508af8a5653">
+    <picture>
+      <img width="960" alt="image" src="https://github.com/user-attachments/assets/78e81191-fdcb-4a33-83c5-44c4677dabe2" />
+    </picture>
+  </a>
+</p>
 
 <p align="center">
   <a href="https://github.com/user-attachments/assets/1013fbfc-a556-4624-8794-1508af8a5653">
