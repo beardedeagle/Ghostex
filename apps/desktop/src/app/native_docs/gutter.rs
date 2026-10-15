@@ -326,6 +326,10 @@ pub(crate) fn render_overview_ruler(
                 .bg(color.opacity(0.5 * 0.95)),
         );
     }
+    // CDXC:Docs 2026-10-15 DECISION: User: "i dont understand why there's a line and empty area here in the files when looking at an md file pls fix". A file with no changed lines gets no ruler at all (no lane, no border line, no end-of-file bar), so the body runs clear to the scrollbar; the ruler appears only once there is a change to mark.
+    if marks.is_empty() {
+        return None;
+    }
     let end_line = (file_end > 0. && file_end < track).then(|| {
         div()
             .absolute()

@@ -232,8 +232,8 @@ pub(crate) fn render_overview_ruler(
 /// The body's vertical scrollbar, for the caller's relative container: beside the scroll area
 /// (never inside it, where the track would move with the content and a drag would lose the thumb).
 ///
-/// CDXC:Docs 2026-10-09 DECISION:
-/// User: "please always show the scrollbar in the gpui file editor". The Files editor's vertical scrollbar stays visible for Markdown, text and code files instead of appearing only on hover or while scrolling (the app theme's Hover mode); the text and code editor sets the same mode on its own scrollbar.
+/// CDXC:Docs 2026-10-15 DECISION:
+/// User chose to keep the scrollbar always shown when the file scrolls, with no track or line, and nothing drawn when the whole file fits. This refines the 2026-10-09 decision ("please always show the scrollbar in the gpui file editor"), which kept the Files editor's vertical scrollbar visible for Markdown, text and code files instead of only on hover or while scrolling. gpui-component's Always mode already hides the bar when the content fits and the app theme's track is transparent; the text and code editor sets the same mode on its own scrollbar.
 ///
 /// CDXC:Docs 2026-10-11 SEE-ALSO:
 /// The chat transcript's scrollbar (`transcript_scrollbar` in native_chat/scrollbar.rs) must match this one exactly, so both leave gpui-component's geometry and the app theme's thumb colours alone; a width, inset or colour set here has to be set there too.
