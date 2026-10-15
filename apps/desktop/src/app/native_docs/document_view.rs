@@ -681,12 +681,10 @@ impl GhostexGpuiApp {
             .flex()
             .flex_col()
             .child(
+                // CDXC:Docs 2026-10-15 DECISION: User: "need to adjust it so that the number lines are touching the top of the view and the left side of the view". The code editor fills the body with no padding around it: the gutter meets the view's left edge, line 1 starts right under the header and the current-line band runs edge to edge. Markdown keeps its reading column.
                 div()
                     .flex_1()
                     .min_h_0()
-                    .pt(px(16.0))
-                    .px(px(18.0))
-                    .pb(px(28.0))
                     .font_family(p.mono_font.clone())
                     .text_size(px(12.0))
                     .child(
@@ -703,6 +701,9 @@ impl GhostexGpuiApp {
                                     .active_line_background(p.row_hover)
                             })
                             .h_full()
+                            // The Kit pads the editor's top by its input size; the line-numbers
+                            // gutter keeps its own few pixels on the left.
+                            .pt(px(0.))
                             .font_family(p.mono_font.clone())
                             .text_sm()
                             .line_height(rems(1.25)),
