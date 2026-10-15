@@ -31,6 +31,10 @@ pub(crate) const QUICK_TRIES: u64 = 5;
 const QUICK_DELAYS_SECS: [i64; QUICK_TRIES as usize] = [5, 15, 60, 120, 300];
 /// How often a session waiting for the network looks again.
 pub(crate) const NETWORK_RECHECK: Duration = Duration::from_secs(5);
+/// How often a quick try held back by the agent's screen looks again.
+pub(crate) const BLOCKED_RECHECK: Duration = Duration::from_secs(5);
+/// How long the screen may hold a quick try back before its orchestrator hears about the thread.
+const BLOCKED_GRACE_SECS: i64 = 60;
 /// How long one reachability answer stands, so a pass over many sessions probes once.
 const PROBE_TTL: Duration = Duration::from_secs(3);
 const PROBE_TIMEOUT: Duration = Duration::from_secs(3);
@@ -140,6 +144,70 @@ pub(crate) fn claude_open_failure(session: &Value) -> Option<OpenFailure> {
     claude_open_failure_in(&text)
 }
 
+/// What on the agent's screen keeps a try from reaching it, in the words the chat already shows
+/// for it (the notice's title, the input box's reason), or `None` when the input is free. A screen
+/// nothing can be concluded about counts as free, the way the send path fails open; a Claude panel
+/// the send closes with Escape is not a block either.
+pub(crate) fn screen_block(
+    detection: &crate::session_chat_options::SessionChatTerminalDetection,
+    session: &Value,
+) -> Option<String> {
+    if detection.prompt.is_some()
+        || crate::session_chat_send::transcript_pending_question_prompt(session).is_some()
+    {
+        return Some("The agent is waiting for an answer to its question".to_string());
+    }
+    let dismissible = detection.composer.should_dismiss();
+    if let Some(notice) = detection.notice.as_ref().filter(|notice| {
+        (notice.is_answerable() || notice.blocks_input())
+            && !(dismissible
+                && notice.kind
+                    == crate::session_chat_notice::SESSION_CHAT_NOTICE_CLAUDE_INPUT_BLOCKED)
+    }) {
+        return Some(notice.title.clone());
+    }
+    (detection.composer.state == crate::session_chat_composer::SessionChatComposerState::NotReady
+        && !dismissible)
+        .then(|| {
+            detection
+                .composer
+                .reason
+                .clone()
+                .filter(|reason| !reason.trim().is_empty())
+                .unwrap_or_else(|| "The agent's input box is not showing".to_string())
+        })
+}
+
+/// A try that never reached the agent (the screen blocked it) gives its quick try back: the count,
+/// the time of the last real try, and what blocked it, so the card stays true and the next look
+/// comes a few seconds later.
+pub(crate) fn give_back_blocked_try(recovery: &mut Value, blocked_by: &str, now: DateTime<Utc>) {
+    let attempt = recovery["attempt"].as_u64().unwrap_or(0);
+    recovery["attempt"] = json!(attempt.saturating_sub(1));
+    recovery["lastAttemptAt"] = recovery["previousAttemptAt"].clone();
+    mark_blocked(recovery, blocked_by, now);
+    recovery["status"] = json!("waiting");
+    recovery["nextAttemptAt"] =
+        json!((now + chrono::Duration::from_std(BLOCKED_RECHECK).unwrap_or_default()).to_rfc3339());
+}
+
+/// Records what holds the next quick try back, keeping when the hold began.
+pub(crate) fn mark_blocked(recovery: &mut Value, blocked_by: &str, now: DateTime<Utc>) {
+    if recovery["blockedSince"].is_null() {
+        recovery["blockedSince"] = json!(now.to_rfc3339());
+    }
+    recovery["blockedBy"] = json!(blocked_by);
+    recovery["updatedAt"] = json!(now.to_rfc3339());
+}
+
+/// Clears the hold once the screen lets a try through.
+pub(crate) fn clear_blocked(recovery: &mut Value) {
+    if let Some(fields) = recovery.as_object_mut() {
+        fields.remove("blockedBy");
+        fields.remove("blockedSince");
+    }
+}
+
 fn api_host(provider: Provider) -> &'static str {
     match provider {
         Provider::Claude => "api.anthropic.com",
@@ -229,6 +297,7 @@ pub(crate) fn chat_state(runtime: &Value) -> Option<Value> {
         "nextAttemptAt": millis(&recovery["nextAttemptAt"]),
         "lastAttemptAt": millis(&recovery["lastAttemptAt"]),
         "waitingForNetwork": recovery["waitingForNetwork"] == true,
+        "blockedBy": recovery["blockedBy"],
         "reason": recovery["reason"],
         "errorText": recovery["errorText"],
     }))
@@ -239,10 +308,19 @@ pub(crate) fn chat_state(runtime: &Value) -> Option<Value> {
 pub(crate) fn quick_retry_pending(session: &Value) -> bool {
     let runtime = &session["runtimeSettings"];
     let recovery = &runtime["accountRecovery"];
+    let blocked_too_long = recovery["blockedSince"]
+        .as_str()
+        .and_then(|since| DateTime::parse_from_rfc3339(since).ok())
+        .is_some_and(|since| {
+            (Utc::now() - since.with_timezone(&Utc)).num_seconds() >= BLOCKED_GRACE_SECS
+        });
     runtime["accountRecoverySuppressed"] != true
         && is_connection_trigger(recovery)
         && matches!(recovery["status"].as_str(), Some("waiting" | "retrying"))
         && recovery["attempt"].as_u64().unwrap_or(0) < QUICK_TRIES
+        // A screen that keeps holding the tries back needs someone, so the thread is reported
+        // the way its screen says (waiting) instead of looking busy forever.
+        && !blocked_too_long
 }
 
 /// What a thread report adds when the quick tries gave up and the slow schedule is running.
@@ -321,6 +399,52 @@ mod tests {
                 "{row}"
             );
         }
+    }
+
+    #[test]
+    fn a_blocked_try_gives_its_quick_try_back() {
+        let now = Utc::now();
+        // As the claim leaves it: the third quick try, started now, after one at 18:00.
+        let mut recovery = json!({
+            "status": "retrying", "trigger": "streamError", "attempt": 3,
+            "previousAttemptAt": "2026-10-16T18:00:00+00:00", "lastAttemptAt": now.to_rfc3339(),
+        });
+        give_back_blocked_try(
+            &mut recovery,
+            "Teach auto mode about your environment?",
+            now,
+        );
+        assert_eq!(recovery["status"], "waiting");
+        assert_eq!(recovery["attempt"], 2);
+        assert_eq!(recovery["lastAttemptAt"], "2026-10-16T18:00:00+00:00");
+        assert_eq!(
+            recovery["blockedBy"],
+            "Teach auto mode about your environment?"
+        );
+        let next =
+            DateTime::parse_from_rfc3339(recovery["nextAttemptAt"].as_str().unwrap()).unwrap();
+        assert_eq!((next.with_timezone(&Utc) - now).num_seconds(), 5);
+        // The card hears what blocks it.
+        let shown = chat_state(&json!({ "accountRecovery": recovery })).unwrap();
+        assert_eq!(
+            shown["blockedBy"],
+            "Teach auto mode about your environment?"
+        );
+        assert_eq!(shown["attempt"], 2);
+    }
+
+    #[test]
+    fn a_screen_that_stays_blocked_reaches_the_orchestrator() {
+        let session = |since: DateTime<Utc>| {
+            json!({ "runtimeSettings": { "accountRecovery": {
+                "status": "waiting", "trigger": "streamError", "attempt": 1,
+                "blockedBy": "Claude Code is waiting for folder trust", "blockedSince": since.to_rfc3339(),
+            }}})
+        };
+        assert!(quick_retry_pending(&session(Utc::now())));
+        assert!(!quick_retry_pending(&session(
+            Utc::now() - chrono::Duration::seconds(61)
+        )));
     }
 
     #[test]

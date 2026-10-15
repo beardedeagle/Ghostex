@@ -150,6 +150,25 @@ fn retry_status(retry: Option<&Value>, now_ms: i64, context: &ChatContext) -> (V
             ),
             vec![retry_now],
         ),
+        // Something on the agent's screen holds the next try back; it does not count as a try
+        // (CDXC:AgentProviders 2026-10-16 in server/src/accounts/recovery.rs).
+        "waiting"
+            if retry["blockedBy"]
+                .as_str()
+                .is_some_and(|block| !block.trim().is_empty()) =>
+        {
+            let mut value = status(
+                "waiting",
+                format!(
+                    "Waiting for the agent's screen: {}",
+                    retry["blockedBy"].as_str().unwrap_or_default().trim()
+                ),
+            );
+            if attempt < QUICK_TRIES {
+                value["note"] = json!(format!("Try {} of {QUICK_TRIES}", attempt + 1));
+            }
+            (value, vec![retry_now, stop])
+        }
         "waiting" if retry["waitingForNetwork"] == true => (
             status("waiting", "Waiting for the network\u{2026}".to_string()),
             vec![retry_now, stop],
@@ -295,6 +314,19 @@ mod tests {
         assert_eq!(label, "Retrying in");
         assert_eq!(value["countdownTo"], json!(NOW + 12_000));
         assert_eq!(value["note"], json!("Try 2 of 5"));
+        assert_eq!(ids, ["retryNow", "stopRetrying"]);
+
+        let (label, ids, value) = status(
+            json!({"status": "waiting", "attempt": 1, "nextAttemptAt": NOW + 5_000, "blockedBy": "Claude Code is waiting for folder trust"}),
+        );
+        assert_eq!(
+            label,
+            "Waiting for the agent's screen: Claude Code is waiting for folder trust"
+        );
+        assert_eq!(
+            (value["note"].clone(), value["countdownTo"].clone()),
+            (json!("Try 2 of 5"), json!(null))
+        );
         assert_eq!(ids, ["retryNow", "stopRetrying"]);
 
         let (label, ..) = status(json!({"status": "waiting", "waitingForNetwork": true}));

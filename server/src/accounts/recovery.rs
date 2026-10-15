@@ -64,7 +64,8 @@ impl RecoverySignals {
     }
 }
 const CONTINUE: &str = "Continue the unfinished task from the last confirmed progress after the temporary error or usage limit. Check the current state first and do not repeat completed actions. If the task is already complete, report that and stop.";
-/// CDXC:AgentProviders 2026-10-15 DECISION:
+/// CDXC:AgentProviders 2026-10-16 DECISION:
+/// User (2026-10-16) picked "Don't count blocked tries": when something on the agent's screen blocks a quick retry (a Claude popup, for example), that try must not use up one of the five quick tries; only a try that actually reached the agent counts. A blocked try waits and tries again once the screen is clear, the card's countdown and try number stay true, and a screen that stays blocked is shown on the card by what blocks it (`screen_block` in api_errors.rs, from what the chat already knows) instead of looping unseen. This extends the 2026-10-15 decision below.
 /// User (2026-10-15): "also i noticed you didn't retry when i got this error please fix! should've retried!", then chose "fast first then the existing schedule: wait for the network, retry after 5s, 15s, 1m, 2m, 5m; if all fail, fall back to the 5/10/20/40/60-minute schedule until it works or Stop; report to the orchestrator once the fast stage gives up", and "keep the one existing 'Retry after temporary errors' switch". This extends the 2026-09-05 decision ("automatic continuation after errors with increasingly slower retries so unattended work can recover. Temporary errors retry after 5, 10, 20, 40, then 60 minutes; the one-hour cap continues until recovery or Stop"): a connection or server error (`streamError`) now gets the five quick tries first, each one sent only once the provider's API host answers again, and other temporary errors keep the slow schedule alone. Schedule and detection: api_errors.rs.
 /// WHY: A durable claim precedes every send. An interrupted or ambiguous send requires attention rather than replaying a possibly accepted prompt. Authentication, approvals, refusals and uncertain delivery are not temporary errors.
 pub(crate) fn start(state: Arc<AppState>) {
@@ -644,6 +645,25 @@ fn plan_session(
     {
         return Ok(None);
     }
+    // A try the agent's screen would refuse (a popup, a dialog, a question) never reaches it, so
+    // a connection error waits here without spending a try, looking again every few seconds.
+    if connection_error {
+        if let Some(block) = super::api_errors::screen_block(&detection, &session) {
+            if recovery["blockedBy"].as_str() != Some(block.as_str()) {
+                super::api_errors::mark_blocked(&mut recovery, &block, now);
+                save(state, repo, &session, recovery)?;
+            }
+            super::api_errors::wake_at(
+                state,
+                pid,
+                sid,
+                now + chrono::Duration::from_std(super::api_errors::BLOCKED_RECHECK)
+                    .unwrap_or_default(),
+            );
+            return Ok(None);
+        }
+        super::api_errors::clear_blocked(&mut recovery);
+    }
     // A try sent while the API host cannot be reached fails the same way and spends a try for
     // nothing, so a connection error waits here, looking again every few seconds.
     if connection_error {
@@ -814,6 +834,8 @@ fn plan_session(
     recovery["claim"] = json!(claim);
     recovery["attempt"] = json!(attempts + 1);
     recovery["updatedAt"] = json!(now.to_rfc3339());
+    // Kept so a try the screen turns away can give its slot back (api_errors::give_back_blocked_try).
+    recovery["previousAttemptAt"] = recovery["lastAttemptAt"].clone();
     recovery["lastAttemptAt"] = json!(now.to_rfc3339());
     recovery["healthySince"] = Value::Null;
     save(state, repo, &session, recovery)?;
@@ -923,6 +945,8 @@ pub(super) fn ranked<'a>(
 async fn deliver(state: Arc<AppState>, plan: Plan) {
     // A newly resumed CLI needs time to paint its composer. Waiting here has not sent any bytes.
     let detector = SessionChatOptionDetector::new(&state);
+    // What the screen showed while the composer was not ready, for a try it turns away.
+    let mut screen_block = None;
     for _ in 0..30 {
         let row = {
             let Ok(db) = open_gxserver_database(&state.paths) else {
@@ -951,6 +975,7 @@ async fn deliver(state: Arc<AppState>, plan: Plan) {
         {
             break;
         }
+        screen_block = super::api_errors::screen_block(&detection, &row);
         if detection
             .notice
             .as_ref()
@@ -1041,14 +1066,22 @@ async fn deliver(state: Arc<AppState>, plan: Plan) {
         Err(error) => {
             if matches!(error.code, "composerNotReady" | "accountRecoveryNotReady")
                 && plan.prompt.is_none()
+                && super::api_errors::is_connection_trigger(&recovery)
+            {
+                // Nothing reached the agent: the try does not count.
+                super::api_errors::give_back_blocked_try(
+                    &mut recovery,
+                    screen_block.as_deref().unwrap_or(&error.message),
+                    Utc::now(),
+                );
+                if let Some(next) = time(recovery.get("nextAttemptAt")) {
+                    super::api_errors::wake_at(&state, &plan.project, &plan.session, next);
+                }
+            } else if matches!(error.code, "composerNotReady" | "accountRecoveryNotReady")
+                && plan.prompt.is_none()
             {
                 let attempt = recovery["attempt"].as_u64().unwrap_or(1);
-                let next = Utc::now()
-                    + if super::api_errors::is_connection_trigger(&recovery) {
-                        super::api_errors::error_backoff(attempt)
-                    } else {
-                        backoff(attempt)
-                    };
+                let next = Utc::now() + backoff(attempt);
                 recovery["status"] = json!("waiting");
                 recovery["nextAttemptAt"] = json!(next.to_rfc3339());
                 super::api_errors::wake_at(&state, &plan.project, &plan.session, next);
@@ -1107,6 +1140,7 @@ pub(crate) fn retry_now(
             "attempt": previous["attempt"].as_u64().unwrap_or(0),
             "reason": "Retrying now.",
             "errorText": error_text,
+            "previousAttemptAt": previous["lastAttemptAt"],
             "lastAttemptAt": now,
             "updatedAt": now,
         }),
