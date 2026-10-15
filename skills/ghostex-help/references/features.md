@@ -2460,8 +2460,10 @@ from those reports alone; Auto uses them for sessions whose program sends them
 and Ghostex detection for the rest. With the program's own status, working shows
 the orange dot, waiting for permission, an answer or a sign-in shows the blue
 dot, finished shows the blue dot until you look, and a failure shows a red dot.
-Hover the session to read the program's one-line message (and its progress
-when it reports one). `ghostex sessions --json --full` shows each session's
+An agent that goes from working back to idle also counts as finished, unless
+you stopped it with Escape or the chat's Stop button. Hover the session to read
+the program's one-line message (and its progress when it reports one); on the
+phone, long-press the session to read it. `ghostex sessions --json --full` shows each session's
 reports under `programStatus`.
 
 Related settings: `sessionStatusSource`, `completionSound`, `actionCompletionSound`, `copySound`,
