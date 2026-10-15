@@ -75,12 +75,13 @@ pub(super) fn unmarked_rule_input_region(lines: &[String]) -> Option<Range<usize
 
 /// ZCode 3.11.2-24 uses Pi's unmarked editor, followed by its model/mode footer.
 /// Require that footer immediately after the editor so a rule inside a picker cannot qualify.
+/// CDXC:AgentScreenDetection 2026-10-16 WHY:
+/// Only the footer's `◈ <model>` and `◉ <mode>` fields are required in ZCode's TUI; `⚡ <thinking level>` appears only when the model has one and is the first field dropped on a narrow pane. Requiring `⚡` made a ZCode 3.15.3 session on `account:zai-individual-coding-plan/GLM-5.3` (footer `◈ … ─ ◉ build ─ ctx 100% left ─ session 0 tokens`) read as having no input box, so every chat send was held forever while typing in the terminal worked.
 pub(super) fn zcode_input_region(lines: &[String]) -> Option<Range<usize>> {
     let region = unmarked_rule_input_region(lines)?;
     let footer = lines.get(region.end + 1)?.trim();
     (footer.starts_with('◈')
         && footer.contains("◉")
-        && footer.contains("⚡")
         && lines[region.end + 2..]
             .iter()
             .all(|line| line.trim().is_empty()))
