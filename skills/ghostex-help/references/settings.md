@@ -184,7 +184,7 @@ How to use this file:
 - **Wake sleeping sessions when selected** `wakeSleepingSessionsOnSelect` (boolean, default true) [advanced]: Wake a sleeping session as soon as you select it. Turn off to open it with a Resume button instead, so switching sessions does not wake it by accident.
 #### Experimental
 
-- **Enable Experimental Features** `showBetaFeatures` (boolean, default false) [advanced]: Show experimental surfaces: OS Integration settings, Browser color scheme, and Keep Awake.
+- **Enable Experimental Features** `showBetaFeatures` (boolean, default false) [advanced]: Show experimental surfaces: OS Integration settings, Browser color scheme, Keep Awake, and Connectors.
 - **Faster rendering** `fasterRendering` (boolean, default false) [advanced]: Redraw only the parts of a window that changed, which uses less CPU while agents stream and you scroll. Experimental: turn it off if part of a window stops updating.
 ### Settings window
 

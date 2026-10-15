@@ -4,9 +4,10 @@
 
 use crate::connectors::{
     add_executor_app, add_executor_mcp_server, broadcast_connectors_changed, call_composio_tool,
-    call_executor_tool, connect_composio_app, connect_executor_app, disable_executor,
-    enable_executor, list_composio_tools, list_executor_tools, read_connectors, refresh_composio,
-    remove_executor_app, search_executor_catalog, sign_in_composio, sign_out_composio,
+    call_executor_tool, connect_composio_app, connect_executor_app, connectors_enabled,
+    disable_executor, enable_executor, list_composio_tools, list_executor_tools, read_connectors,
+    refresh_composio, remove_executor_app, search_executor_catalog, sign_in_composio,
+    sign_out_composio, start_connectors_work, CONNECTORS_OFF_MESSAGE,
 };
 use crate::domain::DomainStateError;
 use crate::protocol::rpc_success;
@@ -42,6 +43,14 @@ pub(super) async fn route_connectors_http(
         body_json,
         ..
     } = request;
+    if !connectors_enabled(&state.paths) {
+        return Ok(domain_error_response(
+            endpoint.path,
+            request_id,
+            DomainStateError::bad_request(CONNECTORS_OFF_MESSAGE),
+        ));
+    }
+    start_connectors_work();
     let params = match read_domain_rpc_params(&body_json) {
         Ok(params) => params,
         Err(error) => return Ok(domain_error_response(endpoint.path, request_id, error)),

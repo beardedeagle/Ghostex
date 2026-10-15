@@ -2984,7 +2984,7 @@
     {
       "key": "showBetaFeatures",
       "title": "Enable Experimental Features",
-      "subtitle": "Show experimental surfaces: OS Integration settings, Browser color scheme, and Keep Awake.",
+      "subtitle": "Show experimental surfaces: OS Integration settings, Browser color scheme, Keep Awake, and Connectors.",
       "tab": "settings",
       "tabTitle": "General",
       "group": "advanced",

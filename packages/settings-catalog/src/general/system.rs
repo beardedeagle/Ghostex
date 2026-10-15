@@ -93,7 +93,7 @@ pub(crate) fn beta() -> Section {
             // Settings search should find the advanced experimental gate by label and
             // by the concrete surfaces it enables so the required inventory stays
             // discoverable without tying Agents Hub to this gate.
-            row("showBetaFeatures", "Enable Experimental Features", "Show experimental surfaces: OS Integration settings, Browser color scheme, and Keep Awake."),
+            row("showBetaFeatures", "Enable Experimental Features", "Show experimental surfaces: OS Integration settings, Browser color scheme, Keep Awake, and Connectors."),
             row("fasterRendering", "Faster rendering", "Redraw only the parts of a window that changed, which uses less CPU while agents stream and you scroll. Experimental: turn it off if part of a window stops updating."),
         ],
     )

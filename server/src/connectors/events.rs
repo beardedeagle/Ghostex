@@ -20,8 +20,10 @@ pub(crate) fn broadcast_connectors_changed(state: &AppState, workspace: &str) {
     }));
 }
 
-/// Wires the Composio and Executor change listeners to the event, stops idle Executors, and stops
-/// every workspace's Executor when gxserver shuts down, for this gxserver's lifetime.
+/// Wires the Composio and Executor change listeners to the event and stops every workspace's
+/// Executor when gxserver shuts down, for this gxserver's lifetime. The idle-stop thread starts with
+/// the first Connectors route served ([`start_connectors_work`]), so it never runs while Connectors
+/// is off.
 pub(crate) fn start_connectors(state: Arc<AppState>) {
     let mut shutdown = state.shutdown_tx.subscribe();
     let weak: Weak<AppState> = Arc::downgrade(&state);
@@ -32,9 +34,14 @@ pub(crate) fn start_connectors(state: Arc<AppState>) {
     });
     super::composio::set_changed_listener(listener.clone());
     super::executor::set_changed_listener(listener);
-    super::executor::start_idle_stop();
     tokio::spawn(async move {
         let _ = shutdown.recv().await;
         let _ = tokio::task::spawn_blocking(super::executor::stop_all).await;
     });
+}
+
+/// Starts the background work Connectors needs once it is in use (only Executors started by a
+/// route can be idle); safe to call on every route.
+pub(crate) fn start_connectors_work() {
+    super::executor::start_idle_stop();
 }

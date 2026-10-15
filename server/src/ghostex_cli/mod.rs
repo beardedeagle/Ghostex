@@ -661,7 +661,10 @@ fn run_command(name: &str, args: &[String]) -> CliResult<()> {
             require_built_in(ghostex_settings_catalog::built_in_extensions::WORKSPACES)?;
             workspace::workspace_command(args)
         }
-        "connectors" => connectors::connectors_command(args),
+        "connectors" => {
+            connectors::require_connectors()?;
+            connectors::connectors_command(args)
+        }
         "team" => {
             require_built_in(ghostex_settings_catalog::built_in_extensions::WORKSPACES)?;
             team::team_command(args)

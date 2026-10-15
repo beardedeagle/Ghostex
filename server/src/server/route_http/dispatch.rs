@@ -72,7 +72,10 @@ pub(in crate::server) async fn route_http(
 
     // Composio's sign-in comes back in the user's browser, which has no gxserver token; the
     // handler trusts only the OAuth `state` a workspace's own sign-in issued.
-    if method == Method::GET && path == crate::connectors::OAUTH_REDIRECT_PATH {
+    if method == Method::GET
+        && path == crate::connectors::OAUTH_REDIRECT_PATH
+        && crate::connectors::connectors_enabled(&state.paths)
+    {
         let query = parts.uri.query().map(str::to_string);
         return crate::connectors::serve_oauth_redirect(state.clone(), query).await;
     }

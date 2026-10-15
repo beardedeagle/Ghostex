@@ -431,6 +431,7 @@ pub fn usage() -> String {
     ]
     .join("\n");
 
+    let show_connectors = super::connectors::connectors_enabled();
     let ui_commands = [
         format_help_command(
             "floating-editor | fe -- <editor> [args...]",
@@ -583,6 +584,9 @@ pub fn usage() -> String {
         ),
         format_help_command("toggle-sidebar", "Collapse or expand the sidebar"),
     ]
+    .into_iter()
+    .filter(|line| show_connectors || !line.starts_with("  connectors "))
+    .collect::<Vec<_>>()
     .join("\n");
 
     // CDXC:Cli 2026-09-06 DECISION:

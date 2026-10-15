@@ -11,6 +11,23 @@ use super::output::print_json;
 use super::rpc::{self, CliError, CliResult};
 use super::web::browser_open_command;
 
+/// Whether Connectors is on for this machine (crate::connectors::connectors_enabled_in), read from
+/// its settings file like the built-in extension switches.
+pub(super) fn connectors_enabled() -> bool {
+    let settings = super::settings::read_settings_file().unwrap_or_default();
+    crate::connectors::connectors_enabled_in(Some(&Value::Object(settings)))
+}
+
+/// `Ok` while Connectors is on; otherwise how to turn it on.
+pub(super) fn require_connectors() -> CliResult<()> {
+    if connectors_enabled() {
+        return Ok(());
+    }
+    Err(CliError::Other(
+        crate::connectors::CONNECTORS_OFF_MESSAGE.to_string(),
+    ))
+}
+
 /// `ghostex connectors [status] | sign-in [--no-open] | sign-out | refresh | connect <app>
 /// [--no-open] | tools | call <tool> [--args <json>] | executor …`, each with
 /// `[--workspace name|id]`.

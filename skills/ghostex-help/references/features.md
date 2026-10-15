@@ -2937,7 +2937,11 @@ backend: `ghostex team deploy|join|invite|identity|status|ping|leave`. Slack:
   Reinstall and Uninstall buttons, and installing an agent that needs npm
   installs Node.js first on its own.
 - Connectors link a workspace to your apps (Gmail, Google Calendar, Slack,
-  Notion, GitHub, Linear, Outlook and many more) through Composio. Sign the
+  Notion, GitHub, Linear, Outlook and many more) through Composio. Connectors
+  is experimental: turn on Settings > General > Advanced > Experimental >
+  Enable Experimental Features (or run `ghostex settings set showBetaFeatures
+  true`) to use it. If `ghostex connectors` is still not in `ghostex --help`
+  after that, this version of Ghostex does not have Connectors yet. Sign the
   workspace in to Composio once with `ghostex connectors sign-in` (it opens
   your browser), then connect each app with `ghostex connectors connect
   <app>`, for example `gmail`. Each workspace has its own Composio sign-in
