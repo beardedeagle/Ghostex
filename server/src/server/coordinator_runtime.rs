@@ -1042,8 +1042,10 @@ pub(crate) fn prepare_coordinator_create_params(
     Ok(params)
 }
 
-/// Queues a message in a session's chat queue and tells its viewers.
-fn queue_session_chat_prompt(
+/// Queues a message in a session's chat queue and tells its viewers. A `startup_send` is a new
+/// session's first message: the queue holds it until the agent's input box is up (the feedback
+/// agent's brief, server/src/feedback/agent.rs, goes this way too).
+pub(crate) fn queue_session_chat_prompt(
     state: &AppState,
     project_id: &str,
     session_id: &str,

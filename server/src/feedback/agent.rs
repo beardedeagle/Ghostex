@@ -15,7 +15,7 @@ use crate::agents::{
 use crate::domain::{read_domain_rpc_params, DomainRepository, DomainStateError};
 use crate::protocol::rpc_success;
 use crate::server::{
-    create_quick_project_params, domain_error_response, routed_json,
+    create_quick_project_params, domain_error_response, queue_session_chat_prompt, routed_json,
     schedule_presentation_project_delta, schedule_presentation_session_delta, AppState,
     RoutedResponse,
 };
@@ -167,9 +167,11 @@ fn start_feedback_agent(
     create_params.insert("requireLaunchCommand".to_string(), json!(true));
     create_params.insert("title".to_string(), json!(FEEDBACK_AGENT_SESSION_TITLE));
     create_params.insert("launchSettings".to_string(), Value::Object(launch_settings));
+    let prompt = feedback_agent_prompt(&message, &username, &image_paths);
+    // `firstUserMessage` only names the session; the startup send below delivers the prompt.
     create_params.insert(
         "runtimeSettings".to_string(),
-        json!({ "firstUserMessage": feedback_agent_prompt(&message, &username, &image_paths) }),
+        json!({ "firstUserMessage": prompt }),
     );
     let normalized = create_agent_session_params_for_project(&db, &project, &create_params)?;
     let created = repository.create_session(&normalized, false)?;
@@ -191,6 +193,13 @@ fn start_feedback_agent(
         &session_id,
         &mut result,
     )?;
+    // CDXC:Feedback 2026-10-16 WHY: `runtimeSettings.firstUserMessage` is metadata nothing types, so the live check's Codex sat at an empty prompt. The brief goes through the session's chat queue as its startup send, the way orchestrator threads get their task: the queue holds it until the agent's input box is up, for every agent, and sends it once. A failed provider start still queues it, and the send wakes the session.
+    if let Err(error) = queue_session_chat_prompt(state, &project_id, &session_id, &prompt, true) {
+        result["promptQueued"] = json!(false);
+        result["promptQueueError"] = json!(error.message);
+    } else {
+        result["promptQueued"] = json!(true);
+    }
     Ok(result)
 }
 

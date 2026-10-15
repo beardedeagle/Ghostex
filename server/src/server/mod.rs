@@ -169,6 +169,7 @@ pub(crate) use agent_http::*;
 pub(crate) use agent_prompt_search_http::*;
 pub(crate) use background_tasks::*;
 pub(crate) use commit_message_generation::*;
+pub(crate) use coordinator_runtime::queue_session_chat_prompt;
 pub(crate) use http_endpoints::*;
 pub(crate) use http_infra::*;
 pub(crate) use presentation_delta::*;
