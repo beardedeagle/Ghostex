@@ -42,14 +42,18 @@ pub(crate) fn zcode_database_path(supplied: Option<&Path>) -> PathBuf {
             }
         }
     }
-    fs::read_to_string(home.join(".zcode/cli/config.json"))
-        .ok()
-        .and_then(|text| serde_json::from_str::<Value>(&text).ok())
-        .and_then(|config| {
-            config
-                .pointer("/storage/sessionDbPath")
-                .and_then(Value::as_str)
-                .map(crate::resume_lookup::expand_home)
+    crate::agent_hooks::zcode_settings_files(&home)
+        .iter()
+        .find_map(|file| {
+            fs::read_to_string(file)
+                .ok()
+                .and_then(|text| serde_json::from_str::<Value>(&text).ok())
+                .and_then(|config| {
+                    config
+                        .pointer("/storage/sessionDbPath")
+                        .and_then(Value::as_str)
+                        .map(crate::resume_lookup::expand_home)
+                })
         })
         .unwrap_or_else(|| home.join(".zcode/cli/db/db.sqlite"))
 }

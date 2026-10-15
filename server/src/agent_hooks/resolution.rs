@@ -170,7 +170,7 @@ pub(crate) fn provider_hook_paths(agent_id: &str, hook_paths: &HookPaths) -> Vec
             paths
         }
         "cursor" => vec![hook_paths.home_dir.join(".cursor").join("hooks.json")],
-        "zcode" => vec![hook_paths.home_dir.join(".zcode/cli/config.json")],
+        "zcode" => vec![super::zcode::zcode_hook_config_path(&hook_paths.home_dir)],
         "gemini" => vec![hook_paths.home_dir.join(".gemini").join("settings.json")],
         "opencode" => {
             let config_dir = resolve_config_directory(

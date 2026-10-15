@@ -1,4 +1,9 @@
-use std::{fs, path::Path, process::Command, time::Duration};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+    process::Command,
+    time::Duration,
+};
 
 use serde_json::Value;
 
@@ -7,6 +12,25 @@ use crate::{domain::DomainStateError, platform::shell::command_shell};
 #[cfg(not(windows))]
 use super::probing::normalize_gxserver_process_path;
 use super::{config::HookPaths, probing::run_command_stdout_with_timeout};
+
+/// CDXC:AgentHooks 2026-10-16 WHY:
+/// ZCode CLI 3.14 reads its runtime settings, hooks included, from `~/.zcode/cli/setting.json`. At its first start it copies `config.json` there once ("the old file is never used as a runtime configuration fallback", its CONFIGURATION.md), so hooks Ghostex wrote to `config.json` after that copy, or on a computer whose ZCode only has `setting.json`, never ran: ZCode sessions lost their working and attention status (2026-10-16). Hooks go to `setting.json` when it exists or when there is no `config.json` either, and to `config.json` only for a ZCode that has not made the switch yet, whose first 3.14 start then carries them over.
+pub(crate) fn zcode_hook_config_path(home: &Path) -> PathBuf {
+    let cli = home.join(".zcode/cli");
+    let setting = cli.join("setting.json");
+    let legacy = cli.join("config.json");
+    if setting.exists() || !legacy.exists() {
+        setting
+    } else {
+        legacy
+    }
+}
+
+/// The settings file ZCode reads its session database path from (`storage.sessionDbPath`).
+pub(crate) fn zcode_settings_files(home: &Path) -> [PathBuf; 2] {
+    let cli = home.join(".zcode/cli");
+    [cli.join("setting.json"), cli.join("config.json")]
+}
 
 /// CDXC:AgentHooks 2026-09-15 WHY:
 /// ZCode only creates its model defaults and setup marker when config.json does not exist.
@@ -42,14 +66,18 @@ fn ensure_initialized(path: &Path, bootstrap: impl FnOnce()) -> Result<(), Domai
     if !path.exists() {
         bootstrap();
     }
+    // ZCode 3.14 keeps its model defaults in its provider file, so its `setting.json` only has to
+    // be the settings file ZCode wrote; the older `config.json` must carry the model defaults.
+    let settings_file = path.file_name().is_some_and(|name| name == "setting.json");
     let initialized = fs::read_to_string(path)
         .ok()
         .and_then(|text| serde_json::from_str::<Value>(&text).ok())
         .is_some_and(|config| {
-            config
-                .pointer("/model/main")
-                .and_then(Value::as_str)
-                .is_some_and(|model| !model.trim().is_empty())
+            (settings_file && config.is_object())
+                || config
+                    .pointer("/model/main")
+                    .and_then(Value::as_str)
+                    .is_some_and(|model| !model.trim().is_empty())
         });
     if initialized {
         Ok(())

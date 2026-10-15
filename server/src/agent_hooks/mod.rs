@@ -30,4 +30,5 @@ pub(crate) use ancestor_session::adopt_ancestor_session_routing;
 pub use notify_runtime::run_notify_hook;
 pub(crate) use resolution::read_claude_hook_surface_records;
 pub(crate) use resolution::read_codex_hook_session_identities;
+pub(crate) use zcode::zcode_settings_files;
 pub use statusline::run_statusline_hook;
