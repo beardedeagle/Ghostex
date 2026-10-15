@@ -63,6 +63,13 @@ pub fn agent_start_failure_notice(screen_text: &str) -> Option<SessionChatTermin
     if !screen.ends_with_shell_prompt() {
         return None;
     }
+    let screen_tail = screen.screen_tail();
+    let error_lines = screen_tail.as_deref().and_then(start_failure_error_lines);
+    let detail = if error_lines.is_some() {
+        "Its start command ended with the error below and the terminal is back at a shell prompt."
+    } else {
+        "Its start command ended and the terminal is back at a shell prompt."
+    };
     Some(
         SessionChatTerminalNotice::new(
             SESSION_CHAT_NOTICE_AGENT_EXITED,
@@ -71,8 +78,9 @@ pub fn agent_start_failure_notice(screen_text: &str) -> Option<SessionChatTermin
             "The agent couldn't start",
         )
         .with_input_blocking(true)
-        .with_detail("Its start command ended and the terminal is back at a shell prompt; the terminal's last lines say why. Fix that, then try again. A message you send meanwhile waits in the chat and goes out once the agent is up.")
-        .with_screen_tail(screen.screen_tail())
+        .with_detail(format!("{detail} Fix that, then try again. A message you send meanwhile waits in the chat and goes out once the agent is up."))
+        .with_error_lines(error_lines)
+        .with_screen_tail(screen_tail)
         .with_actions(vec![
             SessionChatTerminalNoticeAction {
                 id: SESSION_CHAT_NOTICE_ACTION_RETRY_START.to_string(),
@@ -83,6 +91,28 @@ pub fn agent_start_failure_notice(screen_text: &str) -> Option<SessionChatTermin
             SessionChatTerminalNoticeAction::switch_to_terminal(OPEN_TERMINAL.label),
         ]),
     )
+}
+
+/// Lines the card shows for a failed start.
+const START_FAILURE_ERROR_LINES: usize = 4;
+
+/// CDXC:SessionChat 2026-10-16 WHY:
+/// The failed-start card has to say why without the user opening the terminal: a customer's card would have read "--share-history is not supported on Windows yet" had it shown cswap's own words. These are the last block of output above the shell prompt the failed start left (the prompt line dropped, at most four lines, stopping at a blank line so older output stays out).
+/// SEE-ALSO: apps/desktop/src/app/native_chat/notice.rs and apps/mobile/app/src/chat/native/cards/NoticeCard.tsx draw `errorLines`.
+fn start_failure_error_lines(screen_tail: &str) -> Option<String> {
+    let mut lines: Vec<&str> = screen_tail.lines().map(str::trim_end).collect();
+    while lines.last().is_some_and(|line| line.trim().is_empty()) {
+        lines.pop();
+    }
+    lines.pop();
+    let block: Vec<&str> = lines
+        .iter()
+        .rev()
+        .copied()
+        .take_while(|line| !line.trim().is_empty())
+        .take(START_FAILURE_ERROR_LINES)
+        .collect();
+    (!block.is_empty()).then(|| block.into_iter().rev().collect::<Vec<_>>().join("\n"))
 }
 
 /// The last email seen for each Claude cswap slot.

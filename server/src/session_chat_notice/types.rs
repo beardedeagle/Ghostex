@@ -250,6 +250,8 @@ pub struct SessionChatTerminalNotice {
     pub detail: Option<String>,
     /// SGR-stripped last visible lines, for the card's collapsible evidence.
     pub screen_tail: Option<String>,
+    /// The few lines that say why, drawn on the card itself (`errorLines`): what a failed start printed, without the shell prompt it left.
+    pub error_lines: Option<String>,
     pub source: SessionChatTerminalNoticeSource,
     /// RFC3339 millis; also the client's dismissal key.
     pub detected_at: String,
@@ -281,6 +283,7 @@ impl SessionChatTerminalNotice {
             title: title.into(),
             detail: None,
             screen_tail: None,
+            error_lines: None,
             source,
             detected_at: chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
             actions: Vec::new(),
@@ -301,6 +304,11 @@ impl SessionChatTerminalNotice {
 
     pub fn with_screen_tail(mut self, screen_tail: Option<String>) -> Self {
         self.screen_tail = screen_tail.filter(|tail| !tail.trim().is_empty());
+        self
+    }
+
+    pub fn with_error_lines(mut self, error_lines: Option<String>) -> Self {
+        self.error_lines = error_lines.filter(|lines| !lines.trim().is_empty());
         self
     }
 
@@ -351,6 +359,7 @@ impl SessionChatTerminalNotice {
                 && self.severity == other.severity
                 && self.title == other.title
                 && self.detail == other.detail
+                && self.error_lines == other.error_lines
                 && self.source == other.source
                 && self.blocks_input == other.blocks_input
                 && self.actions == other.actions
@@ -469,6 +478,9 @@ impl SessionChatTerminalNotice {
         }
         if let Some(screen_tail) = self.screen_tail.as_deref() {
             map.insert("screenTail".to_string(), json!(screen_tail));
+        }
+        if let Some(error_lines) = self.error_lines.as_deref() {
+            map.insert("errorLines".to_string(), json!(error_lines));
         }
         if self.passes_keys_through() {
             map.insert("passthrough".to_string(), json!(true));

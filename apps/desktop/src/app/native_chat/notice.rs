@@ -1,4 +1,4 @@
-use super::tone_card::{ToneBodyMotion, ToneButton, ToneCardParts, tone_look};
+use super::tone_card::{tone_look, ToneBodyMotion, ToneButton, ToneCardParts};
 use super::{
     appearance::{ChatAppearance, ChatFilledButton as _},
     state::NativeChatView,
@@ -7,8 +7,8 @@ use super::{
 use crate::app::native_chat::cursor::ChatCursor as _;
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
-    AnyElement, Context, InteractiveElement as _, IntoElement, ParentElement as _,
-    StatefulInteractiveElement as _, Styled as _, Window, div, px,
+    div, px, AnyElement, Context, InteractiveElement as _, IntoElement, ParentElement as _,
+    StatefulInteractiveElement as _, Styled as _, Window,
 };
 use serde_json::json;
 
@@ -124,6 +124,19 @@ impl NativeChatView {
                     .line_height(px(17.0 * p.scale))
                     .text_color(p.card_muted)
                     .child(text(notice, "collapsedDetail"))
+                    .into_any_element(),
+            );
+        }
+        // What a failed start printed (`errorLines` from gxserver), so the card says why without the terminal.
+        if !collapsed && notice["errorLines"].is_string() {
+            body.push(
+                div()
+                    .id("notice-error-lines")
+                    .font_family(crate::app::native_chat::fonts::CHAT_MONO)
+                    .text_size(px(12.0 * p.scale))
+                    .line_height(px(17.0 * p.scale))
+                    .text_color(p.card_muted)
+                    .child(text(notice, "errorLines"))
                     .into_any_element(),
             );
         }
@@ -456,18 +469,16 @@ impl NativeChatView {
                 }) as Box<dyn FnOnce(gpui::Div) -> gpui::Stateful<gpui::Div>>
             });
         let trailing = if foldable {
-            vec![
-                gpui::svg()
-                    .path(if collapsed {
-                        "titlebar/chevron-right.svg"
-                    } else {
-                        "titlebar/chevron-down.svg"
-                    })
-                    .size(px(14.0 * p.scale))
-                    .text_color(p.muted)
-                    .flex_shrink_0()
-                    .into_any_element(),
-            ]
+            vec![gpui::svg()
+                .path(if collapsed {
+                    "titlebar/chevron-right.svg"
+                } else {
+                    "titlebar/chevron-down.svg"
+                })
+                .size(px(14.0 * p.scale))
+                .text_color(p.muted)
+                .flex_shrink_0()
+                .into_any_element()]
         } else {
             Vec::new()
         };
@@ -482,13 +493,11 @@ impl NativeChatView {
                     trailing,
                     body,
                     footer_start: if numbered {
-                        vec![
-                            div()
-                                .text_size(px(12.5 * p.scale))
-                                .text_color(p.muted)
-                                .child("Press a number, or click a row")
-                                .into_any_element(),
-                        ]
+                        vec![div()
+                            .text_size(px(12.5 * p.scale))
+                            .text_color(p.muted)
+                            .child("Press a number, or click a row")
+                            .into_any_element()]
                     } else {
                         Vec::new()
                     },
