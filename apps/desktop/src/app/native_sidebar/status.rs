@@ -19,6 +19,7 @@ pub(crate) fn background_work_color() -> gpui::Rgba {
 /// CDXC:SessionChat 2026-09-27 DECISION:
 /// User: "we must show a red dot on the session in the sidebar if we fail" to apply the model change picked in chat. The red dot wins over working, attention and the grey shell dot, because the messages behind the change are held until the user picks again; the row's tooltip carries the reason.
 /// SEE-ALSO: server/src/session_chat_model_selection_alert.rs.
+/// CDXC:SessionStatus 2026-10-14 WHY: a session whose program reported `error` over OSC 7501 (while those reports drive its status) draws the same red dot until the user has seen it; the row's tooltip carries the program's message.
 pub(crate) const FAILED_COLOR: u32 = 0xef4444;
 
 pub(crate) fn activity_indicator(

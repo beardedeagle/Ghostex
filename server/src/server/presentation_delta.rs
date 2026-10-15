@@ -332,6 +332,9 @@ pub(crate) fn stop_zmx_title_observer_by_key(state: &AppState, key: &str, _reaso
             existing.handle.abort();
         }
     }
+    if let Some((project_id, session_id)) = key.split_once('/') {
+        crate::program_status::forget_program_status(project_id, session_id);
+    }
 }
 
 pub(crate) fn stop_all_zmx_title_observers(state: &AppState) {
@@ -400,6 +403,17 @@ pub(crate) async fn run_zmx_title_observer(
             match lines.next_line().await {
                 Ok(Some(line)) => {
                     observed_output = true;
+                    if let Some(program_status) =
+                        crate::program_status::parse_program_status_line(&line)
+                    {
+                        crate::program_status::ingest_program_status_line(
+                            &state,
+                            &project_id,
+                            &session_id,
+                            program_status,
+                        );
+                        continue;
+                    }
                     if let Some(title) = parse_zmx_title_line(&line) {
                         let should_probe_identity =
                             ingest_zmx_title_observation(&state, &project_id, &session_id, &title);
@@ -434,6 +448,9 @@ pub(crate) async fn run_zmx_title_observer(
             }
         }
         let status = child.wait().await.ok();
+        // The daemon is gone or the watch broke; a new watch starts from the
+        // daemon's own snapshot.
+        crate::program_status::end_program_status_watch(&state, &project_id, &session_id);
         if zmx_title_watcher_failed_to_load(status) {
             failure_count = ZMX_TITLE_OBSERVER_RETRY_DELAYS_MS.len();
         } else {

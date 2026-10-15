@@ -342,6 +342,7 @@ pub async fn run_gxserver_foreground(
     until someone reopens Settings.
     */
     start_tailcat_from_persisted_state(&paths, &state.tailcat_runtime);
+    crate::program_status::init_status_source(&paths, state.logger.clone(), &metadata.server_id);
     sync_zmx_title_observers_for_all_sessions(&state, "server-start");
     sync_session_chat_followers_for_all_sessions(&state, "server-start");
     let agent_metadata_title_sync_task = spawn_agent_metadata_title_sync_task(&state);
@@ -355,6 +356,9 @@ pub async fn run_gxserver_foreground(
     let session_chat_async_question_status_task =
         crate::session_chat_async_questions::spawn_async_question_status_task(&state);
     let freebuff_activity_task = crate::freebuff_activity::spawn_freebuff_activity_task(&state);
+    let program_status_source_task = tokio::spawn(crate::program_status::run_status_source_watch(
+        (*state).clone(),
+    ));
     let team_sync_task = crate::team_sync::spawn_team_sync_task(&state);
     let superseded_retire_task = spawn_superseded_retire_task(&state);
     /*
@@ -430,6 +434,7 @@ pub async fn run_gxserver_foreground(
     session_chat_fleet_status_task.abort();
     session_chat_async_question_status_task.abort();
     freebuff_activity_task.abort();
+    program_status_source_task.abort();
     team_sync_task.abort();
     /*
     The telemetry flush task is AWAITED rather than aborted, because it does a

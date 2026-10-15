@@ -5,6 +5,7 @@ use chrono::{SecondsFormat, TimeZone, Utc};
 use serde_json::{Map, Value};
 
 mod model;
+mod program_transition;
 #[cfg(test)]
 mod tests;
 mod title_classify;
@@ -12,6 +13,7 @@ mod title_transition;
 mod transition;
 
 pub use model::*;
+use program_transition::*;
 use title_classify::*;
 use title_transition::*;
 pub use transition::*;

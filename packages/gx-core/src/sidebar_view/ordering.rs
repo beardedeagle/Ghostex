@@ -61,6 +61,7 @@ pub(crate) fn is_grouped_working(row: &SessionRow) -> bool {
         && row.activity == "working"
         && row.pending_question_count == 0
         && !row.model_selection_failed
+        && !row.program_status_failed
 }
 
 /// The rows Group working sessions leaves in their own section even while their agent works, by

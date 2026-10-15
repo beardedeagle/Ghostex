@@ -104,6 +104,11 @@ pub(super) struct ActivityInput {
     pub(super) previous: ActivityState,
     pub(super) settled_title: Option<String>,
     pub(super) title: Option<String>,
+    /// Activity derived from the session's OSC 7501 records (`programStatusActivity`).
+    pub(super) program_status_activity: Option<String>,
+    /// The event id of an attention the program's same report already
+    /// announced (`reuseAttentionEventId`), so re-applying it does not notify again.
+    pub(super) reuse_attention_event_id: Option<String>,
 }
 
 /*
@@ -133,45 +138,150 @@ pub fn compute_activity_update(
         .or_else(|| read_text(params, "event"))
         .filter(|value| normalize_activity_event(Some(value.as_str())).is_some());
     let previous_state = previous.clone();
-    let activity = apply_agent_activity_transition(ActivityInput {
-        activity: params
-            .get("activity")
-            .and_then(Value::as_str)
-            .filter(|value| matches!(*value, "idle" | "working" | "attention"))
-            .map(str::to_string),
-        agent_id: read_text(params, "agentName")
-            .or_else(|| read_text_value(session, "agentId"))
-            .or_else(|| previous.agent_name.clone()),
-        attention_source: read_text(params, "attentionSource")
-            .filter(|value| value == TURN_COMPLETE_ATTENTION_SOURCE),
-        event: event.clone(),
-        now_iso: iso_from_ms(now_ms_value),
-        now_ms: now_ms_value,
-        previous,
-        settled_title: read_text(params, "settledTitle"),
-        title: read_text(params, "title"),
-    });
+    let program_status_activity = read_text(params, "programStatusActivity")
+        .filter(|value| matches!(value.as_str(), "idle" | "working" | "attention"));
+    // An Escape says the user stopped this turn, so its idle is not a finished turn.
+    if event.as_deref() == Some("escape") {
+        if let (Some(project_id), Some(session_id)) = (
+            read_text_value(session, "projectId"),
+            read_text_value(session, "sessionId"),
+        ) {
+            crate::program_status::note_program_status_interrupt(&project_id, &session_id);
+        }
+    }
+    // Restoring detection's own view when a program stops driving the session
+    // (program_status/ingest.rs `hand_back_to_detection`).
+    if let Some(restored) = params.get("restoreDetectionActivity") {
+        let next = normalize_agent_activity_state(Some(restored), "idle");
+        return activity_update_from(session, previous_state, next, now_ms_value);
+    }
+    let run_detection = |previous: ActivityState| -> ActivityState {
+        let next = apply_agent_activity_transition(ActivityInput {
+            activity: params
+                .get("activity")
+                .and_then(Value::as_str)
+                .filter(|value| matches!(*value, "idle" | "working" | "attention"))
+                .map(str::to_string),
+            agent_id: read_text(params, "agentName")
+                .or_else(|| read_text_value(session, "agentId"))
+                .or_else(|| previous.agent_name.clone()),
+            attention_source: read_text(params, "attentionSource")
+                .filter(|value| value == TURN_COMPLETE_ATTENTION_SOURCE),
+            event: event.clone(),
+            now_iso: iso_from_ms(now_ms_value),
+            now_ms: now_ms_value,
+            previous: previous.clone(),
+            settled_title: read_text(params, "settledTitle"),
+            title: read_text(params, "title"),
+            program_status_activity: program_status_activity.clone(),
+            reuse_attention_event_id: read_text(params, "reuseAttentionEventId"),
+        });
+        /*
+        Sessions that predate the meaningful-activity clock seed it from their
+        durable lastActiveAt so recency sorting stays stable across the migration,
+        but only when the transition already produced a persistable change: a
+        seed-only difference must never turn a no-op event into a state rewrite.
+        */
+        let seed_recency = (previous.last_meaningful_activity_at.is_none()
+            && !states_equal_ignoring_meaningful_clock(&previous, &next))
+        .then(|| read_text_value(session, "lastActiveAt"))
+        .flatten();
+        apply_meaningful_activity_clock(
+            &previous,
+            next,
+            seed_recency,
+            event.as_deref(),
+            now_ms_value,
+        )
+    };
     /*
-    Sessions that predate the meaningful-activity clock seed it from their
-    durable lastActiveAt so recency sorting stays stable across the migration,
-    but only when the transition already produced a persistable change: a
-    seed-only difference must never turn a no-op event into a state rewrite.
+    CDXC:SessionStatus 2026-10-15 WHY:
+    While a program's report drives a session (Program status only, or Combined while its reporter runs), detection keeps its own view of the session as a shadow state: every hook, title, bell, Escape and acknowledgement moves the shadow exactly as it would move the session, while the session shows what the setting says. When the program stops driving the session (it exits or clears, its watch ends, the user switches the setting) the session takes the shadow, never a forced idle: forcing idle on a switch to Detection dropped a Claude thread that was mid-command to idle, Ghostex reported its turn finished, and the auto-sleep sweep slept it (its last activity was older than the 10-minute idle limit), killing the command.
+    SEE-ALSO: server/src/program_status/ingest.rs (`hand_back_to_detection`, the shadow's start).
     */
-    let seed_recency = (previous_state.last_meaningful_activity_at.is_none()
-        && !states_equal_ignoring_meaningful_clock(&previous_state, &activity))
-    .then(|| read_text_value(session, "lastActiveAt"))
-    .flatten();
-    let activity = apply_meaningful_activity_clock(
-        &previous_state,
-        activity,
-        seed_recency,
-        event.as_deref(),
-        now_ms_value,
-    );
-    let next_activity = activity.activity.as_str();
+    let in_charge = program_status_activity.is_none()
+        && (crate::program_status::program_status_governs_session(session)
+            || crate::program_status::program_status_combined_state(session).is_some());
+    let mut detection_view: Option<ActivityState> = None;
+    if in_charge {
+        let shadow_previous = crate::program_status::program_status_detection_shadow(session)
+            .map(|shadow| normalize_agent_activity_state(Some(&shadow), "idle"))
+            .unwrap_or_else(|| previous_state.clone());
+        let shadow_next = run_detection(shadow_previous);
+        crate::program_status::set_program_status_detection_shadow(session, shadow_next.to_value());
+        detection_view = Some(shadow_next);
+    }
+    /*
+    CDXC:SessionStatus 2026-10-14 DECISION:
+    User: use OSC 7501 "instead of all the weird stuff we're doing to track when the agent is working or has attention status". While a session's program status governs it (Session status set to Program status only; since 2026-10-15 the Auto value is Combined, which keeps detection, see the Combined guard below), hooks, terminal titles, bells, Escape and every other detected signal leave its shown activity alone (they still move detection's shadow above); only its records (`programStatusActivity`) and the user's own acknowledgement change it. Titles, identity, transcripts, chat cards and limit detection keep running: this gate covers activity only.
+    SEE-ALSO: server/src/program_status/ingest.rs (the writer), server/src/presentation/session_attributes.rs (the projection-side gate).
+    */
+    if program_status_activity.is_none()
+        && event.as_deref() != Some("acknowledge")
+        && crate::program_status::program_status_governs_session(session)
+    {
+        return ActivityUpdate {
+            activity: previous_state.to_value(),
+            entered_attention: false,
+            last_active_at: read_text_value(session, "lastActiveAt"),
+            previous_activity,
+        };
+    }
+    /*
+    CDXC:SessionStatus 2026-10-15 DECISION:
+    User (Q120): under Combined, detection stays in charge and the program's report is one more signal; in a disagreement "the more urgent signal wins": while the program says blocked, detection cannot take the session out of attention (the program knows it waits on the user), and while the program says working, done or error, detection cannot set it idle (a finished turn stays until the user sees it; found when Claude's Notification hook cleared a reported done). Every other disagreement goes to detection's own view (its shadow), which keeps what only it knows (subagent fleets and compaction, applied when the session is presented). The user's acknowledgement and Escape always pass. Detection's own result is recorded for the mismatch log, which keeps only disagreements that outlast its settle window (program_status/mismatch.rs).
+    */
+    if program_status_activity.is_none()
+        && !matches!(event.as_deref(), Some("acknowledge" | "escape"))
+    {
+        if let (Some(program_state), Some(detected_state)) = (
+            crate::program_status::program_status_combined_state(session),
+            detection_view.as_ref(),
+        ) {
+            let detected = detected_state.activity.as_str();
+            let title = read_text(params, "title")
+                .or_else(|| read_text(params, "rawTitle"))
+                .map(|title| title.chars().take(80).collect::<String>());
+            crate::program_status::observe_detection_opinion(
+                session,
+                detected,
+                serde_json::json!({
+                    "kind": event.clone().or_else(|| params.get("activity").map(|_| "activity".to_string())),
+                    "hookEvent": read_text(params, "eventName"),
+                    "title": title,
+                }),
+            );
+            if crate::program_status::combined_program_wins(program_state, detected) {
+                return ActivityUpdate {
+                    activity: previous_state.to_value(),
+                    entered_attention: false,
+                    last_active_at: read_text_value(session, "lastActiveAt"),
+                    previous_activity,
+                };
+            }
+            return activity_update_from(
+                session,
+                previous_state,
+                detected_state.clone(),
+                now_ms_value,
+            );
+        }
+    }
+    let activity = run_detection(previous_state.clone());
+    activity_update_from(session, previous_state, activity, now_ms_value)
+}
+
+/// The update that moves the session from `previous` to `next`.
+fn activity_update_from(
+    session: &Value,
+    previous: ActivityState,
+    next: ActivityState,
+    now_ms_value: i64,
+) -> ActivityUpdate {
+    let previous_activity = previous.activity;
+    let next_activity = next.activity.as_str();
     let last_active_at = if matches!(next_activity, "working" | "attention") {
-        activity
-            .last_changed_at
+        next.last_changed_at
             .clone()
             .or_else(|| Some(iso_from_ms(now_ms_value)))
     } else {
@@ -179,7 +289,7 @@ pub fn compute_activity_update(
     };
     ActivityUpdate {
         entered_attention: previous_activity != "attention" && next_activity == "attention",
-        activity: activity.to_value(),
+        activity: next.to_value(),
         last_active_at,
         previous_activity,
     }

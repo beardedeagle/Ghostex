@@ -432,6 +432,57 @@ pub struct PresentationAgentbox {
     pub pending: bool,
 }
 
+/// One OSC 7501 record of a session.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProgramStatusRecord {
+    /// `a/b/c` path; empty for the root record.
+    #[serde(default, deserialize_with = "crate::de::null_as_default")]
+    pub id: String,
+    /// `idle`, `working`, `done`, `blocked` or `error`.
+    #[serde(default, deserialize_with = "crate::de::null_as_default")]
+    pub state: String,
+    /// `permission`, `question` or `auth` on a blocked record.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kind: Option<String>,
+    /// 0-100 on a working or blocked record.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub progress: Option<u8>,
+    /// The program, inherited from the nearest ancestor record when unset.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub app: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    /// One line from the program; shown on hover, never as markup.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub msg: Option<String>,
+    #[serde(default, deserialize_with = "crate::de::null_as_default")]
+    pub updated_at_ms: i64,
+}
+
+/// What the session's own program reported over OSC 7501 (server/src/program_status/).
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProgramStatus {
+    /// The records drive `activity` under the Session status setting.
+    #[serde(default, deserialize_with = "crate::de::null_as_default")]
+    pub governs: bool,
+    /// The record state that decides the row: `idle`, `working`, `blocked`, `done` or `error`.
+    #[serde(default, deserialize_with = "crate::de::null_as_default")]
+    pub state: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kind: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub progress: Option<u8>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub app: Option<String>,
+    /// The deciding record's message (a worker's title in front), sanitised for display.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
+    #[serde(default, deserialize_with = "crate::de::null_as_default")]
+    pub records: Vec<ProgramStatusRecord>,
+}
+
 open_string_enum! {
     /// The combined result of a pull request's checks.
     WorkChecksState {
@@ -628,6 +679,9 @@ pub struct PresentationSession {
     /// The sidebar draws it as a red dot.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model_selection_failure: Option<String>,
+    /// The session's OSC 7501 program status; absent when it has no records to show.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub program_status: Option<ProgramStatus>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub title_observation: Option<TitleObservation>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

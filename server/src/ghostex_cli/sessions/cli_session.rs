@@ -69,6 +69,7 @@ pub(super) fn to_cli_session(
     map.insert("agentSessionPath".to_string(), agent_session_path);
     map.insert("alias".to_string(), json!(index as i64 + 1));
     insert_js(&mut map, "attention", &[p("attention")]);
+    insert_js(&mut map, "programStatus", &[p("programStatus")]);
     insert_js(&mut map, "createdAt", &[p("createdAt"), s("createdAt")]);
     insert_js(&mut map, "isDraft", &[p("isDraft")]);
     insert_js(&mut map, "globalRef", &[s("globalRef")]);
