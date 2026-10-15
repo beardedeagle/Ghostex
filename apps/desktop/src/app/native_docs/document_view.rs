@@ -30,54 +30,6 @@ thread_local! {
 /// How long "Saved" and "Copied!" stay up.
 const FLASH: Duration = Duration::from_millis(1600);
 
-/// `formatFileSize`.
-fn format_file_size(size: u64) -> String {
-    if size < 1024 {
-        return format!("{size} B");
-    }
-    let units = ["KB", "MB", "GB"];
-    let mut value = size as f64 / 1024.0;
-    let mut unit = 0;
-    while value >= 1024.0 && unit < units.len() - 1 {
-        value /= 1024.0;
-        unit += 1;
-    }
-    if value >= 10.0 {
-        format!("{value:.0} {}", units[unit])
-    } else {
-        format!("{value:.1} {}", units[unit])
-    }
-}
-
-/// `languageLabelForPath`.
-fn language_label(path: &str) -> String {
-    let Some((_, extension)) = path.rsplit_once('.') else {
-        return "Text".to_string();
-    };
-    let extension = extension.to_lowercase();
-    match extension.as_str() {
-        "css" => "CSS",
-        "excalidraw" => "Excalidraw",
-        "go" => "Go",
-        "h" => "C/C++",
-        "html" => "HTML",
-        "js" | "mjs" => "JavaScript",
-        "json" => "JSON",
-        "jsx" | "tsx" => "React",
-        "md" => "Markdown",
-        "py" => "Python",
-        "rs" => "Rust",
-        "sh" => "Shell",
-        "swift" => "Swift",
-        "ts" => "TypeScript",
-        "txt" => "Text",
-        "yaml" | "yml" => "YAML",
-        "zig" => "Zig",
-        _ => return extension.to_uppercase(),
-    }
-    .to_string()
-}
-
 impl GhostexGpuiApp {
     pub(crate) fn render_native_docs_document(
         &mut self,
@@ -135,13 +87,7 @@ impl GhostexGpuiApp {
         let kind = document.kind;
         let path = document.path.clone();
         let review = document.review_session_title.clone();
-        let language = if review.is_some() {
-            "Agent reply".to_string()
-        } else {
-            language_label(&document.path)
-        };
         let external_change = document.external_change;
-        let size = document.size.map(format_file_size);
         let html_annotate = document.html_annotate;
         let svg = kind == DocsFileKind::Image && DocsFileKind::is_svg(&path);
         let svg_source = document.svg_source;
@@ -273,6 +219,7 @@ impl GhostexGpuiApp {
                     })),
             )
             .child(
+                // CDXC:Docs 2026-10-15 DECISION: User: "we're showing the file name twice here. and no need for file size or TOML there". The header row is the only place the file's path shows (the code view no longer repeats it above the text), and the meta strip carries no file type or size, only an agent reply's label and the Edited/Saved state.
                 // The meta strip gives way before the actions do, so a narrow view never pushes
                 // a button out of the row.
                 div()
@@ -285,9 +232,8 @@ impl GhostexGpuiApp {
                     .gap(px(9.0))
                     .text_size(px(10.5))
                     .text_color(p.subtle)
-                    .child(language)
+                    .when(review.is_some(), |this| this.child("Agent reply"))
                     .children(review.clone().filter(|title| !title.is_empty()))
-                    .children(size)
                     .when(dirty, |this| this.child("Edited"))
                     .when(!dirty && saved, |this| this.child("Saved")),
             )
@@ -730,21 +676,10 @@ impl GhostexGpuiApp {
         let Some(editor) = document.editor.clone() else {
             return notice("files-view/t-refresh-2.svg", "Loading file".to_string());
         };
-        let path_row: SharedString = document.display_path.clone().into();
         div()
             .size_full()
             .flex()
             .flex_col()
-            .child(
-                div()
-                    .flex_none()
-                    .px(px(18.0))
-                    .py(px(8.0))
-                    .text_size(px(11.0))
-                    .font_family(p.mono_font.clone())
-                    .text_color(p.subtle)
-                    .child(path_row),
-            )
             .child(
                 div()
                     .flex_1()
