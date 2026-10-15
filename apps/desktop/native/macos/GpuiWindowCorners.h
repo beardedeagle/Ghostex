@@ -8,7 +8,8 @@
  CDXC:Workarea 2026-09-06 WHY:
  CEF and Ghostty are native children above GPUI, so their rectangular content would cover the curved pane border even after GPUI rounds it.
  Clip their existing layers at the window's bottom corners; their frames and input ownership remain with normal layout.
- SEE-ALSO: src/app/element/window_corner_pane.rs uses the same 18pt corner radius.
+ SEE-ALSO: MACOS_WINDOW_CORNER_RADIUS in src/app/element/window_corner_pane.rs, the measured
+ radius of the window's system mask, which this must equal.
  */
 static inline void GhostexGpuiClipNativeViewWindowCorners(NSView *view) {
   static char maskKey;
@@ -21,7 +22,7 @@ static inline void GhostexGpuiClipNativeViewWindowCorners(NSView *view) {
     return;
   }
 
-  const CGFloat radius = 18.0;
+  const CGFloat radius = 16.5;
   NSRect frame = [view convertRect:view.bounds toView:root];
   NSRect viewport = root.bounds;
   CGFloat bottom = root.isFlipped ? NSMaxY(viewport) - NSMaxY(frame)

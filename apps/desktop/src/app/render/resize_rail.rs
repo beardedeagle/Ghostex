@@ -192,7 +192,14 @@ pub(crate) fn window_frame_top_cover(window: &gpui::Window) -> f32 {
     device_pixels as f32 / scale
 }
 
-#[cfg(not(target_os = "windows"))]
+/// CDXC:Workarea 2026-10-15 WHY:
+/// The user: on macOS "the top line is 1px too low". AppKit paints nothing over a full-size content view's top row, so the outline's top line sits on the window's top edge there; the one-pixel offset was the Windows fix leaking through this fallback.
+#[cfg(target_os = "macos")]
+pub(crate) fn window_frame_top_cover(_window: &gpui::Window) -> f32 {
+    0.0
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "macos")))]
 pub(crate) fn window_frame_top_cover(_window: &gpui::Window) -> f32 {
     WORKSPACE_SPLIT_HANDLE_THICKNESS
 }
@@ -210,39 +217,29 @@ pub(crate) fn resize_rail_outline_segments(
 ) -> Vec<AnyElement> {
     let thickness = WORKSPACE_SPLIT_HANDLE_THICKNESS;
     let inset = |faces_rail: bool| if faces_rail { 0.0 } else { -1.0 };
-    let vertical_top = header_reach.map_or(inset(edges.top), |reach| -reach.above);
     let mut segments = Vec::new();
-    if let Some(reach) = header_reach
-        .map(|reach| reach.above)
-        .filter(|reach| *reach > 0.0)
-    {
-        // Sides with a border of their own stop at the pane's top, so they get the stretch beside
-        // the header as a segment over the same pixel column.
-        let mut beside_header = |at_left: bool| {
-            let segment = div()
-                .absolute()
-                .top(px(-reach))
-                .h(px(reach))
-                .w(px(thickness))
-                .bg(color);
-            let segment = if at_left {
-                segment.left(px(-1.0))
-            } else {
-                segment.right(px(-1.0))
-            };
-            segments.push(deferred(segment.into_any_element()).into_any_element());
-        };
-        if !edges.left {
-            beside_header(true);
-        }
-        if !edges.right {
-            beside_header(false);
-        }
+    // CDXC:Workarea 2026-10-15 WHY:
+    // The user: the top-right corner "isn't showing the border correct" and the bottom-right "should be very slightly more rounded". A lone chat's outline is one bordered frame from the window's top edge to the pane's bottom, on the pane's own border column where it has one and over the rail where it faces one, and it follows the window's rounded corners wherever it meets them (`window_corner_outline`). The separate straight segments it replaces ran beside the header one column outside the pane, off the window at its right edge, and were cut off square by the window's corner mask.
+    if let Some(reach) = header_reach {
+        let outside = |faces_rail: bool| if faces_rail { -thickness } else { 0.0 };
+        let outline = div()
+            .absolute()
+            // CDXC:Workarea 2026-10-11 WHY:
+            // Where the outline closes along the window's top edge, the window's own frame covers the client area's top rows (on Windows 11 the DWM border is drawn over them, 2 device pixels at 150%), so the segment sits just below what the frame covers, on the first row the app really paints; the header's layout is unchanged. This supersedes the 2026-10-09 fixed one-pixel offset, which GPUI snaps to device row 1 at 150% (1.5 rounds toward zero), still under the frame.
+            .top(px(-reach.above + reach.frame_cover))
+            .left(px(outside(edges.left)))
+            .right(px(outside(edges.right)))
+            .bottom(px(outside(edges.bottom)))
+            .border_1()
+            .border_color(color)
+            .window_corner_outline();
+        segments.push(deferred(outline.into_any_element()).into_any_element());
+        return segments;
     }
     let mut vertical = |at_left: bool| {
         let segment = div()
             .absolute()
-            .top(px(vertical_top))
+            .top(px(inset(edges.top)))
             .bottom(px(inset(edges.bottom)))
             .w(px(thickness))
             .bg(color);
@@ -266,12 +263,8 @@ pub(crate) fn resize_rail_outline_segments(
             .right(px(inset(edges.right)))
             .h(px(thickness))
             .bg(color);
-        // CDXC:Workarea 2026-10-11 WHY:
-        // Where the outline closes along the window's top edge, the window's own frame covers the client area's top rows (on Windows 11 the DWM border is drawn over them, 2 device pixels at 150%), so the segment sits just below what the frame covers, on the first row the app really paints; the header's layout is unchanged. This supersedes the 2026-10-09 fixed one-pixel offset, which GPUI snaps to device row 1 at 150% (1.5 rounds toward zero), still under the frame.
         let segment = if at_top {
-            segment.top(px(
-                header_reach.map_or(-thickness, |reach| -reach.above + reach.frame_cover)
-            ))
+            segment.top(px(-thickness))
         } else {
             segment.bottom(px(-thickness))
         };

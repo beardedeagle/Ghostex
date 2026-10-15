@@ -3,14 +3,32 @@ use gpui::{Element, Styled};
 pub(crate) trait WindowCornerPaneExt: Element + Styled + Sized {
     #[cfg(target_os = "macos")]
     fn window_corner_pane(self) -> WindowCornerPane<Self> {
-        WindowCornerPane(self)
+        WindowCornerPane(self, false)
     }
 
     #[cfg(not(target_os = "macos"))]
     fn window_corner_pane(self) -> Self {
         self
     }
+
+    #[cfg(target_os = "macos")]
+    fn window_corner_outline(self) -> WindowCornerPane<Self> {
+        WindowCornerPane::outline(self)
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    fn window_corner_outline(self) -> Self {
+        self
+    }
 }
+
+/// The corner radius of the main window's system mask, in points.
+///
+/// CDXC:Workarea 2026-10-15 WHY:
+/// Measured on macOS 27 from the alpha of a window capture at 2x: the mask is a continuous corner about 24pt long whose body follows a 16.5pt circle within half a device pixel, while the earlier 18pt arc sat a device pixel or two inside it near both ends and left a sliver of pane between the outline and the window's edge. GPUI only draws circular corners, so 16.5pt is the circle that hugs the mask.
+/// SEE-ALSO: native/macos/GpuiWindowCorners.h clips native child content to the same radius.
+#[cfg(target_os = "macos")]
+pub(crate) const MACOS_WINDOW_CORNER_RADIUS: f32 = 16.5;
 
 impl<E: Element + Styled> WindowCornerPaneExt for E {}
 
@@ -32,7 +50,14 @@ use gpui::{
 /// User: on macOS, round only pane bottom corners that meet the window's bottom corners, accounting for splits, either sidebar side, hidden sidebars, and bottom/right command panels in every state.
 /// Use this frame's layout bounds, including pane Focus mode and panel reservations, so rounding cannot lag a resize or depend on a duplicated layout model.
 #[cfg(target_os = "macos")]
-pub(crate) struct WindowCornerPane<E>(E);
+pub(crate) struct WindowCornerPane<E>(E, bool);
+
+#[cfg(target_os = "macos")]
+impl<E> WindowCornerPane<E> {
+    fn outline(element: E) -> Self {
+        Self(element, true)
+    }
+}
 
 #[cfg(target_os = "macos")]
 impl<E: Element + Styled> IntoElement for WindowCornerPane<E> {
@@ -81,12 +106,21 @@ impl<E: Element + Styled> Element for WindowCornerPane<E> {
         let viewport = window.viewport_size();
         let at_bottom =
             !window.is_fullscreen() && (bounds.bottom() - viewport.height).abs() <= edge_inset;
-        let left = at_bottom && bounds.left().abs() <= edge_inset;
-        let right = at_bottom && (bounds.right() - viewport.width).abs() <= edge_inset;
+        // A focus or attention outline that reaches the window's top edge also follows the
+        // window's top corners, where a straight line is cut off by the system mask.
+        let at_top = self.1 && !window.is_fullscreen() && bounds.top().abs() <= edge_inset;
+        let at_left = bounds.left().abs() <= edge_inset;
+        let at_right = (bounds.right() - viewport.width).abs() <= edge_inset;
+        let radius = |round: bool| px(if round { MACOS_WINDOW_CORNER_RADIUS } else { 0.0 });
         // SEE-ALSO: native/macos/GpuiWindowCorners.h clips native child content
-        // to the same 18pt window corner, leaving the pane border visible.
-        self.0.style().corner_radii.bottom_left = Some(px(if left { 18.0 } else { 0.0 }).into());
-        self.0.style().corner_radii.bottom_right = Some(px(if right { 18.0 } else { 0.0 }).into());
+        // to the same window corner, leaving the pane border visible.
+        let radii = &mut self.0.style().corner_radii;
+        radii.bottom_left = Some(radius(at_bottom && at_left).into());
+        radii.bottom_right = Some(radius(at_bottom && at_right).into());
+        if self.1 {
+            radii.top_left = Some(radius(at_top && at_left).into());
+            radii.top_right = Some(radius(at_top && at_right).into());
+        }
         self.0.prepaint(id, inspector_id, bounds, state, window, cx)
     }
 
