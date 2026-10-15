@@ -14,7 +14,8 @@ use crate::storage::open_gxserver_database;
 
 use super::{
     current_status_source, derive_program_status, forget_program_status,
-    mark_program_status_unsupported, program_status_activity, program_status_applied_key,
+    log_program_status_mismatch, mark_program_status_unsupported, program_state_activity,
+    program_status_activity, program_status_applied_key, program_status_combines_entry,
     program_status_entry, program_status_governs_entry, program_status_sessions,
     set_program_status_applied, set_program_status_applied_key, store_program_status_snapshot,
     ProgramStatusRecord,
@@ -83,10 +84,10 @@ pub(crate) fn ingest_program_status_line(
 
 /// The watch of a session ended: its daemon and records are gone.
 pub(crate) fn end_program_status_watch(state: &AppState, project_id: &str, session_id: &str) {
-    let governed = program_status_governs_entry(
-        program_status_entry(project_id, session_id).as_ref(),
-        current_status_source(),
-    );
+    let entry = program_status_entry(project_id, session_id);
+    let source = current_status_source();
+    let governed = program_status_governs_entry(entry.as_ref(), source)
+        || program_status_combines_entry(entry.as_ref(), source);
     if forget_program_status(project_id, session_id) && governed {
         publish_session(state, project_id, session_id);
     }
@@ -111,8 +112,10 @@ pub(crate) fn apply_program_status(
     let Some(entry) = program_status_entry(project_id, session_id) else {
         return;
     };
-    let governs = program_status_governs_entry(Some(&entry), current_status_source());
-    if !governs {
+    let source = current_status_source();
+    let governs = program_status_governs_entry(Some(&entry), source);
+    let combines = !governs && program_status_combines_entry(Some(&entry), source);
+    if !governs && !combines {
         if entry.applied_key.is_some() {
             set_program_status_applied_key(project_id, session_id, None);
         }
@@ -166,6 +169,38 @@ pub(crate) fn apply_program_status(
             );
         }
         return;
+    }
+    if combines {
+        // Combined: detection owns idle. A program's idle only clears what the
+        // program itself raised (its working or blocked); a finished turn is
+        // `finished` above.
+        if effective == "idle"
+            && !matches!(entry.applied_state.as_deref(), Some("working" | "blocked"))
+        {
+            if records_changed {
+                let _ = schedule_presentation_session_delta(
+                    state,
+                    &db,
+                    &repository,
+                    project_id,
+                    session_id,
+                );
+            }
+            return;
+        }
+        let detected = session
+            .pointer("/runtimeSettings/agentActivity/activity")
+            .and_then(Value::as_str)
+            .unwrap_or("idle");
+        if detected != program_state_activity(effective) {
+            log_program_status_mismatch(
+                &session,
+                detected,
+                effective,
+                "program",
+                json!({"kind": "programReport"}),
+            );
+        }
     }
     let (activity, attention_source) = program_status_activity(effective);
     let mut params = Map::new();

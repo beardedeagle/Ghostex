@@ -2455,10 +2455,12 @@ Session status from (Settings > Sidebar) chooses how Ghostex knows a session is
 working, waiting for you, or done. Ghostex detection, the default, reads each
 agent's hooks, terminal title and screen. Some programs report their own status
 with the Program Status Protocol (OSC 7501): Claude Code 2.1.295 and newer does,
-and so can your own scripts. Program status only takes every session's status
-from those reports alone; Auto uses them while a session's program sends them
-and Ghostex detection for the rest, including a session whose reporting program
-has exited. With the program's own status, working shows
+recent Codex betas do, and so can your own scripts. Combined keeps Ghostex
+detection and adds those reports while the program runs: failures, what it is
+waiting for, its message and progress, and waiting or finished as soon as the
+program says so; when the two disagree the more urgent one wins, and running
+subagents still keep a session working. Program status only takes every
+session's status from the reports alone. With the program's own status, working shows
 the orange dot, waiting for permission, an answer or a sign-in shows the blue
 dot, finished shows the blue dot until you look, and a failure shows a red dot.
 An agent that goes from working back to idle also counts as finished, unless
@@ -2466,6 +2468,9 @@ you stopped it with Escape or the chat's Stop button. Hover the session to read
 the program's one-line message (and its progress when it reports one); on the
 phone, long-press the session to read it. `ghostex sessions --json --full` shows each session's
 reports under `programStatus`.
+
+With Show debug UI controls on, the Program status mismatches log on the
+Debugging page records each time detection and a program's report disagree.
 
 Related settings: `sessionStatusSource`, `completionSound`, `actionCompletionSound`, `copySound`,
 `showMacOSAttentionNotifications`, `resetExpirySystemNotifications`,

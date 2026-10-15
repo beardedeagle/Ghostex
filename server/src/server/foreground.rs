@@ -342,7 +342,7 @@ pub async fn run_gxserver_foreground(
     until someone reopens Settings.
     */
     start_tailcat_from_persisted_state(&paths, &state.tailcat_runtime);
-    crate::program_status::init_status_source(&paths);
+    crate::program_status::init_status_source(&paths, state.logger.clone(), &metadata.server_id);
     sync_zmx_title_observers_for_all_sessions(&state, "server-start");
     sync_session_chat_followers_for_all_sessions(&state, "server-start");
     let agent_metadata_title_sync_task = spawn_agent_metadata_title_sync_task(&state);

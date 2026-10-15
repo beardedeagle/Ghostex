@@ -644,7 +644,8 @@ pub const TERMINAL_VIEW_WIDTH_MODE_OPTIONS: &[Opt] = &[
 /// Where a session's working / needs-attention status comes from (CDXC:SessionStatus), in the Settings dropdown's order.
 pub const SESSION_STATUS_SOURCE_OPTIONS: &[Opt] = &[
     opt("Ghostex detection", "detection"),
-    opt("Auto", "auto"),
+    // Combined keeps the value Auto had (CDXC:SessionStatus 2026-10-15 in server/src/program_status/mode.rs).
+    opt("Combined", "auto"),
     opt("Program status only", "programStatus"),
 ];
 

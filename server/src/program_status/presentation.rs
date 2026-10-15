@@ -2,15 +2,18 @@ use serde_json::{json, Map, Value};
 
 use super::{
     current_status_source, derive_program_status, effective_program_app,
-    program_status_display_text, program_status_entry, program_status_governs_entry,
+    program_status_combines_entry, program_status_display_text, program_status_entry,
+    program_status_governs_entry,
 };
 
 /// CDXC:SessionStatus 2026-10-14 WHY:
-/// The session's OSC 7501 records as every client sees them (`programStatus` on the presentation session, `ghostex sessions --json`). `governs` says whether they drive the session's activity under the current setting; `state`, `kind`, `progress` and `message` describe the record that decides the row; `records` are all of them, ids and titles included, for clients that show more. Absent when the session has no records and nothing to say.
+/// The session's OSC 7501 records as every client sees them (`programStatus` on the presentation session, `ghostex sessions --json`). `governs` says whether they are in use for the session's status under the current setting (Program status only, or Combined while the reporting program runs), which is when clients show the message and the red failed dot; `state`, `kind`, `progress` and `message` describe the record that decides the row; `records` are all of them, ids and titles included, for clients that show more. Absent when the session has no records and nothing to say.
 /// SEE-ALSO: packages/gx-protocol/src/presentation.rs `ProgramStatus`, packages/gx-core/src/sidebar_view/rows.rs (hover text and the red failed dot).
 pub(crate) fn presentation_program_status(project_id: &str, session_id: &str) -> Option<Value> {
     let entry = program_status_entry(project_id, session_id)?;
-    let governs = program_status_governs_entry(Some(&entry), current_status_source());
+    let source = current_status_source();
+    let governs = program_status_governs_entry(Some(&entry), source)
+        || program_status_combines_entry(Some(&entry), source);
     if entry.records.is_empty() && !governs {
         return None;
     }

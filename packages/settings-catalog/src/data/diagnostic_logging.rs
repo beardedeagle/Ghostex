@@ -46,6 +46,11 @@ pub const DIAGNOSTIC_LOGGING_SCENARIOS: J = J::Arr(&[
         ("label", J::Str("Agent activity")),
     ]),
     J::Obj(&[
+        ("description", J::Str("With Session status on Combined: each time Ghostex's detection and a program's own status report disagree about a session, with what each said and which one won.")),
+        ("id", J::Str("gxserver.programStatusMismatch")),
+        ("label", J::Str("Program status mismatches")),
+    ]),
+    J::Obj(&[
         ("description", J::Str("Prompt editor window and composer lifecycle.")),
         ("id", J::Str("native.prompt.editor")),
         ("label", J::Str("Prompt editor")),

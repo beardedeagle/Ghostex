@@ -192,13 +192,13 @@ fn sidebar_section(
         false,
         cx,
     ));
-    // CDXC:SessionStatus 2026-10-14 DECISION: User (Q112): Ghostex detection, Auto, or Program status only; gxserver reads it (server/src/program_status/mode.rs) so the desktop, web, phone and CLI all follow it.
+    // CDXC:SessionStatus 2026-10-15 DECISION: User (Q120, supersedes Q112's Auto): Ghostex detection, Combined, or Program status only (Combined is stored as `auto`); gxserver reads it (server/src/program_status/mode.rs) so the desktop, web, phone and CLI all follow it.
     rows.extend(page.select(
         g,
         s,
         "sessionStatusSource",
         "Session status from",
-        "Choose how Ghostex knows a session is working, needs you or is done. Ghostex detection reads each agent's hooks, terminal title and screen. Program status only uses the status the program itself reports (OSC 7501, sent by Claude Code 2.1.295 and newer and recent Codex betas), with its message shown when you hover the session. Auto uses the program's own status for sessions that send it and Ghostex detection for the rest.",
+        "Choose how Ghostex knows a session is working, needs you or is done. Ghostex detection reads each agent's hooks, terminal title and screen. Combined keeps that detection and adds the status a program reports about itself (OSC 7501, sent by Claude Code 2.1.295 and newer, recent Codex betas and your own scripts): failures, what it is waiting for, its message and progress on hover, and waiting or finished the moment the program says so. Program status only uses the program's own status alone.",
         g.options("SESSION_STATUS_SOURCE_OPTIONS"),
         Some(256.0),
         false,

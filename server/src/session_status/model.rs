@@ -137,24 +137,24 @@ pub fn compute_activity_update(
     let previous_state = previous.clone();
     let program_status_activity = read_text(params, "programStatusActivity")
         .filter(|value| matches!(value.as_str(), "idle" | "working" | "attention"));
+    // An Escape says the user stopped this turn, so its idle is not a finished turn.
+    if event.as_deref() == Some("escape") {
+        if let (Some(project_id), Some(session_id)) = (
+            read_text_value(session, "projectId"),
+            read_text_value(session, "sessionId"),
+        ) {
+            crate::program_status::note_program_status_interrupt(&project_id, &session_id);
+        }
+    }
     /*
     CDXC:SessionStatus 2026-10-14 DECISION:
-    User: use OSC 7501 "instead of all the weird stuff we're doing to track when the agent is working or has attention status". While a session's program status governs it (Session status set to Program status only, or Auto once the session reported), hooks, terminal titles, bells, Escape and every other detected signal leave its activity alone; only its records (`programStatusActivity`) and the user's own acknowledgement change it. Titles, identity, transcripts, chat cards and limit detection keep running: this gate covers activity only.
+    User: use OSC 7501 "instead of all the weird stuff we're doing to track when the agent is working or has attention status". While a session's program status governs it (Session status set to Program status only; since 2026-10-15 the Auto value is Combined, which keeps detection, see the Combined guard below), hooks, terminal titles, bells, Escape and every other detected signal leave its activity alone; only its records (`programStatusActivity`) and the user's own acknowledgement change it. Titles, identity, transcripts, chat cards and limit detection keep running: this gate covers activity only.
     SEE-ALSO: server/src/program_status/ingest.rs (the writer), server/src/presentation/session_attributes.rs (the projection-side gate).
     */
     if program_status_activity.is_none()
         && event.as_deref() != Some("acknowledge")
         && crate::program_status::program_status_governs_session(session)
     {
-        // An Escape still says the user stopped this turn, so its idle is not a finished turn.
-        if event.as_deref() == Some("escape") {
-            if let (Some(project_id), Some(session_id)) = (
-                read_text_value(session, "projectId"),
-                read_text_value(session, "sessionId"),
-            ) {
-                crate::program_status::note_program_status_interrupt(&project_id, &session_id);
-            }
-        }
         return ActivityUpdate {
             activity: previous_state.to_value(),
             entered_attention: false,
@@ -179,7 +179,7 @@ pub fn compute_activity_update(
         previous,
         settled_title: read_text(params, "settledTitle"),
         title: read_text(params, "title"),
-        program_status_activity,
+        program_status_activity: program_status_activity.clone(),
     });
     /*
     Sessions that predate the meaningful-activity clock seed it from their
@@ -198,6 +198,43 @@ pub fn compute_activity_update(
         event.as_deref(),
         now_ms_value,
     );
+    /*
+    CDXC:SessionStatus 2026-10-15 DECISION:
+    User (Q120): under Combined, detection stays in charge and the program's report is one more signal; in a disagreement "the more urgent signal wins": while the program says blocked, detection cannot take the session out of attention (the program knows it waits on the user), and while the program says working, detection cannot set it idle. Every other disagreement goes to detection, which keeps what only it knows (subagent fleets and compaction, applied when the session is presented). The user's acknowledgement and Escape always pass. Each disagreement goes to the mismatch log (program_status/mismatch.rs).
+    */
+    if program_status_activity.is_none()
+        && !matches!(event.as_deref(), Some("acknowledge" | "escape"))
+    {
+        if let Some(program_state) = crate::program_status::program_status_combined_state(session) {
+            let detected = activity.activity.as_str();
+            if detected != crate::program_status::program_state_activity(program_state) {
+                let program_wins = (program_state == "blocked" && detected != "attention")
+                    || (program_state == "working" && detected == "idle");
+                let title = read_text(params, "title")
+                    .or_else(|| read_text(params, "rawTitle"))
+                    .map(|title| title.chars().take(80).collect::<String>());
+                crate::program_status::log_program_status_mismatch(
+                    session,
+                    detected,
+                    program_state,
+                    if program_wins { "program" } else { "detection" },
+                    serde_json::json!({
+                        "kind": event.clone().or_else(|| params.get("activity").map(|_| "activity".to_string())),
+                        "hookEvent": read_text(params, "eventName"),
+                        "title": title,
+                    }),
+                );
+                if program_wins {
+                    return ActivityUpdate {
+                        activity: previous_state.to_value(),
+                        entered_attention: false,
+                        last_active_at: read_text_value(session, "lastActiveAt"),
+                        previous_activity,
+                    };
+                }
+            }
+        }
+    }
     let next_activity = activity.activity.as_str();
     let last_active_at = if matches!(next_activity, "working" | "attention") {
         activity

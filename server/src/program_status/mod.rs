@@ -4,12 +4,14 @@
 
 mod derive;
 mod ingest;
+mod mismatch;
 mod mode;
 mod presentation;
 mod registry;
 
 pub(crate) use derive::*;
 pub(crate) use ingest::*;
+pub(crate) use mismatch::*;
 pub(crate) use mode::*;
 pub(crate) use presentation::*;
 pub(crate) use registry::*;

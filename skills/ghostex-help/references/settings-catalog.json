@@ -194,7 +194,7 @@
     {
       "key": "sessionStatusSource",
       "title": "Session status from",
-      "subtitle": "Choose how Ghostex knows a session is working, needs you or is done. Ghostex detection reads each agent's hooks, terminal title and screen. Program status only uses the status the program itself reports (OSC 7501, sent by Claude Code 2.1.295 and newer and recent Codex betas), with its message shown when you hover the session. Auto uses the program's own status for sessions that send it and Ghostex detection for the rest.",
+      "subtitle": "Choose how Ghostex knows a session is working, needs you or is done. Ghostex detection reads each agent's hooks, terminal title and screen. Combined keeps that detection and adds the status a program reports about itself (OSC 7501, sent by Claude Code 2.1.295 and newer, recent Codex betas and your own scripts): failures, what it is waiting for, its message and progress on hover, and waiting or finished the moment the program says so. Program status only uses the program's own status alone.",
       "tab": "settings",
       "tabTitle": "General",
       "group": "sidebar",
@@ -209,7 +209,7 @@
           "value": "detection"
         },
         {
-          "label": "Auto",
+          "label": "Combined",
           "value": "auto"
         },
         {
@@ -8126,6 +8126,10 @@
         {
           "label": "Agent activity",
           "value": "gxserver.agentActivity"
+        },
+        {
+          "label": "Program status mismatches",
+          "value": "gxserver.programStatusMismatch"
         },
         {
           "label": "Prompt editor",

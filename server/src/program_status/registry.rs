@@ -60,6 +60,8 @@ pub(crate) struct SessionProgramStatus {
     /// one's: it is a turn (a prompt typed ahead during the last turn counts).
     /// A program's own start-up (idle, working while it loads, idle) has none.
     pub working_after_input: bool,
+    /// The last disagreement written to the mismatch log (detection, program, winner).
+    pub last_mismatch: Option<String>,
 }
 
 fn registry() -> &'static Mutex<HashMap<String, SessionProgramStatus>> {
@@ -191,10 +193,50 @@ pub(crate) fn program_status_governs_entry(
         return false;
     };
     match source {
-        StatusSource::Detection => false,
-        StatusSource::Auto => entry.supported && entry.reported,
+        StatusSource::Detection | StatusSource::Combined => false,
         StatusSource::ProgramStatus => entry.supported,
     }
+}
+
+/// Whether the session's reports join Ghostex's detection under Combined: its
+/// daemon keeps records and the program that reported is still running.
+pub(crate) fn program_status_combines_entry(
+    entry: Option<&SessionProgramStatus>,
+    source: StatusSource,
+) -> bool {
+    source == StatusSource::Combined && entry.is_some_and(|entry| entry.supported && entry.reported)
+}
+
+/// Under Combined, the program's derived state for a stored session row, or
+/// `None` when its reports do not join detection.
+pub(crate) fn program_status_combined_state(session: &Value) -> Option<&'static str> {
+    let source = current_status_source();
+    if source != StatusSource::Combined {
+        return None;
+    }
+    let text = |key: &str| session.get(key).and_then(Value::as_str).map(str::trim);
+    let (Some(project_id), Some(session_id)) = (text("projectId"), text("sessionId")) else {
+        return None;
+    };
+    let entry = program_status_entry(project_id, session_id)?;
+    program_status_combines_entry(Some(&entry), source)
+        .then(|| super::derive_program_status(&entry.records).state)
+}
+
+/// Remember the last mismatch logged for a session; true when `key` is new,
+/// so a disagreement that lasts across many title ticks is logged once.
+pub(crate) fn note_program_status_mismatch(project_id: &str, session_id: &str, key: &str) -> bool {
+    let Ok(mut registry) = registry().lock() else {
+        return false;
+    };
+    let Some(entry) = registry.get_mut(&registry_key(project_id, session_id)) else {
+        return false;
+    };
+    if entry.last_mismatch.as_deref() == Some(key) {
+        return false;
+    }
+    entry.last_mismatch = Some(key.to_string());
+    true
 }
 
 pub(crate) fn program_status_governs(project_id: &str, session_id: &str) -> bool {
