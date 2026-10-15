@@ -627,7 +627,7 @@ pub fn usage() -> String {
         format_help_command("screenshot [output.png]", "Capture the Ghostex window"),
         format_help_command(
             "logs [--file name] [--lines n] [--grep text] [--json]",
-            "Print recent logs",
+            "Print the newest log lines, oldest first; --grep searches the whole log (warnings and errors are always logged, info lines only while their Diagnostic logs area is on)",
         ),
         format_help_command(
             "bundle [output-dir] [--lines n]",

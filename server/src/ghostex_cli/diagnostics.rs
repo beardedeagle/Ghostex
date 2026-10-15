@@ -226,27 +226,44 @@ pub fn screenshot_command(args: &[String]) -> CliResult<()> {
     Ok(())
 }
 
+/// `ghostex logs`: the newest `--lines` entries of gxserver's log, printed oldest first like
+/// `tail`; `--grep` is searched by gxserver over the whole log before the limit.
+///
+/// CDXC:Diagnostics 2026-10-16 WHY:
+/// `ghostex logs --grep emptySessionClosed` found nothing while the line was in the log: the CLI asked `/api/queryLogs` for 200 entries in its default ascending order (the 200 OLDEST lines in the file, despite "Print recent logs") and filtered those on the client. The newest lines are asked for now (`order: desc`, put back in time order for printing), the text match runs inside the query before the limit (`text`), and the client filter stays for an older gxserver that ignores `text`. `--file` names another file in the logs folder, so it reads that file instead of the query, which only reads `gxserver.jsonl`.
 pub fn logs_command(args: &[String]) -> CliResult<()> {
     let parsed = parse_args(args);
     let flags = &parsed.flags;
     let lines = number_flag_or(flags, "lines", 200.0);
-    let api_attempt = (|| -> CliResult<()> {
+    let reads_other_file = flags
+        .text("file")
+        .is_some_and(|file| file != "gxserver.jsonl");
+    let api_attempt = || -> CliResult<()> {
+        let newest_first = !flags.truthy("order") && !flags.truthy("reverse");
         let params = compact_object(json!({
             "event": flags.0.get("event").map(|value| value.as_json()),
             "eventPrefix": flags.0.get("eventPrefix").map(|value| value.as_json()),
             "level": flags.0.get("level").map(|value| value.as_json()),
             "limit": number_value(lines),
-            "order": flags.0.get("order").map(|value| value.as_json()),
+            "order": if newest_first {
+                Some(json!("desc"))
+            } else {
+                flags.0.get("order").map(|value| value.as_json())
+            },
             "reverse": flags.0.get("reverse").map(parse_boolean),
             "since": flags.0.get("since").map(|value| value.as_json()),
+            "text": flags.truthy("grep").then(|| flags.text("grep")).flatten(),
             "until": flags.0.get("until").map(|value| value.as_json()),
         }));
         let result = call_gxserver_rpc("/api/queryLogs", &params, flags)?;
-        let entries: Vec<Value> = result
+        let mut entries: Vec<Value> = result
             .get("entries")
             .and_then(Value::as_array)
             .cloned()
             .unwrap_or_default();
+        if newest_first {
+            entries.reverse();
+        }
         let filtered: Vec<Value> = if flags.truthy("grep") {
             let grep = flags.text("grep").unwrap_or_default();
             entries
@@ -271,15 +288,20 @@ pub fn logs_command(args: &[String]) -> CliResult<()> {
             print_json(&Value::Object(merged));
             return Ok(());
         }
+        if filtered.is_empty() {
+            print_no_log_match_note();
+        }
         for entry in filtered {
             println!("{}", serde_json::to_string(&entry).unwrap_or_default());
         }
         Ok(())
-    })();
-    match api_attempt {
-        Ok(()) => return Ok(()),
-        Err(CliError::Connection(_)) => {}
-        Err(error) => return Err(error),
+    };
+    if !reads_other_file {
+        match api_attempt() {
+            Ok(()) => return Ok(()),
+            Err(CliError::Connection(_)) => {}
+            Err(error) => return Err(error),
+        }
     }
 
     let file = flags
@@ -305,8 +327,19 @@ pub fn logs_command(args: &[String]) -> CliResult<()> {
         }));
         return Ok(());
     }
+    if filtered.is_empty() {
+        print_no_log_match_note();
+    }
     println!("{}", filtered.join("\n"));
     Ok(())
+}
+
+/// Said on stderr when nothing matched, so a missing line reads as "not written" or "aged out"
+/// rather than as a broken search.
+fn print_no_log_match_note() {
+    eprintln!(
+        "No log lines matched. Warnings and errors are always logged; info and debug lines only while Show debug UI controls and their area under Diagnostic logs are on (Settings > Debugging). The log keeps only its newest lines."
+    );
 }
 
 pub fn bundle_command(args: &[String]) -> CliResult<()> {

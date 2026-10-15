@@ -168,6 +168,8 @@ export interface GxserverQueryLogsParams {
   serverId?: GxserverServerId;
   sessionId?: GxserverSessionId;
   since?: string;
+  /** A plain, case-sensitive substring the stored log line must contain. */
+  text?: string;
   until?: string;
 }
 

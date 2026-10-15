@@ -30,6 +30,8 @@ struct LogQueryParams {
     session_id: Option<String>,
     since: Option<String>,
     since_ms: Option<i64>,
+    /// A plain, case-sensitive substring the stored line must contain (`ghostex logs --grep`).
+    text: Option<String>,
     until_ms: Option<i64>,
 }
 
@@ -119,6 +121,7 @@ fn parse_query_logs_params(
     let client = parse_optional_string(raw_params.get("client"), "client")?;
     let since = parse_optional_timestamp(raw_params.get("since"), "since")?;
     let until = parse_optional_timestamp(raw_params.get("until"), "until")?;
+    let text = parse_optional_string(raw_params.get("text"), "text")?;
     let limit = parse_optional_limit(raw_params.get("limit"))?;
     let order = parse_order(raw_params.get("order"))?;
     let reverse = parse_optional_boolean(raw_params.get("reverse"), "reverse")?;
@@ -137,6 +140,7 @@ fn parse_query_logs_params(
         session_id,
         since,
         since_ms,
+        text,
         until_ms,
     })
 }
@@ -261,7 +265,15 @@ fn scan_log_lines<'a>(
         }
         scanned_line_count += 1;
         match parse_log_line(line) {
-            Some(entry) if matches_query(&entry, params) => entries.push(entry),
+            Some(entry)
+                if params
+                    .text
+                    .as_deref()
+                    .is_none_or(|text| line.contains(text))
+                    && matches_query(&entry, params) =>
+            {
+                entries.push(entry)
+            }
             Some(_) => {}
             None => malformed_line_count += 1,
         }
