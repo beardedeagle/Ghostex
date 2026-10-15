@@ -45,6 +45,12 @@ pub(crate) fn create_attach_session_metadata_with_observed_state(
             DomainStateError::not_found(format!("Project {} does not exist.", lifecycle.project_id))
         })?;
     let existing_session = require_session(repository, &lifecycle)?;
+    let existing_session = crate::worktree_sessions::move_session_out_of_removed_worktree(
+        repository,
+        &project,
+        &existing_session,
+    )?
+    .unwrap_or(existing_session);
     let cwd = string_field(&existing_session, "cwd").or_else(|| string_field(&project, "path"));
     let (probe, probed_session, zmx, zmx_name) =
         probe_and_cache_session_provider_with_observed_state(repository, &lifecycle, observed)?;
@@ -211,6 +217,11 @@ pub(crate) fn start_session_provider_with_observed_state(
         .ok_or_else(|| {
             DomainStateError::not_found(format!("Project {} does not exist.", lifecycle.project_id))
         })?;
+    crate::worktree_sessions::move_session_out_of_removed_worktree(
+        repository,
+        &project,
+        &require_session(repository, &lifecycle)?,
+    )?;
     let (probe, probed_session, zmx, zmx_name) =
         probe_and_cache_session_provider_with_observed_state(repository, &lifecycle, observed)?;
     if probe.lifecycle_state == "missing" {

@@ -399,6 +399,89 @@ pub fn runtime_settings_with_moved_worktree_path(
 }
 
 // ---------------------------------------------------------------------------
+// removed worktree
+// ---------------------------------------------------------------------------
+
+/// Runtime-settings key that replaces `worktreeSession` once the session's
+/// worktree folder is gone and the session moved to its project's folder: the
+/// old marker plus `removedAt`. Its presence also tells the Codex resume to pass
+/// the new folder (`with_codex_removed_worktree_cwd` in agents/resume_plan.rs).
+pub const REMOVED_WORKTREE_SESSION_RUNTIME_KEY: &str = "removedWorktreeSession";
+
+/// CDXC:Worktrees 2026-10-15 WHY:
+/// Merged worktrees are deleted on purpose (an orchestrator removes a thread's worktree once its branch is merged), but the session record kept the deleted folder as its cwd, so opening the finished thread, waking it to send a message, or `orchestrator reopen` all hit "Session restore is blocked because its working directory is unavailable". A session gxserver started inside a worktree it made, whose folder is gone while its project's folder still exists, moves to the project's folder for good: the cwd is rewritten and the marker becomes `removedWorktreeSession`, so the branch it no longer sits on stops showing. Any other missing folder stays blocked. Claude resumes a conversation by id from any folder and keeps writing the transcript it already has (verified with Claude Code 2.1.296), so `agentSessionPath` stays valid; Codex resumes into the folder its rollout recorded, even a deleted one, and needs `-C` (see the resume plan).
+/// SEE-ALSO: `remove_session_worktree` (server/worktree_ops/sessions.rs) moves the sessions as it removes the folder; `create_attach_session_metadata` and `start_session_provider` (zmx/provider.rs) move any session whose worktree was removed some other way.
+pub fn plan_removed_worktree_move(
+    session: &Value,
+    project: &Value,
+    removed_at: &str,
+) -> Option<(String, Map<String, Value>)> {
+    let cwd = session
+        .get("cwd")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|cwd| !cwd.is_empty())?;
+    if Path::new(cwd).exists() {
+        return None;
+    }
+    let marker = read_worktree_session_marker(session)?;
+    let worktree_path = Path::new(marker.path.trim_end_matches('/'));
+    if !Path::new(cwd).starts_with(worktree_path) {
+        return None;
+    }
+    let project_path = project
+        .get("path")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|path| !path.is_empty())?;
+    if !Path::new(project_path).is_dir() || Path::new(project_path).starts_with(worktree_path) {
+        return None;
+    }
+    let mut runtime_settings = session
+        .get("runtimeSettings")
+        .and_then(Value::as_object)
+        .cloned()?;
+    let mut record = runtime_settings
+        .remove(WORKTREE_SESSION_RUNTIME_KEY)?
+        .as_object()
+        .cloned()?;
+    record.insert("removedAt".to_string(), json!(removed_at));
+    runtime_settings.insert(
+        REMOVED_WORKTREE_SESSION_RUNTIME_KEY.to_string(),
+        Value::Object(record),
+    );
+    Some((project_path.to_string(), runtime_settings))
+}
+
+/// Moves `session` to its project's folder when `plan_removed_worktree_move`
+/// says its worktree is gone, and returns the stored result; `None` leaves the
+/// session as it was.
+pub fn move_session_out_of_removed_worktree(
+    repository: &crate::domain::DomainRepository<'_>,
+    project: &Value,
+    session: &Value,
+) -> Result<Option<Value>, crate::domain::DomainStateError> {
+    let removed_at = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+    let Some((cwd, runtime_settings)) = plan_removed_worktree_move(session, project, &removed_at)
+    else {
+        return Ok(None);
+    };
+    let mut update = Map::new();
+    for key in ["projectId", "sessionId"] {
+        update.insert(
+            key.to_string(),
+            session.get(key).cloned().unwrap_or(Value::Null),
+        );
+    }
+    update.insert("cwd".to_string(), json!(cwd));
+    update.insert(
+        "runtimeSettings".to_string(),
+        Value::Object(runtime_settings),
+    );
+    repository.update_session(&update).map(Some)
+}
+
+// ---------------------------------------------------------------------------
 // git plumbing
 // ---------------------------------------------------------------------------
 

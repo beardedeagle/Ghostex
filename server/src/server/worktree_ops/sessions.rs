@@ -1048,12 +1048,43 @@ pub(crate) async fn remove_session_worktree(
             "The worktree was removed, but stale worktree records could not be pruned."
         ));
     }
+    move_sessions_out_of_removed_worktree(state, &context.source_project_id, &requested)?;
     schedule_worktree_session_project_delta(state, &context.source_project_id)?;
     Ok(json!({
         "dirty": dirty,
         "removed": true,
         "warnings": warnings,
     }))
+}
+
+/// The sessions that ran in the worktree just removed move to the project's folder
+/// (CDXC:Worktrees 2026-10-15 at `plan_removed_worktree_move` in worktree_sessions.rs).
+fn move_sessions_out_of_removed_worktree(
+    state: &AppState,
+    project_id: &str,
+    worktree_path: &str,
+) -> std::result::Result<(), ProjectWorktreeOperationError> {
+    let db = open_gxserver_database(&state.paths).map_err(|error| DomainStateError {
+        code: "internalError",
+        message: format!("SQLite gxserver state error: {error}"),
+    })?;
+    let repository = DomainRepository::new(&db, state.metadata.server_id.as_str());
+    let Some(project) = repository.get_project(project_id)? else {
+        return Ok(());
+    };
+    let removed_key = canonical_worktree_path_key(worktree_path);
+    for session in repository.list_sessions(Some(project_id))? {
+        let in_removed_worktree = worktree_sessions::read_worktree_session_marker(&session)
+            .is_some_and(|marker| canonical_worktree_path_key(&marker.path) == removed_key);
+        if in_removed_worktree {
+            worktree_sessions::move_session_out_of_removed_worktree(
+                &repository,
+                &project,
+                &session,
+            )?;
+        }
+    }
+    Ok(())
 }
 
 pub(crate) fn schedule_worktree_session_project_delta(
