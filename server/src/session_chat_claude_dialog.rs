@@ -121,34 +121,83 @@ fn is_key_hint(text: &str) -> bool {
 /// list above "Ready to code?"'s options) are not options.
 fn option_rows(remainder: &[String]) -> (Vec<TerminalDialogRow>, RangeInclusive<usize>) {
     let indent = |line: &str| line.chars().take_while(|c| *c == ' ').count();
+    /*
+    CDXC:AgentScreenDetection 2026-10-15 WHY:
+    A list that marks its current value (`/theme`'s "✔ Light mode") keeps a two-column mark slot on every row, so unmarked rows sit two columns deeper than the `❯` row's mark and were read as wrapped lines: only the marked row was clickable. Rows are aligned by where their label starts, after the mark.
+    */
+    let mark = |line: &str| {
+        let text = line.trim_start();
+        if text.starts_with("✔ ") || text.starts_with("✓ ") {
+            2
+        } else {
+            0
+        }
+    };
     let Some(selected) = remainder
         .iter()
         .rposition(|line| line.trim_start().starts_with('❯'))
     else {
         return (Vec::new(), 1..=0);
     };
-    let label_column = indent(&remainder[selected]) + 2;
+    let after_pointer = remainder[selected].trim_start().trim_start_matches('❯');
+    let label_column = indent(&remainder[selected])
+        + 1
+        + indent(after_pointer)
+        + mark(after_pointer);
+    let label_start = |line: &str| indent(line) + mark(line);
     let is_row = |index: usize| {
         index == selected
-            || (!remainder[index].trim().is_empty() && indent(&remainder[index]) == label_column)
+            || (!remainder[index].trim().is_empty()
+                && label_start(&remainder[index]) == label_column)
     };
     let is_wrap = |index: usize| {
-        !remainder[index].trim().is_empty() && indent(&remainder[index]) > label_column
+        !remainder[index].trim().is_empty() && label_start(&remainder[index]) > label_column
     };
+    /*
+    CDXC:AgentScreenDetection 2026-10-15 WHY:
+    `/plugin`'s Marketplaces tab puts a blank line between its bulleted entries ("+ Add Marketplace", "● Anthropic Directory"), so only the highlighted entry was read. A bulleted list's run crosses blank lines; an unbulleted one does not, because a wrapped paragraph above it ("will work as intended…" over `/plugin`'s install scope) sits at the label column too.
+    */
+    let bulleted = after_pointer
+        .trim_start()
+        .trim_start_matches(['✔', '✓'])
+        .trim_start()
+        .split_once(' ')
+        .is_some_and(|(bullet, _)| ["+", "●", "○", "◯", "◉", "•"].contains(&bullet));
+    let is_blank = |index: usize| remainder[index].trim().is_empty();
+    let member = |index: usize| is_row(index) || is_wrap(index);
     let mut first = selected;
-    while first > 0 && (is_row(first - 1) || is_wrap(first - 1)) {
-        first -= 1;
+    loop {
+        let mut above = first;
+        while bulleted && above > 0 && is_blank(above - 1) {
+            above -= 1;
+        }
+        if above > 0 && member(above - 1) {
+            first = above - 1;
+        } else {
+            break;
+        }
     }
     while first < selected && !is_row(first) {
         first += 1;
     }
     let mut last = selected;
-    while last + 1 < remainder.len() && (is_row(last + 1) || is_wrap(last + 1)) {
-        last += 1;
+    loop {
+        let mut below = last + 1;
+        while bulleted && below < remainder.len() && is_blank(below) {
+            below += 1;
+        }
+        if below < remainder.len() && member(below) {
+            last = below;
+        } else {
+            break;
+        }
     }
     let mut rows: Vec<TerminalDialogRow> = Vec::new();
     for index in first..=last {
         let line = remainder[index].trim();
+        if line.is_empty() {
+            continue;
+        }
         if !is_row(index) {
             if is_key_hint(line) {
                 continue;
@@ -367,11 +416,13 @@ pub fn detect_claude_dialog(text: &str) -> Option<TerminalDialog> {
         field.to_string()
     };
     let (mut rows, option_lines) = option_rows(remainder);
-    // Tabbed/searchable lists keep their full panel: a row click cannot express
-    // focus changes, filtering, checkboxes, or partially visible numbered lists.
+    /*
+    CDXC:AgentScreenDetection 2026-10-15 DECISION:
+    User picked: keep option rows on tabbed Claude panels (`/plugin`'s install scope, an installed plugin's actions, Marketplaces), which a "title has a tab strip" check used to drop, so the scope could only be chosen in the terminal. A row click is still not offered for what it cannot express: a search field, checkboxes, or a list scrolled past its ends; those keep the full panel with arrow buttons.
+    SEE-ALSO: server/src/session_chat_claude_panel.rs (the panel's blocks beside the rows), packages/gx-chat-core/src/questions/terminal_prompts.rs.
+    */
     let numbered = input.is_none()
         && rows.iter().filter(|r| r.selected).count() == 1
-        && !title.contains("   ")
         // A scrolled list marks its cut-off row "↓ 5. …"; a lone arrow at the right edge only
         // scrolls a plan or text viewport above the options.
         && !remainder.iter().any(|line| {

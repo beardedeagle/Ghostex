@@ -169,6 +169,7 @@ impl TerminalNotice {
     /// Which visible row Cmd+Enter (Ctrl+Enter) answers.
     ///
     /// CDXC:SessionChat 2026-10-01 DECISION: User: the folder-trust card's Cmd+Enter must not mean "No, exit". Claude Code lists "No, exit" above "Yes, I trust this folder", so the first row made the shortcut quit the agent; on a trust card it answers the row that grants trust (the agent's own order is kept on screen), and every other card keeps its first row.
+    /// CDXC:SessionChat 2026-10-15 DECISION: User: on a card with rows, Cmd+Enter (Ctrl+Enter) presses the same thing as the labelled Confirm, the row highlighted in the terminal, never blindly the first row (on `/plugin`'s installed-plugin page the first row is "Disable plugin"). This replaces "every other card keeps its first row" above for live dialogs; the trust card's rule still wins, and cards without a live dialog keep their first row.
     pub fn primary_choice_position(&self) -> Option<usize> {
         let choices = self.visible_choices();
         if choices.is_empty() {
@@ -180,6 +181,15 @@ impl TerminalNotice {
                 label.starts_with("Yes") || label.starts_with("Trust")
             }) {
                 return Some(trust);
+            }
+        }
+        if self
+            .dialog
+            .as_ref()
+            .is_some_and(|dialog| !dialog.rows.is_empty())
+        {
+            if let Some(highlighted) = choices.iter().position(|choice| choice.selected) {
+                return Some(highlighted);
             }
         }
         Some(0)

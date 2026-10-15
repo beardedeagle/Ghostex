@@ -120,11 +120,12 @@ impl NativeChatView {
             .filter(|blocks| !blocks.is_empty())
         {
             // A long panel (the Usage tab) scrolls inside the card rather than pushing the composer
-            // off screen.
+            // off screen; beside option rows it shares the height with them.
+            let share = if has_rows { 0.25 } else { 0.5 };
             body.push(
                 div()
                     .id("terminal-dialog-blocks")
-                    .max_h(px(window.viewport_size().height.as_f32() * 0.5))
+                    .max_h(px(window.viewport_size().height.as_f32() * share))
                     .overflow_y_scroll()
                     .flex()
                     .flex_col()

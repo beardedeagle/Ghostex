@@ -42,10 +42,16 @@ impl NativeChatView {
         );
         let choices = notice["choices"].as_array().cloned().unwrap_or_default();
         let answerable = !choices.is_empty();
-        let collapsed = answerable && !self.expanded.contains(&key);
+        // A tabbed Claude panel with option rows (`/plugin`'s install scope) shows its details
+        // above the rows and never folds them away (terminal_prompts.rs `highlighted_row`).
+        let panel = notice["dialog"]["presentation"]["blocks"]
+            .as_array()
+            .is_some_and(|blocks| !blocks.is_empty());
+        let foldable = answerable && !panel;
+        let collapsed = foldable && !self.expanded.contains(&key);
         // The card keeps its collapsed choices while shut, so an opening body grows from their
         // height rather than from nothing.
-        let motion = answerable
+        let motion = foldable
             .then(|| self.disclosure_frame(&key, !collapsed, cx))
             .flatten();
         let body_key = key.clone();
@@ -91,7 +97,13 @@ impl NativeChatView {
                 p,
             ));
         }
-        if !collapsed && notice["detail"].is_string() {
+        if panel && !rate_limit {
+            let (dialog_body, dialog_actions) =
+                self.render_terminal_dialog(&notice["dialog"], p, window, cx);
+            body.extend(dialog_body);
+            footer_end.extend(dialog_actions);
+        }
+        if !collapsed && !panel && notice["detail"].is_string() {
             body.push(
                 div()
                     .line_height(px(19.6 * p.scale))
@@ -117,7 +129,9 @@ impl NativeChatView {
                 .id("notice-choices")
                 .flex()
                 .gap(px(6.0 * p.scale))
-                .max_h(px(f32::from(window.viewport_size().height) * 0.45))
+                .max_h(px(
+                    f32::from(window.viewport_size().height) * if panel { 0.3 } else { 0.45 },
+                ))
                 .overflow_y_scroll();
             if !collapsed {
                 rows = rows.flex_col();
@@ -203,7 +217,7 @@ impl NativeChatView {
             }
             body.push(rows.into_any_element());
         }
-        if !collapsed && !rate_limit && notice["dialog"].is_object() {
+        if !collapsed && !rate_limit && !panel && notice["dialog"].is_object() {
             let (dialog_body, dialog_actions) =
                 self.render_terminal_dialog(&notice["dialog"], p, window, cx);
             body.extend(dialog_body);
@@ -384,7 +398,7 @@ impl NativeChatView {
                     .into_any_element(),
             );
         }
-        let press: Option<Box<dyn FnOnce(gpui::Div) -> gpui::Stateful<gpui::Div>>> = answerable
+        let press: Option<Box<dyn FnOnce(gpui::Div) -> gpui::Stateful<gpui::Div>>> = foldable
             .then(|| {
                 let toggle = cx.listener(move |this, _: &gpui::ClickEvent, _, cx| {
                     if !this.expanded.remove(&key) {
@@ -405,7 +419,7 @@ impl NativeChatView {
                         .on_click(toggle)
                 }) as Box<dyn FnOnce(gpui::Div) -> gpui::Stateful<gpui::Div>>
             });
-        let trailing = if answerable {
+        let trailing = if foldable {
             vec![
                 gpui::svg()
                     .path(if collapsed {
@@ -424,7 +438,9 @@ impl NativeChatView {
         Some(self.tone_card(
             ToneCardParts {
                 look: tone_look(&text(notice, "tone"), p),
-                title: text(notice, "title"),
+                title: Some(text(&notice["dialog"]["presentation"], "title"))
+                    .filter(|title| panel && !title.is_empty())
+                    .unwrap_or_else(|| text(notice, "title")),
                 detail: String::new(),
                 trailing,
                 body,

@@ -89,20 +89,11 @@ pub fn terminal_dialog_presentation(dialog: &TerminalDialog) -> Value {
         if let Some(card) = &side_question {
             return action == "cancel" || (action == "fork" && card["canFork"] == true);
         }
-        // Tabs are clicked directly, and a tab page with nothing to move through drops the arrows.
-        if !blocks.is_empty() {
-            if tab_strip.is_some() && matches!(action, "left" | "right") {
-                return false;
-            }
-            if dialog.input.is_none()
-                && !dialog.footer.contains("↑/↓")
-                && matches!(action, "up" | "down")
-            {
-                return false;
-            }
-        }
-        true
+        // Tabs are clicked directly. The server offers up/down only when a `❯` row or an arrow
+        // hint is on screen, so a panel with blocks keeps them.
+        !(tab_strip.is_some() && matches!(action, "left" | "right"))
     });
+    let highlighted = highlighted_row(dialog);
     let cancel_label = if side_question.is_some() || !blocks.is_empty() {
         "Close"
     } else if dialog.footer.to_lowercase().contains("esc to clear") {
@@ -126,6 +117,8 @@ pub fn terminal_dialog_presentation(dialog: &TerminalDialog) -> Value {
                 "Retry".to_string()
             } else if action == "confirm" && dialog.footer.contains("Enter to continue") {
                 "Continue".to_string()
+            } else if let Some(row) = highlighted.as_deref().filter(|_| action == "confirm") {
+                row.to_string()
             } else {
                 action_label(action)
                     .map(str::to_string)
@@ -145,6 +138,57 @@ pub fn terminal_dialog_presentation(dialog: &TerminalDialog) -> Value {
         "title": tab_strip.and_then(|strip| strip["title"].as_str()),
         "picker": crate::questions::terminal_picker::picker_presentation(dialog),
     })
+}
+
+/*
+CDXC:SessionChat 2026-10-15 DECISION:
+User picked: show ↑ Previous / ↓ Next on every Claude panel the server offers them for (blocks or not), and label Confirm with the highlighted row's text ("Install for you (user scope)", "Disable plugin") so it is never a blind Enter. Before, `/plugin`'s install step offered only Confirm, which always installed at user scope.
+SEE-ALSO: server/src/session_chat_claude_dialog.rs (option rows on tabbed panels), apps/desktop/src/app/native_chat/notice.rs, apps/mobile/app/src/chat/native/cards/NoticeCard.tsx.
+*/
+/// What Enter would pick: the selected row, or the `❯` line of a panel read as blocks, without
+/// its mark, number, description or stats, cut to a button's length.
+fn highlighted_row(dialog: &TerminalDialog) -> Option<String> {
+    let raw = match dialog.rows.iter().find(|row| row.selected) {
+        Some(row) => row.label.clone(),
+        None if dialog.input.as_deref() != Some("text") => {
+            let line = dialog.body.lines().rev().find_map(|line| {
+                line.trim_start()
+                    .strip_prefix('❯')
+                    .map(|rest| rest.trim().to_string())
+            })?;
+            let line = line
+                .split_once(". ")
+                .filter(|(number, _)| number.parse::<u32>().is_ok())
+                .map_or(line.as_str(), |(_, rest)| rest)
+                .to_string();
+            line.split("  ").next().unwrap_or_default().to_string()
+        }
+        None => return None,
+    };
+    let label = raw
+        .trim()
+        .trim_start_matches(['✔', '✓', '◯', '◉', '●', '○', '☐', '☒'])
+        .trim();
+    let label = label.split(" · ").next().unwrap_or_default().trim();
+    if label.is_empty() {
+        return None;
+    }
+    const MAX: usize = 48;
+    if label.chars().count() <= MAX {
+        return Some(label.to_string());
+    }
+    // A closing "(project scope)" is what tells the rows apart, so it survives the cut.
+    let tail = label
+        .ends_with(')')
+        .then(|| label.rfind(" (").map(|at| &label[at + 1..]))
+        .flatten()
+        .filter(|tail| tail.chars().count() < MAX / 2)
+        .unwrap_or_default();
+    let head: String = label
+        .chars()
+        .take(MAX - 1 - tail.chars().count())
+        .collect();
+    Some(format!("{}…{}{tail}", head.trim_end(), if tail.is_empty() { "" } else { " " }))
 }
 
 /// The side question card: the question, the answer as Markdown for the renderer and as the raw

@@ -1092,7 +1092,35 @@ pub(crate) fn enrich_claude_panel_notice(
         return;
     };
     // The resume picker is drawn from its own rows (session_chat_resume_picker.rs).
-    if !dialog.rows.is_empty() || dialog.picker.is_some() {
+    if dialog.picker.is_some() {
+        return;
+    }
+    // A tabbed panel with option rows (`/plugin`'s install scope) keeps its tabs and details as
+    // blocks; the rows themselves are the card's choices, so their lines stay out.
+    if !dialog.rows.is_empty() {
+        let Some(rows) = panel_rows(styled) else {
+            return;
+        };
+        if rows.iter().find(|row| !row.is_blank()).and_then(tabs).is_none() {
+            return;
+        }
+        let is_option_line = |row: &Row| {
+            let line = row.trimmed().trim_start_matches('❯').trim();
+            !line.is_empty()
+                && dialog.rows.iter().any(|option| {
+                    let label = option.label.trim();
+                    line.starts_with(label)
+                        || line
+                            .split_once(". ")
+                            .is_some_and(|(_, rest)| rest.starts_with(label))
+                        || option
+                            .description
+                            .as_deref()
+                            .is_some_and(|description| description.contains(line))
+                })
+        };
+        let rest: Vec<Row> = rows.into_iter().filter(|row| !is_option_line(row)).collect();
+        dialog.blocks = panel_blocks(&rest);
         return;
     }
     if let Some(screen) = side_question_screen(styled) {
