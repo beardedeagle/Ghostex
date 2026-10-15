@@ -1,8 +1,7 @@
-//! New Agent Session (Cmd+Shift+O) and the cleanup of the chats agent launchers leave empty.
+//! New Agent Session (Cmd+Shift+O) and going back to a chat an agent launcher opened that is still empty.
 //! SEE-ALSO: packages/settings-catalog/src/hotkey_definitions.rs (CDXC:Hotkeys 2026-09-25), apps/desktop/src/app/hotkeys.rs.
 use super::native_chat::state::NativeChatView;
 use super::new_thread_picker_lifecycle::order_new_thread_picker_agents;
-use crate::app::helpers::*;
 use crate::app::window::NewThreadPickerAgent;
 use crate::*;
 use serde_json::json;
@@ -15,12 +14,9 @@ pub(crate) struct UntouchedAgentChat {
     view_id: gpui::EntityId,
     project_id: String,
     agent_id: String,
-    /// The sidebar row id, known once gxserver has created the session.
-    sidebar_session_id: Option<String>,
-    _observer: gpui::Subscription,
 }
 
-/// Anything typed, sent, or queued makes the chat the user's; it is never closed after that.
+/// Anything typed, sent, or queued makes the chat the user's, so a new launch no longer reuses it.
 fn agent_chat_untouched(view: &NativeChatView) -> bool {
     view.draft.trim().is_empty()
         && view.items.is_empty()
@@ -147,9 +143,9 @@ impl GhostexGpuiApp {
         self.dispatch_gpui_sidebar_host_message(message, cx);
     }
 
-    /// CDXC:AgentLauncher 2026-09-24 DECISION:
-    /// User: a new session that stays empty must not linger in the sidebar. A chat an agent launcher opened is closed as soon as the user leaves it (another tab, session, or project takes its place) while nothing was typed or sent; once anything is typed it stays like any other session. Starting the same agent again while such a chat is open goes back to it instead of stacking a second empty one.
-    /// Terminal-interface agents and plain terminals are left alone: an empty-looking terminal can still hold state, and there is no reliable "nothing sent yet" signal for them.
+    /// CDXC:AgentLauncher 2026-10-15 DECISION:
+    /// User: "don't close on leave, you should be able to have 1 session that doesn't have anything in it that's fine, i just don't like having multiple like that basically". Leaving a chat an agent launcher opened never closes it, whatever it holds and whatever the settings say; starting the same agent again in that project while it is still empty goes back to it instead of stacking a second empty one. This supersedes the 2026-09-24 decision that closed such a chat as soon as the user left it, which issue #236 found closing sessions with `closeEmptySessionsOnNew` off. The only empty-session cleanup left is that opt-in setting's (CDXC:Sessions 2026-10-09 in server/src/empty_session_cleanup.rs).
+    /// Terminal-interface agents and plain terminals are not tracked: there is no reliable "nothing sent yet" signal for them.
     pub(crate) fn track_untouched_agent_chat(
         &mut self,
         shell_session_id: TerminalSessionId,
@@ -160,30 +156,22 @@ impl GhostexGpuiApp {
         let Some(view) = self.native_chat_views.get(&shell_session_id).cloned() else {
             return;
         };
-        let observer = cx.observe(&view, |this, _view, cx| {
-            this.review_untouched_agent_chats(cx);
-        });
-        self.untouched_agent_chats
-            .retain(|chat| chat.shell_session_id != shell_session_id);
+        // Drop chats whose tab closed or that the user has written in: they are never reused.
+        let tracked = std::mem::take(&mut self.untouched_agent_chats);
+        self.untouched_agent_chats = tracked
+            .into_iter()
+            .filter(|chat| {
+                chat.shell_session_id != shell_session_id
+                    && self
+                        .tracked_agent_chat_view(chat)
+                        .is_some_and(|view| agent_chat_untouched(view.read(cx)))
+            })
+            .collect();
         self.untouched_agent_chats.push(UntouchedAgentChat {
             shell_session_id,
             view_id: view.entity_id(),
             project_id,
             agent_id,
-            sidebar_session_id: None,
-            _observer: observer,
-        });
-    }
-
-    /// Focus moves before the tab or project that replaced the chat has settled, so the review
-    /// runs once this update is done.
-    pub(crate) fn schedule_untouched_agent_chat_review(&mut self, cx: &mut gpui::Context<Self>) {
-        if self.untouched_agent_chats.is_empty() {
-            return;
-        }
-        let app = cx.entity();
-        cx.defer(move |cx| {
-            app.update(cx, |app, cx| app.review_untouched_agent_chats(cx));
         });
     }
 
@@ -192,50 +180,6 @@ impl GhostexGpuiApp {
             .get(&chat.shell_session_id)
             .filter(|view| view.entity_id() == chat.view_id)
             .cloned()
-    }
-
-    fn review_untouched_agent_chats(&mut self, cx: &mut gpui::Context<Self>) {
-        let active_project_id = self.agents_workspace_project_id.clone();
-        let mut close_ids = Vec::new();
-        for mut chat in std::mem::take(&mut self.untouched_agent_chats) {
-            if active_project_id.as_deref() == Some(chat.project_id.as_str()) {
-                // A closed tab drops its view; a chat that can no longer be read is left as it is.
-                let Some(view) = self.tracked_agent_chat_view(&chat) else {
-                    continue;
-                };
-                if !agent_chat_untouched(view.read(cx)) {
-                    continue;
-                }
-                if let Some(GpuiWorkspaceTerminalSessionKey::Local(key)) =
-                    self.workspace_terminal_key_for_shell_session(chat.shell_session_id)
-                {
-                    chat.sidebar_session_id = Some(gpui_combined_presentation_session_id(
-                        &key.project_id,
-                        &key.session_id,
-                    ));
-                }
-                let shown = self
-                    .agents_workspace
-                    .pane_id_for_session(chat.shell_session_id)
-                    .and_then(|pane_id| self.agents_workspace.active_session_in_pane(pane_id))
-                    == Some(chat.shell_session_id);
-                if shown {
-                    self.untouched_agent_chats.push(chat);
-                    continue;
-                }
-            }
-            match chat.sidebar_session_id.take() {
-                Some(sidebar_session_id) => close_ids.push(sidebar_session_id),
-                // Still being created: it is closed once its id arrives.
-                None => self.untouched_agent_chats.push(chat),
-            }
-        }
-        for sidebar_session_id in close_ids {
-            self.dispatch_native_sidebar_command(
-                json!({"type": "closeSession", "sessionId": sidebar_session_id}),
-                cx,
-            );
-        }
     }
 
     fn focus_untouched_agent_chat(&mut self, agent_id: &str, cx: &mut gpui::Context<Self>) -> bool {

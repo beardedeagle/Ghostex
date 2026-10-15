@@ -24,7 +24,6 @@ impl GhostexGpuiApp {
     ) {
         self.set_shell_focus(target);
         self.request_keyboard_handoff_for_shell_focus(cx);
-        self.schedule_untouched_agent_chat_review(cx);
     }
 
     /// `focus_shell_target` for callers that already hold the window: the handoff runs immediately instead of on the next render.
