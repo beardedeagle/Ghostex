@@ -1,5 +1,5 @@
-//! The Subagents strip above the composer: one row per child the provider
-//! reports, with its model label, what it is doing, its token counter and its
+//! The Subagents list, in the floating menu the Subagents pill on the working row opens: one row
+//! per child the provider reports, with its model label, what it is doing, its token counter and its
 //! clock. Every value comes from the core's fleet rows
 //! (packages/gx-chat-core/src/extras/agent_fleet.rs).
 
@@ -9,16 +9,25 @@ use gpui::{
     AnyElement, Context, FontFeatures, FontWeight, InteractiveElement as _, IntoElement,
     ParentElement as _, StatefulInteractiveElement as _, Styled as _, div, px,
 };
-use serde_json::{Value, json};
+use serde_json::Value;
 use std::time::Duration;
 
-impl NativeChatView {
-    /// The card's fold: the user's last choice, else expanded unless Simple mode.
-    fn fleet_open(&self, strip: &Value, p: &ChatAppearance) -> bool {
-        strip["openOverride"].as_bool().unwrap_or(!p.simple)
-    }
+/// One subagent row and the list's cap, in unscaled pixels: fixed heights, so the floating menu
+/// knows its size before it opens (`fleet_menu_height`).
+const ROW_HEIGHT: f32 = 22.0;
+const ROW_GAP: f32 = 2.0;
+const LIST_MAX: f32 = 180.0;
 
-    pub(super) fn render_agent_fleet(
+/// The Subagents pill's menu: the header line, the "unavailable" line of a stale roster and the rows.
+pub(super) fn fleet_menu_height(strip: &Value) -> f32 {
+    let rows = strip["rows"].as_array().map_or(0, Vec::len) + usize::from(strip["stale"] == true);
+    let list = (rows as f32 * ROW_HEIGHT + rows.saturating_sub(1) as f32 * ROW_GAP).min(LIST_MAX);
+    super::chat_pills::MENU_HEADER_HEIGHT + super::chat_pills::MENU_SECTION_GAP + list
+}
+
+impl NativeChatView {
+    /// The Subagents pill's floating menu: what the Subagents strip above the composer listed.
+    pub(super) fn fleet_menu_body(
         &self,
         p: &ChatAppearance,
         cx: &Context<Self>,
@@ -29,76 +38,50 @@ impl NativeChatView {
         }
         let s = p.scale;
         let stale = strip["stale"] == true;
-        let open = self.fleet_open(&strip, p);
-        let motion = self.disclosure_frame("agent-fleet", open, cx);
-        let header = self.panel_header(
-            super::panel_card::PanelHeader {
-                id: "chat-agent-fleet-header",
-                // React's `IconUsers`, the two-person glyph, not the three-person group icon.
-                icon: "titlebar/users.svg",
-                // CDXC:SessionChat 2026-09-07 DECISION: User: the title is "Subagents", without a hyphen or all caps.
-                title: "Subagents".into(),
-                meta: text(&strip, "countLabel"),
-                open,
-                has_body: open || motion.is_some(),
-                toggle_label: if open {
-                    "Minimize subagents"
-                } else {
-                    "Expand subagents"
-                },
-                trailing: None,
-                command: json!({"type":"toggleAgentFleet","open":!open}),
-            },
+        let header = super::chat_pills::pill_menu_header(
+            // React's `IconUsers`, the two-person glyph, not the three-person group icon.
+            "titlebar/users.svg",
+            // CDXC:SessionChat 2026-09-07 DECISION: User: the title is "Subagents", without a hyphen or all caps.
+            "Subagents",
+            text(&strip, "countLabel"),
+            None,
             p,
-            cx,
         );
-        let mut body = Vec::new();
-        if open || motion.is_some() {
-            if stale {
-                body.push(
-                    div()
-                        .id("chat-agent-fleet-unavailable")
-                        .role(gpui::Role::Status)
-                        .text_size(px(12.0 * s))
-                        .text_color(p.card_muted)
-                        .child("Subagent status unavailable")
-                        .into_any_element(),
-                );
-            }
-            let mut rows = div()
-                .id("chat-agent-fleet-rows")
-                .flex()
-                .flex_col()
-                .gap(px(4.0 * s))
-                .max_h(px(180.0 * s))
-                .overflow_y_scroll();
-            let listed = strip["rows"].as_array().cloned().unwrap_or_default();
-            let column = Self::fleet_name_column(&listed, p, cx);
-            for row in &listed {
-                rows = rows.child(self.fleet_row(row, column, stale, p, cx));
-            }
-            body.push(rows.into_any_element());
+        let mut rows = div()
+            .id("chat-agent-fleet-rows")
+            .flex()
+            .flex_col()
+            .flex_shrink_0()
+            .gap(px(ROW_GAP * s))
+            .max_h(px(LIST_MAX * s))
+            .overflow_y_scroll();
+        if stale {
+            rows = rows.child(
+                div()
+                    .id("chat-agent-fleet-unavailable")
+                    .role(gpui::Role::Status)
+                    .flex_shrink_0()
+                    .h(px(ROW_HEIGHT * s))
+                    .flex()
+                    .items_center()
+                    .text_size(px(12.0 * s))
+                    .text_color(p.card_muted)
+                    .child("Subagent status unavailable"),
+            );
         }
-        Some(
-            div()
-                .id("chat-agent-fleet")
-                .role(gpui::Role::Group)
-                .aria_label("Subagents")
-                .w_full()
-                .child(self.status_card_with_header_motion(
-                    super::cards::CardBodyMotion {
-                        key: "agent-fleet",
-                        frame: motion,
-                        shut_body: false,
-                        shut: !open,
-                    },
-                    header,
-                    body,
-                    Vec::new(),
-                    p,
-                ))
-                .into_any_element(),
-        )
+        let listed = strip["rows"].as_array().cloned().unwrap_or_default();
+        let column = Self::fleet_name_column(&listed, p, cx);
+        for row in &listed {
+            rows = rows.child(self.fleet_row(row, column, stale, p, cx));
+        }
+        Some(super::chat_pills::pill_menu_column(
+            "chat-agent-fleet",
+            "Subagents",
+            header,
+            Some(rows.into_any_element()),
+            None,
+            p,
+        ))
     }
 
     /// React laid the strip out as one grid whose model track is `fit-content(10rem)`, so every
@@ -242,6 +225,8 @@ impl NativeChatView {
             .gap(px(6.0 * s))
             .w_full()
             .min_w_0()
+            .flex_shrink_0()
+            .h(px(ROW_HEIGHT * s))
             .child(pulse)
             // The name cell is the child's transcript link, the model label React rendered inside it.
             .child(

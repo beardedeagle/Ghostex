@@ -10,7 +10,8 @@ use crate::extras::welcome::{
     welcome_agent_icon, welcome_agent_name,
 };
 use crate::extras::{
-    coordinator_threads, panels, save_markdown, search, subagent, terminal_tail, working_strip,
+    chat_pills, coordinator_threads, panels, save_markdown, search, subagent, terminal_tail,
+    working_strip,
 };
 use crate::state::{ChatContext, ChatState};
 
@@ -26,17 +27,31 @@ pub fn document(state: &ChatState, context: &ChatContext, into: &mut Document) {
     into.agent_tasks = tri(state.session.agent_tasks.clone());
 
     let (fleet_strip, tasks_panel, _) = panels::project(state, context);
-    into.agent_fleet_strip = Tri::Value(fleet_strip);
-    into.agent_tasks_panel = Tri::Value(tasks_panel);
-    into.coordinator_threads_panel = Tri::Value(coordinator_threads::project(
+    let threads_panel = coordinator_threads::project(
         state.session.coordinator_threads.as_ref(),
-        extras.panels.threads_collapsed,
         extras.panels.threads_step,
         extras.panels.threads_all.as_ref().map(|(_, rows)| rows),
-    ));
+    );
 
     let working = state.session.server_working || state.session.external_working;
     into.working_strip = working_strip::working_strip(state, context, working);
+    // Background tasks are the Background pill's menu, not a card on the working strip.
+    let background = into
+        .working_strip
+        .presentation
+        .as_mut()
+        .and_then(Value::as_object_mut)
+        .and_then(|presentation| presentation.remove("backgroundTasks"))
+        .unwrap_or(Value::Null);
+    if !background.is_null() {
+        into.working_strip.presentation = None;
+    }
+    into.chat_pills =
+        chat_pills::chat_pills(&threads_panel, &tasks_panel, &fleet_strip, &background);
+    into.agent_fleet_strip = Tri::Value(fleet_strip);
+    into.agent_tasks_panel = Tri::Value(tasks_panel);
+    into.coordinator_threads_panel = Tri::Value(threads_panel);
+    into.background_tasks_panel = Tri::Value(background);
     into.terminal_tail = terminal_tail::project(&extras.terminal_tail);
     into.subagent = Tri::Value(subagent::project(state));
     into.transcript_search = Tri::Value(search::project(&extras.search));

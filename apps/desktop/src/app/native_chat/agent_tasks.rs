@@ -1,9 +1,8 @@
-//! The agent's task plan, pinned above the composer and outside it: the list
+//! The agent's task plan, in the floating menu the Tasks pill on the working row opens: the list
 //! the CLI shows under its own transcript. Rows, order, the header line and the
 //! completed-task fold all come from the core's task panel
 //! (packages/gx-chat-core/src/extras/agent_tasks.rs).
 
-use super::disclosure_motion::measured;
 use super::{appearance::ChatAppearance, state::NativeChatView, transcript::text};
 use crate::app::helpers::ThrottledAnimationExt;
 use crate::app::native_chat::cursor::ChatCursor as _;
@@ -15,8 +14,28 @@ use gpui::{
 use serde_json::{Value, json};
 use std::time::Duration;
 
+/// One task row and the list's cap, in unscaled pixels: fixed heights, so the floating menu knows
+/// its size before it opens (`tasks_menu_height`).
+const ROW_HEIGHT: f32 = 22.0;
+const ROW_GAP: f32 = 2.0;
+const LIST_MAX: f32 = 220.0;
+
+/// The Tasks pill's menu: the header line, the rows and the "N more tasks" fold.
+pub(super) fn tasks_menu_height(panel: &Value) -> f32 {
+    let rows = panel["rows"].as_array().map_or(0, Vec::len);
+    let list = (rows as f32 * ROW_HEIGHT + rows.saturating_sub(1) as f32 * ROW_GAP).min(LIST_MAX);
+    let footer = if text(panel, "foldLabel").is_empty() {
+        0.0
+    } else {
+        super::chat_pills::MENU_SECTION_GAP + super::chat_pills::MENU_FOOTER_HEIGHT
+    };
+    super::chat_pills::MENU_HEADER_HEIGHT + super::chat_pills::MENU_SECTION_GAP + list + footer
+}
+
 impl NativeChatView {
-    pub(super) fn render_agent_tasks(
+    /// The Tasks pill's floating menu: what the Tasks panel above the composer showed, the progress
+    /// bar beside its header line and the same rows and fold.
+    pub(super) fn tasks_menu_body(
         &self,
         p: &ChatAppearance,
         cx: &Context<Self>,
@@ -26,7 +45,6 @@ impl NativeChatView {
             return None;
         }
         let s = p.scale;
-        let open = panel["collapsed"] != true;
         let percent = panel["percent"].as_f64().unwrap_or(0.0) as f32 / 100.0;
         let bar = div()
             .w(px(48.0 * s))
@@ -43,95 +61,56 @@ impl NativeChatView {
                     .bg(p.control_primary),
             )
             .into_any_element();
-        let motion = self.disclosure_frame("agent-tasks", open, cx);
-        let header = self.panel_header(
-            super::panel_card::PanelHeader {
-                id: "chat-agent-tasks-header",
-                icon: "titlebar/list-check.svg",
-                title: "Tasks".into(),
-                meta: text(&panel, "meta"),
-                open,
-                has_body: open || motion.is_some(),
-                toggle_label: if open { "Hide tasks" } else { "Show tasks" },
-                trailing: Some(bar),
-                command: json!({"type":"toggleAgentTasks","open":!open}),
-            },
+        let header = super::chat_pills::pill_menu_header(
+            "titlebar/list-check.svg",
+            "Tasks",
+            text(&panel, "meta"),
+            Some(bar),
             p,
-            cx,
         );
-        let mut body = Vec::new();
-        if open || motion.is_some() {
-            let expanded = panel["showCompleted"] == true;
-            let fold = text(&panel, "foldLabel");
-            let fold_motion = (!fold.is_empty())
-                .then(|| self.disclosure_frame("agent-tasks:completed", expanded, cx))
-                .flatten();
-            let mut rows = div()
-                .id("chat-agent-tasks-rows")
-                .flex()
-                .flex_col()
-                .gap(px(4.0 * s))
-                .max_h(px(220.0 * s))
-                .overflow_y_scroll();
-            for row in panel["rows"].as_array().into_iter().flatten() {
-                rows = rows.child(self.task_row(row, p));
-            }
-            // "N more tasks" eases the list between its short and its full height.
-            body.push(match fold_motion {
-                Some(frame) => self.capped_body_motion(
-                    "agent-tasks:completed",
-                    frame,
-                    0.0,
-                    rows.into_any_element(),
-                ),
-                None if !fold.is_empty() && !expanded => measured(
-                    self.disclosure_floor("agent-tasks:completed"),
-                    rows.into_any_element(),
-                ),
-                None => rows.into_any_element(),
-            });
-            // CDXC:SessionChat 2026-09-16 DECISION: User: the fold is a text line, not a button, and reads "N more task(s)" / "Show less tasks". Rows are the Subagents row size. The panel is the shared status card with a list icon.
-            if !fold.is_empty() {
-                body.push(
-                    div()
-                        .id("chat-agent-tasks-fold")
-                        .role(gpui::Role::Button)
-                        .aria_label(fold.clone())
-                        .chat_cursor_pointer()
-                        .text_size(px(12.0 * s))
-                        .text_color(p.card_muted)
-                        .hover(|style| style.text_color(p.foreground))
-                        .child(fold)
-                        .on_click(cx.listener(move |this, _, _, cx| {
-                            this.invoke(
-                                json!({"type":"toggleAgentTasksCompleted","expanded":!expanded}),
-                                cx,
-                            )
-                        }))
-                        .into_any_element(),
-                );
-            }
+        let mut rows = div()
+            .id("chat-agent-tasks-rows")
+            .flex()
+            .flex_col()
+            .flex_shrink_0()
+            .gap(px(ROW_GAP * s))
+            .max_h(px(LIST_MAX * s))
+            .overflow_y_scroll();
+        for row in panel["rows"].as_array().into_iter().flatten() {
+            rows = rows.child(self.task_row(row, p));
         }
-        Some(
+        let expanded = panel["showCompleted"] == true;
+        let fold = text(&panel, "foldLabel");
+        // CDXC:SessionChat 2026-10-15 DECISION: User (2026-09-16): the fold is a text line, not a button, and reads "N more task(s)" / "Show less tasks". Rows are the Subagents row size. Since the Tasks pill (2026-10-15) the list is the pill's floating menu, on the chat's menu surface under a header line with the list icon, instead of the shared status card (orchestrator's call, answering for the user).
+        let footer = (!fold.is_empty()).then(|| {
             div()
-                .id("chat-agent-tasks")
-                .role(gpui::Role::Group)
-                .aria_label("Agent tasks")
-                .w_full()
-                .child(self.status_card_with_header_motion(
-                    super::cards::CardBodyMotion {
-                        key: "agent-tasks",
-                        frame: motion,
-                        shut_body: false,
-                        shut: !open,
-                    },
-                    header,
-                    body,
-                    Vec::new(),
-                    p,
-                ))
-                .into_any_element(),
-        )
+                .id("chat-agent-tasks-fold")
+                .role(gpui::Role::Button)
+                .aria_label(fold.clone())
+                .h(px(super::chat_pills::MENU_FOOTER_HEIGHT * s))
+                .flex()
+                .items_center()
+                .chat_cursor_pointer()
+                .text_size(px(12.0 * s))
+                .text_color(p.card_muted)
+                .hover(|style| style.text_color(p.foreground))
+                .child(fold)
+                .on_click(cx.listener(move |this, _, _, cx| {
+                    this.invoke(
+                        json!({"type":"toggleAgentTasksCompleted","expanded":!expanded}),
+                        cx,
+                    )
+                }))
+                .into_any_element()
+        });
+        Some(super::chat_pills::pill_menu_column(
+            "chat-agent-tasks",
+            "Agent tasks",
+            header,
+            Some(rows.into_any_element()),
+            footer,
+            p,
+        ))
     }
 
     fn task_row(&self, row: &Value, p: &ChatAppearance) -> AnyElement {
@@ -187,6 +166,8 @@ impl NativeChatView {
             .gap(px(8.0 * s))
             .w_full()
             .min_w_0()
+            .flex_shrink_0()
+            .h(px(ROW_HEIGHT * s))
             .text_size(px(12.0 * s))
             .tooltip(move |window, cx| {
                 gpui_component::tooltip::Tooltip::new(title.clone()).build(window, cx)

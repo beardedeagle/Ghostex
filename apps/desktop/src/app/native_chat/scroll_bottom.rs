@@ -65,7 +65,7 @@ pub(super) fn question_flash_ms() -> u64 {
 }
 
 /// CDXC:SessionChat 2026-09-29 DECISION:
-/// User: "remove the hotkey shown for the scroll to bottom indicator in the gpui app on desktop but show it in the tooltip by itself when i hover on it." The pill reads only "Scroll to bottom"; hovering it shows the configured shortcut alone, above the pill so it never covers the composer.
+/// User: "remove the hotkey shown for the scroll to bottom indicator in the gpui app on desktop but show it in the tooltip by itself when i hover on it." The floating pill reads only "Scroll to bottom"; hovering it shows the configured shortcut alone, above the pill so it never covers the composer. The working row's icon pill (chat_pills.rs, 2026-10-15) has no text, so its tooltip names it before the shortcut.
 pub(super) const TOOLTIP_PLACEMENT: ManagedTooltipPlacement =
     ManagedTooltipPlacement::Preferred(gpui_component::Placement::Top);
 
@@ -171,8 +171,8 @@ impl NativeChatView {
     /// waits, then the red "Agent was interrupted" (`interrupt` in
     /// `packages/gx-chat-core/src/composer/send.rs`).
     ///
-    /// CDXC:SessionChat 2026-10-01 DECISION:
-    /// User: the Escape toast and the scroll-to-bottom pill must be centred on each other, in "exact same style", with the Escape one hiding the scroll one while it shows; the red "Agent was interrupted" one takes the same spot and look. The toasts therefore take the pill's own slot and shape (in-window and in the frosted window), visual only: no click, hover, focus or tooltip.
+    /// CDXC:SessionChat 2026-10-15 DECISION:
+    /// User (2026-10-01): the Escape toast and the scroll-to-bottom pill must be centred on each other, in "exact same style", with the Escape one hiding the scroll one while it shows; the red "Agent was interrupted" one takes the same spot and look. The toasts take that slot and shape (in-window and in the frosted window), visual only: no click, hover, focus or tooltip. User (2026-10-15): the scroll-to-bottom pill left that slot for an icon pill on the working row (chat_pills.rs), so the toasts keep the floating slot on their own.
     pub(super) fn pill_toast(&self) -> Option<PillToast> {
         let toast = &self.snapshot["interruptToast"];
         Some(PillToast {
@@ -221,28 +221,25 @@ impl NativeChatView {
         .into_any_element()
     }
 
-    /// The pills over the transcript's bottom edge: "Previous question" while the chat has
-    /// unanswered questions (open_questions.rs) and "Scroll to bottom" once the reader has left the
-    /// bottom, side by side, or the toast that takes their place.
+    /// What still floats over the transcript's bottom edge: the Escape and "Agent was interrupted"
+    /// toasts, and "Scroll to bottom" in a transcript-only view (the phone's GPUI transcript), which
+    /// has no working row. Elsewhere "Scroll to bottom" and "Previous question" are icon pills on the
+    /// working row (chat_pills.rs, CDXC:SessionChat 2026-10-15).
     pub(super) fn scroll_bottom_button(&self, cx: &Context<Self>) -> AnyElement {
         let glass = crate::app::helpers::window_glass_active_for(self.main_window);
         let p = ChatAppearance::current(&self.snapshot).on_window_glass(glass);
         let toast = self.pill_toast();
         let left_bottom = transcript_left_bottom(&self.list);
         self.scroll_bottom_drawn.set(left_bottom);
-        // A toast stands alone in the pills' place.
-        let question = self
-            .open_question_pill_text()
-            .filter(|_| toast.is_none() && !self.transcript_only);
-        let shown = toast.is_some() || left_bottom;
+        let floating_scroll = left_bottom && self.transcript_only;
+        let shown = toast.is_some() || floating_scroll;
         if glass {
             let label = toast.map_or_else(|| SPEC.label.clone(), |toast| toast.text);
             return pill_row(&p)
-                .child(self.previous_question_placeholder(question, &p, cx))
                 .child(self.scroll_bottom_window_placeholder(shown, label, &p, cx))
                 .into_any_element();
         }
-        if !shown && question.is_none() {
+        if !shown {
             return div().into_any_element();
         }
         let row = pill_row(&p);
@@ -275,10 +272,7 @@ impl NativeChatView {
         }
         let label = SPEC.label.clone();
         let shortcut = shortcut_label();
-        row.when_some(question, |row, text| {
-            row.child(self.previous_question_pill(text, &p, cx))
-        })
-        .when(left_bottom, |row| {
+        row.when(floating_scroll, |row| {
             row.child(
                 pill_shape(div(), p.scale)
                     .id("chat-scroll-bottom")
@@ -391,6 +385,8 @@ fn tone_colors(tone: &ErrorTone, light: bool) -> (gpui::Hsla, gpui::Hsla, gpui::
 }
 
 impl NativeChatView {
+    /// The toasts' (and a transcript-only view's scroll pill's) frosted window.
+    ///
     /// CDXC:SessionChat 2026-09-23 DECISION:
     /// User: the scroll-to-bottom pill "should match the color and everything of the composer box", then, when the composer's see-through wash let the transcript read through it, "can't we make it's bg more frosted glass??". Under window glass the pill wears the composer's wash and border over a real blur of what is behind it. Supersedes the same day's opaque menu tone and the plain see-through wash.
     ///

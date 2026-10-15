@@ -22,36 +22,45 @@ impl NativeChatView {
         let reduced_motion = crate::app::helpers::gpui_macos_reduce_motion_enabled();
         let armed = self.armed_action_items(p, cx);
         let label = status["label"].as_str();
-        if status["presentation"].is_object() {
-            let activity = self.render_working_activity(p, reduced_motion, cx);
-            // A running turn keeps its word beside a background-task card (the core sends both).
-            if label.is_none() && armed.is_empty() {
-                return Some(activity);
-            }
-            // CDXC:SessionChat 2026-10-11 DECISION: User: the working indicator always comes first, above the background tasks, Threads, Tasks and Subagents cards, never between them.
-            return Some(
+        // CDXC:SessionChat 2026-10-15 SEE-ALSO: the pills and where they sit are the user's decision in packages/gx-chat-core/src/extras/chat_pills.rs.
+        let own_line = f32::from(self.bounds.get().size.width) / p.scale
+            < super::chat_pills::PILLS_OWN_LINE_BELOW;
+        let pills = self.render_chat_pills(own_line, p, cx);
+        let (beside, below) = if own_line {
+            (None, pills)
+        } else {
+            (pills, None)
+        };
+        let row = (label.is_some() || !armed.is_empty() || beside.is_some())
+            .then(|| self.working_row(label, armed, beside, p, reduced_motion));
+        let activity = status["presentation"]
+            .is_object()
+            .then(|| self.render_working_activity(p, reduced_motion));
+        // CDXC:SessionChat 2026-10-11 DECISION: User: the working indicator always comes first, above the background tasks, Threads, Tasks and Subagents cards, never between them. (2026-10-15: those are pills beside or under it now; the compaction card still comes after it.)
+        let parts: Vec<AnyElement> = row.into_iter().chain(below).chain(activity).collect();
+        match parts.len() {
+            0 => None,
+            1 => parts.into_iter().next(),
+            _ => Some(
                 div()
                     .w_full()
                     .flex()
                     .flex_col()
                     .gap(px(8.0 * p.scale))
-                    .child(self.working_row(label, armed, p, reduced_motion))
-                    .child(activity)
+                    .children(parts)
                     .into_any_element(),
-            );
+            ),
         }
-        if label.is_none() && armed.is_empty() {
-            return None;
-        }
-        Some(self.working_row(label, armed, p, reduced_motion))
     }
 
     /// The working row: spark and word at the left (when working), armed actions pushed right by the
-    /// lead's auto margin; items that do not fit wrap onto a left-aligned second line.
+    /// lead's auto margin, then the pills' scroller when they share the row; armed items that do not
+    /// fit wrap onto a left-aligned second line.
     fn working_row(
         &self,
         label: Option<&str>,
         armed: Vec<AnyElement>,
+        pills: Option<AnyElement>,
         p: &ChatAppearance,
         reduced_motion: bool,
     ) -> AnyElement {
@@ -94,6 +103,7 @@ impl NativeChatView {
             .gap_y(px(VISUAL.armed_row_gap * s))
             .child(lead)
             .children(armed)
+            .children(pills)
             .into_any_element()
     }
 
@@ -160,21 +170,8 @@ impl NativeChatView {
             .collect()
     }
 
-    fn render_working_activity(
-        &self,
-        p: &ChatAppearance,
-        reduced_motion: bool,
-        cx: &gpui::Context<Self>,
-    ) -> AnyElement {
+    fn render_working_activity(&self, p: &ChatAppearance, reduced_motion: bool) -> AnyElement {
         let activity = &self.snapshot["workingStrip"]["presentation"];
-        if activity["backgroundTasks"].is_object() {
-            return self.render_background_tasks(
-                &activity["backgroundTasks"],
-                p,
-                reduced_motion,
-                cx,
-            );
-        }
         let s = p.scale;
         let lead = if activity["shellsRunning"] == true {
             let glyph = svg()

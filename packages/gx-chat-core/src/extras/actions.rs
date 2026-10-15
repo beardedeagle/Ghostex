@@ -38,16 +38,6 @@ pub fn handle_with_ids(
             state.extras.panels.tasks_show_completed = flag(action, "expanded");
             Vec::new()
         }
-        ActionKind::ToggleCoordinatorThreads => {
-            let collapsed = !flag(action, "open");
-            state.extras.panels.threads_collapsed = collapsed;
-            if collapsed {
-                crate::extras::coordinator_threads::set_step(&mut state.extras.panels, 0);
-            }
-            vec![crate::extras::coordinator_threads::write_threads_collapsed(
-                collapsed,
-            )]
-        }
         ActionKind::ToggleBackgroundTasks => {
             state.extras.panels.background_tasks_open = flag(action, "open");
             Vec::new()

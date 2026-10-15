@@ -70,6 +70,10 @@ pub(in crate::app::native_chat) struct ChatOptionMenu {
     pub(super) model_effort: Option<String>,
     /// Keeps the source window's tooltips hidden while the menu is up (`Root::suppress_tooltips`).
     tooltips: Option<gpui::TooltipSuppression>,
+    /// The working-row pill this menu belongs to (`chat_pills.rs`), told when the menu goes away.
+    pill: Option<&'static str>,
+    /// Its first panel opens above the trigger when it fits there (`NativeChatView::menu_above`).
+    above: bool,
 }
 
 pub(super) struct ChatOptionMenuPanel {
@@ -112,6 +116,55 @@ impl ChatOptionMenu {
         self.outside_pane
     }
 
+    pub(in crate::app::native_chat) fn set_pill(&mut self, trigger: &'static str) {
+        self.pill = Some(trigger);
+    }
+
+    /// Gives the panel at `depth` a new content height, keeping the edge that faces its anchor (a
+    /// pill's menu opens above the pill, so its bottom stays put while its rows come and go).
+    /// Where a window cannot be moved in place (the web build, Windows), the panel reopens instead.
+    pub(super) fn refit_panel_height(
+        &mut self,
+        depth: usize,
+        height: Pixels,
+        rows: Vec<Value>,
+        cx: &mut Context<Self>,
+    ) {
+        let (Some(&(anchor, _, _)), Some(&handle)) =
+            (self.anchors.get(depth), self.windows.get(depth))
+        else {
+            return;
+        };
+        let scale = self.appearance.scale;
+        let available = self.source_bounds;
+        let height = height.min(available.size.height - px(24.0 * scale));
+        let (source, parent) = (self.source, self.parent);
+        let menu = cx.entity();
+        cx.defer(move |cx| {
+            let Ok(bounds) = handle.update(cx, |_, window, _| window.bounds()) else {
+                return;
+            };
+            let top = if bounds.bottom() <= anchor.top() {
+                (anchor.top() - px(4.0 * scale) - height).max(available.top() + px(12.0 * scale))
+            } else {
+                bounds.top()
+            };
+            let screen = Bounds::new(
+                Point::new(bounds.left(), top),
+                size(bounds.size.width, height),
+            );
+            let Ok(origin) = source.update(cx, |_, window, _| {
+                super::super::child_window::content_bounds(window).origin
+            }) else {
+                return;
+            };
+            let frame = Bounds::new(screen.origin - origin, screen.size);
+            if !super::super::child_window::move_child_window(handle.into(), parent, frame, cx) {
+                menu.update(cx, |menu, cx| menu.reopen(depth, rows, cx));
+            }
+        });
+    }
+
     pub(in crate::app::native_chat) fn close(
         &mut self,
         command: Option<Value>,
@@ -136,6 +189,7 @@ impl ChatOptionMenu {
         let focus = self.source_focus.clone();
         let chat = self.chat.clone();
         let identity = cx.entity_id();
+        let pill = self.pill.take();
         cx.defer(move |cx| {
             for handle in windows.into_iter().rev() {
                 let _ = handle.update(cx, |_, window, _| window.remove_window());
@@ -156,6 +210,9 @@ impl ChatOptionMenu {
                         chat.option_menu = None;
                         chat.menu_toggle.note_closed();
                     }
+                    if let Some(pill) = pill {
+                        chat.pill_menu_closed(pill, cx);
+                    }
                     if let Some(command) = command {
                         chat.handle_action(
                             &super::super::actions::NativeChatAction { command },
@@ -172,14 +229,11 @@ impl ChatOptionMenu {
     /// CDXC:SessionChat 2026-10-09 WHY:
     /// GPUI reports a window's activation from a task queued after the platform event, so when a press moves key status from a submenu back to its parent panel (clicking View or Switch Account again to close it), the submenu's "inactive" report runs before the parent's "active" one and every panel still read inactive: the whole menu closed as a click-away instead of the row's toggle closing only its submenu. The platform's key window is already the parent by then, so it is asked first.
     fn any_window_active(&self, cx: &mut Context<Self>) -> bool {
-        if cx
-            .active_window()
-            .is_some_and(|active| {
-                self.windows
-                    .iter()
-                    .any(|handle| handle.window_id() == active.window_id())
-            })
-        {
+        if cx.active_window().is_some_and(|active| {
+            self.windows
+                .iter()
+                .any(|handle| handle.window_id() == active.window_id())
+        }) {
             return true;
         }
         self.windows.iter().any(|handle| {
@@ -358,7 +412,12 @@ impl ChatOptionMenu {
         } else {
             anchor.left() - width - px(4.0 * scale)
         };
-        let y = if depth == 0 || below {
+        let y = if depth == 0
+            && self.above
+            && anchor.top() - px(4.0 * scale) - height > available.top() + margin
+        {
+            anchor.top() - height - px(4.0 * scale)
+        } else if depth == 0 || below {
             if anchor.bottom() + px(4.0 * scale) + height < available.bottom() - margin {
                 anchor.bottom() + px(4.0 * scale)
             } else {
@@ -535,6 +594,16 @@ impl ChatOptionMenu {
                                                 ),
                                             ));
                                             cx.notify();
+                                        },
+                                    )
+                                })
+                            } else if rows.first().is_some_and(|row| row["pillMenu"].is_object()) {
+                                menu.read(cx).chat.upgrade().map(|chat| {
+                                    cx.observe_in(
+                                        &chat,
+                                        window,
+                                        |panel: &mut ChatOptionMenuPanel, chat, _, cx| {
+                                            panel.pill_menu_changed(&chat, cx)
                                         },
                                     )
                                 })
@@ -735,6 +804,7 @@ impl NativeChatView {
         let parent = super::super::child_window::window_native_view(window)
             .unwrap_or(self.config.parent_native_view);
         let outside_pane = std::mem::take(&mut self.menu_outside_pane);
+        let above = std::mem::take(&mut self.menu_above);
         let tooltips = Some(Root::suppress_tooltips(window, cx));
         let owner = crate::app::window::popup_frame::PopupOwner::of(window, cx);
         let menu = cx.new(|_| ChatOptionMenu {
@@ -754,6 +824,8 @@ impl NativeChatView {
             outside_pane,
             model_effort: None,
             tooltips,
+            pill: None,
+            above,
         });
         let anchor = Bounds::new(content_bounds.origin + trigger.origin, trigger.size);
         menu.update(cx, |menu, cx| {

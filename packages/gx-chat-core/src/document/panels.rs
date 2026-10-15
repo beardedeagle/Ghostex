@@ -23,6 +23,23 @@ pub struct WorkingStrip {
     pub extra: serde_json::Map<String, Value>,
 }
 
+/// One pill on the working row (`extras::chat_pills`): a panel folded into a pill that opens a
+/// floating menu with the panel's rows.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChatPill {
+    /// `threads`, `tasks` or `subagents`: which panel value the menu draws.
+    pub id: String,
+    pub label: String,
+    /// The number after the label ("3", "4/9"), or "" for none.
+    pub count: String,
+    /// Something in the menu needs the user (a thread waiting on an approval): an amber dot.
+    pub attention: bool,
+    /// The panel's muted detail ("2 working · 212 threads"), the menu's header line.
+    pub meta: String,
+    pub aria_label: String,
+}
+
 /// The agent terminal's last lines, offered when the chat cannot explain what is happening.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

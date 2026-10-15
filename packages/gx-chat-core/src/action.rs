@@ -79,7 +79,6 @@ action_kinds! {
     ToggleAgentFleet => "toggleAgentFleet",
     ToggleAgentTasks => "toggleAgentTasks",
     ToggleAgentTasksCompleted => "toggleAgentTasksCompleted",
-    ToggleCoordinatorThreads => "toggleCoordinatorThreads",
     ToggleCoordinatorThreadsMore => "toggleCoordinatorThreadsMore",
     ToggleBackgroundTasks => "toggleBackgroundTasks",
     OpenCoordinatorThread => "openCoordinatorThread",

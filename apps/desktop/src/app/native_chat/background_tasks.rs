@@ -1,33 +1,58 @@
-//! The working strip's background-task card: one row per task with its own clock, and an (i) beside
-//! the clock that says the work continues in the background (`extras::background_tasks` in
-//! gx-chat-core words it). Two or more tasks fold under one header drawn by the Threads card's own
-//! `panel_header`, folded until clicked.
+//! The background tasks, in the floating menu the Background pill on the working row opens
+//! (chat_pills.rs): one row per task with its own clock, and an (i) beside the clock that says the
+//! work continues in the background (`extras::background_tasks` in gx-chat-core words it).
 //!
 //! CDXC:SessionChat 2026-10-11 SEE-ALSO:
-//! The phone draws the same card in apps/mobile/app/src/chat/native/cards/WorkingStrip.tsx; the
+//! The phone draws the same rows in apps/mobile/app/src/chat/native/cards/ChatPills.tsx; the
 //! decision and its wording live in packages/gx-chat-core/src/extras/background_tasks.rs.
 
 use super::{appearance::ChatAppearance, state::NativeChatView};
 use crate::app::helpers::ThrottledAnimationExt;
 use gpui::StatefulInteractiveElement as _;
 use gpui::{
-    AnyElement, FontFeatures, InteractiveElement, IntoElement, ParentElement, Styled, div, px,
-    relative, svg,
+    AnyElement, FontFeatures, InteractiveElement, IntoElement, ParentElement, Styled, div, px, svg,
 };
 use serde_json::Value;
 use std::time::Duration;
 
+/// One task row, the "+N more" line and the gap between them, in unscaled pixels: fixed heights,
+/// so the floating menu knows its size before it opens (`background_menu_height`).
+const ROW_HEIGHT: f32 = 22.0;
+const ROW_GAP: f32 = 4.0;
+
+/// The Background pill's menu: the header line, one row per named task and "+N more".
+pub(super) fn background_menu_height(tasks: &Value) -> f32 {
+    let rows =
+        tasks["rows"].as_array().map_or(0, Vec::len) + usize::from(tasks["more"].is_string());
+    let list = rows as f32 * ROW_HEIGHT + rows.saturating_sub(1) as f32 * ROW_GAP;
+    super::chat_pills::MENU_HEADER_HEIGHT + super::chat_pills::MENU_SECTION_GAP + list
+}
+
 impl NativeChatView {
-    pub(super) fn render_background_tasks(
-        &self,
-        tasks: &Value,
-        p: &ChatAppearance,
-        reduced_motion: bool,
-        cx: &gpui::Context<Self>,
-    ) -> AnyElement {
+    /// The Background pill's floating menu: the rows the background-task card above the composer
+    /// showed, under a header line with the running count.
+    pub(super) fn background_menu_body(&self, p: &ChatAppearance) -> Option<AnyElement> {
+        let tasks = self.snapshot["backgroundTasksPanel"].clone();
+        if !tasks.is_object() {
+            return None;
+        }
         let s = p.scale;
+        let reduced_motion = crate::app::helpers::gpui_macos_reduce_motion_enabled();
         let info = tasks["info"].as_str().unwrap_or_default();
-        let mut rows = div().flex().flex_col().gap(px(6.0 * s)).min_w_0();
+        let header = super::chat_pills::pill_menu_header(
+            "titlebar/terminal-2.svg",
+            "Background tasks",
+            tasks["meta"].as_str().unwrap_or_default().to_owned(),
+            None,
+            p,
+        );
+        let mut rows = div()
+            .flex()
+            .flex_col()
+            .flex_shrink_0()
+            .gap(px(ROW_GAP * s))
+            .min_w_0()
+            .px(px(4.0 * s));
         let named = tasks["rows"].as_array().into_iter().flatten();
         let mut any_named = false;
         for (index, row) in named.enumerate() {
@@ -37,67 +62,24 @@ impl NativeChatView {
         if let Some(more) = tasks["more"].as_str() {
             rows = rows.child(
                 div()
+                    .h(px(ROW_HEIGHT * s))
+                    .flex()
+                    .items_center()
                     // A remainder under named rows lines up with their titles; alone it is the line.
                     .pl(px(if any_named { 22.0 * s } else { 0.0 }))
                     .text_size(px(13.0 * s))
-                    .line_height(relative(1.5))
                     .text_color(p.muted)
                     .child(more.to_owned()),
             );
         }
-        let card = if tasks["grouped"] == true {
-            let open = tasks["open"] == true;
-            let motion = self.disclosure_frame("background-tasks", open, cx);
-            let toggle = serde_json::json!({"type": "toggleBackgroundTasks", "open": !open});
-            let header = self.panel_header(
-                super::panel_card::PanelHeader {
-                    id: "chat-background-tasks-header",
-                    icon: "titlebar/terminal-2.svg",
-                    title: tasks["title"]
-                        .as_str()
-                        .unwrap_or_default()
-                        .to_owned()
-                        .into(),
-                    meta: tasks["meta"].as_str().unwrap_or_default().to_owned(),
-                    open,
-                    has_body: open || motion.is_some(),
-                    toggle_label: if open {
-                        "Hide background tasks"
-                    } else {
-                        "Show background tasks"
-                    },
-                    trailing: None,
-                    command: toggle,
-                },
-                p,
-                cx,
-            );
-            let body = if open || motion.is_some() {
-                vec![rows.into_any_element()]
-            } else {
-                Vec::new()
-            };
-            self.status_card_with_header_motion(
-                super::cards::CardBodyMotion {
-                    key: "background-tasks",
-                    frame: motion,
-                    shut_body: false,
-                    shut: !open,
-                },
-                header,
-                body,
-                Vec::new(),
-                p,
-            )
-        } else {
-            self.status_card_with_header(rows.into_any_element(), Vec::new(), Vec::new(), p)
-        };
-        div()
-            .id("chat-working-activity")
-            .role(gpui::Role::Status)
-            .w_full()
-            .child(card)
-            .into_any_element()
+        Some(super::chat_pills::pill_menu_column(
+            "chat-background-tasks",
+            "Background tasks",
+            header,
+            Some(rows.into_any_element()),
+            None,
+            p,
+        ))
     }
 
     fn background_task_row(
@@ -156,8 +138,9 @@ impl NativeChatView {
             .items_center()
             .gap(px(10.0 * s))
             .min_w_0()
+            .flex_shrink_0()
+            .h(px(ROW_HEIGHT * s))
             .text_size(px(14.0 * s))
-            .line_height(relative(1.5))
             .child(
                 div()
                     .size(px(12.0 * s))

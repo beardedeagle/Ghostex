@@ -139,6 +139,20 @@ impl ChatOptionMenuPanel {
             cx.stop_propagation();
             return;
         }
+        // A pill's menu holds its own controls: Escape and Tab close it, nothing else moves a row.
+        if self
+            .rows
+            .first()
+            .is_some_and(|row| row["pillMenu"].is_object())
+        {
+            if !matches!(key, "escape" | "tab") {
+                return;
+            }
+            self.menu.update(cx, |menu, cx| menu.close(None, cx));
+            window.prevent_default();
+            cx.stop_propagation();
+            return;
+        }
         if let Some(context) = self.rows.first().and_then(|row| row.get("context")) {
             let has_details = context["details"].is_array();
             let compact_enabled = context["compactDisabled"] != true;
@@ -270,6 +284,10 @@ impl Render for ChatOptionMenuPanel {
         for (index, row) in self.rows.iter().enumerate() {
             if row["context"].is_object() {
                 body = body.child(self.render_context(&row["context"], cx));
+                continue;
+            }
+            if row["pillMenu"].is_object() {
+                body = body.child(self.render_pill_menu(&row["pillMenu"], cx));
                 continue;
             }
             if row["accounts"].is_object() {

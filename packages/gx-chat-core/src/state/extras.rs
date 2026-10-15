@@ -71,11 +71,8 @@ pub struct PanelsState {
     pub tasks_show_completed: bool,
     /// The task list length the fold was last reset against; `-1` before the first projection.
     pub task_signature: i64,
-    /// A coordinator's Threads panel is folded to its header; remembered across chats
-    /// (`threadsCollapsed`).
-    pub threads_collapsed: bool,
     /// How far the list is unfolded: 0 in flight only, 1 with the recent ones ("Show recent"),
-    /// 2+ with 30 more rows per step ("N more"). Back to 0 when the panel folds or a chat starts.
+    /// 2+ with 30 more rows per step ("N more"). Back to 0 when its menu closes or a chat starts.
     pub threads_step: u32,
     /// The full thread list "N more" read: the revision it answers and its rows (`Null` when the
     /// read failed, so it is not retried until the list changes). Dropped when the list folds.
@@ -95,7 +92,6 @@ impl Default for PanelsState {
             tasks_collapsed: false,
             tasks_show_completed: false,
             task_signature: -1,
-            threads_collapsed: false,
             threads_step: 0,
             threads_all: None,
             threads_all_request: None,

@@ -1,5 +1,6 @@
-//! The "Previous question" pill beside Scroll to bottom, the jump to a question it (or a Q-tag link)
-//! asks for, and the brief highlight on the form or page card it lands on. Which questions are
+//! What the "Previous question" icon pill on the working row (chat_pills.rs) does: the jump to a
+//! question it (or a Q-tag link) asks for, and the brief highlight on the form or page card it lands
+//! on. Which questions are
 //! unanswered, which one a click goes to and the row it sits in are the chat core's
 //! (`openQuestions`, packages/gx-chat-core/src/questions/open_questions.rs); this scrolls and draws.
 //!
@@ -7,11 +8,7 @@
 //! The phone draws the same pill and highlight in apps/mobile/app/src/chat/native/transcript/Transcript.tsx and OpenQuestions.tsx; the rules are packages/gx-chat-core/src/transcript/open_questions.rs. Change them together.
 
 use super::{appearance::ChatAppearance, state::NativeChatView};
-use crate::app::native_chat::cursor::ChatCursor as _;
-use gpui::{
-    AnyElement, Context, InteractiveElement as _, IntoElement, ParentElement as _,
-    StatefulInteractiveElement as _, Styled as _, Window, div, px,
-};
+use gpui::{AnyElement, Context, IntoElement, ParentElement as _, Styled as _, Window, div, px};
 use serde_json::json;
 use std::time::Duration;
 use web_time::Instant;
@@ -148,33 +145,6 @@ impl NativeChatView {
             )
             .into_any_element()
     }
-
-    /// The pill in the chat's own window (no window glass).
-    pub(super) fn previous_question_pill(
-        &self,
-        text: String,
-        p: &ChatAppearance,
-        cx: &Context<Self>,
-    ) -> AnyElement {
-        let (fill, border, color) = question_tone(p.light);
-        let label = self.snapshot["openQuestions"]["accessibilityLabel"]
-            .as_str()
-            .unwrap_or_default()
-            .to_string();
-        super::scroll_bottom::pill_shape(div(), p.scale)
-            .id("chat-previous-question")
-            .tab_index(0)
-            .role(gpui::Role::Button)
-            .aria_label(label)
-            .chat_cursor_pointer()
-            .border_color(border)
-            .bg(fill)
-            .text_color(color)
-            .focus_visible(|style| style.border_color(p.ring))
-            .child(text)
-            .on_click(cx.listener(|chat, _, _, cx| chat.previous_question(cx)))
-            .into_any_element()
-    }
 }
 
 fn flash_duration() -> Duration {
@@ -184,25 +154,4 @@ fn flash_duration() -> Duration {
 /// The pill's fill, border and text (`questionTone` in `scroll-bottom.json`).
 pub(super) fn question_tone(light: bool) -> (gpui::Hsla, gpui::Hsla, gpui::Hsla) {
     super::scroll_bottom::question_tone(light)
-}
-
-impl NativeChatView {
-    /// The pill when the chat window is glass: its own blurred window
-    /// (frosted_overlay_window.rs), placed on an invisible pill of the same size laid out here.
-    pub(super) fn previous_question_placeholder(
-        &self,
-        text: Option<String>,
-        p: &ChatAppearance,
-        cx: &Context<Self>,
-    ) -> AnyElement {
-        let overlay = super::frosted_overlay_window::FrostedOverlay::PreviousQuestion;
-        let shown = text.is_some() && !self.frosted_overlay_covered(overlay, cx);
-        let report = self.frosted_overlay_reporter(overlay, shown, cx);
-        match text.filter(|_| shown) {
-            Some(text) => super::scroll_bottom::placeholder_pill(text, p)
-                .child(report)
-                .into_any_element(),
-            None => div().absolute().size_0().child(report).into_any_element(),
-        }
-    }
 }

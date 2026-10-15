@@ -44,12 +44,12 @@ pub use crate::action::{ActionKind, UserAction};
 pub use crate::core::{ChatCore, SentFrame};
 pub use crate::dispatch::{owner, Family};
 pub use crate::document::{
-    assemble, frame_parts, AccountStatus, AsyncQuestions, ComposerActions, ComposerChrome,
-    ComposerOverflow, DeferredWorkRow, Document, Draft, EmptyState, Frame, FrameParts, HostAction,
-    IncomingDraft, Interaction, ItemsSplice, LoadingNotice, MinimapMarker, NewSessionWelcome, Note,
-    ProjectedMessage, QuestionCard, QuestionControls, QuestionDraft, Queue, QueueCapabilities,
-    QueuedPrompt, RowDetails, TerminalTail, TerminalTailNotice, TranscriptItem, ViewState,
-    WorkingStrip,
+    assemble, frame_parts, AccountStatus, AsyncQuestions, ChatPill, ComposerActions,
+    ComposerChrome, ComposerOverflow, DeferredWorkRow, Document, Draft, EmptyState, Frame,
+    FrameParts, HostAction, IncomingDraft, Interaction, ItemsSplice, LoadingNotice, MinimapMarker,
+    NewSessionWelcome, Note, ProjectedMessage, QuestionCard, QuestionControls, QuestionDraft,
+    Queue, QueueCapabilities, QueuedPrompt, RowDetails, TerminalTail, TerminalTailNotice,
+    TranscriptItem, ViewState, WorkingStrip,
 };
 pub use crate::effect::{Effect, HostRequest, OpenTarget, RequestKind, StorageWrite};
 pub use crate::event::{

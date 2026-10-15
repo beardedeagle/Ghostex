@@ -43,6 +43,9 @@ pub struct AgentTaskPanel {
     pub fold_label: String,
     /// Rows the fold is hiding right now.
     pub folded_count: usize,
+    /// Finished tasks and all tasks, the Tasks pill's "4/9".
+    pub done: usize,
+    pub total: usize,
 }
 
 /// `sessionChatAgentTaskPanel`: the whole panel, or `None` when the list is absent or empty.
@@ -172,6 +175,8 @@ pub fn agent_task_panel(
             )
         },
         folded_count: folded_done,
+        done: done_count,
+        total,
     })
 }
 

@@ -160,6 +160,9 @@ pub(super) fn measure_rows(
             if row["modelMenu"].is_object() {
                 return Ok(super::model_menu::menu_height(&row["modelMenu"]));
             }
+            if row["pillMenu"].is_object() {
+                return Ok(row["pillMenu"]["height"].as_f64().unwrap_or(0.0) as f32);
+            }
             if row["modelMenuFlyout"].is_object() {
                 return Ok(super::model_menu::flyout_height(&row["modelMenuFlyout"]));
             }

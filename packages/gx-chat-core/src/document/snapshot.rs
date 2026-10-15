@@ -21,7 +21,7 @@ use std::collections::BTreeMap;
 use serde_json::{Map, Value};
 
 use crate::document::{
-    AccountStatus, AsyncQuestions, ComposerActions, ComposerChrome, ComposerOverflow,
+    AccountStatus, AsyncQuestions, ChatPill, ComposerActions, ComposerChrome, ComposerOverflow,
     DeferredWorkRow, Draft, EmptyState, HostAction, IncomingDraft, Interaction, InterruptToast,
     LoadingNotice, NewSessionWelcome, Note, QuestionCard, Queue, TerminalTail, ViewState,
     WorkingStrip,
@@ -200,6 +200,11 @@ pub struct Document {
     pub agent_tasks_panel: Tri<Value>,
     /// A coordinator's Threads panel, or `null`. Family f.
     pub coordinator_threads_panel: Tri<Value>,
+    /// The background tasks the agent left running (`extras::background_tasks`), which the
+    /// Background pill's menu lists, or `null`. Family f.
+    pub background_tasks_panel: Tri<Value>,
+    /// The pills on the working row, each opening one of the panels above. Family f.
+    pub chat_pills: Vec<ChatPill>,
     /// The subagent viewer, or `null` when closed. Family f.
     pub subagent: Tri<Value>,
     /// Transcript search, or `null` when closed. Family f.

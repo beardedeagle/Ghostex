@@ -1,5 +1,6 @@
-//! The small blurred windows that carry the chat's rare floating controls (the Scroll to bottom and
-//! Previous question pills) while the main window is glass.
+//! The small blurred window that carries the chat's floating control (the Escape and "Agent was
+//! interrupted" toasts, and a transcript-only view's Scroll to bottom pill) while the main window is
+//! glass. The Previous question pill moved to the working row on 2026-10-15 (chat_pills.rs).
 //!
 //! CDXC:SessionChat 2026-09-23 WHY:
 //! GPUI cannot blur behind an element inside a window, only behind a whole window, so each of these
@@ -47,29 +48,22 @@ pub(crate) fn set_app_modal_over_chat(open: bool, cx: &mut gpui::App) {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(in crate::app::native_chat) enum FrostedOverlay {
     ScrollBottom,
-    /// The Previous question pill beside it (open_questions.rs).
-    PreviousQuestion,
 }
 
 impl FrostedOverlay {
-    const ALL: [FrostedOverlay; 2] = [
-        FrostedOverlay::ScrollBottom,
-        FrostedOverlay::PreviousQuestion,
-    ];
+    const ALL: [FrostedOverlay; 1] = [FrostedOverlay::ScrollBottom];
 }
 
 /// The windows of every floating control, one each.
 #[derive(Default)]
 pub(in crate::app::native_chat) struct FrostedOverlayWindows {
     scroll_bottom: FrostedOverlayWindowState,
-    previous_question: FrostedOverlayWindowState,
 }
 
 impl FrostedOverlayWindows {
     fn state(&mut self, overlay: FrostedOverlay) -> &mut FrostedOverlayWindowState {
         match overlay {
             FrostedOverlay::ScrollBottom => &mut self.scroll_bottom,
-            FrostedOverlay::PreviousQuestion => &mut self.previous_question,
         }
     }
 
@@ -80,7 +74,6 @@ impl FrostedOverlayWindows {
     ) -> Rc<Cell<Option<Bounds<Pixels>>>> {
         match overlay {
             FrostedOverlay::ScrollBottom => self.scroll_bottom.measured.clone(),
-            FrostedOverlay::PreviousQuestion => self.previous_question.measured.clone(),
         }
     }
 }
@@ -227,7 +220,7 @@ fn apply_frosted_overlay(
         return;
     };
     let radius = match overlay {
-        FrostedOverlay::ScrollBottom | FrostedOverlay::PreviousQuestion => frame.size.height / 2.0,
+        FrostedOverlay::ScrollBottom => frame.size.height / 2.0,
     };
     let display_id = owner.display_for(Bounds::new(origin + frame.origin, frame.size), cx);
     let result = cx.open_window(
@@ -316,10 +309,6 @@ impl Render for FrostedOverlayView {
                     scroll_bottom_pill(self.chat.clone(), &p, hover, self.tooltip_epoch.clone())
                 }
             },
-            FrostedOverlay::PreviousQuestion => {
-                let text = chat.read(cx).open_question_pill_text().unwrap_or_default();
-                previous_question_pill(self.chat.clone(), text, &p, hover)
-            }
         }
     }
 }
@@ -411,50 +400,6 @@ fn scroll_bottom_pill(
                 }
                 let Ok(main) = chat.update(cx, |chat, cx| {
                     chat.jump_to_bottom(cx);
-                    chat.main_window
-                }) else {
-                    return;
-                };
-                activate_main_window(main, cx);
-            });
-        })
-        .into_any_element()
-}
-
-/// The Previous question pill in its own window: the composer's wash under the blur, in the pill's
-/// amber tone (open_questions.rs).
-fn previous_question_pill(
-    chat: WeakEntity<NativeChatView>,
-    text: String,
-    p: &ChatAppearance,
-    hover: gpui::Hsla,
-) -> AnyElement {
-    let (_, border, color) = super::open_questions::question_tone(p.light);
-    div()
-        .id("chat-previous-question-window")
-        .role(gpui::Role::Button)
-        .aria_label(text.clone())
-        .chat_cursor_pointer()
-        .size_full()
-        .flex()
-        .items_center()
-        .justify_center()
-        .rounded_full()
-        .border_1()
-        .border_color(border)
-        .bg(p.composer_background)
-        .hover(move |style| style.bg(hover))
-        .font_family(p.font.clone())
-        .text_color(color)
-        .text_size(px(super::scroll_bottom::font_size() * p.scale))
-        .font_weight(FontWeight::MEDIUM)
-        .whitespace_nowrap()
-        .child(text)
-        .on_click(move |_, _, cx| {
-            let chat = chat.clone();
-            cx.defer(move |cx| {
-                let Ok(main) = chat.update(cx, |chat, cx| {
-                    chat.previous_question(cx);
                     chat.main_window
                 }) else {
                     return;

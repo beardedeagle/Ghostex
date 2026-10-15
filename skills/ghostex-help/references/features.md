@@ -1055,9 +1055,11 @@ again shows what you sent. On desktop the floating window closes once your answe
 sent, and stays open with the error if they could not be. Until you send,
 what you picked and typed is kept, in a form and on a page alike, even when
 you close the page or the chat, switch sessions, or restart. With Settings >
-Chat > Previous question button turned on (it is off by default), a "Previous
-question ↑" button sits next to Scroll to bottom while a form or question page
-in the chat is still waiting for your answers (desktop, web and mobile): each
+Chat > Previous question button turned on (it is off by default), a small "?"
+button sits near the left end of the pills above the chat box (after Scroll to
+bottom when that shows) while a form or
+question page in the chat is still waiting for your answers (desktop, web and
+mobile): each
 click goes to the next older unanswered one, round again after the oldest, and
 briefly outlines it. A question stops counting once the agent asks the same tag
 again in a later form or page, or withdraws it. Question tags the agent writes
@@ -1120,8 +1122,11 @@ Paste images into an answer to add numbered image references and the same
 clickable thumbnails as the composer. The references stay with the saved answer.
 
 Press Ctrl+Shift+Down to scroll the focused chat to the bottom, including while
-typing. On desktop and web, hover the Scroll to bottom button to see your current
-shortcut; mobile shows the button without a keyboard shortcut. Both stop any
+typing. When you scroll up, a small down-arrow button (Scroll to bottom) appears at
+the left end of the pills above the chat box, before everything else, so it never
+moves the other pills. On desktop
+and web, hover it to see its name and your current shortcut; mobile shows the button
+without a keyboard shortcut. Both stop any
 ongoing scroll momentum so the conversation settles at the bottom. This takes
 priority over paragraph selection or adding a cursor in the composer; rebind or
 clear Scroll Chat to Bottom in Settings > Hotkeys (`scrollChatToBottom`).
@@ -1162,13 +1167,19 @@ Claude's queue and adds its text and pictures to your chat draft instead, unsent
 empty chat box does the same for the newest queued message, like Up in Claude's own input. Prompts you explicitly
 queue stay in the list above the input. This also applies when reopening the chat
 or continuing on another device.
-Claude children stay in the Subagents card while the terminal lists them, including
+The agent's subagents, its task list, an orchestrator's threads and the commands
+still running in the background are small pills (Threads, Tasks, Subagents,
+Background) at the right end of the "Working" line above the chat box, each with a
+count, after the Scroll to bottom and "?" buttons when those show. The Background
+menu lists each running command with its own timer; hover a row (press and hold on
+the phone) to see the command itself. When they do not fit, the pills scroll sideways; in a narrow chat
+and on the phone they sit on their own line under "Working". Click or tap a pill to
+open its list in a menu that floats over the conversation (a sheet on the phone);
+click outside it or press Escape to close it.
+Claude children stay in the Subagents list while the terminal lists them, including
 between monitor events. Idle children are labelled Idle and their clocks pause;
 click a child's name or task to open its transcript.
-Click the Subagents header to minimize the card to its header or expand it again.
-It starts minimized in Simple mode and expanded otherwise. Your last choice is
-remembered per session and takes precedence over the mode's default.
-For Codex and Claude, the Subagents card and popup title show the child's latest
+For Codex and Claude, the Subagents list and popup title show the child's latest
 model and effort in compact form, such as Opus 5 High or Astra xHigh. Codex rows
 show the child's name/path beside the model and effort, after a ‣ separator.
 For Claude, hover to see the agent type, such as Explore or general-purpose.
@@ -2068,16 +2079,17 @@ version of the Projects features in Cursor and Claude Code.
   **Mark Thread Done** (greyed out while it is working or waiting on you) to
   mark it done and close its session, or **Reopen Thread** on a done thread to
   resume it under its orchestrator. On the phone, long-press the thread.
-- **Threads panel in the chat**: above the orchestrator's message box, the
-  Threads panel lists the working threads first, then the ones active in the
-  last 2 hours, each with one line (what it is doing or how its last report
-  began) and its branch; "N more" lists every other thread, closed ones
-  included, and "Show fewer" folds them again. Tap or click any thread to open
-  it and talk to it. A thread stuck on something only you can allow (a
+- **Threads pill in the chat**: above the orchestrator's message box, a small
+  "Threads" pill counts the threads working or waiting on you. Click or tap it
+  to open the threads list in a menu that floats over the conversation (a sheet
+  on the phone): the working threads first, then "Show recent" for the ones
+  active in the last 2 hours, each with one line (what it is doing or how its
+  last report began) and its branch; "N more" lists every other thread, closed
+  ones included, and "Show fewer" folds them again. Tap or click any thread to
+  open it and talk to it. A thread stuck on something only you can allow (a
   permission prompt or a folder-trust question) carries an amber "Needs your
-  approval" tag. Fold the panel with its header and it stays folded the next
-  time you open an orchestrator's chat. It shows on the phone and in the browser
-  too.
+  approval" tag, and the pill shows an amber dot. Click outside the menu or
+  press Escape to close it. It shows on the phone and in the browser too.
 - **Reports come back by themselves**: when a thread finishes a turn, Ghostex
   sends its final message to the orchestrator (a "Message from" card in its
   chat); when a thread waits on a question, an approval, or a screen such as

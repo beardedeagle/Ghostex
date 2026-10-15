@@ -1,8 +1,9 @@
-//! A coordinator's Threads panel, pinned above the composer beside Tasks and Subagents: one list of
-//! its threads, each row opening that thread. Order, labels and the steps ("Show recent", "N more")
-//! come from the core (packages/gx-chat-core/src/extras/coordinator_threads.rs).
+//! A coordinator's threads, in the floating menu the Threads pill on the working row opens: one list
+//! of its threads, each row opening that thread. Order, labels and the steps ("Show recent", "N more")
+//! come from the core (packages/gx-chat-core/src/extras/coordinator_threads.rs); the pill is
+//! chat_pills.rs.
 //!
-//! SEE-ALSO: apps/mobile/app/src/chat/native/cards/AgentPanels.tsx (`CoordinatorThreadsPanel`, the
+//! SEE-ALSO: apps/mobile/app/src/chat/native/cards/AgentPanels.tsx (`CoordinatorThreadsMenu`, the
 //! phone's twin), apps/desktop/src/app/session_chat/host_actions.rs (`openCoordinatorThread`).
 
 use super::{appearance::ChatAppearance, state::NativeChatView, transcript::text};
@@ -19,8 +20,30 @@ use serde_json::{Value, json};
 const WORKING_COLOR: u32 = 0xc68a06;
 const APPROVAL_COLOR: u32 = 0xf5a524;
 
+/// One thread row, the "N more" line and the list's cap, in unscaled pixels: fixed heights, so the
+/// floating menu knows its size before it opens (`threads_menu_height`).
+const ROW_HEIGHT: f32 = 24.0;
+const ROW_GAP: f32 = 2.0;
+const LIST_MAX: f32 = 360.0;
+
+/// The Threads pill's menu: the header line, the rows and "Show recent" / "N more" / "Show fewer".
+pub(super) fn threads_menu_height(panel: &Value) -> f32 {
+    let rows = panel["rows"].as_array().map_or(0, Vec::len)
+        + usize::from(!text(panel, "emptyLabel").is_empty());
+    let list = (rows as f32 * ROW_HEIGHT + rows.saturating_sub(1) as f32 * ROW_GAP).min(LIST_MAX);
+    let footer = if text(panel, "moreLabel").is_empty() {
+        0.0
+    } else {
+        super::chat_pills::MENU_SECTION_GAP + super::chat_pills::MENU_FOOTER_HEIGHT
+    };
+    super::chat_pills::MENU_HEADER_HEIGHT + super::chat_pills::MENU_SECTION_GAP + list + footer
+}
+
 impl NativeChatView {
-    pub(super) fn render_coordinator_threads(
+    /// The Threads pill's floating menu: what the Threads panel above the composer listed, with the
+    /// same rows and steps. Drawn in the menu's window (`option_menu/pill_menu.rs`) with this
+    /// view's listeners, so a row still talks to the chat it belongs to.
+    pub(super) fn threads_menu_body(
         &self,
         p: &ChatAppearance,
         cx: &Context<Self>,
@@ -30,102 +53,82 @@ impl NativeChatView {
             return None;
         }
         let s = p.scale;
-        let open = panel["collapsed"] != true;
-        let attention = panel["attention"] == true;
-        let motion = self.disclosure_frame("coordinator-threads", open, cx);
-        let header = self.panel_header(
-            super::panel_card::PanelHeader {
-                id: "chat-coordinator-threads-header",
-                icon: "titlebar/users-group.svg",
-                title: "Threads".into(),
-                meta: text(&panel, "meta"),
-                open,
-                has_body: open || motion.is_some(),
-                toggle_label: if open { "Hide threads" } else { "Show threads" },
-                trailing: attention.then(|| {
-                    div()
-                        .size(px(8.0 * s))
-                        .rounded_full()
-                        .flex_shrink_0()
-                        .bg(rgb(APPROVAL_COLOR))
-                        .into_any_element()
-                }),
-                command: json!({"type":"toggleCoordinatorThreads","open":!open}),
-            },
+        let header = super::chat_pills::pill_menu_header(
+            "titlebar/users-group.svg",
+            "Threads",
+            text(&panel, "meta"),
+            (panel["attention"] == true).then(|| {
+                div()
+                    .size(px(8.0 * s))
+                    .rounded_full()
+                    .flex_shrink_0()
+                    .bg(rgb(APPROVAL_COLOR))
+                    .into_any_element()
+            }),
             p,
-            cx,
         );
-        let mut body = Vec::new();
-        if open || motion.is_some() {
-            let mut rows = div()
-                .id("chat-coordinator-threads-rows")
-                .flex()
-                .flex_col()
-                .gap(px(2.0 * s))
-                .max_h(px(360.0 * s))
-                .overflow_y_scroll();
-            for row in panel["rows"].as_array().into_iter().flatten() {
-                rows = rows.child(self.coordinator_thread_row(row, p, cx));
-            }
-            let empty = text(&panel, "emptyLabel");
-            if !empty.is_empty() {
-                rows = rows.child(
-                    div()
-                        .px(px(4.0 * s))
-                        .py(px(3.0 * s))
-                        .text_size(px(12.0 * s))
-                        .text_color(p.card_muted)
-                        .child(empty),
-                );
-            }
-            body.push(rows.into_any_element());
-            let more = text(&panel, "moreLabel");
-            if !more.is_empty() {
-                let step = panel["moreStep"].as_u64().unwrap_or(0);
-                body.push(
-                    div()
-                        .id("chat-coordinator-threads-more")
-                        .role(gpui::Role::Button)
-                        .aria_label(match step {
-                            0 => "Show fewer threads".to_string(),
-                            1 => "Show recent threads".to_string(),
-                            _ => format!("Show {more} threads"),
-                        })
-                        .chat_cursor_pointer()
-                        .text_size(px(12.0 * s))
-                        .text_color(p.card_muted)
-                        .hover(|style| style.text_color(p.foreground))
-                        .child(more)
-                        .on_click(cx.listener(move |this, _, _, cx| {
-                            this.invoke(
-                                json!({"type":"toggleCoordinatorThreadsMore","step":step}),
-                                cx,
-                            )
-                        }))
-                        .into_any_element(),
-                );
-            }
+        let rows_count = panel["rows"].as_array().map_or(0, Vec::len);
+        let mut rows = div()
+            .id("chat-coordinator-threads-rows")
+            .flex()
+            .flex_col()
+            .flex_shrink_0()
+            .gap(px(ROW_GAP * s))
+            .max_h(px(LIST_MAX * s))
+            .overflow_y_scroll();
+        for row in panel["rows"].as_array().into_iter().flatten() {
+            rows = rows.child(self.coordinator_thread_row(row, p, cx));
         }
-        Some(
+        let empty = text(&panel, "emptyLabel");
+        let listed = rows_count > 0 || !empty.is_empty();
+        if !empty.is_empty() {
+            rows = rows.child(
+                div()
+                    .h(px(ROW_HEIGHT * s))
+                    .flex()
+                    .items_center()
+                    .px(px(4.0 * s))
+                    .text_size(px(12.0 * s))
+                    .text_color(p.card_muted)
+                    .child(empty),
+            );
+        }
+        let more = text(&panel, "moreLabel");
+        let footer = (!more.is_empty()).then(|| {
+            let step = panel["moreStep"].as_u64().unwrap_or(0);
             div()
-                .id("chat-coordinator-threads")
-                .role(gpui::Role::Group)
-                .aria_label("Orchestrator threads")
-                .w_full()
-                .child(self.status_card_with_header_motion(
-                    super::cards::CardBodyMotion {
-                        key: "coordinator-threads",
-                        frame: motion,
-                        shut_body: false,
-                        shut: !open,
-                    },
-                    header,
-                    body,
-                    Vec::new(),
-                    p,
-                ))
-                .into_any_element(),
-        )
+                .id("chat-coordinator-threads-more")
+                .role(gpui::Role::Button)
+                .aria_label(match step {
+                    0 => "Show fewer threads".to_string(),
+                    1 => "Show recent threads".to_string(),
+                    _ => format!("Show {more} threads"),
+                })
+                .h(px(super::chat_pills::MENU_FOOTER_HEIGHT * s))
+                .flex()
+                .items_center()
+                .px(px(4.0 * s))
+                .chat_cursor_pointer()
+                .text_size(px(12.0 * s))
+                .text_color(p.card_muted)
+                .hover(|style| style.text_color(p.foreground))
+                .child(more)
+                .on_click(cx.listener(move |this, _, _, cx| {
+                    this.invoke(
+                        json!({"type":"toggleCoordinatorThreadsMore","step":step}),
+                        cx,
+                    )
+                }))
+                .into_any_element()
+        });
+        Some(super::chat_pills::pill_menu_column(
+            "chat-coordinator-threads",
+            "Orchestrator threads",
+            header,
+            listed.then(|| rows.into_any_element()),
+            footer,
+            p,
+        ))
     }
 
     fn coordinator_thread_row(
@@ -173,8 +176,9 @@ impl NativeChatView {
             .gap(px(8.0 * s))
             .w_full()
             .min_w_0()
+            .flex_shrink_0()
+            .h(px(ROW_HEIGHT * s))
             .px(px(4.0 * s))
-            .py(px(3.0 * s))
             .rounded(px(5.0 * s))
             .text_size(px(12.0 * s))
             .chat_cursor_pointer()
@@ -208,7 +212,9 @@ impl NativeChatView {
                         .bg(gpui::Hsla::from(rgb(APPROVAL_COLOR)).opacity(0.16))
                         .text_size(px(11.0 * s))
                         .text_color(rgb(APPROVAL_COLOR))
-                        .child(ghostex_gx_chat_core::extras::coordinator_threads::NEEDS_APPROVAL_LABEL),
+                        .child(
+                            ghostex_gx_chat_core::extras::coordinator_threads::NEEDS_APPROVAL_LABEL,
+                        ),
                 )
             })
             .child(
@@ -230,7 +236,10 @@ impl NativeChatView {
                         .child(branch),
                 )
             })
-            .on_click(cx.listener(move |this, _, _, cx| this.invoke(command.clone(), cx)))
+            .on_click(cx.listener(move |this, _, _, cx| {
+                this.invoke(command.clone(), cx);
+                this.close_pill_menu(cx);
+            }))
             .into_any_element()
     }
 }

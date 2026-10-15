@@ -59,6 +59,8 @@ pub(crate) struct NativeChatView {
     pub(super) option_menu: Option<Entity<super::option_menu::ChatOptionMenu>>,
     /// Which trigger owns the open menu, so pressing it again shuts it (`menu_toggle.rs`).
     pub(super) menu_toggle: super::menu_toggle::ChatMenuToggle,
+    /// The working row's pills, measured where their menus open (`chat_pills.rs`).
+    pub(super) pill_bounds: super::chat_pills::ChatPillBounds,
     pub(super) save_markdown_window: super::save_markdown::SaveMarkdownWindowState,
     pub(super) rewind_window: super::rewind::RewindWindowState,
     pub(super) image_viewer: super::image_viewer::ImageViewerState,
@@ -95,6 +97,9 @@ pub(crate) struct NativeChatView {
     pub(super) model_pill_bounds: std::rc::Rc<std::cell::Cell<gpui::Bounds<gpui::Pixels>>>,
     /// Set while the next menu this view opens belongs to another surface (the terminal's model pill), not to its own pane.
     pub(super) menu_outside_pane: bool,
+    /// The next menu opens above its trigger when it fits there (a working-row pill's menu floats
+    /// over the transcript instead of over the composer under it).
+    pub(super) menu_above: bool,
     /// A model pop-up asked for before this view had its first snapshot: the trigger and its window.
     pub(super) pending_model_menu: Option<(gpui::Bounds<gpui::Pixels>, gpui::AnyWindowHandle)>,
     pub(crate) window_subscription: Option<Subscription>,
@@ -347,6 +352,7 @@ impl NativeChatView {
             input_focus_listeners: Vec::new(),
             option_menu: None,
             menu_toggle: Default::default(),
+            pill_bounds: Default::default(),
             context_editor_window: Default::default(),
             save_markdown_window: Default::default(),
             rewind_window: Default::default(),
@@ -368,6 +374,7 @@ impl NativeChatView {
             drawn_window_size: gpui::Size::default(),
             model_pill_bounds: Default::default(),
             menu_outside_pane: false,
+            menu_above: false,
             pending_model_menu: None,
             window_subscription: None,
             _app_modal_subscription: cx
