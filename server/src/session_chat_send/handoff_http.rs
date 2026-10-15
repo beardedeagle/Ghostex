@@ -58,6 +58,16 @@ fn session_chat_agent_command_is_user_hop(session: &Value) -> bool {
     matches!(program, "ssh" | "autossh" | "mosh" | "et")
 }
 
+/// CDXC:Drafts 2026-10-16 WHY:
+/// With the agent gone and its terminal back at a shell prompt (a start command that failed, an agent that quit), nothing answers the prompt-editor handshake: the capture typed its editor key into the user's shell, waited out its 16 seconds and answered HTTP 500 on every switch to Chat (a customer's Windows log, 2026-10-16). A shell holds no agent draft, so the switch transfers nothing.
+async fn terminal_at_shell_prompt(zmx_name: &str) -> bool {
+    capture_session_terminal_text(zmx_name)
+        .await
+        .is_some_and(|screen| {
+            crate::session_chat_notice::session_chat_screen_ends_with_shell_prompt(&screen)
+        })
+}
+
 fn claim_pending_first_user_input_draft_for_chat(
     state: &AppState,
     target: &SessionChatSendTarget,
@@ -134,7 +144,9 @@ pub(crate) async fn handle_handoff_session_chat_draft_http(
         Ok(None) => {}
         Err(error) => return domain_error_response(endpoint_path, request_id, error),
     }
-    if session_chat_agent_command_is_user_hop(&target.session) {
+    if session_chat_agent_command_is_user_hop(&target.session)
+        || terminal_at_shell_prompt(&target.zmx_name).await
+    {
         return routed_json(
             Some(endpoint_path),
             StatusCode::OK,

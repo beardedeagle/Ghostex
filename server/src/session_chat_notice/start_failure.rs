@@ -55,6 +55,36 @@ pub(super) fn detect_claude_missing_login(
     )
 }
 
+/// The card for an agent whose start command ended before the agent came up, when `screen_text`
+/// is back at a shell prompt. Only the screen half: the session's process tree and its missing
+/// conversation, which make it a start failure, are checked by session_chat_start_failure.rs.
+pub fn agent_start_failure_notice(screen_text: &str) -> Option<SessionChatTerminalNotice> {
+    let screen = NoticeScreen::new(screen_text);
+    if !screen.ends_with_shell_prompt() {
+        return None;
+    }
+    Some(
+        SessionChatTerminalNotice::new(
+            SESSION_CHAT_NOTICE_AGENT_EXITED,
+            SessionChatTerminalNoticeSeverity::Error,
+            SessionChatTerminalNoticeSource::Screen,
+            "The agent couldn't start",
+        )
+        .with_input_blocking(true)
+        .with_detail("Its start command ended and the terminal is back at a shell prompt; the terminal's last lines say why. Fix that, then try again. A message you send meanwhile waits in the chat and goes out once the agent is up.")
+        .with_screen_tail(screen.screen_tail())
+        .with_actions(vec![
+            SessionChatTerminalNoticeAction {
+                id: SESSION_CHAT_NOTICE_ACTION_RETRY_START.to_string(),
+                label: "Try again".to_string(),
+                kind: SessionChatTerminalNoticeActionKind::RestartAgent,
+                send: None,
+            },
+            SessionChatTerminalNoticeAction::switch_to_terminal(OPEN_TERMINAL.label),
+        ]),
+    )
+}
+
 /// The last email seen for each Claude cswap slot.
 static CLAUDE_SLOT_EMAILS: std::sync::LazyLock<Mutex<HashMap<String, String>>> =
     std::sync::LazyLock::new(Default::default);
@@ -101,6 +131,16 @@ impl SessionChatTerminalNotice {
                 .actions
                 .iter()
                 .any(|action| action.id == SESSION_CHAT_NOTICE_ACTION_SIGN_IN)
+    }
+
+    /// The agent's start command ended before the agent came up (`agent_start_failure_notice`):
+    /// restarting it on its own would fail the same way, so the card waits for the user.
+    pub fn start_failed(&self) -> bool {
+        self.kind == SESSION_CHAT_NOTICE_AGENT_EXITED
+            && self
+                .actions
+                .iter()
+                .any(|action| action.id == SESSION_CHAT_NOTICE_ACTION_RETRY_START)
     }
 
     /// The cswap slot a `missing_login` card is about, read back from its screen tail.

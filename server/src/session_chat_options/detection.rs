@@ -346,6 +346,16 @@ pub fn detect_session_chat_terminal_state(
     let mut notice = screen.and_then(|capture| {
         crate::session_chat_notice::classify_session_chat_terminal_notice(agent_id, &capture.text)
     });
+    if notice.is_none() {
+        notice = screen.and_then(|capture| {
+            crate::session_chat_start_failure::detect_agent_start_failure(
+                repository,
+                project_id,
+                session_id,
+                &capture.text,
+            )
+        });
+    }
     if notice.is_none() && agent == Some(SessionChatOptionAgent::Empryo) {
         notice = screen
             .zip(

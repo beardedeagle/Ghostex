@@ -661,7 +661,7 @@ pub(crate) fn select(
                 "This account needs to be reconnected first.",
             ));
         }
-        let command = launch::command(&state.paths.home_dir, account)?;
+        let command = launch::launch_command(&state.paths.home_dir, account)?;
         launch::assign(&mut runtime, account, command)?;
     } else {
         for k in [

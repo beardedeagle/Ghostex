@@ -181,6 +181,65 @@ pub(crate) fn command(home: &Path, account: &SavedAccount) -> Result<String, Dom
         quote_shell_arg(&account.selector)
     ))
 }
+/// `command` for a session that is about to start on `account`: refused when the helper would only print an error.
+pub(crate) fn launch_command(
+    home: &Path,
+    account: &SavedAccount,
+) -> Result<String, DomainStateError> {
+    let command = command(home, account)?;
+    if account.provider == Provider::Claude {
+        if let Some(refusal) = helpers::executable(home, account.provider.helper())
+            .and_then(|executable| share_history_refusal(&executable))
+        {
+            return Err(DomainStateError::bad_request(refusal));
+        }
+    }
+    Ok(command)
+}
+
+/// The refusal `cswap run --help` led to, per executable and modification time, so an update is read again.
+type ShareHistoryReadings =
+    std::collections::HashMap<PathBuf, (std::time::SystemTime, Option<String>)>;
+static SHARE_HISTORY_HELP: std::sync::LazyLock<std::sync::Mutex<ShareHistoryReadings>> =
+    std::sync::LazyLock::new(Default::default);
+
+/// CDXC:AgentProviders 2026-10-16 WHY:
+/// Ghostex starts every Claude account as `cswap run <N> --share-history`, and without the flag the account's conversations fork into its own profile where the chat never looks, so the flag is never dropped. No released Claude Swap (0.16.0, which added the flag, through 0.27.2) runs it on Windows: `cswap run` printed "--share-history is not supported on Windows yet", PowerShell stayed open, and a customer's chat sat at "starting" with "hello" queued for good (2026-10-16). Windows support is pending upstream (realiti4/claude-swap PR #429, junctions and hard links), and a cswap built from it keeps the version number of the release it forked from, so the version cannot tell. cswap's own `run --help` can: every refusing release ends the flag's help with "Not supported on Windows.", and the PR removes that sentence. A cswap that says so on Windows, or that has no `--share-history` at all, is refused here before anything is launched.
+fn share_history_refusal(executable: &Path) -> Option<String> {
+    let modified = std::fs::metadata(executable)
+        .and_then(|metadata| metadata.modified())
+        .ok()?;
+    let mut cache = SHARE_HISTORY_HELP
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
+    if let Some((at, refusal)) = cache.get(executable) {
+        if *at == modified {
+            return refusal.clone();
+        }
+    }
+    let output = crate::platform::process::background_command(executable)
+        .args(["run", "--help"])
+        .env("COLUMNS", "200")
+        .stdin(std::process::Stdio::null())
+        .output()
+        .ok()
+        .filter(|output| output.status.success())?;
+    // argparse wraps help text at the terminal width, so a sentence can span lines.
+    let help = String::from_utf8_lossy(&output.stdout)
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    let refusal = if !help.contains("--share-history") {
+        Some("Claude Swap on this computer is too old to share conversation history between accounts. Update it in Settings > Accounts, then try again.".to_string())
+    } else if cfg!(windows) && help.contains("Not supported on Windows") {
+        Some("Claude can't start on a saved account on this computer yet: Claude Swap can't share conversation history on Windows, so this account's conversations would never reach the chat. To use Claude now, remove the Claude accounts in Settings > Accounts and sessions start on your current Claude login.".to_string())
+    } else {
+        None
+    };
+    cache.insert(executable.to_path_buf(), (modified, refusal.clone()));
+    refusal
+}
+
 pub(crate) fn assign(
     runtime: &mut Map<String, Value>,
     account: &SavedAccount,
@@ -261,7 +320,7 @@ pub(crate) fn apply_new_session(
             )
         })?;
     let home = home()?;
-    let cmd = command(&home, account)?;
+    let cmd = launch_command(&home, account)?;
     let assigned = assign(runtime, account, cmd)?;
     super::default_account::record_last_used(db, &registry, provider, &account.id)?;
     Ok(Some(assigned))

@@ -119,7 +119,7 @@ pub(crate) fn rebind_target(
         return Ok(None);
     };
     // A login cswap cannot launch right now keeps the wake on the saved account, as before this rule.
-    let Ok(command) = launch::home().and_then(|home| launch::command(&home, account)) else {
+    let Ok(command) = launch::home().and_then(|home| launch::launch_command(&home, account)) else {
         return Ok(None);
     };
     Ok(Some((account.clone(), command)))

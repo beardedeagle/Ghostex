@@ -1589,6 +1589,11 @@ conversations. Ghostex runs the update with the tool that installed the helper
 (uv or pipx for cswap; Homebrew, Cargo or the Windows installer for xswap); for
 a helper installed some other way the buttons are off, so update it the way you
 installed it.
+On Windows, Claude accounts need a Claude Swap that can share conversation
+history on Windows, and no released Claude Swap can yet. Until one does, starting
+or switching a Claude session on a saved account says so instead of starting;
+remove the Claude accounts in Settings > Accounts and Claude sessions start on
+your current Claude login.
 Before sending a session's first message, use the model menu's Switch Agent CLI
 to change between Claude and Codex. The new agent uses its New sessions start
 on rule, just like the sidebar agent button, while the terminal and your
@@ -1603,6 +1608,11 @@ you sent waits in the chat and goes out on its own once Claude is up. Waking a
 session on such an account moves it to an account that works first, unless the
 provider's rules say Do nothing at a limit or you stopped automatic recovery for
 that session.
+When any agent's start command ends before the agent comes up (the command
+printed an error and the terminal is back at a shell prompt), its chat shows "The
+agent couldn't start" with the terminal's last lines, Try again and Open terminal,
+instead of waiting at starting. A message you sent waits in the chat and goes out
+once the agent is up.
 The same works from the command line, for you or an agent: `ghostex accounts`
 lists every Claude and Codex account with its state (ready, limit reached, needs
 sign-in), its usage per window with reset times, the default for new sessions
