@@ -150,6 +150,10 @@ pub fn run() -> Result<(), JsValue> {
         shared_settings::install(settings);
     }
     app.with_assets(assets::GhostexAssets).run(|cx: &mut App| {
+        // A Mac browser gets the Mac text editing keys in every text input (the chat composer's Cmd+Backspace and friends).
+        cx.set_global(gpui_component::input::MacTextKeys(
+            terminal_element::uses_macos_text_editing(),
+        ));
         gpui_component::init(cx);
         ui_fonts::register(cx);
         // Match desktop's terminal keymap: Root's focus traversal otherwise

@@ -42,7 +42,7 @@ fn focus_and_replay(
 }
 
 fn platform() -> &'static str {
-    if cfg!(target_os = "macos") {
+    if crate::terminal_element::uses_macos_text_editing() {
         "mac"
     } else if cfg!(target_os = "windows") {
         "windows"
@@ -79,7 +79,7 @@ pub(super) enum ComposerLineCommand {
 /// SEE-ALSO: the React composer's table is the key handler in `session-chat-lexical-input.tsx` and `moveComposerLines` / `COMPOSER_EDITOR_COMMANDS` in `session-chat-lexical/commands.ts`; `line_edit` mirrors those edits.
 pub(super) fn composer_line_command(keystroke: &gpui::Keystroke) -> Option<ComposerLineCommand> {
     let modifiers = keystroke.modifiers;
-    let primary = if cfg!(target_os = "macos") {
+    let primary = if crate::terminal_element::uses_macos_text_editing() {
         modifiers.platform && !modifiers.control
     } else {
         modifiers.control && !modifiers.platform

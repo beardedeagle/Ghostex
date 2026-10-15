@@ -39,6 +39,14 @@ pub(super) fn register(cx: &mut gpui::App) {
             Some("NativeChat > Input"),
         ),
     ]);
+    // gpui's `secondary-` is fixed when the app is compiled, so a Mac browser running the wasm build would get Ctrl; the line commands follow the same Mac check as the text inputs' key table instead.
+    let primary = if crate::terminal_element::uses_macos_text_editing() {
+        "cmd"
+    } else {
+        "ctrl"
+    };
+    let select_line = format!("{primary}-l");
+    let delete_line = format!("{primary}-shift-k");
     cx.bind_keys(
         [
             ("enter", "enter"),
@@ -56,8 +64,8 @@ pub(super) fn register(cx: &mut gpui::App) {
             ("alt-down", "down"),
             ("alt-shift-up", "up"),
             ("alt-shift-down", "down"),
-            ("secondary-l", "l"),
-            ("secondary-shift-k", "k"),
+            (select_line.as_str(), "l"),
+            (delete_line.as_str(), "k"),
             ("tab", "tab"),
             ("shift-tab", "tab"),
             ("escape", "escape"),

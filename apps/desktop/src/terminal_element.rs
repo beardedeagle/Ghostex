@@ -4307,7 +4307,7 @@ fn build_row_layout(
 /// Passing these arrows to the encoder instead produces modified-arrow sequences that shell prompts can leave behind as literal D/C characters.
 fn terminal_word_navigation_input(keystroke: &Keystroke) -> Option<&'static [u8]> {
     let modifiers = &keystroke.modifiers;
-    if !terminal_uses_macos_text_editing()
+    if !uses_macos_text_editing()
         || !modifiers.alt
         || modifiers.shift
         || modifiers.control
@@ -4327,7 +4327,7 @@ fn terminal_word_navigation_input(keystroke: &Keystroke) -> Option<&'static [u8]
 /// The user: "in our ghostty in this app Cmd + Backspace is not deleting whole row while in normal ghostty app it does". Ghostty's macOS default keybinds send Cmd+Left as Ctrl-A, Cmd+Right as Ctrl-E and Cmd+Backspace as Ctrl-U; libghostty-vt only encodes keys and does not apply keybinds, so the pane sends them itself. Ghostty binds none of these on Linux or Windows.
 fn terminal_line_editing_input(keystroke: &Keystroke) -> Option<&'static [u8]> {
     let modifiers = &keystroke.modifiers;
-    if !terminal_uses_macos_text_editing()
+    if !uses_macos_text_editing()
         || !modifiers.platform
         || modifiers.shift
         || modifiers.control
@@ -4344,15 +4344,17 @@ fn terminal_line_editing_input(keystroke: &Keystroke) -> Option<&'static [u8]> {
     }
 }
 
+/// Whether text editing keys follow the Mac table (Cmd+Backspace, Cmd+Left/Right, Option word moves): the terminal's Ghostty keybinds, the text inputs' key table (`gpui_component::input::MacTextKeys`) and the chat composer's line commands.
+///
 /// CDXC:Terminal 2026-10-16 WHY:
 /// Ghostty's natural text editing keybinds are macOS-only. The browser build is compiled for wasm32, so it asks the browser whether the keyboard in use is a Mac's (the same test gpui's web platform uses to map Cmd).
 #[cfg(not(target_arch = "wasm32"))]
-fn terminal_uses_macos_text_editing() -> bool {
+pub(crate) fn uses_macos_text_editing() -> bool {
     cfg!(target_os = "macos")
 }
 
 #[cfg(target_arch = "wasm32")]
-fn terminal_uses_macos_text_editing() -> bool {
+pub(crate) fn uses_macos_text_editing() -> bool {
     thread_local! {
         static IS_MAC: bool = web_sys::window().is_some_and(|window| {
             let navigator = window.navigator();
