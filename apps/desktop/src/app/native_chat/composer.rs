@@ -233,6 +233,17 @@ impl NativeChatView {
                     this.perform_composer_action(action, event.position(), window, cx)
                 }),
             )
+            // More actions and Attach open menus lined up with this button's right edge.
+            .when_some(
+                self.composer_button_bounds.cell(action),
+                |this, measured| {
+                    this.child(
+                        gpui::canvas(move |bounds, _, _| measured.set(bounds), |_, _, _, _| {})
+                            .absolute()
+                            .inset(px(0.0)),
+                    )
+                },
+            )
             .when(action == "stashPrompt", |this| {
                 this.on_mouse_down(
                     gpui::MouseButton::Right,

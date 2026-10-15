@@ -241,6 +241,8 @@ impl NativeChatView {
                 } else {
                     256.0
                 };
+                // "Statusline Config": its menu lines up with the ring's left edge.
+                chat.menu_side = Some(super::option_menu::MenuSide::Left);
                 chat.show_chat_menu(chat.context_menu_rows(), bounds.get(), width, window, cx);
             }))
             // The ring's own box, pinned with insets like the option pills' (option_pills.rs).

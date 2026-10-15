@@ -123,8 +123,10 @@ impl NativeChatView {
         } else {
             0x171717
         });
+        let measured = self.composer_button_bounds.send.clone();
         div()
             .id("chat-send")
+            .relative()
             .role(gpui::Role::Button)
             .aria_label(label.clone())
             .size(px(24.0 * p.scale))
@@ -196,6 +198,12 @@ impl NativeChatView {
                     })
                     .size(px(12.0 * p.scale))
                     .text_color(ink),
+            )
+            // Send's right-click menu lines up with this button's right edge.
+            .child(
+                gpui::canvas(move |bounds, _, _| measured.set(bounds), |_, _, _, _| {})
+                    .absolute()
+                    .inset(px(0.0)),
             )
             .into_any_element()
     }

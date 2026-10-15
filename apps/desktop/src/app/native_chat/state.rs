@@ -97,9 +97,11 @@ pub(crate) struct NativeChatView {
     pub(super) model_pill_bounds: std::rc::Rc<std::cell::Cell<gpui::Bounds<gpui::Pixels>>>,
     /// Set while the next menu this view opens belongs to another surface (the terminal's model pill), not to its own pane.
     pub(super) menu_outside_pane: bool,
-    /// The next menu opens above its trigger when it fits there (a working-row pill's menu floats
-    /// over the transcript instead of over the composer under it).
-    pub(super) menu_above: bool,
+    /// The next menu opens above its trigger, on this side of it (`MenuSide`, option_menu/window.rs).
+    pub(super) menu_side: Option<super::option_menu::MenuSide>,
+    /// Where the composer's More actions, Attach and Send buttons were last painted, which their
+    /// menus line up with.
+    pub(super) composer_button_bounds: super::toolbar::ComposerButtonBounds,
     /// A model pop-up asked for before this view had its first snapshot: the trigger and its window.
     pub(super) pending_model_menu: Option<(gpui::Bounds<gpui::Pixels>, gpui::AnyWindowHandle)>,
     pub(crate) window_subscription: Option<Subscription>,
@@ -383,7 +385,8 @@ impl NativeChatView {
             drawn_window_size: gpui::Size::default(),
             model_pill_bounds: Default::default(),
             menu_outside_pane: false,
-            menu_above: false,
+            menu_side: None,
+            composer_button_bounds: Default::default(),
             pending_model_menu: None,
             window_subscription: None,
             _app_modal_subscription: cx

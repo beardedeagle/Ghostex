@@ -1,6 +1,6 @@
 mod render;
 mod window;
-pub(super) use window::ChatOptionMenu;
+pub(super) use window::{ChatOptionMenu, MenuSide};
 mod geometry;
 
 mod accounts;

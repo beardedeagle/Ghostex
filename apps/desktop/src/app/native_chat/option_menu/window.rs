@@ -43,6 +43,17 @@ fn watch_pointer_presses() {
     }
 }
 
+/// Which edge of its trigger a composer menu lines up with. Either way it opens 4px above the
+/// trigger (below it only when there is no room above) and stays inside the chat.
+///
+/// CDXC:SessionChat 2026-10-16 DECISION:
+/// User: "model/effort picker, mode picker, statusline config all these 3 must show menu aligned to their left edge and menu appearing above. for the other menus in the composer in the chat view it should show aligned to the right side of the button/pill that triggers that menu". So the model picker, the mode and options pills and the context ring (whose tooltip reads "Statusline Config") use `Left`; More actions, Send's menu, Attach (Linux), Files and links and the working-row pills use `Right`. A menu too wide for the room on its side narrows rather than sliding off its trigger's edge; this supersedes the 2026-10-15 rule that only the pills' menus opened above.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::app::native_chat) enum MenuSide {
+    Left,
+    Right,
+}
+
 pub(in crate::app::native_chat) struct ChatOptionMenu {
     pub(super) chat: gpui::WeakEntity<NativeChatView>,
     pub(super) source: gpui::AnyWindowHandle,
@@ -72,8 +83,8 @@ pub(in crate::app::native_chat) struct ChatOptionMenu {
     tooltips: Option<gpui::TooltipSuppression>,
     /// The working-row pill this menu belongs to (`chat_pills.rs`), told when the menu goes away.
     pill: Option<&'static str>,
-    /// Its first panel opens above the trigger when it fits there (`NativeChatView::menu_above`).
-    above: bool,
+    /// Its first panel opens above the trigger on this side of it (`NativeChatView::menu_side`).
+    side: Option<MenuSide>,
 }
 
 pub(super) struct ChatOptionMenuPanel {
@@ -386,13 +397,15 @@ impl ChatOptionMenu {
             super::geometry::width_for_details(&rows, width, &self.appearance, cx)
         };
         let width = px(width * scale).min(available.size.width - px(24.0 * scale));
-        // A menu opening above its trigger (a working-row pill's) keeps its right edge on the
-        // trigger's: when the room left of that edge is too narrow it narrows instead of sliding
-        // right past the trigger (the clamp below would otherwise push it).
-        let width = if depth == 0 && self.above && !below {
-            width.min(anchor.right() - available.left() - px(12.0 * scale))
-        } else {
-            width
+        // A composer menu keeps its edge on its trigger's: when the room on that side is too narrow
+        // it narrows instead of sliding past the trigger (the clamp below would otherwise push it).
+        let side = self.side.filter(|_| depth == 0 && !below);
+        let width = match side {
+            Some(MenuSide::Right) => {
+                width.min(anchor.right() - available.left() - px(12.0 * scale))
+            }
+            Some(MenuSide::Left) => width.min(available.right() - px(12.0 * scale) - anchor.left()),
+            None => width,
         };
         let heights = match super::geometry::measure_rows(
             &rows,
@@ -416,7 +429,7 @@ impl ChatOptionMenu {
             * scale)
         .min(available.size.height - px(24.0 * scale));
         let margin = px(12.0 * scale);
-        let x = if below {
+        let x = if below || side == Some(MenuSide::Left) {
             anchor.left()
         } else if depth == 0 {
             anchor.right() - width
@@ -425,8 +438,7 @@ impl ChatOptionMenu {
         } else {
             anchor.left() - width - px(4.0 * scale)
         };
-        let y = if depth == 0
-            && self.above
+        let y = if side.is_some()
             && anchor.top() - px(4.0 * scale) - height > available.top() + margin
         {
             anchor.top() - height - px(4.0 * scale)
@@ -714,6 +726,7 @@ impl NativeChatView {
         {
             return;
         }
+        self.menu_side = Some(MenuSide::Left);
         self.show_chat_menu(
             rows,
             trigger,
@@ -789,6 +802,8 @@ impl NativeChatView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        // Taken first, so a side set for a menu that does not open never reaches the next one.
+        let side = self.menu_side.take();
         if rows.is_empty() {
             return;
         }
@@ -817,7 +832,6 @@ impl NativeChatView {
         let parent = super::super::child_window::window_native_view(window)
             .unwrap_or(self.config.parent_native_view);
         let outside_pane = std::mem::take(&mut self.menu_outside_pane);
-        let above = std::mem::take(&mut self.menu_above);
         let tooltips = Some(Root::suppress_tooltips(window, cx));
         let owner = crate::app::window::popup_frame::PopupOwner::of(window, cx);
         let menu = cx.new(|_| ChatOptionMenu {
@@ -838,7 +852,7 @@ impl NativeChatView {
             model_effort: None,
             tooltips,
             pill: None,
-            above,
+            side,
         });
         let anchor = Bounds::new(content_bounds.origin + trigger.origin, trigger.size);
         menu.update(cx, |menu, cx| {

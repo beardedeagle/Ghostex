@@ -61,7 +61,10 @@ impl NativeChatView {
                 "command":{"type":"submit","mode":"compact"},
             }),
         ];
-        self.show_chat_menu_at(rows, position, 240.0, window, cx);
+        self.menu_side = Some(super::option_menu::MenuSide::Right);
+        let trigger =
+            super::toolbar::button_trigger(self.composer_button_bounds.send.get(), position);
+        self.show_chat_menu(rows, trigger, 240.0, window, cx);
     }
 
     /// CDXC:SessionChat 2026-09-27 DECISION:
@@ -268,13 +271,13 @@ impl NativeChatView {
         }
         // Second from the bottom (gx-chat-core `composer/ghostex_skills.rs`).
         rows.insert(rows.len().saturating_sub(1), self.skills_row());
-        self.show_chat_menu(
-            rows,
-            gpui::Bounds::new(position, gpui::size(gpui::px(0.0), gpui::px(0.0))),
-            240.0,
-            window,
-            cx,
+        // Lined up with the More actions button, not the point it was clicked at.
+        self.menu_side = Some(super::option_menu::MenuSide::Right);
+        let trigger = super::toolbar::button_trigger(
+            self.composer_button_bounds.more_actions.get(),
+            position,
         );
+        self.show_chat_menu(rows, trigger, 240.0, window, cx);
     }
 
     /// The notice card's Switch account button: the same panel as More actions > Switch Account.

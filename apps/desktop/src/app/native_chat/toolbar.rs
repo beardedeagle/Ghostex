@@ -44,6 +44,40 @@ pub(super) const COMPOSER_CONTROLS: [(&str, &str, &str, &str); 7] = [
     ),
 ];
 
+/// Where the composer buttons that open a menu were last painted: each menu lines up with its
+/// button's right edge (`MenuSide::Right`).
+#[derive(Default)]
+pub(super) struct ComposerButtonBounds {
+    pub(super) more_actions: std::rc::Rc<std::cell::Cell<gpui::Bounds<gpui::Pixels>>>,
+    pub(super) attach: std::rc::Rc<std::cell::Cell<gpui::Bounds<gpui::Pixels>>>,
+    pub(super) send: std::rc::Rc<std::cell::Cell<gpui::Bounds<gpui::Pixels>>>,
+}
+
+impl ComposerButtonBounds {
+    pub(super) fn cell(
+        &self,
+        action: &str,
+    ) -> Option<std::rc::Rc<std::cell::Cell<gpui::Bounds<gpui::Pixels>>>> {
+        match action {
+            "moreActions" => Some(self.more_actions.clone()),
+            "attachPath" => Some(self.attach.clone()),
+            _ => None,
+        }
+    }
+}
+
+/// The button's painted bounds, or a point at `position` before its first paint.
+pub(super) fn button_trigger(
+    bounds: gpui::Bounds<gpui::Pixels>,
+    position: gpui::Point<gpui::Pixels>,
+) -> gpui::Bounds<gpui::Pixels> {
+    if bounds.size.width > px(0.0) {
+        bounds
+    } else {
+        gpui::Bounds::new(position, gpui::size(px(0.0), px(0.0)))
+    }
+}
+
 /// The Linux Attach button's trigger id, so a second press closes its Files/Folders menu.
 const ATTACH_PATH_TRIGGER: &str = "chat-attach-path";
 
@@ -79,10 +113,14 @@ impl NativeChatView {
             "summaryMode" => self.invoke(json!({"type":"toggleSummary"}),cx),
             "dictate" => self.toggle_dictation(window,cx),
             "attachPath" if cfg!(target_os = "linux") && self.chat_menu_toggled_shut(ATTACH_PATH_TRIGGER, cx) => {}
-            "attachPath" if cfg!(target_os = "linux") => self.show_chat_menu_at(vec![
-                json!({"label":"Images or files…","command":{"type":"host","action":"pickAttachments","requestId":"native-chat-attachments","selection":"files"}}),
-                json!({"label":"Folders…","command":{"type":"host","action":"pickAttachments","requestId":"native-chat-attachments","selection":"folders"}}),
-            ], position, 200.0, window, cx),
+            "attachPath" if cfg!(target_os = "linux") => {
+                self.menu_side = Some(super::option_menu::MenuSide::Right);
+                let trigger = button_trigger(self.composer_button_bounds.attach.get(), position);
+                self.show_chat_menu(vec![
+                    json!({"label":"Images or files…","command":{"type":"host","action":"pickAttachments","requestId":"native-chat-attachments","selection":"files"}}),
+                    json!({"label":"Folders…","command":{"type":"host","action":"pickAttachments","requestId":"native-chat-attachments","selection":"folders"}}),
+                ], trigger, 200.0, window, cx)
+            }
             "attachPath" => self.host("pickAttachments",json!({"requestId":"native-chat-attachments"}),cx),
             "stashPrompt" if !self.draft.trim().is_empty() => self.invoke(json!({"type":"stash","text":self.draft,"draftVersion":{"draftId":self.draft_id,"revision":self.draft_revision}}),cx),
             "stashPrompt" => self.host("stashedPrompts",json!({}),cx),

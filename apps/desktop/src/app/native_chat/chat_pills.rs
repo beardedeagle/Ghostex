@@ -406,7 +406,7 @@ impl NativeChatView {
         let Some(height) = self.pill_menu_height(id) else {
             return;
         };
-        self.menu_above = true;
+        self.menu_side = Some(super::option_menu::MenuSide::Right);
         self.show_chat_menu(
             vec![json!({"pillMenu": {"id": id, "height": height}})],
             trigger,

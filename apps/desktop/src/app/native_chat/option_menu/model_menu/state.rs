@@ -364,6 +364,7 @@ impl NativeChatView {
         // Every visit starts on the session's own agent with an empty search.
         self.invoke(json!({"type":"modelMenuView","tab":null,"query":""}), cx);
         let marker = shape(&self.snapshot["modelMenu"]);
+        self.menu_side = Some(super::super::MenuSide::Left);
         self.show_chat_menu(
             vec![json!({"modelMenu":marker})],
             trigger,
