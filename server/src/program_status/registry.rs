@@ -48,24 +48,17 @@ pub(crate) struct SessionProgramStatus {
     /// The user interrupted the current turn from Ghostex (Escape in the
     /// terminal pane or Stop in the chat) since the session last went working.
     pub interrupted: bool,
-    /// The current working stint began after an earlier report that was not
-    /// working (the program sat at its prompt, or waited on the user) and
-    /// after the program's start-up grace, so it is a turn.
-    pub working_from_report: bool,
-    /// When the program showed up: the first snapshot with records after an
-    /// empty one (unix ms).
-    pub program_started_at_ms: Option<i64>,
-}
-
-/// A program's own start-up is not a turn: Codex 0.163 reports idle, then
-/// working while it loads, then idle again within a couple of seconds.
-const STARTUP_GRACE_MS: i64 = 10_000;
-
-fn unix_now_ms() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|elapsed| elapsed.as_millis() as i64)
-        .unwrap_or(0)
+    /// The daemon's count of submitted input (an Enter reaching the session
+    /// from a terminal, a chat send, `ghostex send-text` and the like); `None`
+    /// from a daemon that predates it.
+    pub submits: Option<u64>,
+    /// `submits` when the last working stint began (or when the program was
+    /// first seen), so each stint can tell whether input arrived since.
+    pub submits_at_working_start: Option<u64>,
+    /// Input was submitted between the previous working stint's start and this
+    /// one's: it is a turn (a prompt typed ahead during the last turn counts).
+    /// A program's own start-up (idle, working while it loads, idle) has none.
+    pub working_after_input: bool,
 }
 
 fn registry() -> &'static Mutex<HashMap<String, SessionProgramStatus>> {
@@ -93,6 +86,7 @@ pub(crate) fn store_program_status_snapshot(
     project_id: &str,
     session_id: &str,
     reported: bool,
+    submits: Option<u64>,
     records: Vec<ProgramStatusRecord>,
 ) -> bool {
     let Ok(mut registry) = registry().lock() else {
@@ -104,11 +98,7 @@ pub(crate) fn store_program_status_snapshot(
     let changed = !entry.supported || entry.reported != reported || entry.records != records;
     entry.supported = true;
     entry.reported = reported;
-    if entry.records.is_empty() && !records.is_empty() {
-        entry.program_started_at_ms = Some(unix_now_ms());
-    } else if records.is_empty() {
-        entry.program_started_at_ms = None;
-    }
+    entry.submits = submits;
     entry.records = records;
     changed
 }
@@ -131,8 +121,9 @@ pub(crate) fn set_program_status_applied_key(
     set_program_status_applied(project_id, session_id, key, None);
 }
 
-/// Record what was last written to the session's activity. A working state
-/// starts a new turn, so it forgets an earlier interrupt.
+/// Record what was last written to the session's activity. Entering working
+/// starts a stint: it forgets an earlier interrupt and notes whether input
+/// was submitted since the previous stint began.
 pub(crate) fn set_program_status_applied(
     project_id: &str,
     session_id: &str,
@@ -141,12 +132,16 @@ pub(crate) fn set_program_status_applied(
 ) {
     if let Ok(mut registry) = registry().lock() {
         if let Some(entry) = registry.get_mut(&registry_key(project_id, session_id)) {
+            if entry.submits_at_working_start.is_none() {
+                entry.submits_at_working_start = entry.submits;
+            }
             if state == Some("working") && entry.applied_state.as_deref() != Some("working") {
                 entry.interrupted = false;
-                entry.working_from_report = entry.applied_state.is_some()
-                    && entry
-                        .program_started_at_ms
-                        .is_some_and(|started| unix_now_ms() - started >= STARTUP_GRACE_MS);
+                entry.working_after_input = matches!(
+                    (entry.submits, entry.submits_at_working_start),
+                    (Some(now), Some(before)) if now > before
+                );
+                entry.submits_at_working_start = entry.submits;
             }
             entry.applied_key = key;
             entry.applied_state = state.map(str::to_string);

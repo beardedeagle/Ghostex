@@ -25,6 +25,7 @@ use super::{
 pub(crate) enum ProgramStatusLine {
     Snapshot {
         reported: bool,
+        submits: Option<u64>,
         records: Vec<ProgramStatusRecord>,
     },
     /// The daemon predates OSC 7501 support.
@@ -35,6 +36,9 @@ pub(crate) enum ProgramStatusLine {
 struct SnapshotWire {
     #[serde(default)]
     reported: bool,
+    /// Absent from a daemon that predates the input count.
+    #[serde(default)]
+    submits: Option<u64>,
     #[serde(default)]
     records: Vec<ProgramStatusRecord>,
 }
@@ -51,6 +55,7 @@ pub(crate) fn parse_program_status_line(line: &str) -> Option<ProgramStatusLine>
         serde_json::from_value(value.get("programStatus")?.clone()).ok()?;
     Some(ProgramStatusLine::Snapshot {
         reported: snapshot.reported,
+        submits: snapshot.submits,
         records: snapshot.records,
     })
 }
@@ -67,9 +72,11 @@ pub(crate) fn ingest_program_status_line(
             mark_program_status_unsupported(project_id, session_id);
             false
         }
-        ProgramStatusLine::Snapshot { reported, records } => {
-            store_program_status_snapshot(project_id, session_id, reported, records)
-        }
+        ProgramStatusLine::Snapshot {
+            reported,
+            submits,
+            records,
+        } => store_program_status_snapshot(project_id, session_id, reported, submits, records),
     };
     apply_program_status(state, project_id, session_id, records_changed);
 }
@@ -201,7 +208,7 @@ enum FinishedTurnStep {
 }
 
 /// CDXC:SessionStatus 2026-10-15 DECISION:
-/// User (Q116): "treat an agent's working → idle as finished" (blue finished dot until the user looks), so an agent that ends its turn with `idle` instead of `done` (Codex 0.163 does) still shows as finished. Only for agent sessions, only for a working stint that began after an earlier report and at least 10 seconds after the program first reported (Codex 0.163 reports idle, working while it loads, then idle at start-up, which is not a turn), only while the program is still there (its idle record, not an empty list after it exited), and not when the user interrupted the turn from Ghostex: Escape in the terminal pane and Stop in the chat both send `escape`, which `compute_activity_update` notes for the session. A Ctrl-C typed straight into the terminal cannot be told apart and does count as finished.
+/// User (Q116): "treat an agent's working → idle as finished" (blue finished dot until the user looks), so an agent that ends its turn with `idle` instead of `done` (Codex 0.163 does) still shows as finished. Only for agent sessions, only for a working stint that began after input was submitted to the session since the previous working stint began (an Enter from the terminal, a chat send, an orchestrator message, `ghostex send-text`; the daemon counts them), so a program's own start-up (Codex 0.163 reports idle, working while it loads, then idle) is never a turn whatever its length, only while the program is still there (its idle record, not an empty list after it exited), and not when the user interrupted the turn from Ghostex: Escape in the terminal pane and Stop in the chat both send `escape`, which `compute_activity_update` notes for the session. A Ctrl-C typed straight into the terminal cannot be told apart and does count as finished.
 fn finished_turn_step(
     entry: &super::SessionProgramStatus,
     derived: &super::DerivedProgramStatus,
@@ -213,7 +220,7 @@ fn finished_turn_step(
     match entry.applied_state.as_deref() {
         Some("finished") => FinishedTurnStep::StillFinished,
         Some("working")
-            if entry.working_from_report && !entry.interrupted && is_agent_session(session) =>
+            if entry.working_after_input && !entry.interrupted && is_agent_session(session) =>
         {
             FinishedTurnStep::Promote
         }
