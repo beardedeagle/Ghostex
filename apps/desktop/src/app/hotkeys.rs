@@ -150,6 +150,8 @@ pub(crate) fn gpui_focused_chat_hotkey_action_id(action_id: &str) -> bool {
             | "copyLastChatCodeBlock"
             | "copyLastChatReply"
             | "toggleChatSummaryMode"
+            | "toggleChatComposerMaximized"
+            | "toggleChatFilesLinks"
     )
 }
 
@@ -171,6 +173,9 @@ pub(crate) fn gpui_platform_hotkey_for_action<'a>(action_id: &str, key: &'a str)
             "copyLastChatReply" => Some(("cmd+shift+c", "")),
             // Ctrl+Alt+S is Delayed Actions on Windows and Linux.
             "toggleChatSummaryMode" => Some(("ctrl+alt+s", "cmd+alt+shift+s")),
+            // Ctrl+Alt+L locks the screen on several Linux desktops.
+            "toggleChatComposerMaximized" => Some(("ctrl+alt+m", "cmd+alt+shift+m")),
+            "toggleChatFilesLinks" => Some(("ctrl+alt+l", "cmd+alt+shift+l")),
             "popOutPane" => Some(("ctrl+shift+o", "cmd+alt+o")),
             // CDXC:Navigation 2026-08-19: same Mac-Control substitution
             // as the Jump to Project entries below, mirroring the
@@ -385,6 +390,8 @@ pub(crate) const GPUI_DEFAULT_GHOSTEX_HOTKEYS: &[(&str, &str)] = &[
     ("copyLastChatCodeBlock", "cmd+shift+;"),
     ("copyLastChatReply", "cmd+shift+c"),
     ("toggleChatSummaryMode", "ctrl+alt+s"),
+    ("toggleChatComposerMaximized", "ctrl+alt+m"),
+    ("toggleChatFilesLinks", "ctrl+alt+l"),
     ("forkSession", "cmd+ctrl+shift+f"),
     ("reloadSession", ""),
     ("sleepFocusedSession", "cmd+shift+a"),

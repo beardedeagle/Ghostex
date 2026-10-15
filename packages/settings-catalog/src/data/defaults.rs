@@ -659,6 +659,8 @@ pub const DEFAULT_GHOSTEX_SETTINGS: &[(&str, J)] = &[
             ("copyLastChatCodeBlock", J::Str("cmd+shift+;")),
             ("copyLastChatReply", J::Str("cmd+shift+c")),
             ("toggleChatSummaryMode", J::Str("ctrl+alt+s")),
+            ("toggleChatComposerMaximized", J::Str("ctrl+alt+m")),
+            ("toggleChatFilesLinks", J::Str("ctrl+alt+l")),
             ("createAgentSession", J::Str("cmd+shift+o")),
             ("createSession", J::Str("cmd+shift+t")),
             ("openCommandPalette", J::Str("cmd+shift+p")),

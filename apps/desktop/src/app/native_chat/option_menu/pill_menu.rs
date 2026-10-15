@@ -1,16 +1,24 @@
-//! A working-row pill's floating menu (`chat_pills.rs`): the rows the Threads, Tasks or Subagents
-//! panel used to show above the composer, drawn in a chat menu window over the transcript.
+//! A working-row pill's floating menu (`chat_pills.rs`): the rows the Threads, Tasks, Subagents or
+//! Background panel used to show above the composer, drawn in a chat menu window over the
+//! transcript. The Files and links menu (files_links.rs) is drawn the same way.
 
 use super::window::ChatOptionMenuPanel;
 use crate::app::native_chat::state::NativeChatView;
-use gpui::{AnyElement, Context, Entity, IntoElement, ParentElement as _, Styled as _, div, px};
+use gpui::{
+    AnyElement, Context, Entity, IntoElement, ParentElement as _, Styled as _, Window, div, px,
+};
 use serde_json::{Value, json};
 use std::sync::Arc;
 
 impl ChatOptionMenuPanel {
     /// The chat draws the body with its own listeners, so a row's click reaches the chat as it did
     /// when the panel lived in the chat's window.
-    pub(super) fn render_pill_menu(&self, pill: &Value, cx: &mut Context<Self>) -> AnyElement {
+    pub(super) fn render_pill_menu(
+        &self,
+        pill: &Value,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
         let id = pill["id"].as_str().unwrap_or_default().to_owned();
         let height = pill["height"].as_f64().unwrap_or(0.0) as f32;
         let (appearance, chat) = {
@@ -18,7 +26,9 @@ impl ChatOptionMenuPanel {
             (menu.appearance.clone(), menu.chat.clone())
         };
         let body = chat
-            .update(cx, |chat, cx| chat.pill_menu_body(&id, &appearance, cx))
+            .update(cx, |chat, cx| {
+                chat.pill_menu_body(&id, &appearance, window, cx)
+            })
             .ok()
             .flatten();
         div()
@@ -46,14 +56,24 @@ impl ChatOptionMenuPanel {
         else {
             return;
         };
-        let snapshot = &chat.read(cx).snapshot;
-        let height = crate::app::native_chat::chat_pills::pill_menu_height(&id, snapshot);
+        let chat = chat.read(cx);
+        let snapshot = &chat.snapshot;
+        let height = chat.pill_menu_height(&id);
         let Some(height) = height.filter(|_| !snapshot["subagent"].is_object()) else {
             self.menu.update(cx, |menu, cx| menu.close(None, cx));
             return;
         };
         cx.notify();
-        if self.heights.first() == Some(&height) {
+        // Files and links only grows while it is open: filtering shrinks its list on every
+        // keystroke, and where a window cannot move in place (the web build, Windows) a shrink
+        // reopens the menu, which took the filter's focus and sent the next key to the chat box.
+        let current = self.heights.first().copied().unwrap_or(0.0);
+        let height = if id == "filesLinks" {
+            height.max(current)
+        } else {
+            height
+        };
+        if current == height {
             return;
         }
         let rows = vec![json!({"pillMenu": {"id": id, "height": height}})];

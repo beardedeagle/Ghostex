@@ -287,7 +287,7 @@ impl Render for ChatOptionMenuPanel {
                 continue;
             }
             if row["pillMenu"].is_object() {
-                body = body.child(self.render_pill_menu(&row["pillMenu"], cx));
+                body = body.child(self.render_pill_menu(&row["pillMenu"], window, cx));
                 continue;
             }
             if row["accounts"].is_object() {

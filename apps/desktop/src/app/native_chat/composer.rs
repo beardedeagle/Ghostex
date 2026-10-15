@@ -221,6 +221,7 @@ impl NativeChatView {
                     "sessionNote" => Some("sessionNote"),
                     "stashPrompt" => Some("stashPrompt"),
                     "attachPath" => Some("attachFileOrFolder"),
+                    "maximizeComposer" => Some("toggleChatComposerMaximized"),
                     _ => None,
                 };
                 gpui_component::tooltip::Tooltip::new(tooltip_with_hotkey(label, hotkey_id))
@@ -377,9 +378,7 @@ impl NativeChatView {
         if let Some(card) = self.render_catch_up(p, window, cx) {
             footer = footer.child(card);
         }
-        if let Some(card) = self.render_files_links(p, window, cx) {
-            footer = footer.child(card);
-        }
+        self.sync_files_links_menu(window, cx);
         if maximized {
             if let Some(suggestions) = self.inline_suggestions(window, cx) {
                 let height =

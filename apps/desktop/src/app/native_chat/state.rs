@@ -163,6 +163,13 @@ pub(crate) struct NativeChatView {
     /// Files and links: the card's filter field, and the jump it last scrolled to (files_links.rs).
     pub(super) files_links_input: Option<Entity<InputState>>,
     pub(super) files_links_subscription: Option<Subscription>,
+    /// The window the filter field was made in: the Files and links menu's own window, which a
+    /// reopened menu replaces.
+    pub(super) files_links_input_window: Option<gpui::WindowId>,
+    /// The Files and links menu is about to open, or its close has been sent to the core and the
+    /// document still says open: either way the next render must not open it again.
+    pub(super) files_links_menu_pending: bool,
+    pub(super) files_links_closing: bool,
     pub(super) files_links_jump_revision: u64,
     /// The question jump this pane last scrolled to (`None` before its first document), and the
     /// highlight on the question it landed on (open_questions.rs).
@@ -421,6 +428,9 @@ impl NativeChatView {
             search_scrolled_revision: -1,
             files_links_input: None,
             files_links_subscription: None,
+            files_links_input_window: None,
+            files_links_menu_pending: false,
+            files_links_closing: false,
             files_links_jump_revision: 0,
             open_question_jump_revision: None,
             question_flash: None,

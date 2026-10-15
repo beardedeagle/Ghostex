@@ -1341,9 +1341,12 @@ button again closes it. Nothing is sent to the session's own agent. If the
 Title Generation Agent is not installed, the card says so; pick another one in
 Settings > Agents. Setting: `chatCatchMeUp`.
 
-Files and links: the link button in the chat box's toolbar (after Session note;
-in More actions when the window is narrow) opens a list above the chat box of
-everything the session mentioned, on the computer and on the phone. Attachments
+Files and links: More actions > Files and links (or its shortcut, Option+Ctrl+L
+on macOS and Ctrl+Alt+Shift+L on Windows and Linux, changeable in Settings >
+Hotkeys) opens a menu that floats above the chat box, without pushing the
+conversation up, listing everything the session mentioned, on the computer and
+on the phone (where it opens as a sheet). Click outside it or press Escape to
+close it. Attachments
 holds every picture (pasted, attached, or shown by the agent) and every file
 you attached; Files holds every other file or folder you or the agent mentioned
 and every file the agent created, edited or deleted (tagged New, Edited or
@@ -1369,6 +1372,9 @@ chat toolbar has room, and is always under More actions > View.
 The button highlights when Summary mode is on; its tooltip shows the Toggle Summary
 Mode shortcut (Option+Ctrl+S on macOS, Ctrl+Alt+Shift+S on Windows and Linux), which
 switches it from anywhere in that chat and can be changed in Settings > Hotkeys.
+The Maximize button's tooltip shows the Maximize Chat Box shortcut (Option+Ctrl+M
+on macOS, Ctrl+Alt+Shift+M on Windows and Linux), which maximizes the chat box of
+the chat you are in, or restores it.
 As space gets tighter, toolbar buttons move into More actions one at a time:
 Summary mode (under View), Session note, Stash prompt, Attach, Maximize, then
 Terminal View.

@@ -82,7 +82,7 @@ fn menu_width(id: &str) -> f32 {
 }
 
 /// The menu's content height (unscaled) for `id`, or `None` when its panel is gone.
-pub(super) fn pill_menu_height(id: &str, snapshot: &Value) -> Option<f32> {
+fn panel_menu_height(id: &str, snapshot: &Value) -> Option<f32> {
     let (key, height): (&str, fn(&Value) -> f32) = match id {
         "threads" => (
             "coordinatorThreadsPanel",
@@ -388,7 +388,7 @@ impl NativeChatView {
         if self.chat_menu_toggled_shut(trigger_id, cx) {
             return;
         }
-        let Some(height) = pill_menu_height(id, &self.snapshot) else {
+        let Some(height) = self.pill_menu_height(id) else {
             return;
         };
         self.menu_above = true;
@@ -404,14 +404,31 @@ impl NativeChatView {
         }
     }
 
-    /// The body `id`'s menu draws, built with this view's listeners so its rows act on this chat.
+    /// The menu's content height (unscaled) for `id`, or `None` when its panel is gone. The Files
+    /// and links menu is capped at 60% of the pane; its list scrolls inside.
+    pub(super) fn pill_menu_height(&self, id: &str) -> Option<f32> {
+        if id == "filesLinks" {
+            let scale = ChatAppearance::current(&self.snapshot).scale;
+            let pane = f32::from(self.bounds.get().size.height) / scale;
+            return super::files_links::files_links_menu_height(
+                &self.snapshot["filesLinks"],
+                (pane * 0.6).max(160.0),
+            );
+        }
+        panel_menu_height(id, &self.snapshot)
+    }
+
+    /// The body `id`'s menu draws, built with this view's listeners so its rows act on this chat;
+    /// `window` is the menu's own.
     pub(super) fn pill_menu_body(
-        &self,
+        &mut self,
         id: &str,
         p: &ChatAppearance,
-        cx: &Context<Self>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
     ) -> Option<AnyElement> {
         match id {
+            "filesLinks" => self.files_links_menu_body(p, window, cx),
             "threads" => self.threads_menu_body(p, cx),
             "tasks" => self.tasks_menu_body(p, cx),
             "subagents" => self.fleet_menu_body(p, cx),
@@ -432,6 +449,9 @@ impl NativeChatView {
     pub(super) fn pill_menu_closed(&mut self, trigger: &'static str, cx: &mut Context<Self>) {
         if trigger == "chat-pill-threads" {
             self.invoke(json!({"type":"toggleCoordinatorThreadsMore","step":0}), cx);
+        }
+        if trigger == super::files_links::FILES_LINKS_TRIGGER {
+            self.files_links_menu_closed(cx);
         }
     }
 }

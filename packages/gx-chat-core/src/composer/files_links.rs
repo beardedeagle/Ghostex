@@ -3,15 +3,16 @@
 //!
 //! The button asks gxserver (`/api/readSessionFilesLinks`) for the list, which it gathers with the
 //! transcript's own detection (`transcript/files_links.rs`) from the session's whole transcript,
-//! and for a coordinator from each of its threads too. The card above the composer shows it in
+//! and for a coordinator from each of its threads too. A menu floating above the composer (a sheet on
+//! the phone) shows it in
 //! three sections (Attachments, Files, Links) with a count each, grouped by thread when the list
 //! spans several sessions, with a filter box once it is long. A row opens its item (a picture in
 //! the image viewer, a file the way a transcript pill opens it, a link in the browser); its jump
 //! buttons scroll the transcript to the message that first or last mentioned it, or open the
 //! thread that did.
 //!
-//! CDXC:FilesAndLinks 2026-10-12 DECISION:
-//! User: "i want to add a feature to see all the attachements and links that were mentioned in a session (and for coordinator threads should be that session and it's own sub sessions) should be a button, when i click it then it should show me a list that shows these files locations and links so i can go through them quick". The button sits in the composer's toolbar after Session note (it folds into More actions like the others when the row is narrow); the card lists Attachments, Files and Links, each item once with its first and last mention, and a coordinator's list covers its own chat and every thread, done ones included, grouped by thread title.
+//! CDXC:FilesAndLinks 2026-10-15 DECISION:
+//! User (2026-10-15): "move files & links inside the 3 dots pls and make it open a pop up menu not push the chat transcript please", and a hotkey for it (`toggleChatFilesLinks`). This supersedes the toolbar button and the card above the composer of 2026-10-12: the entry is a More actions row, and `open` now drives a floating menu (apps/desktop/src/app/native_chat/actions.rs and files_links.rs; the phone's sheet). The rest stands. User (2026-10-12): "i want to add a feature to see all the attachements and links that were mentioned in a session (and for coordinator threads should be that session and it's own sub sessions) should be a button, when i click it then it should show me a list that shows these files locations and links so i can go through them quick". The list shows Attachments, Files and Links, each item once with its first and last mention, and a coordinator's list covers its own chat and every thread, done ones included, grouped by thread title.
 //! CDXC:FilesAndLinks 2026-10-12 WHY:
 //! A row's jump finds the message among the rows the transcript has loaded, and a message folded into a finished turn lands on that turn. One older than the loaded history (a coordinator's First is often days back) pages the history in the way "Load earlier" does, one page per settle and at most `MAX_JUMP_PAGES`, then scrolls; a note says so only when it still cannot be reached.
 //! CDXC:FilesAndLinks 2026-10-12 WHY:

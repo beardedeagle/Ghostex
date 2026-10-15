@@ -1,5 +1,7 @@
-//! Files and links: the card above the composer that lists every attachment, file and link the
-//! session mentioned (a coordinator's threads included), opened from its toolbar button. The core
+//! Files and links: the floating menu above the chat box that lists every attachment, file and link
+//! the session mentioned (a coordinator's threads included), opened from its More actions row or
+//! its hotkey (CDXC:FilesAndLinks 2026-10-15 in actions.rs). It is a chat menu window
+//! (option_menu/pill_menu.rs), like the working row's pill menus. The core
 //! owns what is listed, the sections, the filter and where a jump lands
 //! (`packages/gx-chat-core/src/composer/files_links.rs`); this draws it, opens a row's item and
 //! scrolls the transcript once per jump.
@@ -19,6 +21,19 @@ use gpui::{
 };
 use gpui_component::input::{Input, InputEvent, InputState};
 use serde_json::{Value, json};
+
+/// The menu-toggle key of the Files and links menu (menu_toggle.rs, chat_pills.rs).
+pub(super) const FILES_LINKS_TRIGGER: &str = "chat-files-links";
+
+/// The menu's blocks, in unscaled pixels: fixed, so the menu knows its size before it opens.
+const ROW_HEIGHT: f32 = 40.0;
+const ROW_GAP: f32 = 2.0;
+const LINE_HEIGHT: f32 = 22.0;
+const SECTION_GAP: f32 = 10.0;
+const GAP: f32 = 8.0;
+const FILTER_HEIGHT: f32 = 30.0;
+const PLACEHOLDER_HEIGHT: f32 = 56.0;
+const FOOTER_HEIGHT: f32 = 28.0;
 
 fn row_icon(icon: &str) -> &'static str {
     match icon {
@@ -60,14 +75,17 @@ impl NativeChatView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        let here = window.window_handle().window_id();
         if !wanted {
             self.files_links_input = None;
             self.files_links_subscription = None;
+            self.files_links_input_window = None;
             return;
         }
-        if self.files_links_input.is_some() {
+        if self.files_links_input.is_some() && self.files_links_input_window == Some(here) {
             return;
         }
+        self.files_links_input_window = Some(here);
         let query = text(&self.snapshot["filesLinks"], "query");
         let input = cx.new(|cx| {
             let mut state = InputState::new(window, cx).placeholder("Filter by name, path or link");
@@ -149,11 +167,12 @@ impl NativeChatView {
             .aria_label(format!("Open {label}"))
             .w_full()
             .min_w_0()
+            .flex_shrink_0()
+            .h(px(ROW_HEIGHT * s))
             .flex()
             .items_center()
             .gap(px(8.0 * s))
             .px(px(6.0 * s))
-            .py(px(4.0 * s))
             .rounded(px(6.0 * s))
             .chat_cursor_pointer()
             .hover(|style| style.bg(p.border.opacity(0.6)))
@@ -237,58 +256,108 @@ impl NativeChatView {
             .into_any_element()
     }
 
-    /// The card above the composer: loading, the list in its three sections, or why there is
-    /// none, with Refresh and Close.
-    pub(super) fn render_files_links(
+    /// Opens the floating menu once the core says the list is open (the More actions row, the
+    /// hotkey), and not again while a close it sent is on its way.
+    pub(super) fn sync_files_links_menu(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let open = self.snapshot["filesLinks"]["open"] == true;
+        if !open {
+            self.files_links_closing = false;
+            return;
+        }
+        let shown = self
+            .option_menu
+            .as_ref()
+            .is_some_and(|menu| menu.read(cx).pill() == Some(FILES_LINKS_TRIGGER));
+        if shown || self.files_links_menu_pending || self.files_links_closing {
+            return;
+        }
+        self.files_links_menu_pending = true;
+        cx.defer_in(window, |this, window, cx| {
+            this.files_links_menu_pending = false;
+            this.open_files_links_menu(window, cx);
+        });
+    }
+
+    /// The menu sits right above the chat box and as wide as it.
+    fn open_files_links_menu(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let composer = self.composer_bounds.get();
+        let scale = super::appearance::ChatAppearance::current(&self.snapshot).scale;
+        let Some(height) = self.pill_menu_height("filesLinks") else {
+            return;
+        };
+        if composer.size.width <= px(0.0) {
+            return;
+        }
+        // `composer_bounds` is measured in the window's content; the trigger a menu takes is too.
+        let trigger = gpui::Bounds::new(composer.origin, gpui::size(composer.size.width, px(0.0)));
+        self.menu_above = true;
+        self.show_chat_menu(
+            vec![json!({"pillMenu": {"id": "filesLinks", "height": height}})],
+            trigger,
+            (composer.size.width.as_f32() / scale).max(360.0),
+            window,
+            cx,
+        );
+        if let Some(menu) = &self.option_menu {
+            menu.update(cx, |menu, _| menu.set_pill(FILES_LINKS_TRIGGER));
+        }
+    }
+
+    /// The menu went away (a click outside, Escape, another menu): the core closes the list, and
+    /// the filter field goes with the window it was made in.
+    pub(super) fn files_links_menu_closed(&mut self, cx: &mut Context<Self>) {
+        self.files_links_input = None;
+        self.files_links_subscription = None;
+        self.files_links_input_window = None;
+        if self.snapshot["filesLinks"]["open"] == true {
+            self.files_links_closing = true;
+            self.invoke(json!({"type":"filesLinksClose"}), cx);
+        }
+    }
+
+    /// The menu's body: loading, the list in its three sections, or why there is none, with
+    /// Refresh and Close. Every block has a fixed height (`files_links_menu_height`).
+    pub(super) fn files_links_menu_body(
         &mut self,
         p: &ChatAppearance,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Option<AnyElement> {
         let files_links = self.snapshot["filesLinks"].clone();
-        let open = files_links["open"] == true;
-        self.sync_files_links_input(open && files_links["filter"] == true, window, cx);
-        if !open {
+        if files_links["open"] != true {
             return None;
         }
+        self.sync_files_links_input(files_links["filter"] == true, window, cx);
         let s = p.scale;
         let loading = files_links["loading"] == true;
         let caption = text(&files_links, "caption");
-        let header = div()
+        let header = super::chat_pills::pill_menu_header(
+            "titlebar/link.svg",
+            "Files and links",
+            if loading && caption.is_empty() {
+                "Reading the session…".to_string()
+            } else {
+                caption
+            },
+            None,
+            p,
+        );
+        let mut column = div()
+            .id("chat-files-links")
+            .role(gpui::Role::Group)
+            .aria_label("Files and links")
+            .size_full()
+            .min_h_0()
             .flex()
-            .items_center()
-            .gap(px(8.0 * s))
-            .child(
-                svg()
-                    .path("titlebar/link.svg")
-                    .size(px(14.0 * s))
-                    .text_color(p.primary),
-            )
-            .child(
-                div()
-                    .flex_1()
-                    .min_w_0()
-                    .text_color(p.foreground)
-                    .font_weight(FontWeight::MEDIUM)
-                    .child("Files and links"),
-            )
-            .child(
-                div()
-                    .flex_shrink_0()
-                    .text_size(px(12.0 * s))
-                    .text_color(p.muted)
-                    .child(if loading && caption.is_empty() {
-                        "Reading the session…".to_string()
-                    } else {
-                        caption
-                    }),
-            )
-            .into_any_element();
-        let mut body = Vec::new();
+            .flex_col()
+            .gap(px(GAP * s))
+            .child(header);
         if let Some(input) = self.files_links_input.clone() {
-            body.push(
+            column = column.child(
                 div()
                     .w_full()
+                    .flex_shrink_0()
+                    .h(px(FILTER_HEIGHT * s))
                     .flex()
                     .items_center()
                     .gap(px(6.0 * s))
@@ -297,7 +366,6 @@ impl NativeChatView {
                     .border_color(p.input_border)
                     .bg(p.composer_background)
                     .px(px(10.0 * s))
-                    .py(px(4.0 * s))
                     .child(
                         svg()
                             .path("titlebar/search.svg")
@@ -318,74 +386,99 @@ impl NativeChatView {
                                 .placeholder_color(p.muted.opacity(0.6))
                                 .caret_color(p.foreground),
                         ),
-                    )
-                    .into_any_element(),
+                    ),
             );
         }
         let sections = files_links["sections"]
             .as_array()
             .cloned()
             .unwrap_or_default();
+        let line = |child: AnyElement| {
+            div()
+                .flex_shrink_0()
+                .h(px(LINE_HEIGHT * s))
+                .flex()
+                .items_center()
+                .px(px(4.0 * s))
+                .text_size(px(13.0 * s))
+                .child(child)
+                .into_any_element()
+        };
         if loading && sections.is_empty() {
-            body.push(answering_placeholder(p));
-        } else if let Some(error) = files_links["error"].as_str() {
-            body.push(
+            column = column.child(
                 div()
-                    .text_size(px(13.0 * s))
+                    .flex_shrink_0()
+                    .h(px(PLACEHOLDER_HEIGHT * s))
+                    .overflow_hidden()
+                    .child(answering_placeholder(p)),
+            );
+        } else if let Some(error) = files_links["error"].as_str() {
+            column = column.child(line(
+                div()
+                    .truncate()
                     .text_color(gpui::rgb(0xef9999))
                     .child(error.to_string())
                     .into_any_element(),
-            );
+            ));
         } else if sections.is_empty() {
-            body.push(
+            column = column.child(line(
                 div()
-                    .text_size(px(13.0 * s))
+                    .truncate()
                     .text_color(p.muted)
                     .child(text(&files_links, "emptyLabel"))
                     .into_any_element(),
-            );
+            ));
         } else {
             let mut list = div()
                 .id("files-links-list")
+                .flex_1()
+                .min_h_0()
                 .min_w_0()
                 .flex()
                 .flex_col()
-                .gap(px(10.0 * s))
-                .max_h(px(window.viewport_size().height.as_f32() * 0.5))
+                .gap(px(SECTION_GAP * s))
                 .overflow_y_scroll();
             for section in &sections {
                 let id = text(section, "id");
-                let mut column = div().min_w_0().flex().flex_col().gap(px(2.0 * s)).child(
-                    div()
-                        .flex()
-                        .items_center()
-                        .gap(px(6.0 * s))
-                        .pb(px(2.0 * s))
-                        .child(
-                            div()
-                                .text_size(px(12.0 * s))
-                                .font_weight(FontWeight::SEMIBOLD)
-                                .text_color(p.foreground)
-                                .child(text(section, "label")),
-                        )
-                        .child(
-                            div()
-                                .text_size(px(12.0 * s))
-                                .text_color(p.muted)
-                                .child(section["count"].as_u64().unwrap_or(0).to_string()),
-                        ),
-                );
+                let mut block = div()
+                    .flex_shrink_0()
+                    .min_w_0()
+                    .flex()
+                    .flex_col()
+                    .gap(px(ROW_GAP * s))
+                    .child(
+                        div()
+                            .h(px(LINE_HEIGHT * s))
+                            .flex()
+                            .items_center()
+                            .gap(px(6.0 * s))
+                            .px(px(4.0 * s))
+                            .child(
+                                div()
+                                    .text_size(px(12.0 * s))
+                                    .font_weight(FontWeight::SEMIBOLD)
+                                    .text_color(p.foreground)
+                                    .child(text(section, "label")),
+                            )
+                            .child(
+                                div()
+                                    .text_size(px(12.0 * s))
+                                    .text_color(p.muted)
+                                    .child(section["count"].as_u64().unwrap_or(0).to_string()),
+                            ),
+                    );
                 for group in section["groups"].as_array().into_iter().flatten() {
                     let title = text(group, "title");
                     if !title.is_empty() {
-                        column = column.child(
+                        block = block.child(
                             div()
-                                .pt(px(4.0 * s))
+                                .h(px(LINE_HEIGHT * s))
+                                .flex()
+                                .items_center()
                                 .px(px(6.0 * s))
-                                .truncate()
                                 .text_size(px(11.0 * s))
                                 .text_color(p.muted)
-                                .child(title),
+                                .child(div().truncate().child(title)),
                         );
                     }
                     let rows = group["rows"].as_array().cloned().unwrap_or_default();
@@ -397,17 +490,19 @@ impl NativeChatView {
                         .map(|row| row["image"].clone())
                         .collect();
                     for row in &rows {
-                        column = column.child(self.files_links_row(row, &gallery, p, cx));
+                        block = block.child(self.files_links_row(row, &gallery, p, cx));
                     }
                 }
                 let more = text(section, "moreLabel");
                 if !more.is_empty() {
-                    column = column.child(
+                    block = block.child(
                         div()
                             .id(SharedString::from(format!("files-links-more:{id}")))
                             .role(gpui::Role::Button)
+                            .h(px(LINE_HEIGHT * s))
+                            .flex()
+                            .items_center()
                             .px(px(6.0 * s))
-                            .pt(px(2.0 * s))
                             .text_size(px(12.0 * s))
                             .text_color(p.card_muted)
                             .chat_cursor_pointer()
@@ -418,33 +513,85 @@ impl NativeChatView {
                             })),
                     );
                 }
-                list = list.child(column);
+                list = list.child(block);
             }
-            body.push(list.into_any_element());
+            column = column.child(list);
         }
-        let actions = vec![
-            div().flex_1().into_any_element(),
-            side_button(
-                "files-links-refresh",
-                Some("titlebar/refresh.svg"),
-                "Refresh",
-                None,
-                loading,
-                Some("Read the session again for anything mentioned since"),
-                p,
-                cx.listener(|this, _, _, cx| this.invoke(json!({"type":"filesLinksRefresh"}), cx)),
-            ),
-            side_button(
-                "files-links-close",
-                Some("titlebar/x.svg"),
-                "Close",
-                None,
-                false,
-                None,
-                p,
-                cx.listener(|this, _, _, cx| this.invoke(json!({"type":"filesLinksClose"}), cx)),
-            ),
-        ];
-        Some(self.status_card_with_header(header, body, actions, p))
+        column = column.child(
+            div()
+                .flex_shrink_0()
+                .h(px(FOOTER_HEIGHT * s))
+                .flex()
+                .items_center()
+                .justify_end()
+                .gap(px(6.0 * s))
+                .child(side_button(
+                    "files-links-refresh",
+                    Some("titlebar/refresh.svg"),
+                    "Refresh",
+                    None,
+                    loading,
+                    Some("Read the session again for anything mentioned since"),
+                    p,
+                    cx.listener(|this, _, _, cx| {
+                        this.invoke(json!({"type":"filesLinksRefresh"}), cx)
+                    }),
+                ))
+                .child(side_button(
+                    "files-links-close",
+                    Some("titlebar/x.svg"),
+                    "Close",
+                    None,
+                    false,
+                    None,
+                    p,
+                    cx.listener(|this, _, _, cx| {
+                        this.invoke(json!({"type":"filesLinksClose"}), cx)
+                    }),
+                )),
+        );
+        Some(column.into_any_element())
     }
+}
+
+/// The menu's content height (unscaled) for the document's `filesLinks`, capped at `max` (the list
+/// scrolls inside), or `None` while the list is closed.
+pub(super) fn files_links_menu_height(files_links: &Value, max: f32) -> Option<f32> {
+    if files_links["open"] != true {
+        return None;
+    }
+    let sections = files_links["sections"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    let mut height = super::chat_pills::MENU_HEADER_HEIGHT + GAP + FOOTER_HEIGHT + GAP;
+    if files_links["filter"] == true {
+        height += FILTER_HEIGHT + GAP;
+    }
+    let body = if files_links["loading"] == true && sections.is_empty() {
+        PLACEHOLDER_HEIGHT
+    } else if files_links["error"].is_string() || sections.is_empty() {
+        LINE_HEIGHT
+    } else {
+        let mut list = 0.0;
+        for (index, section) in sections.iter().enumerate() {
+            let mut lines = vec![LINE_HEIGHT];
+            for group in section["groups"].as_array().into_iter().flatten() {
+                if !text(group, "title").is_empty() {
+                    lines.push(LINE_HEIGHT);
+                }
+                let rows = group["rows"].as_array().map_or(0, Vec::len);
+                lines.extend(std::iter::repeat_n(ROW_HEIGHT, rows));
+            }
+            if !text(section, "moreLabel").is_empty() {
+                lines.push(LINE_HEIGHT);
+            }
+            list += lines.iter().sum::<f32>() + lines.len().saturating_sub(1) as f32 * ROW_GAP;
+            if index > 0 {
+                list += SECTION_GAP;
+            }
+        }
+        list
+    };
+    Some((height + body).min(max))
 }

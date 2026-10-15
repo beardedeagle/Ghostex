@@ -1,5 +1,5 @@
-//! Focus Chat Box, Copy Last Code Block, Copy Last Reply and Toggle Summary Mode, answered for the
-//! chat of the focused session. The per-chat work is in `native_chat/chat_hotkeys.rs`.
+//! Focus Chat Box, Copy Last Code Block, Copy Last Reply, Toggle Summary Mode, Maximize Chat Box and
+//! Files and Links, answered for the chat of the focused session. The per-chat work is in `native_chat/chat_hotkeys.rs`.
 use crate::*;
 
 impl GhostexGpuiApp {
@@ -35,6 +35,16 @@ impl GhostexGpuiApp {
             "toggleChatSummaryMode" => {
                 view.update(cx, |view, cx| {
                     view.invoke(serde_json::json!({"type":"toggleSummary"}), cx)
+                });
+                true
+            }
+            "toggleChatComposerMaximized" => {
+                view.update(cx, |view, cx| view.toggle_maximized(window, cx));
+                true
+            }
+            "toggleChatFilesLinks" => {
+                view.update(cx, |view, cx| {
+                    view.invoke(serde_json::json!({"type":"filesLinks"}), cx)
                 });
                 true
             }

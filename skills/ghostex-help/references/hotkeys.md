@@ -11,6 +11,8 @@ Default bindings are listed for macOS (`cmd`) with the Windows/Linux default whe
 | Copy Last Code Block | `cmd+shift+;` |  | Copy the last code block the agent wrote in the chat session you are in. | `copyLastChatCodeBlock` |
 | Copy Last Reply | `cmd+shift+c` |  | Copy the agent's last reply in the chat session you are in. | `copyLastChatReply` |
 | Toggle Summary Mode | `ctrl+alt+s` | `cmd+alt+shift+s` | Turn Summary mode on or off in the chat session you are in. | `toggleChatSummaryMode` |
+| Maximize Chat Box | `ctrl+alt+m` | `cmd+alt+shift+m` | Maximize the chat box of the chat session you are in, or restore it. | `toggleChatComposerMaximized` |
+| Files and Links | `ctrl+alt+l` | `cmd+alt+shift+l` | Show or hide the files and links mentioned in the chat session you are in. | `toggleChatFilesLinks` |
 | New Agent Session | `cmd+shift+o` |  | Start your last-used agent in the active project, in your default interface. | `createAgentSession` |
 | New Terminal | `cmd+shift+t` |  | Create a terminal session. | `createSession` |
 | Open Quick Access: Commands | `cmd+shift+p` |  | Open Ghostex Quick Access on Commands. | `openCommandPalette` |

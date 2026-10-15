@@ -120,6 +120,11 @@ impl ChatOptionMenu {
         self.pill = Some(trigger);
     }
 
+    /// The working-row pill (or Files and links) this menu belongs to.
+    pub(in crate::app::native_chat) fn pill(&self) -> Option<&'static str> {
+        self.pill
+    }
+
     /// Gives the panel at `depth` a new content height, keeping the edge that faces its anchor (a
     /// pill's menu opens above the pill, so its bottom stays put while its rows come and go).
     /// Where a window cannot be moved in place (the web build, Windows), the panel reopens instead.

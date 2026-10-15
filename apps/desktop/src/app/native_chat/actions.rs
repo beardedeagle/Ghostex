@@ -103,6 +103,21 @@ impl NativeChatView {
         json!({"label":"View","iconPath":"titlebar/eye.svg","detail":detail,"openOnHover":false,"children":modes})
     }
 
+    /// Files and links, always in this menu with its hotkey beside it.
+    ///
+    /// CDXC:FilesAndLinks 2026-10-15 DECISION:
+    /// User: "move files & links inside the 3 dots pls and make it open a pop up menu not push the chat transcript please". It is a More actions row, no longer a toolbar button, and it opens a floating menu above the chat box (files_links.rs) instead of the card that pushed the transcript up. The phone puts the same row in its More actions sheet (apps/mobile/app/src/chat/native/composer/menus.ts).
+    fn files_links_menu_row(&self) -> Option<Value> {
+        self.composer_control_available("files").then(|| {
+            json!({
+                "label":"Files and links","iconPath":"titlebar/link.svg",
+                "hotkeyAction":"toggleChatFilesLinks",
+                "checked":self.snapshot["filesLinks"]["open"] == true,
+                "command":{"type":"composerHost","action":"filesLinks"},
+            })
+        })
+    }
+
     /// The Skills submenu: the Ghostex skills the agent has installed, each putting its pill in the
     /// chat box, then Configure / Install more (Settings > Integrations > Agent skills).
     fn skills_row(&self) -> Value {
@@ -196,12 +211,13 @@ impl NativeChatView {
                 if id == "note" {
                     row["checked"] = self.snapshot["note"]["open"].clone();
                 }
-                if id == "files" {
-                    row["checked"] = self.snapshot["filesLinks"]["open"].clone();
+                if id == "maximize" {
+                    row["hotkeyAction"] = json!("toggleChatComposerMaximized");
                 }
                 rows.push(row);
             }
         }
+        rows.extend(self.files_links_menu_row());
         let agent_actions: Vec<_> = actions
             .iter()
             .filter(|action| action["group"] == "agent")

@@ -64,6 +64,29 @@ pub const HOTKEY_DEFINITIONS: &[HotkeyDefinition] = &[
         retired_default_keys: &["cmd+ctrl+s"],
         action: J::Obj(&[("id", J::Str("toggleChatSummaryMode")), ("kind", J::Str("focusedChatAction"))]),
     },
+    // CDXC:SessionChat 2026-10-15 DECISION:
+    // User: "also please add hotkey for maximise chat button (show it in tooltip) same for files & links". Both act on the chat of the focused session and show in their tooltip (the Maximize button) or their More actions row (Files and links). Option+Ctrl+M and Option+Ctrl+L on Mac; Ctrl+Alt+Shift+M and Ctrl+Alt+Shift+L on Windows and Linux, the shape Summary mode uses there, since Ctrl+Alt+L locks the screen on several Linux desktops.
+    // SEE-ALSO: apps/desktop/src/app/hotkeys.rs (`gpui_focused_chat_hotkey_action_id`, `gpui_platform_hotkey_for_action`), apps/desktop/src/app/focused_chat_hotkeys.rs.
+    HotkeyDefinition {
+        id: "toggleChatComposerMaximized",
+        title: "Maximize Chat Box",
+        description: "Maximize the chat box of the chat session you are in, or restore it.",
+        default_key: "ctrl+alt+m",
+        windows_linux_default_key: Some("cmd+alt+shift+m"),
+        alternate_default_keys: &[],
+        retired_default_keys: &[],
+        action: J::Obj(&[("id", J::Str("toggleChatComposerMaximized")), ("kind", J::Str("focusedChatAction"))]),
+    },
+    HotkeyDefinition {
+        id: "toggleChatFilesLinks",
+        title: "Files and Links",
+        description: "Show or hide the files and links mentioned in the chat session you are in.",
+        default_key: "ctrl+alt+l",
+        windows_linux_default_key: Some("cmd+alt+shift+l"),
+        alternate_default_keys: &[],
+        retired_default_keys: &[],
+        action: J::Obj(&[("id", J::Str("toggleChatFilesLinks")), ("kind", J::Str("focusedChatAction"))]),
+    },
     // CDXC:Hotkeys 2026-09-25 DECISION:
     // User: Cmd+Shift+O starts a new session and Cmd+N shows the agent picker, Cmd+T always opens a new browser tab, and Fork Session is Cmd+Ctrl+Shift+F (Ctrl+Alt+Shift+F on Windows and Linux), matching the ChatGPT and Codex apps. New Terminal stays on Cmd+Shift+T. This supersedes the 2026-09-24 layout (Cmd+T new chat, swapped by the default interface, picker on Cmd+Option+T).
     // The same day the user took more ChatGPT/Codex keys: Cmd+/ opens Hotkeys (was Cmd+.), Cmd+Shift+Backspace closes the focused session (Cmd+W stays), Cmd+J opens the Commands panel on Mac only (F12 keeps working everywhere; no Ctrl+J on Windows and Linux), Rename is Cmd+R on Mac and Ctrl+Shift+R on Windows and Linux because Ctrl+R belongs to the terminal, Reload Session has no default, Cmd+Shift+A also sleeps the focused session (Option+Shift+S stays), Cmd+Option+Shift+O opens Quick Access on recent projects, and in chat Cmd+Shift+; copies the last code block and Cmd+Shift+C (Mac only) copies the last reply.

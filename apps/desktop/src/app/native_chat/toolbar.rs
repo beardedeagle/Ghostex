@@ -8,8 +8,8 @@ use serde_json::{Value, json};
 
 /// CDXC:SessionChat 2026-09-11 DECISION:
 /// User: show Summary mode between More actions and Session note when there is room; keep it in More actions in the compact toolbar.
-/// This order is also the order controls fold into More actions.
-pub(super) const COMPOSER_CONTROLS: [(&str, &str, &str, &str); 8] = [
+/// This order is also the order controls fold into More actions. Files and links left this row for More actions on 2026-10-15 (actions.rs, `files_links_row`).
+pub(super) const COMPOSER_CONTROLS: [(&str, &str, &str, &str); 7] = [
     (
         "summary",
         "summaryMode",
@@ -17,12 +17,6 @@ pub(super) const COMPOSER_CONTROLS: [(&str, &str, &str, &str); 8] = [
         "titlebar/list-details.svg",
     ),
     ("note", "sessionNote", "Session note", "titlebar/note.svg"),
-    (
-        "files",
-        "filesLinks",
-        "Files and links",
-        "titlebar/link.svg",
-    ),
     (
         "stash",
         "stashPrompt",

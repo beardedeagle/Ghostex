@@ -3139,6 +3139,8 @@
         "copyLastChatCodeBlock": "cmd+shift+;",
         "copyLastChatReply": "cmd+shift+c",
         "toggleChatSummaryMode": "ctrl+alt+s",
+        "toggleChatComposerMaximized": "ctrl+alt+m",
+        "toggleChatFilesLinks": "ctrl+alt+l",
         "createAgentSession": "cmd+shift+o",
         "createSession": "cmd+shift+t",
         "openCommandPalette": "cmd+shift+p",
@@ -10985,6 +10987,20 @@
       "retiredDefaultKeys": [
         "cmd+ctrl+s"
       ]
+    },
+    {
+      "id": "toggleChatComposerMaximized",
+      "title": "Maximize Chat Box",
+      "description": "Maximize the chat box of the chat session you are in, or restore it.",
+      "defaultKey": "ctrl+alt+m",
+      "windowsLinuxDefaultKey": "cmd+alt+shift+m"
+    },
+    {
+      "id": "toggleChatFilesLinks",
+      "title": "Files and Links",
+      "description": "Show or hide the files and links mentioned in the chat session you are in.",
+      "defaultKey": "ctrl+alt+l",
+      "windowsLinuxDefaultKey": "cmd+alt+shift+l"
     },
     {
       "id": "createAgentSession",
