@@ -64,6 +64,31 @@ pub fn unanswered(state: &ChatState) -> Vec<&Asker> {
         .collect()
 }
 
+/// The forms and pages whose answers are on their way but not in the transcript yet: a form whose
+/// answers are sending or queued (as `unanswered` reads it), and a page or form whose answers wait
+/// in the prompt queue. Their Q-tags read answered already, as the pill already skips them.
+pub fn answers_on_the_way(state: &ChatState) -> Vec<String> {
+    let mut ids: Vec<String> = state
+        .questions
+        .forms
+        .iter()
+        .filter(|(_, form)| form.send.is_some() || form.sent.is_some())
+        .map(|(id, _)| id.clone())
+        .collect();
+    for entry in state.session.queue_prompts.iter().flatten() {
+        let text = entry["prompt"]["text"]
+            .as_str()
+            .or_else(|| entry["text"].as_str())
+            .unwrap_or_default();
+        if let Some(id) = crate::transcript::page_answers::answers_page_id(text) {
+            ids.push(id);
+        }
+    }
+    ids.sort();
+    ids.dedup();
+    ids
+}
+
 /// The document's `openQuestions`.
 pub fn project(state: &ChatState) -> OpenQuestions {
     let count = if state.core.previous_question_enabled {

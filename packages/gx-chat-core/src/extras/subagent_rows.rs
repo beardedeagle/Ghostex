@@ -109,6 +109,8 @@ pub fn refresh(state: &mut ChatState, context: &ChatContext) {
         approval_wait: None,
         session_directory_revision: 0,
         agent_message_deliveries: None,
+        // A subagent's transcript links no Q-tags.
+        answers_on_the_way: Vec::new(),
     };
     if state.extras.subagent.view.projection_inputs.as_ref() == Some(&inputs) {
         return;

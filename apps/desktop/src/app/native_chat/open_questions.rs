@@ -220,14 +220,6 @@ fn tag_tone(state: &str, light: bool) -> Option<(Hsla, Hsla)> {
     ))
 }
 
-/// The Previous question pill's text and border: the amber outline an open Q-tag has.
-pub(super) fn question_pill_tone(light: bool) -> (Hsla, Hsla) {
-    tag_tone("open", light).unwrap_or_else(|| {
-        let (_, border, text) = question_tone(light);
-        (text, border)
-    })
-}
-
 /// A `question` reference (a Q-tag link, gx-chat-core `question_reference`) as an outlined pill in
 /// its state's colour: a ? while open, a check once answered, struck through once withdrawn.
 pub(super) fn question_tag_link(reference: &Value, p: &ChatAppearance) -> Option<InlineLink> {

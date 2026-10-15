@@ -456,11 +456,13 @@ pub fn line_breaks(state: &ChatState) -> AgentLineBreaks {
 
 /// The session's own scope, off the composed list family a builds.
 pub fn scope<'a>(state: &'a ChatState, view: &'a TranscriptViewState) -> ProjectionScope<'a> {
-    // The answers are read here too, so each tag's link carries whether its question is answered.
-    let answered: Vec<String> = page_answers_in(&state.messages.composed)
+    // The answers are read here too, so each tag's link carries whether its question is answered;
+    // answers still sending or queued count already.
+    let mut answered: Vec<String> = page_answers_in(&state.messages.composed)
         .into_iter()
         .map(|answers| answers.page_id)
         .collect();
+    answered.extend(crate::questions::open_questions::answers_on_the_way(state));
     let found = askers(&state.messages.composed, &answered);
     ProjectionScope {
         messages: &state.messages.composed,

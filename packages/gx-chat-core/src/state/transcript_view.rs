@@ -176,6 +176,9 @@ pub struct ProjectionInputs {
     pub session_directory_revision: u64,
     /// `SessionState::agent_message_deliveries`: the statuses on sent agent message cards.
     pub agent_message_deliveries: Option<serde_json::Value>,
+    /// The forms and pages whose answers are sending or queued, which turn their Q-tags answered
+    /// before the transcript carries the answers.
+    pub answers_on_the_way: Vec<String>,
 }
 
 impl Default for TranscriptViewState {

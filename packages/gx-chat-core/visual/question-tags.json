@@ -6,15 +6,15 @@
   "gap": 3,
   "states": {
     "open": {
-      "dark": { "text": "#fdba74", "border": "#fb923c", "borderAlpha": 0.55 },
-      "light": { "text": "#c2410c", "border": "#ea580c", "borderAlpha": 0.5 }
+      "dark": { "text": "#d2b48f", "border": "#c9a47a", "borderAlpha": 0.34 },
+      "light": { "text": "#8a6339", "border": "#a97a4a", "borderAlpha": 0.34 }
     },
     "answered": {
-      "dark": { "text": "#86efac", "border": "#4ade80", "borderAlpha": 0.4 },
-      "light": { "text": "#15803d", "border": "#16a34a", "borderAlpha": 0.45 }
+      "dark": { "text": "#a3c9aa", "border": "#8fbf99", "borderAlpha": 0.3 },
+      "light": { "text": "#3f6e4a", "border": "#4f8a5c", "borderAlpha": 0.34 }
     },
     "withdrawn": {
-      "dark": { "text": "#8a8a8a", "border": "#ffffff", "borderAlpha": 0.16 },
+      "dark": { "text": "#838383", "border": "#ffffff", "borderAlpha": 0.13 },
       "light": { "text": "#71717a", "border": "#000000", "borderAlpha": 0.16 }
     }
   },
