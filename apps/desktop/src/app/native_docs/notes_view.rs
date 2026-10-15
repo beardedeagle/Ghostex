@@ -88,7 +88,7 @@ impl GhostexGpuiApp {
     /// global comment, Send, Copy feedback and Clear.
     ///
     /// CDXC:Docs 2026-09-14 DECISION:
-    /// User: keep the actions ordered from right to left as files-list toggle, Reload, Clear, Copy, Add global comment, and Annotations list; use a trash icon for Clear and label the annotations tooltip "Annotations list".
+    /// User: keep the actions ordered from right to left as files-list toggle, Reload, Clear, Copy, Add global comment, and Annotations list; use a trash icon for Clear and label the annotations tooltip "Annotations list". On 2026-10-15 the user removed Reload ("can we please remove the refresh button and do something smarter?", disk_sync.rs), so the order is files-list toggle, Clear, Copy, Add global comment, Annotations list.
     ///
     /// CDXC:Docs 2026-09-28 DECISION:
     /// User: Send is a plain header icon in the same color as the others, with no "Send 5"/"Copy 5" label (supersedes the 2026-09-16 label). The number of new notes sits next to the icon, and with no notes the button looks disabled. Once every note has been sent the number goes away and a click sends them all again (the 2026-09-15 Send decision). The destination stays in the tooltip. There is no Review menu (Resend all and Send new across all files were removed the same day), and no Finish review, Undo finish, or Archive: Docs is a side pane, not a review session.

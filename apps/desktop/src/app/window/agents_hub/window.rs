@@ -49,6 +49,10 @@ pub(crate) enum AgentsHubModalCommand {
     },
     /// A path went to the clipboard; the app plays the copy sound.
     Copied,
+    /// The wrap toggle changed: the app remembers it for the Files view's editors too.
+    SetWordWrap {
+        wrap: bool,
+    },
     RequestSyncReport,
     RequestSyncPlan {
         scope: String,
@@ -65,6 +69,8 @@ pub(crate) type AgentsHubModalHost = Rc<dyn Fn(AgentsHubModalCommand, &mut App)>
 pub(crate) struct AgentsHubModalConfig {
     pub(crate) palette: ModalPalette,
     pub(crate) initial_tab: AgentsHubTab,
+    /// The remembered wrap choice the Files view shares (`ghostex.manage.wordWrap`).
+    pub(crate) word_wrap: bool,
 }
 
 /// The Agent Sync filter over the agent list.
@@ -207,6 +213,7 @@ pub(crate) struct GpuiAgentsHubModalWindow {
     pub(crate) query: String,
     pub(crate) list_scroll: ScrollHandle,
     pub(crate) editor: Option<HubEditor>,
+    pub(crate) word_wrap: bool,
     pub(crate) copied_at: Option<Instant>,
     request_counter: u64,
     pub(crate) sync: SyncTabState,
@@ -293,6 +300,7 @@ impl GpuiAgentsHubModalWindow {
             query: String::new(),
             list_scroll: ScrollHandle::new(),
             editor: None,
+            word_wrap: config.word_wrap,
             copied_at: None,
             request_counter: 0,
             sync: SyncTabState::new(),
@@ -513,7 +521,7 @@ impl GpuiAgentsHubModalWindow {
             editor.dirty = false;
             return;
         }
-        let state = new_editor_state(language, &content, window, cx);
+        let state = new_editor_state(language, &content, self.word_wrap, window, cx);
         let change = cx.subscribe_in(
             &state,
             window,
@@ -672,6 +680,19 @@ impl GpuiAgentsHubModalWindow {
             let _ = this.update(cx, |_, cx| cx.notify());
         })
         .detach();
+        cx.notify();
+    }
+
+    /// The toolbar's wrap toggle: the open editor follows it and the app remembers it.
+    pub(crate) fn toggle_word_wrap(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let wrap = !self.word_wrap;
+        self.word_wrap = wrap;
+        if let Some(editor) = self.editor.as_ref() {
+            editor
+                .state
+                .update(cx, |state, cx| state.set_soft_wrap(wrap, window, cx));
+        }
+        self.send(AgentsHubModalCommand::SetWordWrap { wrap }, cx);
         cx.notify();
     }
 

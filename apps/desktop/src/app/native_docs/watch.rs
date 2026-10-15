@@ -7,7 +7,7 @@ use gpui::Context;
 use serde_json::json;
 
 use super::entry::is_review_path;
-use super::state::DocsFileKind;
+use super::state::{DocsDiskState, DocsFileKind};
 use crate::GhostexGpuiApp;
 use crate::app::model::TitlebarMode;
 
@@ -91,6 +91,10 @@ impl GhostexGpuiApp {
         }
     }
 
+    /// Checks the open file on disk; a change that settles goes to
+    /// [`Self::native_docs_on_disk_changed`], a missing file to [`Self::native_docs_on_disk_missing`].
+    /// Unsaved edits do not stop the check: VS Code keeps watching a dirty file so it can flag the
+    /// conflict instead of overwriting either side.
     fn native_docs_poll_active_file(&mut self, cx: &mut Context<Self>) {
         let Some(document) = self.native_docs.active_document() else {
             return;
@@ -98,7 +102,6 @@ impl GhostexGpuiApp {
         if is_review_path(&document.path)
             || document.kind == DocsFileKind::SystemApp
             || document.load != super::state::DocsDocumentLoad::Ready
-            || document.dirty
             || document.saving
             || self.native_docs.stat_in_flight
         {
@@ -113,6 +116,10 @@ impl GhostexGpuiApp {
             if this.native_docs.generation != generation {
                 return;
             }
+            if response["file"]["missing"].as_bool() == Some(true) {
+                this.native_docs_on_disk_missing(&path, cx);
+                return;
+            }
             // A failed stat is transient (the file mid-write, a slow remote): ignore it.
             let Some(signature) = disk_signature(&response["file"]) else {
                 return;
@@ -120,35 +127,34 @@ impl GhostexGpuiApp {
             let Some(document) = this.native_docs.document_mut(&path) else {
                 return;
             };
-            if document.dirty || document.saving {
+            if document.saving {
                 return;
             }
+            // A deleted file that is back counts as changed, whatever it holds now.
+            let returned = document.disk == DocsDiskState::Deleted;
+            if returned {
+                document.disk = DocsDiskState::InSync;
+            }
             match document.disk_signature.as_deref() {
-                None => document.disk_signature = Some(signature),
+                None if !returned => document.disk_signature = Some(signature),
                 Some(known) if known == signature => {}
-                Some(_) => {
+                _ => {
                     document.disk_signature = Some(signature.clone());
                     document.size = response["file"]["size"].as_u64().or(document.size);
-                    let kind = document.kind;
                     let settled = path.clone();
                     cx.spawn(async move |this, cx| {
                         cx.background_executor().timer(CHANGE_SETTLE).await;
                         let _ = this.update(cx, |this, cx| {
-                            let Some(document) = this.native_docs.document_mut(&settled) else {
+                            let Some(document) = this.native_docs.document(&settled) else {
                                 return;
                             };
-                            // Changed again meanwhile: the later poll acts on it.
+                            // Changed again meanwhile, or being saved: the later poll acts on it.
                             if document.disk_signature.as_deref() != Some(signature.as_str())
-                                || document.dirty
+                                || document.saving
                             {
                                 return;
                             }
-                            if kind == DocsFileKind::Markdown {
-                                document.external_change = true;
-                                this.native_docs_notify(cx);
-                            } else {
-                                this.native_docs_reload(&settled, cx);
-                            }
+                            this.native_docs_on_disk_changed(&settled, cx);
                         });
                     })
                     .detach();

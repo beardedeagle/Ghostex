@@ -490,6 +490,7 @@ impl GpuiAgentsHubModalWindow {
                 |this: &mut Self, _window, cx| this.save_active_file(cx),
                 cx,
             ))
+            .child(wrap_button(hp, self.word_wrap, cx))
             .into_any_element()
     }
 }
@@ -577,6 +578,45 @@ fn toolbar_button(
         })
         .tooltip(move |window, cx| Tooltip::new(label).build(window, cx))
         .child(icon(glyph, 16.0, hp.muted))
+        .into_any_element()
+}
+
+/// The wrap toggle: [`toolbar_button`]'s shape with the raised fill while wrapping is on, and the
+/// Files view's icon and tooltips.
+fn wrap_button(
+    hp: &HubPalette,
+    word_wrap: bool,
+    cx: &mut Context<GpuiAgentsHubModalWindow>,
+) -> AnyElement {
+    let hover = hp.raised_hover;
+    div()
+        .id("agents-hub-word-wrap")
+        .flex_shrink_0()
+        .size(px(32.0))
+        .flex()
+        .items_center()
+        .justify_center()
+        .rounded(px(8.0))
+        .border_1()
+        .border_color(hsla(hp.line))
+        .when(word_wrap, |this| this.bg(hsla(hover)))
+        .hover(move |this| this.bg(hsla(hover)))
+        .on_click(cx.listener(|this, _: &ClickEvent, window, cx| {
+            this.toggle_word_wrap(window, cx);
+        }))
+        .tooltip(move |window, cx| {
+            Tooltip::new(if word_wrap {
+                "Turn off line wrapping"
+            } else {
+                "Wrap long lines"
+            })
+            .build(window, cx)
+        })
+        .child(icon(
+            ICON_TEXT_WRAP,
+            16.0,
+            if word_wrap { hp.foreground } else { hp.muted },
+        ))
         .into_any_element()
 }
 

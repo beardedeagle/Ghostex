@@ -211,7 +211,8 @@ impl GhostexGpuiApp {
         let text = file["content"].as_str().unwrap_or_default().to_string();
         if let Some(document) = self.native_docs.document_mut(path) {
             document.disk_signature = super::watch::disk_signature(file);
-            document.external_change = false;
+            document.disk = super::state::DocsDiskState::InSync;
+            document.disk_reload = None;
             document.size = file["size"].as_u64();
             if let Some(display_path) = file["displayPath"].as_str() {
                 document.display_path = display_path.to_string();
@@ -230,6 +231,22 @@ impl GhostexGpuiApp {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        // A clean code file that changed on disk takes the new text in place, keeping its caret
+        // and scroll position (`native_docs_apply_disk_text`).
+        for document in &mut self.native_docs.documents {
+            let (Some(editor), Some(text)) = (document.editor.clone(), document.disk_reload.take())
+            else {
+                continue;
+            };
+            editor.update(cx, |state, cx| {
+                let selection = state.selected_range();
+                let scroll = state.scroll_offset();
+                let len = text.len();
+                state.set_value(text, window, cx);
+                state.set_selected_range(selection.start.min(len)..selection.end.min(len), cx);
+                state.set_scroll_offset(scroll, cx);
+            });
+        }
         let waiting: Vec<(String, String)> = self
             .native_docs
             .documents
@@ -253,6 +270,7 @@ impl GhostexGpuiApp {
                 continue;
             }
             let line_numbers = self.native_docs.line_numbers;
+            let word_wrap = self.native_docs.word_wrap;
             let editor = cx.new(|cx| {
                 EditorState::new(window, cx)
                     .language(language)
@@ -261,7 +279,7 @@ impl GhostexGpuiApp {
                     // Docs text view keeps typing literal, with Enter copying the line's indent.
                     .auto_close(false)
                     .smart_indent(false)
-                    .soft_wrap(DocsFileKind::for_path(&path) == DocsFileKind::Markdown)
+                    .soft_wrap(word_wrap)
                     // The formatting bar floats over the bottom lines; let them scroll out from under it.
                     .scroll_beyond_last_line(Some(4))
                     .searchable(true)
@@ -295,6 +313,26 @@ impl GhostexGpuiApp {
                 document._editor_subscription = Some(subscription);
             }
         }
+    }
+
+    /// The header's wrap toggle: every open text and code editor follows it, and it is remembered.
+    pub(crate) fn native_docs_toggle_word_wrap(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let wrap = !self.native_docs.word_wrap;
+        self.native_docs.word_wrap = wrap;
+        for editor in self
+            .native_docs
+            .documents
+            .iter()
+            .filter_map(|document| document.editor.clone())
+        {
+            editor.update(cx, |state, cx| state.set_soft_wrap(wrap, window, cx));
+        }
+        self.native_docs_persist_word_wrap(cx);
+        self.native_docs_notify(cx);
     }
 
     /// Reload: reads the file again and drops its draft.
@@ -343,6 +381,16 @@ impl GhostexGpuiApp {
         if document.saving || document.review_session_title.is_some() {
             return;
         }
+        // VS Code refuses to save over a file that changed on disk under unsaved edits; the
+        // conflict notice under the header offers Compare, Keep mine and Take theirs.
+        if matches!(document.disk, super::state::DocsDiskState::Conflict(_)) {
+            let (title, message) = (
+                format!("Couldn't save {}", document.name),
+                "The file changed on disk. Compare it with your changes, keep yours, or take the disk version.".to_string(),
+            );
+            self.dispatch_gpui_workspace_action_toast("error", &title, &message, cx);
+            return;
+        }
         let Some(content) = super::live::document_text(document, cx) else {
             return;
         };
@@ -370,7 +418,7 @@ impl GhostexGpuiApp {
             document.saved_text = content.clone();
             document.disk_signature =
                 super::watch::disk_signature(&response["file"]).or(document.disk_signature.take());
-            document.external_change = false;
+            document.disk = super::state::DocsDiskState::InSync;
             document.size = response["file"]["size"].as_u64().or(document.size);
             document.saved_flash_until =
                 Some(std::time::Instant::now() + std::time::Duration::from_millis(1600));

@@ -49,6 +49,7 @@ const DRAFTS_PREFIX: &str = "ghostex.manage.drafts.";
 const ACTIVE_FILE_PREFIX: &str = "ghostex.manage.activeFile.";
 const SIDEBAR_PINNED_KEY: &str = "ghostex.manage.sidebarPinned";
 const FORMAT_BAR_COLLAPSED_KEY: &str = "ghostex.manage.formattingBarCollapsed";
+const WORD_WRAP_KEY: &str = "ghostex.manage.wordWrap";
 /// Drafts are written this long after the last keystroke.
 const DRAFT_WRITE_DELAY: Duration = Duration::from_millis(400);
 
@@ -174,7 +175,29 @@ pub(crate) fn read_format_bar_collapsed() -> bool {
         == Some("true")
 }
 
+/// The header's wrap toggle for text and code files; off unless the user turned it on.
+pub(crate) fn read_word_wrap() -> bool {
+    read_preference_value(WORD_WRAP_KEY)
+        .ok()
+        .flatten()
+        .as_deref()
+        == Some("true")
+}
+
 impl GhostexGpuiApp {
+    /// Writes the wrap toggle.
+    pub(crate) fn native_docs_persist_word_wrap(&mut self, cx: &mut Context<Self>) {
+        let wrap = self.native_docs.word_wrap;
+        cx.background_executor()
+            .spawn(async move {
+                let _ = write_client_document_value(
+                    WORD_WRAP_KEY,
+                    Some(if wrap { "true" } else { "false" }),
+                );
+            })
+            .detach();
+    }
+
     /// Writes the formatting bar's fold.
     pub(crate) fn native_docs_persist_format_bar(&mut self, cx: &mut Context<Self>) {
         let collapsed = self.native_docs.format_bar_collapsed;

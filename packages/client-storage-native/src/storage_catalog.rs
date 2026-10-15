@@ -277,6 +277,7 @@ pub const CATALOG: &[CatalogStore] = &[
         false,
         Local,
     ),
+    store("docsWordWrap", "ghostex.manage.wordWrap", false, Local),
     store("docsIndex", "ghostex-docs-index-v1:", true, Session),
     store("docsOpenFiles", "ghostex.manage.openFiles.", true, Records),
     store("docsDrafts", "ghostex.manage.drafts.", true, Records),

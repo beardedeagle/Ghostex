@@ -443,6 +443,13 @@ export const storageCatalog = Object.freeze({
     'ghostex.manage.formattingBarCollapsed',
     boolean
   ),
+  docsWordWrap: define(
+    'docsWordWrap',
+    'Files view line wrap',
+    desktop + 'src/app/native_docs/storage.rs',
+    'ghostex.manage.wordWrap',
+    boolean
+  ),
   docsIndex: define(
     'docsIndex',
     'Docs directory cache',

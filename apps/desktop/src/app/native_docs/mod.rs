@@ -6,6 +6,7 @@ pub(crate) mod blocks;
 pub(crate) mod bridge;
 pub(crate) mod browser_area;
 pub(crate) mod conflicts;
+pub(crate) mod disk_sync;
 pub(crate) mod document_view;
 pub(crate) mod documents;
 pub(crate) mod drawer;

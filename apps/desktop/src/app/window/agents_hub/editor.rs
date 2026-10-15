@@ -2,7 +2,10 @@
 //! highlighting) dressed as the Monaco editor the React Hub embedded.
 //!
 //! CDXC:AgentLauncher 2026-09-28 WHY:
-//! The migration to GPUI-Kit components (see mod.rs) replaces Monaco with the Kit's code editor, the default the migration plan picked for the Hub. It keeps Monaco's look: 13px monospace on Monaco's row height (18px on Windows and Linux, 20px on macOS), line numbers and a folding column, 16px of room above and below the text, Monaco's `vs-dark` / `vs` colours (the Hub pane under window glass) and no minimap. Tree-sitter colours a Markdown file's front matter as YAML where Monaco left it plain.
+//! The migration to GPUI-Kit components (see mod.rs) replaces Monaco with the Kit's code editor, the default the migration plan picked for the Hub. It keeps Monaco's look: 13px monospace on Monaco's row height (18px on Windows and Linux, 20px on macOS), a folding column, 16px of room above and below the text, Monaco's `vs-dark` / `vs` colours (the Hub pane under window glass) and no minimap. Tree-sitter colours a Markdown file's front matter as YAML where Monaco left it plain.
+//!
+//! CDXC:AgentLauncher 2026-10-15 DECISION:
+//! User: "add wrapping for this also and remove the line numbers on the left". The Hub's viewer (every file tab: Skills, MDs, Hooks, Configs & MCPs) has no line numbers, and its header carries the Files view's wrap toggle, sharing that view's remembered choice (`ghostex.manage.wordWrap`) so one setting covers both viewers.
 use super::super::native_modal_kit::{MODAL_MONO_FONT, hsla};
 use super::palette::HubPalette;
 use gpui::{
@@ -50,6 +53,7 @@ fn editor_theme(light: bool) -> Arc<HighlightTheme> {
 pub(crate) fn new_editor_state(
     language: &str,
     content: &str,
+    wrap: bool,
     window: &mut Window,
     cx: &mut App,
 ) -> Entity<EditorState> {
@@ -58,10 +62,10 @@ pub(crate) fn new_editor_state(
     cx.new(|cx| {
         EditorState::new(window, cx)
             .language(language)
-            .line_number(true)
+            .line_number(false)
             // Monaco folds too, and its folding column is what puts the code 63px from the edge.
             .folding(true)
-            .soft_wrap(false)
+            .soft_wrap(wrap)
             .searchable(true)
             .scroll_beyond_last_line(None)
             .tab_size(TabSize {

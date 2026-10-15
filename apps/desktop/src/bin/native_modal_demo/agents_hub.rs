@@ -1,7 +1,7 @@
 //! Agents Hub preview, on the React stories' fixtures (the catalog of
 //! packages/core-ui/agents-hub-modal.stories.tsx (deleted 2026-10-01) and the Agent Sync report and plan of
 //! packages/core-ui/agents-hub-sync/agent-sync-fixture.ts (deleted 2026-10-01), dumped to agents_hub_fixture/).
-//! States (`GHOSTEX_NATIVE_MODAL_DEMO_STATE`): `skills` (default), `mds`, `hooks`, `configs`,
+//! States (`GHOSTEX_NATIVE_MODAL_DEMO_STATE`): `skills` (default), `wrap` (Skills with the wrap toggle on), `mds`, `hooks`, `configs`,
 //! `expanded` (Configs with its first group open), `profiles` (MDs with a group open),
 //! `search` (Skills filtered by "asc"), `nomatch`, `dirty` (an unsaved edit), `empty` (an empty
 //! catalog), `loading` (no catalog yet), `fileloading` (the file body never arrives),
@@ -165,7 +165,7 @@ fn file_body(path: &str) -> String {
         .strip_suffix("/SKILL.md")
         .and_then(|root| root.rsplit('/').next())
     {
-        return format!("---\nname: {name}\n---\n\nSkill instructions.");
+        return format!("---\nname: {name}\n---\n\nSkill instructions. Run all CLI commands using the project's package runner, check the registries before writing anything by hand, and keep each component composable so the wrap toggle has a long line to fold.\n\n## Next\n\nMore instructions.");
     }
     match path {
         "/Users/madda/.codex/config.toml" => "{\n  \"mcpServers\": {}\n}\n".to_string(),
@@ -309,6 +309,7 @@ pub(super) fn open(demo: &super::DemoEnv, cx: &mut App) {
                 cx.quit();
             }
             AgentsHubModalCommand::Copied => eprintln!("copied (copy sound)"),
+            AgentsHubModalCommand::SetWordWrap { wrap } => eprintln!("word wrap {wrap}"),
             AgentsHubModalCommand::RequestSyncReport => {
                 if state == "syncloading" {
                     return;
@@ -365,6 +366,7 @@ pub(super) fn open(demo: &super::DemoEnv, cx: &mut App) {
     let config = AgentsHubModalConfig {
         palette: demo.palette,
         initial_tab,
+        word_wrap: state == "wrap",
     };
     let (window, view) = super::open_large_modal_window(
         AGENTS_HUB_MODAL_WIDTH,

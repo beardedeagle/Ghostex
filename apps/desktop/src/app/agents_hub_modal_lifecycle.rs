@@ -28,6 +28,7 @@ impl GhostexGpuiApp {
         let config = AgentsHubModalConfig {
             palette: self.gpui_native_modal_palette(),
             initial_tab,
+            word_wrap: crate::app::native_docs::storage::read_word_wrap(),
         };
         let host: AgentsHubModalHost = self.native_app_modal_host(cx, |app, command, cx| {
             app.handle_gpui_agents_hub_modal_command(command, cx);
@@ -86,6 +87,9 @@ impl GhostexGpuiApp {
                 self.open_gpui_agents_hub_file_path_in_built_in_editor(file_path, cx);
             }
             AgentsHubModalCommand::Copied => gpui_play_copy_sound(),
+            AgentsHubModalCommand::SetWordWrap { wrap } => {
+                self.set_gpui_agents_hub_word_wrap(wrap, cx);
+            }
             AgentsHubModalCommand::RequestSyncReport => {
                 /*
                 CDXC:AgentSync 2026-09-16 WHY:
@@ -131,6 +135,34 @@ impl GhostexGpuiApp {
                 }
             }
         }
+    }
+
+    /// The Hub's wrap toggle is the Files view's: a Files view already set up follows it at once
+    /// (its toggle needs the main window to rewrap its editors), otherwise the stored choice is
+    /// what the Files view reads when it starts.
+    fn set_gpui_agents_hub_word_wrap(&mut self, wrap: bool, cx: &mut gpui::Context<Self>) {
+        let files_started = self.native_docs.focus.is_some();
+        if !files_started {
+            self.native_docs.word_wrap = wrap;
+            self.native_docs_persist_word_wrap(cx);
+            return;
+        }
+        if self.native_docs.word_wrap == wrap {
+            return;
+        }
+        let Some(main) = self.main_window_handle else {
+            return;
+        };
+        let app = cx.weak_entity();
+        cx.defer(move |cx| {
+            let _ = main.update(cx, |_, window, cx| {
+                let _ = app.update(cx, |app, cx| {
+                    if app.native_docs.word_wrap != wrap {
+                        app.native_docs_toggle_word_wrap(window, cx);
+                    }
+                });
+            });
+        });
     }
 
     /// Runs `task` on the background executor and hands its answer to the open Hub.

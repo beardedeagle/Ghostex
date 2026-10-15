@@ -132,6 +132,7 @@ impl GhostexGpuiApp {
             super::storage::import_browser_state_once();
             self.native_docs.sidebar_pinned = super::storage::read_sidebar_pinned();
             self.native_docs.format_bar_collapsed = super::storage::read_format_bar_collapsed();
+            self.native_docs.word_wrap = super::storage::read_word_wrap();
             self.native_docs.line_numbers = true;
             self.native_docs.git_changes = true;
             // Docs starts with the full content width, as the former React Docs page did.

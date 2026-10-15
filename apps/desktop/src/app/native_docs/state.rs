@@ -227,6 +227,18 @@ pub(crate) enum DocsDocumentLoad {
     Unsupported(String),
 }
 
+/// Where an open document stands against its file on disk, the way VS Code tracks it.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(crate) enum DocsDiskState {
+    #[default]
+    InSync,
+    /// The file changed on disk while the document had unsaved edits: the disk's text, kept for
+    /// Compare and Take theirs. The edits stay until the user picks.
+    Conflict(String),
+    /// The file is gone from disk; the document keeps its text and Save writes it back.
+    Deleted,
+}
+
 /// An open file: its row in Open Files, its editor and its unsaved state.
 pub(crate) struct DocsDocument {
     pub(crate) path: String,
@@ -266,8 +278,11 @@ pub(crate) struct DocsDocument {
     pub(crate) origin_session: Option<crate::TerminalSessionId>,
     /// An agent reply under review: the session it came from, by title.
     pub(crate) review_session_title: Option<String>,
-    /// The file changed on disk while open; Reload shows it (Markdown never reloads on its own).
-    pub(crate) external_change: bool,
+    /// The file on disk against this document: in step, changed under unsaved edits, or gone.
+    pub(crate) disk: DocsDiskState,
+    /// Newer text from disk for a clean code editor, applied in place by the next draw (the
+    /// editor needs a window to take it).
+    pub(crate) disk_reload: Option<String>,
     /// `path\0modifiedAt\0size` as last seen, for the change poll.
     pub(crate) disk_signature: Option<String>,
     /// "Saved" shows in the header until then.
@@ -310,7 +325,8 @@ impl DocsDocument {
             origin_session: None,
             embed_revision: 0,
             review_session_title: None,
-            external_change: false,
+            disk: DocsDiskState::InSync,
+            disk_reload: None,
             disk_signature: None,
             saved_flash_until: None,
             title_copied_until: None,
@@ -411,6 +427,8 @@ pub(crate) struct NativeDocsState {
     /// The formatting bar's view toggles (the Docs editor's defaults: all on).
     pub(crate) line_numbers: bool,
     pub(crate) git_changes: bool,
+    /// Text and code files wrap long lines (remembered; off until the user turns it on).
+    pub(crate) word_wrap: bool,
     pub(crate) constrain_width: bool,
     /// The formatting bar's open menu, and the table picker's hovered size.
     pub(crate) format_menu: super::format_bar::DocsFormatMenu,
@@ -521,6 +539,7 @@ impl NativeDocsState {
         self.blocks = from.blocks.clone();
         self.line_numbers = from.line_numbers;
         self.git_changes = from.git_changes;
+        self.word_wrap = from.word_wrap;
         self.constrain_width = from.constrain_width;
         self.find = from.find.take();
         self.tree_scroll = from.tree_scroll.clone();

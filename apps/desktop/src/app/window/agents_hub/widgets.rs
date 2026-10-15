@@ -23,6 +23,8 @@ pub(crate) const ICON_CHECK_HEAVY: &str = "modals/agents-hub/check-heavy.svg";
 pub(crate) const ICON_FOLDER_OPEN: &str = "modals/agents-hub/folder-open.svg";
 pub(crate) const ICON_EDIT: &str = "modals/agents-hub/edit.svg";
 pub(crate) const ICON_REFRESH: &str = "modals/agents-hub/refresh.svg";
+/// The Files view's wrap toggle icon.
+pub(crate) const ICON_TEXT_WRAP: &str = "modals/git-commit/text-wrap.svg";
 pub(crate) const ICON_SAVE: &str = "modals/agents-hub/device-floppy.svg";
 pub(crate) const ICON_LAYOUT_GRID: &str = "modals/agents-hub/layout-grid.svg";
 pub(crate) const ICON_PLUS: &str = "modals/agents-hub/plus.svg";

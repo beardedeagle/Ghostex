@@ -39,6 +39,7 @@ impl GhostexGpuiApp {
         cx: &mut Context<Self>,
     ) -> AnyElement {
         let header = self.render_native_docs_header(p, layout, cx);
+        let notice = self.render_native_docs_disk_notice(p, cx);
         let body = self.render_native_docs_body(p, window, cx);
         div()
             .flex()
@@ -47,6 +48,7 @@ impl GhostexGpuiApp {
             .min_w_0()
             .min_h_0()
             .child(header)
+            .children(notice)
             // The body fills exactly the space under the header. A percentage height inside the
             // flexed row resolved against the whole column instead, which pushed the body's last
             // 37px (the formatting bar and the document's last lines) below the view.
@@ -87,7 +89,9 @@ impl GhostexGpuiApp {
         let kind = document.kind;
         let path = document.path.clone();
         let review = document.review_session_title.clone();
-        let external_change = document.external_change;
+        let deleted = document.disk == super::state::DocsDiskState::Deleted;
+        let wraps = document.editor.is_some() && kind != DocsFileKind::Markdown;
+        let word_wrap = self.native_docs.word_wrap;
         let html_annotate = document.html_annotate;
         let svg = kind == DocsFileKind::Image && DocsFileKind::is_svg(&path);
         let svg_source = document.svg_source;
@@ -131,7 +135,6 @@ impl GhostexGpuiApp {
         } else {
             "Copy full path".into()
         };
-        let reload_path = path.clone();
         let note_actions = if kind == DocsFileKind::Markdown {
             let compact = super::render::view_width() < 560.0;
             self.render_native_docs_note_actions(p, compact, cx)
@@ -203,6 +206,8 @@ impl GhostexGpuiApp {
                             .text_size(px(12.0))
                             .font_weight(FontWeight::MEDIUM)
                             .text_color(p.text)
+                            // VS Code strikes through a file deleted on disk.
+                            .when(deleted, |title| title.line_through().text_color(p.muted))
                             .child(title),
                     )
                     .tooltip(move |window, cx| titlebar_tooltip(tooltip.clone(), window, cx))
@@ -234,6 +239,7 @@ impl GhostexGpuiApp {
                     .text_color(p.subtle)
                     .when(review.is_some(), |this| this.child("Agent reply"))
                     .children(review.clone().filter(|title| !title.is_empty()))
+                    .when(deleted, |this| this.child("Deleted"))
                     .when(dirty, |this| this.child("Edited"))
                     .when(!dirty && saved, |this| this.child("Saved")),
             )
@@ -401,48 +407,34 @@ impl GhostexGpuiApp {
                             ),
                         )
                     })
-                    .when(
-                        review.is_none() && (kind != DocsFileKind::Image || svg_source),
-                        |this| {
-                            let amber = p.amber;
-                            this.child(
-                                header_tile(
-                                    "native-docs-reload",
-                                    header_icon("files-view/t-refresh-2.svg", false, p),
-                                    false,
-                                    false,
-                                    p,
-                                )
-                                .when(external_change, |this| {
-                                    this.child(
-                                        div()
-                                            .absolute()
-                                            .top(px(6.0))
-                                            .right(px(6.0))
-                                            .size(px(7.0))
-                                            .rounded_full()
-                                            .bg(amber),
-                                    )
-                                })
-                                .tooltip(move |window, cx| {
-                                    titlebar_tooltip(
-                                        if external_change {
-                                            "Reload to show new changes"
-                                        } else {
-                                            "Reload file"
-                                        },
-                                        window,
-                                        cx,
-                                    )
-                                })
-                                .on_click(cx.listener(
-                                    move |this, _, _, cx| {
-                                        this.native_docs_reload(&reload_path, cx);
-                                    },
-                                )),
+                    // CDXC:Docs 2026-10-15 DECISION: User: "add button to toggle wrapping on the file editor please (should be to the right of the refresh button that we have now)". The Reload button is gone (disk_sync.rs), so the wrap toggle takes its place for text and code files; the choice is remembered for every file.
+                    .when(wraps, |this| {
+                        this.child(
+                            header_tile(
+                                "native-docs-word-wrap",
+                                header_icon("modals/git-commit/text-wrap.svg", false, p),
+                                word_wrap,
+                                false,
+                                p,
                             )
-                        },
-                    )
+                            .tooltip(move |window, cx| {
+                                titlebar_tooltip(
+                                    if word_wrap {
+                                        "Turn off line wrapping"
+                                    } else {
+                                        "Wrap long lines"
+                                    },
+                                    window,
+                                    cx,
+                                )
+                            })
+                            .on_click(cx.listener(
+                                |this, _, window, cx| {
+                                    this.native_docs_toggle_word_wrap(window, cx);
+                                },
+                            )),
+                        )
+                    })
                     .children(restore),
             )
             .into_any_element()

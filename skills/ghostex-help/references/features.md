@@ -338,7 +338,12 @@ view from the strip.
   session. Folders appear as they load, and search fills in while
   Updating files is shown. Expand a folder to load it sooner; a loading or error
   marker means its contents have not been confirmed yet. Use Refresh in the Files
-  sidebar menu to check for changes immediately. The button at the sidebar's
+  sidebar menu to check for changes immediately. An open file follows changes
+  made to it on disk: without unsaved edits it updates in place, with unsaved
+  edits a notice offers Compare, Keep mine, or Take theirs (Save waits until you
+  pick), and a file deleted on disk is marked Deleted until you save it again.
+  Text and code files have a wrap button in the header that turns line wrapping
+  on or off for every file, and the choice is remembered. The button at the sidebar's
   window edge hides the files list; the same button in the corner brings it
   back, and hovering that button peeks the list without pinning it. Hidden or pinned is remembered. When the Files view is narrower than 800px the list opens as a
   temporary drawer over the document and closes when you open a file, press

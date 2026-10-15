@@ -95,6 +95,16 @@ pub(super) fn project_file_metadata(
     if path.inner.is_empty() {
         return Err("Select a project file to inspect.".to_string());
     }
+    // CDXC:Docs 2026-10-15 WHY: the Files view's change watch has to tell a deleted file from a
+    // failed check, which `existing_path` cannot (it reports every unresolvable path as outside
+    // the project), so a path that is simply not there answers `missing` instead of an error.
+    // SEE-ALSO: `manage_project_file_metadata` in apps/desktop/src/app/helpers/manage_docs/
+    // file_operations.rs (local projects, served in-process by the desktop).
+    if fs::symlink_metadata(path.root.join(&path.inner))
+        .is_err_and(|error| error.kind() == std::io::ErrorKind::NotFound)
+    {
+        return Ok(json!({ "missing": true, "path": path.outer }));
+    }
     let target = existing_path(&path)?;
     validate_accessible_path(&path, context)?;
     let metadata = fs::metadata(&target).map_err(|_| "Select a file to inspect.".to_string())?;
