@@ -275,6 +275,35 @@ fn transition_action_errors_use_javascript_stringification() {
     assert_eq!(js_string(None), "undefined");
 }
 
+/// The cold start captured on 2026-10-16 (session G9l9l): Claude started its daemon below the
+/// terminal's own `claude`, and the daemon's spare 580e4309 and conversation f0903321 hung below it.
+#[test]
+fn zmx_process_identity_scan_stops_at_claudes_daemon() {
+    let session_name = "S90-P3lv0-G9l9l".to_string();
+    let identities = parse_zmx_session_process_identities(
+        r#"
+10229     1 /bundle/zmx run S90-P3lv0-G9l9l -d --initial-command /bin/zsh -lic claude
+10230 10229 /bin/zsh -li
+10376 10230 claude --model sonnet
+10702 10376 /Users/madda/.local/share/mise/installs/claude/2.1.296/claude daemon run --origin transient --spawned-by {"label":"claude"}
+10741 10702 /Users/madda/.local/share/mise/installs/claude/2.1.296/claude --bg-pty-host /tmp/cc-daemon-501/441605e2/pty/580e4309.sock 200 50 -- /Users/madda/.local/share/mise/installs/claude/2.1.296/claude --session-id 580e4309-0707-4b1b-a18d-18f47bde0635
+10755 10741 /Users/madda/.local/share/mise/installs/claude/2.1.296/claude --session-id 580e4309-0707-4b1b-a18d-18f47bde0635 --agent claude --inherit-permission-mode auto
+10745 10702 /Users/madda/.local/share/mise/installs/claude/2.1.296/claude --bg-pty-host /tmp/cc-daemon-501/441605e2/pty/f0903321.sock 200 50 -- /Users/madda/.local/share/mise/installs/claude/2.1.296/claude --session-id f0903321-3f03-4814-812d-a288571b369b
+10757 10745 /Users/madda/.local/share/mise/installs/claude/2.1.296/claude --session-id f0903321-3f03-4814-812d-a288571b369b
+10760 10702 claude bg-pty-host --bg-pty-host /tmp/cc-daemon-501/441605e2/spare/a7849f4b.pty.sock 200 50 -- /Users/madda/.local/share/mise/installs/claude/2.1.296/claude --bg-spare /tmp/cc-daemon-501/441605e2/spare/a7849f4b.claim.sock
+10761 10760 claude bg-spare --bg-spare /tmp/cc-daemon-501/441605e2/spare/a7849f4b.claim.sock
+"#
+        .trim(),
+        std::slice::from_ref(&session_name),
+        &format!(
+            "  name={session_name}\tpid=10230\tclients=1\tcreated=1792101080\tstart_dir=/repo"
+        ),
+    );
+    let identity = identities.get(&session_name).expect("identity");
+    assert_eq!(identity.agent_id.as_deref(), Some("claude"));
+    assert_eq!(identity.agent_session_id, None);
+}
+
 #[test]
 fn zmx_process_identity_parser_prefers_live_codex_child() {
     let session_name = "S90-P3lv0-G0p1k".to_string();

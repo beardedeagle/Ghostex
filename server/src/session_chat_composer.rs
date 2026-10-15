@@ -404,16 +404,22 @@ fn composer_screen_tail(lines: &[String]) -> Vec<String> {
 
 /// CDXC:AgentScreenDetection 2026-09-22 WHY:
 /// Claude 2.1.278's agents dashboard draws the same input frame as a conversation, but its prompt creates a new session. After /exit detaches a background conversation, treating this dashboard as its composer makes account switching try to clear the dashboard placeholder.
+/// CDXC:AgentScreenDetection 2026-10-16 WHY:
+/// The dashboard draws its "Needs input", "Working" and "Completed" headings only for groups that have agents, so requiring all three missed an empty dashboard (no agents yet) and one with nothing working: Claude 2.1.296's empty dashboard read as an input box and an error retry was typed into "describe a task for a new session" (throwaway G8yfk, 2026-10-15). What every dashboard keeps is its key-hint footer under the input frame ("enter to return · space to reply · ctrl+x to delete · ? for shortcuts", or "enter to create · esc to clear · ctrl+f to find" once something is typed); a conversation's footer says "← for agents" instead. Only the bottom lines count, so a transcript that quotes those hints is not the dashboard.
 pub(crate) fn is_claude_code_agents_screen(screen_text: &str) -> bool {
+    const FOOTER_LINES: usize = 4;
     let lines = composer_lines(screen_text);
-    lines.iter().any(|line| {
-        (line.contains("space to reply")
-            && line.contains("ctrl+x to delete")
-            && line.contains("? for shortcuts"))
-            || line.starts_with("A different way to work with Claude:")
-    }) && ["Needs input", "Working", "Completed"]
-        .iter()
-        .all(|heading| lines.iter().any(|line| line.trim() == *heading))
+    // The second form is the footer once something is typed in its input box.
+    let dashboard_hints = |line: &String| {
+        (line.contains("space to reply") && line.contains("ctrl+x to delete"))
+            || (line.contains("enter to create") && line.contains("esc to clear"))
+    };
+    lines.iter().rev().take(FOOTER_LINES).any(dashboard_hints)
+        || (lines.iter().any(|line| {
+            dashboard_hints(line) || line.starts_with("A different way to work with Claude:")
+        }) && ["Needs input", "Working", "Completed"]
+            .iter()
+            .all(|heading| lines.iter().any(|line| line.trim() == *heading)))
 }
 
 /// CDXC:AgentScreenDetection 2026-09-22 WHY:
@@ -1146,4 +1152,61 @@ async fn resolve_session_chat_composer_target(
     .await
     .ok()
     .flatten()
+}
+
+#[cfg(test)]
+mod agents_dashboard_tests {
+    use super::is_claude_code_agents_screen;
+
+    const RULE: &str = "────────────────────────────────────────";
+
+    fn screen(lines: &[&str]) -> String {
+        lines.join("\n")
+    }
+
+    /// Screens Claude 2.1.296 painted during the 2026-10-16 reproduction, trimmed to their lines.
+    #[test]
+    fn every_dashboard_is_recognised_and_a_conversation_is_not() {
+        let empty = screen(&[
+            "",
+            RULE,
+            "❯ describe a task for a new session",
+            RULE,
+            "  ⏵⏵ auto mode · enter to return · space to reply · ctrl+x to delete · ? for shortcuts",
+            "Update available! Run: mise upgrade claude",
+        ]);
+        let nothing_working = screen(&[
+            " ▝▝   ▝▝   1 awaiting input · 0 working · 4 completed",
+            "Your conversation moved to the background — enter opens it · esc returns to it · ctrl+c twice quits",
+            "Needs input",
+            " ✻ current session                    sandbox                5m",
+            "Completed",
+            " ✻ bg                                 Replied with the word 'two' as requested.   10s",
+            RULE,
+            "❯ describe a task for a new session",
+            RULE,
+            "  ⏵⏵ auto mode · enter to return · space to reply · ctrl+x to delete · ? for shortcuts",
+        ]);
+        let typed = screen(&[
+            RULE,
+            "❯ fix the flaky login test",
+            RULE,
+            "  ⏵⏵ auto mode · enter to create · esc to clear · ctrl+f to find",
+            "Update available! Run: mise upgrade claude",
+        ]);
+        for dashboard in [&empty, &nothing_working, &typed] {
+            assert!(is_claude_code_agents_screen(dashboard), "{dashboard}");
+        }
+        let conversation = screen(&[
+            "⏺ The dashboard footer says: enter to return · space to reply · ctrl+x to delete · ? for shortcuts",
+            "",
+            RULE,
+            "❯ ",
+            RULE,
+            "  Sonnet 5.5 | medium | $0.00",
+            "  9434a088-65fb-4de1-ad82-e32d3a00aa50 | …/sandbox",
+            "  ⏵⏵ auto mode on (shift+tab to cycle) · ← for agents",
+        ]);
+        assert!(!is_claude_code_agents_screen(&conversation));
+    }
 }

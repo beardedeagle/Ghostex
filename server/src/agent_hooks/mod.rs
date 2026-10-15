@@ -1,5 +1,6 @@
 pub mod api;
 mod ancestor_session;
+mod claude_daemon;
 pub(crate) mod claude_retention;
 pub(crate) mod codex_status_line;
 pub(crate) mod codex_trust;

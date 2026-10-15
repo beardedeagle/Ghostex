@@ -253,24 +253,71 @@ pub(crate) fn wake_at(state: &AppState, project: &str, session: &str, at: DateTi
     });
 }
 
-/// A Claude turn that ended on a failed call (`StopFailure`) wakes the recovery pass at once.
+/// How each session's latest Claude turn ended, as its hooks said: when, and whether it finished
+/// (`Stop`) rather than failing on a call (`StopFailure`). In memory only.
+fn turn_ends() -> &'static Mutex<HashMap<(String, String), (DateTime<Utc>, bool)>> {
+    static TURN_ENDS: OnceLock<Mutex<HashMap<(String, String), (DateTime<Utc>, bool)>>> =
+        OnceLock::new();
+    TURN_ENDS.get_or_init(Default::default)
+}
+
+/// A Claude turn that ended on a failed call (`StopFailure`) wakes the recovery pass at once, and
+/// every Claude turn end is remembered for `last_try_answered`.
 pub(crate) fn observe_agent_hook(state: &AppState, endpoint: &str, params: &Map<String, Value>) {
-    if endpoint != "/api/ingestAgentHookEvent" {
+    if endpoint != "/api/ingestAgentHookEvent"
+        || !matches!(
+            params.get("agentName").and_then(Value::as_str),
+            Some("claude" | "openclaude")
+        )
+    {
         return;
     }
-    let failed = ["eventName", "rawEventName", "event"].iter().any(|key| {
-        params
-            .get(*key)
-            .and_then(Value::as_str)
-            .is_some_and(|name| name.eq_ignore_ascii_case("StopFailure"))
-    });
-    if let (true, Some(project), Some(session)) = (
-        failed,
+    let named = |wanted: &str| {
+        ["eventName", "rawEventName", "event"].iter().any(|key| {
+            params
+                .get(*key)
+                .and_then(Value::as_str)
+                .is_some_and(|name| name.eq_ignore_ascii_case(wanted))
+        })
+    };
+    let (failed, finished) = (named("StopFailure"), named("Stop"));
+    let (Some(project), Some(session)) = (
         params.get("projectId").and_then(Value::as_str),
         params.get("sessionId").and_then(Value::as_str),
-    ) {
+    ) else {
+        return;
+    };
+    if failed || finished {
+        if let Ok(mut ends) = turn_ends().lock() {
+            ends.insert(
+                (project.to_string(), session.to_string()),
+                (Utc::now(), finished),
+            );
+        }
+    }
+    if failed {
         state.accounts.recovery.wake(project, session);
     }
+}
+
+/// CDXC:AgentProviders 2026-10-16 WHY:
+/// A continuation is sent once per failure. When the session's hooks say the turn after the last try finished (Claude's `Stop`, not `StopFailure`), that try worked, whatever the transcript or the screen still shows: a transcript gxserver was not following (throwaway G8yfk on 2026-10-15) or an old error line left on screen made the pass send a second continuation after the first had been answered.
+pub(crate) fn last_try_answered(
+    project: &str,
+    session: &str,
+    last_try: Option<DateTime<Utc>>,
+) -> bool {
+    let Some(last_try) = last_try else {
+        return false;
+    };
+    turn_ends()
+        .lock()
+        .ok()
+        .and_then(|ends| {
+            ends.get(&(project.to_string(), session.to_string()))
+                .copied()
+        })
+        .is_some_and(|(at, finished)| finished && at > last_try)
 }
 
 fn millis(value: &Value) -> Value {
@@ -445,6 +492,27 @@ mod tests {
         assert!(!quick_retry_pending(&session(
             Utc::now() - chrono::Duration::seconds(61)
         )));
+    }
+
+    #[test]
+    fn a_try_whose_turn_finished_is_not_sent_again() {
+        let tried = Utc::now() - chrono::Duration::seconds(30);
+        let key = ("Ptest".to_string(), "Gtest".to_string());
+        let end = |finished: bool, seconds_after: i64| {
+            turn_ends().lock().unwrap().insert(
+                key.clone(),
+                (tried + chrono::Duration::seconds(seconds_after), finished),
+            );
+        };
+        end(true, 10);
+        assert!(last_try_answered("Ptest", "Gtest", Some(tried)));
+        // The continuation's own turn failed again: that is a new failure to retry.
+        end(false, 12);
+        assert!(!last_try_answered("Ptest", "Gtest", Some(tried)));
+        // A finished turn from before the try says nothing about it.
+        end(true, -5);
+        assert!(!last_try_answered("Ptest", "Gtest", Some(tried)));
+        assert!(!last_try_answered("Ptest", "Gtest", None));
     }
 
     #[test]

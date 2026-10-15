@@ -77,6 +77,17 @@ pub fn run_notify_hook(args: Vec<String>) -> Result<Option<String>, DomainStateE
     } else if env_string("EMPRYO_PROJECT_DIR").is_some() {
         return Ok(None);
     }
+    // A conversation Claude hosts in its own daemon reports to the terminal attached to it, never
+    // to the session its inherited environment names (claude_daemon.rs).
+    let daemon_hosted = match super::claude_daemon::route_claude_daemon_hook(&agent_key) {
+        super::claude_daemon::ClaudeDaemonHook::Unattached => return Ok(None),
+        super::claude_daemon::ClaudeDaemonHook::Attached => true,
+        super::claude_daemon::ClaudeDaemonHook::NotDaemonHosted => false,
+    };
+    let has_state_path = has_state_path && !daemon_hosted;
+    if daemon_hosted {
+        state = Map::new();
+    }
     let event_name = first_string([
         payload.get("hook_event_name"),
         payload.get("hookEventName"),
@@ -124,6 +135,13 @@ pub fn run_notify_hook(args: Vec<String>) -> Result<Option<String>, DomainStateE
     {
         return Ok(None);
     }
+    // A terminal parked on a daemon conversation reports under its own old id (claude_daemon.rs).
+    let (session_id, transcript_path) =
+        if !daemon_hosted && super::claude_daemon::terminal_is_parked(&agent_key) {
+            (None, None)
+        } else {
+            (session_id, transcript_path)
+        };
     /*
     CDXC:SessionIdentity 2026-09-27 WHY:
     Claude runs a fork (the side question card's Fork, or opening a forked agent) as a background session in its own daemon: `claude --session-id <fork> --fork-session --resume <parent>`, marked `CLAUDE_CODE_SESSION_KIND=bg` and still carrying the terminal's GHOSTEX_SESSION_ID. Its hooks rebound the Ghostex session to the fork's conversation, which holds no messages of its own, so the thread vanished from chat and resuming it could not bring the original back (observed 2026-09-27, session G8z2s). A background session's hooks never replace the conversation the terminal owns; like a Codex subagent, it is not the session's agent.
@@ -135,7 +153,8 @@ pub fn run_notify_hook(args: Vec<String>) -> Result<Option<String>, DomainStateE
         return Ok(None);
     }
     // See CDXC:SessionIdentity 2026-10-11 in nested_agent.rs: an agent another agent started from its tool is not the session's agent. A Claude background session runs outside the daemon and keeps the rule above.
-    if env_string("CLAUDE_CODE_SESSION_KIND").as_deref() != Some("bg")
+    if !daemon_hosted
+        && env_string("CLAUDE_CODE_SESSION_KIND").as_deref() != Some("bg")
         && super::nested_agent::hook_agent_is_nested(&agent_key)
     {
         return Ok(None);

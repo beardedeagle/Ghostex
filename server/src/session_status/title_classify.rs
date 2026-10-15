@@ -264,7 +264,17 @@ fn get_codex_title_state(title: &str, allow_agent_hint_match: bool) -> Option<&'
     }
 }
 
+/// CDXC:SessionStatus 2026-10-16 WHY:
+/// Claude's agents view titles the terminal "2 awaiting input · claude agents"; its middle dot is one of Claude's spinner frames, so the view read as a working turn and an error retry waited behind it without saying why. The view says nothing about the conversation's own turn, so it gives no status.
+fn is_claude_agents_view_title(normalized: &str) -> bool {
+    let lower = normalized.trim().to_ascii_lowercase();
+    lower == "claude agents" || lower.ends_with("· claude agents")
+}
+
 fn get_claude_code_title_state(title: &str, allow_agent_hint_match: bool) -> Option<&'static str> {
+    if is_claude_agents_view_title(&normalize_spaces(title)) {
+        return None;
+    }
     if get_cursor_title_state(title, false).is_some()
         || get_codex_title_state(title, true) == Some("attention")
     {

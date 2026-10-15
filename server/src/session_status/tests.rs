@@ -320,3 +320,19 @@ fn claude_idle_terminal_titles_settle_without_attention() {
     assert_eq!(settled.get("activity"), Some(&json!("idle")));
     assert_eq!(settled.get("attentionEventId"), None);
 }
+
+/// Claude's agents view titled the terminal this way on 2026-10-16; it is not a turn.
+#[test]
+fn claude_agents_view_title_gives_no_status() {
+    for title in ["2 awaiting input · claude agents", "claude agents"] {
+        assert!(
+            title_classify::classify_terminal_title_status(Some(title), Some("claude")).is_none(),
+            "{title}"
+        );
+    }
+    assert!(title_classify::classify_terminal_title_status(
+        Some("· Fixing the tests"),
+        Some("claude")
+    )
+    .is_some());
+}

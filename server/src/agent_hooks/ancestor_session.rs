@@ -79,6 +79,59 @@ fn ancestor_zmx_session_name() -> Option<String> {
     None
 }
 
+/// Points this hook at the Ghostex session the zmx pane `zmx_name` belongs to, replacing whatever
+/// routing the environment carried. False when the name is not a Ghostex session name.
+pub(crate) fn adopt_zmx_session_routing(zmx_name: &str) -> bool {
+    let mut parts = zmx_name.split('-');
+    let (Some(server), Some(project), Some(session), None) =
+        (parts.next(), parts.next(), parts.next(), parts.next())
+    else {
+        return false;
+    };
+    if !(server.starts_with('S') && project.starts_with('P') && session.starts_with('G')) {
+        return false;
+    }
+    env::set_var(
+        "GHOSTEX_GLOBAL_SESSION_REF",
+        crate::ids::create_global_session_ref(server, project, session),
+    );
+    env::set_var("GHOSTEX_SESSION_ID", zmx_name);
+    // A state file in this environment belongs to the session that started Claude's daemon.
+    env::remove_var("GHOSTEX_SESSION_STATE_FILE");
+    true
+}
+
+/// The session name of the `zmx run <name>` pane whose own agent is `agent`: above it only shells
+/// may stand before the daemon, the same rule `nested_agent` applies to a hook's own agent.
+#[cfg(unix)]
+pub(crate) fn zmx_session_owning_agent(agent: u32) -> Option<String> {
+    const SHELLS: &[&str] = &[
+        "sh", "bash", "zsh", "fish", "dash", "ksh", "tcsh", "csh", "nu", "env", "login",
+    ];
+    let table = super::nested_agent::ProcessTable::read();
+    let mut current = agent;
+    for _ in 0..64 {
+        let parent = table.parent(current)?;
+        let stem = table
+            .executable_stem(parent)?
+            .trim_start_matches('-')
+            .to_ascii_lowercase();
+        if stem == "zmx" {
+            return zmx_run_session_name(parent);
+        }
+        if !SHELLS.contains(&stem.as_str()) {
+            return None;
+        }
+        current = parent;
+    }
+    None
+}
+
+#[cfg(not(unix))]
+pub(crate) fn zmx_session_owning_agent(_agent: u32) -> Option<String> {
+    None
+}
+
 /// The `<name>` of a `zmx run <name> …` command line; a `zmx attach` client yields nothing.
 #[cfg(unix)]
 fn zmx_run_session_name(pid: u32) -> Option<String> {

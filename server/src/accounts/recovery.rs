@@ -552,6 +552,13 @@ fn plan_session(
     }
     let connection_error =
         notice.kind == crate::session_chat_notice::SESSION_CHAT_NOTICE_STREAM_ERROR;
+    // The last continuation was answered: what still looks like a failure is the old one.
+    if connection_error
+        && recovery["status"].as_str() == Some("resumed")
+        && super::api_errors::last_try_answered(pid, sid, time(recovery.get("lastAttemptAt")))
+    {
+        return Ok(None);
+    }
     // The API answered after the last try: that try worked, so this is a new failure and the quick tries start over.
     let answered_since_last_try = recovery["status"].as_str() == Some("resumed")
         && transcript_failure.as_ref().is_some_and(|failure| {

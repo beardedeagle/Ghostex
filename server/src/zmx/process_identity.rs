@@ -162,6 +162,13 @@ pub(crate) fn resolve_process_tree_agent_identity(
         if !seen.insert(pid) {
             continue;
         }
+        // Claude's background daemon and everything it runs belong to no pane's agent chain.
+        if rows_by_pid
+            .get(&pid)
+            .is_some_and(|row| is_claude_daemon_process(&row.command))
+        {
+            continue;
+        }
         let mut owner = owner;
         if let Some(row) = rows_by_pid.get(&pid) {
             if let Some(mut observation) = resolve_process_command_agent_identity(&row.command) {
@@ -241,6 +248,25 @@ fn resolve_process_command_agent_identity(command: &str) -> Option<ProcessIdenti
     }
     resolve_agent_process_invocation(&tokens, 0, GXSERVER_DIRECT_AGENT_PROCESS_CONFIDENCE)
         .or_else(|| resolve_wrapped_agent_process_invocation(command, &tokens))
+}
+
+/// CDXC:SessionIdentity 2026-10-16 WHY:
+/// The first time a terminal's Claude opens the agents view, Claude 2.1.296 starts its per-user daemon as a child of that `claude` (`claude daemon run`), so the daemon's pty hosts, its pre-warmed spares and every conversation it runs (`claude --session-id <id>` under `--bg-pty-host`) hang below that zmx pane. The scan followed the same-agent chain into them and took a spare's `--session-id` as the session's conversation: on 2026-10-16 the session moved to f0903321 by its hooks and 1.6 seconds later to the spare 580e4309, which never holds a message. Which daemon conversation a terminal shows comes from its hooks (server/src/agent_hooks/claude_daemon.rs), so the scan stops at the daemon.
+fn is_claude_daemon_process(command: &str) -> bool {
+    let tokens = split_process_command_prefix(command, GXSERVER_PROCESS_COMMAND_PREFIX_TOKEN_LIMIT);
+    if normalize_process_executable_name(tokens.first().map(String::as_str)).as_deref()
+        != Some("claude")
+    {
+        return false;
+    }
+    let args = tokens.get(1..).unwrap_or(&[]);
+    args.first().map(String::as_str) == Some("daemon")
+        || args.iter().any(|token| {
+            matches!(
+                token.as_str(),
+                "--bg-pty-host" | "bg-pty-host" | "--bg-spare" | "bg-spare"
+            )
+        })
 }
 
 fn should_ignore_process_command_for_agent_identity(command: &str, tokens: &[String]) -> bool {
