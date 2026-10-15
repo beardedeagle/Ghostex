@@ -243,10 +243,11 @@ impl NativeChatView {
                 };
                 chat.show_chat_menu(chat.context_menu_rows(), bounds.get(), width, window, cx);
             }))
+            // The ring's own box, pinned with insets like the option pills' (option_pills.rs).
             .child(
                 canvas(move |bounds, _, _| measured.set(bounds), |_, _, _, _| {})
                     .absolute()
-                    .size_full(),
+                    .inset(px(0.0)),
             )
             .into_any_element()
     }

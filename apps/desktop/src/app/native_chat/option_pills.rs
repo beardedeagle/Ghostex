@@ -207,6 +207,10 @@ fn pill(
             chat.show_option_menu(kind, bounds.get(), window, cx);
         }
     }))
+    // The pill's own box, which its menu lines up with (4px away, right edges equal). Pinned with
+    // insets rather than `size_full`: an absolute child without insets sits at the content start,
+    // which equals the pill's edge here only because the pill centres its content; the working
+    // row's pills measured 7px off that way (chat_pills.rs).
     .child(
         canvas(
             move |bounds, _, _| {
@@ -215,7 +219,7 @@ fn pill(
             |_, _, _, _| {},
         )
         .absolute()
-        .size_full(),
+        .inset(px(0.0)),
     )
     .into_any_element()
 }
