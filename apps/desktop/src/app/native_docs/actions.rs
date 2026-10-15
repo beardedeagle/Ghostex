@@ -366,7 +366,15 @@ impl GhostexGpuiApp {
         // The row menu, as the former React Docs page drew it: while a
         // file operation runs every row but Copy Relative Path is disabled and the running one
         // reads "…ing"; Delete takes a second click ("Confirm delete"), with no dialog.
-        self.native_docs.entry_menu = Some((path.to_string(), kind, position));
+        // CDXC:ContextMenus 2026-10-15 WHY: `position` is in the coordinates of the window that
+        // drew the row, which is the files drawer's child window when the list floats. The menu is
+        // hosted over the main window and "Delete" re-shows it from there, where no origin is
+        // added, so the remembered spot is kept in main-window coordinates; otherwise the armed
+        // "Confirm delete" menu jumped to the left edge of the app.
+        let main_position = self
+            .native_docs_child_window_origin(window)
+            .map_or(position, |origin| origin + position);
+        self.native_docs.entry_menu = Some((path.to_string(), kind, main_position));
         let armed = self.native_docs.delete_armed.as_deref() == Some(path);
         if !armed {
             self.native_docs.delete_armed = None;
