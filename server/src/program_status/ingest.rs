@@ -212,7 +212,7 @@ pub(crate) fn apply_program_status(
         return;
     }
     if combines {
-        observe_program_opinion(project_id, session_id);
+        observe_program_opinion(project_id, session_id, &session);
         // Combined: detection owns idle. A program's idle only clears what the
         // program itself raised (its working or blocked); a finished turn is
         // `finished` above.

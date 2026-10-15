@@ -43,6 +43,13 @@ fn session_text<'a>(session: &'a Value, key: &str) -> Option<&'a str> {
         .filter(|value| !value.is_empty())
 }
 
+/// The session's agent for the mismatch log, `None` for a plain shell or
+/// script (no agent id and not an agent session).
+fn session_agent(session: &Value) -> Option<&str> {
+    session_text(session, "agentId")
+        .or_else(|| (session_text(session, "kind") == Some("agent")).then_some("agent"))
+}
+
 /// Detection computed `detected` for a session under Combined, from `input`.
 pub(crate) fn observe_detection_opinion(session: &Value, detected: &str, input: Value) {
     let (Some(project_id), Some(session_id)) = (
@@ -55,18 +62,18 @@ pub(crate) fn observe_detection_opinion(session: &Value, detected: &str, input: 
         project_id,
         session_id,
         Some(detected),
-        session_text(session, "agentId"),
+        session_agent(session),
         Some(input),
     );
 }
 
 /// The program's state changed for a session under Combined.
-pub(crate) fn observe_program_opinion(project_id: &str, session_id: &str) {
-    track_program_status_agreement(project_id, session_id, None, None, None);
+pub(crate) fn observe_program_opinion(project_id: &str, session_id: &str, session: &Value) {
+    track_program_status_agreement(project_id, session_id, None, session_agent(session), None);
 }
 
 /// CDXC:SessionStatus 2026-10-15 DECISION:
-/// User (Q121): "yes to a mismatch log". Under Combined, a disagreement between Ghostex's detection and a program's OSC 7501 report that is still there after the 10-second settle window goes to the Program status mismatches diagnostic log once (session, agent, both states, which one the session shows, and what detection last saw: the input kind, hook event and terminal title), so each real mismatch can become a detection fix; the program simply being faster than detection is not logged (the regression test found every program-led step logged). It writes only while Show debug UI controls and that area are on (`log_routine`). Its detail keys avoid the logger's always-persist markers (`error`, `status`, ...), so a program state of `error` cannot make a line persist with the area off.
+/// User (Q121): "yes to a mismatch log". Under Combined, for agent sessions only (a plain shell or script has nothing for detection to detect, so a long-running script is not a detection bug; user 2026-10-15), a disagreement between Ghostex's detection and a program's OSC 7501 report that is still there after the 10-second settle window goes to the Program status mismatches diagnostic log once (session, agent, both states, which one the session shows, and what detection last saw: the input kind, hook event and terminal title), so each real mismatch can become a detection fix; the program simply being faster than detection is not logged (the regression test found every program-led step logged). It writes only while Show debug UI controls and that area are on (`log_routine`). Its detail keys avoid the logger's always-persist markers (`error`, `status`, ...), so a program state of `error` cannot make a line persist with the area off.
 /// SEE-ALSO: packages/settings-catalog/src/data/diagnostic_logging.rs (`gxserver.programStatusMismatch`), server/src/session_status/model.rs (detection's opinion), server/src/program_status/ingest.rs (the program's opinion and the periodic check).
 pub(crate) fn log_settled_program_status_mismatches() {
     let settled = take_settled_program_status_disagreements(SETTLE_WINDOW_MS);

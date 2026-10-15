@@ -68,6 +68,10 @@ pub(crate) struct SessionProgramStatus {
     /// Under Combined: detection and the program disagree, since when, and
     /// what detection last saw. Logged only once it outlasts the settle window.
     pub disagreement: Option<Disagreement>,
+    /// The session's agent id (or `agent` for an agent session without one);
+    /// `None` for a plain shell or script, which detection is not meant to
+    /// detect, so its disagreements are never logged.
+    pub agent: Option<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -105,6 +109,9 @@ pub(crate) fn track_program_status_agreement(
     if let Some(detected) = detected {
         entry.detection_activity = Some(detected.to_string());
     }
+    if let Some(agent) = agent {
+        entry.agent = Some(agent.to_string());
+    }
     let program_state = entry.applied_state.clone().unwrap_or_else(|| {
         super::derive_program_status(&entry.records)
             .state
@@ -132,7 +139,7 @@ pub(crate) fn track_program_status_agreement(
         since_ms: unix_now_ms(),
         detected,
         program_state,
-        agent: agent.map(str::to_string),
+        agent: entry.agent.clone(),
         input: input.unwrap_or(Value::Null),
     });
 }
@@ -151,7 +158,7 @@ pub(crate) fn take_settled_program_status_disagreements(
     for (key, entry) in registry.iter_mut() {
         // A session that stopped combining (its program exited, or the
         // setting changed) has nothing left to disagree about.
-        if !program_status_combines_entry(Some(entry), source) {
+        if !program_status_combines_entry(Some(entry), source) || entry.agent.is_none() {
             entry.disagreement = None;
             continue;
         }
