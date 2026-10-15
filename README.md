@@ -24,6 +24,16 @@
   </a>
 </p>
 
+
+<p align="center">
+  <a href="https://github.com/user-attachments/assets/1013fbfc-a556-4624-8794-1508af8a5653">
+    <picture>
+<img width="960" alt="image" src="https://github.com/user-attachments/assets/129b3f72-a597-4723-9ca5-651fc1cf925e" />
+    </picture>
+  </a>
+</p>
+
+
 Ghostex is built for developers who keep many agents alive at once. A chat view for every agent, a native Rust/GPUI shell, embedded Chromium panes, and a mobile app share one workspace, and every session survives restarts.
 
 ## Features
