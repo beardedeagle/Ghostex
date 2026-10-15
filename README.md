@@ -38,155 +38,76 @@ Ghostex is built for developers who keep many agents alive at once. A chat view 
 
 ## Features
 
-<table>
+<h3 align="center">📱 iOS and Android apps with Easy Connect&nbsp;or&nbsp;Tailscale</h3>
 
-<tr>
-<td width="50%" valign="middle">
+<p align="center">Your agents in your pocket. Easy Connect pairs your phone with a single scan, no extra accounts needed, or join through your Tailscale tailnet if you already have one. Read transcripts, send follow-ups, preview localhost pages, and get a push when an&nbsp;agent&nbsp;finishes.</p>
 
-<br/>
-
-### iOS and Android apps with Easy Connect or Tailscale
-
-Your agents in your pocket. Easy Connect pairs your phone with a single scan, no extra accounts needed, or join through your Tailscale tailnet if you already have one. Read transcripts, send follow-ups, preview localhost pages, and get a push when an agent finishes.
+<p align="center"><img src="media/readme/gx-phone.gif" alt="Pairing the phone app, then sessions and a chat on the phone" width="70%" /></p>
 
 <br/>
 
-</td>
-<td width="50%">
-  <img src="media/readme/gx-phone.gif" alt="Pairing the phone app, then sessions and a chat on the phone" width="100%" />
-</td>
-</tr>
+<h3 align="center">💬 Chat &amp;&nbsp;CLI&nbsp;views</h3>
 
-  
-<tr>
-<td width="50%" valign="middle">
+<p align="center">Talk to Claude Code, Codex, or any other agent in a proper chat GUI: clickable images, readable diffs, queued prompts, sub-agents in view, and a full editor for long messages. If you ever need the raw CLI, it is one hotkey away and your draft comes&nbsp;with&nbsp;you.</p>
+
+<p align="center"><img src="media/readme/gx-diff.png" alt="A chat showing the agent's code change as a diff" width="70%" /></p>
 
 <br/>
 
-### Chat & CLI views
+<h3 align="center">🔀 Any agent, swap on&nbsp;the&nbsp;fly</h3>
 
-Talk to Claude Code, Codex, or any other agent in a proper chat GUI: clickable images, readable diffs, queued prompts, sub-agents in view, and a full editor for long messages. If you ever need the raw CLI, it is one hotkey away and your draft comes with you.
+<p align="center">Claude Code, Codex, OpenCode, Pi, Gemini, Grok, Cursor, and more. Pick the model and effort from the chat box, or hand a session from one agent to&nbsp;another&nbsp;mid‑task.</p>
 
-<br/>
-
-</td>
-<td width="50%">
-  <img src="media/readme/gx-diff.png" alt="A chat showing the agent's code change as a diff" width="100%" />
-</td>
-</tr>
-<tr>
-<td width="50%" valign="middle">
+<p align="center"><img src="media/readme/gx-agent-picker.png" alt="The model picker switching between agents" width="70%" /></p>
 
 <br/>
 
-### Any agent, swap on the fly
+<h3 align="center">📝 Annotate Markdown, HTML&nbsp;and&nbsp;diagrams</h3>
 
-Claude Code, Codex, OpenCode, Pi, Gemini, Grok, Cursor, and more. Pick the model and effort from the chat box, or hand a session from one agent to another mid-task.
+<p align="center">Open plans, HTML prototypes, and Excalidraw diagrams next to your agent, select anything, and leave a note or mark it Looks good, Clarify, or Needs tests. One click sends every note to the agent's prompt as numbered feedback with&nbsp;line&nbsp;numbers.</p>
 
-<br/>
-
-</td>
-<td width="50%">
-  <img src="media/readme/gx-agent-picker.png" alt="The model picker switching between agents" width="100%" />
-</td>
-</tr>
-<tr>
-<td width="50%" valign="middle">
+<p align="center"><img src="media/readme/gx-annotate.png" alt="A Markdown plan in the Files view with a comment, a Clarify mark and a Needs tests mark in the Annotations list" width="70%" /></p>
 
 <br/>
 
-### Annotate Markdown, HTML and diagrams
+<h3 align="center">🔎 Find any&nbsp;past&nbsp;session</h3>
 
-Open plans, HTML prototypes, and Excalidraw diagrams next to your agent, select anything, and leave a note or mark it Looks good, Clarify, or Needs tests. One click sends every note to the agent's prompt as numbered feedback with line numbers.
+<p align="center">Fuzzy search every prompt you ever sent, across all your agents, and press <kbd>Enter</kbd> to resume the conversation. Star favourites and filter by agent or project. Also available as <code>gx f</code> for&nbsp;command‑line&nbsp;fans.</p>
 
-<br/>
-
-</td>
-<td width="50%">
-  <img src="media/readme/gx-annotate.png" alt="A Markdown plan in the Files view with a comment, a Clarify mark and a Needs tests mark in the Annotations list" width="100%" />
-</td>
-</tr>
-<tr>
-<td width="50%" valign="middle">
+<p align="center"><img src="media/readme/gx-search.png" alt="Searching every past prompt" width="70%" /></p>
 
 <br/>
 
-### Find any past session
+<h3 align="center">🤖 Agents that&nbsp;run&nbsp;agents</h3>
 
-Fuzzy search every prompt you ever sent, across all your agents, and press Enter to resume the conversation. Star favourites and filter by agent or project. Also available as `gx f` for command-line fans.
+<p align="center">Agents can open sessions, send prompts, and read replies from other agents through the <code>ghostex</code> command. Ask Claude Code to spin up Codex sub-agents and steer them, or hand the work to an orchestrator that keeps track of them&nbsp;for&nbsp;you.</p>
 
-<br/>
-
-</td>
-<td width="50%">
-  <img src="media/readme/gx-search.png" alt="Searching every past prompt" width="100%" />
-</td>
-</tr>
-<tr>
-<td width="50%" valign="middle">
+<p align="center"><img src="media/readme/gx-threads.png" alt="An orchestrator with its threads in the sidebar and the Threads panel" width="70%" /></p>
 
 <br/>
 
-### Agents that run agents
+<h3 align="center">📊 Charts and tables in&nbsp;the&nbsp;chat</h3>
 
-Agents can open sessions, send prompts, and read replies from other agents through the `ghostex` command. Ask Claude Code to spin up Codex sub-agents and steer them, or hand the work to an orchestrator that keeps track of them for you.
+<p align="center">Ask for <code>$ghostex-visuals</code> and agents answer with charts, tables, and stat tiles drawn right in the chat, or publish an HTML page that opens as a card. Same look on desktop, web,&nbsp;and&nbsp;phone.</p>
 
-<br/>
-
-</td>
-<td width="50%">
-  <img src="media/readme/gx-threads.png" alt="An orchestrator with its threads in the sidebar and the Threads panel" width="100%" />
-</td>
-</tr>
-<tr>
-<td width="50%" valign="middle">
+<p align="center"><img src="media/readme/gx-visuals.png" alt="A chat reply with stat tiles, a bar chart and a table of failing tests" width="70%" /></p>
 
 <br/>
 
-### Charts and tables in the chat
+<h3 align="center">⏭️ Queue your&nbsp;next&nbsp;prompts</h3>
 
-Ask for `$ghostex-visuals` and agents answer with charts, tables, and stat tiles drawn right in the chat, or publish an HTML page that opens as a card. Same look on desktop, web, and phone.
+<p align="center">Keep typing while the agent works. Press <kbd>Tab</kbd> to queue a prompt and it waits above the input until the agent is free; drag to reorder, or press play on a message you already sent to interrupt and deliver it&nbsp;right&nbsp;away.</p>
 
-<br/>
-
-</td>
-<td width="50%">
-  <img src="media/readme/gx-visuals.png" alt="A chat reply with stat tiles, a bar chart and a table of failing tests" width="100%" />
-</td>
-</tr>
-<tr>
-<td width="50%" valign="middle">
+<p align="center"><img src="media/readme/gx-queue.png" alt="An agent at work with two queued prompts waiting above the chat input" width="70%" /></p>
 
 <br/>
 
-### Queue your next prompts
+<h3 align="center">✅ Answer your agents in&nbsp;one&nbsp;click</h3>
 
-Keep typing while the agent works. Press Tab to queue a prompt and it waits above the input until the agent is free; drag to reorder, or press play on a message you already sent to interrupt and deliver it right away.
+<p align="center">When an agent needs your decisions, it asks them as a form right in the chat: every question at once, choices you click, a note box for each, and one Send. It works the same on desktop, web, and&nbsp;your&nbsp;phone.</p>
 
-<br/>
+<p align="center"><img src="media/readme/gx-questions.png" alt="A question form in the chat with clickable choices, Recommended badges and a Send answers button" width="70%" /></p>
 
-</td>
-<td width="50%">
-  <img src="media/readme/gx-queue.png" alt="An agent at work with two queued prompts waiting above the chat input" width="100%" />
-</td>
-</tr>
-<tr>
-<td width="50%" valign="middle">
-
-<br/>
-
-### Answer your agents in one click
-
-When an agent needs your decisions, it asks them as a form right in the chat: every question at once, choices you click, a note box for each, and one Send. It works the same on desktop, web, and your phone.
-
-<br/>
-
-</td>
-<td width="50%">
-  <img src="media/readme/gx-questions.png" alt="A question form in the chat with clickable choices, Recommended badges and a Send answers button" width="100%" />
-</td>
-</tr>
-</table>
 
 ### Also in the box
 
