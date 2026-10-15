@@ -219,7 +219,8 @@ pub fn compute_activity_update(
                     "title": title,
                 }),
             );
-            let program_wins = crate::program_status::combined_program_wins(program_state, detected);
+            let program_wins =
+                crate::program_status::combined_program_wins(program_state, detected);
             if program_wins {
                 return ActivityUpdate {
                     activity: previous_state.to_value(),
