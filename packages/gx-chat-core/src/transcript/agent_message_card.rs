@@ -98,6 +98,16 @@ fn card(
     })
 }
 
+/// Marks a card whose other session is a coordinator, which the renderers draw with the crown in
+/// place of its agent's logo (the arrow badge stays: it says which way the message went).
+///
+/// CDXC:Coordinators 2026-10-15 DECISION:
+/// User, on a thread's `Message from "Main Coordinator"` card that showed the generic robot: "show crown icon for orchestrator messages not this". A card whose other session is a coordinator (the same `coordinatorRole` test as the sidebar's crown, read from the host's session list) draws the sidebar's crown (`titlebar/coordinator-crown.svg`, white on dark, black on light) instead of the agent logo, on the desktop, the web build and the phone; messages from any other agent keep their logo. Messages to a coordinator get the crown too, so the card always shows the other session the same way.
+fn crowned(mut card: Value, coordinator: bool) -> Value {
+    card["coordinator"] = coordinator.into();
+    card
+}
+
 /// A subagent's name as its cards say it: "Explore subagent", or "a subagent" for an untyped one.
 pub fn subagent_label(name: &str) -> String {
     let name = js_trim(name);
@@ -178,7 +188,7 @@ pub fn dress_received(message: &mut Value) {
         session_target(text(inter, "replyTo")),
         Vec::new(),
     );
-    message["interAgentMessage"]["card"] = card;
+    message["interAgentMessage"]["card"] = crowned(card, inter["coordinator"] == true);
 }
 
 /// Brings one recipient's status up to date from gxserver's delivery watch: a send that answered
@@ -260,7 +270,12 @@ fn combined_status(statuses: &[Value]) -> Value {
         return waiting.clone();
     }
     if statuses.iter().all(|status| status["tone"] == "good") {
-        return status("Delivered", &format!("Delivered to all {count}"), "good", "check");
+        return status(
+            "Delivered",
+            &format!("Delivered to all {count}"),
+            "good",
+            "check",
+        );
     }
     Value::Null
 }
@@ -309,17 +324,21 @@ pub fn dress_sent(sent: &mut Value) {
             ""
         }
         .to_string();
-        sent["card"] = card(
-            "sent",
-            recipient_icon(recipient),
-            sentence.clone(),
-            sentence,
-            "",
-            delivery_status(recipient),
-            &failure,
-            Value::Null,
-            recipient_session(recipient),
-            Vec::new(),
+        let coordinator = recipient["coordinator"] == true;
+        sent["card"] = crowned(
+            card(
+                "sent",
+                recipient_icon(recipient),
+                sentence.clone(),
+                sentence,
+                "",
+                delivery_status(recipient),
+                &failure,
+                Value::Null,
+                recipient_session(recipient),
+                Vec::new(),
+            ),
+            coordinator,
         );
         return;
     }
@@ -340,22 +359,30 @@ pub fn dress_sent(sent: &mut Value) {
                 "direction": "sent",
                 "name": recipient_label(recipient),
                 "agentIcon": icon,
+                "coordinator": recipient["coordinator"] == true,
                 "status": status,
                 "session": recipient_session(recipient),
             })
         })
         .collect();
     let sentence = format!("Message to {count} sessions");
-    sent["card"] = card(
-        "sent",
-        icon,
-        sentence.clone(),
-        sentence,
-        "",
-        combined_status(&statuses),
-        "",
-        Value::Null,
-        Value::Null,
-        listed,
+    // The row's own mark is the crown only when every recipient is a coordinator.
+    let coordinator = recipients
+        .iter()
+        .all(|recipient| recipient["coordinator"] == true);
+    sent["card"] = crowned(
+        card(
+            "sent",
+            icon,
+            sentence.clone(),
+            sentence,
+            "",
+            combined_status(&statuses),
+            "",
+            Value::Null,
+            Value::Null,
+            listed,
+        ),
+        coordinator,
     );
 }

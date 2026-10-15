@@ -400,7 +400,8 @@ impl NativeChatView {
             .into_any_element()
     }
 
-    /// The agent's own logo with a small arrow badge (prose grey coming in, sky going out), or
+    /// The agent's own logo (a coordinator's crown, `CDXC:Coordinators 2026-10-15` in the core's
+    /// agent_message_card.rs) with a small arrow badge (prose grey coming in, sky going out), or
     /// the sparkle of a subagent.
     fn agent_card_mark(&self, card: &Value, p: &ChatAppearance) -> AnyElement {
         let s = p.scale;
@@ -421,6 +422,16 @@ impl NativeChatView {
         };
         let agent = text(card, "agentIcon");
         let logo = match workspace_tab_agent_icon_path(&agent) {
+            // The sidebar's coordinator crown and colours (`coordinator_icon` in native_sidebar/threads.rs).
+            _ if card["coordinator"] == true => icon(
+                "titlebar/coordinator-crown.svg",
+                17.0 * s,
+                if p.light {
+                    rgb(0x000000).into()
+                } else {
+                    rgb(0xffffff).into()
+                },
+            ),
             // OMP's artwork is deliberately multicolour (`new_session_agent_mark`).
             Some(asset) if agent == "omp" => img(asset).size(px(17.0 * s)).into_any_element(),
             Some(asset) => gpui::svg()

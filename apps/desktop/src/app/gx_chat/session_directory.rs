@@ -84,6 +84,8 @@ pub(crate) fn publish(store: &PresentationStore) {
                 title: row_title(session),
                 agent_id: session.agent_id.clone().unwrap_or_default(),
                 agent_name: session.agent_name.clone().unwrap_or_default(),
+                // The same test as the sidebar's crown (`is_coordinator` in gx-core's rows).
+                coordinator: session.coordinator_role.as_deref() == Some("coordinator"),
             });
         }
     }

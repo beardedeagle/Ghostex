@@ -101,6 +101,9 @@ pub struct KnownSession {
     pub agent_id: String,
     /// The agent's display name (`Claude`, `Codex`).
     pub agent_name: String,
+    /// The session is a coordinator (an orchestrator): its cards draw the crown, as its sidebar
+    /// row does.
+    pub coordinator: bool,
 }
 
 /// What the host knows when it opens a chat.

@@ -645,6 +645,7 @@ fn complete_received(directory: &Directory, hosts: &HostDirectory, message: &mut
     if text(inter, "agentName").is_empty() && !session.agent_name.is_empty() {
         inter["agentName"] = session.agent_name.clone().into();
     }
+    inter["coordinator"] = session.coordinator.into();
     dress_received(message);
 }
 
@@ -669,6 +670,7 @@ fn name_recipient(directory: &Directory, hosts: &HostDirectory, recipient: &mut 
     let mut agent_id = text(recipient, "agentId").to_string();
     let mut agent_name = text(recipient, "agentName").to_string();
     let mut title = String::new();
+    recipient["coordinator"] = host.is_some_and(|session| session.coordinator).into();
     if let Some(session) = host {
         title = session.title.clone();
         // A send addressed by bare session id still opens that session.
