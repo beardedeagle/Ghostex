@@ -760,6 +760,13 @@ impl GhostexGpuiApp {
                         Editor::new(&editor)
                             .scrollbar_show(ScrollbarMode::Always)
                             .appearance(false)
+                            // Under glass the Kit theme's opaque gutter and current-line
+                            // fills would be solid blocks on the see-through page.
+                            .when(p.glass, |editor| {
+                                editor
+                                    .gutter_background(gpui::transparent_black())
+                                    .active_line_background(p.row_hover)
+                            })
                             .h_full()
                             .font_family(p.mono_font.clone())
                             .text_sm()
