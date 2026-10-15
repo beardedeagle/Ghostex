@@ -89,9 +89,17 @@ pub fn terminal_dialog_presentation(dialog: &TerminalDialog) -> Value {
         if let Some(card) = &side_question {
             return action == "cancel" || (action == "fork" && card["canFork"] == true);
         }
-        // Tabs are clicked directly. The server offers up/down only when a `❯` row or an arrow
-        // hint is on screen, so a panel with blocks keeps them.
+        // Tabs are clicked directly, and rows are numbered choices (dialog_rows.rs). Otherwise the
+        // server offers up/down only when a `❯` row or an arrow hint is on screen, so a panel with
+        // blocks keeps them.
         !(tab_strip.is_some() && matches!(action, "left" | "right"))
+            // A list scrolled past its visible rows ("↓ more below") keeps them to reach the rest.
+            && !(!dialog.rows.is_empty()
+                && !dialog.body.contains("more below")
+                && !dialog.body.contains("more above")
+                && matches!(action, "up" | "down"))
+            // A y/n prompt's keys are its Yes and No rows (dialog_rows.rs).
+            && !matches!(action, "yes" | "no")
     });
     let highlighted = highlighted_row(dialog);
     let cancel_label = if side_question.is_some() || !blocks.is_empty() {
@@ -142,7 +150,7 @@ pub fn terminal_dialog_presentation(dialog: &TerminalDialog) -> Value {
 
 /*
 CDXC:SessionChat 2026-10-15 DECISION:
-User picked: show ↑ Previous / ↓ Next on every Claude panel the server offers them for (blocks or not), and label Confirm with the highlighted row's text ("Install for you (user scope)", "Disable plugin") so it is never a blind Enter. Before, `/plugin`'s install step offered only Confirm, which always installed at user scope.
+User picked: show ↑ Previous / ↓ Next on every Claude panel the server offers them for (blocks or not; a card whose rows are numbered choices drops them, per the option D decision in dialog_rows.rs), and label Confirm with the highlighted row's text ("Install for you (user scope)", "Disable plugin") so it is never a blind Enter. Before, `/plugin`'s install step offered only Confirm, which always installed at user scope.
 SEE-ALSO: server/src/session_chat_claude_dialog.rs (option rows on tabbed panels), apps/desktop/src/app/native_chat/notice.rs, apps/mobile/app/src/chat/native/cards/NoticeCard.tsx.
 */
 /// What Enter would pick: the selected row, or the `❯` line of a panel read as blocks, without

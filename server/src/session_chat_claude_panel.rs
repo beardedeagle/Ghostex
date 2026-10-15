@@ -256,7 +256,8 @@ fn panel_rows(styled: &str) -> Option<Vec<Row>> {
 
 fn is_hint(line: &str) -> bool {
     let lower = line.to_ascii_lowercase();
-    lower.contains("esc to")
+    lower.contains("press y to confirm")
+        || lower.contains("esc to")
         || lower.contains("esc cancel")
         || lower.contains("enter to")
         || lower.contains(" to search")
@@ -737,7 +738,13 @@ fn panel_blocks(rows: &[Row]) -> Option<Vec<Value>> {
             let line = row.trimmed();
             !is_hint(line)
                 && !line.contains('⌕')
-                && !(line.starts_with(['╭', '╰']) && line.chars().skip(1).all(|c| c == '─'))
+                // The search field's empty box; its corners close it on the right.
+                && !(line.starts_with(['╭', '╰'])
+                    && line
+                        .trim_end_matches(['╮', '╯'])
+                        .chars()
+                        .skip(1)
+                        .all(|c| c == '─'))
         })
         .collect();
     let mut pre: Vec<String> = Vec::new();

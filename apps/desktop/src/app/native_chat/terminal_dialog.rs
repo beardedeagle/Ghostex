@@ -1,6 +1,7 @@
 use super::tone_card::ToneButton;
 use super::{appearance::ChatAppearance, state::NativeChatView, transcript::text};
 use crate::app::native_chat::cursor::ChatCursor as _;
+use gpui::prelude::FluentBuilder as _;
 use gpui::{
     AnyElement, App, AppContext as _, Context, Entity, FocusHandle, Focusable as _,
     InteractiveElement as _, IntoElement, ParentElement as _, SharedString,
@@ -46,6 +47,197 @@ impl TerminalDialogField {
 }
 
 impl NativeChatView {
+    /// One numbered row of a live terminal dialog (option D, `dialog_rows.rs` in the chat core):
+    /// the question card's row sizes (`choice_row`) with its number at the start, filled on the
+    /// row the terminal highlights, the name on one line (whole on hover), a muted suffix and
+    /// detail, and the row's stats and shortcut at the end. `answer` is `None` for the "More" row,
+    /// which `on_more` opens instead.
+    pub(super) fn dialog_choice(
+        &self,
+        id: String,
+        choice: &Value,
+        shortcut: Option<String>,
+        disabled: bool,
+        answer: Option<Value>,
+        on_more: Option<Box<dyn Fn(&mut Self, &mut Context<Self>)>>,
+        p: &ChatAppearance,
+        cx: &Context<Self>,
+    ) -> AnyElement {
+        let s = p.scale;
+        let highlighted = choice["highlighted"] == true;
+        let title = text(choice, "title");
+        let number = choice["number"]
+            .as_u64()
+            .map(|number| number.to_string())
+            .unwrap_or_default();
+        let badge = div()
+            .size(px(20.0 * s))
+            .flex_shrink_0()
+            .rounded(px(6.0 * s))
+            .border_1()
+            .flex()
+            .justify_center()
+            .items_center()
+            .text_size(px(11.5 * s))
+            .font_weight(gpui::FontWeight::BOLD)
+            .map(|badge| {
+                if highlighted {
+                    badge
+                        .bg(p.control_primary)
+                        .border_color(p.control_primary)
+                        .text_color(p.background)
+                } else {
+                    badge
+                        .bg(p.background.opacity(0.4))
+                        .border_color(p.control_border.opacity(0.6))
+                        .text_color(p.card_muted)
+                }
+            })
+            .map(|badge| {
+                if number.is_empty() {
+                    badge.child(
+                        gpui::svg()
+                            .path("titlebar/dots.svg")
+                            .size(px(12.0 * s))
+                            .text_color(p.card_muted),
+                    )
+                } else {
+                    badge.child(number.clone())
+                }
+            });
+        let suffix = text(choice, "suffix");
+        let detail = text(choice, "detail");
+        let meta = text(choice, "meta");
+        let tooltip = title.clone();
+        div()
+            .id(gpui::SharedString::from(id))
+            .when(!disabled, |row| row.tab_index(0))
+            .role(gpui::Role::Button)
+            .aria_label(title.clone())
+            .flex()
+            .items_start()
+            .gap(px(11.0 * s))
+            .w_full()
+            .px(px(12.0 * s))
+            .py(px(8.0 * s))
+            .rounded(px(8.0 * s))
+            .border_1()
+            .border_color(if highlighted {
+                p.control_primary.opacity(0.45)
+            } else {
+                p.control_border
+            })
+            .text_color(p.foreground)
+            .when(p.light, |row| row.bg(p.background))
+            .when(highlighted, |row| row.bg(p.control_primary.opacity(0.06)))
+            .when(disabled, |row| row.opacity(0.6))
+            .when(!disabled, |row| {
+                row.chat_cursor_pointer().hover(|style| {
+                    style.bg(if p.light {
+                        p.input
+                    } else {
+                        p.input_border.opacity(0.3)
+                    })
+                })
+            })
+            .child(badge)
+            .child(
+                div()
+                    .min_w_0()
+                    .flex_1()
+                    .flex()
+                    .flex_col()
+                    .gap(px(1.0 * s))
+                    .child(
+                        div()
+                            .flex()
+                            .items_baseline()
+                            .gap(px(6.0 * s))
+                            .min_w_0()
+                            .child(
+                                div()
+                                    .min_w_0()
+                                    .truncate()
+                                    .text_size(px(14.0 * s))
+                                    .line_height(px(19.25 * s))
+                                    .font_weight(gpui::FontWeight::SEMIBOLD)
+                                    .child(title.clone()),
+                            )
+                            .when(!suffix.is_empty(), |line| {
+                                line.child(
+                                    div()
+                                        .flex_shrink_0()
+                                        .text_size(px(12.0 * s))
+                                        .text_color(p.card_muted)
+                                        .child(suffix),
+                                )
+                            })
+                            .when(choice["ticked"] == true, |line| {
+                                line.child(
+                                    gpui::svg()
+                                        .path("titlebar/check.svg")
+                                        .size(px(14.0 * s))
+                                        .flex_shrink_0()
+                                        .text_color(p.control_primary),
+                                )
+                            }),
+                    )
+                    .when(!detail.is_empty(), |column| {
+                        column.child(
+                            div()
+                                .text_size(px(13.0 * s))
+                                .line_height(px(18.0 * s))
+                                .text_color(p.card_muted)
+                                .child(detail),
+                        )
+                    }),
+            )
+            .when(!meta.is_empty(), |row| {
+                row.child(
+                    div()
+                        .flex_shrink_0()
+                        .max_w(px(180.0 * s))
+                        .truncate()
+                        .text_size(px(12.0 * s))
+                        .line_height(px(19.25 * s))
+                        .text_color(p.muted)
+                        .child(meta),
+                )
+            })
+            .when_some(shortcut, |row, shortcut| {
+                row.child(
+                    div()
+                        .h(px(20.0 * s))
+                        .min_w(px(20.0 * s))
+                        .px(px(4.0 * s))
+                        .flex_shrink_0()
+                        .border_1()
+                        .border_color(p.control_border.opacity(0.6))
+                        .bg(p.background.opacity(0.4))
+                        .rounded(px(4.0 * s))
+                        .flex()
+                        .justify_center()
+                        .items_center()
+                        .font_family(crate::app::native_chat::fonts::CHAT_MONO)
+                        .text_size(px(13.0 * s))
+                        .font_weight(gpui::FontWeight::MEDIUM)
+                        .text_color(p.muted)
+                        .child(shortcut),
+                )
+            })
+            .tooltip(move |window, cx| {
+                gpui_component::tooltip::Tooltip::new(tooltip.clone()).build(window, cx)
+            })
+            .when(!disabled, |row| {
+                row.on_click(cx.listener(move |this, _, _, cx| match (&answer, &on_more) {
+                    (Some(answer), _) => this.invoke(answer.clone(), cx),
+                    (None, Some(on_more)) => on_more(this, cx),
+                    (None, None) => {}
+                }))
+            })
+            .into_any_element()
+    }
+
     fn terminal_dialog_input_event<T>(
         &mut self,
         _: &Entity<T>,
@@ -236,7 +428,12 @@ impl NativeChatView {
                     "terminal-dialog-submit",
                     &submit_label,
                     None,
-                    ToneButton::Primary,
+                    // Beside numbered rows the labelled Confirm is the one filled button.
+                    if has_rows && dialog["input"] == "search" {
+                        ToneButton::Secondary
+                    } else {
+                        ToneButton::Primary
+                    },
                     None,
                     false,
                     p,
@@ -262,8 +459,10 @@ impl NativeChatView {
                     window.prevent_default(); cx.stop_propagation();
                 })).into_any_element());
         }
-        // Written copy and blocks come with buttons for everything the key-hint footer says.
+        // Written copy and blocks come with buttons for everything the key-hint footer says, and
+        // numbered rows with their own hint in the card's footer.
         if !copy.is_object()
+            && !has_rows
             && !dialog["presentation"]["blocks"].is_array()
             && !text(dialog, "footer").is_empty()
         {
@@ -286,7 +485,12 @@ impl NativeChatView {
                     gpui::SharedString::from(format!("dialog-action:{}", text(action, "action"))),
                     &text(action, "label"),
                     None,
-                    ToneButton::Secondary,
+                    // The labelled Confirm says what Enter picks, so it is the card's filled button.
+                    if has_rows && action["action"] == "confirm" {
+                        ToneButton::Primary
+                    } else {
+                        ToneButton::Secondary
+                    },
                     None,
                     false,
                     p,

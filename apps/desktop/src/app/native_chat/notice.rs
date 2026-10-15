@@ -47,7 +47,9 @@ impl NativeChatView {
         let panel = notice["dialog"]["presentation"]["blocks"]
             .as_array()
             .is_some_and(|blocks| !blocks.is_empty());
-        let foldable = answerable && !panel;
+        // A live dialog's rows are numbered choices that open with the card (dialog_rows.rs).
+        let numbered = notice["numbered"] == true;
+        let foldable = answerable && !panel && !numbered;
         let collapsed = foldable && !self.expanded.contains(&key);
         // The card keeps its collapsed choices while shut, so an opening body grows from their
         // height rather than from nothing.
@@ -65,6 +67,7 @@ impl NativeChatView {
         let mut actions = Vec::new();
         let mut footer_end = Vec::new();
         if notice["dialog"].is_object()
+            && !numbered
             && notice["dialog"]["rows"]
                 .as_array()
                 .is_some_and(Vec::is_empty)
@@ -144,14 +147,15 @@ impl NativeChatView {
             let secondary = notice["secondaryChoice"]
                 .as_u64()
                 .map(|index| index as usize);
+            // A y/n prompt's rows have no Cmd+Enter row (dialog_rows.rs `key_rows`).
             let primary = notice["primaryChoice"]
                 .as_u64()
-                .map_or(0, |index| index as usize);
+                .map(|index| index as usize);
             let shortcuts: Vec<Option<String>> = (0..count.min(choices.len()))
                 .map(|index| {
                     if self.snapshot["showShortcutLabels"] == false {
                         None
-                    } else if index == primary {
+                    } else if Some(index) == primary {
                         Some(
                             if cfg!(target_os = "macos") {
                                 "⌘Enter"
@@ -191,7 +195,25 @@ impl NativeChatView {
             if collapsed {
                 rows = rows.flex_wrap();
             }
-            for (choice, shortcut) in choices.iter().take(count).zip(shortcuts) {
+            let more_key = format!("{key}:more");
+            let more_open = self.expanded.contains(&more_key);
+            for (choice, shortcut) in choices.iter().take(count).zip(shortcuts.clone()) {
+                if numbered {
+                    if choice["folded"] == true && !more_open {
+                        continue;
+                    }
+                    rows = rows.child(self.dialog_choice(
+                        format!("notice-choice:{}", choice["index"]),
+                        choice,
+                        shortcut,
+                        snapshot["questionCard"]["busy"] == true,
+                        Some(json!({"type":"answer","answer":choice["answer"]})),
+                        None,
+                        p,
+                        cx,
+                    ));
+                    continue;
+                }
                 // CDXC:SessionChat 2026-09-26 DECISION:
                 // User: a notice card's choice must never wrap onto 2 lines; truncate it with "..." and show the whole label on hover.
                 // SEE-ALSO: apps/mobile/app/src/chat/native/cards/NoticeCard.tsx, where pressing and holding the choice stands in for hover.
@@ -214,6 +236,22 @@ impl NativeChatView {
                         .when_some(basis, |row, basis| row.flex_grow(1.0).flex_basis(px(basis)))
                         .child(row),
                 );
+            }
+            if numbered && notice["more"].is_object() && !more_open {
+                let toggle_key = more_key.clone();
+                rows = rows.child(self.dialog_choice(
+                    "notice-choice:more".to_string(),
+                    &json!({"title": notice["more"]["label"], "detail": notice["more"]["detail"]}),
+                    None,
+                    false,
+                    None,
+                    Some(Box::new(move |this: &mut Self, cx: &mut Context<Self>| {
+                        this.expanded.insert(toggle_key.clone());
+                        cx.notify();
+                    })),
+                    p,
+                    cx,
+                ));
             }
             body.push(rows.into_any_element());
         }
@@ -444,7 +482,17 @@ impl NativeChatView {
                 detail: String::new(),
                 trailing,
                 body,
-                footer_start: Vec::new(),
+                footer_start: if numbered {
+                    vec![
+                        div()
+                            .text_size(px(12.5 * p.scale))
+                            .text_color(p.muted)
+                            .child("Press a number, or click a row")
+                            .into_any_element(),
+                    ]
+                } else {
+                    Vec::new()
+                },
                 // The notice's own actions sit at the footer's right end, ahead of its dialog
                 // buttons and Dismiss.
                 footer_end: actions.into_iter().chain(footer_end).collect(),

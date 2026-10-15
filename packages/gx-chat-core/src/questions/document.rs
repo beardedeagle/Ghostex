@@ -217,6 +217,11 @@ fn decorate_notice(raw: &Value, notice: &TerminalNotice) -> Value {
             object.remove("choices");
         }
     }
+    object.remove("numbered");
+    object.remove("more");
+    if let Some(dialog) = notice.dialog.as_ref() {
+        crate::questions::dialog_rows::decorate(&mut object, dialog);
+    }
     match notice.actions.as_ref() {
         Some(actions) => {
             let raw_actions = raw.get("actions").and_then(Value::as_array);

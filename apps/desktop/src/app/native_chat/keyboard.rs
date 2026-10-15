@@ -243,6 +243,35 @@ impl NativeChatView {
             }
             return;
         }
+        // A live terminal dialog's numbered rows answer their number keys like a question card's
+        // options (dialog_rows.rs in the chat core).
+        if this.snapshot["noticeVisible"] == true
+            && this.snapshot["terminalNotice"]["numbered"] == true
+            && this.snapshot["questionCard"]["busy"] != true
+            && !key.modifiers.platform
+            && !key.modifiers.control
+            && !key.modifiers.alt
+            && let Ok(digit @ 1..=9) = key.key.parse::<u64>()
+        {
+            let editing = this
+                .input
+                .iter()
+                .any(|input| input.read(cx).focus_handle(cx).is_focused(window))
+                || this
+                    .terminal_dialog_input
+                    .as_ref()
+                    .is_some_and(|input| input.field.focus_handle(cx).is_focused(window));
+            let answer = this.snapshot["terminalNotice"]["choices"]
+                .as_array()
+                .and_then(|choices| choices.iter().find(|choice| choice["number"] == digit))
+                .map(|choice| choice["answer"].clone());
+            if !editing && let Some(answer) = answer {
+                this.invoke(json!({"type":"answer","answer":answer}), cx);
+                cx.stop_propagation();
+                window.prevent_default();
+                return;
+            }
+        }
         let Some(input) = this.input.clone() else {
             return;
         };
@@ -331,12 +360,11 @@ impl NativeChatView {
             && !event.is_held
         {
             let notice = &this.snapshot["terminalNotice"];
+            // No primary row (a y/n prompt's Yes, dialog_rows.rs) means Cmd+Enter answers nothing.
             let position = if primary {
-                Some(
-                    notice["primaryChoice"]
-                        .as_u64()
-                        .map_or(0, |index| index as usize),
-                )
+                notice["primaryChoice"]
+                    .as_u64()
+                    .map(|index| index as usize)
             } else {
                 notice["secondaryChoice"]
                     .as_u64()

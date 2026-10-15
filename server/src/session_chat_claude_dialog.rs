@@ -331,6 +331,7 @@ pub fn detect_claude_dialog(text: &str) -> Option<TerminalDialog> {
             || lower.contains("←/→")
             || lower.contains("↑/↓")
             || lower.contains("d to day")
+            || lower.contains("press y to confirm")
     };
     let footer = title_hint
         .as_deref()
@@ -418,18 +419,23 @@ pub fn detect_claude_dialog(text: &str) -> Option<TerminalDialog> {
     let (mut rows, option_lines) = option_rows(remainder);
     /*
     CDXC:AgentScreenDetection 2026-10-15 DECISION:
-    User picked: keep option rows on tabbed Claude panels (`/plugin`'s install scope, an installed plugin's actions, Marketplaces), which a "title has a tab strip" check used to drop, so the scope could only be chosen in the terminal. A row click is still not offered for what it cannot express: a search field, checkboxes, or a list scrolled past its ends; those keep the full panel with arrow buttons.
+    User picked: keep option rows on tabbed Claude panels (`/plugin`'s install scope, an installed plugin's actions, Marketplaces), which a "title has a tab strip" check used to drop, so the scope could only be chosen in the terminal.
+    User then picked option D, "Numbered choices" (packages/gx-chat-core/src/questions/dialog_rows.rs), which lists the plugin list's plugins as numbered rows too: a searchable or checkbox list ("Type to search · Space to toggle · Enter to view") and one scrolled with a "↓ more below" marker keep their visible rows, since a click moves the highlight by arrows and presses Enter. This replaces this comment's earlier rule that dropped rows for a search field, checkboxes or a scrolled list. Still without rows: a text field, a numbered list cut mid-way ("↓ 10. …"), and the `/resume` picker, which has its own card.
     SEE-ALSO: server/src/session_chat_claude_panel.rs (the panel's blocks beside the rows), packages/gx-chat-core/src/questions/terminal_prompts.rs.
     */
-    let numbered = input.is_none()
+    let picker = crate::session_chat_resume_picker::claude_resume_picker(&title, remainder);
+    let numbered = matches!(input, None | Some("search"))
+        && picker.is_none()
         && rows.iter().filter(|r| r.selected).count() == 1
-        // A scrolled list marks its cut-off row "↓ 5. …"; a lone arrow at the right edge only
-        // scrolls a plan or text viewport above the options.
+        // A scrolled numbered list marks its cut-off row "↓ 5. …"; "↓ more below" only says
+        // there are more rows, and a lone arrow at the right edge scrolls a plan or text viewport.
         && !remainder.iter().any(|line| {
             let line = line.trim();
-            line.starts_with(['↓', '↑']) && line.chars().count() > 1
-        })
-        && !lower.contains("space");
+            line.starts_with(['↓', '↑'])
+                && line[3..]
+                    .trim_start()
+                    .starts_with(|c: char| c.is_ascii_digit())
+        });
     if !numbered {
         rows.clear();
     }
@@ -495,6 +501,11 @@ pub fn detect_claude_dialog(text: &str) -> Option<TerminalDialog> {
     if lower.contains("f to fork") {
         actions.push("fork");
     }
+    // "Press y to confirm or n to cancel" (removing a marketplace): the chat lists the two keys as
+    // its Yes and No rows (dialog_rows.rs in the chat core).
+    if lower.contains("press y to confirm") {
+        actions.extend(["yes", "no"]);
+    }
     // First-run setup has nothing to go back to.
     if !first_run {
         actions.push("cancel");
@@ -519,7 +530,6 @@ pub fn detect_claude_dialog(text: &str) -> Option<TerminalDialog> {
             }
         })
         .collect();
-    let picker = crate::session_chat_resume_picker::claude_resume_picker(&title, remainder);
     // The picker's footer names no Enter key, but Enter resumes the highlighted conversation.
     if picker.is_some() && !actions.contains(&"confirm") {
         actions.push("confirm");
@@ -659,6 +669,8 @@ pub(crate) fn claude_dialog_steps(
                 "day" => "d",
                 "week" => "w",
                 "fork" => "f",
+                "yes" => "y",
+                "no" => "n",
                 "cancel" => SESSION_CHAT_INTERRUPT,
                 _ => return Err(invalid()),
             };

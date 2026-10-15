@@ -8,6 +8,7 @@ pub mod account_wait;
 pub mod actions;
 pub mod async_answers;
 pub mod async_controller;
+pub mod dialog_rows;
 pub mod document;
 pub mod drafts;
 pub mod events;
