@@ -28,8 +28,11 @@ const VIDEO_TOP: f32 = 212.0;
 /// The glass rim around the player.
 const BEZEL: f32 = 7.0;
 
+/// The player starts at once: the web view is only made when the user presses Play.
 fn embed_url() -> String {
-    format!("https://www.youtube-nocookie.com/embed/{INTRO_VIDEO_ID}?rel=0&playsinline=1&fs=0")
+    format!(
+        "https://www.youtube-nocookie.com/embed/{INTRO_VIDEO_ID}?rel=0&playsinline=1&fs=0&autoplay=1"
+    )
 }
 
 /// CDXC:Onboarding 2026-10-07 WHY:
@@ -41,7 +44,7 @@ fn embed_page_html() -> String {
             "<meta name=\"referrer\" content=\"strict-origin-when-cross-origin\"></head>",
             "<body style=\"margin:0;background:#000;overflow:hidden\">",
             "<iframe src=\"{}\" title=\"Ghostex intro video\" ",
-            "referrerpolicy=\"strict-origin-when-cross-origin\" allow=\"encrypted-media; picture-in-picture\" ",
+            "referrerpolicy=\"strict-origin-when-cross-origin\" allow=\"autoplay; encrypted-media; picture-in-picture\" ",
             "style=\"position:fixed;inset:0;width:100%;height:100%;border:0\"></iframe>",
             "</body></html>"
         ),
@@ -55,6 +58,8 @@ fn watch_url() -> String {
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Status {
+    /// The still with a play button; nothing is loaded until Play is pressed.
+    Idle,
     /// Asking YouTube whether it answers, before the web view is made.
     Checking,
     /// The web view holds the player.
@@ -74,16 +79,19 @@ pub(crate) struct IntroVideo {
 }
 
 impl GpuiOnboardingWindow {
-    pub(super) fn start_intro_video(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    /// CDXC:Onboarding 2026-10-16 WHY:
+    /// Issue #237 (Windows 11, a 1366x768 screen): on the page with the player loaded, neither Continue nor anything else took a click. Every element is the same GPUI layout that takes clicks on macOS, and Windows Program Files installs only got a working WebView2 here in v10.14 (before that its creation failed and the page showed the still), so the system web view is the one Windows-only piece on the page. The page now opens on the bundled still with a play button and makes no web view until Play is pressed: Continue (a click, Enter, the right arrow, or Tab to it) never depends on the web view having started, and anyone who skips the video never starts WebView2 or WKWebView at all.
+    pub(super) fn start_intro_video(&mut self) {
         self.intro = Some(IntroVideo {
-            status: Status::NoWebView,
+            status: if IntroWebView::SUPPORTED {
+                Status::Idle
+            } else {
+                Status::NoWebView
+            },
             web_view: None,
             attempt: 0,
             changed_at: Instant::now(),
         });
-        if IntroWebView::SUPPORTED {
-            self.check_intro_video(window, cx);
-        }
     }
 
     fn check_intro_video(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -378,7 +386,10 @@ impl GpuiOnboardingWindow {
                         )),
                 )
                 .into_any_element(),
-            Status::NoWebView => {
+            // The still with a play button: Play loads the player here, or opens YouTube in the
+            // browser where there is no system web view.
+            Status::Idle | Status::NoWebView => {
+                let plays_here = intro.status == Status::Idle;
                 let key = "intro-video-watch";
                 let dim = interact::tween_value(
                     key,
@@ -417,17 +428,26 @@ impl GpuiOnboardingWindow {
                                         .px(s.px(16.0))
                                         .rounded_full()
                                         .bg(rgba(10, 12, 18, 0.74))
-                                        .child(
-                                            sans(s, 15.5, 500.0, gpui::white())
-                                                .child("Watch the intro on YouTube"),
-                                        ),
+                                        .child(sans(s, 15.5, 500.0, gpui::white()).child(
+                                            if plays_here {
+                                                "Play the intro"
+                                            } else {
+                                                "Watch the intro on YouTube"
+                                            },
+                                        )),
                                 ),
                         ),
                     key,
                     interact::Ring::new(8.0, 0.0),
                     interact::Keys::EnterSpace,
                     cx,
-                    |this, _, cx| this.send(OnboardingCommand::OpenExternalUrl(watch_url()), cx),
+                    move |this, window, cx| {
+                        if plays_here {
+                            this.check_intro_video(window, cx);
+                        } else {
+                            this.send(OnboardingCommand::OpenExternalUrl(watch_url()), cx);
+                        }
+                    },
                 )
                 .into_any_element()
             }
@@ -460,6 +480,11 @@ impl GpuiOnboardingWindow {
 
     pub(crate) fn preview_intro_video_no_web_view(&mut self, cx: &mut Context<Self>) {
         self.preview_intro_video_status(Status::NoWebView, cx);
+    }
+
+    /// Presses Play on the still.
+    pub(crate) fn preview_intro_video_play(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.check_intro_video(window, cx);
     }
 
     fn preview_intro_video_status(&mut self, status: Status, cx: &mut Context<Self>) {

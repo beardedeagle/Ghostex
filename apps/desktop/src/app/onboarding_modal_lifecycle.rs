@@ -130,6 +130,25 @@ fn open_message_has_projects(message: &serde_json::Value) -> bool {
 }
 
 impl GhostexGpuiApp {
+    /// CDXC:Onboarding 2026-10-16 WHY:
+    /// The onboarding opened at a fixed 1400x788, so on a 1366x768 screen (Windows issue #237) its top edge and the Ghostex lockup sat above the screen and its footer row reached under the taskbar. It now shrinks, keeping its shape, to the room around the main window's centre on that display; the stage scales to whatever window it gets.
+    fn gpui_onboarding_window_size(&self, cx: &gpui::App) -> (f32, f32) {
+        let (fit_width, fit_height) = self.gpui_native_modal_size_on_screen(
+            gpui::size(
+                gpui::px(ONBOARDING_MODAL_WIDTH),
+                gpui::px(ONBOARDING_MODAL_HEIGHT),
+            ),
+            cx,
+        );
+        let scale = (fit_width / ONBOARDING_MODAL_WIDTH)
+            .min(fit_height / ONBOARDING_MODAL_HEIGHT)
+            .min(1.0);
+        (
+            ONBOARDING_MODAL_WIDTH * scale,
+            ONBOARDING_MODAL_HEIGHT * scale,
+        )
+    }
+
     /// Opens the onboarding for the `onboarding` modal's open message (`firstRun` marks the
     /// automatic first-run open).
     pub(crate) fn open_gpui_onboarding_modal(
@@ -170,10 +189,11 @@ impl GhostexGpuiApp {
         });
         let main_window_native_view = self.parent_ns_view;
         let close_host = host.clone();
+        let (width, height) = self.gpui_onboarding_window_size(cx);
         self.open_native_app_modal(
             KIND,
-            ONBOARDING_MODAL_WIDTH,
-            ONBOARDING_MODAL_HEIGHT,
+            width,
+            height,
             move |window, cx| {
                 /*
                 CDXC:Onboarding 2026-09-15 DECISION:

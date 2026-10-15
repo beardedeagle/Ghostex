@@ -158,6 +158,8 @@ mod backend {
                     response
                 })
                 .with_url(format!("{PAGE_PROTOCOL}://localhost/"))
+                // Made only when the user pressed Play on the page's still, so the player starts at once.
+                .with_autoplay(true)
                 .with_visible(false)
                 .with_focused(false)
                 .with_background_color((0, 0, 0, 255))

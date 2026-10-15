@@ -7,7 +7,8 @@
 //! `workspace`, `workspace-no-browser-skill`, `workspace-agents`, `workspace-docs`,
 //! `workspace-code`, `workspace-kanban`, `workspace-automate`, `mobile`, `get-started`,
 //! `get-started-no-folder`, `get-started-no-folder-with-projects`, `finished`, `finished-guide`,
-//! and the first-run intro video page: `intro-video` (the real player in the system web view),
+//! and the first-run intro video page: `intro-video` (the still with a play button),
+//! `intro-video-play` (presses Play after 1s: the real player in the system web view),
 //! `intro-video-offline`, `intro-video-no-web-view` (what Linux shows), `intro-video-continue`
 //! (presses Continue after 6s).
 //! The host simulates the app: detection answers at once (after 1.4s on a rescan), the helper
@@ -799,6 +800,17 @@ pub(super) fn open(demo: &super::DemoEnv, cx: &mut App) {
         }
         "intro-video-no-web-view" => with_view(&host, cx, |view, cx| {
             view.preview_intro_video_no_web_view(cx)
+        }),
+        "intro-video-play" => later(cx, Duration::from_secs(1), move |cx| {
+            let (window, view) = {
+                let host = host.borrow();
+                (host.window, host.view.clone())
+            };
+            if let (Some(window), Some(view)) = (window, view) {
+                let _ = window.update(cx, |_, window, cx| {
+                    view.update(cx, |view, cx| view.preview_intro_video_play(window, cx))
+                });
+            }
         }),
         "intro-video-continue" => later(cx, Duration::from_secs(6), move |cx| {
             with_view(&host, cx, |view, cx| view.leave_intro_video(cx))

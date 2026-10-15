@@ -2991,8 +2991,9 @@ backend: `ghostex team deploy|join|invite|identity|status|ping|leave`. Slack:
   Colourfulness and one Transparency row (the simple choices from Settings >
   Theme), with a "More theme options in Settings > Theme" link that opens the
   Theme page. Turning transparency on there also switches Appearance to Dark. The very first run opens on a short
-  intro video before the panels: it plays from YouTube (on Linux it opens in
-  the browser), shows once, and Continue goes on to setup at any time; the
+  intro video before the panels: press Play to watch it there (on Linux it
+  opens in the browser), it shows once, and Continue (or Enter) goes on to
+  setup at any time; the
   video is also at https://youtu.be/QzjFB4J6-8E. Reopen the setup any
   time from Tips > Setup or Quick Access > Commands > Setup.
 

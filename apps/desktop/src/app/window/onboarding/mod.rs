@@ -356,7 +356,7 @@ impl GpuiOnboardingWindow {
         this.mount_panel(now, cx);
         this.start_backdrop(cx);
         if intro_video {
-            this.start_intro_video(window, cx);
+            this.start_intro_video();
         }
         this
     }

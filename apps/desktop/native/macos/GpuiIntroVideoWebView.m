@@ -55,8 +55,9 @@ void *GhostexGpuiIntroVideoWebViewCreate(void *parentView, const char *html,
     return NULL;
   }
   WKWebViewConfiguration *configuration = [[WKWebViewConfiguration alloc] init];
-  // The video starts when the user presses play.
-  configuration.mediaTypesRequiringUserActionForPlayback = WKAudiovisualMediaTypeAll;
+  // The web view is only made when the user presses Play on the page's still, so the player
+  // starts right away; that press happened in GPUI, which WebKit does not count as a gesture.
+  configuration.mediaTypesRequiringUserActionForPlayback = WKAudiovisualMediaTypeNone;
   GhostexIntroVideoWebView *webView =
       [[GhostexIntroVideoWebView alloc] initWithFrame:NSZeroRect configuration:configuration];
   webView.navigationDelegate = webView;
