@@ -18,9 +18,9 @@ use super::{
     observe_program_opinion, program_status_activity, program_status_applied_key,
     program_status_combines_entry, program_status_entry, program_status_governs_entry,
     program_status_sessions, reset_program_status_applied_key, set_program_status_applied,
-    set_program_status_applied_key, start_program_status_detection_shadow,
-    store_program_status_snapshot, take_program_status_detection_shadow, ProgramStatusRecord,
-    StatusSource,
+    set_program_status_applied_key, set_program_status_notified,
+    start_program_status_detection_shadow, store_program_status_snapshot,
+    take_program_status_detection_shadow, ProgramStatusRecord, StatusSource,
 };
 
 /// One program-status line of `zmx watch-title` / `wmx watch-title`.
@@ -242,7 +242,7 @@ pub(crate) fn apply_program_status(
         }
         FinishedTurnStep::None => derived.state,
     };
-    set_program_status_applied(project_id, session_id, Some(key), Some(effective));
+    set_program_status_applied(project_id, session_id, Some(key.clone()), Some(effective));
     if entry.applied_key.is_none() && already_seen(&session, derived.state, derived.record.as_ref())
     {
         if records_changed {
@@ -290,6 +290,18 @@ pub(crate) fn apply_program_status(
     if let Some(source) = attention_source {
         params.insert("attentionSource".to_string(), json!(source));
     }
+    /*
+    CDXC:SessionStatus 2026-10-15 WHY:
+    The same report applied again (a Combined -> Detection -> Combined round trip on a program that is still blocked, done or failed) brings its attention back under the event id it was announced with, and skips the notification feed: switching modes must not notify the user twice about one state (the regression test saw two "Waiting for your input" rows for one block).
+    */
+    let reused_event_id = entry
+        .notified
+        .as_ref()
+        .filter(|(notified_key, _)| *notified_key == key)
+        .map(|(_, event_id)| event_id.clone());
+    if let Some(event_id) = reused_event_id.as_ref() {
+        params.insert("reuseAttentionEventId".to_string(), json!(event_id));
+    }
     let endpoint = "/api/updateAgentActivity";
     let Ok(output) = dispatch_agent_endpoint(
         &repository,
@@ -302,12 +314,22 @@ pub(crate) fn apply_program_status(
         return;
     };
     log_agent_activity_transition(state, endpoint, &params, &output.result);
-    crate::notification_feed::observe_agent_activity_result(
-        state,
-        endpoint,
-        &params,
-        &output.result,
-    );
+    if reused_event_id.is_none() {
+        crate::notification_feed::observe_agent_activity_result(
+            state,
+            endpoint,
+            &params,
+            &output.result,
+        );
+        if let Some(event_id) = output
+            .result
+            .pointer("/activity/attentionEventId")
+            .and_then(Value::as_str)
+            .filter(|_| activity == "attention")
+        {
+            set_program_status_notified(project_id, session_id, key.clone(), event_id.to_string());
+        }
+    }
     let _ = schedule_presentation_session_delta(state, &db, &repository, project_id, session_id);
     if let Ok(Some(session)) = repository.get_session(project_id, session_id) {
         schedule_stale_activity_presentation_refresh(state, &session, "program-status");

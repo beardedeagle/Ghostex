@@ -83,6 +83,24 @@ pub(crate) struct SessionProgramStatus {
     pub shadow_known: bool,
     /// A snapshot with no records was seen for this daemon.
     pub saw_empty_records: bool,
+    /// The report (its applied key) whose attention was last announced, and
+    /// that attention's event id. Kept across hand-backs and setting changes,
+    /// so applying the same report again reuses the event id instead of
+    /// notifying the user a second time.
+    pub notified: Option<(String, String)>,
+}
+
+pub(crate) fn set_program_status_notified(
+    project_id: &str,
+    session_id: &str,
+    key: String,
+    event_id: String,
+) {
+    if let Ok(mut registry) = registry().lock() {
+        if let Some(entry) = registry.get_mut(&registry_key(project_id, session_id)) {
+            entry.notified = Some((key, event_id));
+        }
+    }
 }
 
 fn session_ids(session: &Value) -> Option<(String, String)> {

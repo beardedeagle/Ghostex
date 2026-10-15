@@ -106,6 +106,9 @@ pub(super) struct ActivityInput {
     pub(super) title: Option<String>,
     /// Activity derived from the session's OSC 7501 records (`programStatusActivity`).
     pub(super) program_status_activity: Option<String>,
+    /// The event id of an attention the program's same report already
+    /// announced (`reuseAttentionEventId`), so re-applying it does not notify again.
+    pub(super) reuse_attention_event_id: Option<String>,
 }
 
 /*
@@ -171,6 +174,7 @@ pub fn compute_activity_update(
             settled_title: read_text(params, "settledTitle"),
             title: read_text(params, "title"),
             program_status_activity: program_status_activity.clone(),
+            reuse_attention_event_id: read_text(params, "reuseAttentionEventId"),
         });
         /*
         Sessions that predate the meaningful-activity clock seed it from their

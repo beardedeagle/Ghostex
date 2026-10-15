@@ -43,7 +43,12 @@ pub(super) fn program_status_transition(
             ActivityState {
                 activity: "attention".to_string(),
                 agent_name: previous.agent_name.clone(),
-                attention_event_id: Some(create_attention_event_id(input.now_ms)),
+                attention_event_id: Some(
+                    input
+                        .reuse_attention_event_id
+                        .clone()
+                        .unwrap_or_else(|| create_attention_event_id(input.now_ms)),
+                ),
                 attention_source: input.attention_source.clone(),
                 has_seen_working: Some(true),
                 is_acknowledged: Some(false),
