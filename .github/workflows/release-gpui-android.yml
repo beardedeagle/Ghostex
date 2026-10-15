@@ -47,6 +47,15 @@ jobs:
       ANDROID_NDK_VERSION: 29.0.14206865
       # Builds the Rust chat core's Android libraries (packages/gx-chat-mobile/build.sh).
       CARGO_NDK_VERSION: 4.1.2
+      # CDXC:Release 2026-10-15 DECISION: the APK ships arm64-v8a only (user
+      # choice after the 229 MB four-ABI APK; an arm64-only build is 77 MB
+      # before compression). Every native library is packaged once per ABI, x86
+      # and x86_64 only run on emulators (debug builds), and 32-bit ARM phones
+      # are no longer supported. `tooling/release-mobile/android.sh` hands this
+      # list to Gradle as `reactNativeArchitectures` (the RN plugin turns it into
+      # `ndk.abiFilters`, which also filters the prebuilt jniLibs below).
+      # Compression and R8: apps/mobile/app/plugins/withAndroidReleaseSize.js.
+      GHOSTEX_ANDROID_ABIS: arm64-v8a
     steps:
       - uses: actions/checkout@v6
         with:
@@ -120,7 +129,7 @@ jobs:
         run: |
           MODULE=apps/mobile/app/modules/ghostex-native/android
           test -s "$MODULE/libs/tailcatbridge.jar"
-          for abi in arm64-v8a armeabi-v7a x86 x86_64; do
+          for abi in $GHOSTEX_ANDROID_ABIS; do
             test -s "$MODULE/src/main/jniLibs/$abi/libgojni.so"
           done
       # CDXC:Release 2026-09-25 WHY: the phone's chat runs on the Rust chat core
@@ -128,8 +137,8 @@ jobs:
       # and Kotlin bindings are gitignored outputs of
       # `packages/gx-chat-mobile/build.sh`, so without this step Gradle cannot
       # compile the module. They are built from this checkout, so the APK
-      # carries the same chat core as the desktop release, for all four ABIs
-      # the APK ships (a missing ABI would crash the chat on that phone). The
+      # carries the same chat core as the desktop release, for every ABI in
+      # GHOSTEX_ANDROID_ABIS (a missing ABI would crash the chat on that phone). The
       # staged output is cached on exactly its inputs: the three crates, the
       # toolchain pin inside `packages/gx-chat-mobile`, the NDK and cargo-ndk.
       - name: Restore the Rust chat core for Android
@@ -139,7 +148,7 @@ jobs:
           path: |
             apps/mobile/app/modules/gx-chat-core/android/src/main/jniLibs
             apps/mobile/app/modules/gx-chat-core/android/src/main/java/dev/ghostex/gxchatcore/uniffi
-          key: gx-chat-core-android-${{ runner.os }}-ndk${{ env.ANDROID_NDK_VERSION }}-cargo-ndk${{ env.CARGO_NDK_VERSION }}-${{ hashFiles('packages/gx-chat-mobile/**', 'packages/gx-chat-core/**', 'packages/gx-protocol/**') }}
+          key: gx-chat-core-android-${{ runner.os }}-ndk${{ env.ANDROID_NDK_VERSION }}-abis-${{ env.GHOSTEX_ANDROID_ABIS }}-cargo-ndk${{ env.CARGO_NDK_VERSION }}-${{ hashFiles('packages/gx-chat-mobile/**', 'packages/gx-chat-core/**', 'packages/gx-protocol/**') }}
       - name: Build the Rust chat core for Android
         if: steps.gx_chat_core_cache.outputs.cache-hit != 'true'
         run: |
@@ -148,13 +157,13 @@ jobs:
           tooling/release-gpui/retry.sh 3 5 -- rustup toolchain install "$toolchain" --profile minimal
           tooling/release-gpui/retry.sh 3 5 -- cargo install cargo-ndk --version "$CARGO_NDK_VERSION" --locked
           export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/$ANDROID_NDK_VERSION"
-          GX_CHAT_ANDROID_ABIS="arm64-v8a armeabi-v7a x86 x86_64" \
+          GX_CHAT_ANDROID_ABIS="$GHOSTEX_ANDROID_ABIS" \
             packages/gx-chat-mobile/build.sh --target android
       - name: Verify the Rust chat core
         run: |
           MODULE=apps/mobile/app/modules/gx-chat-core/android/src/main
           test -s "$MODULE/java/dev/ghostex/gxchatcore/uniffi/gx_chat_mobile.kt"
-          for abi in arm64-v8a armeabi-v7a x86 x86_64; do
+          for abi in $GHOSTEX_ANDROID_ABIS; do
             test -s "$MODULE/jniLibs/$abi/libgx_chat_mobile.so"
           done
       - name: Install repository dependencies
@@ -239,6 +248,14 @@ jobs:
         uses: actions/attest-build-provenance@v4
         with:
           subject-path: build/release-gpui/${{ inputs.version }}/android/ghostex-android.apk
+      # The R8 mapping turns obfuscated stack traces from phones back into
+      # source names. It stays a workflow artifact, never a release asset.
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-android-r8-mapping
+          path: build/release-gpui/${{ inputs.version }}/android-r8/
+          if-no-files-found: error
+          retention-days: 90
       - uses: actions/upload-artifact@v7
         with:
           name: release-android

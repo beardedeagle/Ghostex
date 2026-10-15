@@ -35,9 +35,20 @@ export ORG_GRADLE_PROJECT_ghostexReleaseKeyPassword="$GHOSTEX_ANDROID_SIGNING_KE
 cd "$REPO_ROOT"
 node apps/mobile/app/scripts/generate-chat-agents.mjs
 
+# The release workflow sets GHOSTEX_ANDROID_ABIS (space separated); every ABI
+# listed must have its gomobile and chat-core libraries staged.
+ANDROID_ABIS="${GHOSTEX_ANDROID_ABIS:-arm64-v8a}"
+read -r -a ANDROID_ABI_LIST <<<"$ANDROID_ABIS"
+[[ ${#ANDROID_ABI_LIST[@]} -gt 0 ]] || {
+	echo "GHOSTEX_ANDROID_ABIS is empty" >&2
+	exit 1
+}
+REACT_NATIVE_ARCHITECTURES="$(IFS=,; echo "${ANDROID_ABI_LIST[*]}")"
+
 cd "$MOBILE_ROOT"
 bunx expo prebuild --platform android --no-install
-./android/gradlew --no-daemon --stacktrace -p android :app:assembleRelease
+./android/gradlew --no-daemon --stacktrace -p android \
+	"-PreactNativeArchitectures=$REACT_NATIVE_ARCHITECTURES" :app:assembleRelease
 
 BUILD_TOOLS="${ANDROID_HOME:?ANDROID_HOME is required}/build-tools/36.0.0"
 AAPT="$BUILD_TOOLS/aapt"
@@ -66,6 +77,20 @@ BADGING="$($AAPT dump badging "$APK_SOURCE" | head -n 1)"
 	exit 1
 }
 
+APK_ABIS="$(unzip -Z1 "$APK_SOURCE" 'lib/*' | cut -d/ -f2 | sort -u | tr '\n' ' ')"
+EXPECTED_ABIS="$(printf '%s\n' "${ANDROID_ABI_LIST[@]}" | sort -u | tr '\n' ' ')"
+[[ "$APK_ABIS" == "$EXPECTED_ABIS" ]] || {
+	echo "APK ships ABIs '$APK_ABIS', expected '$EXPECTED_ABIS'" >&2
+	exit 1
+}
+
+# R8 and native-library compression are on for release builds
+# (apps/mobile/app/plugins/withAndroidReleaseSize.js). AGP already fails the
+# build on classes R8 reports missing; this gate also fails it when shrinking
+# did not run, when a library is stored uncompressed, or when a class that
+# native code or reflection reaches by name was renamed or removed.
+"$SCRIPT_DIR/android-release-check.sh" "$APK_SOURCE" "$MOBILE_ROOT/android/app/build/outputs/mapping/release" "$BUILD_TOOLS"
+
 $APKSIGNER verify --verbose "$APK_SOURCE"
 APK_CERT="$($APKSIGNER verify --print-certs "$APK_SOURCE" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | tr -d ': ' | tr '[:upper:]' '[:lower:]')"
 KEYSTORE_CERT="$(keytool -exportcert -keystore "$GHOSTEX_ANDROID_SIGNING_STORE_FILE" -storepass "$GHOSTEX_ANDROID_SIGNING_STORE_PASSWORD" -alias "$GHOSTEX_ANDROID_SIGNING_KEY_ALIAS" | release_gpui_sha256 /dev/stdin)"
@@ -77,5 +102,9 @@ fi
 release_gpui_prepare_output "$REPO_ROOT" "$OUTPUT"
 APK="$OUTPUT/ghostex-android.apk"
 cp "$APK_SOURCE" "$APK"
+R8_OUTPUT="$(dirname "$OUTPUT")/android-r8"
+rm -rf "$R8_OUTPUT"
+mkdir -p "$R8_OUTPUT"
+cp "$MOBILE_ROOT/android/app/build/outputs/mapping/release/mapping.txt" "$R8_OUTPUT/"
 release_gpui_write_manifest "$OUTPUT" android "$VERSION" "$APK"
 echo "React Native Android APK ready: $APK"
