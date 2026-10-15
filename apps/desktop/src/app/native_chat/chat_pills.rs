@@ -379,9 +379,14 @@ impl NativeChatView {
                 this.toggle_pill_menu(&id, bounds.get(), window, cx)
             }))
             .child(
+                // The pill's own border box, which its menu lines up with (4px above, right edges
+                // equal). An absolute child with no insets sits at the content start (border plus
+                // padding in) at the padding box's size, so it measured the pill 7px too far right
+                // and 1px too low; insets on the padding box, one border width out, give the border
+                // box (the composer measures its card the same way, composer.rs).
                 canvas(move |bounds, _, _| measured.set(bounds), |_, _, _, _| {})
                     .absolute()
-                    .size_full(),
+                    .inset(px(-s)),
             )
             .into_any_element()
     }

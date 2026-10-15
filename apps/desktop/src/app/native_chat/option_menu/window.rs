@@ -386,6 +386,14 @@ impl ChatOptionMenu {
             super::geometry::width_for_details(&rows, width, &self.appearance, cx)
         };
         let width = px(width * scale).min(available.size.width - px(24.0 * scale));
+        // A menu opening above its trigger (a working-row pill's) keeps its right edge on the
+        // trigger's: when the room left of that edge is too narrow it narrows instead of sliding
+        // right past the trigger (the clamp below would otherwise push it).
+        let width = if depth == 0 && self.above && !below {
+            width.min(anchor.right() - available.left() - px(12.0 * scale))
+        } else {
+            width
+        };
         let heights = match super::geometry::measure_rows(
             &rows,
             f32::from(width) / scale,
