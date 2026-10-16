@@ -111,6 +111,54 @@ impl AgentsTab {
         self.close_dropdowns();
     }
 
+    /// The Add custom agent form as Settings remembers it between visits (CDXC:Settings
+    /// 2026-10-16 in settings_modal/restore.rs).
+    pub(super) fn open_editor_form(&self, cx: &gpui::App) -> Option<serde_json::Value> {
+        let editor = self.editor.as_ref()?;
+        Some(json!({
+            "kind": "customAgent",
+            "icon": editor.icon,
+            "acceptAllMode": editor.accept_all_mode,
+            "name": editor.name.read(cx).value().to_string(),
+            "command": self.editor_command(cx),
+        }))
+    }
+
+    /// Reopens the form `open_editor_form` reported.
+    pub(super) fn restore_editor(
+        &mut self,
+        form: &serde_json::Value,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let text = |key: &str| {
+            form.get(key)
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or_default()
+                .to_string()
+        };
+        self.open_editor(None, window, cx);
+        let Some(editor) = self.editor.as_mut() else {
+            return;
+        };
+        let icon = text("icon");
+        if !icon.is_empty() {
+            editor.icon = icon;
+        }
+        let mode = text("acceptAllMode");
+        if !mode.is_empty() {
+            editor.accept_all_mode = mode;
+        }
+        let name_input = editor.name.clone();
+        let name = text("name");
+        name_input.update(cx, |input, cx| input.set_value(name, window, cx));
+        if let Some(state) = self.fields.textareas.get(COMMAND_ID) {
+            let input = state.input.clone();
+            let command = text("command");
+            input.update(cx, |input, cx| input.set_value(command, window, cx));
+        }
+    }
+
     fn editor_command(&self, cx: &gpui::App) -> String {
         self.fields
             .textareas

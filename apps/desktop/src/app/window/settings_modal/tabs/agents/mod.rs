@@ -189,11 +189,18 @@ impl AgentsTab {
             pending_open_dropdown: None,
         };
         page.sync_active(window, cx);
+        // The Add custom agent form the last visit left open (settings_modal/restore.rs).
+        if let Some(form) = page.store.update(cx, |store, _| {
+            store.open_forms_mut().take(SettingsTabId::Agents)
+        }) {
+            page.restore_editor(&form, window, cx);
+        }
         page
     }
 
     /// Follows the shown page: entering it asks for hook status (once per modal) and the CLI list;
-    /// leaving it drops the page's view state, as the unmounted React tab panel did.
+    /// leaving it drops the page's view state but the Add custom agent form, as the unmounted
+    /// React tab panel did.
     fn sync_active(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let active = self.store.read(cx).active_tab() == SettingsTabId::Agents;
         if active == self.active {
@@ -204,9 +211,10 @@ impl AgentsTab {
         }
         self.active = active;
         if !active {
+            // The Add custom agent form stays: only its Cancel or Add agent forgets it
+            // (CDXC:Settings 2026-10-16 in settings_modal/restore.rs).
             self.expanded.clear();
             self.draft_agent_ids = None;
-            self.editor = None;
             self.roster_hud_signature = None;
             self.pending_enabled.clear();
             self.turn_on.clear();
@@ -331,6 +339,13 @@ impl super::HoldsUnsavedInput for AgentsTab {
     /// The Add custom agent form or the Skip permissions? confirmation is open.
     fn holds_unsaved_input(&self, _cx: &gpui::App) -> bool {
         self.editor.is_some() || self.confirming_bypass || self.confirming_uninstall_hooks
+    }
+}
+
+impl super::open_forms::RemembersOpenForm for AgentsTab {
+    /// The Add custom agent form (not the Skip permissions? or uninstall confirmations).
+    fn open_form(&self, cx: &gpui::App) -> Option<serde_json::Value> {
+        self.open_editor_form(cx)
     }
 }
 

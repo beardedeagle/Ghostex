@@ -19,6 +19,7 @@ mod helper_tools;
 mod list;
 mod manager;
 mod preview;
+mod remembered_form;
 mod rules;
 mod sign_in_watch;
 pub(crate) mod widgets;
@@ -148,7 +149,7 @@ impl AccountsTab {
             }
         })
         .detach();
-        Self {
+        let mut page = Self {
             store,
             fields: FieldStates::default(),
             client,
@@ -168,7 +169,9 @@ impl AccountsTab {
             preview_applied: false,
             masked_inputs: HashMap::new(),
             commit_inputs: HashSet::new(),
-        }
+        };
+        page.restore_open_form(cx);
+        page
     }
 
     pub(crate) fn hide_emails(&self, cx: &App) -> bool {

@@ -93,7 +93,7 @@ impl CloudBoxesTab {
             });
         })
         .detach();
-        Self {
+        let mut page = Self {
             store,
             fields: FieldStates::default(),
             status: None,
@@ -109,7 +109,23 @@ impl CloudBoxesTab {
             server_ssh: String::new(),
             confirm_destroy: None,
             busy_boxes: HashSet::new(),
+        };
+        // The Add Server form the last visit left open (settings_modal/restore.rs).
+        if let Some(form) = page.store.update(cx, |store, _| {
+            store.open_forms_mut().take(SettingsTabId::CloudBoxes)
+        }) {
+            let text = |key: &str| {
+                form.get(key)
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .trim()
+                    .to_string()
+            };
+            page.adding_server = true;
+            page.server_alias = text("alias");
+            page.server_ssh = text("ssh");
         }
+        page
     }
 
     fn rpc_available(&self, cx: &App) -> bool {
@@ -265,6 +281,16 @@ impl super::HoldsUnsavedInput for CloudBoxesTab {
     /// The Add Server form or a Destroy confirmation is open.
     fn holds_unsaved_input(&self, _cx: &gpui::App) -> bool {
         self.adding_server || self.confirm_destroy.is_some()
+    }
+}
+
+impl super::open_forms::RemembersOpenForm for CloudBoxesTab {
+    /// The Add Server form: the server's name and its SSH target (`user@host`, `host:port` or an
+    /// ~/.ssh/config name), which hold no secret.
+    fn open_form(&self, _cx: &gpui::App) -> Option<Value> {
+        self.adding_server.then(
+            || json!({ "kind": "server", "alias": self.server_alias, "ssh": self.server_ssh }),
+        )
     }
 }
 

@@ -2,7 +2,7 @@
 //! (CDXC:Settings 2026-10-16 in settings_modal/restore.rs). A page reports its open form as JSON
 //! (`RemembersOpenForm`), takes it back once from `OpenFormMemory::take` when its view is made,
 //! and notifies whenever the form's draft changes, which is when the shell saves it.
-use super::{open_targets, remote};
+use super::{accounts, actions, agents, cloud_boxes, extensions, open_targets, remote};
 use gpui::{AnyView, App, Context, Subscription};
 use serde_json::Value;
 
@@ -20,6 +20,11 @@ pub(crate) fn settings_tab_open_form(view: &AnyView, cx: &App) -> Option<Value> 
     }
     form::<remote::RemoteTab>(view, cx)
         .or_else(|| form::<open_targets::OpenTargetsTab>(view, cx))
+        .or_else(|| form::<actions::ActionsTab>(view, cx))
+        .or_else(|| form::<agents::AgentsTab>(view, cx))
+        .or_else(|| form::<cloud_boxes::CloudBoxesTab>(view, cx))
+        .or_else(|| form::<extensions::ExtensionsTab>(view, cx))
+        .or_else(|| form::<accounts::AccountsTab>(view, cx))
         .flatten()
 }
 
@@ -39,4 +44,9 @@ pub(crate) fn observe_open_form<S: 'static>(
     }
     observe::<remote::RemoteTab, S>(view, cx, changed)
         .or_else(|| observe::<open_targets::OpenTargetsTab, S>(view, cx, changed))
+        .or_else(|| observe::<actions::ActionsTab, S>(view, cx, changed))
+        .or_else(|| observe::<agents::AgentsTab, S>(view, cx, changed))
+        .or_else(|| observe::<cloud_boxes::CloudBoxesTab, S>(view, cx, changed))
+        .or_else(|| observe::<extensions::ExtensionsTab, S>(view, cx, changed))
+        .or_else(|| observe::<accounts::AccountsTab, S>(view, cx, changed))
 }

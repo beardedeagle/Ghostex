@@ -55,6 +55,14 @@ pub(crate) struct ActionsTab {
     preview_applied: bool,
 }
 
+impl super::open_forms::RemembersOpenForm for ActionsTab {
+    /// The Add or Edit action form.
+    fn open_form(&self, cx: &App) -> Option<Value> {
+        let project_id = self.store.read(cx).request().initial_project_id.clone();
+        Some(self.editor.as_ref()?.to_form(project_id.as_deref()))
+    }
+}
+
 impl ActionsTab {
     pub(crate) fn new(
         store: Entity<SettingsStore>,
@@ -63,14 +71,47 @@ impl ActionsTab {
     ) -> Self {
         cx.observe(&store, |_, _, cx| cx.notify()).detach();
         let icon_picker = SearchableList::new("Search icons", window, cx);
-        Self {
+        let mut page = Self {
             store,
             fields: FieldStates::default(),
             editor: None,
             draft_order: HashMap::new(),
             icon_picker,
             preview_applied: false,
+        };
+        // The Add or Edit action form the last visit left open (settings_modal/restore.rs).
+        if let Some(form) = page.store.update(cx, |store, _| {
+            store.open_forms_mut().take(SettingsTabId::Actions)
+        }) {
+            page.editor = page.restorable_editor(&form, cx);
         }
+        page
+    }
+
+    /// The remembered editor when it still fits: a project action only on its own project, and
+    /// the edit of an action that still exists.
+    fn restorable_editor(&self, form: &Value, cx: &App) -> Option<ActionEditor> {
+        let editor = ActionEditor::from_form(form)?;
+        let store = self.store.read(cx);
+        if editor.scope == CommandScope::Project
+            && form.get("projectId").and_then(Value::as_str)
+                != store.request().initial_project_id.as_deref()
+        {
+            return None;
+        }
+        if let Some(command_id) = editor.command_id.as_deref() {
+            let key = match editor.scope {
+                CommandScope::Global => "globalCommands",
+                CommandScope::Project => "commands",
+            };
+            if !commands_from_hud(store.hud(), key)
+                .iter()
+                .any(|command| command.command_id == command_id)
+            {
+                return None;
+            }
+        }
+        Some(editor)
     }
 
     pub(crate) fn post(&self, message: Value, cx: &mut App) {

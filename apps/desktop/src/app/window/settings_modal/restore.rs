@@ -85,6 +85,12 @@ impl OpenFormMemory {
         &mut self,
         live: Vec<(SettingsTabId, Option<Value>)>,
     ) -> Option<Option<String>> {
+        for (tab, form) in &live {
+            // A page that opened a form of its own has replaced the one it saved.
+            if form.is_some() {
+                self.untaken.remove(tab.id());
+            }
+        }
         let mut forms = self.untaken.clone();
         for (tab, form) in live {
             if let Some(form) = form {

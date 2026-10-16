@@ -15,6 +15,7 @@ mod delete_view;
 mod detail;
 mod filter_bar;
 mod related_settings;
+mod remembered_form;
 mod scope_editor;
 mod sections;
 mod view_editor;
@@ -179,6 +180,7 @@ impl ExtensionsTab {
         };
         page.request_plugin_status_if_missing(cx);
         page.read_installed_clis(cx);
+        page.restore_open_form(cx);
         page
     }
 

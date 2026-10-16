@@ -21,6 +21,7 @@ use gpui::{
 };
 use gpui_component::input::{Input, InputState};
 use gpui_component::{Sizable as _, Size as ComponentSize, h_flex, v_flex};
+use serde_json::{Value, json};
 
 const ICON_PLUS: &str = "modals/settings/plus.svg";
 const ICON_TRASH: &str = "modals/settings/trash.svg";
@@ -115,6 +116,97 @@ impl ActionEditor {
             focus_link: None,
             name_placeholder: None,
         }
+    }
+
+    /// The editor as Settings remembers it between visits, with the project a project action
+    /// belongs to (CDXC:Settings 2026-10-16 in settings_modal/restore.rs).
+    pub(crate) fn to_form(&self, project_id: Option<&str>) -> Value {
+        json!({
+            "kind": "action",
+            "projectId": project_id,
+            "scope": match self.scope {
+                CommandScope::Global => "global",
+                CommandScope::Project => "project",
+            },
+            "locked": self.locked.map(ActionType::id),
+            "commandId": self.command_id,
+            "actionType": self.action_type.id(),
+            "closeTerminalOnExit": self.close_terminal_on_exit,
+            "command": self.command,
+            "icon": self.icon,
+            "links": self
+                .links
+                .iter()
+                .map(|link| json!({ "target": link.target, "url": link.url }))
+                .collect::<Vec<_>>(),
+            "name": self.name,
+            "playCompletionSound": self.play_completion_sound,
+            "showOnProjectRow": self.show_on_project_row,
+            "url": self.url,
+        })
+    }
+
+    /// `to_form` read back.
+    pub(crate) fn from_form(form: &Value) -> Option<Self> {
+        let scope = match form.get("scope").and_then(Value::as_str)? {
+            "global" => CommandScope::Global,
+            "project" => CommandScope::Project,
+            _ => return None,
+        };
+        let text = |key: &str| {
+            form.get(key)
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string()
+        };
+        let flag = |key: &str| form.get(key).and_then(Value::as_bool) == Some(true);
+        let icon = Some(text("icon"))
+            .filter(|icon| super::super::super::fields::is_command_icon(icon))
+            .unwrap_or_else(|| super::super::super::fields::DEFAULT_COMMAND_ICON.to_string());
+        let links = form
+            .get("links")
+            .and_then(Value::as_array)
+            .map(|links| {
+                links
+                    .iter()
+                    .map(|link| CommandLink {
+                        target: link
+                            .get("target")
+                            .and_then(Value::as_str)
+                            .unwrap_or("integrated")
+                            .to_string(),
+                        url: link
+                            .get("url")
+                            .and_then(Value::as_str)
+                            .unwrap_or_default()
+                            .to_string(),
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        Some(Self {
+            scope,
+            locked: form
+                .get("locked")
+                .and_then(Value::as_str)
+                .map(ActionType::parse),
+            command_id: form
+                .get("commandId")
+                .and_then(Value::as_str)
+                .map(str::to_string),
+            action_type: ActionType::parse(&text("actionType")),
+            close_terminal_on_exit: flag("closeTerminalOnExit"),
+            command: text("command"),
+            icon,
+            links,
+            name: text("name"),
+            play_completion_sound: flag("playCompletionSound"),
+            show_on_project_row: flag("showOnProjectRow"),
+            url: text("url"),
+            focus_name: true,
+            focus_link: None,
+            name_placeholder: None,
+        })
     }
 
     fn title(&self) -> String {
