@@ -3168,8 +3168,12 @@ Issue takes you to it. Cmd+Enter (Ctrl+Enter) moves to the next step and Escape
 closes the pop-up. It works in the desktop app and in the web app.
 
 Turn on "Collect more data with an agent" and the button becomes Start Agent: it
-opens a new Quick chat session with your default agent, which gets your message,
-username and screenshots. The agent reads this computer's Ghostex version,
+opens a new session with your default agent in the Ghostex config folder
+(`~/.config/ghostex`, shown in the sidebar as its own project, "Ghostex config"
+unless you already had one there), which Ghostex trusts for every agent so no
+folder-trust question stops it. Each report keeps its screenshots, notes and
+draft in its own `feedback/<time>/` folder there. The agent gets your message,
+username and screenshots, reads this computer's Ghostex version,
 settings and logs, looks into the problem and tries to reproduce it without
 changing anything, keeps tokens, passwords and your files' contents out of the
 issue, then shows you the whole draft in the chat and posts it once you say yes.

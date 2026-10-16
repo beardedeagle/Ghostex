@@ -1,7 +1,7 @@
 //! `POST /api/startFeedbackAgent`: the "Collect more data with an agent" half of Send Bug /
 //! Feedback. gxserver saves the pasted screenshots, writes the agent's instructions, creates the
-//! agent session in a new Quick chat workspace and starts it, so every client gets the same flow
-//! and only has to open the session it answers with.
+//! agent session in the Ghostex config folder's project and starts it, so every client gets the
+//! same flow and only has to open the session it answers with.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -15,9 +15,9 @@ use crate::agents::{
 use crate::domain::{read_domain_rpc_params, DomainRepository, DomainStateError};
 use crate::protocol::rpc_success;
 use crate::server::{
-    create_quick_project_params, domain_error_response, queue_session_chat_prompt, routed_json,
-    schedule_presentation_project_delta, schedule_presentation_session_delta, AppState,
-    RoutedResponse,
+    domain_error_response, queue_session_chat_prompt, restore_parked_project_for_new_session,
+    routed_json, schedule_presentation_project_delta, schedule_presentation_session_delta,
+    AppState, RoutedResponse,
 };
 use crate::sidebar_hud::sidebar_agent_buttons_from_projects;
 use crate::storage::open_gxserver_database;
@@ -134,22 +134,10 @@ fn start_feedback_agent(
         .unwrap_or_default()
         .to_string();
 
-    // CDXC:Feedback 2026-10-16 WHY: the agent works in its own Quick chat workspace rather than in
-    // the user's open project, so nothing it does touches their code, and the screenshots it attaches
-    // to the issue sit in that folder.
-    let mut quick_params = params.clone();
-    quick_params.insert("kind".to_string(), json!("agent"));
-    let project_params = create_quick_project_params(&state.paths.home_dir, &quick_params)?;
-    let workspace = project_params
-        .get("path")
-        .and_then(Value::as_str)
-        .map(PathBuf::from)
-        .ok_or_else(|| DomainStateError::corrupt_state("Quick workspace has no path."))?;
-    let image_paths = save_screenshots(&workspace, &images)?;
-    let project = repository.add_project_path(&project_params)?;
-    let project = crate::workspaces::place_added_project(&repository, &db, project, params)?;
+    let report = start_report_folder(state, &repository, &db, params)?;
+    let image_paths = save_screenshots(&report.folder, &images)?;
+    let project = report.project;
     let project_id = text_of(&project, "projectId")?;
-    schedule_presentation_project_delta(state, &db, &repository, &project_id, "projectAdded")?;
 
     let mut launch_settings = Map::new();
     for (key, field) in [("agentCommand", "command"), ("icon", "icon")] {
@@ -164,7 +152,7 @@ fn start_feedback_agent(
     create_params.insert("requireLaunchCommand".to_string(), json!(true));
     create_params.insert("title".to_string(), json!(FEEDBACK_AGENT_SESSION_TITLE));
     create_params.insert("launchSettings".to_string(), Value::Object(launch_settings));
-    let prompt = feedback_agent_prompt(&message, &username, &image_paths);
+    let prompt = feedback_agent_prompt(&message, &username, &report.folder, &image_paths);
     // `firstUserMessage` only names the session; the startup send below delivers the prompt.
     create_params.insert(
         "runtimeSettings".to_string(),
@@ -200,7 +188,60 @@ fn start_feedback_agent(
     Ok(result)
 }
 
-/// Writes the pasted screenshots into the agent's workspace (`screenshots/screenshot-N.png`) and
+/// The project the feedback agent runs in and this report's own folder inside it.
+struct ReportFolder {
+    project: Value,
+    folder: PathBuf,
+}
+
+/// Name given to the Ghostex config folder's project when no project has that path yet; an
+/// existing one keeps its name. Not "Ghostex", which is the repository's own project.
+const CONFIG_PROJECT_NAME: &str = "Ghostex config";
+
+/// CDXC:Feedback 2026-10-16 DECISION:
+/// User: "when sending the agent report from an agent let's please send it fron the .config/ghostex folder instead of creating a new folder. also please auto-trust that folder when we run from it". The agent runs in the Ghostex config folder's project (the one already registered for that path, brought back from Recent Projects, or registered as "Ghostex config"), not in a new Quick chat workspace per report, so reports leave no new folders or sidebar projects behind. Each report's screenshots, notes and draft go in `feedback/<timestamp>/` inside it, and the agent is told to write only there. The folder's trust prompt is answered by Ghostex (`ghostex_config_folder_trusted` in session_chat_trust_memory.rs).
+fn start_report_folder(
+    state: &AppState,
+    repository: &DomainRepository<'_>,
+    db: &rusqlite::Connection,
+    params: &Map<String, Value>,
+) -> Result<ReportFolder, DomainStateError> {
+    let config_dir = &state.paths.app_config_dir;
+    let folder = config_dir.join("feedback").join(
+        chrono::Local::now()
+            .format("%Y-%m-%d-%H%M%S%3f")
+            .to_string(),
+    );
+    fs::create_dir_all(&folder).map_err(|error| DomainStateError {
+        code: "internalError",
+        message: format!("Could not create the report folder: {error}"),
+    })?;
+    let known: Vec<String> = repository
+        .list_projects()?
+        .iter()
+        .filter_map(|project| project.get("projectId").and_then(Value::as_str))
+        .map(str::to_string)
+        .collect();
+    let mut project_params = Map::new();
+    project_params.insert(
+        "path".to_string(),
+        json!(config_dir.to_string_lossy().to_string()),
+    );
+    project_params.insert("name".to_string(), json!(CONFIG_PROJECT_NAME));
+    let project = repository.add_project_path(&project_params)?;
+    let project_id = text_of(&project, "projectId")?;
+    let project = if known.contains(&project_id) {
+        restore_parked_project_for_new_session(state, db, repository, &project_id)?;
+        repository.get_project(&project_id)?.unwrap_or(project)
+    } else {
+        let project = crate::workspaces::place_added_project(repository, db, project, params)?;
+        schedule_presentation_project_delta(state, db, repository, &project_id, "projectAdded")?;
+        project
+    };
+    Ok(ReportFolder { project, folder })
+}
+
+/// Writes the pasted screenshots into the report's folder (`screenshots/screenshot-N.png`) and
 /// returns their paths, in order.
 fn save_screenshots(
     workspace: &Path,
@@ -230,7 +271,13 @@ fn save_screenshots(
 
 /// The agent's first message: what the user wrote, their screenshots, and how to turn it into an
 /// issue.
-pub(super) fn feedback_agent_prompt(message: &str, username: &str, images: &[PathBuf]) -> String {
+pub(super) fn feedback_agent_prompt(
+    message: &str,
+    username: &str,
+    report_folder: &Path,
+    images: &[PathBuf],
+) -> String {
+    let report_folder = report_folder.display();
     let screenshots = if images.is_empty() {
         "They pasted no screenshots.".to_string()
     } else {
@@ -267,11 +314,11 @@ What to do:
 1. Read `ghostex guide` (the overview) and `ghostex guide features` for how the part of Ghostex they describe is meant to work, so the issue says what was expected.
 2. Gather what helps us fix it from this computer: the Ghostex version (`ghostex server status --json`), the operating system, the settings that touch this feature (`ghostex settings list`, `ghostex settings get <key>`), the recent gxserver and app logs around it (`ghostex logs --lines 200`, `ghostex logs --grep <text>`), and the sessions involved (`ghostex sessions`).
 3. Debug it, and reproduce it where you can do that safely, to find what goes wrong and, if you can, why.
-4. Change nothing on this computer: do not change settings, files, projects or sessions, do not restart Ghostex or its background service, and do not install anything. The only files you write are your notes and the draft, in this folder.
+4. Change nothing on this computer: do not change settings, files, projects or sessions, do not restart Ghostex or its background service, and do not install anything. The only files you write are your notes and the draft, in this report's folder: {report_folder}
 5. Keep private things out of the issue: no tokens, keys, passwords, cookies, email addresses or account names other than @{username}, and no contents of the user's own files. Shorten paths in their home folder to ~, and quote only the log lines that matter.
 6. Draft the issue: a short title, and a body with What happened, What was expected, Steps to reproduce, What you found (Ghostex version, operating system, relevant settings, log excerpts) and the likely cause if you found one.
 {posting}
-8. Post it: write the body to a file in this folder, then run
+8. Post it: write the body to a file in {report_folder}, then run
    ghostex feedback send --title "<title>" --body-file <file> --github-user {username}{image_flags}
    It adds "Reported by @{username}" at the top so GitHub tells them about the issue, and Ghostex adds a line with its version and the operating system. Run it with --dry-run first if you want to see exactly what will be sent. Then give the user the issue link it prints."#
     )

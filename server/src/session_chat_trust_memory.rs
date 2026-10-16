@@ -211,9 +211,29 @@ pub fn session_folders_remembered(
     project_id: &str,
     session_id: &str,
 ) -> bool {
-    folders_remembered(&repository_trust_folders(
-        repository, project_id, session_id,
-    )) || crate::coordinators::coordinator_thread_folder_trusted(repository, project_id, session_id)
+    let folders = repository_trust_folders(repository, project_id, session_id);
+    folders_remembered(&folders)
+        || ghostex_config_folder_trusted(&folders)
+        || crate::coordinators::coordinator_thread_folder_trusted(
+            repository, project_id, session_id,
+        )
+}
+
+/// CDXC:Feedback 2026-10-16 DECISION:
+/// User: "please auto-trust that folder when we run from it" (the Ghostex config folder, where the feedback agent runs). Any agent session whose working directory or project is the config folder, or a folder inside it (a report's own `feedback/<timestamp>/`), has its trust prompt answered like a remembered folder's, without the user remembering it first.
+/// SEE-ALSO: server/src/feedback/agent.rs (`start_report_folder`).
+fn ghostex_config_folder_trusted(folders: &[String]) -> bool {
+    let Some(config_dir) = normalize_folder(
+        &ghostex_paths::GhostexPaths::resolve()
+            .config_dir
+            .to_string_lossy(),
+    ) else {
+        return false;
+    };
+    let config_dir = std::path::Path::new(&config_dir);
+    folders
+        .iter()
+        .any(|folder| std::path::Path::new(folder).starts_with(config_dir))
 }
 
 /// Applied to every trust-prompt notice in the detection funnel: an
