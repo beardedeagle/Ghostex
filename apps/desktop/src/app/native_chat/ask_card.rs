@@ -473,7 +473,7 @@ impl NativeChatView {
 
     /// The filled button that moves the ask on (Next, Send answer, Send), with the key it answers to
     /// as a keycap (`keys`) or, for the question form's footer, in a quick tooltip (`tooltip`: the
-    /// title and the chord). `darker` fills it a shade darker, for the button beside the primary one.
+    /// title and the chord).
     #[allow(clippy::too_many_arguments)]
     pub(super) fn ask_primary_button(
         &self,
@@ -481,18 +481,13 @@ impl NativeChatView {
         label: String,
         keys: Option<String>,
         tooltip: Option<(String, String)>,
-        darker: bool,
         action: Value,
         disabled: bool,
         p: &ChatAppearance,
         cx: &Context<Self>,
     ) -> AnyElement {
         let s = p.scale;
-        let fill = if darker {
-            p.control_primary.blend(rgb(0x000000).opacity(0.16).into())
-        } else {
-            p.control_primary
-        };
+        let fill = p.control_primary;
         div()
             .id(id)
             .role(gpui::Role::Button)
@@ -533,6 +528,56 @@ impl NativeChatView {
                     .hover(|style| style.opacity(0.9))
                     .on_click(cx.listener(move |this, _, _, cx| this.invoke(action.clone(), cx)))
             })
+            .into_any_element()
+    }
+
+    /// The quiet button beside the primary one (the question form's Skip all): a faint fill of
+    /// the foreground and the normal text colour, no border, the primary button's size, with its
+    /// shortcut in a quick tooltip (`tooltip`: the title and the chord).
+    ///
+    /// CDXC:SessionChat 2026-10-16 DECISION: User: "skip all looks disabled cuz it's darker color"; shown a mockup of options, they picked "soft fill" for Skip all: the foreground at about 10% (hover 15%) on the dark theme and 7% (hover 11%) on the light one, in the normal text colour with no border, clearly a button but clearly second. Send answers keeps the solid fill. Neither footer button carries a keycap; each shows its shortcut in a quick tooltip (the user asked for that earlier the same day). The phone (QuestionForm.tsx, askCard.tsx `SoftButton`) and the page kit (server/src/visual_pages/kit.rs `.gx-skip-all`) match, minus the hover.
+    pub(super) fn ask_soft_button(
+        &self,
+        id: impl Into<gpui::ElementId>,
+        label: String,
+        tooltip: Option<(String, String)>,
+        action: Value,
+        p: &ChatAppearance,
+        cx: &Context<Self>,
+    ) -> AnyElement {
+        let s = p.scale;
+        let (rest, hover) = if p.light { (0.07, 0.11) } else { (0.10, 0.15) };
+        let hover_fill = p.foreground.opacity(hover);
+        div()
+            .id(id)
+            .role(gpui::Role::Button)
+            .aria_label(label.clone())
+            .h(px(28.0 * s))
+            .px(px(11.0 * s))
+            .flex_shrink_0()
+            .flex()
+            .items_center()
+            .justify_center()
+            .rounded(px(8.0 * s))
+            .bg(p.foreground.opacity(rest))
+            .text_color(p.foreground)
+            .text_size(px(13.0 * s))
+            .font_weight(FontWeight::MEDIUM)
+            .child(label)
+            .when_some(tooltip, |button, (title, chord)| {
+                button.managed_tooltip_with(
+                    Some(gpui_component::Placement::Top),
+                    Some(QUICK_TOOLTIP_DELAY),
+                    move |window, cx| {
+                        gpui_component::tooltip::Tooltip::new(title.clone())
+                            .keys(chord.clone())
+                            .build(window, cx)
+                    },
+                )
+            })
+            .chat_cursor_pointer()
+            .hover(move |style| style.bg(hover_fill))
+            .on_click(cx.listener(move |this, _, _, cx| this.invoke(action.clone(), cx)))
             .into_any_element()
     }
 }

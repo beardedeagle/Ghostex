@@ -123,8 +123,8 @@ gx-question.gx-answered .gx-choice[aria-checked=true] .gx-mark{border-color:var(
 .gx-send-button{display:inline-flex;align-items:center;gap:6px;margin-left:auto;height:28px;box-sizing:border-box;padding:0 11px;font:inherit;font-size:13px;font-weight:500;border-radius:8px;border:1px solid var(--gx-control);background:var(--gx-control);color:var(--background);cursor:pointer}
 .gx-send-button:hover:not(:disabled){opacity:.9}
 .gx-send-button:disabled{opacity:.5;cursor:default}
-.gx-skip-all{display:inline-flex;align-items:center;gap:6px;margin-left:auto;height:28px;box-sizing:border-box;padding:0 11px;font:inherit;font-size:13px;font-weight:500;border-radius:8px;border:1px solid color-mix(in srgb,var(--gx-control) 84%,#000);background:color-mix(in srgb,var(--gx-control) 84%,#000);color:var(--background);cursor:pointer}
-.gx-skip-all:hover{opacity:.9}
+.gx-skip-all{display:inline-flex;align-items:center;gap:6px;margin-left:auto;height:28px;box-sizing:border-box;padding:0 11px;font:inherit;font-size:13px;font-weight:500;border-radius:8px;border:1px solid transparent;background:light-dark(color-mix(in srgb,var(--foreground) 7%,transparent),color-mix(in srgb,var(--foreground) 10%,transparent));color:var(--foreground);cursor:pointer}
+.gx-skip-all:hover{background:light-dark(color-mix(in srgb,var(--foreground) 11%,transparent),color-mix(in srgb,var(--foreground) 15%,transparent))}
 .gx-send-button,.gx-skip-all{position:relative}
 .gx-send-button[data-tip]::after,.gx-skip-all[data-tip]::after{content:attr(data-tip);position:absolute;bottom:calc(100% + 6px);right:0;white-space:nowrap;padding:4px 8px;border-radius:6px;border:1px solid var(--border);background:var(--background);color:var(--foreground);font:500 12px/16px var(--font-mono);opacity:0;pointer-events:none;transition:opacity .08s ease 0s;z-index:5}
 .gx-send-button[data-tip]:hover:not(:disabled)::after,.gx-skip-all[data-tip]:hover::after{opacity:1;transition-delay:.15s}

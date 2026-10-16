@@ -379,7 +379,6 @@ impl NativeChatView {
                 send_label,
                 None,
                 enabled.then(|| ("Send answers".to_string(), send_chord())),
-                false,
                 json!({"type":"formSend","form":id}),
                 !can_send,
                 p,
@@ -630,10 +629,9 @@ impl NativeChatView {
 }
 
 impl NativeChatView {
-    /// CDXC:SessionChat 2026-10-16 DECISION: User: "remove skip all's hotkey from ui same for send answers hotkey, please show the hotkey in a fast to appear tooltip when i hover over these 2 so make ther look better; also please make the skip all button have same colors as send answers just slightly darker background". The form's two footer buttons carry no keycap; each shows its shortcut in a quick tooltip, and Skip all takes the send button's colours a shade darker. The phone (QuestionForm.tsx) and the page kit (server/src/visual_pages/kit.rs) match, minus the hover.
     /// "Skip all", beside the send button while the form is open: it skips every question not yet
-    /// answered and sends at once (the core's `skip_all`). It wears the send button's colours a
-    /// shade darker, and its shortcut shows in a quick tooltip rather than on the button.
+    /// answered and sends at once (the core's `skip_all`). It is a soft-fill button (see
+    /// `ask_soft_button`), and its shortcut shows in a quick tooltip rather than on the button.
     fn skip_all_button(
         &self,
         id: &str,
@@ -644,14 +642,11 @@ impl NativeChatView {
         if !enabled {
             return div().into_any_element();
         }
-        self.ask_primary_button(
+        self.ask_soft_button(
             SharedString::from(format!("question-form-skip-all:{id}")),
             "Skip all".to_string(),
-            None,
             Some(("Skip all".to_string(), skip_all_chord())),
-            true,
             json!({"type":"formSkipAll","form":id}),
-            false,
             p,
             cx,
         )
