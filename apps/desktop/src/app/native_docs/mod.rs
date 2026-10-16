@@ -10,6 +10,7 @@ pub(crate) mod disk_sync;
 pub(crate) mod document_view;
 pub(crate) mod documents;
 pub(crate) mod drawer;
+pub(crate) mod edit_tracking;
 pub(crate) mod editor_style;
 pub(crate) mod entry;
 pub(crate) mod files;

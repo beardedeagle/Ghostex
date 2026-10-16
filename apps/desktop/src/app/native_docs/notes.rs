@@ -429,23 +429,31 @@ impl GhostexGpuiApp {
         else {
             return;
         };
+        self.native_docs.note_ranges =
+            collect_annotation_ranges(editor.read(cx).text(), self.native_docs_active_notes());
+        let highlights = self.native_docs_note_highlights();
+        editor.update(cx, |editor, cx| editor.set_note_highlights(highlights, cx));
+    }
+
+    /// The editor's highlights for `note_ranges`, in the open document's notes' colours.
+    pub(crate) fn native_docs_note_highlights(
+        &self,
+    ) -> Vec<(std::ops::Range<usize>, Hsla, Option<Hsla>)> {
         let notes = self.native_docs_active_notes();
-        let ranges = collect_annotation_ranges(editor.read(cx).text(), notes);
-        let highlights: Vec<(std::ops::Range<usize>, Hsla, Option<Hsla>)> = ranges
+        self.native_docs
+            .note_ranges
             .iter()
-            .map(|found| {
-                let note = &notes[found.annotation_index];
+            .filter_map(|found| {
+                let note = notes.get(found.annotation_index)?;
                 let color = note.color();
                 let sent = !note.is_pending();
-                (
+                Some((
                     found.range.clone(),
                     hex(color, if sent { 0.14 } else { 0.28 }),
                     (note.kind == DocsAnnotationType::Redline).then(|| hex(color, 0.82)),
-                )
+                ))
             })
-            .collect();
-        self.native_docs.note_ranges = ranges;
-        editor.update(cx, |editor, cx| editor.set_note_highlights(highlights, cx));
+            .collect()
     }
 
     /// Send: new notes while there are any, else all of them again, to the agent session last

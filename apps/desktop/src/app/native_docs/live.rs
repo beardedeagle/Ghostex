@@ -78,6 +78,7 @@ impl GhostexGpuiApp {
         );
         let subscription = cx.subscribe_in(&editor, window, Self::native_docs_on_live_event);
         if let Some(document) = self.native_docs.document_mut(path) {
+            document.tracked_text = Some(editor.read(cx).text().to_string());
             document.live = Some(editor.clone());
             document._live_subscription = Some(subscription);
         }
@@ -112,28 +113,13 @@ impl GhostexGpuiApp {
         match event {
             EditorEvent::Changed => {
                 let text = editor.read(cx).text().to_string();
-                if let Some(document) = self.native_docs.document_mut(&path) {
-                    if document.review_session_title.is_none() {
-                        document.dirty = document.saved_text != text;
-                    }
-                    document.changes = document
-                        .git_base
-                        .as_deref()
-                        .map(|base| super::gutter::diff(base, &text));
+                if let Some(document) = self.native_docs.document_mut(&path)
+                    && document.review_session_title.is_none()
+                {
+                    document.dirty = document.saved_text != text;
                 }
-                self.native_docs.highlights_stale = true;
+                self.native_docs_follow_edit(&path, editor, &text, cx);
                 self.native_docs_schedule_draft_write(&path, cx);
-                let light = self.native_docs.palette.as_ref().is_some_and(|p| p.light);
-                let scope = self.manage_docs_resource_scope();
-                let resource_path = self.native_docs_resource_path(&path);
-                super::blocks::prerender(
-                    editor,
-                    &self.native_docs.blocks,
-                    &resource_path,
-                    light,
-                    scope,
-                    cx,
-                );
                 self.native_docs_refresh_find(cx);
                 self.native_docs_keep_caret_visible(window, cx);
                 self.native_docs_notify(cx);
@@ -302,6 +288,7 @@ impl GhostexGpuiApp {
                 .document(&path)
                 .and_then(|document| document_text(document, cx));
             if let Some(document) = this.native_docs.document_mut(&path) {
+                document.changes_task = None;
                 document.changes = base
                     .as_deref()
                     .zip(text.as_deref())

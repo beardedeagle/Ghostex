@@ -3217,6 +3217,9 @@ impl EditorState {
             self.redo_stack.push(self.snapshot());
             self.restore(prev);
             self.last_edit = EditKind::Other;
+            // Local change (Ghostex Docs): undo is a user edit, so the host hears of it like
+            // any other (dirty state, drafts, note highlights and the git stripe follow it).
+            cx.emit(EditorEvent::Changed);
             cx.notify();
         }
     }
@@ -3226,6 +3229,9 @@ impl EditorState {
             self.undo_stack.push(self.snapshot());
             self.restore(next);
             self.last_edit = EditKind::Other;
+            // Local change (Ghostex Docs): redo is a user edit, so the host hears of it like
+            // any other (dirty state, drafts, note highlights and the git stripe follow it).
+            cx.emit(EditorEvent::Changed);
             cx.notify();
         }
     }

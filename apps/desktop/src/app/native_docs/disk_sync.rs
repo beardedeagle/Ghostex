@@ -112,6 +112,8 @@ impl GhostexGpuiApp {
                 editor.set_text(text.clone(), cx);
                 editor.select_range(selection, cx);
             });
+            document.tracked_text = Some(live.read(cx).text().to_string());
+            document.changes_task = None;
             document.changes = document
                 .git_base
                 .as_deref()

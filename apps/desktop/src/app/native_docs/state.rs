@@ -262,6 +262,13 @@ pub(crate) struct DocsDocument {
     /// The file at HEAD, and each line's change against it, for the gutter's git stripe.
     pub(crate) git_base: Option<String>,
     pub(crate) changes: Option<(Vec<super::gutter::LineChange>, Vec<usize>)>,
+    /// The diff of the latest edit against `git_base`, running in the background.
+    pub(crate) changes_task: Option<Task<()>>,
+    /// Markdown: the live editor's text as of its last change, which the git marks and the note
+    /// ranges are in step with (`edit_tracking.rs`).
+    pub(crate) tracked_text: Option<String>,
+    /// Finds the notes again and prerenders blocks once typing pauses (`edit_tracking.rs`).
+    pub(crate) typing_settle: Option<Task<()>>,
     pub(crate) dirty: bool,
     pub(crate) saving: bool,
     /// Saves the browser area's page sent for this file that have not answered yet.
@@ -315,6 +322,9 @@ impl DocsDocument {
             scroll: ScrollHandle::new(),
             git_base: None,
             changes: None,
+            changes_task: None,
+            tracked_text: None,
+            typing_settle: None,
             dirty: false,
             saving: false,
             page_saves_in_flight: 0,
