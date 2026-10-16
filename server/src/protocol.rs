@@ -676,6 +676,8 @@ pub fn endpoint_for(path: &str) -> Option<EndpointDescriptor> {
         | "/api/runProjectSetupCommand"
         | "/api/runBeadsAction"
         | "/api/runProjectDocsAction"
+        // CDXC:AppModal 2026-10-17 WHY: remote-allowed like runProjectDocsAction: Quick Access's Files tab searches a remote machine's projects on that machine, naming projects only, never folders.
+        | "/api/searchProjectFiles"
         /*
         CDXC:ProjectBoard 2026-08-08:
         Remote board dispatch is allowed because it creates and starts the

@@ -466,24 +466,27 @@ impl SharedSidebarSettingsSnapshot {
         web_links_open_in_app_from_object(&self.object)
     }
 
-    pub fn markdown_file_open_view(&self) -> SharedChatFileOpenView {
-        SharedChatFileOpenView::from_settings_value(
-            self.object
-                .get("markdownFileOpenView")
-                .and_then(Value::as_str),
-        )
+    /// Where an HTML, Markdown or picture file opens.
+    ///
+    /// Until the user picks in the new dropdown (`documentFileOpenTarget` unsaved), each kind keeps
+    /// following its old key exactly as before: Markdown and HTML in Files or Code, images in Files
+    /// or the system app (CDXC:Navigation 2026-10-17 in packages/settings-catalog/src/file_opening.rs).
+    pub fn document_file_open_target(&self, kind: SharedDocumentFileKind) -> SharedFileOpenTarget {
+        if let Some(value) = self
+            .object
+            .get("documentFileOpenTarget")
+            .and_then(Value::as_str)
+        {
+            return SharedFileOpenTarget::from_settings_value(Some(value));
+        }
+        legacy_document_file_open_target(&self.object, kind)
     }
 
-    pub fn html_file_open_view(&self) -> SharedChatFileOpenView {
-        SharedChatFileOpenView::from_settings_value(
-            self.object.get("htmlFileOpenView").and_then(Value::as_str),
-        )
-    }
-
-    pub fn image_file_open_target(&self) -> SharedMediaFileOpenTarget {
-        SharedMediaFileOpenTarget::from_settings_value(
+    /// Where every other file (code and text) opens.
+    pub fn other_file_open_target(&self) -> SharedFileOpenTarget {
+        SharedFileOpenTarget::from_settings_value(
             self.object
-                .get("imageFileOpenTarget")
+                .get("otherFileOpenTarget")
                 .and_then(Value::as_str),
         )
     }

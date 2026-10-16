@@ -257,6 +257,30 @@ pub(crate) fn gpui_visible_open_targets_from_settings(
     targets
 }
 
+/// A built-in editor (not Finder) found on this computer, whether or not the Open In menus show
+/// it: Settings > File opening offers every installed editor. `None` when it is not installed.
+pub(crate) fn gpui_installed_editor_open_target(id: &str) -> Option<GpuiOpenTarget> {
+    let settings = shared_settings::shared_sidebar_settings_snapshot();
+    let availability =
+        gpui_open_target_availability(settings.object().get("workspaceOpenTargetAvailability"));
+    let definition = GPUI_BUILT_IN_OPEN_TARGETS
+        .iter()
+        .find(|definition| definition.id == id && definition.id != "finder")?;
+    if !availability.available_ids.contains(definition.id) {
+        return None;
+    }
+    Some(GpuiOpenTarget {
+        id: definition.id.to_string(),
+        label: definition.label.to_string(),
+        launch: GpuiOpenTargetLaunch::BuiltIn {
+            default_command: definition.commands.first().copied(),
+            base_args: definition.base_args,
+            resolved_command: availability.resolved_commands.get(definition.id).cloned(),
+            resolved_app_name: availability.resolved_app_names.get(definition.id).cloned(),
+        },
+    })
+}
+
 pub(crate) fn gpui_open_target_hidden_ids(
     candidate: Option<&serde_json::Value>,
 ) -> HashSet<String> {

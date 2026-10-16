@@ -1,7 +1,7 @@
 //! Open, snapshot routing, command dispatch and close for the native Quick Access window.
 //!
-//! The four Quick Access modal kinds (`commandPalette`, `recentProjects`, `previousSessions`,
-//! `stashedPrompts`) are one window: opening a second kind while it is showing re-targets the open
+//! The five Quick Access modal kinds (`commandPalette`, `recentProjects`, `previousSessions`,
+//! `stashedPrompts`, `quickAccessFiles`) are one window: opening a second kind while it is showing re-targets the open
 //! window's tab instead of tearing it down, which is what kept the React child window stable when
 //! the tab rail switched pages.
 //! SEE-ALSO: apps/desktop/src/app/window/quick_access/ (the window), apps/desktop/src/app/quick_access/host.rs
@@ -11,7 +11,7 @@ use crate::app::window::quick_access::*;
 use crate::*;
 
 impl GhostexGpuiApp {
-    /// Opens (or re-targets) Quick Access for one of its four modal kinds.
+    /// Opens (or re-targets) Quick Access for one of its five modal kinds.
     pub(crate) fn open_gpui_quick_access_modal(
         &mut self,
         kind: GpuiAppModalKind,

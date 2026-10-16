@@ -89,6 +89,17 @@ pub enum QuickAccessRow {
         time: String,
         is_favorite: bool,
     },
+    #[serde(rename_all = "camelCase")]
+    File {
+        key: String,
+        /// The file name.
+        title: String,
+        /// The folder it is in, relative to the project; empty at the root.
+        folder: String,
+        icon: QuickAccessIcon,
+        /// The project-relative path.
+        tooltip: String,
+    },
 }
 
 impl QuickAccessRow {
@@ -97,7 +108,8 @@ impl QuickAccessRow {
             Self::Command { key, .. }
             | Self::Project { key, .. }
             | Self::Session { key, .. }
-            | Self::Prompt { key, .. } => key,
+            | Self::Prompt { key, .. }
+            | Self::File { key, .. } => key,
         }
     }
 }

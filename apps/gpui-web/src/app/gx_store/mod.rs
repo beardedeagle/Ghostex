@@ -25,6 +25,7 @@ mod runtime_facts;
 mod primary_launcher;
 mod project_docs;
 mod quick_access_data;
+mod quick_access_files;
 /// The desktop's readers of the HUD's agent and Saved Action lists for the menus (`sidebar_menus.rs`).
 #[allow(dead_code)]
 mod menu_host_lifted {

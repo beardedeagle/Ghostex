@@ -16,6 +16,7 @@ use std::collections::BTreeSet;
 use serde_json::{json, Value};
 
 use super::data::{QuickAccessData, QuickAccessStorage};
+use super::files::FilesTabState;
 use super::projects::RecentProjectsData;
 use super::prompts::{
     self, apply_launcher_context, belongs_to_session, has_session_scope, Composer, PromptsScope,
@@ -33,7 +34,7 @@ use crate::sidebar_view::text::js_trim;
 
 const SESSIONS_QUERY_DEBOUNCE_MS: u64 = 200;
 
-/// The four tabs.
+/// The five tabs.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum QuickAccessTab {
     #[default]
@@ -41,6 +42,7 @@ pub enum QuickAccessTab {
     RecentProjects,
     RecentSessions,
     SavedPrompts,
+    Files,
 }
 
 impl QuickAccessTab {
@@ -50,6 +52,7 @@ impl QuickAccessTab {
             Self::RecentProjects => "recentProjects",
             Self::RecentSessions => "recentSessions",
             Self::SavedPrompts => "savedPrompts",
+            Self::Files => "files",
         }
     }
 
@@ -59,6 +62,7 @@ impl QuickAccessTab {
             "recentProjects" => Self::RecentProjects,
             "recentSessions" => Self::RecentSessions,
             "savedPrompts" => Self::SavedPrompts,
+            "files" => Self::Files,
             _ => return None,
         })
     }
@@ -103,6 +107,7 @@ pub struct QuickAccessController {
     pub(crate) projects: Option<RecentProjectsData>,
     pub(crate) sessions: SessionsTabState,
     pub(crate) prompts: PromptsTabState,
+    pub(crate) files: FilesTabState,
     menu_row_key: Option<String>,
     menu_prompt_key: Option<String>,
     opened_prompt_scope: Option<PromptsScope>,
@@ -141,6 +146,7 @@ impl QuickAccessController {
             projects: None,
             sessions: SessionsTabState::new(now_ms),
             prompts: PromptsTabState::default(),
+            files: FilesTabState::default(),
             menu_row_key: None,
             menu_prompt_key: None,
             opened_prompt_scope: None,
@@ -457,6 +463,7 @@ impl QuickAccessController {
                     self.request_prompt_history(view, context.clock, effects);
                 }
             }
+            QuickAccessTab::Files => self.request_project_files(context, effects),
             QuickAccessTab::Commands => {}
         }
     }
@@ -549,6 +556,7 @@ impl QuickAccessController {
                             scope,
                         );
                     }
+                    QuickAccessTab::Files => self.files = FilesTabState::default(),
                     QuickAccessTab::Commands => {}
                 }
                 self.refresh_tab_data(context, &mut effects);
@@ -580,6 +588,8 @@ impl QuickAccessController {
                 self.selected_key.clear();
                 if self.tab == QuickAccessTab::RecentSessions {
                     self.schedule_sessions_request(false, &mut effects);
+                } else if self.tab == QuickAccessTab::Files {
+                    self.request_project_files(context, &mut effects);
                 }
             }
             "select" => {
@@ -871,6 +881,11 @@ impl QuickAccessController {
                         .filter(|size| size.is_finite() && *size >= 0.0)
                         .map(|size| size as i64);
                     self.sessions.file_sizes_by_key.insert(key, size);
+                }
+            }
+            "projectFilesResult" => {
+                if !self.receive_project_files(message) {
+                    return effects;
                 }
             }
             "stashedPromptsResult" => {

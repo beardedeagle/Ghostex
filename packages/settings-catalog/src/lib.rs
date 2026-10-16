@@ -15,6 +15,7 @@
 pub mod availability;
 pub mod built_in_extensions;
 mod data;
+pub mod file_opening;
 mod general;
 pub mod help;
 mod hotkey_definitions;

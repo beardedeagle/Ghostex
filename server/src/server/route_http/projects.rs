@@ -345,6 +345,15 @@ pub(super) async fn route_projects_http(
         "/api/runProjectDocsAction" => {
             project_docs_http::handle(state.clone(), endpoint.path, request_id, body_json).await
         }
+        "/api/searchProjectFiles" => {
+            crate::project_file_search::handle_search_project_files_http(
+                &state,
+                endpoint.path,
+                request_id,
+                &body_json,
+            )
+            .await
+        }
         "/api/previewRepositoryClone"
         | "/api/startRepositoryClone"
         | "/api/readRepositoryCloneJob"

@@ -190,10 +190,6 @@ pub fn exports(module: &str, platform: Platform) -> Vec<(&'static str, Json)> {
                 AUTO_SLEEP_IDLE_MINUTE_OPTIONS.to_json(),
             ),
             (
-                "CHAT_FILE_OPEN_VIEW_OPTIONS",
-                CHAT_FILE_OPEN_VIEW_OPTIONS.to_json(),
-            ),
-            (
                 "COMMANDS_PANEL_AUTO_MINIMIZE_DELAY_OPTIONS",
                 COMMANDS_PANEL_AUTO_MINIMIZE_DELAY_OPTIONS.to_json(),
             ),

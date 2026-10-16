@@ -206,7 +206,8 @@ impl GhostexGpuiApp {
             GpuiAppModalKind::CommandPalette
             | GpuiAppModalKind::RecentProjects
             | GpuiAppModalKind::PreviousSessions
-            | GpuiAppModalKind::StashedPrompts => {
+            | GpuiAppModalKind::StashedPrompts
+            | GpuiAppModalKind::QuickAccessFiles => {
                 self.open_gpui_quick_access_modal(kind, open_message, cx);
             }
             // CDXC:AppModal 2026-09-27 DECISION:

@@ -81,6 +81,7 @@ impl GhostexGpuiApp {
                 self.web_answer_recent_projects(cx);
             }
             "requestStashedPrompts" => self.web_answer_stashed_prompts(&command, cx),
+            "requestProjectFiles" => self.gx_store_answer_project_files(&command, cx),
             "requestPreviousSessions" => self.web_answer_previous_sessions(&command, cx),
             "setSessionNote"
             | "renameSession"

@@ -191,6 +191,9 @@ impl GhostexGpuiApp {
             | "runSidebarCommand" => {
                 self.handle_gpui_app_modal_projects_command(command_type, command, cx);
             }
+            "requestProjectFiles" | "openProjectFile" => {
+                self.handle_gpui_app_modal_project_files_command(command_type, command, window, cx);
+            }
             command_type
                 if crate::app::quick_access::commands::QUICK_ACCESS_COMMAND_ROW_TYPES
                     .contains(&command_type) =>

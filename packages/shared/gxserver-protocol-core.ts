@@ -263,6 +263,7 @@ export type GxserverEndpointPath =
   | "/api/removeRecentProject"
   | "/api/readProjectStatus"
   | "/api/runProjectDocsAction"
+  | "/api/searchProjectFiles"
   | "/api/addProjectPath"
   | "/api/createQuickProject"
   | "/api/syncBotProjects"

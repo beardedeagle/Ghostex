@@ -8,7 +8,9 @@ use gpui::Window;
 use crate::app::consts::*;
 use crate::app::helpers::*;
 use crate::app::model::*;
-use crate::app::session_chat_context_menu::GpuiSessionChatFileResolutionError;
+use crate::app::session_chat_context_menu::{
+    GpuiResolvedSessionChatFile, GpuiSessionChatFileResolutionError,
+};
 use crate::app::window::*;
 use crate::*;
 
@@ -75,11 +77,11 @@ impl GhostexGpuiApp {
 
     /*
     CDXC:SessionChat 2026-08-03:
-    Markdown and HTML file links follow their independent Docs/Code settings,
-    falling back to the other available workarea. Excalidraw prefers Docs and
-    every other file prefers Code. Absolute paths and home-relative paths stay
-    machine paths, while ordinary relative paths resolve against the clicked
-    session's project and then its tracked working directory.
+    Absolute paths and home-relative paths stay machine paths, while ordinary
+    relative paths resolve against the clicked session's project and then its
+    tracked working directory. Where the file then opens is Settings > File
+    opening (`file_open_target_for_path`), falling back to the other available
+    workarea.
     */
     pub(crate) fn open_session_chat_file(
         &mut self,
@@ -147,11 +149,10 @@ impl GhostexGpuiApp {
                 return;
             }
         };
-        let file_path = resolved.file_path;
         // CDXC:SessionChat 2026-09-23 DECISION:
         // User: local folder links open in the system file explorer; remote folder links are browsed in this computer's Code view. This replaces the earlier explorer-only rule for remote folders.
         if resolved.is_directory {
-            if gpui_open_path(&file_path).is_err() {
+            if gpui_open_path(&resolved.file_path).is_err() {
                 self.report_session_chat_file_open_failure(
                     &format!("Could not open that folder in {GPUI_FILE_MANAGER_NAME}."),
                     cx,
@@ -159,6 +160,36 @@ impl GhostexGpuiApp {
             }
             return;
         }
+        self.open_resolved_project_file(
+            resolved,
+            line,
+            column,
+            requested_view,
+            Some(session_id),
+            window,
+            cx,
+        );
+    }
+
+    /// Opens a file of a local project where Settings > File opening says (or in the view a
+    /// transcript menu row asked for): the Files view, the Code view, an editor app or the system
+    /// app. `origin` is the chat it was clicked in, which Files remembers as the document's agent.
+    ///
+    /// CDXC:SessionChat 2026-09-27 DECISION:
+    /// User: images, videos and audio clicked in chat open in the Files view by default, or in the system app when their setting says so or Files cannot play the format. PDFs keep opening in the system app.
+    /// SEE-ALSO: `file_open_target_for_path` in `apps/desktop/src/app/native_docs/entry.rs` holds every kind's rule; `media_kind` in `packages/gx-chat-core/src/composer/reference_pills.rs` names the same files in labels and menu rows.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn open_resolved_project_file(
+        &mut self,
+        resolved: GpuiResolvedSessionChatFile,
+        line: Option<u32>,
+        column: Option<u32>,
+        requested_view: Option<shared_settings::SharedChatFileOpenView>,
+        origin: Option<TerminalSessionId>,
+        window: &mut Window,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        let file_path = resolved.file_path;
         let root = resolved.project_root;
         let session_project_id = Some(resolved.project_id);
         let project_relative_path = file_path
@@ -166,74 +197,44 @@ impl GhostexGpuiApp {
             .ok()
             .map(|relative| relative.to_string_lossy().replace('\\', "/"));
         let resolved_path = file_path.to_string_lossy().into_owned();
-        let extension = file_path
-            .extension()
-            .and_then(|extension| extension.to_str())
-            .map(str::to_ascii_lowercase);
-        // CDXC:SessionChat 2026-09-27 DECISION:
-        // User: images, videos and audio clicked in chat open in the Files view by default, or in the system app when their "Images / Videos / Audio open in" setting says so or Files cannot play the format; never in the code editor. PDFs keep opening in the system app. Supersedes the 2026-09-24 rule that sent every video and audio file to the system app.
-        // SEE-ALSO: `media_file_opens_in_files` in `apps/desktop/src/app/native_docs/entry.rs`; `media_kind` in `packages/gx-chat-core/src/composer/reference_pills.rs` names the same files in labels and menu rows.
-        let media_in_files = crate::app::native_docs::entry::media_file_opens_in_files(&file_path);
-        if requested_view.is_none() && media_in_files == Some(false) {
-            if gpui_open_path(&file_path).is_err() {
-                self.report_session_chat_file_open_failure(
-                    "The operating system could not open that file.",
-                    cx,
-                );
+        let target = match requested_view {
+            Some(shared_settings::SharedChatFileOpenView::Code) => {
+                shared_settings::SharedFileOpenTarget::Code
             }
-            return;
+            Some(shared_settings::SharedChatFileOpenView::Docs) => {
+                shared_settings::SharedFileOpenTarget::Files
+            }
+            None => crate::app::native_docs::entry::file_open_target_for_path(&file_path),
+        };
+        match &target {
+            shared_settings::SharedFileOpenTarget::SystemApp => {
+                if gpui_open_path(&file_path).is_err() {
+                    self.report_session_chat_file_open_failure(
+                        "The operating system could not open that file.",
+                        cx,
+                    );
+                }
+                return;
+            }
+            // An editor that is no longer installed falls back to the Files view.
+            shared_settings::SharedFileOpenTarget::Editor(id) => {
+                if let Some(editor) = gpui_installed_editor_open_target(id) {
+                    match gpui_launch_open_target(&editor, &file_path) {
+                        Ok(()) => {
+                            self.report_session_chat_file_opening(&editor.label, &file_path, cx)
+                        }
+                        Err(message) => self.report_session_chat_file_open_failure(&message, cx),
+                    }
+                    return;
+                }
+            }
+            _ => {}
         }
-        if requested_view.is_none()
-            && media_in_files.is_none()
-            && matches!(
-                extension.as_deref(),
-                Some(
-                    "3gp"
-                        | "avi"
-                        | "flv"
-                        | "m2ts"
-                        | "m4v"
-                        | "mkv"
-                        | "mov"
-                        | "mp4"
-                        | "mpeg"
-                        | "mpg"
-                        | "mts"
-                        | "ogv"
-                        | "webm"
-                        | "wmv"
-                        | "aac"
-                        | "aif"
-                        | "aiff"
-                        | "flac"
-                        | "m4a"
-                        | "mp3"
-                        | "oga"
-                        | "ogg"
-                        | "opus"
-                        | "wav"
-                        | "wma"
-                        | "pdf"
-                )
-            )
-        {
-            if gpui_open_path(&file_path).is_err() {
-                self.report_session_chat_file_open_failure(
-                    "The operating system could not open that file.",
-                    cx,
-                );
+        let preferred = match target {
+            shared_settings::SharedFileOpenTarget::Code => {
+                shared_settings::SharedChatFileOpenView::Code
             }
-            return;
-        }
-        let settings = shared_settings::shared_sidebar_settings_snapshot();
-        let document_preferred_view = match extension.as_deref() {
-            Some("md" | "markdown" | "mdown" | "mkdn") => Some(settings.markdown_file_open_view()),
-            Some("htm" | "html") => Some(settings.html_file_open_view()),
-            Some("excalidraw") => Some(shared_settings::SharedChatFileOpenView::Docs),
-            _ if media_in_files == Some(true) => {
-                Some(shared_settings::SharedChatFileOpenView::Docs)
-            }
-            _ => None,
+            _ => shared_settings::SharedChatFileOpenView::Docs,
         };
         let docs_available = !gpui_titlebar_mode_hidden_from_settings(TitlebarMode::Manage)
             && self.titlebar_mode_available(TitlebarMode::Manage);
@@ -248,11 +249,7 @@ impl GhostexGpuiApp {
         let code_available = code_unavailable_reason.is_none();
         let destination = match requested_view {
             Some(shared_settings::SharedChatFileOpenView::Code) if code_available => requested_view,
-            Some(shared_settings::SharedChatFileOpenView::Docs)
-                if docs_available && document_preferred_view.is_some() =>
-            {
-                requested_view
-            }
+            Some(shared_settings::SharedChatFileOpenView::Docs) if docs_available => requested_view,
             Some(_) => {
                 self.report_session_chat_file_open_failure(
                     "That view is not available for this file.",
@@ -260,42 +257,26 @@ impl GhostexGpuiApp {
                 );
                 return;
             }
-            None => match document_preferred_view {
-                Some(shared_settings::SharedChatFileOpenView::Docs) if docs_available => {
+            None => match preferred {
+                shared_settings::SharedChatFileOpenView::Docs if docs_available => {
                     Some(shared_settings::SharedChatFileOpenView::Docs)
                 }
-                Some(shared_settings::SharedChatFileOpenView::Docs) if code_available => {
+                shared_settings::SharedChatFileOpenView::Code if code_available => {
                     Some(shared_settings::SharedChatFileOpenView::Code)
                 }
-                Some(shared_settings::SharedChatFileOpenView::Code) if code_available => {
-                    Some(shared_settings::SharedChatFileOpenView::Code)
-                }
-                Some(shared_settings::SharedChatFileOpenView::Code) if docs_available => {
-                    Some(shared_settings::SharedChatFileOpenView::Docs)
-                }
-                Some(_) => None,
-                None if code_available => Some(shared_settings::SharedChatFileOpenView::Code),
-                None => None,
+                _ if docs_available => Some(shared_settings::SharedChatFileOpenView::Docs),
+                _ if code_available => Some(shared_settings::SharedChatFileOpenView::Code),
+                _ => None,
             },
         };
 
         if destination.is_none() {
-            if document_preferred_view.is_some() {
-                self.copy_path_for_unavailable_project_workarea(
-                    &resolved_path,
-                    "Files and Code",
-                    "Files and Code views are not available for this project.",
-                    cx,
-                );
-            } else {
-                self.copy_path_for_unavailable_project_workarea(
-                    &resolved_path,
-                    "Code",
-                    code_unavailable_reason
-                        .unwrap_or("Code view is not available for this project."),
-                    cx,
-                );
-            }
+            self.copy_path_for_unavailable_project_workarea(
+                &resolved_path,
+                "Files and Code",
+                "Files and Code views are not available for this project.",
+                cx,
+            );
             return;
         }
 
@@ -323,7 +304,7 @@ impl GhostexGpuiApp {
             };
             self.report_session_chat_file_opening("Files view", &file_path, cx);
             self.pending_docs_file_open = Some(relative_path);
-            self.native_docs.pending_origin = Some(session_id);
+            self.native_docs.pending_origin = origin;
             self.switch_workarea_from_hotkey(TitlebarMode::Manage, window, cx);
             self.mark_project_editor_mode_awake(TitlebarMode::Manage, cx);
             self.focus_project_editor_surface(TitlebarMode::Manage, window, cx);

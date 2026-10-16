@@ -62,17 +62,26 @@ impl GhostexGpuiApp {
             );
             return;
         };
-        let settings = shared_settings::shared_sidebar_settings_snapshot();
-        let extension = path
-            .rsplit('.')
-            .next()
-            .unwrap_or_default()
-            .to_ascii_lowercase();
-        let preferred = requested_view.or_else(|| match extension.as_str() {
-            "md" | "markdown" | "mdown" | "mkdn" => Some(settings.markdown_file_open_view()),
-            "htm" | "html" => Some(settings.html_file_open_view()),
-            "excalidraw" => Some(shared_settings::SharedChatFileOpenView::Docs),
-            _ => None,
+        // CDXC:Navigation 2026-10-17 WHY: a remote file follows Settings > File opening too, but an editor app or the system app on this computer cannot reach a file on the session computer: an editor choice opens it in Files, and video, audio and what only the system app could show (PDFs) keep opening in Code as they did before.
+        let video_or_audio = matches!(
+            crate::app::native_docs::state::DocsMediaKind::for_path(path),
+            Some(
+                crate::app::native_docs::state::DocsMediaKind::Video
+                    | crate::app::native_docs::state::DocsMediaKind::Audio
+            )
+        );
+        let preferred = requested_view.or_else(|| {
+            if video_or_audio {
+                return None;
+            }
+            match crate::app::native_docs::entry::file_open_target_for_path(Path::new(path)) {
+                shared_settings::SharedFileOpenTarget::Code
+                | shared_settings::SharedFileOpenTarget::SystemApp => None,
+                shared_settings::SharedFileOpenTarget::Files
+                | shared_settings::SharedFileOpenTarget::Editor(_) => {
+                    Some(shared_settings::SharedChatFileOpenView::Docs)
+                }
+            }
         });
         if preferred == Some(shared_settings::SharedChatFileOpenView::Docs)
             && !gpui_titlebar_mode_hidden_from_settings(TitlebarMode::Manage)

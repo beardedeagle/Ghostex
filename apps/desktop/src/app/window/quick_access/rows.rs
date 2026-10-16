@@ -1,4 +1,4 @@
-//! The four Quick Access row shapes: Commands, Projects, Sessions and Saved Prompts.
+//! The five Quick Access row shapes: Commands, Projects, Sessions, Saved Prompts and Files.
 //!
 //! Every row is the same 40px line: a glyph, the title, a muted subtitle beside it, and
 //! right-aligned accessories (keycaps, counts, chips, time, the lifecycle dot). Rows carry no
@@ -366,6 +366,28 @@ pub(crate) fn quick_access_row<V: 'static>(
             )
             .into_any_element()
         }
+        QuickAccessRow::File {
+            key,
+            title,
+            folder,
+            icon,
+            tooltip,
+        } => row_shell(
+            p,
+            ("quick-access-file", index),
+            key,
+            active,
+            true,
+            callbacks,
+            cx,
+        )
+        .tooltip({
+            let tooltip = tooltip.clone();
+            move |window, cx| quick_access_tooltip(tooltip.clone(), window, cx)
+        })
+        .child(glyph_tile(p, icon))
+        .child(row_text(p, title, folder))
+        .into_any_element(),
     }
 }
 

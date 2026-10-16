@@ -50,6 +50,7 @@ pub mod portless;
 pub mod presentation;
 pub(crate) mod program_status;
 pub mod project_docs;
+pub(crate) mod project_file_search;
 pub mod project_git_remote;
 pub mod project_git_state;
 pub mod project_icon;

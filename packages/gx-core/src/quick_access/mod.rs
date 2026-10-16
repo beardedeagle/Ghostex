@@ -1,4 +1,4 @@
-//! Quick Access as a model: the four tabs (Commands, Projects, Sessions, Saved Prompts), their data
+//! Quick Access as a model: the five tabs (Commands, Projects, Sessions, Saved Prompts, Files), their data
 //! requests, filters, ranking and rows, and every command the native window sends back.
 //!
 //! The host feeds it the sidebar's groups and HUD ([`QuickAccessData`]), the client storage it reads
@@ -8,6 +8,7 @@ mod commands;
 mod controller;
 mod controller_rows;
 mod data;
+mod files;
 mod hotkeys;
 mod icons;
 mod projects;

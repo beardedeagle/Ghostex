@@ -28,11 +28,12 @@ use super::wire::{
 };
 use crate::sidebar_view::text::js_trim;
 
-const TABS: [(QuickAccessTab, &str, &str); 4] = [
+const TABS: [(QuickAccessTab, &str, &str); 5] = [
     (QuickAccessTab::Commands, "Commands", "cmd+1"),
     (QuickAccessTab::RecentProjects, "Projects", "cmd+2"),
     (QuickAccessTab::RecentSessions, "Sessions", "cmd+3"),
     (QuickAccessTab::SavedPrompts, "Saved Prompts", "cmd+4"),
+    (QuickAccessTab::Files, "Files", "cmd+5"),
 ];
 
 fn placeholder(tab: QuickAccessTab) -> &'static str {
@@ -41,6 +42,7 @@ fn placeholder(tab: QuickAccessTab) -> &'static str {
         QuickAccessTab::RecentProjects => "Search projects...",
         QuickAccessTab::RecentSessions => "Search sessions...",
         QuickAccessTab::SavedPrompts => "Search saved prompts...",
+        QuickAccessTab::Files => "Search files...",
     }
 }
 
@@ -134,6 +136,7 @@ impl QuickAccessController {
                 effects.push(QuickAccessEffect::Post(message));
                 self.close(effects);
             }
+            QuickAccessTab::Files => self.activate_file(key, context, effects),
         }
     }
 
@@ -528,10 +531,19 @@ impl QuickAccessController {
                 }
                 tidy(menu)
             }
+            QuickAccessTab::Files => {
+                if !self.has_file(key, context.data) {
+                    return Vec::new();
+                }
+                vec![
+                    item(ACTIVATE_ACTION_ID, "Open File", "file", platform),
+                    item("file:copyPath", "Copy Path", "copy", platform),
+                ]
+            }
         }
     }
 
-    /// The footer's name for Return: one word, because the footer also carries the four tabs.
+    /// The footer's name for Return: one word, because the footer also carries the five tabs.
     fn primary_action_label(&self, context: &QuickAccessContext<'_>) -> String {
         let items = self.row_action_items(&self.selected_key, context);
         let Some(first) = items.first() else {
@@ -550,6 +562,7 @@ impl QuickAccessController {
             }
             .to_string(),
             QuickAccessTab::RecentProjects => first.label.clone(),
+            QuickAccessTab::Files => "Open".to_string(),
         }
     }
 
@@ -583,6 +596,12 @@ impl QuickAccessController {
                 "type": "runGhostexHotkeyAction",
             })));
             return true;
+        }
+        if id == "file:copyPath" {
+            if let Some(path) = self.file_absolute_path(key, context.data) {
+                effects.push(QuickAccessEffect::CopyText(path));
+            }
+            return false;
         }
         if id == "prompt:tag" {
             let Some(prompt) = find_prompt(&self.prompts, key) else {
@@ -646,6 +665,7 @@ impl QuickAccessController {
             QuickAccessTab::SavedPrompts => {
                 prompts::prompt_groups(&self.prompts, &self.query, data, clock)
             }
+            QuickAccessTab::Files => self.file_groups(data),
         };
         let has_selected = groups
             .iter()
@@ -668,6 +688,7 @@ impl QuickAccessController {
             QuickAccessTab::SavedPrompts => {
                 self.prompts.view == PromptsView::Saved && self.prompts.prompts.is_none()
             }
+            QuickAccessTab::Files => self.files_loading(),
             QuickAccessTab::Commands => false,
         };
         let loading_label = match self.tab {
@@ -675,6 +696,7 @@ impl QuickAccessController {
             QuickAccessTab::RecentSessions => sessions::loading_copy(&self.sessions),
             QuickAccessTab::SavedPrompts => "Loading saved prompts...",
             QuickAccessTab::Commands => "Loading commands...",
+            QuickAccessTab::Files => "Searching files...",
         };
         let empty = match self.tab {
             QuickAccessTab::Commands => "No commands found.".to_string(),
@@ -687,6 +709,7 @@ impl QuickAccessController {
             }
             QuickAccessTab::RecentSessions => self.sessions_tab_empty_copy(),
             QuickAccessTab::SavedPrompts => prompts::empty_copy(&self.prompts, data).to_string(),
+            QuickAccessTab::Files => self.files_empty_copy(data).to_string(),
         };
         let toolbar = match self.tab {
             QuickAccessTab::RecentSessions => QuickAccessToolbar::Sessions {

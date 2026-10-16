@@ -12,9 +12,8 @@ pub(crate) fn file_opening() -> Section {
         "fileOpening",
         "File opening",
         vec![
-            row("markdownFileOpenView", "Markdown files", "Choose whether Markdown links from agent chat open in Files or Code.").options(CHAT_FILE_OPEN_VIEW_OPTIONS),
-            row("htmlFileOpenView", "HTML files", "Choose whether HTML links from agent chat open in Files or Code.").options(CHAT_FILE_OPEN_VIEW_OPTIONS),
-            row("imageFileOpenTarget", "Images", "Choose whether pictures and SVGs linked in agent chat or the terminal open in Files or the system app.").options(MEDIA_FILE_OPEN_TARGET_OPTIONS),
+            row("documentFileOpenTarget", "HTML, Markdown and images", "Choose where HTML, Markdown and picture files open from Quick Access, agent chat and the terminal: Files, Code, or an editor app installed on this computer.").option_list(crate::file_opening::file_open_target_options()),
+            row("otherFileOpenTarget", "Other files", "Choose where every other file (code and text) opens from Quick Access, agent chat and the terminal: Files, Code, or an editor app installed on this computer.").option_list(crate::file_opening::file_open_target_options()),
             row("videoFileOpenTarget", "Videos", "Choose whether videos linked in agent chat or the terminal play in Files or open in the system app. Formats Files cannot play, such as .mp4 and .mov, always open in the system app.").options(MEDIA_FILE_OPEN_TARGET_OPTIONS),
             row("audioFileOpenTarget", "Audio", "Choose whether audio files linked in agent chat or the terminal play in Files or open in the system app. Formats Files cannot play, such as .m4a, always open in the system app.").options(MEDIA_FILE_OPEN_TARGET_OPTIONS),
         ],

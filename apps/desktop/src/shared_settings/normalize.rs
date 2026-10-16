@@ -227,6 +227,18 @@ pub(crate) fn strict_bool_field(object: &Map<String, Value>, key: &str) -> Optio
     object.get(key)?.as_bool()
 }
 
+/// Where `kind` opened under the settings that came before `documentFileOpenTarget`.
+pub fn legacy_document_file_open_target(
+    object: &Map<String, Value>,
+    kind: SharedDocumentFileKind,
+) -> SharedFileOpenTarget {
+    match ghostex_settings_catalog::file_opening::legacy_document_file_open_target(object, kind) {
+        "code" => SharedFileOpenTarget::Code,
+        "system-app" => SharedFileOpenTarget::SystemApp,
+        _ => SharedFileOpenTarget::Files,
+    }
+}
+
 pub fn web_links_open_in_app_from_object(object: &Map<String, Value>) -> bool {
     if let Some(target) = object.get("webLinkOpenTarget").and_then(Value::as_str) {
         match target {

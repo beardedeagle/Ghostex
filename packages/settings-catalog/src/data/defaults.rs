@@ -48,9 +48,9 @@ pub const DEFAULT_GHOSTEX_SETTINGS: &[(&str, J)] = &[
     // every web link the same way instead of splitting chat and terminal links
     // from dev-server links.
     ("webLinkOpenTarget", J::Str("internal-browser")),
-    ("markdownFileOpenView", J::Str("docs")),
-    ("htmlFileOpenView", J::Str("docs")),
-    ("imageFileOpenTarget", J::Str("files")),
+    // CDXC:Navigation 2026-10-17 SEE-ALSO: these replace markdownFileOpenView, htmlFileOpenView and imageFileOpenTarget, which still decide until documentFileOpenTarget is saved (file_opening.rs).
+    ("documentFileOpenTarget", J::Str("files")),
+    ("otherFileOpenTarget", J::Str("files")),
     ("videoFileOpenTarget", J::Str("files")),
     ("audioFileOpenTarget", J::Str("files")),
     // CDXC:Settings 2026-06-28-08:01:
@@ -670,6 +670,7 @@ pub const DEFAULT_GHOSTEX_SETTINGS: &[(&str, J)] = &[
             ("openCommandPalette", J::Str("cmd+shift+p")),
             ("openSessionSearchPalette", J::Str("cmd+p")),
             ("openProjectSearchPalette", J::Str("cmd+alt+shift+o")),
+            ("openQuickAccessFiles", J::Str("cmd+o")),
             ("openNewThreadPalette", J::Str("cmd+n")),
             ("openCommandsPanel", J::Str("cmd+j")),
             ("openCommandsPanelSecondKey", J::Str("shift+escape")),

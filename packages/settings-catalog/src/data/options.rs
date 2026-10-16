@@ -22,8 +22,6 @@ pub const AUTO_SLEEP_IDLE_MINUTE_OPTIONS: &[NumOpt] = &[
     num_opt("5 hours", 300.0),
 ];
 
-pub const CHAT_FILE_OPEN_VIEW_OPTIONS: &[Opt] = &[opt("Files", "docs"), opt("Code", "code")];
-
 pub const COMMANDS_PANEL_AUTO_MINIMIZE_DELAY_OPTIONS: &[NumOpt] = &[
     num_opt("15 seconds", 15.0),
     num_opt("30 seconds", 30.0),

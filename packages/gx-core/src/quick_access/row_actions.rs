@@ -15,6 +15,7 @@ use super::wire::{QuickAccessIcon, QuickAccessMenuItem};
 const ACTION_HOTKEYS: &[(&str, &str)] = &[
     ("addPrompt", "cmd+n"),
     ("copyPath", "cmd+shift+c"),
+    ("file:copyPath", "cmd+shift+c"),
     ("remove", "cmd+d"),
     ("prompt:open", "cmd+o"),
     ("prompt:favorite", "cmd+s"),

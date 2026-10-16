@@ -18,6 +18,8 @@ pub(crate) enum GpuiAppModalKind {
     BrowserHistory,
     RecentProjects,
     StashedPrompts,
+    /// Quick Access on its Files tab.
+    QuickAccessFiles,
     AgentsHub,
     DelayedSend,
     RenameSession,
@@ -77,6 +79,7 @@ impl GpuiAppModalKind {
             "browserHistory" => Some(Self::BrowserHistory),
             "recentProjects" => Some(Self::RecentProjects),
             "stashedPrompts" => Some(Self::StashedPrompts),
+            "quickAccessFiles" => Some(Self::QuickAccessFiles),
             "agentsHub" => Some(Self::AgentsHub),
             "delayedSend" => Some(Self::DelayedSend),
             "renameSession" => Some(Self::RenameSession),
@@ -126,6 +129,7 @@ impl GpuiAppModalKind {
             Self::BrowserHistory => "browserHistory",
             Self::RecentProjects => "recentProjects",
             Self::StashedPrompts => "stashedPrompts",
+            Self::QuickAccessFiles => "quickAccessFiles",
             Self::AgentsHub => "agentsHub",
             Self::DelayedSend => "delayedSend",
             Self::RenameSession => "renameSession",
@@ -170,7 +174,8 @@ impl GpuiAppModalKind {
             Self::CommandPalette
             | Self::PreviousSessions
             | Self::RecentProjects
-            | Self::StashedPrompts => "Ghostex Quick Access",
+            | Self::StashedPrompts
+            | Self::QuickAccessFiles => "Ghostex Quick Access",
             Self::FindPrompts => "Ghostex Search by Prompt",
             Self::AgentsHub => "Ghostex Agents Hub",
             Self::DelayedSend => "Ghostex Session Automations",
@@ -262,11 +267,12 @@ impl GpuiAppModalKind {
                 px(APP_MODAL_HOST_COMMAND_PALETTE_WINDOW_WIDTH),
                 px(APP_MODAL_HOST_BROWSER_HISTORY_WINDOW_HEIGHT),
             ),
-            /* All four Quick Access tabs share one stable child-window frame. */
+            /* All five Quick Access tabs share one stable child-window frame. */
             Self::CommandPalette
             | Self::PreviousSessions
             | Self::RecentProjects
-            | Self::StashedPrompts => size(
+            | Self::StashedPrompts
+            | Self::QuickAccessFiles => size(
                 px(APP_MODAL_HOST_COMMAND_PALETTE_WINDOW_WIDTH),
                 px(APP_MODAL_HOST_PREVIOUS_SESSIONS_WINDOW_HEIGHT),
             ),
@@ -492,6 +498,7 @@ impl GpuiAppModalKind {
             | Self::PreviousSessions
             | Self::RecentProjects
             | Self::StashedPrompts
+            | Self::QuickAccessFiles
             | Self::AgentsHub
             | Self::DelayedSend
             | Self::RenameSession
@@ -573,6 +580,7 @@ pub(crate) fn gpui_app_modal_kind_for_hotkey_action_id(
         "openFindPrompts" => Some(GpuiAppModalKind::FindPrompts),
         "openSessionSearchPalette" => Some(GpuiAppModalKind::PreviousSessions),
         "openProjectSearchPalette" => Some(GpuiAppModalKind::RecentProjects),
+        "openQuickAccessFiles" => Some(GpuiAppModalKind::QuickAccessFiles),
         "openPreviousSessions" => Some(GpuiAppModalKind::PreviousSessions),
         "agentsHub" | "openAgentsHub" => Some(GpuiAppModalKind::AgentsHub),
         "configureAgents" => Some(GpuiAppModalKind::ConfigureAgents),

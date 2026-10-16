@@ -23,22 +23,49 @@ impl SharedSidebarVisibilityMemory {
     }
 }
 
+/// The view a transcript menu row asks for (Open in Files, Open in Code).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SharedChatFileOpenView {
     Docs,
     Code,
 }
 
-impl SharedChatFileOpenView {
+/// Where a file opens from Quick Access, a chat link or a terminal link
+/// (`documentFileOpenTarget`, `otherFileOpenTarget`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SharedFileOpenTarget {
+    /// The Files view.
+    Files,
+    /// The built-in Code view.
+    Code,
+    /// An "Open In" editor app on this computer, by its built-in target id (`vscode`, `cursor`, …).
+    Editor(String),
+    /// The operating system's own app for the file.
+    SystemApp,
+}
+
+impl SharedFileOpenTarget {
     pub fn from_settings_value(value: Option<&str>) -> Self {
-        match value {
+        match value.map(str::trim) {
             Some("code") => Self::Code,
-            _ => Self::Docs,
+            Some(id)
+                if !id.is_empty()
+                    && id != "files"
+                    && ghostex_settings_catalog::file_opening::file_open_target_options()
+                        .iter()
+                        .any(|option| option.value == id) =>
+            {
+                Self::Editor(id.to_string())
+            }
+            _ => Self::Files,
         }
     }
 }
 
-/// Where an image, video or audio file link opens (`imageFileOpenTarget` and its siblings).
+/// The kinds `documentFileOpenTarget` covers.
+pub use ghostex_settings_catalog::file_opening::DocumentFileKind as SharedDocumentFileKind;
+
+/// Where a video or audio file link opens (`videoFileOpenTarget`, `audioFileOpenTarget`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SharedMediaFileOpenTarget {
     Files,

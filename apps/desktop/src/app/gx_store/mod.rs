@@ -86,6 +86,7 @@ mod primary_launcher;
 mod project_activation;
 mod project_docs;
 mod quick_access_data;
+mod quick_access_files;
 mod records_storage;
 mod remote_clients;
 mod remote_last_seen;

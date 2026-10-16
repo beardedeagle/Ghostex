@@ -545,13 +545,15 @@ impl GpuiQuickAccessWindow {
             cx.stop_propagation();
             return;
         }
-        // `⌘1`..`⌘4` reach every tab from every tab, matching QuickAccessHeader.
+        // `⌘1`..`⌘5` reach every tab from every tab, matching QuickAccessHeader; Cmd+5 is Files only while
+        // Quick Access is open (the user's decision is in packages/gx-core/src/quick_access/files.rs).
         if modifiers.platform && !modifiers.shift && !modifiers.alt {
             let tab = match key {
                 "1" => Some(QuickAccessTabId::Commands),
                 "2" => Some(QuickAccessTabId::RecentProjects),
                 "3" => Some(QuickAccessTabId::RecentSessions),
                 "4" => Some(QuickAccessTabId::SavedPrompts),
+                "5" => Some(QuickAccessTabId::Files),
                 _ => None,
             };
             if let Some(tab) = tab {
@@ -821,6 +823,7 @@ impl Render for GpuiQuickAccessWindow {
                         "openSessionSearchPalette" => QuickAccessTabId::RecentSessions,
                         "openProjectSearchPalette" => QuickAccessTabId::RecentProjects,
                         "stashedPrompts" => QuickAccessTabId::SavedPrompts,
+                        "openQuickAccessFiles" => QuickAccessTabId::Files,
                         _ => {
                             cx.propagate();
                             return;

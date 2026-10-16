@@ -1,9 +1,10 @@
 //! Chat, Status Indicators, and the Tools group of General: Browser, Dev Servers, Editor and
 //! File opening.
+use super::super::super::catalog::SettingOption;
 use super::super::super::catalog::{module, settings_catalog};
 use super::super::super::fields::{
-    RowSpec, ignored_ports_field, pet_picker_field, reset_key, segmented_field, settings_section,
-    text_field,
+    RowSpec, SELECT_WIDTH, ignored_ports_field, pet_picker_field, reset_key, segmented_field,
+    setting_row, settings_section, settings_select_with_unavailable, text_field,
 };
 use super::super::super::page::PageBlock;
 use super::{GeneralCx, GeneralTab, save};
@@ -297,44 +298,179 @@ fn editor_section(
         .map(|section| PageBlock::section("editor", section))
 }
 
-fn file_opening_section(g: &GeneralCx, cx: &mut Context<GeneralTab>) -> Option<PageBlock> {
+/// The "As before" choice of HTML, Markdown and images: shown only while an older per-kind choice
+/// still decides (`documentFileOpenTarget` unsaved and one of the old keys not at its default).
+const DOCUMENT_FILE_OPEN_AS_BEFORE: &str = "asBefore";
+
+/// What the old Markdown, HTML and Images settings still choose, in words, or `None` when they
+/// are all at their defaults (everything in Files).
+fn document_file_open_as_before(g: &GeneralCx) -> Option<String> {
+    use ghostex_settings_catalog::file_opening::{
+        DocumentFileKind, legacy_document_file_open_target,
+    };
+    if g.values.map().contains_key("documentFileOpenTarget") {
+        return None;
+    }
+    let place = |kind| match legacy_document_file_open_target(g.values.map(), kind) {
+        "code" => "Code",
+        "system-app" => "the system app",
+        _ => "Files",
+    };
+    let (markdown, html, images) = (
+        place(DocumentFileKind::Markdown),
+        place(DocumentFileKind::Html),
+        place(DocumentFileKind::Image),
+    );
+    if [markdown, html, images]
+        .iter()
+        .all(|place| *place == "Files")
+    {
+        return None;
+    }
+    Some(format!(
+        "As before: Markdown in {markdown}, HTML in {html}, images in {images}"
+    ))
+}
+
+fn file_opening_section(
+    page: &mut GeneralTab,
+    g: &GeneralCx,
+    window: &mut Window,
+    cx: &mut Context<GeneralTab>,
+) -> Option<PageBlock> {
     if !g.search.subsection_visible("fileOpening", g.power_visible) {
         return None;
     }
     let s = "fileOpening";
-    let view_options = g.options("CHAT_FILE_OPEN_VIEW_OPTIONS");
-    let media_options = g.options("MEDIA_FILE_OPEN_TARGET_OPTIONS");
-    let rows: Vec<AnyElement> = [
-        ("markdownFileOpenView", "Markdown files", "Applies to .md, .markdown, .mdown, and .mkdn links in agent chat.", &view_options),
-        ("htmlFileOpenView", "HTML files", "Applies to .html and .htm links in agent chat.", &view_options),
-        ("imageFileOpenTarget", "Images", "Pictures and SVGs, such as .png, .jpg, .gif, .webp and .svg.", &media_options),
-        ("videoFileOpenTarget", "Videos", ".webm and .ogv play in Files. Formats Files cannot play, such as .mp4 and .mov, always open in the system app.", &media_options),
-        ("audioFileOpenTarget", "Audio", ".mp3, .wav, .ogg, .flac and .opus play in Files. Formats Files cannot play, such as .m4a, always open in the system app.", &media_options),
-    ]
-    .into_iter()
-    .filter(|(key, _, _, _)| g.visible(s, key))
-    .map(|(key, label, subtitle, options)| {
-        let allowed: Vec<String> = options.iter().map(|option| option.value.clone()).collect();
-        let value = g.values.choice(key, &allowed);
-        // `ChatFileOpenViewSetting` / `MediaFileOpenTargetSetting`: a subtitle, no reset.
-        segmented_field(
+    // The editors this computer found (`workspaceOpenTargetAvailability`, the Open In page reads
+    // the same list).
+    let installed: Vec<String> = g
+        .values
+        .value("workspaceOpenTargetAvailability")
+        .get("availableTargetIds")
+        .and_then(serde_json::Value::as_array)
+        .map(|ids| {
+            ids.iter()
+                .filter_map(serde_json::Value::as_str)
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default();
+    let mut targets: Vec<SettingOption> =
+        ghostex_settings_catalog::file_opening::file_open_target_options()
+            .into_iter()
+            .map(|option| SettingOption {
+                label: option.label,
+                value: option.value,
+            })
+            .collect();
+    let unavailable: Vec<String> = targets
+        .iter()
+        .map(|option| option.value.clone())
+        .filter(|value| value != "files" && value != "code" && !installed.contains(value))
+        .collect();
+    for option in &mut targets {
+        if unavailable.contains(&option.value) {
+            option.label = format!("{} (not installed)", option.label);
+        }
+    }
+    let mut rows: Vec<AnyElement> = Vec::new();
+    for (key, label, subtitle) in [
+        (
+            "documentFileOpenTarget",
+            "HTML, Markdown and images",
+            ".html, .md and pictures such as .png, .jpg and .svg, opened from Quick Access, agent chat or the terminal.",
+        ),
+        (
+            "otherFileOpenTarget",
+            "Other files",
+            "Code and text files, opened from Quick Access, agent chat or the terminal.",
+        ),
+    ] {
+        if !g.visible(s, key) {
+            continue;
+        }
+        let mut options = targets.clone();
+        let as_before = (key == "documentFileOpenTarget")
+            .then(|| document_file_open_as_before(g))
+            .flatten();
+        let value = match &as_before {
+            Some(label) => {
+                options.insert(
+                    0,
+                    SettingOption {
+                        label: label.clone(),
+                        value: DOCUMENT_FILE_OPEN_AS_BEFORE.to_string(),
+                    },
+                );
+                DOCUMENT_FILE_OPEN_AS_BEFORE.to_string()
+            }
+            None => {
+                let allowed: Vec<String> =
+                    options.iter().map(|option| option.value.clone()).collect();
+                g.values.choice(key, &allowed)
+            }
+        };
+        let control = settings_select_with_unavailable(
+            page,
+            &g.p,
+            key,
+            &options,
+            &unavailable,
+            &value,
+            Some(SELECT_WIDTH),
+            false,
+            None,
+            move |page: &mut GeneralTab, next, _window, cx| {
+                if next != DOCUMENT_FILE_OPEN_AS_BEFORE {
+                    save(page, key, json!(next), cx);
+                }
+            },
+            window,
+            cx,
+        );
+        rows.push(setting_row(
             &g.p,
             key,
             RowSpec::new(label).subtitle(subtitle),
             None,
-            options,
-            Some(&value),
-            None,
-            move |page: &mut GeneralTab, next, _window, cx| save(page, key, json!(next), cx),
+            control,
             cx,
-        )
-    })
-    .collect();
+        ));
+    }
+    let media_options = g.options("MEDIA_FILE_OPEN_TARGET_OPTIONS");
+    rows.extend(
+        [
+            ("videoFileOpenTarget", "Videos", ".webm and .ogv play in Files. Formats Files cannot play, such as .mp4 and .mov, always open in the system app."),
+            ("audioFileOpenTarget", "Audio", ".mp3, .wav, .ogg, .flac and .opus play in Files. Formats Files cannot play, such as .m4a, always open in the system app."),
+        ]
+        .into_iter()
+        .filter(|(key, _, _)| g.visible(s, key))
+        .map(|(key, label, subtitle)| {
+            let allowed: Vec<String> = media_options
+                .iter()
+                .map(|option| option.value.clone())
+                .collect();
+            let value = g.values.choice(key, &allowed);
+            // `MediaFileOpenTargetSetting`: a subtitle, no reset.
+            segmented_field(
+                &g.p,
+                key,
+                RowSpec::new(label).subtitle(subtitle),
+                None,
+                &media_options,
+                Some(&value),
+                None,
+                move |page: &mut GeneralTab, next, _window, cx| save(page, key, json!(next), cx),
+                cx,
+            )
+        }),
+    );
     settings_section(
         &g.p,
         "File opening",
         Some(SharedString::from(
-            "Choose where file links open. Markdown and HTML apply to links in agent chat; images, videos and audio apply to links in agent chat and the terminal. If a view is unavailable, Ghostex uses the other one.",
+            "Choose where files open from Quick Access, agent chat links and terminal links. An editor app shows here once it is installed on this computer. If a view is unavailable, Ghostex uses the other one.",
         )),
         None,
         rows,
@@ -354,7 +490,7 @@ pub(super) fn sections(
         browser_section(page, g, window, cx),
         dev_servers_section(page, g, window, cx),
         editor_section(page, g, cx),
-        file_opening_section(g, cx),
+        file_opening_section(page, g, window, cx),
     ]
     .into_iter()
     .flatten()

@@ -5,26 +5,53 @@ use gpui::Context;
 
 use super::state::{DocsDocument, DocsDocumentLoad, DocsFileKind, DocsMediaKind};
 use crate::GhostexGpuiApp;
-use crate::shared_settings::{self, SharedMediaFileOpenTarget};
+use crate::shared_settings::{
+    self, SharedDocumentFileKind, SharedFileOpenTarget, SharedMediaFileOpenTarget,
+};
 
-/// Where a clicked image, video or audio file opens: `Some(true)` in the Files view, `Some(false)`
-/// in the system app, `None` for any other file. Files takes it when its "Images / Videos / Audio
-/// open in" setting says Files and Files can show its format.
+/// Where a file opens when clicked in chat or a terminal or picked in Quick Access, by its kind
+/// and Settings > File opening: HTML, Markdown and pictures follow `documentFileOpenTarget`, video
+/// and audio their own settings, Excalidraw drawings always Files, PDFs and media Files cannot show
+/// the system app, and everything else `otherFileOpenTarget`.
 ///
-/// CDXC:Docs 2026-09-27 SEE-ALSO: `imageFileOpenTarget` in packages/shared/ghostex-settings/types.ts (deleted 2026-10-01) holds the decision; terminal links (`gpui_terminal_file_opens_with_os_default`) and chat file links (`open_session_chat_file_for_session`) both ask here.
-pub(crate) fn media_file_opens_in_files(path: &std::path::Path) -> Option<bool> {
+/// CDXC:Navigation 2026-10-17 DECISION:
+/// User: a picked file "should always open that file in the files app not in code (unless the user picks open files in "Code" (setting)". This supersedes the rule that sent every file other than Markdown, HTML, Excalidraw and media to Code; the dropdowns themselves are in packages/settings-catalog/src/file_opening.rs.
+/// CDXC:Docs 2026-09-27 SEE-ALSO: video and audio keep `videoFileOpenTarget` / `audioFileOpenTarget`; terminal links (`gpui_terminal_file_opens_with_os_default`), chat file links (`open_session_chat_file_for_session`) and Quick Access (`open_quick_access_project_file`) all ask here.
+pub(crate) fn file_open_target_for_path(path: &std::path::Path) -> SharedFileOpenTarget {
     let path = path.to_string_lossy();
-    let media = DocsMediaKind::for_path(&path)?;
-    if DocsFileKind::for_path(&path) == DocsFileKind::SystemApp {
-        return Some(false);
-    }
     let settings = shared_settings::shared_sidebar_settings_snapshot();
-    let target = match media {
-        DocsMediaKind::Image => settings.image_file_open_target(),
-        DocsMediaKind::Video => settings.video_file_open_target(),
-        DocsMediaKind::Audio => settings.audio_file_open_target(),
-    };
-    Some(target == SharedMediaFileOpenTarget::Files)
+    let files_cannot_show = DocsFileKind::for_path(&path) == DocsFileKind::SystemApp;
+    match DocsMediaKind::for_path(&path) {
+        Some(DocsMediaKind::Image) => {
+            let target = settings.document_file_open_target(SharedDocumentFileKind::Image);
+            if target == SharedFileOpenTarget::Files && files_cannot_show {
+                SharedFileOpenTarget::SystemApp
+            } else {
+                target
+            }
+        }
+        Some(media @ (DocsMediaKind::Video | DocsMediaKind::Audio)) => {
+            let setting = if media == DocsMediaKind::Video {
+                settings.video_file_open_target()
+            } else {
+                settings.audio_file_open_target()
+            };
+            if files_cannot_show || setting == SharedMediaFileOpenTarget::SystemApp {
+                SharedFileOpenTarget::SystemApp
+            } else {
+                SharedFileOpenTarget::Files
+            }
+        }
+        None => match super::state::file_extension(&path).as_str() {
+            "md" | "markdown" | "mdown" | "mkdn" | "mdx" => {
+                settings.document_file_open_target(SharedDocumentFileKind::Markdown)
+            }
+            "html" | "htm" => settings.document_file_open_target(SharedDocumentFileKind::Html),
+            "excalidraw" => SharedFileOpenTarget::Files,
+            _ if files_cannot_show => SharedFileOpenTarget::SystemApp,
+            _ => settings.other_file_open_target(),
+        },
+    }
 }
 
 /// Where review documents live; never read from or written to disk.

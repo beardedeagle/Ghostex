@@ -76,7 +76,41 @@ pub(crate) fn settings_select<V: SettingsPage>(
     window: &mut Window,
     cx: &mut Context<V>,
 ) -> AnyElement {
+    settings_select_with_unavailable(
+        page,
+        p,
+        id,
+        options,
+        &[],
+        value,
+        width,
+        disabled,
+        disabled_reason,
+        on_change,
+        window,
+        cx,
+    )
+}
+
+/// [`settings_select`] with options that show, dimmed, but cannot be picked (`unavailable` holds
+/// their values): an editor app that is not installed, for example.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn settings_select_with_unavailable<V: SettingsPage>(
+    page: &mut V,
+    p: &SettingsPalette,
+    id: impl Into<SharedString>,
+    options: &[SettingOption],
+    unavailable: &[String],
+    value: &str,
+    width: Option<f32>,
+    disabled: bool,
+    disabled_reason: Option<SharedString>,
+    on_change: impl Fn(&mut V, String, &mut Window, &mut Context<V>) + Clone + 'static,
+    window: &mut Window,
+    cx: &mut Context<V>,
+) -> AnyElement {
     let id: SharedString = id.into();
+    let unavailable: Vec<String> = unavailable.to_vec();
     let selected = options.iter().position(|option| option.value == value);
     if page.field_states().pending_open_select.as_ref() == Some(&id) {
         page.field_states().pending_open_select = None;
@@ -103,6 +137,7 @@ pub(crate) fn settings_select<V: SettingsPage>(
         .map(|option| option.label.to_lowercase())
         .collect();
     let key_change = on_change.clone();
+    let key_unavailable = unavailable.clone();
     let trigger = div()
         .id(SharedString::from(format!("{id}-trigger")))
         .role(gpui::Role::ComboBox)
@@ -177,7 +212,11 @@ pub(crate) fn settings_select<V: SettingsPage>(
                     match state.select.handle_key(key, count) {
                         ModalSelectKey::Choose(index) => {
                             page.field_states().open_select = None;
-                            if let Some(value) = key_options.get(index).cloned() {
+                            if let Some(value) = key_options
+                                .get(index)
+                                .filter(|value| !key_unavailable.contains(value))
+                                .cloned()
+                            {
                                 key_change(page, value, window, cx);
                             }
                         }
@@ -218,6 +257,7 @@ pub(crate) fn settings_select<V: SettingsPage>(
     let rows = options.iter().enumerate().map(|(index, option)| {
         let is_selected = selected == Some(index);
         let highlighted = highlight == Some(index);
+        let pickable = !unavailable.contains(&option.value);
         let value = option.value.clone();
         let on_change = on_change.clone();
         div()
@@ -245,12 +285,15 @@ pub(crate) fn settings_select<V: SettingsPage>(
             .when(!is_selected && highlighted, |this| {
                 this.bg(hsla(p.popup_hover))
             })
-            .when(!is_selected, |this| {
+            .when(!is_selected && pickable, |this| {
                 this.hover(move |this| this.bg(hsla(p.popup_hover)))
             })
-            .on_press(cx, move |page, window, cx| {
-                close_select(page, cx);
-                on_change(page, value.clone(), window, cx);
+            .when(!pickable, |this| this.opacity(0.45))
+            .when(pickable, |this| {
+                this.on_press(cx, move |page, window, cx| {
+                    close_select(page, cx);
+                    on_change(page, value.clone(), window, cx);
+                })
             })
             .child(
                 div()

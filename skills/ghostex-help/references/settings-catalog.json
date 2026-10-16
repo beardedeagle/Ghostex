@@ -1271,57 +1271,9 @@
       "agentWritable": true
     },
     {
-      "key": "markdownFileOpenView",
-      "title": "Markdown files",
-      "subtitle": "Choose whether Markdown links from agent chat open in Files or Code.",
-      "tab": "settings",
-      "tabTitle": "General",
-      "group": "tools",
-      "groupTitle": "Tools",
-      "section": "fileOpening",
-      "sectionTitle": "File opening",
-      "type": "enum",
-      "default": "docs",
-      "options": [
-        {
-          "label": "Files",
-          "value": "docs"
-        },
-        {
-          "label": "Code",
-          "value": "code"
-        }
-      ],
-      "agentWritable": true
-    },
-    {
-      "key": "htmlFileOpenView",
-      "title": "HTML files",
-      "subtitle": "Choose whether HTML links from agent chat open in Files or Code.",
-      "tab": "settings",
-      "tabTitle": "General",
-      "group": "tools",
-      "groupTitle": "Tools",
-      "section": "fileOpening",
-      "sectionTitle": "File opening",
-      "type": "enum",
-      "default": "docs",
-      "options": [
-        {
-          "label": "Files",
-          "value": "docs"
-        },
-        {
-          "label": "Code",
-          "value": "code"
-        }
-      ],
-      "agentWritable": true
-    },
-    {
-      "key": "imageFileOpenTarget",
-      "title": "Images",
-      "subtitle": "Choose whether pictures and SVGs linked in agent chat or the terminal open in Files or the system app.",
+      "key": "documentFileOpenTarget",
+      "title": "HTML, Markdown and images",
+      "subtitle": "Choose where HTML, Markdown and picture files open from Quick Access, agent chat and the terminal: Files, Code, or an editor app installed on this computer.",
       "tab": "settings",
       "tabTitle": "General",
       "group": "tools",
@@ -1336,8 +1288,192 @@
           "value": "files"
         },
         {
-          "label": "System App",
-          "value": "system-app"
+          "label": "Code",
+          "value": "code"
+        },
+        {
+          "label": "VS Code",
+          "value": "vscode"
+        },
+        {
+          "label": "Cursor",
+          "value": "cursor"
+        },
+        {
+          "label": "Trae",
+          "value": "trae"
+        },
+        {
+          "label": "Kiro",
+          "value": "kiro"
+        },
+        {
+          "label": "VS Code Insiders",
+          "value": "vscode-insiders"
+        },
+        {
+          "label": "VSCodium",
+          "value": "vscodium"
+        },
+        {
+          "label": "Zed",
+          "value": "zed"
+        },
+        {
+          "label": "Antigravity",
+          "value": "antigravity"
+        },
+        {
+          "label": "IntelliJ IDEA",
+          "value": "idea"
+        },
+        {
+          "label": "Aqua",
+          "value": "aqua"
+        },
+        {
+          "label": "CLion",
+          "value": "clion"
+        },
+        {
+          "label": "DataGrip",
+          "value": "datagrip"
+        },
+        {
+          "label": "DataSpell",
+          "value": "dataspell"
+        },
+        {
+          "label": "GoLand",
+          "value": "goland"
+        },
+        {
+          "label": "PhpStorm",
+          "value": "phpstorm"
+        },
+        {
+          "label": "PyCharm",
+          "value": "pycharm"
+        },
+        {
+          "label": "Rider",
+          "value": "rider"
+        },
+        {
+          "label": "RubyMine",
+          "value": "rubymine"
+        },
+        {
+          "label": "RustRover",
+          "value": "rustrover"
+        },
+        {
+          "label": "WebStorm",
+          "value": "webstorm"
+        }
+      ],
+      "agentWritable": true
+    },
+    {
+      "key": "otherFileOpenTarget",
+      "title": "Other files",
+      "subtitle": "Choose where every other file (code and text) opens from Quick Access, agent chat and the terminal: Files, Code, or an editor app installed on this computer.",
+      "tab": "settings",
+      "tabTitle": "General",
+      "group": "tools",
+      "groupTitle": "Tools",
+      "section": "fileOpening",
+      "sectionTitle": "File opening",
+      "type": "enum",
+      "default": "files",
+      "options": [
+        {
+          "label": "Files",
+          "value": "files"
+        },
+        {
+          "label": "Code",
+          "value": "code"
+        },
+        {
+          "label": "VS Code",
+          "value": "vscode"
+        },
+        {
+          "label": "Cursor",
+          "value": "cursor"
+        },
+        {
+          "label": "Trae",
+          "value": "trae"
+        },
+        {
+          "label": "Kiro",
+          "value": "kiro"
+        },
+        {
+          "label": "VS Code Insiders",
+          "value": "vscode-insiders"
+        },
+        {
+          "label": "VSCodium",
+          "value": "vscodium"
+        },
+        {
+          "label": "Zed",
+          "value": "zed"
+        },
+        {
+          "label": "Antigravity",
+          "value": "antigravity"
+        },
+        {
+          "label": "IntelliJ IDEA",
+          "value": "idea"
+        },
+        {
+          "label": "Aqua",
+          "value": "aqua"
+        },
+        {
+          "label": "CLion",
+          "value": "clion"
+        },
+        {
+          "label": "DataGrip",
+          "value": "datagrip"
+        },
+        {
+          "label": "DataSpell",
+          "value": "dataspell"
+        },
+        {
+          "label": "GoLand",
+          "value": "goland"
+        },
+        {
+          "label": "PhpStorm",
+          "value": "phpstorm"
+        },
+        {
+          "label": "PyCharm",
+          "value": "pycharm"
+        },
+        {
+          "label": "Rider",
+          "value": "rider"
+        },
+        {
+          "label": "RubyMine",
+          "value": "rubymine"
+        },
+        {
+          "label": "RustRover",
+          "value": "rustrover"
+        },
+        {
+          "label": "WebStorm",
+          "value": "webstorm"
         }
       ],
       "agentWritable": true
@@ -3175,6 +3311,7 @@
         "openCommandPalette": "cmd+shift+p",
         "openSessionSearchPalette": "cmd+p",
         "openProjectSearchPalette": "cmd+alt+shift+o",
+        "openQuickAccessFiles": "cmd+o",
         "openNewThreadPalette": "cmd+n",
         "openCommandsPanel": "cmd+j",
         "openCommandsPanelSecondKey": "shift+escape",
@@ -11187,6 +11324,12 @@
       "title": "Open Quick Access: Recent Projects",
       "description": "Open Ghostex Quick Access on Recent Projects.",
       "defaultKey": "cmd+alt+shift+o"
+    },
+    {
+      "id": "openQuickAccessFiles",
+      "title": "Open Quick Access: Files",
+      "description": "Open Ghostex Quick Access on Files to find a file in your projects and open it.",
+      "defaultKey": "cmd+o"
     },
     {
       "id": "openNewThreadPalette",

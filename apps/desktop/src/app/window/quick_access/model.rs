@@ -11,6 +11,7 @@ pub(crate) enum QuickAccessTabId {
     RecentProjects,
     RecentSessions,
     SavedPrompts,
+    Files,
 }
 
 impl QuickAccessTabId {
@@ -20,6 +21,7 @@ impl QuickAccessTabId {
             Self::RecentProjects => crate::GpuiAppModalKind::RecentProjects,
             Self::RecentSessions => crate::GpuiAppModalKind::PreviousSessions,
             Self::SavedPrompts => crate::GpuiAppModalKind::StashedPrompts,
+            Self::Files => crate::GpuiAppModalKind::QuickAccessFiles,
         }
     }
 
@@ -29,6 +31,7 @@ impl QuickAccessTabId {
             Self::RecentProjects => "recentProjects",
             Self::RecentSessions => "recentSessions",
             Self::SavedPrompts => "savedPrompts",
+            Self::Files => "files",
         }
     }
 
@@ -38,6 +41,7 @@ impl QuickAccessTabId {
             crate::GpuiAppModalKind::RecentProjects => Some(Self::RecentProjects),
             crate::GpuiAppModalKind::PreviousSessions => Some(Self::RecentSessions),
             crate::GpuiAppModalKind::StashedPrompts => Some(Self::SavedPrompts),
+            crate::GpuiAppModalKind::QuickAccessFiles => Some(Self::Files),
             _ => None,
         }
     }
@@ -133,6 +137,17 @@ pub(crate) enum QuickAccessRow {
         #[serde(default)]
         is_favorite: bool,
     },
+    #[serde(rename_all = "camelCase")]
+    File {
+        key: String,
+        title: String,
+        #[serde(default)]
+        folder: String,
+        #[serde(default)]
+        icon: QuickAccessIcon,
+        #[serde(default)]
+        tooltip: String,
+    },
 }
 
 impl QuickAccessRow {
@@ -141,7 +156,8 @@ impl QuickAccessRow {
             Self::Command { key, .. }
             | Self::Project { key, .. }
             | Self::Session { key, .. }
-            | Self::Prompt { key, .. } => key,
+            | Self::Prompt { key, .. }
+            | Self::File { key, .. } => key,
         }
     }
 

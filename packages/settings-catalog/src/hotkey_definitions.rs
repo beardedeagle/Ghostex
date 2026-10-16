@@ -159,6 +159,18 @@ pub const HOTKEY_DEFINITIONS: &[HotkeyDefinition] = &[
         retired_default_keys: &[],
         action: J::Obj(&[("id", J::Str("openProjectSearchPalette")), ("kind", J::Str("openProjectSearchPalette"))]),
     },
+    // CDXC:AppModal 2026-10-17 DECISION:
+    // User: Cmd+O opens Quick Access straight on its Files tab ("i think cmd + o is good for open file"). Cmd+5 switches to Files while Quick Access is already open, like Cmd+1..4; outside Quick Access Cmd+5 stays Focus Session 5.
+    HotkeyDefinition {
+        id: "openQuickAccessFiles",
+        title: "Open Quick Access: Files",
+        description: "Open Ghostex Quick Access on Files to find a file in your projects and open it.",
+        default_key: "cmd+o",
+        windows_linux_default_key: None,
+        alternate_default_keys: &[],
+        retired_default_keys: &[],
+        action: J::Obj(&[("id", J::Str("openQuickAccessFiles")), ("kind", J::Str("openQuickAccessFiles"))]),
+    },
     // CDXC:AgentLauncher 2026-09-09 DECISION:
     // User: a hotkey opens a borderless picker that starts a new thread in the active project. It lists the agents with the last-used one preselected at the top, filters as you type, and ends with Browser and Terminal rows. Tab on Claude or Codex drills into that provider's accounts, mirroring the project-header agent dropdown.
     // SEE-ALSO: packages/core-ui/new-thread-palette.tsx, apps/desktop/src/app/model/app_modal_kind.rs.

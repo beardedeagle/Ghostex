@@ -368,6 +368,15 @@ view from the strip.
   file on your own computer the first row is Show in Folder, which shows the
   file selected in File Explorer (Finder on a Mac).
   Browser links stop working when Ghostex restarts; open the file again for a new one.
+  Settings > File opening decides where a file opens from Quick Access, a chat
+  link or a terminal link: one dropdown for HTML, Markdown and images, one for
+  every other file (code and text). Both offer Files (the default), the built-in
+  Code view, and the editor apps Ghostex knows (VS Code, Cursor, Zed, the
+  JetBrains IDEs and the rest); an editor that is not installed on this computer
+  is listed but cannot be picked. If you had changed the old Markdown, HTML or
+  Images setting, the first dropdown reads As before and keeps those choices
+  until you pick something else. Videos and audio keep their own Files or system
+  app choice, and PDFs and formats Files cannot show open in the system app.
 - **Terminal**: a command terminal in the view panel that works like the
   Commands pane, only on the right beside your sessions instead of below them.
   It has its own tab bar with a **+** for new terminals, Cmd+Shift+T for another
@@ -379,7 +388,8 @@ view from the strip.
   terminal toggle still open that pane, and both can be open at once.
 
 Related settings: `terminalViewWidthMode`, `webLinkOpenTarget`,
-`markdownFileOpenView`, `htmlFileOpenView`, the Auto Sleep rows
+`documentFileOpenTarget`, `otherFileOpenTarget`, `videoFileOpenTarget`,
+`audioFileOpenTarget`, the Auto Sleep rows
 (`autoSleep*IdleMinutes`), and Settings > Extensions.
 
 ## Sidebar
@@ -811,11 +821,22 @@ when you open it.
   insertion line marks where the session moves when you drop it, and no line
   means the drop would change nothing. Projects and project groups show the same
   line where they will land, after an open project's whole list of sessions.
-- Recent Sessions (Cmd+P) opens Quick Access to jump between sessions, and
-  Cmd+Option+Shift+O opens it on recent projects.
-  Its four tabs are Commands, Projects, Sessions, and Saved Prompts; they sit
-  at the bottom left of the window and Cmd+1 through Cmd+4 switch between
-  them. Filters (Saved/Recovered/Sent, All/Closed/External, project, tags) are
+- Recent Sessions (Cmd+P) opens Quick Access to jump between sessions,
+  Cmd+Option+Shift+O opens it on recent projects, and Cmd+O on Files.
+  Its five tabs are Commands, Projects, Sessions, Saved Prompts and Files; they
+  sit at the bottom left of the window and Cmd+1 through Cmd+5 switch between
+  them (Cmd+5 means Files only while Quick Access is open; elsewhere it still
+  focuses session 5). Files searches the files of every project in the sidebar,
+  the current project first, with a few of the best matches from each other
+  project: type part of a name or path, and letters in order are enough
+  (`qawin` finds `quick_access/window.rs`). It lists what git would, so files
+  your `.gitignore` skips stay out, and leaves out build and dependency folders
+  such as `node_modules`, `target` and `dist`; an empty search shows the files
+  at the top of the current project. Enter opens the file where Settings > File
+  opening says (the Files view unless you picked otherwise), switching to its
+  project first; Copy Path (Cmd+Shift+C) copies its full path. It searches a
+  remote computer's projects on that computer, and Ghostex web searches too,
+  though opening a file there needs the app. Hotkey: `openQuickAccessFiles`. Filters (Saved/Recovered/Sent, All/Closed/External, project, tags) are
   dropdowns at the right of the search line. Enter runs the selected row;
   Cmd+K, the Actions button at the bottom right, or a right-click lists
   everything else the row can do (star, tag, copy, edit, delete, remove, New

@@ -330,6 +330,7 @@ pub(crate) const GPUI_DEFAULT_GHOSTEX_HOTKEYS: &[(&str, &str)] = &[
     ("openCommandPalette", "cmd+shift+p"),
     ("openSessionSearchPalette", "cmd+p"),
     ("openProjectSearchPalette", "cmd+alt+shift+o"),
+    ("openQuickAccessFiles", "cmd+o"),
     ("openNewThreadPalette", "cmd+n"),
     ("openCommandsPanel", "cmd+j"),
     ("openCommandsPanelSecondKey", "shift+escape"),

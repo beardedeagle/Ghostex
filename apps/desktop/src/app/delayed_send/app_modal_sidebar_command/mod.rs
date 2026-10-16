@@ -5,6 +5,7 @@ mod dialogs;
 mod dispatch;
 mod hotkey_action;
 mod previous_sessions;
+mod project_files;
 mod projects;
 mod saved_prompts;
 mod settings;
