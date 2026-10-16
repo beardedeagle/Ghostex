@@ -3171,10 +3171,10 @@ custom colour, which opens a colour picker (with HEX, R, G and B boxes) right at
 the square; and Colourfulness, a fine-grained slider from Subtle to Vivid (Soft is the default;
 the name of the nearest of Subtle, Soft, Balanced, Rich and Vivid shows beside it)
 that sets how much of the colour shows in the sidebar and work area at once, with a small
-sidebar and work area preview. More colour options can set the sidebar and work
-area colourfulness separately, set how deep each mode's custom colour is while
-that mode's + square is picked (85 to 100 for dark and 60 to 100 for light), and
-show the active pane outline and its colour.
+sidebar and work area preview. Colourfulness also sets how deep a custom colour
+is; it has no control of its own. More colour options can set the sidebar and
+work area colourfulness separately, and show the active pane outline and its
+colour.
 A preset never overwrites the custom values, so picking the + square again
 restores them. The chosen theme colors the
 sidebar and window chrome, the sidebar's dropdown menus, and the chat view

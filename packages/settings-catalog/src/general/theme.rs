@@ -15,12 +15,10 @@ pub(crate) fn theming() -> Section {
         vec![
             row("sidebarTheme", "Appearance", "Follow the system appearance by default, or choose Light or Dark.").options(SIDEBAR_THEME_SETTING_OPTIONS),
             row("darkThemePreset", "Dark mode colour", "The colour of the sidebar and window in dark mode: one of sixteen colour squares, or the + square for a custom colour.").options(DARK_THEME_PRESET_OPTIONS),
-            row("customSidebarTitlebarBackgroundDarknessPercent", "Dark mode custom colour depth", "How deep the custom dark mode colour is: under More colour options while the + square is picked for dark mode."),
             row("customSidebarTitlebarBackgroundTintColor", "Custom dark mode tint", "The custom dark mode colour, chosen in the colour picker the + square opens."),
             row("lightThemePreset", "Light mode colour", "The colour of the sidebar and window in light mode: one of sixteen colour squares, or the + square for a custom colour.").options(LIGHT_THEME_PRESET_OPTIONS),
-            row("themeSidebarContrast", "Sidebar colourfulness", "How much of the theme colour shows in the sidebar, from Subtle (deeper, nearly neutral) to Vivid (lighter, more colourful). Colourfulness sets the sidebar and work area together."),
+            row("themeSidebarContrast", "Sidebar colourfulness", "How much of the theme colour shows in the sidebar, from Subtle (deeper, nearly neutral) to Vivid (lighter, more colourful). Colourfulness sets the sidebar and work area together, and how deep a custom colour is."),
             row("themeWorkAreaContrast", "Work area colourfulness", "How much of the theme colour shows in the work area (chat, terminals and views), from Subtle to Vivid. Colourfulness sets the sidebar and work area together."),
-            row("customSidebarTitlebarLightBackgroundLightnessPercent", "Light mode custom colour depth", "How deep the custom light mode colour is: under More colour options while the + square is picked for light mode."),
             row("customSidebarTitlebarLightBackgroundTintColor", "Custom light mode tint", "The custom light mode colour, chosen in the colour picker the + square opens."),
             row("sessionChatTheme", "Chat theme", "Follow the app theme by default, or override chat with Light, Dark, or System.").options(SESSION_CHAT_THEME_OPTIONS),
             row("terminalColorScheme", "Terminal theme", "Follow the app theme by default, or override terminals with Light, Dark, or System.").options(SESSION_CHAT_THEME_OPTIONS),

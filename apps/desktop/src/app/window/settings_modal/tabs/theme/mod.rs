@@ -4,7 +4,7 @@
 //! and `appIcon` sections, so the same search finds them.
 //!
 //! CDXC:Theming 2026-10-16 DECISION:
-//! User: "doesn't look so good … can we please make this look nicer? … don't copy everything", then picked direction A (Calm rows) of the mockups in docs/2026-10-16/theme-page. Supersedes the 2026-09-25 layout. The Theme page's rows carry an icon tile (this page only; other pages keep their rows). Appearance is three preview cards (System, Light, Dark). Each group is one card whose rare rows fold under a More row: Colours (Dark mode colour and Light mode colour as two rows of squares, Colourfulness; More: the sidebar and work area set apart, each mode's custom colour depth while that mode's custom colour is picked, the active pane outline), Transparency (one Off / Dark only / Always control replacing Enable transparency and Use transparency, Strength, Blur, Behind the glass with its pictures or Live gallery; More: picture position, Live speed and brightness, play only when plugged in, the four tints, menu blur) and Chat and terminal (the two themes; More: the terminal palettes), then Related on General. The three-way choices keep the existing row control ("same as what we have now dont change this") and Blur stays as it was ("dont change this"). Custom colour is a "+" square after the squares that opens the Pick Color dialog right at it; no rows open under the colour row (2026-10-17, User: "very bad to have the same colors twice here why??? pls fix no need for these 2 rows that appear when i click on the + option in the colors pls"), and its depth sits under More colour options. The squares are "smaller and simpler": 20px, one flat colour, today's ring drawn thinner. A search hit inside a group's More opens it.
+//! User: "doesn't look so good … can we please make this look nicer? … don't copy everything", then picked direction A (Calm rows) of the mockups in docs/2026-10-16/theme-page. Supersedes the 2026-09-25 layout. The Theme page's rows carry an icon tile (this page only; other pages keep their rows). Appearance is three preview cards (System, Light, Dark). Each group is one card whose rare rows fold under a More row: Colours (Dark mode colour and Light mode colour as two rows of squares, Colourfulness; More: the sidebar and work area set apart, the active pane outline), Transparency (one Off / Dark only / Always control replacing Enable transparency and Use transparency, Strength, Blur, Behind the glass with its pictures or Live gallery; More: picture position, Live speed and brightness, play only when plugged in, the four tints, menu blur) and Chat and terminal (the two themes; More: the terminal palettes), then Related on General. The three-way choices keep the existing row control ("same as what we have now dont change this") and Blur stays as it was ("dont change this"). Custom colour is a "+" square after the squares that opens the Pick Color dialog right at it; no rows open under the colour row (2026-10-17, User: "very bad to have the same colors twice here why??? pls fix no need for these 2 rows that appear when i click on the + option in the colors pls"). The custom colour's depth has no control of its own: Colourfulness sets it (2026-10-17, the user's pick: "Remove it: Colourfulness alone sets how deep the custom colour is"). The squares are "smaller and simpler": 20px, one flat colour, today's ring drawn thinner. A search hit inside a group's More opens it.
 mod art;
 mod colours;
 mod controls;
@@ -74,8 +74,6 @@ impl MoreGroup {
             MoreGroup::Colours => &[
                 "themeSidebarContrast",
                 "themeWorkAreaContrast",
-                "customSidebarTitlebarBackgroundDarknessPercent",
-                "customSidebarTitlebarLightBackgroundLightnessPercent",
                 "showActivePaneOutline",
                 "workspaceActivePaneBorderColor",
             ],
@@ -380,14 +378,12 @@ impl ThemeTab {
         let dark_colour_visible = [
             "darkThemePreset",
             "customSidebarTitlebarBackgroundTintColor",
-            "customSidebarTitlebarBackgroundDarknessPercent",
         ]
         .iter()
         .any(|key| visible(key));
         let light_colour_visible = [
             "lightThemePreset",
             "customSidebarTitlebarLightBackgroundTintColor",
-            "customSidebarTitlebarLightBackgroundLightnessPercent",
         ]
         .iter()
         .any(|key| visible(key));
@@ -476,7 +472,7 @@ impl ThemeTab {
                 &p,
                 "theme-more-colours",
                 "More colour options",
-                "Sidebar and work area apart, custom colour depth, active pane outline",
+                "Sidebar and work area apart, active pane outline",
                 shown,
                 move |page, _window, cx| page.set_more_open(MoreGroup::Colours, !open, cx),
                 cx,
@@ -741,7 +737,6 @@ impl ThemeTab {
                 cx,
             ));
         }
-        rows.extend(self.custom_depth_rows(t, window, cx));
         if t.visible("showActivePaneOutline") {
             rows.push(toggle_field(
                 self,
@@ -776,66 +771,11 @@ impl ThemeTab {
         rows
     }
 
-    /// The depth of each mode's custom colour, under More colour options while that mode's "+"
-    /// square is picked (its tint is picked in the Pick Color dialog the "+" square opens).
-    ///
-    /// CDXC:Theming 2026-06-15 WHY:
-    /// The custom background is a constrained contrast slider plus an in-app tint picker, not a freeform colour: calibrated backgrounds keep sidebar row states predictable, and the tint picker must not be the system colour panel.
-    fn custom_depth_rows(
-        &mut self,
-        t: &ThemeCx,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> Vec<AnyElement> {
-        let p = t.p;
-        let values = t.values.clone();
-        let catalog = settings_catalog();
-        let mut rows = Vec::new();
-        for dark in [true, false] {
-            let (preset_key, depth_key, min_name, max_name, label, description) = if dark {
-                (
-                    "darkThemePreset",
-                    "customSidebarTitlebarBackgroundDarknessPercent",
-                    "MIN_CUSTOM_SIDEBAR_TITLEBAR_BACKGROUND_DARKNESS_PERCENT",
-                    "MAX_CUSTOM_SIDEBAR_TITLEBAR_BACKGROUND_DARKNESS_PERCENT",
-                    "Dark mode custom colour depth",
-                    "How deep the custom dark mode colour is. 85 is softer gray; 100 is black. Text and icons adjust automatically.",
-                )
-            } else {
-                (
-                    "lightThemePreset",
-                    "customSidebarTitlebarLightBackgroundLightnessPercent",
-                    "MIN_CUSTOM_SIDEBAR_TITLEBAR_LIGHT_BACKGROUND_LIGHTNESS_PERCENT",
-                    "MAX_CUSTOM_SIDEBAR_TITLEBAR_LIGHT_BACKGROUND_LIGHTNESS_PERCENT",
-                    "Light mode custom colour depth",
-                    "How deep the custom light mode colour is. 60 is a deeper gray; 100 is white. Text and icons adjust automatically.",
-                )
-            };
-            if values.string(preset_key) != "custom" || !t.visible(depth_key) {
-                continue;
-            }
-            rows.push(super::super::fields::slider_number_field(
-                self,
-                &p,
-                t.spec(depth_key, label, description),
-                Some(reset_key::<Self>(depth_key)),
-                super::super::fields::SliderBinding {
-                    key: depth_key,
-                    min: catalog.number(module::SETTINGS, min_name),
-                    max: catalog.number(module::SETTINGS, max_name),
-                    // Half steps, so the box shows the exact depth Colourfulness writes (95.5).
-                    step: 0.5,
-                },
-                values.f64(depth_key),
-                window,
-                cx,
-            ));
-        }
-        rows
-    }
-
     /// The "+" square: the custom colour for that mode, and its Pick Color dialog opened at the
     /// square on the saved tint.
+    ///
+    /// CDXC:Theming 2026-06-15 WHY:
+    /// The custom background is a calibrated depth (Colourfulness sets it) plus an in-app tint picker, not a freeform colour: calibrated backgrounds keep sidebar row states predictable, and the tint picker must not be the system colour panel.
     fn pick_custom_colour(&mut self, dark: bool, window: &mut Window, cx: &mut Context<Self>) {
         self.select_preset(dark, "custom".to_string(), cx);
         let tint_key = custom_tint_key(dark);

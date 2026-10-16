@@ -3637,22 +3637,6 @@
       "agentWritable": true
     },
     {
-      "key": "customSidebarTitlebarBackgroundDarknessPercent",
-      "title": "Dark mode custom colour depth",
-      "subtitle": "How deep the custom dark mode colour is: under More colour options while the + square is picked for dark mode.",
-      "tab": "theme",
-      "tabTitle": "Theme",
-      "group": "appearance",
-      "groupTitle": "Theme",
-      "section": "theming",
-      "sectionTitle": "Theme",
-      "type": "number",
-      "default": 96,
-      "min": 85,
-      "max": 100,
-      "agentWritable": true
-    },
-    {
       "key": "customSidebarTitlebarBackgroundTintColor",
       "title": "Custom dark mode tint",
       "subtitle": "The custom dark mode colour, chosen in the colour picker the + square opens.",
@@ -3753,7 +3737,7 @@
     {
       "key": "themeSidebarContrast",
       "title": "Sidebar colourfulness",
-      "subtitle": "How much of the theme colour shows in the sidebar, from Subtle (deeper, nearly neutral) to Vivid (lighter, more colourful). Colourfulness sets the sidebar and work area together.",
+      "subtitle": "How much of the theme colour shows in the sidebar, from Subtle (deeper, nearly neutral) to Vivid (lighter, more colourful). Colourfulness sets the sidebar and work area together, and how deep a custom colour is.",
       "tab": "theme",
       "tabTitle": "Theme",
       "group": "appearance",
@@ -3776,20 +3760,6 @@
       "sectionTitle": "Theme",
       "type": "number",
       "default": 0,
-      "agentWritable": true
-    },
-    {
-      "key": "customSidebarTitlebarLightBackgroundLightnessPercent",
-      "title": "Light mode custom colour depth",
-      "subtitle": "How deep the custom light mode colour is: under More colour options while the + square is picked for light mode.",
-      "tab": "theme",
-      "tabTitle": "Theme",
-      "group": "appearance",
-      "groupTitle": "Theme",
-      "section": "theming",
-      "sectionTitle": "Theme",
-      "type": "number",
-      "default": 96,
       "agentWritable": true
     },
     {
@@ -8240,6 +8210,36 @@
       "sectionTitle": "Theme",
       "type": "number",
       "default": 0,
+      "agentWritable": true
+    },
+    {
+      "key": "customSidebarTitlebarBackgroundDarknessPercent",
+      "title": "Custom dark mode depth (set by Colourfulness)",
+      "subtitle": "How deep the custom dark mode colour is. Colourfulness sets it whenever it moves; it has no control of its own.",
+      "tab": "theme",
+      "tabTitle": "Theme",
+      "group": "appearance",
+      "groupTitle": "Theme",
+      "section": "theming",
+      "sectionTitle": "Theme",
+      "type": "number",
+      "default": 96,
+      "min": 85,
+      "max": 100,
+      "agentWritable": true
+    },
+    {
+      "key": "customSidebarTitlebarLightBackgroundLightnessPercent",
+      "title": "Custom light mode depth (set by Colourfulness)",
+      "subtitle": "How deep the custom light mode colour is. Colourfulness sets it whenever it moves; it has no control of its own.",
+      "tab": "theme",
+      "tabTitle": "Theme",
+      "group": "appearance",
+      "groupTitle": "Theme",
+      "section": "theming",
+      "sectionTitle": "Theme",
+      "type": "number",
+      "default": 96,
       "agentWritable": true
     },
     {
