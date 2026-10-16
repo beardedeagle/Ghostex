@@ -516,6 +516,8 @@ pub const DEFAULT_GHOSTEX_SETTINGS: &[(&str, J)] = &[
     ("chatPreviousQuestion", J::Bool(false)),
     // Whether someone flipped Previous question themselves (`USER_SET_COMPANIONS`).
     ("chatPreviousQuestionUserSet", J::Bool(false)),
+    // CDXC:SessionChat 2026-10-16 DECISION: User: "please add a setting to enable the behavior ... but keep it disabled by default" and "make it an advanced setting". Picking an answer sends a one-question card only while this is on.
+    ("chatSendOnPick", J::Bool(false)),
     // CDXC:MarkedHandovers 2026-10-11 DECISION: User: "force the marked handovers for coordinators/orchestrator threads and their children by default and make it disabled by default for non-orchestrator/child threads". This switch covers every other session and stays off by default; orchestrators and threads mark regardless.
     ("markedHandovers", J::Bool(false)),
     // CDXC:MarkedHandovers 2026-10-11 DECISION: User: coloured labels (style D) by default, their first pick of the three.

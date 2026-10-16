@@ -578,6 +578,14 @@ pub(crate) async fn handle_read_session_chat_http(
             "chatPreviousQuestion"
         )),
     );
+    // The Send when you pick an answer switch rides every read too, so the phone follows the computer's value.
+    result.insert(
+        "sendOnPick".to_string(),
+        json!(crate::session_chat_catch_up::chat_setting_enabled(
+            &state.paths,
+            "chatSendOnPick"
+        )),
+    );
     if let Some(session_agent_id) = session_agent_id.as_deref() {
         result.insert("sessionAgentId".to_string(), json!(session_agent_id));
     }

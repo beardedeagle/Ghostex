@@ -11,7 +11,7 @@ use std::collections::HashSet;
 use std::rc::Rc;
 
 use super::ask_card::{
-    AskBodyMotion, AskOption, AskTone, ask_head, chevron, keycap, press_head, send_keys,
+    AskBodyMotion, AskOption, AskTone, ask_head, chevron, keycap, press_head,
 };
 use super::{appearance::ChatAppearance, state::NativeChatView, transcript::text};
 use crate::app::native_chat::cursor::ChatCursor as _;
@@ -293,7 +293,6 @@ impl NativeChatView {
         }
         let questions = form["questions"].as_array().cloned().unwrap_or_default();
         let other_label = text(form, "otherLabel");
-        let skip_label = text(form, "skipLabel");
         let body = div()
             .flex()
             .flex_col()
@@ -306,7 +305,6 @@ impl NativeChatView {
                     question,
                     &form["drafts"][index],
                     &other_label,
-                    &skip_label,
                     enabled,
                     p,
                     cx,
@@ -354,7 +352,7 @@ impl NativeChatView {
             "queued" => "Queued: it goes to the agent once it's ready.".to_string(),
             "sending" => "Sending…".to_string(),
             _ if !send_error.is_empty() => send_error.clone(),
-            _ => "Questions you leave blank are sent as unanswered.".to_string(),
+            _ => "Questions you leave blank are sent as skipped.".to_string(),
         };
         let status_color = if enabled && !send_error.is_empty() {
             error_color(p)
@@ -379,7 +377,9 @@ impl NativeChatView {
             self.ask_primary_button(
                 SharedString::from(format!("question-form-send:{id}")),
                 send_label,
-                enabled.then(send_keys),
+                None,
+                enabled.then(|| ("Send answers".to_string(), send_chord())),
+                false,
                 json!({"type":"formSend","form":id}),
                 !can_send,
                 p,
@@ -470,7 +470,6 @@ impl NativeChatView {
         question: &Value,
         draft: &Value,
         other_label: &str,
-        skip_label: &str,
         enabled: bool,
         p: &ChatAppearance,
         cx: &Context<Self>,
@@ -478,29 +477,6 @@ impl NativeChatView {
         let s = p.scale;
         let answered = self.snapshot["questionForms"][id]["state"] == "answered";
         let skipped = draft["skipped"] == true;
-        let choice_count = question["choices"].as_array().map_or(0, Vec::len);
-        // Skip, after "Other / none of these" (or a text question's box): a pick like any other.
-        let mut skip_row = Some(self.ask_option(
-            AskOption {
-                id: format!("question-form-skip:{id}:{index}").into(),
-                label: skip_label.to_string(),
-                detail: String::new(),
-                picked: skipped,
-                multiple: false,
-                key: Some(choice_letter(if question["text"] == true {
-                    0
-                } else {
-                    choice_count + 1
-                })),
-                recommended: false,
-                other: true,
-                enabled,
-                answered,
-                action: json!({"type":"formSkip","form":id,"question":index}),
-            },
-            p,
-            cx,
-        ));
         let tag = text(question, "tag");
         let detail = text(question, "detail");
         let multiple = question["multiple"] == true;
@@ -617,7 +593,6 @@ impl NativeChatView {
                 draft["otherPicked"] == true,
                 true,
             ));
-            column = column.children(skip_row.take());
         }
         let written = text(draft, "other");
         match self.form_inputs.get(&format!("{id}:{index}")) {
@@ -632,7 +607,15 @@ impl NativeChatView {
                 };
                 column = column.child(sent_note(shown, p));
             }
-            _ if question["text"] == true && !enabled && !skipped => {
+            _ if skipped && !enabled => {
+                column = column.child(
+                    div()
+                        .text_size(px(13.5 * s))
+                        .text_color(p.muted)
+                        .child("Skipped"),
+                );
+            }
+            _ if question["text"] == true && !enabled => {
                 column = column.child(
                     div()
                         .text_size(px(13.5 * s))
@@ -642,16 +625,15 @@ impl NativeChatView {
             }
             _ => {}
         }
-        if question["text"] == true && (enabled || skipped) {
-            column = column.children(skip_row.take());
-        }
         column.into_any_element()
     }
 }
 
 impl NativeChatView {
+    /// CDXC:SessionChat 2026-10-16 DECISION: User: "remove skip all's hotkey from ui same for send answers hotkey, please show the hotkey in a fast to appear tooltip when i hover over these 2 so make ther look better; also please make the skip all button have same colors as send answers just slightly darker background". The form's two footer buttons carry no keycap; each shows its shortcut in a quick tooltip, and Skip all takes the send button's colours a shade darker. The phone (QuestionForm.tsx) and the page kit (server/src/visual_pages/kit.rs) match, minus the hover.
     /// "Skip all", beside the send button while the form is open: it skips every question not yet
-    /// answered and sends at once (the core's `skip_all`).
+    /// answered and sends at once (the core's `skip_all`). It wears the send button's colours a
+    /// shade darker, and its shortcut shows in a quick tooltip rather than on the button.
     fn skip_all_button(
         &self,
         id: &str,
@@ -662,35 +644,17 @@ impl NativeChatView {
         if !enabled {
             return div().into_any_element();
         }
-        let s = p.scale;
-        let action = json!({"type":"formSkipAll","form":id});
-        let keys = if super::keyboard::chat_mac_keys() {
-            "⌘⇧↵"
-        } else {
-            "Ctrl ⇧ ↵"
-        };
-        div()
-            .id(SharedString::from(format!("question-form-skip-all:{id}")))
-            .role(gpui::Role::Button)
-            .aria_label("Skip all")
-            .h(px(28.0 * s))
-            .px(px(11.0 * s))
-            .flex_shrink_0()
-            .flex()
-            .items_center()
-            .gap(px(6.0 * s))
-            .rounded(px(8.0 * s))
-            .border_1()
-            .border_color(p.control_border)
-            .text_color(p.foreground)
-            .text_size(px(13.0 * s))
-            .font_weight(FontWeight::MEDIUM)
-            .child("Skip all")
-            .child(keycap(keys.to_string(), false, false, p))
-            .chat_cursor_pointer()
-            .hover(|style| style.bg(p.foreground.opacity(0.06)))
-            .on_click(cx.listener(move |this, _, _, cx| this.invoke(action.clone(), cx)))
-            .into_any_element()
+        self.ask_primary_button(
+            SharedString::from(format!("question-form-skip-all:{id}")),
+            "Skip all".to_string(),
+            None,
+            Some(("Skip all".to_string(), skip_all_chord())),
+            true,
+            json!({"type":"formSkipAll","form":id}),
+            false,
+            p,
+            cx,
+        )
     }
 
     /// The form's own notes box under the last question, set off like a further question: the
@@ -727,6 +691,23 @@ impl NativeChatView {
                 .child(content)
                 .into_any_element(),
         )
+    }
+}
+
+/// The chords the footer's tooltips name, written the way the app's tooltips write shortcuts.
+fn send_chord() -> String {
+    if super::keyboard::chat_mac_keys() {
+        "⌘Enter".to_string()
+    } else {
+        "Ctrl+Enter".to_string()
+    }
+}
+
+fn skip_all_chord() -> String {
+    if super::keyboard::chat_mac_keys() {
+        "⌘⇧Enter".to_string()
+    } else {
+        "Ctrl+Shift+Enter".to_string()
     }
 }
 

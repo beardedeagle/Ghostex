@@ -493,7 +493,10 @@ fn settings_moved(world: &World, key: &str) -> Option<Event> {
             .is_some_and(|catch_up| catch_up != state.core.catch_up_enabled)
         || settings
             .previous_question
-            .is_some_and(|enabled| enabled != state.core.previous_question_enabled))
+            .is_some_and(|enabled| enabled != state.core.previous_question_enabled)
+        || settings
+            .send_on_pick
+            .is_some_and(|enabled| enabled != state.core.send_on_pick_enabled))
     .then(|| Event::SettingsChanged(Box::new(settings)))
 }
 

@@ -4,9 +4,9 @@
 //! A choice question's picks follow the page kit (`server/src/visual_pages/kit.rs`): nothing starts
 //! picked, clicking a pick again clears it, one of N replaces the pick while many of N toggles, and
 //! "Other / none of these" (the row after the last choice) is a pick of its own whose note says
-//! what instead. Skip (`skip`, every question) is a pick that stands alone and is sent as
-//! `"skipped"`, and Skip all (`skip_all`) skips every question left blank and sends at once. The answers go into the session's chat queue as the `<ghostex-page-answers>`
-//! message, which gxserver types once the agent is idle; the form reads Queued until then and
+//! what instead. A question left blank when the form is sent goes to the agent as `"skipped"`, and
+//! Skip all (`skip_all`) sends at once. The answers go into the session's chat queue as the
+//! `<ghostex-page-answers>` message, which gxserver types once the agent is idle; the form reads Queued until then and
 //! Answered once the transcript carries the message.
 
 use std::collections::BTreeMap;
@@ -20,7 +20,6 @@ use crate::questions::drafts::{decode_drafts, encode_drafts, form_drafts_key, An
 use crate::state::{ChatContext, ChatState, FormSend, FormState};
 use crate::transcript::question_forms::{
     answers_message, notes_key, takes_notes, QuestionForm, NOTE_SUFFIX, OTHER_CHOICE, SKIPPED,
-    SKIP_LABEL,
 };
 use crate::wire::{ChatRpcMethod, RpcOutcome};
 
@@ -93,7 +92,13 @@ fn save(state: &ChatState, id: &str) -> Vec<Effect> {
 
 /// `formChoice {form, question, choice}`: a click on a choice, where `choice` one past the last
 /// choice is "Other / none of these".
-pub fn pick(state: &mut ChatState, id: &str, question: usize, choice: usize) -> Vec<Effect> {
+pub fn pick(
+    state: &mut ChatState,
+    context: &ChatContext,
+    id: &str,
+    question: usize,
+    choice: usize,
+) -> Vec<Effect> {
     if !open(state, id) {
         return Vec::new();
     }
@@ -113,7 +118,7 @@ pub fn pick(state: &mut ChatState, id: &str, question: usize, choice: usize) -> 
     let Some(draft) = entry.drafts.get_mut(question) else {
         return Vec::new();
     };
-    // A choice replaces a Skip, as Skip replaces the choices (`skip`).
+    // A pick takes back a Skip all that failed to send.
     draft.skipped = false;
     let index = choice as u32;
     if choice == asked.choices.len() {
@@ -137,8 +142,18 @@ pub fn pick(state: &mut ChatState, id: &str, question: usize, choice: usize) -> 
         draft.indices = vec![index];
         draft.other_picked = false;
     }
+    let picked_choice = choice < asked.choices.len() && draft.indices == [index];
     state.core.request_publish();
-    save(state, id)
+    let mut effects = save(state, id);
+    // CDXC:SessionChat 2026-10-16 DECISION: User: "please add a setting to enable the behavior ... but keep it disabled by default. and in case this is enabled and here's only 1 question in the card then just seelcting sends in that case", "make it an advanced setting". With Send when you pick an answer on (`chatSendOnPick`), picking a choice sends the form at once, but only for a form of exactly one single-choice question: never two or more, a multi-select, "Other / none of these" or a text question. It goes through `send`, the form's one send path. The same rule sends an agent's async question card (`async_question_option_picked` in questions/actions.rs).
+    if state.core.send_on_pick_enabled
+        && picked_choice
+        && !asked.multiple
+        && form(state, id).is_some_and(|form| form.questions.len() == 1)
+    {
+        effects.extend(send(state, context, id));
+    }
+    effects
 }
 
 /// `formText {form, question, text}`: the question's note, or a text question's answer.
@@ -146,7 +161,7 @@ pub fn write(state: &mut ChatState, id: &str, question: usize, text: &str) -> Ve
     if !open(state, id) {
         return Vec::new();
     }
-    // Typing a text question's answer takes back its Skip; a choice question's note does not.
+    // Typing a text question's answer takes back a Skip all that failed to send; a choice question's note does not.
     let unskips = asked_text(state, id, question) && !text.trim().is_empty();
     let Some(entry) = state.questions.forms.get_mut(id) else {
         return Vec::new();
@@ -169,51 +184,10 @@ fn asked_text(state: &ChatState, id: &str, question: usize) -> bool {
         .is_some_and(|asked| asked.text)
 }
 
-/// `formSkip {form, question}`: the question's Skip row, a pick like any other (see the
-/// SessionChat 2026-10-16 DECISION on `SKIPPED` in packages/gx-visual/src/questions.rs). Picking it
-/// clears the question's choices; clicking it again clears it.
-pub fn skip(state: &mut ChatState, id: &str, question: usize) -> Vec<Effect> {
-    if !open(state, id)
-        || form(state, id)
-            .and_then(|form| form.questions.get(question))
-            .is_none()
-    {
-        return Vec::new();
-    }
-    let Some(entry) = state.questions.forms.get_mut(id) else {
-        return Vec::new();
-    };
-    entry.touched = true;
-    let Some(draft) = entry.drafts.get_mut(question) else {
-        return Vec::new();
-    };
-    draft.skipped = !draft.skipped;
-    if draft.skipped {
-        draft.indices.clear();
-        draft.other_picked = false;
-    }
-    state.core.request_publish();
-    save(state, id)
-}
-
-/// `formSkipAll {form}`: every question not yet answered is skipped, and the form is sent at once;
-/// the questions the reader answered keep their answers.
+/// `formSkipAll {form}`: sends the form at once; every question not yet answered goes as
+/// `"skipped"` (see `send`), and the questions the reader answered keep their answers.
 pub fn skip_all(state: &mut ChatState, context: &ChatContext, id: &str) -> Vec<Effect> {
-    if !open(state, id) {
-        return Vec::new();
-    }
-    let Some(count) = form(state, id).map(|form| form.questions.len()) else {
-        return Vec::new();
-    };
-    let entry = state.questions.forms.entry(id.to_string()).or_default();
-    entry.touched = true;
-    entry.drafts.resize(count, QuestionDraft::default());
-    for draft in entry.drafts.iter_mut().filter(|draft| !answered(draft)) {
-        draft.skipped = true;
-    }
-    let mut effects = save(state, id);
-    effects.extend(send(state, context, id));
-    effects
+    send(state, context, id)
 }
 
 /// `formNotes {form, text}`: the form's own notes box, under the last question.
@@ -299,8 +273,11 @@ pub fn send(state: &mut ChatState, context: &ChatContext, id: &str) -> Vec<Effec
         .get(id)
         .map(|entry| (entry.drafts.clone(), entry.notes.clone()))
         .unwrap_or_default();
-    if !drafts.iter().any(answered) && !(takes_notes(&form) && !notes.trim().is_empty()) {
-        return Vec::new();
+    // A question left blank is sent as `"skipped"` (the SessionChat 2026-10-16 DECISION on `SKIPPED` in packages/gx-visual/src/questions.rs), so a form may be sent with any number of questions unanswered, none included (then it is Skip all).
+    let mut drafts = drafts;
+    drafts.resize(form.questions.len(), QuestionDraft::default());
+    for draft in drafts.iter_mut().filter(|draft| !answered(draft)) {
+        draft.skipped = true;
     }
     let answers = answers(&form, &drafts, &notes);
     // See the SessionChat 2026-10-11 DECISION in server/src/visual_pages/answers.rs: answers go
@@ -530,11 +507,7 @@ pub fn project(state: &ChatState) -> BTreeMap<String, Value> {
                 object.insert("state".to_string(), json!(phase));
                 object.insert(
                     "canSend".to_string(),
-                    json!(
-                        phase == "open"
-                            && (drafts.iter().any(answered)
-                                || (takes_notes && !notes.trim().is_empty()))
-                    ),
+                    json!(phase == "open"),
                 );
                 // CDXC:SessionChat 2026-10-12 DECISION: User: "i see the answer twice fam" (the answered form showed the picks and "Sent to the agent" while the answer message below repeated them); picked option c of docs/2026-10-12/handover-colors-and-answers/index.html: once the transcript carries a form's answers it collapses to one line (a check, the title, "Answered", a chevron) that opens the full read-only form and closes it again, collapsed by default and after a reload; the "You answered" card below stays as the record.
                 object.insert(
@@ -542,7 +515,6 @@ pub fn project(state: &ChatState) -> BTreeMap<String, Value> {
                     json!(phase == "answered" && !entry.expanded),
                 );
                 object.insert("otherLabel".to_string(), json!(OTHER_CHOICE));
-                object.insert("skipLabel".to_string(), json!(SKIP_LABEL));
                 object.insert("drafts".to_string(), json!(drafts));
                 object.insert("takesNotes".to_string(), json!(takes_notes));
                 object.insert("notes".to_string(), json!(notes));

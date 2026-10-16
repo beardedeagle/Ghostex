@@ -19,6 +19,7 @@ use gpui::{
     ParentElement as _, SharedString, StatefulInteractiveElement as _, Styled as _, div, px, rgb,
     svg,
 };
+use gpui_component::tooltip::ManagedTooltipExt as _;
 use serde_json::Value;
 
 /// What a card's tile says about the question.
@@ -187,6 +188,10 @@ pub(super) fn progress_dots(index: usize, count: usize, p: &ChatAppearance) -> A
         .into_any_element()
 }
 
+/// How long the question form's footer buttons wait before their shortcut tooltip shows, well under
+/// the usual 500ms.
+pub(super) const QUICK_TOOLTIP_DELAY: std::time::Duration = std::time::Duration::from_millis(150);
+
 /// A muted keycap: an option's shortcut or letter, or the key a button answers to.
 pub(super) fn keycap(label: String, lit: bool, on_primary: bool, p: &ChatAppearance) -> AnyElement {
     let s = p.scale;
@@ -216,15 +221,6 @@ pub(super) fn keycap(label: String, lit: bool, on_primary: bool, p: &ChatAppeara
         .font_weight(FontWeight::MEDIUM)
         .child(label)
         .into_any_element()
-}
-
-/// The key that sends from a note box: Ctrl+Enter, Cmd+Enter on macOS.
-pub(super) fn send_keys() -> String {
-    if super::keyboard::chat_mac_keys() {
-        "⌘↵".to_string()
-    } else {
-        "Ctrl ↵".to_string()
-    }
 }
 
 /// How the body of a folding card is moving.
@@ -475,19 +471,28 @@ impl NativeChatView {
             .into_any_element()
     }
 
-    /// The filled button that moves the ask on (Next, Send answer, Send), with the key it answers to.
+    /// The filled button that moves the ask on (Next, Send answer, Send), with the key it answers to
+    /// as a keycap (`keys`) or, for the question form's footer, in a quick tooltip (`tooltip`: the
+    /// title and the chord). `darker` fills it a shade darker, for the button beside the primary one.
     #[allow(clippy::too_many_arguments)]
     pub(super) fn ask_primary_button(
         &self,
         id: impl Into<gpui::ElementId>,
         label: String,
         keys: Option<String>,
+        tooltip: Option<(String, String)>,
+        darker: bool,
         action: Value,
         disabled: bool,
         p: &ChatAppearance,
         cx: &Context<Self>,
     ) -> AnyElement {
         let s = p.scale;
+        let fill = if darker {
+            p.control_primary.blend(rgb(0x000000).opacity(0.16).into())
+        } else {
+            p.control_primary
+        };
         div()
             .id(id)
             .role(gpui::Role::Button)
@@ -501,8 +506,8 @@ impl NativeChatView {
             .gap(px(6.0 * s))
             .rounded(px(8.0 * s))
             .border_1()
-            .border_color(p.control_primary)
-            .bg(p.control_primary)
+            .border_color(fill)
+            .bg(fill)
             .text_color(p.background)
             .text_size(px(13.0 * s))
             .font_weight(FontWeight::MEDIUM)
@@ -510,6 +515,17 @@ impl NativeChatView {
             .child(label)
             .when_some(keys, |button, keys| {
                 button.child(keycap(keys, false, true, p))
+            })
+            .when_some(tooltip.filter(|_| !disabled), |button, (title, chord)| {
+                button.managed_tooltip_with(
+                    Some(gpui_component::Placement::Top),
+                    Some(QUICK_TOOLTIP_DELAY),
+                    move |window, cx| {
+                        gpui_component::tooltip::Tooltip::new(title.clone())
+                            .keys(chord.clone())
+                            .build(window, cx)
+                    },
+                )
             })
             .when(!disabled, |button| {
                 button

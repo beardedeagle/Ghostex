@@ -434,6 +434,9 @@ pub struct ReadSessionChatResult {
     /// Whether the Previous question setting is on, the same way as `catch_up`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub previous_question: Option<bool>,
+    /// Whether the Send when you pick an answer setting is on, the same way as `catch_up`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub send_on_pick: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fork_info: Option<ChatForkInfo>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

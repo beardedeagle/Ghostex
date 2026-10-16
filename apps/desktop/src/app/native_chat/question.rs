@@ -230,6 +230,8 @@ impl NativeChatView {
             "question-next",
             text(&self.snapshot["questionCard"]["controls"], "label"),
             Some("↵".to_string()),
+            None,
+            false,
             json!({"type":"questionNext"}),
             busy || self.snapshot["questionCard"]["controls"]["disabled"] == true,
             p,

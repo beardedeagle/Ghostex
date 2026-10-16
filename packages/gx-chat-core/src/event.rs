@@ -235,6 +235,9 @@ pub struct ChatSettings {
     /// The Previous question setting (`chatPreviousQuestion`), the same way as `catch_up`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub previous_question: Option<bool>,
+    /// The Send when you pick an answer setting (`chatSendOnPick`), the same way.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub send_on_pick: Option<bool>,
 }
 
 /// A size or position only the renderer can know, folded back into the document.

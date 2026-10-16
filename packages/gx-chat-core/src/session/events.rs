@@ -139,6 +139,9 @@ fn route(state: &mut ChatState, event: &Event, context: &ChatContext) -> Vec<Eff
             if let Some(previous_question) = settings.previous_question {
                 state.core.previous_question_enabled = previous_question;
             }
+            if let Some(send_on_pick) = settings.send_on_pick {
+                state.core.send_on_pick_enabled = send_on_pick;
+            }
             state.core.request_publish();
             Vec::new()
         }
@@ -225,6 +228,9 @@ pub fn boot_read(
         }
         if let Some(previous_question) = settings.previous_question {
             state.core.previous_question_enabled = previous_question;
+        }
+        if let Some(send_on_pick) = settings.send_on_pick {
+            state.core.send_on_pick_enabled = send_on_pick;
         }
     }
     let config = state.session.boot_config.clone().unwrap_or_default();

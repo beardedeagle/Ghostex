@@ -191,12 +191,13 @@ Ghostex can't show the form, so ask in prose instead.
   `recommended` adds a Recommended badge. At most 26 choices.
 - Write only the questions. The chat letters the choices, ends every choice
   question with "Other / none of these" and a note box, and adds the Send
-  button. Nothing is ever preselected (a pick clicked again clears), and a
-  question left blank arrives as `null`. Don't add your own "Other" choice.
+  button. Nothing is ever preselected (a pick clicked again clears). Newer
+  Ghostex versions send a question left blank as `"skipped"` (older ones as
+  `null`). Don't add your own "Other" choice.
   A form of two or more questions also ends with a notes box for anything
   else, so don't add your own "Anything else?" question either. Newer Ghostex
-  versions also let the reader skip a question (or Skip all): its answer is
-  then `"skipped"`. Don't add your own Skip choice.
+  versions also have a Skip all button; a question the reader leaves blank
+  arrives as `"skipped"`. Don't add your own Skip choice.
 - Check the block before replying: `ghostex visual check /tmp/questions.json`
   lists the questions and their answer keys, or names the problem.
 - Give questions a `tag` and refer to them by it in your replies ("Q3 is still
@@ -340,10 +341,10 @@ chat instead.
 - Write only that markup. The kit letters the choices, ends every choice
   question with "Other / none of these" and a note box, and adds the send
   button. Nothing is ever preselected (the reader can also click a pick again
-  to clear it), and a question left blank arrives as `null`. Don't write your
+  to clear it), and a question left blank arrives as `"skipped"` (`null` in older
+  Ghostex versions). Don't write your
   own form, button, "Other" choice or note box. Newer Ghostex versions also add
-  Skip to every question and a Skip all button; a skipped question arrives as
-  `"skipped"`.
+  a Skip all button; a skipped question arrives as `"skipped"`.
 - Once sent, the page is locked; opening it again shows the answers and an
   Answered note.
 - Paste the block exactly as `ghostex show` printed it: for a question page it

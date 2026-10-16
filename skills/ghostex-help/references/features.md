@@ -1048,9 +1048,9 @@ on desktop, web, and mobile: every question at once, with choices you click
 and a note box for each. Nothing is picked for you (the agent may mark the
 option it recommends), every choice question has an Other / none of these
 choice, and you can leave any question blank or click a choice again to clear
-it. Every question also has a Skip choice, which tells the agent you skipped it
-so it moves on, and Skip all (or Ctrl+Shift+Enter, Cmd+Shift+Enter on macOS)
-sends right away with every question you haven't answered marked skipped. A
+it. A question you leave blank is sent to the agent as skipped, so it moves on
+without asking again, and Skip all (or Ctrl+Shift+Enter, Cmd+Shift+Enter on
+macOS) sends right away with every question you haven't answered marked skipped. A
 form with more than one question also ends with an optional notes box
 for anything else you want the agent to know. Send (or Ctrl+Enter, Cmd+Enter
 on macOS, from anywhere in the form or page) delivers your answers to the agent as a message (when the agent is
@@ -1077,7 +1077,11 @@ question stands: amber with a ? while it still waits for your answer, green
 with a check once you answered it, grey once you skipped it, and grey and
 struck through once the agent withdrew it. When you answer a question another
 way, by telling the agent in the chat or by doing what it asked, the agent
-withdraws it so it stops counting as open. Setting: `chatPreviousQuestion`. Commands:
+withdraws it so it stops counting as open. Settings: `chatPreviousQuestion`, and
+(under Show Advanced) `chatSendOnPick`, which makes picking an answer send a
+card that asks a single choice question right away, without Send answers
+(off by default; cards with several questions, multiple choice, Other or text
+answers still wait for Send). Commands:
 `ghostex show <file.html>`
 publishes a page and prints the block that shows its card (`--browser` opens it
 in the browser instead of floating), and
@@ -3165,6 +3169,14 @@ by hand (`--dry-run` prints what would be sent without posting).
 - "Make Claude control Codex": see Agents, actions, and orchestration.
 - "Match the terminal width to the chat": `ghostex settings set
 terminalViewWidthMode match-chat`.
+On the phone, Send Bug / Feedback is in the menu at the top of the Sessions
+screen, under Settings. It has the same form: your GitHub username (required,
+remembered), the message, up to five screenshots from your photo library or
+pasted with Paste Image, and the same Review step. The phone posts the issue
+itself, so it works even when it cannot reach your computer. While a computer is
+connected, "Collect more data with an agent" is there too: Start Agent starts
+the agent on that computer and opens its chat on the phone.
+
 - "How do I annotate a Browser page or Markdown file": Browser pages use
   Agentation in the Browser toolbar (see Views, Browser). Markdown files use
   Files: select text to comment or mark Looks good, Clarify, or Needs tests,

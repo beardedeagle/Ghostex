@@ -56,6 +56,9 @@ pub struct CoreState {
     /// The Previous question setting (`chatPreviousQuestion`), from the chat settings or the
     /// latest read; off by default.
     pub previous_question_enabled: bool,
+    /// The Send when you pick an answer setting (`chatSendOnPick`), from the chat settings or the
+    /// latest read; off by default.
+    pub send_on_pick_enabled: bool,
     /// The session's display title, or `None` when it has none.
     pub title: Option<String>,
     /// Every deadline the core is waiting on. Any family may arm one by key; the host only ever

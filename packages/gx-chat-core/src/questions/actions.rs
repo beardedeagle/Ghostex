@@ -44,7 +44,6 @@ pub fn handle(state: &mut ChatState, action: &UserAction, context: &ChatContext)
         ActionKind::FormChoice
         | ActionKind::FormText
         | ActionKind::FormSend
-        | ActionKind::FormSkip
         | ActionKind::FormSkipAll => {
             let id = action
                 .param("form")
@@ -58,6 +57,7 @@ pub fn handle(state: &mut ChatState, action: &UserAction, context: &ChatContext)
             effects.extend(match action.kind {
                 ActionKind::FormChoice => crate::questions::forms::pick(
                     state,
+                    context,
                     &id,
                     question,
                     action
@@ -74,7 +74,6 @@ pub fn handle(state: &mut ChatState, action: &UserAction, context: &ChatContext)
                         .and_then(Value::as_str)
                         .unwrap_or_default(),
                 ),
-                ActionKind::FormSkip => crate::questions::forms::skip(state, &id, question),
                 ActionKind::FormSkipAll => crate::questions::forms::skip_all(state, context, &id),
                 _ => crate::questions::forms::send(state, context, &id),
             });
@@ -191,6 +190,15 @@ pub fn handle(state: &mut ChatState, action: &UserAction, context: &ChatContext)
                     index,
                 ));
                 state.core.effects_not_awaited = true;
+                // The Send when you pick an answer setting (see `forms::pick`): a strip holding
+                // one question sends the option on the click that picked it.
+                if state.core.send_on_pick_enabled && projection.count == 1 {
+                    let before_send = effects.len();
+                    effects.extend(async_submit(state, prompt.as_ref(), notice.as_ref(), false));
+                    if effects.len() > before_send {
+                        state.core.request_publish();
+                    }
+                }
             }
         }
         ActionKind::AsyncQuestionSend | ActionKind::AsyncQuestionSkip => {
