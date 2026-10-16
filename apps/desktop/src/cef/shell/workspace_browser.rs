@@ -48,6 +48,9 @@ wrap_request_context_handler! {
     impl RequestContextHandler {
         fn on_request_context_initialized(&self, context: Option<&mut RequestContext>) {
             let ready = context.is_some();
+            if let Some(context) = context {
+                super::turn_off_browser_password_manager(context);
+            }
             self.init.finish(ready);
             // Waiters only wake on a later turn, so this runs before any browser opens on it.
             if ready {

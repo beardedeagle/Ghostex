@@ -28,7 +28,7 @@ bool GhostexGpuiCommandPanePointerActive(void *rootView, double x, double y,
   return NSPointInRect(point, NSMakeRect(x, y, width, height));
 }
 
-void GhostexGpuiCEFDoMessageLoopWork(void);
+void GhostexGpuiCEFRunMessageLoop(void);
 int GhostexGpuiCEFHandleSelectAllForNativeView(void *nativeView);
 int GhostexGpuiCEFHandleSelectAllForActiveNativeView(void);
 int GhostexGpuiCEFHandleEditCommandForNativeView(void *nativeView, int command);
@@ -78,7 +78,6 @@ typedef enum {
   GhostexGpuiCEFZoomCommandReset = 3,
 } GhostexGpuiCEFZoomCommand;
 
-static BOOL g_ghostexGpuiCEFMessagePumpInstalled = NO;
 static BOOL g_ghostexGpuiCEFApplicationHooksInstalled = NO;
 static BOOL g_ghostexGpuiCEFHandlingSendEvent = NO;
 static BOOL g_ghostexGpuiCEFEditCommandBridged = NO;
@@ -89,17 +88,8 @@ static const void *GhostexGpuiRootPointerTrackingAreaKey =
     &GhostexGpuiRootPointerTrackingAreaKey;
 static const void *GhostexGpuiCEFPinchZoomDisabledKey =
     &GhostexGpuiCEFPinchZoomDisabledKey;
-static BOOL g_ghostexGpuiCEFMessagePumpWorkPending = NO;
-static BOOL g_ghostexGpuiCEFMessagePumpWorkActive = NO;
-static BOOL g_ghostexGpuiCEFMessagePumpReentrancyDetected = NO;
-static uint64_t g_ghostexGpuiCEFMessagePumpGeneration = 0;
-static os_unfair_lock g_ghostexGpuiCEFMessagePumpDispatchLock =
-    OS_UNFAIR_LOCK_INIT;
-static BOOL g_ghostexGpuiCEFMessagePumpDispatchPending = NO;
-static int64_t g_ghostexGpuiCEFMessagePumpDispatchDelayMs = INT64_MAX;
-static uint64_t g_ghostexGpuiCEFMessagePumpDispatchEpoch = 0;
-static uint64_t g_ghostexGpuiCEFMessagePumpDispatchRequests = 0;
-static uint64_t g_ghostexGpuiCEFMessagePumpDispatchBlocks = 0;
+static BOOL g_ghostexGpuiCEFMessageLoopStartPending = NO;
+static BOOL g_ghostexGpuiCEFMessageLoopRunning = NO;
 
 static BOOL GhostexGpuiCEFResizeDiagnosticsEnabled(void) {
   static dispatch_once_t onceToken;
@@ -110,13 +100,6 @@ static BOOL GhostexGpuiCEFResizeDiagnosticsEnabled(void) {
   return enabled;
 }
 
-static const int64_t GhostexGpuiCEFMessagePumpPlaceholderDelayMs = INT32_MAX;
-static const int64_t GhostexGpuiCEFMessagePumpImmediateTimerDelayMs =
-    1000 / 120;
-static const int64_t GhostexGpuiCEFMessagePumpMaxTimerDelayMs = 1000 / 30;
-
-static void GhostexGpuiCEFRunScheduledMessagePumpWork(void);
-static void GhostexGpuiCEFOnScheduleMessagePumpWork(int64_t delayMs);
 static void GhostexGpuiCEFInstallStandardEditMenu(void);
 static void GhostexGpuiCEFBrowserViewMouseDown(id self, SEL _cmd,
                                                NSEvent *event);
@@ -740,186 +723,53 @@ bool GhostexGpuiCEFSystemUsesDarkPageAppearance(void) {
   return [systemDefaults[@"AppleInterfaceStyle"] isEqual:@"Dark"];
 }
 
-void GhostexGpuiCEFInstallMessagePump(void) {
-  if (g_ghostexGpuiCEFMessagePumpInstalled) {
-    return;
-  }
-
-  /*
-   CDXC:CefRuntime 2026-06-14-15:25:
-   GPUI owns the AppKit run loop, while cef-rs exposes a single-step
-   CefDoMessageLoopWork pump. Let CEF's BrowserProcessHandler schedule each
-   required step onto the main queue instead of handing the process to
-   CefRunMessageLoop, matching Ghostex's GPUI-safe external-pump model without
-   replacing GPUI's application loop.
-
-   CDXC:CefRuntime 2026-06-14-17:38:
-   The cef-rs/Tauri external pump does not fire only once. It cancels stale
-   work, caps placeholder delays to a short timer, and reschedules idle work so
-   CEF renderers continue painting React sidebar content and browser pages after
-   startup.
-   */
-  g_ghostexGpuiCEFMessagePumpInstalled = YES;
-  g_ghostexGpuiCEFMessagePumpWorkPending = NO;
-  g_ghostexGpuiCEFMessagePumpWorkActive = NO;
-  g_ghostexGpuiCEFMessagePumpReentrancyDetected = NO;
-  g_ghostexGpuiCEFMessagePumpGeneration += 1;
-  os_unfair_lock_lock(&g_ghostexGpuiCEFMessagePumpDispatchLock);
-  g_ghostexGpuiCEFMessagePumpDispatchPending = NO;
-  g_ghostexGpuiCEFMessagePumpDispatchDelayMs = INT64_MAX;
-  g_ghostexGpuiCEFMessagePumpDispatchEpoch += 1;
-  os_unfair_lock_unlock(&g_ghostexGpuiCEFMessagePumpDispatchLock);
+static void GhostexGpuiCEFScheduleMessageLoopStart(CFTimeInterval delay) {
+  CFRunLoopTimerRef timer = CFRunLoopTimerCreateWithHandler(
+      kCFAllocatorDefault, CFAbsoluteTimeGetCurrent() + delay, 0, 0, 0,
+      ^(CFRunLoopTimerRef firedTimer) {
+        (void)firedTimer;
+        if (!g_ghostexGpuiCEFMessageLoopStartPending) {
+          return;
+        }
+        if (NSApp.modalWindow != nil) {
+          GhostexGpuiCEFScheduleMessageLoopStart(0.25);
+          return;
+        }
+        g_ghostexGpuiCEFMessageLoopStartPending = NO;
+        g_ghostexGpuiCEFMessageLoopRunning = YES;
+        GhostexGpuiCEFRunMessageLoop();
+        g_ghostexGpuiCEFMessageLoopRunning = NO;
+        NSLog(@"[gpui-cef] Chromium's message loop returned while Ghostex is "
+              @"still running; web views stop updating");
+      });
+  CFRunLoopAddTimer(CFRunLoopGetMain(), timer, kCFRunLoopDefaultMode);
+  CFRelease(timer);
 }
 
-void GhostexGpuiCEFInvalidateMessagePump(void) {
-  g_ghostexGpuiCEFMessagePumpInstalled = NO;
-  g_ghostexGpuiCEFMessagePumpWorkPending = NO;
-  g_ghostexGpuiCEFMessagePumpGeneration += 1;
-  os_unfair_lock_lock(&g_ghostexGpuiCEFMessagePumpDispatchLock);
-  g_ghostexGpuiCEFMessagePumpDispatchPending = NO;
-  g_ghostexGpuiCEFMessagePumpDispatchDelayMs = INT64_MAX;
-  g_ghostexGpuiCEFMessagePumpDispatchEpoch += 1;
-  os_unfair_lock_unlock(&g_ghostexGpuiCEFMessagePumpDispatchLock);
-}
-
-void GhostexGpuiCEFScheduleMessagePumpWork(int64_t delayMs) {
-  /*
-   CDXC:CefRuntime 2026-07-12:
-   CEF may request message-pump work from any thread, including synchronously
-   while the main thread is inside CefDoMessageLoopWork. Marshalling every
-   callback with dispatch_async lets the post-pump placeholder race ahead of
-   the still-queued zero-delay callback, creating a two-for-one feedback loop
-   that floods the main queue during browser resize. Coalesce at this
-   cross-thread boundary so one main-queue block observes all callbacks that
-   arrived before it runs. New real CEF requests replace the pending delay,
-   matching the external-pump contract; only the adapter's placeholder must
-   not overwrite real work that is already queued.
-  */
-  BOOL shouldDispatch = NO;
-  uint64_t epoch = 0;
-  uint64_t firstRequest = 0;
-  os_unfair_lock_lock(&g_ghostexGpuiCEFMessagePumpDispatchLock);
-  uint64_t request = ++g_ghostexGpuiCEFMessagePumpDispatchRequests;
-  if (!g_ghostexGpuiCEFMessagePumpDispatchPending) {
-    g_ghostexGpuiCEFMessagePumpDispatchPending = YES;
-    g_ghostexGpuiCEFMessagePumpDispatchDelayMs = delayMs;
-    epoch = g_ghostexGpuiCEFMessagePumpDispatchEpoch;
-    firstRequest = request;
-    shouldDispatch = YES;
-  } else if (delayMs != GhostexGpuiCEFMessagePumpPlaceholderDelayMs) {
-    g_ghostexGpuiCEFMessagePumpDispatchDelayMs = delayMs;
-  }
-  os_unfair_lock_unlock(&g_ghostexGpuiCEFMessagePumpDispatchLock);
-
-  if (!shouldDispatch) {
+/*
+ CDXC:CefRuntime 2026-10-17 WHY:
+ Chromium's message loop runs inside GPUI's NSApplication loop for the rest of
+ the process: it dispatches the app's events itself (the same
+ nextEventMatchingMask/sendEvent loop Chrome uses for nested loops) and does
+ its work from its own run-loop sources, timers and before-wait observer.
+ Start it from a default-mode run-loop timer, never from a main-queue block:
+ GPUI's foreground tasks are main-queue blocks, and CFRunLoop does not drain
+ the main queue in a nested loop that a main-queue block started, so GPUI
+ would stop. Default mode also keeps it out of menu tracking, live resize and
+ modal panels, which would otherwise never end.
+ */
+void GhostexGpuiCEFStartMessageLoop(void) {
+  if (g_ghostexGpuiCEFMessageLoopStartPending ||
+      g_ghostexGpuiCEFMessageLoopRunning) {
     return;
   }
-
-  CFAbsoluteTime enqueuedAt = CFAbsoluteTimeGetCurrent();
-  dispatch_async(dispatch_get_main_queue(), ^{
-    int64_t requestedDelayMs = INT64_MAX;
-    uint64_t coalescedRequests = 0;
-    uint64_t block = 0;
-    BOOL currentEpoch = NO;
-    os_unfair_lock_lock(&g_ghostexGpuiCEFMessagePumpDispatchLock);
-    currentEpoch = epoch == g_ghostexGpuiCEFMessagePumpDispatchEpoch;
-    if (currentEpoch) {
-      requestedDelayMs = g_ghostexGpuiCEFMessagePumpDispatchDelayMs;
-      coalescedRequests =
-          g_ghostexGpuiCEFMessagePumpDispatchRequests - firstRequest;
-      g_ghostexGpuiCEFMessagePumpDispatchPending = NO;
-      g_ghostexGpuiCEFMessagePumpDispatchDelayMs = INT64_MAX;
-      block = ++g_ghostexGpuiCEFMessagePumpDispatchBlocks;
-    }
-    os_unfair_lock_unlock(&g_ghostexGpuiCEFMessagePumpDispatchLock);
-
-    if (!currentEpoch) {
-      return;
-    }
-
-    if (GhostexGpuiCEFResizeDiagnosticsEnabled()) {
-      double queueMs = (CFAbsoluteTimeGetCurrent() - enqueuedAt) * 1000.0;
-      if (coalescedRequests >= 4 || block % 120 == 0) {
-        NSLog(@"[gpui-cef-pump] block=%llu coalesced=%llu delay_ms=%lld "
-              @"queue_ms=%.3f",
-              (unsigned long long)block, (unsigned long long)coalescedRequests,
-              (long long)requestedDelayMs, queueMs);
-      }
-    }
-    GhostexGpuiCEFOnScheduleMessagePumpWork(requestedDelayMs);
-  });
+  g_ghostexGpuiCEFMessageLoopStartPending = YES;
+  GhostexGpuiCEFScheduleMessageLoopStart(0);
+  CFRunLoopWakeUp(CFRunLoopGetMain());
 }
 
-static BOOL GhostexGpuiCEFPerformMessageLoopWork(void) {
-  if (g_ghostexGpuiCEFMessagePumpWorkActive) {
-    g_ghostexGpuiCEFMessagePumpReentrancyDetected = YES;
-    return NO;
-  }
-
-  g_ghostexGpuiCEFMessagePumpReentrancyDetected = NO;
-  g_ghostexGpuiCEFMessagePumpWorkActive = YES;
-  GhostexGpuiCEFDoMessageLoopWork();
-  g_ghostexGpuiCEFMessagePumpWorkActive = NO;
-
-  return g_ghostexGpuiCEFMessagePumpReentrancyDetected;
-}
-
-static void GhostexGpuiCEFRunScheduledMessagePumpWork(void) {
-  if (!g_ghostexGpuiCEFMessagePumpInstalled) {
-    return;
-  }
-
-  BOOL wasReentrant = GhostexGpuiCEFPerformMessageLoopWork();
-  if (wasReentrant) {
-    GhostexGpuiCEFScheduleMessagePumpWork(0);
-  } else if (!g_ghostexGpuiCEFMessagePumpWorkPending) {
-    GhostexGpuiCEFScheduleMessagePumpWork(
-        GhostexGpuiCEFMessagePumpPlaceholderDelayMs);
-  }
-}
-
-static void GhostexGpuiCEFOnScheduleMessagePumpWork(int64_t delayMs) {
-  if (!g_ghostexGpuiCEFMessagePumpInstalled) {
-    return;
-  }
-
-  if (delayMs == GhostexGpuiCEFMessagePumpPlaceholderDelayMs &&
-      g_ghostexGpuiCEFMessagePumpWorkPending) {
-    return;
-  }
-
-  g_ghostexGpuiCEFMessagePumpGeneration += 1;
-  g_ghostexGpuiCEFMessagePumpWorkPending = NO;
-
-  /*
-   CEF defines non-positive delays as "reasonably soon", not as permission to
-   monopolize the main queue. The reference external-pump adapters schedule a
-   platform timer after immediate work; GCD blocks have no equivalent minimum
-   timer quantum and can therefore self-repost thousands of times per second.
-   Use a one-shot 120 Hz timer for immediate work so Chromium receives two
-   pump opportunities per 60 Hz frame while AppKit/GPUI input and layout keep
-   normal run-loop ownership.
-  */
-  int64_t clampedDelayMs =
-      delayMs <= 0 ? GhostexGpuiCEFMessagePumpImmediateTimerDelayMs : delayMs;
-  if (clampedDelayMs > GhostexGpuiCEFMessagePumpMaxTimerDelayMs) {
-    clampedDelayMs = GhostexGpuiCEFMessagePumpMaxTimerDelayMs;
-  }
-
-  g_ghostexGpuiCEFMessagePumpWorkPending = YES;
-  uint64_t generation = g_ghostexGpuiCEFMessagePumpGeneration;
-  dispatch_time_t when =
-      dispatch_time(DISPATCH_TIME_NOW, clampedDelayMs * NSEC_PER_MSEC);
-  dispatch_after(when, dispatch_get_main_queue(), ^{
-    if (!g_ghostexGpuiCEFMessagePumpInstalled ||
-        !g_ghostexGpuiCEFMessagePumpWorkPending ||
-        generation != g_ghostexGpuiCEFMessagePumpGeneration) {
-      return;
-    }
-
-    g_ghostexGpuiCEFMessagePumpWorkPending = NO;
-    GhostexGpuiCEFRunScheduledMessagePumpWork();
-  });
+void GhostexGpuiCEFCancelMessageLoopStart(void) {
+  g_ghostexGpuiCEFMessageLoopStartPending = NO;
 }
 
 // CDXC:AppWindows 2026-10-01 WHY:

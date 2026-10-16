@@ -10,7 +10,7 @@ opaque `*mut c_void`; only this file treats them as NSView pointers.
 
 use anyhow::{Context as _, Result};
 use std::{
-    ffi::{CString, c_double, c_int, c_longlong, c_void},
+    ffi::{CString, c_double, c_int, c_void},
     os::unix::ffi::OsStrExt as _,
     path::{Path, PathBuf},
 };
@@ -41,9 +41,8 @@ unsafe extern "C" {
     fn GhostexGpuiCEFPrepareApplication();
     fn GhostexGpuiCEFSystemUsesDarkPageAppearance() -> bool;
     fn GhostexGpuiCEFInstallApplicationHooks();
-    fn GhostexGpuiCEFInstallMessagePump();
-    fn GhostexGpuiCEFInvalidateMessagePump();
-    fn GhostexGpuiCEFScheduleMessagePumpWork(delay_ms: c_longlong);
+    fn GhostexGpuiCEFStartMessageLoop();
+    fn GhostexGpuiCEFCancelMessageLoopStart();
     fn GhostexGpuiCEFSetNativeViewFrame(
         native_view: *mut c_void,
         x: c_double,
@@ -200,25 +199,25 @@ pub(super) fn install_application_hooks() {
     unsafe { GhostexGpuiCEFInstallApplicationHooks() };
 }
 
-pub(super) fn install_message_pump(_cx: &gpui::App) {
-    // The GPUI app context is unused here: dispatch_async onto the AppKit
-    // main queue is the OS-level main-thread scheduler, so the pump needs no
-    // gpui executor (unlike Linux, where gpui's foreground executor is the
-    // only way into the main event loop).
-    unsafe { GhostexGpuiCEFInstallMessagePump() };
+/// macOS runs Chromium's own message loop (see `start_message_loop`), so there is no external pump
+/// to install before `cef::initialize`.
+pub(super) fn install_message_pump(_cx: &gpui::App) {}
+
+/// CDXC:CefRuntime 2026-10-17 WHY:
+/// macOS runs Chromium's own message loop instead of CEF's external message pump, because the external pump (MessagePumpExternal::DirectRunWork) runs Chromium's idle step only when no delayed task is queued, which in a running browser is almost never. Chrome's autofill popup waits for that idle step before it accepts a suggestion, so clicking a saved value or pressing Enter on it did nothing (GitHub #240). Chromium's macOS pump runs the idle step from its before-wait observer, but only while one of its run loops is on the stack, so `cef::run_message_loop` is entered once, nested inside GPUI's NSApplication loop, and runs for the rest of the process (the shim's GhostexGpuiCEFStartMessageLoop says where it starts and why). This supersedes the 2026-06-14 external pump on macOS. The run-loop trap that pump replaced came from a 10 ms NSTimer in every run-loop mode calling CefDoMessageLoopWork without the external pump, so each call spun a nested Chromium event loop, at a time when CefAppProtocol was added to GPUIApplication only after launch (the commits do not record the exact crash). Here there is no timer and no repeated nesting: the protocol is in place from process start (GhostexGpuiCEFApplication's +load), and one loop starts once, in the default run-loop mode only. Windows and Linux keep the external pump and its #240 bug; their in-app alternative, `multi_threaded_message_loop`, moves every CEF callback off the main thread.
+pub(super) fn start_message_loop() {
+    unsafe { GhostexGpuiCEFStartMessageLoop() };
 }
 
 pub(super) fn invalidate_message_pump() {
-    unsafe { GhostexGpuiCEFInvalidateMessagePump() };
+    unsafe { GhostexGpuiCEFCancelMessageLoopStart() };
 }
 
-pub(super) fn schedule_message_pump_work(delay_ms: i64) {
-    unsafe {
-        GhostexGpuiCEFScheduleMessagePumpWork(delay_ms as c_longlong);
-    }
-}
+/// Chromium's own pump wakes itself whenever a task is posted, so nothing needs to be scheduled.
+pub(super) fn schedule_message_pump_work(_delay_ms: i64) {}
 
 pub(super) fn apply_platform_settings(settings: &mut cef::Settings) {
+    settings.external_message_pump = 0;
     let Some(framework_executable) = std::env::var_os(CEF_FRAMEWORK_EXECUTABLE_ENV)
         .filter(|value| !value.is_empty())
         .map(PathBuf::from)
@@ -428,8 +427,8 @@ pub(super) fn native_view_contains_responder(
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn GhostexGpuiCEFDoMessageLoopWork() {
-    cef::do_message_loop_work();
+pub extern "C" fn GhostexGpuiCEFRunMessageLoop() {
+    cef::run_message_loop();
 }
 
 #[unsafe(no_mangle)]

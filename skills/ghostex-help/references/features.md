@@ -240,6 +240,8 @@ view from the strip.
   shows at that size in the middle of the pane. In the same menu, Landscape
   turns the device sideways and Mobile user agent makes the page load as that
   phone's browser would (it reloads). Each tab keeps its own choice.
+  Saved form values (addresses, things you typed before) are offered as you
+  type, but the Browser does not save passwords or sign you in automatically.
   Web links from terminals, chat, and detected dev servers
   open here or in the system browser depending on Open links in.
   The Browser runs on the web runtime (Chromium), an optional one-time install

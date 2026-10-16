@@ -53,8 +53,8 @@ pub fn initialize(cx: &gpui::App) -> Result<()> {
     CDXC:CefRuntime 2026-06-14-15:25:
     The GPUI shell must use Tauri's cef-rs binding path instead of the earlier GhostexCEFBridge.mm browser wrapper. Initialize CEF through cef-rs, keep GPUI as the AppKit loop owner, and scope profile data to the GPUI app so the React sidebar and main browser share a stable Chromium runtime without production-host coupling.
 
-    CDXC:CefRuntime 2026-06-14-16:29:
-    GPUI runs a blocking NSApplication loop, so the cef-rs port must use CEF's external_message_pump together with BrowserProcessHandler::on_schedule_message_pump_work. CEF schedules each pump step and the AppKit shim executes it on the main queue, avoiding the Chromium run-loop observer trap caused by an unconditional timer.
+    CDXC:CefRuntime 2026-10-17 WHY:
+    GPUI owns the main event loop, so Windows and Linux use CEF's external_message_pump together with BrowserProcessHandler::on_schedule_message_pump_work, and each platform runs the scheduled steps on its main thread. macOS turns the external pump off and runs Chromium's own message loop inside GPUI's NSApplication loop, so Chrome's autofill suggestions can be accepted (GitHub #240; see start_message_loop in cef/macos.rs). Supersedes the 2026-06-14 rule that every platform, macOS included, uses the external pump.
 
     CDXC:CefRuntime 2026-06-14-16:54:
     CEF can call on_schedule_message_pump_work during cef::initialize before the first browser is created. Install the GPUI pump gate before initialization so those startup callbacks reach the main queue instead of leaving Chromium partially initialized with only helper processes alive.
@@ -74,6 +74,7 @@ pub fn initialize(cx: &gpui::App) -> Result<()> {
         }
         anyhow::bail!("CEF initialization returned false");
     }
+    platform::start_message_loop();
 
     *state = Some(CefRuntimeState {
         _platform: platform_runtime,
@@ -200,6 +201,9 @@ wrap_browser_process_handler! {
             profile on first launch.
             */
             CEF_CONTEXT_INITIALIZED.store(true, Ordering::Release);
+            if let Some(context) = cef::request_context_get_global_context() {
+                turn_off_browser_password_manager(&context);
+            }
             browser_context_ready("default");
         }
 
