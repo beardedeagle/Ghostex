@@ -38,7 +38,12 @@ pub(super) async fn handle_http_request(
             request_id: None,
             client,
             duration_ms: Some(started_at.elapsed().as_millis()),
-            error: None,
+            // A failed route said only its status code, so a reported 500 could not be traced to its cause.
+            error: routed
+                .response
+                .extensions()
+                .get::<crate::session_chat_send_diagnostics::SendFailureReason>()
+                .map(|reason| format!("{}: {}", reason.code, reason.message)),
             // The API route under `route`: the log sanitizer redacts every `path` field as a file path,
             // which hid which endpoint was failing.
             details: Some(json!({

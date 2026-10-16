@@ -225,8 +225,13 @@ fn hermes_direct_event_line_indexes(
 }
 
 /// The exact command string the agent parses back out of the YAML entry; the
-/// allowlist matches on it byte-for-byte.
+/// allowlist matches on it byte-for-byte. On macOS and Linux the notify
+/// command's `GHOSTEX_AGENT=` prefix needs a shell; the Windows command is
+/// already the plain argv Hermes starts (`windows::hermes_command`).
 pub(super) fn hermes_hook_shell_command(command: &str) -> String {
+    if cfg!(windows) {
+        return command.to_string();
+    }
     format!("sh -c {}", shell_quote(command))
 }
 

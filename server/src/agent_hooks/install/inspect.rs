@@ -6,9 +6,11 @@ use crate::agent_hooks::codex_status_line::codex_status_line_names_model;
 use crate::agent_hooks::config::{
     all_hook_events, hook_format, hook_marker, nested_event_timeout,
     pi_extension_path_is_loader_visible, HookDefinition, HookFormat, HookPaths,
-    OPENCODE_PLUGIN_MARKER, OPENCODE_PLUGIN_SPEC,
+    OPENCODE_PLUGIN_MARKER,
 };
-use crate::agent_hooks::plugin_sources::{command_for_agent, current_plugin_marker};
+use crate::agent_hooks::plugin_sources::{
+    command_for_agent, current_plugin_marker, yaml_double_quote,
+};
 use crate::agent_hooks::probing::{path_string, read_file_text};
 use crate::agent_hooks::resolution::{
     is_ghostex_owned_hook_command, text_contains_ghostex_owned_hook_command,
@@ -47,20 +49,20 @@ pub(crate) fn inspect_agent_hook_installation(
                 .first()
                 .map(|path| read_file_text(path))
                 .unwrap_or_default();
-            let config_text = config_paths
+            let leftovers = config_paths
                 .get(1)
-                .map(|path| read_file_text(path))
-                .unwrap_or_default();
+                .and_then(|path| path.parent())
+                .is_some_and(|directory| opencode_v1_leftovers_present(directory, true));
             let current = plugin_text
                 == crate::agent_hooks::plugin_sources::build_opencode_plugin_source(
                     &hook_paths.notify_hook_path,
                 )
-                && config_text.contains(OPENCODE_PLUGIN_SPEC);
+                && !leftovers;
             HookInspection {
                 current_hook_installed: current,
                 ghostex_hook_present: current
                     || plugin_text.contains(OPENCODE_PLUGIN_MARKER)
-                    || config_text.contains(OPENCODE_PLUGIN_SPEC),
+                    || leftovers,
             }
         }
         HookFormat::PluginFile => {
@@ -108,13 +110,26 @@ pub(crate) fn inspect_agent_hook_installation(
         HookFormat::MarkedYaml | HookFormat::TomlMarked => {
             let marker = format!("ghostex hooks {} begin", definition.agent_id);
             let notify_hook_path = path_string(&hook_paths.notify_hook_path);
+            // A Hermes block naming the right hook path can still run it the wrong
+            // way (the `sh -c` wrapper Windows got before 2026-10-16), so its
+            // entries must carry exactly the command this install writes.
+            let hermes_entry = (definition.agent_id == "hermes-agent").then(|| {
+                format!(
+                    "- command: {}",
+                    yaml_double_quote(&hermes_hook_shell_command(&command))
+                )
+            });
             let texts = config_paths
                 .iter()
                 .map(|path| read_file_text(path))
                 .collect::<Vec<_>>();
             let current = !texts.is_empty()
                 && texts.iter().all(|text| {
-                    text.contains(&marker) && text_contains_hook_path(text, &notify_hook_path)
+                    text.contains(&marker)
+                        && text_contains_hook_path(text, &notify_hook_path)
+                        && hermes_entry
+                            .as_ref()
+                            .is_none_or(|entry| text.contains(entry))
                 });
             HookInspection {
                 current_hook_installed: current,

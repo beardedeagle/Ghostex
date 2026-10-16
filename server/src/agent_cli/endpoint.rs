@@ -36,16 +36,16 @@ pub(crate) async fn dispatch(
     let agent_id = params
         .get("agentId")
         .and_then(Value::as_str)
-        .ok_or_else(|| error("Missing agent id."))?;
+        .ok_or_else(|| refused("Missing agent id."))?;
     let definition = CATALOG
         .iter()
         .find(|entry| entry.agent_id == agent_id)
-        .ok_or_else(|| error("Unknown agent CLI."))?;
+        .ok_or_else(|| refused("Unknown agent CLI."))?;
     match action {
         "read" => read(definition, &home).await,
         "start" => start(definition, paths, params).await,
         "addToPath" => add_to_path(definition, &home).await,
-        _ => Err(error("Unknown CLI action.")),
+        _ => Err(refused("Unknown CLI action.")),
     }
 }
 
@@ -55,7 +55,7 @@ pub(crate) async fn read_agent(home: &Path, agent_id: &str) -> Result<Value, Dom
     let definition = CATALOG
         .iter()
         .find(|entry| entry.agent_id == agent_id)
-        .ok_or_else(|| error("Unknown agent CLI."))?;
+        .ok_or_else(|| refused("Unknown agent CLI."))?;
     read(definition, home).await
 }
 
@@ -177,34 +177,34 @@ async fn start(
         .get(&key)
         .is_some_and(|job| is_active(&job.progress))
     {
-        return Err(error("This CLI is already being installed or updated."));
+        return Err(refused("This CLI is already being installed or updated."));
     }
     let mut state = read_state(definition, home).await?;
     let operation = params
         .get("operation")
         .and_then(Value::as_str)
-        .ok_or_else(|| error("Missing install/update operation."))?;
+        .ok_or_else(|| refused("Missing install/update operation."))?;
     let installed = state["executablePath"].is_string();
     if operation != if installed { "update" } else { "install" } {
-        return Err(error(
+        return Err(refused(
             "CLI installation changed. Refresh its status before continuing.",
         ));
     }
     let method_id = params
         .get("methodId")
         .and_then(Value::as_str)
-        .ok_or_else(|| error("Choose an installation method."))?;
+        .ok_or_else(|| refused("Choose an installation method."))?;
     let method = state["methods"]
         .as_array()
         .and_then(|methods| methods.iter().find(|method| method["id"] == method_id))
-        .ok_or_else(|| error("Unsupported installation method."))?;
+        .ok_or_else(|| refused("Unsupported installation method."))?;
     if let Some(reason) = method["unavailableReason"].as_str() {
-        return Err(error(reason));
+        return Err(refused(reason));
     }
     if installed {
         if let Some(detected) = state["detectedMethodId"].as_str() {
             if method_id != detected {
-                return Err(error(
+                return Err(refused(
                     "Use the detected installation method to update this CLI.",
                 ));
             }
@@ -588,9 +588,18 @@ fn same_directory(left: &Path, right: &Path) -> bool {
     key(left) == key(right)
 }
 
+/// CDXC:AgentProviders 2026-10-16 WHY:
+/// Every answer here used the 500-mapped `invalidParams` code, so a refused request (a busy job, an unavailable method, a stale page) logged as a server failure and a real one could not be told apart (GitHub #243). A request the user can correct is `badRequest` (400); only Ghostex's own failures stay 500.
+fn refused(message: impl std::fmt::Display) -> DomainStateError {
+    DomainStateError {
+        code: "badRequest",
+        message: message.to_string(),
+    }
+}
+
 fn error(message: impl std::fmt::Display) -> DomainStateError {
     DomainStateError {
-        code: "invalidParams",
+        code: "internalError",
         message: message.to_string(),
     }
 }

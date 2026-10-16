@@ -14,6 +14,9 @@ pub(crate) fn command(agent: &str, notify_path: &Path) -> String {
     if agent == "codex" {
         return codex_command(&executable, notify_path, quote);
     }
+    if agent == "hermes-agent" {
+        return hermes_command(&executable, notify_path);
+    }
     if let Some(executable) = bare_command_path(&executable)
         .filter(|_| matches!(agent, "claude" | "grok") && !notify.contains('\''))
     {
@@ -57,6 +60,24 @@ fn codex_command(executable: &Path, notify_path: &Path, quote: impl Fn(&str) -> 
         "& {} agent-hook-notify-native {} codex",
         quote(&executable.to_string_lossy()),
         quote(&notify_path.to_string_lossy())
+    )
+}
+
+/// CDXC:AgentHooks 2026-10-16 WHY:
+/// Hermes Agent (0.22.2) runs a hook without any shell: `split_command_line` splits it with Python's `shlex.split(posix=False)` and strips one layer of matching quotes per word, then `Popen(argv, shell=False)` starts it. The `sh -c '…powershell…'` command written before split into broken words, bash exited 2, and Hermes treats exit 2 from `pre_tool_call` as "block", so every tool call failed (GitHub #242). The command is gxserver and the notify script as plain words, double-quoted only when a path holds whitespace (no Windows path can hold a double quote).
+fn hermes_command(executable: &Path, notify_path: &Path) -> String {
+    let word = |path: &Path| {
+        let text = path.to_string_lossy();
+        if text.chars().any(char::is_whitespace) {
+            format!("\"{text}\"")
+        } else {
+            text.into_owned()
+        }
+    };
+    format!(
+        "{} agent-hook-notify-native {} hermes-agent",
+        word(executable),
+        word(notify_path)
     )
 }
 
