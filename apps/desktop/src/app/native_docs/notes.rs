@@ -410,37 +410,42 @@ impl GhostexGpuiApp {
         }
     }
 
-    /// Recomputes the open editor's note highlights when its text or the notes changed.
+    /// Recomputes the open editor's note highlights, and `note_ranges`, when its text or the notes
+    /// changed.
+    ///
+    /// CDXC:Docs 2026-10-16 WHY:
+    /// Finding the notes' quotes normalizes the whole document (2 to 3 ms for a 230 KB file with 5 to 30 notes in an optimized build, 14 to 17 ms in the dev build). The card over the note under the caret used to do that on every draw (each caret blink, scroll frame and keystroke), which made a long Markdown file sluggish once it had notes; it now looks the caret up in the ranges found here.
     pub(crate) fn native_docs_refresh_highlights(&mut self, cx: &mut Context<Self>) {
         if !self.native_docs.highlights_stale {
             return;
         }
         self.native_docs.highlights_stale = false;
-        let Some(text) = self.native_docs_active_text(cx) else {
-            return;
-        };
-        let notes = self.native_docs_active_notes().to_vec();
-        let highlights: Vec<(std::ops::Range<usize>, Hsla, Option<Hsla>)> =
-            collect_annotation_ranges(&text, &notes)
-                .into_iter()
-                .map(|found| {
-                    let note = &notes[found.annotation_index];
-                    let color = note.color();
-                    let sent = !note.is_pending();
-                    (
-                        found.range,
-                        hex(color, if sent { 0.14 } else { 0.28 }),
-                        (note.kind == DocsAnnotationType::Redline).then(|| hex(color, 0.82)),
-                    )
-                })
-                .collect();
-        if let Some(editor) = self
+        self.native_docs.note_ranges.clear();
+        let Some(editor) = self
             .native_docs
             .active_document()
+            .filter(|document| document.kind == DocsFileKind::Markdown)
             .and_then(|document| document.live.clone())
-        {
-            editor.update(cx, |editor, cx| editor.set_note_highlights(highlights, cx));
-        }
+        else {
+            return;
+        };
+        let notes = self.native_docs_active_notes();
+        let ranges = collect_annotation_ranges(editor.read(cx).text(), notes);
+        let highlights: Vec<(std::ops::Range<usize>, Hsla, Option<Hsla>)> = ranges
+            .iter()
+            .map(|found| {
+                let note = &notes[found.annotation_index];
+                let color = note.color();
+                let sent = !note.is_pending();
+                (
+                    found.range.clone(),
+                    hex(color, if sent { 0.14 } else { 0.28 }),
+                    (note.kind == DocsAnnotationType::Redline).then(|| hex(color, 0.82)),
+                )
+            })
+            .collect();
+        self.native_docs.note_ranges = ranges;
+        editor.update(cx, |editor, cx| editor.set_note_highlights(highlights, cx));
     }
 
     /// Send: new notes while there are any, else all of them again, to the agent session last

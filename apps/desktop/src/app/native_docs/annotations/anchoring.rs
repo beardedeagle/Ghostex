@@ -1,8 +1,8 @@
-//! Placing notes in a document. Notes store quote text, not offsets, so every render finds each
-//! quote again: the document is whitespace-normalized with a map back to the source, the
-//! normalized quote is searched for, and every occurrence is a highlighted range. All ranges are
-//! byte ranges into the Rust string; they cover the same characters the former React Docs page's
-//! UTF-16 ranges did.
+//! Placing notes in a document. Notes store quote text, not offsets, so each quote is found again
+//! whenever the text or the notes change: the document is whitespace-normalized with a map back
+//! to the source, the normalized quote is searched for, and every occurrence is a highlighted
+//! range. All ranges are byte ranges into the Rust string; they cover the same characters the
+//! former React Docs page's UTF-16 ranges did.
 
 use std::ops::Range;
 
@@ -117,20 +117,22 @@ pub(crate) fn collect_annotation_ranges(
     ranges
 }
 
-/// The note under a caret at source byte `position` with nothing selected: the shortest range
-/// containing it, the earlier one on a tie (`findManageAnnotationRangeAtPosition`). Length is
-/// compared in UTF-16 units so the same note wins as on the page.
-pub(crate) fn annotation_range_at(
+/// The note under a caret at source byte `position` with nothing selected, among `ranges` that
+/// [`collect_annotation_ranges`] found in `text`: the shortest range containing it, the earlier
+/// one on a tie (`findManageAnnotationRangeAtPosition`). Length is compared in UTF-16 units so the
+/// same note wins as on the page.
+pub(crate) fn annotation_range_at<'a>(
     text: &str,
-    annotations: &[DocsAnnotation],
+    ranges: &'a [DocsAnnotationRange],
     position: usize,
-) -> Option<DocsAnnotationRange> {
-    collect_annotation_ranges(text, annotations)
-        .into_iter()
+) -> Option<&'a DocsAnnotationRange> {
+    ranges
+        .iter()
         .filter(|candidate| position >= candidate.range.start && position < candidate.range.end)
         .min_by_key(|candidate| {
             (
-                utf16_len(&text[candidate.range.clone()]),
+                text.get(candidate.range.clone())
+                    .map_or(usize::MAX, utf16_len),
                 candidate.range.start,
             )
         })

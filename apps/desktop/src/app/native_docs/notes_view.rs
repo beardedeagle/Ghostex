@@ -1002,8 +1002,11 @@ impl GhostexGpuiApp {
             return None;
         }
         let text = editor.text();
-        let found =
-            super::annotations::annotation_range_at(text, notes, editor.cursor().min(text.len()))?;
+        let found = super::annotations::annotation_range_at(
+            text,
+            &self.native_docs.note_ranges,
+            editor.cursor().min(text.len()),
+        )?;
         let note = notes.get(found.annotation_index)?.clone();
         let start = editor.bounds_for_offset(found.range.start)?;
         let end = editor.bounds_for_offset(found.range.end).unwrap_or(start);

@@ -418,6 +418,8 @@ pub(crate) struct NativeDocsState {
     pub(crate) highlights_stale: bool,
     /// The document whose highlights were last computed.
     pub(crate) highlighted_path: Option<String>,
+    /// Where that document's notes sit in its text, as last computed with the highlights.
+    pub(crate) note_ranges: Vec<super::annotations::DocsAnnotationRange>,
     /// The note being written or edited.
     pub(crate) composer: Option<super::notes::DocsComposer>,
     /// The Annotations list dropdown is open.
