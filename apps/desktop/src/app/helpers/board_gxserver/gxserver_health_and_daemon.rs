@@ -275,6 +275,14 @@ pub(crate) fn gpui_take_over_local_gxserver_from_other_build(binary: &Path) -> V
             }),
             None => note("it kept answering and reported no pid".to_string()),
         }
+    } else if let Some(pid) = pid {
+        // CDXC:ServerDaemon 2026-10-17 WHY: the port goes quiet the moment the stop arrives, but the process can live on (until 2026-10-17 a held request kept it alive indefinitely, see server/src/server/shutdown_bounds.rs), and the replacement must not start beside it.
+        if gpui_wait_for_local_gxserver_process_exit(Some(pid), Duration::from_secs(15)).is_err() {
+            note(match gpui_terminate_local_gxserver_process(pid) {
+                Ok(()) => format!("process {pid} outlived its stop, so it was ended"),
+                Err(error) => error,
+            });
+        }
     }
     match gpui_spawn_local_gxserver_daemon(binary) {
         Ok(launch_steps) => steps.extend(launch_steps),
@@ -416,7 +424,12 @@ pub(crate) fn gpui_restart_local_gxserver_for_current_build() -> Result<(), Stri
     if !stopped {
         return Err("gxserver did not stop before its build update.".to_string());
     }
-    gpui_wait_for_local_gxserver_process_exit(previous_pid, Duration::from_secs(15))?;
+    gpui_wait_for_local_gxserver_process_exit(previous_pid, Duration::from_secs(15)).or_else(
+        |error| match previous_pid {
+            Some(pid) => gpui_terminate_local_gxserver_process(pid),
+            None => Err(error),
+        },
+    )?;
 
     let binary = gpui_resolve_local_gxserver_binary()
         .ok_or_else(|| "Bundled gxserver binary is missing.".to_string())?;

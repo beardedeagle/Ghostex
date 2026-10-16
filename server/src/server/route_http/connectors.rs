@@ -74,7 +74,7 @@ pub(super) async fn route_connectors_http(
     };
     let Some(action) = action else {
         let result = if endpoint.path == "/api/waitConnectorAgentTools" {
-            wait_connector_agent_tools(params).await
+            wait_connector_agent_tools(&state, params).await
         } else {
             call_connector_agent_tool(state.clone(), params).await
         };

@@ -158,7 +158,16 @@ pub fn run(args: &[String]) -> Res<i32> {
             sleep_ms(200);
         }
         if still_running() {
-            bail!("the old gxserver did not stop within 15s.");
+            end_unstoppable_gxserver(before, &launchd_target);
+            let deadline = Instant::now() + Duration::from_secs(5);
+            while Instant::now() < deadline && still_running() {
+                sleep_ms(200);
+            }
+            if still_running() {
+                bail!(
+                    "the old gxserver did not stop within 15s, and ending it did not work either."
+                );
+            }
         }
     }
 
@@ -206,6 +215,48 @@ pub fn run(args: &[String]) -> Res<i32> {
     step(&format!("gxserver pid {} runs {expected}.", pid_of(after)));
     println!("The app keeps running; its outer code signature is stale until the next `cargo xtask start`.");
     Ok(0)
+}
+
+/// CDXC:ServerDaemon 2026-10-17 WHY:
+/// A gxserver that outlived its stop (2026-10-17: a held request kept the drain waiting, see server/src/server/shutdown_bounds.rs) made this command give up before starting the new build, which left the computer with no working gxserver until someone killed the old one by hand. The old process is ended instead, like the desktop's restart does; the zmx sessions do not depend on it and keep running.
+fn end_unstoppable_gxserver(before: &serde_json::Value, launchd_target: &str) {
+    let mut pids: Vec<i32> = Vec::new();
+    for pid in [
+        before.get("pid").and_then(|pid| pid.as_i64()),
+        launchd_job(launchd_target)
+            .pid
+            .and_then(|pid| pid.parse::<i64>().ok()),
+    ]
+    .into_iter()
+    .flatten()
+    {
+        if let Ok(pid) = i32::try_from(pid) {
+            if pid > 1 && !pids.contains(&pid) && is_gxserver_process(pid) {
+                pids.push(pid);
+            }
+        }
+    }
+    for pid in pids {
+        step(&format!(
+            "gxserver pid {pid} did not stop within 15s; ending it."
+        ));
+        #[cfg(unix)]
+        util::kill_pid(pid, true);
+    }
+}
+
+/// Whether `pid` still runs a gxserver binary, so a recycled pid is never signalled.
+fn is_gxserver_process(pid: i32) -> bool {
+    output(Command::new("/bin/ps").args(["-p", &pid.to_string(), "-o", "comm="]))
+        .ok()
+        .filter(|out| out.status.success())
+        .is_some_and(|out| {
+            String::from_utf8_lossy(&out.stdout)
+                .trim()
+                .rsplit('/')
+                .next()
+                .is_some_and(|name| name == "gxserver")
+        })
 }
 
 fn step(message: &str) {

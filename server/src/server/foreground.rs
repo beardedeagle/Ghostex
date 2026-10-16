@@ -381,6 +381,12 @@ pub async fn run_gxserver_foreground(
         broadcast_server_stopping(&state_for_signal);
         let _ = shutdown_for_signal.send(());
     });
+    shutdown_bounds::arm_shutdown_exit_deadline(
+        shutdown_tx.subscribe(),
+        logger.clone(),
+        metadata.server_id.clone(),
+    );
+    shutdown_bounds::stop_session_watchers_on_shutdown(&state);
 
     let cleanup_paths = paths.clone();
     let cleanup_owner = metadata.clone();
@@ -396,27 +402,24 @@ pub async fn run_gxserver_foreground(
                 .await
         })
     });
-    let serve_result = axum::serve(listener, app)
-        .with_graceful_shutdown(async move {
-            let _ = shutdown_rx.recv().await;
-            // Remove discovery while this daemon still holds the listener: a replacement
-            // cannot publish its record between our ownership check and unlink.
-            let _ =
-                metadata_cleanup_tx.send(remove_runtime_metadata(&cleanup_paths, &cleanup_owner));
-        })
-        .await;
+    let serve = axum::serve(listener, app).with_graceful_shutdown(async move {
+        let _ = shutdown_rx.recv().await;
+        // Remove discovery while this daemon still holds the listener: a replacement
+        // cannot publish its record between our ownership check and unlink.
+        let _ = metadata_cleanup_tx.send(remove_runtime_metadata(&cleanup_paths, &cleanup_owner));
+    });
+    // The drain waits for every in-flight request; long waits are cut off (shutdown_bounds.rs).
+    let serve_result = tokio::select! {
+        result = std::future::IntoFuture::into_future(serve) => result,
+        _ = shutdown_bounds::http_drain_limit_elapsed(shutdown_tx.subscribe()) => {
+            shutdown_bounds::log_http_drain_abandoned(&state);
+            Ok(())
+        }
+    };
     if let Some(task) = loopback_v6_task {
         task.abort();
     }
     let metadata_cleanup_result = metadata_cleanup_rx.await;
-    /*
-    CDXC:ServerDaemon 2026-10-12 WHY:
-    Daemons asked to stop on 2026-10-11 (13:47 and 22:08 starts) were still alive the next morning with their listeners closed: a teardown step or a blocking task waiting on a hung child or file (the failing M: drive hangs PowerShell and some file access for minutes) kept the process from exiting, and nothing bounded it. The listener is already closed here, so whatever the tail has not finished in 10 s is abandoned and the process exits.
-    */
-    std::thread::spawn(|| {
-        std::thread::sleep(Duration::from_secs(10));
-        std::process::exit(0);
-    });
     if let Some(task) = superseded_retire_task {
         task.abort();
     }

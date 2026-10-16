@@ -7,7 +7,7 @@
 use std::sync::OnceLock;
 use std::time::Duration;
 
-use tokio::sync::watch;
+use tokio::sync::{broadcast, watch};
 
 fn channel() -> &'static watch::Sender<u64> {
     static REVISION: OnceLock<watch::Sender<u64>> = OnceLock::new();
@@ -24,9 +24,17 @@ pub(crate) fn bump_tools_revision() {
     channel().send_modify(|revision| *revision += 1);
 }
 
-/// Waits until the revision is no longer `seen`, at most `limit`, and returns the revision then.
-pub(crate) async fn wait_past(seen: u64, limit: Duration) -> u64 {
+/// Waits until the revision is no longer `seen`, at most `limit` or until gxserver stops, and
+/// returns the revision then.
+pub(crate) async fn wait_past(
+    seen: u64,
+    limit: Duration,
+    mut shutdown: broadcast::Receiver<()>,
+) -> u64 {
     let mut receiver = channel().subscribe();
-    let _ = tokio::time::timeout(limit, receiver.wait_for(|revision| *revision != seen)).await;
+    tokio::select! {
+        _ = tokio::time::timeout(limit, receiver.wait_for(|revision| *revision != seen)) => {}
+        _ = shutdown.recv() => {}
+    }
     tools_revision()
 }

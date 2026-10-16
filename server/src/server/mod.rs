@@ -163,6 +163,7 @@ mod app_state;
 mod foreground;
 mod http_dispatch;
 mod route_http;
+mod shutdown_bounds;
 mod stale_server_takeover;
 
 pub(crate) use agent_http::*;

@@ -70,10 +70,15 @@ pub(crate) fn list_connector_agent_tools(
 }
 
 /// `/api/waitConnectorAgentTools`: answers once any workspace's connectors changed since
-/// `revision`, or after a few minutes, with the revision then.
-pub(crate) async fn wait_connector_agent_tools(params: Map<String, Value>) -> Value {
+/// `revision`, after a few minutes, or when gxserver stops (a held request would keep its
+/// shutdown waiting), with the revision then.
+pub(crate) async fn wait_connector_agent_tools(
+    state: &AppState,
+    params: Map<String, Value>,
+) -> Value {
     let seen = params.get("revision").and_then(Value::as_u64).unwrap_or(0);
-    json!({ "revision": super::revision::wait_past(seen, WAIT_AT_MOST).await })
+    let shutdown = state.shutdown_tx.subscribe();
+    json!({ "revision": super::revision::wait_past(seen, WAIT_AT_MOST, shutdown).await })
 }
 
 /// `/api/callConnectorAgentTool`: runs one (`tool`, `arguments`, `callId`) and returns its MCP
