@@ -256,6 +256,13 @@ pub(crate) struct OpenBrowserPaneInExternalBrowser {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Action)]
 #[action(namespace = ghostex_gpui, no_json)]
+pub(crate) struct SetBrowserDeviceView {
+    pub(crate) pane_id: u64,
+    pub(crate) device_view: crate::app::model::BrowserDeviceView,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Action)]
+#[action(namespace = ghostex_gpui, no_json)]
 pub(crate) struct SetBrowserPageAppearance {
     pub(crate) appearance: crate::cef::BrowserPageAppearance,
 }

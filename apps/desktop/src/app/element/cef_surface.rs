@@ -50,6 +50,7 @@ impl CefSurface {
         project_workarea_bridge_event_handler: Option<cef::ProjectWorkareaBridgeEventHandler>,
         manage_docs_resource_scope: Option<cef::ManageDocsResourceScope>,
         page_load_end_handler: Option<cef::PageLoadEndHandler>,
+        mobile_user_agent: Option<cef::BrowserMobileUserAgent>,
         cx: &mut gpui::App,
     ) -> Result<gpui::Entity<Self>, String> {
         let browser = Rc::new(CefBrowser::new(
@@ -67,6 +68,7 @@ impl CefSurface {
             None,
             None,
             page_load_end_handler,
+            mobile_user_agent,
         )?);
         Ok(cx.new(|cx| Self::from_browser(id, background, visible, browser, cx)))
     }
@@ -101,6 +103,7 @@ impl CefSurface {
             Some(bridge_surface),
             Some(bridge_event_handler),
             page_load_end_handler,
+            None,
         )?);
         Ok(cx.new(|cx| Self::from_browser(id, background, visible, browser, cx)))
     }
@@ -235,6 +238,10 @@ impl CefSurface {
 
     pub(crate) fn toggle_dev_tools(&mut self) {
         self.browser.toggle_dev_tools();
+    }
+
+    pub(crate) fn set_mobile_user_agent(&mut self, agent: Option<cef::BrowserMobileUserAgent>) {
+        self.browser.set_mobile_user_agent(agent);
     }
 
     /// A screenshot of the top of the page (`cef/shell/page_screenshot.rs`).

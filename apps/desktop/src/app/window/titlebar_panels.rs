@@ -15,6 +15,7 @@ pub(crate) enum GpuiTitlebarPopupKind {
     AccountUsage(ExtensionId),
     Actions,
     BrowserActions(BrowserPaneId),
+    BrowserDeviceView(BrowserPaneId),
     ContextMenu,
     Extensions,
     Git,
@@ -33,6 +34,7 @@ impl GpuiTitlebarPopupKind {
             Self::AccountUsage(_) => "accountUsage",
             Self::Actions => "actions",
             Self::BrowserActions(_) => "browserActions",
+            Self::BrowserDeviceView(_) => "browserDeviceView",
             Self::ContextMenu => "contextMenu",
             Self::Extensions => "extensions",
             Self::Git => "git",
@@ -97,6 +99,7 @@ impl GpuiTitlebarPopupWindow {
             GpuiTitlebarPopupKind::AccountUsage(_) => "Ghostex Account Usage",
             GpuiTitlebarPopupKind::Actions => "Ghostex Start",
             GpuiTitlebarPopupKind::BrowserActions(_) => "Ghostex Browser Actions",
+            GpuiTitlebarPopupKind::BrowserDeviceView(_) => "Ghostex Browser Page Size",
             GpuiTitlebarPopupKind::ContextMenu => "Ghostex Menu",
             GpuiTitlebarPopupKind::Extensions => "Ghostex Extensions",
             GpuiTitlebarPopupKind::Git => "Ghostex Commit",
@@ -257,6 +260,13 @@ impl Render for GpuiTitlebarPopupWindow {
                     });
                 },
             ))
+            .on_action(
+                cx.listener(|this, action: &SetBrowserDeviceView, _window, cx| {
+                    this.update_main_window(cx, |_, window, cx| {
+                        window.dispatch_action(Box::new(*action), cx);
+                    });
+                }),
+            )
             .on_action(
                 cx.listener(|this, action: &SetBrowserPageAppearance, _window, cx| {
                     this.update_main_window(cx, |_, window, cx| {

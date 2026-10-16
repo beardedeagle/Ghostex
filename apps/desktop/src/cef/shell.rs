@@ -129,6 +129,7 @@ static ACTIVE_CEF_NATIVE_VIEW: AtomicUsize = AtomicUsize::new(0);
 // unchanged.
 mod browser;
 mod browser_appearance;
+mod browser_device_emulation;
 mod browser_handlers;
 mod client;
 mod lifecycle;
@@ -144,6 +145,7 @@ mod workspace_browser;
 
 pub(crate) use browser::*;
 pub(crate) use browser_appearance::*;
+pub(crate) use browser_device_emulation::*;
 pub(crate) use browser_handlers::*;
 pub(crate) use client::*;
 pub(crate) use lifecycle::*;

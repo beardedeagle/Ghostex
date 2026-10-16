@@ -85,6 +85,7 @@ impl CefBrowser {
         extension_bridge_surface: Option<ExtensionBridgeSurfaceSpec>,
         extension_bridge_event_handler: Option<ExtensionBridgeEventHandler>,
         page_load_end_handler: Option<PageLoadEndHandler>,
+        mobile_user_agent: Option<BrowserMobileUserAgent>,
     ) -> Result<Self, String> {
         let _profile = crate::profiling::span(crate::profiling::Metric::CefCreate);
         /*
@@ -332,6 +333,10 @@ impl CefBrowser {
         install_page_input_tracker(&browser);
         if uses_system_page_appearance {
             apply_browser_page_appearance(&browser);
+            // Set before the first load so the server's first answer is already the mobile page.
+            if mobile_user_agent.is_some() {
+                apply_browser_mobile_user_agent(&browser, mobile_user_agent);
+            }
             if let Some(frame) = browser.main_frame() {
                 frame.load_url(Some(&CefString::from(requested_url.as_str())));
             }
@@ -647,6 +652,12 @@ impl CefBrowser {
 
     pub fn reload(&self) {
         self.focus();
+        self.browser.borrow().reload();
+    }
+
+    /// Switches the page's user agent and reloads it so the site serves the matching layout.
+    pub fn set_mobile_user_agent(&self, agent: Option<BrowserMobileUserAgent>) {
+        apply_browser_mobile_user_agent(&self.browser.borrow(), agent);
         self.browser.borrow().reload();
     }
 

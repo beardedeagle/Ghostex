@@ -234,6 +234,12 @@ view from the strip.
   Right-click a link or image in a page to open it in a new tab, save it
   (Save link as / Save image as ask where to save), copy its address, or copy
   the image itself; any page download also asks where to save.
+  To see how a site looks on a phone or tablet, click the phone button in the
+  Browser toolbar and pick a size (iPhone 15 / 16, iPhone 15 / 16 Pro Max,
+  iPhone SE, Android, Small Android, iPad mini, iPad) or Full width; the page
+  shows at that size in the middle of the pane. In the same menu, Landscape
+  turns the device sideways and Mobile user agent makes the page load as that
+  phone's browser would (it reloads). Each tab keeps its own choice.
   Web links from terminals, chat, and detected dev servers
   open here or in the system browser depending on Open links in.
   The Browser runs on the web runtime (Chromium), an optional one-time install

@@ -223,6 +223,7 @@ impl GhostexGpuiApp {
                             cx,
                         ))
                     })
+                    .child(self.render_browser_device_view_button(pane_id, cx))
                     .child(self.render_browser_toolbar_button(
                         "agentation",
                         BROWSER_ICON_POINTER,

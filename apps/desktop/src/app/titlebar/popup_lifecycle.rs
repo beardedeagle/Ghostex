@@ -102,6 +102,7 @@ impl GhostexGpuiApp {
             GpuiTitlebarPopupKind::Actions
                 | GpuiTitlebarPopupKind::ContextMenu
                 | GpuiTitlebarPopupKind::BrowserActions(_)
+                | GpuiTitlebarPopupKind::BrowserDeviceView(_)
                 | GpuiTitlebarPopupKind::Extensions
                 | GpuiTitlebarPopupKind::Git
                 | GpuiTitlebarPopupKind::Help
@@ -343,6 +344,17 @@ impl GhostexGpuiApp {
             GpuiTitlebarPopupKind::BrowserActions(pane_id) => {
                 GpuiTitlebarPopupContent::Menu(PopupMenu::build(window, cx, |menu, _, _| {
                     self.build_gpui_browser_actions_popup_menu(
+                        menu,
+                        pane_id,
+                        menu_width,
+                        menu_max_height,
+                        menu_scrollable,
+                    )
+                }))
+            }
+            GpuiTitlebarPopupKind::BrowserDeviceView(pane_id) => {
+                GpuiTitlebarPopupContent::Menu(PopupMenu::build(window, cx, |menu, _, _| {
+                    self.build_gpui_browser_device_view_popup_menu(
                         menu,
                         pane_id,
                         menu_width,

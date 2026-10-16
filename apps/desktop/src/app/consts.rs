@@ -830,6 +830,8 @@ pub(crate) const APP_MODAL_HOST_ADD_PROJECT_WINDOW_HEIGHT: f32 = 460.0;
 pub(crate) const BROWSER_ICON_CHEVRON_RIGHT: &str = "titlebar/chevron-right.svg";
 
 pub(crate) const TITLEBAR_POPUP_COMPACT_WIDTH: f32 = 240.0;
+/// Fits "iPhone 15 / 16 Pro Max  430 × 932" beside its check mark.
+pub(crate) const TITLEBAR_POPUP_BROWSER_DEVICE_VIEW_WIDTH: f32 = 290.0;
 
 pub(crate) const TITLEBAR_POPUP_GIT_WIDTH: f32 = 300.0;
 

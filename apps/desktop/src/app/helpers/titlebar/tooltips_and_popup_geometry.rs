@@ -67,6 +67,7 @@ pub(crate) fn titlebar_popup_menu_width(kind: GpuiTitlebarPopupKind) -> f32 {
         | GpuiTitlebarPopupKind::ContextMenu
         | GpuiTitlebarPopupKind::BrowserActions(_)
         | GpuiTitlebarPopupKind::OpenTargets => TITLEBAR_POPUP_COMPACT_WIDTH,
+        GpuiTitlebarPopupKind::BrowserDeviceView(_) => TITLEBAR_POPUP_BROWSER_DEVICE_VIEW_WIDTH,
         GpuiTitlebarPopupKind::Extensions => TITLEBAR_POPUP_EXTENSIONS_WIDTH,
         GpuiTitlebarPopupKind::Git => TITLEBAR_POPUP_GIT_WIDTH,
         GpuiTitlebarPopupKind::Help => TITLEBAR_POPUP_HELP_WIDTH,

@@ -58,6 +58,11 @@ pub(crate) fn browser_tab_model_to_shell_state_json(model: &BrowserTabModel) -> 
                     "url": sanitized_url.unwrap_or_default(),
                     "history": history,
                     "cachedTitle": cached_title,
+                    "deviceView": (!tab.device_view.is_default()).then(|| serde_json::json!({
+                        "size": tab.device_view.size.slug(),
+                        "landscape": tab.device_view.landscape,
+                        "mobileUserAgent": tab.device_view.mobile_user_agent,
+                    })),
                 })
             })
             .collect::<Vec<_>>(),
@@ -416,5 +421,16 @@ pub(crate) fn browser_tab_from_shell_state(
         } else {
             BrowserNavigationHistory::empty()
         },
+        device_view: object
+            .get("deviceView")
+            .map(|value| BrowserDeviceView {
+                size: value["size"]
+                    .as_str()
+                    .and_then(BrowserViewportSize::from_slug)
+                    .unwrap_or_default(),
+                landscape: value["landscape"].as_bool().unwrap_or(false),
+                mobile_user_agent: value["mobileUserAgent"].as_bool().unwrap_or(false),
+            })
+            .unwrap_or_default(),
     })
 }

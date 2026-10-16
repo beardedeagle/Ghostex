@@ -6,12 +6,14 @@
 // C1) into this descriptively named module per its FOLLOW-UPS.md note (pure
 // move, no logic changes).
 
+pub(crate) mod device_view;
 pub(crate) mod model_layout;
 pub(crate) mod model_tabs;
 pub(crate) mod runtime_policy;
 pub(crate) mod tab_and_history;
 pub(crate) mod types;
 
+pub(crate) use device_view::*;
 pub(crate) use runtime_policy::*;
 pub(crate) use tab_and_history::*;
 pub(crate) use types::*;

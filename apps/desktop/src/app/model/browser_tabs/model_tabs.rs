@@ -59,6 +59,7 @@ impl BrowserTabModel {
             url: default_url.clone(),
             state: BrowserTabState::Loaded,
             navigation_history: BrowserNavigationHistory::loaded(&default_url),
+            device_view: BrowserDeviceView::default(),
         };
         let pane_id = BrowserPaneId(1);
 
@@ -183,6 +184,7 @@ impl BrowserTabModel {
             url: String::new(),
             state: BrowserTabState::AddressOnly,
             navigation_history: BrowserNavigationHistory::empty(),
+            device_view: BrowserDeviceView::default(),
         });
         self.active_tab = tab_id;
         let tab = BrowserPaneTab { tab_id };
@@ -268,6 +270,21 @@ impl BrowserTabModel {
         tab.url = url;
         tab.state = BrowserTabState::Loaded;
         Some((tab.id, tab.profile_id))
+    }
+
+    pub(crate) fn set_tab_device_view(
+        &mut self,
+        tab_id: BrowserTabId,
+        device_view: BrowserDeviceView,
+    ) -> bool {
+        let Some(tab) = self.tabs.iter_mut().find(|tab| tab.id == tab_id) else {
+            return false;
+        };
+        if tab.device_view == device_view {
+            return false;
+        }
+        tab.device_view = device_view;
+        true
     }
 
     pub(crate) fn set_tab_profile(
@@ -494,6 +511,7 @@ impl BrowserTabModel {
             url: requested_url.clone(),
             state: BrowserTabState::Loaded,
             navigation_history: BrowserNavigationHistory::loaded(&requested_url),
+            device_view: BrowserDeviceView::default(),
         };
         self.tabs.push(tab);
         if selects_new_tab {

@@ -38,6 +38,12 @@ impl GhostexGpuiApp {
         let placeholder = self.browser_body_placeholder_for_leaf(leaf);
         let active_browser_surface = self.browser_surface_for_rendered_leaf(leaf);
         let render_empty_body = active_browser_surface.is_none();
+        let device_view = self
+            .browser_tabs
+            .active_loaded_tab_id_for_leaf(leaf)
+            .and_then(|tab_id| self.browser_tabs.tab(tab_id))
+            .map(|tab| tab.device_view)
+            .unwrap_or_default();
         div()
             .id(format!("ghostex-gpui-browser-body-{}", pane_id.0))
             .relative()
@@ -68,7 +74,17 @@ impl GhostexGpuiApp {
                     this.handle_browser_pane_body_drop(pane_id, dragged, window, cx);
                 }),
             )
-            .when_some(active_browser_surface, |this, browser| this.child(browser))
+            .when_some(active_browser_surface, |this, browser| {
+                match device_view.frame_size() {
+                    Some(frame_size) => this.child(render_browser_device_frame(
+                        pane_id,
+                        device_view,
+                        frame_size,
+                        browser.into_any_element(),
+                    )),
+                    None => this.child(browser),
+                }
+            })
             .when(render_empty_body, |this| {
                 if let Some(signature) =
                     self.web_runtime_placeholder_signature(TitlebarMode::Browser)
@@ -724,4 +740,45 @@ impl GhostexGpuiApp {
             ))
             .into_any_element()
     }
+}
+
+/// CDXC:Browser 2026-10-16 WHY:
+/// The phone or tablet preview gives the page's own native view a smaller frame in normal layout, centred under a size caption, instead of scaling or overlaying it, so clicks and focus stay with that one view. A pane smaller than the device shrinks the frame to fit (the caption keeps the nominal size).
+fn render_browser_device_frame(
+    pane_id: BrowserPaneId,
+    device_view: BrowserDeviceView,
+    (width, height): (f32, f32),
+    page: AnyElement,
+) -> AnyElement {
+    v_flex()
+        .id(format!("ghostex-gpui-browser-device-frame-{}", pane_id.0))
+        .size_full()
+        .min_h_0()
+        .items_center()
+        .px(px(16.0))
+        .pb(px(16.0))
+        .bg(chrome_color(0x161616, 0xe5e5e5))
+        .child(
+            div()
+                .flex_shrink_0()
+                .h(px(28.0))
+                .flex()
+                .items_center()
+                .text_size(px(11.0))
+                .text_color(chrome_color(0x8f8f8f, 0x666666))
+                .children(device_view.caption()),
+        )
+        .child(
+            div()
+                .flex()
+                .flex_shrink_1()
+                .min_h_0()
+                .w(px(width))
+                .h(px(height))
+                .max_w_full()
+                .border_1()
+                .border_color(chrome_color(0x333333, 0xc4c4c4))
+                .child(page),
+        )
+        .into_any_element()
 }

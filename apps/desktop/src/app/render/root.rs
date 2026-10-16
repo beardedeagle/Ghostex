@@ -1017,6 +1017,15 @@ impl Render for GhostexGpuiApp {
                 },
             ))
             .on_action(cx.listener(
+                |this, action: &SetBrowserDeviceView, _window, cx| {
+                    this.set_browser_device_view_for_pane(
+                        BrowserPaneId(action.pane_id),
+                        action.device_view,
+                        cx,
+                    );
+                },
+            ))
+            .on_action(cx.listener(
                 |_this, action: &SetBrowserPageAppearance, window, cx| {
                     if let Err(error) = cef::set_browser_page_appearance(action.appearance) {
                         window.push_notification(

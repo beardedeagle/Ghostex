@@ -146,6 +146,7 @@ pub(crate) struct BrowserTab {
     pub(crate) url: String,
     pub(crate) state: BrowserTabState,
     pub(crate) navigation_history: BrowserNavigationHistory,
+    pub(crate) device_view: BrowserDeviceView,
 }
 
 pub(crate) struct BrowserBodyPlaceholder {

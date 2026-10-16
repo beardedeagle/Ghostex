@@ -159,6 +159,7 @@ impl GpuiVisualPageModalWindow {
                     None,
                     None,
                     Some(page_loaded),
+                    None,
                     cx,
                 )
             });

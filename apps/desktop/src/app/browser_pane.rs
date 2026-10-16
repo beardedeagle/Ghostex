@@ -661,6 +661,10 @@ impl GhostexGpuiApp {
         let popup_open_handler = self.browser_popup_open_handler(remote_machine_id, cx);
         let page_metadata_handler = self.browser_page_metadata_handler(tab_id, cx);
         let media_access_handler = self.browser_media_access_handler(tab_id, profile_id, cx);
+        let mobile_user_agent = self
+            .browser_tabs
+            .tab(tab_id)
+            .and_then(|tab| tab.device_view.user_agent());
         let initially_visible = BrowserRuntimeSurfacePolicy::for_tab(
             self.browser_runtime_lifecycle_input(),
             self.browser_tabs.tab(tab_id).map(|tab| tab.state),
@@ -696,6 +700,7 @@ impl GhostexGpuiApp {
             None,
             None,
             None,
+            mobile_user_agent,
             cx,
         ) {
             Ok(surface) => surface,
