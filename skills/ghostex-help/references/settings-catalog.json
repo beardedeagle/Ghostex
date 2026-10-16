@@ -7935,7 +7935,7 @@
     {
       "key": "windowGlassBlurRadius",
       "title": "Blur",
-      "subtitle": "How soft what shows behind the window looks, in points. 0 shows it sharp. On Windows and Linux, Desktop and windows uses the system blur, so this sets the wallpaper, picture and video blur.",
+      "subtitle": "How soft what shows behind the window looks, in points. 0 shows it sharp. On Windows and Linux, Desktop and windows uses the system blur, so this sets the wallpaper, picture and video blur; on Windows, Blur on Windows picks that system blur.",
       "tab": "theme",
       "tabTitle": "Theme",
       "group": "appearance",
@@ -7946,6 +7946,35 @@
       "default": 60,
       "agentWritable": true,
       "availability": "Not shown on Windows while What shows behind the glass is Desktop and windows."
+    },
+    {
+      "key": "windowGlassWindowsBlur",
+      "title": "Blur on Windows",
+      "subtitle": "How Windows blurs what shows behind the window while Desktop and windows shows behind the glass. Windows has no blur amount to set, so pick Acrylic (Windows' own frosted blur), Plain blur (the same blur without Windows' grey frost, so the tints can go fully clear; it takes more work to draw) or Off (sharp, the fastest).",
+      "tab": "theme",
+      "tabTitle": "Theme",
+      "group": "appearance",
+      "groupTitle": "Theme",
+      "section": "theming",
+      "sectionTitle": "Theme",
+      "type": "enum",
+      "default": "acrylic",
+      "options": [
+        {
+          "label": "Acrylic",
+          "value": "acrylic"
+        },
+        {
+          "label": "Plain blur",
+          "value": "plain"
+        },
+        {
+          "label": "Off",
+          "value": "off"
+        }
+      ],
+      "agentWritable": true,
+      "availability": "Only on Windows."
     },
     {
       "key": "windowGlassMenuBlurRadius",

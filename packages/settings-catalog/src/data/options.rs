@@ -661,6 +661,13 @@ pub const WEB_LINK_OPEN_TARGET_OPTIONS: &[Opt] = &[
     opt("System Default Browser", "system-default-browser"),
 ];
 
+/// How Windows blurs Desktop and windows behind the glass; Windows draws that blur and has no radius to set.
+pub const WINDOW_GLASS_WINDOWS_BLUR_OPTIONS: &[Opt] = &[
+    opt("Acrylic", "acrylic"),
+    opt("Plain blur", "plain"),
+    opt("Off", "off"),
+];
+
 pub const WINDOW_GLASS_IMAGE_PLACEMENT_OPTIONS: &[Opt] = &[
     opt("Moves with the window", "static"),
     opt("Stays with the desktop", "desktop"),

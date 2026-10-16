@@ -487,6 +487,10 @@ pub fn exports(module: &str, platform: Platform) -> Vec<(&'static str, Json)> {
             ),
             ("WINDOW_GLASS_OPTIONS", WINDOW_GLASS_OPTIONS.to_json()),
             (
+                "WINDOW_GLASS_WINDOWS_BLUR_OPTIONS",
+                WINDOW_GLASS_WINDOWS_BLUR_OPTIONS.to_json(),
+            ),
+            (
                 "WINDOW_GLASS_SOURCE_OPTIONS",
                 WINDOW_GLASS_SOURCE_OPTIONS.to_json(),
             ),

@@ -311,12 +311,10 @@ pub(crate) fn workspace_terminal_body_color(
 ) -> Hsla {
     match presentation_state {
         // Under window glass the grid paints no default background either, so the pane shows the
-        // frosted column all the way to its padding.
-        Some(
-            TerminalSessionPresentationState::Running
-            | TerminalSessionPresentationState::Sleeping
-            | TerminalSessionPresentationState::Mounting,
-        ) if window_glass_active() => gpui::transparent_black(),
+        // frosted column all the way to its padding. The other states and an empty work area
+        // show glass too: their cards are glass washes (`workspace_terminal_placeholder_card_color`),
+        // and a solid body here would keep the work area opaque whatever its tint.
+        _ if window_glass_active() => gpui::transparent_black(),
         // A sleeping or starting terminal shows the colour it will paint once running, in light
         // and dark alike, so waking it does not flash.
         Some(

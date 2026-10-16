@@ -10,7 +10,7 @@ mod colours;
 mod controls;
 mod gallery;
 mod swatches;
-mod transparency;
+pub(super) mod transparency;
 
 use super::super::super::native_modal_kit::*;
 use super::super::catalog::{SettingOption, module, settings_catalog};

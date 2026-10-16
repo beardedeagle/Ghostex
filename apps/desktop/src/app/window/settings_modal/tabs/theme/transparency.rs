@@ -81,6 +81,48 @@ fn status_note(blocked: bool) -> &'static str {
     }
 }
 
+/// What Blur says on Windows while Desktop and windows shows behind the glass.
+pub(in super::super) const WINDOWS_BLUR_DESCRIPTION: &str = "Windows draws this blur itself and has no amount to set. Acrylic is Windows' own frosted blur. Plain blur is the same blur without Windows' grey frost, so the tints can go fully clear; it takes more work to draw. Off shows what is behind sharp and is the fastest.";
+
+/// Whether Blur is the Windows blur choice (`windowGlassWindowsBlur`; the decision is on
+/// `WINDOW_GLASS_WINDOWS_BLUR` in app/helpers/window_glass.rs): on Windows, while Desktop and
+/// windows shows behind the glass.
+pub(in super::super) fn windows_blur_shown(
+    values: &super::super::super::store::SettingsValues,
+) -> bool {
+    values.string("windowGlassSource") == "desktopAndWindows"
+        && !ghostex_settings_catalog::availability::row_hidden(
+            ghostex_settings_catalog::Platform::current(),
+            "windowGlassWindowsBlur",
+            |key| Some(values.string(key)),
+        )
+}
+
+/// The Windows blur choice as a segmented row; Settings > Terminal's Background blur shows it too.
+pub(in super::super) fn windows_blur_field<V: super::super::super::fields::SettingsPage>(
+    p: &SettingsPalette,
+    spec: super::super::super::fields::RowSpec,
+    values: &super::super::super::store::SettingsValues,
+    on_reset: Option<super::super::super::fields::PageAction<V>>,
+    on_select: impl Fn(&mut V, String, &mut Window, &mut Context<V>) + Clone + 'static,
+    cx: &mut Context<V>,
+) -> AnyElement {
+    let options = settings_catalog().options(module::SETTINGS, "WINDOW_GLASS_WINDOWS_BLUR_OPTIONS");
+    let allowed: Vec<String> = options.iter().map(|option| option.value.clone()).collect();
+    let selected = values.choice("windowGlassWindowsBlur", &allowed);
+    segmented_field(
+        p,
+        "windowGlassWindowsBlur",
+        spec,
+        on_reset,
+        &options,
+        Some(selected.as_str()),
+        None,
+        on_select,
+        cx,
+    )
+}
+
 /// `windowGlassForTransparency`: turning transparency on keeps Always and otherwise picks Dark only.
 fn glass_for_transparency(current: &str, enabled: bool) -> &str {
     if !enabled {
@@ -160,6 +202,7 @@ impl ThemeTab {
         let visible = |key: &str| visible_fn(key);
         if !(visible("windowGlass")
             || visible("windowGlassBlurRadius")
+            || visible("windowGlassWindowsBlur")
             || more_has_hit(MoreGroup::Transparency, t.searching, &visible))
         {
             return None;
@@ -208,6 +251,10 @@ impl ThemeTab {
                     "Strength",
                     if exact.is_none() {
                         "Tuned by hand under More transparency options; moving this resets all four tints."
+                    } else if windows_blur_shown(&values)
+                        && values.string("windowGlassWindowsBlur") == "acrylic"
+                    {
+                        "Higher shows more of what is behind the window. Acrylic keeps Windows' own grey frost even at 100; Blur set to Plain blur or Off lets it go fully clear."
                     } else {
                         "Higher shows more of what is behind the window."
                     },
@@ -252,6 +299,18 @@ impl ThemeTab {
                 },
                 values.f64("windowGlassBlurRadius"),
                 window,
+                cx,
+            ));
+        }
+        if glass_on && windows_blur_shown(&values) && visible("windowGlassWindowsBlur") {
+            rows.push(windows_blur_field(
+                &p,
+                t.spec_plain("windowGlassWindowsBlur", "Blur", WINDOWS_BLUR_DESCRIPTION),
+                &values,
+                Some(reset_key::<Self>("windowGlassWindowsBlur")),
+                |page: &mut Self, next, _window, cx| {
+                    page.save("windowGlassWindowsBlur", json!(next), cx)
+                },
                 cx,
             ));
         }

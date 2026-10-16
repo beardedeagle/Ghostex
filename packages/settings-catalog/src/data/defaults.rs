@@ -787,6 +787,7 @@ pub const DEFAULT_GHOSTEX_SETTINGS: &[(&str, J)] = &[
     ("windowGlassLiveSpeed", J::Num(1.0)),
     ("windowGlassLiveBrightness", J::Num(60.0)),
     ("windowGlassBlurRadius", J::Num(60.0)),
+    ("windowGlassWindowsBlur", J::Str("acrylic")),
     ("windowGlassMenuBlurRadius", J::Num(20.0)),
     // CDXC:Theming 2026-10-04 DECISION:
     // User: "please make the app's transparency level 10 by default (the slider in settings)". The four tints are the ones Settings' Strength slider writes at 10 (`transparencyStrengthPatch`), so the slider opens on 10; they replace the strength-20 tints 88, 81, 93 and 86.

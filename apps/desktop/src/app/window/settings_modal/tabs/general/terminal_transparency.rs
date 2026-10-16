@@ -147,5 +147,28 @@ pub(super) fn transparency_rows(
             cx,
         ));
     }
+    // On Windows with Desktop and windows the window's Blur is the Windows blur choice.
+    if glass_on
+        && g.visible(s, "terminalBackgroundBlur")
+        && super::super::theme::transparency::windows_blur_shown(&g.values)
+    {
+        rows.push(super::super::theme::transparency::windows_blur_field(
+            &p,
+            g.spec(
+                "windowGlassWindowsBlur",
+                "Background blur",
+                &format!(
+                    "{} This is the window's Blur, the same setting as Settings > Theme > Transparency, because a window has one blur.{note}",
+                    super::super::theme::transparency::WINDOWS_BLUR_DESCRIPTION
+                ),
+            ),
+            &g.values,
+            Some(reset_key::<GeneralTab>("windowGlassWindowsBlur")),
+            |page: &mut GeneralTab, next, _window, cx| {
+                save(page, "windowGlassWindowsBlur", json!(next), cx)
+            },
+            cx,
+        ));
+    }
     rows
 }

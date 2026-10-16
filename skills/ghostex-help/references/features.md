@@ -1822,7 +1822,8 @@ macOS and Linux). Background opacity (Settings, Terminal) then sets how much of 
 work area's tint terminals keep: 100% matches the rest of the work area, lower
 shows more of your desktop through them. While transparency is off the row offers
 Turn on transparency instead. Background blur in the same place is the window's
-Blur, the same setting as on the Theme page. Ghostty's own `background-opacity`
+Blur, the same setting as on the Theme page (on Windows with Desktop and windows, the
+same Acrylic, Plain blur or Off choice). Ghostty's own `background-opacity`
 and `background-blur` lines in the terminal config do not change Ghostex's panes.
 
 On macOS, Custom shaders (experimental) runs the `custom-shader` files from
@@ -1841,7 +1842,7 @@ project. A folder supplied in the link takes precedence.
 Related settings: `terminalFontFamily`, `terminalFontSize`,
 `terminalGhosttyTheme`, `terminalColorScheme`, `terminalGhosttyLightTheme`,
 `terminalBackgroundMode`, `workspaceBackgroundColor`, `terminalBackgroundOpacity`,
-`windowGlass`, `windowGlassBlurRadius`, `terminalCursorStyle`, `terminalPane*PaddingPx`,
+`windowGlass`, `windowGlassBlurRadius`, `windowGlassWindowsBlur`, `terminalCursorStyle`, `terminalPane*PaddingPx`,
 `terminalScrollbackLimitMb`, `terminalCopyOnSelect`, `promptEditorBackend`,
 `terminalDevServerDetectionEnabled`, `terminalShadersEnabled`.
 
@@ -3097,9 +3098,13 @@ transparency switch turns it on (Dark only, the default on macOS and Linux; Neve
 the window is fast and solid, on Windows) or off, and
 Strength sets how see-through it is, from 0 (fully solid) to 100 (fully clear); the default
 is 10. Blur sets how soft what shows behind the window looks, from 0 (sharp) to 100 points;
-the default is 60. On Windows, Desktop and windows uses the system's own blur, which has no
-setting, so Blur only shows there once What shows behind the glass is Wallpaper only, Custom
-image or Live, where it softens the wallpaper, picture and video (`windowGlassBlurRadius`).
+the default is 60. On Windows, Desktop and windows uses Windows' own blur, which has no amount
+to set, so there Blur is a choice instead: Acrylic (the default, Windows' frosted blur, which stays
+blurred while Ghostex is in the background), Plain blur (the same blur without Windows' grey
+frost, so Strength can go fully clear; it takes more work to draw) or Off (what is behind shows
+sharp; the fastest) (`windowGlassWindowsBlur`). The Blur slider shows on Windows once What shows
+behind the glass is Wallpaper only, Custom image or Live, where it softens the wallpaper, picture
+and video (`windowGlassBlurRadius`).
 On macOS, Menu blur under More transparency options does the same for menus and tooltips
 (default 20; menus opened after the change use it; macOS only) (`windowGlassMenuBlurRadius`). More transparency options goes
 in the order you decide: 1 what shows behind the glass, 2 the pictures or videos,
@@ -3164,11 +3169,6 @@ It files the issue with `ghostex feedback send --title <text> --body-file <file>
 --github-user <name> [--image <file>]...`, which you or any agent can also run
 by hand (`--dry-run` prints what would be sent without posting).
 
-## Answering the common questions
-
-- "Make Claude control Codex": see Agents, actions, and orchestration.
-- "Match the terminal width to the chat": `ghostex settings set
-terminalViewWidthMode match-chat`.
 On the phone, Send Bug / Feedback is in the menu at the top of the Sessions
 screen, under Settings. It has the same form: your GitHub username (required,
 remembered), the message, up to five screenshots from your photo library or
@@ -3177,6 +3177,11 @@ itself, so it works even when it cannot reach your computer. While a computer is
 connected, "Collect more data with an agent" is there too: Start Agent starts
 the agent on that computer and opens its chat on the phone.
 
+## Answering the common questions
+
+- "Make Claude control Codex": see Agents, actions, and orchestration.
+- "Match the terminal width to the chat": `ghostex settings set
+terminalViewWidthMode match-chat`.
 - "How do I annotate a Browser page or Markdown file": Browser pages use
   Agentation in the Browser toolbar (see Views, Browser). Markdown files use
   Files: select text to comment or mark Looks good, Clarify, or Needs tests,

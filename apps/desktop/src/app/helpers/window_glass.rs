@@ -27,8 +27,27 @@ static WINDOW_GLASS_WALLPAPER: AtomicBool = AtomicBool::new(false);
 static WINDOW_GLASS_PICTURE_FOLLOWS_SCREEN: AtomicBool = AtomicBool::new(false);
 
 /// CDXC:Theming 2026-09-30 DECISION:
-/// User: "i'm not able to set the transparency blur level in ghostex on macos please add sliders for this (hope they can work on other oses too)". Settings has a Blur slider (`windowGlassBlurRadius`, 0 to 100 points, default 60: the main window's glass as it always was) and a Menu blur slider (`windowGlassMenuBlurRadius`, default 20: `FROSTED_MENU_BLUR_RADIUS`). Blur reaches every GPUI backend through `set_background_blur_style`: on macOS it sets the live blur, the wallpaper and picture blur and the video blur; on Windows and Linux the system draws the Desktop and windows blur and has no radius to set, so there it sets the wallpaper, picture and video blur. Menu blur is macOS only for the same reason. 0 shows what is behind the glass sharp. On 2026-10-04 the user chose "hide the Blur slider on Windows only while 'What shows behind the glass' is 'Desktop and windows'" (it does nothing there), and Menu blur is hidden off macOS (`availability.rs` in the settings catalog).
+/// User: "i'm not able to set the transparency blur level in ghostex on macos please add sliders for this (hope they can work on other oses too)". Settings has a Blur slider (`windowGlassBlurRadius`, 0 to 100 points, default 60: the main window's glass as it always was) and a Menu blur slider (`windowGlassMenuBlurRadius`, default 20: `FROSTED_MENU_BLUR_RADIUS`). Blur reaches every GPUI backend through `set_background_blur_style`: on macOS it sets the live blur, the wallpaper and picture blur and the video blur; on Windows and Linux the system draws the Desktop and windows blur and has no radius to set, so there it sets the wallpaper, picture and video blur. Menu blur is macOS only for the same reason. 0 shows what is behind the glass sharp. On Windows with Desktop and windows the slider gives way to the Windows blur choice (`WINDOW_GLASS_WINDOWS_BLUR`), and Menu blur is hidden off macOS (`availability.rs` in the settings catalog).
 static WINDOW_GLASS_BLUR_RADIUS: AtomicU8 = AtomicU8::new(WINDOW_GLASS_BLUR_RADIUS_DEFAULT);
+
+/// CDXC:Theming 2026-10-16 DECISION:
+/// User: "please let me adjust the app's blur and strength of transparency in windows when transparency is enabled". Windows draws the Desktop and windows blur itself and has no radius to set, so on Windows Blur is a choice there (`windowGlassWindowsBlur`): Acrylic (the default, the system acrylic with its own frost, kept blurred while Ghostex is in the background), Plain blur (the same blur without that frost, so the tints reach fully clear, at a higher drawing cost) and Off (sharp, the cheapest). Supersedes the 2026-10-04 hiding of Blur on Windows for Desktop and windows.
+/// SEE-ALSO: packages/settings-catalog/src/availability.rs, gpui_windows window.rs `set_whole_window_blur`.
+static WINDOW_GLASS_WINDOWS_BLUR: AtomicU8 = AtomicU8::new(WINDOWS_BLUR_ACRYLIC);
+
+/// `windowGlassWindowsBlur` values, as stored in `WINDOW_GLASS_WINDOWS_BLUR`.
+const WINDOWS_BLUR_ACRYLIC: u8 = 0;
+const WINDOWS_BLUR_PLAIN: u8 = 1;
+const WINDOWS_BLUR_OFF: u8 = 2;
+
+/// The blur DWM draws behind the main window for Desktop and windows (`windowGlassWindowsBlur`).
+fn window_glass_behind_window_blur() -> gpui::BehindWindowBlur {
+    match WINDOW_GLASS_WINDOWS_BLUR.load(Ordering::Relaxed) {
+        WINDOWS_BLUR_PLAIN => gpui::BehindWindowBlur::Plain,
+        WINDOWS_BLUR_OFF => gpui::BehindWindowBlur::Off,
+        _ => gpui::BehindWindowBlur::System,
+    }
+}
 
 /// The main window glass's blur radius in points until Settings says otherwise.
 const WINDOW_GLASS_BLUR_RADIUS_DEFAULT: u8 = 60;
@@ -150,6 +169,7 @@ struct AppliedWindowGlass {
     /// 1 opaque, 2 live blur, 3 wallpaper blur.
     code: u8,
     blur: u8,
+    behind_blur: gpui::BehindWindowBlur,
     image: Option<std::path::PathBuf>,
     video: (Option<std::path::PathBuf>, bool),
     live: Option<gpui::LiveBackground>,
@@ -310,6 +330,17 @@ pub(crate) fn refresh_window_glass(object: &serde_json::Map<String, serde_json::
             "windowGlassBlurRadius",
             WINDOW_GLASS_BLUR_RADIUS_DEFAULT,
         ),
+        Ordering::Relaxed,
+    );
+    WINDOW_GLASS_WINDOWS_BLUR.store(
+        match object
+            .get("windowGlassWindowsBlur")
+            .and_then(serde_json::Value::as_str)
+        {
+            Some("plain") => WINDOWS_BLUR_PLAIN,
+            Some("off") => WINDOWS_BLUR_OFF,
+            _ => WINDOWS_BLUR_ACRYLIC,
+        },
         Ordering::Relaxed,
     );
     WINDOW_GLASS_MENU_BLUR_RADIUS.store(
@@ -606,6 +637,7 @@ fn apply_workspace_window_glass(window: &Window) -> Option<(u8, u8)> {
     let wanted_glass = AppliedWindowGlass {
         code,
         blur: WINDOW_GLASS_BLUR_RADIUS.load(Ordering::Relaxed),
+        behind_blur: window_glass_behind_window_blur(),
         image: image.clone(),
         video: video.clone(),
         live: live.clone(),
@@ -621,6 +653,7 @@ fn apply_workspace_window_glass(window: &Window) -> Option<(u8, u8)> {
     }
     let previous = previous_glass.map_or(0, |glass| glass.code);
     window.set_background_blur_style(window_glass_blur_radius(), false);
+    window.set_background_behind_window_blur(wanted_glass.behind_blur);
     window.set_background_live(live);
     window.set_background_video(video.0, video.1);
     window.set_background_wallpaper_image(image);

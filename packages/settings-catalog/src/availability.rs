@@ -2,9 +2,9 @@
 //! Settings and its search, `ghostex settings` (gxserver) and the generated Help files all ask here, so a
 //! row that does nothing on a platform disappears from every surface at once.
 //!
-//! CDXC:Theming 2026-10-04 DECISION:
-//! User: "let's make this not appear on windows because it's not changeable it looks like", then chose to hide the Blur slider on Windows only while "What shows behind the glass" is Desktop and windows (the system draws that blur and has no radius to set), and to hide the macOS-only Menu blur slider on Windows and Linux everywhere it is listed. Blur stays on Windows for Wallpaper only, Custom image and Live, where it blurs the picture.
-//! SEE-ALSO: apps/desktop/src/app/window/settings_modal/store.rs, apps/desktop/src/app/window/settings_modal/tabs/theme/transparency.rs, server/src/ghostex_cli/settings.rs.
+//! CDXC:Theming 2026-10-16 DECISION:
+//! User: "please let me adjust the app's blur and strength of transparency in windows when transparency is enabled". On Windows, while "What shows behind the glass" is Desktop and windows, Blur is shown again as Blur on Windows (`windowGlassWindowsBlur`: Acrylic, Plain blur or Off), because Windows draws that blur and has no radius to set; the Blur slider (`windowGlassBlurRadius`, and Settings > Terminal's Background blur) stays hidden there and still shows for Wallpaper only, Custom image and Live, where it blurs the picture. Blur on Windows exists on Windows only. Supersedes the 2026-10-04 "not appear on windows because it's not changeable" hiding of Blur for Desktop and windows; the macOS-only Menu blur slider stays hidden on Windows and Linux everywhere it is listed.
+//! SEE-ALSO: apps/desktop/src/app/helpers/window_glass.rs (`WINDOW_GLASS_WINDOWS_BLUR`), apps/desktop/src/app/window/settings_modal/store.rs, apps/desktop/src/app/window/settings_modal/tabs/theme/transparency.rs, server/src/ghostex_cli/settings.rs.
 //!
 //! CDXC:Theming 2026-10-10 DECISION:
 //! User: "please disable transparency by default on windows to make the app faster by default for users" (2026-10-04), then "turn blur off by default for windows in the setup" (2026-10-10). Enable transparency (`windowGlass`) defaults to Never (`opaque`) on Windows, in Settings and in the first-run setup's transparency switch, which starts off; macOS and Linux keep Dark only. A saved choice always wins.
@@ -42,6 +42,11 @@ const ROWS: &[RowAvailability] = &[
             "windowGlassSource",
             "desktopAndWindows",
         )),
+    },
+    RowAvailability {
+        key: "windowGlassWindowsBlur",
+        only_on: &[Platform::Windows],
+        hidden_while: None,
     },
     RowAvailability {
         key: "windowGlassMenuBlurRadius",
