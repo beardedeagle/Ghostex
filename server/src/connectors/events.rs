@@ -12,6 +12,7 @@ use crate::server::AppState;
 pub(crate) const CONNECTORS_CHANGED_EVENT_TYPE: &str = "connectorsChanged";
 
 pub(crate) fn broadcast_connectors_changed(state: &AppState, workspace: &str) {
+    super::bump_tools_revision();
     state.event_hub.broadcast(json!({
         "type": CONNECTORS_CHANGED_EVENT_TYPE,
         "protocolVersion": GXSERVER_PROTOCOL_VERSION,
@@ -33,6 +34,7 @@ pub(crate) fn start_connectors(state: Arc<AppState>) {
         }
     });
     super::composio::set_changed_listener(listener.clone());
+    super::cli::set_changed_listener(listener.clone());
     super::executor::set_changed_listener(listener);
     tokio::spawn(async move {
         let _ = shutdown.recv().await;

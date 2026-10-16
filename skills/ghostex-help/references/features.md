@@ -3014,12 +3014,23 @@ backend: `ghostex team deploy|join|invite|identity|status|ping|leave`. Slack:
   later reach running sessions within seconds. Reads run at once. Before an
   agent sends, posts, creates, changes or deletes anything, Ghostex shows a
   card in that session's chat: Approve, Always allow (stop asking for that
-  tool in this workspace) or Deny; a card nobody answers ends after 30
+  tool in this workspace) or Deny, and the session shows waiting on you in
+  the sidebar until it is answered; a card nobody answers ends after 30
   minutes. A program an agent runs through Executor asks only for the steps
   whose app asks for approval. `ghostex connectors rules` shows what a
   workspace does with such calls, and `ghostex connectors rule <tool|all>
   <ask|allow|never|default>` changes it, for example `rule all never` so
   agents in that workspace can only read, or `rule GMAIL_SEND_EMAIL allow`.
+- A workspace can also have its own GitHub CLI (`gh`) and Google Workspace
+  CLI (`gws`) sign-in, so work agents act as your work accounts:
+  `ghostex connectors gh sign-in` (or `gws`) opens the sign-in page in your
+  browser (for `gh`, enter the code it shows), and Claude and Codex sessions
+  that start or resume in that workspace use it instead of your usual
+  sign-in; your own commands in the terminal keep your usual one.
+  `ghostex connectors gh` shows it and `ghostex connectors gh sign-out`
+  removes it. `gws` needs your own Google Cloud OAuth client, the one your
+  usual `gws` uses (set up once with `gws auth setup`). This is part of
+  Connectors and also experimental.
 - Executor is the second way Connectors links apps, next to Composio, and
   runs on this computer. `ghostex connectors executor enable` turns it on for
   a workspace (the first time, Ghostex downloads Executor). Each workspace

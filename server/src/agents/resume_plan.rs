@@ -289,6 +289,10 @@ pub(crate) fn to_agent_resume_input(
             })
         })
         .or_else(|| base_command.clone());
+    // The workspace's own gh and gws sign-ins (crate::connectors), on this run only.
+    let runtime_command = runtime_command.map(|command| {
+        crate::connectors::with_project_cli_env_for_resume(project, agent_id.as_deref(), command)
+    });
     let agent_session_id = read_text_from_map(&runtime_settings, "agentSessionId");
     let agent_session_path = read_text_from_map(&runtime_settings, "agentSessionPath");
     let (agent_session_id, agent_session_path) = if agent_id.as_deref() == Some("claude") {

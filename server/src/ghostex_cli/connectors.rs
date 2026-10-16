@@ -133,10 +133,63 @@ pub(super) fn connectors_command(args: &[String]) -> CliResult<()> {
             params.insert("rule".to_string(), json!(rule));
             call_and_print("/api/setConnectorRule", params, flags)
         }
+        "gh" | "gws" => cli_command(subcommand, rest, params, flags, open),
         "executor" => super::connectors_executor::executor_command(rest, params, flags, open_in_browser),
         "mcp" => super::connectors_mcp::run(),
         other => Err(CliError::Other(format!(
-            "Unknown connectors command \"{other}\". Use status, sign-in, sign-out, refresh, connect, tools, call, rules, rule or executor."
+            "Unknown connectors command \"{other}\". Use status, sign-in, sign-out, refresh, connect, tools, call, rules, rule, gh, gws or executor."
+        ))),
+    }
+}
+
+/// `ghostex connectors gh|gws [status] | sign-in [--no-open] | sign-out`: the workspace's own
+/// sign-in for that tool, which its Claude and Codex agents use.
+fn cli_command(
+    tool: &str,
+    rest: &[String],
+    mut params: Map<String, Value>,
+    flags: &Flags,
+    open: bool,
+) -> CliResult<()> {
+    params.insert("tool".to_string(), json!(tool));
+    match rest.first().map(String::as_str).unwrap_or("status") {
+        "status" => {
+            let result =
+                rpc::call_gxserver_rpc("/api/readConnectors", &Value::Object(params), flags)?;
+            let status = result
+                .pointer("/workspaces/0/cli")
+                .and_then(|cli| cli.get(tool))
+                .cloned()
+                .unwrap_or(Value::Null);
+            print_json(&status);
+            Ok(())
+        }
+        "sign-in" | "signin" | "login" => {
+            let mut flags = flags.clone();
+            if !flags.contains("timeout") && !flags.contains("timeoutMs") {
+                flags.insert_text("timeout", "60000");
+            }
+            let result =
+                rpc::call_gxserver_rpc("/api/signInConnectorCli", &Value::Object(params), &flags)?;
+            let url = result
+                .get("url")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            if let Some(message) = result.get("message").and_then(Value::as_str) {
+                println!("{message}");
+            }
+            println!("{url}");
+            if open && !url.is_empty() {
+                open_in_browser(url)?;
+            }
+            println!("Then check with: ghostex connectors {tool}");
+            Ok(())
+        }
+        "sign-out" | "signout" | "logout" => {
+            call_and_print("/api/signOutConnectorCli", params, flags)
+        }
+        other => Err(CliError::Other(format!(
+            "Unknown {tool} command \"{other}\". Use status, sign-in or sign-out."
         ))),
     }
 }

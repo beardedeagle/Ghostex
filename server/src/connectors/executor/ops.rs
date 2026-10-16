@@ -57,6 +57,12 @@ pub(crate) fn status(paths: &GxserverPaths, workspace: &str) -> Value {
             live.start_error.as_ref().map(|(error, _)| error.clone()),
         )
     });
+    // Where an app's own OAuth client must send the browser back (Google's, for example).
+    let callback_url = saved
+        .as_ref()
+        .ok()
+        .and_then(|settings| settings.as_ref())
+        .map(|settings| format!("http://127.0.0.1:{}/api/oauth/callback", settings.port));
     json!({
         "enabled": enabled,
         "version": release::VERSION,
@@ -69,6 +75,7 @@ pub(crate) fn status(paths: &GxserverPaths, workspace: &str) -> Value {
                 .then(|| "Executor isn't installed on this computer. Turn it on again to download it.".to_string())
         }),
         "apps": if enabled { apps } else { Vec::new() },
+        "oauthCallbackUrl": callback_url,
     })
 }
 

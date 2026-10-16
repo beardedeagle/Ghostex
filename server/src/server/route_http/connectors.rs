@@ -11,8 +11,9 @@ use crate::connectors::{
     connect_composio_app, connect_executor_app, connectors_enabled, disable_executor,
     enable_executor, list_composio_tools, list_connector_agent_tools, list_executor_tools,
     read_connector_rules, read_connectors, refresh_composio, remove_executor_app,
-    search_executor_catalog, set_connector_rule, sign_in_composio, sign_out_composio,
-    start_connectors_work, CONNECTORS_OFF_MESSAGE,
+    search_executor_catalog, set_connector_rule, sign_in_composio, sign_in_connector_cli,
+    sign_out_composio, sign_out_connector_cli, start_connectors_work, wait_connector_agent_tools,
+    CONNECTORS_OFF_MESSAGE,
 };
 use crate::domain::DomainStateError;
 use crate::protocol::rpc_success;
@@ -45,8 +46,11 @@ pub(super) async fn route_connectors_http(
         "/api/cancelConnectorAgentToolCall" => Some(cancel_connector_agent_tool_call),
         "/api/readConnectorRules" => Some(read_connector_rules),
         "/api/setConnectorRule" => Some(set_connector_rule),
-        // Answered on its own below: a call may wait on the user's card for 30 minutes.
-        "/api/callConnectorAgentTool" => None,
+        "/api/signInConnectorCli" => Some(sign_in_connector_cli),
+        "/api/signOutConnectorCli" => Some(sign_out_connector_cli),
+        // Answered on their own below: a call may wait on the user's card for 30 minutes, and a
+        // helper's wait for a change for a few.
+        "/api/callConnectorAgentTool" | "/api/waitConnectorAgentTools" => None,
         _ => return Err(request),
     };
     let RouteHttpRequest {
@@ -69,14 +73,22 @@ pub(super) async fn route_connectors_http(
         Err(error) => return Ok(domain_error_response(endpoint.path, request_id, error)),
     };
     let Some(action) = action else {
-        let result = call_connector_agent_tool(state.clone(), params).await;
+        let result = if endpoint.path == "/api/waitConnectorAgentTools" {
+            wait_connector_agent_tools(params).await
+        } else {
+            call_connector_agent_tool(state.clone(), params).await
+        };
         return Ok(routed_json(
             Some(endpoint.path),
             StatusCode::OK,
             rpc_success(request_id, result),
         ));
     };
-    let signs_out = endpoint.path == "/api/signOutComposio";
+    // These change what Settings shows without going through a provider's own change listener.
+    let broadcasts = matches!(
+        endpoint.path.as_str(),
+        "/api/signOutComposio" | "/api/setConnectorRule"
+    );
     let worker_state = state.clone();
     // Off the async runtime: Composio is called over the network.
     let result = tokio::task::spawn_blocking(move || action(&worker_state, &params))
@@ -86,7 +98,7 @@ pub(super) async fn route_connectors_http(
                 "Connectors stopped unexpectedly: {error}"
             )))
         });
-    if signs_out {
+    if broadcasts {
         if let Some(workspace) = result
             .as_ref()
             .ok()

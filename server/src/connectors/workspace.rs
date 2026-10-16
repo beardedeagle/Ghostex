@@ -80,8 +80,19 @@ pub(crate) fn project_workspace(
         return Ok(DEFAULT_WORKSPACE_ID.to_string());
     }
     let workspaces = read_sidebar_workspaces(db)?;
-    let projects = repository.list_projects()?;
-    Ok(project_workspace_id(&workspaces, project, &projects))
+    // Only the parent checkout matters (a worktree follows it); reading every project made each
+    // agent tool request slow (2026-10-17, gxserver sampled at 25 sessions).
+    let parent = project
+        .pointer("/worktree/parentProjectId")
+        .and_then(Value::as_str)
+        .map(|parent_id| repository.get_project(parent_id))
+        .transpose()?
+        .flatten();
+    Ok(project_workspace_id(
+        &workspaces,
+        project,
+        parent.as_slice(),
+    ))
 }
 
 /// The workspace a request names, by id or name; none names the default workspace. While

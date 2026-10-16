@@ -63,6 +63,8 @@ pub(crate) fn read_connectors(
                 "name": workspace.name,
                 "composio": composio_status(state, &workspace.id),
                 "executor": super::executor::status(&state.paths, &workspace.id),
+                "rules": super::agent::connector_rules(state, &workspace.id),
+                "cli": super::cli::status(&state.paths, &workspace.id),
             })
         })
         .collect::<Vec<_>>();

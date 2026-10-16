@@ -2,7 +2,9 @@
 //! async because it may wait on a card), cancel a waiting call, and read or change a workspace's
 //! Ask/Allow/Never rules.
 
-use std::sync::Arc;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex, PoisonError};
+use std::time::{Duration, Instant};
 
 use serde_json::{json, Map, Value};
 
@@ -14,21 +16,64 @@ use super::super::composio;
 use super::super::executor::agent as executor;
 use super::rules::{self, Rule};
 
+/// How long a workspace's tool list is reused while nothing about its connectors changed.
+const TOOLS_FRESH_FOR: Duration = Duration::from_secs(60);
+/// How long `waitConnectorAgentTools` holds a request before answering anyway.
+const WAIT_AT_MOST: Duration = Duration::from_secs(4 * 60);
+
+/// A workspace's tools, with the revision and time they were read.
+static TOOLS: Mutex<Option<HashMap<String, (u64, Instant, Vec<Value>)>>> = Mutex::new(None);
+
+fn workspace_tools(state: &AppState, workspace: &str) -> Vec<Value> {
+    let revision = super::revision::tools_revision();
+    let cached = TOOLS
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .get_or_insert_with(HashMap::new)
+        .get(workspace)
+        .filter(|(read_at_revision, at, _)| {
+            *read_at_revision == revision && at.elapsed() < TOOLS_FRESH_FOR
+        })
+        .map(|(_, _, tools)| tools.clone());
+    if let Some(tools) = cached {
+        return tools;
+    }
+    let mut tools = composio::mcp_tools(&state.paths, workspace);
+    if executor::enabled(&state.paths, workspace) {
+        // A workspace whose Executor can't start still gets its Composio tools.
+        if let Ok(executor_tools) = executor::agent_tools(&state.paths, workspace) {
+            tools.extend(executor_tools);
+        }
+    }
+    TOOLS
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .get_or_insert_with(HashMap::new)
+        .insert(
+            workspace.to_string(),
+            (revision, Instant::now(), tools.clone()),
+        );
+    tools
+}
+
 /// `/api/listConnectorAgentTools`: the tools a session's agents get from its workspace's
-/// connectors (`{ name, description, inputSchema }` each). Blocking.
+/// connectors (`{ name, description, inputSchema }` each), and the revision to wait past for the
+/// next change. Blocking.
 pub(crate) fn list_connector_agent_tools(
     state: &AppState,
     params: &Map<String, Value>,
 ) -> Result<Value, DomainStateError> {
-    let session = super::session::resolve(state, params)?;
-    let mut tools = composio::mcp_tools(&state.paths, &session.workspace);
-    if executor::enabled(&state.paths, &session.workspace) {
-        // A workspace whose Executor can't start still gets its Composio tools.
-        if let Ok(executor_tools) = executor::agent_tools(&state.paths, &session.workspace) {
-            tools.extend(executor_tools);
-        }
-    }
-    Ok(json!({ "workspaceId": session.workspace, "tools": tools }))
+    let session = super::session::resolve_cached(state, params)?;
+    let revision = super::revision::tools_revision();
+    let tools = workspace_tools(state, &session.workspace);
+    Ok(json!({ "workspaceId": session.workspace, "tools": tools, "revision": revision }))
+}
+
+/// `/api/waitConnectorAgentTools`: answers once any workspace's connectors changed since
+/// `revision`, or after a few minutes, with the revision then.
+pub(crate) async fn wait_connector_agent_tools(params: Map<String, Value>) -> Value {
+    let seen = params.get("revision").and_then(Value::as_u64).unwrap_or(0);
+    json!({ "revision": super::revision::wait_past(seen, WAIT_AT_MOST).await })
 }
 
 /// `/api/callConnectorAgentTool`: runs one (`tool`, `arguments`, `callId`) and returns its MCP
@@ -50,6 +95,11 @@ pub(crate) fn cancel_connector_agent_tool_call(
         .and_then(Value::as_str)
         .unwrap_or_default();
     Ok(json!({ "cancelled": super::cards::cancel_call(state, call_id) }))
+}
+
+/// The workspace's rules as `/api/readConnectors` shows them.
+pub(crate) fn connector_rules(state: &AppState, workspace: &str) -> Value {
+    rules_view(workspace, &rules::load(&state.paths, workspace))
 }
 
 fn rules_view(workspace: &str, rules: &rules::WorkspaceRules) -> Value {

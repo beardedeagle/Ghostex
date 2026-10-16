@@ -141,6 +141,11 @@ pub(crate) fn presentation_actions(session: &Value, activity: &str) -> Value {
 
 pub(crate) fn presentation_activity(session: &Value, generated_at: &str) -> String {
     let running = effective_lifecycle_state(session) == "running";
+    // CDXC:Connectors 2026-10-16 DECISION:
+    // User (Q7): while Ghostex's connector card waits in a session, the session turns "waiting on you" in the sidebar. The agent is inside the tool call (its title still spins), so the card, not the stored activity, decides it, and the session is working again as soon as the card is answered.
+    if running && crate::connectors::waiting_connector_card(session).is_some() {
+        return "attention".to_string();
+    }
     // CDXC:SessionStatus 2026-10-14 DECISION:
     // User: with Session status on Program status only (or Auto for a session that reported), status "comes only from OSC 7501 records", so the screen-read subagent and compaction overrides below step aside for such a session; under Detection (the default) the 2026-09-28 fleet decision below is unchanged. A program that keeps working while its subagents run says so in its own records.
     let screen_overrides = !crate::program_status::program_status_governs_session(session);
@@ -189,9 +194,14 @@ pub(crate) fn attention_state(session: &Value, generated_at: &str) -> Value {
         .cloned()
         .unwrap_or_default();
     let mut output = Map::new();
+    // A waiting connector card is its own attention: never acknowledged, one event (and one
+    // sound) per card.
+    let card = crate::connectors::waiting_connector_card(session);
     output.insert(
         "acknowledged".to_string(),
-        Value::Bool(activity.get("isAcknowledged").and_then(Value::as_bool) == Some(true)),
+        Value::Bool(
+            card.is_none() && activity.get("isAcknowledged").and_then(Value::as_bool) == Some(true),
+        ),
     );
     insert_optional_value(
         &mut output,
@@ -201,10 +211,12 @@ pub(crate) fn attention_state(session: &Value, generated_at: &str) -> Value {
     insert_optional_value(
         &mut output,
         "eventId",
-        activity
-            .get("attentionEventId")
-            .cloned()
-            .or_else(|| activity.get("lastChangedAt").cloned()),
+        card.map(Value::String).or_else(|| {
+            activity
+                .get("attentionEventId")
+                .cloned()
+                .or_else(|| activity.get("lastChangedAt").cloned())
+        }),
     );
     Value::Object(output)
 }

@@ -812,8 +812,11 @@ pub fn endpoint_for(path: &str) -> Option<EndpointDescriptor> {
         | "/api/listConnectorAgentTools"
         | "/api/callConnectorAgentTool"
         | "/api/cancelConnectorAgentToolCall"
+        | "/api/waitConnectorAgentTools"
         | "/api/readConnectorRules"
-        | "/api/setConnectorRule" => full_local(path),
+        | "/api/setConnectorRule"
+        | "/api/signInConnectorCli"
+        | "/api/signOutConnectorCli" => full_local(path),
         /*
         CDXC:TeamSync 2026-10-09 WHY:
         These hold or use this computer's member token for the team's Convex project, so only this

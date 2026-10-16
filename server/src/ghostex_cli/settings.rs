@@ -33,6 +33,7 @@ const SETTINGS_MODAL_TABS: &[&str] = &[
     "settings",
     "theme",
     "integrations",
+    "connectors",
     "cloudBoxes",
     "extensions",
     "osIntegration",

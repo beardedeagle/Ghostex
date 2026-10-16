@@ -304,6 +304,16 @@ pub(crate) async fn ask(
     }
 }
 
+/// The card the session's agent is waiting on, when its stored chat prompt is one that is still
+/// waiting in this gxserver.
+pub(crate) fn waiting_card(session: &Value) -> Option<String> {
+    let stored = crate::agents::session_chat_prompt_setting(session)
+        .as_deref()
+        .and_then(parse_stored_session_chat_prompt)?;
+    let card_id = card_id_of(&stored)?;
+    is_waiting(card_id).then(|| format!("{TOOL_USE_PREFIX}{card_id}"))
+}
+
 /// The agent cancelled an MCP call: its card goes away.
 pub(crate) fn cancel_call(state: &AppState, call_id: &str) -> bool {
     let card_id = with_cards(|cards| {

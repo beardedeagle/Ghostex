@@ -240,6 +240,32 @@ pub(crate) fn create_agent_session_params_for_project(
                     );
                     plan.insert("command".to_string(), Value::String(command));
                 }
+                // The workspace's own gh and gws sign-ins (crate::connectors), on this run only.
+                let family =
+                    resume_agent_family_id(Some(agent_id.clone()), &agent_config, &launch_settings);
+                if let Some(command) = plan
+                    .get("command")
+                    .and_then(Value::as_str)
+                    .filter(|command| !command.trim().is_empty())
+                    .map(|command| {
+                        (
+                            command.to_string(),
+                            crate::connectors::with_project_cli_env(
+                                db,
+                                project,
+                                family.as_deref(),
+                                command,
+                            ),
+                        )
+                    })
+                    .and_then(|(before, after)| (after != before).then_some(after))
+                {
+                    plan.insert(
+                        "startupText".to_string(),
+                        Value::String(as_atuin_ignored_shell_input(&command)),
+                    );
+                    plan.insert("command".to_string(), Value::String(command));
+                }
             }
             plan
         }

@@ -494,6 +494,10 @@ pub fn usage() -> String {
             "A workspace's connectors: sign it in to Composio in your browser, connect one of its apps (gmail, slack…), list the apps and tools its agents get, and run a tool that only reads",
         ),
         format_help_command(
+            "connectors gh|gws [status] | sign-in | sign-out  (each takes --workspace name|id; sign-in takes --no-open)",
+            "A workspace's own GitHub CLI or Google Workspace CLI sign-in: Claude and Codex agents started in that workspace use it instead of your usual one",
+        ),
+        format_help_command(
             "connectors rules | rule <tool|all> <ask|allow|never|default>  (each takes --workspace name|id)",
             "What a workspace does when an agent's connector call would send, post, change or delete something: ask on a card in the session (the default), allow it, or never run it, for every call or one tool",
         ),

@@ -7,9 +7,12 @@ mod api;
 mod calls;
 mod cards;
 mod launch;
+mod revision;
 mod rules;
 mod session;
 
 pub(crate) use api::*;
 pub(crate) use cards::answer_from_chat as answer_connector_card_from_chat;
+pub(crate) use cards::waiting_card as waiting_connector_card;
 pub(crate) use launch::{with_connector_tools, CONNECTORS_MCP_SERVER_NAME};
+pub(crate) use revision::bump_tools_revision;
