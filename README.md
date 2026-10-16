@@ -254,8 +254,6 @@ Ghostex builds on open source work from these projects and communities:
 - [vvterm](https://github.com/vivy-company/vvterm) and [Termux](https://github.com/termux/termux-app) for mobile terminal components
 - [Pierre](https://github.com/pierrecomputer/pierre) for diff and file rendering components
 
-The moving background behind the screenshots is [Time lapse of a green meadow](https://mixkit.co/free-stock-video/time-lapse-of-a-green-meadow-4070/) from Mixkit, used under the Mixkit Stock Video Free License.
-
 ## License
 
 Ghostex is free and open source under the [MIT License](LICENSE).
