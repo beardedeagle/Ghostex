@@ -93,15 +93,7 @@ pub(crate) fn gpui_spawn_remote_gxserver_tunnel(
     let target_arguments = gpui_remote_ssh_target_arguments(config)?;
     let askpass = gpui_remote_ssh_askpass_script(config)?;
     let mut arguments = Vec::new();
-    // Native Windows and WSL can run together; their loopback API ports differ.
-    let remote_port = if matches!(
-        execution_target,
-        GpuiRemoteExecutionTarget::WindowsPowerShell
-    ) {
-        58_746
-    } else {
-        GPUI_GXSERVER_LOCAL_API_PORT
-    };
+    let remote_port = gpui_remote_gxserver_port(execution_target);
     if !matches!(
         execution_target,
         GpuiRemoteExecutionTarget::WindowsWsl { .. }

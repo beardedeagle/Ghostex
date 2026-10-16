@@ -77,11 +77,20 @@ impl NativeChatView {
         else {
             return;
         };
-        self.host(
-            if locate { "locateFile" } else { "openFile" },
-            json!({ "path": path }),
-            cx,
-        );
+        // A picture an agent linked at its own localhost has an address, not a file: it opens
+        // like a link, which the host routes to the session's machine.
+        if path.starts_with("http://") || path.starts_with("https://") {
+            self.invoke(
+                json!({"type": "openMarkdownLink", "href": path, "external": false}),
+                cx,
+            );
+        } else {
+            self.host(
+                if locate { "locateFile" } else { "openFile" },
+                json!({ "path": path }),
+                cx,
+            );
+        }
         self.close_image_viewer(cx);
     }
 

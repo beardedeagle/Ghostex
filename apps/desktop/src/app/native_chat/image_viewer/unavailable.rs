@@ -147,6 +147,9 @@ impl ImageViewerWindow {
         let folder = short_folder(folder);
         let has_file = !name.is_empty() || !folder.is_empty();
         let openable = !path.is_empty() && failure.file_exists();
+        // An address on the session's machine (`is_loopback_http_url` in gx-chat-core) has no
+        // folder to show.
+        let locatable = openable && !path.starts_with("http://") && !path.starts_with("https://");
         let width = (f32::from(viewport_width) - CARD_GUTTER * 2.0).clamp(0.0, CARD_MAX_WIDTH);
         let surface = if p.light {
             gpui::white().opacity(0.97)
@@ -174,34 +177,35 @@ impl ImageViewerWindow {
                 |this, cx| this.chat.update(cx, |chat, cx| chat.copy_viewer_path(cx)),
             ));
         }
+        if locatable {
+            actions = actions.child(self.card_button(
+                "chat-image-missing-locate",
+                if cfg!(target_os = "macos") {
+                    "Show in Finder"
+                } else {
+                    "Show in folder"
+                },
+                "titlebar/folder-open.svg",
+                p,
+                cx,
+                |this, cx| {
+                    this.chat
+                        .update(cx, |chat, cx| chat.open_viewer_file(true, cx))
+                },
+            ));
+        }
         if openable {
-            actions = actions
-                .child(self.card_button(
-                    "chat-image-missing-locate",
-                    if cfg!(target_os = "macos") {
-                        "Show in Finder"
-                    } else {
-                        "Show in folder"
-                    },
-                    "titlebar/folder-open.svg",
-                    p,
-                    cx,
-                    |this, cx| {
-                        this.chat
-                            .update(cx, |chat, cx| chat.open_viewer_file(true, cx))
-                    },
-                ))
-                .child(self.card_button(
-                    "chat-image-missing-open",
-                    "Open image",
-                    "titlebar/external-link.svg",
-                    p,
-                    cx,
-                    |this, cx| {
-                        this.chat
-                            .update(cx, |chat, cx| chat.open_viewer_file(false, cx))
-                    },
-                ));
+            actions = actions.child(self.card_button(
+                "chat-image-missing-open",
+                "Open image",
+                "titlebar/external-link.svg",
+                p,
+                cx,
+                |this, cx| {
+                    this.chat
+                        .update(cx, |chat, cx| chat.open_viewer_file(false, cx))
+                },
+            ));
         }
         let full_path = gpui::SharedString::from(shown_path.clone());
         let file_block = div()

@@ -85,7 +85,21 @@ pub(super) async fn route_chat_http(
             handle_save_session_chat_attachment_http(&state, endpoint.path, request_id, &body_json)
         }
         "/api/readSessionChatImage" => {
-            handle_read_session_chat_image_http(&state, endpoint.path, request_id, &body_json)
+            let (fallback_path, fallback_id) = (endpoint.path.clone(), request_id.clone());
+            tokio::task::spawn_blocking(move || {
+                handle_read_session_chat_image_http(endpoint.path, request_id, &body_json)
+            })
+            .await
+            .unwrap_or_else(|_| {
+                domain_error_response(
+                    fallback_path,
+                    fallback_id,
+                    crate::domain::DomainStateError {
+                        code: "internalError",
+                        message: "Could not read the image.".to_string(),
+                    },
+                )
+            })
         }
         "/api/answerSessionChatPrompt" => {
             crate::session_chat_send_requests::send_once(

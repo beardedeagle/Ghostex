@@ -115,11 +115,39 @@ pub fn image_read_failure_reason(code: &str, message: &str) -> &'static str {
     }
 }
 
+/// Whether `url` is an http(s) address on the machine's own loopback (`localhost`, a
+/// `*.localhost` name, `127.x.x.x`, `[::1]` or `0.0.0.0`).
+///
+/// CDXC:RemoteMachines 2026-10-16 DECISION:
+/// User: "also for mobile app please same issue shouldn't happen (mobile app opening something that's local on the remote machine and getting an error for ex or not being able to view it, whether it's a video or image etc)". A picture an agent links at its own localhost (a dev server's screenshot, a generated chart) lives on the session's machine, which is not the machine drawing the chat on a remote desktop or the phone, so it is read there by gxserver (`readSessionChatImage`, server/src/session_chat_files.rs) like a picture file, never fetched from the reader's own loopback.
+pub fn is_loopback_http_url(url: &str) -> bool {
+    let lower = ascii_lower(js_trim(url));
+    let Some(rest) = lower
+        .strip_prefix("http://")
+        .or_else(|| lower.strip_prefix("https://"))
+    else {
+        return false;
+    };
+    let authority = rest.split(['/', '?', '#']).next().unwrap_or_default();
+    let host_port = authority.rsplit('@').next().unwrap_or_default();
+    let host = match host_port.strip_prefix('[') {
+        Some(bracketed) => bracketed.split(']').next().unwrap_or_default(),
+        None => host_port.split(':').next().unwrap_or_default(),
+    };
+    let host = host.trim_end_matches('.');
+    if host == "localhost" || host.ends_with(".localhost") {
+        return true;
+    }
+    host.parse::<std::net::IpAddr>()
+        .is_ok_and(|ip| ip.is_loopback() || ip.is_unspecified())
+}
+
 /// Classifies one transcript image block into a source both renderers can load.
 ///
 /// `transport` says how a renderer obtains the bytes: `url` renders the address as-is, `data`
-/// already carries them inline, `read` is a path on the session's machine that only
-/// `readSessionChatImage` can open, and `none` is a block with neither, which stays a named chip.
+/// already carries them inline, `read` is a location on the session's machine that only
+/// `readSessionChatImage` can open (a file path, or an address on that machine's own loopback),
+/// and `none` is a block with neither, which stays a named chip.
 pub fn image_source(block: &ImageRef) -> Value {
     Value::Object(
         image_source_pairs(block, None)
@@ -143,8 +171,17 @@ pub fn image_source_pairs(
     let alt = block.alt.clone().unwrap_or_default();
     let label = image_label(block);
     let lower = ascii_lower(&url);
+    // An address on the session machine's own loopback is read there, like a file path.
+    let on_session_machine = is_loopback_http_url(&url);
+    let path = if on_session_machine {
+        url.clone()
+    } else {
+        path
+    };
     let transport = if lower.starts_with("data:") {
         "data"
+    } else if on_session_machine {
+        "read"
     } else if lower.starts_with("http:") || lower.starts_with("https:") {
         "url"
     } else if !path.is_empty() {

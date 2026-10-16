@@ -10,11 +10,27 @@ use crate::app::model::*;
 use crate::*;
 
 impl GhostexGpuiApp {
-    pub(crate) fn open_browser_pane_in_external_browser(&self, pane_id: BrowserPaneId) {
+    pub(crate) fn open_browser_pane_in_external_browser(
+        &mut self,
+        pane_id: BrowserPaneId,
+        cx: &mut gpui::Context<Self>,
+    ) {
         let Some(tab) = self.browser_tabs.active_tab_for_pane(pane_id) else {
             return;
         };
-        let _ = gpui_open_external_http_url(&tab.url);
+        match self.browser_tab_system_browser_url(&tab.url, tab.remote_machine_id.as_deref()) {
+            Ok(url) => {
+                let _ = gpui_open_external_http_url(&url);
+            }
+            Err(reason) => {
+                self.dispatch_gpui_app_modal_toast(
+                    "info",
+                    "Can't open this page in your browser",
+                    &reason,
+                    cx,
+                );
+            }
+        }
     }
 
     pub(crate) fn show_browser_tab_context_menu(

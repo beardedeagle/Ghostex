@@ -19,7 +19,10 @@ impl GhostexGpuiApp {
         message: &Value,
         cx: &mut gpui::Context<Self>,
     ) {
-        match message["action"].as_str().or_else(|| message["method"].as_str()) {
+        match message["action"]
+            .as_str()
+            .or_else(|| message["method"].as_str())
+        {
             // The composer's terminal button: the same session, as a terminal.
             Some("terminalView" | "switchToTerminal") => self.web_show_terminal(true, cx),
             // A row of a coordinator's Threads panel: that thread's chat, on the same machine.
@@ -32,7 +35,8 @@ impl GhostexGpuiApp {
                         .or_else(|| message["params"][key].as_str())
                         .map(str::to_string)
                 };
-                if let (Some(project_id), Some(session_id)) = (text("projectId"), text("sessionId")) {
+                if let (Some(project_id), Some(session_id)) = (text("projectId"), text("sessionId"))
+                {
                     self.web_open_session_in_work_area(
                         SessionKey {
                             machine: session.machine.clone(),
@@ -54,6 +58,19 @@ impl GhostexGpuiApp {
                     settings.insert("sessionChatZoomPercent".into(), percent.into());
                     crate::shared_settings::install(settings);
                     cx.refresh_windows();
+                }
+            }
+            // A web link or a page card's Open (the page cannot float an agent's page,
+            // `visual_popup.rs`): a new tab of this browser, which runs on the session's own
+            // computer (`ghostex web` listens on its loopback only), so a localhost address in it
+            // is the session's.
+            Some("openLink") => {
+                if let Some(url) = message["url"]
+                    .as_str()
+                    .filter(|url| url.starts_with("https://") || url.starts_with("http://"))
+                    && let Some(window) = web_sys::window()
+                {
+                    let _ = window.open_with_url_and_target(url, "_blank");
                 }
             }
             Some("composerReady") => {}

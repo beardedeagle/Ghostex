@@ -1012,8 +1012,8 @@ impl Render for GhostexGpuiApp {
                 }),
             )
             .on_action(cx.listener(
-                |this, action: &OpenBrowserPaneInExternalBrowser, _window, _cx| {
-                    this.open_browser_pane_in_external_browser(BrowserPaneId(action.pane_id));
+                |this, action: &OpenBrowserPaneInExternalBrowser, _window, cx| {
+                    this.open_browser_pane_in_external_browser(BrowserPaneId(action.pane_id), cx);
                 },
             ))
             .on_action(cx.listener(

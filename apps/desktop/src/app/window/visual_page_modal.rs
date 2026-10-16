@@ -28,6 +28,9 @@ pub(crate) enum VisualPageModalCommand {
     Close,
     /// Closes the window and opens the page in the reader's browser.
     OpenInBrowser { url: String },
+    /// A link the page opened (a new window or `target=_blank`), for the app to route by the
+    /// machine the page came from.
+    OpenLink { url: String },
 }
 
 pub(crate) type VisualPageModalHost = Rc<dyn Fn(VisualPageModalCommand, &mut App)>;
@@ -51,6 +54,7 @@ impl GpuiVisualPageModalWindow {
         detail: String,
         palette: ModalPalette,
         host: VisualPageModalHost,
+        remote: Option<GpuiRemoteGxserverRequestTarget>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
@@ -61,9 +65,28 @@ impl GpuiVisualPageModalWindow {
             "{}#gx-theme={theme}&gx-floating=1",
             url.split('#').next().unwrap_or(&url)
         );
-        let popup_open_handler: cef::BrowserPopupOpenHandler = Rc::new(|requested_url, _| {
-            let _ = gpui_open_external_http_url(&requested_url);
-        });
+        // A remote machine's page can link to that machine's own localhost, which only the app
+        // knows how to reach (`gpui_remote_machine_url`), so every link goes through it.
+        let popup_open_handler: cef::BrowserPopupOpenHandler = {
+            let modal = cx.weak_entity();
+            let async_cx = cx.to_async();
+            let foreground = cx.foreground_executor().clone();
+            Rc::new(move |requested_url, _| {
+                let modal = modal.clone();
+                let mut async_cx = async_cx.clone();
+                // Run on the next turn: this is called from inside CEF's message pump.
+                foreground
+                    .spawn(async move {
+                        let _ = modal.update(&mut async_cx, |this, cx| {
+                            (this.host)(
+                                VisualPageModalCommand::OpenLink { url: requested_url },
+                                cx,
+                            );
+                        });
+                    })
+                    .detach();
+            })
+        };
         // CDXC:SessionChat 2026-10-11 DECISION: User: when the reader clicks Send on a page in this window, the window closes once the answers are sent, and stays open showing the error when sending fails. The page knows it floats (`gx-floating=1`, server/src/visual_pages/theme.rs) and closes itself only after gxserver accepted its answers; CEF reports that as a close request, which closes this window.
         let page_closed: cef::BrowserPageMetadataHandler = {
             let modal = cx.weak_entity();
@@ -103,13 +126,14 @@ impl GpuiVisualPageModalWindow {
                     return;
                 };
                 let page = page.clone();
+                let remote = remote.clone();
                 let async_cx = async_cx.clone();
                 // Run on the next turn: this is called from inside CEF's message pump.
                 foreground
                     .spawn(async move {
                         let _ = async_cx.update(|cx| {
                             crate::app::visual_page_thumbnails::picture_opened_page(
-                                surface, &page, viewport, cx,
+                                surface, &page, remote, viewport, cx,
                             )
                         });
                     })

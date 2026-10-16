@@ -19,6 +19,7 @@ pub(crate) mod ide_open;
 pub(crate) mod install;
 #[cfg(target_os = "linux")]
 pub(crate) mod linux_credentials;
+pub(crate) mod machine_urls;
 pub(crate) mod ports;
 pub(crate) mod previous_sessions;
 pub(crate) mod sidebar_bridge;
@@ -50,6 +51,7 @@ pub(crate) use ide_open::*;
 pub(crate) use install::*;
 #[cfg(target_os = "linux")]
 pub(crate) use linux_credentials::*;
+pub(crate) use machine_urls::*;
 pub(crate) use ports::*;
 pub(crate) use previous_sessions::*;
 pub(crate) use sidebar_bridge::*;

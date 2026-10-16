@@ -44,7 +44,20 @@ impl GhostexGpuiApp {
         if !gpui_remote_link_is_loopback(url) {
             return false;
         }
-        let remote_project = match target {
+        let Some(remote_project) = self.remote_project_for_terminal_target(target) else {
+            return false;
+        };
+        self.open_remote_machine_loopback_link(url, remote_project, cx);
+        true
+    }
+
+    /// The remote machine and project a terminal or chat session lives on, `None` for this
+    /// computer's own sessions.
+    pub(crate) fn remote_project_for_terminal_target(
+        &self,
+        target: GpuiEngineTerminalEventTarget,
+    ) -> Option<GpuiRemoteProjectReference> {
+        match target {
             GpuiEngineTerminalEventTarget::Agents(session_id) => self
                 .remote_attach_sessions
                 .iter()
@@ -60,10 +73,17 @@ impl GhostexGpuiApp {
                     remote_machine_id: reference.remote_machine_id,
                     project_id: reference.project_id,
                 }),
-        };
-        let Some(remote_project) = remote_project else {
-            return false;
-        };
+        }
+    }
+
+    /// Opens a loopback address of `remote_project`'s machine in a Browser tab on that machine's
+    /// network, the project's own tab set.
+    pub(crate) fn open_remote_machine_loopback_link(
+        &mut self,
+        url: &str,
+        remote_project: GpuiRemoteProjectReference,
+        cx: &mut gpui::Context<Self>,
+    ) {
         let message = GpuiSidebarOpenBrowserUrlMessage {
             url: url.to_string(),
             reuse: GpuiBrowserRendererOpenReuse::Similar,
@@ -84,7 +104,39 @@ impl GhostexGpuiApp {
             });
         })
         .detach();
-        true
+    }
+
+    /// The address the system browser opens for a Browser tab's page. A remote machine's tab
+    /// (`remote_machine_id`) may show that machine's own localhost, which the system browser cannot
+    /// reach: its gxserver opens through this computer's tunnel, and anything else is refused with
+    /// the reason (`gpui_remote_machine_url`).
+    pub(crate) fn browser_tab_system_browser_url(
+        &self,
+        url: &str,
+        remote_machine_id: Option<&str>,
+    ) -> Result<String, String> {
+        let Some(remote_machine_id) = remote_machine_id else {
+            return Ok(url.to_string());
+        };
+        let machine = || {
+            gpui_remote_machine_name_from_settings(remote_machine_id)
+                .unwrap_or_else(|| "the remote computer".to_string())
+        };
+        let Some(target) = self.gpui_remote_gxserver_request_target(remote_machine_id) else {
+            return if gpui_remote_link_is_loopback(url) {
+                Err(format!("This page is on {}. Connect it first.", machine()))
+            } else {
+                Ok(url.to_string())
+            };
+        };
+        match gpui_remote_machine_url(url, &target) {
+            GpuiRemoteMachineUrl::Gxserver(url) => Ok(url),
+            GpuiRemoteMachineUrl::AsWritten => Ok(url.to_string()),
+            GpuiRemoteMachineUrl::MachineLoopback => Err(format!(
+                "This page runs on {}, which only Ghostex's Browser reaches.",
+                machine()
+            )),
+        }
     }
 
     pub(crate) fn render_remote_browser_placeholder(

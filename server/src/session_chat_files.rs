@@ -726,14 +726,13 @@ pub(crate) fn session_chat_image_media_type(
     }
 }
 
+/// Runs on a blocking thread: it reads a file, or (for a loopback address) fetches it.
 pub(crate) fn handle_read_session_chat_image_http(
-    state: &AppState,
     endpoint_path: String,
     request_id: String,
     body: &Value,
 ) -> RoutedResponse {
     use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
-    let _ = state;
     let params = match read_domain_rpc_params(body) {
         Ok(params) => params,
         Err(error) => return domain_error_response(endpoint_path, request_id, error),
@@ -742,6 +741,23 @@ pub(crate) fn handle_read_session_chat_image_http(
         .get("path")
         .and_then(Value::as_str)
         .unwrap_or_default();
+    if let Some(url) = loopback_image_url(raw_path) {
+        return match read_loopback_image(&url) {
+            Ok((bytes, media_type)) => routed_json(
+                Some(endpoint_path),
+                StatusCode::OK,
+                rpc_success(
+                    request_id,
+                    json!({
+                        "base64Data": BASE64_STANDARD.encode(&bytes),
+                        "mediaType": media_type,
+                        "bytes": bytes.len(),
+                    }),
+                ),
+            ),
+            Err(error) => domain_error_response(endpoint_path, request_id, error),
+        };
+    }
     let path = std::path::Path::new(raw_path);
     if raw_path.is_empty() || !path.is_absolute() {
         return domain_error_response(
@@ -813,4 +829,61 @@ pub(crate) fn handle_read_session_chat_image_http(
             }),
         ),
     )
+}
+
+/// `path` as an http(s) address on this machine's own loopback, which `readSessionChatImage`
+/// fetches here: the chat core sends a picture an agent linked at its own localhost this way
+/// (`is_loopback_http_url` in packages/gx-chat-core/src/transcript/images.rs), because the
+/// reader's machine (a remote desktop, the phone) cannot reach this machine's loopback.
+fn loopback_image_url(path: &str) -> Option<url::Url> {
+    let url = url::Url::parse(path.trim()).ok()?;
+    if !matches!(url.scheme(), "http" | "https") || !url.username().is_empty() {
+        return None;
+    }
+    let loopback = match url.host()? {
+        url::Host::Domain(name) => {
+            let name = name.trim_end_matches('.').to_ascii_lowercase();
+            name == "localhost" || name.ends_with(".localhost")
+        }
+        url::Host::Ipv4(ip) => ip.is_loopback() || ip.is_unspecified(),
+        url::Host::Ipv6(ip) => ip.is_loopback() || ip.is_unspecified(),
+    };
+    loopback.then_some(url)
+}
+
+/// GETs a loopback picture with the file read's limits: no redirects (one could point off this
+/// machine), at most `SESSION_CHAT_IMAGE_READ_MAX_BYTES`, and only bytes that are a picture.
+fn read_loopback_image(url: &url::Url) -> Result<(Vec<u8>, &'static str), DomainStateError> {
+    use std::io::Read as _;
+    let unreachable = || DomainStateError {
+        code: "notFound",
+        message: "The image address did not answer on this machine.".to_string(),
+    };
+    let response = ureq::AgentBuilder::new()
+        .timeout(std::time::Duration::from_secs(8))
+        .redirects(0)
+        .build()
+        .get(url.as_str())
+        .call()
+        .map_err(|_| unreachable())?;
+    let mut bytes = Vec::new();
+    response
+        .into_reader()
+        .take(SESSION_CHAT_IMAGE_READ_MAX_BYTES + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|_| unreachable())?;
+    if bytes.is_empty() || bytes.len() as u64 > SESSION_CHAT_IMAGE_READ_MAX_BYTES {
+        return Err(DomainStateError {
+            code: "invalidParams",
+            message: format!(
+                "readSessionChatImage serves files between 1 byte and {SESSION_CHAT_IMAGE_READ_MAX_BYTES} bytes."
+            ),
+        });
+    }
+    session_chat_image_media_type(&bytes, std::path::Path::new(url.path()))
+        .map(|media_type| (bytes, media_type))
+        .ok_or_else(|| DomainStateError {
+            code: "invalidParams",
+            message: "The file is not a recognized image.".to_string(),
+        })
 }

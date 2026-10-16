@@ -150,9 +150,15 @@ impl GhostexGpuiApp {
         // CDXC:SessionChat 2026-09-06 WHY:
         // Transcript diagrams use the shared modal launcher; their expand requests must reach the native diagram window instead of being discarded as unknown chat actions.
         if message.get("type").and_then(serde_json::Value::as_str) == Some("open")
+            && message.get("modal").and_then(serde_json::Value::as_str) == Some("visualPage")
+        {
+            self.open_session_chat_visual_page(session_id, &message, window, cx);
+            return;
+        }
+        if message.get("type").and_then(serde_json::Value::as_str) == Some("open")
             && matches!(
                 message.get("modal").and_then(serde_json::Value::as_str),
-                Some("settings" | "mermaidDiagram" | "markdownTable" | "visualPage")
+                Some("settings" | "mermaidDiagram" | "markdownTable")
             )
         {
             self.receive_app_modal_host_bridge_event(

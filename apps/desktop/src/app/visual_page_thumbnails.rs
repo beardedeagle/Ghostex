@@ -1,5 +1,6 @@
 //! Pictures for the chat's page cards, taken from a page the user opened: when the floating page
-//! window has loaded a page from this computer's gxserver and the page has no picture yet (or was
+//! window has loaded a page from the gxserver that published it (this computer's, or a remote
+//! machine's through this computer's tunnel to it) and the page has no picture yet (or was
 //! answered since its picture), the window's own browser takes a screenshot of the top of the page
 //! (`CefSurface::capture_page_top`), which is shrunk and encoded off the main thread and stored
 //! with the page (`server/src/visual_pages/thumbnail.rs`) for every client's card.
@@ -33,11 +34,12 @@ const ANSWER_TIMEOUT: Duration = Duration::from_secs(10);
 /// One picture at a time.
 static CAPTURING: AtomicBool = AtomicBool::new(false);
 
-/// The page id when `url` is a page this computer's gxserver serves (`http://127.0.0.1:<port>/visual/<id>`).
-fn local_page_id(url: &str) -> Option<String> {
+/// The page id when `url` is a page the gxserver at `port` on this computer's loopback serves
+/// (`http://127.0.0.1:<port>/visual/<id>`): this computer's own, or the tunnel to a remote one.
+fn served_page_id(url: &str, port: u16) -> Option<String> {
     let url = gpui::http_client::Url::parse(url).ok()?;
     let local_host = matches!(url.host_str(), Some("127.0.0.1" | "localhost"));
-    if url.scheme() != "http" || !local_host || url.port() != Some(gpui_local_gxserver_api_port()) {
+    if url.scheme() != "http" || !local_host || url.port() != Some(port) {
         return None;
     }
     let id = url.path().strip_prefix("/visual/")?.trim_end_matches('/');
@@ -46,21 +48,26 @@ fn local_page_id(url: &str) -> Option<String> {
 }
 
 /// The floating page window's page finished loading in `surface`, which shows `viewport` (logical
-/// pixels, which are CSS pixels at the page's default zoom). Pictures it when its card needs one.
+/// pixels, which are CSS pixels at the page's default zoom). Pictures it when its card needs one;
+/// `remote` is the machine whose gxserver published it, `None` for this computer's.
 pub(crate) fn picture_opened_page(
     surface: gpui::WeakEntity<CefSurface>,
     url: &str,
+    remote: Option<GpuiRemoteGxserverRequestTarget>,
     viewport: (f32, f32),
     cx: &mut gpui::App,
 ) {
-    let Some(page_id) = local_page_id(url) else {
+    let port = remote
+        .as_ref()
+        .map_or_else(gpui_local_gxserver_api_port, |remote| remote.local_port);
+    let Some(page_id) = served_page_id(url, port) else {
         return;
     };
     if CAPTURING.swap(true, Ordering::AcqRel) {
         return;
     }
     cx.spawn(async move |cx| {
-        let _ = picture_page(&surface, &page_id, viewport, cx).await;
+        let _ = picture_page(&surface, &page_id, remote, viewport, cx).await;
         CAPTURING.store(false, Ordering::Release);
     })
     .detach();
@@ -69,12 +76,13 @@ pub(crate) fn picture_opened_page(
 async fn picture_page(
     surface: &gpui::WeakEntity<CefSurface>,
     page_id: &str,
+    remote: Option<GpuiRemoteGxserverRequestTarget>,
     viewport: (f32, f32),
     cx: &mut gpui::AsyncApp,
 ) -> Option<()> {
     // Only a page with no picture, or one answered since its picture, is pictured.
     let known = gx_rpc(
-        None,
+        remote.clone(),
         "/api/readVisualPageThumbnail",
         json!({"pageId": page_id, "withPicture": false}),
     )
@@ -112,7 +120,7 @@ async fn picture_page(
         .spawn(async move { encode_picture(&base64) })
         .await?;
     gx_rpc(
-        None,
+        remote,
         "/api/storeVisualPageThumbnail",
         json!({
             "pageId": page_id,

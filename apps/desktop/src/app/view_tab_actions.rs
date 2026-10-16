@@ -39,7 +39,8 @@ impl GhostexGpuiApp {
         }
     }
 
-    fn view_pop_out_url(&self, mode: TitlebarMode) -> Option<String> {
+    /// The page a view's pop-out opens in the system browser, or why it cannot.
+    fn view_pop_out_url(&self, mode: TitlebarMode) -> Option<Result<String, String>> {
         if mode == TitlebarMode::Manage {
             return None;
         }
@@ -47,13 +48,16 @@ impl GhostexGpuiApp {
             return self
                 .browser_tabs
                 .active_tab()
-                .map(|tab| tab.url.clone())
-                .filter(|url| url.starts_with("http://") || url.starts_with("https://"));
+                .filter(|tab| tab.url.starts_with("http://") || tab.url.starts_with("https://"))
+                .map(|tab| {
+                    self.browser_tab_system_browser_url(&tab.url, tab.remote_machine_id.as_deref())
+                });
         }
         let slot = ProjectWorkareaCefSurfaceSlotKey::for_titlebar_mode(mode)?;
         self.project_workarea_runtime_url_for_slot(slot)
             .map(|runtime_url| runtime_url.value.clone())
             .filter(|url| url.starts_with("http://") || url.starts_with("https://"))
+            .map(Ok)
     }
 
     /// Runs the pop-out control for `mode`: Files opens its file externally, Kanban moves between
@@ -76,7 +80,7 @@ impl GhostexGpuiApp {
         let Some(url) = self.view_pop_out_url(mode) else {
             return;
         };
-        if let Err(message) = gpui_open_external_http_url(&url) {
+        if let Err(message) = url.and_then(|url| gpui_open_external_http_url(&url)) {
             self.upsert_gpui_app_toast(
                 GpuiAppToast {
                     copy_text: None,
