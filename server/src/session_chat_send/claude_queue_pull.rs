@@ -12,12 +12,18 @@ const CLAUDE_QUEUE_PULL_POLL_MS: u64 = 100;
 const CLAUDE_QUEUE_CLEAR_ATTEMPTS: usize = 10;
 /// Backspace, which leaves Claude's shell mode once its `!` line is empty.
 const CLAUDE_LEAVE_SHELL_MODE: &str = "\u{7f}";
+/// How many of the transcript's newest messages the queue check reads. A queued message waits only
+/// until Claude's next tool boundary, so its enqueue row is always among them.
+const CLAUDE_QUEUE_CHECK_MESSAGES: usize = 200;
+/// How long the queue check waits for Claude to record a message typed just before the take-back.
+const CLAUDE_QUEUE_CHECK_WAIT_MS: u64 = 1_000;
 
 /// Runs inside the session's send queue (the `PullClaudeQueue` step), so no other send types into
 /// the box between the Up and the clear.
 ///
 /// CDXC:SessionChat 2026-10-11 WHY:
-/// Claude Code (2.1.296) has no way to take one message out of its queue: Up in an empty input box moves every editable queued message into the box (one `popAll` transcript row each), and Ctrl+C, the usual chat clear, interrupts a running turn instead of emptying the box (checked live). So the pull presses Up, reads what came back off the transcript rather than the screen (a long paste shows only as `[Pasted text #1]` there), and empties the box with Ctrl+U, which deletes back to the line start and joins lines when repeated, verified against the screen. Up in an empty box with nothing queued recalls the last prompt instead; that box is emptied the same way and nothing comes back.
+/// Claude Code (2.1.296) has no way to take one message out of its queue: Up in an empty input box moves every editable queued message into the box (one `popAll` transcript row each), and Ctrl+C, the usual chat clear, interrupts a running turn instead of emptying the box (checked live). So the pull presses Up, reads what came back off the transcript rather than the screen (a long paste shows only as `[Pasted text #1]` there), and empties the box with Ctrl+U, which deletes back to the line start and joins lines when repeated, verified against the screen.
+/// CDXC:SessionChat 2026-10-16 WHY: Up is pressed only while the transcript shows a message still waiting in Claude's queue (`claude_queue_holds_messages`). With nothing queued, Up recalls the last prompt into the box instead; emptying it afterwards failed for a multi-line pasted prompt the screen reader could not read, so the recalled prompt stayed in Claude's box and the user later sent it again by mistake. This supersedes the 2026-10-11 rule that pressed Up and emptied whatever came back.
 pub(crate) async fn pull_claude_queue(
     project_id: &str,
     session_id: &str,
@@ -68,6 +74,9 @@ pub(crate) async fn pull_claude_queue(
             SESSION_CHAT_SEND_CANCELLED.to_string(),
         ));
     }
+    if !claude_queue_holds_messages(transcript).await? {
+        return Ok(Vec::new());
+    }
     let offset = fs::metadata(transcript).map_or(0, |meta| meta.len());
     write_session_chat_payload(
         project_id,
@@ -97,6 +106,41 @@ pub(crate) async fn pull_claude_queue(
     }
     empty_claude_input(project_id, session_id, zmx_name, source).await?;
     Ok(popped)
+}
+
+/// Whether Claude's transcript shows a message still waiting in its queue: an enqueue row that no
+/// removal, delivery or `popAll` released yet. A message typed just before the take-back is waited
+/// for briefly, because Claude records it a moment after the Enter.
+async fn claude_queue_holds_messages(transcript: &Path) -> Result<bool, SessionChatSendError> {
+    let deadline = Instant::now() + Duration::from_millis(CLAUDE_QUEUE_CHECK_WAIT_MS);
+    loop {
+        let tail = crate::session_chat::read_session_chat_transcript_tail_file(
+            transcript,
+            CLAUDE_QUEUE_CHECK_MESSAGES,
+            crate::session_chat::session_chat_line_decoder(
+                crate::session_chat::SessionChatTranscriptAgent::Claude,
+            ),
+            false,
+            None,
+            None,
+            crate::session_chat::session_chat_lineage_extractor(
+                crate::session_chat::SessionChatTranscriptAgent::Claude,
+            ),
+        )
+        .map_err(|_| {
+            SessionChatSendError::new(
+                SessionChatSendFailure::ComposerNotReady,
+                "Claude's transcript could not be read, so nothing was taken back.".to_string(),
+            )
+        })?;
+        if !tail.outstanding_queued_prompts.is_empty() {
+            return Ok(true);
+        }
+        if Instant::now() >= deadline {
+            return Ok(false);
+        }
+        tokio::time::sleep(Duration::from_millis(CLAUDE_QUEUE_PULL_POLL_MS)).await;
+    }
 }
 
 /// The `popAll` rows Claude wrote after `offset`, oldest first.
