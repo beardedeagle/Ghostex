@@ -19,6 +19,7 @@ Chat rules go only into `gx-chat-core`; the TypeScript chat brain and the React 
 - Multiple sub-agents work in this repository at the same time. Files changing around your code is normal; get your work done without affecting or breaking theirs.
 - Don't get stuck on stale git locks: delete them and continue without confirmation.
 - **Desktop changes reach the phone too** (user decision 2026-10-09): when the user asks for a change to the desktop app, also change the phone app (`apps/mobile/app`) to match wherever it makes sense there, but ask the user to confirm the phone part before starting it. Chat keeps its stricter rule (the GPUI and React Native chats always change together, see "Chat" below).
+- **OpenCode 2 only** (user decision 2026-10-17): Ghostex supports OpenCode 2 only; never add or keep OpenCode 1 support (no V1 plugin, version checks or fallbacks).
 - Project terms live in `TERMS.md`. When the user defines a new term or renames a concept, add or update its entry there in the same change.
 - Don't write any tests unless the user explicitly asks for them.
 - Never run `cargo xtask start` or any command that would restart the app unless the user asks you to.
