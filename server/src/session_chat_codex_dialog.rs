@@ -1257,6 +1257,9 @@ fn is_composer_gap_line(line: &str) -> bool {
 /// Only newly printed command output, excluding the previous conversation and
 /// the returned composer. A live dialog has its own card instead.
 pub fn codex_command_output(command: &str, before: &str, after: &str) -> Option<String> {
+    if let Some(output) = crate::session_chat_codex_pager::codex_static_pager_output(after) {
+        return Some(output.chars().take(24_000).collect());
+    }
     if detect_codex_dialog(after).is_some() {
         return None;
     }
@@ -1266,14 +1269,23 @@ pub fn codex_command_output(command: &str, before: &str, after: &str) -> Option<
     CDXC:AgentScreenDetection 2026-09-28 WHY:
     Codex prints the command it ran (`/status`) on its own line above the result. When the pre-send tail is gone from a short grid (chat view parks fullscreen Codex at about 24 rows), the latest echo still attributes what follows it, the way Claude's echo does. With neither anchor there is no result: Codex keeps the newest read, so a guessed cut-off would overwrite a good one.
     */
-    let printed =
-        crate::session_chat_local_command::newly_printed_lines(&before, &after).or_else(|| {
-            let command = command.trim();
-            let echo = after
-                .iter()
-                .rposition(|line| !command.is_empty() && clean(line) == command)?;
-            Some(after[echo..].to_vec())
-        })?;
+    let command = command.trim();
+    let echo = after
+        .iter()
+        .rposition(|line| !command.is_empty() && clean(line) == command);
+    /*
+    CDXC:AgentScreenDetection 2026-10-16 WHY:
+    A repeated `/status` prints a block identical to the one above it, so the pre-send tail matched the new copy as well, the anchor search picked the copy nearest its old row (the new one, on a scrolled grid) and the second `/status` showed no output. The newest echo on the screen is this command's own, because every chat send stops the previous command's capture: once the screen has changed and the pre-send tail is still found above that echo, the echo starts the result. An unchanged screen keeps the tail anchor, so an older echo is never read as this command's before Codex prints.
+    */
+    let printed = echo
+        .filter(|&echo| {
+            before != after
+                && crate::session_chat_local_command::newly_printed_lines(&before, &after[..echo])
+                    .is_some()
+        })
+        .map(|echo| after[echo..].to_vec())
+        .or_else(|| crate::session_chat_local_command::newly_printed_lines(&before, &after))
+        .or_else(|| Some(after[echo?..].to_vec()))?;
     let output = printed.join("\n");
     // A submitted terminal prompt belongs to the JSONL transcript, not this local command.
     let output = output

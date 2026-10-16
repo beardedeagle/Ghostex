@@ -67,6 +67,51 @@ pub(crate) fn transcript_pager_footer(screen: &str) -> Option<String> {
     matches!(next, "" | " → to edit next enter to edit message").then_some(footer)
 }
 
+/// CDXC:AgentScreenDetection 2026-10-16 WHY:
+/// `/diff` (and other read-only views) open Codex's full-screen pager instead of printing into the transcript, so the screen diff found nothing and chat showed a bare "Slash command" row. The pager's own text is the command's output; the note says where the rest is, because the pager stays open in the terminal until `q`.
+pub(crate) fn codex_static_pager_output(screen: &str) -> Option<String> {
+    let lines: Vec<String> = screen
+        .lines()
+        .map(|line| {
+            normalize_spaces(&strip_ansi_sgr(line))
+                .trim_end()
+                .to_string()
+        })
+        .collect();
+    // Blank rows inside the pager are part of its text; only the frame is found by skipping them.
+    let mut framed = lines
+        .iter()
+        .enumerate()
+        .filter(|(_, line)| !line.trim().is_empty());
+    let (top, title) = framed.next()?;
+    let mut frame = framed.rev();
+    let (_, footer) = frame.next()?;
+    let (_, hints) = frame.next()?;
+    let (rule_at, rule) = frame.next()?;
+    let body = lines.get(top + 1..rule_at)?;
+    let spaced_title = title
+        .strip_prefix("/ ")
+        .is_some_and(|rest| rest.split(' ').all(|letter| letter.chars().count() == 1));
+    if !spaced_title
+        || !matches!(footer.trim(), "q close" | "q to quit")
+        || !hints.contains("to scroll")
+        || !rule.trim_start().starts_with('─')
+    {
+        return None;
+    }
+    let body: Vec<&str> = body
+        .iter()
+        .map(String::as_str)
+        .filter(|line| line.trim() != "~")
+        .collect();
+    let note = if rule.contains(" 100% ") {
+        "Opened in Codex's pager in the terminal; press q there to close it."
+    } else {
+        "First page only: the rest is in Codex's pager in the terminal; press q there to close it."
+    };
+    Some(format!("{}\n\n{note}", body.join("\n").trim_matches('\n')))
+}
+
 pub(crate) fn detect_codex_transcript_pager(screen: &str) -> Option<TerminalDialog> {
     let footer = transcript_pager_footer(screen)?;
     Some(TerminalDialog {
