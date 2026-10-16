@@ -277,7 +277,7 @@ impl GpuiTitlebarReadingPanel {
     /// User: do not show the notification count next to the dropdown title.
     ///
     /// CDXC:Notifications 2026-10-16 DECISION:
-    /// User: "i wanted that 40px to be shown as gap to the right of the word "Notifications" instead of making the buttons wider in the header of notifications modal". The 40px the panel gained (TITLEBAR_POPUP_NOTIFICATIONS_WIDTH) is right padding on the title, so the actions keep their 480px-panel widths.
+    /// User: "i wanted that 40px to be shown as gap to the right of the word "Notifications" instead of making the buttons wider in the header of notifications modal". The 40px the panel gained (TITLEBAR_POPUP_NOTIFICATIONS_WIDTH) is right padding on the title, so the actions keep their 480px-panel widths. 2026-10-17, user: "move the notification title at the top 4px to the right (add more margin from the word's left)": the 4px moves from the title's right padding to its left, so the actions stay where they were.
     fn render_notifications_header(
         &self,
         feed: &GpuiNotificationFeedState,
@@ -290,8 +290,8 @@ impl GpuiTitlebarReadingPanel {
                 h_flex()
                     .flex_shrink_0()
                     .items_center()
-                    .pl(px(8.0))
-                    .pr(px(8.0 + 40.0))
+                    .pl(px(8.0 + 4.0))
+                    .pr(px(4.0 + 40.0))
                     .whitespace_nowrap()
                     .text_size(px(13.0))
                     .font_weight(FontWeight::BOLD)
