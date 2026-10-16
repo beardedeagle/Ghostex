@@ -37,7 +37,8 @@
 //! reopening the page brings them back.
 //!
 //! CDXC:SessionChat 2026-10-11 DECISION:
-//! User: "please same style for the html modal also and the inline questions": each question is a "Clear ask, clear answer" card like the chat's (apps/desktop/src/app/native_chat/ask_card.rs): an amber tile beside the tag chip and title that turns into a green check once the page is answered (muted for a question left blank), picks that turn green with it, options that light up amber when picked (the mockup Pick button too), and a footer bar with the status and a filled send button showing its key. It takes the chat card's own colours too: its light-grey Recommended badge and send button and its bright labels and titles at medium weight. The card is darker ("The colors are too light for the bg of the question cards please make it darker", then "background for the whole question component still too light"), and its amber is quieter ("please make the yellow more subtle"); the chat's cards then took both ("yellow + dark all"): a picked option, the tile, the mockup ring and the Picked button take a light amber tint instead of a strong one or a solid fill. Only the tile stays beside the tag chip and title, since a page spreads its questions between mockups.
+//! User: "please same style for the html modal also and the inline questions": each question is a "Clear ask, clear answer" card like the chat's (apps/desktop/src/app/native_chat/ask_card.rs): a tile beside the tag chip and title (see the later decision on the yellow "?"), picks that turn green with it, options that light up amber when picked (the mockup Pick button too), and a footer bar with the status and a filled send button showing its key. It takes the chat card's own colours too: its light-grey Recommended badge and send button and its bright labels and titles at medium weight. The card is darker ("The colors are too light for the bg of the question cards please make it darker", then "background for the whole question component still too light"), and its amber is quieter ("please make the yellow more subtle"); the chat's cards then took both ("yellow + dark all"): a picked option, the tile, the mockup ring and the Picked button take a light amber tint instead of a strong one or a solid fill. Only the tile stays beside the tag chip and title, since a page spreads its questions between mockups.
+//! User, about the yellow "?" tile at the left of every question heading: "remove this yellow thing here please so i can tell what i answered and what i didn't answer". The tile no longer shows a "?"; a question shows the green check tile as soon as it has an answer (a pick made, text typed, or a restored draft) and nothing before, in a slot that is always kept so the heading never shifts. After the page is sent, an answered question keeps the green check and one left blank keeps the muted tile.
 //! User picked from the looks page: a question's tag is a filled chip above its title ("make it show like eyebrow"), and a choice keeps its radio or checkbox with the letter as a muted keycap on the right; the in-chat form (apps/desktop/src/app/native_chat/question_form.rs, the phone's QuestionForm.tsx) matches.
 //! User: Ctrl+Enter (Cmd+Enter on macOS) presses the page's send button from anywhere on it, a note box included; the in-chat form does the same.
 //! User: a reader picks an option right at its mockup (a Pick button by the mockup's title that picks that choice in its question, shown picked on both and cleared from either), and writes a note under each mockup that arrives with the answers keyed to that question and choice, is kept as a draft, and shows in the answers card.
@@ -67,10 +68,10 @@ gx-wide,gx-choice{display:block;min-width:0}
 gx-question{display:block;border:1px solid var(--gx-card-border);background:var(--gx-card);color:var(--gx-card-muted);border-radius:14px;padding:12px 14px 14px}
 gx-questions gx-question{width:100%;box-sizing:border-box;min-width:0}
 .gx-q-head{display:flex;align-items:center;gap:10px;margin-bottom:12px}
-.gx-q-tile{flex:none;display:grid;place-items:center;width:28px;height:28px;box-sizing:border-box;border-radius:8px;color:color-mix(in srgb,var(--warning) 80%,transparent);background:color-mix(in srgb,var(--warning) 9%,transparent);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--warning) 14%,transparent)}
+.gx-q-tile{flex:none;display:grid;place-items:center;width:28px;height:28px;box-sizing:border-box;border-radius:8px;visibility:hidden;color:var(--success);background:color-mix(in srgb,var(--success) 15%,transparent);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--success) 22%,transparent)}
+gx-question.gx-has-answer .gx-q-tile,gx-question.gx-answered .gx-q-tile,gx-question.gx-unanswered .gx-q-tile{visibility:visible}
 .gx-q-tile svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 gx-question.gx-unanswered .gx-q-tile{color:var(--muted-foreground);background:color-mix(in srgb,var(--muted-foreground) 12%,transparent);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--muted-foreground) 20%,transparent)}
-gx-question.gx-answered .gx-q-tile{color:var(--success);background:color-mix(in srgb,var(--success) 15%,transparent);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--success) 22%,transparent)}
 .gx-q-heading{display:flex;flex:1;min-width:0;flex-direction:column;align-items:flex-start;gap:4px}
 .gx-q-tag{font:500 10.5px/18px var(--font-mono);color:var(--muted-foreground);background:color-mix(in srgb,var(--muted-foreground) 18%,transparent);border-radius:999px;padding:0 7px}
 .gx-q-title{align-self:stretch;color:var(--gx-fg);font-size:15px;font-weight:500;line-height:22px}
@@ -149,25 +150,28 @@ function question(qe,index,used,changed){
   var multiple=qe.hasAttribute("multiple"),text=(qe.getAttribute("type")||"").toLowerCase()==="text";
   var titleId="gx-q-"+index,head=el("div","gx-q-head"),heading=el("div","gx-q-heading"),tile=el("span","gx-q-tile"),tag=qe.getAttribute("tag");
   qe.removeAttribute("title");
-  tile.innerHTML=ASK_ICON;head.append(tile,heading);
+  tile.innerHTML=DONE_ICON;head.append(tile,heading);
   if(tag)heading.append(el("span","gx-q-tag",tag));
   var titleEl=el("div","gx-q-title",title);titleEl.id=titleId;heading.append(titleEl);
-  /* Once sent, an answered question's tile turns into a green check; one left blank goes muted. */
-  function answered(given){if(given){qe.classList.add("gx-answered");tile.innerHTML=DONE_ICON;}else qe.classList.add("gx-unanswered");}
+  /* The tile (its slot is always kept, so the heading never shifts) shows a green check as soon as the question has an answer; once sent, a question left blank shows a muted tile. */
+  var has=function(){return false;};
+  function live(){qe.classList.toggle("gx-has-answer",has());}
+  function notify(){live();changed();}
+  function answered(given){if(given)qe.classList.add("gx-answered");else{qe.classList.add("gx-unanswered");tile.innerHTML=ASK_ICON;}}
   var choiceEls=[],desc=el("div","gx-q-desc");
   kids(qe).forEach(function(node){if(node.nodeName==="GX-CHOICE")choiceEls.push(node);else desc.append(node);});
   qe.textContent="";qe.append(head);
   if(desc.textContent.trim()||desc.querySelector("img,svg,canvas,table"))qe.append(desc);
   if(text){
     var area=el("textarea","gx-text");area.placeholder=qe.getAttribute("placeholder")||"Your answer (optional)";area.setAttribute("aria-labelledby",titleId);
-    area.addEventListener("input",changed);qe.append(area);
+    has=function(){return !!area.value.trim();};area.addEventListener("input",notify);qe.append(area);
     return{key:key,tag:(tag||"").trim(),choices:[],collect:function(out){out[key]=area.value.trim()||SKIPPED;},
-      restore:function(answers){if(typeof answers[key]==="string"&&answers[key]!==SKIPPED)area.value=answers[key];},
+      restore:function(answers){if(typeof answers[key]==="string"&&answers[key]!==SKIPPED)area.value=answers[key];live();},
       lock:function(){answered(!!area.value.trim());area.readOnly=true;if(!area.value)area.hidden=true;}};
   }
   var list=el("div","gx-choices"),choices=[];
   list.setAttribute("role",multiple?"group":"radiogroup");list.setAttribute("aria-labelledby",titleId);
-  var note=el("textarea","gx-note");note.rows=1;note.setAttribute("aria-label","Note");note.addEventListener("input",changed);
+  var note=el("textarea","gx-note");note.rows=1;note.setAttribute("aria-label","Note");note.addEventListener("input",notify);
   function sync(){note.placeholder=other.on()?"What would you prefer instead? (optional)":"Note (optional)";}
   function choice(nodes,value,recommended,label){
     var button=el("button","gx-choice"),body=el("span","gx-choice-body"),index=choices.length,letter=index<26?String.fromCharCode(97+index):String(index+1);
@@ -178,17 +182,18 @@ function question(qe,index,used,changed){
     button.append(el("span","gx-mark"),body,el("span","gx-letter",letter));list.append(button);
     var c={button:button,value:value,label:label,letter:letter,on:function(){return button.getAttribute("aria-checked")==="true";},set:function(v){button.setAttribute("aria-checked",v?"true":"false");}};
     /* A pick toggles; one of N replaces the pick. */
-    button.addEventListener("click",function(){var on=!c.on();if(on)choices.forEach(function(o){if(!multiple||o.exclusive||c.exclusive)o.set(false);});c.set(on);sync();changed();if(on&&c===other)note.focus();});
+    button.addEventListener("click",function(){var on=!c.on();if(on)choices.forEach(function(o){if(!multiple||o.exclusive||c.exclusive)o.set(false);});c.set(on);sync();notify();if(on&&c===other)note.focus();});
     choices.push(c);return c;
   }
   choiceEls.forEach(function(ce){var label=labelText(ce);choice(kids(ce),(ce.getAttribute("value")||"").trim()||label,ce.hasAttribute("recommended"),label);});
   var other=choice([document.createTextNode(OTHER)],OTHER,false,OTHER);other.button.classList.add("gx-other");
+  has=function(){return choices.some(function(c){return c.on();})||!!note.value.trim();};
   sync();qe.append(list,note);
   return{key:key,tag:(tag||"").trim(),choices:choices,collect:function(out){var on=choices.filter(function(c){return c.on();}).map(function(c){return c.value;});
       var written=note.value.trim();out[key]=on.length?(multiple?on:on[0]):written?null:SKIPPED;if(written)out[key+" (note)"]=written;},
     restore:function(answers){var v=answers[key],picked=Array.isArray(v)?v:v==null?[]:[v];
       choices.forEach(function(c){c.set(picked.indexOf(c.value)>=0);});
-      if(typeof answers[key+" (note)"]==="string")note.value=answers[key+" (note)"];sync();},
+      if(typeof answers[key+" (note)"]==="string")note.value=answers[key+" (note)"];sync();live();},
     lock:function(){answered(choices.some(function(c){return c.on();})||!!note.value.trim());choices.forEach(function(c){c.button.disabled=true;});note.readOnly=true;if(!note.value)note.hidden=true;}};
 }
 /* A mockup tied to a choice (`data-question` + `data-choice`): a Pick button by its title that
