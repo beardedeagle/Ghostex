@@ -58,6 +58,12 @@ pub(crate) struct RowSpec {
     /// Side padding when the row sits directly in a list whose neighbours use a narrower inset
     /// than `ROW_PADDING_X` (the Accounts list: its rows and expanded panel use 16px).
     pub(crate) inset_x: Option<f32>,
+    /// An icon tile in front of the label (the Theme page's rows; CDXC:Theming 2026-10-16 in
+    /// tabs/theme/mod.rs). No other page sets it.
+    pub(crate) icon: Option<&'static str>,
+    /// The modified asterisk sits right after the label instead of hanging in the gutter to its
+    /// left, where an icon tile would crowd it (the Theme page's rows and their sub-rows).
+    pub(crate) marker_after_label: bool,
 }
 
 impl RowSpec {
@@ -90,6 +96,17 @@ impl RowSpec {
 
     pub(crate) fn wide(mut self) -> Self {
         self.wide = true;
+        self
+    }
+
+    pub(crate) fn icon(mut self, icon: &'static str) -> Self {
+        self.icon = Some(icon);
+        self.marker_after_label = true;
+        self
+    }
+
+    pub(crate) fn marker_after_label(mut self) -> Self {
+        self.marker_after_label = true;
         self
     }
 
@@ -288,6 +305,7 @@ fn placed_tooltip(
 fn modified_reset_button<V: SettingsPage>(
     p: &SettingsPalette,
     id: ElementId,
+    after_label: bool,
     on_reset: PageAction<V>,
     cx: &mut Context<V>,
 ) -> AnyElement {
@@ -319,6 +337,14 @@ fn modified_reset_button<V: SettingsPage>(
         None,
         true,
     );
+    if after_label {
+        return div()
+            .flex_shrink_0()
+            .flex()
+            .items_center()
+            .child(button)
+            .into_any_element();
+    }
     div()
         .absolute()
         .left(px(-17.0))
@@ -460,6 +486,7 @@ pub(crate) fn setting_row<V: SettingsPage>(
         label_line = label_line.child(modified_reset_button(
             p,
             ElementId::Name(format!("{id}-reset").into()),
+            spec.marker_after_label,
             on_reset,
             cx,
         ));
@@ -529,6 +556,22 @@ pub(crate) fn setting_row<V: SettingsPage>(
         ));
     }
     let text = v_flex().flex_1().min_w_0().gap(px(4.0)).child(label_line);
+    let text = match spec.icon {
+        Some(icon) => h_flex()
+            .flex_1()
+            .min_w_0()
+            .items_center()
+            .gap(px(ICON_TILE_GAP))
+            .child(icon_tile(p, icon))
+            .child(text)
+            .into_any_element(),
+        None => text.into_any_element(),
+    };
+    let control_inset = if spec.icon.is_some() {
+        ICON_TILE_SIZE + ICON_TILE_GAP
+    } else {
+        0.0
+    };
     let row = div()
         .id(ElementId::Name(format!("{id}-row").into()))
         .group(group)
@@ -542,7 +585,14 @@ pub(crate) fn setting_row<V: SettingsPage>(
             .items_stretch()
             .gap(px(10.0))
             .child(text)
-            .child(div().w_full().min_w_0().flex().child(control))
+            .child(
+                div()
+                    .w_full()
+                    .min_w_0()
+                    .pl(px(control_inset))
+                    .flex()
+                    .child(control),
+            )
             .into_any_element()
     } else {
         row.items_center()
@@ -561,6 +611,26 @@ pub(crate) fn setting_row<V: SettingsPage>(
             )
             .into_any_element()
     }
+}
+
+/// The icon tile in front of a row's label: 34px, a 9px radius, a hairline and a faint wash.
+pub(crate) const ICON_TILE_SIZE: f32 = 34.0;
+/// The space between the icon tile and the label.
+pub(crate) const ICON_TILE_GAP: f32 = 14.0;
+
+pub(crate) fn icon_tile(p: &SettingsPalette, icon: &'static str) -> AnyElement {
+    div()
+        .flex_shrink_0()
+        .size(px(ICON_TILE_SIZE))
+        .rounded(px(9.0))
+        .border_1()
+        .border_color(hsla(p.hairline))
+        .bg(hsla(p.foreground_alpha(0.035)))
+        .flex()
+        .items_center()
+        .justify_center()
+        .child(settings_icon(icon, 17.0, p.muted))
+        .into_any_element()
 }
 
 /// A card child that is not a row (a notice, a button strip, an editor form): the row inset.

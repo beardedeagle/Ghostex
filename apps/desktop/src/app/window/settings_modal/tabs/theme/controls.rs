@@ -1,32 +1,51 @@
 //! The Theme page's own controls (`.theme-*` in packages/core-ui/styles/settings-theme.css): each
-//! group's More options row, the numbered subheads, the Dark mode / Light mode tabs, the colour
-//! squares, the Colourfulness slider and its sidebar | work area preview, and the Related links.
+//! group's More row, the subheads, the Appearance preview cards, the colour squares and the "+"
+//! Custom square, the Colourfulness slider and its sidebar | work area preview.
 //! Everything that sits directly in a card takes the card's 14/20 inset
 //! (`.settings-list-card > :not(.settings-list-row)`).
 use super::super::super::super::native_modal_kit::*;
 use super::super::super::fields::{
-    SliderBinding, SliderSaver, settings_icon, step_slider, tooltip_text,
+    ICON_TILE_GAP, ICON_TILE_SIZE, SliderBinding, SliderSaver, icon_tile, settings_icon,
+    step_slider, tooltip_text,
 };
 use super::super::super::palette::SettingsPalette;
 use super::ThemeTab;
 use super::colours::{COLOURFULNESS_LAST_POSITION, Rgb, colourfulness_name, colourfulness_points};
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
-    AnyElement, BoxShadow, ClickEvent, Context, InteractiveElement as _, IntoElement, ObjectFit,
-    ParentElement as _, RenderImage, SharedString, StatefulInteractiveElement as _, Styled as _,
-    StyledImage as _, Window, div, img, point, px,
+    AnyElement, ClickEvent, Context, InteractiveElement as _, IntoElement, ParentElement as _,
+    SharedString, StatefulInteractiveElement as _, Styled as _, Window, div, px,
 };
 use gpui_component::{h_flex, v_flex};
-use std::sync::Arc;
 
 pub(super) const ICON_CHEVRON_RIGHT: &str = "modals/settings/chevron-right.svg";
 pub(super) const ICON_CHEVRON_DOWN: &str = "modals/settings/chevron-down.svg";
+/// The Theme rows' icon tiles (Tabler outline icons in assets/modals/settings/).
+pub(super) const ICON_APPEARANCE: &str = "modals/settings/device-desktop.svg";
+pub(super) const ICON_DARK: &str = "modals/settings/moon.svg";
+pub(super) const ICON_LIGHT: &str = "modals/settings/sun.svg";
+pub(super) const ICON_COLOURFULNESS: &str = "modals/settings/palette.svg";
+pub(super) const ICON_MORE: &str = "modals/settings/adjustments-horizontal.svg";
+pub(super) const ICON_TRANSPARENCY: &str = "modals/settings/stack-2.svg";
+pub(super) const ICON_STRENGTH: &str = "modals/settings/droplet.svg";
+pub(super) const ICON_BLUR: &str = "modals/settings/blur.svg";
+pub(super) const ICON_BEHIND_GLASS: &str = "modals/settings/photo.svg";
+pub(super) const ICON_CHAT: &str = "modals/settings/message-circle.svg";
+pub(super) const ICON_TERMINAL: &str = "modals/settings/terminal-2.svg";
+pub(super) const ICON_FONT: &str = "modals/settings/typography.svg";
+pub(super) const ICON_SIDEBAR: &str = "modals/settings/layout-sidebar.svg";
+const ICON_PLUS: &str = "modals/settings/plus.svg";
+
+/// A colour square's side, and the room between squares.
+const SWATCH_SIZE: f32 = 20.0;
+pub(super) const SWATCH_GAP: f32 = 6.0;
 
 /// `.settings-list-card > :not(.settings-list-row)`: 14px above and below, 20px at the sides.
 pub(super) const CARD_INSET_X: f32 = 20.0;
 pub(super) const CARD_INSET_Y: f32 = 14.0;
 
-/// One group's More options row: a chevron, the label and a muted summary.
+/// One group's More row: an icon tile, the label over a muted summary of what is inside, and a
+/// chevron at the end.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn more_options_button(
     p: &SettingsPalette,
@@ -42,14 +61,37 @@ pub(super) fn more_options_button(
         .id(id)
         .w_full()
         .px(px(CARD_INSET_X))
-        .py(px(CARD_INSET_Y))
-        .gap(px(8.0))
+        .py(px(10.0))
+        .gap(px(ICON_TILE_GAP))
         .items_center()
-        .text_size(px(13.0))
-        .line_height(px(18.57))
-        .text_color(hsla(p.muted))
+        .cursor_pointer()
         .hover(move |this| this.bg(hsla(hover)))
         .on_click(cx.listener(move |page, _: &ClickEvent, window, cx| on_toggle(page, window, cx)))
+        .child(icon_tile(p, ICON_MORE))
+        .child(
+            v_flex()
+                .flex_1()
+                .min_w_0()
+                .gap(px(2.0))
+                .child(
+                    div()
+                        .text_size(px(14.0))
+                        .line_height(px(18.9))
+                        .text_color(hsla(p.foreground))
+                        .child(label),
+                )
+                .child(
+                    div()
+                        .min_w_0()
+                        .overflow_hidden()
+                        .whitespace_nowrap()
+                        .text_ellipsis()
+                        .text_size(px(13.0))
+                        .line_height(px(18.57))
+                        .text_color(hsla(p.muted))
+                        .child(summary),
+                ),
+        )
         .child(
             settings_icon(
                 if open {
@@ -57,25 +99,10 @@ pub(super) fn more_options_button(
                 } else {
                     ICON_CHEVRON_RIGHT
                 },
-                14.0,
+                16.0,
                 p.muted,
             )
             .flex_shrink_0(),
-        )
-        .child(
-            div()
-                .flex_shrink_0()
-                .text_color(hsla(p.foreground))
-                .child(label),
-        )
-        .child(
-            div()
-                .min_w_0()
-                .opacity(0.75)
-                .overflow_hidden()
-                .whitespace_nowrap()
-                .text_ellipsis()
-                .child(summary),
         )
         .into_any_element()
 }
@@ -114,6 +141,18 @@ pub(super) fn subhead(
         .into_any_element()
 }
 
+/// A card child lined up with the text of the icon rows above it (the picture slots and the Live
+/// gallery under Behind the glass).
+pub(super) fn indented_row(content: impl IntoElement) -> AnyElement {
+    div()
+        .w_full()
+        .pl(px(CARD_INSET_X + ICON_TILE_SIZE + ICON_TILE_GAP))
+        .pr(px(CARD_INSET_X))
+        .pb(px(CARD_INSET_Y))
+        .child(content)
+        .into_any_element()
+}
+
 /// A card child with the card's inset (`.theme-stacked-row` and the like).
 pub(super) fn stacked_row(content: impl IntoElement) -> AnyElement {
     div()
@@ -124,126 +163,217 @@ pub(super) fn stacked_row(content: impl IntoElement) -> AnyElement {
         .into_any_element()
 }
 
-/// `ThemeSchemeTabs`: which appearance's colours the squares show.
-pub(super) fn scheme_tabs(
-    p: &SettingsPalette,
-    dark: bool,
-    cx: &mut Context<ThemeTab>,
-) -> AnyElement {
-    let tab = |scheme_dark: bool, label: &'static str, cx: &mut Context<ThemeTab>| {
-        let selected = scheme_dark == dark;
-        div()
-            .id(SharedString::from(format!("theme-scheme-{label}")))
-            .px(px(12.0))
-            .py(px(4.0))
-            .rounded(px(6.0))
-            .text_size(px(13.0))
-            .line_height(px(18.57))
-            .text_color(hsla(if selected { p.foreground } else { p.muted }))
-            .when(selected, |this| this.bg(hsla(p.foreground_alpha(0.1))))
-            .on_click(cx.listener(move |page, _: &ClickEvent, _window, cx| {
-                page.scheme_dark = scheme_dark;
-                cx.notify();
-            }))
-            .child(label)
-    };
-    h_flex()
-        .flex_shrink_0()
-        .p(px(2.0))
-        .rounded(px(MODAL_RADIUS_CONTROL))
-        .border_1()
-        .border_color(hsla(p.hairline))
-        .bg(hsla(p.foreground_alpha(0.04)))
-        .child(tab(true, "Dark mode", cx))
-        .child(tab(false, "Light mode", cx))
-        .into_any_element()
-}
-
-fn white(alpha: f32) -> gpui::Hsla {
-    hsla(modal_rgba(0xffffff, alpha))
-}
-
-fn shadow(color: gpui::Hsla, y: f32, blur: f32, spread: f32, inset: bool) -> BoxShadow {
-    BoxShadow {
-        color,
-        offset: point(px(0.0), px(y)),
-        blur_radius: px(blur),
-        spread_radius: px(spread),
-        inset,
-    }
-}
-
-/// One colour square of `ThemeSwatchGrid`: the gradient bitmap with its inset rim and drop
-/// shadow, the ring when selected, and the colour's name as its tooltip.
-#[allow(clippy::too_many_arguments)]
+/// One colour square: its flat colour, a hairline, today's ring (thinner) when selected, and the
+/// colour's name as its tooltip.
 pub(super) fn swatch(
     p: &SettingsPalette,
     id: SharedString,
     label: String,
-    image: Option<Arc<RenderImage>>,
+    colour: Rgb,
     selected: bool,
     on_select: impl Fn(&mut ThemeTab, &mut Context<ThemeTab>) + 'static,
     cx: &mut Context<ThemeTab>,
 ) -> AnyElement {
-    let ring = p.ring;
-    let rim = vec![
-        shadow(white(0.14), 1.0, 0.0, 0.0, true),
-        shadow(white(0.06), 0.0, 0.0, 1.0, true),
-    ];
+    let rim = p.foreground_alpha(0.1);
+    let hover = p.foreground_alpha(0.45);
+    swatch_frame(p, id, label, selected, on_select, cx)
+        .child(
+            div()
+                .size(px(SWATCH_SIZE))
+                .rounded(px(5.0))
+                .border_1()
+                .border_color(hsla(rim))
+                .bg(hsla(colour.gpui()))
+                .hover(move |this| this.border_color(hsla(hover))),
+        )
+        .into_any_element()
+}
+
+/// The "+" square after the colour squares: picks a custom colour for that appearance.
+pub(super) fn custom_swatch(
+    p: &SettingsPalette,
+    id: SharedString,
+    selected: bool,
+    on_select: impl Fn(&mut ThemeTab, &mut Context<ThemeTab>) + 'static,
+    cx: &mut Context<ThemeTab>,
+) -> AnyElement {
+    let edge = p.foreground_alpha(0.4);
+    let hover = p.foreground_alpha(0.7);
+    swatch_frame(p, id, "Custom colour".to_string(), selected, on_select, cx)
+        .child(
+            div()
+                .size(px(SWATCH_SIZE))
+                .rounded(px(5.0))
+                .border_1()
+                .border_dashed()
+                .border_color(hsla(edge))
+                .flex()
+                .items_center()
+                .justify_center()
+                .hover(move |this| this.border_color(hsla(hover)))
+                .child(settings_icon(ICON_PLUS, 12.0, p.muted)),
+        )
+        .into_any_element()
+}
+
+/// The clickable frame around a square, with the selection ring 2px outside it.
+fn swatch_frame(
+    p: &SettingsPalette,
+    id: SharedString,
+    label: String,
+    selected: bool,
+    on_select: impl Fn(&mut ThemeTab, &mut Context<ThemeTab>) + 'static,
+    cx: &mut Context<ThemeTab>,
+) -> gpui::Stateful<gpui::Div> {
+    let ring = p.foreground_alpha(0.85);
     div()
+        .id(id)
+        .flex_shrink_0()
+        .relative()
+        .cursor_pointer()
+        .tooltip(tooltip_text(label))
+        .on_click(cx.listener(move |page, _: &ClickEvent, _window, cx| on_select(page, cx)))
+        .when(selected, |this| {
+            this.child(
+                div()
+                    .absolute()
+                    .left(px(-3.5))
+                    .top(px(-3.5))
+                    .right(px(-3.5))
+                    .bottom(px(-3.5))
+                    .rounded(px(7.5))
+                    .border(px(1.5))
+                    .border_color(hsla(ring)),
+            )
+        })
+}
+
+/// One preview card of the Appearance row: a small Ghostex window in that appearance's colours
+/// (System shows light and dark side by side), and its name under it.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn appearance_card(
+    p: &SettingsPalette,
+    id: SharedString,
+    label: &str,
+    windows: Vec<(Rgb, Rgb, Rgb)>,
+    selected: bool,
+    on_select: impl Fn(&mut ThemeTab, &mut Context<ThemeTab>) + 'static,
+    cx: &mut Context<ThemeTab>,
+) -> AnyElement {
+    let edge = if selected {
+        p.foreground_alpha(0.7)
+    } else {
+        p.hairline
+    };
+    let hover = p.foreground_alpha(0.35);
+    v_flex()
         .id(id)
         .flex_1()
         .min_w_0()
-        .relative()
-        .tooltip(tooltip_text(label))
+        .gap(px(8.0))
+        .items_center()
+        .cursor_pointer()
         .on_click(cx.listener(move |page, _: &ClickEvent, _window, cx| on_select(page, cx)))
         .child(
-            div()
-                .relative()
+            h_flex()
                 .w_full()
-                .aspect_square()
-                .rounded(px(MODAL_RADIUS_CONTROL))
-                .shadow(vec![shadow(
-                    hsla(modal_rgba(0x000000, 0.3)),
-                    4.0,
-                    10.0,
-                    0.0,
-                    false,
-                )])
-                .when_some(image, |this, image| {
-                    this.child(
-                        img(image)
-                            .absolute()
-                            .left_0()
-                            .top_0()
-                            .size_full()
-                            .rounded(px(MODAL_RADIUS_CONTROL))
-                            .object_fit(ObjectFit::Fill),
-                    )
+                .h(px(112.0))
+                .rounded(px(MODAL_RADIUS_SECTION))
+                .overflow_hidden()
+                .when(selected, |this| this.border_2())
+                .when(!selected, |this| {
+                    this.border_1()
+                        .hover(move |this| this.border_color(hsla(hover)))
                 })
+                .border_color(hsla(edge))
+                .children(windows.into_iter().map(mini_window)),
+        )
+        .child(
+            div()
+                .text_size(px(13.0))
+                .line_height(px(18.57))
+                .text_color(hsla(if selected { p.foreground } else { p.muted }))
+                .when(selected, |this| this.font_weight(gpui::FontWeight::MEDIUM))
+                .child(label.to_string()),
+        )
+        .into_any_element()
+}
+
+/// A Ghostex window drawn small: the sidebar with three cards, and the work area with a message,
+/// a few lines of text and the composer.
+fn mini_window(colours: (Rgb, Rgb, Rgb)) -> AnyElement {
+    let (sidebar, work, foreground) = colours;
+    let ink = |alpha: f32| hsla(css_fade(foreground.gpui(), alpha));
+    let line = move |width: f32, alpha: f32| {
+        div()
+            .h(px(5.0))
+            .w(gpui::relative(width))
+            .rounded(px(3.0))
+            .bg(ink(alpha))
+    };
+    let card = move |active: bool, first: f32, second: Option<f32>| {
+        v_flex()
+            .w_full()
+            .gap(px(4.0))
+            .p(px(5.0))
+            .rounded(px(5.0))
+            .bg(ink(if active { 0.1 } else { 0.05 }))
+            .child(line(first, 0.22))
+            .children(second.map(|width| line(width, 0.14)))
+    };
+    h_flex()
+        .flex_1()
+        .min_w_0()
+        .h_full()
+        .child(
+            v_flex()
+                .w(gpui::relative(0.36))
+                .h_full()
+                .gap(px(5.0))
+                .p(px(8.0))
+                .bg(hsla(sidebar.gpui()))
+                .child(
+                    h_flex()
+                        .gap(px(3.0))
+                        .mb(px(3.0))
+                        .children((0..3).map(|_| div().size(px(5.0)).rounded_full().bg(ink(0.2)))),
+                )
+                .child(card(true, 0.8, Some(0.5)))
+                .child(card(false, 0.7, Some(0.4)))
+                .child(card(false, 0.6, None)),
+        )
+        .child(
+            v_flex()
+                .flex_1()
+                .min_w_0()
+                .h_full()
+                .gap(px(6.0))
+                .p(px(9.0))
+                .border_l_1()
+                .border_color(ink(0.08))
+                .bg(hsla(work.gpui()))
+                .child(
+                    h_flex().w_full().justify_end().child(
+                        div()
+                            .w(gpui::relative(0.5))
+                            .h(px(14.0))
+                            .rounded(px(6.0))
+                            .bg(ink(0.09)),
+                    ),
+                )
+                .child(line(0.9, 0.16))
+                .child(line(0.72, 0.16))
+                .child(line(0.8, 0.16))
+                .child(div().flex_1())
                 .child(
                     div()
-                        .absolute()
-                        .left_0()
-                        .top_0()
-                        .size_full()
-                        .rounded(px(MODAL_RADIUS_CONTROL))
-                        .shadow(rim),
-                )
-                .when(selected, |this| {
-                    // `outline: 2px solid var(--ring); outline-offset: 2px`.
-                    this.child(
-                        div()
-                            .absolute()
-                            .left(px(-4.0))
-                            .top(px(-4.0))
-                            .right(px(-4.0))
-                            .bottom(px(-4.0))
-                            .rounded(px(12.0))
-                            .border_2()
-                            .border_color(hsla(ring)),
-                    )
-                }),
+                        .w_full()
+                        .h(px(18.0))
+                        .rounded(px(6.0))
+                        .border_1()
+                        .border_color(ink(0.12))
+                        .bg(ink(0.04)),
+                ),
         )
         .into_any_element()
 }

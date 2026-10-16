@@ -688,7 +688,7 @@ pub const WINDOW_GLASS_LIVE_STYLE_OPTIONS: &[Opt] = &[
 pub const WINDOW_GLASS_OPTIONS: &[Opt] = &[
     opt("Dark only", "auto"),
     opt("Always", "frosted"),
-    opt("Never", "opaque"),
+    opt("Off", "opaque"),
 ];
 
 pub const WINDOW_GLASS_SOURCE_OPTIONS: &[Opt] = &[

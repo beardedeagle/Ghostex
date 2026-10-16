@@ -3,8 +3,8 @@
 //! off) and the links to related rows on General. Its rows are the General catalog's `theming`
 //! and `appIcon` sections, so the same search finds them.
 //!
-//! CDXC:Theming 2026-09-25 DECISION:
-//! User: "I don't like our themes settings in the settings dialog ... even the advanced part shouldn't be just one advanced part", then approved the revamp mockup (docs/2026-09-25/theme-settings-revamp). Theme is three groups, each with its own More options instead of one page-wide Advanced: Colours (Appearance, the theme colour squares with Dark mode / Light mode tabs, Colourfulness; More: the sidebar and work area set apart, a custom colour per appearance, the active pane outline), Transparency (Enable transparency, Strength; More: 1 what shows behind the glass, 2 the pictures or videos, 3 their position, then the tints and Use transparency), and Chat and terminal (the two themes; More: the terminal palettes), plus links to related rows on General. A search hit inside a group's More options opens it.
+//! CDXC:Theming 2026-10-16 DECISION:
+//! User: "doesn't look so good … can we please make this look nicer? … don't copy everything", then picked direction A (Calm rows) of the mockups in docs/2026-10-16/theme-page. Supersedes the 2026-09-25 layout. The Theme page's rows carry an icon tile (this page only; other pages keep their rows). Appearance is three preview cards (System, Light, Dark). Each group is one card whose rare rows fold under a More row: Colours (Dark mode colour and Light mode colour as two rows of squares, Colourfulness; More: the sidebar and work area set apart, the active pane outline), Transparency (one Off / Dark only / Always control replacing Enable transparency and Use transparency, Strength, Blur, Behind the glass with its pictures or Live gallery; More: picture position, Live speed and brightness, play only when plugged in, the four tints, menu blur) and Chat and terminal (the two themes; More: the terminal palettes), then Related on General. The three-way choices keep the existing row control ("same as what we have now dont change this") and Blur stays as it was ("dont change this"). Custom colour is a "+" square after the squares, with its tint and depth right under that colour row, and the squares are "smaller and simpler": 20px, one flat colour, today's ring drawn thinner. A search hit inside a group's More opens it.
 mod art;
 mod colours;
 mod controls;
@@ -16,8 +16,8 @@ use super::super::super::native_modal_kit::*;
 use super::super::catalog::{SettingOption, module, settings_catalog};
 use super::super::fields::{
     ButtonVariant, DropdownState, FieldStates, RowSpec, SettingsPage, SliderSaver,
-    app_icon_picker_field, reset_key, searchable_select_field, segmented_field, select_field,
-    setting_row, settings_button, settings_section, toggle_field, toggle_field_with,
+    app_icon_picker_field, reset_key, searchable_select_field, select_field, setting_row,
+    settings_button, settings_section, toggle_field, toggle_field_with,
 };
 use super::super::model::SettingsTabId;
 use super::super::page::{PageBlock, settings_page};
@@ -30,18 +30,21 @@ use colours::{
     preset_options, preview_colours, swatch_paint,
 };
 use controls::{
-    colourfulness_preview, colourfulness_slider, more_options_button, scheme_tabs, swatch,
+    ICON_APPEARANCE, ICON_CHAT, ICON_COLOURFULNESS, ICON_DARK, ICON_FONT, ICON_LIGHT, ICON_SIDEBAR,
+    ICON_TERMINAL, SWATCH_GAP, appearance_card, colourfulness_preview, colourfulness_slider,
+    custom_swatch, more_options_button, swatch,
 };
 use gpui::{
     AnyElement, AnyView, App, AppContext as _, Context, Entity, IntoElement, ParentElement as _,
     Render, RenderImage, SharedString, Styled as _, Window, WindowAppearance, div, px,
 };
-use gpui_component::{h_flex, v_flex};
+use gpui_component::h_flex;
 use serde_json::{Map, Value, json};
 use std::cell::Cell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
+use swatches::swatch_colour;
 
 /// `GHOSTTY_THEME_UNMANAGED_VALUE`.
 const GHOSTTY_THEME_UNMANAGED_VALUE: &str = "__ghostex_ghostty_theme_unmanaged__";
@@ -70,22 +73,11 @@ impl MoreGroup {
             MoreGroup::Colours => &[
                 "themeSidebarContrast",
                 "themeWorkAreaContrast",
-                "customSidebarTitlebarBackgroundDarknessPercent",
-                "customSidebarTitlebarBackgroundTintColor",
-                "customSidebarTitlebarLightBackgroundLightnessPercent",
-                "customSidebarTitlebarLightBackgroundTintColor",
                 "showActivePaneOutline",
                 "workspaceActivePaneBorderColor",
             ],
             MoreGroup::Transparency => &[
-                "windowGlassSource",
-                "windowGlassImageDark",
-                "windowGlassImageLight",
-                "windowGlassVideoDark",
-                "windowGlassVideoLight",
                 "windowGlassVideoOnlyOnPower",
-                "windowGlassLiveStyleDark",
-                "windowGlassLiveStyleLight",
                 "windowGlassLiveSpeed",
                 "windowGlassLiveBrightness",
                 "windowGlassImagePlacement",
@@ -117,7 +109,8 @@ pub(crate) fn theme_tab_view(
 pub(crate) struct ThemeTab {
     pub(super) store: Entity<SettingsStore>,
     fields: FieldStates,
-    /// Which appearance's colours the squares show (`scheme`).
+    /// Which appearance the Colourfulness preview shows (the window's own, or light for the
+    /// preview binary's `theme-light-scheme`).
     pub(super) scheme_dark: bool,
     /// `pickedOnPurpose`: a colour was picked in that appearance, so the other stops following it.
     picked_dark: bool,
@@ -129,7 +122,6 @@ pub(crate) struct ThemeTab {
     pub(super) live_editing_light: bool,
     /// Why the last picked glass video was refused, and for which appearance.
     pub(super) video_error: Option<(bool, String)>,
-    swatches: HashMap<String, Arc<RenderImage>>,
     pub(super) images: HashMap<String, Arc<RenderImage>>,
     pub(super) posters: HashMap<String, Arc<gpui::Image>>,
     palette_dark_dropdown: DropdownState,
@@ -194,7 +186,6 @@ impl ThemeTab {
             more_open: REMEMBERED_MORE_OPEN.with(Cell::get),
             live_editing_light: false,
             video_error: None,
-            swatches: HashMap::new(),
             images: HashMap::new(),
             posters: HashMap::new(),
             // : the palette lists stop at 320px.
@@ -255,17 +246,6 @@ impl ThemeTab {
         store.update(cx, |store, cx| {
             store.apply_patch(patch, "settings:control", cx)
         });
-    }
-
-    /// The squares of one appearance at a Colourfulness step, drawn once and kept.
-    fn swatch_image(&mut self, dark: bool, preset: &str, step: usize) -> Option<Arc<RenderImage>> {
-        let key = format!("{dark}:{preset}:{step}");
-        if let Some(image) = self.swatches.get(&key) {
-            return Some(image.clone());
-        }
-        let image = swatches::swatch_image(&swatch_paint(dark, preset, step))?;
-        self.swatches.insert(key, image.clone());
-        Some(image)
     }
 
     /// `selectDarkPreset` / `selectLightPreset`: a colour for one appearance, and the same colour
@@ -340,6 +320,7 @@ impl ThemeCx {
         RowSpec::new(label.to_string())
             .description(description.to_string())
             .keyed(&self.values, key)
+            .marker_after_label()
             .advanced(false)
     }
 
@@ -348,6 +329,7 @@ impl ThemeCx {
         RowSpec::new(label.to_string())
             .description(description.to_string())
             .keyed(&self.values, key)
+            .marker_after_label()
     }
 }
 
@@ -378,9 +360,23 @@ impl ThemeTab {
         let values = &t.values;
         let visible_fn = t.visible.clone();
         let visible = |key: &str| visible_fn(key);
-        let colours_visible = ["sidebarTheme", "darkThemePreset", "lightThemePreset"]
-            .iter()
-            .any(|key| visible(key))
+        let dark_colour_visible = [
+            "darkThemePreset",
+            "customSidebarTitlebarBackgroundTintColor",
+            "customSidebarTitlebarBackgroundDarknessPercent",
+        ]
+        .iter()
+        .any(|key| visible(key));
+        let light_colour_visible = [
+            "lightThemePreset",
+            "customSidebarTitlebarLightBackgroundTintColor",
+            "customSidebarTitlebarLightBackgroundLightnessPercent",
+        ]
+        .iter()
+        .any(|key| visible(key));
+        let colours_visible = visible("sidebarTheme")
+            || dark_colour_visible
+            || light_colour_visible
             || visible("themeSidebarContrast")
             || more_has_hit(MoreGroup::Colours, t.searching, &visible);
         if !colours_visible {
@@ -388,27 +384,15 @@ impl ThemeTab {
         }
         let mut rows: Vec<AnyElement> = Vec::new();
         if visible("sidebarTheme") {
-            let options = appearance_choices();
-            let value = values.string("sidebarTheme");
-            rows.push(segmented_field(
-                &p,
-                "sidebarTheme",
-                t.spec_plain(
-                    "sidebarTheme",
-                    "Appearance",
-                    "System follows your computer’s light or dark mode.",
-                ),
-                Some(reset_key::<Self>("sidebarTheme")),
-                &options,
-                Some(value.as_str()),
-                None,
-                |page: &mut Self, next, _window, cx| page.save("sidebarTheme", json!(next), cx),
-                cx,
-            ));
+            rows.push(self.appearance_row(t, window, cx));
         }
-        let dark = self.scheme_dark;
-        if visible("darkThemePreset") || visible("lightThemePreset") {
-            rows.push(self.theme_colour_row(t, dark, cx));
+        if dark_colour_visible {
+            rows.push(self.theme_colour_row(t, true, cx));
+            rows.extend(self.custom_colour_rows(t, true, window, cx));
+        }
+        if light_colour_visible {
+            rows.push(self.theme_colour_row(t, false, cx));
+            rows.extend(self.custom_colour_rows(t, false, window, cx));
         }
         if visible("themeSidebarContrast") || visible("themeWorkAreaContrast") {
             let step = colourfulness_step_index(values);
@@ -451,7 +435,10 @@ impl ThemeTab {
                         .child("Set per area")
                         .into_any_element(),
                 })
-                .child(colourfulness_preview(&p, preview_colours(values, dark)))
+                .child(colourfulness_preview(
+                    &p,
+                    preview_colours(values, self.scheme_dark),
+                ))
                 .into_any_element();
             rows.push(setting_row(
                 &p,
@@ -460,7 +447,8 @@ impl ThemeTab {
                     "themeSidebarContrast",
                     "Colourfulness",
                     "How much of the colour shows in the sidebar and work area. Vivid is lighter and more colourful, Subtle is deeper and nearly neutral.",
-                ),
+                )
+                .icon(ICON_COLOURFULNESS),
                 Some(reset_key::<Self>("themeSidebarContrast")),
                 control,
                 cx,
@@ -473,7 +461,7 @@ impl ThemeTab {
                 &p,
                 "theme-more-colours",
                 "More colour options",
-                "separate sidebar and work area, custom colour, active pane outline",
+                "Sidebar and work area apart, active pane outline",
                 shown,
                 move |page, _window, cx| page.set_more_open(MoreGroup::Colours, !open, cx),
                 cx,
@@ -485,14 +473,70 @@ impl ThemeTab {
         settings_section(
             &p,
             "Colours",
-            Some("Pick a colour and how see-through Ghostex is. Each group has its own More options.".into()),
+            Some("The colour of the sidebar and window in each mode.".into()),
             None,
             rows,
         )
         .map(IntoElement::into_any_element)
     }
 
-    /// Theme colour: the Dark mode / Light mode tabs, the sixteen squares and the pairing note.
+    /// Appearance: System, Light and Dark as three preview cards, each a small window in that
+    /// appearance's colours.
+    fn appearance_row(
+        &mut self,
+        t: &ThemeCx,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let p = t.p;
+        let values = &t.values;
+        let current = values.string("sidebarTheme");
+        let dark = preview_colours(values, true);
+        let light = preview_colours(values, false);
+        let cards: Vec<AnyElement> = appearance_choices()
+            .into_iter()
+            .map(|option| {
+                let windows = match option.value.as_str() {
+                    "system" => vec![light, dark],
+                    "plain-light" => vec![light],
+                    _ => vec![dark],
+                };
+                let selected = option.value == current;
+                let value = option.value.clone();
+                appearance_card(
+                    &p,
+                    SharedString::from(format!("theme-appearance-{}", option.value)),
+                    &option.label,
+                    windows,
+                    selected,
+                    move |page, cx| page.save("sidebarTheme", json!(value.clone()), cx),
+                    cx,
+                )
+            })
+            .collect();
+        let control = h_flex()
+            .w_full()
+            .gap(px(16.0))
+            .children(cards)
+            .into_any_element();
+        setting_row(
+            &p,
+            "sidebarTheme",
+            t.spec_plain(
+                "sidebarTheme",
+                "Appearance",
+                "System follows your computer’s light or dark mode.",
+            )
+            .icon(ICON_APPEARANCE)
+            .wide(),
+            Some(reset_key::<Self>("sidebarTheme")),
+            control,
+            cx,
+        )
+    }
+
+    /// Dark mode colour or Light mode colour: the sixteen squares and the "+" Custom square. The
+    /// readout names the colour and says when it still follows the other mode.
     fn theme_colour_row(&mut self, t: &ThemeCx, dark: bool, cx: &mut Context<Self>) -> AnyElement {
         let p = t.p;
         let values = &t.values;
@@ -501,90 +545,97 @@ impl ThemeTab {
         } else {
             "lightThemePreset"
         };
+        let mode = if dark { "dark" } else { "light" };
         let selected = values.string(key);
         let step = colourfulness_display_step(values.f64("themeSidebarContrast"));
-        let squares: Vec<AnyElement> = preset_options(dark)
+        let mut squares: Vec<AnyElement> = preset_options(dark)
             .into_iter()
+            .filter(|(value, _)| value != "custom")
             .map(|(value, label)| {
-                let image = self.swatch_image(dark, &value, step);
+                let colour = swatch_colour(&swatch_paint(dark, &value, step));
                 let is_selected = value == selected;
                 let preset = value.clone();
                 swatch(
                     &p,
-                    SharedString::from(format!(
-                        "theme-colour-{}-{value}",
-                        if dark { "dark" } else { "light" }
-                    )),
+                    SharedString::from(format!("theme-colour-{mode}-{value}")),
                     label,
-                    image,
+                    colour,
                     is_selected,
                     move |page, cx| page.select_preset(dark, preset.clone(), cx),
                     cx,
                 )
             })
             .collect();
+        squares.push(custom_swatch(
+            &p,
+            SharedString::from(format!("theme-colour-{mode}-custom")),
+            selected == "custom",
+            move |page, cx| page.select_preset(dark, "custom".to_string(), cx),
+            cx,
+        ));
         let other_key = if dark {
             "lightThemePreset"
         } else {
             "darkThemePreset"
         };
-        let own = values.string(key);
         let other = values.string(other_key);
-        let paired =
-            own != "custom" && paired_preset(dark, &own).as_deref() == Some(other.as_str());
+        let paired = selected != "custom"
+            && paired_preset(dark, &selected).as_deref() == Some(other.as_str());
+        let picked_here = if dark {
+            self.picked_dark
+        } else {
+            self.picked_light
+        };
         let other_picked = if dark {
             self.picked_light
         } else {
             self.picked_dark
         };
-        let other_name = if dark { "Light" } else { "Dark" };
-        let note = if paired && !other_picked && other != "custom" {
-            format!(
-                "{other_name} mode follows with {} until you pick one there.",
-                preset_label(!dark, &other)
-            )
-        } else {
-            format!(
-                "{other_name} mode keeps its own colour ({}).",
-                if other == "custom" {
-                    "Custom".to_string()
-                } else {
-                    preset_label(!dark, &other)
-                }
-            )
-        };
-        let readout = if selected == "custom" {
+        let name = if selected == "custom" {
             "Custom".to_string()
         } else {
             preset_label(dark, &selected)
         };
-        let picker = v_flex()
-            .w_full()
-            .gap(px(12.0))
-            .child(h_flex().child(scheme_tabs(&p, dark, cx)))
-            .child(h_flex().w_full().gap(px(8.0)).children(squares))
-            .child(
-                div()
-                    .text_size(px(13.0))
-                    .line_height(px(18.57))
-                    .text_color(hsla(p.muted))
-                    .child(note),
+        // Light mode follows the dark pick until a light colour is picked on purpose; dark mode
+        // follows only when light was picked first.
+        let follows = paired && !picked_here && (!dark || other_picked);
+        let readout = if follows {
+            format!(
+                "{name} · follows {} mode",
+                if dark { "light" } else { "dark" }
             )
+        } else {
+            name
+        };
+        let control = h_flex()
+            .gap(px(SWATCH_GAP))
+            .items_center()
+            .children(squares)
             .into_any_element();
-        let spec = t
-            .spec_plain(
-                key,
-                "Theme colour",
-                "The colour of the sidebar and window in each mode. Picking one gives the other mode the same colour until you pick one there.",
-            )
-            .readout(readout)
-            .wide();
         setting_row(
             &p,
-            "themeColour",
-            spec,
+            if dark {
+                "themeColourDark"
+            } else {
+                "themeColourLight"
+            },
+            t.spec_plain(
+                key,
+                if dark {
+                    "Dark mode colour"
+                } else {
+                    "Light mode colour"
+                },
+                if dark {
+                    "The colour of the sidebar and window in dark mode. Picking one gives light mode the same colour until you pick one there. The + square picks any tint."
+                } else {
+                    "The colour of the sidebar and window in light mode. It follows the dark mode colour until you pick one here. The + square picks any tint."
+                },
+            )
+            .readout(readout)
+            .icon(if dark { ICON_DARK } else { ICON_LIGHT }),
             Some(reset_key::<Self>(key)),
-            picker,
+            control,
             cx,
         )
     }
@@ -656,14 +707,15 @@ impl ThemeTab {
             rows.push(setting_row(
                 &p,
                 format!("{key}-step"),
-                RowSpec::new(label).keyed(&values, key).dependent(),
+                RowSpec::new(label)
+                    .keyed(&values, key)
+                    .dependent()
+                    .marker_after_label(),
                 Some(reset_key::<Self>(key)),
                 slider,
                 cx,
             ));
         }
-        rows.extend(self.custom_colour_rows(t, true, window, cx));
-        rows.extend(self.custom_colour_rows(t, false, window, cx));
         if t.visible("showActivePaneOutline") {
             rows.push(toggle_field(
                 self,
@@ -698,7 +750,8 @@ impl ThemeTab {
         rows
     }
 
-    /// Custom colour in dark (or light) mode, and its tint and depth while it is on.
+    /// The tint and depth of the custom colour, right under its colour row while the "+" square is
+    /// picked.
     ///
     /// CDXC:Theming 2026-06-15 WHY:
     /// The custom background is a constrained contrast slider plus an in-app tint picker, not a freeform colour: calibrated backgrounds keep sidebar row states predictable, and the tint picker must not be the system colour panel.
@@ -711,59 +764,21 @@ impl ThemeTab {
     ) -> Vec<AnyElement> {
         let p = t.p;
         let values = t.values.clone();
-        let (preset_key, tint_key, depth_key, other_key) = if dark {
+        let (preset_key, tint_key, depth_key) = if dark {
             (
                 "darkThemePreset",
                 "customSidebarTitlebarBackgroundTintColor",
                 "customSidebarTitlebarBackgroundDarknessPercent",
-                "lightThemePreset",
             )
         } else {
             (
                 "lightThemePreset",
                 "customSidebarTitlebarLightBackgroundTintColor",
                 "customSidebarTitlebarLightBackgroundLightnessPercent",
-                "darkThemePreset",
             )
         };
         let mut rows = Vec::new();
-        if !(t.visible(tint_key) || t.visible(depth_key)) {
-            return rows;
-        }
         let custom = values.string(preset_key) == "custom";
-        rows.push(toggle_field_with(
-            &p,
-            if dark {
-                "themeCustomDark"
-            } else {
-                "themeCustomLight"
-            },
-            t.spec_plain(
-                preset_key,
-                if dark {
-                    "Custom colour in dark mode"
-                } else {
-                    "Custom colour in light mode"
-                },
-                if dark {
-                    "Pick any tint instead of a colour square for dark mode."
-                } else {
-                    "Pick any tint instead of a colour square for light mode."
-                },
-            ),
-            custom,
-            Some(reset_key::<Self>(preset_key)),
-            move |page: &mut Self, checked, _window, cx| {
-                let next = if checked {
-                    "custom".to_string()
-                } else {
-                    let other = page.store.read(cx).values().string(other_key);
-                    paired_preset(!dark, &other).unwrap_or_else(|| "gray".to_string())
-                };
-                page.save(preset_key, json!(next), cx);
-            },
-            cx,
-        ));
         if custom && t.visible(tint_key) {
             rows.push(super::super::fields::web_color_picker_field(
                 self,
@@ -866,16 +881,18 @@ impl ThemeTab {
         let options = settings_catalog().options(module::SETTINGS, "SESSION_CHAT_THEME_OPTIONS");
         let allowed: Vec<String> = options.iter().map(|option| option.value.clone()).collect();
         let mut rows: Vec<AnyElement> = Vec::new();
-        for (key, label, description) in [
+        for (key, label, description, icon) in [
             (
                 "sessionChatTheme",
                 "Chat theme",
                 "Follow the app theme, or choose a separate appearance for chat.",
+                ICON_CHAT,
             ),
             (
                 "terminalColorScheme",
                 "Terminal theme",
                 "Follow the app theme, or choose a separate appearance for terminals.",
+                ICON_TERMINAL,
             ),
         ] {
             if !visible(key) {
@@ -885,7 +902,7 @@ impl ThemeTab {
                 self,
                 &p,
                 key,
-                t.spec(key, label, description),
+                t.spec(key, label, description).icon(icon),
                 Some(reset_key::<Self>(key)),
                 &options,
                 &values.choice(key, &allowed),
@@ -901,8 +918,8 @@ impl ThemeTab {
             rows.push(more_options_button(
                 &p,
                 "theme-more-chat-terminal",
-                "More chat and terminal options",
-                "terminal palettes",
+                "Terminal palettes",
+                "The terminal colours in dark mode and in light mode",
                 shown,
                 move |page, _window, cx| page.set_more_open(MoreGroup::ChatTerminal, !open, cx),
                 cx,
@@ -985,8 +1002,14 @@ impl ThemeTab {
                 ));
             }
         }
-        settings_section(&p, "Chat and terminal", None, None, rows)
-            .map(IntoElement::into_any_element)
+        settings_section(
+            &p,
+            "Chat and terminal",
+            Some("Follow the app, or give them their own appearance.".into()),
+            None,
+            rows,
+        )
+        .map(IntoElement::into_any_element)
     }
 
     /// App Icon: shown only while `APP_ICON_CONTROLS_VISIBLE` is on.
@@ -1047,16 +1070,17 @@ impl ThemeTab {
         cx: &mut Context<Self>,
     ) -> Option<AnyElement> {
         let rows = [
-            ("Chat font and size", "Chat font"),
-            ("Sidebar size", "Sidebar Interface Size"),
+            ("Chat font and size", "Chat font", ICON_FONT),
+            ("Sidebar size", "Sidebar Interface Size", ICON_SIDEBAR),
             (
                 "Terminal background colour and image",
                 "Terminal background",
+                ICON_TERMINAL,
             ),
         ]
         .into_iter()
         .enumerate()
-        .map(|(index, (label, query))| {
+        .map(|(index, (label, query, icon))| {
             let button = settings_button(
                 p,
                 SharedString::from(format!("theme-related-{index}")),
@@ -1077,14 +1101,14 @@ impl ThemeTab {
             setting_row(
                 p,
                 format!("theme-related-row-{index}"),
-                RowSpec::new(label),
+                RowSpec::new(label).icon(icon),
                 None,
                 button,
                 cx,
             )
         })
         .collect();
-        settings_section(p, "Related settings on General", None, None, rows)
+        settings_section(p, "Related on General", None, None, rows)
             .map(IntoElement::into_any_element)
     }
 }

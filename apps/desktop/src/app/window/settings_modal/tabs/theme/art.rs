@@ -123,7 +123,7 @@ fn disc(center: (f64, f64), color: u32, edge: f64) -> Layer {
     }
 }
 
-/// The art above a "What shows behind the glass" card: `desktopAndWindows`, `wallpaper`,
+/// The art above a "Behind the glass" card: `desktopAndWindows`, `wallpaper`,
 /// `customImage` or `live`, 2x its 147x46 box.
 pub(super) fn source_art(source: &str) -> Option<Arc<RenderImage>> {
     let (width, height) = (294, 92);

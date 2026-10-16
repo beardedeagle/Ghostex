@@ -1,6 +1,7 @@
-//! The Transparency group of the Theme page: Enable transparency and Strength, and under More
-//! transparency options the glass flow (1 what shows behind the glass, 2 the pictures or the Live
-//! style, 3 their position), the four tints and Use transparency.
+//! The Transparency group of the Theme page: one Off / Dark only / Always control, Strength, Blur
+//! (the points slider, or Windows' own blur choice) and Behind the glass with its pictures or Live
+//! gallery; under More transparency options the picture position, Live speed and brightness, Play
+//! only when plugged in, the four tints and Menu blur.
 //!
 //! CDXC:Theming 2026-09-26 DECISION:
 //! User: rename Automatic to "Dark only", and when it is picked hide every light-mode transparency control (the light tints, the light picture and the light video); their saved values stay for when Always is picked again.
@@ -8,15 +9,18 @@ use super::super::super::super::native_modal_kit::*;
 use super::super::super::catalog::{SettingOption, module, settings_catalog};
 use super::super::super::fields::{
     SizedButtonSize, SizedButtonVariant, SliderBinding, SliderSaver, reset_key, segmented_field,
-    select_field, settings_sized_button, slider_number_field, slider_number_field_with,
-    stock_segmented, text_field, toggle_field, toggle_field_with, tooltip_text,
+    select_field, setting_row, settings_sized_button, slider_number_field,
+    slider_number_field_with, stock_segmented, text_field, toggle_field, tooltip_text,
 };
 use super::super::super::palette::SettingsPalette;
 use super::super::super::store::{SettingsStore, post_store_message};
 use super::colours::{
     STRENGTH_MAX, STRENGTH_MIN, STRENGTH_STEP, strength_from_settings, strength_patch,
 };
-use super::controls::{more_options_button, stacked_row, subhead};
+use super::controls::{
+    ICON_BEHIND_GLASS, ICON_BLUR, ICON_STRENGTH, ICON_TRANSPARENCY, indented_row,
+    more_options_button, subhead,
+};
 use super::{MoreGroup, ThemeCx, ThemeTab, art, gallery, more_has_hit};
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
@@ -40,12 +44,26 @@ const SOURCE_CARDS: [(&str, &str, &str); 4] = [
     ("live", "Live", "A calm animation, or your own video."),
 ];
 
-/// `USE_TRANSPARENCY_CHOICES`.
-fn use_transparency_choices() -> Vec<SettingOption> {
+/// The keys the Transparency card shows outside its More row.
+const MAIN_KEYS: [&str; 10] = [
+    "windowGlass",
+    "windowGlassBlurRadius",
+    "windowGlassWindowsBlur",
+    "windowGlassSource",
+    "windowGlassImageDark",
+    "windowGlassImageLight",
+    "windowGlassVideoDark",
+    "windowGlassVideoLight",
+    "windowGlassLiveStyleDark",
+    "windowGlassLiveStyleLight",
+];
+
+/// The one Transparency control: Off, Dark only, Always (`windowGlass` opaque, auto, frosted).
+fn transparency_choices() -> Vec<SettingOption> {
     [
+        ("Off", "opaque"),
         ("Dark only", "auto"),
         ("Always", "frosted"),
-        ("Never", "opaque"),
     ]
     .iter()
     .map(|(label, value)| SettingOption {
@@ -123,17 +141,6 @@ pub(in super::super) fn windows_blur_field<V: super::super::super::fields::Setti
     )
 }
 
-/// `windowGlassForTransparency`: turning transparency on keeps Always and otherwise picks Dark only.
-fn glass_for_transparency(current: &str, enabled: bool) -> &str {
-    if !enabled {
-        "opaque"
-    } else if current == "opaque" {
-        "auto"
-    } else {
-        current
-    }
-}
-
 fn number(name: &str) -> f64 {
     settings_catalog().number(module::SETTINGS, name)
 }
@@ -200,9 +207,7 @@ impl ThemeTab {
         let values = t.values.clone();
         let visible_fn = t.visible.clone();
         let visible = |key: &str| visible_fn(key);
-        if !(visible("windowGlass")
-            || visible("windowGlassBlurRadius")
-            || visible("windowGlassWindowsBlur")
+        if !(MAIN_KEYS.iter().any(|key| visible(key))
             || more_has_hit(MoreGroup::Transparency, t.searching, &visible))
         {
             return None;
@@ -212,25 +217,25 @@ impl ThemeTab {
         let dark_only = glass == "auto";
         let note = status_note(t.glass_blocked);
         let mut rows: Vec<AnyElement> = Vec::new();
-        if visible("windowGlass") {
-            let current = glass.clone();
-            rows.push(toggle_field_with(
+        // A search hit on a glass row while transparency is Off shows the control that turns it on.
+        if visible("windowGlass") || (t.searching && !glass_on) {
+            let options = transparency_choices();
+            rows.push(segmented_field(
                 &p,
                 "windowGlass",
                 t.spec_plain(
                     "windowGlass",
-                    "Enable transparency",
-                    &format!("Let your desktop show softly through the window.{note}"),
-                ),
-                glass_on,
+                    "Transparency",
+                    &format!(
+                        "Let your desktop show softly through the window. Dark only keeps light mode solid.{note}"
+                    ),
+                )
+                .icon(ICON_TRANSPARENCY),
                 Some(reset_key::<Self>("windowGlass")),
-                move |page: &mut Self, checked, _window, cx| {
-                    page.save(
-                        "windowGlass",
-                        json!(glass_for_transparency(&current, checked)),
-                        cx,
-                    );
-                },
+                &options,
+                Some(glass.as_str()),
+                None,
+                |page: &mut Self, next, _window, cx| page.save("windowGlass", json!(next), cx),
                 cx,
             ));
         }
@@ -258,7 +263,8 @@ impl ThemeTab {
                     } else {
                         "Higher shows more of what is behind the window."
                     },
-                ),
+                )
+                .icon(ICON_STRENGTH),
                 Some(reset_key::<Self>("windowGlassSidebarOpacityDark")),
                 SliderBinding {
                     key: "themeTransparencyStrength",
@@ -289,7 +295,8 @@ impl ThemeTab {
                     } else {
                         "How soft the wallpaper, picture or video behind the window looks, in points. 0 shows it sharp. Desktop and windows uses your system's own blur."
                     },
-                ),
+                )
+                .icon(ICON_BLUR),
                 Some(reset_key::<Self>("windowGlassBlurRadius")),
                 SliderBinding {
                     key: "windowGlassBlurRadius",
@@ -305,7 +312,8 @@ impl ThemeTab {
         if glass_on && windows_blur_shown(&values) && visible("windowGlassWindowsBlur") {
             rows.push(windows_blur_field(
                 &p,
-                t.spec_plain("windowGlassWindowsBlur", "Blur", WINDOWS_BLUR_DESCRIPTION),
+                t.spec_plain("windowGlassWindowsBlur", "Blur", WINDOWS_BLUR_DESCRIPTION)
+                    .icon(ICON_BLUR),
                 &values,
                 Some(reset_key::<Self>("windowGlassWindowsBlur")),
                 |page: &mut Self, next, _window, cx| {
@@ -314,84 +322,89 @@ impl ThemeTab {
                 cx,
             ));
         }
-        let shown = self.more_shown(MoreGroup::Transparency, t.searching, &visible);
-        if !t.searching {
+        if glass_on {
+            rows.extend(self.behind_glass_rows(t, dark_only, window, cx));
+        }
+        let shown = glass_on && self.more_shown(MoreGroup::Transparency, t.searching, &visible);
+        if glass_on && !t.searching {
             let open = self.more_open[MoreGroup::Transparency.index()];
             rows.push(more_options_button(
                 &p,
                 "theme-more-transparency",
                 "More transparency options",
-                "what shows behind, sidebar and work area tints, when to use it",
+                "Picture position, Live speed, sidebar and work area tints, menu blur",
                 shown,
                 move |page, _window, cx| page.set_more_open(MoreGroup::Transparency, !open, cx),
                 cx,
             ));
         }
         if shown {
-            rows.extend(self.more_transparency_rows(t, glass_on, dark_only, note, window, cx));
+            rows.extend(self.more_transparency_rows(t, dark_only, window, cx));
         }
-        super::super::super::fields::settings_section(&p, "Transparency", None, None, rows)
-            .map(IntoElement::into_any_element)
+        super::super::super::fields::settings_section(
+            &p,
+            "Transparency",
+            Some("Let your desktop show softly through the window.".into()),
+            None,
+            rows,
+        )
+        .map(IntoElement::into_any_element)
     }
 
-    fn more_transparency_rows(
+    /// Behind the glass: the four picture cards, then the pictures or the Live gallery for the
+    /// picked one right under them. Under Dark only the light-mode slots stay hidden.
+    fn behind_glass_rows(
         &mut self,
         t: &ThemeCx,
-        glass_on: bool,
         dark_only: bool,
-        note: &str,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Vec<AnyElement> {
         let p = t.p;
         let values = t.values.clone();
         let source = values.string("windowGlassSource");
-        let uses_picture = source != "desktopAndWindows";
         let appearances: Vec<bool> = if dark_only {
             vec![false]
         } else {
             vec![false, true]
         };
-        let live_slots: Vec<String> = appearances
-            .iter()
-            .map(|light| {
-                values.string(if *light {
-                    "windowGlassLiveStyleLight"
-                } else {
-                    "windowGlassLiveStyleDark"
-                })
-            })
-            .collect();
-        let live_uses_animation = live_slots.iter().any(|style| style != "video");
-        let live_uses_video = live_slots.iter().any(|style| style == "video");
-        // A Live animation is drawn over the window itself, so only a video has a position to pick.
-        let uses_placement = uses_picture && (source != "live" || live_uses_video);
+        let pictures_visible =
+            t.visible("windowGlassImageDark") || t.visible("windowGlassImageLight");
+        let live_visible = [
+            "windowGlassLiveStyleDark",
+            "windowGlassLiveStyleLight",
+            "windowGlassVideoDark",
+            "windowGlassVideoLight",
+        ]
+        .iter()
+        .any(|key| t.visible(key));
         let mut rows: Vec<AnyElement> = Vec::new();
-        if glass_on && t.visible("windowGlassSource") {
-            rows.push(subhead(&p, Some(1), "What shows behind the glass"));
-            rows.push(stacked_row(self.source_cards(&p, &source, cx)));
+        if !(t.visible("windowGlassSource") || pictures_visible || live_visible) {
+            return rows;
         }
-        if glass_on && uses_picture && source != "wallpaper" {
-            rows.push(subhead(
-                &p,
-                Some(2),
-                if source == "live" {
-                    "Choose the style"
-                } else {
-                    "Choose the pictures"
-                },
-            ));
-        }
-        if glass_on && source == "customImage" {
+        let cards = self.source_cards(&p, &source, cx);
+        rows.push(setting_row(
+            &p,
+            "windowGlassSource",
+            t.spec_plain(
+                "windowGlassSource",
+                "Behind the glass",
+                "What the glass blurs: everything behind Ghostex, just your desktop picture, a picture you choose, or Live, a calm animation in your theme colours or your own video.",
+            )
+            .icon(ICON_BEHIND_GLASS)
+            .wide(),
+            Some(reset_key::<Self>("windowGlassSource")),
+            cards,
+            cx,
+        ));
+        if source == "customImage" && pictures_visible {
             if t.native_picker {
-                if t.visible("windowGlassImageDark") || t.visible("windowGlassImageLight") {
-                    rows.push(stacked_row(self.picture_pair(
-                        &p,
-                        &values,
-                        &appearances,
-                        cx,
-                    )));
-                }
+                rows.push(indented_row(self.picture_pair(
+                    &p,
+                    &values,
+                    &appearances,
+                    cx,
+                )));
             } else {
                 for light in &appearances {
                     let key = if *light {
@@ -428,11 +441,8 @@ impl ThemeTab {
                 }
             }
         }
-        if glass_on
-            && source == "live"
-            && (t.visible("windowGlassLiveStyleDark") || t.visible("windowGlassLiveStyleLight"))
-        {
-            rows.push(stacked_row(self.live_gallery(
+        if source == "live" && live_visible {
+            rows.push(indented_row(self.live_gallery(
                 &p,
                 &values,
                 dark_only,
@@ -440,76 +450,42 @@ impl ThemeTab {
                 cx,
             )));
         }
-        if glass_on && source == "live" && live_uses_animation && t.visible("windowGlassLiveSpeed")
-        {
-            rows.push(slider_number_field(
-                self,
-                &p,
-                t.spec(
-                    "windowGlassLiveSpeed",
-                    "Speed",
-                    "How fast the Live animation moves. 1 is its own calm pace. Your own video plays as it is.",
-                )
-                .dependent(),
-                Some(reset_key::<Self>("windowGlassLiveSpeed")),
-                SliderBinding {
-                    key: "windowGlassLiveSpeed",
-                    min: number("MIN_WINDOW_GLASS_LIVE_SPEED"),
-                    max: number("MAX_WINDOW_GLASS_LIVE_SPEED"),
-                    step: 0.25,
-                },
-                values.f64("windowGlassLiveSpeed"),
-                window,
-                cx,
-            ));
-        }
-        if glass_on
-            && source == "live"
-            && live_uses_animation
-            && t.visible("windowGlassLiveBrightness")
-        {
-            rows.push(slider_number_field(
-                self,
-                &p,
-                t.spec(
-                    "windowGlassLiveBrightness",
-                    "Brightness",
-                    "How bright the Live animation glows behind the glass. Lower keeps it a subtle glow.",
-                )
-                .dependent(),
-                Some(reset_key::<Self>("windowGlassLiveBrightness")),
-                SliderBinding {
-                    key: "windowGlassLiveBrightness",
-                    min: number("MIN_WINDOW_GLASS_LIVE_BRIGHTNESS"),
-                    max: number("MAX_WINDOW_GLASS_LIVE_BRIGHTNESS"),
-                    step: 1.0,
-                },
-                values.f64("windowGlassLiveBrightness"),
-                window,
-                cx,
-            ));
-        }
-        if glass_on && source == "live" && t.visible("windowGlassVideoOnlyOnPower") {
-            rows.push(toggle_field(
-                self,
-                &p,
-                "windowGlassVideoOnlyOnPower",
-                t.spec(
-                    "windowGlassVideoOnlyOnPower",
-                    "Play only when plugged in",
-                    "Pause the Live animation or video while your computer runs on battery. It always pauses while Ghostex is in the background or hidden.",
-                )
-                .dependent(),
-                values.bool("windowGlassVideoOnlyOnPower"),
-                cx,
-            ));
-        }
-        if glass_on && uses_placement && t.visible("windowGlassImagePlacement") {
-            rows.push(subhead(
-                &p,
-                Some(if source == "wallpaper" { 2 } else { 3 }),
-                "Position",
-            ));
+        rows
+    }
+
+    /// The rows under More transparency options (only while transparency is on).
+    fn more_transparency_rows(
+        &mut self,
+        t: &ThemeCx,
+        dark_only: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Vec<AnyElement> {
+        let p = t.p;
+        let values = t.values.clone();
+        let source = values.string("windowGlassSource");
+        let uses_picture = source != "desktopAndWindows";
+        let appearances: Vec<bool> = if dark_only {
+            vec![false]
+        } else {
+            vec![false, true]
+        };
+        let live_slots: Vec<String> = appearances
+            .iter()
+            .map(|light| {
+                values.string(if *light {
+                    "windowGlassLiveStyleLight"
+                } else {
+                    "windowGlassLiveStyleDark"
+                })
+            })
+            .collect();
+        let live_uses_animation = live_slots.iter().any(|style| style != "video");
+        let live_uses_video = live_slots.iter().any(|style| style == "video");
+        // A Live animation is drawn over the window itself, so only a video has a position to pick.
+        let uses_placement = uses_picture && (source != "live" || live_uses_video);
+        let mut rows: Vec<AnyElement> = Vec::new();
+        if uses_placement && t.visible("windowGlassImagePlacement") {
             let options = settings_catalog()
                 .options(module::SETTINGS, "WINDOW_GLASS_IMAGE_PLACEMENT_OPTIONS");
             let allowed: Vec<String> = options.iter().map(|option| option.value.clone()).collect();
@@ -533,8 +509,61 @@ impl ThemeTab {
                 cx,
             ));
         }
-        if glass_on {
-            rows.push(subhead(&p, None, "Fine-tune the tints"));
+        if source == "live" && live_uses_animation && t.visible("windowGlassLiveSpeed") {
+            rows.push(slider_number_field(
+                self,
+                &p,
+                t.spec(
+                    "windowGlassLiveSpeed",
+                    "Live speed",
+                    "How fast the Live animation moves. 1 is its own calm pace. Your own video plays as it is.",
+                ),
+                Some(reset_key::<Self>("windowGlassLiveSpeed")),
+                SliderBinding {
+                    key: "windowGlassLiveSpeed",
+                    min: number("MIN_WINDOW_GLASS_LIVE_SPEED"),
+                    max: number("MAX_WINDOW_GLASS_LIVE_SPEED"),
+                    step: 0.25,
+                },
+                values.f64("windowGlassLiveSpeed"),
+                window,
+                cx,
+            ));
+        }
+        if source == "live" && live_uses_animation && t.visible("windowGlassLiveBrightness") {
+            rows.push(slider_number_field(
+                self,
+                &p,
+                t.spec(
+                    "windowGlassLiveBrightness",
+                    "Live brightness",
+                    "How bright the Live animation glows behind the glass. Lower keeps it a subtle glow.",
+                ),
+                Some(reset_key::<Self>("windowGlassLiveBrightness")),
+                SliderBinding {
+                    key: "windowGlassLiveBrightness",
+                    min: number("MIN_WINDOW_GLASS_LIVE_BRIGHTNESS"),
+                    max: number("MAX_WINDOW_GLASS_LIVE_BRIGHTNESS"),
+                    step: 1.0,
+                },
+                values.f64("windowGlassLiveBrightness"),
+                window,
+                cx,
+            ));
+        }
+        if source == "live" && t.visible("windowGlassVideoOnlyOnPower") {
+            rows.push(toggle_field(
+                self,
+                &p,
+                "windowGlassVideoOnlyOnPower",
+                t.spec(
+                    "windowGlassVideoOnlyOnPower",
+                    "Play only when plugged in",
+                    "Pause the Live animation or video while your computer runs on battery. It always pauses while Ghostex is in the background or hidden.",
+                ),
+                values.bool("windowGlassVideoOnlyOnPower"),
+                cx,
+            ));
         }
         let sidebar_range = (
             number("MIN_WINDOW_GLASS_SIDEBAR_OPACITY_PERCENT"),
@@ -544,7 +573,7 @@ impl ThemeTab {
             number("MIN_WINDOW_GLASS_WORK_AREA_TINT_PERCENT"),
             number("MAX_WINDOW_GLASS_WORK_AREA_TINT_PERCENT"),
         );
-        for (key, label, description, range, light) in [
+        let tints = [
             (
                 "windowGlassSidebarOpacityDark",
                 "Sidebar tint in dark mode",
@@ -573,10 +602,15 @@ impl ThemeTab {
                 work_range,
                 true,
             ),
-        ] {
-            if !glass_on || (light && dark_only) || !t.visible(key) {
-                continue;
-            }
+        ];
+        let shown_tints: Vec<_> = tints
+            .into_iter()
+            .filter(|(key, _, _, _, light)| !(*light && dark_only) && t.visible(key))
+            .collect();
+        if !shown_tints.is_empty() {
+            rows.push(subhead(&p, None, "Fine-tune the tints"));
+        }
+        for (key, label, description, range, _) in shown_tints {
             rows.push(slider_number_field(
                 self,
                 &p,
@@ -594,7 +628,7 @@ impl ThemeTab {
             ));
         }
         // Windows and Linux menus use the system's own blur, which has no radius to set.
-        if cfg!(target_os = "macos") && glass_on && t.visible("windowGlassMenuBlurRadius") {
+        if cfg!(target_os = "macos") && t.visible("windowGlassMenuBlurRadius") {
             rows.push(slider_number_field(
                 self,
                 &p,
@@ -615,29 +649,10 @@ impl ThemeTab {
                 cx,
             ));
         }
-        if t.visible("windowGlass") {
-            let options = use_transparency_choices();
-            let value = values.string("windowGlass");
-            rows.push(segmented_field(
-                &p,
-                "windowGlassMode",
-                t.spec(
-                    "windowGlass",
-                    "Use transparency",
-                    &format!("Dark only keeps light mode opaque.{note}"),
-                ),
-                Some(reset_key::<Self>("windowGlass")),
-                &options,
-                Some(value.as_str()),
-                None,
-                |page: &mut Self, next, _window, cx| page.save("windowGlass", json!(next), cx),
-                cx,
-            ));
-        }
         rows
     }
 
-    /// Step 1: the four picture cards.
+    /// Behind the glass: the four picture cards.
     fn source_cards(
         &mut self,
         p: &SettingsPalette,
@@ -740,7 +755,7 @@ impl ThemeTab {
             .into_any_element()
     }
 
-    /// Step 2 for Picture: the dark and light pictures side by side.
+    /// The dark and light pictures side by side, under the Picture card.
     fn picture_pair(
         &mut self,
         p: &SettingsPalette,

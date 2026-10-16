@@ -1816,8 +1816,8 @@ Terminal background (Settings, Terminal) is Black / white by default: pure black
 behind dark terminals and pure white behind light ones. Choose Follow theme to use
 the theme's background color instead, or Custom color to pick your own for dark mode.
 
-Terminals are see-through only while the window is: turn on Enable transparency
-(Settings, Theme, Transparency; it starts off on Windows and on in dark mode on
+Terminals are see-through only while the window is: set Transparency to Dark only
+or Always (Settings, Theme, Transparency; it starts Off on Windows and Dark only on
 macOS and Linux). Background opacity (Settings, Terminal) then sets how much of the
 work area's tint terminals keep: 100% matches the rest of the work area, lower
 shows more of your desktop through them. While transparency is off the row offers
@@ -3065,58 +3065,61 @@ Related settings: none; window positions and layouts are saved automatically.
 
 Theme colours, colourfulness, window glass, and active pane outline live on their
 own Settings page, Theme, right below General (`ghostex settings open --tab theme`).
-It has three groups, each with its own More options button for the finer
-controls, plus links to related settings on General; a search for a row inside
-More options opens it.
-Colours: Appearance (System, Light, or Dark; System is the default and follows the
-operating system appearance); Theme colour, a row of sixteen small gradient
-squares with Dark mode and Light mode tabs (Graphite, the default, Black in dark
-mode or White in light mode, Slate, Midnight, a deep navy, Blue, Indigo, Teal,
-Green, Forest, Olive, Amber, Orange, Red, Rose, Pink and Purple; picking a colour
-gives the other mode the same colour until you pick one there yourself); and
-Colourfulness, a fine-grained slider from Subtle to Vivid (Soft is the default;
+It has three groups, Colours, Transparency and Chat and terminal, each one card
+whose finer controls sit under its own More row, plus links to related settings
+on General; a search for a row inside a More row opens it.
+Colours: Appearance, three preview cards (System, Light, or Dark; System is the
+default and follows the operating system appearance); Dark mode colour and Light
+mode colour, each a row of sixteen small colour squares (Graphite, the default,
+Black in dark mode or White in light mode, Slate, Midnight, a deep navy, Blue,
+Indigo, Teal, Green, Forest, Olive, Amber, Orange, Red, Rose, Pink and Purple;
+picking a dark colour gives light mode the same colour until you pick one there
+yourself, and the light row says when it still follows) and a + square for a
+custom colour, which opens its tint and depth (85 to 100 for dark and 60 to 100
+for light) right under that row; and Colourfulness, a fine-grained slider from Subtle to Vivid (Soft is the default;
 the name of the nearest of Subtle, Soft, Balanced, Rich and Vivid shows beside it)
 that sets how much of the colour shows in the sidebar and work area at once, with a small
 sidebar and work area preview. More colour options can set the sidebar and work
-area colourfulness separately, turn on a custom colour for dark or light mode
-(its tint and depth, 85 to 100 for dark and 60 to 100 for light), and show the
-active pane outline and its colour. A preset never overwrites the custom values,
-so turning the custom colour back on restores them. The chosen theme colors the
+area colourfulness separately, and show the active pane outline and its colour.
+A preset never overwrites the custom values, so picking the + square again
+restores them. The chosen theme colors the
 sidebar and window chrome, the sidebar's dropdown menus, and the chat view
 background (chat keeps following its own Chat theme setting, so a light chat in a
 dark app uses the light theme's color). Chat and terminal: Chat theme and
 Terminal theme default to Follow app, with optional Light, Dark, or System
-overrides; More chat and terminal options holds the terminal palettes. Existing
+overrides; its Terminal palettes row holds the terminal palettes. Existing
 saved themes are preserved, and a saved dark contrast or tint that differs from
 the default starts on the custom colour. The accent color (status highlights,
 accent text, advanced-setting markers) has no setting of its own: it follows the
 dark theme's tint hue, and a neutral tint keeps the sky-blue accent.
 Window glass lets the blurred desktop show through the sidebar, the work area,
 terminals, and chat on macOS, Windows and Linux. On macOS and Windows, menus and most dialogs (Rename
-Session, Quick Access and the like) turn frosted to match. The Transparency group's Enable
-transparency switch turns it on (Dark only, the default on macOS and Linux; Never, so
-the window is fast and solid, on Windows) or off, and
+Session, Quick Access and the like) turn frosted to match. The Transparency group's Transparency
+control picks Off, Dark only or Always (Dark only, the default on macOS and Linux,
+keeps light mode solid; Off, so the window is fast and solid, is the default on
+Windows), and
 Strength sets how see-through it is, from 0 (fully solid) to 100 (fully clear); the default
 is 10. Blur sets how soft what shows behind the window looks, from 0 (sharp) to 100 points;
 the default is 60. On Windows, Desktop and windows uses Windows' own blur, which has no amount
 to set, so there Blur is a choice instead: Acrylic (the default, Windows' frosted blur, which stays
 blurred while Ghostex is in the background), Plain blur (the same blur without Windows' grey
 frost, so Strength can go fully clear; it takes more work to draw) or Off (what is behind shows
-sharp; the fastest) (`windowGlassWindowsBlur`). The Blur slider shows on Windows once What shows
-behind the glass is Wallpaper only, Custom image or Live, where it softens the wallpaper, picture
+sharp; the fastest) (`windowGlassWindowsBlur`). The Blur slider shows on Windows once Behind the
+glass is Wallpaper only, Custom image or Live, where it softens the wallpaper, picture
 and video (`windowGlassBlurRadius`).
 On macOS, Menu blur under More transparency options does the same for menus and tooltips
-(default 20; menus opened after the change use it; macOS only) (`windowGlassMenuBlurRadius`). More transparency options goes
-in the order you decide: 1 what shows behind the glass, 2 the pictures or videos,
-3 their position, then Fine-tune the tints and Use transparency (Dark only,
-Always, or Never). With Dark only, light mode stays opaque, so the light-mode
-picture, video and tints are hidden until Always is picked.
+(default 20; menus opened after the change use it; macOS only) (`windowGlassMenuBlurRadius`). Behind the glass sits in
+the Transparency card, with the pictures or the Live choices right under the
+picked card; More transparency options holds the picture position, the Live
+speed and brightness, Play only when plugged in, Fine-tune the tints and Menu
+blur. With Dark only, light mode stays opaque, so the light-mode picture, video
+and tints are hidden until Always is picked.
 Files, Kanban, the browser, and the code editor stay opaque. Turning on Reduce
 transparency in the macOS accessibility settings, or turning off Transparency effects
 in Windows Settings > Personalization > Colors, always makes the window opaque. On
 Windows, turning glass on takes effect the next time Ghostex starts, and the corners of
 menus and pop-ups follow Windows' own rounding.
-What shows behind the glass (on macOS, Windows and Linux) is four cards: Desktop and windows (the default) shows everything behind Ghostex. Wallpaper only shows just your desktop wallpaper, so other windows never show through; built-in wallpapers such as Sequoia show as a still picture of that wallpaper, and a solid color wallpaper shows everything behind the window. Picture shows a picture you choose instead, one for dark mode and one for light mode, side by side with Choose and Clear buttons; a mode with no picture shows everything behind the window. Live shows something moving behind the glass, chosen for dark mode and for light mode (only dark mode with Use transparency set to Dark only): one of eight calm animations drawn in your theme's colours (Aurora, Ink, Drift, Nebula, Silk, Bokeh, Waves, Mesh), so switching themes or Colourfulness recolours it at once, or, on macOS and Linux, Your video, a .mov, .mp4 or .m4v file you choose, which plays muted, looping and blurred (a mode set to Your video with no file shows everything behind the window). On Windows, Live pauses when Show animations is off in Windows Settings > Accessibility > Visual effects (showing a still frame) and in battery saver. Speed sets how fast the animation moves (a quarter of its pace to twice as fast) and Brightness how bright it glows (60% by default, a soft glow that shows through the tints; every animation is about as bright as the others at the same setting); your own video plays as it is. An animation loops every two minutes without a seam, and changing the animation, theme or brightness, or switching between an animation and your video, fades rather than jumping. Nothing is downloaded. Live pauses whenever Ghostex is in the background, hidden or minimized, while the display sleeps and in Low Power Mode; Reduce Motion shows a still frame; and Play only when plugged in (on by default) pauses it on battery. For Wallpaper, Picture and Your video, Picture position picks Moves with the window (the default: the picture covers the window and moves with it) or Stays with the desktop (the picture stays put while the window moves over it, and can trail the window while you drag it) (`windowGlassSource`, `windowGlassImagePlacement`, `windowGlassImageDark`, `windowGlassImageLight`, `windowGlassLiveStyleDark`, `windowGlassLiveStyleLight`, `windowGlassVideoDark`, `windowGlassVideoLight`, `windowGlassLiveSpeed`, `windowGlassLiveBrightness`, `windowGlassVideoOnlyOnPower`).
+Behind the glass (on macOS, Windows and Linux) is four cards: Desktop and windows (the default) shows everything behind Ghostex. Wallpaper only shows just your desktop wallpaper, so other windows never show through; built-in wallpapers such as Sequoia show as a still picture of that wallpaper, and a solid color wallpaper shows everything behind the window. Picture shows a picture you choose instead, one for dark mode and one for light mode, side by side with Choose and Clear buttons; a mode with no picture shows everything behind the window. Live shows something moving behind the glass, chosen for dark mode and for light mode (only dark mode with Transparency set to Dark only): one of eight calm animations drawn in your theme's colours (Aurora, Ink, Drift, Nebula, Silk, Bokeh, Waves, Mesh), so switching themes or Colourfulness recolours it at once, or, on macOS and Linux, Your video, a .mov, .mp4 or .m4v file you choose, which plays muted, looping and blurred (a mode set to Your video with no file shows everything behind the window). On Windows, Live pauses when Show animations is off in Windows Settings > Accessibility > Visual effects (showing a still frame) and in battery saver. Speed sets how fast the animation moves (a quarter of its pace to twice as fast) and Brightness how bright it glows (60% by default, a soft glow that shows through the tints; every animation is about as bright as the others at the same setting); your own video plays as it is. An animation loops every two minutes without a seam, and changing the animation, theme or brightness, or switching between an animation and your video, fades rather than jumping. Nothing is downloaded. Live pauses whenever Ghostex is in the background, hidden or minimized, while the display sleeps and in Low Power Mode; Reduce Motion shows a still frame; and Play only when plugged in (on by default) pauses it on battery. For Wallpaper, Picture and Your video, Picture position picks Moves with the window (the default: the picture covers the window and moves with it) or Stays with the desktop (the picture stays put while the window moves over it, and can trail the window while you drag it) (`windowGlassSource`, `windowGlassImagePlacement`, `windowGlassImageDark`, `windowGlassImageLight`, `windowGlassLiveStyleDark`, `windowGlassLiveStyleLight`, `windowGlassVideoDark`, `windowGlassVideoLight`, `windowGlassLiveSpeed`, `windowGlassLiveBrightness`, `windowGlassVideoOnlyOnPower`).
 On Linux, transparency works on Xorg and Wayland desktops (the desktop app currently uses XWayland for its embedded pages). Desktop and windows uses your compositor's blur: on Hyprland, keep background blur enabled; on Xorg, run a compositor with transparency and blur support. The compositor controls the blur's strength. Picture and Live animations work without compositor blur. Wallpaper only reads the picture reported by Hyprpaper, swww/awww, GNOME, Cinnamon, MATE or a single-screen Plasma desktop; when no readable picture is available it shows Desktop and windows. Stays with the desktop works on X11 and Hyprland; other native Wayland compositors cannot report the position needed for this mode, so use Moves with the window. Your video requires FFmpeg (included as a Linux package dependency). Live respects battery power, the power-saver profile, and disabled desktop animations (`windowGlass`, `windowGlassSource`, `windowGlassImagePlacement`, `windowGlassVideoOnlyOnPower`).
 While glass is on, four sliders tune it, each in dark mode and in light mode: Sidebar tint and Work area tint set how much of the desktop each area hides, independently, so either can be the darker one; lower shows more of your desktop.
 Keep Awake (Power)

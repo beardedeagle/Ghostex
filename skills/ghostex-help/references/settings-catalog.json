@@ -1484,7 +1484,7 @@
       "sectionTitle": "Terminal",
       "type": "ui",
       "agentWritable": false,
-      "availability": "Not shown on Windows while What shows behind the glass is Desktop and windows."
+      "availability": "Not shown on Windows while Behind the glass is Desktop and windows."
     },
     {
       "key": "terminalBackgroundImage",
@@ -3404,7 +3404,7 @@
     {
       "key": "darkThemePreset",
       "title": "Dark mode colour",
-      "subtitle": "The colour of the sidebar and window in dark mode: one of sixteen colour squares, or a custom colour under More colour options.",
+      "subtitle": "The colour of the sidebar and window in dark mode: one of sixteen colour squares, or the + square for a custom colour.",
       "tab": "theme",
       "tabTitle": "Theme",
       "group": "appearance",
@@ -3488,7 +3488,7 @@
     {
       "key": "customSidebarTitlebarBackgroundDarknessPercent",
       "title": "Custom dark mode depth",
-      "subtitle": "How deep the custom dark mode colour is, while Custom colour in dark mode is on.",
+      "subtitle": "How deep the custom dark mode colour is, while the + square is picked for dark mode.",
       "tab": "theme",
       "tabTitle": "Theme",
       "group": "appearance",
@@ -3504,7 +3504,7 @@
     {
       "key": "customSidebarTitlebarBackgroundTintColor",
       "title": "Custom dark mode tint",
-      "subtitle": "The hue of the custom dark mode colour, while Custom colour in dark mode is on.",
+      "subtitle": "The hue of the custom dark mode colour, while the + square is picked for dark mode.",
       "tab": "theme",
       "tabTitle": "Theme",
       "group": "appearance",
@@ -3518,7 +3518,7 @@
     {
       "key": "lightThemePreset",
       "title": "Light mode colour",
-      "subtitle": "The colour of the sidebar and window in light mode: one of sixteen colour squares, or a custom colour under More colour options.",
+      "subtitle": "The colour of the sidebar and window in light mode: one of sixteen colour squares, or the + square for a custom colour.",
       "tab": "theme",
       "tabTitle": "Theme",
       "group": "appearance",
@@ -3630,7 +3630,7 @@
     {
       "key": "customSidebarTitlebarLightBackgroundLightnessPercent",
       "title": "Custom light mode depth",
-      "subtitle": "How deep the custom light mode colour is, while Custom colour in light mode is on.",
+      "subtitle": "How deep the custom light mode colour is, while the + square is picked for light mode.",
       "tab": "theme",
       "tabTitle": "Theme",
       "group": "appearance",
@@ -3644,7 +3644,7 @@
     {
       "key": "customSidebarTitlebarLightBackgroundTintColor",
       "title": "Custom light mode tint",
-      "subtitle": "The hue of the custom light mode colour, while Custom colour in light mode is on.",
+      "subtitle": "The hue of the custom light mode colour, while the + square is picked for light mode.",
       "tab": "theme",
       "tabTitle": "Theme",
       "group": "appearance",
@@ -7645,8 +7645,8 @@
     },
     {
       "key": "windowGlass",
-      "title": "Enable transparency",
-      "subtitle": "Let your desktop show through the window. Use transparency picks Dark only, Always or Never.",
+      "title": "Transparency",
+      "subtitle": "Let your desktop show through the window: Off, Dark only (light mode stays solid) or Always.",
       "tab": "theme",
       "tabTitle": "Theme",
       "group": "appearance",
@@ -7665,7 +7665,7 @@
           "value": "frosted"
         },
         {
-          "label": "Never",
+          "label": "Off",
           "value": "opaque"
         }
       ],
@@ -7676,7 +7676,7 @@
     },
     {
       "key": "windowGlassSource",
-      "title": "What shows behind the glass",
+      "title": "Behind the glass",
       "subtitle": "Desktop and windows, your wallpaper, a picture you choose, or Live: a calm animation in your theme colours or your own video.",
       "tab": "theme",
       "tabTitle": "Theme",
@@ -7945,7 +7945,7 @@
       "type": "number",
       "default": 60,
       "agentWritable": true,
-      "availability": "Not shown on Windows while What shows behind the glass is Desktop and windows."
+      "availability": "Not shown on Windows while Behind the glass is Desktop and windows."
     },
     {
       "key": "windowGlassWindowsBlur",

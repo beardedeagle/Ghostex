@@ -391,8 +391,8 @@ fn neutral_accent(preset: &str, dark: bool) -> Option<Rgb> {
 
 /// `swatchStyle(scheme, preset, tint, step)`.
 ///
-/// CDXC:Theming 2026-09-25 DECISION:
-/// User: "please make them look like just gradient squares that look beautiful for each of the colors", then "the gradient colors look way better in light mode. Can we do something simpler like those ones in dark mode also" and "Make the color boxes (the squares) smaller". Each theme colour is a small gradient square: a lighter, more colourful top-left fading to the theme's own chrome, with a soft glow of the theme's accent, following the current Colourfulness step.
+/// CDXC:Theming 2026-10-16 DECISION:
+/// User: make the colour squares "smaller and simpler" and keep today's ring. Supersedes the 2026-09-25 gradient squares: each square is 20px and one flat colour, the average of this paint without its sheen (swatches.rs), so it keeps the hue the gradient gave it and still follows Colourfulness.
 ///
 /// `position` is a Colourfulness position; `step` runs 0 (Subtle) to 4 (Vivid) through the in-between positions, so the five named points paint exactly as the five steps did.
 pub(super) fn swatch_paint(dark: bool, preset: &str, position: usize) -> SwatchPaint {
