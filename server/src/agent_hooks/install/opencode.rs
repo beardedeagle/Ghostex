@@ -1,142 +1,197 @@
-use std::{
-    fs,
-    path::{Path, PathBuf},
-};
+//! CDXC:AgentProviders 2026-10-17 DECISION:
+//! User: "i dont want any support for opencode 1 in the app or on my pc i dont care about it only support 2 pleae and focus on 2 and make the code not worry about 1 at all". Ghostex installs only the OpenCode 2 TUI plugin and never checks which OpenCode version is installed.
+//!
+//! CDXC:AgentHooks 2026-10-17 WHY:
+//! OpenCode 2 auto-loads every `*.js` in its config folder's `plugin/` and `plugins/` as a server plugin and reads opencode.json's `plugin` list as file plugins, so the `ghostex-session.js` an older Ghostex wrote there makes OpenCode 2 warn on every start (GitHub #244). Installing the TUI plugin removes those files and entries once; nothing else of the old plugin is kept.
 
-use serde_json::Value;
+use std::{fs, path::Path};
+
+use serde_json::{json, Value};
 
 use crate::domain::DomainStateError;
 
 use crate::agent_hooks::config::{HookPaths, OPENCODE_PLUGIN_MARKER};
-use crate::agent_hooks::plugin_sources::build_opencode_plugin_source;
 use crate::agent_hooks::probing::{io_error, path_string, push_unique_path, read_file_text};
 use crate::agent_hooks::resolution::{
-    is_opencode_session_plugin_registration, provider_hook_paths,
-    text_contains_ghostex_owned_hook_command,
+    provider_hook_paths, text_contains_ghostex_owned_hook_command,
 };
 
 use super::*;
 
-/// CDXC:AgentHooks 2026-10-16 WHY:
-/// Every OpenCode 1.x (0.15 through 1.19) loads `*.js` from `plugin/` in its global config folder, while `plugins/` is only scanned from about 1.1, which is why Ghostex used to list `./plugins/ghostex-session.js` under `plugin` in opencode.json. OpenCode 2 reads that list as `plugins`, warns that the file "must be a directory", and auto-loads every `*.js` in `plugin/` and `plugins/` as a 2.x server plugin, which rejects the 1.x shape (GitHub #244). So the 1.x plugin lives in `plugin/` with no opencode.json entry, and the 2.x install (a TUI plugin in `plugins/ghostex-v2/`) removes every 1.x file and entry, which also repairs a computer that upgraded OpenCode after the 1.x install.
-pub(crate) fn opencode_v1_plugin_path(config_dir: &Path) -> PathBuf {
-    config_dir.join("plugin").join("ghostex-session.js")
+const PLUGIN_DIRECTORY: &str = "plugins/ghostex-v2";
+
+fn plugin_source(hooks: &HookPaths) -> Result<String, DomainStateError> {
+    let executable = std::env::current_exe().map_err(io_error)?;
+    Ok(include_str!("opencode_tui.js")
+        .replace("__GXSERVER__", &json!(path_string(&executable)).to_string())
+        .replace(
+            "__NOTIFY__",
+            &json!(path_string(&hooks.notify_hook_path)).to_string(),
+        ))
 }
 
-fn opencode_v1_legacy_plugin_path(config_dir: &Path) -> PathBuf {
-    config_dir.join("plugins").join("ghostex-session.js")
+fn plugin_spec(config_dir: &Path) -> Result<String, DomainStateError> {
+    url::Url::from_directory_path(config_dir.join(PLUGIN_DIRECTORY))
+        .map(|url| url.to_string())
+        .map_err(|_| io_error(std::io::Error::other("Invalid OpenCode plugin path")))
 }
 
-fn is_ghostex_opencode_plugin(path: &Path) -> bool {
+fn is_plugin_spec(value: &Value, spec: &str) -> bool {
+    value.as_str() == Some(spec) || value["package"].as_str() == Some(spec)
+}
+
+fn read_cli_config(path: &Path) -> Result<Value, DomainStateError> {
+    let text = read_file_text(path);
+    if text.trim().is_empty() {
+        Ok(json!({}))
+    } else {
+        crate::session_chat_opencode::read_config(&text)
+    }
+}
+
+/// The plugin files and opencode.json entries an older Ghostex wrote for OpenCode 1.
+fn retired_plugin_paths(config_dir: &Path) -> [std::path::PathBuf; 2] {
+    [
+        config_dir.join("plugin").join("ghostex-session.js"),
+        config_dir.join("plugins").join("ghostex-session.js"),
+    ]
+}
+
+fn is_retired_plugin_file(path: &Path) -> bool {
     let text = read_file_text(path);
     text.contains(OPENCODE_PLUGIN_MARKER) || text_contains_ghostex_owned_hook_command(&text)
 }
 
-fn opencode_config_registers_ghostex(config_path: &Path) -> bool {
-    read_json_object(&read_file_text(config_path))
-        .get("plugin")
-        .and_then(Value::as_array)
-        .is_some_and(|plugins| plugins.iter().any(is_opencode_session_plugin_registration))
+fn is_retired_plugin_registration(value: &Value) -> bool {
+    let plugin = value
+        .as_str()
+        .or_else(|| value.as_array().and_then(|items| items.first()?.as_str()))
+        .unwrap_or_default();
+    plugin == "ghostex-session" || plugin.ends_with("/ghostex-session.js")
 }
 
-/// Whether an earlier install left what this one no longer writes: the `plugin` entry in
-/// opencode.json, the 1.x plugin in `plugins/`, and, unless `keep_v1_plugin`, the 1.x plugin in
-/// `plugin/` too.
-pub(crate) fn opencode_v1_leftovers_present(config_dir: &Path, keep_v1_plugin: bool) -> bool {
-    opencode_config_registers_ghostex(&config_dir.join("opencode.json"))
-        || is_ghostex_opencode_plugin(&opencode_v1_legacy_plugin_path(config_dir))
-        || (!keep_v1_plugin && is_ghostex_opencode_plugin(&opencode_v1_plugin_path(config_dir)))
+fn retired_plugin_present(config_dir: &Path) -> bool {
+    retired_plugin_paths(config_dir)
+        .iter()
+        .any(|path| is_retired_plugin_file(path))
+        || read_json_object(&read_file_text(&config_dir.join("opencode.json")))
+            .get("plugin")
+            .and_then(Value::as_array)
+            .is_some_and(|plugins| plugins.iter().any(is_retired_plugin_registration))
 }
 
-/// Removes what `opencode_v1_leftovers_present` reports and returns the files it changed.
-pub(crate) fn remove_opencode_v1_leftovers(
+/// Removes what `retired_plugin_present` reports and returns the files it changed.
+pub(crate) fn remove_retired_opencode_plugin(
     config_dir: &Path,
-    keep_v1_plugin: bool,
 ) -> Result<Vec<String>, DomainStateError> {
-    let mut removed = uninstall_opencode_hook_paths(
-        &opencode_v1_legacy_plugin_path(config_dir),
-        &config_dir.join("opencode.json"),
-    )?;
-    let plugin_path = opencode_v1_plugin_path(config_dir);
-    if !keep_v1_plugin
-        && is_ghostex_opencode_plugin(&plugin_path)
-        && remove_file_if_exists(&plugin_path)?
-    {
-        push_unique_path(&mut removed, path_string(&plugin_path));
+    let mut removed = Vec::new();
+    let config_path = config_dir.join("opencode.json");
+    let config_text = read_file_text(&config_path);
+    if !config_text.trim().is_empty() {
+        let mut data = read_json_object(&config_text);
+        if let Some(plugins) = data.get_mut("plugin").and_then(Value::as_array_mut) {
+            let before = plugins.len();
+            plugins.retain(|plugin| !is_retired_plugin_registration(plugin));
+            if plugins.len() != before {
+                write_json_file(&config_path, &data)?;
+                push_unique_path(&mut removed, path_string(&config_path));
+            }
+        }
+    }
+    for path in retired_plugin_paths(config_dir) {
+        if is_retired_plugin_file(&path) && remove_file_if_exists(&path)? {
+            push_unique_path(&mut removed, path_string(&path));
+        }
     }
     Ok(removed)
+}
+
+/// `provider_hook_paths("opencode")` is `[plugins/ghostex-v2/tui.js, cli.json]`.
+fn opencode_config_dir(hook_paths: &HookPaths) -> Option<std::path::PathBuf> {
+    provider_hook_paths("opencode", hook_paths)
+        .get(1)
+        .and_then(|path| path.parent())
+        .map(Path::to_path_buf)
+}
+
+pub(crate) fn inspect_opencode_hook(hooks: &HookPaths, config_dir: &Path) -> HookInspection {
+    let text = read_file_text(&config_dir.join(PLUGIN_DIRECTORY).join("tui.js"));
+    let config = read_file_text(&config_dir.join("cli.json"));
+    let retired = retired_plugin_present(config_dir);
+    HookInspection {
+        ghostex_hook_present: text.contains(OPENCODE_PLUGIN_MARKER)
+            || config.contains(PLUGIN_DIRECTORY)
+            || retired,
+        current_hook_installed: plugin_source(hooks).is_ok_and(|expected| expected == text)
+            && config.contains(PLUGIN_DIRECTORY)
+            && !retired,
+    }
 }
 
 pub(super) fn uninstall_opencode_hook(
     hook_paths: &HookPaths,
 ) -> Result<Vec<String>, DomainStateError> {
-    let paths = provider_hook_paths("opencode", hook_paths);
-    let Some(config_path) = paths.get(1) else {
+    let Some(config_dir) = opencode_config_dir(hook_paths) else {
         return Ok(Vec::new());
     };
-    let directory = config_path.parent().unwrap();
-    let mut removed = super::opencode_v2::uninstall(directory)?;
-    for path in remove_opencode_v1_leftovers(directory, false)? {
+    let config_path = config_dir.join("cli.json");
+    let spec = plugin_spec(&config_dir)?;
+    let mut removed = Vec::new();
+    if config_path.is_file() {
+        let mut config = read_cli_config(&config_path)?;
+        if let Some(plugins) = config.get_mut("plugins").and_then(Value::as_array_mut) {
+            let before = plugins.len();
+            plugins.retain(|plugin| !is_plugin_spec(plugin, &spec));
+            if before != plugins.len() {
+                crate::session_chat_opencode::patch_config(
+                    &config_path,
+                    "plugins",
+                    &config["plugins"],
+                )?;
+                removed.push(path_string(&config_path));
+            }
+        }
+    }
+    let plugin = config_dir.join(PLUGIN_DIRECTORY).join("tui.js");
+    if read_file_text(&plugin).contains(OPENCODE_PLUGIN_MARKER) {
+        fs::remove_file(&plugin).map_err(io_error)?;
+        removed.push(path_string(&plugin));
+    }
+    for path in remove_retired_opencode_plugin(&config_dir)? {
         push_unique_path(&mut removed, path);
     }
     Ok(removed)
 }
 
-pub(crate) fn uninstall_opencode_hook_paths(
-    plugin_path: &Path,
-    config_path: &Path,
-) -> Result<Vec<String>, DomainStateError> {
-    let mut removed_paths = Vec::new();
-    let config_text = read_file_text(config_path);
-    if !config_text.trim().is_empty() {
-        let mut data = read_json_object(&config_text);
-        if let Some(object) = data.as_object_mut() {
-            if let Some(plugins) = object.get_mut("plugin").and_then(Value::as_array_mut) {
-                let next_plugins = plugins
-                    .iter()
-                    .filter(|plugin| !is_opencode_session_plugin_registration(plugin))
-                    .cloned()
-                    .collect::<Vec<_>>();
-                if next_plugins.len() != plugins.len() {
-                    *plugins = next_plugins;
-                    write_json_file(config_path, &data)?;
-                    push_unique_path(&mut removed_paths, path_string(config_path));
-                }
-            }
-        }
-    }
-    if is_ghostex_opencode_plugin(plugin_path) && remove_file_if_exists(plugin_path)? {
-        push_unique_path(&mut removed_paths, path_string(plugin_path));
-    }
-    Ok(removed_paths)
-}
-
 pub(super) fn install_opencode_hook(
     hook_paths: &HookPaths,
 ) -> Result<Vec<String>, DomainStateError> {
-    let paths = provider_hook_paths("opencode", hook_paths);
-    let Some(plugin_path) = paths.first() else {
+    let Some(config_dir) = opencode_config_dir(hook_paths) else {
         return Ok(Vec::new());
     };
-    let Some(config_path) = paths.get(1) else {
-        return Ok(Vec::new());
-    };
-    let config_dir = config_path.parent().unwrap();
-    // `provider_hook_paths` already chose 2.x (`cli.json`) or 1.x (`opencode.json`).
-    if config_path
-        .file_name()
-        .is_some_and(|name| name == "cli.json")
-    {
-        return super::opencode_v2::install(hook_paths, config_dir);
+    let plugin_dir = config_dir.join(PLUGIN_DIRECTORY);
+    let plugin_path = plugin_dir.join("tui.js");
+    let config_path = config_dir.join("cli.json");
+    let mut config = read_cli_config(&config_path)?;
+    let object = config.as_object_mut().ok_or_else(|| DomainStateError {
+        code: "invalidParams",
+        message: "OpenCode cli.json must contain an object.".into(),
+    })?;
+    let plugins = object
+        .entry("plugins")
+        .or_insert_with(|| json!([]))
+        .as_array_mut()
+        .ok_or_else(|| DomainStateError {
+            code: "invalidParams",
+            message: "OpenCode's plugins setting must be a list.".into(),
+        })?;
+    let spec = plugin_spec(&config_dir)?;
+    if !plugins.iter().any(|plugin| is_plugin_spec(plugin, &spec)) {
+        plugins.push(json!(spec));
     }
-    if let Some(parent) = plugin_path.parent() {
-        fs::create_dir_all(parent).map_err(io_error)?;
-    }
-    fs::write(
-        plugin_path,
-        build_opencode_plugin_source(&hook_paths.notify_hook_path),
-    )
-    .map_err(io_error)?;
-    remove_opencode_v1_leftovers(config_dir, true)?;
-    Ok(vec![path_string(plugin_path)])
+    fs::create_dir_all(&plugin_dir).map_err(io_error)?;
+    fs::write(&plugin_path, plugin_source(hook_paths)?).map_err(io_error)?;
+    crate::session_chat_opencode::patch_config(&config_path, "plugins", &config["plugins"])?;
+    remove_retired_opencode_plugin(&config_dir)?;
+    Ok(vec![path_string(&plugin_path)])
 }

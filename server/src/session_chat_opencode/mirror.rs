@@ -23,6 +23,8 @@ pub(crate) struct Snapshot {
 struct Cached {
     snapshot: Option<Snapshot>,
     fetched: Option<Instant>,
+    /// `events::follow` when this snapshot was read.
+    changes: u64,
 }
 
 type Cache = Mutex<HashMap<String, Arc<Mutex<Cached>>>>;
@@ -47,6 +49,7 @@ fn slot(id: &str) -> Arc<Mutex<Cached>> {
             .map(|(key, _)| key);
         if let Some(oldest) = oldest {
             cache.remove(&oldest);
+            super::events::forget(&oldest);
         }
     }
     cache.entry(id.into()).or_default().clone()
@@ -56,18 +59,33 @@ pub(crate) fn invalidate(id: &str) {
     slot(id).lock().unwrap_or_else(|e| e.into_inner()).fetched = None;
 }
 
+/// How long a read stays current. While the event stream is connected it reports every change,
+/// so the limit only bounds the cost of an event kind this reader does not know.
+fn freshness() -> Duration {
+    if super::events::connected() {
+        Duration::from_secs(15)
+    } else {
+        Duration::from_millis(500)
+    }
+}
+
 pub(crate) fn snapshot(id: &str) -> Result<Snapshot, DomainStateError> {
     if !safe_id(id) {
         return Err(error("Invalid OpenCode session ID."));
     }
+    super::events::ensure_started();
+    let changes = super::events::follow(id);
     let entry = slot(id);
     let mut cached = entry.lock().unwrap_or_else(|e| e.into_inner());
-    if cached
-        .fetched
-        .is_some_and(|at| at.elapsed() < Duration::from_millis(500))
-    {
-        if let Some(snapshot) = &cached.snapshot {
-            return Ok(snapshot.clone());
+    if cached.changes == changes && cached.fetched.is_some_and(|at| at.elapsed() < freshness()) {
+        if let Some(snapshot) = cached.snapshot.clone() {
+            let (live, changed) = super::events::live(id, None);
+            if changed {
+                write_mirror(id, &snapshot, &live).map_err(|e| {
+                    error(format!("Could not update the OpenCode transcript: {e}"))
+                })?;
+            }
+            return Ok(snapshot);
         }
     }
     let client = Client::discover()?;
@@ -96,10 +114,13 @@ pub(crate) fn snapshot(id: &str) -> Result<Snapshot, DomainStateError> {
         forms,
         working,
     };
-    write_mirror(id, &snapshot)
+    let (live, _) = super::events::live(id, Some(&snapshot.messages));
+    write_mirror(id, &snapshot, &live)
         .map_err(|e| error(format!("Could not update the OpenCode transcript: {e}")))?;
     cached.snapshot = Some(snapshot.clone());
     cached.fetched = Some(Instant::now());
+    // Read before the requests, so a change reported while they ran makes the next read refetch.
+    cached.changes = changes;
     Ok(snapshot)
 }
 
@@ -110,9 +131,17 @@ pub(crate) fn mirror_path(id: &str) -> PathBuf {
         .join(format!("{id}.jsonl"))
 }
 
-fn write_mirror(id: &str, snapshot: &Snapshot) -> std::io::Result<()> {
+fn write_mirror(
+    id: &str,
+    snapshot: &Snapshot,
+    live: &super::events::LiveText,
+) -> std::io::Result<()> {
     let mut output = Vec::new();
-    let rows = decode_messages(&snapshot.messages);
+    let rows = if live.is_empty() {
+        decode_messages(&snapshot.messages)
+    } else {
+        decode_messages(&live.apply(&snapshot.messages))
+    };
     for row in &rows {
         serde_json::to_writer(&mut output, row)?;
         output.push(b'\n');

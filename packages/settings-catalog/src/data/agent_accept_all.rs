@@ -17,10 +17,9 @@ pub const AGENT_ACCEPT_ALL_MODE_SELECT_ITEMS: &[Opt] = &[
 /// interactive mode has no skip flag; only `droid exec` exposes
 /// `--skip-permissions-unsafe`, so the default `droid` launcher stays unsupported.
 ///
-/// CDXC:AgentLauncher 2026-06-09-14:22:
-/// OpenCode TUI does not expose a permission-bypass CLI flag. Keep it supported
-/// through gxserver's runtime permission config path so macOS Settings can show
-/// the same Accept All control without claiming the stored command gets a flag.
+/// CDXC:AgentLauncher 2026-10-17 WHY:
+/// OpenCode 2's `--auto` approves permissions in that terminal's TUI, replacing
+/// the runtime permission config that OpenCode 1 read from the environment.
 pub const AGENT_ACCEPT_ALL_SPECS: J = J::Obj(&[
     (
         "antigravity",
@@ -141,7 +140,21 @@ pub const AGENT_ACCEPT_ALL_SPECS: J = J::Obj(&[
             ("canonicalFlag", J::Str("--dangerously-skip-permissions")),
         ]),
     ),
-    ("opencode", J::Obj(&[("kind", J::Str("runtimeConfig"))])),
+    (
+        "opencode",
+        J::Obj(&[
+            ("kind", J::Str("flag")),
+            (
+                "aliases",
+                J::Arr(&[
+                    J::Str("--auto"),
+                    J::Str("--yolo"),
+                    J::Str("--dangerously-skip-permissions"),
+                ]),
+            ),
+            ("canonicalFlag", J::Str("--auto")),
+        ]),
+    ),
     ("pi", J::Null),
     ("qoder", J::Null),
     ("rovodev", J::Null),

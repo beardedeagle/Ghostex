@@ -560,8 +560,7 @@ fn opencode_resume_keeps_lookup_command_separate_from_runtime_accept_all() {
         .expect("primary command");
     assert!(primary.contains("opencode -s"));
     assert!(primary.contains("opencode session list --format json"));
-    assert!(!primary
-        .contains("OPENCODE_CONFIG_CONTENT='{\"permission\":\"allow\"}' opencode session list"));
+    assert!(!primary.contains("opencode --auto session list"));
     assert!(plan.get("copyCommand").is_none());
 }
 

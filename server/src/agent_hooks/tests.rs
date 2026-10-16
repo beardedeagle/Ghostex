@@ -17,7 +17,7 @@ use super::event_mapping::activity_for_hook_event;
 use super::install::{
     inspect_agent_hook_installation, install_notify_hook, is_notify_hook_current,
     json_contains_hook_command, migrate_hook_session_sidecars, read_json_object, remove_json_hook,
-    set_executable_permissions, uninstall_marked_yaml_hook, uninstall_opencode_hook_paths,
+    remove_retired_opencode_plugin, set_executable_permissions, uninstall_marked_yaml_hook,
     uninstall_plugin_file_hook,
 };
 use super::notify_runtime::{read_hook_state, read_state_string, run_notify_hook};
@@ -686,8 +686,7 @@ fn uninstall_removes_plugin_yaml_and_opencode_ghostex_content_only() {
         &format!("// {OPENCODE_PLUGIN_MARKER} v3\nexport default {{}};\n"),
     );
     let removed_opencode =
-        uninstall_opencode_hook_paths(&opencode_plugin_path, &opencode_config_path)
-            .expect("opencode uninstall");
+        remove_retired_opencode_plugin(temp.path()).expect("opencode uninstall");
     assert!(removed_opencode.contains(&path_string(&opencode_config_path)));
     assert!(removed_opencode.contains(&path_string(&opencode_plugin_path)));
     assert!(!opencode_plugin_path.exists());

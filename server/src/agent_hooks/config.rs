@@ -9,7 +9,6 @@ pub(crate) const NOTIFY_HOOK_VERSION: usize = 11;
 pub(crate) const STATUSLINE_HOOK_MARKER: &str = "ghostex-gxserver-agent-statusline-hook-marker";
 pub(crate) const STATUSLINE_HOOK_VERSION: usize = 1;
 pub(crate) const OPENCODE_PLUGIN_MARKER: &str = "ghostex-opencode-session-plugin-marker";
-pub(crate) const OPENCODE_PLUGIN_SPEC: &str = "./plugins/ghostex-session.js";
 pub(crate) const AMP_PLUGIN_MARKER: &str = "ghostex-amp-session-extension-marker";
 pub(crate) const PI_EXTENSION_MARKER: &str = "ghostex-pi-session-extension-marker";
 pub(crate) const OMP_EXTENSION_MARKER: &str = "ghostex-omp-session-extension-marker";

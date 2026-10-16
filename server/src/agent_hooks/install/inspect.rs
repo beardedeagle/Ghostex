@@ -6,7 +6,6 @@ use crate::agent_hooks::codex_status_line::codex_status_line_names_model;
 use crate::agent_hooks::config::{
     all_hook_events, hook_format, hook_marker, nested_event_timeout,
     pi_extension_path_is_loader_visible, HookDefinition, HookFormat, HookPaths,
-    OPENCODE_PLUGIN_MARKER,
 };
 use crate::agent_hooks::plugin_sources::{
     command_for_agent, current_plugin_marker, yaml_double_quote,
@@ -38,33 +37,13 @@ pub(crate) fn inspect_agent_hook_installation(
 ) -> HookInspection {
     let command = command_for_agent(definition, &hook_paths.notify_hook_path);
     match hook_format(definition.agent_id) {
-        HookFormat::Opencode => {
-            if let Some(config) = config_paths
-                .get(1)
-                .filter(|p| p.file_name().is_some_and(|n| n == "cli.json"))
-            {
-                return super::opencode_v2::inspect(hook_paths, config.parent().unwrap());
-            }
-            let plugin_text = config_paths
-                .first()
-                .map(|path| read_file_text(path))
-                .unwrap_or_default();
-            let leftovers = config_paths
-                .get(1)
-                .and_then(|path| path.parent())
-                .is_some_and(|directory| opencode_v1_leftovers_present(directory, true));
-            let current = plugin_text
-                == crate::agent_hooks::plugin_sources::build_opencode_plugin_source(
-                    &hook_paths.notify_hook_path,
-                )
-                && !leftovers;
-            HookInspection {
-                current_hook_installed: current,
-                ghostex_hook_present: current
-                    || plugin_text.contains(OPENCODE_PLUGIN_MARKER)
-                    || leftovers,
-            }
-        }
+        HookFormat::Opencode => match config_paths.get(1).and_then(|path| path.parent()) {
+            Some(directory) => inspect_opencode_hook(hook_paths, directory),
+            None => HookInspection {
+                current_hook_installed: false,
+                ghostex_hook_present: false,
+            },
+        },
         HookFormat::PluginFile => {
             let marker = hook_marker(definition.agent_id).unwrap_or_default();
             let inspections = config_paths

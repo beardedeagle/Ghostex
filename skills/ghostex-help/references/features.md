@@ -935,7 +935,7 @@ Ctrl on Windows and Linux).
 Type `/` in the chat box to browse the agent's built-in commands. In Cursor
 chats, `/compact` summarizes the conversation to reduce context, just like
 `/summarize`.
-In Claude Code, Codex, and OpenCode v2 chats, start a message with `!` to run a shell command
+In Claude Code, Codex, and OpenCode chats, start a message with `!` to run a shell command
 in that agent's session, for example `! pwd`. The command and its output appear
 in the chat.
 In Claude Code chats, `/btw <question>` asks a side question without stopping
@@ -983,9 +983,12 @@ Sign in starts it again. Cursor's plan approval (Ready to build?: build here,
 build in the cloud, or propose changes), its requests to switch mode, and its
 questions are answered from the chat too, and the plan shows in the
 conversation.
-OpenCode v2 supports streamed replies, reasoning, tool results, image attachments,
-questions, permissions, queued prompts, and conversation rewind in Chat. Install
-its hooks in Settings > Agents, then open a new OpenCode session to connect it.
+Ghostex supports OpenCode 2 (version 2.0 or newer); OpenCode 1 is not supported.
+OpenCode chats read and send through OpenCode's own background service instead
+of its terminal screen, and support streamed replies, reasoning, tool results,
+image attachments, questions, permissions, queued prompts, and conversation
+rewind. Install its hooks in Settings > Agents, then open a new OpenCode session
+to connect it.
 The model picker shows the models available from your OpenCode providers and
 their reasoning levels; the mode control selects Build or Plan. Left-click a
 model to save the default, or right-click to apply it only to this session.

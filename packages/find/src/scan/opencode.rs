@@ -32,7 +32,7 @@ impl Scanner {
         }
     }
 
-    /// Parse JSONL produced by `OPENCODE_QUERY` (one object per text part).
+    /// Parse JSONL produced by `OPENCODE_QUERY` (one object per user prompt).
     pub fn parse_opencode(&mut self, data: &[u8]) {
         for line in data.split(|&b| b == b'\n') {
             if let Ok(text) = std::str::from_utf8(line) {
@@ -74,21 +74,23 @@ impl Scanner {
     }
 }
 
+/// OpenCode 2 keeps each conversation's messages in `session_message` (a user prompt is a
+/// `user` row whose JSON holds `text`) and the conversation's folder, title and model in
+/// `session_v2`. Subagent conversations (`parent_id`) hold prompts the agent wrote, not the user.
 const OPENCODE_QUERY: &str = concat!(
     "SELECT json_object(",
-    "'role',json_extract(m.data,'$.role'),",
-    "'type',json_extract(p.data,'$.type'),",
-    "'text',json_extract(p.data,'$.text'),",
-    "'title',null,",
-    "'provider',json_extract(m.data,'$.model.providerID'),",
-    "'model',json_extract(m.data,'$.model.modelID'),",
+    "'role','user',",
+    "'type','text',",
+    "'text',json_extract(m.data,'$.text'),",
+    "'title',s.title,",
+    "'provider',json_extract(s.model,'$.providerID'),",
+    "'model',json_extract(s.model,'$.id'),",
     "'project',s.directory,",
     "'session',s.id,",
-    "'ts',coalesce(json_extract(m.data,'$.time.updated'),json_extract(m.data,'$.time.created'),json_extract(m.data,'$.updated_at'),json_extract(m.data,'$.created_at'),json_extract(m.data,'$.updatedAt'),json_extract(m.data,'$.createdAt'),json_extract(m.data,'$.timestamp'))) ",
-    "FROM part p ",
-    "JOIN message m ON p.message_id=m.id ",
-    "JOIN session s ON p.session_id=s.id ",
-    "WHERE json_extract(p.data,'$.type')='text';"
+    "'ts',m.time_created) ",
+    "FROM session_message m ",
+    "JOIN session_v2 s ON m.session_id=s.id ",
+    "WHERE m.type='user' AND s.parent_id IS NULL;"
 );
 
 fn read_opencode_rows(db_path: &Path) -> Result<Vec<String>, String> {

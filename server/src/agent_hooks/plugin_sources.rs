@@ -2,7 +2,7 @@ use std::path::Path;
 
 use super::config::{
     command_agent, HookDefinition, AMP_PLUGIN_MARKER, NOTIFY_HOOK_MARKER, NOTIFY_HOOK_VERSION,
-    OMP_EXTENSION_MARKER, OPENCODE_PLUGIN_MARKER, PI_EXTENSION_MARKER,
+    OMP_EXTENSION_MARKER, PI_EXTENSION_MARKER,
 };
 use super::probing::path_string;
 
@@ -69,261 +69,6 @@ pub(crate) fn build_plugin_file_source(agent_id: &str, notify_hook_path: &Path) 
         "pi" => build_pi_extension_source(notify_hook_path),
         _ => build_pi_extension_source(notify_hook_path),
     }
-}
-
-pub(crate) fn build_opencode_plugin_source(notify_hook_path: &Path) -> String {
-    let notify = path_string(notify_hook_path);
-    let notify_json = serde_json::to_string(&notify).unwrap_or_else(|_| "\"\"".to_string());
-    let source = r###"// __MARKER__
-import { spawnSync } from "node:child_process";
-import * as fs from "node:fs";
-import * as path from "node:path";
-
-const PLUGIN_INSTALLED_KEY = Symbol.for("ghostex.session.restore.plugin.installed");
-const hookFailures = new Set();
-
-function reportHookFailure(reason) {
-  if (hookFailures.has(reason)) return;
-  hookFailures.add(reason);
-  console.error(`[Ghostex] OpenCode hook failed: ${reason}`);
-}
-
-function firstString(...values) {
-  for (const value of values) {
-    if (typeof value === "string" && value.trim().length > 0) return value.trim();
-  }
-  return null;
-}
-
-function eventProperties(event) {
-  return (event && typeof event === "object" && event.properties) || {};
-}
-
-function sessionIdFor(event) {
-  const props = eventProperties(event);
-  return firstString(
-    props.info && props.info.id,
-    props.sessionID,
-    props.sessionId,
-    props.session_id,
-    props.session && props.session.id,
-    event && event.sessionID,
-    event && event.sessionId,
-    event && event.id
-  );
-}
-
-function cwdFor(ctx, event) {
-  const props = eventProperties(event);
-  return firstString(
-    props.info && props.info.directory,
-    props.cwd,
-    props.directory,
-    ctx && ctx.directory,
-    process.cwd()
-  );
-}
-
-function resolveExecutable(name) {
-  const pathEnv = process.env.PATH || "";
-  for (const dir of pathEnv.split(path.delimiter)) {
-    if (!dir) continue;
-    const candidate = path.join(dir, name);
-    try {
-      fs.accessSync(candidate, fs.constants.X_OK);
-      return candidate;
-    } catch (_) {}
-  }
-  return name;
-}
-
-function looksLikeOpenCodeScript(value) {
-  if (!value) return false;
-  const lower = String(value).toLowerCase();
-  return lower.includes("opencode") || lower.includes("open-code");
-}
-
-function isOpenCodeInternalWorkerArg(value) {
-  if (!value) return false;
-  const normalized = String(value).replaceAll("\\", "/");
-  return normalized.includes("/$bunfs/") && normalized.includes("/src/cli/cmd/tui/worker.js");
-}
-
-function withoutOpenCodeInternalWorkerArgs(argv) {
-  const result = [];
-  for (let i = 0; i < argv.length; i += 1) {
-    const value = argv[i];
-    if (i > 0 && isOpenCodeInternalWorkerArg(value)) continue;
-    result.push(value);
-  }
-  return result.length > 0 ? result : [resolveExecutable("opencode")];
-}
-
-function normalizedLaunchArgv() {
-  const raw = Array.isArray(process.argv) ? process.argv.map((value) => String(value)) : [];
-  if (raw.length === 0) return [resolveExecutable("opencode")];
-
-  const firstBase = path.basename(raw[0]).toLowerCase();
-  if (looksLikeOpenCodeScript(firstBase)) return withoutOpenCodeInternalWorkerArgs(raw);
-
-  let tail = raw.slice(1);
-  if (tail.length > 0 && looksLikeOpenCodeScript(tail[0])) {
-    tail = tail.slice(1);
-  }
-  return withoutOpenCodeInternalWorkerArgs([resolveExecutable("opencode"), ...tail]);
-}
-
-function base64NulSeparated(values) {
-  const bytes = [];
-  for (const value of values) {
-    bytes.push(Buffer.from(String(value), "utf8"));
-    bytes.push(Buffer.from([0]));
-  }
-  return Buffer.concat(bytes).toString("base64");
-}
-
-function hookEnvironment(cwd) {
-  const env = { ...process.env, GHOSTEX_AGENT: "opencode" };
-  delete env.AMP_API_KEY;
-  for (const key of ["ANSI_COLORS_DISABLED", "NO_COLOR", "NODE_DISABLE_COLORS"]) delete env[key];
-  if (!env.GHOSTEX_AGENT_LAUNCH_ARGV_B64) {
-    const argv = normalizedLaunchArgv();
-    env.GHOSTEX_AGENT_LAUNCH_KIND = "opencode";
-    env.GHOSTEX_AGENT_LAUNCH_EXECUTABLE = argv[0] || resolveExecutable("opencode");
-    env.GHOSTEX_AGENT_LAUNCH_ARGV_B64 = base64NulSeparated(argv);
-    env.GHOSTEX_AGENT_LAUNCH_CWD = cwd || process.cwd();
-  }
-  return env;
-}
-
-function hookEventName(subcommand) {
-  switch (subcommand) {
-    case "session-start":
-      return "SessionStart";
-    case "stop":
-      return "Stop";
-    case "session-end":
-      return "SessionEnd";
-    default:
-      return subcommand;
-  }
-}
-
-function sendHook(subcommand, ctx, event, extra = {}) {
-  if (process.env.GHOSTEX_OPENCODE_HOOKS_DISABLED === "1") return;
-  const env = process.env;
-  if (env.GHOSTEX_INTERNAL_PROMPT_GENERATION === "1" || env.GHOSTEX_INTERNAL_TITLE_GENERATION === "1") return;
-  if (!(env.VSMUX_SESSION_STATE_FILE || env.GHOSTEX_SESSION_STATE_FILE || env.ghostex_SESSION_STATE_FILE)
-    && !(env.GHOSTEX_GLOBAL_SESSION_REF && env.GHOSTEX_GXSERVER_BASE_URL && env.GHOSTEX_GXSERVER_AUTH_TOKEN_FILE)) return;
-  const sessionId = sessionIdFor(event);
-  if (!sessionId) return;
-  const cwd = cwdFor(ctx, event);
-  const eventName = hookEventName(subcommand);
-  const payload = {
-    agent: "opencode",
-    cwd,
-    event: eventName,
-    hook_event_name: eventName,
-    session_id: sessionId,
-    ...extra,
-  };
-  try {
-    const [command, args] = process.platform === "win32"
-      ? [__GXSERVER_PATH_JSON__, ["agent-hook-notify-native", __NOTIFY_HOOK_PATH_JSON__, "opencode"]]
-      : [__NOTIFY_HOOK_PATH_JSON__, []];
-    const result = spawnSync(command, args, {
-      input: JSON.stringify(payload),
-      encoding: "utf8",
-      env: hookEnvironment(cwd),
-      stdio: ["pipe", "ignore", "ignore"],
-      timeout: 5000,
-      windowsHide: true,
-    });
-    if (result.error) reportHookFailure(result.error.code || result.error.name);
-    else if (result.status !== 0) reportHookFailure(result.signal || `exit ${result.status}`);
-    else hookFailures.clear();
-  } catch (error) { reportHookFailure(error.code || error.name || "spawn failed"); }
-}
-
-function handleEvent(ctx, event) {
-  const props = eventProperties(event);
-  switch (event && event.type) {
-    case "session.created":
-      sendHook("session-start", ctx, event);
-      break;
-    case "session.updated":
-      if (props.info && props.info.time && props.info.time.archived) {
-        sendHook("session-end", ctx, event);
-      } else {
-        sendHook("session-start", ctx, event);
-      }
-      break;
-    case "session.status":
-      if (props.status && props.status.type === "idle") {
-        sendHook("stop", ctx, event);
-      } else if (props.status && props.status.type) {
-        sendHook("SessionBusy", ctx, event);
-      }
-      break;
-    case "session.idle":
-      sendHook("stop", ctx, event);
-      break;
-    case "session.deleted":
-      sendHook("session-end", ctx, event);
-      break;
-    case "permission.asked":
-      sendHook("PermissionRequest", ctx, event);
-      break;
-    case "question.asked":
-      sendHook("AskUserQuestion", ctx, event);
-      break;
-    case "permission.replied":
-    case "question.replied":
-    case "question.rejected":
-      sendHook("SessionBusy", ctx, event);
-      break;
-    default:
-      break;
-  }
-}
-
-const GhostexSessionRestore = async (ctx) => {
-  if (globalThis[PLUGIN_INSTALLED_KEY]) return {};
-  globalThis[PLUGIN_INSTALLED_KEY] = true;
-  const bus = ctx && (ctx.bus || ctx.events || ctx.event);
-  const on = bus && typeof bus.on === "function" ? bus.on.bind(bus) : ctx && typeof ctx.on === "function" ? ctx.on.bind(ctx) : null;
-  if (on) {
-    for (const eventName of [
-      "session.created",
-      "session.updated",
-      "session.status",
-      "session.idle",
-      "session.deleted",
-      "permission.asked",
-      "permission.replied",
-      "question.asked",
-      "question.replied",
-      "question.rejected",
-    ]) {
-      on(eventName, (event) => handleEvent(ctx, { ...event, type: event && event.type ? event.type : eventName }));
-    }
-    return {};
-  }
-
-  return {
-    event: async ({ event }) => {
-      handleEvent(ctx, event);
-    },
-  };
-};
-
-export { GhostexSessionRestore };
-export default GhostexSessionRestore;
-"###;
-    source
-        .replace("__MARKER__", &current_plugin_marker(OPENCODE_PLUGIN_MARKER))
-        .replace("__GXSERVER_PATH_JSON__", &gxserver_path_json())
-        .replace("__NOTIFY_HOOK_PATH_JSON__", &notify_json)
 }
 
 fn build_amp_plugin_source(notify_hook_path: &Path) -> String {
@@ -486,7 +231,7 @@ export default function ghostexAmpSessionPlugin(amp: PluginAPI) {
 }
 
 /// CDXC:AgentHooks 2026-10-09 WHY:
-/// Native Windows cannot spawn the notify hook script, so the Pi, OMP, Amp and OpenCode extensions hand it to this gxserver's `agent-hook-notify-native`. Other platforms invoke the script directly and must not embed an unused executable path: moving gxserver would otherwise make source inspection report a working plugin as stale.
+/// Native Windows cannot spawn the notify hook script, so the Pi, OMP and Amp extensions hand it to this gxserver's `agent-hook-notify-native`. Other platforms invoke the script directly and must not embed an unused executable path: moving gxserver would otherwise make source inspection report a working plugin as stale.
 fn gxserver_path_json() -> String {
     #[cfg(windows)]
     {
@@ -1103,8 +848,6 @@ export default function ghostexOmpSessionExtension(api: ExtensionAPI) {
 
 pub(crate) fn current_plugin_marker(marker: &str) -> String {
     if marker == PI_EXTENSION_MARKER || marker == AMP_PLUGIN_MARKER {
-        format!("{marker} v5")
-    } else if marker == OPENCODE_PLUGIN_MARKER {
         format!("{marker} v5")
     } else if marker == OMP_EXTENSION_MARKER {
         format!("{marker} v3")

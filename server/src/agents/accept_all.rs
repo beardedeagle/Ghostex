@@ -84,6 +84,8 @@ pub(crate) fn apply_accept_all_spec(
     let Some(spec) = spec else {
         return trimmed.to_string();
     };
+    let without_retired = strip_retired_opencode_accept_all(trimmed);
+    let trimmed = without_retired.as_str();
     if let AcceptAllSpec::Environment {
         assignments,
         legacy_aliases,
@@ -114,6 +116,20 @@ pub(crate) fn apply_accept_all_spec(
     } else {
         format!("{deduped} {canonical}").trim().to_string()
     }
+}
+
+/// CDXC:AgentProviders 2026-10-17 WHY:
+/// Accept-all for OpenCode used to be `OPENCODE_CONFIG_CONTENT='{"permission":"allow"}'` in front of the command. OpenCode 2's TUI talks to one shared background service, so the variable is ignored, or, when that TUI starts the service, can be inherited by it and allow everything in every OpenCode session on the computer. OpenCode 2's own switch is `--auto`, which only auto-approves in that TUI, so saved commands lose the old variable.
+fn strip_retired_opencode_accept_all(command: &str) -> String {
+    const RETIRED: &str = "OPENCODE_CONFIG_CONTENT='{\"permission\":\"allow\"}'";
+    if !command.contains(RETIRED) {
+        return command.to_string();
+    }
+    command
+        .split_whitespace()
+        .filter(|token| *token != RETIRED)
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 pub(crate) enum AcceptAllSpec {
@@ -172,12 +188,13 @@ pub(crate) fn accept_all_spec(agent_id: &str) -> Option<AcceptAllSpec> {
             assignments: vec!["MASTRACODE_YOLO=1".to_string()],
             legacy_aliases: vec![],
         },
-        "opencode" => AcceptAllSpec::Environment {
-            assignments: vec!["OPENCODE_CONFIG_CONTENT='{\"permission\":\"allow\"}'".to_string()],
-            legacy_aliases: vec![
-                "--dangerously-skip-permissions".to_string(),
+        "opencode" => AcceptAllSpec::Flag {
+            aliases: vec![
+                "--auto".to_string(),
                 "--yolo".to_string(),
+                "--dangerously-skip-permissions".to_string(),
             ],
+            canonical: "--auto",
         },
         _ => return None,
     })

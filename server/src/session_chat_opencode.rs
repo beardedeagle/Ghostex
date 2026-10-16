@@ -5,6 +5,7 @@ pub(crate) use controls::*;
 mod attachments;
 mod client;
 mod decode;
+mod events;
 mod mirror;
 mod prompts;
 mod status;

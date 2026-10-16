@@ -246,7 +246,7 @@ pub(crate) async fn handle_read_subagent(
             })
             .ok_or_else(|| {
                 anyhow::anyhow!(
-                    "Subagent transcripts are supported for Codex, Claude, OpenCode v2 and Hermes."
+                    "Subagent transcripts are supported for Codex, Claude, OpenCode and Hermes."
                 )
             })?;
         let root_id = read_runtime_text(&session, "agentSessionId")

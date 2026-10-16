@@ -270,7 +270,7 @@ pub(crate) fn activity_for_hook_event(
     }
     /*
     CDXC:AgentHooks 2026-09-28 WHY:
-    SessionStart (Kiro: agentSpawn) fires while the CLI waits at its input prompt: startup, resume, a new or cleared conversation, and it is the only hook Claude fires when /clear finishes. Most agents settled idle on it only through the notify hook's stateless default status, which also invented idle for every mid-turn event nothing maps, so the rule is explicit now. Two exceptions stay unmapped: OpenCode's plugin reports every mid-turn session.updated as SessionStart, and Claude's compaction SessionStart (source compact) also fires mid-turn after an auto-compact, while a manual /compact settles through PostCompact. gxserver's table leaves SessionStart to the status posted here, because the Claude rule needs the payload.
+    SessionStart (Kiro: agentSpawn) fires while the CLI waits at its input prompt: startup, resume, a new or cleared conversation, and it is the only hook Claude fires when /clear finishes. Most agents settled idle on it only through the notify hook's stateless default status, which also invented idle for every mid-turn event nothing maps, so the rule is explicit now. Two exceptions stay unmapped: OpenCode's TUI plugin reports SessionStart whenever the TUI opens another conversation, which may be mid-turn, and Claude's compaction SessionStart (source compact) also fires mid-turn after an auto-compact, while a manual /compact settles through PostCompact. gxserver's table leaves SessionStart to the status posted here, because the Claude rule needs the payload.
     */
     if compact == "agentspawn"
         || (compact == "sessionstart"

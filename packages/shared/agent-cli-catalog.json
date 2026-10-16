@@ -78,14 +78,13 @@
   {
     "agentId": "opencode",
     "binary": "opencode",
-    "docsUrl": "https://opencode.ai/docs/",
-    "npmPackage": "opencode-ai",
+    "docsUrl": "https://opencode.ai/v2/docs",
+    "npmPackage": "@opencode/cli",
     "brewFormula": "opencode",
     "native": {
-      "install": "curl -fsSL https://opencode.ai/install | bash",
+      "install": "curl -fsSL https://opencode.ai/v2/install | bash",
       "update": "opencode upgrade"
     },
-    "miseTool": "opencode",
     "installDirs": {
       "unix": ["~/.opencode/bin"]
     }

@@ -1,7 +1,7 @@
 //! CDXC:SessionChat 2026-09-25 DECISION:
-//! User: OpenCode v2 chat should match Claude Code support in the GPUI chat with the Rust engine.
+//! User: OpenCode chat should match Claude Code support in the GPUI chat with the Rust engine.
 //! CDXC:AgentProviders 2026-09-25 WHY:
-//! OpenCode v2 owns mutable messages and session controls in its shared service, not a JSONL transcript or a per-terminal agent process. Read its authenticated service registration and public v2 API; never infer conversation identity from another client's server process.
+//! OpenCode owns mutable messages and session controls in its shared service, not a JSONL transcript or a per-terminal agent process. Read its authenticated service registration and public API; never infer conversation identity from another client's server process.
 
 use crate::domain::DomainStateError;
 use base64::{Engine as _, engine::general_purpose::STANDARD};
@@ -41,7 +41,7 @@ impl Client {
     pub(crate) fn discover() -> Result<Self, DomainStateError> {
         let registration: Value = fs::read(state_directory().join("service.json"))
             .ok().and_then(|bytes| serde_json::from_slice(&bytes).ok())
-            .ok_or_else(|| error("OpenCode v2's local service is unavailable. Start OpenCode and open a session."))?;
+            .ok_or_else(|| error("OpenCode's background service is unavailable. Start OpenCode and open a session."))?;
         let url = registration["url"]
             .as_str()
             .ok_or_else(|| error("OpenCode service registration has no URL."))?;
@@ -91,7 +91,7 @@ impl Client {
             ureq::Error::Status(status, _) => {
                 error(format!("OpenCode rejected the request (HTTP {status})."))
             }
-            _ => error("Could not reach the OpenCode v2 service."),
+            _ => error("Could not reach the OpenCode service."),
         })?;
         if response.status() == 204 {
             return Ok(Value::Null);
@@ -99,6 +99,19 @@ impl Client {
         response
             .into_json()
             .map_err(|_| error("OpenCode returned an invalid response."))
+    }
+
+    /// `/api/event` stays open for as long as the service runs, so it gets no read timeout.
+    pub(crate) fn event_stream(&self) -> Result<ureq::Response, DomainStateError> {
+        ureq::AgentBuilder::new()
+            .timeout_connect(Duration::from_secs(5))
+            .redirects(0)
+            .build()
+            .get(&format!("{}/api/event", self.url))
+            .set("Authorization", &self.authorization)
+            .set("Accept", "text/event-stream")
+            .call()
+            .map_err(|_| error("Could not reach the OpenCode service."))
     }
 
     pub(crate) fn session(

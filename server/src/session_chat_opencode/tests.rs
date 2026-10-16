@@ -193,9 +193,9 @@ fn token_usage_and_tasks_follow_latest_assistant_state() {
     assert!(usage(&snapshot).is_none());
 }
 
-/// Exercises the installed v2 binary's public API; creates and removes only its own session.
+/// Exercises the installed OpenCode's public API; creates and removes only its own session.
 #[test]
-#[ignore = "requires the local OpenCode v2 service"]
+#[ignore = "requires the local OpenCode service"]
 fn live_service_questions_permissions_and_controls() {
     let client = Client::discover().expect("OpenCode service");
     let directory = tempfile::tempdir().unwrap();
@@ -327,7 +327,7 @@ fn live_service_questions_permissions_and_controls() {
 }
 
 #[test]
-#[ignore = "requires the local OpenCode v2 service"]
+#[ignore = "requires the local OpenCode service"]
 fn live_service_pagination_rewind_children_and_shell() {
     let client = Client::discover().unwrap();
     let directory = tempfile::tempdir().unwrap();

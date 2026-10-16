@@ -725,25 +725,13 @@ fn lookup_opencode_from_stdin(title: &str) -> Option<String> {
     lookup_opencode(title, &input)
 }
 
+/// `opencode session list --format json` prints one JSON array of `{id, title, …}` objects.
 fn lookup_opencode(title: &str, input: &str) -> Option<String> {
-    for line in input.split('\n') {
-        let line = line.strip_suffix('\r').unwrap_or(line);
-        if line.trim().is_empty() {
-            continue;
-        }
-        let Some(item) = parse_json_line(line) else {
-            continue;
-        };
-        let mut name = text_field(&item, "title");
-        if name.is_empty() {
-            name = text_field(&item, "name");
-        }
-        let session_id = text_field(&item, "id");
-        if name == title && !session_id.is_empty() {
-            return Some(session_id);
-        }
-    }
-    None
+    let sessions: Vec<Value> = serde_json::from_str(input.trim()).ok()?;
+    sessions.iter().find_map(|item| {
+        let session_id = text_field(item, "id");
+        (text_field(item, "title") == title && !session_id.is_empty()).then_some(session_id)
+    })
 }
 
 #[cfg(test)]
@@ -765,12 +753,11 @@ mod tests {
     }
 
     #[test]
-    fn opencode_lookup_matches_title_or_name() {
-        let input = concat!(
-            "{\"id\":\"s1\",\"title\":\"other\"}\n",
-            "not json\n",
-            "{\"id\":\"s2\",\"name\":\"target\"}\n",
-        );
+    fn opencode_lookup_matches_title() {
+        let input = r#"[
+  { "id": "s1", "title": "other" },
+  { "id": "s2", "title": "target" }
+]"#;
         assert_eq!(lookup_opencode("target", input), Some("s2".to_string()));
         assert_eq!(lookup_opencode("missing", input), None);
     }

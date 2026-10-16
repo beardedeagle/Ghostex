@@ -7,7 +7,7 @@ use crate::paths::GxserverPaths;
 use super::config::{
     pi_extension_paths, resolve_config_directory, resolve_omp_agent_directory, HookPaths,
     AMP_PLUGIN_MARKER, HOOK_DEFINITIONS, OMP_EXTENSION_MARKER, OPENCODE_PLUGIN_MARKER,
-    OPENCODE_PLUGIN_SPEC, PI_EXTENSION_MARKER,
+    PI_EXTENSION_MARKER,
 };
 use super::install::read_json_object;
 use super::probing::{list_profile_hook_paths, read_file_text};
@@ -180,15 +180,9 @@ pub(crate) fn provider_hook_paths(agent_id: &str, hook_paths: &HookPaths) -> Vec
                 ".config/opencode",
                 None,
             );
-            if super::opencode_v2::installed(hook_paths) {
-                return vec![
-                    config_dir.join("plugins/ghostex-v2/tui.js"),
-                    config_dir.join("cli.json"),
-                ];
-            }
             vec![
-                super::install::opencode_v1_plugin_path(&config_dir),
-                config_dir.join("opencode.json"),
+                config_dir.join("plugins/ghostex-v2/tui.js"),
+                config_dir.join("cli.json"),
             ]
         }
         "amp" => vec![hook_paths
@@ -308,18 +302,6 @@ pub(crate) fn provider_hook_paths(agent_id: &str, hook_paths: &HookPaths) -> Vec
             .join("config.json")],
         _ => Vec::new(),
     }
-}
-
-pub(crate) fn is_opencode_session_plugin_registration(value: &Value) -> bool {
-    let plugin = value
-        .as_str()
-        .or_else(|| value.as_array().and_then(|items| items.first()?.as_str()))
-        .unwrap_or_default();
-    plugin == OPENCODE_PLUGIN_SPEC
-        || plugin == "ghostex-session"
-        || plugin == "./plugins/ghostex-session.js"
-        || plugin.ends_with("/plugins/ghostex-session.js")
-        || plugin.ends_with("/ghostex-session.js")
 }
 
 pub(crate) fn is_ghostex_owned_hook_command(value: &Value, command: &str) -> bool {

@@ -149,10 +149,16 @@ pub(crate) fn decode_messages(messages: &[Value]) -> Vec<SessionChatMessage> {
                     }
                 }
                 if !message["error"].is_null() {
-                    let text = message["error"]["message"]
-                        .as_str()
-                        .map(str::to_string)
-                        .unwrap_or_else(|| message["error"].to_string());
+                    // An interrupted step reads "Step interrupted"; chat draws gxserver's own
+                    // interrupted row as the one "Agent was interrupted" marker every agent shares.
+                    let text = if message["error"]["type"] == "aborted" {
+                        INTERRUPTED_STATUS_TEXT.to_string()
+                    } else {
+                        message["error"]["message"]
+                            .as_str()
+                            .map(str::to_string)
+                            .unwrap_or_else(|| message["error"].to_string())
+                    };
                     result.push(row(
                         format!("{id}:error"),
                         SessionChatRole::System,

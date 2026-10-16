@@ -12,7 +12,6 @@ pub(crate) mod nested_agent;
 pub mod install;
 pub mod notify_runtime;
 pub mod plugin_sources;
-pub(crate) mod opencode_v2;
 mod probe_cache;
 pub mod probing;
 pub mod resolution;
