@@ -38,6 +38,8 @@ pub(super) struct FeedbackSubmission {
     client: FeedbackClient,
     /// The issue was gathered and written by the feedback agent (`ghostex feedback send`).
     collected_by_agent: bool,
+    /// The sender's GitHub username, sent as the relay's `reporter`.
+    reporter: Option<String>,
 }
 
 pub(super) struct FeedbackImage {
@@ -47,10 +49,19 @@ pub(super) struct FeedbackImage {
 }
 
 impl FeedbackSubmission {
-    /// Reads `{ title, body, images: [{ name, dataBase64 }], githubUsername?, collectedByAgent? }`
-    /// and checks it against the relay's limits, so a rejected send says what to fix without a
-    /// round trip. A `githubUsername` puts the reporter line on top of the body when it is not
-    /// there yet (the pop-up's Review step already shows it in the body it sends).
+    /// Reads `{ title, body, images: [{ name, dataBase64 }], githubUsername?, reporter?,
+    /// collectedByAgent? }` and checks it against the relay's limits, so a rejected send says what
+    /// to fix without a round trip. `githubUsername` (`ghostex feedback send`) puts the reporter
+    /// line on top of the body when it is not there yet; `reporter` (the pop-up, whose Review step
+    /// already showed the line and let the user edit it) leaves the body as it is. Either becomes
+    /// the relay's `reporter`.
+    ///
+    /// CDXC:Feedback 2026-10-16 DECISION:
+    /// User: "Let the reporter's own line ping them". The relay keeps the mention of a first line
+    /// that is exactly `Reported by @<reporter>` and neutralizes every other one, so every client
+    /// sends `reporter` with the username. A relay from before that change ignores the field.
+    /// SEE-ALSO: the relay checkout's src/issue.ts (`bodyWithReporter`) and src/validate.ts,
+    /// apps/mobile/app/src/feedback/feedbackRelay.ts (the phone's copy of this request).
     pub(super) fn from_params(
         params: &serde_json::Map<String, Value>,
         client: FeedbackClient,
@@ -64,8 +75,12 @@ impl FeedbackSubmission {
                 .to_string()
         };
         let title = text("title");
-        let reporter = github_username(&text("githubUsername"))?;
-        let body = with_reporter(&text("body"), reporter.as_deref());
+        let added = github_username(&text("githubUsername"))?;
+        let body = with_reporter(&text("body"), added.as_deref());
+        let reporter = match added {
+            Some(name) => Some(name),
+            None => github_username(&text("reporter"))?,
+        };
         if title.is_empty() {
             return Err(String::from("Add a title for the issue."));
         }
@@ -92,12 +107,13 @@ impl FeedbackSubmission {
                 .get("collectedByAgent")
                 .and_then(Value::as_bool)
                 .unwrap_or(false),
+            reporter,
         })
     }
 
     /// The relay request body.
     fn payload(&self) -> Value {
-        json!({
+        let mut payload = json!({
             "title": self.title,
             "body": self.body,
             "images": self.images.iter().map(|image| json!({
@@ -107,7 +123,11 @@ impl FeedbackSubmission {
             })).collect::<Vec<_>>(),
             "client": self.client.to_json(),
             "collectedByAgent": self.collected_by_agent,
-        })
+        });
+        if let Some(reporter) = &self.reporter {
+            payload["reporter"] = json!(reporter);
+        }
+        payload
     }
 
     /// What `send` would post and where, with each image's data replaced by its size, so a dry run

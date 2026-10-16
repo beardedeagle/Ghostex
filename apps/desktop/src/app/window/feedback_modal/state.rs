@@ -331,10 +331,17 @@ impl GpuiFeedbackModalWindow {
         let app = self.app;
         let title = self.title.trim().to_string();
         let body = self.body.trim().to_string();
+        let reporter = self.username().map(str::to_string);
         let encode = self.encoded_images(cx);
         cx.spawn_in(window, async move |this, cx| {
             let images = encode.await;
-            let params = json!({ "app": app, "title": title, "body": body, "images": images });
+            let params = json!({
+                "app": app,
+                "title": title,
+                "body": body,
+                "images": images,
+                "reporter": reporter,
+            });
             let result = gx_rpc_with_timeout(None, "/api/sendFeedback", params, SEND_TIMEOUT).await;
             let _ = this.update_in(cx, |this, window, cx| {
                 this.busy = false;
