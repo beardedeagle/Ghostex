@@ -324,7 +324,7 @@ describe('active WSL2 code-server consumer contract', () => {
     expect(extractIndex).toBeGreaterThan(verifyIndex);
     expect(windowsConsumer).toContain('GHOSTEX_WSL_CODE_SERVER_ARCHIVE');
     expect(windowsConsumer).toContain('bundled_source_runtime_archive');
-    expect(windowsConsumer).toContain('store.query_current("code-server")?');
+    expect(windowsConsumer).toContain('store.current_marked_install("code-server")?');
     expect(windowsConsumer).toContain('source-runtime/component-version');
     expect(windowsConsumer).toContain('cleanup_partial_source_runtime_release(');
     expect(windowsConsumer).not.toContain('source-runtime/windows-app-runtime.sha256');
