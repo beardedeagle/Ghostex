@@ -313,7 +313,8 @@ pub(super) async fn route_projects_http(
             request_id,
             &body_json,
             |repository, db, params, _| {
-                let project_id = read_project_id(params)?;
+                // The CLI's `remove-project` passes --project-id, --path or --name, like `group-project`.
+                let project_id = resolve_sidebar_collection_project_id(repository, params)?;
                 let project = repository.remove_project(&project_id)?;
                 schedule_presentation_project_delta(
                     &state,

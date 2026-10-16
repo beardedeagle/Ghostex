@@ -269,6 +269,10 @@ pub fn usage() -> String {
             "Add a project to Ghostex (in Personal unless --workspace names another workspace); --create-if-missing creates the folder first",
         ),
         format_help_command(
+            "remove-project (--project-id id|--path path|--name name)",
+            "Remove a project from Ghostex and delete its session records; the folder on disk is kept. The endpoint only deletes records and does not close running terminals, so close-session them first. A name shared by two projects fails with the matches listed",
+        ),
+        format_help_command(
             "group-project (--project-id id|--path path|--name name) --group title",
             "Move a project into a named sidebar group, creating the group when needed",
         ),

@@ -391,6 +391,11 @@ Close Project parks the project in Recent Projects (a remote machine's project
 goes to that machine's Recent Projects, which Quick Access lists); when it held
 the active session, Ghostex stays in the current Space and switches to an awake
 session of the next project in the list.
+To remove a project for good (the folder on your computer stays), use Remove in
+Settings > Projects or, from the command line, `ghostex remove-project` with
+`--project-id`, `--path` or `--name`; a name two projects share fails and lists
+them. Removing a project deletes its session records, so close its sessions first
+(`ghostex close-session`) if they are still running.
 Session rows show the agent icon, title, status, tags, and last-active time.
 In Settings > Sidebar, enable Show Advanced to find **Highlight unanswered
 questions**. It adds a soft pink background to sessions with a detected unanswered

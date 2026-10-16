@@ -573,13 +573,29 @@ pub(crate) fn resolve_sidebar_collection_project_id(
             .collect()
     } else {
         return Err(DomainStateError::bad_request(
-            "group-project requires --project-id, --path, or --name.",
+            "This command requires --project-id, --path, or --name.",
         ));
     };
     if matches.len() > 1 {
-        return Err(DomainStateError::bad_request(
-            "The project selector matched more than one project; pass --project-id.",
-        ));
+        let listed = matches
+            .iter()
+            .map(|project| {
+                format!(
+                    "{} ({}, {})",
+                    project
+                        .get("projectId")
+                        .and_then(Value::as_str)
+                        .unwrap_or("?"),
+                    project.get("name").and_then(Value::as_str).unwrap_or("?"),
+                    project.get("path").and_then(Value::as_str).unwrap_or("?"),
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("; ");
+        return Err(DomainStateError::bad_request(format!(
+            "The project selector matched {} projects: {listed}. Pass --project-id.",
+            matches.len()
+        )));
     }
     matches
         .first()
