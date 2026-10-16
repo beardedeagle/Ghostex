@@ -42,13 +42,7 @@ impl GhostexGpuiApp {
             return;
         }
         if !grab::screen_access(false) {
-            grab::screen_access(true);
-            self.dispatch_gpui_app_modal_toast(
-                "warning",
-                "Allow screen recording",
-                "Ghostex needs Screen Recording permission to take screenshots. Allow it in System Settings > Privacy & Security, then try again.",
-                cx,
-            );
+            self.ask_ghostex_capture_screen_access(cx);
             return;
         }
         // A picture still in the editor goes to the prompt before the next one is taken.

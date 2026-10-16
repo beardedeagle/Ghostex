@@ -23,6 +23,7 @@ mod platform;
 mod project_list;
 mod prompt;
 mod save;
+mod screen_access;
 mod send;
 mod targets;
 mod tooltip;

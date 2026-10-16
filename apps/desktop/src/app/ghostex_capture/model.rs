@@ -106,6 +106,8 @@ pub(crate) struct GhostexCaptureState {
     pub(crate) frontmost: FrontmostApp,
     /// A capture is under way: Ghostex Capture's own windows are moved off screen until it ends.
     pub(crate) capturing: bool,
+    /// macOS was asked for Screen Recording once this run; it shows its prompt only once.
+    pub(crate) screen_access_asked: bool,
     pub(crate) area: Option<AreaSession>,
     pub(crate) editor: Option<EditorWindow>,
     pub(crate) prompt: PromptState,

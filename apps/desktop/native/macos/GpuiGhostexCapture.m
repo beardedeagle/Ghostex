@@ -26,6 +26,19 @@ static NSWindow *GhostexGpuiCaptureWindowOfView(void *native_view) {
   return view.window;
 }
 
+/// CDXC:GhostexCapture 2026-10-16 DECISION:
+/// User: "pls remove the traffic lights on mac". GPUI opens a window without a title bar as a titled
+/// window whose content fills it, so macOS still draws its close, minimize and zoom buttons over the
+/// top-left of the content (the editor's first tools). Every Ghostex Capture window hides them; they
+/// close with their own buttons and Escape. Changing a window's style mask brings them back, so
+/// `GhostexGpuiCaptureMakeResizable` hides them again.
+static void GhostexGpuiCaptureHideWindowButtons(NSWindow *window) {
+  for (NSNumber *kind in @[ @(NSWindowCloseButton), @(NSWindowMiniaturizeButton),
+                            @(NSWindowZoomButton) ]) {
+    [window standardWindowButton:(NSWindowButton)kind.integerValue].hidden = YES;
+  }
+}
+
 /// Keeps a Ghostex Capture window visible over other apps, in every Space and over fullscreen
 /// apps. `keyable` windows (the panel, the editor, the prompt box, the capture overlay) take the
 /// keyboard without activating Ghostex; the button never does.
@@ -40,6 +53,7 @@ void GhostexGpuiCapturePrepareFloatingWindow(void *native_view, bool keyable) {
                               NSWindowCollectionBehaviorIgnoresCycle;
   window.hidesOnDeactivate = NO;
   window.hasShadow = NO;
+  GhostexGpuiCaptureHideWindowButtons(window);
   if ([window isKindOfClass:[NSPanel class]]) {
     ((NSPanel *)window).becomesKeyOnlyIfNeeded = !keyable;
     ((NSPanel *)window).floatingPanel = YES;
@@ -76,6 +90,7 @@ void GhostexGpuiCaptureMakeResizable(void *native_view, double min_width,
   }
   window.styleMask |= NSWindowStyleMaskResizable;
   window.minSize = NSMakeSize(min_width, min_height);
+  GhostexGpuiCaptureHideWindowButtons(window);
 }
 
 /// Where a window is and how big, in the space `GhostexGpuiCaptureSetWindowFrame` places it in
@@ -137,14 +152,16 @@ static bool GhostexGpuiCaptureWritePng(CGImageRef image, const char *path) {
 /// global display space) to a PNG at full resolution.
 bool GhostexGpuiCaptureRectPng(double x, double y, double width, double height,
                                const char *path) {
-  CGImageRef image = CGWindowListCreateImage(
-      CGRectMake(x, y, width, height), kCGWindowListOptionOnScreenOnly,
-      kCGNullWindowID, kCGWindowImageBestResolution);
-  bool written = GhostexGpuiCaptureWritePng(image, path);
-  if (image) {
-    CFRelease(image);
+  @autoreleasepool {
+    CGImageRef image = CGWindowListCreateImage(
+        CGRectMake(x, y, width, height), kCGWindowListOptionOnScreenOnly,
+        kCGNullWindowID, kCGWindowImageBestResolution);
+    bool written = GhostexGpuiCaptureWritePng(image, path);
+    if (image) {
+      CFRelease(image);
+    }
+    return written;
   }
-  return written;
 }
 
 /// Writes the screen inside the front window of the app with `pid` to a PNG and reports that
@@ -158,52 +175,54 @@ bool GhostexGpuiCaptureRectPng(double x, double y, double width, double height,
 bool GhostexGpuiCaptureAppWindowPng(int32_t pid, const char *path,
                                     char *app_name, size_t app_name_capacity,
                                     double *frame) {
-  NSArray *windows = CFBridgingRelease(CGWindowListCopyWindowInfo(
-      kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements,
-      kCGNullWindowID));
-  for (NSDictionary *info in windows) {
-    NSNumber *owner = info[(__bridge NSString *)kCGWindowOwnerPID];
-    NSNumber *layer = info[(__bridge NSString *)kCGWindowLayer];
-    NSNumber *alpha = info[(__bridge NSString *)kCGWindowAlpha];
-    if (!owner || owner.intValue != pid || layer.integerValue != 0) {
-      continue;
+  @autoreleasepool {
+    NSArray *windows = CFBridgingRelease(CGWindowListCopyWindowInfo(
+        kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements,
+        kCGNullWindowID));
+    for (NSDictionary *info in windows) {
+      NSNumber *owner = info[(__bridge NSString *)kCGWindowOwnerPID];
+      NSNumber *layer = info[(__bridge NSString *)kCGWindowLayer];
+      NSNumber *alpha = info[(__bridge NSString *)kCGWindowAlpha];
+      if (!owner || owner.intValue != pid || layer.integerValue != 0) {
+        continue;
+      }
+      if (alpha && alpha.doubleValue <= 0.0) {
+        continue;
+      }
+      CGRect bounds = CGRectZero;
+      NSDictionary *boundsDictionary = info[(__bridge NSString *)kCGWindowBounds];
+      if (!boundsDictionary ||
+          !CGRectMakeWithDictionaryRepresentation(
+              (__bridge CFDictionaryRef)boundsDictionary, &bounds) ||
+          CGRectGetWidth(bounds) < 160.0 || CGRectGetHeight(bounds) < 120.0) {
+        // An app's small helper windows (Ghostex's own pop-ups and hidden hosts among them) come
+        // before its real window in the list; the capture wants the window the user sees.
+        continue;
+      }
+      CGImageRef image = CGWindowListCreateImage(
+          bounds, kCGWindowListOptionOnScreenOnly, kCGNullWindowID,
+          kCGWindowImageBestResolution);
+      bool written = GhostexGpuiCaptureWritePng(image, path);
+      if (image) {
+        CFRelease(image);
+      }
+      if (!written) {
+        return false;
+      }
+      if (frame) {
+        frame[0] = bounds.origin.x;
+        frame[1] = bounds.origin.y;
+        frame[2] = bounds.size.width;
+        frame[3] = bounds.size.height;
+      }
+      NSString *name = info[(__bridge NSString *)kCGWindowOwnerName] ?: @"";
+      if (app_name && app_name_capacity > 0) {
+        strlcpy(app_name, name.UTF8String ?: "", app_name_capacity);
+      }
+      return true;
     }
-    if (alpha && alpha.doubleValue <= 0.0) {
-      continue;
-    }
-    CGRect bounds = CGRectZero;
-    NSDictionary *boundsDictionary = info[(__bridge NSString *)kCGWindowBounds];
-    if (!boundsDictionary ||
-        !CGRectMakeWithDictionaryRepresentation(
-            (__bridge CFDictionaryRef)boundsDictionary, &bounds) ||
-        CGRectGetWidth(bounds) < 160.0 || CGRectGetHeight(bounds) < 120.0) {
-      // An app's small helper windows (Ghostex's own pop-ups and hidden hosts among them) come
-      // before its real window in the list; the capture wants the window the user sees.
-      continue;
-    }
-    CGImageRef image = CGWindowListCreateImage(
-        bounds, kCGWindowListOptionOnScreenOnly, kCGNullWindowID,
-        kCGWindowImageBestResolution);
-    bool written = GhostexGpuiCaptureWritePng(image, path);
-    if (image) {
-      CFRelease(image);
-    }
-    if (!written) {
-      return false;
-    }
-    if (frame) {
-      frame[0] = bounds.origin.x;
-      frame[1] = bounds.origin.y;
-      frame[2] = bounds.size.width;
-      frame[3] = bounds.size.height;
-    }
-    NSString *name = info[(__bridge NSString *)kCGWindowOwnerName] ?: @"";
-    if (app_name && app_name_capacity > 0) {
-      strlcpy(app_name, name.UTF8String ?: "", app_name_capacity);
-    }
-    return true;
+    return false;
   }
-  return false;
 }
 
 static OSStatus GhostexGpuiCaptureHotkeyEvent(EventHandlerCallRef next,
