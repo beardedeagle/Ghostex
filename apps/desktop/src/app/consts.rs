@@ -841,9 +841,9 @@ pub(crate) const TITLEBAR_POPUP_HELP_WIDTH: f32 = 380.0;
 
 pub(crate) const TITLEBAR_POPUP_RESOURCES_WIDTH: f32 = 656.0;
 
-/// CDXC:Notifications 2026-09-13 DECISION:
-/// User: reduce the Notifications dropdown width and height by 20% from 600 by 650.
-pub(crate) const TITLEBAR_POPUP_NOTIFICATIONS_WIDTH: f32 = 480.0;
+/// CDXC:Notifications 2026-10-16 DECISION:
+/// User: "make notifications dropdown 40px wider so Notifications title text has some more space on it's right". Supersedes the 2026-09-13 width (480, 20% under 600); the height stays at its 20% cut.
+pub(crate) const TITLEBAR_POPUP_NOTIFICATIONS_WIDTH: f32 = 520.0;
 
 pub(crate) const TITLEBAR_POPUP_NOTIFICATIONS_MAX_HEIGHT: f32 = 520.0;
 
