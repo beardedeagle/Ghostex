@@ -808,7 +808,12 @@ pub fn endpoint_for(path: &str) -> Option<EndpointDescriptor> {
         | "/api/removeExecutorApp"
         | "/api/connectExecutorApp"
         | "/api/listExecutorTools"
-        | "/api/callExecutorTool" => full_local(path),
+        | "/api/callExecutorTool"
+        | "/api/listConnectorAgentTools"
+        | "/api/callConnectorAgentTool"
+        | "/api/cancelConnectorAgentToolCall"
+        | "/api/readConnectorRules"
+        | "/api/setConnectorRule" => full_local(path),
         /*
         CDXC:TeamSync 2026-10-09 WHY:
         These hold or use this computer's member token for the team's Convex project, so only this

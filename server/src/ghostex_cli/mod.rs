@@ -7,6 +7,7 @@ mod agentbox_cli;
 mod agents;
 mod connectors;
 mod connectors_executor;
+mod connectors_mcp;
 mod coordinator;
 pub mod args;
 pub mod attach;
@@ -664,7 +665,10 @@ fn run_command(name: &str, args: &[String]) -> CliResult<()> {
             workspace::workspace_command(args)
         }
         "connectors" => {
-            connectors::require_connectors()?;
+            // Sessions start `connectors mcp` themselves; while Connectors is off it lists no tools.
+            if args.first().map(String::as_str) != Some("mcp") {
+                connectors::require_connectors()?;
+            }
             connectors::connectors_command(args)
         }
         "team" => {

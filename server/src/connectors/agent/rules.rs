@@ -1,0 +1,129 @@
+//! What a workspace does when an agent's connector call would change something: ask with
+//! Ghostex's card (the default), allow it, or never run it, for every such call or one tool at a
+//! time. Reads never ask. Kept in `<gxserver state>/connectors/rules/<workspace>.json`.
+//!
+//! CDXC:Connectors 2026-10-16 DECISION:
+//! User (Q7): before an agent sends, posts or deletes through a connector, Ghostex asks with its own card in that session, and each workspace can set it to Ask, Allow or Never. "Always allow" on a card allows that one tool in that workspace only.
+
+use std::collections::BTreeMap;
+use std::fs;
+use std::path::PathBuf;
+
+use serde::{Deserialize, Serialize};
+
+use crate::paths::GxserverPaths;
+
+use super::super::store::file_stem;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub(crate) enum Rule {
+    Ask,
+    Allow,
+    Never,
+}
+
+impl Rule {
+    pub(crate) fn parse(text: &str) -> Option<Rule> {
+        match text.trim().to_ascii_lowercase().as_str() {
+            "ask" => Some(Rule::Ask),
+            "allow" => Some(Rule::Allow),
+            "never" => Some(Rule::Never),
+            _ => None,
+        }
+    }
+}
+
+/// A workspace's rules: one for every call that changes something, and one per tool.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub(crate) struct WorkspaceRules {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) default: Option<Rule>,
+    /// Keyed `composio:<TOOL_SLUG>` or `executor:<app>.<tool>`.
+    #[serde(default)]
+    pub(crate) tools: BTreeMap<String, Rule>,
+}
+
+fn rules_path(paths: &GxserverPaths, workspace: &str) -> PathBuf {
+    paths
+        .root_dir
+        .join("connectors")
+        .join("rules")
+        .join(format!("{}.json", file_stem(workspace)))
+}
+
+pub(crate) fn load(paths: &GxserverPaths, workspace: &str) -> WorkspaceRules {
+    fs::read_to_string(rules_path(paths, workspace))
+        .ok()
+        .and_then(|text| serde_json::from_str(&text).ok())
+        .unwrap_or_default()
+}
+
+fn save(paths: &GxserverPaths, workspace: &str, rules: &WorkspaceRules) -> Result<(), String> {
+    let path = rules_path(paths, workspace);
+    let write = || -> std::io::Result<()> {
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        let temp = path.with_extension("json.tmp");
+        fs::write(&temp, serde_json::to_vec_pretty(rules)?)?;
+        fs::rename(&temp, &path)
+    };
+    write().map_err(|error| format!("Couldn't save the Connectors rules: {error}"))
+}
+
+/// A tool as a rule names it. A bare name is read as Composio's (`GMAIL_SEND_EMAIL`) or, with a
+/// dot, Executor's (`linear.save_issue`).
+pub(crate) fn rule_key(tool: &str) -> String {
+    let tool = tool.trim();
+    if tool.starts_with("composio:") || tool.starts_with("executor:") {
+        tool.to_string()
+    } else if tool.contains('.') {
+        format!("executor:{tool}")
+    } else {
+        format!("composio:{}", tool.to_uppercase())
+    }
+}
+
+/// Sets the rule for one tool (`Some(key)`) or for every call (`None`); `None` as the rule goes
+/// back to the default (a tool follows the workspace's rule, the workspace asks).
+pub(crate) fn set(
+    paths: &GxserverPaths,
+    workspace: &str,
+    key: Option<&str>,
+    rule: Option<Rule>,
+) -> Result<WorkspaceRules, String> {
+    let mut rules = load(paths, workspace);
+    match (key, rule) {
+        (Some(key), Some(rule)) => {
+            rules.tools.insert(rule_key(key), rule);
+        }
+        (Some(key), None) => {
+            rules.tools.remove(&rule_key(key));
+        }
+        (None, rule) => rules.default = rule,
+    }
+    save(paths, workspace, &rules)?;
+    Ok(rules)
+}
+
+/// What a call that would change something does: never when any of its tools says never,
+/// allowed when all of them are allowed, else ask.
+pub(crate) fn decide(paths: &GxserverPaths, workspace: &str, keys: &[String]) -> Rule {
+    let rules = load(paths, workspace);
+    let rule_of = |key: &String| {
+        rules
+            .tools
+            .get(key)
+            .copied()
+            .or(rules.default)
+            .unwrap_or(Rule::Ask)
+    };
+    if keys.iter().any(|key| rule_of(key) == Rule::Never) {
+        Rule::Never
+    } else if !keys.is_empty() && keys.iter().all(|key| rule_of(key) == Rule::Allow) {
+        Rule::Allow
+    } else {
+        Rule::Ask
+    }
+}

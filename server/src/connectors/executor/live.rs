@@ -10,6 +10,8 @@ use serde_json::Value;
 
 use crate::paths::GxserverPaths;
 
+use super::super::composio::mcp_client::McpSession;
+
 /// One workspace's Executor in this gxserver.
 #[derive(Default)]
 pub(super) struct Live {
@@ -26,6 +28,8 @@ pub(super) struct Live {
     pub(super) starting: bool,
     /// Why the last start failed, and when, so a read doesn't retry a failing start every time.
     pub(super) start_error: Option<(String, Instant)>,
+    /// The MCP session agents' calls use (`agent.rs`); a restarted Executor ends it.
+    pub(super) mcp_session: Option<McpSession>,
 }
 
 /// Keyed by the workspace's data folder, which includes the gxserver root.

@@ -8,7 +8,7 @@
 mod account;
 mod connections;
 mod http;
-mod mcp_client;
+pub(super) mod mcp_client;
 mod names;
 mod oauth;
 mod oauth_route;
@@ -19,7 +19,7 @@ mod tools;
 pub(crate) use account::{set_changed_listener, NOT_CONNECTED};
 pub(crate) use connections::start_connect;
 pub(crate) use oauth_route::{serve_oauth_redirect, OAUTH_REDIRECT_PATH};
-pub(crate) use read_rule::{call_decision, call_label, ComposioDecision};
+pub(crate) use read_rule::{call_decision, call_label, rule_tools, ComposioDecision};
 pub(crate) use signin::{sign_in, sign_out, signed_in};
 pub(crate) use tools::{apps, call_tool, mcp_tools, refresh};
 

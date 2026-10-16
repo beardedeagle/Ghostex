@@ -87,6 +87,18 @@ fn with_account(
     }
 }
 
+/// Whether Executor marks one of an app's tools read-only; `None` when the app has no such tool.
+pub(super) fn is_read_only(
+    endpoint: &Endpoint,
+    app: &Value,
+    tool: &str,
+) -> Result<Option<bool>, String> {
+    Ok(index(endpoint, app)?
+        .iter()
+        .find(|item| item.get("name").and_then(Value::as_str) == Some(tool))
+        .map(|item| item.get("readOnly").and_then(Value::as_bool) == Some(true)))
+}
+
 fn clip(text: &str) -> String {
     match text.char_indices().nth(OUTPUT_LIMIT) {
         Some((index, _)) => format!("{}…", &text[..index]),

@@ -812,6 +812,7 @@ pub(crate) fn resolve_agent_launch_command(
     );
     let command = with_codex_no_daemon(agent_id, icon, &command);
     let command = with_marked_handovers(agent_id, icon, &command);
+    let command = crate::connectors::with_connector_tools(agent_id, icon, &command);
     #[cfg(windows)]
     let command = native_cli_command(&command);
     command

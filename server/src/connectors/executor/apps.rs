@@ -273,3 +273,7 @@ pub(super) fn app_id(app: &Value) -> &str {
 pub(super) fn app_name(app: &Value) -> &str {
     text(app, "name")
 }
+
+pub(super) fn app_slug(app: &Value) -> &str {
+    text(app, "slug")
+}

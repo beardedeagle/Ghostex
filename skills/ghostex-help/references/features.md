@@ -2982,6 +2982,19 @@ backend: `ghostex team deploy|join|invite|identity|status|ping|leave`. Slack:
   anything that would send, post, create, edit or delete is refused.
   `ghostex connectors sign-out` removes a workspace's sign-in. Every command
   takes `--workspace <name>`.
+- Agents use connectors on their own: every Claude and Codex session that
+  starts or resumes while Connectors is on gets its workspace's connector
+  tools (Composio's and, when Executor is on, Executor's), so you can just
+  ask an agent to read your mail or file a Linear issue. Apps connected
+  later reach running sessions within seconds. Reads run at once. Before an
+  agent sends, posts, creates, changes or deletes anything, Ghostex shows a
+  card in that session's chat: Approve, Always allow (stop asking for that
+  tool in this workspace) or Deny; a card nobody answers ends after 30
+  minutes. A program an agent runs through Executor asks only for the steps
+  whose app asks for approval. `ghostex connectors rules` shows what a
+  workspace does with such calls, and `ghostex connectors rule <tool|all>
+  <ask|allow|never|default>` changes it, for example `rule all never` so
+  agents in that workspace can only read, or `rule GMAIL_SEND_EMAIL allow`.
 - Executor is the second way Connectors links apps, next to Composio, and
   runs on this computer. `ghostex connectors executor enable` turns it on for
   a workspace (the first time, Ghostex downloads Executor). Each workspace

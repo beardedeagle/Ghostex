@@ -9,7 +9,8 @@ use serde_json::Value;
 use crate::domain::DomainStateError;
 use crate::paths::GxserverPaths;
 use crate::workspaces::{
-    find_workspace_id, read_sidebar_workspaces, workspaces_feature_enabled, DEFAULT_WORKSPACE_ID,
+    find_workspace_id, project_workspace_id, read_sidebar_workspaces, workspaces_feature_enabled,
+    DEFAULT_WORKSPACE_ID,
 };
 
 /// A workspace as the Connectors page lists it.
@@ -66,6 +67,21 @@ pub(crate) fn connector_workspaces(
             id,
         })
         .collect())
+}
+
+/// The workspace whose connectors a project's agents get (a worktree follows its parent
+/// checkout); always the default one while Workspaces is off.
+pub(crate) fn project_workspace(
+    db: &rusqlite::Connection,
+    repository: &crate::domain::DomainRepository<'_>,
+    project: &Value,
+) -> Result<String, DomainStateError> {
+    if !workspaces_feature_enabled() {
+        return Ok(DEFAULT_WORKSPACE_ID.to_string());
+    }
+    let workspaces = read_sidebar_workspaces(db)?;
+    let projects = repository.list_projects()?;
+    Ok(project_workspace_id(&workspaces, project, &projects))
 }
 
 /// The workspace a request names, by id or name; none names the default workspace. While

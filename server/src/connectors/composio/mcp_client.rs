@@ -1,6 +1,8 @@
 //! A blocking MCP client over Streamable HTTP, the transport `@modelcontextprotocol/sdk`'s
 //! `StreamableHTTPClientTransport` speaks: every JSON-RPC message is a POST, the answer is JSON or
 //! a `text/event-stream`, and the `Mcp-Session-Id` from `initialize` rides on every later request.
+//! Composio's hosted server and a workspace's Executor (`/mcp`) both use it; `server` is the name
+//! its messages give the other side.
 
 use std::io::{BufRead, BufReader};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -33,7 +35,8 @@ pub(crate) enum McpError {
     Unauthorized(BearerChallenge),
     /// The server no longer knows the session (404, or a 400 that names the session): start a new one.
     SessionGone,
-    /// No connection was made (DNS, connect, TLS handshake), so nothing ran.
+    /// No connection was made (DNS, connect, TLS handshake), so nothing ran. The message names the
+    /// server.
     Unreached(String),
     /// The server answered with an error status, or the answer broke off.
     Failed(String),
@@ -44,10 +47,11 @@ pub(crate) enum McpError {
 impl McpError {
     pub(crate) fn message(&self) -> String {
         match self {
-            McpError::Unauthorized(_) => "Composio asked to sign in again.".to_string(),
-            McpError::SessionGone => "Composio ended the session.".to_string(),
-            McpError::Unreached(message) => format!("Couldn't reach Composio: {message}"),
-            McpError::Failed(message) | McpError::Rpc(message) => message.clone(),
+            McpError::Unauthorized(_) => "The server asked to sign in again.".to_string(),
+            McpError::SessionGone => "The server ended the session.".to_string(),
+            McpError::Unreached(message) | McpError::Failed(message) | McpError::Rpc(message) => {
+                message.clone()
+            }
         }
     }
 }
@@ -58,6 +62,7 @@ fn next_id() -> u64 {
 }
 
 fn post(
+    server: &str,
     url: &str,
     access_token: Option<&str>,
     session: Option<&McpSession>,
@@ -100,43 +105,49 @@ fn post(
             Err(McpError::SessionGone)
         }
         Err(error @ HttpError::Status { .. }) => Err(McpError::Failed(format!(
-            "Composio answered: {}",
+            "{server} answered: {}",
             error.message()
         ))),
-        Err(HttpError::Unreached(message)) => Err(McpError::Unreached(message)),
-        // The request may have reached Composio before the connection broke: it may have run.
+        Err(HttpError::Unreached(message)) => Err(McpError::Unreached(format!(
+            "Couldn't reach {server}: {message}"
+        ))),
+        // The request may have reached the server before the connection broke: it may have run.
         Err(HttpError::Transport(message)) => Err(McpError::Failed(format!(
-            "The connection to Composio broke: {message}"
+            "The connection to {server} broke: {message}"
         ))),
     }
 }
 
 /// Reads the JSON-RPC response with `id` from a JSON body or an SSE stream.
-fn read_response(response: ureq::Response, id: u64) -> Result<Value, McpError> {
+fn read_response(server: &str, response: ureq::Response, id: u64) -> Result<Value, McpError> {
     let content_type = response.content_type().to_ascii_lowercase();
     if content_type == "text/event-stream" {
-        return read_sse_response(response, id);
+        return read_sse_response(server, response, id);
     }
     let text = response
         .into_string()
-        .map_err(|error| McpError::Failed(format!("Composio's answer broke off: {error}")))?;
+        .map_err(|error| McpError::Failed(format!("{server}'s answer broke off: {error}")))?;
     let value: Value = serde_json::from_str(&text)
-        .map_err(|_| McpError::Failed("Composio sent an unreadable answer.".to_string()))?;
+        .map_err(|_| McpError::Failed(format!("{server} sent an unreadable answer.")))?;
     let messages = match value {
         Value::Array(messages) => messages,
         other => vec![other],
     };
     messages
         .into_iter()
-        .find_map(|message| take_matching_response(message, id))
+        .find_map(|message| take_matching_response(server, message, id))
         .unwrap_or_else(|| {
-            Err(McpError::Failed(
-                "Composio didn't answer the request.".to_string(),
-            ))
+            Err(McpError::Failed(format!(
+                "{server} didn't answer the request."
+            )))
         })
 }
 
-fn take_matching_response(message: Value, id: u64) -> Option<Result<Value, McpError>> {
+fn take_matching_response(
+    server: &str,
+    message: Value,
+    id: u64,
+) -> Option<Result<Value, McpError>> {
     if message.get("id").and_then(Value::as_u64) != Some(id) || message.get("method").is_some() {
         return None;
     }
@@ -144,15 +155,16 @@ fn take_matching_response(message: Value, id: u64) -> Option<Result<Value, McpEr
         let text = error
             .get("message")
             .and_then(Value::as_str)
-            .unwrap_or("Composio refused the request.");
-        return Some(Err(McpError::Rpc(text.to_string())));
+            .map(str::to_string)
+            .unwrap_or_else(|| format!("{server} refused the request."));
+        return Some(Err(McpError::Rpc(text)));
     }
     Some(Ok(message.get("result").cloned().unwrap_or(Value::Null)))
 }
 
 /// SSE framing: `data:` lines join with newlines, a blank line ends the event, `:` lines are
 /// comments. Only `message` events (or unnamed ones) carry JSON-RPC.
-fn read_sse_response(response: ureq::Response, id: u64) -> Result<Value, McpError> {
+fn read_sse_response(server: &str, response: ureq::Response, id: u64) -> Result<Value, McpError> {
     let mut reader = BufReader::new(response.into_reader());
     let mut data = String::new();
     let mut event = String::new();
@@ -161,7 +173,7 @@ fn read_sse_response(response: ureq::Response, id: u64) -> Result<Value, McpErro
         line.clear();
         let read = reader
             .read_line(&mut line)
-            .map_err(|error| McpError::Failed(format!("Composio's answer broke off: {error}")))?;
+            .map_err(|error| McpError::Failed(format!("{server}'s answer broke off: {error}")))?;
         let ended = read == 0;
         let trimmed = line.trim_end_matches(['\r', '\n']);
         if ended || trimmed.is_empty() {
@@ -172,7 +184,7 @@ fn read_sse_response(response: ureq::Response, id: u64) -> Result<Value, McpErro
                         other => vec![other],
                     };
                     for message in messages {
-                        if let Some(result) = take_matching_response(message, id) {
+                        if let Some(result) = take_matching_response(server, message, id) {
                             return result;
                         }
                     }
@@ -181,9 +193,9 @@ fn read_sse_response(response: ureq::Response, id: u64) -> Result<Value, McpErro
             data.clear();
             event.clear();
             if ended {
-                return Err(McpError::Failed(
-                    "Composio closed the connection before answering.".to_string(),
-                ));
+                return Err(McpError::Failed(format!(
+                    "{server} closed the connection before answering."
+                )));
             }
             continue;
         }
@@ -209,6 +221,7 @@ fn read_sse_response(response: ureq::Response, id: u64) -> Result<Value, McpErro
 
 /// One JSON-RPC request in an existing session.
 pub(crate) fn request(
+    server: &str,
     url: &str,
     access_token: Option<&str>,
     session: &McpSession,
@@ -218,12 +231,13 @@ pub(crate) fn request(
 ) -> Result<Value, McpError> {
     let id = next_id();
     let message = json!({ "jsonrpc": "2.0", "id": id, "method": method, "params": params });
-    let response = post(url, access_token, Some(session), &message, timeout)?;
-    read_response(response, id)
+    let response = post(server, url, access_token, Some(session), &message, timeout)?;
+    read_response(server, response, id)
 }
 
 /// `initialize` then `notifications/initialized` (the SDK's `Client.connect`).
 pub(crate) fn initialize(
+    server: &str,
     url: &str,
     access_token: Option<&str>,
     client_name: &str,
@@ -239,9 +253,16 @@ pub(crate) fn initialize(
             "clientInfo": { "name": client_name, "version": "1.0.0" },
         },
     });
-    let response = post(url, access_token, None, &message, Duration::from_secs(60))?;
+    let response = post(
+        server,
+        url,
+        access_token,
+        None,
+        &message,
+        Duration::from_secs(60),
+    )?;
     let session_id = response.header("mcp-session-id").map(str::to_string);
-    let result = read_response(response, id)?;
+    let result = read_response(server, response, id)?;
     let protocol_version = result
         .get("protocolVersion")
         .and_then(Value::as_str)
@@ -249,7 +270,7 @@ pub(crate) fn initialize(
         .to_string();
     if !SUPPORTED_PROTOCOL_VERSIONS.contains(&protocol_version.as_str()) {
         return Err(McpError::Failed(format!(
-            "Composio speaks a newer version of MCP ({protocol_version}). Update Ghostex."
+            "{server} speaks a newer version of MCP ({protocol_version}). Update Ghostex."
         )));
     }
     let session = McpSession {
@@ -258,6 +279,7 @@ pub(crate) fn initialize(
     };
     let notification = json!({ "jsonrpc": "2.0", "method": "notifications/initialized" });
     post(
+        server,
         url,
         access_token,
         Some(&session),

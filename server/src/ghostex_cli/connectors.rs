@@ -29,8 +29,9 @@ pub(super) fn require_connectors() -> CliResult<()> {
 }
 
 /// `ghostex connectors [status] | sign-in [--no-open] | sign-out | refresh | connect <app>
-/// [--no-open] | tools | call <tool> [--args <json>] | executor …`, each with
-/// `[--workspace name|id]`.
+/// [--no-open] | tools | call <tool> [--args <json>] | rules | rule <tool|all> <ask|allow|never|default>
+/// | executor …`, each with `[--workspace name|id]`, and the hidden `mcp` that agent sessions
+/// start.
 pub(super) fn connectors_command(args: &[String]) -> CliResult<()> {
     let parsed = parse_args(args);
     let flags = &parsed.flags;
@@ -121,9 +122,21 @@ pub(super) fn connectors_command(args: &[String]) -> CliResult<()> {
             );
             Ok(())
         }
+        "rules" => call_and_print("/api/readConnectorRules", params, flags),
+        "rule" => {
+            let (Some(tool), Some(rule)) = (rest.first(), rest.get(1)) else {
+                return Err(CliError::Other(
+                    "Use: ghostex connectors rule <tool|all> <ask|allow|never|default>, like `rule GMAIL_SEND_EMAIL allow` or `rule all never`.".to_string(),
+                ));
+            };
+            params.insert("tool".to_string(), json!(tool));
+            params.insert("rule".to_string(), json!(rule));
+            call_and_print("/api/setConnectorRule", params, flags)
+        }
         "executor" => super::connectors_executor::executor_command(rest, params, flags, open_in_browser),
+        "mcp" => super::connectors_mcp::run(),
         other => Err(CliError::Other(format!(
-            "Unknown connectors command \"{other}\". Use status, sign-in, sign-out, refresh, connect, tools, call or executor."
+            "Unknown connectors command \"{other}\". Use status, sign-in, sign-out, refresh, connect, tools, call, rules, rule or executor."
         ))),
     }
 }

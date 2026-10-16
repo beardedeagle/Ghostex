@@ -350,7 +350,7 @@ pub(super) fn connect(
             .tokens
             .as_ref()
             .map(|tokens| tokens.access_token.clone());
-        match mcp_client::initialize(MCP_URL, token.as_deref(), oauth::CLIENT_NAME) {
+        match mcp_client::initialize("Composio", MCP_URL, token.as_deref(), oauth::CLIENT_NAME) {
             Ok(session) => {
                 with_live(paths, workspace, |live| live.session = Some(session));
                 return Ok(Connected::Yes);
@@ -514,6 +514,7 @@ pub(super) fn rpc(
         };
         let token = access_token(paths, workspace);
         match mcp_client::request(
+            "Composio",
             MCP_URL,
             token.as_deref(),
             &session,

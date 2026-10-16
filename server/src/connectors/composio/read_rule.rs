@@ -213,6 +213,21 @@ pub(crate) fn call_label(tool: &str, arguments: &Value) -> String {
     }
 }
 
+/// The tools a call runs, as rules name them: the app tools inside `COMPOSIO_MULTI_EXECUTE_TOOL`,
+/// else the tool itself.
+pub(crate) fn rule_tools(tool: &str, arguments: &Value) -> Vec<String> {
+    let slugs = execute_items(arguments)
+        .iter()
+        .map(|item| item_slug(item))
+        .filter(|slug| !slug.is_empty())
+        .collect::<Vec<_>>();
+    if tool == "COMPOSIO_MULTI_EXECUTE_TOOL" && !slugs.is_empty() {
+        slugs
+    } else {
+        vec![tool.to_string()]
+    }
+}
+
 /// `COMPOSIO_MANAGE_CONNECTIONS` that only lists connections (every toolkit's `action` is `list`;
 /// a missing action means `add`).
 fn lists_connections_only(arguments: &Value) -> bool {

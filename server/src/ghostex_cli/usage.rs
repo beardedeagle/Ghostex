@@ -490,6 +490,10 @@ pub fn usage() -> String {
             "A workspace's connectors: sign it in to Composio in your browser, connect one of its apps (gmail, slack…), list the apps and tools its agents get, and run a tool that only reads",
         ),
         format_help_command(
+            "connectors rules | rule <tool|all> <ask|allow|never|default>  (each takes --workspace name|id)",
+            "What a workspace does when an agent's connector call would send, post, change or delete something: ask on a card in the session (the default), allow it, or never run it, for every call or one tool",
+        ),
+        format_help_command(
             "connectors executor [status] | enable | disable | catalog [words] | add <app> | add-mcp <name> <url> | connect <app> | remove <app> | tools [app] | call <app> <tool> [--args <json>]  (each takes --workspace name|id)",
             "A workspace's Executor: turn it on (Ghostex downloads Executor the first time), add apps from its catalog or by MCP server address, sign them in, list their tools and run one that only reads",
         ),

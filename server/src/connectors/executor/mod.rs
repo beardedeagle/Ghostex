@@ -2,6 +2,7 @@
 //! Executor build, runs a separate copy per workspace with its own data, port and keys, and
 //! manages its apps, sign-ins and tools over its local API.
 
+pub(super) mod agent;
 mod apps;
 mod client;
 mod connections;
