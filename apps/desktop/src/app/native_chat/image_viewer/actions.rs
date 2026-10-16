@@ -33,6 +33,7 @@ impl NativeChatView {
         match action {
             "copyImage" => self.copy_viewer_image(cx),
             "copyPath" => self.copy_viewer_path(cx),
+            "locateFile" => self.open_viewer_file(true, cx),
             "saveImage" => self.save_viewer_image(cx),
             "resetZoom" => {
                 if let Some(request) = &mut self.image_viewer.request {
@@ -157,6 +158,17 @@ impl ImageViewerWindow {
         ];
         if copyable {
             rows.push(json!({"label":"Copy Path","iconPath":"titlebar/link.svg","command":command("copyPath")}));
+        }
+        // The folder row of every file the chat shows (CDXC:SessionChat 2026-10-17 in file_actions.rs).
+        let locatable = self.chat.read(cx).file_locate_available()
+            && self
+                .chat
+                .read(cx)
+                .image_viewer_current()
+                .and_then(|image| super::super::file_actions::image_file_path(&image))
+                .is_some();
+        if locatable {
+            rows.push(json!({"label":"Open Image Location","iconPath":"titlebar/folder-open.svg","command":command("locateFile")}));
         }
         rows.push(json!({"separator":true}));
         rows.push(json!({"label":"Save Image","iconPath":"titlebar/download.svg","command":command("saveImage")}));

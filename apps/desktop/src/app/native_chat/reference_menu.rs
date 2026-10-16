@@ -16,7 +16,7 @@ impl NativeChatView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> bool {
-        let rows: Vec<Value> = self
+        let mut rows: Vec<Value> = self
             .runtime
             .as_ref()
             .and_then(|runtime| {
@@ -28,6 +28,7 @@ impl NativeChatView {
             })
             .and_then(|rows| rows.as_array().cloned())
             .unwrap_or_default();
+        self.keep_available_file_rows(&mut rows);
         if rows.is_empty() {
             return false;
         }

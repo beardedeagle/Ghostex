@@ -204,7 +204,7 @@ impl GhostexGpuiApp {
             Some(shared_settings::SharedChatFileOpenView::Docs) => {
                 shared_settings::SharedFileOpenTarget::Files
             }
-            None => crate::app::native_docs::entry::file_open_target_for_path(&file_path),
+            None => crate::app::native_docs::entry::local_file_open_target(&file_path),
         };
         match &target {
             shared_settings::SharedFileOpenTarget::SystemApp => {

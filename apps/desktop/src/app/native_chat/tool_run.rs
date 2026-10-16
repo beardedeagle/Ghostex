@@ -6,6 +6,7 @@
 
 use super::disclosure_body::{DisclosureRail, disclosure_body};
 use super::disclosure_motion::motion_clip_trailing;
+use super::file_actions::FileMenuExt as _;
 use super::{
     appearance::ChatAppearance, fonts::CHAT_MONO, state::NativeChatView, transcript::text,
 };
@@ -484,6 +485,7 @@ impl NativeChatView {
             gpui::FontWeight::MEDIUM
         };
         let toggle_key = key.clone();
+        let file_path = text(tool, "filePath");
         let a11y_label = match (subagent.is_empty(), preview.is_empty()) {
             (true, true) => format!("Tool {name}"),
             (true, false) => format!("Tool {name}: {preview}"),
@@ -503,6 +505,7 @@ impl NativeChatView {
         };
         let mut trigger = div()
             .id(key.clone())
+            .file_menu((!file_path.is_empty()).then_some(file_path), cx)
             .role(gpui::Role::Button)
             .aria_label(a11y_label)
             .aria_expanded(expanded)

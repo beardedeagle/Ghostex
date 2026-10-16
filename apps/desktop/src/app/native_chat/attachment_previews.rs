@@ -1,3 +1,4 @@
+use super::file_actions::FileMenuExt as _;
 use super::{appearance::ChatAppearance, images::ChatImageSource, state::NativeChatView};
 use crate::app::helpers::ThrottledAnimationExt as _;
 use crate::app::native_chat::cursor::ChatCursor as _;
@@ -157,7 +158,8 @@ impl NativeChatView {
                             )
                             .on_click(cx.listener(move |this, _, _, cx| {
                                 this.open_image_viewer(open.clone(), index, cx)
-                            })),
+                            }))
+                            .file_menu(super::file_actions::image_file_path(&images[index]), cx),
                     )
                     // React's `outline: 2px solid white; outline-offset: 1px` on the active
                     // thumbnail. GPUI has no outline, so a ring is painted around the tile; it has

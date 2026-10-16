@@ -33,7 +33,7 @@ impl NativeChatView {
         // The composer hides behind a question card (composer.rs), which is when Add to Chat is disabled.
         let question_active = self.snapshot["questionCard"]["visible"] == true
             && self.snapshot["prompt"]["kind"] == "question";
-        let rows: Vec<Value> = self
+        let mut rows: Vec<Value> = self
             .runtime
             .as_ref()
             .and_then(|runtime| {
@@ -47,6 +47,7 @@ impl NativeChatView {
             })
             .and_then(|rows| rows.as_array().cloned())
             .unwrap_or_default();
+        self.keep_available_file_rows(&mut rows);
         if rows.is_empty() {
             return false;
         }

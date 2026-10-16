@@ -106,6 +106,10 @@ pub struct FilesLinksRow {
     pub image: Option<Value>,
     /// "First" and "Last", or one "Show", or "Open thread": `{label, tooltip, command}` each.
     pub jumps: Vec<Value>,
+    /// The file's or folder's path, for Copy Path and the folder row; absent for a web link.
+    /// CDXC:SessionChat 2026-10-17 SEE-ALSO: `file_actions.rs` in apps/desktop/src/app/native_chat/ holds the decision; the phone's `FilesLinksCard.tsx` reads the same field.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
 }
 
 /// One session's rows inside a section.
@@ -536,6 +540,12 @@ fn row(item: &FilesLinksItem, session: &FilesLinksSession, context: &ChatContext
         open: json!({"type": "openMarkdownLink", "href": href}),
         image: item.image.clone(),
         jumps,
+        path: item
+            .url
+            .is_none()
+            .then(|| item.path.clone())
+            .flatten()
+            .filter(|path| !path.is_empty()),
     }
 }
 

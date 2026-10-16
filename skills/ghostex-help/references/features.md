@@ -376,7 +376,10 @@ view from the strip.
   is listed but cannot be picked. If you had changed the old Markdown, HTML or
   Images setting, the first dropdown reads As before and keeps those choices
   until you pick something else. Videos and audio keep their own Files or system
-  app choice, and PDFs and formats Files cannot show open in the system app.
+  app choice, and PDFs and formats Files cannot show open in the system app. A
+  file on this computer that Files cannot show as text (a binary file such as a
+  zip, a database or an Office file) opens in the system app instead; a remote
+  project's binary file shows Files' "not previewed" notice.
 - **Terminal**: a command terminal in the view panel that works like the
   Commands pane, only on the right beside your sessions instead of below them.
   It has its own tab bar with a **+** for new terminals, Cmd+Shift+T for another
@@ -1320,13 +1323,18 @@ green/red counts and a five-block change bar. Click a row to open its diff,
 with the file's own line numbers and the function each change sits in (for
 Claude sessions); under the first seven lines, Show all N changed lines shows
 the rest and Open file opens it in Editor or Files, just like a file reference
-pill. Enable Show file edit previews in Settings > Chat to open every row to its
+pill; Copy path and Open file location sit beside it. Enable Show file edit previews in Settings > Chat to open every row to its
 first seven lines by default. Local folder links in desktop chat open your system file explorer; remote
 folder links open in this computer's Code view so you can browse the remote files.
 File reference pills in the composer also open with one click using the same
 Code/Files preferences as transcript links. Double-click a composer pill to edit
-its reference text. Right-click a file reference or file-change path for Open in
-Code, Open in Files (Markdown, HTML, and Excalidraw), Copy Path, or the location row.
+its reference text. Every file the chat shows has Copy Path and the location row:
+right-click a file reference, a file edit row, a tool row that names a file, a
+picture or an attachment for Open in Code, Open in Files (Markdown, HTML, and
+Excalidraw), Copy Path, or the location row, and each file in Files and links has
+copy and location buttons. The location row is left out for a remote session's
+files (they are on the other computer) and in Ghostex web; on the phone, hold the
+file for Copy Path.
 In chat the location row names what the path is (Open File Location, Open Folder
 Location, Open Image Location, Open Video Location); elsewhere it reads Open File/Folder
 Location. It appears directly below the path-copy actions

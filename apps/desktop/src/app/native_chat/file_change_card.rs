@@ -401,6 +401,7 @@ impl NativeChatView {
         let hue = palette.status(status);
         let failed = file["failed"] == true;
         let toggle_key = key.clone();
+        let menu_path = text(file, "path");
         let header = div()
             .id(format!("file-row:{key}"))
             .flex()
@@ -416,6 +417,12 @@ impl NativeChatView {
             .on_click(cx.listener(move |view, _, _, cx| {
                 view.toggle_marker_disclosure(toggle_key.clone(), open, cx);
             }))
+            .on_mouse_down(
+                gpui::MouseButton::Right,
+                cx.listener(move |view, event: &gpui::MouseDownEvent, window, cx| {
+                    view.file_secondary_press(menu_path.clone(), event, window, cx);
+                }),
+            )
             .child(icon(
                 if open {
                     "titlebar/chevron-down.svg"
@@ -625,6 +632,10 @@ impl NativeChatView {
                 .child(label)
         };
         let open_path = text(file, "path");
+        let copy_path = open_path.clone();
+        let locate_path = open_path.clone();
+        let deleted = file["status"] == "deleted";
+        let locatable = !deleted && !open_path.is_empty() && self.file_locate_available();
         let toggle_all = all_key.clone();
         let footer = div()
             .flex()
@@ -653,7 +664,31 @@ impl NativeChatView {
                 )
             })
             .child(div().flex_1())
-            .when(file["status"] != "deleted", |this| {
+            .when(!copy_path.is_empty(), |this| {
+                this.child(
+                    ghost(
+                        format!("file-copy-path:{key}"),
+                        "titlebar/copy.svg",
+                        "Copy path".to_string(),
+                    )
+                    .on_click(cx.listener(move |view, _, _, cx| {
+                        view.copy_file_path(&copy_path, cx);
+                    })),
+                )
+            })
+            .when(locatable, |this| {
+                this.child(
+                    ghost(
+                        format!("file-locate:{key}"),
+                        "titlebar/folder-open.svg",
+                        "Open file location".to_string(),
+                    )
+                    .on_click(cx.listener(move |view, _, _, cx| {
+                        view.locate_file(&locate_path, cx);
+                    })),
+                )
+            })
+            .when(!deleted, |this| {
                 this.child(
                     ghost(
                         format!("file-open:{key}"),

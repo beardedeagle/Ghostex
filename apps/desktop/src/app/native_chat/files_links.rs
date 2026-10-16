@@ -161,6 +161,55 @@ impl NativeChatView {
                     .into_any_element()
             })
             .collect();
+        // Copy Path and the folder row (CDXC:SessionChat 2026-10-17 in file_actions.rs).
+        let path = row["path"].as_str().unwrap_or_default().to_string();
+        let mut path_actions: Vec<AnyElement> = Vec::new();
+        if !path.is_empty() {
+            let folder = row["icon"] == "folder";
+            let mut actions = vec![("copy", "titlebar/copy.svg", "Copy Path".to_string())];
+            if self.file_locate_available() {
+                actions.push((
+                    "locate",
+                    "titlebar/folder-open.svg",
+                    if folder {
+                        "Open Folder Location".to_string()
+                    } else {
+                        "Open File Location".to_string()
+                    },
+                ));
+            }
+            for (action, icon, tooltip) in actions {
+                let path = path.clone();
+                let label = tooltip.clone();
+                path_actions.push(
+                    div()
+                        .id(SharedString::from(format!("files-links-{action}:{key}")))
+                        .role(gpui::Role::Button)
+                        .aria_label(label)
+                        .flex_shrink_0()
+                        .size(px(22.0 * s))
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .rounded(px(5.0 * s))
+                        .chat_filled(p.neutral_button_fills(), true)
+                        .chat_cursor_pointer()
+                        .child(svg().path(icon).size(px(13.0 * s)).text_color(p.muted))
+                        .tooltip(move |window, cx| {
+                            gpui_component::tooltip::Tooltip::new(tooltip.clone()).build(window, cx)
+                        })
+                        .on_click(cx.listener(move |this, _, _, cx| {
+                            cx.stop_propagation();
+                            if action == "copy" {
+                                this.copy_file_path(&path, cx);
+                            } else {
+                                this.locate_file(&path, cx);
+                            }
+                        }))
+                        .into_any_element(),
+                );
+            }
+        }
         div()
             .id(SharedString::from(format!("files-links-row:{key}")))
             .role(gpui::Role::Button)
@@ -243,6 +292,7 @@ impl NativeChatView {
                     ),
             )
             .children(jumps)
+            .children(path_actions)
             .tooltip(move |window, cx| {
                 gpui_component::tooltip::Tooltip::new(detail.clone()).build(window, cx)
             })

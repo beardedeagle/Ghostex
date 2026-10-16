@@ -36,6 +36,7 @@ mod deferred_work;
 pub(crate) mod dictation;
 mod disclosure_body;
 mod edit_shortcuts;
+mod file_actions;
 mod file_change_card;
 mod files_links;
 mod focus;

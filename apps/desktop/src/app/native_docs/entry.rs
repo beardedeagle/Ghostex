@@ -54,6 +54,45 @@ pub(crate) fn file_open_target_for_path(path: &std::path::Path) -> SharedFileOpe
     }
 }
 
+/// [`file_open_target_for_path`] for a file on this computer, which can also look inside it: a
+/// file that would open in the Files view but is not text Files can show (it has NUL bytes, or is
+/// not UTF-8) opens in the system app instead of Files' "Binary files are not previewed" notice.
+///
+/// CDXC:Navigation 2026-10-17 DECISION:
+/// User (Q218): "Yes, binary files open in the system app": a binary file picked in Quick Access's Files tab, or opened from a chat or terminal link, that the Files view can't show opens in the system app. A remote project's file keeps the Files notice, because this computer's apps cannot reach it, so the remote route never asks here.
+pub(crate) fn local_file_open_target(path: &std::path::Path) -> SharedFileOpenTarget {
+    let target = file_open_target_for_path(path);
+    if target == SharedFileOpenTarget::Files
+        && DocsFileKind::for_path(&path.to_string_lossy()) == DocsFileKind::Text
+        && !looks_like_text(path)
+    {
+        return SharedFileOpenTarget::SystemApp;
+    }
+    target
+}
+
+/// The Files view's own test for text (`manage_docs/file_operations.rs` refuses NUL bytes and
+/// invalid UTF-8), on the first 64 KB. A file that cannot be read counts as text, so Files shows
+/// its own error.
+fn looks_like_text(path: &std::path::Path) -> bool {
+    use std::io::Read as _;
+    let Ok(file) = std::fs::File::open(path) else {
+        return true;
+    };
+    let mut sample = Vec::with_capacity(64 * 1024);
+    if file.take(64 * 1024).read_to_end(&mut sample).is_err() {
+        return true;
+    }
+    if sample.contains(&0) {
+        return false;
+    }
+    match std::str::from_utf8(&sample) {
+        Ok(_) => true,
+        // A character cut off by the 64 KB sample is still text.
+        Err(error) => error.error_len().is_none(),
+    }
+}
+
 /// Where review documents live; never read from or written to disk.
 pub(crate) const REVIEW_DOCUMENT_ROOT: &str = ".ghostex-review";
 

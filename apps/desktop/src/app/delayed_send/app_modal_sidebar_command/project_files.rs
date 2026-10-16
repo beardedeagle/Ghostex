@@ -71,7 +71,7 @@ impl GhostexGpuiApp {
         if remote.is_none() {
             let root = PathBuf::from(&root);
             let file = root.join(&path);
-            match crate::app::native_docs::entry::file_open_target_for_path(&file) {
+            match crate::app::native_docs::entry::local_file_open_target(&file) {
                 shared_settings::SharedFileOpenTarget::Files
                 | shared_settings::SharedFileOpenTarget::Code => {}
                 // Nothing on screen has to change project first.

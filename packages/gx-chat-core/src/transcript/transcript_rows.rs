@@ -155,6 +155,13 @@ pub fn tool_rows(
                 .into(),
             );
             row.insert("description".to_string(), description.into());
+            // The file the call names, for the row's file menu (Copy Path and the folder row,
+            // CDXC:SessionChat 2026-10-17 in apps/desktop/src/app/native_chat/file_actions.rs).
+            if let Some(path) = crate::transcript::tool_summary::tool_file_path(
+                pair.call_input().unwrap_or(&Value::Null),
+            ) {
+                row.insert("filePath".to_string(), path.into());
+            }
             row.insert("failed".to_string(), pair.result_is_error().into());
             // The row's right edge: a check once the call answered, a cross when it failed, and
             // nothing while it runs; then what failed, and how long the call took.

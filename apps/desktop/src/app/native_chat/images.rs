@@ -7,6 +7,7 @@
 //! read once here and shared by the thumbnail and the full-size viewer. A picture that cannot be
 //! read renders the named chip it would otherwise have been, never a broken image well.
 
+use super::file_actions::{FileMenuExt as _, image_file_path};
 use super::{appearance::ChatAppearance, state::NativeChatView, transcript::text};
 use crate::app::helpers::ThrottledAnimationExt as _;
 use crate::app::native_chat::cursor::ChatCursor as _;
@@ -629,7 +630,8 @@ impl NativeChatView {
             .chat_cursor_pointer()
             .on_click(
                 cx.listener(move |chat, _, _, cx| chat.open_image_viewer(open.clone(), index, cx)),
-            );
+            )
+            .file_menu(image_file_path(image), cx);
         let failure = match &source {
             ChatImageTile::Unavailable(failure) => Some(failure.clone()),
             _ => None,
@@ -724,6 +726,7 @@ impl NativeChatView {
                     cx.stop_propagation();
                     chat.open_image_viewer(open.clone(), 0, cx);
                 }))
+                .file_menu(image_file_path(image), cx)
                 .child(picture)
                 .into_any_element(),
             // The picture's words with the crossed photo before them, still opening the preview
@@ -764,6 +767,7 @@ impl NativeChatView {
                         cx.stop_propagation();
                         chat.open_image_viewer(open.clone(), 0, cx);
                     }))
+                    .file_menu(image_file_path(image), cx)
                     .child(
                         svg()
                             .path("titlebar/photo-off.svg")
@@ -929,7 +933,8 @@ impl NativeChatView {
             .on_click(cx.listener(move |chat, _, _, cx| {
                 cx.stop_propagation();
                 chat.open_image_viewer(open.clone(), index, cx);
-            }));
+            }))
+            .file_menu(image_file_path(image), cx);
         if let ChatImageTile::Unavailable(failure) = &source {
             // The same named chip the agent's own attachments draw for a picture that is gone.
             let tooltip = gpui::SharedString::from(format!(
