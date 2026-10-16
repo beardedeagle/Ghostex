@@ -172,6 +172,19 @@ pub(super) fn run_action(
                 "requestId": request_id,
             }))
         }
+        // A file a session showed anywhere on this computer (`filePath`, absolute), which the
+        // phone plays or shows itself: a link to that one file (`file_links::file_link_path`).
+        "openSessionFileLink" => {
+            let file = string_param(params, "filePath")
+                .map(PathBuf::from)
+                .filter(|file| file.is_absolute())
+                .ok_or_else(|| "openSessionFileLink requires an absolute filePath.".to_string())?;
+            Ok(json!({
+                "action": action,
+                "linkPath": crate::file_links::file_link_path(&file)?,
+                "requestId": request_id,
+            }))
+        }
         _ => Err("Unsupported Files action.".to_string()),
     }
 }

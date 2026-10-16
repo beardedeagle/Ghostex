@@ -59,10 +59,21 @@ pub(crate) async fn serve(
 
 fn resolve(path: &str) -> Option<PathBuf> {
     let (token, relative) = path.strip_prefix(FILE_LINK_ROUTE_PREFIX)?.split_once('/')?;
-    let root = super::registry::root_for_token(token)?;
+    let grant = super::registry::grant_for_token(token)?;
     let relative = crate::extensions::serve::decode_relative_path(relative).ok()?;
-    let file = fs::canonicalize(root.join(relative)).ok()?;
-    (file.starts_with(&root) && file.is_file()).then_some(file)
+    match grant {
+        super::registry::Grant::Folder(root) => {
+            let file = fs::canonicalize(root.join(relative)).ok()?;
+            (file.starts_with(&root) && file.is_file()).then_some(file)
+        }
+        // A one-file link answers its own name only.
+        super::registry::Grant::File(file) => {
+            let named = file
+                .file_name()
+                .is_some_and(|name| relative.as_os_str() == name);
+            (named && file.is_file()).then_some(file)
+        }
+    }
 }
 
 fn extension(file: &Path) -> String {
