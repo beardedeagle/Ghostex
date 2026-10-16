@@ -39,6 +39,7 @@ pub(crate) fn source_code_server_spawn_remote_runtime(
         execution_target,
         GpuiRemoteExecutionTarget::WindowsPowerShell
     );
+    let macos_host = source_code_server_component_platform_is_macos(component_platform);
     if native_windows {
         let check = gpui_run_remote_ssh_in_execution_target(
             machine_config,
@@ -47,7 +48,20 @@ pub(crate) fn source_code_server_spawn_remote_runtime(
             Duration::from_secs(15),
         );
         if check.exit_code != 0 {
-            return Err("The Windows Ghostex installation is missing its native Code editor. Update Ghostex on that machine.".into());
+            return Err(SOURCE_CODE_SERVER_REMOTE_EDITOR_MISSING_MESSAGE.into());
+        }
+    } else if macos_host {
+        let link = gpui_run_remote_ssh_in_execution_target(
+            machine_config,
+            execution_target,
+            &source_code_server_remote_macos_editor_link_command(component_platform),
+            Duration::from_secs(15),
+        );
+        if link.exit_code == SOURCE_CODE_SERVER_REMOTE_MACOS_EDITOR_MISSING_EXIT_CODE {
+            return Err(SOURCE_CODE_SERVER_REMOTE_EDITOR_MISSING_MESSAGE.into());
+        }
+        if link.exit_code != 0 {
+            return Err("Could not prepare the remote computer's Code editor over SSH.".into());
         }
     } else {
         let store = on_demand_component_store()?.ok_or_else(|| {
@@ -85,7 +99,7 @@ pub(crate) fn source_code_server_spawn_remote_runtime(
                 "$gxLaunch=[Console]::In.ReadToEnd(); & ([ScriptBlock]::Create($gxLaunch))"
                     .to_string()
             } else {
-                source_code_server_remote_launch_command(&target.project_path)
+                source_code_server_remote_launch_command(&target.project_path, macos_host)
             },
         ));
         let mut command = gpui_remote_background_command(&gpui_remote_ssh_executable());
@@ -295,13 +309,71 @@ pub(crate) fn installed_key_path_fragment(component_key: &str) -> String {
 #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
 /// CDXC:CodeEditor 2026-09-24 WHY:
 /// A rapid remote reopen reached the previous server through the shared port while its SSH shell was still shutting down. Hold the shared runtime lock through owned child teardown, terminate that child when SSH stdin closes, and require its own bind receipt before accepting HTTP health; the shared session socket remains stable for remote prompt-editor clients.
-pub(crate) fn source_code_server_remote_launch_command(project_path: &Path) -> String {
+/// CDXC:CodeEditor 2026-10-16 WHY:
+/// macOS has no flock(1), so `set -eu` stopped the Mac launch before Code started. Perl, which every macOS ships, takes the same flock(2) lock on the shell's fd 9; the lock belongs to the open file and so stays held through the exec into Code, as `flock 9` does on Linux.
+pub(crate) fn source_code_server_remote_launch_command(
+    project_path: &Path,
+    macos_host: bool,
+) -> String {
+    let lock = if macos_host {
+        "/usr/bin/perl -MFcntl=:flock -e 'open(my $lock, \">&=\", 9) or exit 1; flock($lock, LOCK_EX) or exit 1'"
+    } else {
+        "flock 9"
+    };
     format!(
-        "set -eu\n{}\npackage=\"$code_root/package\"\nruntime=\"$code_root/runtime\"\nmkdir -p \"$runtime/user-data\" \"$runtime/extensions\"\nexec 9>\"$runtime/launch.lock\"\nflock 9\ncd {}\nexec \"$package/lib/node\" --eval {} -- \"$package/out/node/entry.js\" --auth none --log info --bind-addr 127.0.0.1:{} --disable-telemetry --disable-update-check --disable-workspace-trust --disable-getting-started-override --ignore-last-opened --app-name 'ghostex Code' --user-data-dir \"$runtime/user-data\" --extensions-dir \"$runtime/extensions\"",
+        "set -eu\n{}\npackage=\"$code_root/package\"\nruntime=\"$code_root/runtime\"\nmkdir -p \"$runtime/user-data\" \"$runtime/extensions\"\nexec 9>\"$runtime/launch.lock\"\n{lock}\ncd {}\nexec \"$package/lib/node\" --eval {} -- \"$package/out/node/entry.js\" --auth none --log info --bind-addr 127.0.0.1:{} --disable-telemetry --disable-update-check --disable-workspace-trust --disable-getting-started-override --ignore-last-opened --app-name 'ghostex Code' --user-data-dir \"$runtime/user-data\" --extensions-dir \"$runtime/extensions\"",
         source_code_server_remote_data_root_script(),
         gpui_shell_single_quote(gpui_path_string(project_path).as_str()),
         gpui_shell_single_quote(include_str!("source_code_supervisor.js")),
         SOURCE_CODE_SERVER_REMOTE_PORT,
+    )
+}
+
+pub(crate) const SOURCE_CODE_SERVER_REMOTE_EDITOR_MISSING_MESSAGE: &str =
+    "The remote Ghostex installation has no Code editor.";
+
+pub(crate) const SOURCE_CODE_SERVER_REMOTE_MACOS_EDITOR_MISSING_EXIT_CODE: i32 = 3;
+
+pub(crate) fn source_code_server_component_platform_is_macos(component_platform: &str) -> bool {
+    component_platform.starts_with("darwin-")
+}
+
+#[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
+/// CDXC:CodeEditor 2026-10-16 WHY:
+/// A Mac remote runs the editor its own Ghostex has, found the way that Mac's app finds it (inside the app, the local-start build it points to, or the downloaded component), and links it as `$code_root/package` so the launch, remote file opens and gxserver's prompt editor all use one path. A Mac whose Ghostex never downloaded the editor exits with the missing code instead of starting nothing.
+/// SEE-ALSO: source_code_server_repo_root_candidates in helpers/source_server/code_server.rs, code_server_prompt_editor_command in server/src/ghostex_cli/editors/prompt.rs.
+pub(crate) fn source_code_server_remote_macos_editor_link_command(
+    component_platform: &str,
+) -> String {
+    const LINK: &str = r#"ghostex_code_ok() { [ -x "$1/lib/node" ] && [ -f "$1/out/node/entry.js" ] && [ -f "$1/lib/vscode/out/server-main.js" ]; }
+ghostex_code_find() {
+  for ghostex_app in /Applications/Ghostex.app "$HOME/Applications/Ghostex.app"; do
+    ghostex_web="$ghostex_app/Contents/Resources/Web"
+    if ghostex_code_ok "$ghostex_web/code-server"; then printf '%s' "$ghostex_web/code-server"; return 0; fi
+    if [ -f "$ghostex_web/local-start-code-server-root" ]; then
+      ghostex_local_start=$(command cat "$ghostex_web/local-start-code-server-root")
+      if [ -n "$ghostex_local_start" ] && ghostex_code_ok "$ghostex_local_start"; then printf '%s' "$ghostex_local_start"; return 0; fi
+    fi
+  done
+  if [ -d "$ghostex_data/components/code-server" ]; then
+    command find "$ghostex_data/components/code-server" -mindepth 2 -maxdepth 2 -type d -name "$platform" | command sort -r | while IFS= read -r ghostex_component; do
+      if [ -f "$ghostex_component/.ghostex-component.json" ] && ghostex_code_ok "$ghostex_component"; then printf '%s' "$ghostex_component"; break; fi
+    done
+  fi
+}
+editor=$(ghostex_code_find || true)
+[ -n "$editor" ] || exit "$editor_missing"
+mkdir -p "$code_root"
+if [ "$(command readlink "$code_root/package" 2>/dev/null || true)" != "$editor" ]; then
+  command rm -f "$code_root/.package-$$"
+  command ln -s "$editor" "$code_root/.package-$$"
+  command mv -fh "$code_root/.package-$$" "$code_root/package"
+fi"#;
+    format!(
+        "set -eu\n{}\nplatform={}\neditor_missing={}\n{LINK}",
+        source_code_server_remote_data_root_script(),
+        gpui_shell_single_quote(component_platform),
+        SOURCE_CODE_SERVER_REMOTE_MACOS_EDITOR_MISSING_EXIT_CODE,
     )
 }
 

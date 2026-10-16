@@ -779,6 +779,9 @@ pub(crate) enum SourceCodeServerRuntimeFailure {
     /// CDXC:CodeEditor 2026-09-30 WHY:
     /// A Linux dev build with no sealed manifest and an unbuilt `.dependencies/code-server` has nothing to launch or install; reporting that as a launch timeout sent debugging after a startup problem that did not exist.
     EditorMissing,
+    /// The remote computer's own Ghostex has no Code editor to run (a Mac that never downloaded
+    /// it, or a Windows install without its native editor); a launch timeout would hide that.
+    RemoteEditorMissing,
     Launch,
 }
 
@@ -797,6 +800,9 @@ impl SourceCodeServerRuntimeFailure {
                 "The native Windows editor is missing from this build. Install a build that includes the Windows editor."
             }
             Self::EditorMissing => "This Ghostex build doesn’t include the VS Code IDE component.",
+            Self::RemoteEditorMissing => {
+                "Ghostex on the remote computer doesn’t have the VS Code IDE yet. Open the Code view on that computer once to install it, or update Ghostex there, then try again."
+            }
             Self::Launch => "VS Code didn’t start in time.",
         }
     }

@@ -2377,8 +2377,10 @@ sessions, so any client can control agents on any machine.
   (paperclip) button are uploaded to that computer first, so the terminal gets
   references the agent there can open.
   Open Code from the view panel's + menu to edit the remote project; if prompted,
-  install the editor component first. Folder links in remote chats also browse
-  the remote folder in Code.
+  install the editor component first. A remote Mac or Windows computer runs the
+  editor its own Ghostex has, so if Code says that computer doesn't have it yet,
+  open the Code view on that computer once (or update Ghostex there) and retry.
+  Folder links in remote chats also browse the remote folder in Code.
   Remote localhost links open in the built-in Browser through that computer,
   even when ordinary web links are set to open in your external browser.
   When a machine cannot connect, its tab's cloud turns red and its list says

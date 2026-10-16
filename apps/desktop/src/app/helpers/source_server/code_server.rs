@@ -142,7 +142,11 @@ pub(crate) fn source_code_server_runtime_availability(
             execution_target: GpuiRemoteExecutionTarget::WindowsPowerShell,
             ..
         }
-    ) {
+    ) || target
+        .component_platform()
+        .is_some_and(source_code_server_component_platform_is_macos)
+    {
+        // Both run the editor the remote's own Ghostex has; the spawn checks it over SSH.
         return SourceCodeServerRuntimeAvailability::Available;
     }
     #[cfg(windows)]

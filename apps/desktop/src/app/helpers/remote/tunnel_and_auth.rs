@@ -58,6 +58,8 @@ pub(crate) fn gpui_open_remote_gxserver_tunnel(
 }
 
 #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
+/// CDXC:CodeEditor 2026-10-16 WHY:
+/// A Mac remote returned no platform, so the Code view never started for it from any client (reported from a Windows PC). A Mac remote runs the editor its own Ghostex has (`source_code_server_remote_macos_editor_link_command`); a client cannot supply one, since only macOS manifests carry the darwin component and an NTFS extraction would lose its modes and links.
 pub(crate) fn gpui_remote_code_server_component_platform(
     config: &GpuiRemoteMachineConfig,
     execution_target: &GpuiRemoteExecutionTarget,
@@ -73,6 +75,13 @@ pub(crate) fn gpui_remote_code_server_component_platform(
         .flatten()?;
     if target.normalized_os() == "windows" && target.normalized_arch() == "x64" {
         return Some("windows-x64".to_string());
+    }
+    if target.normalized_os() == "darwin" {
+        return match target.normalized_arch().as_str() {
+            "arm64" => Some("darwin-arm64".to_string()),
+            "x64" => Some("darwin-x64".to_string()),
+            _ => None,
+        };
     }
     if target.normalized_os() != "linux" {
         return None;

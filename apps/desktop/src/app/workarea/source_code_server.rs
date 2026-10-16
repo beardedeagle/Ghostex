@@ -307,13 +307,17 @@ impl GhostexGpuiApp {
                 );
                 self.refresh_project_workarea_runtime_cef_surfaces_from_runtime_state(cx);
             }
-            Err((target, settings, _message)) => {
+            Err((target, settings, message)) => {
                 self.source_code_server_runtime.set_failed(
                     target,
                     settings,
                     None,
                     None,
-                    SourceCodeServerRuntimeFailure::Launch,
+                    if message == SOURCE_CODE_SERVER_REMOTE_EDITOR_MISSING_MESSAGE {
+                        SourceCodeServerRuntimeFailure::RemoteEditorMissing
+                    } else {
+                        SourceCodeServerRuntimeFailure::Launch
+                    },
                 );
                 self.remove_project_workarea_runtime_cef_surface(
                     ProjectWorkareaCefSurfaceSlotKey::Source,
