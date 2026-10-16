@@ -27,24 +27,6 @@ pub struct ReferenceMenuRow {
     pub label: String,
 }
 
-/// The Docs surface opens these; everything else belongs to Code.
-const DOCS_EXTENSIONS: &[&str] = &[
-    ".md",
-    ".markdown",
-    ".mdown",
-    ".mkdn",
-    ".htm",
-    ".html",
-    ".excalidraw",
-];
-
-fn is_docs_path(path: &str) -> bool {
-    let lowered = path.to_lowercase();
-    DOCS_EXTENSIONS
-        .iter()
-        .any(|extension| lowered.ends_with(extension))
-}
-
 /// The rows for `href`, empty when the chat can do nothing with it.
 pub fn reference_menu_rows(href: &str) -> Vec<ReferenceMenuRow> {
     let target = classify_link_href(href);
@@ -103,7 +85,11 @@ pub fn reference_menu_rows(href: &str) -> Vec<ReferenceMenuRow> {
             disabled: None,
         });
     }
-    if is_docs_path(&path) {
+    // CDXC:SessionChat 2026-10-17 DECISION:
+    // User (Q233): "Yes, for every file except folders and media": Open in Files is offered for every file, not only Markdown, HTML and Excalidraw, because the Files view opens any file since Quick Access's Files tab. Folders and media (pictures, video, audio, and PDFs, which keep their own Open row) are left out. The phone shows the row only for files its viewer opens (`phoneOpensFile` in apps/mobile/app); a remote session's file opens in Files through the remote route.
+    let kind = reference_kind("", &path);
+    if media_kind(&path).is_none() && kind != ReferenceKind::Folder && kind != ReferenceKind::Image
+    {
         rows.push(ReferenceMenuRow {
             command: file_command(&path, "docs", position),
             icon_path: "titlebar/file-text.svg".to_string(),

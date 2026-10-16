@@ -1330,8 +1330,8 @@ File reference pills in the composer also open with one click using the same
 Code/Files preferences as transcript links. Double-click a composer pill to edit
 its reference text. Every file the chat shows has Copy Path and the location row:
 right-click a file reference, a file edit row, a tool row that names a file, a
-picture or an attachment for Open in Code, Open in Files (Markdown, HTML, and
-Excalidraw), Copy Path, or the location row, and each file in Files and links has
+picture or an attachment for Open in Code, Open in Files (every file except
+folders and media), Copy Path, or the location row, and each file in Files and links has
 copy and location buttons. The location row is left out for a remote session's
 files (they are on the other computer) and in Ghostex web; on the phone, hold the
 file for Copy Path.
