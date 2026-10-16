@@ -9,7 +9,6 @@
     "start": "cargo xtask start",
     "release:actions": "node tooling/release-gpui-actions.mjs start",
     "release:actions:publish": "node tooling/release-gpui-actions.mjs publish",
-    "release:homebrew": "node tooling/release-gpui-homebrew.mjs",
     "release:aur": "node tooling/release-gpui/publish-aur.mjs",
     "release:preflight": "node tooling/release-preflight-fast.mjs",
     "release:verify": "node tooling/release-final-verify.mjs",

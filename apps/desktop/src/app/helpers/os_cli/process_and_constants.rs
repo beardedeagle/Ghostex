@@ -468,7 +468,7 @@ pub(crate) const GPUI_WINDOWS_NOTIFICATION_SETTINGS_URL: &str = "ms-settings:not
 /// would have made CLI repair and `brew upgrade` treat their own wrappers as
 /// foreign. Changing it means accepting both spellings for at least one
 /// release.
-/// SEE-ALSO: the tap cask (maddada/homebrew-tap, Casks/ghostex.rb) and `validateGhostexCask` in tooling/release-shared.mjs.
+/// SEE-ALSO: the deprecated tap cask (maddada/homebrew-tap, Casks/ghostex.rb), whose wrappers on existing tap installs carry this marker; the official cask links the bundled CLI with a `binary` stanza and writes no marker.
 pub(crate) const GPUI_GHOSTEX_CLI_WRAPPER_MARKER: &str = "CDXC:CliInstall 2026-06-12-09:31";
 pub(crate) const GPUI_BUNDLED_GHOSTEX_AGENT_SKILL_NAMES: &[&str] = &[
     /*

@@ -465,7 +465,7 @@ export function renderPlanMarkdown(plan) {
     lines.push('', '</details>', '');
   }
   lines.push(
-    `Feeds: sparkle=${plan.feeds.sparkle ? 'update' : 'hold'}, homebrew=${plan.feeds.homebrew ? 'update' : 'hold'}, ` +
+    `Feeds: sparkle=${plan.feeds.sparkle ? 'update' : 'hold'}, ` +
       `windows-feeds=${plan.feeds.windowsFeeds.join(',') || 'none'}`
   );
   return lines.join('\n');

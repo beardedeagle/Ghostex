@@ -205,7 +205,7 @@ const windowsFeedScope = resolveWindowsFeedScope({ plan });
 console.log(
   `Plan: ${plan.expectedPlatforms.join(', ')} (macOS ${macosFeedScope.macosAction}; sparkle=${
     updateSparkle ? 'advance' : 'hold'
-  }; homebrew=${macosFeedScope.homebrew ? 'eligible' : 'hold'}; windows feeds regenerated=${
+  }; windows feeds regenerated=${
     windowsFeedScope.regenerated.join(',') || 'none'
   }, carried forward=${windowsFeedScope.carriedForward.join(',') || 'none'})`
 );

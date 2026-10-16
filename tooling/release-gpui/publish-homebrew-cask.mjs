@@ -1,26 +1,28 @@
 #!/usr/bin/env node
 /*
- * Homebrew distribution of a published macOS release.
+ * Manual fallback for the official Homebrew cask of a published macOS release.
  *
- * Bumps `version` and `sha256` in up to two casks, touching nothing else:
- *   1. only with `--official`: the official cask `Casks/g/ghostex.rb` in
- *      Homebrew/homebrew-cask, through a version-bump pull request opened from a fork
- *      under the token's account (off by default, see the 2026-10-04 DECISION);
- *   2. the legacy personal tap `Casks/ghostex.rb` in maddada/homebrew-tap, pushed
- *      directly to `main` so existing `maddada/tap/ghostex` installs keep updating.
+ * With `--official`, bumps `version` and `sha256` in `Casks/g/ghostex.rb` of
+ * Homebrew/homebrew-cask, touching nothing else, through a version-bump pull request
+ * opened from a fork under the token's account. `--render <path>` only writes the
+ * bumped cask to a file (for `brew style` / `brew audit`). The release workflow runs
+ * neither: Homebrew's autobump bot opens the bump itself (see the 2026-10-04 DECISION).
  *
  * Everything goes through `gh` and the GitHub REST API. No Homebrew command runs,
- * so the script behaves identically on a macOS workstation and on the ubuntu-24.04
- * publish runner. The local, brew-driven equivalent for the tap alone is
- * tooling/release-gpui-homebrew.mjs.
+ * so the script behaves identically on a macOS workstation and on a Linux runner.
  *
  * CDXC:Release 2026-10-04 DECISION:
  * User: Homebrew's autobump bot (BrewTestBot) updates the official `ghostex` cask on
  * every release, so our own pull request is opt-in (`--official`) and the release
  * workflow no longer runs it. Supersedes the 2026-09-15 decision that CI must open the
  * official-cask PR on every release. `brew install ghostex` stays the advertised macOS
- * path; the personal tap is still pushed on every release for installs that predate
- * the official cask.
+ * path.
+ *
+ * CDXC:Release 2026-10-16 DECISION:
+ * User: Ghostex leaves the personal tap maddada/homebrew-tap. Its `Casks/ghostex.rb`
+ * was bumped one last time to 10.24.0 and deprecated in favour of
+ * `brew install --cask ghostex`; existing tap installs keep updating through Sparkle.
+ * Releases no longer push the tap, so a normal release needs no Homebrew token.
  *
  * CDXC:Release 2026-09-15 WHY:
  * `brew bump-cask-pr` was considered and rejected for CI: it needs the whole
@@ -48,12 +50,6 @@ export const officialCask = Object.freeze({
   repo: 'Homebrew/homebrew-cask',
   base: 'main',
   path: 'Casks/g/ghostex.rb',
-});
-export const personalTap = Object.freeze({
-  label: 'maddada/homebrew-tap',
-  repo: 'maddada/homebrew-tap',
-  base: 'main',
-  path: 'Casks/ghostex.rb',
 });
 const sha256Pattern = /^[0-9a-f]{64}$/u;
 
@@ -306,7 +302,7 @@ export async function resolveSha256({ repo, sha256, version }) {
  * DMG can only come from a same-version recovery whose cask update never happened,
  * so what matters is that these exact bytes are the ones the release recorded: the
  * published sha256 is cross-checked against the provenance record rather than
- * against GitHub's metadata alone. Mirrors tooling/release-gpui-homebrew.mjs.
+ * against GitHub's metadata alone.
  */
 function verifyProvenance({ repo, sha256, version }) {
   const assetName = releaseProvenanceAssetName(version);
@@ -534,39 +530,6 @@ async function publishOfficialCask({ checks, dryRun, render, sha256, token, vers
   process.stdout.write(`Opened ${pull.html_url}\n`);
 }
 
-async function publishPersonalTap({ dryRun, sha256, token, version }) {
-  const live = await readFile({ path: personalTap.path, ref: personalTap.base, repo: personalTap.repo });
-  const liveVersion = caskVersion(live.content);
-  const bumped = liveVersion === version ? live.content : bumpCask(live.content, { sha256, version });
-  if (bumped === live.content) {
-    process.stdout.write(`${personalTap.label} already ships ghostex ${version}; nothing to push.\n`);
-    return;
-  }
-  process.stdout.write(
-    `${personalTap.label}: ${liveVersion} -> ${version}\n${unifiedDiff(live.content, bumped, personalTap.path)}`
-  );
-  if (dryRun) {
-    process.stdout.write(`Dry run: would push the tap bump to ${personalTap.repo} ${personalTap.base}.\n`);
-    return;
-  }
-  if (!token) {
-    process.stdout.write(
-      'Neither HOMEBREW_TAP_TOKEN nor HOMEBREW_GITHUB_API_TOKEN is configured; leaving the personal tap as is.\n'
-    );
-    return;
-  }
-  await writeFile({
-    branch: personalTap.base,
-    content: bumped,
-    message: `chore: update Ghostex cask to ${version}`,
-    path: personalTap.path,
-    repo: personalTap.repo,
-    sha: live.sha,
-    token,
-  });
-  process.stdout.write(`Pushed ghostex ${version} to ${personalTap.repo}.\n`);
-}
-
 export function parseArguments(argv) {
   const options = { dryRun: false, publish: false, repo: defaultRepo };
   for (let index = 0; index < argv.length; index += 1) {
@@ -596,59 +559,32 @@ async function main() {
   const options = parseArguments(process.argv.slice(2));
   const version = assertVersion(options.version);
   const dryRun = options.dryRun || !options.publish;
-  const { source, value: sha256 } = await resolveSha256({ repo: options.repo, sha256: options.sha256, version });
-  process.stdout.write(`${releaseAssetName(version)} sha256=${sha256} (from ${source})\n`);
-  verifyProvenance({ repo: options.repo, sha256, version });
-
+  if (!options.official && !options.render) {
+    throw new Error(
+      "Nothing to do: Homebrew's autobump bot updates the official cask and releases no longer push the personal tap. " +
+        'Pass --official to open the Homebrew/homebrew-cask pull request by hand, or --render <path> to write the bumped cask.'
+    );
+  }
   const caskToken = process.env.HOMEBREW_GITHUB_API_TOKEN || '';
-  if (!dryRun && !options.render && options.official && !caskToken) {
+  if (!dryRun && !options.render && !caskToken) {
     throw new Error(
       'HOMEBREW_GITHUB_API_TOKEN is not set. It must be a GitHub token for the account that owns the homebrew-cask ' +
         'fork, with contents and pull-request write access. See tooling/release-gpui/homebrew-cask-setup.md.'
     );
   }
-  /*
-   * CDXC:Release 2026-10-03 WHY:
-   * With `--official`, the personal tap is still pushed when the official-cask pull
-   * request fails, and the failure is rethrown afterwards. The failure used to throw
-   * before the tap push, so CI never advanced the tap and it only moved when someone ran
-   * tooling/release-gpui-homebrew.mjs by hand.
-   */
-  const officialRequest = {
+  const { source, value: sha256 } = await resolveSha256({ repo: options.repo, sha256: options.sha256, version });
+  process.stdout.write(`${releaseAssetName(version)} sha256=${sha256} (from ${source})\n`);
+  verifyProvenance({ repo: options.repo, sha256, version });
+
+  await publishOfficialCask({
     checks: { audited: Boolean(options.audited), styled: Boolean(options.styled) },
     dryRun,
     render: options.render,
     sha256,
     token: caskToken,
     version,
-  };
-  if (options.render) {
-    await publishOfficialCask(officialRequest);
-    return;
-  }
-  let officialFailure = null;
-  if (options.official) {
-    try {
-      await publishOfficialCask(officialRequest);
-    } catch (error) {
-      officialFailure = error;
-      process.stderr.write(
-        `The official cask update failed; still updating the personal tap: ${error instanceof Error ? error.message : String(error)}\n`
-      );
-    }
-  } else {
-    process.stdout.write(
-      'Skipping the Homebrew/homebrew-cask pull request: its autobump bot updates the official cask (pass --official to open one).\n'
-    );
-  }
-  await publishPersonalTap({
-    dryRun,
-    sha256,
-    token: process.env.HOMEBREW_TAP_TOKEN || caskToken,
-    version,
   });
-  if (dryRun && !options.publish) process.stdout.write('Pass --publish to push the tap (and, with --official, open the pull request).\n');
-  if (officialFailure) throw officialFailure;
+  if (dryRun && !options.publish && !options.render) process.stdout.write('Pass --publish to open the pull request.\n');
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

@@ -93,8 +93,8 @@ describe('Scenario A — desktop-only change', () => {
     expect(plan.estimates.savedRunnerMinutes).toBeGreaterThan(50);
   });
 
-  test('advances Sparkle, Homebrew, and both Windows feeds because macOS is built', () => {
-    expect(plan.feeds).toEqual({ homebrew: true, sparkle: true, windowsFeeds: ['x64', 'arm64'] });
+  test('advances Sparkle and both Windows feeds because macOS is built', () => {
+    expect(plan.feeds).toEqual({ sparkle: true, windowsFeeds: ['x64', 'arm64'] });
   });
 
   test('explains the version-stamped WSL rebuild without claiming a source change', () => {
@@ -430,7 +430,7 @@ describe('scope, validation, and reporting', () => {
     expect(plan.products['macos-arm64'].action).toBe('skip');
     expect(plan.expectedPlatforms).not.toContain('android');
     expect(plan.expectedPlatforms).not.toContain('macos-arm64');
-    expect(plan.feeds).toEqual({ homebrew: false, sparkle: false, windowsFeeds: ['x64', 'arm64'] });
+    expect(plan.feeds).toEqual({ sparkle: false, windowsFeeds: ['x64', 'arm64'] });
   });
 
   test('refuses a plan with no enabled platform', () => {
@@ -482,7 +482,7 @@ describe('scope, validation, and reporting', () => {
     expect(text).toMatch(/^android\s+REUSE\s+all relevant inputs match v7\.7\.0/mu);
     expect(text).toMatch(/^linux-rpm-x64\s+SKIP\s+not in the requested release scope$/mu);
     expect(text).toMatch(/^cef\s+\S+\s+REUSE\s+/mu);
-    expect(text).toContain('FEEDS         sparkle=update  homebrew=update  windows-feeds=x64,arm64');
+    expect(text).toContain('FEEDS         sparkle=update  windows-feeds=x64,arm64');
     expect(text).toContain('JOBS          macos, windows_arm64, windows_x64, wsl_arm64, wsl_x64, linux_x64(deb,tar)');
     expect(text).not.toContain('validate_windows');
     expect(text).toMatch(/SAVED\s+~\d+ runner-minutes/u);

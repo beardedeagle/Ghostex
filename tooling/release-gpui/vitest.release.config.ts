@@ -29,10 +29,10 @@ export default defineConfig({
   },
   test: {
     /*
-     * CDXC:Release 2026-10-01 WHY: release:test runs only the release tooling's own suites (and the
-     * raw-source check of the published cask validator); the product suites stay in `cargo xtask test`.
+     * CDXC:Release 2026-10-01 WHY: release:test runs only the release tooling's own suites; the product
+     * suites stay in `cargo xtask test`.
      */
-    include: ['tooling/**/*.test.{mjs,ts}', 'apps/desktop/views/ghostex-cli-wrapper-source.test.ts'],
+    include: ['tooling/**/*.test.{mjs,ts}'],
     /*
      * CDXC:Release 2026-06-14-09:07:
      * Release verification must exercise Ghostex-owned Vitest suites without

@@ -11,7 +11,6 @@ import {
   extractChangelogSectionFromText,
   onDemandAssetNames,
   releaseBuildVersion,
-  validateGhostexCask,
 } from './release-shared.mjs';
 import { validateMacosAppBundle } from './validate-macos-app-bundle.mjs';
 import { validateOnDemandManifestV2 } from './release-gpui/on-demand-manifest.mjs';
@@ -35,7 +34,7 @@ import {
   verifyReleaseProvenanceAgainstAssets,
 } from './release-gpui/publish-provenance.mjs';
 import { validatePlan } from './release-gpui/plan.mjs';
-import { caskVersion, findOpenPullRequest, officialCask, personalTap } from './release-gpui/publish-homebrew-cask.mjs';
+import { caskVersion, findOpenPullRequest, officialCask } from './release-gpui/publish-homebrew-cask.mjs';
 
 /*
  CDXC:Release 2026-07-02-14:10:
@@ -64,7 +63,7 @@ Options:
                      record carries no per-product plan.
   --skip-repo        Skip local repo checks (clean worktree, tag at HEAD).
   --skip-brew        Skip all Homebrew checks.
-  --skip-brew-fetch  Run brew info/cat but skip the large forced DMG fetch.
+  --skip-brew-fetch  Run brew info but skip the large forced DMG fetch.
                      Supplying --dmg also skips that redundant fetch.
   --skip-android     Skip Android APK checks.
   --skip-sparkle     Skip live appcast checks.
@@ -73,10 +72,11 @@ Options:
   --help             Show this help.
 
 Notes:
-  The Homebrew checks read the local maddada/tap checkout and never run
-  brew update or brew tap themselves. Run brew update first when the
-  release was published minutes ago, otherwise the checkout still serves
-  the previous version.
+  The Homebrew checks read the official ghostex cask (Homebrew/homebrew-cask)
+  on GitHub and through brew's cask API, and never run brew update or brew
+  tap themselves. Homebrew's autobump bot opens the version bump about 30
+  minutes after a release; until it merges, the checks warn and name the
+  pull request.
 `;
 }
 
@@ -656,47 +656,24 @@ async function verify(cleanupPaths) {
     return detail;
   });
 
-  await check('homebrew-cask', async () => {
-    if (options.skipBrew) {
-      return SKIPPED;
-    }
-    if (!dmgDigest) {
-      throw new Error('GitHub reported no DMG digest to validate the cask sha256 against.');
-    }
-    const liveCask = await githubContent(personalTap.repo, personalTap.path, personalTap.base);
-    validateGhostexCask(liveCask, { sha256: dmgDigest, version });
-    return `live cask at ${version}, arm64-only, :ventura`;
-  });
-
-  let dmgPath = options.dmg ?? null;
-  let dmgBytes = 0;
-  if (dmgPath && !existsSync(dmgPath)) {
-    throw new Error(`--dmg does not exist: ${dmgPath}`);
-  }
   /*
-   CDXC:Release 2026-09-16 WHY:
-   9.7.0's final verification failed this check with `missing required stanza:
-   version "9.7.0"` although both casks had been published correctly, because
-   two different things were read as one. First, the official
-   Homebrew/homebrew-cask bump is a pull request (#287591 for 9.7.0) and the
-   official cask keeps shipping the previous version until Homebrew merges it,
-   so right after a release the official cask is legitimately behind while the
-   personal tap already carries the release; that is a pending state, reported
-   as a warning that names the pull request, not a failure. Second, brew
-   info/cat/fetch read the local maddada/tap checkout, which only `brew update`
-   refreshes and which a release never touches (9.6.0 passed only because
-   something had run `brew update` in between), so a stale checkout is now
-   named as such with the `brew update` instruction instead of a misleading
-   stanza error. The check never runs `brew update` or `brew tap` and refuses
-   to let brew tap implicitly, so local Homebrew state stays exactly as the user
-   keeps it; the `brew fetch` cache download is the one write it has always made.
-   The official cask is validated on its own stanzas (it installs through
-   `binary`, which validateGhostexCask forbids for the wrapper-based tap cask),
-   and the local brew commands stay on the tap cask, whose stanzas the tap bump
-   advanced in the same publish stage.
+   CDXC:Release 2026-10-16 WHY:
+   Releases no longer touch the personal maddada/homebrew-tap (user decision
+   2026-10-16: Ghostex left the tap, whose cask is deprecated in favour of
+   `brew install --cask ghostex`), so both checks read the official cask.
+   Homebrew's autobump bot (BrewTestBot) opens the bump pull request about 30
+   minutes after a release and the official cask keeps the previous version
+   until Homebrew merges it, so a behind cask with an open "ghostex <version>"
+   pull request is a pending state reported as a warning, not a failure. The
+   official cask installs through `binary` stanzas, so it is checked on its
+   url, arch, macOS and sha256 stanzas only. The brew check reads the cask
+   API (`brew info --json=v2`), the source `brew install ghostex` uses; it
+   never runs `brew update` or `brew tap`, so local Homebrew state stays as
+   the user keeps it, and the `brew fetch` cache download is its one write.
    SEE-ALSO: tooling/release-gpui/publish-homebrew-cask.mjs (findOpenPullRequest).
   */
-  await check('homebrew-commands', async () => {
+  let officialCaskPending = null;
+  await check('homebrew-cask', async () => {
     if (options.skipBrew) {
       return SKIPPED;
     }
@@ -705,8 +682,6 @@ async function verify(cleanupPaths) {
     }
     const official = await githubContent(officialCask.repo, officialCask.path, officialCask.base);
     const officialVersion = caskVersion(official);
-    let officialState = `${officialCask.label} at ${version}`;
-    let pendingBump = null;
     if (officialVersion === version) {
       for (const required of [
         `sha256 "${dmgDigest}"`,
@@ -718,50 +693,54 @@ async function verify(cleanupPaths) {
           throw new Error(`${officialCask.label} ghostex ${version} is missing required stanza: ${required}`);
         }
       }
-    } else {
-      pendingBump = await findOpenPullRequest({ version });
-      if (!pendingBump) {
-        throw new Error(
-          `${officialCask.label} ships ghostex ${officialVersion}, not ${version}, and no open "ghostex ${version}" bump pull request exists; ` +
-            "Homebrew's autobump bot (BrewTestBot) opens it after a release; rerun this check in a while."
-        );
-      }
-      officialState =
-        `official cask bump pending, PR #${pendingBump.number} open (${pendingBump.html_url}); ` +
-        `${officialCask.label} still ships ${officialVersion}`;
+      return `${officialCask.label} at ${version}, arm64-only, :ventura`;
     }
+    const pendingBump = await findOpenPullRequest({ version });
+    if (!pendingBump) {
+      throw new Error(
+        `${officialCask.label} ships ghostex ${officialVersion}, not ${version}, and no open "ghostex ${version}" bump pull request exists; ` +
+          "Homebrew's autobump bot (BrewTestBot) opens it after a release; rerun this check in a while."
+      );
+    }
+    officialCaskPending = `official cask bump pending, PR #${pendingBump.number} open (${pendingBump.html_url}); ${officialCask.label} still ships ${officialVersion}`;
+    return { warn: officialCaskPending };
+  });
 
-    const tapped = (await capture('brew tap')).split(/\r?\n/u).map((line) => line.trim());
-    if (!tapped.includes('maddada/tap')) {
+  let dmgPath = options.dmg ?? null;
+  let dmgBytes = 0;
+  if (dmgPath && !existsSync(dmgPath)) {
+    throw new Error(`--dmg does not exist: ${dmgPath}`);
+  }
+  await check('homebrew-commands', async () => {
+    if (options.skipBrew) {
+      return SKIPPED;
+    }
+    if (officialCaskPending) {
+      return { warn: `${officialCaskPending}; brew info/fetch would still serve the previous version, so they were not run` };
+    }
+    if (!dmgDigest) {
+      throw new Error('GitHub reported no DMG digest to validate the cask sha256 against.');
+    }
+    const brew = 'env -u HOMEBREW_NO_INSTALL_FROM_API';
+    const info = JSON.parse(await capture(`${brew} brew info --cask --json=v2 ghostex`, { timeoutMs: 300_000 }));
+    const cask = (info.casks ?? []).find((entry) => entry.token === 'ghostex');
+    if (!cask) throw new Error('brew info --cask --json=v2 ghostex returned no ghostex cask.');
+    if (cask.version !== version) {
       throw new Error(
-        'maddada/tap is not tapped locally and this check never taps it for you; run brew tap maddada/tap first, or pass --skip-brew.'
+        `brew's cask API serves ghostex ${cask.version}, not ${version}, although ${officialCask.label} ships ${version}; ` +
+          'the local API cache is stale. Run brew update, then rerun.'
       );
     }
-    await capture('HOMEBREW_NO_INSTALL_FROM_API=1 brew info --cask maddada/tap/ghostex', { timeoutMs: 300_000 });
-    const catOutput = await capture('HOMEBREW_NO_INSTALL_FROM_API=1 brew cat --cask maddada/tap/ghostex', {
-      timeoutMs: 300_000,
-    });
-    const localVersion = caskVersion(catOutput);
-    if (localVersion !== version) {
-      throw new Error(
-        `The local maddada/tap checkout serves ghostex ${localVersion}, not ${version}; brew info/cat/fetch read that checkout ` +
-          'and only brew update refreshes it. Run brew update, then rerun.'
-      );
+    if (cask.sha256 !== dmgDigest) {
+      throw new Error(`brew's cask API carries sha256 ${cask.sha256} for ghostex ${version}; the GitHub digest is ${dmgDigest}.`);
     }
-    validateGhostexCask(catOutput, { sha256: dmgDigest, version });
-    const outcome = (commands, dmgNote) => {
-      const detail = `${officialState}; ${commands} validated against maddada/tap/ghostex${dmgNote ? `, ${dmgNote}` : ''}`;
-      return pendingBump ? { warn: detail } : detail;
-    };
     if (options.skipBrewFetch || dmgPath) {
-      return outcome('brew info/cat', dmgPath ? 'supplied DMG reused' : 'fetch skipped');
+      return `brew info validated ghostex ${version}, ${dmgPath ? 'supplied DMG reused' : 'fetch skipped'}`;
     }
-    await capture('HOMEBREW_NO_INSTALL_FROM_API=1 brew fetch --force --cask --arch=arm maddada/tap/ghostex', {
-      timeoutMs: 900_000,
-    });
-    const brewCache = await capture('brew --cache --cask maddada/tap/ghostex');
+    await capture(`${brew} brew fetch --force --cask --arch=arm ghostex`, { timeoutMs: 900_000 });
+    const brewCache = await capture(`${brew} brew --cache --cask ghostex`);
     if (existsSync(brewCache)) dmgPath = brewCache;
-    return outcome('brew info/cat/fetch', dmgPath ? 'cached DMG reused' : '');
+    return `brew info/fetch validated ghostex ${version}${dmgPath ? ', cached DMG reused' : ''}`;
   });
 
   await check('dmg-artifact', async () => {

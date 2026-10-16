@@ -5,7 +5,7 @@
  * These tests exercise the exact decisions `assemble.mjs` makes before it tags,
  * uploads, or pushes anything: does this artifact set describe the plan the run
  * was gated on, is every reuse claim complete, does the release page state what
- * happened, and do Sparkle/Homebrew/Windows feeds advance for the right reason.
+ * happened, and do Sparkle/Windows feeds advance for the right reason.
  * A publisher that accepts a mixed set is the one failure this whole design must
  * never allow, so every rejection has a named test.
  */
@@ -377,23 +377,22 @@ describe('publisher refusal matrix', () => {
 });
 
 describe('feed scope', () => {
-  test('advances Sparkle and Homebrew when macOS was built', () => {
+  test('advances Sparkle when macOS was built', () => {
     const plan = planFor();
     const scope = resolveMacosFeedScope({ plan, updateSparkleRequested: true });
-    expect(scope).toMatchObject({ homebrew: true, macosAction: 'build', sparkle: true });
+    expect(scope).toMatchObject({ macosAction: 'build', sparkle: true });
   });
 
-  test('still advances Sparkle and Homebrew when macOS is reused into the same version', () => {
+  test('still advances Sparkle when macOS is reused into the same version', () => {
     /*
      * The design's §4.10 rule ("only when macOS action == build") is wrong for a
      * same-version recovery: the reused DMG comes from a run that never
-     * published, so no appcast entry and no cask update exist yet.
+     * published, so no appcast entry exists yet.
      */
     const plan = planFor();
     plan.products['macos-arm64'].action = 'reuse';
     const scope = resolveMacosFeedScope({ plan, updateSparkleRequested: true });
     expect(scope.sparkle).toBe(true);
-    expect(scope.homebrew).toBe(true);
     expect(scope.reason).toMatch(/same-version/u);
   });
 
@@ -407,14 +406,14 @@ describe('feed scope', () => {
       runId: 31644067583,
       tier: 'run',
     };
-    plan.feeds = { homebrew: true, sparkle: true, windowsFeeds: ['x64', 'arm64'] };
+    plan.feeds = { sparkle: true, windowsFeeds: ['x64', 'arm64'] };
     expect(() => validatePlan(plan)).not.toThrow();
   });
 
-  test('holds both feeds when macOS is not in the release', () => {
+  test('holds Sparkle when macOS is not in the release', () => {
     const plan = planFor({ scope: defaultScope({ macos: false, updateSparkle: false }) });
     const scope = resolveMacosFeedScope({ plan, updateSparkleRequested: false });
-    expect(scope).toMatchObject({ homebrew: false, macosAction: 'skip', sparkle: false });
+    expect(scope).toMatchObject({ macosAction: 'skip', sparkle: false });
   });
 
   test('refuses a Sparkle advance without macOS in the release', () => {
@@ -615,12 +614,11 @@ describe('Scenario H — publish-only recovery reads the recorded plan', () => {
     expect(() => resolvePublishRecoveryInputs({ flags: {}, plan })).toThrow(/carries no resolved scope/u);
   });
 
-  test('the same-version recovery still keeps Sparkle and Homebrew for a reused macOS product', () => {
+  test('the same-version recovery still keeps Sparkle for a reused macOS product', () => {
     const { plan } = reusingPlan();
     const recovery = resolvePublishRecoveryInputs({ flags: {}, plan });
     expect(recovery.updateSparkle).toBe(true);
     expect(resolveMacosFeedScope({ plan, updateSparkleRequested: recovery.updateSparkle })).toMatchObject({
-      homebrew: true,
       sparkle: true,
     });
   });

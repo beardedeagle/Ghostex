@@ -13,8 +13,8 @@
  *   node tooling/release-gpui/watch-run.mjs --run <run-id> [--interval 300]
  *     [--repo maddada/Ghostex] [--max-minutes 180] [--once] [--exit-on-change]
  *
- * Exit codes: 0 run finished (only homebrew jobs may have failed), 1 a job
- * failed, 2 --max-minutes elapsed, 3 gh failed five polls in a row.
+ * Exit codes: 0 run finished, 1 a job failed, 2 --max-minutes elapsed, 3 gh
+ * failed five polls in a row.
  *
  * --exit-on-change also exits 0 as soon as any job's status or conclusion
  * differs from the previous poll, after printing the change lines: an operator
@@ -78,10 +78,6 @@ const FAILED_CONCLUSIONS = new Set(['failure', 'timed_out', 'cancelled', 'action
 
 export function isFailedJob(job) {
   return job.status === 'completed' && FAILED_CONCLUSIONS.has(job.conclusion);
-}
-
-export function isNonFatalJob(job) {
-  return /homebrew/iu.test(job.name);
 }
 
 export function summarize(jobs) {
@@ -167,11 +163,9 @@ export function observe({ exitOnChange = false, previous, run, runId }, print = 
     for (const line of lines) print(line);
     print(`${clock()}  ${formatSummary(summarize(run.jobs))}`);
   }
-  const fatal = run.jobs.filter((job) => isFailedJob(job) && !isNonFatalJob(job));
-  const nonFatal = changed.filter((job) => isFailedJob(job) && isNonFatalJob(job));
-  for (const job of nonFatal) print(`WARN  ${job.name} failed (non-fatal by design)  job ${job.databaseId}`);
-  if (fatal.length > 0) {
-    const job = fatal[0];
+  const failed = run.jobs.filter(isFailedJob);
+  if (failed.length > 0) {
+    const job = failed[0];
     print(`FAIL  ${job.name}  job ${job.databaseId}  (gh run view --job ${job.databaseId} --log-failed)`);
     return 1;
   }
