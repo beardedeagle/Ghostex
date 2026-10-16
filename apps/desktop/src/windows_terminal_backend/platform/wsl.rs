@@ -10,8 +10,9 @@ use std::{
 
 use super::*;
 
-const WSL_STORAGE_PATHS_SCRIPT: &str = r#"set -eu
-case "${GHOSTEX_HOME:-}" in
+/// Sets `ghostex_data_dir` and `ghostex_state_dir` the way Linux gxserver resolves them, for scripts
+/// that need a Ghostex folder without a round trip of their own.
+pub(super) const WSL_STORAGE_DIRS_SCRIPT: &str = r#"case "${GHOSTEX_HOME:-}" in
     /*)
         ghostex_data_dir="$GHOSTEX_HOME"
         ghostex_state_dir="$GHOSTEX_HOME/state"
@@ -27,7 +28,6 @@ case "${GHOSTEX_HOME:-}" in
         esac
         ;;
 esac
-printf '%s\n%s\n' "$ghostex_data_dir" "$ghostex_state_dir"
 "#;
 
 #[derive(Clone, Debug)]
@@ -152,7 +152,10 @@ pub(super) fn validated_wsl_path(path: &str) -> Option<String> {
 }
 
 pub(super) fn resolve_wsl_ghostex_paths(distribution: &str) -> Result<WslGhostexPaths, String> {
-    let output = run_wsl_capture(distribution, WSL_STORAGE_PATHS_SCRIPT).ok_or_else(|| {
+    let script = format!(
+        "set -eu\n{WSL_STORAGE_DIRS_SCRIPT}printf '%s\\n%s\\n' \"$ghostex_data_dir\" \"$ghostex_state_dir\"\n"
+    );
+    let output = run_wsl_capture(distribution, &script).ok_or_else(|| {
         "Could not resolve Ghostex storage paths inside the selected WSL2 distribution.".to_string()
     })?;
     let mut lines = output.lines();

@@ -553,6 +553,82 @@ exec "$@" \
     Ok(command)
 }
 
+/// Stops the code-server holding `port` inside WSL when it is one Ghostex started (its
+/// `--user-data-dir` is the folder `source_code_server_command` gives it); true when it stopped one.
+///
+/// CDXC:CodeEditor 2026-10-16 DECISION:
+/// User: "Yes, stop it automatically". A VS Code that an older build (10.22, 10.23) left running inside WSL keeps the editor port after its Windows `wsl.exe` is gone, and every Source open then failed until `wsl --shutdown` (issue #232). Ghostex stops that leftover and launches its own; a process on the port that does not use Ghostex's editor folder is never touched and still ends the launch with the port-in-use error. One `wsl.exe` call, made only when the port is busy.
+pub(in crate::windows_terminal_backend) fn stop_leftover_source_code_server(
+    port: u16,
+) -> Result<bool, String> {
+    let ResolvedWindowsTerminalBackend::Wsl { distribution } =
+        resolve(super::current_preference())?
+    else {
+        return Ok(false);
+    };
+    let script = format!(
+        r#"set -eu
+{WSL_STORAGE_DIRS_SCRIPT}
+user_data_dir="${{ghostex_data_dir%/}}/code-server-runtime-gpui/user-data"
+port_hex="$(printf '%04X' {port})"
+inodes="$(awk -v suffix=":$port_hex" 'FNR > 1 && $4 == "0A" && substr($2, length($2) - 4) == suffix {{ print $10 }}' /proc/net/tcp /proc/net/tcp6 2>/dev/null || true)"
+owners=""
+if [ -n "$inodes" ]; then
+    for fd in /proc/[0-9]*/fd/*; do
+        target="$(readlink "$fd" 2>/dev/null)" || continue
+        for inode in $inodes; do
+            if [ "$target" = "socket:[$inode]" ]; then
+                pid="${{fd#/proc/}}"
+                pid="${{pid%%/*}}"
+                case " $owners " in *" $pid "*) ;; *) owners="$owners $pid" ;; esac
+            fi
+        done
+    done
+fi
+if [ -z "$owners" ]; then
+    echo none
+    exit 0
+fi
+uses_ghostex_editor_folder() {{
+    tr '\0' '\n' <"/proc/$1/cmdline" 2>/dev/null |
+        awk -v dir="$user_data_dir" 'previous == "--user-data-dir" && $0 == dir {{ found = 1 }} {{ previous = $0 }} END {{ exit !found }}'
+}}
+# code-server's listening process is a fork without arguments; its parent carries them.
+targets=""
+for pid in $owners; do
+    parent="$(sed 's/.*) //' "/proc/$pid/stat" 2>/dev/null | cut -d' ' -f2)"
+    if uses_ghostex_editor_folder "$pid"; then
+        targets="$targets $pid"
+    elif [ -n "$parent" ] && uses_ghostex_editor_folder "$parent"; then
+        targets="$targets $pid $parent"
+    else
+        echo foreign
+        exit 0
+    fi
+done
+kill -TERM $targets 2>/dev/null || true
+waited=0
+while [ "$waited" -lt 50 ]; do
+    alive=""
+    for pid in $targets; do
+        if kill -0 "$pid" 2>/dev/null; then alive="$alive $pid"; fi
+    done
+    if [ -z "$alive" ]; then
+        echo stopped
+        exit 0
+    fi
+    sleep 0.1
+    waited=$((waited + 1))
+done
+kill -KILL $alive 2>/dev/null || true
+echo stopped
+"#
+    );
+    let output = run_wsl_capture(&distribution, &script)
+        .ok_or_else(|| "Could not inspect the Code editor port inside WSL.".to_string())?;
+    Ok(output.trim() == "stopped")
+}
+
 pub(in crate::windows_terminal_backend) fn source_code_server_open_file_command(
     file_path: &Path,
     line: Option<u32>,

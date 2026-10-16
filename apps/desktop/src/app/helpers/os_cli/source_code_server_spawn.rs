@@ -152,9 +152,17 @@ pub(crate) fn source_code_server_spawn_runtime(
     let readiness_timeout = startup_deadline.saturating_duration_since(Instant::now());
     if source_code_server_health_check() {
         let remaining = startup_deadline.saturating_duration_since(Instant::now());
+        // A leftover Ghostex editor in WSL is stopped (windows_terminal_backend::stop_leftover_source_code_server).
         if !source_code_server_wait_until_not_responsive(
             SOURCE_CODE_SERVER_PORT_BUSY_WAIT_INTERVAL.min(remaining),
-        ) {
+        ) && !(windows_terminal_backend::stop_leftover_source_code_server(
+            source_code_server_editor_port(),
+        )
+        .is_ok_and(|stopped| stopped)
+            && source_code_server_wait_until_not_responsive(
+                SOURCE_CODE_SERVER_PORT_BUSY_WAIT_INTERVAL,
+            ))
+        {
             return Err(format!(
                 "Code editor port {} is already in use by another runtime.",
                 source_code_server_editor_port()
