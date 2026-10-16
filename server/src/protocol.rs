@@ -921,6 +921,14 @@ pub fn endpoint_for(path: &str) -> Option<EndpointDescriptor> {
         | "/api/runGitShipWorkflow"
         | "/api/updatePortlessState"
         /*
+        CDXC:RemoteMachines 2026-10-16 WHY:
+        Updating this computer's Ghostex is asked by a desktop or phone connected through the SSH or Easy Connect tunnel, which arrives on the local listener, so the remote listener never gets to restart the app.
+        */
+        | "/api/appUpdateStatus"
+        | "/api/appUpdateCheck"
+        | "/api/appUpdateInstall"
+        | "/api/appUpdateSetAuto"
+        /*
         CDXC:RemotePairing 2026-09-01:
         The tailcat status response carries the address blob that dials this
         machine, so both endpoints stay on the authenticated local listener and

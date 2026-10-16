@@ -119,6 +119,7 @@ impl GhostexGpuiApp {
             "saveRemoteMachinePassword"
             | "reconnectRemoteMachine"
             | "probeRemoteGxserverInstall"
+            | "remoteAppUpdate"
             | "addProjectDialogRequest"
             | "pickReplacementProjectFolder"
             | "setSessionNote"

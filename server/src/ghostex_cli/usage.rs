@@ -209,6 +209,10 @@ pub fn usage() -> String {
             "Inspect or toggle the tailcat remote-access sidecar",
         ),
         format_help_command(
+            "app-update status | check | install [--wait] | auto on|off [--server profile]",
+            "Update this or a connected computer's Ghostex app",
+        ),
+        format_help_command(
             "create-session [title] [--input text] [--start] [--project-id id] [--group-id id]",
             "Create a terminal session; --start materializes the live terminal immediately",
         ),
@@ -765,6 +769,29 @@ Commands:
 State keys:
   enabled, pinned, placement, terminalPlacement,
   preferences.<name>, preferences, grantedPermissions
+"
+    .to_string()
+}
+
+pub fn app_update_usage() -> String {
+    "Ghostex app-update - update a computer's Ghostex app, here or from another device
+
+Usage:
+  ghostex app-update <command> [--server <profile>]
+
+Commands:
+  status                Print the update status JSON: the running version, the available
+                        version, the phase and progress of an install, and the auto switch
+  check                 Ask the app to check for an update now and print the status
+  install [--wait]      Download and install the update with the app's own updater, then
+                        restart Ghostex there; sessions and their agents keep running.
+                        --wait follows it through the restart and prints how it ended
+  auto on|off           Keep this computer up to date: install updates on their own while
+                        no agent there is working
+
+Ghostex must be open on that computer (macOS and Windows). Linux packages only report the
+new version; install it the way Ghostex was installed. Use --server <profile> for another
+computer with a saved connection profile.
 "
     .to_string()
 }

@@ -295,6 +295,7 @@ impl GhostexGpuiApp {
         available: bool,
         cx: &mut gpui::Context<Self>,
     ) {
+        super::app_update_remote_control::note_update_check_finished();
         if self.update_available == available {
             return;
         }
@@ -312,6 +313,7 @@ impl GhostexGpuiApp {
         downloading: bool,
         cx: &mut gpui::Context<Self>,
     ) {
+        super::app_update_remote_control::note_update_downloading(downloading);
         let progress_cleared = !downloading && self.update_download_progress.is_some();
         if progress_cleared {
             self.update_download_progress = None;
@@ -397,7 +399,16 @@ impl GhostexGpuiApp {
                         this.windows_update = Some(update);
                         this.windows_ready_update = ready_update;
                         this.set_gpui_update_available(true, cx);
-                        if interactive {
+                        if super::app_update_remote_control::REMOTE_INSTALL_REQUESTED
+                            .load(Ordering::Acquire)
+                        {
+                            // Another device asked for the install (app_update_remote_control.rs).
+                            if this.windows_ready_update.is_some() {
+                                this.restart_for_remote_windows_update(cx);
+                            } else {
+                                this.download_windows_update(cx);
+                            }
+                        } else if interactive {
                             this.open_windows_update_modal(Some(window), cx);
                         }
                     }
@@ -405,6 +416,9 @@ impl GhostexGpuiApp {
                         this.windows_update = None;
                         this.windows_ready_update = None;
                         this.set_gpui_update_available(false, cx);
+                        super::app_update_remote_control::note_remote_install_failed(
+                            "Ghostex is already up to date.",
+                        );
                         if interactive {
                             this.upsert_gpui_app_toast(
                                 GpuiAppToast {
@@ -422,7 +436,12 @@ impl GhostexGpuiApp {
                             );
                         }
                     }
-                    Err(_) if !interactive => {}
+                    Err(_) if !interactive => {
+                        super::app_update_remote_control::note_update_check_finished();
+                        super::app_update_remote_control::note_remote_install_failed(
+                            "Could not check for updates on this computer.",
+                        );
+                    }
                     Err(_) => {
                         this.upsert_gpui_app_toast(
                             GpuiAppToast {
@@ -521,9 +540,18 @@ impl GhostexGpuiApp {
                                 Ok(asset) => {
                                     this.windows_ready_update = Some(asset);
                                     this.set_gpui_update_available(true, cx);
-                                    this.open_windows_update_modal(Some(window), cx);
+                                    if super::app_update_remote_control::REMOTE_INSTALL_REQUESTED
+                                        .load(Ordering::Acquire)
+                                    {
+                                        this.restart_for_remote_windows_update(cx);
+                                    } else {
+                                        this.open_windows_update_modal(Some(window), cx);
+                                    }
                                 }
                                 Err(_) => {
+                                    super::app_update_remote_control::note_remote_install_failed(
+                                        "The update download failed on this computer.",
+                                    );
                                     this.upsert_gpui_app_toast(
                                         GpuiAppToast {
                                             copy_text: None,
@@ -566,6 +594,9 @@ impl GhostexGpuiApp {
             return;
         };
         if updater.apply_after_exit(asset).is_err() {
+            super::app_update_remote_control::note_remote_install_failed(
+                "Windows could not start the Ghostex updater.",
+            );
             self.upsert_gpui_app_toast(
                 GpuiAppToast {
                     copy_text: None,
@@ -603,6 +634,7 @@ impl GhostexGpuiApp {
                 .await;
             let _ = this.update_in(cx, |this, window, cx| {
                 this.update_checking = false;
+                super::app_update_remote_control::note_update_check_finished();
                 match result {
                     Ok(Some(update)) => {
                         this.linux_update = Some(update);

@@ -2395,6 +2395,19 @@ sessions, so any client can control agents on any machine.
   why, with Reconnect and Remote Settings buttons. Ghostex keeps retrying a
   dropped connection, but a rejected username or password is not retried (so
   the account is not locked out); saving a new SSH password reconnects it.
+  To update Ghostex on a remote machine without going to its screen, look at
+  its tile in Settings > Remote or its tab in the sidebar: a connected machine
+  shows the Ghostex version it runs, and when a newer one is out its tab shows
+  an arrow and the tile and the tab's right-click menu offer **Update to
+  <version>**. It downloads the update with that computer's own updater and
+  restarts Ghostex there; its sessions and agents keep running, the progress
+  shows on the tile, and the connection comes back by itself. Open the
+  machine's tile and turn on **Keep this machine up to date** to have it
+  install updates on its own while none of its agents is working. Ghostex must
+  be open on that computer (macOS or Windows, also with WSL); a Linux machine
+  shows the new version, which you install with its package manager. From a
+  terminal: `ghostex app-update status`, `check`, `install --wait` and
+  `auto on|off`, with `--server <profile>` for another computer.
 - **Web app**: the desktop's sidebar (with its session, group and project
   actions, the Git menu and Quick Access), chat and terminal running in a
   browser and talking to gxserver; remote machines, Settings and the commit

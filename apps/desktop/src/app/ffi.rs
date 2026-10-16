@@ -512,6 +512,51 @@ pub extern "C" fn GhostexGpuiSparkleUpdateDownloadingChanged(downloading: std::f
     queue_gpui_sparkle_update_downloading_changed(downloading == 1);
 }
 
+/// The version of the update Sparkle found, for another device asking this computer (app_update_remote_control.rs).
+#[cfg(target_os = "macos")]
+#[unsafe(no_mangle)]
+pub extern "C" fn GhostexGpuiSparkleUpdateVersionFound(version: *const std::ffi::c_char) {
+    if version.is_null() {
+        return;
+    }
+    // SAFETY: Sparkle's bridge passes a NUL-terminated UTF-8 string valid for this call.
+    let version = unsafe { std::ffi::CStr::from_ptr(version) }
+        .to_string_lossy()
+        .trim()
+        .to_string();
+    if version.is_empty() || version.len() > 64 {
+        return;
+    }
+    if let Ok(mut slot) =
+        crate::app::os_integration::app_update_remote_control::SPARKLE_AVAILABLE_VERSION.lock()
+    {
+        *slot = Some(version);
+    }
+}
+
+/// How an install another device asked for is going (`GhostexGpuiSparkleInstallUnattended`).
+#[cfg(target_os = "macos")]
+#[unsafe(no_mangle)]
+pub extern "C" fn GhostexGpuiSparkleUnattendedUpdateEvent(
+    kind: std::ffi::c_int,
+    text: *const std::ffi::c_char,
+) {
+    use crate::app::os_integration::app_update_remote_control as remote;
+    let text = (!text.is_null())
+        // SAFETY: Sparkle's bridge passes a NUL-terminated UTF-8 string valid for this call.
+        .then(|| unsafe { std::ffi::CStr::from_ptr(text) }.to_string_lossy().to_string());
+    match kind {
+        2 => remote::note_remote_install_failed("Ghostex is already up to date."),
+        3 => remote::note_remote_install_failed(
+            text.filter(|text| !text.trim().is_empty())
+                .unwrap_or_else(|| "The update failed on this computer.".to_string()),
+        ),
+        4 => remote::note_remote_install_installing(),
+        5 => remote::note_remote_install_ended(),
+        _ => {}
+    }
+}
+
 #[cfg(target_os = "macos")]
 #[unsafe(no_mangle)]
 pub extern "C" fn GhostexGpuiSparkleUpdateDownloadProgressChanged(

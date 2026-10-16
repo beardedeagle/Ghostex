@@ -8,6 +8,7 @@
 // re-export is needed here (inherent methods resolve on the type regardless
 // of which module defines them). See docs/2026-08-22/repo-restructure/SPLITS.md C1.
 pub(crate) mod agentbox_settings;
+pub(crate) mod app_update_remote_control;
 pub(crate) mod cua_gte_and_file_open;
 pub(crate) mod first_run_onboarding;
 pub(crate) mod gxserver_bootstrap;

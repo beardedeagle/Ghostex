@@ -542,7 +542,7 @@ pub(super) fn machines_section(
         tab.machine_dialog = None;
     }
     let mut tiles = vec![add_tile(t, cx)];
-    tiles.extend(machines.iter().map(|machine| machine_tile(t, machine, cx)));
+    tiles.extend(machines.iter().map(|machine| machine_tile(tab, t, machine, cx)));
     let mut rows = Vec::new();
     let mut tiles = tiles.into_iter().peekable();
     while tiles.peek().is_some() {
@@ -647,7 +647,12 @@ fn add_tile(t: &RemoteTokens, cx: &mut Context<RemoteTab>) -> AnyElement {
         .into_any_element()
 }
 
-fn machine_tile(t: &RemoteTokens, machine: &Value, cx: &mut Context<RemoteTab>) -> AnyElement {
+fn machine_tile(
+    tab: &RemoteTab,
+    t: &RemoteTokens,
+    machine: &Value,
+    cx: &mut Context<RemoteTab>,
+) -> AnyElement {
     let id = machine
         .get("id")
         .and_then(Value::as_str)
@@ -693,9 +698,12 @@ fn machine_tile(t: &RemoteTokens, machine: &Value, cx: &mut Context<RemoteTab>) 
                 .child(tile_text(
                     t,
                     name,
-                    format_remote_machine_ssh_target(machine),
+                    // A connected machine's Ghostex version (and its update) stands in for the SSH target.
+                    super::app_update::tile_update_line(tab, &id)
+                        .unwrap_or_else(|| format_remote_machine_ssh_target(machine)),
                 )),
         )
+        .children(super::app_update::tile_update_button(tab, t, &id, cx))
         .child(
             div()
                 .id(SharedString::from(format!("remote-machine-switch-{id}")))
@@ -1122,6 +1130,12 @@ pub(super) fn machine_dialog(
                     cx,
                 )),
         );
+    }
+
+    if let Some(machine_id) = machine_id.as_deref()
+        && let Some(section) = super::app_update::dialog_update_section(tab, t, machine_id, cx)
+    {
+        body = body.child(section);
     }
 
     let mut footer = h_flex().w_full().items_center().justify_end().gap(px(8.0));

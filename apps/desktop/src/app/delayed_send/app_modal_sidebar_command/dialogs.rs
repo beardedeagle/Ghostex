@@ -20,6 +20,9 @@ impl GhostexGpuiApp {
             "probeRemoteGxserverInstall" => {
                 self.handle_gpui_probe_remote_gxserver_install_message(command, cx);
             }
+            "remoteAppUpdate" => {
+                self.handle_remote_app_update_command(command, cx);
+            }
             "addProjectDialogRequest" => {
                 self.handle_gpui_add_project_dialog_request_message(command, cx);
             }

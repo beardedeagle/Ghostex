@@ -134,6 +134,13 @@ impl GhostexGpuiApp {
         if self.gx_store_answer_session_menu(&command, cx) {
             return;
         }
+        // A machine tab's Update item (remote_conn/app_update.rs).
+        if command["type"] == "remoteAppUpdate" {
+            if let Some(command) = command.as_object() {
+                self.handle_remote_app_update_command(command, cx);
+            }
+            return;
+        }
         // The launcher opening re-reads this computer's agentbox boxes for its Run in a Box page
         // (gx_store/agentbox.rs).
         if command["type"] == "agentAccounts" && command["action"] == "load" {

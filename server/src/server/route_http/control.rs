@@ -54,6 +54,13 @@ pub(super) async fn route_control_http(
         | "/api/pairedDeviceSeen" => {
             handle_remote_access_http(&state, endpoint.path, request_id, &body_json).await
         }
+        "/api/appUpdateStatus"
+        | "/api/appUpdateCheck"
+        | "/api/appUpdateInstall"
+        | "/api/appUpdateSetAuto" => {
+            crate::app_update::handle_app_update_http(&state, endpoint.path, request_id, &body_json)
+                .await
+        }
         "/api/listExtensions"
         | "/api/extensionsCatalog"
         | "/api/installExtension"

@@ -17,6 +17,7 @@
 //! out on the daemon), each guarded so a slow daemon never stacks requests; both stop as soon as
 //! the page is left or Settings closes (`use-remote-access.ts` (deleted 2026-10-01)).
 mod advanced;
+mod app_update;
 mod easy_connect;
 mod machines;
 mod model;
@@ -147,6 +148,8 @@ pub(crate) struct RemoteTab {
     machines_bounds: Rc<Cell<Option<Bounds<Pixels>>>>,
     pending_scroll: Option<ScrollTarget>,
     pub(super) installs: HashMap<String, GxserverInstall>,
+    /// Each connected machine's Ghostex version and update row (`remoteAppUpdateState`).
+    pub(super) app_updates: HashMap<String, Value>,
     probed_keys: HashSet<String>,
     probe_task: Option<Task<()>>,
     probed_list: Option<Value>,
@@ -213,6 +216,11 @@ impl RemoteTab {
                 {
                     tab.receive_install_state(&message, cx);
                 }
+                if kind == "remoteAppUpdateState"
+                    && let Some(message) = store.read(cx).host_payload(kind).cloned()
+                {
+                    tab.receive_app_update_state(&message, cx);
+                }
             },
         )
         .detach();
@@ -252,6 +260,7 @@ impl RemoteTab {
             machines_bounds: Rc::new(Cell::new(None)),
             pending_scroll: None,
             installs: HashMap::new(),
+            app_updates: HashMap::new(),
             probed_keys: HashSet::new(),
             probe_task: None,
             probed_list: None,
@@ -325,6 +334,9 @@ impl RemoteTab {
         let active = self.is_active(cx);
         if active != self.was_active {
             self.was_active = active;
+            if active {
+                self.request_app_update_rows(cx);
+            }
             if !active {
                 self.targeted_section = None;
                 self.targeted_machine = None;

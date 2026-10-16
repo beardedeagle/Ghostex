@@ -54,6 +54,17 @@ const SETTINGS_PATCH_MAX_KEYS: usize = 50;
 /// Far above the ~100 hotkey ids; bounds what one `ghostex settings hotkeys` save can carry.
 const SETTINGS_PATCH_MAX_HOTKEYS: usize = 512;
 
+/// What `/api/appUpdate*` asks this computer's app updater (server/src/app_update/).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AppUpdateOp {
+    /// Report the updater's state.
+    Status,
+    /// Look for an update now.
+    Check,
+    /// Download and install the update without asking, then restart.
+    Install,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum OpenPathsMode {
     Open,
@@ -124,6 +135,9 @@ pub enum RendererVerb {
         mode: OpenPathsMode,
         targets: Vec<OpenPathTarget>,
     },
+    /// `appUpdate`, sent only by gxserver's own `/api/appUpdate*` endpoints, never the CLI's
+    /// renderer-command door.
+    AppUpdate(AppUpdateOp),
 }
 
 fn string<'a>(payload: &'a Value, key: &str) -> Option<&'a str> {
@@ -263,6 +277,12 @@ pub fn plan_renderer_command(
         }
         "toggleSidebarCollapsed" => Ok(RendererVerb::ToggleSidebarCollapsed),
         "openPaths" => open_paths(payload),
+        "appUpdate" => match trimmed(payload, "op").as_deref() {
+            Some("status") => Ok(RendererVerb::AppUpdate(AppUpdateOp::Status)),
+            Some("check") => Ok(RendererVerb::AppUpdate(AppUpdateOp::Check)),
+            Some("install") => Ok(RendererVerb::AppUpdate(AppUpdateOp::Install)),
+            _ => Err(RendererCommandError::Unsupported),
+        },
         _ => Err(RendererCommandError::Unsupported),
     }
 }

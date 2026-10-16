@@ -56,3 +56,16 @@ impl GhostexGpuiApp {
         );
     }
 }
+
+/// The desktop's machine-tab update mark (`apps/desktop/src/app/remote_conn/app_update.rs`); the web has no remote machines.
+pub(crate) struct RemoteAppUpdateBadge {
+    pub(crate) busy: bool,
+    pub(crate) tooltip: String,
+    pub(crate) menu_label: Option<String>,
+}
+
+impl GhostexGpuiApp {
+    pub(crate) fn remote_app_update_tab_badge(&self, _machine_id: &str) -> Option<RemoteAppUpdateBadge> {
+        None
+    }
+}

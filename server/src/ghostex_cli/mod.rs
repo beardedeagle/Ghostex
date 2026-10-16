@@ -43,6 +43,7 @@ mod settings_hotkeys;
 mod show;
 mod visual;
 pub mod skills;
+pub mod app_update;
 pub mod tailcat;
 pub mod tailcat_tunnel;
 pub mod usage;
@@ -93,6 +94,7 @@ const HELP_GATE_EXCLUDED: &[&str] = &[
     "agent-cli",
     "agentbox",
     "agents",
+    "app-update",
     "orchestrator",
     "coordinator",
     "automations",
@@ -337,6 +339,7 @@ fn is_known_command(name: &str) -> bool {
         "board",
         "server",
         "tailcat",
+        "app-update",
         "web",
         "ports",
         "resources",
@@ -890,6 +893,7 @@ fn run_command(name: &str, args: &[String]) -> CliResult<()> {
         "visual" => visual::visual_command(args),
         "server" => server_command(args),
         "tailcat" => tailcat::tailcat_command(args),
+        "app-update" => app_update::app_update_command(args),
         "web" => web::web_command(args),
         "ports" => ports::ports_command(args),
         "resources" => resources::resources_command(args),

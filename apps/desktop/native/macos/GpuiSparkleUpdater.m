@@ -26,6 +26,32 @@ extern void GhostexGpuiSparkleUpdateAvailableChanged(int32_t available);
 extern void GhostexGpuiSparkleUpdateDownloadingChanged(int32_t downloading);
 extern void GhostexGpuiSparkleUpdateDownloadProgressChanged(int32_t hasProgress,
                                                             double progress);
+extern void GhostexGpuiSparkleUpdateVersionFound(const char *version);
+extern void GhostexGpuiSparkleUnattendedUpdateEvent(int32_t kind,
+                                                    const char *text);
+
+/*
+ CDXC:RemoteMachines 2026-10-16 WHY:
+ Another device can ask this computer to update (gxserver `/api/appUpdateInstall`,
+ app_update_remote_control.rs). Nobody is in front of this screen, so while
+ `gGhostexGpuiSparkleUnattended` is set the user driver gives Sparkle the
+ answers the user would click (Install on the update-found alert and on Install
+ and Relaunch) and skips the checking/release-notes windows; signature checks,
+ download, extraction and the relaunch stay Sparkle's own. Every other session
+ forwards to SPUStandardUserDriver unchanged.
+*/
+enum {
+  GhostexGpuiSparkleUnattendedFound = 1,
+  GhostexGpuiSparkleUnattendedNotFound = 2,
+  GhostexGpuiSparkleUnattendedFailed = 3,
+  GhostexGpuiSparkleUnattendedInstalling = 4,
+  GhostexGpuiSparkleUnattendedEnded = 5,
+};
+/* SPUUserUpdateChoiceInstall in Sparkle 2's SPUUserUpdateChoice. */
+static const NSInteger GhostexGpuiSparkleChoiceInstall = 1;
+static BOOL gGhostexGpuiSparkleUnattended = NO;
+static BOOL gGhostexGpuiSparkleUnattendedSupported = NO;
+static Class gGhostexGpuiSparkleStandardDriverClass = Nil;
 
 @interface NSObject (GhostexGpuiSparkleDynamicMessaging)
 - (id)initWithHostBundle:(NSBundle *)hostBundle delegate:(id)delegate;
@@ -36,7 +62,31 @@ extern void GhostexGpuiSparkleUpdateDownloadProgressChanged(int32_t hasProgress,
 - (BOOL)startUpdater:(NSError **)error;
 - (void)checkForUpdates;
 - (void)checkForUpdateInformation;
+- (BOOL)sessionInProgress;
 @end
+
+static IMP GhostexGpuiSparkleSuperIMP(SEL selector) {
+  if (gGhostexGpuiSparkleStandardDriverClass == Nil) {
+    return NULL;
+  }
+  return class_getMethodImplementation(gGhostexGpuiSparkleStandardDriverClass,
+                                       selector);
+}
+
+static NSString *GhostexGpuiSparkleItemVersion(id item) {
+  @try {
+    id version = [item valueForKey:@"displayVersionString"];
+    if ([version isKindOfClass:[NSString class]]) {
+      return version;
+    }
+  } @catch (NSException *exception) {
+  }
+  return nil;
+}
+
+static void GhostexGpuiSparkleEmitUnattended(int32_t kind, NSString *text) {
+  GhostexGpuiSparkleUnattendedUpdateEvent(kind, text.UTF8String);
+}
 
 static id gGhostexGpuiSparkleUpdater = nil;
 static id gGhostexGpuiSparkleUserDriver = nil;
@@ -135,6 +185,92 @@ static void GhostexGpuiSparkleShowExtractionReceivedProgress(id self, SEL _cmd,
   GhostexGpuiSparkleUpdateDownloadProgressChanged(0, 0.0);
 }
 
+static void GhostexGpuiSparkleShowUserInitiatedCheck(id self, SEL _cmd,
+                                                    id cancellation) {
+  if (gGhostexGpuiSparkleUnattended) {
+    return;
+  }
+  ((void (*)(id, SEL, id))GhostexGpuiSparkleSuperIMP(_cmd))(self, _cmd,
+                                                           cancellation);
+}
+
+static void GhostexGpuiSparkleShowUpdateFound(id self, SEL _cmd, id item,
+                                              id state, id reply) {
+  NSString *version = GhostexGpuiSparkleItemVersion(item);
+  if (version != nil) {
+    GhostexGpuiSparkleUpdateVersionFound(version.UTF8String);
+  }
+  if (gGhostexGpuiSparkleUnattended) {
+    GhostexGpuiSparkleEmitUnattended(GhostexGpuiSparkleUnattendedFound,
+                                     version);
+    ((void (^)(NSInteger))reply)(GhostexGpuiSparkleChoiceInstall);
+    return;
+  }
+  ((void (*)(id, SEL, id, id, id))GhostexGpuiSparkleSuperIMP(_cmd))(
+      self, _cmd, item, state, reply);
+}
+
+static void GhostexGpuiSparkleShowReleaseNotes(id self, SEL _cmd, id data) {
+  if (gGhostexGpuiSparkleUnattended) {
+    return;
+  }
+  ((void (*)(id, SEL, id))GhostexGpuiSparkleSuperIMP(_cmd))(self, _cmd, data);
+}
+
+static void GhostexGpuiSparkleShowReleaseNotesFailed(id self, SEL _cmd,
+                                                     id error) {
+  if (gGhostexGpuiSparkleUnattended) {
+    return;
+  }
+  ((void (*)(id, SEL, id))GhostexGpuiSparkleSuperIMP(_cmd))(self, _cmd, error);
+}
+
+static void GhostexGpuiSparkleShowNotFound(id self, SEL _cmd, NSError *error,
+                                           id acknowledgement) {
+  if (gGhostexGpuiSparkleUnattended) {
+    gGhostexGpuiSparkleUnattended = NO;
+    GhostexGpuiSparkleEmitUnattended(GhostexGpuiSparkleUnattendedNotFound,
+                                     nil);
+    ((void (^)(void))acknowledgement)();
+    return;
+  }
+  ((void (*)(id, SEL, id, id))GhostexGpuiSparkleSuperIMP(_cmd))(
+      self, _cmd, error, acknowledgement);
+}
+
+static void GhostexGpuiSparkleShowUpdaterError(id self, SEL _cmd,
+                                               NSError *error,
+                                               id acknowledgement) {
+  if (gGhostexGpuiSparkleUnattended) {
+    gGhostexGpuiSparkleUnattended = NO;
+    GhostexGpuiSparkleEmitUnattended(GhostexGpuiSparkleUnattendedFailed,
+                                     error.localizedDescription);
+    ((void (^)(void))acknowledgement)();
+    return;
+  }
+  ((void (*)(id, SEL, id, id))GhostexGpuiSparkleSuperIMP(_cmd))(
+      self, _cmd, error, acknowledgement);
+}
+
+static void GhostexGpuiSparkleShowReadyToInstall(id self, SEL _cmd,
+                                                 id reply) {
+  if (gGhostexGpuiSparkleUnattended) {
+    GhostexGpuiSparkleEmitUnattended(GhostexGpuiSparkleUnattendedInstalling,
+                                     nil);
+    ((void (^)(NSInteger))reply)(GhostexGpuiSparkleChoiceInstall);
+    return;
+  }
+  ((void (*)(id, SEL, id))GhostexGpuiSparkleSuperIMP(_cmd))(self, _cmd, reply);
+}
+
+static void GhostexGpuiSparkleDismissInstallation(id self, SEL _cmd) {
+  if (gGhostexGpuiSparkleUnattended) {
+    gGhostexGpuiSparkleUnattended = NO;
+    GhostexGpuiSparkleEmitUnattended(GhostexGpuiSparkleUnattendedEnded, nil);
+  }
+  ((void (*)(id, SEL))GhostexGpuiSparkleSuperIMP(_cmd))(self, _cmd);
+}
+
 static BOOL GhostexGpuiSparkleAddOverride(Class subclass, Class superclass,
                                           SEL selector, IMP imp) {
   Method superMethod = class_getInstanceMethod(superclass, selector);
@@ -189,6 +325,53 @@ static Class GhostexGpuiSparkleUserDriverClass(Class standardUserDriverClass) {
       objc_disposeClassPair(allocated);
       return;
     }
+    // The unattended answers are all-or-nothing: without every one of them a
+    // remote install could leave an alert waiting on a screen nobody sees,
+    // so a Sparkle that lacks any refuses remote installs instead.
+    BOOL unattended = YES;
+    unattended = GhostexGpuiSparkleAddOverride(
+                     allocated, standardUserDriverClass,
+                     @selector(showUserInitiatedUpdateCheckWithCancellation:),
+                     (IMP)GhostexGpuiSparkleShowUserInitiatedCheck) &&
+                 unattended;
+    unattended = GhostexGpuiSparkleAddOverride(
+                     allocated, standardUserDriverClass,
+                     @selector(showUpdateFoundWithAppcastItem:state:reply:),
+                     (IMP)GhostexGpuiSparkleShowUpdateFound) &&
+                 unattended;
+    unattended = GhostexGpuiSparkleAddOverride(
+                     allocated, standardUserDriverClass,
+                     @selector(showUpdateReleaseNotesWithDownloadData:),
+                     (IMP)GhostexGpuiSparkleShowReleaseNotes) &&
+                 unattended;
+    unattended =
+        GhostexGpuiSparkleAddOverride(
+            allocated, standardUserDriverClass,
+            @selector(showUpdateReleaseNotesFailedToDownloadWithError:),
+            (IMP)GhostexGpuiSparkleShowReleaseNotesFailed) &&
+        unattended;
+    unattended = GhostexGpuiSparkleAddOverride(
+                     allocated, standardUserDriverClass,
+                     @selector(showUpdateNotFoundWithError:acknowledgement:),
+                     (IMP)GhostexGpuiSparkleShowNotFound) &&
+                 unattended;
+    unattended = GhostexGpuiSparkleAddOverride(
+                     allocated, standardUserDriverClass,
+                     @selector(showUpdaterError:acknowledgement:),
+                     (IMP)GhostexGpuiSparkleShowUpdaterError) &&
+                 unattended;
+    unattended = GhostexGpuiSparkleAddOverride(
+                     allocated, standardUserDriverClass,
+                     @selector(showReadyToInstallAndRelaunch:),
+                     (IMP)GhostexGpuiSparkleShowReadyToInstall) &&
+                 unattended;
+    unattended = GhostexGpuiSparkleAddOverride(
+                     allocated, standardUserDriverClass,
+                     @selector(dismissUpdateInstallation),
+                     (IMP)GhostexGpuiSparkleDismissInstallation) &&
+                 unattended;
+    gGhostexGpuiSparkleStandardDriverClass = standardUserDriverClass;
+    gGhostexGpuiSparkleUnattendedSupported = unattended;
     objc_registerClassPair(allocated);
     driverClass = allocated;
   });
@@ -251,7 +434,10 @@ static Class GhostexGpuiSparkleUserDriverClass(Class standardUserDriverClass) {
 
 - (void)updater:(id)updater didFindValidUpdate:(id)item {
   (void)updater;
-  (void)item;
+  NSString *version = GhostexGpuiSparkleItemVersion(item);
+  if (version != nil) {
+    GhostexGpuiSparkleUpdateVersionFound(version.UTF8String);
+  }
   GhostexGpuiSparkleUpdateAvailableChanged(1);
 }
 
@@ -360,5 +546,40 @@ void GhostexGpuiSparkleProbeForUpdateInformation(void) {
       // availability arrives through the updater delegate callbacks.
       [gGhostexGpuiSparkleUpdater checkForUpdateInformation];
     });
+  }
+}
+
+/*
+ Starts Sparkle's user-initiated check in unattended mode: 1 started, 0 no
+ updater, 2 a Sparkle session (an update window) is already open, -1 this
+ Sparkle cannot be answered unattended.
+*/
+int32_t GhostexGpuiSparkleInstallUnattended(void) {
+  @autoreleasepool {
+    __block int32_t result = 0;
+    GhostexGpuiSparkleRunOnMain(^{
+      if (gGhostexGpuiSparkleUpdater == nil) {
+        result = 0;
+        return;
+      }
+      if (!gGhostexGpuiSparkleUnattendedSupported) {
+        result = -1;
+        return;
+      }
+      BOOL busy = NO;
+      @try {
+        busy = [gGhostexGpuiSparkleUpdater sessionInProgress];
+      } @catch (NSException *exception) {
+        busy = NO;
+      }
+      if (busy && !gGhostexGpuiSparkleUnattended) {
+        result = 2;
+        return;
+      }
+      gGhostexGpuiSparkleUnattended = YES;
+      [gGhostexGpuiSparkleUpdater checkForUpdates];
+      result = 1;
+    });
+    return result;
   }
 }

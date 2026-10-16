@@ -211,6 +211,8 @@ impl GhostexGpuiApp {
                 };
                 Ok(json!({ "accepted": true, "action": action, "mode": mode, "ok": true }))
             }
+            // Another device updating this computer's Ghostex (os_integration/app_update_remote_control.rs).
+            RendererVerb::AppUpdate(op) => Ok(self.answer_app_update_renderer_command(op, cx)),
         }
     }
 

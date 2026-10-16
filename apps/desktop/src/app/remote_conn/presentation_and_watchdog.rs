@@ -183,6 +183,8 @@ impl GhostexGpuiApp {
                 if this
                     .update(cx, |this, cx| {
                         this.validate_gpui_remote_gxserver_connections(false, cx);
+                        // A connected machine's Ghostex version and update, read again every half hour (app_update.rs).
+                        this.refresh_expired_remote_app_updates(cx);
                     })
                     .is_err()
                 {

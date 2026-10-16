@@ -8,6 +8,7 @@
 // os_cli/ and helpers/remote/ splits, which re-export free functions and
 // types). See docs/2026-08-22/repo-restructure/SPLITS.md C1.
 pub(crate) mod app_modal_bridge;
+pub(crate) mod app_update;
 pub(crate) mod attach_request;
 pub(crate) mod attach_terminal;
 pub(crate) mod clone_job_and_preview;

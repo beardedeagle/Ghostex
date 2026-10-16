@@ -9,6 +9,7 @@ pub mod agent_skills;
 pub mod agent_skills_remote;
 pub mod agent_transcripts;
 pub(crate) mod agentbox;
+pub(crate) mod app_update;
 pub mod agents;
 pub mod auth;
 pub mod automations;

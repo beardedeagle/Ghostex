@@ -30,7 +30,15 @@ impl GhostexGpuiApp {
                 let selected = snapshot.selected_machine_id == id;
                 let busy = ghostex_gx_core::machine_state_is_busy(&machine.state);
                 let failed = id != "local" && ghostex_gx_core::machine_state_is_failure(&machine.state);
+                // CDXC:RemoteMachines 2026-10-16 DECISION: the machine's Ghostex update shows on its tab (an arrow, a spinner while it installs) and as the tab menu's first item (remote_conn/app_update.rs).
+                let app_update = (id != "local").then(|| self.remote_app_update_tab_badge(&id)).flatten();
                 let tooltip = machine.message.as_ref().map(|message| format!("{}: {message}", machine.label)).unwrap_or_else(|| machine.label.clone());
+                let tooltip = match app_update.as_ref() { Some(update) => format!("{tooltip} · {}", update.tooltip), None => tooltip };
+                let update_menu_label = app_update.as_ref().and_then(|update| update.menu_label.clone());
+                let update_glyph = app_update.as_ref().map(|update| {
+                    let icon = gpui::svg().path(if update.busy { "titlebar/loader2.svg" } else { "titlebar/download.svg" }).size(px(12.0 * scale)).flex_shrink_0().text_color(appearance.foreground);
+                    if update.busy { icon.with_throttled_animation(format!("native-machine-update-{id}"), std::time::Duration::from_millis(900), |icon, progress| icon.with_transformation(gpui::Transformation::rotate(gpui::percentage(progress)))).into_any_element() } else { icon.into_any_element() }
+                });
                 let icon = gpui::svg().path(if id == "local" { "titlebar/device-desktop.svg" } else if busy { "titlebar/loader2.svg" } else { "titlebar/cloud.svg" }).size(px(14.0 * scale)).text_color(if failed { rgb(0xff9494).into() } else { appearance.muted });
                 let glyph = if busy { icon.with_throttled_animation(format!("native-machine-busy-{id}"), std::time::Duration::from_millis(900), |icon, progress| icon.with_transformation(gpui::Transformation::rotate(gpui::percentage(progress)))).into_any_element() } else { icon.into_any_element() };
                 h_flex().id(format!("native-sidebar-machine-{id}")).role(gpui::Role::Tab).aria_label(machine.label.clone()).aria_selected(selected).flex_1().min_w_0().h_full().px(px(6.0 * scale)).justify_center().gap(px(4.0 * scale)).text_size(px(12.0 * scale))
@@ -40,6 +48,7 @@ impl GhostexGpuiApp {
                     .child(div().id(format!("native-machine-connect-{id}")).flex_shrink_0().child(glyph)
                         .when(id != "local" && machine.state != "connected" && !busy, |icon| icon.on_click(cx.listener(move |app, _, _, cx| { cx.stop_propagation(); app.remote_reconnect_from_sidebar(&reconnect, cx); }))))
                     .child(div().min_w_0().truncate().child(machine.label.clone()))
+                    .children(update_glyph)
                     /*
                     CDXC:Sidebar 2026-09-25 DECISION:
                     User: stop showing the status on the machine we're on and show it on the other machine tabs as dots, not numbers, exactly like the Spaces. The selected tab's sessions are already listed below it.
@@ -49,7 +58,12 @@ impl GhostexGpuiApp {
                     .on_click(cx.listener(move |app, _, _, cx| { cx.stop_propagation(); app.dispatch_native_sidebar_ui(json!({"type": "selectMachine", "machineId": id}), cx); }))
                     .when(machine.id != "local", |row| row.on_mouse_down(MouseButton::Right, move |event, window, cx| {
                         cx.stop_propagation();
-                        let mut items = vec![json!({"label": "Hide Machine", "icon": "eye-off", "command": {"type": "machineAction", "action": "hide", "machineId": menu_id}})];
+                        let mut items = Vec::new();
+                        if let Some(label) = update_menu_label.clone() {
+                            items.push(json!({"label": label, "icon": "download", "command": {"type": "remoteAppUpdate", "op": "install", "remoteMachineId": menu_id}}));
+                            items.push(json!({"separator": true}));
+                        }
+                        items.push(json!({"label": "Hide Machine", "icon": "eye-off", "command": {"type": "machineAction", "action": "hide", "machineId": menu_id}}));
                         // The tab's workspace on this computer (gx-core `machine_workspace_menu`).
                         if let Some(workspace_menu) = workspace_menu.clone() {
                             items.push(workspace_menu);
