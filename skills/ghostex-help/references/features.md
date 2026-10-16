@@ -3006,7 +3006,10 @@ backend: `ghostex team deploy|join|invite|identity|status|ping|leave`. Slack:
   '<json>'` runs a tool that only reads, such as `GMAIL_FETCH_EMAILS`;
   anything that would send, post, create, edit or delete is refused.
   `ghostex connectors sign-out` removes a workspace's sign-in. Every command
-  takes `--workspace <name>`.
+  takes `--workspace <name>`. Settings › Connectors (shown while Enable
+  Experimental Features is on) does the same with buttons, one section per
+  workspace: the Composio sign-in and apps, Executor and its apps, the
+  Ask/Allow/Never rules and the `gh` and `gws` sign-ins.
 - Agents use connectors on their own: every Claude and Codex session that
   starts or resumes while Connectors is on gets its workspace's connector
   tools (Composio's and, when Executor is on, Executor's), so you can just

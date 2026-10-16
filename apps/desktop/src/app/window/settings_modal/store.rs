@@ -769,6 +769,12 @@ impl SettingsStore {
         self.bool("showBetaFeatures")
     }
 
+    /// CDXC:Connectors 2026-10-16 DECISION:
+    /// User: Connectors is experimental, so "hide all these under 'experimental' until i test it well and tell you": the Connectors page shows only while Enable Experimental Features is on, the same switch gxserver's Connectors routes follow (server/src/connectors/gate.rs).
+    pub(crate) fn connectors_visible(&self) -> bool {
+        self.bool("showBetaFeatures")
+    }
+
     /// A page a whole-feature built-in extension owns (Actions, Open In) leaves the rail and the
     /// search while that extension is off (`built_in_extensions::page_shown_with`).
     pub(crate) fn built_in_extension_allows_page(&self, tab: SettingsTabId) -> bool {
@@ -780,6 +786,7 @@ impl SettingsStore {
     /// `resolveSettingsModalTabForVisibility`.
     pub(crate) fn resolve_tab(&self, tab: SettingsTabId) -> SettingsTabId {
         if (tab == SettingsTabId::OsIntegration && !self.os_integration_visible())
+            || (tab == SettingsTabId::Connectors && !self.connectors_visible())
             || !self.built_in_extension_allows_page(tab)
         {
             SettingsTabId::General
@@ -846,6 +853,7 @@ impl SettingsStore {
             };
             let tab = self.page_history[index];
             let hidden = (tab == SettingsTabId::OsIntegration && !self.os_integration_visible())
+                || (tab == SettingsTabId::Connectors && !self.connectors_visible())
                 || !self.built_in_extension_allows_page(tab)
                 || (tab == SettingsTabId::Debugging && !self.show_advanced());
             if tab != self.active_tab && !hidden {

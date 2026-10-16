@@ -5,6 +5,7 @@ pub(crate) mod accounts;
 pub(crate) mod actions;
 pub(crate) mod agents;
 pub(crate) mod cloud_boxes;
+pub(crate) mod connectors;
 pub(crate) mod debugging;
 pub(crate) mod extensions;
 pub(crate) mod general;
@@ -48,6 +49,7 @@ pub(crate) fn settings_tab_view(
         SettingsTabId::Extensions => extensions::extensions_tab_view(store, window, cx),
         SettingsTabId::Accounts => accounts::accounts_tab_view(store, window, cx),
         SettingsTabId::Workspaces => workspaces::workspaces_tab_view(store, cx),
+        SettingsTabId::Connectors => connectors::connectors_tab_view(store, cx),
         // TAB-ARMS: one arm per page.
     }
 }

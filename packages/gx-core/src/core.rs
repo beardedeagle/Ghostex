@@ -171,6 +171,8 @@ pub enum Effect {
     RefetchSidebarHud { machine: MachineId },
     /// `notificationFeedChanged` carries no payload: read `/api/readNotificationFeed`.
     RefetchNotificationFeed { machine: MachineId },
+    /// `connectorsChanged`: an open Settings › Connectors page reads `/api/readConnectors` again.
+    ConnectorsChanged { machine: MachineId },
     /// The machine's stream just went live: a first connect, or back after a loss, when the
     /// payload-less announcements above may have been missed. Read the HUD, the recent projects
     /// and the notification feed again (`refetch.rs`).
@@ -520,6 +522,11 @@ impl Core {
             }
             ServerEvent::NotificationFeedChanged(_) => {
                 output.effects.push(Effect::RefetchNotificationFeed {
+                    machine: machine.clone(),
+                });
+            }
+            ServerEvent::ConnectorsChanged(_) => {
+                output.effects.push(Effect::ConnectorsChanged {
                     machine: machine.clone(),
                 });
             }

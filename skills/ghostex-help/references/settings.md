@@ -564,6 +564,24 @@ How to use this file:
 - **Never work without a ticket** `teamNeverWithoutTicket` (Settings UI row without a settings key; use `ghostex settings open`): Ghostex finds the ticket in the thread or creates one in Linear before any session starts. Always on.
 - **Team instructions** `teamInstructions` (Settings UI row without a settings key; use `ghostex settings open`): Your team's rules, added to every session Ghostex starts from Slack.
 - **Team-flow steps** `teamFlowSteps` (Settings UI row without a settings key; use `ghostex settings open`): The steps each ticket shows on the Work page, shared by the whole team: reorder, rename, remove or add them, or reset to the default. Only the team's owners can change them.
+## Connectors (tab `connectors`)
+
+### Composio
+
+- **Composio sign-in** `composioSignIn` (Settings UI row without a settings key; use `ghostex settings open`): Sign a workspace in to Composio once in your browser, or sign it out.
+- **Composio apps** `composioApps` (Settings UI row without a settings key; use `ghostex settings open`): Connect Gmail, Google Calendar, Slack, Notion, GitHub, Linear and more apps for a workspace's agents.
+### Executor
+
+- **Executor** `executorEnabled` (Settings UI row without a settings key; use `ghostex settings open`): Turn on Executor for a workspace; Ghostex downloads it the first time and runs it on this computer.
+- **Executor apps** `executorApps` (Settings UI row without a settings key; use `ghostex settings open`): Add apps from Executor's catalog or any remote MCP server, sign them in and remove them.
+- **Sign-in callback address** `executorCallbackUrl` (Settings UI row without a settings key; use `ghostex settings open`): The address to give an app's developer console when it needs your own sign-in app (OAuth client).
+### When agents change something
+
+- **Ask, Allow or Never** `connectorRulesDefault` (Settings UI row without a settings key; use `ghostex settings open`): What a workspace does before an agent sends, posts, creates, changes or deletes something through a connector: ask on a card, allow it, or never run it.
+- **Rules for one tool** `connectorRulesTools` (Settings UI row without a settings key; use `ghostex settings open`): The tools set to always allow or never run, for example after Always allow on a card.
+### Command-line sign-ins
+
+- **GitHub CLI and Google Workspace CLI** `connectorCliSignIns` (Settings UI row without a settings key; use `ghostex settings open`): Each workspace's own gh and gws sign-in, which agents started there use.
 ## Hotkeys (tab `hotkeys`)
 
 ### Projects

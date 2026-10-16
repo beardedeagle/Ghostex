@@ -76,6 +76,10 @@ impl GxStoreHost {
                     self.app_effects
                         .push(Effect::RefetchNotificationFeed { machine });
                 }
+                // Connectors are this computer's (their sign-ins never leave it).
+                Effect::ConnectorsChanged { machine } if machine.is_local() => {
+                    self.app_effects.push(Effect::ConnectorsChanged { machine });
+                }
                 // A stream that went live reads the feed (this computer's only) and the HUD
                 // (gx_store/hud/); the HUD is read again when its announcements say so.
                 effect @ (Effect::MachineLive { .. }
@@ -127,6 +131,13 @@ impl GhostexGpuiApp {
             Effect::RefetchNotificationFeed {
                 machine: MachineId::Local,
             } => self.gx_store_refresh_notification_feed(cx),
+            // An open Settings › Connectors page reads the connectors again.
+            Effect::ConnectorsChanged { .. } => {
+                self.receive_native_settings_modal_payload(
+                    &serde_json::json!({ "type": "connectorsChanged" }),
+                    cx,
+                );
+            }
             effect @ (Effect::ArmAttentionAcknowledge { .. }
             | Effect::ReportAgentActivity { .. }
             | Effect::SessionAttentionRaised { .. }) => {

@@ -4,6 +4,7 @@ mod accounts;
 mod actions;
 mod agents;
 mod cloud_boxes;
+mod connectors;
 mod debugging;
 mod extensions;
 mod integrations;
@@ -31,5 +32,6 @@ pub fn pages(platform: Platform) -> Vec<Page> {
         projects::page(),
         remote::page(),
         workspaces::page(),
+        connectors::page(),
     ]
 }

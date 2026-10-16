@@ -10983,6 +10983,94 @@
       "agentWritable": false
     },
     {
+      "key": "composioSignIn",
+      "title": "Composio sign-in",
+      "subtitle": "Sign a workspace in to Composio once in your browser, or sign it out.",
+      "tab": "connectors",
+      "tabTitle": "Connectors",
+      "section": "composio",
+      "sectionTitle": "Composio",
+      "type": "ui",
+      "agentWritable": false
+    },
+    {
+      "key": "composioApps",
+      "title": "Composio apps",
+      "subtitle": "Connect Gmail, Google Calendar, Slack, Notion, GitHub, Linear and more apps for a workspace's agents.",
+      "tab": "connectors",
+      "tabTitle": "Connectors",
+      "section": "composio",
+      "sectionTitle": "Composio",
+      "type": "ui",
+      "agentWritable": false
+    },
+    {
+      "key": "executorEnabled",
+      "title": "Executor",
+      "subtitle": "Turn on Executor for a workspace; Ghostex downloads it the first time and runs it on this computer.",
+      "tab": "connectors",
+      "tabTitle": "Connectors",
+      "section": "executor",
+      "sectionTitle": "Executor",
+      "type": "ui",
+      "agentWritable": false
+    },
+    {
+      "key": "executorApps",
+      "title": "Executor apps",
+      "subtitle": "Add apps from Executor's catalog or any remote MCP server, sign them in and remove them.",
+      "tab": "connectors",
+      "tabTitle": "Connectors",
+      "section": "executor",
+      "sectionTitle": "Executor",
+      "type": "ui",
+      "agentWritable": false
+    },
+    {
+      "key": "executorCallbackUrl",
+      "title": "Sign-in callback address",
+      "subtitle": "The address to give an app's developer console when it needs your own sign-in app (OAuth client).",
+      "tab": "connectors",
+      "tabTitle": "Connectors",
+      "section": "executor",
+      "sectionTitle": "Executor",
+      "type": "ui",
+      "agentWritable": false
+    },
+    {
+      "key": "connectorRulesDefault",
+      "title": "Ask, Allow or Never",
+      "subtitle": "What a workspace does before an agent sends, posts, creates, changes or deletes something through a connector: ask on a card, allow it, or never run it.",
+      "tab": "connectors",
+      "tabTitle": "Connectors",
+      "section": "rules",
+      "sectionTitle": "When agents change something",
+      "type": "ui",
+      "agentWritable": false
+    },
+    {
+      "key": "connectorRulesTools",
+      "title": "Rules for one tool",
+      "subtitle": "The tools set to always allow or never run, for example after Always allow on a card.",
+      "tab": "connectors",
+      "tabTitle": "Connectors",
+      "section": "rules",
+      "sectionTitle": "When agents change something",
+      "type": "ui",
+      "agentWritable": false
+    },
+    {
+      "key": "connectorCliSignIns",
+      "title": "GitHub CLI and Google Workspace CLI",
+      "subtitle": "Each workspace's own gh and gws sign-in, which agents started there use.",
+      "tab": "connectors",
+      "tabTitle": "Connectors",
+      "section": "cli",
+      "sectionTitle": "Command-line sign-ins",
+      "type": "ui",
+      "agentWritable": false
+    },
+    {
       "key": "expandCollapsedProjectsOnJump",
       "title": "Expand collapsed projects on jump",
       "subtitle": "Expand a collapsed project when a project-jump hotkey lands on it.",

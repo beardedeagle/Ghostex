@@ -132,6 +132,17 @@ pub struct GlobalSidebarCommandsChangedFrame {
     pub revision: Option<i64>,
 }
 
+/// No payload but the workspace: refetch `/api/readConnectors` (a sign-in, an app, Executor's
+/// state or a workspace's rules changed).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectorsChangedFrame {
+    #[serde(flatten)]
+    pub header: EventHeader,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub workspace_id: Option<String>,
+}
+
 /// A command the daemon dispatches to the registered renderer socket. It must be answered with a
 /// `rendererCommandResult` before `timeout_ms`, or the originating RPC fails with
 /// `dependencyUnavailable`.
@@ -176,6 +187,7 @@ pub enum ServerEvent {
     GlobalSidebarCommandsChanged(GlobalSidebarCommandsChangedFrame),
     /// No payload and no revision: refetch `/api/readNotificationFeed`.
     NotificationFeedChanged(EventHeader),
+    ConnectorsChanged(ConnectorsChangedFrame),
     RendererCommand(RendererCommandFrame),
     SessionChatSnapshot(Box<ChatSnapshotFrame>),
     SessionChatReplaced(Box<ChatSnapshotFrame>),
@@ -246,6 +258,7 @@ impl ServerEvent {
             Self::CustomSessionTagsChanged(_) => "customSessionTagsChanged",
             Self::GlobalSidebarCommandsChanged(_) => "globalSidebarCommandsChanged",
             Self::NotificationFeedChanged(_) => "notificationFeedChanged",
+            Self::ConnectorsChanged(_) => "connectorsChanged",
             Self::RendererCommand(_) => "rendererCommand",
             Self::SessionChatSnapshot(_) => "sessionChatSnapshot",
             Self::SessionChatReplaced(_) => "sessionChatReplaced",
@@ -274,6 +287,7 @@ impl ServerEvent {
             Self::SidebarWorkspacesChanged(frame) => &frame.header,
             Self::CustomSessionTagsChanged(frame) => &frame.header,
             Self::GlobalSidebarCommandsChanged(frame) => &frame.header,
+            Self::ConnectorsChanged(frame) => &frame.header,
             Self::RendererCommand(frame) => &frame.header,
             Self::SessionChatSnapshot(frame) | Self::SessionChatReplaced(frame) => {
                 return Some(frame.base.protocol_version)
@@ -326,6 +340,7 @@ impl ServerEvent {
             "customSessionTagsChanged" => source.read().map(Self::CustomSessionTagsChanged),
             "globalSidebarCommandsChanged" => source.read().map(Self::GlobalSidebarCommandsChanged),
             "notificationFeedChanged" => source.read().map(Self::NotificationFeedChanged),
+            "connectorsChanged" => source.read().map(Self::ConnectorsChanged),
             "rendererCommand" => source.read().map(Self::RendererCommand),
             "sessionChatSnapshot" => source.read().map(Self::SessionChatSnapshot),
             "sessionChatReplaced" => source.read().map(Self::SessionChatReplaced),

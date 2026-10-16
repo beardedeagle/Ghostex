@@ -142,6 +142,17 @@ export type GxserverEvent =
       type: "notificationFeedChanged";
     }
   /*
+   * Announces that a workspace's connectors changed (a sign-in, an app,
+   * Executor's state, the workspace's rules). It carries only the workspace:
+   * `/api/readConnectors` stays the single projection, so Settings refetches.
+   */
+  | {
+      protocolVersion: GxserverProtocolVersion;
+      serverId: GxserverServerId;
+      type: "connectorsChanged";
+      workspaceId?: string;
+    }
+  /*
    * CDXC:AgentProviders 2026-09-22:
    * The published agent model catalog, pushed when gxserver's poll of GitHub
    * finds a change and once to each socket as it connects (chat-only sockets
