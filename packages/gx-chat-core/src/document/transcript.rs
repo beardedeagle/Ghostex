@@ -47,7 +47,7 @@ pub enum TranscriptItem {
         /// (`transcript/approval_wait.rs`), in every transcript mode.
         work: Vec<ProjectedMessage>,
         /// What ended a turn the agent wrote no reply to: a slash command's output ("Set effort
-        /// level to High") or the "Interrupted" marker. Drawn under the prompt without a fold.
+        /// level to High") or the "Agent was interrupted" marker. Drawn under the prompt without a fold.
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         outcome: Vec<ProjectedMessage>,
         /// The newest turn that has a reply: its "Agent reply" fold starts open.

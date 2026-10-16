@@ -70,9 +70,15 @@ fn is_hidden_tag(tag: &str) -> bool {
     )
 }
 
+/// The label every interrupted-turn marker classifies as (Claude's "[Request interrupted" prompt and gxserver's own "Conversation interrupted" row); `transcript/turns.rs` keys the marker's placement on it.
+pub const INTERRUPTED_LABEL: &str = "Interrupted";
+
+/// CDXC:SessionChat 2026-10-16 DECISION: User, about the row an interrupted turn leaves ("Interrupted · Conversation interrupted"): "make it say "Agent was interrupted" only please". Every interrupted marker, whatever agent or source row it came from, is drawn as this one sentence with no second part, on desktop, web and phone.
+const INTERRUPTED_MARKER_TEXT: &str = "Agent was interrupted";
+
 const COLLAPSED_PREFIX_LABELS: [(&str, &str); 7] = [
     ("<channel source=", "Message from another session"),
-    ("[request interrupted", "Interrupted"),
+    ("[request interrupted", INTERRUPTED_LABEL),
     ("a message arrived from ", "Message from another session"),
     (
         "another claude session sent a message",
@@ -799,7 +805,7 @@ pub fn classify_suppressed_turn(message: &ChatMessage) -> Option<SuppressedTurn>
         && text.to_lowercase() == crate::session::constants::TRANSCRIPT_INTERRUPTED_TEXT
     {
         return Some(SuppressedTurn::Collapsed {
-            label: "Interrupted".to_string(),
+            label: INTERRUPTED_LABEL.to_string(),
         });
     }
     if let Some(label) = setting_status_label(message, &text) {
@@ -951,6 +957,10 @@ pub fn suppressed_turn_presentation(message: &ChatMessage) -> Value {
         Some(SuppressedTurn::Status { label, tone }) => ("status", label.clone(), *tone),
         _ => return Value::Null,
     };
+
+    if kind == "collapsed" && label == INTERRUPTED_LABEL {
+        return json!({ "kind": "inline", "label": INTERRUPTED_MARKER_TEXT, "text": "" });
+    }
 
     let raw_text = js_trim(&joined_text(&message.blocks)).to_string();
 

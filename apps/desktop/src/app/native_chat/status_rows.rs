@@ -181,6 +181,8 @@ impl NativeChatView {
     /// with its marker label as the lead-in.
     fn inline_suppressed_row(&self, suppressed: &Value, p: &ChatAppearance) -> AnyElement {
         let s = p.scale;
+        let label = text(suppressed, "label");
+        let body = text(suppressed, "text");
         div()
             .flex()
             .items_start()
@@ -202,9 +204,15 @@ impl NativeChatView {
                             .flex_shrink_0()
                             .font_weight(FontWeight::SEMIBOLD)
                             .text_color(p.muted.opacity(0.78))
-                            .child(format!("{} ·", text(suppressed, "label"))),
+                            .child(if body.is_empty() {
+                                label
+                            } else {
+                                format!("{label} ·")
+                            }),
                     )
-                    .child(div().flex_1().min_w_0().child(text(suppressed, "text"))),
+                    .when(!body.is_empty(), |row| {
+                        row.child(div().flex_1().min_w_0().child(body))
+                    }),
             )
             .into_any_element()
     }
