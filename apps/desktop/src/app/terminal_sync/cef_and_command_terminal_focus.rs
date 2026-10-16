@@ -242,6 +242,17 @@ impl GhostexGpuiApp {
                     cx.background_executor()
                         .timer(Duration::from_millis(25))
                         .await;
+                    // macOS starts CEF on a later run-loop turn (cef/macos.rs `start_cef`).
+                    if let Some(error) = cef::take_runtime_start_error() {
+                        let _ = this.update(cx, |this, cx| {
+                            this.cef_context_initialization_waiting = false;
+                            this.fail_web_runtime_start(
+                                format!("The web runtime could not start: {error}"),
+                                cx,
+                            );
+                        });
+                        break;
+                    }
                     if cef::context_initialized() {
                         let _ = this.update(cx, |this, cx| {
                             this.cef_context_initialization_waiting = false;

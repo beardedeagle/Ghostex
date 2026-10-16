@@ -191,6 +191,12 @@ pub(super) fn install_message_pump(_cx: &gpui::App) {
     PUMP_INSTALLED.store(true, Ordering::SeqCst);
 }
 
+/// Runs CEF's start now: the external pump installed before it drives CEF here. Only macOS defers
+/// it into Chromium's own message loop.
+pub(super) fn start_cef(start: Box<dyn FnOnce() -> anyhow::Result<()>>) -> anyhow::Result<()> {
+    start()
+}
+
 pub(super) fn invalidate_message_pump() {
     PUMP_INSTALLED.store(false, Ordering::SeqCst);
     PUMP_WORK_PENDING.store(false, Ordering::SeqCst);

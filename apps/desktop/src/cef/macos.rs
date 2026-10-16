@@ -10,7 +10,8 @@ opaque `*mut c_void`; only this file treats them as NSView pointers.
 
 use anyhow::{Context as _, Result};
 use std::{
-    ffi::{CString, c_double, c_int, c_longlong, c_void},
+    cell::RefCell,
+    ffi::{CString, c_double, c_int, c_void},
     os::unix::ffi::OsStrExt as _,
     path::{Path, PathBuf},
 };
@@ -41,9 +42,8 @@ unsafe extern "C" {
     fn GhostexGpuiCEFPrepareApplication();
     fn GhostexGpuiCEFSystemUsesDarkPageAppearance() -> bool;
     fn GhostexGpuiCEFInstallApplicationHooks();
-    fn GhostexGpuiCEFInstallMessagePump();
-    fn GhostexGpuiCEFInvalidateMessagePump();
-    fn GhostexGpuiCEFScheduleMessagePumpWork(delay_ms: c_longlong);
+    fn GhostexGpuiCEFStartMessageLoop();
+    fn GhostexGpuiCEFCancelMessageLoopStart();
     fn GhostexGpuiCEFSetNativeViewFrame(
         native_view: *mut c_void,
         x: c_double,
@@ -200,25 +200,34 @@ pub(super) fn install_application_hooks() {
     unsafe { GhostexGpuiCEFInstallApplicationHooks() };
 }
 
-pub(super) fn install_message_pump(_cx: &gpui::App) {
-    // The GPUI app context is unused here: dispatch_async onto the AppKit
-    // main queue is the OS-level main-thread scheduler, so the pump needs no
-    // gpui executor (unlike Linux, where gpui's foreground executor is the
-    // only way into the main event loop).
-    unsafe { GhostexGpuiCEFInstallMessagePump() };
+/// macOS runs Chromium's own message loop (see `start_cef`), so there is no external pump to
+/// install before `cef::initialize`.
+pub(super) fn install_message_pump(_cx: &gpui::App) {}
+
+thread_local! {
+    static PENDING_CEF_START: RefCell<Option<Box<dyn FnOnce() -> anyhow::Result<()>>>> =
+        const { RefCell::new(None) };
+}
+
+/// CDXC:CefRuntime 2026-10-17 WHY:
+/// macOS runs Chromium's own message loop instead of CEF's external message pump, because the external pump (MessagePumpExternal::DirectRunWork) runs Chromium's idle step only when no delayed task is queued, which in a running browser is almost never. Chrome's autofill popup waits for that idle step before it accepts a suggestion, so clicking a saved value or pressing Enter on it did nothing (GitHub #240). Chromium's macOS pump runs the idle step from its before-wait observer, but only while one of its run loops is on the stack, so `cef::run_message_loop` is entered once, nested inside GPUI's NSApplication loop, and runs for the rest of the process. Supersedes the 2026-06-14 external pump on macOS; Windows and Linux keep it and its #240 bug (their in-app alternative, `multi_threaded_message_loop`, moves every CEF callback off the main thread).
+/// `cef::initialize` runs in the same run-loop callout that enters the loop (GhostexGpuiCEFStartMessageLoop in the shim says which callout). Initialization creates Chromium's pump, whose run-loop observers count every loop entry and exit and CHECK-crash (an empty work-item stack in PopWorkItemScope) on an exit they never saw enter. Ghostex starts CEF lazily from inside a running loop pass, so the first version (f7c7177cf), which initialized in a GPUI task and entered the loop on a later timer, crashed on the first web view of every launch the moment that pass ended. Ghostty's crash handler caught the trap, so the process exited with status 6 and macOS wrote no crash report. With both steps in one callout, the only loop passes the observers see are the ones Chromium's loop starts itself. The 2026-06-14 run-loop trap came from a 10 ms NSTimer in every mode calling CefDoMessageLoopWork without the external pump, which nested a Chromium event loop on every tick; here the loop starts once, in the default mode only.
+pub(super) fn start_cef(start: Box<dyn FnOnce() -> anyhow::Result<()>>) -> anyhow::Result<()> {
+    PENDING_CEF_START.with(|pending| *pending.borrow_mut() = Some(start));
+    unsafe { GhostexGpuiCEFStartMessageLoop() };
+    Ok(())
 }
 
 pub(super) fn invalidate_message_pump() {
-    unsafe { GhostexGpuiCEFInvalidateMessagePump() };
+    PENDING_CEF_START.with(|pending| pending.borrow_mut().take());
+    unsafe { GhostexGpuiCEFCancelMessageLoopStart() };
 }
 
-pub(super) fn schedule_message_pump_work(delay_ms: i64) {
-    unsafe {
-        GhostexGpuiCEFScheduleMessagePumpWork(delay_ms as c_longlong);
-    }
-}
+/// Chromium's own pump wakes itself whenever a task is posted, so nothing needs to be scheduled.
+pub(super) fn schedule_message_pump_work(_delay_ms: i64) {}
 
 pub(super) fn apply_platform_settings(settings: &mut cef::Settings) {
+    settings.external_message_pump = 0;
     let Some(framework_executable) = std::env::var_os(CEF_FRAMEWORK_EXECUTABLE_ENV)
         .filter(|value| !value.is_empty())
         .map(PathBuf::from)
@@ -427,9 +436,38 @@ pub(super) fn native_view_contains_responder(
     unsafe { GhostexGpuiNativeViewContainsResponder(root_native_view, responder) }
 }
 
+/// The shim's run-loop callout: initializes CEF and runs Chromium's message loop for the rest of
+/// the process.
 #[unsafe(no_mangle)]
-pub extern "C" fn GhostexGpuiCEFDoMessageLoopWork() {
-    cef::do_message_loop_work();
+pub extern "C" fn GhostexGpuiCEFRunMessageLoop() {
+    let Some(start) = PENDING_CEF_START.with(|pending| pending.borrow_mut().take()) else {
+        return;
+    };
+    if let Err(error) = start() {
+        crate::support_logs::append(
+            crate::support_logs::GpuiSupportLog::HostLifecycle,
+            "gpui.cef.startFailed",
+            serde_json::json!({ "pid": std::process::id(), "error": format!("{error:#}") }),
+        );
+        super::shell::record_deferred_start_failure(&error);
+        return;
+    }
+    crate::support_logs::append(
+        crate::support_logs::GpuiSupportLog::HostLifecycle,
+        "gpui.cef.messageLoopStarted",
+        serde_json::json!({ "pid": std::process::id() }),
+    );
+    cef::run_message_loop();
+    // Nothing quits this loop while Ghostex runs, and the next exit of the loop pass below it
+    // trips Chromium's observer CHECK, so record it before returning.
+    crate::support_logs::append(
+        crate::support_logs::GpuiSupportLog::HostLifecycle,
+        "gpui.cef.messageLoopEndedError",
+        serde_json::json!({
+            "pid": std::process::id(),
+            "error": "Chromium's message loop returned while Ghostex was running",
+        }),
+    );
 }
 
 #[unsafe(no_mangle)]

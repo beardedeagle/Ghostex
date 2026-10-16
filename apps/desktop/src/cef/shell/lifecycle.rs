@@ -53,33 +53,61 @@ pub fn initialize(cx: &gpui::App) -> Result<()> {
     CDXC:CefRuntime 2026-06-14-15:25:
     The GPUI shell must use Tauri's cef-rs binding path instead of the earlier GhostexCEFBridge.mm browser wrapper. Initialize CEF through cef-rs, keep GPUI as the AppKit loop owner, and scope profile data to the GPUI app so the React sidebar and main browser share a stable Chromium runtime without production-host coupling.
 
-    CDXC:CefRuntime 2026-06-14-16:29:
-    GPUI runs a blocking NSApplication loop, so the cef-rs port must use CEF's external_message_pump together with BrowserProcessHandler::on_schedule_message_pump_work. CEF schedules each pump step and the AppKit shim executes it on the main queue, avoiding the Chromium run-loop observer trap caused by an unconditional timer.
+    CDXC:CefRuntime 2026-10-17 WHY:
+    GPUI owns the main event loop, so Windows and Linux use CEF's external_message_pump together with BrowserProcessHandler::on_schedule_message_pump_work, and each platform runs the scheduled steps on its main thread. macOS turns the external pump off and runs Chromium's own message loop inside GPUI's NSApplication loop, so Chrome's autofill suggestions can be accepted (GitHub #240; see start_message_loop in cef/macos.rs). Supersedes the 2026-06-14 rule that every platform, macOS included, uses the external pump.
 
     CDXC:CefRuntime 2026-06-14-16:54:
     CEF can call on_schedule_message_pump_work during cef::initialize before the first browser is created. Install the GPUI pump gate before initialization so those startup callbacks reach the main queue instead of leaving Chromium partially initialized with only helper processes alive.
     */
     platform::install_message_pump(cx);
-    let initialized = cef::initialize(
-        Some(args.as_main_args()),
-        Some(&settings),
-        Some(&mut app),
-        std::ptr::null_mut(),
-    );
-    if initialized != 1 {
-        platform::invalidate_message_pump();
-        #[cfg(target_os = "windows")]
-        if cef::get_exit_code() == cef::Resultcode::NORMAL_EXIT_AUTO_DE_ELEVATED.get_raw() {
-            std::process::exit(0);
+    let runtime_app = app.clone();
+    platform::start_cef(Box::new(move || {
+        let initialized = cef::initialize(
+            Some(args.as_main_args()),
+            Some(&settings),
+            Some(&mut app),
+            std::ptr::null_mut(),
+        );
+        if initialized != 1 {
+            platform::invalidate_message_pump();
+            #[cfg(target_os = "windows")]
+            if cef::get_exit_code() == cef::Resultcode::NORMAL_EXIT_AUTO_DE_ELEVATED.get_raw() {
+                std::process::exit(0);
+            }
+            anyhow::bail!("CEF initialization returned false");
         }
-        anyhow::bail!("CEF initialization returned false");
-    }
+        Ok(())
+    }))?;
 
     *state = Some(CefRuntimeState {
         _platform: platform_runtime,
-        _app: app,
+        _app: runtime_app,
     });
     Ok(())
+}
+
+static CEF_START_ERROR: Mutex<Option<String>> = Mutex::new(None);
+
+/// A start that `platform::start_cef` ran after `initialize` returned (macOS) failed: forget the
+/// runtime so a later request can try again, and hand the error to the app's wait for the context.
+pub(crate) fn record_deferred_start_failure(error: &anyhow::Error) {
+    if let Some(state) = CEF_RUNTIME.get() {
+        state
+            .lock()
+            .expect("CEF runtime mutex should not be poisoned")
+            .take();
+    }
+    *CEF_START_ERROR
+        .lock()
+        .expect("CEF start error mutex should not be poisoned") = Some(format!("{error:#}"));
+}
+
+/// The error of a start that failed after `initialize` returned, once.
+pub fn take_runtime_start_error() -> Option<String> {
+    CEF_START_ERROR
+        .lock()
+        .expect("CEF start error mutex should not be poisoned")
+        .take()
 }
 
 pub fn context_initialized() -> bool {
