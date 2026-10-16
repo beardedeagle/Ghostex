@@ -4,7 +4,7 @@
 //! and `appIcon` sections, so the same search finds them.
 //!
 //! CDXC:Theming 2026-10-16 DECISION:
-//! User: "doesn't look so good … can we please make this look nicer? … don't copy everything", then picked direction A (Calm rows) of the mockups in docs/2026-10-16/theme-page. Supersedes the 2026-09-25 layout. The Theme page's rows carry an icon tile (this page only; other pages keep their rows). Appearance is three preview cards (System, Light, Dark). Each group is one card whose rare rows fold under a More row: Colours (Dark mode colour and Light mode colour as two rows of squares, Colourfulness; More: the sidebar and work area set apart, the active pane outline), Transparency (one Off / Dark only / Always control replacing Enable transparency and Use transparency, Strength, Blur, Behind the glass with its pictures or Live gallery; More: picture position, Live speed and brightness, play only when plugged in, the four tints, menu blur) and Chat and terminal (the two themes; More: the terminal palettes), then Related on General. The three-way choices keep the existing row control ("same as what we have now dont change this") and Blur stays as it was ("dont change this"). Custom colour is a "+" square after the squares, with its tint and depth right under that colour row, and the squares are "smaller and simpler": 20px, one flat colour, today's ring drawn thinner. A search hit inside a group's More opens it.
+//! User: "doesn't look so good … can we please make this look nicer? … don't copy everything", then picked direction A (Calm rows) of the mockups in docs/2026-10-16/theme-page. Supersedes the 2026-09-25 layout. The Theme page's rows carry an icon tile (this page only; other pages keep their rows). Appearance is three preview cards (System, Light, Dark). Each group is one card whose rare rows fold under a More row: Colours (Dark mode colour and Light mode colour as two rows of squares, Colourfulness; More: the sidebar and work area set apart, each mode's custom colour depth while that mode's custom colour is picked, the active pane outline), Transparency (one Off / Dark only / Always control replacing Enable transparency and Use transparency, Strength, Blur, Behind the glass with its pictures or Live gallery; More: picture position, Live speed and brightness, play only when plugged in, the four tints, menu blur) and Chat and terminal (the two themes; More: the terminal palettes), then Related on General. The three-way choices keep the existing row control ("same as what we have now dont change this") and Blur stays as it was ("dont change this"). Custom colour is a "+" square after the squares that opens the Pick Color dialog right at it; no rows open under the colour row (2026-10-17, User: "very bad to have the same colors twice here why??? pls fix no need for these 2 rows that appear when i click on the + option in the colors pls"), and its depth sits under More colour options. The squares are "smaller and simpler": 20px, one flat colour, today's ring drawn thinner. A search hit inside a group's More opens it.
 mod art;
 mod colours;
 mod controls;
@@ -16,8 +16,9 @@ use super::super::super::native_modal_kit::*;
 use super::super::catalog::{SettingOption, module, settings_catalog};
 use super::super::fields::{
     ButtonVariant, DropdownState, FieldStates, RowSpec, SettingsPage, SliderSaver,
-    app_icon_picker_field, reset_key, searchable_select_field, select_field, setting_row,
-    settings_button, settings_section, toggle_field, toggle_field_with,
+    app_icon_picker_field, open_tint_picker, reset_key, searchable_select_field, select_field,
+    setting_row, settings_button, settings_section, toggle_field, toggle_field_with,
+    trigger_tint_picker,
 };
 use super::super::model::SettingsTabId;
 use super::super::page::{PageBlock, settings_page};
@@ -73,6 +74,8 @@ impl MoreGroup {
             MoreGroup::Colours => &[
                 "themeSidebarContrast",
                 "themeWorkAreaContrast",
+                "customSidebarTitlebarBackgroundDarknessPercent",
+                "customSidebarTitlebarLightBackgroundLightnessPercent",
                 "showActivePaneOutline",
                 "workspaceActivePaneBorderColor",
             ],
@@ -193,12 +196,12 @@ impl ThemeTab {
             palette_light_dropdown: DropdownState::with_max_height(320.0),
             requested_app_icons: false,
         };
-        page.apply_preview_state(cx);
+        page.apply_preview_state(window, cx);
         page
     }
 
     /// The preview binary's `theme-*` states open the groups they show.
-    fn apply_preview_state(&mut self, cx: &mut Context<Self>) {
+    fn apply_preview_state(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let state = self
             .store
             .read(cx)
@@ -211,6 +214,11 @@ impl ThemeTab {
         }
         if state == "theme-light-scheme" {
             self.scheme_dark = false;
+        }
+        // The preview binary's `theme-custom-picker` opens the dark "+" square's Pick Color dialog.
+        if state == "theme-custom-picker" {
+            let tint = self.store.read(cx).values().string(custom_tint_key(true));
+            open_tint_picker(self, custom_tint_key(true), &tint, window, cx);
         }
         if state.starts_with("theme-glass") {
             let store = self.store.clone();
@@ -280,6 +288,15 @@ impl ThemeTab {
             self.picked_light = true;
         }
         self.save_patch(patch, cx);
+    }
+}
+
+/// The tint key of one mode's custom colour.
+fn custom_tint_key(dark: bool) -> &'static str {
+    if dark {
+        "customSidebarTitlebarBackgroundTintColor"
+    } else {
+        "customSidebarTitlebarLightBackgroundTintColor"
     }
 }
 
@@ -387,12 +404,10 @@ impl ThemeTab {
             rows.push(self.appearance_row(t, window, cx));
         }
         if dark_colour_visible {
-            rows.push(self.theme_colour_row(t, true, cx));
-            rows.extend(self.custom_colour_rows(t, true, window, cx));
+            rows.push(self.theme_colour_row(t, true, window, cx));
         }
         if light_colour_visible {
-            rows.push(self.theme_colour_row(t, false, cx));
-            rows.extend(self.custom_colour_rows(t, false, window, cx));
+            rows.push(self.theme_colour_row(t, false, window, cx));
         }
         if visible("themeSidebarContrast") || visible("themeWorkAreaContrast") {
             let step = colourfulness_step_index(values);
@@ -461,7 +476,7 @@ impl ThemeTab {
                 &p,
                 "theme-more-colours",
                 "More colour options",
-                "Sidebar and work area apart, active pane outline",
+                "Sidebar and work area apart, custom colour depth, active pane outline",
                 shown,
                 move |page, _window, cx| page.set_more_open(MoreGroup::Colours, !open, cx),
                 cx,
@@ -537,7 +552,13 @@ impl ThemeTab {
 
     /// Dark mode colour or Light mode colour: the sixteen squares and the "+" Custom square. The
     /// readout names the colour and says when it still follows the other mode.
-    fn theme_colour_row(&mut self, t: &ThemeCx, dark: bool, cx: &mut Context<Self>) -> AnyElement {
+    fn theme_colour_row(
+        &mut self,
+        t: &ThemeCx,
+        dark: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
         let p = t.p;
         let values = &t.values;
         let key = if dark {
@@ -566,11 +587,15 @@ impl ThemeTab {
                 )
             })
             .collect();
+        let tint_key = custom_tint_key(dark);
+        let tint = values.string(tint_key);
+        let picker = trigger_tint_picker(self, &p, tint_key, &tint, window, cx);
         squares.push(custom_swatch(
             &p,
             SharedString::from(format!("theme-colour-{mode}-custom")),
             selected == "custom",
-            move |page, cx| page.select_preset(dark, "custom".to_string(), cx),
+            picker,
+            move |page, window, cx| page.pick_custom_colour(dark, window, cx),
             cx,
         ));
         let other_key = if dark {
@@ -716,6 +741,7 @@ impl ThemeTab {
                 cx,
             ));
         }
+        rows.extend(self.custom_depth_rows(t, window, cx));
         if t.visible("showActivePaneOutline") {
             rows.push(toggle_field(
                 self,
@@ -750,107 +776,53 @@ impl ThemeTab {
         rows
     }
 
-    /// The tint and depth of the custom colour, right under its colour row while the "+" square is
-    /// picked.
+    /// The depth of each mode's custom colour, under More colour options while that mode's "+"
+    /// square is picked (its tint is picked in the Pick Color dialog the "+" square opens).
     ///
     /// CDXC:Theming 2026-06-15 WHY:
     /// The custom background is a constrained contrast slider plus an in-app tint picker, not a freeform colour: calibrated backgrounds keep sidebar row states predictable, and the tint picker must not be the system colour panel.
-    fn custom_colour_rows(
+    fn custom_depth_rows(
         &mut self,
         t: &ThemeCx,
-        dark: bool,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Vec<AnyElement> {
         let p = t.p;
         let values = t.values.clone();
-        let (preset_key, tint_key, depth_key) = if dark {
-            (
-                "darkThemePreset",
-                "customSidebarTitlebarBackgroundTintColor",
-                "customSidebarTitlebarBackgroundDarknessPercent",
-            )
-        } else {
-            (
-                "lightThemePreset",
-                "customSidebarTitlebarLightBackgroundTintColor",
-                "customSidebarTitlebarLightBackgroundLightnessPercent",
-            )
-        };
+        let catalog = settings_catalog();
         let mut rows = Vec::new();
-        let custom = values.string(preset_key) == "custom";
-        if custom && t.visible(tint_key) {
-            rows.push(super::super::fields::web_color_picker_field(
-                self,
-                &p,
-                tint_key,
-                t.spec(
-                    tint_key,
-                    if dark {
-                        "Dark mode tint"
-                    } else {
-                        "Light mode tint"
-                    },
-                    if dark {
-                        "Applies a subtle hue to the dark sidebar and window chrome background."
-                    } else {
-                        "Applies a subtle hue to the light sidebar and window chrome background."
-                    },
-                )
-                .dependent(),
-                Some(reset_key::<Self>(tint_key)),
-                &values.string(tint_key),
-                window,
-                cx,
-            ));
-        }
-        if custom && t.visible(depth_key) {
-            let catalog = settings_catalog();
-            let (min, max) = if dark {
+        for dark in [true, false] {
+            let (preset_key, depth_key, min_name, max_name, label, description) = if dark {
                 (
-                    catalog.number(
-                        module::SETTINGS,
-                        "MIN_CUSTOM_SIDEBAR_TITLEBAR_BACKGROUND_DARKNESS_PERCENT",
-                    ),
-                    catalog.number(
-                        module::SETTINGS,
-                        "MAX_CUSTOM_SIDEBAR_TITLEBAR_BACKGROUND_DARKNESS_PERCENT",
-                    ),
+                    "darkThemePreset",
+                    "customSidebarTitlebarBackgroundDarknessPercent",
+                    "MIN_CUSTOM_SIDEBAR_TITLEBAR_BACKGROUND_DARKNESS_PERCENT",
+                    "MAX_CUSTOM_SIDEBAR_TITLEBAR_BACKGROUND_DARKNESS_PERCENT",
+                    "Dark mode custom colour depth",
+                    "How deep the custom dark mode colour is. 85 is softer gray; 100 is black. Text and icons adjust automatically.",
                 )
             } else {
                 (
-                    catalog.number(
-                        module::SETTINGS,
-                        "MIN_CUSTOM_SIDEBAR_TITLEBAR_LIGHT_BACKGROUND_LIGHTNESS_PERCENT",
-                    ),
-                    catalog.number(
-                        module::SETTINGS,
-                        "MAX_CUSTOM_SIDEBAR_TITLEBAR_LIGHT_BACKGROUND_LIGHTNESS_PERCENT",
-                    ),
+                    "lightThemePreset",
+                    "customSidebarTitlebarLightBackgroundLightnessPercent",
+                    "MIN_CUSTOM_SIDEBAR_TITLEBAR_LIGHT_BACKGROUND_LIGHTNESS_PERCENT",
+                    "MAX_CUSTOM_SIDEBAR_TITLEBAR_LIGHT_BACKGROUND_LIGHTNESS_PERCENT",
+                    "Light mode custom colour depth",
+                    "How deep the custom light mode colour is. 60 is a deeper gray; 100 is white. Text and icons adjust automatically.",
                 )
             };
+            if values.string(preset_key) != "custom" || !t.visible(depth_key) {
+                continue;
+            }
             rows.push(super::super::fields::slider_number_field(
                 self,
                 &p,
-                t.spec(
-                    depth_key,
-                    if dark {
-                        "Dark mode depth"
-                    } else {
-                        "Light mode depth"
-                    },
-                    if dark {
-                        "85 is softer gray; 100 is black. Text and icons adjust automatically."
-                    } else {
-                        "60 is a deeper gray; 100 is white. Text and icons adjust automatically."
-                    },
-                )
-                .dependent(),
+                t.spec(depth_key, label, description),
                 Some(reset_key::<Self>(depth_key)),
                 super::super::fields::SliderBinding {
                     key: depth_key,
-                    min,
-                    max,
+                    min: catalog.number(module::SETTINGS, min_name),
+                    max: catalog.number(module::SETTINGS, max_name),
                     // Half steps, so the box shows the exact depth Colourfulness writes (95.5).
                     step: 0.5,
                 },
@@ -860,6 +832,15 @@ impl ThemeTab {
             ));
         }
         rows
+    }
+
+    /// The "+" square: the custom colour for that mode, and its Pick Color dialog opened at the
+    /// square on the saved tint.
+    fn pick_custom_colour(&mut self, dark: bool, window: &mut Window, cx: &mut Context<Self>) {
+        self.select_preset(dark, "custom".to_string(), cx);
+        let tint_key = custom_tint_key(dark);
+        let tint = self.store.read(cx).values().string(tint_key);
+        open_tint_picker(self, tint_key, &tint, window, cx);
     }
 
     fn chat_terminal_section(

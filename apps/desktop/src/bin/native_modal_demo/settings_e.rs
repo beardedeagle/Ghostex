@@ -11,6 +11,7 @@
 //! `hotkeys-page` (the Hotkeys page), `hotkeys-recording` (a recorder listening),
 //! `hotkeys-duplicate` (two actions on one chord), `theme`, `theme-light-scheme`, `theme-more`
 //! (every More options open), `theme-custom` (Custom colours in both modes),
+//! `theme-custom-picker` (the same, with the dark "+" square's Pick Color dialog open),
 //! `theme-glass-picture`, `theme-glass-live`, `theme-glass-live-dark-only`,
 //! `theme-glass-live-video`, `theme-glass-opaque` and `theme-glass-blocked`.
 use serde_json::{Map, Value, json};
@@ -99,7 +100,7 @@ pub(super) fn story_settings(state: &str, settings: &mut Map<String, Value>) {
         "theme-glass-opaque" => {
             settings.insert("windowGlass".into(), json!("opaque"));
         }
-        "theme-custom" => {
+        "theme-custom" | "theme-custom-picker" => {
             settings.insert("darkThemePreset".into(), json!("custom"));
             settings.insert("lightThemePreset".into(), json!("custom"));
             settings.insert(
@@ -165,7 +166,11 @@ fn ghostex_cli_status(state: &str) -> Value {
         Some(false) => json!("notGranted"),
         None => json!("unknown"),
     };
-    let cua_permission = if mixed { Some(true) } else { permissions_granted };
+    let cua_permission = if mixed {
+        Some(true)
+    } else {
+        permissions_granted
+    };
     let update_available = state == "integrations-update";
     let skills = state == "integrations-skills";
     json!({

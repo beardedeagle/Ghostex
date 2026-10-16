@@ -3167,12 +3167,14 @@ Black in dark mode or White in light mode, Slate, Midnight, a deep navy, Blue,
 Indigo, Teal, Green, Forest, Olive, Amber, Orange, Red, Rose, Pink and Purple;
 picking a dark colour gives light mode the same colour until you pick one there
 yourself, and the light row says when it still follows) and a + square for a
-custom colour, which opens its tint and depth (85 to 100 for dark and 60 to 100
-for light) right under that row; and Colourfulness, a fine-grained slider from Subtle to Vivid (Soft is the default;
+custom colour, which opens a colour picker (with HEX, R, G and B boxes) right at
+the square; and Colourfulness, a fine-grained slider from Subtle to Vivid (Soft is the default;
 the name of the nearest of Subtle, Soft, Balanced, Rich and Vivid shows beside it)
 that sets how much of the colour shows in the sidebar and work area at once, with a small
 sidebar and work area preview. More colour options can set the sidebar and work
-area colourfulness separately, and show the active pane outline and its colour.
+area colourfulness separately, set how deep each mode's custom colour is while
+that mode's + square is picked (85 to 100 for dark and 60 to 100 for light), and
+show the active pane outline and its colour.
 A preset never overwrites the custom values, so picking the + square again
 restores them. The chosen theme colors the
 sidebar and window chrome, the sidebar's dropdown menus, and the chat view

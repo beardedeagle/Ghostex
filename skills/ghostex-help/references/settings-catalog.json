@@ -3638,8 +3638,8 @@
     },
     {
       "key": "customSidebarTitlebarBackgroundDarknessPercent",
-      "title": "Custom dark mode depth",
-      "subtitle": "How deep the custom dark mode colour is, while the + square is picked for dark mode.",
+      "title": "Dark mode custom colour depth",
+      "subtitle": "How deep the custom dark mode colour is: under More colour options while the + square is picked for dark mode.",
       "tab": "theme",
       "tabTitle": "Theme",
       "group": "appearance",
@@ -3655,7 +3655,7 @@
     {
       "key": "customSidebarTitlebarBackgroundTintColor",
       "title": "Custom dark mode tint",
-      "subtitle": "The hue of the custom dark mode colour, while the + square is picked for dark mode.",
+      "subtitle": "The custom dark mode colour, chosen in the colour picker the + square opens.",
       "tab": "theme",
       "tabTitle": "Theme",
       "group": "appearance",
@@ -3780,8 +3780,8 @@
     },
     {
       "key": "customSidebarTitlebarLightBackgroundLightnessPercent",
-      "title": "Custom light mode depth",
-      "subtitle": "How deep the custom light mode colour is, while the + square is picked for light mode.",
+      "title": "Light mode custom colour depth",
+      "subtitle": "How deep the custom light mode colour is: under More colour options while the + square is picked for light mode.",
       "tab": "theme",
       "tabTitle": "Theme",
       "group": "appearance",
@@ -3795,7 +3795,7 @@
     {
       "key": "customSidebarTitlebarLightBackgroundTintColor",
       "title": "Custom light mode tint",
-      "subtitle": "The hue of the custom light mode colour, while the + square is picked for light mode.",
+      "subtitle": "The custom light mode colour, chosen in the colour picker the + square opens.",
       "tab": "theme",
       "tabTitle": "Theme",
       "group": "appearance",

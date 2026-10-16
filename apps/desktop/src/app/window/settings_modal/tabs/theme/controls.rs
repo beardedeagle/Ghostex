@@ -176,25 +176,34 @@ pub(super) fn swatch(
 ) -> AnyElement {
     let rim = p.foreground_alpha(0.1);
     let hover = p.foreground_alpha(0.45);
-    swatch_frame(p, id, label, selected, on_select, cx)
-        .child(
-            div()
-                .size(px(SWATCH_SIZE))
-                .rounded(px(5.0))
-                .border_1()
-                .border_color(hsla(rim))
-                .bg(hsla(colour.gpui()))
-                .hover(move |this| this.border_color(hsla(hover))),
-        )
-        .into_any_element()
+    swatch_frame(
+        p,
+        id,
+        label,
+        selected,
+        move |page, _window, cx| on_select(page, cx),
+        cx,
+    )
+    .child(
+        div()
+            .size(px(SWATCH_SIZE))
+            .rounded(px(5.0))
+            .border_1()
+            .border_color(hsla(rim))
+            .bg(hsla(colour.gpui()))
+            .hover(move |this| this.border_color(hsla(hover))),
+    )
+    .into_any_element()
 }
 
-/// The "+" square after the colour squares: picks a custom colour for that appearance.
+/// The "+" square after the colour squares: picks a custom colour for that appearance and opens
+/// its Pick Color dialog, which `picker` draws under the square while it is open.
 pub(super) fn custom_swatch(
     p: &SettingsPalette,
     id: SharedString,
     selected: bool,
-    on_select: impl Fn(&mut ThemeTab, &mut Context<ThemeTab>) + 'static,
+    picker: Option<AnyElement>,
+    on_select: impl Fn(&mut ThemeTab, &mut Window, &mut Context<ThemeTab>) + 'static,
     cx: &mut Context<ThemeTab>,
 ) -> AnyElement {
     let edge = p.foreground_alpha(0.4);
@@ -213,6 +222,7 @@ pub(super) fn custom_swatch(
                 .hover(move |this| this.border_color(hsla(hover)))
                 .child(settings_icon(ICON_PLUS, 12.0, p.muted)),
         )
+        .children(picker)
         .into_any_element()
 }
 
@@ -222,7 +232,7 @@ fn swatch_frame(
     id: SharedString,
     label: String,
     selected: bool,
-    on_select: impl Fn(&mut ThemeTab, &mut Context<ThemeTab>) + 'static,
+    on_select: impl Fn(&mut ThemeTab, &mut Window, &mut Context<ThemeTab>) + 'static,
     cx: &mut Context<ThemeTab>,
 ) -> gpui::Stateful<gpui::Div> {
     let ring = p.foreground_alpha(0.85);
@@ -232,7 +242,7 @@ fn swatch_frame(
         .relative()
         .cursor_pointer()
         .tooltip(tooltip_text(label))
-        .on_click(cx.listener(move |page, _: &ClickEvent, _window, cx| on_select(page, cx)))
+        .on_click(cx.listener(move |page, _: &ClickEvent, window, cx| on_select(page, window, cx)))
         .when(selected, |this| {
             this.child(
                 div()

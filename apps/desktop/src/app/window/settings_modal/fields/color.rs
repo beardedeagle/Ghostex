@@ -555,13 +555,25 @@ fn picker_handle(fill: Option<Rgba>) -> gpui::Div {
         .when_some(fill, |this, fill| this.bg(hsla(fill)))
 }
 
+/// Where the Pick Color dialog opens.
+#[derive(Clone, Copy)]
+enum PickerPlacement {
+    /// Centered in the window, over the row that opened it.
+    WindowCenter,
+    /// Down and to the left of the square that opened it (the Theme page's "+" square, at the end
+    /// of its row), so the dialog never covers the square; the dialog is a child of that square.
+    BesideTrigger,
+}
+
 /// The dialog: title, the 294px saturation square and hue bar, HEX/R/G/B, and Done.
+#[allow(clippy::too_many_arguments)]
 fn pick_color_dialog<V: SettingsPage>(
     page: &mut V,
     p: &SettingsPalette,
     key: &'static str,
     kind: ColorFieldKind,
     fallback: &'static str,
+    placement: PickerPlacement,
     window: &mut Window,
     cx: &mut Context<V>,
 ) -> Option<AnyElement> {
@@ -781,6 +793,19 @@ fn pick_color_dialog<V: SettingsPage>(
                 ),
         )
         .child(h_flex().w_full().justify_end().child(done));
+    if let PickerPlacement::BesideTrigger = placement {
+        return Some(
+            deferred(
+                anchored()
+                    .anchor(gpui::Anchor::TopRight)
+                    .offset(point(px(-8.0), px(0.0)))
+                    .snap_to_window_with_margin(px(8.0))
+                    .child(dialog),
+            )
+            .with_priority(2)
+            .into_any_element(),
+        );
+    }
     let viewport = window.viewport_size();
     Some(
         deferred(
@@ -800,6 +825,43 @@ fn pick_color_dialog<V: SettingsPage>(
         .with_priority(2)
         .into_any_element(),
     )
+}
+
+/// The Pick Color dialog of a tint key whose trigger the page draws itself (the Theme page's "+"
+/// square), opening beside that trigger. Render it as a child of the trigger.
+pub(crate) fn trigger_tint_picker<V: SettingsPage>(
+    page: &mut V,
+    p: &SettingsPalette,
+    key: &'static str,
+    value: &str,
+    window: &mut Window,
+    cx: &mut Context<V>,
+) -> Option<AnyElement> {
+    let saved = normalize_color_input_value(value, DEFAULT_TINT_COLOR);
+    FieldStates::color_state(page, key, &saved, ColorFieldKind::Tint, window, cx);
+    pick_color_dialog(
+        page,
+        p,
+        key,
+        ColorFieldKind::Tint,
+        DEFAULT_TINT_COLOR,
+        PickerPlacement::BesideTrigger,
+        window,
+        cx,
+    )
+}
+
+/// Opens a tint key's Pick Color dialog on its saved value.
+pub(crate) fn open_tint_picker<V: SettingsPage>(
+    page: &mut V,
+    key: &'static str,
+    value: &str,
+    window: &mut Window,
+    cx: &mut Context<V>,
+) {
+    let saved = normalize_color_input_value(value, DEFAULT_TINT_COLOR);
+    FieldStates::color_state(page, key, &saved, ColorFieldKind::Tint, window, cx);
+    open_picker(page, key, DEFAULT_TINT_COLOR, window, cx);
 }
 
 fn square_pick<V: SettingsPage>(
@@ -909,7 +971,16 @@ pub(crate) fn color_field<V: SettingsPage>(
         .map(|state| state.text_input.clone());
     // The swatch opens the system colour panel like the React `<input type="color">`; the
     // library's Pick Color dialog shows here only in the preview binary's `pick-color` state.
-    let dialog = pick_color_dialog(page, p, key, ColorFieldKind::Plain, "#121212", window, cx);
+    let dialog = pick_color_dialog(
+        page,
+        p,
+        key,
+        ColorFieldKind::Plain,
+        "#121212",
+        PickerPlacement::WindowCenter,
+        window,
+        cx,
+    );
     let Some(text_input) = text_input else {
         return div().into_any_element();
     };
@@ -996,6 +1067,7 @@ pub(crate) fn web_color_picker_field<V: SettingsPage>(
         key,
         ColorFieldKind::Tint,
         DEFAULT_TINT_COLOR,
+        PickerPlacement::WindowCenter,
         window,
         cx,
     );
