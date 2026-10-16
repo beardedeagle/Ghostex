@@ -136,6 +136,8 @@ pub(crate) fn remote_app_update_view(update: &RemoteAppUpdate) -> Value {
                 available.unwrap_or_default()
             )),
             "upToDate" => Some("Up to date".to_string()),
+            // Why there is no Update button (a build without its updater, a Linux package).
+            _ if !supported => text(status, "unsupportedReason").map(str::to_string),
             _ => None,
         }
     };
