@@ -36,6 +36,10 @@ pub(super) fn connectors_command(args: &[String]) -> CliResult<()> {
     let parsed = parse_args(args);
     let flags = &parsed.flags;
     let subcommand = parsed.rest.first().map(String::as_str).unwrap_or("status");
+    if subcommand == "help" || flags.contains("help") || flags.contains("h") {
+        print_help();
+        return Ok(());
+    }
     let rest = parsed.rest.get(1..).unwrap_or_default();
     let mut params = Map::new();
     if let Some(workspace) = flags.string_value("workspace") {
@@ -192,6 +196,20 @@ fn cli_command(
             "Unknown {tool} command \"{other}\". Use status, sign-in or sign-out."
         ))),
     }
+}
+
+/// The `connectors` lines of `ghostex --help`, so an agent asked to set up a connector finds
+/// every verb from `ghostex connectors help`.
+fn print_help() {
+    let lines: Vec<String> = super::usage::usage()
+        .lines()
+        .filter(|line| line.trim_start().starts_with("connectors"))
+        .map(str::to_string)
+        .collect();
+    println!("{}", lines.join("\n"));
+    println!(
+        "\nEvery command takes --workspace name|id (the default workspace without it). How each works: the Connectors part of `ghostex guide features`."
+    );
 }
 
 fn open_in_browser(url: &str) -> CliResult<()> {
