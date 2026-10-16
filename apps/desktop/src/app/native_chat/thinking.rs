@@ -58,8 +58,7 @@ impl NativeChatView {
         cx: &Context<Self>,
     ) -> AnyElement {
         let s = p.scale;
-        let mut lane = p.clone();
-        lane.prose = if p.light { p.muted } else { p.primary };
+        let lane = p.thinking_lane();
         let key = format!("thinking:{id}");
         let expanded = self.expanded.contains(&key);
         let capped = estimated_lines(&body) > (CAP_HEIGHT / LINE_HEIGHT) as usize;

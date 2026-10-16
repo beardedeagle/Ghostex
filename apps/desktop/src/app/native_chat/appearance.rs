@@ -43,6 +43,9 @@ pub(crate) struct ChatAppearance {
     /// SEE-ALSO: apps/mobile/app/src/chat/native/transcript/Transcript.tsx (`workOpen`).
     pub(crate) work_open: bool,
     pub(crate) file_previews: bool,
+    /// Grey thinking (`sessionChatMutedThinking`): thinking takes the muted text colour and replies
+    /// the full foreground, so the two read apart (`thinking_lane`, `reply_lane`).
+    pub(crate) muted_thinking: bool,
     pub(crate) transcript_width: Option<f32>,
     /// How marked sections in agents' replies are drawn.
     pub(crate) marked_sections: super::marked_sections::MarkerStyle,
@@ -105,6 +108,39 @@ impl ChatAppearance {
     /// A finished tool call's check (the 2026-10-11 work look, gx-chat-core `work_summary.rs`).
     pub(crate) fn success(&self) -> Hsla {
         rgb(if self.light { 0x059669 } else { 0x34d399 }).into()
+    }
+
+    /// The look of the agent's thinking: a thought's prose, its lane marker and a reasoning
+    /// headline. Light mode always mutes it; dark mode draws it like the answer unless Grey
+    /// thinking is on.
+    ///
+    /// CDXC:SessionChat 2026-10-16 DECISION: User, on a tester's request to draw the agent's thinking grey and its output white as terminals do: "Sure please do it as a toggle (disabled by default) so we can check how it looks." With `sessionChatMutedThinking` on, thinking takes the theme's muted text colour (`muted`) and an agent's replies its full foreground (`reply_lane`), so the pair reads apart in dark and light themes; off keeps the unified look.
+    /// SEE-ALSO: apps/mobile/app/src/chat/native/transcript/MessageRow.tsx (`thinkingTone`, the reply's `proseColor`), packages/settings-catalog/src/data/defaults.rs.
+    pub(crate) fn thinking_lane(&self) -> Self {
+        let tone = if self.muted_thinking || self.light {
+            self.muted
+        } else {
+            self.primary
+        };
+        let mut lane = self.clone();
+        lane.prose = tone;
+        if self.muted_thinking {
+            // A thought's headings and a reasoning headline go grey with its prose.
+            lane.primary = tone;
+        }
+        lane
+    }
+
+    /// The look of an agent's reply prose: the full foreground while Grey thinking is on
+    /// (`thinking_lane`), otherwise unchanged.
+    pub(crate) fn reply_lane(&self) -> Option<Self> {
+        self.muted_thinking.then(|| {
+            let mut lane = self.clone();
+            lane.prose = self.foreground;
+            // A reply's headings stay at least as bright as its prose.
+            lane.primary = self.foreground;
+            lane
+        })
     }
 
     pub(crate) fn current(state: &serde_json::Value) -> Self {
@@ -230,6 +266,7 @@ impl ChatAppearance {
             simple,
             work_open: verbose || !simple,
             file_previews: enabled("sessionChatFileEditPreviews"),
+            muted_thinking: enabled("sessionChatMutedThinking"),
             marked_sections: super::marked_sections::MarkerStyle::from_settings(settings),
             transcript_width: enabled("sessionChatCustomTranscriptWidthEnabled").then(|| {
                 settings

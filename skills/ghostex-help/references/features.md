@@ -1330,6 +1330,8 @@ toggle (`sessionChatSimpleMode`, on by default). The phone app has Simple mode t
 under More actions > View in its chat box or in its Settings > Chat; the phone keeps
 its own switch, also on by default.
 
+Grey thinking (Settings > Chat, off by default) shows the agent's thinking in grey and its replies in the full text colour, so the two are easy to tell apart (`sessionChatMutedThinking`); the phone has the same switch in its Settings > Chat.
+
 Marked handovers: orchestrators and their threads always begin each part of
 the message they hand back with a marker: ❓ Needs you, ✅ Done, ⚠️ Read this,
 🛫 Kicked off (work started this turn), 🔄 In progress, 🧪 Untested, 🚀 Shipped or 🛑 Blocked, so a quick skim shows
@@ -1734,7 +1736,7 @@ between them is temporarily hidden in this dialog.
 Related settings: `hideAccountEmails`, `preferredAgentInterface`, `sessionChatTheme`,
 `sessionChatFontFamily`, `sessionChatCustomTranscriptWidthEnabled`,
 `sessionChatTranscriptWidthPercent`, `sessionChatVerboseMode`,
-`sessionChatFileEditPreviews`,
+`sessionChatFileEditPreviews`, `sessionChatMutedThinking`,
 `sessionChatKeepComposerExpanded`, `sessionChatConfirmEscapeInterrupt`,
 `terminalViewWidthMode` (`match-chat` makes the terminal body the same width
 as the chat transcript), `terminalWidthApplyToCommandPaneTerminals`.

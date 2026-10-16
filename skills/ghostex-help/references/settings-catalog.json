@@ -995,6 +995,20 @@
       "agentWritable": true
     },
     {
+      "key": "sessionChatMutedThinking",
+      "title": "Grey thinking",
+      "subtitle": "Show the agent's thinking in grey and its replies in the full text colour, so the two are easy to tell apart.",
+      "tab": "settings",
+      "tabTitle": "General",
+      "group": "chat",
+      "groupTitle": "Chat",
+      "section": "chat",
+      "sectionTitle": "Chat",
+      "type": "boolean",
+      "default": false,
+      "agentWritable": true
+    },
+    {
       "key": "sessionChatKeepComposerExpanded",
       "title": "Keep chat box expanded while scrolling",
       "subtitle": "Keep the desktop chat box at full size while you scroll the transcript instead of shrinking it as you scroll up and growing it back at the end.",

@@ -457,12 +457,14 @@ impl NativeChatView {
                 // A running summary turn's newest row opens its tools (gx-chat-core `summary_mode_turns`).
                 let expanded = self.is_expanded(&key, p.work_open || message["toolsOpen"] == true);
                 let motion = self.disclosure_frame(&key, expanded, cx);
+                let thought = p.muted_thinking.then(|| p.thinking_lane());
+                let thought = thought.as_ref().unwrap_or(p);
                 row = row.child(self.disclosure(
                     key.clone(),
                     text(&message["reasoning"], "headline"),
                     expanded,
                     None,
-                    p,
+                    thought,
                     cx,
                 ));
                 if expanded || motion.is_some() {
@@ -475,7 +477,7 @@ impl NativeChatView {
                             format!("reasoning-body:{id}"),
                             detail,
                             &message["markdownReferences"],
-                            p,
+                            thought,
                             cx,
                         ));
                     }
@@ -512,6 +514,7 @@ impl NativeChatView {
                     tools && self.is_expanded(&key, p.work_open || message["toolsOpen"] == true);
                 let motion = self.disclosure_frame(&key, expanded, cx);
                 let flush = self.is_flush_reply(message);
+                let reply = p.reply_lane();
                 let heading = div()
                     .flex()
                     .items_start()
@@ -527,7 +530,7 @@ impl NativeChatView {
                         format!("body:{id}"),
                         body.clone(),
                         &message["markdownReferences"],
-                        p,
+                        reply.as_ref().unwrap_or(p),
                         cx,
                     )));
                 // The whole heading is the trigger, not just the chevron: React's

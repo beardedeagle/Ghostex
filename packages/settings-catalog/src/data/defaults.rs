@@ -508,6 +508,8 @@ pub const DEFAULT_GHOSTEX_SETTINGS: &[(&str, J)] = &[
     // CDXC:SessionChat 2026-09-27 DECISION: User: "make simple mode default enabled in the gpui app". A saved `false` still wins; only chats with no saved choice start simple.
     ("sessionChatSimpleMode", J::Bool(true)),
     ("sessionChatFileEditPreviews", J::Bool(false)),
+    // CDXC:SessionChat 2026-10-16 DECISION: User, on a tester's request to draw the agent's thinking grey and its output white as terminals do: "Sure please do it as a toggle (disabled by default) so we can check how it looks." Off keeps the unified look; on, thinking takes the theme's muted text colour and replies its full foreground, in the desktop, web and phone chats.
+    ("sessionChatMutedThinking", J::Bool(false)),
     ("sessionChatKeepComposerExpanded", J::Bool(false)),
     ("sessionChatConfirmEscapeInterrupt", J::Bool(true)),
     // CDXC:CatchMeUp 2026-10-11 DECISION: User: "disable this feature by default. add a toggle to enable it under chat". The composer's Catch me up button shows only while this is on.
