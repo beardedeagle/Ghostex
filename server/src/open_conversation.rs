@@ -13,9 +13,10 @@
 //! SEE-ALSO: server/src/server/open_conversation_http.rs,
 //! apps/desktop/src/app/stashed_prompt_jump.rs (the desktop caller).
 
+use rusqlite::Connection;
 use serde_json::{json, Map, Value};
 
-use crate::domain::DomainStateError;
+use crate::domain::{DomainRepository, DomainStateError};
 
 /// Agents whose conversation the board can resume (`GPUI_PROJECT_BOARD_RESUMABLE_AGENT_IDS`).
 const RESUMABLE_AGENT_IDS: [&str; 3] = ["claude", "codex", "pi"];
@@ -66,9 +67,11 @@ impl OpenConversationRequest {
 }
 
 /// Opens the conversation. `call` performs one of this daemon's own endpoints and answers its
-/// `result`.
+/// `result`; `repository` and `db` are the restore's (`restore_previous_session`).
 pub fn open_conversation(
     request: &OpenConversationRequest,
+    repository: &DomainRepository<'_>,
+    db: &Connection,
     call: &dyn Fn(&str, Value) -> Result<Value, DomainStateError>,
 ) -> Result<Value, DomainStateError> {
     let snapshot = call("/api/readPresentationSnapshot", json!({}))?;
@@ -150,6 +153,8 @@ pub fn open_conversation(
             session_id: session_id.clone(),
             reason: request.restore_reason.clone(),
         },
+        repository,
+        db,
         call,
     )
 }

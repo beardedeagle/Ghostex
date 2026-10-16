@@ -233,6 +233,28 @@ pub(crate) fn record_session_choice(
     save(&store);
 }
 
+/// A closed session restored from Previous Sessions comes back on the model its conversation last
+/// ran, which is remembered under the closed session's key.
+pub(crate) fn carry_session_choice(from: (&str, &str), to: (&str, &str)) {
+    let Ok(mut store) = store().lock() else {
+        return;
+    };
+    let to_key = session_key(to.0, to.1);
+    if store.file.sessions.contains_key(&to_key) {
+        return;
+    }
+    let Some(reading) = store
+        .file
+        .sessions
+        .get(&session_key(from.0, from.1))
+        .cloned()
+    else {
+        return;
+    };
+    store.file.sessions.insert(to_key, reading);
+    save(&store);
+}
+
 /// The label the agent itself shows for this model, so a launch value reads exactly like the
 /// report that later confirms it.
 pub(crate) fn remembered_model_label(family: &str, model: &str) -> Option<String> {

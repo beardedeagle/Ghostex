@@ -20,10 +20,10 @@ pub(crate) async fn handle_restore_previous_session_http(
             worker_endpoint,
             worker_request_id,
             &body,
-            |_, _, params, _| {
+            |repository, db, params, _| {
                 let request = RestorePreviousSessionRequest::read(params)?;
                 let token = worker_state.auth_token.clone();
-                restore_previous_session(&request, &|path, params| {
+                restore_previous_session(&request, repository, db, &|path, params| {
                     super::open_conversation_http::loopback(&token, path, params)
                 })
             },

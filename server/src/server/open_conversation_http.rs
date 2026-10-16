@@ -24,10 +24,12 @@ pub(crate) async fn handle_open_conversation_http(
             worker_endpoint,
             worker_request_id,
             &body,
-            |_, _, params, _| {
+            |repository, db, params, _| {
                 let request = OpenConversationRequest::read(params)?;
                 let token = worker_state.auth_token.clone();
-                open_conversation(&request, &|path, params| loopback(&token, path, params))
+                open_conversation(&request, repository, db, &|path, params| {
+                    loopback(&token, path, params)
+                })
             },
         )
     })

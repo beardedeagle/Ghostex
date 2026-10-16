@@ -1,19 +1,41 @@
 //! `/api/restorePreviousSession`: bring a closed session back as a new session that carries the
-//! closed one's agent, conversation id, persistence name, tag, sidebar place and title, then drop
-//! the closed history row. The agent itself comes back when a client attaches: the attach plan is
-//! built from those fields, for every agent the same way.
+//! closed one's agent, conversation id, persistence name, tag, sidebar place, title and saved
+//! launch (launch settings, account, model and commands), then drop the closed history row. The
+//! agent itself comes back when a client attaches: the attach plan is built from those fields, for
+//! every agent the same way.
 //!
 //! CDXC:Sessions 2026-10-14 DECISION:
-//! User: "add ONE gxserver restore for closed sessions ... that restores every agent the way the desktop does today (not just Claude/Codex/Pi via /api/openConversation), and make the desktop, the 'ghostex restore-previous-session' CLI and the phone all use it, so there is one restore rule for every client. Move the desktop's restore logic ... into gxserver rather than duplicating it." This is the desktop's former `gpui_restore_previous_session_from_history_id` and its metadata and create-params helpers (apps/desktop/src/app/helpers/remote/previous_sessions.rs), unchanged except that a session with no closed row is refused instead of restored as an empty "Terminal Session".
+//! User: "add ONE gxserver restore for closed sessions ... that restores every agent the way the desktop does today (not just Claude/Codex/Pi via /api/openConversation), and make the desktop, the 'ghostex restore-previous-session' CLI and the phone all use it, so there is one restore rule for every client. Move the desktop's restore logic ... into gxserver rather than duplicating it." This is the desktop's former `gpui_restore_previous_session_from_history_id` and its metadata and create-params helpers (apps/desktop/src/app/helpers/remote/previous_sessions.rs), unchanged except that a session with no closed row is refused instead of restored as an empty "Terminal Session", and that the saved launch comes along (`RESTORED_RUNTIME_KEYS`).
 //!
 //! SEE-ALSO: server/src/server/previous_session_restore_http.rs, server/src/ghostex_cli/previous_sessions.rs, apps/mobile/app/src/sessions/closedSessions.ts.
 
+use rusqlite::Connection;
 use serde_json::{json, Map, Value};
 
-use crate::domain::DomainStateError;
+use crate::domain::{DomainRepository, DomainStateError};
 
 /// The title a restored session gets when its closed row has none.
 const DEFAULT_TITLE: &str = "Terminal Session";
+
+/// CDXC:Sessions 2026-10-16 DECISION:
+/// User chose: "restore moves the coordinator record and its threads to the new session, and keeps the closed session's account, model and launch commands." A restore copied only the conversation id, so the session resumed on the default account and model without the flags it ran with (a coordinator lost its role prompt), and a custom agent no longer in the project's agent list resumed nothing at all: its CLI family lives only in the closed row's launch settings, so wake had no command and the pane showed "gxserver did not confirm the zmx provider exists". The closed row's launch settings come along whole, and these runtime keys with them; activity, recovery and switch state stay behind because they describe the old process.
+/// SEE-ALSO: server/src/coordinators/restore.rs (the coordinator records), server/src/agent_model_pins.rs (`carry_session_choice`), server/src/domain/repository/session.rs (`create_session`, which carries a box or detected session's whole row itself).
+const RESTORED_RUNTIME_KEYS: &[&str] = &[
+    "agentCommand",
+    "accountBaseCommand",
+    "accountCommand",
+    "accountId",
+    "accountName",
+    "accountColor",
+    "accountSlot",
+    "accountProvider",
+    "accountPolicyOverride",
+    "agentModelPin",
+    "agentName",
+    "agentSessionPath",
+    "firstUserMessage",
+    "launchAgentId",
+];
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RestorePreviousSessionRequest {
@@ -46,14 +68,18 @@ impl RestorePreviousSessionRequest {
     }
 }
 
-/// Restores the session. `call` performs one of this daemon's own endpoints and answers its
-/// `result`. Answers `{ outcome: "restored", projectId, sessionId, zmxName? }` naming the new
-/// session.
+/// Restores the session. The closed session's own row is read from `repository` (a legacy
+/// history entry has none), and its coordinator records and model choice move to the new session
+/// in `db`. `call` performs one of this daemon's own endpoints and answers its `result`. Answers
+/// `{ outcome: "restored", projectId, sessionId, zmxName? }` naming the new session.
 pub fn restore_previous_session(
     request: &RestorePreviousSessionRequest,
+    repository: &DomainRepository<'_>,
+    db: &Connection,
     call: &dyn Fn(&str, Value) -> Result<Value, DomainStateError>,
 ) -> Result<Value, DomainStateError> {
     let (project_id, session_id) = (request.project_id.as_str(), request.session_id.as_str());
+    let stored = repository.get_session(project_id, session_id)?;
     let previous = call(
         "/api/listPreviousSessions",
         json!({
@@ -71,7 +97,7 @@ pub fn restore_previous_session(
     };
     let created = call(
         "/api/createSession",
-        create_params(project_id, session_id, row),
+        create_params(project_id, session_id, row, stored.as_ref()),
     )?;
     let session = created.get("session");
     let Some(restored_id) = non_empty(session, "sessionId") else {
@@ -80,6 +106,15 @@ pub fn restore_previous_session(
         ));
     };
     let restored_project = non_empty(session, "projectId").unwrap_or(project_id.to_string());
+    crate::coordinators::carry_coordinator_to_restored_session(
+        db,
+        &(project_id.to_string(), session_id.to_string()),
+        &(restored_project.clone(), restored_id.clone()),
+    )?;
+    crate::agent_model_pins::carry_session_choice(
+        (project_id, session_id),
+        (&restored_project, &restored_id),
+    );
     // A failure here leaves an extra history row and changes nothing else.
     let _ = call(
         "/api/removeSession",
@@ -126,7 +161,12 @@ fn closed_row<'a>(
     running_match
 }
 
-fn create_params(project_id: &str, session_id: &str, row: &Map<String, Value>) -> Value {
+fn create_params(
+    project_id: &str,
+    session_id: &str,
+    row: &Map<String, Value>,
+    stored: Option<&Value>,
+) -> Value {
     let title = ["displayTitle", "primaryTitle", "title"]
         .iter()
         .find_map(|key| text(row, key))
@@ -141,14 +181,35 @@ fn create_params(project_id: &str, session_id: &str, row: &Map<String, Value>) -
     create.insert("restoredFromSessionId".into(), json!(session_id));
     create.insert("surface".into(), json!("workspace"));
     create.insert("title".into(), json!(title));
-    let runtime_settings: Map<String, Value> = [
+    if let Some(launch_settings) = stored
+        .and_then(|session| session.get("launchSettings"))
+        .and_then(Value::as_object)
+        .filter(|settings| !settings.is_empty())
+    {
+        create.insert("launchSettings".into(), json!(launch_settings));
+    }
+    let mut runtime_settings: Map<String, Value> = stored
+        .and_then(|session| session.get("runtimeSettings"))
+        .and_then(Value::as_object)
+        .map(|stored_runtime| {
+            RESTORED_RUNTIME_KEYS
+                .iter()
+                .filter_map(|key| {
+                    let value = stored_runtime.get(*key)?;
+                    (!value.is_null()).then(|| ((*key).to_string(), value.clone()))
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    for key in [
         "agentSessionId",
         "sessionPersistenceName",
         "sessionPersistenceProvider",
-    ]
-    .iter()
-    .filter_map(|key| text(row, key).map(|value| ((*key).to_string(), json!(value))))
-    .collect();
+    ] {
+        if let Some(value) = text(row, key) {
+            runtime_settings.insert(key.to_string(), json!(value));
+        }
+    }
     if !runtime_settings.is_empty() {
         create.insert("runtimeSettings".into(), Value::Object(runtime_settings));
     }
