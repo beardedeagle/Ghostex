@@ -47,7 +47,12 @@ REACT_NATIVE_ARCHITECTURES="$(IFS=,; echo "${ANDROID_ABI_LIST[*]}")"
 
 cd "$MOBILE_ROOT"
 bunx expo prebuild --platform android --no-install
+# CDXC:Release 2026-10-16 WHY: since the release APK compresses its native libraries, packaging
+# deflates each large library in memory, and the template's 2 GB Gradle heap ran out in
+# :app:packageRelease (10.24.0, run 38836965394). A command-line value outranks the generated
+# gradle.properties.
 ./android/gradlew --no-daemon --stacktrace -p android \
+	"-Dorg.gradle.jvmargs=-Xmx6g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8" \
 	"-PreactNativeArchitectures=$REACT_NATIVE_ARCHITECTURES" :app:assembleRelease
 
 BUILD_TOOLS="${ANDROID_HOME:?ANDROID_HOME is required}/build-tools/36.0.0"
