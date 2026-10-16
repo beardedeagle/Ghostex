@@ -290,10 +290,10 @@ export function assertSingleBuildOrigin({ expectedRunId = null, records }) {
 }
 
 /*
- * Sparkle and Homebrew are keyed on "macOS ships in this release", not on "macOS
- * was rebuilt". macOS is version-stamped, so it can only ever be reused inside
- * the same version — that is the recovery case where the DMG exists, the appcast
- * entry does not, and both feeds still have to advance.
+ * Sparkle is keyed on "macOS ships in this release", not on "macOS was rebuilt".
+ * macOS is version-stamped, so it can only ever be reused inside the same
+ * version — that is the recovery case where the DMG exists, the appcast entry
+ * does not, and the feed still has to advance.
  */
 export function resolveMacosFeedScope({ plan, updateSparkleRequested }) {
   const action = plan.products?.['macos-arm64']?.action ?? 'skip';
@@ -307,7 +307,6 @@ export function resolveMacosFeedScope({ plan, updateSparkleRequested }) {
       ? 'macOS is reused into this same-version release, so its feed entries do not exist yet'
       : 'macOS was built for this release';
   return {
-    homebrew: inRelease,
     macosAction: action,
     reason,
     sparkle: inRelease && updateSparkleRequested,

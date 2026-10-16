@@ -253,36 +253,3 @@ export function validateMajorMinorReleaseNotes(notes, version) {
     );
   }
 }
-
-export function validateGhostexCask(cask, { version, sha256 }) {
-  for (const required of [
-    `version "${version}"`,
-    `sha256 "${sha256}"`,
-    'url "https://github.com/maddada/Ghostex/releases/download/v#{version}/ghostex-#{version}-arm64.dmg"',
-    'depends_on arch: :arm64',
-    'depends_on macos: :ventura',
-    'command_wrapper "ghostex", content:',
-    'command_wrapper "gx", content:',
-    'CDXC:CliInstall 2026-06-12-09:31',
-    'exec "#{appdir}/ghostex.app/Contents/Resources/CLI/ghostex" "$@"',
-  ]) {
-    if (!cask.includes(required)) {
-      throw new ReleaseError(`Ghostex cask is missing required stanza: ${required}`);
-    }
-  }
-  for (const block of ['preflight_steps', 'postflight_steps', 'uninstall_preflight_steps']) {
-    if (!new RegExp(`^\\s*${block} do$`, 'm').test(cask)) {
-      throw new ReleaseError(`Ghostex cask is missing required stanza: ${block} do`);
-    }
-  }
-  if (/^\s*(?:preflight|postflight|uninstall_preflight) do$/m.test(cask)) {
-    throw new ReleaseError('Ghostex cask still uses the Ruby preflight/postflight blocks Homebrew 7.0.6 deprecated.');
-  }
-  if (/^\s*binary\s+"/m.test(cask)) {
-    throw new ReleaseError('Ghostex cask must install wrapper files, not Homebrew binary aliases.');
-  }
-  if (cask.includes('x86_64') || cask.includes('#{arch}') || cask.includes('intel:')) {
-    throw new ReleaseError('Ghostex cask still contains Intel release distribution stanzas.');
-  }
-  return true;
-}

@@ -34,9 +34,11 @@ marked **(unverified)** were inferred and not confirmed from that evidence.
    regenerate that block from the live assets. A failed platform does not hold
    back the others.
 4. The macOS stage pushes `chore: release X.Y.Z` (author `github-actions[bot]`,
-   changes `appcast.xml` only) to `main`, and pushes the `maddada/homebrew-tap`
-   cask bump. Homebrew's autobump bot (BrewTestBot) opens the official
-   Homebrew/homebrew-cask PR `ghostex X.Y.Z` itself; our own PR is opt-in.
+   changes `appcast.xml` only) to `main`. Releases do not touch Homebrew:
+   Homebrew's autobump bot (BrewTestBot) opens the official
+   Homebrew/homebrew-cask PR `ghostex X.Y.Z` itself about 30 minutes later, and
+   our own PR is opt-in. Ghostex left the personal `maddada/homebrew-tap`
+   (user decision 2026-10-16), so releases no longer push it.
 
 ### Who runs it, and where
 
@@ -54,7 +56,6 @@ The local checks that need macOS are **optional** and skipped on Windows:
   Don't run it on Windows; the dispatcher already runs the gates that matter.
 - `bun run release:verify` has DMG checks (`hdiutil`, `codesign`) and Homebrew
   checks. On Windows, pass `--skip-dmg --skip-brew --skip-repo` (step 8).
-- `bun run release:homebrew` is a local tap updater. Never needed; CI does it.
 - `bun run release:test` has 14 tests that cannot pass on Windows: 10 in
   `verify-code-server-archive.test.mjs` and the 4 "rolls back a WSL Source
   install failure" tests in `release-macos-code-server-workflow.test.mjs`. Their
@@ -257,8 +258,7 @@ the release after 10.14.0; watch that one closely):
   "Await the runtime artifacts of this run" now comes after
   "Cargo build gxserver" and is usually short.
 
-Exit codes: `0` finished (only Homebrew jobs may have failed), `1` a job
-failed, `2` `--max-minutes` elapsed, `3` `gh` failed five polls in a row. With
+Exit codes: `0` finished, `1` a job failed, `2` `--max-minutes` elapsed, `3` `gh` failed five polls in a row. With
 `--exit-on-change`, a stdout line `run <id> completed:` means the run is over,
 while any other exit `0` means only that a job changed state.
 
@@ -334,11 +334,11 @@ while any other exit `0` means only that a job changed state.
   opens the `ghostex X.Y.Z` PR on Homebrew/homebrew-cask (e.g. #291473 for 10.9.1)
   within about half an hour of the release; our workflow no longer opens one (user
   decision 2026-10-04; its token had no write access to the fork and every run since
-  10.0.1 failed with HTTP 404). The macOS stage's `homebrew` job only pushes the
-  `maddada/homebrew-tap` bump. Check the official cask with
-  `gh pr list --repo Homebrew/homebrew-cask --search ghostex --state all --limit 3`;
-  a red `homebrew` job is not a release failure, but mention it. To open the PR
-  ourselves anyway: `HOMEBREW_GITHUB_API_TOKEN=... node tooling/release-gpui/publish-homebrew-cask.mjs --version X.Y.Z --publish --official`
+  10.0.1 failed with HTTP 404). There is no Homebrew job and no Homebrew token
+  any more, and the personal `maddada/homebrew-tap` is not touched (its Ghostex
+  cask is deprecated; user decision 2026-10-16). Check the official cask with
+  `gh pr list --repo Homebrew/homebrew-cask --search ghostex --state all --limit 3`.
+  If no PR appears within a few hours, open it ourselves: `HOMEBREW_GITHUB_API_TOKEN=... node tooling/release-gpui/publish-homebrew-cask.mjs --version X.Y.Z --publish --official`
   (`tooling/release-gpui/homebrew-cask-setup.md`).
 - **AUR (`ghostex-bin`)**: never touch it. Another person updates it
   automatically, and the Linux stage's AUR step skips itself because
@@ -382,7 +382,7 @@ Optional, on a Mac after `brew update`, the full check with no skip flags:
 - the version, the run URL, the release URL, and the wall time;
 - each platform: live, reused or failed, plus what you did about each failure;
 - the release-point sha, the Sparkle appcast commit, and the Homebrew PR (number and state);
-- anything left for them: a Homebrew job to fix, or a platform whose
+- anything left for them: a missing Homebrew PR, or a platform whose
   rebuild failed twice;
 - a reminder that `main` received the bot's `chore: release X.Y.Z` commit, so
   every machine should pull.

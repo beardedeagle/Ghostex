@@ -1,40 +1,44 @@
-# Homebrew cask publishing: one-time setup
+# Homebrew cask: the manual `--official` fallback
 
-**Since 2026-10-04 the official-cask pull request is opt-in** (`--official`; user
-decision): Homebrew's autobump bot updates the official cask on every release, and
-this token's write access to the fork failed with HTTP 404 on every release from
-10.0.1 on. The release workflow only pushes the personal tap now, and its audit
-step (`brew style`/`brew audit`, which only fills in the PR template) is switched
-off with `false &&` in `release-gpui-publish.yml`. Everything below describes the
-`--official` path, kept for when it is wanted again (it needs the fork token
-below); the tap push needs only `HOMEBREW_TAP_TOKEN` or `HOMEBREW_GITHUB_API_TOKEN`.
+**Releases do not touch Homebrew.** The official `ghostex` cask, `Casks/g/ghostex.rb`
+in [Homebrew/homebrew-cask](https://github.com/Homebrew/homebrew-cask), is the only
+advertised macOS install (`brew install ghostex`), and Homebrew's autobump bot
+(BrewTestBot) opens its `ghostex <version>` bump pull request about 30 minutes
+after each release (10.24.0: #294691). A normal release needs no Homebrew token.
 
-The macOS publish stage of `.github/workflows/release-gpui-publish.yml` runs
-`tooling/release-gpui/publish-homebrew-cask.mjs`, which can update two casks:
+- **Since 2026-10-04 our own official-cask pull request is opt-in** (`--official`;
+  user decision): this token's write access to the fork failed with HTTP 404 on
+  every release from 10.0.1 on while BrewTestBot opened every bump itself.
+- **Since 2026-10-16 releases no longer push the personal tap** (user decision):
+  Ghostex left [maddada/homebrew-tap](https://github.com/maddada/homebrew-tap). Its
+  `Casks/ghostex.rb` was bumped one last time to 10.24.0 and deprecated in favour
+  of `brew install --cask ghostex`; existing tap installs keep updating through
+  Sparkle. The tap still serves `codex-swap`, which the codex-swap release
+  workflow publishes.
 
-- the official `ghostex` cask, `Casks/g/ghostex.rb` in
-  [Homebrew/homebrew-cask](https://github.com/Homebrew/homebrew-cask), by opening a
-  version-bump pull request from the `maddada/homebrew-cask` fork on a
-  `ghostex-<version>` branch, titled `ghostex <version>`;
-- the legacy personal tap, `Casks/ghostex.rb` in
-  [maddada/homebrew-tap](https://github.com/maddada/homebrew-tap), by committing
-  straight to `main` so `maddada/tap/ghostex` installs keep updating.
+The release workflow has no Homebrew job any more. Everything below describes
+`tooling/release-gpui/publish-homebrew-cask.mjs --official`, kept for the rare
+case where the bot's pull request does not appear: it opens a version-bump pull
+request from the `maddada/homebrew-cask` fork on a `ghostex-<version>` branch,
+titled `ghostex <version>`, changing `version` and `sha256` only. The sha256 is
+the digest GitHub records for `ghostex-<version>-arm64.dmg`, cross-checked
+against `release-provenance-<version>.json` when the release carries one.
+Homebrew's pull request template asks for `brew style` and `brew audit --cask
+--online`; on a Mac, render the bumped cask with `--render <path>`, run both on
+it in a throwaway local tap, and pass `--audited --styled` only after they pass
+(the retired workflow audit step that did this is in git history, in
+`.github/workflows/release-gpui-publish.yml` before 2026-10-16).
 
-Both edits change `version` and `sha256` only. The sha256 is the digest GitHub
-records for `ghostex-<version>-arm64.dmg`, cross-checked against
-`release-provenance-<version>.json` when the release carries one.
+## Token: `HOMEBREW_GITHUB_API_TOKEN`
 
-## Secret: `HOMEBREW_GITHUB_API_TOKEN`
-
-One GitHub token for the `maddada` account, stored as a repository secret on
-`maddada/Ghostex`. The workflow step is skipped with a message when the secret is
-missing, so nothing breaks before it is added.
+One GitHub token for the `maddada` account, needed only for `--official
+--publish`. Pass it in the environment when running the script by hand; no
+workflow reads it any more, so it does not need to be a repository secret.
 
 Fine-grained personal access token (preferred):
 
 - Resource owner: `maddada`.
-- Repository access: **Only select repositories**, pick `maddada/homebrew-cask`
-  and `maddada/homebrew-tap`.
+- Repository access: **Only select repositories**, pick `maddada/homebrew-cask`.
 - Repository permissions: **Contents: Read and write**, **Pull requests: Read and
   write**, **Metadata: Read** (added automatically).
 - No account permissions, and no **Workflows** permission (the `workflow` scope
@@ -51,17 +55,6 @@ token.
 
 The token must belong to the account that owns the fork: the script derives the
 fork owner from `GET /user` with this token and pushes the bump branch there.
-
-```sh
-gh secret set HOMEBREW_GITHUB_API_TOKEN --repo maddada/Ghostex
-```
-
-Paste the token when prompted, or pipe it in: `gh secret set
-HOMEBREW_GITHUB_API_TOKEN --repo maddada/Ghostex < token.txt`.
-
-`HOMEBREW_TAP_TOKEN` is optional. When set, the tap push uses it instead of
-`HOMEBREW_GITHUB_API_TOKEN`; use it only if the tap should be written by a
-different account or a token that is not allowed to touch the fork.
 
 ## Fork of Homebrew/homebrew-cask
 
@@ -84,26 +77,20 @@ never depends on the fork's `main` being current.
 
 ## Autobump
 
-The cask has no `no_autobump!` and its `livecheck` block has no `skip`, so it is
-in Homebrew's autobump set: BrewTestBot checks `appcast.xml` on `main` every
-three hours and opens `ghostex <version>` itself when it sees a newer version.
-
-Our PR is still the primary path: it lands minutes after the release, before the
-next autobump sweep, with the sha256 verified against the release provenance.
-The two never collide: `brew bump` skips a cask that already has an open bump
-PR, and the script exits 0 with the existing PR URL when one is open for the
-version, whoever opened it. If BrewTestBot beats the workflow (for example after
-a publish-only recovery run hours later), the workflow logs that URL and does
-nothing else. The script also exits 0 when the live cask already carries the
-version.
+BrewTestBot checks the cask's `livecheck` source (`appcast.xml` on `main`) and
+opens `ghostex <version>` itself when it sees a newer version. Check it with
+`gh pr list --repo Homebrew/homebrew-cask --search ghostex --state all --limit 3`.
+The script never collides with it: it exits 0 with the existing pull request's
+URL when one is open for the version, whoever opened it, and also exits 0 when
+the live cask already carries the version.
 
 ## Running it by hand
 
 ```sh
-node tooling/release-gpui/publish-homebrew-cask.mjs --version 9.5.1 --dry-run
+node tooling/release-gpui/publish-homebrew-cask.mjs --version 9.5.1 --official --dry-run
 HOMEBREW_GITHUB_API_TOKEN=... node tooling/release-gpui/publish-homebrew-cask.mjs --version 9.5.1 --publish --official
 ```
 
-`--dry-run` prints the exact diff for both casks and performs no writes.
-`--sha256 <hex>` overrides the digest lookup. The local brew-driven tap updater,
-`tooling/release-gpui-homebrew.mjs`, still works for the personal tap alone.
+`--dry-run` prints the exact diff and performs no writes. `--sha256 <hex>`
+overrides the digest lookup. Without `--official` or `--render` the script
+refuses to run, because there is nothing else left for it to update.

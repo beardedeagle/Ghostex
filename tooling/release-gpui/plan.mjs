@@ -345,18 +345,17 @@ function planJobs({ components, products }) {
 }
 
 /*
- * Sparkle and Homebrew are keyed on "macOS ships in this release", not on "macOS
- * was rebuilt". macOS is version-stamped and publishes a side file, so it can
- * only ever be reused from the *same version's* failed run — exactly the
- * recovery where the DMG exists but its appcast entry and cask update never
- * happened, and therefore still have to be made. Windows feeds stay keyed on
+ * Sparkle is keyed on "macOS ships in this release", not on "macOS was rebuilt".
+ * macOS is version-stamped and publishes a side file, so it can only ever be
+ * reused from the *same version's* failed run — exactly the recovery where the
+ * DMG exists but its appcast entry never happened, and therefore still has to
+ * be made. Windows feeds stay keyed on
  * `build`, because `vpk pack` only runs in a building job and a reused Windows
  * set carries its own already-correct feed.
  */
 function planFeeds({ products, scope }) {
   const macosInRelease = (products['macos-arm64']?.action ?? 'skip') !== 'skip';
   return {
-    homebrew: macosInRelease,
     sparkle: macosInRelease && Boolean(scope.updateSparkle) && !scope.prerelease,
     windowsFeeds: ['x64', 'arm64'].filter((arch) => products[`windows-${arch}`]?.action === 'build'),
   };
@@ -494,9 +493,6 @@ export function validatePlan(input) {
   if (plan.feeds?.sparkle && plan.products['macos-arm64'].action === 'skip') {
     bad('Sparkle may only advance when macOS is part of the release');
   }
-  if (plan.feeds?.homebrew && plan.products['macos-arm64'].action === 'skip') {
-    bad('Homebrew may only be updated when macOS is part of the release');
-  }
   return plan;
 }
 
@@ -539,7 +535,6 @@ export function renderPlanText(plan) {
   lines.push('');
   lines.push(
     `FEEDS         sparkle=${plan.feeds.sparkle ? 'update' : 'hold'}  ` +
-      `homebrew=${plan.feeds.homebrew ? 'update' : 'hold'}  ` +
       `windows-feeds=${plan.feeds.windowsFeeds.length > 0 ? plan.feeds.windowsFeeds.join(',') : 'none'}`
   );
   const jobNames = Object.entries(plan.jobs)
