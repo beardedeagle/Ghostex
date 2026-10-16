@@ -275,6 +275,9 @@ impl GpuiTitlebarReadingPanel {
     /// User: keep the Notifications panel in native GPUI and match the Tips header buttons with full-height, equal-width, unfilled actions separated by thin borders, with an icon beside each label.
     /// User: call the jump action "Next unread" and show each action's configured hotkey in its tooltip when one exists. 2026-09-26: an action without a hotkey shows no tooltip, because it would only repeat the label.
     /// User: do not show the notification count next to the dropdown title.
+    ///
+    /// CDXC:Notifications 2026-10-16 DECISION:
+    /// User: "i wanted that 40px to be shown as gap to the right of the word "Notifications" instead of making the buttons wider in the header of notifications modal". The 40px the panel gained (TITLEBAR_POPUP_NOTIFICATIONS_WIDTH) is right padding on the title, so the actions keep their 480px-panel widths.
     fn render_notifications_header(
         &self,
         feed: &GpuiNotificationFeedState,
@@ -287,7 +290,8 @@ impl GpuiTitlebarReadingPanel {
                 h_flex()
                     .flex_shrink_0()
                     .items_center()
-                    .px(px(8.0))
+                    .pl(px(8.0))
+                    .pr(px(8.0 + 40.0))
                     .whitespace_nowrap()
                     .text_size(px(13.0))
                     .font_weight(FontWeight::BOLD)
