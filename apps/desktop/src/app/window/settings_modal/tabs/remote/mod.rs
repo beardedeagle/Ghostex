@@ -153,9 +153,19 @@ pub(crate) struct RemoteTab {
 }
 
 impl super::HoldsUnsavedInput for RemoteTab {
-    /// An unsaved Advanced edit or a device removal confirmation.
+    /// An open Add a machine / edit dialog, an unsaved Advanced edit or a device removal
+    /// confirmation.
     fn holds_unsaved_input(&self, _cx: &gpui::App) -> bool {
-        self.advanced.has_draft() || self.confirming_device.is_some()
+        self.machine_dialog.is_some()
+            || self.advanced.has_draft()
+            || self.confirming_device.is_some()
+    }
+}
+
+impl super::open_forms::RemembersOpenForm for RemoteTab {
+    /// The Add a machine / edit dialog.
+    fn open_form(&self, _cx: &gpui::App) -> Option<Value> {
+        self.open_machine_form()
     }
 }
 
@@ -172,7 +182,7 @@ impl SettingsPage for RemoteTab {
 impl RemoteTab {
     pub(crate) fn new(
         store: Entity<SettingsStore>,
-        _window: &mut Window,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
         cx.observe(&store, |tab: &mut Self, _, cx| {
@@ -238,6 +248,12 @@ impl RemoteTab {
             preview_applied: false,
         };
         tab.sync_activity(cx);
+        // The dialog the last visit left open (settings_modal/restore.rs).
+        if let Some(form) = tab.store.update(cx, |store, _| {
+            store.open_forms_mut().take(SettingsTabId::Remote)
+        }) {
+            tab.restore_machine_dialog(&form, window, cx);
+        }
         tab
     }
 

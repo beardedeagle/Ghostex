@@ -16,10 +16,10 @@ use super::super::store::SettingsStore;
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
     AnyElement, AnyView, App, AppContext as _, Context, Entity, Focusable as _, IntoElement,
-    ParentElement as _, Render, SharedString, Styled as _, Window, div, img, linear_color_stop,
-    linear_gradient, px,
+    ParentElement as _, Render, SharedString, Styled as _, Subscription, Window, div, img,
+    linear_color_stop, linear_gradient, px,
 };
-use gpui_component::input::{InputState, Textarea, TextareaState};
+use gpui_component::input::{InputEvent, InputState, Textarea, TextareaState};
 use gpui_component::{Sizable as _, Size as ComponentSize, h_flex, v_flex};
 use serde_json::{Map, Value, json};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -197,6 +197,8 @@ struct TargetEditor {
     label: Entity<InputState>,
     command: Entity<InputState>,
     args: Entity<TextareaState>,
+    /// Typing notifies the page, so Settings remembers the draft (settings_modal/restore.rs).
+    _subscriptions: Vec<Subscription>,
 }
 
 pub(crate) fn open_targets_tab_view(
@@ -204,8 +206,8 @@ pub(crate) fn open_targets_tab_view(
     window: &mut Window,
     cx: &mut App,
 ) -> AnyView {
-    let _ = window;
-    cx.new(|cx| OpenTargetsTab::new(store.clone(), cx)).into()
+    cx.new(|cx| OpenTargetsTab::new(store.clone(), window, cx))
+        .into()
 }
 
 pub(crate) struct OpenTargetsTab {
@@ -217,7 +219,7 @@ pub(crate) struct OpenTargetsTab {
 }
 
 impl OpenTargetsTab {
-    fn new(store: Entity<SettingsStore>, cx: &mut Context<Self>) -> Self {
+    fn new(store: Entity<SettingsStore>, window: &mut Window, cx: &mut Context<Self>) -> Self {
         cx.observe(&store, |_, _, cx| cx.notify()).detach();
         let preview_editor =
             store.read(cx).request().preview_state.as_deref() == Some("open-in-editor");
@@ -226,12 +228,38 @@ impl OpenTargetsTab {
                 store.scroll_to_section(SettingsTabId::OpenTargets, "customOpenTargets", cx)
             });
         }
-        Self {
+        let mut page = Self {
             store,
             fields: FieldStates::default(),
             editor: None,
             preview_editor,
+        };
+        // The Add or Edit target form the last visit left open (settings_modal/restore.rs).
+        if let Some(form) = page.store.update(cx, |store, _| {
+            store.open_forms_mut().take(SettingsTabId::OpenTargets)
+        }) {
+            page.restore_editor(&form, window, cx);
         }
+        page
+    }
+
+    /// Reopens the form `open_form` reported; the edit of a target removed since is dropped.
+    fn restore_editor(&mut self, form: &Value, window: &mut Window, cx: &mut Context<Self>) {
+        let text = |key: &str| {
+            form.get(key)
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string()
+        };
+        let id = form.get("id").and_then(Value::as_str).map(str::to_string);
+        if let Some(id) = id.as_deref()
+            && !normalize_custom_targets(&self.store.read(cx).value("customWorkspaceOpenTargets"))
+                .iter()
+                .any(|target| target.id == id)
+        {
+            return;
+        }
+        self.show_editor(id, text("label"), text("command"), text("args"), window, cx);
     }
 
     /// `onChange({ ...settings, [key]: value })`: a whole-settings save (`applySettings`).
@@ -282,6 +310,9 @@ impl OpenTargetsTab {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.store.update(cx, |store, _| {
+            store.open_forms_mut().discard(SettingsTabId::OpenTargets)
+        });
         let (id, label, command, args) = match target {
             Some(target) => (
                 Some(target.id),
@@ -291,6 +322,18 @@ impl OpenTargetsTab {
             ),
             None => (None, String::new(), String::new(), String::new()),
         };
+        self.show_editor(id, label, command, args, window, cx);
+    }
+
+    fn show_editor(
+        &mut self,
+        id: Option<String>,
+        label: String,
+        command: String,
+        args: String,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let label = cx.new(|cx| {
             InputState::new(window, cx)
                 .placeholder("Name")
@@ -307,11 +350,27 @@ impl OpenTargetsTab {
                 .placeholder("Optional arguments, one per line")
                 .default_value(args)
         });
+        fn notify<E>(
+            _: &mut OpenTargetsTab,
+            _: E,
+            event: &InputEvent,
+            cx: &mut Context<OpenTargetsTab>,
+        ) {
+            if matches!(event, InputEvent::Change) {
+                cx.notify();
+            }
+        }
+        let subscriptions = vec![
+            cx.subscribe(&label, notify),
+            cx.subscribe(&command, notify),
+            cx.subscribe(&args, notify),
+        ];
         self.editor = Some(TargetEditor {
             id,
             label,
             command,
             args,
+            _subscriptions: subscriptions,
         });
         cx.notify();
     }
@@ -382,6 +441,20 @@ impl super::HoldsUnsavedInput for OpenTargetsTab {
     /// The Add or Edit target form is open.
     fn holds_unsaved_input(&self, _cx: &gpui::App) -> bool {
         self.editor.is_some()
+    }
+}
+
+impl super::open_forms::RemembersOpenForm for OpenTargetsTab {
+    /// The Add or Edit target form and what it holds.
+    fn open_form(&self, cx: &App) -> Option<Value> {
+        let editor = self.editor.as_ref()?;
+        Some(json!({
+            "kind": "target",
+            "id": editor.id,
+            "label": editor.label.read(cx).value().to_string(),
+            "command": editor.command.read(cx).value().to_string(),
+            "args": editor.args.read(cx).value().to_string(),
+        }))
     }
 }
 

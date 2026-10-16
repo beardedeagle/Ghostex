@@ -2368,7 +2368,9 @@ sessions, so any client can control agents on any machine.
   files show their path, copied, since the phone cannot preview them).
 - **From another computer**: Settings > Remote > Remote machines > Add a
   machine with SSH details or an Easy Connect code, then Install / Connect
-  gxserver on it. The machine appears as a sidebar section with its own
+  gxserver on it. What you type in that dialog (except the password) stays
+  there when Settings closes or the app restarts, until you add the machine or
+  press Cancel. The machine appears as a sidebar section with its own
   projects and sessions; its terminals stream into the desktop app. Windows,
   Linux, and macOS clients use the connected computer's folders and shell.
   Files and folders you drop onto a remote terminal or add with its attach

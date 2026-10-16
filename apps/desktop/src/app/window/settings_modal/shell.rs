@@ -3,17 +3,19 @@
 //! `.ghostex-settings-shadcn .settings-modal-*` in packages/core-ui/styles.css).
 use super::super::native_modal_kit::*;
 use super::fields::{icon, settings_icon};
-use super::model::{SettingsModalHost, SettingsOpenRequest, SettingsTabId};
+use super::model::{SettingsModalCommand, SettingsModalHost, SettingsOpenRequest, SettingsTabId};
 use super::page::{CONTENT_GUTTER, CONTENT_MAX_WIDTH};
 use super::palette::{SETTINGS_FONT, SettingsPalette};
 use super::rail::{RailState, rail_pages, render_rail};
+use super::restore::{OPEN_FORMS_SAVE_DEBOUNCE, OpenFormMemory};
 use super::store::{SettingsStore, new_settings_store};
+use super::tabs::open_forms::{observe_open_form, settings_tab_open_form};
 use super::tabs::settings_tab_view;
 use gpui::{
     AnyElement, AnyView, App, AppContext as _, Context, Entity, FocusHandle, Focusable,
     InteractiveElement as _, IntoElement, KeyDownEvent, MouseButton, NavigationDirection,
     ParentElement as _, Render, ScrollHandle, StatefulInteractiveElement as _, Styled as _,
-    Subscription, Window, div, px,
+    Subscription, Task, Window, div, px,
 };
 use gpui_component::input::{Input, InputEvent, InputState};
 use gpui_component::{Sizable as _, Size as ComponentSize, h_flex, v_flex};
@@ -34,6 +36,9 @@ pub(crate) struct SettingsModalConfig {
     pub(crate) request: SettingsOpenRequest,
     /// The `sidebarState` hydrate the React modal was opened with.
     pub(crate) sidebar_state: Value,
+    /// The dialogs and forms Settings had open when it last closed, as stored
+    /// (`OPEN_FORMS_STORAGE_KEY`); `Null` when none.
+    pub(crate) open_forms: Value,
 }
 
 pub(crate) struct GpuiSettingsModalWindow {
@@ -44,6 +49,8 @@ pub(crate) struct GpuiSettingsModalWindow {
     search_input: Entity<InputState>,
     focus_handle: FocusHandle,
     last_show_advanced: bool,
+    /// The debounced save of the pages' open forms (settings_modal/restore.rs).
+    open_forms_save: Option<Task<()>>,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -56,7 +63,15 @@ impl GpuiSettingsModalWindow {
     ) -> Self {
         let palette = SettingsPalette::resolve(&config.palette);
         super::fields::set_settings_tooltip_theme(palette.light);
-        let store = new_settings_store(host, palette, config.request, config.sidebar_state, cx);
+        let open_forms = OpenFormMemory::from_stored(&config.open_forms);
+        let store = new_settings_store(
+            host,
+            palette,
+            config.request,
+            config.sidebar_state,
+            open_forms,
+            cx,
+        );
         let initial_query = store.read(cx).search_query().to_string();
         let search_input = cx.new(|cx| {
             InputState::new(window, cx)
@@ -130,11 +145,15 @@ impl GpuiSettingsModalWindow {
             search_input,
             focus_handle: cx.focus_handle(),
             last_show_advanced,
+            open_forms_save: None,
             _subscriptions: vec![search_subscription, store_subscription],
         };
+        // However the window goes away, the forms it had open are kept for the next open.
+        cx.on_release(|shell: &mut Self, cx| shell.save_open_forms(cx))
+            .detach();
         shell
             ._subscriptions
-            .extend(super::super::popup_dismissal::close_app_modal_on_click_away(window, cx));
+            .extend(super::super::popup_dismissal::close_app_modal_on_click_in_ghostex(window, cx));
         let active = shell.store.read(cx).active_tab();
         shell.ensure_tab_view(active, window, cx);
         // A deep link to a section (General's, or Integrations' Agent skills from the ⋯ menus'
@@ -153,7 +172,37 @@ impl GpuiSettingsModalWindow {
             return;
         }
         let view = settings_tab_view(tab, &self.store, window, cx);
+        if let Some(subscription) = observe_open_form(&view, cx, Self::schedule_open_forms_save) {
+            self._subscriptions.push(subscription);
+        }
         self.tabs.insert(tab, view);
+    }
+
+    /// A page with a form notified: save the open forms once its typing settles.
+    fn schedule_open_forms_save(&mut self, cx: &mut Context<Self>) {
+        self.open_forms_save = Some(cx.spawn(async move |shell, cx| {
+            cx.background_executor()
+                .timer(OPEN_FORMS_SAVE_DEBOUNCE)
+                .await;
+            let _ = shell.update(cx, |shell, cx| shell.save_open_forms(cx));
+        }));
+    }
+
+    /// Stores the dialogs and forms the pages have open, with the ones no page took back yet.
+    fn save_open_forms(&mut self, cx: &mut App) {
+        self.open_forms_save = None;
+        let live: Vec<_> = self
+            .tabs
+            .iter()
+            .map(|(tab, view)| (*tab, settings_tab_open_form(view, cx)))
+            .collect();
+        let store = self.store.clone();
+        let (next, host) = store.update(cx, |store, _| {
+            (store.open_forms_mut().next_stored(live), store.host())
+        });
+        if let Some(stored) = next {
+            host(SettingsModalCommand::SaveOpenForms(stored), cx);
+        }
     }
 
     /// A rail page title: open that page.
@@ -235,6 +284,7 @@ impl GpuiSettingsModalWindow {
     }
 
     fn close(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.save_open_forms(cx);
         let store = self.store.clone();
         window.remove_window();
         store.update(cx, |store, cx| store.close(cx));

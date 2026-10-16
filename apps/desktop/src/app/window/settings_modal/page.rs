@@ -6,7 +6,7 @@ use super::super::native_modal_kit::*;
 use super::model::SettingsTabId;
 use super::palette::SettingsPalette;
 use super::shell::BODY_PADDING;
-use super::store::{SettingsStore, SmoothScroll, scroll_top_for_child};
+use super::store::{ScrollRestore, SettingsStore, SmoothScroll, scroll_top_for_child};
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
     AnyElement, App, Bounds, Entity, InteractiveElement as _, IntoElement, ParentElement as _,
@@ -123,9 +123,33 @@ pub(crate) fn settings_page(
                 let restore =
                     store_for_prepaint.update(cx, |store, _| store.take_scroll_restore(tab));
                 if let Some(top) = restore.filter(|top| *top > 0.0) {
-                    prepaint_handle.set_offset(point(offset.x, px(-top)));
-                    window.refresh();
-                    return;
+                    tracker.borrow_mut().restoring = Some(ScrollRestore::new(top));
+                }
+                let restoring = tracker.borrow().restoring;
+                if let Some(mut restore) = restoring {
+                    let current = -f32::from(offset.y);
+                    let user_scrolled = restore
+                        .last
+                        .is_some_and(|last| (current - last).abs() > 0.5);
+                    if user_scrolled || tracker.borrow().pending_scroll.is_some() {
+                        // The wheel, a rail click or a deep link takes over.
+                        tracker.borrow_mut().restoring = None;
+                    } else {
+                        let max = f32::from(prepaint_handle.max_offset().y).max(0.0);
+                        let target = restore.top.min(max);
+                        let reached = max + 0.5 >= restore.top;
+                        restore.last = Some(target);
+                        let waiting = !reached && std::time::Instant::now() < restore.until;
+                        let mut tracker = tracker.borrow_mut();
+                        tracker.restoring = waiting.then_some(restore);
+                        tracker.last_offset = Some(-target);
+                        drop(tracker);
+                        if (current - target).abs() > 0.5 {
+                            prepaint_handle.set_offset(point(offset.x, px(-target)));
+                            window.refresh();
+                        }
+                        return;
+                    }
                 }
                 let pending = tracker.borrow_mut().pending_scroll.take();
                 if let Some(section) = pending

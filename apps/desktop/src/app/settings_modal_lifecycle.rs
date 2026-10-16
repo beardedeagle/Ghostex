@@ -2,13 +2,14 @@
 //! SEE-ALSO: apps/desktop/src/app/window/settings_modal/ (the window, its pages and its decision
 //! record), apps/desktop/src/app/native_app_modal_lifecycle.rs (the shared window path),
 //! docs/2026-09-28/gpui-modals-migration/SETTINGS-ARCH.md.
-use crate::app::gx_store::write_client_document_value;
+use crate::app::gx_store::{read_preference_value, write_client_document_value};
 use crate::app::helpers::web_bridge_types::{
     AppModalHostBridgeEvent, AppModalHostBridgeEventHandler,
 };
 use crate::app::helpers::*;
 use crate::app::window::settings_modal::catalog::settings_catalog;
 use crate::app::window::settings_modal::model::SettingsTabId;
+use crate::app::window::settings_modal::restore::OPEN_FORMS_STORAGE_KEY;
 use crate::app::window::settings_modal::{
     GpuiSettingsModalWindow, SETTINGS_MODAL_HEIGHT, SETTINGS_MODAL_WIDTH, SettingsModalCommand,
     SettingsModalConfig, SettingsOpenRequest,
@@ -123,10 +124,17 @@ impl GhostexGpuiApp {
         }
         // The React page got its gxserver RPC from the page bootstrap; here it is the local token.
         request.gxserver_rpc_available = read_gpui_gxserver_auth_token().is_ok();
+        // The dialogs and forms Settings had open when it last closed (settings_modal/restore.rs).
+        let open_forms = read_preference_value(OPEN_FORMS_STORAGE_KEY)
+            .ok()
+            .flatten()
+            .and_then(|raw| serde_json::from_str(&raw).ok())
+            .unwrap_or_default();
         let config = SettingsModalConfig {
             palette: self.gpui_native_modal_palette(),
             request,
             sidebar_state,
+            open_forms,
         };
         let bridge = self.app_modal_host_bridge_event_handler(cx);
         let host = self.native_app_modal_host(cx, move |app, command, cx| {
@@ -228,6 +236,25 @@ impl GhostexGpuiApp {
             }
             SettingsModalCommand::HostMessage(message) => {
                 bridge(AppModalHostBridgeEvent::Message(message.to_string()));
+            }
+            SettingsModalCommand::SaveOpenForms(stored) => {
+                cx.background_executor()
+                    .spawn(async move {
+                        let details = match write_client_document_value(
+                            OPEN_FORMS_STORAGE_KEY,
+                            stored.as_deref(),
+                        ) {
+                            Ok(None) => return,
+                            Ok(Some(bound)) => serde_json::json!({ "refusedBy": bound }),
+                            Err(error) => serde_json::json!({ "error": error }),
+                        };
+                        crate::support_logs::append(
+                            crate::support_logs::GpuiSupportLog::SidebarRefresh,
+                            "settingsOpenForms.save.failed",
+                            details,
+                        );
+                    })
+                    .detach();
             }
             SettingsModalCommand::Close => {
                 self.release_native_app_modal_window(kind, cx);

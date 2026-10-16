@@ -199,6 +199,7 @@ pub(super) fn open(demo: &super::DemoEnv, cx: &mut App) {
                 cx.quit();
             }
             SettingsModalCommand::OpenAccounts => eprintln!("open accounts"),
+            SettingsModalCommand::SaveOpenForms(stored) => eprintln!("open forms: {stored:?}"),
         }
     });
     let open_message = match state.as_str() {
@@ -250,6 +251,7 @@ pub(super) fn open(demo: &super::DemoEnv, cx: &mut App) {
         palette,
         request,
         sidebar_state: sidebar_state(&settings.borrow()),
+        open_forms: serde_json::Value::Null,
     };
     let (window, view) = super::open_settings_dialog_window(
         SETTINGS_MODAL_WIDTH,

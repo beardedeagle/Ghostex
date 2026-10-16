@@ -251,6 +251,9 @@ pub(crate) enum SettingsModalCommand {
     /// A message the React page posted to the app-modal host itself (`postAppModalHostMessage`:
     /// `accountTitlebarChanged`, `accountSetup`), handled exactly as the host bridge handles it.
     HostMessage(Value),
+    /// Stores the dialogs and forms Settings has open (`OPEN_FORMS_STORAGE_KEY`, see
+    /// settings_modal/restore.rs); `None` removes the stored value.
+    SaveOpenForms(Option<String>),
     /// The modal removed its own window.
     Close,
     /// A sign-in the Accounts page started finished after the page closed: show Settings at

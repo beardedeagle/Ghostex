@@ -13,6 +13,7 @@ use super::super::super::fields::{
     ButtonSize, ButtonVariant, icon, settings_button_sized, settings_icon, settings_icon_button,
     settings_switch, tooltip_text,
 };
+use super::super::super::model::SettingsTabId;
 use super::model::*;
 use super::style::*;
 use super::{HEADER_GAP, RemoteTab, management_header};
@@ -80,17 +81,74 @@ pub(crate) struct MachineDialog {
 }
 
 impl RemoteTab {
-    /// Opens the dialog on `machine` (edit) or empty (Add a machine).
+    /// Opens the dialog on `machine` (edit) or empty (Add a machine), replacing a dialog the last
+    /// visit left open.
     pub(super) fn open_machine_dialog(
         &mut self,
         machine: Option<&Value>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.store.update(cx, |store, _| {
+            store.open_forms_mut().discard(SettingsTabId::Remote)
+        });
         let draft = match machine {
             Some(machine) => machine_draft_from_settings(machine),
             None => create_remote_machine_draft(),
         };
+        self.show_machine_dialog(machine, draft, false, window, cx);
+    }
+
+    /// The dialog the last visit left open (`open_machine_form`), on its draft; an edited
+    /// machine that was removed since is not reopened.
+    pub(super) fn restore_machine_dialog(
+        &mut self,
+        form: &Value,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let machine = match form.get("machineId").and_then(Value::as_str) {
+            Some(id) => {
+                let Some(machine) = self
+                    .remote_machines(cx)
+                    .into_iter()
+                    .find(|machine| machine.get("id").and_then(Value::as_str) == Some(id))
+                else {
+                    return;
+                };
+                Some(machine)
+            }
+            None => None,
+        };
+        let base = match &machine {
+            Some(machine) => machine_draft_from_settings(machine),
+            None => create_remote_machine_draft(),
+        };
+        let draft = machine_draft_from_form(form.get("draft").unwrap_or(&Value::Null), base);
+        let advanced_open = form.get("advancedOpen").and_then(Value::as_bool) == Some(true);
+        self.show_machine_dialog(machine.as_ref(), draft, advanced_open, window, cx);
+    }
+
+    /// The open dialog and its draft, without the password (CDXC:Settings 2026-10-16 in
+    /// settings_modal/restore.rs).
+    pub(super) fn open_machine_form(&self) -> Option<Value> {
+        let dialog = self.machine_dialog.as_ref()?;
+        Some(json!({
+            "kind": "machine",
+            "machineId": dialog.machine_id,
+            "advancedOpen": dialog.advanced_open,
+            "draft": machine_draft_to_form(&dialog.draft),
+        }))
+    }
+
+    fn show_machine_dialog(
+        &mut self,
+        machine: Option<&Value>,
+        draft: MachineDraft,
+        advanced_open: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let make = |field: DraftField,
                     value: &str,
                     placeholder: &str,
@@ -185,7 +243,7 @@ impl RemoteTab {
                 .unwrap_or_default()
                 .to_string(),
             draft,
-            advanced_open: false,
+            advanced_open,
             focus,
             inputs,
             _subscriptions: subscriptions,
@@ -378,6 +436,56 @@ impl RemoteTab {
             })
             .collect();
         self.save_remote_machines(normalize_remote_machines(&Value::Array(machines)), cx);
+    }
+}
+
+/// A dialog draft as remembered between visits: every field but the password, which only ever
+/// goes to the keychain.
+fn machine_draft_to_form(draft: &MachineDraft) -> Value {
+    json!({
+        "id": draft.id,
+        "name": draft.name,
+        "easyConnect": draft.easy_connect,
+        "easyConnectCode": draft.easy_connect_code,
+        "easyConnectAddress": draft.easy_connect_address,
+        "sshHost": draft.ssh_host,
+        "sshIdentityFile": draft.ssh_identity_file,
+        "sshPort": draft.ssh_port,
+        "sshUser": draft.ssh_user,
+        "wslDistribution": draft.wsl_distribution,
+        "disabled": draft.disabled,
+    })
+}
+
+/// `machine_draft_to_form` read back onto `base` (the edited machine's draft, or a new one); a
+/// field missing from `form` keeps `base`'s value.
+fn machine_draft_from_form(form: &Value, base: MachineDraft) -> MachineDraft {
+    let text = |key: &str, fallback: String| {
+        form.get(key)
+            .and_then(Value::as_str)
+            .map(str::to_string)
+            .unwrap_or(fallback)
+    };
+    let flag =
+        |key: &str, fallback: bool| form.get(key).and_then(Value::as_bool).unwrap_or(fallback);
+    MachineDraft {
+        id: form
+            .get("id")
+            .and_then(Value::as_str)
+            .filter(|id| !id.trim().is_empty())
+            .map_or_else(|| base.id.clone(), str::to_string),
+        name: text("name", base.name.clone()),
+        easy_connect: flag("easyConnect", base.easy_connect),
+        easy_connect_code: text("easyConnectCode", base.easy_connect_code.clone()),
+        easy_connect_address: text("easyConnectAddress", base.easy_connect_address.clone()),
+        ssh_host: text("sshHost", base.ssh_host.clone()),
+        ssh_identity_file: text("sshIdentityFile", base.ssh_identity_file.clone()),
+        ssh_password: String::new(),
+        ssh_password_saved: base.ssh_password_saved,
+        ssh_port: text("sshPort", base.ssh_port.clone()),
+        ssh_user: text("sshUser", base.ssh_user.clone()),
+        wsl_distribution: text("wslDistribution", base.wsl_distribution.clone()),
+        disabled: flag("disabled", base.disabled),
     }
 }
 

@@ -9,6 +9,7 @@
 use super::catalog::settings_catalog;
 use super::model::{SettingsModalCommand, SettingsModalHost, SettingsOpenRequest, SettingsTabId};
 use super::palette::SettingsPalette;
+use super::restore::{OpenFormMemory, request_deep_links};
 use super::search::{GeneralSearch, SectionSearch, TabSearch, extra_tab_search, js_trim};
 use gpui::{
     App, AppContext as _, Bounds, Context, Entity, EventEmitter, Pixels, ScrollHandle, Task, px,
@@ -64,6 +65,33 @@ pub(crate) struct SectionTracker {
     pub(crate) last_offset: Option<f32>,
     /// The section scroll in flight (`scrollIntoView({ behavior: 'smooth' })`).
     pub(crate) smooth: Option<SmoothScroll>,
+    /// The remembered scroll position still being restored.
+    pub(crate) restoring: Option<ScrollRestore>,
+}
+
+/// How long a page may take to grow tall enough for its remembered scroll position.
+const SCROLL_RESTORE_WAIT: Duration = Duration::from_secs(3);
+
+/// A remembered scroll top being restored. A page whose content arrives after its first frame
+/// (the daemon's answers on Remote, the catalog on Extensions, the accounts list) is too short to
+/// reach it at first, so the page follows its content down to it until it gets there, the user
+/// scrolls, a section scroll starts, or `SCROLL_RESTORE_WAIT` runs out.
+#[derive(Clone, Copy)]
+pub(crate) struct ScrollRestore {
+    pub(crate) top: f32,
+    pub(crate) until: std::time::Instant,
+    /// The offset this restore set last, to notice the user scrolling over it.
+    pub(crate) last: Option<f32>,
+}
+
+impl ScrollRestore {
+    pub(crate) fn new(top: f32) -> Self {
+        Self {
+            top,
+            until: std::time::Instant::now() + SCROLL_RESTORE_WAIT,
+            last: None,
+        }
+    }
 }
 
 /// A programmatic smooth scroll the way Chromium runs `scrollIntoView({ behavior: 'smooth' })`:
@@ -252,6 +280,8 @@ pub(crate) struct SettingsStore {
     pending_app_icon_source: Option<String>,
     /// Why the last app icon change failed (`appIconError`).
     app_icon_error: Option<String>,
+    /// The dialogs and forms the last visit left open (settings_modal/restore.rs).
+    open_forms: OpenFormMemory,
 }
 
 impl EventEmitter<SettingsStoreEvent> for SettingsStore {}
@@ -262,6 +292,7 @@ impl SettingsStore {
         palette: SettingsPalette,
         request: SettingsOpenRequest,
         sidebar_state: Value,
+        open_forms: OpenFormMemory,
     ) -> Self {
         let settings = SettingsValues {
             settings: Rc::new(
@@ -295,8 +326,12 @@ impl SettingsStore {
             closed: false,
             pending_app_icon_source: None,
             app_icon_error: None,
+            open_forms,
         };
         store.active_tab = store.initial_tab();
+        if request_deep_links(&store.request) {
+            store.open_forms.defer(store.active_tab);
+        }
         store.page_history = vec![store.active_tab];
         let clears_search = store.request.initial_agents_section.is_some()
             || store.request.initial_custom_view_id.is_some()
@@ -874,6 +909,14 @@ impl SettingsStore {
 
     fn remember_active_scroll(&mut self) {
         let tab = self.active_tab;
+        // A page still growing toward its remembered position keeps that position.
+        if self
+            .trackers
+            .get(&tab)
+            .is_some_and(|tracker| tracker.borrow().restoring.is_some())
+        {
+            return;
+        }
         if let Some(handle) = self.scroll_handles.get(&tab) {
             remember_scroll_top(tab, (-f32::from(handle.offset().y)).max(0.0));
         }
@@ -972,6 +1015,11 @@ impl SettingsStore {
         );
     }
 
+    /// The dialogs and forms the last visit left open, for the pages to take back.
+    pub(crate) fn open_forms_mut(&mut self) -> &mut OpenFormMemory {
+        &mut self.open_forms
+    }
+
     /// The app's handler of this modal's commands, which outlives the modal window.
     pub(crate) fn host(&self) -> SettingsModalHost {
         self.host.clone()
@@ -1066,7 +1114,8 @@ pub(crate) fn new_settings_store(
     palette: SettingsPalette,
     request: SettingsOpenRequest,
     sidebar_state: Value,
+    open_forms: OpenFormMemory,
     cx: &mut App,
 ) -> Entity<SettingsStore> {
-    cx.new(|_| SettingsStore::new(host, palette, request, sidebar_state))
+    cx.new(|_| SettingsStore::new(host, palette, request, sidebar_state, open_forms))
 }

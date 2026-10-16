@@ -358,6 +358,10 @@ pub(crate) fn open_workspace_window(
                     #[cfg(not(target_os = "macos"))]
                     let source_focus = false;
                     note_workspace_window_activated(window, source_focus, cx);
+                    crate::app::window::popup_dismissal::note_workspace_window_activation(
+                        gpui::Window::window_handle(window).window_id(),
+                        cx,
+                    );
                     /*
                     CDXC:Sidebar 2026-08-20:
                     Coming back active is the other half: the pointer can

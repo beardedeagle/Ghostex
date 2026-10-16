@@ -15,6 +15,7 @@ pub(crate) mod model;
 pub(crate) mod page;
 pub(crate) mod palette;
 pub(crate) mod rail;
+pub(crate) mod restore;
 pub(crate) mod search;
 pub(crate) mod shell;
 pub(crate) mod store;

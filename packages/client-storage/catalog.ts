@@ -422,6 +422,13 @@ export const storageCatalog = Object.freeze({
     objectCodec,
     { maxEntryBytes: 256 * KiB, maxBytes: 256 * KiB }
   ),
+  settingsOpenForms: define(
+    'settingsOpenForms',
+    'Settings open dialogs and drafts',
+    desktop + 'src/app/window/settings_modal/restore.rs',
+    'ghostex.settingsModal.openForms.v1',
+    objectCodec
+  ),
   docsSide: define(
     'docsSide',
     'Docs sidebar position',
