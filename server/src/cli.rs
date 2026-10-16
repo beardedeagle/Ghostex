@@ -16,7 +16,7 @@ use crate::{
     config::read_selected_local_api_port,
     constants::{GXSERVER_LOCAL_API_HOST, GXSERVER_PRODUCT, GXSERVER_VERSION},
     http_client::{fetch_server_health, request_server_stop, request_server_stop_all},
-    paths::{get_gxserver_paths, migrate_legacy_storage},
+    paths::{check_storage_writable, get_gxserver_paths, migrate_legacy_storage},
     protocol::StatusResponse,
     runtime::{
         create_running_status, create_source_build_identity, create_stopped_status,
@@ -85,7 +85,13 @@ pub async fn run(args: Vec<String>) -> Result<()> {
             return Ok(());
         }
     }
-    migrate_legacy_storage().context("migrate legacy Ghostex storage")?;
+    let storage_warning = migrate_legacy_storage();
+    if matches!(command, None | Some("--foreground")) {
+        check_storage_writable()?;
+    }
+    if let Some(warning) = storage_warning {
+        eprintln!("{warning}");
+    }
     if matches!(command, None | Some("--foreground")) {
         let paths = get_gxserver_paths(None);
         repair_installed_agent_hook_paths(&paths)

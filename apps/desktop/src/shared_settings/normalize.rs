@@ -8,8 +8,8 @@ static GHOSTEX_STORAGE_PATHS: OnceLock<ghostex_paths::GhostexPaths> = OnceLock::
 pub fn ghostex_storage_paths() -> &'static ghostex_paths::GhostexPaths {
     GHOSTEX_STORAGE_PATHS.get_or_init(|| {
         let paths = ghostex_paths::GhostexPaths::resolve();
-        if let Err(error) = paths.migrate_legacy_layout() {
-            eprintln!("Ghostex could not migrate legacy storage: {error}");
+        if let Some(warning) = paths.migrate_legacy_layout().warning() {
+            eprintln!("{warning}");
         }
         paths
     })

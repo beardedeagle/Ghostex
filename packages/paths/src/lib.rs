@@ -11,6 +11,7 @@ const PRODUCT_DIR_UNIX: &str = "ghostex";
 #[cfg(target_os = "windows")]
 const PRODUCT_DIR_NATIVE: &str = "Ghostex";
 const LEGACY_MIGRATION_MARKER: &str = "legacy-storage-v4.complete";
+const LEGACY_MIGRATION_SKIPPED_FILE: &str = "legacy-storage-v4.skipped";
 const PREVIOUS_LEGACY_MIGRATION_MARKERS: &[&str] =
     &["legacy-storage-v2.complete", "legacy-storage-v3.complete"];
 
@@ -54,11 +55,12 @@ impl GhostexPaths {
     }
 
     /// Resolve production directories and perform the idempotent legacy
-    /// migration before returning them to a runtime consumer.
-    pub fn resolve_and_migrate() -> io::Result<Self> {
+    /// migration before returning them to a runtime consumer. Legacy items
+    /// that cannot be moved stay where they are; see `migrate_legacy_layout`.
+    pub fn resolve_and_migrate() -> Self {
         let paths = Self::resolve();
-        paths.migrate_legacy_layout()?;
-        Ok(paths)
+        paths.migrate_legacy_layout();
+        paths
     }
 
     /// Preserve the historical explicit-home behavior used by isolated daemon
@@ -148,62 +150,95 @@ impl GhostexPaths {
             .join(LEGACY_MIGRATION_MARKER)
     }
 
-    pub fn migrate_legacy_layout(&self) -> io::Result<()> {
+    /// CDXC:ServerDaemon 2026-10-16 WHY:
+    /// GitHub issue #231: one legacy item the user could not move (a folder left owned by root after a `sudo` run, a file with an immutable flag) failed the whole migration, and both the `ghostex` CLI and gxserver refused to start. Each item is now moved on its own; an item that cannot be moved stays where it is and is reported, the rest of the migration goes on, and the caller logs one warning. Skipped items are retried on the next start (once the user fixes the permissions they move), but a warning is only reported again when the list of skipped items changed.
+    pub fn migrate_legacy_layout(&self) -> LegacyMigrationReport {
         if nonempty_env_path("GHOSTEX_HOME").is_some() || self.migration_marker().exists() {
-            return Ok(());
+            return LegacyMigrationReport::default();
         }
 
+        let mut skipped = Vec::new();
         #[cfg(target_os = "macos")]
-        self.migrate_legacy_macos_layout()?;
+        self.migrate_legacy_macos_layout(&mut skipped);
 
-        self.migrate_legacy_dot_directory()?;
-        self.write_migration_marker()
+        self.migrate_legacy_dot_directory(&mut skipped);
+        self.finish_migration(skipped)
     }
 
-    fn migrate_legacy_dot_directory(&self) -> io::Result<()> {
+    /// Confirms every folder Ghostex writes to exists and accepts new files.
+    pub fn check_writable(&self) -> Result<(), StorageNotWritable> {
+        for directory in [
+            &self.config_dir,
+            &self.state_dir,
+            &self.data_dir,
+            &self.cache_dir,
+            &self.logs_dir,
+            &self.runtime_dir,
+        ] {
+            ensure_writable_directory(directory)?;
+        }
+        Ok(())
+    }
+
+    fn migrate_legacy_dot_directory(&self, skipped: &mut Vec<SkippedLegacyItem>) {
         let legacy_type = match fs::symlink_metadata(&self.legacy_dir) {
             Ok(metadata) => Some(metadata.file_type()),
             Err(error) if error.kind() == io::ErrorKind::NotFound => None,
-            Err(error) => return Err(error),
+            Err(error) => {
+                skip(skipped, &self.legacy_dir, "read it", error);
+                return;
+            }
         };
         let previous_marker_exists = PREVIOUS_LEGACY_MIGRATION_MARKERS
             .iter()
             .any(|marker| self.state_dir.join("migrations").join(marker).is_file());
         if legacy_type.is_some_and(|file_type| !file_type.is_dir()) {
-            return move_if_missing(
+            move_if_missing(
+                skipped,
                 &self.legacy_dir,
                 &self.data_dir.join("legacy/legacy-dot-ghostex"),
             );
+            return;
         }
         if legacy_type.is_none() && !previous_marker_exists {
-            return Ok(());
+            return;
         }
 
-        fs::create_dir_all(&self.config_dir)?;
-        fs::create_dir_all(&self.state_dir)?;
-        fs::create_dir_all(&self.data_dir)?;
-        fs::create_dir_all(&self.cache_dir)?;
-        fs::create_dir_all(&self.logs_dir)?;
-        fs::create_dir_all(&self.runtime_dir)?;
+        for directory in [
+            &self.config_dir,
+            &self.state_dir,
+            &self.data_dir,
+            &self.cache_dir,
+            &self.logs_dir,
+            &self.runtime_dir,
+        ] {
+            create_directory(skipped, directory);
+        }
 
         if legacy_type.is_some() {
             // Settings are migrated first so the first updated launch reads the
             // user's existing preferences rather than creating defaults over them.
             move_if_missing(
+                skipped,
                 &self.legacy_dir.join("state/native-sidebar-settings.json"),
                 &self.sidebar_settings_file(),
-            )?;
+            );
             move_if_missing(
+                skipped,
                 &self.legacy_dir.join("editor-window-frame.json"),
                 &self.state_dir.join("editor-window-frame.json"),
-            )?;
+            );
 
-            migrate_directory_contents(&self.legacy_dir.join("clients"), &self.clients_dir())?;
-            migrate_directory_contents(&self.legacy_dir.join("logs"), &self.logs_dir)?;
-            migrate_directory_contents(&self.legacy_dir.join("state"), &self.state_dir)?;
-            migrate_gxserver(&self.legacy_dir.join("gxserver"), self)?;
+            migrate_directory_contents(
+                skipped,
+                &self.legacy_dir.join("clients"),
+                &self.clients_dir(),
+            );
+            migrate_directory_contents(skipped, &self.legacy_dir.join("logs"), &self.logs_dir);
+            migrate_directory_contents(skipped, &self.legacy_dir.join("state"), &self.state_dir);
+            migrate_gxserver(skipped, &self.legacy_dir.join("gxserver"), self);
             #[cfg(unix)]
-            ensure_legacy_gxserver_links(self)?;
+            ensure_legacy_gxserver_links(skipped, self);
 
             for (name, destination) in [
                 ("hooks", self.hooks_dir()),
@@ -221,7 +256,7 @@ impl GhostexPaths {
                 ("zehn", self.cache_dir.join("zehn")),
                 ("cef", self.cef_cache_dir()),
             ] {
-                migrate_directory_contents(&self.legacy_dir.join(name), &destination)?;
+                migrate_directory_contents(skipped, &self.legacy_dir.join(name), &destination);
             }
 
             // Unknown legacy entries are retained under Data/legacy rather than
@@ -236,7 +271,7 @@ impl GhostexPaths {
                         continue;
                     }
                     let destination = self.data_dir.join("legacy").join(name);
-                    move_if_missing(&source, &destination)?;
+                    move_if_missing(skipped, &source, &destination);
                 }
             }
         }
@@ -249,19 +284,17 @@ impl GhostexPaths {
             ("icons", self.icons_dir()),
             ("logs", self.logs_dir.clone()),
         ] {
-            ensure_legacy_directory_link(&self.legacy_dir.join(name), &destination)?;
+            ensure_legacy_directory_link(skipped, &self.legacy_dir.join(name), &destination);
         }
 
         #[cfg(unix)]
         if legacy_type.is_none() {
-            ensure_legacy_gxserver_links(self)?;
+            ensure_legacy_gxserver_links(skipped, self);
         }
-
-        Ok(())
     }
 
     #[cfg(target_os = "macos")]
-    fn migrate_legacy_macos_layout(&self) -> io::Result<()> {
+    fn migrate_legacy_macos_layout(&self, skipped: &mut Vec<SkippedLegacyItem>) {
         let application_support = self
             .home_dir
             .join("Library/Application Support")
@@ -304,18 +337,17 @@ impl GhostexPaths {
             ("Cache", legacy_cache.clone(), self.cache_dir.clone()),
             ("Logs", legacy_logs.clone(), self.logs_dir.clone()),
         ] {
-            migrate_directory_contents(&source, &destination)?;
-            move_if_missing(&source, &archive_root.join(name))?;
+            migrate_directory_contents(skipped, &source, &destination);
+            move_if_missing(skipped, &source, &archive_root.join(name));
         }
 
-        remove_empty_directory(&application_support)?;
+        remove_empty_directory(&application_support);
         move_if_missing(
+            skipped,
             &application_support,
             &archive_root.join("ApplicationSupport"),
-        )?;
-        Ok(())
+        );
     }
-
     fn unified(home_dir: PathBuf, root: PathBuf) -> Self {
         Self {
             cache_dir: root.join("cache"),
@@ -374,6 +406,44 @@ impl GhostexPaths {
         }
     }
 
+    fn skipped_items_file(&self) -> PathBuf {
+        self.state_dir
+            .join("migrations")
+            .join(LEGACY_MIGRATION_SKIPPED_FILE)
+    }
+
+    fn finish_migration(&self, mut skipped: Vec<SkippedLegacyItem>) -> LegacyMigrationReport {
+        if skipped.is_empty() {
+            match self.write_migration_marker() {
+                Ok(()) => {
+                    let _ = fs::remove_file(self.skipped_items_file());
+                    return LegacyMigrationReport::default();
+                }
+                Err(error) => skip(
+                    &mut skipped,
+                    &self.migration_marker(),
+                    "write the migration marker",
+                    error,
+                ),
+            }
+        }
+        let mut lines = skipped.iter().map(ToString::to_string).collect::<Vec<_>>();
+        lines.sort();
+        let listing = format!("{}\n", lines.join("\n"));
+        let skipped_file = self.skipped_items_file();
+        let changed = fs::read_to_string(&skipped_file).ok().as_deref() != Some(listing.as_str());
+        if changed {
+            if let Some(parent) = skipped_file.parent() {
+                let _ = fs::create_dir_all(parent);
+            }
+            let _ = fs::write(&skipped_file, listing);
+        }
+        LegacyMigrationReport {
+            skipped,
+            skipped_changed: changed,
+        }
+    }
+
     fn write_migration_marker(&self) -> io::Result<()> {
         let marker = self.migration_marker();
         if let Some(parent) = marker.parent() {
@@ -383,103 +453,332 @@ impl GhostexPaths {
     }
 }
 
-fn migrate_gxserver(source: &Path, paths: &GhostexPaths) -> io::Result<()> {
+/// One legacy storage item the migration could not move. It stays where it was.
+#[derive(Debug)]
+pub struct SkippedLegacyItem {
+    pub path: PathBuf,
+    pub action: String,
+    pub error: io::Error,
+}
+
+impl std::fmt::Display for SkippedLegacyItem {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            formatter,
+            "{}: could not {}: {}",
+            self.path.display(),
+            self.action,
+            self.error
+        )
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct LegacyMigrationReport {
+    pub skipped: Vec<SkippedLegacyItem>,
+    /// False when an earlier start already reported exactly these items.
+    pub skipped_changed: bool,
+}
+
+impl LegacyMigrationReport {
+    /// The warning to log, only when items were skipped and the list changed since the last report.
+    pub fn warning(&self) -> Option<String> {
+        if self.skipped.is_empty() || !self.skipped_changed {
+            return None;
+        }
+        const SHOWN: usize = 10;
+        let mut text = format!(
+            "Ghostex left {} item(s) of its old storage where they are because they could not be moved. Ghostex keeps working and tries again on its next start.",
+            self.skipped.len()
+        );
+        for item in self.skipped.iter().take(SHOWN) {
+            text.push_str(&format!("\n  - {item}"));
+        }
+        if self.skipped.len() > SHOWN {
+            text.push_str(&format!("\n  - and {} more", self.skipped.len() - SHOWN));
+        }
+        #[cfg(unix)]
+        text.push_str("\nIf one of these paths belongs to another user (for example after running a tool with sudo), give it back with: sudo chown -R \"$(id -un)\" \"<path>\"");
+        Some(text)
+    }
+}
+
+/// A folder Ghostex must write to (its settings, state, logs) refuses new files.
+#[derive(Debug)]
+pub struct StorageNotWritable {
+    pub path: PathBuf,
+    pub error: io::Error,
+}
+
+impl StorageNotWritable {
+    pub fn new(path: &Path, error: io::Error) -> Self {
+        Self {
+            path: path.to_path_buf(),
+            error,
+        }
+    }
+}
+
+impl std::fmt::Display for StorageNotWritable {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            formatter,
+            "Ghostex can't write to {}: {}. Ghostex keeps its settings, sessions and logs there and can't start without it.",
+            self.path.display(),
+            self.error
+        )?;
+        // The deepest folder that exists is the one refusing the write.
+        let blocking = self
+            .path
+            .ancestors()
+            .find(|path| fs::symlink_metadata(path).is_ok())
+            .unwrap_or(&self.path);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::MetadataExt;
+            let owner = fs::symlink_metadata(blocking).map(|metadata| metadata.uid());
+            let user = fs::metadata(user_home_dir()).map(|metadata| metadata.uid());
+            if let (Ok(owner), Ok(user)) = (owner, user) {
+                if owner != user {
+                    write!(
+                        formatter,
+                        " {} belongs to another user (uid {owner}), usually after running a tool with sudo.",
+                        blocking.display()
+                    )?;
+                }
+            }
+            write!(
+                formatter,
+                " Fix it with: sudo chown -R \"$(id -un)\" \"{}\"",
+                blocking.display()
+            )
+        }
+        #[cfg(not(unix))]
+        write!(
+            formatter,
+            " Check that your account can write to {}.",
+            blocking.display()
+        )
+    }
+}
+
+impl std::error::Error for StorageNotWritable {}
+
+/// Creates `directory` if needed and proves a new file can be written in it.
+pub fn ensure_writable_directory(directory: &Path) -> Result<(), StorageNotWritable> {
+    fs::create_dir_all(directory).map_err(|error| StorageNotWritable::new(directory, error))?;
+    let probe = directory.join(format!(".ghostex-write-check-{}", std::process::id()));
+    fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(&probe)
+        .map_err(|error| StorageNotWritable::new(directory, error))?;
+    let _ = fs::remove_file(probe);
+    Ok(())
+}
+
+/// Creates the parent folder of `file` if needed and proves `file` can be opened for appending.
+pub fn ensure_writable_file(file: &Path) -> Result<(), StorageNotWritable> {
+    if let Some(parent) = file.parent() {
+        fs::create_dir_all(parent).map_err(|error| StorageNotWritable::new(parent, error))?;
+    }
+    fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(file)
+        .map(|_| ())
+        .map_err(|error| StorageNotWritable::new(file, error))
+}
+
+fn skip(skipped: &mut Vec<SkippedLegacyItem>, path: &Path, action: &str, error: io::Error) {
+    skipped.push(SkippedLegacyItem {
+        path: path.to_path_buf(),
+        action: action.to_string(),
+        error,
+    });
+}
+
+fn create_directory(skipped: &mut Vec<SkippedLegacyItem>, directory: &Path) -> bool {
+    match fs::create_dir_all(directory) {
+        Ok(()) => true,
+        Err(error) => {
+            skip(skipped, directory, "create this folder", error);
+            false
+        }
+    }
+}
+
+fn migrate_gxserver(skipped: &mut Vec<SkippedLegacyItem>, source: &Path, paths: &GhostexPaths) {
     if !fs::symlink_metadata(source).is_ok_and(|metadata| metadata.file_type().is_dir()) {
-        return Ok(());
+        return;
     }
     let state_dir = paths.gxserver_state_dir();
     #[cfg(unix)]
     if matches!(
         fs::symlink_metadata(&state_dir),
         Err(ref error) if error.kind() == io::ErrorKind::NotFound
-    ) {
-        if let Some(parent) = state_dir.parent() {
-            fs::create_dir_all(parent)?;
-        }
+    ) && state_dir
+        .parent()
+        .is_none_or(|parent| create_directory(skipped, parent))
+    {
         match fs::rename(source, &state_dir) {
             Ok(()) => {
                 // Move the complete SQLite directory in one operation before
                 // recreating the old name. Open Unix file descriptors and
                 // locks keep referring to the same inodes, while subsequent
                 // opens immediately resolve through the compatibility link.
-                std::os::unix::fs::symlink(&state_dir, source)?;
+                if let Err(error) = std::os::unix::fs::symlink(&state_dir, source) {
+                    skip(
+                        skipped,
+                        source,
+                        &format!("link to {}", state_dir.display()),
+                        error,
+                    );
+                }
             }
             Err(error) if error.kind() == io::ErrorKind::CrossesDevices => {}
-            Err(error) => return Err(error),
+            Err(error) => {
+                skip(
+                    skipped,
+                    source,
+                    &format!("move to {}", state_dir.display()),
+                    error,
+                );
+                return;
+            }
         }
     }
     let config_dir = paths.gxserver_config_dir();
-    move_if_missing(&source.join("config.json"), &config_dir.join("config.json"))?;
+    move_if_missing(
+        skipped,
+        &source.join("config.json"),
+        &config_dir.join("config.json"),
+    );
 
     let data_dir = paths.gxserver_data_dir();
     for name in ["package", "releases", "windows-app-runtime.sha256"] {
-        move_if_missing(&source.join(name), &data_dir.join(name))?;
+        move_if_missing(skipped, &source.join(name), &data_dir.join(name));
     }
 
-    migrate_directory_contents(source, &state_dir)
+    migrate_directory_contents(skipped, source, &state_dir);
 }
 
-fn migrate_directory_contents(source: &Path, destination: &Path) -> io::Result<()> {
+fn migrate_directory_contents(
+    skipped: &mut Vec<SkippedLegacyItem>,
+    source: &Path,
+    destination: &Path,
+) {
     let source_type = match fs::symlink_metadata(source) {
         Ok(metadata) => metadata.file_type(),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
-        Err(error) => return Err(error),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return,
+        Err(error) => return skip(skipped, source, "read it", error),
     };
-    if !source_type.is_dir() {
-        return Ok(());
+    if !source_type.is_dir() || !create_directory(skipped, destination) {
+        return;
     }
-    fs::create_dir_all(destination)?;
-    for entry in fs::read_dir(source)? {
-        let entry = entry?;
-        move_if_missing(&entry.path(), &destination.join(entry.file_name()))?;
+    let entries = match fs::read_dir(source) {
+        Ok(entries) => entries,
+        Err(error) => return skip(skipped, source, "list this folder", error),
+    };
+    for entry in entries {
+        match entry {
+            Ok(entry) => {
+                move_if_missing(skipped, &entry.path(), &destination.join(entry.file_name()))
+            }
+            Err(error) => skip(skipped, source, "list this folder", error),
+        }
     }
-    remove_empty_directory(source)
+    remove_empty_directory(source);
 }
 
-fn move_if_missing(source: &Path, destination: &Path) -> io::Result<()> {
+fn move_if_missing(skipped: &mut Vec<SkippedLegacyItem>, source: &Path, destination: &Path) {
     let source_type = match fs::symlink_metadata(source) {
         Ok(metadata) => metadata.file_type(),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
-        Err(error) => return Err(error),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return,
+        Err(error) => return skip(skipped, source, "read it", error),
     };
     let destination_type = match fs::symlink_metadata(destination) {
         Ok(metadata) => Some(metadata.file_type()),
         Err(error) if error.kind() == io::ErrorKind::NotFound => None,
-        Err(error) => return Err(error),
+        Err(error) => return skip(skipped, destination, "read it", error),
     };
     if let Some(destination_type) = destination_type {
         if source_type.is_dir() && destination_type.is_dir() {
-            return migrate_directory_contents(source, destination);
+            migrate_directory_contents(skipped, source, destination);
         }
-        return Ok(());
+        return;
     }
-    if let Some(parent) = destination.parent() {
-        fs::create_dir_all(parent)?;
+    if destination
+        .parent()
+        .is_some_and(|parent| !create_directory(skipped, parent))
+    {
+        return;
     }
     match fs::rename(source, destination) {
-        Ok(()) => Ok(()),
+        Ok(()) => {}
         Err(error) if error.kind() == io::ErrorKind::CrossesDevices => {
-            copy_recursively(source, destination)?;
-            if source_type.is_dir() {
+            if let Err(error) = copy_recursively(source, destination) {
+                // Drop the partial copy (the destination did not exist before)
+                // so a later start retries from the untouched source.
+                let _ = if source_type.is_dir() {
+                    fs::remove_dir_all(destination)
+                } else {
+                    fs::remove_file(destination)
+                };
+                return skip(
+                    skipped,
+                    source,
+                    &format!("copy to {}", destination.display()),
+                    error,
+                );
+            }
+            let removed = if source_type.is_dir() {
                 fs::remove_dir_all(source)
             } else {
                 fs::remove_file(source)
+            };
+            if let Err(error) = removed {
+                skip(
+                    skipped,
+                    source,
+                    &format!("remove it after copying it to {}", destination.display()),
+                    error,
+                );
             }
         }
-        Err(error) => Err(error),
+        Err(error) => skip(
+            skipped,
+            source,
+            &format!("move to {}", destination.display()),
+            error,
+        ),
     }
 }
 
 #[cfg(unix)]
-fn ensure_legacy_directory_link(link: &Path, destination: &Path) -> io::Result<()> {
-    if fs::symlink_metadata(link).is_ok() {
-        return Ok(());
+fn ensure_legacy_directory_link(
+    skipped: &mut Vec<SkippedLegacyItem>,
+    link: &Path,
+    destination: &Path,
+) {
+    if fs::symlink_metadata(link).is_ok() || !create_directory(skipped, destination) {
+        return;
     }
-    fs::create_dir_all(destination)?;
-    if let Some(parent) = link.parent() {
-        fs::create_dir_all(parent)?;
+    if link
+        .parent()
+        .is_some_and(|parent| !create_directory(skipped, parent))
+    {
+        return;
     }
-    std::os::unix::fs::symlink(destination, link)
+    if let Err(error) = std::os::unix::fs::symlink(destination, link) {
+        skip(
+            skipped,
+            link,
+            &format!("link to {}", destination.display()),
+            error,
+        );
+    }
 }
 
 fn legacy_compatibility_entry(name: &OsStr) -> bool {
@@ -490,10 +789,12 @@ fn legacy_compatibility_entry(name: &OsStr) -> bool {
 }
 
 #[cfg(unix)]
-fn ensure_legacy_gxserver_links(paths: &GhostexPaths) -> io::Result<()> {
+fn ensure_legacy_gxserver_links(skipped: &mut Vec<SkippedLegacyItem>, paths: &GhostexPaths) {
     let legacy_root = paths.legacy_dir.join("gxserver");
     let state_root = paths.gxserver_state_dir();
-    fs::create_dir_all(&state_root)?;
+    if !create_directory(skipped, &state_root) {
+        return;
+    }
 
     // Keep the old gxserver root atomic. SQLite creates, deletes, and
     // recreates state.db-wal/state.db-shm beside the database path, so linking
@@ -505,8 +806,15 @@ fn ensure_legacy_gxserver_links(paths: &GhostexPaths) -> io::Result<()> {
         ("package", paths.gxserver_data_dir().join("package")),
         ("releases", paths.gxserver_data_dir().join("releases")),
     ] {
-        fs::create_dir_all(&destination)?;
-        ensure_gxserver_compatibility_link(paths, &state_root.join(name), &destination, name)?;
+        if create_directory(skipped, &destination) {
+            ensure_gxserver_compatibility_link(
+                skipped,
+                paths,
+                &state_root.join(name),
+                &destination,
+                name,
+            );
+        }
     }
     for (name, destination) in [
         (
@@ -518,49 +826,79 @@ fn ensure_legacy_gxserver_links(paths: &GhostexPaths) -> io::Result<()> {
             paths.gxserver_data_dir().join("windows-app-runtime.sha256"),
         ),
     ] {
-        ensure_gxserver_compatibility_link(paths, &state_root.join(name), &destination, name)?;
+        ensure_gxserver_compatibility_link(
+            skipped,
+            paths,
+            &state_root.join(name),
+            &destination,
+            name,
+        );
     }
 
-    ensure_gxserver_compatibility_link(paths, &legacy_root, &state_root, "legacy-gxserver-root")
+    ensure_gxserver_compatibility_link(
+        skipped,
+        paths,
+        &legacy_root,
+        &state_root,
+        "legacy-gxserver-root",
+    );
 }
 
 #[cfg(unix)]
 fn ensure_gxserver_compatibility_link(
+    skipped: &mut Vec<SkippedLegacyItem>,
     paths: &GhostexPaths,
     link: &Path,
     destination: &Path,
     archive_name: &str,
-) -> io::Result<()> {
+) {
     match fs::symlink_metadata(link) {
         Ok(metadata) if metadata.file_type().is_symlink() => {
             if fs::read_link(link).is_ok_and(|target| target == destination) {
-                return Ok(());
+                return;
             }
-            archive_legacy_compatibility_node(paths, link, archive_name)?;
+            archive_legacy_compatibility_node(skipped, paths, link, archive_name);
         }
-        Ok(_) => archive_legacy_compatibility_node(paths, link, archive_name)?,
+        Ok(_) => archive_legacy_compatibility_node(skipped, paths, link, archive_name),
         Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-        Err(error) => return Err(error),
+        Err(error) => return skip(skipped, link, "read it", error),
     }
-    if let Some(parent) = destination.parent() {
-        fs::create_dir_all(parent)?;
+    // Archiving was skipped and already reported; the node stays in place.
+    if fs::symlink_metadata(link).is_ok() {
+        return;
     }
-    if let Some(parent) = link.parent() {
-        fs::create_dir_all(parent)?;
+    if destination
+        .parent()
+        .is_some_and(|parent| !create_directory(skipped, parent))
+        || link
+            .parent()
+            .is_some_and(|parent| !create_directory(skipped, parent))
+    {
+        return;
     }
-    std::os::unix::fs::symlink(destination, link)
+    if let Err(error) = std::os::unix::fs::symlink(destination, link) {
+        skip(
+            skipped,
+            link,
+            &format!("link to {}", destination.display()),
+            error,
+        );
+    }
 }
 
 #[cfg(unix)]
 fn archive_legacy_compatibility_node(
+    skipped: &mut Vec<SkippedLegacyItem>,
     paths: &GhostexPaths,
     source: &Path,
     archive_name: &str,
-) -> io::Result<()> {
+) {
     let archive_root = paths
         .data_dir
         .join("legacy/gxserver-compatibility-residuals");
-    fs::create_dir_all(&archive_root)?;
+    if !create_directory(skipped, &archive_root) {
+        return;
+    }
     let base = archive_root.join(archive_name);
     let mut destination = base.clone();
     let mut suffix = 1_u64;
@@ -568,7 +906,7 @@ fn archive_legacy_compatibility_node(
         destination = archive_root.join(format!("{archive_name}.{suffix}"));
         suffix += 1;
     }
-    move_if_missing(source, &destination)
+    move_if_missing(skipped, source, &destination);
 }
 
 fn copy_recursively(source: &Path, destination: &Path) -> io::Result<()> {
@@ -602,13 +940,9 @@ fn copy_recursively(source: &Path, destination: &Path) -> io::Result<()> {
     fs::copy(source, destination).map(|_| ())
 }
 
-fn remove_empty_directory(path: &Path) -> io::Result<()> {
-    match fs::remove_dir(path) {
-        Ok(()) => Ok(()),
-        Err(error) if error.kind() == io::ErrorKind::DirectoryNotEmpty => Ok(()),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(error),
-    }
+/// Cleanup only: a legacy folder that cannot be removed holds no data, so failures are ignored.
+fn remove_empty_directory(path: &Path) {
+    let _ = fs::remove_dir(path);
 }
 
 fn user_home_dir() -> PathBuf {
@@ -711,9 +1045,9 @@ mod tests {
             runtime_dir: state_dir.join("runtime"),
             state_dir: state_dir.clone(),
         };
-        paths
-            .migrate_legacy_macos_layout()
-            .expect("migrate old macOS layout");
+        let mut skipped = Vec::new();
+        paths.migrate_legacy_macos_layout(&mut skipped);
+        assert!(skipped.is_empty(), "migrate old macOS layout: {skipped:?}");
 
         assert_eq!(
             fs::read(config_dir.join("gxserver/config.json")).unwrap(),
@@ -791,7 +1125,12 @@ mod tests {
             runtime_dir: state_dir.join("runtime"),
             state_dir: state_dir.clone(),
         };
-        paths.migrate_legacy_layout().expect("public migration");
+        let report = paths.migrate_legacy_layout();
+        assert!(
+            report.skipped.is_empty(),
+            "public migration: {:?}",
+            report.skipped
+        );
 
         assert_eq!(fs::read(config_dir.join("current.json")).unwrap(), b"new");
         assert_eq!(fs::read(data_dir.join("library-data")).unwrap(), b"library");
@@ -826,7 +1165,12 @@ mod tests {
 
         fs::write(legacy_dir.join("after-marker"), b"leave in place")
             .expect("post-migration legacy file");
-        paths.migrate_legacy_layout().expect("idempotent migration");
+        let report = paths.migrate_legacy_layout();
+        assert!(
+            report.skipped.is_empty(),
+            "idempotent migration: {:?}",
+            report.skipped
+        );
         assert_eq!(
             fs::read(legacy_dir.join("after-marker")).unwrap(),
             b"leave in place"
@@ -872,7 +1216,12 @@ mod tests {
         )
         .expect("legacy package file");
 
-        paths.migrate_legacy_layout().expect("direct migration");
+        let report = paths.migrate_legacy_layout();
+        assert!(
+            report.skipped.is_empty(),
+            "direct migration: {:?}",
+            report.skipped
+        );
 
         assert_eq!(
             fs::read_link(&legacy_gxserver).unwrap(),
@@ -958,7 +1307,12 @@ mod tests {
         )
         .expect("v3 marker");
 
-        paths.migrate_legacy_layout().expect("v4 repair migration");
+        let report = paths.migrate_legacy_layout();
+        assert!(
+            report.skipped.is_empty(),
+            "v4 repair migration: {:?}",
+            report.skipped
+        );
 
         assert_eq!(
             fs::read(paths.legacy_dir.join("gxserver/state.db")).unwrap(),
@@ -1034,7 +1388,12 @@ mod tests {
         )
         .expect("v3 marker");
 
-        paths.migrate_legacy_layout().expect("v4 repair migration");
+        let report = paths.migrate_legacy_layout();
+        assert!(
+            report.skipped.is_empty(),
+            "v4 repair migration: {:?}",
+            report.skipped
+        );
 
         assert_eq!(
             fs::read_link(paths.legacy_dir.join("gxserver")).unwrap(),
@@ -1084,7 +1443,9 @@ mod tests {
         fs::write(external.join("outside"), b"untouched").expect("external file");
         std::os::unix::fs::symlink(&external, source.join("linked")).expect("legacy symlink");
 
-        migrate_directory_contents(&source, &destination).expect("safe merge");
+        let mut skipped = Vec::new();
+        migrate_directory_contents(&mut skipped, &source, &destination);
+        assert!(skipped.is_empty(), "safe merge: {skipped:?}");
 
         assert!(fs::symlink_metadata(source.join("linked"))
             .expect("symlink remains")
@@ -1092,6 +1453,78 @@ mod tests {
             .is_symlink());
         assert_eq!(fs::read(external.join("outside")).unwrap(), b"untouched");
         assert!(!destination.join("linked/outside").exists());
+
+        fs::remove_dir_all(&test_root).expect("remove temp tree");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn one_unmovable_legacy_item_does_not_fail_the_migration() {
+        use std::os::unix::fs::PermissionsExt;
+        if nonempty_env_path("GHOSTEX_HOME").is_some() {
+            return;
+        }
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos();
+        let test_root = env::temp_dir().join(format!(
+            "ghostex-paths-unmovable-item-{}-{unique}",
+            std::process::id()
+        ));
+        let home = test_root.join("home");
+        let state_dir = home.join(".local/state/ghostex");
+        let data_dir = home.join(".local/share/ghostex");
+        let legacy_dir = home.join(".ghostex");
+        fs::create_dir_all(legacy_dir.join("hooks")).expect("dot hooks");
+        fs::create_dir_all(legacy_dir.join("clients")).expect("dot clients");
+        fs::write(legacy_dir.join("hooks/notify"), b"hook").expect("dot hook");
+        fs::write(legacy_dir.join("clients/client.json"), b"client").expect("dot client");
+        // Entries cannot leave a folder the user cannot write to.
+        let locked = legacy_dir.join("clients");
+        fs::set_permissions(&locked, fs::Permissions::from_mode(0o555)).expect("lock clients");
+        if fs::write(locked.join("probe"), b"").is_ok() {
+            // Running as root: permissions do not block anything.
+            fs::set_permissions(&locked, fs::Permissions::from_mode(0o755)).expect("unlock");
+            fs::remove_dir_all(&test_root).expect("remove temp tree");
+            return;
+        }
+
+        let paths = GhostexPaths {
+            cache_dir: home.join(".cache/ghostex"),
+            config_dir: home.join(".config/ghostex"),
+            data_dir: data_dir.clone(),
+            home_dir: home.clone(),
+            legacy_dir: legacy_dir.clone(),
+            logs_dir: state_dir.join("logs"),
+            runtime_dir: state_dir.join("runtime"),
+            state_dir: state_dir.clone(),
+        };
+        let report = paths.migrate_legacy_layout();
+
+        assert_eq!(fs::read(data_dir.join("hooks/notify")).unwrap(), b"hook");
+        assert_eq!(fs::read(locked.join("client.json")).unwrap(), b"client");
+        assert!(report
+            .skipped
+            .iter()
+            .any(|item| item.path == locked.join("client.json")));
+        assert!(report.warning().is_some());
+        assert!(!paths.migration_marker().exists());
+
+        // The next start retries quietly while nothing changed.
+        let repeated = paths.migrate_legacy_layout();
+        assert!(!repeated.skipped.is_empty());
+        assert!(repeated.warning().is_none());
+
+        // Once the folder is writable again the item moves and the migration completes.
+        fs::set_permissions(&locked, fs::Permissions::from_mode(0o755)).expect("unlock clients");
+        let fixed = paths.migrate_legacy_layout();
+        assert!(fixed.skipped.is_empty(), "after fix: {:?}", fixed.skipped);
+        assert_eq!(
+            fs::read(home.join(".config/ghostex/clients/client.json")).unwrap(),
+            b"client"
+        );
+        assert!(paths.migration_marker().exists());
 
         fs::remove_dir_all(&test_root).expect("remove temp tree");
     }

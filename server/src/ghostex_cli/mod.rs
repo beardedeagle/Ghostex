@@ -65,11 +65,10 @@ sees identical behavior after the Node CLI deletion.
 
 pub fn run() -> i32 {
     let argv: Vec<String> = std::env::args().skip(1).collect();
-    let result = crate::paths::migrate_legacy_storage()
-        .map_err(|error| {
-            CliError::Other(format!("Could not migrate legacy Ghostex storage: {error}"))
-        })
-        .and_then(|_| dispatch(&argv));
+    if let Some(warning) = crate::paths::migrate_legacy_storage() {
+        eprintln!("{warning}");
+    }
+    let result = dispatch(&argv);
     rpc::stop_all_gxserver_tunnels();
     match result {
         Ok(code) => code,

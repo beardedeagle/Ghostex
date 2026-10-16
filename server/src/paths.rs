@@ -1,4 +1,4 @@
-use std::{env, io, path::PathBuf};
+use std::{env, path::PathBuf};
 
 use ghostex_paths::GhostexPaths;
 
@@ -98,6 +98,23 @@ pub fn get_gxserver_paths(home_dir: Option<PathBuf>) -> GxserverPaths {
     }
 }
 
-pub fn migrate_legacy_storage() -> io::Result<()> {
-    GhostexPaths::resolve().migrate_legacy_layout()
+/// Moves legacy storage into the current layout and returns the one warning to
+/// log, if any. It never fails: items that cannot be moved stay where they are.
+/// When the current storage itself refuses writes, the warning says exactly
+/// that (path and fix) instead of listing every item it could not move there.
+pub fn migrate_legacy_storage() -> Option<String> {
+    let paths = GhostexPaths::resolve();
+    let report = paths.migrate_legacy_layout();
+    if report.skipped.is_empty() {
+        return None;
+    }
+    if let Err(error) = paths.check_writable() {
+        return Some(error.to_string());
+    }
+    report.warning()
+}
+
+/// Every folder the gxserver daemon writes to must accept new files.
+pub fn check_storage_writable() -> Result<(), ghostex_paths::StorageNotWritable> {
+    GhostexPaths::resolve().check_writable()
 }

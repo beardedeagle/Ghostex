@@ -68,9 +68,9 @@ pub(crate) fn component_store_root() -> Result<PathBuf, String> {
             "LOCALAPPDATA is unavailable; cannot locate the Ghostex component store".to_string()
         });
     #[cfg(not(target_os = "windows"))]
-    return ghostex_paths::GhostexPaths::resolve_and_migrate()
-        .map(|paths| paths.data_dir.join("components"))
-        .map_err(|error| format!("Could not migrate Ghostex component storage: {error}"));
+    return Ok(ghostex_paths::GhostexPaths::resolve_and_migrate()
+        .data_dir
+        .join("components"));
 }
 
 pub(crate) fn legacy_asset_cache_root() -> Result<PathBuf, String> {
@@ -85,9 +85,9 @@ pub(crate) fn legacy_asset_cache_root() -> Result<PathBuf, String> {
             "LOCALAPPDATA is unavailable; cannot locate the Ghostex release asset cache".to_string()
         });
     #[cfg(not(target_os = "windows"))]
-    return ghostex_paths::GhostexPaths::resolve_and_migrate()
-        .map(|paths| paths.data_dir.join("on-demand"))
-        .map_err(|error| format!("Could not migrate Ghostex release asset storage: {error}"));
+    return Ok(ghostex_paths::GhostexPaths::resolve_and_migrate()
+        .data_dir
+        .join("on-demand"));
 }
 
 pub(crate) fn current_platform() -> Result<String, String> {

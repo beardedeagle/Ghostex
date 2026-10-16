@@ -568,6 +568,17 @@ pub(crate) fn gpui_gxserver_launch_log_path() -> PathBuf {
         .join("macos-launch.log")
 }
 
+/// CDXC:ServerDaemon 2026-10-16 WHY:
+/// launchd opens StandardOutPath before it runs the program. When the log folder cannot be created or written (GitHub issue #231: a storage folder left owned by root), the job exits 78 (EX_CONFIG) without ever starting gxserver and leaves no log, and the diagnostics only said "no pid within 3 s". Checking Ghostex's storage and the log first fails the start at once, naming the folder and the command that fixes it.
+pub(crate) fn gpui_prepare_gxserver_launch_log() -> Result<PathBuf, String> {
+    shared_settings::ghostex_storage_paths()
+        .check_writable()
+        .map_err(|error| error.to_string())?;
+    let launch_log = gpui_gxserver_launch_log_path();
+    ghostex_paths::ensure_writable_file(&launch_log).map_err(|error| error.to_string())?;
+    Ok(launch_log)
+}
+
 pub(crate) fn gpui_normalized_user_tool_path(current_path: Option<&str>) -> String {
     /*
     CDXC:OsIntegration 2026-07-24:
@@ -681,10 +692,7 @@ fn gpui_spawn_local_gxserver_launchd_job(
     let Some(binary_path) = binary.to_str() else {
         return Err(LAUNCH_FAILURE.to_string());
     };
-    let launch_log = gpui_gxserver_launch_log_path();
-    if let Some(parent) = launch_log.parent() {
-        let _ = std::fs::create_dir_all(parent);
-    }
+    let launch_log = gpui_prepare_gxserver_launch_log()?;
     let Some(launch_log_path) = launch_log.to_str() else {
         return Err(LAUNCH_FAILURE.to_string());
     };
@@ -922,10 +930,7 @@ pub(crate) fn gpui_spawn_local_gxserver_daemon(binary: &Path) -> Result<Vec<Stri
     let Some(binary_path) = binary.to_str() else {
         return Err("gxserver failed to launch.".to_string());
     };
-    let launch_log = gpui_gxserver_launch_log_path();
-    if let Some(parent) = launch_log.parent() {
-        let _ = std::fs::create_dir_all(parent);
-    }
+    let launch_log = gpui_prepare_gxserver_launch_log()?;
     let Some(launch_log_path) = launch_log.to_str() else {
         return Err("gxserver failed to launch.".to_string());
     };
@@ -964,10 +969,7 @@ pub(crate) fn gpui_spawn_local_gxserver_daemon(binary: &Path) -> Result<Vec<Stri
     use crate::app::helpers::{CREATE_NEW_PROCESS_GROUP, CREATE_NO_WINDOW};
     use std::os::windows::process::CommandExt;
 
-    let launch_log = gpui_gxserver_launch_log_path();
-    if let Some(parent) = launch_log.parent() {
-        std::fs::create_dir_all(parent).map_err(|_| "gxserver failed to launch.".to_string())?;
-    }
+    let launch_log = gpui_prepare_gxserver_launch_log()?;
     let stdout = std::fs::OpenOptions::new()
         .create(true)
         .append(true)
