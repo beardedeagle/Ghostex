@@ -5,7 +5,10 @@
 //!
 //! CDXC:RemotePairing 2026-09-03 DECISION:
 //! User: "make easy connect and tailscale 2 options that are above each other vertically in that section, not next to each other", shown "as expandible cards so the user clicks to expand the one they want to use".
-//! The two cards stack full width, both start collapsed unless a deep link names one, and opening one collapses the other so a single QR code is visible at a time. The open card is plain UI state and is not persisted.
+//! The two cards stack full width, both start collapsed unless a deep link names one, and opening one collapses the other so a single QR code is visible at a time.
+//!
+//! CDXC:RemotePairing 2026-10-16 DECISION:
+//! User: "i want reopening settings to always reopen to the exact same spot i was in before (same scroll pos too and same open modals if possible)", and asked whether the open path card should be remembered too, picked "Remember it too" (supersedes the 2026-09-03 "The open card is plain UI state and is not persisted"). The expanded card (Easy Connect or Tailscale) is saved with the page's open machine dialog (`open_form`, CDXC:Settings 2026-10-16 in settings_modal/restore.rs) and reopens with Settings; an `initialRemoteSection` deep link still picks the card, and a machine dialog that open keeps closed is carried to the next open instead of being forgotten.
 //!
 //! One owner (this page) reads everything the Remote page shows from the daemon, so the Easy
 //! Connect card, the Tailscale card and Advanced render the same snapshot: while Remote is the
@@ -136,6 +139,9 @@ pub(crate) struct RemoteTab {
     copy_tasks: HashMap<SharedString, Task<()>>,
     pub(super) advanced: advanced::AdvancedState,
     pub(super) machine_dialog: Option<machines::MachineDialog>,
+    /// The machine dialog the last visit left open, kept closed by this open's deep link and
+    /// carried to the next open until another machine dialog opens.
+    pub(super) kept_machine_form: Option<Value>,
     /// The path cards' and the machine tiles' bounds last frame, for the deep-link scrolls.
     card_bounds: [Rc<Cell<Option<Bounds<Pixels>>>>; 2],
     machines_bounds: Rc<Cell<Option<Bounds<Pixels>>>>,
@@ -163,9 +169,17 @@ impl super::HoldsUnsavedInput for RemoteTab {
 }
 
 impl super::open_forms::RemembersOpenForm for RemoteTab {
-    /// The Add a machine / edit dialog.
+    /// The expanded path card and the Add a machine / edit dialog (or the one a deep link kept
+    /// closed on this open).
     fn open_form(&self, _cx: &gpui::App) -> Option<Value> {
-        self.open_machine_form()
+        let machine = self
+            .open_machine_form()
+            .or_else(|| self.kept_machine_form.clone());
+        let card = self.expanded.map(PathCard::anchor);
+        if machine.is_none() && card.is_none() {
+            return None;
+        }
+        Some(json!({ "kind": "remote", "card": card, "machine": machine }))
     }
 }
 
@@ -233,6 +247,7 @@ impl RemoteTab {
             copy_tasks: HashMap::new(),
             advanced: advanced::AdvancedState::default(),
             machine_dialog: None,
+            kept_machine_form: None,
             card_bounds: [Rc::new(Cell::new(None)), Rc::new(Cell::new(None))],
             machines_bounds: Rc::new(Cell::new(None)),
             pending_scroll: None,
@@ -248,13 +263,41 @@ impl RemoteTab {
             preview_applied: false,
         };
         tab.sync_activity(cx);
-        // The dialog the last visit left open (settings_modal/restore.rs).
-        if let Some(form) = tab.store.update(cx, |store, _| {
-            store.open_forms_mut().take(SettingsTabId::Remote)
-        }) {
-            tab.restore_machine_dialog(&form, window, cx);
-        }
+        tab.restore_open_form(window, cx);
         tab
+    }
+
+    /// The path card and machine dialog the last visit left open (settings_modal/restore.rs).
+    /// An open that deep-links into Remote picks its own card and keeps the dialog closed, carrying
+    /// it to the next open.
+    fn restore_open_form(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let (form, deep_linked) = self.store.update(cx, |store, _| {
+            store
+                .open_forms_mut()
+                .take_with_deep_link(SettingsTabId::Remote)
+        });
+        let Some(form) = form else {
+            return;
+        };
+        // Saved before the card was remembered, the form was the machine dialog itself.
+        let machine = match form.get("kind").and_then(Value::as_str) {
+            Some("machine") => Some(form.clone()),
+            _ => form
+                .get("machine")
+                .filter(|machine| machine.is_object())
+                .cloned(),
+        };
+        if deep_linked {
+            self.kept_machine_form = machine;
+            return;
+        }
+        self.expanded = form
+            .get("card")
+            .and_then(Value::as_str)
+            .and_then(PathCard::from_section);
+        if let Some(machine) = machine {
+            self.restore_machine_dialog(&machine, window, cx);
+        }
     }
 
     pub(super) fn tokens(&self, cx: &App) -> RemoteTokens {

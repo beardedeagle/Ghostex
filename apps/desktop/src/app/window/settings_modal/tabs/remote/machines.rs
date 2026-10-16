@@ -92,6 +92,7 @@ impl RemoteTab {
         self.store.update(cx, |store, _| {
             store.open_forms_mut().discard(SettingsTabId::Remote)
         });
+        self.kept_machine_form = None;
         let draft = match machine {
             Some(machine) => machine_draft_from_settings(machine),
             None => create_remote_machine_draft(),

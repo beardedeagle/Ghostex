@@ -74,6 +74,12 @@ impl OpenFormMemory {
         self.untaken.remove(tab.id())
     }
 
+    /// `take` for a page that weighs this open's deep link itself (Remote): the saved form even when
+    /// the open deep-linked into `tab`, and whether it did.
+    pub(crate) fn take_with_deep_link(&mut self, tab: SettingsTabId) -> (Option<Value>, bool) {
+        (self.untaken.remove(tab.id()), self.deferred == Some(tab))
+    }
+
     /// The page opened a form of its own, which replaces the one it had saved.
     pub(crate) fn discard(&mut self, tab: SettingsTabId) {
         self.untaken.remove(tab.id());
