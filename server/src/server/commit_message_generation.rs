@@ -520,7 +520,20 @@ pub(crate) async fn run_commit_message_generation_agent(
     agent: &CommitMessageGenerationAgent,
     prompt: &str,
 ) -> std::result::Result<String, DomainStateError> {
-    let (shell_command, stdin) = build_commit_message_generation_shell_command(agent, prompt)?;
+    // The job names its own account; see `one_shot_command` in accounts/launch.rs.
+    let account_agent = CommitMessageGenerationAgent {
+        agent_id: agent.agent_id.clone(),
+        command: crate::accounts::launch::one_shot_command(
+            state,
+            &agent.agent_id,
+            &agent.command,
+            None,
+        ),
+        is_default: agent.is_default,
+        name: agent.name.clone(),
+    };
+    let (shell_command, stdin) =
+        build_commit_message_generation_shell_command(&account_agent, prompt)?;
     let shell = command_shell();
     let mut child = Command::new(&shell.executable);
     crate::platform::process::NoConsoleWindow::no_console_window(&mut child);

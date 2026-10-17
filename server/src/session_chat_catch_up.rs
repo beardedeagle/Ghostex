@@ -197,7 +197,10 @@ async fn catch_up(state: &AppState, body: &Value) -> Result<Value, DomainStateEr
 
     let settings = read_settings(&state.paths);
     let (agent, command) = summary_agent(&settings, &session)?;
-    let stdin_command = stdin_title_generation_command(&agent, &command);
+    // The job names its own account (the session's, else the default); see `one_shot_command` in accounts/launch.rs.
+    let account_command =
+        crate::accounts::launch::one_shot_command(state, &agent, &command, Some(&session));
+    let stdin_command = stdin_title_generation_command(&agent, &account_command);
     let budget = if stdin_command.is_some() {
         STDIN_BUDGET_CHARS
     } else {
@@ -221,13 +224,17 @@ async fn catch_up(state: &AppState, body: &Value) -> Result<Value, DomainStateEr
     let (shell_command, stdin) = match stdin_command {
         Some(command) => (command, Some(prompt)),
         None => (
-            argument_title_generation_command(&agent, &command, &quote_prompt_argument(&prompt))
-                .ok_or_else(|| {
-                    failure(
-                        "agentUnavailable",
-                        format!("Unsupported summary agent: {agent}"),
-                    )
-                })?,
+            argument_title_generation_command(
+                &agent,
+                &account_command,
+                &quote_prompt_argument(&prompt),
+            )
+            .ok_or_else(|| {
+                failure(
+                    "agentUnavailable",
+                    format!("Unsupported summary agent: {agent}"),
+                )
+            })?,
             None,
         ),
     };

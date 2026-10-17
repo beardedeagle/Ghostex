@@ -49,6 +49,8 @@ pub(crate) async fn generate_first_prompt_session_title(
         read_runtime_text(session, "firstPromptTitleGenerationAgent").as_deref(),
     );
     let command = read_title_generation_command(session, &agent)?;
+    // The job names its own account; see `one_shot_command` in accounts/launch.rs.
+    let command = crate::accounts::launch::one_shot_command(state, &agent, &command, Some(session));
     // See CDXC:SessionTitles 2026-10-17 on `title_generation_shell_command`.
     let (shell_command, stdin) =
         title_generation_shell_command(&agent, &command, generation_prompt)?;

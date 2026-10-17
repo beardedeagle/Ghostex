@@ -344,6 +344,57 @@ pub(crate) fn apply_new_session(
     super::default_account::record_last_used(db, &registry, provider, &account.id)?;
     Ok(Some(assigned))
 }
+/// CDXC:AgentProviders 2026-10-17 WHY:
+/// The one-shot jobs (Generate Commit Message, Catch me up, Generate Name and the automatic title) run the bare `claude` or `codex` through the user's interactive shell, which lets the shell's own `claude` function or alias choose the login. On one Mac that function ran `cswap run` for the personal account last remembered in a cache file, a login the user had turned off, and every job failed with "Account-3 has no stored credentials" (2026-10-17). The job now names its account itself, like a session start does: the session's own account while that login works, else the provider's new-session account (default_account.rs), never one that is turned off, disabled or signed out. With no usable account the command stays as it was, on the CLI's own login.
+/// SEE-ALSO: server/src/server/title_generation/title_command.rs, server/src/server/commit_message_generation.rs, server/src/session_chat_catch_up.rs (the three one-shot launchers).
+pub(crate) fn one_shot_command(
+    state: &crate::server::AppState,
+    agent_id: &str,
+    command: &str,
+    session: Option<&Value>,
+) -> String {
+    one_shot_account_command(state, agent_id, command, session)
+        .unwrap_or_else(|| command.to_string())
+}
+
+fn one_shot_account_command(
+    state: &crate::server::AppState,
+    agent_id: &str,
+    command: &str,
+    session: Option<&Value>,
+) -> Option<String> {
+    let provider = agent_provider(agent_id, None)?;
+    // A command that chose its own login (a profile variable, a wrapper such as `claude-personal`) runs as written.
+    if uses_own_login(command, provider) {
+        return None;
+    }
+    let db = crate::storage::open_gxserver_database(&state.paths).ok()?;
+    let registry = store::read(&db).ok()?;
+    let snapshot = super::runtime::current_snapshot();
+    let session_account = session
+        .and_then(|session| session.pointer("/runtimeSettings/accountId"))
+        .and_then(Value::as_str);
+    let usable = |account: &SavedAccount| {
+        account.provider == provider
+            && !account.user_disabled
+            && account.disabled.is_none()
+            && snapshot
+                .accounts
+                .iter()
+                .find(|row| super::endpoint::account_id(row) == account.id)
+                .is_none_or(|row| row.status == "ready")
+    };
+    let account = session_account
+        .and_then(|id| registry.accounts.iter().find(|account| account.id == id))
+        .filter(|account| usable(account))
+        .or_else(|| {
+            super::default_account::quick_launch_account(&registry, &snapshot, provider)
+                .filter(|account| usable(account))
+        })?;
+    let wrapper = launch_command(&home().ok()?, account).ok()?;
+    let base = reusable_account_command(command, provider.id()).ok()?;
+    with_account_command(&base, provider, &wrapper).ok()
+}
 /// CDXC:AgentProviders 2026-09-18 WHY:
 /// Windows has no HOME, so reading it alone failed every account launch and resume with "The server's home directory is unavailable."
 pub(crate) fn home() -> Result<PathBuf, DomainStateError> {
