@@ -32,7 +32,8 @@ ids app/helpers/sidebar/env_and_bridge.rs gpui_app_modal_sidebar_session_id_allo
 ids app/helpers/project/colors.rs gpui_combined_presentation_session_key
 ids app/helpers/board_gxserver/focus_state.rs gpui_sidebar_gxserver_presentation_session_id_allowed
 ids app/helpers/remote/command_action.rs gpui_remote_attach_session_reference_from_project_id
-ids app/helpers/remote/types.rs GpuiRemoteAttachSessionReference
+ids app/helpers/remote/types.rs GpuiRemoteAttachSessionReference GpuiRemoteAttachSessionKey
+ids app/helpers/project/terminal_state_types.rs GpuiWorkspaceTerminalSessionKey
 ids app/helpers/remote/sidebar_bridge/request_allowlist.rs gpui_remote_sidebar_project_id_allowed
 ids app/helpers/remote/attach.rs gpui_remote_sidebar_session_id_allowed
 ids app/helpers/remote/tunnel_and_auth.rs gpui_normalize_remote_machine_id

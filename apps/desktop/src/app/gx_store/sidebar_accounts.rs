@@ -11,7 +11,8 @@
 //!   reached `NativeSidebarUpdate::Menu` in `native_sidebar/state.rs`, whose body is now
 //!   [`GhostexGpuiApp::apply_native_sidebar_menu_page`] and is called by both.
 //! - A local call: the runtime's `GpuiGxserverClient.rpc('/api/agentAccounts')`, which is the
-//!   typed-operation POST (`gxserver_post_typed_operation`) with the envelope read the way the
+//!   typed-operation POST (`gxserver_post_typed_operation`, in `rpc.rs`'s
+//!   `agent_accounts_local_task` so the GPUI web build can compile this file) with the envelope read the way the
 //!   client read it (gx-core `agent_accounts_http_answer`, so the daemon's own error sentence is
 //!   what the page shows). A remote call: `requestRemoteGxserver`, which ended in
 //!   `start_gpui_remote_sidebar_rpc` (`remote_conn/sidebar_rpc.rs`), the allowlist and all, and
@@ -34,15 +35,14 @@ use std::time::Duration;
 
 use ghostex_gx_core::{
     AGENT_ACCOUNTS_PATH, AccountMenuHost, AccountMenuStep, AccountsRequest, AccountsTarget,
-    MenuItem, SessionKey, SidebarAccountMenus, account_session_working, agent_accounts_http_answer,
-    plan_agent_run,
+    MenuItem, SessionKey, SidebarAccountMenus, account_session_working, plan_agent_run,
 };
 use serde_json::{Value, json};
 
 use crate::GhostexGpuiApp;
 use crate::app::helpers::{
     GpuiRemoteAttachSessionKey, GpuiWorkspaceTerminalSessionKey, gpui_normalize_remote_machine_id,
-    gpui_remote_sidebar_response_payload, gxserver_post_typed_operation,
+    gpui_remote_sidebar_response_payload,
 };
 use crate::app::model::GpuiLocalWorkspaceSessionKey;
 use crate::app::remote_conn::sidebar_rpc::{
@@ -199,15 +199,11 @@ impl GhostexGpuiApp {
         let task: gpui::Task<Result<Value, String>> = match &request.target {
             AccountsTarget::Local => {
                 self.gx_store.sidebar_accounts.counters.local_requests += 1;
-                let background = cx.background_executor().clone();
-                background.spawn(async move {
-                    let (status, body) = gxserver_post_typed_operation(
-                        AGENT_ACCOUNTS_PATH,
-                        &params,
-                        LOCAL_ACCOUNTS_TIMEOUT,
-                    )?;
-                    agent_accounts_http_answer(status, &body)
-                })
+                super::rpc::agent_accounts_local_task(
+                    cx.background_executor(),
+                    params,
+                    LOCAL_ACCOUNTS_TIMEOUT,
+                )
             }
             AccountsTarget::Remote(machine_id) => {
                 self.gx_store.sidebar_accounts.counters.remote_requests += 1;

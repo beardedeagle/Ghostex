@@ -66,6 +66,8 @@ pub(crate) struct GhostexGpuiApp {
     pub(crate) pending_export_transcript_reveal_path: Option<String>,
     /// The agents a worktree or New Thread dialog offers (the HUD's `agents`).
     pub(crate) new_thread_picker_agents: Option<Vec<Value>>,
+    /// The terminal bar's Switch Account page (`gx_store/sidebar_accounts.rs` reads it); the page has no terminal bar, so it stays empty.
+    pub(crate) agents_terminal_action_bar_account_page: Option<(String, Vec<Value>)>,
     /// Remote machine tunnels; always empty in a page (`remote_conn/`).
     pub(crate) remote_gxserver_connections:
         HashMap<String, crate::app::remote_conn::GpuiRemoteGxserverConnection>,
@@ -109,6 +111,7 @@ impl GhostexGpuiApp {
             titlebar_git_menu_state: None,
             pending_export_transcript_reveal_path: None,
             new_thread_picker_agents: None,
+            agents_terminal_action_bar_account_page: None,
             remote_gxserver_connections: HashMap::new(),
             sidebar_runtime_settings_snapshot: Default::default(),
             latest_sidebar_project_snapshot: None,

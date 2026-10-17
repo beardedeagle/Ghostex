@@ -111,3 +111,25 @@ pub(crate) fn gxserver_rpc_result_task(
         crate::app::helpers::gpui_gxserver_rpc_result(&path, &params, timeout)
     })
 }
+
+/// The launcher's and Switch Account's local `/api/agentAccounts` call
+/// (`gx_store/sidebar_accounts.rs`): the typed-operation POST with the envelope read the way the
+/// runtime's client read it (gx-core `agent_accounts_http_answer`, so the daemon's own error
+/// sentence is what the page shows), on the background executor.
+///
+/// CDXC:WebGpui 2026-10-17 WHY:
+/// `sidebar_accounts.rs` blocked a background thread on this POST inline, which a page cannot do,
+/// so the GPUI web build left the whole file out and its New session menu started no agent. Behind
+/// this name the web build compiles the same file with a `fetch` twin
+/// (`apps/gpui-web/src/app/gx_store/rpc.rs`).
+pub(crate) fn agent_accounts_local_task(
+    background: &gpui::BackgroundExecutor,
+    params: Value,
+    timeout: Duration,
+) -> gpui::Task<Result<Value, String>> {
+    background.spawn(async move {
+        let (status, body) =
+            gxserver_post_typed_operation(ghostex_gx_core::AGENT_ACCOUNTS_PATH, &params, timeout)?;
+        ghostex_gx_core::agent_accounts_http_answer(status, &body)
+    })
+}

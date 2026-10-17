@@ -64,8 +64,8 @@ pub(crate) struct GxStoreHost {
     /// The agentbox locations gxserver reported ready when the page connected, for the
     /// launcher's Run in a Box page (the desktop's `gx_store/agentbox.rs` reads them on open).
     pub(crate) agentbox_locations: Vec<ghostex_gx_core::AgentboxLocation>,
-    /// The launcher state behind those pages (`web_commands.rs`); its account pages stay unused.
-    pub(crate) launcher_box_pages: ghostex_gx_core::SidebarAccountMenus,
+    /// The launcher's pages (accounts, Run in a Box) and a row's Switch Account flyout: the desktop's `sidebar_accounts.rs`.
+    pub(crate) sidebar_accounts: super::sidebar_accounts::SidebarAccountsHost,
     /// Cuts the connect loop's current wait short (`gx_store_retry_now`).
     pub(crate) retry_now: Option<mpsc::UnboundedSender<()>>,
 }

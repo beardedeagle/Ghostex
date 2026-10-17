@@ -1,6 +1,6 @@
 //! What the page does for a chat view's app-shell requests. The chat itself (its socket, storage and timers) is the desktop's Rust chat host in `app/gx_chat/`, run on the page's thread; a view only hands the app its presentation cache and the host actions a shell performs.
 use ghostex_gx_core::SessionKey;
-use serde_json::Value;
+use serde_json::{Value, json};
 
 use crate::GhostexGpuiApp;
 
@@ -13,12 +13,29 @@ impl GhostexGpuiApp {
         }
     }
 
+    /// The desktop's `receive_session_chat_host_action` (`app/session_chat/host_actions.rs`) for a page: every action it answers is answered here, by the same store handler where the page has one and by a toast where it needs the desktop (a pane, a native panel, a Code or Docs view, a CEF dialog).
     pub(crate) fn web_chat_host_action(
         &mut self,
         session: &SessionKey,
         message: &Value,
         cx: &mut gpui::Context<Self>,
     ) {
+        match message["type"].as_str() {
+            Some("toast") => {
+                self.receive_gpui_app_toast_bridge_message(message, cx);
+                return;
+            }
+            // Settings, a diagram, a table or an agent's page: the page's modal door opens what it
+            // can and says which it cannot.
+            Some("open") => {
+                self.open_app_modal_from_bridge(message.clone(), cx);
+                return;
+            }
+            _ => {}
+        }
+        if self.web_chat_session_control(session, message, cx) {
+            return;
+        }
         match message["action"]
             .as_str()
             .or_else(|| message["method"].as_str())
@@ -48,6 +65,46 @@ impl GhostexGpuiApp {
                     );
                 }
             }
+            // A fork picker branch: that branch's chat, woken first when it is stopped, as the
+            // desktop's `select_session_chat_fork_branch` does.
+            Some("selectForkBranch") => {
+                let text = |key: &str| {
+                    message[key]
+                        .as_str()
+                        .map(str::trim)
+                        .filter(|value| !value.is_empty())
+                        .map(str::to_string)
+                };
+                let (Some(project_id), Some(session_id)) = (text("projectId"), text("sessionId"))
+                else {
+                    return;
+                };
+                let branch = SessionKey {
+                    machine: session.machine.clone(),
+                    project_id,
+                    session_id,
+                };
+                if text("lifecycleState").as_deref() != Some("stopped") {
+                    self.web_open_session_in_work_area(branch, false, cx);
+                    return;
+                }
+                let params =
+                    json!({ "projectId": branch.project_id, "sessionId": branch.session_id });
+                cx.spawn(async move |this, cx| {
+                    let woken =
+                        crate::app::gx_store::gx_rpc(None, "/api/wakeSession", params).await;
+                    let _ = this.update(cx, |this, cx| match woken {
+                        Ok(_) => this.web_open_session_in_work_area(branch, false, cx),
+                        Err(_) => this.dispatch_gpui_app_modal_toast(
+                            "warning",
+                            "Could not open that branch",
+                            "The session could not be resumed. Try again from the sidebar.",
+                            cx,
+                        ),
+                    });
+                })
+                .detach();
+            }
             // A chat's zoom chords. The page cannot save Settings, so the zoom changes every chat
             // on this page until it reloads.
             Some("setChatZoomPercent") => {
@@ -73,8 +130,290 @@ impl GhostexGpuiApp {
                     let _ = window.open_with_url_and_target(url, "_blank");
                 }
             }
-            Some("composerReady") => {}
+            Some("setSimpleMode") => {
+                if let Some(enabled) = message["enabled"].as_bool() {
+                    let mut settings = crate::shared_settings::shared_sidebar_settings_snapshot()
+                        .object()
+                        .clone();
+                    settings.insert("sessionChatSimpleMode".into(), enabled.into());
+                    crate::shared_settings::install(settings);
+                    cx.refresh_windows();
+                }
+            }
+            // The model picker's "pick it in the CLI": the terminal, with the desktop's hint.
+            Some("agentPickerTerminalView") => {
+                self.web_show_terminal(true, cx);
+                self.dispatch_gpui_app_modal_toast(
+                    "info",
+                    "Please pick the model and effort in the CLI then switch back to the chat view",
+                    "",
+                    cx,
+                );
+            }
+            Some("stashedPrompts") => self.open_app_modal_from_bridge(
+                json!({
+                    "type": "open",
+                    "modal": "stashedPrompts",
+                    "projectId": session.project_id,
+                    "sessionId": session.to_sidebar_session_id(),
+                }),
+                cx,
+            ),
+            // The chat's own notices (a failed copy or read), as `{message, level}`.
+            Some("toast") => {
+                if let Some(text) = message["message"].as_str() {
+                    let level = message["level"].as_str().unwrap_or("info");
+                    self.dispatch_gpui_app_modal_toast(level, text, "", cx);
+                }
+            }
+            Some("pickAttachments" | "attachPath") => self.web_chat_needs_app_toast(
+                "Attaching files from disk is not available in the browser",
+                "Paste an image into the composer, or attach it in the Ghostex app.",
+                cx,
+            ),
+            Some("promptEditor") => self.web_chat_needs_app_toast(
+                "The prompt editor is not available in the browser",
+                "Open it from the Ghostex app.",
+                cx,
+            ),
+            Some("saveImageStart") => self.web_chat_needs_app_toast(
+                "Saving images is not available in the browser",
+                "Save it from the Ghostex app.",
+                cx,
+            ),
+            Some("reviewChanges" | "openFile" | "locateFile" | "annotateReply") => self
+                .web_chat_needs_app_toast(
+                    "Files open in the Ghostex app",
+                    "The browser has no Code or Docs view.",
+                    cx,
+                ),
+            // The desktop's own bookkeeping for its panes, support logs and draft handoffs, which
+            // the page does not have: nothing to do.
+            Some(
+                "composerReady"
+                | "composerDraftState"
+                | "composerRequest"
+                | "recordSendFailure"
+                | "diagnosticLog"
+                | "draftHandoffToChatComplete"
+                | "draftHandoffToChatRetry"
+                | "draftHandoffToTerminalComplete"
+                | "draftHandoffToTerminalFailed",
+            ) => {}
             other => log::info!("chat host action not handled on web yet: {other:?}"),
         }
+    }
+
+    fn web_chat_needs_app_toast(
+        &mut self,
+        title: &str,
+        description: &str,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        self.dispatch_gpui_app_modal_toast("info", title, description, cx);
+    }
+
+    /// A session's own controls in the chat's More actions menu (Rename, Sleep, Delayed actions,
+    /// Close After Done, Fork, Full Reload, Handoff / Export, Switch Account) and the model
+    /// picker's handoff: the commands the sidebar row's menu sends for the same session, through
+    /// the same store handlers, as the desktop's terminal bar does
+    /// (`gx_store/terminal_lifecycle/runtime_actions.rs`).
+    fn web_chat_session_control(
+        &mut self,
+        session: &SessionKey,
+        message: &Value,
+        cx: &mut gpui::Context<Self>,
+    ) -> bool {
+        let row = session.to_sidebar_session_id();
+        let command = |message: Value| json!({ "type": "command", "message": message });
+        let sidebar_command = match message["action"].as_str() {
+            Some("rename") => {
+                self.web_open_chat_rename(session, &row, cx);
+                return true;
+            }
+            Some("delayedActions") => {
+                self.web_open_chat_delayed_send(session, &row, cx);
+                return true;
+            }
+            Some("sleep") => {
+                command(json!({ "type": "setSessionSleeping", "sessionId": row, "sleeping": true }))
+            }
+            Some("closeAfterDone") => {
+                command(json!({ "type": "toggleCloseAfterDone", "sessionId": row }))
+            }
+            Some("fullReload") => command(json!({ "type": "fullReloadSession", "sessionId": row })),
+            Some("fork") => {
+                self.gx_store_run_workspace_session_fork(
+                    &session.project_id,
+                    &session.session_id,
+                    cx,
+                );
+                return true;
+            }
+            Some("exportTranscript") => {
+                self.git_export_session_transcript(&row, None, cx);
+                return true;
+            }
+            Some("handoffToModel") => {
+                let text = |key: &str| message[key].as_str().map(str::trim).unwrap_or_default();
+                let (provider, model) = (text("provider"), text("model"));
+                if matches!(
+                    provider,
+                    "claude" | "codex" | "cursor" | "grok" | "antigravity"
+                ) && !model.is_empty()
+                {
+                    let effort = text("effort");
+                    self.git_export_session_transcript(
+                        &row,
+                        Some(crate::app::gx_store::git::HandoffTarget {
+                            provider: provider.to_string(),
+                            model: model.to_string(),
+                            effort: (!effort.is_empty()).then(|| effort.to_string()),
+                        }),
+                        cx,
+                    );
+                }
+                return true;
+            }
+            Some("switchAccount") => {
+                if let Some(agent_id) = message["agentId"]
+                    .as_str()
+                    .map(str::trim)
+                    .filter(|agent_id| !agent_id.is_empty())
+                {
+                    self.web_switch_session_agent(session, agent_id.to_string(), cx);
+                }
+                return true;
+            }
+            _ => return false,
+        };
+        self.web_run_sidebar_command(sidebar_command, cx);
+        true
+    }
+
+    /// The rename dialog for the chat's own session, seeded from its presentation rather than its
+    /// sidebar row (the desktop's `open_gpui_rename_session_modal_for_agents_tab`), so it opens
+    /// while the row is folded away or in another Space. A rename the agent never confirmed is
+    /// offered again, as the sidebar's Rename does.
+    fn web_open_chat_rename(
+        &mut self,
+        session: &SessionKey,
+        row: &str,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        let Some(server) = self
+            .gx_store
+            .core
+            .presentation()
+            .loaded(&session.machine)
+            .and_then(|loaded| loaded.server_session(&session.project_id, &session.session_id))
+        else {
+            return;
+        };
+        let title = server
+            .rename_failed_title
+            .clone()
+            .filter(|attempt| !attempt.trim().is_empty())
+            .unwrap_or_else(|| {
+                ghostex_gx_core::rename_seed_title(
+                    server.primary_title.as_deref(),
+                    server.terminal_title.as_deref(),
+                    &server.title,
+                )
+            });
+        self.close_app_modal_from_bridge(cx);
+        self.open_app_modal_from_bridge(
+            json!({
+                "type": "open",
+                "modal": "renameSession",
+                "sessionId": row,
+                "initialTitle": title,
+            }),
+            cx,
+        );
+    }
+
+    /// Delayed actions for the chat's own session, seeded as the desktop seeds it from a session's
+    /// own bar (`open_gpui_delayed_send_modal_for_agents_session`): its title and agent, the
+    /// daemon's Close After Done and armed send (gx-core `delayed_send_seed`, which reads the row
+    /// when it is drawn and the daemon's state when it is not).
+    fn web_open_chat_delayed_send(
+        &mut self,
+        session: &SessionKey,
+        row: &str,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        let Some(server) = self
+            .gx_store
+            .core
+            .presentation()
+            .loaded(&session.machine)
+            .and_then(|loaded| loaded.server_session(&session.project_id, &session.session_id))
+        else {
+            return;
+        };
+        let mut open = json!({
+            "type": "open",
+            "modal": "delayedSend",
+            "sessionId": row,
+            "title": ghostex_gx_core::rename_seed_title(
+                server.primary_title.as_deref(),
+                server.terminal_title.as_deref(),
+                &server.title,
+            ),
+            "closeAfterDoneActive": server.close_after_done,
+            "supportsSendWhenAgentStops": true,
+            "supportsSendWhenAllProjectSessionsStop": true,
+        });
+        if let Some(agent_icon) = &server.agent_icon {
+            open["agentIcon"] = json!(agent_icon);
+        }
+        let seed = ghostex_gx_core::delayed_send_seed(
+            self.gx_store.sidebar_list.view(),
+            &self.gx_store.core,
+            session,
+        );
+        if let Some(open) = open.as_object_mut() {
+            open.extend(seed);
+        }
+        self.open_app_modal_from_bridge(open, cx);
+    }
+
+    /// The desktop's `gx_store_switch_workspace_session_agent`: the daemon moves the conversation
+    /// to the picked agent, and a Full Reload resumes it under that agent.
+    fn web_switch_session_agent(
+        &mut self,
+        session: &SessionKey,
+        agent_id: String,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        let project_id = session.project_id.clone();
+        let raw_session_id = session.session_id.clone();
+        let row = session.to_sidebar_session_id();
+        cx.spawn(async move |this, cx| {
+            let result =
+                crate::app::gx_store::terminal_lifecycle::session_calls::switch_session_agent(
+                    project_id,
+                    raw_session_id,
+                    agent_id,
+                )
+                .await;
+            let _ = this.update(cx, |this, cx| match result {
+                Ok(()) => this.web_run_sidebar_command(
+                    json!({
+                        "type": "command",
+                        "message": { "type": "fullReloadSession", "sessionId": row },
+                    }),
+                    cx,
+                ),
+                Err(error) => this.dispatch_gpui_app_modal_toast(
+                    "error",
+                    "Could not switch account",
+                    &error.message,
+                    cx,
+                ),
+            });
+        })
+        .detach();
     }
 }

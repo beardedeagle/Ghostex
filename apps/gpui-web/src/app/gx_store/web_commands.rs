@@ -120,13 +120,13 @@ impl GhostexGpuiApp {
         }
     }
 
-    /// A sidebar command, through the desktop's own store handlers in the desktop's order (`native_sidebar/actions.rs` `dispatch_native_sidebar_ui`), each on the envelope it expects: a gxserver message wrapped as `{type: "command", message}`, a renderer command at the top level. Left out are the handlers for what a page does not have: remote machines, the accounts pages, Keep Awake, Space Sleep's views.
+    /// A sidebar command, through the desktop's own store handlers in the desktop's order (`native_sidebar/actions.rs` `dispatch_native_sidebar_ui`), each on the envelope it expects: a gxserver message wrapped as `{type: "command", message}`, a renderer command at the top level. Left out are the handlers for what a page does not have: remote machines, Keep Awake, Space Sleep's views.
     pub(crate) fn web_run_sidebar_command(&mut self, command: Value, cx: &mut gpui::Context<Self>) {
         if !self.gx_store_sidebar_list_ready() {
             return;
         }
         if self.web_answer_session_menu(&command, cx)
-            || self.web_run_in_box_page(&command, cx)
+            || self.gx_store_run_sidebar_accounts(&command, cx)
             || self.gx_store_run_sidebar_git(&command, cx)
             || self.gx_store_run_work_mode(&command, cx)
             || self.gx_store_run_work_links(&command, cx)
@@ -175,54 +175,6 @@ impl GhostexGpuiApp {
             return;
         }
         log::info!("sidebar command not handled on web: {}", command["type"]);
-    }
-
-    /// The launcher's Run in a Box pages (`agentAccounts` `box` and `boxAgents`, and `root` for
-    /// their back row), built by gx-core's launcher state and put in the panel the launcher opened.
-    /// The account pages stay out of the page, so `root` here is always the way back from a box page.
-    fn web_run_in_box_page(&mut self, command: &Value, cx: &mut gpui::Context<Self>) -> bool {
-        if command["type"] != "agentAccounts" {
-            return false;
-        }
-        let Some(group_id) = command["groupId"].as_str() else {
-            return false;
-        };
-        let host = self.gx_store.menu_host.clone();
-        let items: Vec<MenuItem> = match command["action"].as_str() {
-            Some("box" | "boxAgents") => {
-                let account_host = ghostex_gx_core::AccountMenuHost {
-                    menu: &host,
-                    hide_account_emails: false,
-                    session_working: false,
-                };
-                let steps = self
-                    .gx_store
-                    .launcher_box_pages
-                    .command(command, &account_host)
-                    .unwrap_or_default();
-                let Some(items) = steps.into_iter().find_map(|step| match step {
-                    ghostex_gx_core::AccountMenuStep::Publish { items, .. } => Some(items),
-                    _ => None,
-                }) else {
-                    return false;
-                };
-                items
-            }
-            Some("root") => {
-                ghostex_gx_core::agent_launcher_items_with_accounts(group_id, &host, None)
-            }
-            _ => return false,
-        };
-        let owner = format!("group:{group_id}");
-        if let Some(menu) = self.native_sidebar.menu.as_mut()
-            && let Some((panel_owner, index)) = menu.account_panel.clone()
-            && panel_owner == owner
-            && let Some(panel) = menu.panels.get_mut(index)
-        {
-            panel.replace_items(items.iter().map(MenuItem::to_json).collect());
-            cx.notify();
-        }
-        true
     }
 
     /// `?session=<projectId>:<sessionId>` opens that session once the list has it, and `&surface=terminal` shows its terminal: a deep link, and what the screenshot driver uses.

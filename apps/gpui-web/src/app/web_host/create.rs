@@ -154,3 +154,23 @@ impl GhostexGpuiApp {
     ) {
     }
 }
+
+impl GhostexGpuiApp {
+    /// The menus' facts as the desktop's `gx_store_menu_host` builds them; the page keeps them on the store (`gx_store/host.rs`).
+    pub(crate) fn gx_store_menu_host(&self) -> ghostex_gx_core::MenuHost {
+        self.gx_store.menu_host.clone()
+    }
+
+    /// A Switch Account's progress on the session's terminal; the page draws no pane bar to show it on, and the row's own state follows the switch.
+    pub(crate) fn set_session_account_switch_progress(
+        &mut self,
+        _key: crate::app::helpers::GpuiWorkspaceTerminalSessionKey,
+        _progress: &Value,
+        _page_generation: Option<u64>,
+        _cx: &mut Context<Self>,
+    ) {
+    }
+
+    /// The terminal bar's menu; the page has none, so nothing opens it.
+    pub(crate) fn close_terminal_agent_action_bar_menu(&mut self, _cx: &mut Context<Self>) {}
+}

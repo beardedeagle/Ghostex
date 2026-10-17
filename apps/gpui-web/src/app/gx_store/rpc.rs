@@ -80,3 +80,16 @@ pub(crate) fn gxserver_rpc_result_task(
             .map_err(|error| error.message)
     })
 }
+
+/// The desktop's `agent_accounts_local_task` (the account pages' local call in `sidebar_accounts.rs`): `/api/agentAccounts` with `fetch`, its failure as the daemon's own sentence.
+pub(crate) fn agent_accounts_local_task(
+    background: &gpui::BackgroundExecutor,
+    params: Value,
+    _timeout: std::time::Duration,
+) -> gpui::Task<Result<Value, String>> {
+    background.spawn(async move {
+        gx_rpc(None, ghostex_gx_core::AGENT_ACCOUNTS_PATH, params)
+            .await
+            .map_err(|error| error.message)
+    })
+}

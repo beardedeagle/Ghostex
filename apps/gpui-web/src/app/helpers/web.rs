@@ -44,6 +44,14 @@ pub(crate) fn gpui_remote_gxserver_rpc_result(
     Err("Remote machines are not available in the browser build yet.".to_string())
 }
 
+/// A remote machine's answer, shaped for the sidebar; the page refuses every remote request (`remote_conn/sidebar_rpc.rs`), so there is never one to shape.
+pub(crate) fn gpui_remote_sidebar_response_payload(
+    _path: &str,
+    result: serde_json::Value,
+) -> serde_json::Value {
+    result
+}
+
 pub(crate) struct GpuiExtensionViewPresentation {
     pub(crate) title: String,
 }

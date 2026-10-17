@@ -46,6 +46,7 @@ mod menu_host_lifted {
         commands_by_project(value)
     }
 }
+mod sidebar_accounts;
 mod sidebar_actions;
 mod sidebar_bulk;
 mod sidebar_clock;
