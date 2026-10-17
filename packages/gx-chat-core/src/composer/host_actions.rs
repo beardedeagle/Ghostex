@@ -114,6 +114,17 @@ pub fn composer_host_actions() -> Vec<HostAction> {
         .collect()
 }
 
+/// CDXC:SessionFork 2026-10-17 WHY:
+/// Fork Session is offered only for the agents gxserver can fork (`build_agent_fork_plan` in server/src/agents/fork.rs, the sidebar's `supports_fork` in packages/gx-core/src/sidebar_menu/capabilities.rs). OMP has no fork flag, only its own in-session `/fork`, so the chat offered Fork and gxserver refused it. A session whose agent is not known yet keeps the row.
+pub fn session_supports_fork(state: &crate::state::ChatState) -> bool {
+    crate::composer::side_chat::agent_family(state).is_none_or(|agent| {
+        matches!(
+            agent.as_str(),
+            "codex" | "claude" | "pi" | "empryo" | "copilot" | "grok"
+        )
+    })
+}
+
 /// Whether an action id is one the app shell offers at all.
 pub fn is_host_action(id: &str) -> bool {
     DEFINITIONS.iter().any(|definition| definition.id == id)

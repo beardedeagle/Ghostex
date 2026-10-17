@@ -794,7 +794,9 @@ syncs those names without running a first-prompt title job or blocking terminal
 input. If Codex has not named a session about a minute after a prompt, Ghostex
 names it in the background with the Title Generation Agent, without blocking
 typing, and Codex's own name replaces it if Codex names the session later.
-Pi and OMP use the Title Generation Agent for first-prompt names.
+Pi uses the Title Generation Agent for first-prompt names. OMP names its own
+sessions once a prompt says enough to name, and Ghostex syncs that name; renaming
+an OMP session from Ghostex sends OMP's own `/rename <name>`, which OMP keeps.
 Manual Generate Name and `/rename` in chat remain available for Claude and Codex.
 In a Hermes chat, `/rename <name>` is sent as Hermes' own `/title <name>`.
 A renamed agent session shows its new name right away, on the computer and the
@@ -813,7 +815,8 @@ Fork (a session's right-click menu, or More actions in its chat) opens the new
 session beside the original and switches to it. It starts as
 `Fork: <original name>` and saves that name through the agent's own rename
 command so it survives reopening the conversation.
-Fork works for Claude, Codex, Pi, Empryo and GitHub Copilot sessions. Empryo has
+Fork works for Claude, Codex, Pi, Empryo, GitHub Copilot and Grok Build sessions. OMP has
+no fork of its own outside a running session, so Fork is not offered for OMP. Empryo has
 no command-line fork, so Ghostex copies the Empryo conversation up to its last
 finished reply under a new id and opens that copy; fork an Empryo session once a
 turn has finished. The copy gets its own copies of Empryo's checkpoints, so undo
@@ -1087,6 +1090,17 @@ Interactive, Plan and Autopilot; the model pill shows the model Copilot reports
 menu lists Copilot's own commands, and `$` lists your Copilot skills, which run
 as `/skill-name`. Sleeping and waking a Copilot session, Full Reload and Fork
 keep the same conversation.
+Grok Build chats show the same cards. When Grok asks for permission (any mode
+but Always approve, which Grok starts in while Agent approvals is set to accept
+all), the request appears as a card naming the
+command, with Grok's own choices: Yes, proceed (Cmd+Enter), always approve, No
+(Esc) and never allow. Its questions appear as a question card: pick one or more
+options or write your own answer. Stop and Interrupt & Send really end the
+running turn, including a shell command. The mode button switches Grok between
+Default, Plan, Auto review and Always approve, the context meter shows how full
+Grok's context window is, and Fork starts a copy of the conversation in a new
+session. Picking a model in the chat also makes it Grok's default for new
+sessions, because Grok saves every model switch.
 Empryo chats show your messages as you typed them (without the repository map
 Empryo adds for its model), its replies and thinking, and the tools it runs with
 their results, and they can be exported like any other chat. Empryo saves a

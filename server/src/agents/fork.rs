@@ -56,7 +56,7 @@ pub(crate) fn fork_session(
             .is_none()
     {
         return Err(DomainStateError::bad_request(
-            "Fork is only available for Codex, Claude, Pi, Empryo, and Copilot sessions with a restorable identity.",
+            "Fork is only available for Codex, Claude, Pi, Empryo, Copilot, and Grok Build sessions with a restorable identity.",
         )
         .into());
     }
@@ -181,6 +181,15 @@ pub(crate) fn build_agent_fork_plan(
             .map(|reference| {
                 build_claude_fork_invocation(command, &quote_shell_double_arg(&reference))
             }),
+        // Grok names the fork's own conversation at launch (`--session-id`, valid with a fork only),
+        // and its hooks report that id like any other start.
+        (Some("grok"), Some(command)) => exact_reference.map(|reference| {
+            format!(
+                "{command} --resume {} --fork-session --session-id {}",
+                quote_shell_double_arg(&reference),
+                uuid::Uuid::new_v4()
+            )
+        }),
         (Some("pi"), Some(command)) => exact_reference
             .or(trusted_title)
             .map(|reference| format!("{command} --fork {}", quote_shell_double_arg(&reference))),

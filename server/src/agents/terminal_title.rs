@@ -37,6 +37,10 @@ pub(crate) fn normalize_terminal_title(title: &str) -> Option<String> {
     if let Some(pi) = normalize_pi_terminal_title(&value) {
         return Some(pi);
     }
+    // CDXC:SessionTitles 2026-10-17 WHY: the sidebar already dropped Grok Build's status segment and ` - grok` suffix, but stored titles, and the notifications and kill messages read from them, kept both ("- Waiting for response… - <title> - grok"); the stored title uses the presentation rule too.
+    if let Some(grok) = crate::presentation::normalize_grok_terminal_title(&value) {
+        return Some(grok);
+    }
     (!value.trim().is_empty()).then(|| value.trim().to_string())
 }
 

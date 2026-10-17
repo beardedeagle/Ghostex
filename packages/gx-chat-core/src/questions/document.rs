@@ -135,8 +135,9 @@ fn decorate_notice(raw: &Value, notice: &TerminalNotice) -> Value {
     );
     // CDXC:SessionChat 2026-09-29 WHY:
     // A collapsed command approval showed only "Would you like to run the following command?" and its buttons, so "Yes, proceed" was one click away from a command the card never named. The `$ ` lines of the dialog body are what is being approved; the renderers draw them under the title while the card is collapsed.
-    // SEE-ALSO: apps/desktop/src/app/native_chat/notice.rs, apps/mobile/app/src/chat/native/cards/NoticeCard.tsx.
-    let commands: Vec<&str> = raw
+    // A picker card with no dialog (Grok Build's) names its command in `approvalCommand` instead.
+    // SEE-ALSO: apps/desktop/src/app/native_chat/notice.rs, apps/mobile/app/src/chat/native/cards/NoticeCard.tsx, server/src/session_chat_grok_permission.rs.
+    let mut commands: Vec<String> = raw
         .get("dialog")
         .and_then(|dialog| dialog.get("body"))
         .and_then(Value::as_str)
@@ -144,7 +145,20 @@ fn decorate_notice(raw: &Value, notice: &TerminalNotice) -> Value {
         .lines()
         .map(str::trim)
         .filter(|line| line.starts_with("$ "))
+        .map(str::to_string)
         .collect();
+    if commands.is_empty() {
+        commands = raw
+            .get("approvalCommand")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .lines()
+            .map(str::trim)
+            .filter(|line| !line.is_empty())
+            .map(|line| format!("$ {line}"))
+            .collect();
+    }
+    object.remove("approvalCommand");
     if commands.is_empty() {
         object.remove("collapsedDetail");
     } else {

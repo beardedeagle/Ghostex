@@ -789,6 +789,11 @@ pub(super) fn read_session_chat_stored_selections(
                 repository, project_id, session_id,
             )
         }
+        Some(SessionChatOptionAgent::Grok) => {
+            crate::session_chat_grok_status::read_grok_context_selection(
+                repository, project_id, session_id,
+            )
+        }
         _ => None,
     };
     (

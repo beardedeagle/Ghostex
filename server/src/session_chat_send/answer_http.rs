@@ -666,6 +666,34 @@ pub(crate) async fn handle_answer_session_chat_prompt_http(
                 Some("pi") => crate::session_chat_send::build_ask_answer_steps(
                     &crate::session_chat_send::build_pi_ask_answer_keys(&questions, &selections),
                 ),
+                Some("grok") => {
+                    let on_screen =
+                        crate::session_chat_send::capture_session_terminal_text(&target.zmx_name)
+                            .await
+                            .is_some_and(|screen_text| {
+                                crate::session_chat_grok_question::grok_question_card_on_screen(
+                                    &questions,
+                                    &screen_text,
+                                )
+                            });
+                    if !on_screen {
+                        return domain_error_response(
+                            endpoint_path,
+                            request_id,
+                            DomainStateError {
+                                code: "invalidState",
+                                message: "Grok Build's question is not on screen, so the answer was not sent. Answer it in the terminal."
+                                    .to_string(),
+                            },
+                        );
+                    }
+                    crate::session_chat_send::build_ask_answer_steps(
+                        &crate::session_chat_grok_question::build_grok_ask_answer_keys(
+                            &questions,
+                            &selections,
+                        ),
+                    )
+                }
                 // Hermes' clarify panel owns the composer while it is open (the
                 // Enter binding routes buffer text to the clarify queue), so
                 // the composer fallback would corrupt it; drive the panel's
@@ -678,7 +706,7 @@ pub(crate) async fn handle_answer_session_chat_prompt_http(
                 ),
                 _ => {
                     /*
-                    Non-stepping agents (Grok): the formatted answer text goes
+                    Non-stepping agents: the formatted answer text goes
                     through the normal send path (upstream chat spec §8.6).
 
                     That path's clear burst is kept deliberately. These agents
@@ -772,6 +800,13 @@ pub(crate) async fn handle_answer_session_chat_prompt_http(
                                 .is_some()
                         {
                             crate::session_chat_copilot_permission::detect_copilot_permission_picker(text)
+                                .and_then(|picker| picker.answer_key(choice_index))
+                        } else if option_agent
+                            == Some(crate::session_chat_options::SessionChatOptionAgent::Grok)
+                            && crate::session_chat_grok_permission::detect_grok_permission_picker(text)
+                                .is_some()
+                        {
+                            crate::session_chat_grok_permission::detect_grok_permission_picker(text)
                                 .and_then(|picker| picker.answer_key(choice_index))
                         } else if option_agent
                             == Some(crate::session_chat_options::SessionChatOptionAgent::Cursor)

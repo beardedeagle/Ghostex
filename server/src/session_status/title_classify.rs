@@ -28,7 +28,11 @@ pub(super) fn classify_terminal_title_status(
             CDXC:AgentScreenDetection 2026-10-16 WHY:
             ZCode 3.15 titles its terminal "ZC | ⠋ <activity>" for as long as a submission is active, including while it waits at its permission picker, so the spinner cannot tell working from waiting on the user. Unrecognised, the title fell through to the other agents' spinner scans, which claimed it for another agent; the attention a PermissionRequest hook had set turned into that agent's working, and the identity check then dropped the record as the wrong agent's, leaving the session idle while ZCode waited for an answer (observed live 2026-10-16, throwaway G0n25). ZCode's hooks report working, attention and finished turns, so its titles carry no status signal.
             */
-            "opencode" | "empryo" | "zcode" => None,
+            /*
+            CDXC:AgentScreenDetection 2026-10-17 WHY:
+            OMP 18.11 paints a spinner title while it runs a tool. Unrecognised, it fell through to the other agents' spinner scans, which claimed it for Codex; the identity check then dropped the record as the wrong agent's, so the sidebar went idle mid-turn and never reached attention (observed live 2026-10-17, throwaway G2ow5). Ghostex's OMP extension reports prompts, tools, questions and finished turns through hooks, so its titles carry no status signal.
+            */
+            "opencode" | "empryo" | "zcode" | "omp" => None,
             _ => None,
         };
         return state.map(|state| signal(agent_name, state));
@@ -62,7 +66,7 @@ pub(super) fn classify_terminal_title_status(
 
 /// Agents whose terminal titles say nothing about their activity; their hooks own it.
 pub(super) fn titles_carry_no_status(agent_name: Option<&str>) -> bool {
-    matches!(agent_name, Some("opencode" | "empryo" | "zcode"))
+    matches!(agent_name, Some("opencode" | "empryo" | "zcode" | "omp"))
 }
 
 pub(super) fn signal(agent_name: &str, state: &str) -> TitleStatusSignal {
@@ -97,6 +101,7 @@ pub(super) fn normalize_status_agent_name(value: Option<&str>) -> Option<String>
             | "opencode"
             | "empryo"
             | "pi"
+            | "omp"
             | "zcode"
     )
     .then(|| mapped.to_string())
@@ -180,6 +185,10 @@ fn get_grok_title_state(title: &str) -> Option<&'static str> {
         return None;
     }
 
+    // CDXC:SessionTitles 2026-10-17 WHY: while a permission waits Grok blinks `⚠ Action Required - ` in front of its spinner, so every other frame read as idle and the session flapped between working and idle for as long as the card stayed open.
+    if body.trim_start().starts_with("\u{26a0} Action Required") {
+        return Some("working");
+    }
     let status_stripped =
         body.trim_start_matches(crate::presentation::is_leading_terminal_title_status_marker);
     if status_stripped.len() != body.len()

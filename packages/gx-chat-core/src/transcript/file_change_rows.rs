@@ -269,6 +269,12 @@ pub fn file_change_show_all_label(changed: usize) -> String {
 /// The folder every row's file sits in, written the way the rows write their own folders.
 fn common_folder(files: &[Value]) -> String {
     let mut common: Option<Vec<&str>> = None;
+    // Splitting drops an absolute folder's root, which read "Users/me/project" in the header.
+    let rooted = files.iter().all(|file| {
+        file.get("parent")
+            .and_then(Value::as_str)
+            .is_some_and(|parent| parent.starts_with('/'))
+    });
     for file in files {
         let parent = file
             .get("parent")
@@ -288,7 +294,12 @@ fn common_folder(files: &[Value]) -> String {
                 .collect(),
         });
     }
-    common.unwrap_or_default().join("/")
+    let folder = common.unwrap_or_default().join("/");
+    if rooted && !folder.is_empty() {
+        format!("/{folder}")
+    } else {
+        folder
+    }
 }
 
 /// CDXC:SessionChat 2026-10-11 DECISION:

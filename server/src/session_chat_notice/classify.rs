@@ -78,6 +78,8 @@ fn notice_from_picker(
         "Antigravity CLI accepts no input until this is answered. Pick an option to answer it here."
     } else if picker.kind == SessionChatTerminalPickerKind::CopilotPermission {
         "Copilot accepts no input until this is answered. Pick an option to answer it here."
+    } else if picker.kind == SessionChatTerminalPickerKind::GrokPermission {
+        "Grok Build accepts no input until this is answered. Pick an option to answer it here."
     } else {
         "Claude Code accepts no input until this is answered. Pick an option to answer it here."
     };
@@ -113,6 +115,10 @@ fn notice_from_picker(
         SessionChatTerminalPickerKind::CopilotPermission => (
             SESSION_CHAT_NOTICE_PERMISSION_PROMPT,
             "Copilot is asking for permission to proceed",
+        ),
+        SessionChatTerminalPickerKind::GrokPermission => (
+            SESSION_CHAT_NOTICE_PERMISSION_PROMPT,
+            "Grok Build is asking for permission to proceed",
         ),
     };
     SessionChatTerminalNotice::new(
@@ -486,6 +492,13 @@ pub fn classify_session_chat_terminal_notice(
             crate::session_chat_grok_blocking::detect_grok_trust_prompt(screen_text)
         {
             return Some(notice);
+        }
+        if let Some(picker) =
+            crate::session_chat_grok_permission::detect_grok_permission_picker(screen_text)
+        {
+            return Some(notice_from_picker(&screen, picker).with_approval_command(
+                crate::session_chat_grok_permission::grok_permission_command(screen_text),
+            ));
         }
         if let Some(blocking) =
             crate::session_chat_grok_blocking::detect_grok_blocking_screen(screen_text)

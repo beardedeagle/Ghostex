@@ -314,12 +314,29 @@ pub(crate) fn normalize_grok_terminal_title(title: &str) -> Option<String> {
     if !suffix.eq_ignore_ascii_case(GROK_TERMINAL_TITLE_SUFFIX) {
         return None;
     }
-    let body = strip_grok_status_prefix(body.trim());
+    let body = strip_grok_status_prefix(strip_grok_attention_prefix(body.trim()));
     Some(if body.is_empty() {
         "grok".to_string()
     } else {
         body
     })
+}
+
+/// CDXC:SessionTitles 2026-10-17 WHY:
+/// While a permission waits, Grok Build puts `⚠ Action Required - ` (blinking) and its spinner in front of the status segment, so the title kept them and the status ("⚠ Action Required - ⠋ - Waiting for response… - <title>"). They are chrome like the trailing ` - grok`.
+fn strip_grok_attention_prefix(body: &str) -> &str {
+    let mut rest = body.trim_start();
+    if let Some(after) = rest.strip_prefix("\u{26a0} Action Required") {
+        rest = after.trim_start();
+        rest = rest.strip_prefix('-').map_or(rest, str::trim_start);
+    }
+    // The spinner frame, which the leading-marker trim only removes at the very start.
+    let unspun = rest.trim_start_matches(|ch: char| ('\u{2800}'..='\u{28ff}').contains(&ch));
+    if unspun.len() != rest.len() {
+        // `⠋ - <status> - <title>` keeps the status segment's leading dash for the rule below.
+        return unspun.trim_start();
+    }
+    rest
 }
 
 pub(crate) fn strip_grok_status_prefix(body: &str) -> String {

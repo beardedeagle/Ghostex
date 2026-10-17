@@ -650,9 +650,10 @@ pub fn read_pi_family_selection(
         let model = path.as_deref().and_then(transcript_model);
         (path, model)
     };
+    // CDXC:SessionChat 2026-10-17 WHY: OMP's transcript records the same per-reply `usage` as Pi's, and its context meter read "not yet reported" while OMP's own footer showed the usage, so its context comes from the transcript too; the Pi status line stays Pi's.
     let status = path
         .as_deref()
-        .filter(|_| family == PiFamilyAgent::Pi)
+        .filter(|_| matches!(family, PiFamilyAgent::Pi | PiFamilyAgent::Omp))
         .and_then(crate::session_chat_pi_status::read_pi_transcript_status);
     if catalog.is_none() && model.is_none() && status.is_none() {
         return None;
@@ -686,17 +687,20 @@ pub fn read_pi_family_selection(
                 window_size: context_window,
             },
         );
-    let pi_status = status.as_ref().map(|status| {
-        crate::session_chat_pi_status::pi_status_value(
-            status,
-            status_row
-                .as_ref()
-                .and_then(|row| row.get("label"))
-                .and_then(Value::as_str)
-                .map(str::to_string),
-            context_window,
-        )
-    });
+    let pi_status = status
+        .as_ref()
+        .filter(|_| family == PiFamilyAgent::Pi)
+        .map(|status| {
+            crate::session_chat_pi_status::pi_status_value(
+                status,
+                status_row
+                    .as_ref()
+                    .and_then(|row| row.get("label"))
+                    .and_then(Value::as_str)
+                    .map(str::to_string),
+                context_window,
+            )
+        });
     Some(SessionChatDetectedSelection {
         // The lineup's name for the model (`GPT-5.5`), as the picker's own row reads.
         model: model.map(|value| SessionChatDetectedChoice {

@@ -56,7 +56,9 @@ impl Scanner {
             // larger/more numerous assistant & tool lines before paying for a
             // full JSON parse: pi writes compact JSON with `type` first and the
             // role marker near the start, so bound the scan to the line head.
-            let head = &line[..line.len().min(128)];
+            // omp 18.11 writes `"runtime":{"version":"18.11.3"}` before `message`, which put the
+            // role at byte 138 and dropped every one of its prompts from a 128-byte head.
+            let head = &line[..line.len().min(256)];
             let keep = line.starts_with(b"{\"type\":\"session\"")
                 || line.starts_with(b"{\"type\":\"title\"")
                 || line.starts_with(b"{\"type\":\"model_change\"")
@@ -103,6 +105,14 @@ impl Scanner {
                 }
                 if let Some(x) = string_field(&v, "modelId") {
                     meta.model = x.to_string();
+                }
+                // omp 18.11 names the model once, as `provider/id`.
+                if let Some((provider, model)) = string_field(&v, "model")
+                    .filter(|_| string_field(&v, "modelId").is_none())
+                    .and_then(|x| x.split_once('/'))
+                {
+                    meta.provider = provider.to_string();
+                    meta.model = model.to_string();
                 }
                 self.apply_meta_to_session_records(record_start, &meta);
                 continue;

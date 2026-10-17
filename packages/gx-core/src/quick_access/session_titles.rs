@@ -223,7 +223,67 @@ fn normalize_terminal_title(title: &str) -> Option<String> {
     if let Some(pi) = normalize_pi_title(sanitized) {
         return Some(pi);
     }
+    // Grok Build's `<status> - <title> - grok` title (CDXC:SessionTitles in server/src/agents/terminal_title.rs).
+    if let Some(grok) = normalize_grok_title(sanitized) {
+        return Some(grok);
+    }
     (!sanitized.is_empty()).then(|| sanitized.to_string())
+}
+
+/// Same rule as gxserver's `normalize_grok_terminal_title`.
+fn normalize_grok_title(title: &str) -> Option<String> {
+    let normalized = title.split_whitespace().collect::<Vec<_>>().join(" ");
+    let split_at = normalized.len().checked_sub(" - grok".len())?;
+    if !normalized.is_char_boundary(split_at)
+        || !normalized[split_at..].eq_ignore_ascii_case(" - grok")
+    {
+        return None;
+    }
+    let mut body = normalized[..split_at].trim();
+    if let Some(after) = body.strip_prefix("\u{26a0} Action Required") {
+        body = after.trim_start();
+        body = body.strip_prefix('-').map_or(body, str::trim_start);
+    }
+    let unspun = body.trim_start_matches(|ch: char| ('\u{2800}'..='\u{28ff}').contains(&ch));
+    let body = if unspun.len() != body.len() {
+        unspun.trim_start()
+    } else {
+        body
+    };
+    let title = match body.strip_prefix('-') {
+        Some(rest) => match rest.trim().split_once(" - ") {
+            Some((status, title)) if !status.is_empty() => title.trim(),
+            _ => "",
+        },
+        None => match body.split_once(" - ") {
+            Some((status, title)) if is_grok_status_segment(status) => title.trim(),
+            _ => body,
+        },
+    };
+    Some(if title.is_empty() { "grok" } else { title }.to_string())
+}
+
+/// Same rule as gxserver's `is_grok_status_segment`.
+fn is_grok_status_segment(segment: &str) -> bool {
+    let lower = segment.trim().to_lowercase();
+    matches!(
+        lower.as_str(),
+        "cancelling"
+            | "compacting"
+            | "completed"
+            | "done"
+            | "error"
+            | "executing"
+            | "idle"
+            | "responding"
+            | "running"
+            | "starting"
+            | "stopped"
+            | "thinking"
+            | "verifying"
+            | "waiting"
+            | "working"
+    ) || lower.starts_with("retrying")
 }
 
 /// Same rule as gxserver's `strip_copilot_title_suffix`.

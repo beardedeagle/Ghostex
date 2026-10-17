@@ -16,7 +16,7 @@ pub const SIDE_CHAT_LABEL: &str = "Side Chat";
 
 /// The CLI behind this session: a custom agent reports its base CLI, the way the account panel
 /// resolves it (menus/controls.rs).
-fn agent_family(state: &ChatState) -> Option<String> {
+pub(crate) fn agent_family(state: &ChatState) -> Option<String> {
     DraftAgent::list(state.session.available_agents.as_ref())
         .and_then(|agents| {
             agents

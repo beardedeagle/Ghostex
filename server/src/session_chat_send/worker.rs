@@ -511,6 +511,33 @@ pub(super) async fn run_session_chat_send_worker(
                         break;
                     }
                 }
+                SessionChatSendStep::GuardGrokInterrupt => {
+                    // A Stop right after a send may come before Grok shows the turn running.
+                    let deadline = Instant::now() + Duration::from_secs(3);
+                    let mut interruptible = false;
+                    loop {
+                        if let Some(screen) = capture_session_terminal_text(&zmx_name).await {
+                            if crate::session_chat_grok_interrupt::grok_turn_is_interruptible(
+                                &screen,
+                            ) {
+                                interruptible = true;
+                                break;
+                            }
+                        }
+                        if Instant::now() >= deadline {
+                            break;
+                        }
+                        tokio::time::sleep(Duration::from_millis(250)).await;
+                    }
+                    if !interruptible
+                        || !crate::session_chat_grok_interrupt::claim_grok_interrupt(
+                            &project_id,
+                            &session_id,
+                        )
+                    {
+                        break;
+                    }
+                }
                 SessionChatSendStep::GuardHermesInterrupt => {
                     // A Stop right after a send may come before Hermes shows the turn running.
                     let deadline = Instant::now() + Duration::from_secs(3);

@@ -820,7 +820,8 @@ pub(crate) fn first_prompt_claim_strategy(agent_name: Option<&str>) -> Option<&'
         // conversations and the metadata sync adopts those names.
         Some("antigravity") => Some("agentAutoTitle"),
         Some("pi") => Some("generateTitleAndName"),
-        Some("omp") => Some("generateTitleAndName"),
+        // See first_prompt_auto_title_strategy: OMP names its own sessions.
+        Some("omp") => Some("agentAutoTitle"),
         _ => None,
     }
 }

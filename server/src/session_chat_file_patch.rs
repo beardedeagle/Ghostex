@@ -112,6 +112,76 @@ pub(crate) fn claude_tool_patch(tool_use_result: &Value) -> Option<SessionChatTo
 /// or `None` when the text holds no hunk.
 ///
 /// CDXC:SessionChat 2026-10-17 WHY: an edit Pi's `cursor:local` provider runs is recorded as one generic `cursor` call, with the real patch only as a unified diff in its result (`details.diffString`); read here it gives the chat the same file change card a Claude edit gets instead of a raw `cursor` row (agent flow tests, 2026-10-17).
+/// The patch in an OMP edit result's `details.diff`: a unified diff, or omp 18.11's numbered form
+/// for a hashline edit, one `-N|text`, `+N|text` or ` N|text` line per changed line, a jump in the
+/// numbers starting a new hunk.
+pub(crate) fn omp_edit_patch(diff: &str) -> Option<SessionChatToolPatch> {
+    if diff.lines().any(|line| line.starts_with("@@ -")) {
+        return unified_diff_patch(diff);
+    }
+    let mut budget = MAX_PATCH_LINES;
+    let mut patch = SessionChatToolPatch::default();
+    let mut current: Option<SessionChatPatchHunk> = None;
+    // The next old and new line numbers the current hunk expects.
+    let (mut next_old, mut next_new) = (0u32, 0u32);
+    for line in diff.lines() {
+        let mut chars = line.chars();
+        let Some(sign) = chars.next().filter(|sign| matches!(sign, ' ' | '+' | '-')) else {
+            if let Some(hunk) = current.take() {
+                patch.hunks.push(hunk);
+            }
+            continue;
+        };
+        let Some((number, text)) = chars.as_str().split_once('|') else {
+            continue;
+        };
+        let Ok(number) = number.trim().parse::<u32>() else {
+            continue;
+        };
+        let continues = match sign {
+            '-' => number == next_old,
+            '+' => number == next_new,
+            _ => number == next_old || number == next_new,
+        };
+        if current.is_none() || !continues {
+            if let Some(hunk) = current.take() {
+                patch.hunks.push(hunk);
+            }
+            let (old_start, new_start) = match sign {
+                '-' => (number, number),
+                '+' => (number.saturating_sub(1).max(1), number),
+                _ => (number, number),
+            };
+            next_old = old_start;
+            next_new = new_start;
+            current = Some(SessionChatPatchHunk {
+                old_start,
+                new_start,
+                heading: None,
+                lines: Vec::new(),
+            });
+        }
+        match sign {
+            '-' => next_old = number + 1,
+            '+' => next_new = number + 1,
+            _ => {
+                next_old += 1;
+                next_new += 1;
+            }
+        }
+        if budget == 0 {
+            break;
+        }
+        budget -= 1;
+        if let Some(hunk) = current.as_mut() {
+            hunk.lines
+                .push(clipped(&format!("{sign}{text}"), MAX_LINE_CHARS));
+        }
+    }
+    patch.hunks.extend(current);
+    (!patch.hunks.is_empty()).then_some(patch)
+}
+
 pub(crate) fn unified_diff_patch(diff: &str) -> Option<SessionChatToolPatch> {
     let mut budget = MAX_PATCH_LINES;
     let mut patch = SessionChatToolPatch::default();

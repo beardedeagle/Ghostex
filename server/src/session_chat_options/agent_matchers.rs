@@ -541,6 +541,22 @@ pub(super) fn match_grok_segment(segment: &str) -> Option<SessionChatDetectedSel
     })
 }
 
+/// CDXC:AgentProviders 2026-10-17 WHY:
+/// Grok Build's Shift+Tab cycles default → plan → auto-review → always-approve (1.0.62), and the composer border names every mode but the default after the model (`Grok 4.7 (high) · plan`), so a model segment with no mode beside it is the default mode. The chat's Mode pill steps the cycle from this reading.
+/// SEE-ALSO: `grok_mode` in packages/gx-chat-core/src/menus/option_catalog.rs (the same values, in cycle order).
+pub(super) fn grok_mode_choice(segments: &[String]) -> SessionChatDetectedChoice {
+    let value = segments
+        .iter()
+        .map(|segment| segment.trim())
+        .find(|segment| matches!(*segment, "plan" | "auto-review" | "always-approve"))
+        .unwrap_or("default");
+    SessionChatDetectedChoice {
+        value: value.to_string(),
+        label: value.to_string(),
+        source: SessionChatOptionEvidence::Terminal,
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Antigravity CLI grammar
 //   ? for shortcuts                                    Gemini 3.8 Flash · high
@@ -797,13 +813,27 @@ pub(super) fn match_pi_statusline(line: &str) -> Option<SessionChatDetectedSelec
 // ---------------------------------------------------------------------------
 // Omp grammar
 //   ╭── π > ⬢ GPT-5.6-Sol · ◒ high > … ▶────────────────────────╮
+//   ╭── π > ◒ GLM-5.2 > 📁 ~/dev/repo > ⑂ main > … ▶──1.0%──1M─◀ title ──╮
 //
 // Both values live on the rounded composer head. Require that complete chrome
-// plus Omp's two glyph labels so ordinary terminal output cannot match.
+// plus Omp's glyph labels so ordinary terminal output cannot match.
 // ---------------------------------------------------------------------------
 
-/// CDXC:AgentProviders 2026-09-30 WHY:
-/// OMP's model segment is `⬢ <name>` then ` · <glyph> <level>`, where the glyph and label vary by level (`○ min`, `◔ low`, `◑ med`, `◒ high`, `◕ xhigh`, `◉ max`, `off` behind the disabled glyph, `auto` while its classifier decides; pi-tui's `thinking.*` symbols). Reading only `◒` detected nothing but High. The name can hold spaces and is followed by the fast and advisor icons, so the segment is cut at OMP's ` > ` separator and trailing icon tokens are dropped.
+/// OMP's thinking glyphs (pi-tui's unicode `thinking.*` symbols and `status.disabled` for off),
+/// with the level each stands for; `None` is `⟳`, auto thinking before its classifier resolves.
+const OMP_THINKING_GLYPHS: &[(char, Option<&str>)] = &[
+    ('\u{25cb}', Some("minimal")),
+    ('\u{25d4}', Some("low")),
+    ('\u{25d1}', Some("medium")),
+    ('\u{25d2}', Some("high")),
+    ('\u{25d5}', Some("xhigh")),
+    ('\u{25c9}', Some("max")),
+    ('\u{27f3}', None),
+    ('\u{29b8}', Some("off")),
+];
+
+/// CDXC:AgentProviders 2026-10-17 WHY:
+/// OMP's model segment is `⬢ <name>` then ` · <glyph> <level>`, where the glyph and label vary by level (`○ min`, `◔ low`, `◑ med`, `◒ high`, `◕ xhigh`, `◉ max`, `off` behind the disabled glyph, `auto` while its classifier decides; pi-tui's `thinking.*` symbols). With `compactThinkingLevel` on (what omp 18.11 draws here) the level's glyph replaces `⬢` and the ` · <level>` tail is gone (`π > ◒ GLM-5.2 > …`), and reading only the `⬢` form left every model pick from chat unconfirmed and retyped `/switch` forever. The name can hold spaces and is followed by the fast and advisor icons, so the segment is cut at OMP's ` > ` separator and trailing icon tokens are dropped.
 pub(super) fn match_omp_statusline(line: &str) -> Option<SessionChatDetectedSelection> {
     let trimmed = line.trim();
     if !trimmed.starts_with('\u{256d}')
@@ -812,34 +842,51 @@ pub(super) fn match_omp_statusline(line: &str) -> Option<SessionChatDetectedSele
     {
         return None;
     }
-    let (before, after) = trimmed.split_once("\u{2b22} ")?;
-    if !before.split_whitespace().any(|token| token == "π") {
+    let mut segments = trimmed.split(" > ");
+    if !segments
+        .next()?
+        .split_whitespace()
+        .any(|token| token == "\u{3c0}")
+    {
         return None;
     }
-    let segment = after.split(" > ").next()?;
-    let (name, thinking) = match segment.rsplit_once(" \u{b7} ") {
-        Some((name, thinking)) => (name, Some(thinking)),
-        None => (segment, None),
+    let (glyph, rest) = segments.next()?.split_once(' ')?;
+    let mut glyph_chars = glyph.chars();
+    let glyph = glyph_chars.next()?;
+    if glyph_chars.next().is_some() {
+        return None;
+    }
+    let (name, effort) = if glyph == '\u{2b22}' {
+        let (name, thinking) = match rest.rsplit_once(" \u{b7} ") {
+            Some((name, thinking)) => (name, Some(thinking)),
+            None => (rest, None),
+        };
+        let effort = match thinking {
+            Some(thinking) => {
+                let level = thinking.split_whitespace().last()?.to_ascii_lowercase();
+                match level.as_str() {
+                    "min" => Some("minimal".to_string()),
+                    "med" => Some("medium".to_string()),
+                    // The level its classifier resolves to shows once a turn has run.
+                    "auto" => None,
+                    level if PI_FAMILY_EFFORTS.contains(&level) => Some(level.to_string()),
+                    _ => return None,
+                }
+            }
+            None => None,
+        };
+        (name, effort)
+    } else {
+        let (_, level) = OMP_THINKING_GLYPHS
+            .iter()
+            .find(|(candidate, _)| *candidate == glyph)?;
+        (rest, level.map(str::to_string))
     };
     let name_tokens = name.split_whitespace().collect::<Vec<_>>();
     let keep = name_tokens
         .iter()
         .rposition(|token| token.chars().any(|ch| ch.is_ascii_alphanumeric()))?;
     let name = name_tokens[..=keep].join(" ");
-    let effort = match thinking {
-        Some(thinking) => {
-            let level = thinking.split_whitespace().last()?.to_ascii_lowercase();
-            match level.as_str() {
-                "min" => Some("minimal".to_string()),
-                "med" => Some("medium".to_string()),
-                // The level its classifier resolves to shows once a turn has run.
-                "auto" => None,
-                level if PI_FAMILY_EFFORTS.contains(&level) => Some(level.to_string()),
-                _ => return None,
-            }
-        }
-        None => None,
-    };
     // `no-model` is what OMP draws while no provider is logged in.
     if name == "no-model" || !name.split(' ').all(is_pi_family_model_id) {
         return None;

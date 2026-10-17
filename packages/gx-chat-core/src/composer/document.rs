@@ -145,7 +145,12 @@ pub fn document(state: &ChatState, context: &ChatContext, into: &mut Document) {
         text: text.to_string(),
         tone: tone.to_string(),
     });
-    into.host_actions = composer_host_actions();
+    into.host_actions = composer_host_actions()
+        .into_iter()
+        .filter(|action| {
+            action.id != "fork" || crate::composer::host_actions::session_supports_fork(state)
+        })
+        .collect();
     into.side_chat = crate::composer::side_chat::side_chat_prefix(state);
     into.ghostex_skills = crate::composer::ghostex_skills::ghostex_skills(state);
     into.skills_loading = composer.sources.skills_loading;

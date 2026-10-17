@@ -36,6 +36,8 @@ pub(crate) fn create_agent_session_params_for_project(
     project: &Value,
     params: &Map<String, Value>,
 ) -> Result<Map<String, Value>, DomainStateError> {
+    let global_agents_project = project_with_global_agent_list(db, project);
+    let project = global_agents_project.as_ref().unwrap_or(project);
     let settings = read_agent_settings(db)?;
     let project_id = project
         .get("projectId")
@@ -433,10 +435,14 @@ pub(crate) fn project_agent_session_default_title(project: &Value, session: &Val
         agent_id.as_deref().unwrap_or_default(),
         Some(&object_field(session, "launchSettings")),
     );
-    create_agent_session_default_title(
-        read_text_from_map(&agent_config, "name").as_deref(),
-        agent_id.as_deref(),
-    )
+    // A custom agent this project has no copy of is named by its CLI family, never by its raw id.
+    let name = read_text_from_map(&agent_config, "name").or_else(|| {
+        family
+            .as_deref()
+            .and_then(default_agent_session_title_name)
+            .map(str::to_string)
+    });
+    create_agent_session_default_title(name.as_deref(), agent_id.as_deref())
 }
 
 /// The folder an Empryo create starts in: the requested `cwd`, else the project's.
@@ -646,6 +652,41 @@ fn apply_thread_marked_handovers(
         .or_else(|| default_agent_command(&family).map(str::to_string))
         .unwrap_or_else(|| family.clone());
     Some(with_thread_marked_handovers(&family, &base))
+}
+
+/// CDXC:AgentLauncher 2026-10-17 WHY:
+/// The agent list is one global list (the sidebar reads it from the first project that has one, and an agent edit writes it to every project), but a project added after the last agent edit keeps an empty copy. The New session menu offered a custom agent there and worked only because it sends the command along; an id-only start (`ghostex create-agent`, board work, automations) failed with "no launch command", and the row was titled with the raw custom id. A project with no agent list of its own launches from the global one.
+/// SEE-ALSO: server/src/sidebar_hud/buttons.rs (`sidebar_agent_state_from_projects`), server/src/sidebar_hud/mutations.rs.
+fn project_with_global_agent_list(db: &Connection, project: &Value) -> Option<Value> {
+    let non_empty = |value: &Value| value.as_array().is_some_and(|items| !items.is_empty());
+    if ["customAgents", "customAgentOrder"]
+        .iter()
+        .any(|key| project.get(*key).is_some_and(non_empty))
+    {
+        return None;
+    }
+    let mut statement = db
+        .prepare(
+            "SELECT customAgentsJson, customAgentOrderJson FROM projects ORDER BY updatedAt DESC, projectId ASC",
+        )
+        .ok()?;
+    let rows = statement
+        .query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })
+        .ok()?;
+    for (agents, order) in rows.flatten() {
+        let agents = serde_json::from_str::<Value>(&agents).unwrap_or_else(|_| json!([]));
+        let order = serde_json::from_str::<Value>(&order).unwrap_or_else(|_| json!([]));
+        if non_empty(&agents) || non_empty(&order) {
+            let mut project = project.clone();
+            let fields = project.as_object_mut()?;
+            fields.insert("customAgents".to_string(), agents);
+            fields.insert("customAgentOrder".to_string(), order);
+            return Some(project);
+        }
+    }
+    None
 }
 
 pub(crate) fn create_agent_session_default_title(

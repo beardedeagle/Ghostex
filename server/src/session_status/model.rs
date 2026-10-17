@@ -163,7 +163,7 @@ pub fn compute_activity_update(
                 .filter(|value| matches!(*value, "idle" | "working" | "attention"))
                 .map(str::to_string),
             agent_id: read_text(params, "agentName")
-                .or_else(|| read_text_value(session, "agentId"))
+                .or_else(|| session_status_agent_family(session))
                 .or_else(|| previous.agent_name.clone()),
             attention_source: read_text(params, "attentionSource")
                 .filter(|value| value == TURN_COMPLETE_ATTENTION_SOURCE),
@@ -433,6 +433,18 @@ fn read_text_value(value: &Value, key: &str) -> Option<String> {
         .get(key)
         .and_then(Value::as_str)
         .and_then(normalize_text_str)
+}
+
+/// The session's agent id, or for a `custom-…` agent the CLI family its launch icon declares, so
+/// a custom agent's titles are read by its own family's rules.
+fn session_status_agent_family(session: &Value) -> Option<String> {
+    let agent_id = read_text_value(session, "agentId")?;
+    if !agent_id.starts_with("custom-") {
+        return Some(agent_id);
+    }
+    read_text_from_map(&object_field(session, "launchSettings"), "icon")
+        .and_then(|icon| crate::agents::default_agent_icon_to_id(&icon).map(str::to_string))
+        .or(Some(agent_id))
 }
 
 pub(super) fn read_text_from_map(map: &Map<String, Value>, key: &str) -> Option<String> {

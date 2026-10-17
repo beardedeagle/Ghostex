@@ -370,10 +370,10 @@ impl SessionOptionCatalog {
                 descriptors.push(cursor_mode());
                 sort_descriptors(descriptors)
             }
-            CatalogOptions::Grok { agent, catalog } => vec![reasoning_effort_picker(
-                catalog,
-                &agent.efforts_for_model(model_value),
-            )],
+            CatalogOptions::Grok { agent, catalog } => sort_descriptors(vec![
+                reasoning_effort_picker(catalog, &agent.efforts_for_model(model_value)),
+                grok_mode(),
+            ]),
             CatalogOptions::Antigravity { agent, catalog } => {
                 // The effort is typed together with the model, so it is only offered once
                 // gxserver has confirmed which catalog model is running.
@@ -778,6 +778,36 @@ fn build_grok_catalog(catalog: &AgentModelCatalog, agent: &CatalogAgent) -> Sess
             catalog: Box::new(catalog.clone()),
         },
     }
+}
+
+/// CDXC:AgentProviders 2026-10-17 WHY:
+/// Grok Build's mode is its Shift+Tab cycle, in this order (1.0.62), and gxserver reads the current one off the composer border (`grok_mode_choice` in `server/src/session_chat_options/agent_matchers.rs`), so a pick presses Shift+Tab the forward distance to it. The chat offered no mode for Grok, which left a session started with always-approve unable to ask again without the terminal.
+fn grok_mode() -> OptionDescriptor {
+    let mut descriptor = OptionDescriptor::new(
+        "mode",
+        "Mode",
+        OptionCategory::Mode,
+        OptionDispatch::CyclicKeySteps {
+            key: "shift-tab".to_string(),
+        },
+    );
+    descriptor.choices = Some(
+        [
+            ("default", "Default"),
+            ("plan", "Plan"),
+            ("auto-review", "Auto review"),
+            ("always-approve", "Always approve"),
+        ]
+        .into_iter()
+        .map(|(value, label)| OptionChoice {
+            value: value.to_string(),
+            label: label.to_string(),
+            ..OptionChoice::default()
+        })
+        .collect(),
+    );
+    descriptor.description = Some("Select Grok Build's mode.".to_string());
+    descriptor
 }
 
 // ---------------------------------------------------------------------------

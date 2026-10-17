@@ -160,7 +160,8 @@ pub fn detect_session_chat_selection(
                 }
                 SessionChatOptionAgent::Grok => {
                     if found.model.is_none() && found.effort.is_none() {
-                        if let Some(selection) = match_grok_segment(segment) {
+                        if let Some(mut selection) = match_grok_segment(segment) {
+                            selection.mode = Some(grok_mode_choice(&segments));
                             found = selection;
                         }
                     }

@@ -142,6 +142,16 @@ pub(crate) fn frosted_tooltip_fill(menu: gpui::Hsla) -> gpui::Hsla {
     tooltip_background(menu)
 }
 
+/// The desktop's list-row tooltip (`list_row_tooltip` in its titlebar helpers), without the
+/// titlebar tooltip metrics a page does not carry.
+pub(crate) fn list_row_tooltip(
+    text: impl Into<gpui_component::text::Text>,
+    window: &mut gpui::Window,
+    cx: &mut gpui::App,
+) -> gpui::AnyView {
+    gpui_component::tooltip::Tooltip::new(text).build(window, cx)
+}
+
 /// A page has no window glass, so a dialog keeps its solid fill.
 pub(crate) fn frosted_modal_fill(color: gpui::Hsla) -> gpui::Hsla {
     color

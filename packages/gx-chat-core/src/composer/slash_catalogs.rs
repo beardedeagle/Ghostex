@@ -762,10 +762,22 @@ pub(crate) const CODEX: &[SlashCommand] = &[
     },
 ];
 
+/// CDXC:SessionChat 2026-10-17 WHY:
+/// Grok Build 1.0.62's own built-in commands (its `slash/commands/` registry, checked against the live `/` menu); skills and workflows reach the chat through the `$` picker. The earlier list named commands Grok never had (`/editor`, `/init`, `/models`, `/status`) or renamed (`/mcp` is `/mcps`).
 pub(crate) const GROK: &[SlashCommand] = &[
     SlashCommand {
-        name: "clear",
-        description: "Clear conversation history",
+        name: "always-approve",
+        description: "Toggle always-approve mode (skip all permission prompts)",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "auto",
+        description: "Toggle Auto-review (classifier approves safe tools)",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "btw",
+        description: "Ask a side question without interrupting",
         insert_text: None,
     },
     SlashCommand {
@@ -774,63 +786,328 @@ pub(crate) const GROK: &[SlashCommand] = &[
         insert_text: None,
     },
     SlashCommand {
-        name: "editor",
-        description: "Edit prompt in external editor",
+        name: "compact-mode",
+        description: "Toggle compact UI (less padding, more content)",
         insert_text: None,
     },
     SlashCommand {
-        name: "exit",
-        description: "Exit Grok",
+        name: "config-agents",
+        description: "Manage agent definitions",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "context",
+        description: "View context usage",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "context-window",
+        description: "Set the context window for the current model",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "copy",
+        description: "Copy last response to clipboard or file (/copy [N] [file])",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "dashboard",
+        description: "Open the Agent Dashboard",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "delete",
+        description: "Delete this session",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "density",
+        description: "Set tool call density, from Detailed to Compact",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "docs",
+        description: "Open How-to Guides or online Build docs",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "doctor",
+        description: "Check this session and show available fixes",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "dream",
+        description: "Consolidate memory now (merge observations into topics)",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "edit-prompt",
+        description: "Open an external editor for an empty prompt; use the command palette to preserve a draft",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "effort",
+        description: "Set reasoning effort for the current model",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "export",
+        description: "Export the current conversation to a file or clipboard",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "feedback",
+        description: "Send feedback about the current session",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "find",
+        description: "Search the conversation scrollback",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "flush",
+        description: "Save this session's memory to disk now",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "fork",
+        description: "Branch the current session into a peer agent",
         insert_text: None,
     },
     SlashCommand {
         name: "help",
-        description: "Show help and available commands",
+        description: "Browse commands and keyboard shortcuts",
         insert_text: None,
     },
     SlashCommand {
-        name: "init",
-        description: "Initialize project context",
+        name: "history",
+        description: "Search prompt history",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "home",
+        description: "Return to the welcome screen",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "hooks",
+        description: "View hooks",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "imagine",
+        description: "Generate an image from a text description",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "imagine-video",
+        description: "Generate a video from a text description",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "import-claude",
+        description: "Open the Claude settings import modal",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "jump",
+        description: "Jump to a turn in the conversation",
         insert_text: None,
     },
     SlashCommand {
         name: "login",
-        description: "Log in",
+        description: "Log in or re-authenticate with your account",
         insert_text: None,
     },
     SlashCommand {
         name: "logout",
-        description: "Log out",
+        description: "Log out and return to the login screen",
         insert_text: None,
     },
     SlashCommand {
-        name: "mcp",
-        description: "Manage MCP servers",
+        name: "loop",
+        description: "Run a prompt on a recurring interval",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "marketplace",
+        description: "View marketplace",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "mcps",
+        description: "Show MCP server status",
         insert_text: None,
     },
     SlashCommand {
         name: "memory",
-        description: "Manage memory",
+        description: "Browse, view, and manage your memories",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "minimal",
+        description: "Switch this session to minimal (scrollback-native) mode, back with /fullscreen",
         insert_text: None,
     },
     SlashCommand {
         name: "model",
-        description: "Switch model",
+        description: "Switch the active model",
         insert_text: None,
     },
     SlashCommand {
-        name: "models",
-        description: "List available models",
+        name: "multiline",
+        description: "Toggle multiline input mode (swap Enter and Shift+Enter)",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "new",
+        description: "Start a new session",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "personas",
+        description: "Manage personas (create, edit, delete)",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "plan",
+        description: "Enter plan mode",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "plugins",
+        description: "View plugins",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "privacy",
+        description: "Open coding data, retention, and training settings",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "queue",
+        description: "List the prompts queued behind the running turn",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "quit",
+        description: "Quit the application",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "recap",
+        description: "Summarize the session so far",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "release-notes",
+        description: "View release notes for the current version",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "remember",
+        description: "Save a memory note",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "rename",
+        description: "Rename the current session",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "resume",
+        description: "Resume a previous session",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "resume-claude",
+        description: "Continue from a recent Claude Code session",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "resume-codex",
+        description: "Continue from a recent Codex session",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "resume-cursor",
+        description: "Continue from a recent Cursor session",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "rewind",
+        description: "Rewind to a previous turn",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "session-info",
+        description: "Show session info",
         insert_text: None,
     },
     SlashCommand {
         name: "settings",
-        description: "Open settings",
+        description: "Open the settings modal",
         insert_text: None,
     },
     SlashCommand {
-        name: "status",
-        description: "Show session status",
+        name: "skills",
+        description: "View skills",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "statusline",
+        description: "Configure the Grok Build status line",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "tasks",
+        description: "List background tasks, subagents, and scheduled tasks",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "theme",
+        description: "Switch the color theme",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "timeline",
+        description: "Toggle the timeline sidebar",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "timestamps",
+        description: "Toggle message timestamps on/off",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "transcript",
+        description: "View the conversation transcript in your pager ($PAGER)",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "tutorial",
+        description: "Quick tips to get the most out of Grok Build",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "usage",
+        description: "View usage",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "view-plan",
+        description: "View the current plan",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "vim-mode",
+        description: "Toggle vim-style scrollback keybindings (j/k, h/l, g/G, y/Y, …)",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "workflows",
+        description: "Browse installed workflows",
         insert_text: None,
     },
 ];
@@ -1681,6 +1958,231 @@ pub(crate) const COPILOT: &[SlashCommand] = &[
     SlashCommand {
         name: "voice",
         description: "Manage voice mode (dictation transcription via Foundry Local)",
+        insert_text: None,
+    },
+];
+
+/// omp 18.11's own built-in commands (`slash-commands/builtin-*.ts`), minus its debugging,
+/// recording and collaboration tools.
+pub(crate) const OMP: &[SlashCommand] = &[
+    SlashCommand {
+        name: "model",
+        description: "Switch model for this session",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "switch",
+        description: "Switch model for this session; accepts provider/id and :level",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "effort",
+        description: "Set reasoning effort (thinking level) for this session",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "fast",
+        description: "Toggle fast service",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "plan",
+        description: "Toggle plan mode (agent plans before executing)",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "goal",
+        description: "Toggle goal mode (persistent autonomous objective for this session)",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "loop",
+        description: "Toggle loop mode: re-submit the next prompt after every yield",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "queue",
+        description: "Queue a message for after the agent yields",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "btw",
+        description: "Ask a side question, or browse this session's BTW history",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "new",
+        description: "Start a new session",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "clear",
+        description: "Clear the conversation context in place, keeping the session",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "compact",
+        description: "Manually compact the session context",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "shake",
+        description: "Drop heavy content from context (tool results, large blocks)",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "handoff",
+        description: "Summarize the session into a handoff document and compact in place",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "retry",
+        description: "Retry the last failed agent turn",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "rename",
+        description: "Rename the current session (omit title to generate)",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "resume",
+        description: "Resume a different session",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "branch",
+        description: "Rewind to a previous message, keeping the old path as a branch",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "fork",
+        description: "Fork this session, or open it in a multiplexer pane or window",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "tree",
+        description: "Navigate session tree (switch branches)",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "todo",
+        description: "View or modify the agent's todo list",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "context",
+        description: "Show estimated context usage breakdown",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "usage",
+        description: "Show provider usage and limits",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "jobs",
+        description: "Show async background jobs status",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "tools",
+        description: "Show tools currently visible to the agent",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "skills",
+        description: "Search, install, and update skills from the skills.omp.sh registry",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "mcp",
+        description: "Manage MCP servers (add, list, remove, test)",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "plugins",
+        description: "View and manage installed plugins",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "reload-plugins",
+        description: "Reload all plugins (skills, commands, hooks, tools, agents, MCP)",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "memory",
+        description: "Inspect and operate memory maintenance",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "advisor",
+        description: "Toggle the advisor (a second model that reviews each turn)",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "export",
+        description: "Export session to HTML file",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "share",
+        description: "Share session via an encrypted link",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "copy",
+        description: "Pick text or code from the conversation to copy",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "add-dir",
+        description: "Add a workspace directory to this session",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "remove-dir",
+        description: "Remove a workspace directory from this session",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "dirs",
+        description: "List this session's workspace directories",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "wt",
+        description: "Move this session into a new worktree, changes included",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "move",
+        description: "Move the current session to a different directory",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "settings",
+        description: "Open settings menu",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "hotkeys",
+        description: "Show all keyboard shortcuts",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "changelog",
+        description: "Show changelog entries",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "restart",
+        description: "Restart omp with the same launch flags, resuming this session",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "exit",
+        description: "Exit the application",
         insert_text: None,
     },
 ];

@@ -22,6 +22,8 @@ pub enum SessionChatSendStep {
     GuardHermesInterrupt,
     /// Stop this interrupt job unless Copilot shows a running turn (session_chat_copilot_interrupt.rs).
     GuardCopilotInterrupt,
+    /// Stop this interrupt job unless Grok shows a running turn (session_chat_grok_interrupt.rs).
+    GuardGrokInterrupt,
     /// Recheck the transcript pager and cross-client visibility at the front of the queue.
     CloseUnwatchedCodexTranscriptPager,
     /// Scroll Claude's `/btw` panel end to end and keep its whole answer (session_chat_claude_panel.rs).
@@ -457,6 +459,12 @@ pub(crate) fn session_chat_interrupt_escape_steps(agent: Option<&str>) -> Vec<Se
         // Copilot's Escape only backgrounds a running shell (session_chat_copilot_interrupt.rs).
         Some("copilot") => {
             steps.push(SessionChatSendStep::GuardCopilotInterrupt);
+            steps.push(SessionChatSendStep::Write("\u{3}".to_string()));
+            return steps;
+        }
+        // Grok cancels a turn on Ctrl+C and ignores Escape (session_chat_grok_interrupt.rs).
+        Some("grok") => {
+            steps.push(SessionChatSendStep::GuardGrokInterrupt);
             steps.push(SessionChatSendStep::Write("\u{3}".to_string()));
             return steps;
         }

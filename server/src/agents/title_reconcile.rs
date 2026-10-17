@@ -497,6 +497,20 @@ pub(crate) enum AgentMetadataTitleSource {
     AntigravityAnnotation {
         annotation_path: PathBuf,
     },
+    /*
+    CDXC:SessionTitles 2026-10-17 WHY:
+    OMP 18.11 keeps a session's name in the first line of its session file (`{"type":"title","title":…,"source":"auto"|"user"}`, padded so it is rewritten in place), both the name it gives itself and the one `/rename <title>` sets. Without this source a user's rename was never confirmed and flipped back to OMP's terminal title after 8 seconds.
+    */
+    OmpSessionHeader {
+        session_path: PathBuf,
+    },
+    /*
+    CDXC:SessionTitles 2026-10-17 WHY:
+    Grok Build cuts its session name to 40 characters with an ellipsis in the terminal title (`<name…> - grok`), and gxserver never stores an ellipsized window title, so once the ` - grok` suffix was dropped from stored titles a long Grok name could not reach the session row at all. Grok 1.0.62 keeps the whole name in `summary.json` beside the session's `updates.jsonl`: `generated_title` (its own or a `/rename`), else `session_summary`, the same order as its `display_title`.
+    */
+    GrokSummary {
+        summary_path: PathBuf,
+    },
 }
 
 impl AgentMetadataTitleSource {
@@ -508,6 +522,8 @@ impl AgentMetadataTitleSource {
             }
             Self::HermesStateDb { state_db_path, .. } => vec![state_db_path.as_path()],
             Self::AntigravityAnnotation { annotation_path } => vec![annotation_path.as_path()],
+            Self::OmpSessionHeader { session_path } => vec![session_path.as_path()],
+            Self::GrokSummary { summary_path } => vec![summary_path.as_path()],
         }
     }
 }
@@ -544,6 +560,21 @@ pub(crate) fn read_agent_metadata_title(
         AgentMetadataTitleSource::AntigravityAnnotation { annotation_path } => {
             read_antigravity_annotation_title(&annotation_path)
         }
+        AgentMetadataTitleSource::OmpSessionHeader { session_path } => {
+            read_omp_session_header_title(&session_path)
+        }
+        // A fork's summary starts as a copy of its parent's, so the inherited name waits behind
+        // the provisional `Fork: ` title (CDXC:SessionFork) the way Codex's does.
+        AgentMetadataTitleSource::GrokSummary { summary_path } => read_grok_summary_title(
+            &summary_path,
+        )
+        .filter(|metadata| {
+            let initial_title = provisional_fork_title(session);
+            let inherited_title = initial_title
+                .as_deref()
+                .and_then(|title| title.strip_prefix("Fork: "));
+            !inherited_title.is_some_and(|title| titles_match(title, &metadata.title))
+        }),
     }
 }
 
@@ -593,6 +624,27 @@ pub(crate) fn agent_metadata_title_source(
                     .join(format!("{agent_session_id}.pbtxt")),
             })
         }
+        Some("omp") => Some(AgentMetadataTitleSource::OmpSessionHeader {
+            session_path: PathBuf::from(identity.agent_session_path.as_deref()?)
+                .canonicalize()
+                .ok()
+                .filter(|path| {
+                    path.file_name()
+                        .and_then(|name| name.to_str())
+                        .is_some_and(|name| name.ends_with(&format!("_{agent_session_id}.jsonl")))
+                })?,
+        }),
+        Some("grok") => Some(AgentMetadataTitleSource::GrokSummary {
+            summary_path: Path::new(identity.agent_session_path.as_deref()?)
+                .parent()
+                .filter(|folder| {
+                    folder
+                        .file_name()
+                        .and_then(|name| name.to_str())
+                        .is_some_and(|name| name == agent_session_id)
+                })?
+                .join("summary.json"),
+        }),
         _ => None,
     }
 }
@@ -801,6 +853,83 @@ pub(crate) fn read_antigravity_annotation_title(
         title,
         updated_at: None,
     })
+}
+
+/// The name on an OMP session file's first line, read from a bounded head.
+pub(crate) fn read_omp_session_header_title(session_path: &Path) -> Option<AgentMetadataTitle> {
+    let mut head = Vec::new();
+    fs::File::open(session_path)
+        .ok()?
+        .take(16 * 1024)
+        .read_to_end(&mut head)
+        .ok()?;
+    let head = String::from_utf8_lossy(&head);
+    let record = serde_json::from_str::<Value>(head.lines().next()?).ok()?;
+    if record.get("type").and_then(Value::as_str) != Some("title") {
+        return None;
+    }
+    let mut title = normalize_metadata_title(record.get("title"))?;
+    // A name the user typed comes back inside OMP's own card (`🏷️ OMP: <title>`, its
+    // `formatCardTitle`); the user's words are the name.
+    if record.get("source").and_then(Value::as_str) == Some("user") {
+        if let Some(words) = omp_card_title_words(&title) {
+            title = words.to_string();
+        }
+    }
+    let updated_at = record
+        .get("updatedAt")
+        .and_then(Value::as_str)
+        .map(str::to_string);
+    Some(AgentMetadataTitle {
+        agent_session_id: None,
+        provider: "omp-session-header",
+        record_revision: Some(format!(
+            "{}:{}",
+            session_path.to_string_lossy(),
+            updated_at.as_deref().unwrap_or_default()
+        )),
+        title,
+        updated_at,
+    })
+}
+
+/// The name Grok Build shows for a session, from its `summary.json`.
+pub(crate) fn read_grok_summary_title(summary_path: &Path) -> Option<AgentMetadataTitle> {
+    let summary = serde_json::from_str::<Value>(&fs::read_to_string(summary_path).ok()?).ok()?;
+    let title = normalize_metadata_title(
+        summary
+            .get("generated_title")
+            .filter(|title| title.as_str().is_some_and(|title| !title.trim().is_empty()))
+            .or_else(|| summary.get("session_summary")),
+    )?;
+    let updated_at = summary
+        .get("updated_at")
+        .and_then(Value::as_str)
+        .map(str::to_string);
+    Some(AgentMetadataTitle {
+        agent_session_id: None,
+        provider: "grok-summary",
+        record_revision: Some(format!(
+            "{}:{}",
+            summary_path.to_string_lossy(),
+            updated_at.as_deref().unwrap_or_default()
+        )),
+        title,
+        updated_at,
+    })
+}
+
+/// The title inside an OMP card line, `<icon> <CODE>: <title>` (its `CARD_LINE`: an icon of 1 to
+/// 8 non-ASCII characters and a code of 1 to 6 capitals or digits).
+fn omp_card_title_words(title: &str) -> Option<&str> {
+    let (icon, rest) = title.split_once(' ')?;
+    let (code, words) = rest.split_once(": ")?;
+    let icon_ok = (1..=8).contains(&icon.chars().count()) && icon.chars().all(|ch| !ch.is_ascii());
+    let code_ok = (1..=6).contains(&code.len())
+        && code
+            .chars()
+            .all(|ch| ch.is_ascii_uppercase() || ch.is_ascii_digit());
+    (icon_ok && code_ok && !words.trim().is_empty()).then_some(words)
 }
 
 fn parse_pbtxt_string_field(text: &str, field: &str) -> Option<String> {

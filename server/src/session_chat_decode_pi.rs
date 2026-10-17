@@ -46,9 +46,14 @@ fn pi_message_content(content: Option<&Value>) -> (Vec<SessionChatBlock>, Vec<Se
                 }
             }
             Some("toolCall") => {
+                let name = extract_string(record.get("name")).unwrap_or_else(|| "tool".to_string());
+                let mut input = record.get("arguments").cloned().unwrap_or(Value::Null);
+                if name == "edit" {
+                    with_omp_hashline_edit_file(&mut input);
+                }
                 visible.push(SessionChatBlock::ToolCall {
-                    name: extract_string(record.get("name")).unwrap_or_else(|| "tool".to_string()),
-                    input: record.get("arguments").cloned().unwrap_or(Value::Null),
+                    name,
+                    input,
                     call_id: extract_string(record.get("id")),
                 });
             }
@@ -61,6 +66,38 @@ fn pi_message_content(content: Option<&Value>) -> (Vec<SessionChatBlock>, Vec<Se
         }
     }
     (visible, reasoning)
+}
+
+/// CDXC:SessionChat 2026-10-17 WHY:
+/// omp 18.11's `edit` takes one hashline script (`{"i":…,"input":"[omp-flow.txt#77F9]\nPUT 1.=1:\n+hello world"}`) instead of Pi's `{path, edits}`, so the chat drew the call as raw JSON and its file card kept only the file's first write. The file the script names (its first `[path#HASH]` line) becomes the call's `path` and its `+` lines its new text, so the call joins the file card, whose diff then comes from the result's `details.diff`.
+fn with_omp_hashline_edit_file(input: &mut Value) {
+    let Some(arguments) = input.as_object_mut() else {
+        return;
+    };
+    if arguments.contains_key("path") || arguments.contains_key("edits") {
+        return;
+    }
+    let Some(script) = arguments.get("input").and_then(Value::as_str) else {
+        return;
+    };
+    let mut lines = script.lines();
+    let Some(path) = lines
+        .next()
+        .and_then(|line| line.trim().strip_prefix('['))
+        .and_then(|line| line.strip_suffix(']'))
+        .and_then(|line| line.rsplit_once('#'))
+        .map(|(path, _)| path.trim().to_string())
+        .filter(|path| !path.is_empty())
+    else {
+        return;
+    };
+    let added = lines
+        .take_while(|line| !line.trim_start().starts_with('['))
+        .filter_map(|line| line.strip_prefix('+'))
+        .collect::<Vec<_>>()
+        .join("\n");
+    arguments.insert("path".to_string(), Value::String(path));
+    arguments.insert("newText".to_string(), Value::String(added));
 }
 
 /// The one row the line-local readers (the send watchdog) see: an assistant entry's reply, without
@@ -220,9 +257,16 @@ fn decode_pi_record(record: &Map<String, Value>, fallback_id: &str) -> Option<Se
             let output = tool_result_output(message.get("content"));
             let is_error = message.get("isError") == Some(&Value::Bool(true));
             // Pi runs one response's tool calls in parallel, so a result names its call.
-            let patch = as_record(message.get("details"))
+            // OMP records its edit's diff as `details.diff` (session_chat_file_patch.rs).
+            let details = as_record(message.get("details"));
+            let patch = details
                 .and_then(|details| extract_string(details.get("diffString")))
-                .and_then(|diff| crate::session_chat_file_patch::unified_diff_patch(&diff));
+                .and_then(|diff| crate::session_chat_file_patch::unified_diff_patch(&diff))
+                .or_else(|| {
+                    details
+                        .and_then(|details| extract_string(details.get("diff")))
+                        .and_then(|diff| crate::session_chat_file_patch::omp_edit_patch(&diff))
+                });
             let mut tool_blocks = vec![SessionChatBlock::ToolResult {
                 output,
                 is_error: if is_error { Some(true) } else { None },

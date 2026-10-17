@@ -86,7 +86,7 @@ pub(crate) fn can_wake(row: &SessionRow) -> bool {
 fn supports_fork(row: &SessionRow) -> bool {
     matches!(
         row.agent_icon.as_deref().unwrap_or_default(),
-        "codex" | "claude" | "copilot" | "pi" | "empryo"
+        "codex" | "claude" | "copilot" | "pi" | "empryo" | "grok-build"
     )
 }
 

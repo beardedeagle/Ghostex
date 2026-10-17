@@ -235,6 +235,9 @@ pub enum SessionChatTerminalPickerKind {
     AntigravityPermission,
     /// Copilot CLI's tool approval panel (`session_chat_copilot_permission.rs`).
     CopilotPermission,
+    /// Grok Build's tool permission card (`session_chat_grok_permission.rs`), answered by row
+    /// number.
+    GrokPermission,
 }
 
 /// One row of an on-screen picker, in the order it is painted.

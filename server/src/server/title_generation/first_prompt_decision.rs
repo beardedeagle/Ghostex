@@ -123,7 +123,8 @@ pub(crate) fn first_prompt_auto_title_strategy(agent_name: Option<&str>) -> Opti
         // that with a worse name.
         Some("hermes-agent") => Some("agentAutoTitle"),
         Some("pi") => Some("generateTitleAndName"),
-        Some("omp") => Some("generateTitleAndName"),
+        // CDXC:SessionTitles 2026-10-17 WHY: omp 18.11 names every session itself after its first prompt (the `title` line of its session file, which the metadata sync adopts), so a Ghostex title typed in as `/rename` only raced it and cost a title-model call.
+        Some("omp") => Some("agentAutoTitle"),
         _ => None,
     }
 }
@@ -143,7 +144,9 @@ pub(crate) fn normalize_agent_name(value: Option<&str>) -> Option<String> {
 
 pub(crate) fn agent_session_title_command(agent_name: Option<&str>, title: &str) -> String {
     match normalize_agent_name(agent_name).as_deref() {
-        Some("pi") | Some("omp") => format!("/name {title}"),
+        Some("pi") => format!("/name {title}"),
+        // CDXC:SessionTitles 2026-10-17 WHY: omp 18.11 has no `/name`, so the model answered `/name <title>` as a prompt (a lost turn and a stray user message); its `/rename <title>` sets the name as user-set, which also stops OMP renaming the session itself.
+        Some("omp") => format!("/rename {title}"),
         Some("hermes-agent") => format!("/title {title}"),
         // Empryo has no `/rename`; `/tab rename <name>` names the tab and the session it saves.
         Some("empryo") => format!("/tab rename {title}"),

@@ -140,7 +140,7 @@ fn dialog_mismatch(step: &str, detail: &str) -> DomainStateError {
 /// SEE-ALSO: server/src/session_chat_model_selection.rs sender treats this code as final.
 pub(crate) const UNSUPPORTED_SELECTION_CODE: &str = "unsupportedSelection";
 
-fn unsupported_selection(message: impl Into<String>) -> DomainStateError {
+pub(crate) fn unsupported_selection(message: impl Into<String>) -> DomainStateError {
     DomainStateError {
         code: UNSUPPORTED_SELECTION_CODE,
         message: message.into(),

@@ -9,7 +9,12 @@ use crate::{domain::DomainStateError, server::AppState, storage::open_gxserver_d
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
-use std::{future::Future, pin::Pin, sync::Arc};
+use std::{
+    collections::HashMap,
+    future::Future,
+    pin::Pin,
+    sync::{Arc, Mutex, OnceLock},
+};
 
 static SELECTION_REQUESTED: tokio::sync::Notify = tokio::sync::Notify::const_new();
 
@@ -319,6 +324,28 @@ pub(crate) fn enqueue(
     )
 }
 
+/// CDXC:SessionChat 2026-10-17 WHY:
+/// A pick whose command was typed but never confirmed on screen (a timeout) is retried only this many times before it counts as failed. One footer the reader could not parse (omp 18.11's compact model segment) retyped `/switch` every ~12s for over 13 minutes; only closing the session ended it. A busy agent or a missing input box is not counted and keeps retrying.
+const MAX_UNCONFIRMED_ATTEMPTS: u32 = 3;
+
+fn unconfirmed_attempts() -> &'static Mutex<HashMap<String, u32>> {
+    static ATTEMPTS: OnceLock<Mutex<HashMap<String, u32>>> = OnceLock::new();
+    ATTEMPTS.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+/// Counts an unconfirmed attempt and answers whether the pick has now used them all.
+fn unconfirmed_attempts_exhausted(selection_id: &str, error: &DomainStateError) -> bool {
+    let Ok(mut attempts) = unconfirmed_attempts().lock() else {
+        return false;
+    };
+    if error.code != "timeout" {
+        return false;
+    }
+    let count = attempts.entry(selection_id.to_string()).or_insert(0);
+    *count += 1;
+    *count >= MAX_UNCONFIRMED_ATTEMPTS
+}
+
 pub(crate) fn sender(state: &Arc<AppState>) -> ModelSelectionSender {
     let state = state.clone();
     Arc::new(move |project, session, pending| {
@@ -340,9 +367,24 @@ pub(crate) fn sender(state: &Arc<AppState>) -> ModelSelectionSender {
                 params.as_object().unwrap(),
             )
             .await;
+            let result = result.map_err(|error| {
+                if unconfirmed_attempts_exhausted(&pending.id, &error) {
+                    crate::session_chat_codex_picker::unsupported_selection(format!(
+                        "The agent never confirmed this change after {MAX_UNCONFIRMED_ATTEMPTS} tries, so Ghostex stopped retrying it. {}",
+                        error.message
+                    ))
+                } else {
+                    error
+                }
+            });
             let final_failure = result.as_ref().is_err_and(|error| {
                 error.code == crate::session_chat_codex_picker::UNSUPPORTED_SELECTION_CODE
             });
+            if result.is_ok() || final_failure {
+                if let Ok(mut attempts) = unconfirmed_attempts().lock() {
+                    attempts.remove(&pending.id);
+                }
+            }
             if let Ok(db) = open_gxserver_database(&state.paths) {
                 match &result {
                     Ok(_) => {
