@@ -2395,6 +2395,12 @@ sessions, so any client can control agents on any machine.
   Remote). Easy Connect installs the Tailcat helper, turns on SSH access with
   one admin prompt, and shows a pairing QR code; scan it with the Ghostex
   mobile app (Android ships today). A Tailscale path is offered for tailnets.
+  The Android app is the `ghostex-android.apk` on the GitHub release, built
+  for 64-bit (arm64) phones. If Android says "App not installed as package
+  appears to be invalid", uninstall any other Ghostex build first (one you
+  built yourself is signed differently) and install the latest release's APK;
+  if it still fails, `adb install ghostex-android.apk` from a computer shows
+  the real reason.
   With Auto reconnect enabled in the phone's Settings > Connection, the phone
   checks the connection when you return to the app or its network changes and
   reconnects interrupted agent terminals. Tap a red cloud or choose Reconnect
@@ -2412,7 +2418,9 @@ sessions, so any client can control agents on any machine.
   Paired devices are listed and can be removed. On the phone, open Web Preview
   from the machine menu and enter a website address or a port such as `3000`
   immediately, or choose a listening port from the list. The address bar stays
-  editable while browsing. The list groups Web pages, Development tools,
+  editable while browsing. The Desktop site button in its toolbar loads the
+  page the way a desktop browser would (like Safari's Request Desktop
+  Website), and the phone remembers that choice for each site. The list groups Web pages, Development tools,
   Services, and Other ports into collapsible sections; services and unidentified
   ports start collapsed. Search by page title, process, or port. With a computer
   supporting `ghostex ports --json --web`, responding pages show their title,
@@ -2422,7 +2430,10 @@ sessions, so any client can control agents on any machine.
   actions open in Web Preview through the connected computer, including their
   path and query, instead of the phone's external browser.
   To paste into a session's terminal on the phone, press and hold the terminal
-  and choose Paste (Copy is there too when text is selected).
+  and choose Paste (Copy is there too when text is selected). With a keyboard
+  attached to an iPhone or iPad, Cmd+V pastes too. Pasting several lines into
+  a program that hasn't turned on safe paste first asks "Paste potentially
+  unsafe text?", as the desktop does.
   To read a project's docs on the phone, long-press the project and choose
   Docs, or choose Docs from a session's ⋯ menu. It lists the project's Markdown
   and HTML files from the same folders the desktop Files view shows, with search
@@ -2466,7 +2477,13 @@ sessions, so any client can control agents on any machine.
   be open on that computer (macOS or Windows, also with WSL); a Linux machine
   shows the new version, which you install with its package manager. From a
   terminal: `ghostex app-update status`, `check`, `install --wait` and
-  `auto on|off`, with `--server <profile>` for another computer.
+  `auto on|off`, with `--server <profile>` for another computer. On the
+  phone, a computer's card in the Machines list shows an Update button when a
+  newer version is out; swipe left on it and tap Edit to see the version it
+  runs, **Update to <version>** with its progress, and the same **Keep this
+  machine up to date** switch. A computer whose Ghostex is too old for this
+  says so: update it once on that computer, and from then on it can be
+  updated from another device.
 - **Web app**: the desktop's sidebar (with its session, group and project
   actions, the Git menu and Quick Access), chat and terminal running in a
   browser and talking to gxserver; remote machines, Settings and the commit
@@ -3054,7 +3071,13 @@ backend: `ghostex team deploy|join|invite|identity|status|ping|leave`. Slack:
   after that, this version of Ghostex does not have Connectors yet. Sign the
   workspace in to Composio once with `ghostex connectors sign-in` (it opens
   your browser), then connect each app with `ghostex connectors connect
-  <app>`, for example `gmail`. Each workspace has its own Composio sign-in
+  <app>`, for example `gmail`. For Discord, connect `discordbot`, not
+  `discord`: Composio adds its own bot to the server you pick, and agents can
+  then list that server's channels and read the messages and threads the bot
+  can see (`discord` only signs in as you and can't read messages). Composio's
+  bot asks for wide permissions; if agents only read, you can cut its role
+  down to View Channels and Read Message History in Discord's Server Settings
+  › Roles. Each workspace has its own Composio sign-in
   and its own connected apps, so work apps stay in your Work workspace; while
   Workspaces is off, everything belongs to Personal. The sign-in stays on this
   computer, sealed with a key kept in the system keychain. `ghostex connectors

@@ -491,7 +491,7 @@ pub fn usage() -> String {
         ),
         format_help_command(
             "connectors [status] | sign-in | sign-out | refresh | connect <app> | tools | call <tool> [--args <json>]  (each takes --workspace name|id; sign-in and connect take --no-open)",
-            "A workspace's connectors: sign it in to Composio in your browser, connect one of its apps (gmail, slack…), list the apps and tools its agents get, and run a tool that only reads",
+            "A workspace's connectors: sign it in to Composio in your browser, connect one of its apps (gmail, slack, discordbot to read a Discord server…), list the apps and tools its agents get, and run a tool that only reads",
         ),
         format_help_command(
             "connectors gh|gws [status] | sign-in | sign-out  (each takes --workspace name|id; sign-in takes --no-open)",
