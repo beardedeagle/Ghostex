@@ -43,11 +43,11 @@ pub fn begin_send(
     let working = is_working(state);
     let now = context.now_millis();
     let after_message_id = state.messages.list.last().map(|message| message.id.clone());
-    let after_message_timestamp = state
-        .messages
-        .list
-        .last()
-        .and_then(|message| message.timestamp);
+    // CDXC:SessionChat 2026-10-17 WHY: the first send of an empty chat (a new draft) had only the local send time as its boundary, and transcript stamps come off the agent's host clock. A Windows host 29 s behind the Mac whose web page sent the message recorded the prompt "before" it was sent, so the echo never matched and a second copy waited under the reply with a spinner until a reload. An empty chat has nothing earlier to confuse the echo with, so every row counts, the same skew-proof rule `begin_command_marker` follows.
+    let after_message_timestamp = match state.messages.list.last() {
+        Some(message) => message.timestamp,
+        None => Some(i64::MIN),
+    };
     let id = next_pending_send_id(state, now);
     let entry = PendingSend {
         id: id.clone(),

@@ -45,16 +45,13 @@ pub(crate) async fn generate_first_prompt_session_title(
 ) -> Result<String, String> {
     let source_text = js_string_slice_prefix(prompt, source_max_length);
     let generation_prompt = build_first_prompt_title_generation_prompt(&source_text);
-    let delimiter = format!(
-        "ghostex_GXSERVER_SESSION_TITLE_{}",
-        chrono::Utc::now().timestamp_millis()
-    );
     let agent = normalize_title_generation_agent(
         read_runtime_text(session, "firstPromptTitleGenerationAgent").as_deref(),
     );
     let command = read_title_generation_command(session, &agent)?;
-    let shell_command =
-        build_title_generation_command(&agent, &command, &delimiter, &generation_prompt)?;
+    // See CDXC:SessionTitles 2026-10-17 on `title_generation_shell_command`.
+    let (shell_command, stdin) =
+        title_generation_shell_command(&agent, &command, generation_prompt)?;
     let shell = command_shell();
     let mut child = Command::new(&shell.executable);
     crate::platform::process::NoConsoleWindow::no_console_window(&mut child);
@@ -63,11 +60,26 @@ pub(crate) async fn generate_first_prompt_session_title(
     child.envs(internal_prompt_generation_environment(
         &state.paths.home_dir,
     ));
+    child.stdin(if stdin.is_some() {
+        std::process::Stdio::piped()
+    } else {
+        std::process::Stdio::null()
+    });
     child.stdout(std::process::Stdio::piped());
     child.stderr(std::process::Stdio::piped());
+    child.kill_on_drop(true);
+    let mut process = child
+        .spawn()
+        .map_err(|error| format!("title generation failed: {error}"))?;
+    if let (Some(prompt), Some(mut pipe)) = (stdin, process.stdin.take()) {
+        use tokio::io::AsyncWriteExt;
+        // A CLI that exits before reading its prompt closes the pipe; its exit status says why.
+        let _ = pipe.write_all(prompt.as_bytes()).await;
+        drop(pipe);
+    }
     let output = tokio::time::timeout(
         Duration::from_millis(GXSERVER_FIRST_PROMPT_TITLE_GENERATION_TIMEOUT_MS),
-        child.output(),
+        process.wait_with_output(),
     )
     .await
     .map_err(|_| "title generation timed out".to_string())?
@@ -116,17 +128,23 @@ pub(crate) fn read_title_generation_command(
     }
 }
 
-pub(crate) fn build_title_generation_command(
+/// CDXC:SessionTitles 2026-10-17 WHY:
+/// The title job gave Codex, Claude, Empryo and a custom command their prompt through a POSIX heredoc (`codex exec … <<'DELIM'`), which PowerShell, the Windows command shell, cannot run, so Generate Name and the automatic title failed silently for them on Windows (seen with Codex 0.163 on 2026-10-17). The prompt now goes to the CLI's stdin, as Catch me up does (session_chat_catch_up.rs), and an argument prompt is quoted for the shell that runs it.
+fn title_generation_shell_command(
     agent: &str,
     command: &str,
-    delimiter: &str,
-    prompt: &str,
-) -> Result<String, String> {
+    prompt: String,
+) -> Result<(String, Option<String>), String> {
     if let Some(stdin_command) = stdin_title_generation_command(agent, command) {
-        return Ok(create_here_doc_command(&stdin_command, delimiter, prompt));
+        return Ok((stdin_command, Some(prompt)));
     }
-    argument_title_generation_command(agent, command, &quote_shell_arg(prompt))
-        .ok_or_else(|| format!("Unsupported title generation agent: {agent}"))
+    argument_title_generation_command(
+        agent,
+        command,
+        &crate::session_chat_catch_up::quote_prompt_argument(&prompt),
+    )
+    .map(|command| (command, None))
+    .ok_or_else(|| format!("Unsupported title generation agent: {agent}"))
 }
 
 /// The command for an agent that takes its prompt as an argument (Cursor, Grok, Pi and

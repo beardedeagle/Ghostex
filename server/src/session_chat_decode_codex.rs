@@ -574,6 +574,65 @@ fn is_codex_refused_tool_output(output: &str) -> bool {
         || (output.trim_start().starts_with("patch rejected: ") && !output.contains('\n'))
 }
 
+/// CDXC:SessionChat 2026-10-17 WHY:
+/// Codex 0.163 runs commands through its code-mode `exec` tool, whose result is a "Script completed\nWall time … seconds\nOutput:" header followed by `text(r)` of the `exec_command` reply: a JSON object `{"chunk_id", "wall_time_seconds", "exit_code", "original_token_count", "output"}`. Shown as recorded, a command's Result was that JSON with its escapes, literal `\r\n` on Windows. When the script printed such replies, the result is their `output` text with CRLF folded (the header goes, since the row shows its own duration), and a non-zero `exit_code` marks the call failed. Anything else the script printed stays as it was.
+fn codex_exec_command_output(content: &Value) -> Option<(String, bool)> {
+    let texts: Vec<String> = match content {
+        Value::Array(items) => items
+            .iter()
+            .filter_map(|item| {
+                item.as_str()
+                    .map(str::to_string)
+                    .or_else(|| item.get("text").and_then(Value::as_str).map(str::to_string))
+            })
+            .collect(),
+        Value::String(text) => match text.split_once("\nOutput:\n") {
+            Some((header, rest)) => vec![format!("{header}\nOutput:\n"), rest.to_string()],
+            None => vec![text.clone()],
+        },
+        _ => return None,
+    };
+    let is_header = |text: &str| {
+        text.starts_with("Script ")
+            && text.contains("\nWall time ")
+            && text.trim_end().ends_with("Output:")
+    };
+    let envelope = |text: &str| -> Option<(String, bool)> {
+        let value: Value = serde_json::from_str(text.trim()).ok()?;
+        let record = value.as_object()?;
+        if !record.contains_key("chunk_id") && !record.contains_key("exit_code") {
+            return None;
+        }
+        let output = record.get("output")?.as_str()?;
+        let failed = record
+            .get("exit_code")
+            .and_then(Value::as_i64)
+            .is_some_and(|code| code != 0);
+        Some((output.replace("\r\n", "\n").trim_end().to_string(), failed))
+    };
+    if !texts.iter().any(|text| envelope(text).is_some()) {
+        return None;
+    }
+    let mut failed = false;
+    let mut parts = Vec::new();
+    for (index, text) in texts.iter().enumerate() {
+        if index == 0 && is_header(text) {
+            continue;
+        }
+        match envelope(text) {
+            Some((output, command_failed)) => {
+                failed |= command_failed;
+                if !output.is_empty() {
+                    parts.push(output);
+                }
+            }
+            None if !text.trim().is_empty() => parts.push(text.trim_end().to_string()),
+            None => {}
+        }
+    }
+    Some((parts.join("\n"), failed))
+}
+
 fn codex_tool_result(output: Option<&Value>) -> SessionChatBlock {
     let record = output.and_then(Value::as_object);
     let is_error = record.is_some_and(|inner| {
@@ -583,8 +642,11 @@ fn codex_tool_result(output: Option<&Value>) -> SessionChatBlock {
     let content = record
         .and_then(|inner| inner.get("content").or_else(|| inner.get("output")))
         .or(output);
-    let output = tool_result_output(content);
-    let is_error = is_error || is_codex_refused_tool_output(&output);
+    let (output, failed_command) = match content.and_then(codex_exec_command_output) {
+        Some((output, failed)) => (bounded_tool_payload(output), failed),
+        None => (tool_result_output(content), false),
+    };
+    let is_error = is_error || failed_command || is_codex_refused_tool_output(&output);
     SessionChatBlock::ToolResult {
         output,
         is_error: if is_error { Some(true) } else { None },

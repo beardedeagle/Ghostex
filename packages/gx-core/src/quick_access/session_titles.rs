@@ -212,6 +212,8 @@ fn normalize_terminal_title(title: &str) -> Option<String> {
     let sanitized = strip_empryo_title_suffix(sanitized);
     // Codex's `[ ! ] Action Required | <title>` status title (CDXC:SessionTitles in server/src/agents/terminal_title.rs).
     let sanitized = strip_codex_action_required_prefix(sanitized);
+    // Copilot's `<title> - GitHub Copilot` title (CDXC:SessionTitles in server/src/agents/terminal_title.rs).
+    let sanitized = strip_copilot_title_suffix(sanitized);
     if let Some(cursor) = normalize_cursor_title(sanitized) {
         return cursor;
     }
@@ -222,6 +224,18 @@ fn normalize_terminal_title(title: &str) -> Option<String> {
         return Some(pi);
     }
     (!sanitized.is_empty()).then(|| sanitized.to_string())
+}
+
+/// Same rule as gxserver's `strip_copilot_title_suffix`.
+fn strip_copilot_title_suffix(title: &str) -> &str {
+    let trimmed = title.trim_end();
+    if trimmed == "GitHub Copilot" {
+        return "Copilot";
+    }
+    match trimmed.strip_suffix(" - GitHub Copilot") {
+        Some(body) if !body.trim().is_empty() => body.trim_end(),
+        _ => title,
+    }
 }
 
 /// Same rule as gxserver's `strip_codex_action_required_prefix`.

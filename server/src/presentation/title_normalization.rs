@@ -111,7 +111,8 @@ pub(crate) fn normalize_terminal_title(title: Option<&str>) -> Option<String> {
     let sanitized = strip_oc_prefixes(without_markers).trim().to_string();
     let sanitized = crate::agents::strip_freebuff_title_prefix(&sanitized);
     let sanitized = crate::agents::strip_empryo_title_suffix(sanitized);
-    let sanitized = crate::agents::strip_codex_action_required_prefix(sanitized).to_string();
+    let sanitized = crate::agents::strip_codex_action_required_prefix(sanitized);
+    let sanitized = crate::agents::strip_copilot_title_suffix(sanitized).to_string();
     if let Some(cursor_title) = normalize_cursor_terminal_title(&sanitized) {
         return cursor_title;
     }
@@ -431,6 +432,7 @@ pub(crate) fn is_ignored_generic_agent_terminal_title(title: &str) -> bool {
             | "claude code"
             | "codex"
             | "codex cli"
+            | "copilot"
             | "cursor"
             | "cursor agent"
             | "cursor cli"

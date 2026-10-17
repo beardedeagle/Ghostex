@@ -26,7 +26,8 @@ pub(crate) fn normalize_terminal_title(title: &str) -> Option<String> {
     let value = strip_oc_prefixes(value.trim_start_matches(is_leading_title_marker).trim());
     let value = strip_freebuff_title_prefix(&value);
     let value = strip_empryo_title_suffix(value);
-    let value = strip_codex_action_required_prefix(value).to_string();
+    let value = strip_codex_action_required_prefix(value);
+    let value = strip_copilot_title_suffix(value).to_string();
     if let Some(cursor) = normalize_cursor_terminal_title(&value) {
         return cursor;
     }
@@ -172,6 +173,7 @@ pub(crate) fn is_generic_agent_title(title: &str) -> bool {
             | "claude code"
             | "codex"
             | "codex cli"
+            | "copilot"
             | "cursor"
             | "cursor agent"
             | "cursor cli"
@@ -272,6 +274,20 @@ pub(crate) fn strip_codex_action_required_prefix(title: &str) -> &str {
     };
     let after = after.trim_start();
     after.strip_prefix('|').unwrap_or(after).trim()
+}
+
+/// CDXC:SessionTitles 2026-10-17 WHY:
+/// GitHub Copilot CLI titles its terminal `<title> - GitHub Copilot`, and a bare `GitHub Copilot` before its first prompt, so session rows kept the product name as part of their name ("Reply with OK - GitHub Copilot"). The suffix is provider decoration like Empryo's and is stripped; a bare title reads as the generic "Copilot" placeholder.
+/// SEE-ALSO: server/src/presentation/title_normalization.rs and packages/gx-core/src/quick_access/session_titles.rs normalize titles with the same rule.
+pub(crate) fn strip_copilot_title_suffix(title: &str) -> &str {
+    let trimmed = title.trim_end();
+    if trimmed == "GitHub Copilot" {
+        return "Copilot";
+    }
+    match trimmed.strip_suffix(" - GitHub Copilot") {
+        Some(body) if !body.trim().is_empty() => body.trim_end(),
+        _ => title,
+    }
 }
 
 /// CDXC:SessionTitles 2026-10-06 WHY:
