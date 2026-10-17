@@ -77,7 +77,7 @@ on:
         default: true
         type: boolean
       sign_windows:
-        description: Authenticode-sign Windows packages
+        description: Authenticode-sign Windows packages through SignPath (skipped when SIGNPATH_API_TOKEN is not set)
         required: true
         default: false
         type: boolean
@@ -202,8 +202,7 @@ jobs:
           ANDROID_RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
           ANDROID_RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
           GHOSTEX_MOBILE_DEPLOY_KEY: ${{ secrets.GHOSTEX_MOBILE_DEPLOY_KEY }}
-          WINDOWS_CODE_SIGN_PFX_BASE64: ${{ secrets.WINDOWS_CODE_SIGN_PFX_BASE64 }}
-          WINDOWS_CODE_SIGN_PFX_PASSWORD: ${{ secrets.WINDOWS_CODE_SIGN_PFX_PASSWORD }}
+          SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
           COMPONENTS_GITHUB_TOKEN: ${{ secrets.COMPONENTS_GITHUB_TOKEN }}
         run: node tooling/release-gpui/preflight.mjs "${{ inputs.version }}"
       - name: Verify clean GPUI release reference contract
@@ -483,6 +482,7 @@ jobs:
     # compile, so they are not a `needs:` edge and do not delay the job's start.
     needs: prepare
     permissions:
+      actions: read
       attestations: write
       contents: write
       id-token: write
@@ -501,6 +501,7 @@ jobs:
     # a `needs:` edge.
     needs: prepare
     permissions:
+      actions: read
       attestations: write
       contents: write
       id-token: write

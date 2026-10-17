@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  SignPath artifact configuration "initial" for project "Ghostex".
+  Paste this into SignPath (Project > Artifact configurations) whenever it
+  changes; SignPath does not read it from the repository.
+
+  One configuration covers the three signing requests of a Windows release
+  (.github/workflows/release-gpui-windows.yml). Each request is the GitHub
+  Actions artifact zip the workflow uploads:
+    1. signpath-windows-<arch>-binaries: <sha256>/<file> for every PE file
+       `vpk pack` signs: Ghostex.exe, ghostex-gpui-runtime.exe,
+       ghostex-gpui-cef-helper.exe, gxserver.exe, ghostex.exe, wmx.exe,
+       resources/GhostexEditor/GhostexEditor.exe and any other .exe/.dll/.node
+       in the app, plus Velopack's Squirrel.exe (Update.exe) and the
+       Ghostex_ExecutionStub.exe launcher. The third-party native editor under
+       code-server/ is never uploaded.
+    2. signpath-windows-<arch>-velopack-setup: Ghostex-Velopack-Setup.exe.
+    3. signpath-windows-<arch>-installer: ghostex-<version>-windows-<arch>.exe.
+  Every zip holds only PE files, at one of two known depths: round 1 always
+  nests each file exactly one folder deep (<sha256>/<file>, written by
+  tooling/release-gpui/vpk-signpath-hook.ps1), and rounds 2 and 3 put their one
+  file at the zip root. The patterns name both depths explicitly instead of
+  using "**", because SignPath's docs do not say whether "**" also matches zero
+  folders; a single "*" never crosses a folder separator, so the root and
+  one-folder patterns can never match the same file. Every include is
+  optional (min-matches="0") because each round fills only one depth;
+  windows.ps1 checks that every file SignPath returns carries a signature, so a
+  request that signed nothing still fails the release.
+-->
+<artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+  <zip-file>
+    <pe-file-set>
+      <include path="*.exe" min-matches="0" max-matches="unbounded" />
+      <include path="*/*.exe" min-matches="0" max-matches="unbounded" />
+      <include path="*.dll" min-matches="0" max-matches="unbounded" />
+      <include path="*/*.dll" min-matches="0" max-matches="unbounded" />
+      <include path="*.node" min-matches="0" max-matches="unbounded" />
+      <include path="*/*.node" min-matches="0" max-matches="unbounded" />
+      <for-each>
+        <authenticode-sign />
+      </for-each>
+    </pe-file-set>
+  </zip-file>
+</artifact-configuration>
