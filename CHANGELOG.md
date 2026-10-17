@@ -2,6 +2,66 @@
 
 ## Unreleased
 
+## 10.25.0 - 2026-10-17
+
+**Ghostex 10.25.0 is out.** Update Ghostex on your other computers from anywhere, find any project file with Cmd+O, open CSV, JSON, PDF, SQLite and font files right in Files, chat with OpenCode 2 with live replies, and the phone reconnects on its own after being in the background.
+
+### 📂 Files
+- **Cmd+O finds files:** Quick Access has a Files tab that searches every project's files, the current project first, and Cmd+5 switches to it while Quick Access is open; Enter opens the file in Files.
+- **Settings > File opening has two dropdowns,** one for HTML, Markdown and images and one for every other file, offering Files, the Code view, VS Code, Cursor, Zed, the JetBrains IDEs and the other editors you have installed; your earlier Markdown, HTML and image choices are kept.
+- **CSV and TSV files open as a table** you can sort by column and copy from, with a Raw button for the text.
+- **JSON files get Format, Minify and a Tree view** that folds, searches and copies a value's path.
+- **PDFs open in the built-in PDF viewer,** AVIF pictures show like any other picture, and font files open as a preview with sample text, weights and their characters.
+- **SQLite databases open read-only:** pick a table to page through its rows or run a SELECT query.
+- **Dockerfiles, PowerShell scripts and Terraform files are coloured,** and so are .env, .gitignore, .ini and .jsonl files; notebooks open in the Code view.
+- **Zip, Office and other files Files can't show open in their own app** instead of a "not previewed" message.
+- **Typing in a long Markdown file with notes stays fast,** and undo and redo update the view.
+
+### 💬 Chat
+- **Every file in the chat has Copy Path and Open File Location,** and Open in Files works for every file except folders and media; on the phone Copy Path is in the long-press menu.
+- **Grey thinking** (Settings > Chat, off by default) shows the agent's thinking in grey and its replies in the full text colour, on the computer and the phone.
+- **The Previous question pill shows an amber dot that pings** when a question arrives and every 30 seconds while any is unanswered.
+- **When an agent writes questions Ghostex can't show,** Ghostex asks it once to send them again in the right format.
+- **An interrupted turn reads "Agent was interrupted",** and Skip all is a soft fill so it no longer looks disabled.
+- **A Claude chat resumed after a while keeps its last reply visible** instead of folding it away behind a long Worked time.
+- **Page questions show a green check as soon as you answer them,** and questions you already answered or that were asked again no longer come back as unanswered.
+
+### 🌐 Remote computers
+- **Update Ghostex on a remote computer** from Settings > Remote, its tab in the sidebar or `ghostex app-update`, with progress, while its agents keep running; turn on Keep this machine up to date to install updates while none of its agents is working. It works on computers running this release or later, so update older ones once by hand.
+- **Pages, localhost pictures and Browser links from a remote session open through the connection to that computer** instead of this computer's 127.0.0.1.
+- **The Code view opens for a session on a remote Mac** from any computer, including Windows.
+
+### 🤖 Agents
+- **OpenCode 2 chats stream replies and reasoning live,** and accept-all, resume, prompt search and the installer work with OpenCode 2; OpenCode 1 is no longer supported.
+- **Windows: Hermes Agent can use its tools again;** its hooks no longer block every tool call.
+- **An agent CLI install or update that is refused says why.**
+
+### 🧭 Browser
+- **A phone button in the Browser toolbar shows a tab at phone or tablet size,** with an optional mobile user agent, saved per tab.
+- **macOS: clicking a saved autofill suggestion fills the field,** and so do Down and Enter.
+- **The Browser no longer offers to save passwords** or sign you in automatically.
+
+### ⚙️ Settings
+- **Settings stays open when you switch apps** and reopens on the same page, scroll position and open form; the Add machine dialog keeps what you typed (not the password) across restarts.
+- **The Actions, custom agent, Cloud Boxes, Extensions and Add account forms reopen with what you typed,** never a sign-in code or secret.
+- **The Theme page's + square opens the colour picker,** and Colourfulness sets how deep a custom colour is.
+
+### 📱 On the phone
+- **The phone reconnects on its own after being in the background,** instead of needing a force-quit.
+- **iOS terminal: a long press always shows Paste,** Cmd+V on a keyboard pastes without asking each time, and a multi-line paste into a program without safe paste asks first, on Android too.
+- **Wide tables in chat scroll sideways.**
+- **The web preview has a Desktop site switch,** remembered for each site.
+- **The Machines list shows each computer's Ghostex version** and can update it.
+- **Links, pages, pictures, video, audio, PDFs and drawings from a computer open through the phone's connection to it,** from anywhere on that computer.
+
+### 🩹 Fixes and polish
+- **Capture no longer crashes on a Mac without Screen Recording permission,** and its windows have no traffic lights.
+- **Restarting or updating Ghostex never leaves gxserver stuck,** so the app reconnects within seconds.
+- **Tooltip text is centred** instead of sitting low.
+- **The Notifications panel has more room around its title.**
+- **Start Agent in Send Bug / Feedback runs in the Ghostex settings folder,** which every agent trusts.
+- **Connectors (experimental): Settings > Connectors, per-workspace gh and gws sign-ins,** and the Connectors helper no longer slows Ghostex down.
+
 ## 10.24.0 - 2026-10-16
 
 **Ghostex 10.24.0 is out.** Send Bug / Feedback can hand your report to an agent that gathers the details and files it, and it's on the phone too; question cards send blank questions as skipped and can send on a single pick; programs can report their own session status; Windows gets a real choice of window blur and a transparency strength that goes all the way to clear; and Source opens again for WSL projects.
