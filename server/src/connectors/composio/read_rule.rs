@@ -156,16 +156,20 @@ fn action_words(slug: &str) -> Vec<String> {
         .collect()
 }
 
-/// A tool that only reads: its action starts with a read verb and no write verb appears anywhere.
+/// How far into a slug's action its read verb may sit: after a one- or two-word noun
+/// (`EVENTS_LIST`, `FILE_PERMISSIONS_LIST`).
+const READ_VERB_WITHIN: usize = 3;
+
+/// A tool that only reads: a read verb among its first action words and no write verb anywhere.
 ///
-/// CDXC:Connectors 2026-10-01 WHY:
-/// Open Dot treated a slug as a read when any word after the first was a read verb, so `GOOGLECALENDAR_DELETE_TASK_LIST` and `GITHUB_CREATE_A_CHECK_RUN` ran without asking. Here the toolkit prefix is stripped, the first remaining word must be a read verb, and any write verb anywhere asks; an unknown shape asks.
+/// CDXC:Connectors 2026-10-17 WHY:
+/// Open Dot treated a slug as a read when any word after the first was a read verb, so `GOOGLECALENDAR_DELETE_TASK_LIST` and `GITHUB_CREATE_A_CHECK_RUN` ran without asking; any write verb anywhere asks, which keeps those asking. Requiring the read verb to be the very first word (2026-10-01) asked for reads whose slug names the noun first, such as `GOOGLECALENDAR_EVENTS_LIST_ALL_CALENDARS` (seen live 2026-10-17 from a Codex session), so the read verb may follow a one- or two-word noun. An unknown shape still asks.
 fn is_read_slug(slug: &str) -> bool {
     let words = action_words(slug);
-    let Some(first) = words.first() else {
-        return false;
-    };
-    READ_VERBS.contains(&first.as_str())
+    words
+        .iter()
+        .take(READ_VERB_WITHIN)
+        .any(|word| READ_VERBS.contains(&word.as_str()))
         && !words
             .iter()
             .any(|word| WRITE_VERBS.contains(&word.as_str()))
