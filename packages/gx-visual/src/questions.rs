@@ -70,6 +70,10 @@ pub struct QuestionForm {
     /// Why the block could not be read, shown in place of the form.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub error: String,
+    /// A block that could not be read and that Ghostex has since asked the agent to send again
+    /// ([`resend_message`]); the chat sets it from the transcript.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub resent: bool,
 }
 
 impl QuestionForm {
@@ -293,6 +297,7 @@ pub fn parse_form(body: &str) -> QuestionForm {
             questions,
             withdraw,
             error: String::new(),
+            resent: false,
         })
     };
     read().unwrap_or_else(|error| QuestionForm {
@@ -301,6 +306,47 @@ pub fn parse_form(body: &str) -> QuestionForm {
         error,
         ..QuestionForm::default()
     })
+}
+
+/// The tag that wraps the message Ghostex sends an agent whose ```questions block could not be
+/// read; the chat folds it into one line and marks the broken form as asked again.
+pub const RESEND_TAG: &str = "ghostex-questions-resend";
+
+/// The message that asks an agent to send a block that could not be read again, in the one shape
+/// the form reads (server/src/session_chat_question_resend.rs sends it).
+pub fn resend_message(form: &QuestionForm) -> String {
+    format!(
+        r#"<{RESEND_TAG} form="{id}">
+Ghostex could not show the ```questions block in your last reply as a form: {error}
+
+Ask those same questions again, keeping each question's Q-number as its "tag", in one ```questions block of exactly this shape, and do nothing else in this reply (no other work, no other text):
+
+```questions
+{{"title": "Open questions",
+ "questions": [
+   {{"tag": "Q1", "title": "Which layout should I build?", "detail": "Why it matters.",
+    "choices": [{{"label": "Tabs", "detail": "One page per area.", "recommended": true}}, {{"label": "One long page"}}]}},
+   {{"tag": "Q2", "title": "What should the page be called?", "type": "text"}}
+ ]}}
+```
+
+The block is one JSON object with a "questions" list. Each question has a "title" and either "choices" (each choice is its text or {{"label", "detail", "recommended"}}) or "type": "text". Before replying, write the block to a file and run `ghostex visual check <file>` until it passes; `ghostex visual --help` has the full grammar.
+</{RESEND_TAG}>"#,
+        id = form.id,
+        error = form.error,
+    )
+}
+
+/// The id of the form a resend message ([`resend_message`]) asks about, when `text` is one.
+pub fn resend_form_id(text: &str) -> Option<&str> {
+    let rest = text
+        .trim_start()
+        .strip_prefix('<')?
+        .strip_prefix(RESEND_TAG)?
+        .trim_start()
+        .strip_prefix("form=\"")?;
+    let id = &rest[..rest.find('"')?];
+    (!id.is_empty()).then_some(id)
 }
 
 /// Whether the form ends with its own notes box: a form of two or more questions does.

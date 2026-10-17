@@ -196,9 +196,11 @@ fn default_out(source: &str, options: &CheckOptions) -> PathBuf {
 }
 
 /// The form a ```questions block describes, when the source is one (an object with `questions`).
+/// A top-level list is read as a questions block too, so a list of questions gets the error the
+/// chat shows for it rather than a visual's.
 fn question_form(source: &str) -> Option<ghostex_gx_visual::questions::QuestionForm> {
     let value: serde_json::Value = serde_json::from_str(source).ok()?;
-    (value.get("questions").is_some() || value.get("withdraw").is_some())
+    (value.is_array() || value.get("questions").is_some() || value.get("withdraw").is_some())
         .then(|| ghostex_gx_visual::questions::parse_form(source))
 }
 

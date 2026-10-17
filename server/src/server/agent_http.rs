@@ -98,6 +98,7 @@ pub(crate) fn dispatch_agent_http_blocking(
                 &params,
                 &result,
             );
+            crate::session_chat_question_resend::observe_turn_end(state, &params, &result);
             let session_chat_state_changed = endpoint_path == "/api/ingestAgentHookEvent"
                 && (result
                     .get("sessionChatPromptChanged")

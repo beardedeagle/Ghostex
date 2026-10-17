@@ -42,6 +42,10 @@ pub(super) struct FormInput {
     painted_height: Rc<Cell<f32>>,
 }
 
+/// The line under a broken form once Ghostex has asked the agent for it again; the phone
+/// (QuestionForm.tsx) says the same.
+const RESENT_NOTE: &str = "Ghostex asked the agent to send these questions again.";
+
 fn error_color(p: &ChatAppearance) -> Hsla {
     rgb(if p.light { 0xb91c1c } else { 0xfb7185 }).into()
 }
@@ -281,6 +285,10 @@ impl NativeChatView {
                 .flex_col()
                 .gap(px(12.0 * s))
                 .child(div().text_color(error_color(p)).child(error))
+                // gxserver asks the agent to send the questions again (session_chat_question_resend.rs).
+                .when(form["resent"].as_bool() == Some(true), |body| {
+                    body.child(div().text_color(p.card_muted).child(RESENT_NOTE))
+                })
                 .child(self.text_view(
                     format!("question-form-source:{id}"),
                     fence.to_string(),

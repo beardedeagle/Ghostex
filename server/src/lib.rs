@@ -155,6 +155,7 @@ pub mod session_chat_pi_blocking;
 pub mod session_chat_pi_models;
 pub mod session_chat_pi_status;
 pub mod session_chat_question_liveness;
+pub mod session_chat_question_resend;
 pub mod session_chat_question_row_align;
 pub mod session_chat_queue;
 pub mod session_chat_queue_attachments;

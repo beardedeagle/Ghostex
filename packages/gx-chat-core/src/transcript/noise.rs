@@ -48,6 +48,8 @@ fn collapsed_tag_label(tag: &str) -> Option<&'static str> {
         "bash-stderr" | "bash-stdout" => "Local command output",
         "command-args" | "command-message" | "command-name" => "Slash command",
         "cross-session-message" => "Message from another session",
+        // ghostex_gx_visual::questions::RESEND_TAG
+        "ghostex-questions-resend" => "Ghostex asked the agent to resend its questions",
         "local-command-caveat" | "local-command-stderr" | "local-command-stdout" => {
             "Local command output"
         }

@@ -8,8 +8,8 @@
 use ghostex_gx_protocol::{ChatMessage, ChatRole};
 
 pub use ghostex_gx_visual::questions::{
-    answers_message, form_id, is_questions_language, notes_key, parse_form, takes_notes,
-    FormChoice, FormQuestion, QuestionForm, NOTE_SUFFIX, OTHER_CHOICE, SKIPPED,
+    answers_message, form_id, is_questions_language, notes_key, parse_form, resend_form_id,
+    takes_notes, FormChoice, FormQuestion, QuestionForm, NOTE_SUFFIX, OTHER_CHOICE, SKIPPED,
 };
 
 use crate::transcript::jsstr::{js_trim, split_lf};
@@ -57,13 +57,21 @@ pub fn form_fences(markdown: &str) -> Vec<(String, String)> {
 }
 
 /// Every form the agent's replies hold, oldest first, once each. A block that only withdraws
-/// earlier questions (`open_questions.rs`) is not a form.
+/// earlier questions (`open_questions.rs`) is not a form. A block that could not be read is
+/// marked `resent` once gxserver's message asking for it again is in the transcript.
 pub fn question_forms(messages: &[ChatMessage]) -> Vec<QuestionForm> {
     let mut forms: Vec<QuestionForm> = Vec::new();
-    for message in messages
-        .iter()
-        .filter(|message| message.role == ChatRole::Assistant)
-    {
+    let mut resent: Vec<String> = Vec::new();
+    for message in messages {
+        if message.role == ChatRole::User {
+            if let Some(id) = resend_form_id(&prose_markdown(&message.blocks)) {
+                resent.push(id.to_string());
+            }
+            continue;
+        }
+        if message.role != ChatRole::Assistant {
+            continue;
+        }
         for (id, body) in form_fences(&prose_markdown(&message.blocks)) {
             if !forms.iter().any(|form| form.id == id) {
                 let form = parse_form(&body);
@@ -72,6 +80,9 @@ pub fn question_forms(messages: &[ChatMessage]) -> Vec<QuestionForm> {
                 }
             }
         }
+    }
+    for form in forms.iter_mut().filter(|form| !form.error.is_empty()) {
+        form.resent = resent.contains(&form.id);
     }
     forms
 }
