@@ -520,11 +520,7 @@ pub(crate) async fn run_commit_message_generation_agent(
     agent: &CommitMessageGenerationAgent,
     prompt: &str,
 ) -> std::result::Result<String, DomainStateError> {
-    let delimiter = format!(
-        "ghostex_GXSERVER_GIT_COMMIT_{}",
-        chrono::Utc::now().timestamp_millis()
-    );
-    let shell_command = build_commit_message_generation_shell_command(agent, &delimiter, prompt)?;
+    let (shell_command, stdin) = build_commit_message_generation_shell_command(agent, prompt)?;
     let shell = command_shell();
     let mut child = Command::new(&shell.executable);
     crate::platform::process::NoConsoleWindow::no_console_window(&mut child);
@@ -535,22 +531,34 @@ pub(crate) async fn run_commit_message_generation_agent(
             &state.paths.home_dir,
         ))
         .kill_on_drop(true)
-        .stdin(std::process::Stdio::null())
+        .stdin(if stdin.is_some() {
+            std::process::Stdio::piped()
+        } else {
+            std::process::Stdio::null()
+        })
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
+    let start_failed = || DomainStateError {
+        code: "dependencyUnavailable",
+        message: "Could not start commit message generation.".to_string(),
+    };
+    let mut process = child.spawn().map_err(|_| start_failed())?;
+    if let (Some(prompt), Some(mut pipe)) = (stdin, process.stdin.take()) {
+        use tokio::io::AsyncWriteExt;
+        // A CLI that exits before reading its prompt closes the pipe; its exit status says why.
+        let _ = pipe.write_all(prompt.as_bytes()).await;
+        drop(pipe);
+    }
     let output = tokio::time::timeout(
         Duration::from_millis(GXSERVER_COMMIT_MESSAGE_GENERATION_TIMEOUT_MS),
-        child.output(),
+        process.wait_with_output(),
     )
     .await
     .map_err(|_| DomainStateError {
         code: "dependencyUnavailable",
         message: "Commit message generation timed out.".to_string(),
     })?
-    .map_err(|_| DomainStateError {
-        code: "dependencyUnavailable",
-        message: "Could not start commit message generation.".to_string(),
-    })?;
+    .map_err(|_| start_failed())?;
     if !output.status.success() {
         let stdout = String::from_utf8_lossy(&output.stdout);
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -642,11 +650,16 @@ fn commit_message_generation_output_tail(output: &str) -> String {
         .join("\n")
 }
 
+/// The shell command for the commit message agent, and the prompt to write to its stdin when it reads
+/// it from there (`None` when the prompt is part of the command).
+///
+/// CDXC:Git 2026-10-17 WHY:
+/// The prompt used to reach Codex, Claude, Gemini and a custom command through a POSIX heredoc (`codex exec … <<'DELIM'`), which PowerShell, the Windows command shell, cannot run, so commit message generation failed on Windows for every agent but Cursor. It now goes to the CLI's stdin, like the title job and Catch me up, and Cursor's argument is quoted for the shell that runs it.
 pub(crate) fn build_commit_message_generation_shell_command(
     agent: &CommitMessageGenerationAgent,
-    delimiter: &str,
     prompt: &str,
-) -> std::result::Result<String, DomainStateError> {
+) -> std::result::Result<(String, Option<String>), DomainStateError> {
+    let stdin = Some(prompt.to_string());
     Ok(match agent.agent_id.as_str() {
         "codex" => {
             let command = enforce_required_agent_permission_flag(&agent.command, "codex");
@@ -657,23 +670,25 @@ pub(crate) fn build_commit_message_generation_shell_command(
             let command = format!(
                 "{command} exec --ephemeral --skip-git-repo-check -m gpt-6-luna -c 'model_reasoning_effort=\"high\"'"
             );
-            create_here_doc_command(&command, delimiter, prompt)
+            (command, stdin)
         }
-        "cursor" => format!(
-            "{} --print --mode ask --trust --output-format text {}",
-            agent.command,
-            quote_shell_arg(prompt)
+        "cursor" => (
+            format!(
+                "{} --print --mode ask --trust --output-format text {}",
+                agent.command,
+                crate::session_chat_catch_up::quote_prompt_argument(prompt)
+            ),
+            None,
         ),
         "claude" => {
             let command = enforce_required_agent_permission_flag(&agent.command, "claude");
-            create_here_doc_command(
-                &format!("{command} --model claude-sonnet-5-5 --effort medium -p"),
-                delimiter,
-                prompt,
+            (
+                format!("{command} --model claude-sonnet-5-5 --effort medium -p"),
+                stdin,
             )
         }
-        "gemini" => create_here_doc_command(&format!("{} -p", agent.command), delimiter, prompt),
-        _ if !agent.is_default => create_here_doc_command(&agent.command, delimiter, prompt),
+        "gemini" => (format!("{} -p", agent.command), stdin),
+        _ if !agent.is_default => (agent.command.clone(), stdin),
         _ => {
             return Err(DomainStateError {
                 code: "badRequest",

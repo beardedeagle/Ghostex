@@ -259,7 +259,7 @@ fn refuse_unsupported_generation_agent(
         })?;
     let settings = read_agent_settings(&db)?;
     let agent = resolve_commit_message_generation_agent(&project, params, &settings)?;
-    build_commit_message_generation_shell_command(&agent, "ghostex_GXSERVER_GIT_COMMIT_PROBE", "")?;
+    build_commit_message_generation_shell_command(&agent, "")?;
     Ok(())
 }
 

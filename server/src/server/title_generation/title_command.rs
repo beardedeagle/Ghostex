@@ -194,10 +194,6 @@ pub(crate) fn stdin_title_generation_command(agent: &str, command: &str) -> Opti
     })
 }
 
-pub(crate) fn create_here_doc_command(command: &str, delimiter: &str, body: &str) -> String {
-    format!("{command} <<'{delimiter}'\n{body}\n{delimiter}")
-}
-
 pub(crate) fn build_first_prompt_title_generation_prompt(source_text: &str) -> String {
     [
         "Write a concise session title that summarizes the user's text.",
