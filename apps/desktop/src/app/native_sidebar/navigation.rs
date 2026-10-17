@@ -104,9 +104,9 @@ impl GhostexGpuiApp {
         let tooltip_delay = appearance.tooltip_delay;
         h_flex()
             .w_full()
-            .h(px((if footer { 36.0 } else { 35.0 }) * scale))
+            .h(px((if footer { 39.0 } else { 35.0 }) * scale))
             .pt(px(5.0 * scale))
-            .pb(px(3.0 * scale))
+            .pb(px((if footer { 6.0 } else { 3.0 }) * scale))
             .px(px(5.0 * scale))
             .gap(px(4.0 * scale))
             .justify_end()

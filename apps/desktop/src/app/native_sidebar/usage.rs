@@ -40,7 +40,7 @@ const SIDEBAR_USAGE_INSET: f32 = 8.0;
 const SIDEBAR_USAGE_BADGE_ADVANCE: f32 = 0.65;
 
 /// The Commands row's height and top padding (navigation.rs); the peek sits on the row.
-const SIDEBAR_FOOTER_ROW_HEIGHT: f32 = 36.0;
+const SIDEBAR_FOOTER_ROW_HEIGHT: f32 = 39.0;
 const SIDEBAR_FOOTER_ROW_TOP_PADDING: f32 = 5.0;
 
 /// A meter card's height, before the zoom scale.
