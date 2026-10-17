@@ -50,8 +50,9 @@ pub(super) struct Transport {
     endpoints: BTreeMap<String, Endpoint>,
     /// Retention keys of the chats that follow their conversation.
     followed: BTreeSet<String>,
-    /// The catalog gxserver last pushed that this host adopted, the one a subscribing chat is given.
-    catalog: Option<Value>,
+    /// The catalog each computer's gxserver last pushed that this host adopted, by machine id
+    /// (`"local"` for this computer): a chat is given its own computer's.
+    catalogs: BTreeMap<String, Value>,
 }
 
 impl Transport {
@@ -110,9 +111,9 @@ impl Transport {
         }
     }
 
-    /// The pushed catalog, when this host adopted one, for a chat that just subscribed.
-    pub(super) fn catalog(&self) -> Option<&Value> {
-        self.catalog.as_ref()
+    /// The catalog the chat's own computer pushed, when this host adopted one.
+    pub(super) fn catalog(&self, identity: &ChatIdentity) -> Option<&Value> {
+        self.catalogs.get(machine(identity))
     }
 }
 
@@ -154,7 +155,10 @@ pub(super) fn receive(world: &mut World, inbound: Inbound) {
                 drive(world, &key, vec![event]);
             }
         }
-        Inbound::ModelCatalog { catalog, .. } => adopt_catalog(world, catalog),
+        Inbound::ModelCatalog {
+            machine_id,
+            catalog,
+        } => adopt_catalog(world, &machine_id, catalog),
     }
 }
 
@@ -176,13 +180,21 @@ pub(crate) fn current_model_catalog()
         .or_else(ghostex_gx_chat_core::menus::catalog::bundled_agent_model_catalog)
 }
 
-/// `adoptPublishedAgentModelCatalog`: a pushed catalog replaces the lineup only when it is at least
-/// as new as the one in effect, is cached for the next boot read, and reaches every chat.
+/// `adoptPublishedAgentModelCatalog`: a pushed catalog replaces its computer's lineup only when it
+/// is at least as new as the one in effect, and reaches that computer's chats; this computer's is
+/// also cached for the next boot read.
 ///
-/// The one in effect is the last push this host adopted, else the cached record (which the
-/// TypeScript's `current` started from). A server whose last fetch predates this computer's never
-/// rolls it back, and the same lineup again redraws nothing.
-fn adopt_catalog(world: &mut World, catalog: Value) {
+/// The one in effect is the last push this host adopted from that computer, else (for this
+/// computer) the cached record, which the TypeScript's `current` started from. A server whose last
+/// fetch predates this computer's never rolls it back, and the same lineup again redraws nothing.
+///
+/// CDXC:AgentModelCatalog 2026-10-17 WHY:
+/// gxserver serves the lineups its own CLIs print (`server/src/agent_model_lineups.rs`), so two
+/// computers' catalogs differ: the Mac's Cursor account lists other models than the Windows
+/// machine's, and an older gxserver lists none from its CLIs. One catalog for every computer showed
+/// whichever pushed last in every chat; each computer's push now reaches only its own sessions.
+/// SEE-ALSO: apps/mobile/app/src/chat/rust/machine-link.ts (the phone keeps one per computer too).
+fn adopt_catalog(world: &mut World, machine_id: &str, catalog: Value) {
     if ghostex_gx_chat_core::menus::catalog::parse_agent_model_catalog(&catalog).is_none() {
         return;
     }
@@ -191,12 +203,18 @@ fn adopt_catalog(world: &mut World, catalog: Value) {
         store: MODEL_CATALOG_STORE.to_string(),
         suffix: String::new(),
     };
-    let current = world.transport.catalog.clone().or_else(|| {
-        storage::read(&record, now_ms)
-            .ok()
-            .flatten()
-            .and_then(|raw| serde_json::from_str::<Value>(&raw).ok())
-    });
+    let local = machine_id == LOCAL_MACHINE_ID;
+    let current = world
+        .transport
+        .catalogs
+        .get(machine_id)
+        .cloned()
+        .or_else(|| {
+            local
+                .then(|| storage::read(&record, now_ms).ok().flatten())
+                .flatten()
+                .and_then(|raw| serde_json::from_str::<Value>(&raw).ok())
+        });
     if let Some(current) = &current {
         let updated_at = |catalog: &Value| {
             catalog
@@ -209,9 +227,21 @@ fn adopt_catalog(world: &mut World, catalog: Value) {
             return;
         }
     }
-    let _ = storage::write(&record, Some(&catalog.to_string()), now_ms);
-    world.transport.catalog = Some(catalog.clone());
+    if local {
+        let _ = storage::write(&record, Some(&catalog.to_string()), now_ms);
+    }
+    world
+        .transport
+        .catalogs
+        .insert(machine_id.to_string(), catalog.clone());
     for key in world.store.keys() {
+        if world
+            .store
+            .get(&key)
+            .is_none_or(|retained| machine(&retained.identity) != machine_id)
+        {
+            continue;
+        }
         drive(
             world,
             &key,

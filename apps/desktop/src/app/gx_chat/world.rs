@@ -782,8 +782,22 @@ fn perform(
         }
         Effect::ReadComposerBoot { .. } => {
             let mut errors = boot::BootReads::default();
-            let read = boot::read(session_key, now_ms, &mut errors);
+            let mut read = boot::read(session_key, now_ms, &mut errors);
             world.counters.storage_refused += errors.errors as u64;
+            // The cached record is this computer's lineup; a chat on another computer starts on
+            // that computer's (or the bundled one until it pushes), never this one's.
+            if let Some(identity) = world
+                .store
+                .get(key)
+                .map(|retained| &retained.identity)
+                .filter(|identity| identity.machine_id.is_some())
+            {
+                read.model_catalog = world
+                    .transport
+                    .catalog(identity)
+                    .cloned()
+                    .unwrap_or(Value::Null);
+            }
             // Client storage answered nothing at all, which is `composer('read')` rejecting rather
             // than a profile with nothing saved. The core empties the transcript and draws
             // `{status: 'error'}`; without this arm it never starts a controller and therefore
@@ -840,7 +854,10 @@ fn perform(
             }
             // `broker.ts` posted the catalog in effect with every `catalog` subscribe.
             if let Some(catalog) = catalog
-                .then(|| world.transport.catalog().cloned())
+                .then(|| {
+                    let identity = &world.store.get(key)?.identity;
+                    world.transport.catalog(identity).cloned()
+                })
                 .flatten()
             {
                 answers.push(Event::ModelCatalogChanged { catalog });
