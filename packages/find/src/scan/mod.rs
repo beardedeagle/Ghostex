@@ -12,6 +12,9 @@
 //! | antigravity | `~/.gemini/antigravity-cli/history.jsonl` (titles from `conversation_summaries.db`) |
 //! | hermes   | `~/.hermes/state.db` and `~/.hermes/profiles/*/state.db` (SQLite)     |
 //! | copilot  | `~/.copilot/session-state/*/events.jsonl` plus sibling `workspace.yaml` |
+//! | droid    | `~/.factory/sessions/*/*.jsonl` plus sibling `*.settings.json`        |
+//! | omp      | `~/.omp/agent/sessions/*/*.jsonl` (Pi's session log)                  |
+//! | zcode    | `~/.zcode/cli/db/db.sqlite` (SQLite)                                  |
 //!
 //! CDXC:PromptSearch 2026-08-20:
 //! opencode history used to be read by shelling out to the `sqlite3` CLI, so a
@@ -25,11 +28,13 @@ mod codex;
 mod copilot;
 mod cursor;
 mod dates;
+mod droid;
 mod empryo;
 mod files;
 mod grok;
 mod hermes;
 mod json;
+mod omp;
 mod opencode;
 mod pi;
 mod prompt_text;
@@ -37,6 +42,7 @@ mod records;
 mod scanner;
 #[cfg(test)]
 mod tests;
+mod zcode;
 
 pub use antigravity::*;
 pub use copilot::*;

@@ -14,11 +14,14 @@ pub enum Agent {
     Antigravity,
     Hermes,
     Copilot,
+    Droid,
+    Omp,
+    Zcode,
 }
 
-/// Filter order. The three agents added on 2026-10-17 come after Empryo so the fork targets stay
-/// the leading six every surface numbers 1-6.
-pub const ALL_AGENTS: [Agent; 10] = [
+/// Filter order. The agents added on 2026-10-17 come after Empryo so the fork targets stay the
+/// leading six every surface numbers 1-6.
+pub const ALL_AGENTS: [Agent; 13] = [
     Agent::Claude,
     Agent::Codex,
     Agent::Pi,
@@ -29,6 +32,9 @@ pub const ALL_AGENTS: [Agent; 10] = [
     Agent::Antigravity,
     Agent::Hermes,
     Agent::Copilot,
+    Agent::Droid,
+    Agent::Omp,
+    Agent::Zcode,
 ];
 
 impl Agent {
@@ -44,6 +50,9 @@ impl Agent {
             Agent::Antigravity => "antigravity",
             Agent::Hermes => "hermes",
             Agent::Copilot => "copilot",
+            Agent::Droid => "droid",
+            Agent::Omp => "omp",
+            Agent::Zcode => "zcode",
         }
     }
 
@@ -72,6 +81,9 @@ impl Agent {
             Agent::Antigravity => 1 << 7,
             Agent::Hermes => 1 << 8,
             Agent::Copilot => 1 << 9,
+            Agent::Droid => 1 << 10,
+            Agent::Omp => 1 << 11,
+            Agent::Zcode => 1 << 12,
         }
     }
 
@@ -88,6 +100,9 @@ impl Agent {
             Agent::Antigravity => "\x1b[38;2;66;133;244m", // #4285F4 Google blue
             Agent::Hermes => "\x1b[38;2;232;184;74m", // #E8B84A Hermes gold
             Agent::Copilot => "\x1b[38;2;137;87;229m", // #8957E5 GitHub Copilot purple
+            Agent::Droid => "\x1b[38;2;239;111;46m",  // #EF6F2E Factory orange
+            Agent::Omp => "\x1b[38;2;199;146;234m",   // #C792EA oh-my-pi lavender
+            Agent::Zcode => "\x1b[38;2;61;214;198m",  // #3DD6C6 Z.ai teal
         }
     }
 
@@ -104,11 +119,15 @@ impl Agent {
             Agent::Antigravity => "#4285F4",
             Agent::Hermes => "#E8B84A",
             Agent::Copilot => "#8957E5",
+            Agent::Droid => "#EF6F2E",
+            Agent::Omp => "#C792EA",
+            Agent::Zcode => "#3DD6C6",
         }
     }
 
     /// Argv that resumes an existing session in this agent. `accept_all` adds
-    /// the supported permission-bypass mode; Pi and Empryo have no bypass flag.
+    /// the supported permission-bypass mode; Pi, Empryo, Droid, OMP and ZCode have no bypass
+    /// flag in Ghostex (gxserver's accept-all table has none for them either).
     pub fn resume_argv(self, session: &str, accept_all: bool) -> Vec<String> {
         let parts: Vec<&str> = if accept_all {
             match self {
@@ -145,6 +164,9 @@ impl Agent {
                 ],
                 Agent::Hermes => vec!["hermes", "--yolo", "--resume", session],
                 Agent::Copilot => vec!["copilot", "--yolo", "--resume", session],
+                Agent::Droid => vec!["droid", "--resume", session],
+                Agent::Omp => vec!["omp", "--session", session],
+                Agent::Zcode => vec!["zcode", "--resume", session],
             }
         } else {
             match self {
@@ -158,6 +180,9 @@ impl Agent {
                 Agent::Antigravity => vec!["agy", "--conversation", session],
                 Agent::Hermes => vec!["hermes", "--resume", session],
                 Agent::Copilot => vec!["copilot", "--resume", session],
+                Agent::Droid => vec!["droid", "--resume", session],
+                Agent::Omp => vec!["omp", "--session", session],
+                Agent::Zcode => vec!["zcode", "--resume", session],
             }
         };
         parts.into_iter().map(str::to_string).collect()
@@ -165,7 +190,8 @@ impl Agent {
 
     /// Argv that starts a brand-new session seeded with `prompt`. Unlike resume
     /// this needs no session id, so a prompt can be branched into any agent;
-    /// `None` for Empryo, whose terminal app takes no starting prompt.
+    /// `None` for Empryo and ZCode, whose terminal apps take no starting prompt
+    /// (`zcode -p` runs one prompt headless and exits).
     pub fn fresh_session_argv(self, prompt: &str, accept_all: bool) -> Option<Vec<String>> {
         let executable = match self {
             Agent::Claude => "claude",
@@ -177,7 +203,9 @@ impl Agent {
             Agent::Antigravity => "agy",
             Agent::Hermes => "hermes",
             Agent::Copilot => "copilot",
-            Agent::Empryo => return None,
+            Agent::Droid => "droid",
+            Agent::Omp => "omp",
+            Agent::Empryo | Agent::Zcode => return None,
         };
         let mut argv = vec![executable.to_string()];
         // Hermes seeds an interactive chat from `chat -q` on a terminal.
@@ -196,7 +224,7 @@ impl Agent {
                 }
                 Agent::Antigravity => argv.push("--dangerously-skip-permissions".to_string()),
                 Agent::Hermes | Agent::Copilot => argv.push("--yolo".to_string()),
-                Agent::Pi | Agent::Empryo => {}
+                Agent::Pi | Agent::Empryo | Agent::Droid | Agent::Omp | Agent::Zcode => {}
             }
         }
         // These take a bare argument as a one-shot prompt; the flag keeps the session open.

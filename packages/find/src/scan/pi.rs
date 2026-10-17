@@ -1,5 +1,5 @@
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::agent::Agent;
 
@@ -12,8 +12,14 @@ impl Scanner {
 
     pub(super) fn scan_pi(&mut self) {
         let base = self.path(".pi/agent/sessions");
+        self.scan_pi_session_dir(&base, Agent::Pi);
+    }
+
+    /// Every `<base>/<project>/*.jsonl` session log, read as `agent`'s. OMP (oh-my-pi) is a Pi
+    /// fork that keeps the same session log under `~/.omp/agent/sessions`.
+    pub(super) fn scan_pi_session_dir(&mut self, base: &Path, agent: Agent) {
         let mut files: Vec<PathBuf> = Vec::new();
-        for sub in read_dir_sorted(&base) {
+        for sub in read_dir_sorted(base) {
             let Ok(entries) = fs::read_dir(&sub) else {
                 continue;
             };
@@ -28,16 +34,16 @@ impl Scanner {
         for path in files {
             let fallback_ts = fs::metadata(&path).map(|m| mtime_seconds(&m)).unwrap_or(0);
             if let Some(data) = read_all(&path) {
-                self.parse_pi_session_with_last_active(&data, fallback_ts);
+                self.parse_pi_session_with_last_active(&data, fallback_ts, agent);
             }
         }
     }
 
     pub fn parse_pi_session(&mut self, data: &[u8]) {
-        self.parse_pi_session_with_last_active(data, 0);
+        self.parse_pi_session_with_last_active(data, 0, Agent::Pi);
     }
 
-    fn parse_pi_session_with_last_active(&mut self, data: &[u8], fallback_ts: i64) {
+    fn parse_pi_session_with_last_active(&mut self, data: &[u8], fallback_ts: i64, agent: Agent) {
         let mut cwd = String::new();
         let mut session_id = String::new();
         let mut session_title = String::new();
@@ -52,6 +58,7 @@ impl Scanner {
             // role marker near the start, so bound the scan to the line head.
             let head = &line[..line.len().min(128)];
             let keep = line.starts_with(b"{\"type\":\"session\"")
+                || line.starts_with(b"{\"type\":\"title\"")
                 || line.starts_with(b"{\"type\":\"model_change\"")
                 || line.starts_with(b"{\"type\":\"thinking_level_change\"")
                 || contains(head, b"\"role\":\"user\"")
@@ -65,6 +72,15 @@ impl Scanner {
                 continue;
             };
 
+            // OMP opens its log with a padded `title` row it rewrites in place when the session is
+            // renamed, so that row outranks the title copied into the session header.
+            if typ == "title" {
+                if let Some(title) = title_from_object(&v) {
+                    session_title = title.clone();
+                    self.apply_title_to_session_records(record_start, &title);
+                }
+                continue;
+            }
             if typ == "session" {
                 if session_ts == 0 && line_ts > 0 {
                     session_ts = line_ts;
@@ -75,7 +91,7 @@ impl Scanner {
                 if let Some(x) = string_field(&v, "id") {
                     session_id = x.to_string();
                 }
-                if let Some(title) = title_from_object(&v) {
+                if let Some(title) = title_from_object(&v).filter(|_| session_title.is_empty()) {
                     session_title = title.clone();
                     self.apply_title_to_session_records(record_start, &title);
                 }
@@ -147,7 +163,7 @@ impl Scanner {
                 continue;
             };
             self.records.push(Record {
-                agent: Agent::Pi,
+                agent,
                 title: session_title.clone(),
                 text,
                 project: cwd.clone(),

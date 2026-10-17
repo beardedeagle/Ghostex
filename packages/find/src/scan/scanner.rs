@@ -43,6 +43,9 @@ impl Scanner {
         self.scan_antigravity();
         self.scan_hermes();
         self.scan_copilot();
+        self.scan_droid();
+        self.scan_omp();
+        self.scan_zcode();
         self.dedup();
     }
 

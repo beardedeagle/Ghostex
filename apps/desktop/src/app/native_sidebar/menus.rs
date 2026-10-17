@@ -608,15 +608,7 @@ impl GhostexGpuiApp {
         let menu = self.native_sidebar.menu.as_ref()?;
         let sidebar = self.native_sidebar.bounds;
         let scale = menu.scale;
-        let light = self
-            .native_sidebar
-            .snapshot
-            .as_ref()
-            .is_some_and(|snapshot| {
-                snapshot.hud["settings"]
-                    .as_object()
-                    .is_some_and(sidebar_uses_light_theme)
-            });
+        let light = chrome_uses_light_appearance();
         let panels = menu.panels.clone();
         let background = titlebar_popup_menu_background();
         let foreground = titlebar_popup_menu_foreground();

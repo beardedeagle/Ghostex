@@ -14,6 +14,9 @@ static CACHE: LazyLock<Mutex<HashMap<String, (Instant, Option<String>)>>> =
 
 /// CDXC:AgentProviders 2026-09-28 WHY:
 /// "Update available" compares the installed version with the vendor's own release channel (`latestVersion` in the catalog), because npm lags behind the native installers that Ghostex now installs by default. Agents without a channel fall back to their npm package; agents with neither (Cursor's dated builds) never claim an update. Answers are cached for an hour so opening Settings does not hit every vendor.
+///
+/// CDXC:AgentProviders 2026-10-17 WHY:
+/// Antigravity CLI has no npm package; its installers (`install.sh`, `install.ps1`) read the version from the auto-updater's per-platform manifest (`manifests/<os>_<arch>.json`), and every platform's manifest names the same release, so the catalog reads one of them.
 pub(crate) async fn latest(definition: &'static Definition) -> Option<String> {
     let (url, field) = match (&definition.latest_version, &definition.npm_package) {
         (Some(source), _) => (source.url.clone(), source.json_field.clone()),

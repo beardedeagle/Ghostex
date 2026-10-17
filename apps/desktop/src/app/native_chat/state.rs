@@ -981,21 +981,16 @@ impl NativeChatView {
                         crate::app::helpers::gpui_copy_to_clipboard(gpui::ClipboardItem::new_string(text.to_string()), cx);
                     }
                 }
+                // CDXC:SessionChat 2026-10-17 WHY: The chat's own notices (a Q-tag or Files and links jump that cannot reach its message, a coordinator thread that will not open) went to the window's gpui-component notification layer, which the desktop never shows over its panes, so they vanished. They go out as the raw `{type: "toast"}` app message, which the desktop (`session_chat/host_actions.rs`) and the web build (`chat_host.rs`) both draw in the app's toast window, like dictation's failure toast.
                 Some("toast") => {
                     let message = request["params"]["message"].as_str().unwrap_or_default().to_string();
-                    let error = request["params"]["level"] == "error";
                     if self.transcript_only {
                         if !message.is_empty() {
                             self.host("toast", json!({"message": message, "level": request["params"]["level"]}), cx);
                         }
-                    } else if let Some(main) = self.main_window && !message.is_empty() {
-                        cx.defer(move |cx| {
-                            let _ = main.update(cx, |_, window, cx| {
-                                use gpui_component::WindowExt as _;
-                                use gpui_component::notification::Notification;
-                                window.push_notification(if error { Notification::error(message) } else { Notification::success(message) }, cx);
-                            });
-                        });
+                    } else if !message.is_empty() {
+                        let level = if request["params"]["level"] == "error" { "error" } else { "info" };
+                        cx.emit(NativeChatEvent::Host(json!({"type": "toast", "level": level, "title": message})));
                     }
                 }
                 Some("actionError") => { cx.notify(); }

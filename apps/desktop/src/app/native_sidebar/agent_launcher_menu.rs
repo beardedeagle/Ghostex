@@ -88,7 +88,7 @@ struct LauncherPalette {
 
 impl LauncherPalette {
     fn resolve(settings: Option<&serde_json::Map<String, Value>>) -> Self {
-        let light = settings.is_some_and(sidebar_uses_light_theme);
+        let light = chrome_uses_light_appearance();
         let (foreground, muted) = if light {
             (0x262626, 0x717171)
         } else {

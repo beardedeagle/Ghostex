@@ -208,18 +208,63 @@ fn strip_block_markers(value: &str) -> String {
     out
 }
 
-/// `markdown.replace(/(?:\*\*|\*|~~|(?<![A-Za-z0-9])_+|_+(?![A-Za-z0-9]))/g, '')`.
+/// Emphasis markup taken off: every `**`, `*` and `~~`, and the underscore runs that pair up as
+/// emphasis (`_word_`, `__bold__`).
 ///
-/// Underscores drop only where they mark emphasis; the ones inside snake_case identifiers are part
-/// of the word and stay. The lookarounds read the original text, which is what makes a doubled
-/// underscore between two words drop one character per pass and vanish.
+/// CDXC:SessionChat 2026-10-17 WHY: The ported `(?<![A-Za-z0-9])_+|_+(?![A-Za-z0-9])` dropped every underscore that started or ended a word, so a reasoning line naming `/Users/me/dev/_scratch` read `/Users/me/dev/scratch` on the computer and the phone. An underscore run drops only when it can open emphasis (nothing alphanumeric before it, no space after) and a later run of the same length on the same line closes it (no space before, nothing alphanumeric after), which is how Markdown reads `_word_`; a lone one in a path or a name stays.
 fn strip_emphasis(value: &str) -> String {
-    let bytes = value.as_bytes();
+    struct Run {
+        start: usize,
+        len: usize,
+        dropped: bool,
+    }
+    let mut runs: Vec<Run> = Vec::new();
+    let mut openers: Vec<usize> = Vec::new();
+    let mut cursor = 0;
+    while let Some(found) = value[cursor..].find('_') {
+        let start = cursor + found;
+        let len = value[start..]
+            .bytes()
+            .take_while(|byte| *byte == b'_')
+            .count();
+        let before = value[..start].chars().next_back();
+        let after = value[start + len..].chars().next();
+        let can_open = !is_ascii_alphanumeric(before) && after.is_some_and(|c| !is_js_space(c));
+        let can_close = !is_ascii_alphanumeric(after) && before.is_some_and(|c| !is_js_space(c));
+        let index = runs.len();
+        runs.push(Run {
+            start,
+            len,
+            dropped: false,
+        });
+        let partner = can_close
+            .then(|| {
+                openers.iter().rposition(|&open| {
+                    let opener = &runs[open];
+                    opener.len == len && !value[opener.start + opener.len..start].contains('\n')
+                })
+            })
+            .flatten();
+        if let Some(position) = partner {
+            let open = openers[position];
+            runs[open].dropped = true;
+            runs[index].dropped = true;
+            openers.truncate(position);
+        } else if can_open {
+            openers.push(index);
+        }
+        cursor = start + len;
+    }
+    let mut runs = runs.into_iter().filter(|run| run.dropped).peekable();
     let mut out = String::with_capacity(value.len());
     let mut cursor = 0;
     while cursor < value.len() {
+        if let Some(run) = runs.next_if(|run| run.start == cursor) {
+            cursor += run.len;
+            continue;
+        }
         let rest = &value[cursor..];
-        if rest.starts_with("**") {
+        if rest.starts_with("**") || rest.starts_with("~~") {
             cursor += 2;
             continue;
         }
@@ -227,37 +272,10 @@ fn strip_emphasis(value: &str) -> String {
             cursor += 1;
             continue;
         }
-        if rest.starts_with("~~") {
-            cursor += 2;
-            continue;
-        }
-        if rest.starts_with('_') {
-            let run = rest.bytes().take_while(|byte| *byte == b'_').count();
-            let before = value[..cursor].chars().next_back();
-            if !is_ascii_alphanumeric(before) {
-                cursor += run;
-                continue;
-            }
-            // `_+(?![A-Za-z0-9])`, greedy with backtracking: the longest run whose next character
-            // is not alphanumeric, which for an interior run is the run minus its last underscore.
-            let mut taken = run;
-            while taken > 0 {
-                let next = value[cursor + taken..].chars().next();
-                if !is_ascii_alphanumeric(next) {
-                    break;
-                }
-                taken -= 1;
-            }
-            if taken > 0 {
-                cursor += taken;
-                continue;
-            }
-        }
         let step = rest.chars().next().map_or(1, char::len_utf8);
         out.push_str(&rest[..step]);
         cursor += step;
     }
-    let _ = bytes;
     out
 }
 

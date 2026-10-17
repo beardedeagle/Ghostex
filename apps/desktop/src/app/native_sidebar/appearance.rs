@@ -32,9 +32,8 @@ impl SidebarAppearance {
             .and_then(Value::as_f64)
             .unwrap_or(100.0) as f32
             / 100.0;
-        let light = hud["settings"]
-            .as_object()
-            .is_some_and(sidebar_uses_light_theme);
+        // CDXC:Theming 2026-10-17 WHY: The sidebar's own light flag was read from the Appearance setting and the system appearance on every draw, while its text and chrome colours (`chrome_color`, `titlebar_background`) follow the appearance the chrome was last themed with. When the two disagreed (always in Ghostex web, whose chrome stays dark while a light browser reads as a light system; on the computer between a system appearance change and the next settings refresh) the selected row got the light fill under dark-theme text. Every sidebar colour now follows the chrome's flag.
+        let light = chrome_uses_light_appearance();
         let base = titlebar_background().blend(rgb(0).opacity(0.04).into());
         let glass = window_glass_active_in(window);
         let foreground = titlebar_active_text_color();

@@ -16,13 +16,14 @@ pub const HELP: &str = concat!(
     "         cursor (~/.cursor/projects), grok (~/.grok/sessions),\n",
     "         empryo (each repo's .empryo/sessions, found through Empryo's threads.db),\n",
     "         antigravity (~/.gemini/antigravity-cli), hermes (~/.hermes),\n",
-    "         copilot (~/.copilot/session-state)\n",
+    "         copilot (~/.copilot/session-state), droid (~/.factory/sessions),\n",
+    "         omp (~/.omp/agent/sessions), zcode (~/.zcode/cli/db/db.sqlite)\n",
     "\n",
     "Usage:\n",
     "  zehn            find a prompt, then RESUME that session in its agent\n",
     "  zehn --print    just print the selected prompt text (no resume)\n",
     "  zehn --project  print agent<TAB>project<TAB>text (implies --print)\n",
-    "  zehn --agent claude   show only one agent (claude/codex/pi/opencode/cursor/grok/empryo/antigravity/hermes/copilot)\n",
+    "  zehn --agent claude   show only one agent (claude/codex/pi/opencode/cursor/grok/empryo/antigravity/hermes/copilot/droid/omp/zcode)\n",
     "  zehn --claude         shorthand for --agent claude\n",
     "  zehn --accept-all     add permission-bypass flags for supported agents\n",
     "  zehn --list     dump all records\n",
@@ -37,6 +38,9 @@ pub const HELP: &str = concat!(
     "         agy [--dangerously-skip-permissions] --conversation <id>\n",
     "         hermes -p <profile> [--yolo] --resume <id>\n",
     "         copilot [--yolo] --resume <id>\n",
+    "         droid --resume <id>\n",
+    "         omp --session <id>\n",
+    "         zcode --resume <id>\n",
     "(run from the session's project directory)\n",
     "\n",
     "Keys: type to filter · ↑/↓ or ^p/^n move · Enter resume\n",
@@ -48,7 +52,7 @@ pub const HELP: &str = concat!(
     "Favorites are stored in $XDG_CONFIG_HOME/zehn/favorites (or ~/.config/zehn).\n",
 );
 
-const USAGE_LINE: &str = "usage: zehn [--agent claude|codex|pi|opencode|cursor|grok|empryo|antigravity|hermes|copilot] [--accept-all|--no-accept-all] [--print|--project|--list]";
+const USAGE_LINE: &str = "usage: zehn [--agent claude|codex|pi|opencode|cursor|grok|empryo|antigravity|hermes|copilot|droid|omp|zcode] [--accept-all|--no-accept-all] [--print|--project|--list]";
 
 #[derive(Default)]
 struct Options {

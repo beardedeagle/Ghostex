@@ -152,6 +152,10 @@
       "windowsInstall": "irm https://antigravity.google/cli/install.ps1 | iex"
     },
     "miseTool": "agy",
+    "latestVersion": {
+      "url": "https://antigravity-cli-auto-updater-974169037036.us-central1.run.app/manifests/linux_amd64.json",
+      "jsonField": "version"
+    },
     "installDirs": {
       "windows": ["%LOCALAPPDATA%/agy/bin"],
       "unix": ["~/.local/bin"]
