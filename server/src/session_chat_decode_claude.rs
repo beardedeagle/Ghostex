@@ -509,6 +509,21 @@ fn claude_cross_session_envelope(blocks: &[SessionChatBlock]) -> Option<String> 
     (end > start).then(|| text[start..end].to_string())
 }
 
+/// CDXC:SessionChat 2026-10-17 WHY:
+/// When Claude Code resumes a thread whose last row is a user or attachment row nothing answered (a `/rename` leaves a meta reminder row, an injected notice), it writes a `<synthetic>` assistant row "No response requested." to keep its message alternation; its own UI treats the row as empty. Decoded as a reply, it landed hours after the previous turn's report, became that turn's final reply, folded the real report into "Worked" and stretched the time to the resume ("Worked 413m 24s"). The `<synthetic>` model and missing `isApiErrorMessage` are what mark it; a model that writes the same words itself keeps its reply.
+fn is_claude_no_response_placeholder(record: &Map<String, Value>) -> bool {
+    let Some(message) = as_record(record.get("message")) else {
+        return false;
+    };
+    record.get("type").and_then(Value::as_str) == Some("assistant")
+        && record.get("isApiErrorMessage") != Some(&Value::Bool(true))
+        && message.get("model").and_then(Value::as_str) == Some("<synthetic>")
+        && matches!(
+            claude_content_blocks(message.get("content")).as_slice(),
+            [SessionChatBlock::Text { text }] if text == "No response requested."
+        )
+}
+
 pub fn decode_claude_transcript_line(line: &str, fallback_id: &str) -> Option<SessionChatMessage> {
     let record = parse_json_object(line)?;
     let role = record.get("type").and_then(Value::as_str)?;
@@ -548,7 +563,7 @@ pub fn decode_claude_transcript_line(line: &str, fallback_id: &str) -> Option<Se
             api_error: None,
         });
     }
-    if role != "user" && role != "assistant" {
+    if (role != "user" && role != "assistant") || is_claude_no_response_placeholder(&record) {
         return None;
     }
     let timestamp = parse_timestamp(record.get("timestamp"));
