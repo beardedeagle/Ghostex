@@ -159,7 +159,11 @@ pub(crate) fn account_switch_resume_command(
             if !is_uuid(&id) {
                 return None;
             }
-            build_codex_resume_invocation(command, &quote_shell_arg(&id))
+            if codex_rollout_written(&input, &id) {
+                build_codex_resume_invocation(command, &quote_shell_arg(&id))
+            } else {
+                command.to_string()
+            }
         }
         _ => return None,
     };
@@ -180,6 +184,17 @@ fn claude_transcript_written(input: &AgentResumeInput, id: &str) -> bool {
 
 fn build_claude_fresh_invocation(agent_command: &str, shell_reference: &str) -> String {
     format!("{agent_command} --session-id {shell_reference}")
+}
+
+/// CDXC:SessionIdentity 2026-10-17 WHY:
+/// Codex shows a thread id from launch but writes its rollout only once the first prompt arrives (codex-cli 0.163.0), so waking or switching the account of a Codex session nobody had typed into resumed a thread Codex never saved: it printed "No saved session found", Ghostex added "Unable to restore Codex session", the pane fell back to the shell and the message that woke it was lost. Such a session starts Codex fresh (Codex takes no thread id at launch); its hooks then report the new thread id. A stored rollout path that exists, or a rollout found in any Codex home, still resumes.
+fn codex_rollout_written(input: &AgentResumeInput, id: &str) -> bool {
+    input
+        .agent_session_path
+        .as_deref()
+        .map(crate::resume_lookup::expand_home)
+        .is_some_and(|path| path.is_file())
+        || crate::agent_transcripts::find_codex_transcript(id).is_some()
 }
 
 #[derive(Clone)]
@@ -541,6 +556,13 @@ pub(crate) fn build_agent_resume_command(
             .or_else(|| (agent_id == "empryo").then(|| agent_command.to_string())),
         "codex" => {
             let reference = codex_reference?;
+            // See `codex_rollout_written`: a thread Codex never saved starts fresh.
+            if codex_exact_reference
+                .as_deref()
+                .is_some_and(|exact| is_uuid(exact) && !codex_rollout_written(input, exact))
+            {
+                return Some(agent_command.to_string());
+            }
             if options.display {
                 return Some(if let Some(exact) = codex_exact_reference {
                     build_codex_resume_invocation(agent_command, &quote_shell_double_arg(&exact))
@@ -736,7 +758,9 @@ pub(crate) fn build_agent_resume_fallback_command(input: &AgentResumeInput) -> O
     match agent_id {
         "codex" => {
             let exact = get_codex_session_reference(input)?;
-            (exact != resume_title)
+            // A fresh start (no saved thread) has no conversation to fall back to.
+            let fresh = is_uuid(&exact) && !codex_rollout_written(input, &exact);
+            (exact != resume_title && !fresh)
                 .then(|| build_codex_resume_lookup_command(agent_command, &resume_title))
         }
         "claude" => {

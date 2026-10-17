@@ -434,6 +434,72 @@ fn folder_access_trust_dialog(content: &[&str]) -> Option<TerminalDialog> {
     })
 }
 
+/// CDXC:AgentScreenDetection 2026-10-17 WHY:
+/// Codex 0.163 draws its confirmations (`SelectionViewParams::confirmation()`: /permissions' "Enable full access?", goal, worktree, plugin and daemon confirmations) as a dialog at most 72 columns wide centred over the screen, while its composer stays drawn below it (tui/src/bottom_pane/view_stack.rs `dialog_area`). The footed-dialog parser looks for the footer at the bottom of the screen, so these never reached chat and Codex waited in the terminal. The dialog's own columns are cut out and parsed like any other dialog: Codex clears only its rectangle, so transcript text either side of it stays out, and the climb stops at the first line that is not the dialog's.
+fn centered_dialog_text(text: &str) -> Option<String> {
+    const DIALOG_WIDTH: usize = 72;
+    let lines: Vec<Vec<char>> = text
+        .lines()
+        .rev()
+        .take(160)
+        .map(|line| {
+            normalize_spaces(&strip_ansi_sgr(line))
+                .trim_end()
+                .chars()
+                .collect()
+        })
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .collect();
+    let slice = |line: &[char], from: usize| -> String {
+        line.get(from..line.len().min(from + DIALOG_WIDTH))
+            .map(|cells| cells.iter().collect::<String>().trim_end().to_string())
+            .unwrap_or_default()
+    };
+    // The footer's hint starts two columns in from the dialog's left edge, past an indent that a
+    // bottom-pane view (column 2) never has.
+    let (footer, left) = (lines.len().saturating_sub(40)..lines.len())
+        .rev()
+        .find_map(|index| {
+            let line = &lines[index];
+            (4..line.len())
+                .find(|&column| {
+                    line[column] != ' '
+                        && line[column - 1] == ' '
+                        && line[column - 2] == ' '
+                        && crate::session_chat_codex_blocking::is_codex_modal_footer(&slice(
+                            line, column,
+                        ))
+                })
+                .map(|column| (index, column - 2))
+        })?;
+    // Only an overlay leaves Codex's composer drawn below its footer.
+    if !lines[footer + 1..].iter().any(|line| {
+        let line: String = line.iter().collect();
+        let line = clean(&line);
+        line.starts_with('›') && row(line).is_none()
+    }) {
+        return None;
+    }
+    // A dialog line starts at the edge only with its selection marker; anything else crossing the
+    // edge is transcript text beside the dialog.
+    let in_dialog =
+        |line: &str| line.is_empty() || line.starts_with("  ") || line.starts_with(ROW_MARKERS);
+    let top = (0..footer)
+        .rev()
+        .find(|&index| !in_dialog(&slice(&lines[index], left)))
+        .map_or(0, |index| index + 1);
+    let mut inner = vec![String::new(), String::new()];
+    inner.extend((top..=footer).map(|index| slice(&lines[index], left)));
+    (inner
+        .iter()
+        .filter(|line| row(line).is_some_and(|row| row.selected))
+        .count()
+        == 1)
+        .then(|| inner.join("\n"))
+}
+
 /// CDXC:AgentScreenDetection 2026-09-05 DECISION:
 /// User: expose the "Implement this plan?" picker in chat so switching to the terminal is unnecessary.
 /// User: audit every Codex command and make its messages and interactions usable in chat, using the existing UX and improving it where needed.
@@ -446,6 +512,11 @@ pub fn detect_codex_dialog(text: &str) -> Option<TerminalDialog> {
 fn detect_codex_dialog_as_drawn(text: &str) -> Option<TerminalDialog> {
     if let Some(pager) = crate::session_chat_codex_pager::detect_codex_transcript_pager(text) {
         return Some(pager);
+    }
+    if let Some(dialog) =
+        centered_dialog_text(text).and_then(|inner| detect_codex_dialog_as_drawn(&inner))
+    {
+        return Some(dialog);
     }
     let mut lines: Vec<String> = text
         .lines()

@@ -306,6 +306,11 @@ fn common_folder(files: &[Value]) -> String {
 pub fn file_change_card(files: &[Value]) -> Value {
     let mut paths: Vec<&str> = Vec::new();
     let (mut added, mut removed) = (0u64, 0u64);
+    let (edited, failed) =
+        crate::transcript::simple::edited_and_failed_paths(files.iter().filter_map(|file| {
+            let path = file.get("path").and_then(Value::as_str)?;
+            Some((path, file.get("failed") == Some(&Value::Bool(true))))
+        }));
     for file in files {
         if let Some(path) = file.get("path").and_then(Value::as_str) {
             if !paths.contains(&path) {
@@ -317,7 +322,7 @@ pub fn file_change_card(files: &[Value]) -> Value {
     }
     let total = added + removed;
     serde_json::json!({
-        "title": crate::transcript::simple::simple_edit_label(paths.len()),
+        "title": crate::transcript::simple::edit_label(edited.len(), failed.len()),
         "folder": common_folder(files),
         "added": added,
         "removed": removed,

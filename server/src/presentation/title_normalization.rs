@@ -39,6 +39,7 @@ pub(crate) fn session_card_primary_title(title: &str, agent_id: Option<&str>) ->
         .unwrap_or_else(|| normalize_spaces(title.trim()));
     if normalized.is_empty()
         || is_session_number_title(&normalized)
+        || codex_session_id_from_title(&normalized).is_some()
         || is_ignored_generic_agent_terminal_title(&normalized)
         || is_path_like_terminal_title(&normalized)
         || is_shell_location_terminal_title(&normalized)
@@ -109,7 +110,8 @@ pub(crate) fn normalize_terminal_title(title: Option<&str>) -> Option<String> {
         .trim();
     let sanitized = strip_oc_prefixes(without_markers).trim().to_string();
     let sanitized = crate::agents::strip_freebuff_title_prefix(&sanitized);
-    let sanitized = crate::agents::strip_empryo_title_suffix(sanitized).to_string();
+    let sanitized = crate::agents::strip_empryo_title_suffix(sanitized);
+    let sanitized = crate::agents::strip_codex_action_required_prefix(sanitized).to_string();
     if let Some(cursor_title) = normalize_cursor_terminal_title(&sanitized) {
         return cursor_title;
     }

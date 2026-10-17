@@ -559,6 +559,21 @@ fn replace_encrypted_tokens(text: &str) -> String {
     out
 }
 
+/// CDXC:SessionChat 2026-10-17 WHY:
+/// Codex records a call the user denied or stopped as an ordinary output with no failure flag: "aborted by user after 28.7s" (a code-mode `exec` running `tools.apply_patch`), "Wall time: … seconds\naborted by user", "patch rejected by user", "exec command rejected by user" or "patch rejected: <reason>" (codex-rs core/src/tools/parallel.rs, events.rs and apply_patch.rs, 0.163.0). Read as a success, a denied edit showed as "Edited 1 file" with its diff while the file never changed. The output's last line is matched exactly, so a command that merely prints these words is not a failure.
+fn is_codex_refused_tool_output(output: &str) -> bool {
+    let last = output.trim_end().lines().last().unwrap_or_default().trim();
+    last == "aborted by user"
+        || last
+            .strip_prefix("aborted by user after ")
+            .is_some_and(|rest| rest.ends_with('s'))
+        || matches!(
+            last,
+            "patch rejected by user" | "exec command rejected by user" | "rejected by user"
+        )
+        || (output.trim_start().starts_with("patch rejected: ") && !output.contains('\n'))
+}
+
 fn codex_tool_result(output: Option<&Value>) -> SessionChatBlock {
     let record = output.and_then(Value::as_object);
     let is_error = record.is_some_and(|inner| {
@@ -568,8 +583,10 @@ fn codex_tool_result(output: Option<&Value>) -> SessionChatBlock {
     let content = record
         .and_then(|inner| inner.get("content").or_else(|| inner.get("output")))
         .or(output);
+    let output = tool_result_output(content);
+    let is_error = is_error || is_codex_refused_tool_output(&output);
     SessionChatBlock::ToolResult {
-        output: tool_result_output(content),
+        output,
         is_error: if is_error { Some(true) } else { None },
         call_id: None,
         patch: None,

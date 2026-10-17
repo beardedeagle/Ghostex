@@ -25,7 +25,8 @@ pub(crate) fn normalize_terminal_title(title: &str) -> Option<String> {
     }
     let value = strip_oc_prefixes(value.trim_start_matches(is_leading_title_marker).trim());
     let value = strip_freebuff_title_prefix(&value);
-    let value = strip_empryo_title_suffix(value).to_string();
+    let value = strip_empryo_title_suffix(value);
+    let value = strip_codex_action_required_prefix(value).to_string();
     if let Some(cursor) = normalize_cursor_terminal_title(&value) {
         return cursor;
     }
@@ -251,6 +252,26 @@ pub(crate) fn strip_freebuff_title_prefix(title: &str) -> &str {
         .strip_prefix("Freebuff: ")
         .map(str::trim_start)
         .unwrap_or(title)
+}
+
+/// CDXC:SessionTitles 2026-10-17 WHY:
+/// While Codex waits for an approval it titles its terminal `[ ! ] Action Required | <its usual title>`, blinking to `[ . ] …` every second, and its usual title is the thread's id until Codex names the thread. A session adopted that whole status string as its name (`[ . ] Action Required | 01a148f2-…`, observed with codex-cli 0.163.0). The prefix is a status, never a name, so it is stripped and the remainder goes through the usual checks: an id or a bare prefix gives no title.
+/// SEE-ALSO: server/src/presentation/title_normalization.rs and packages/gx-core/src/quick_access/session_titles.rs normalize titles with the same rule; `is_codex_action_required_title` in server/src/session_status/title_classify.rs reads the same prefix as attention.
+pub(crate) fn strip_codex_action_required_prefix(title: &str) -> &str {
+    let Some(rest) = title.trim_start().strip_prefix('[') else {
+        return title;
+    };
+    let Some((marker, after)) = rest.split_once(']') else {
+        return title;
+    };
+    if marker.chars().count() > 5 {
+        return title;
+    }
+    let Some(after) = after.trim_start().strip_prefix("Action Required") else {
+        return title;
+    };
+    let after = after.trim_start();
+    after.strip_prefix('|').unwrap_or(after).trim()
 }
 
 /// CDXC:SessionTitles 2026-10-06 WHY:

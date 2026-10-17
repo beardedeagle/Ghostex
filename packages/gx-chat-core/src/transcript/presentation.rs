@@ -41,7 +41,7 @@ use crate::transcript::prose::prose_markdown;
 use crate::transcript::question_exchange::answered_question_exchange;
 use crate::transcript::question_forms::{question_forms, QuestionForm};
 use crate::transcript::sent_message::{project_sent_messages, resolve_recipients};
-use crate::transcript::simple::{simple_edit_label, tool_count_label};
+use crate::transcript::simple::{edit_label, tool_count_label};
 use crate::transcript::system_cards::classify_system_card;
 use crate::transcript::tool_fold::{pair_tool_blocks, split_blocks, ToolPair};
 use crate::transcript::tool_rows::tool_run_shows_all_rows;
@@ -178,12 +178,11 @@ pub fn project_message(
             .filter_map(answered_question_exchange)
             .collect()
     };
-    let mut changed_paths: Vec<&str> = Vec::new();
-    for change in &changes {
-        if !changed_paths.contains(&change.path.as_str()) {
-            changed_paths.push(&change.path);
-        }
-    }
+    let (changed_paths, failed_paths) = crate::transcript::simple::edited_and_failed_paths(
+        changes
+            .iter()
+            .map(|change| (change.path.as_str(), change.result_is_error())),
+    );
 
     let mut projected = message_keys(message);
     projected.insert("text".to_string(), marked_body.into());
@@ -320,7 +319,7 @@ pub fn project_message(
     projected.insert("files".to_string(), Value::Array(files));
     projected.insert(
         "simpleFileLabel".to_string(),
-        simple_edit_label(changed_paths.len()).into(),
+        edit_label(changed_paths.len(), failed_paths.len()).into(),
     );
     /* React counts only the work rows for this label: an answered question is conversation, so its
     card sits outside the group and is not one of the "N tool calls". */
@@ -738,14 +737,14 @@ pub fn build_scope(
                         files.extend(rows);
                     }
                 }
-                let mut changed: Vec<String> = Vec::new();
-                for file in &files {
-                    if let Some(path) = file.get("path").and_then(Value::as_str) {
-                        if !changed.iter().any(|seen| seen == path) {
-                            changed.push(path.to_string());
-                        }
-                    }
-                }
+                let (edited, failed) = crate::transcript::simple::edited_and_failed_paths(
+                    files.iter().filter_map(|file| {
+                        let path = file.get("path").and_then(Value::as_str)?;
+                        Some((path, file.get("failed") == Some(&Value::Bool(true))))
+                    }),
+                );
+                let mut changed: Vec<String> = edited.iter().map(|path| path.to_string()).collect();
+                let failed_files = failed.len();
                 if let Some(deferred) = &turn.user.deferred_work {
                     for path in &deferred.file_paths {
                         if !changed.iter().any(|seen| seen == path) {
@@ -790,7 +789,7 @@ pub fn build_scope(
                         "{changed_files} {} changed",
                         if changed_files == 1 { "file" } else { "files" }
                     ),
-                    simple_files_label: simple_edit_label(changed_files),
+                    simple_files_label: edit_label(changed_files, failed_files),
                     expandable: !collapsed_work.is_empty() || turn.user.deferred_work.is_some(),
                     deferred: deferred_value,
                     work: collapsed_work

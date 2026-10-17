@@ -210,6 +210,8 @@ fn normalize_terminal_title(title: &str) -> Option<String> {
         .unwrap_or(sanitized);
     // Empryo's `<tab> · working — Empryo (beta)` title (CDXC:SessionTitles in server/src/agents/terminal_title.rs).
     let sanitized = strip_empryo_title_suffix(sanitized);
+    // Codex's `[ ! ] Action Required | <title>` status title (CDXC:SessionTitles in server/src/agents/terminal_title.rs).
+    let sanitized = strip_codex_action_required_prefix(sanitized);
     if let Some(cursor) = normalize_cursor_title(sanitized) {
         return cursor;
     }
@@ -220,6 +222,24 @@ fn normalize_terminal_title(title: &str) -> Option<String> {
         return Some(pi);
     }
     (!sanitized.is_empty()).then(|| sanitized.to_string())
+}
+
+/// Same rule as gxserver's `strip_codex_action_required_prefix`.
+fn strip_codex_action_required_prefix(title: &str) -> &str {
+    let Some(rest) = title.trim_start().strip_prefix('[') else {
+        return title;
+    };
+    let Some((marker, after)) = rest.split_once(']') else {
+        return title;
+    };
+    if marker.chars().count() > 5 {
+        return title;
+    }
+    let Some(after) = after.trim_start().strip_prefix("Action Required") else {
+        return title;
+    };
+    let after = after.trim_start();
+    after.strip_prefix('|').unwrap_or(after).trim()
 }
 
 /// Same rule as gxserver's `strip_empryo_title_suffix`.
