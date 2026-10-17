@@ -26,7 +26,11 @@ pub fn default_pipe_path() -> String {
             }
         })
         .collect();
-    format!(r"\\.\pipe\ghostex-editor-{user}")
+    // A portable copy runs its own editor daemon beside an installed Ghostex's (ghostex_paths::portable).
+    match ghostex_paths::portable::current() {
+        Some(copy) => format!(r"\\.\pipe\ghostex-editor-{user}-{}", copy.instance_key()),
+        None => format!(r"\\.\pipe\ghostex-editor-{user}"),
+    }
 }
 
 /// Both Ghostex.exe and resources/native/ghostex.exe resolve the same packaged helper.
@@ -42,6 +46,14 @@ pub fn bundled_executable(executable: &Path) -> Option<PathBuf> {
 /// Session CLIs run from the separately staged gxserver package, outside the desktop bundle, so ancestor lookup cannot find the editor shipped by the Windows installer.
 /// The per-user install (release installer and local start, `%LOCALAPPDATA%\Ghostex\current`) comes before a Program Files one.
 pub fn installed_executable() -> Option<PathBuf> {
+    // A portable copy's CLI uses the copy's own editor, never an installed Ghostex's.
+    if let Some(copy) = ghostex_paths::portable::current() {
+        return Some(
+            copy.root
+                .join("current/resources/GhostexEditor/GhostexEditor.exe"),
+        )
+        .filter(|candidate| candidate.is_file());
+    }
     let per_user = env::var_os("LOCALAPPDATA")
         .filter(|value| !value.is_empty())
         .map(|dir| PathBuf::from(dir).join("Ghostex/current"));

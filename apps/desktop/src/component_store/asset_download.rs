@@ -53,13 +53,18 @@ pub(crate) fn component_store_root() -> Result<PathBuf, String> {
     if let Some(override_root) = env::var_os("GHOSTEX_COMPONENT_STORE_DIR") {
         return Ok(PathBuf::from(override_root));
     }
+    if let Some(copy) = ghostex_paths::portable::current() {
+        return Ok(copy.data_dir.join("components"));
+    }
     #[cfg(target_os = "windows")]
     /*
     CDXC:PlatformSupport 2026-08-16:
     Velopack owns %LOCALAPPDATA%\Ghostex and transactionally replaces that
     entire directory during reinstall/update. Keep large on-demand runtimes in
     a sibling data root so the installer cannot discard a verified CEF payload
-    and force every downloaded upgrade to fetch Chromium again.
+    and force every downloaded upgrade to fetch Chromium again. A portable copy
+    keeps its components in its own data folder (ghostex_paths::portable), which
+    Velopack's portable updates leave alone too.
     */
     return env::var_os("LOCALAPPDATA")
         .map(PathBuf::from)
@@ -76,6 +81,9 @@ pub(crate) fn component_store_root() -> Result<PathBuf, String> {
 pub(crate) fn legacy_asset_cache_root() -> Result<PathBuf, String> {
     if let Some(override_root) = env::var_os("GHOSTEX_ON_DEMAND_CACHE_DIR") {
         return Ok(PathBuf::from(override_root));
+    }
+    if let Some(copy) = ghostex_paths::portable::current() {
+        return Ok(copy.data_dir.join("on-demand"));
     }
     #[cfg(target_os = "windows")]
     return env::var_os("LOCALAPPDATA")

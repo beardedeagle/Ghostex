@@ -5,6 +5,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+pub mod portable;
 pub mod powershell;
 
 const PRODUCT_DIR_UNIX: &str = "ghostex";
@@ -27,6 +28,14 @@ pub fn launchd_label_prefix(local_api_port: u16) -> String {
     }
 }
 
+/// True for a profile kept apart from the user's normal Ghostex: an explicit
+/// `GHOSTEX_HOME`, or a Windows portable copy. Such a profile never migrates the
+/// user's legacy storage into itself and never takes over user-wide things such
+/// as the public CLI wrappers.
+pub fn uses_separate_profile() -> bool {
+    nonempty_env_path("GHOSTEX_HOME").is_some() || portable::current().is_some()
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct GhostexPaths {
     pub cache_dir: PathBuf,
@@ -45,10 +54,15 @@ impl GhostexPaths {
     /// `GHOSTEX_HOME` remains an explicit compatibility override for isolated
     /// development/test profiles. When set, it intentionally keeps the old
     /// single-root shape instead of mixing that profile with platform stores.
+    /// A Windows portable copy (see `portable`) uses the same shape inside its
+    /// own `GhostexData` folder.
     pub fn resolve() -> Self {
         let home_dir = user_home_dir();
         if let Some(root) = nonempty_env_path("GHOSTEX_HOME") {
             return Self::unified(home_dir, root);
+        }
+        if let Some(copy) = portable::current() {
+            return Self::unified(home_dir, copy.data_dir.clone());
         }
 
         Self::platform_defaults(home_dir)
@@ -153,7 +167,7 @@ impl GhostexPaths {
     /// CDXC:ServerDaemon 2026-10-16 WHY:
     /// GitHub issue #231: one legacy item the user could not move (a folder left owned by root after a `sudo` run, a file with an immutable flag) failed the whole migration, and both the `ghostex` CLI and gxserver refused to start. Each item is now moved on its own; an item that cannot be moved stays where it is and is reported, the rest of the migration goes on, and the caller logs one warning. Skipped items are retried on the next start (once the user fixes the permissions they move), but a warning is only reported again when the list of skipped items changed.
     pub fn migrate_legacy_layout(&self) -> LegacyMigrationReport {
-        if nonempty_env_path("GHOSTEX_HOME").is_some() || self.migration_marker().exists() {
+        if uses_separate_profile() || self.migration_marker().exists() {
             return LegacyMigrationReport::default();
         }
 

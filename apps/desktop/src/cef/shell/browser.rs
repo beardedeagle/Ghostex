@@ -902,6 +902,7 @@ pub(crate) fn remote_debugging_port() -> i32 {
             .and_then(|value| value.parse::<i32>().ok())
             .filter(|port| *port > 0)
     })
+    .or_else(|| ghostex_paths::portable::ports().map(|ports| i32::from(ports.cef_remote_debugging)))
     .unwrap_or(9334)
 }
 

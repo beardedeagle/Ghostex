@@ -82,6 +82,9 @@ pub(crate) fn gpui_repair_ghostex_cli_commands() -> Result<String, String> {
     if gpui_uses_isolated_storage() {
         return Err("This isolated app does not replace the shared ghostex or gx commands. Use cargo xtask gx-isolated from its checkout.".to_string());
     }
+    if ghostex_paths::portable::current().is_some() {
+        return Err("This portable copy does not replace the shared ghostex or gx commands. Terminals it opens run its own ghostex.".to_string());
+    }
     /*
     CDXC:Cli 2026-06-24-12:56:
     CLI repair is real only when GPUI is running from a packaged app that ships the native CLI binary. Development binaries must report unavailable status instead of synthesizing wrappers to a source checkout, while packaged repair writes public wrappers outside the app and replaces only marked Ghostex wrappers, app-owned CLI symlinks, or broken symlinks.
@@ -141,7 +144,8 @@ fn gpui_describe_cli_install_dirs(install_dirs: &[PathBuf]) -> String {
 /// User: "pls fix root cause here. if we need ghostex cli then lets auto install it". Chat sends and agents need the `ghostex` command, so packaged startup installs the public `ghostex` and `gx` wrappers when either name is missing, and refreshes Ghostex-owned wrappers that point at another or older bundle (Sparkle and DMG updates swap the bundle but never rewrite them). This supersedes the 2026-08-30 rule that startup only refreshed existing wrappers and never did a first install. It runs the same repair as Settings > Integrations, so a command of the same name that Ghostex did not write is never overwritten, and when every wrapper already matches nothing is written.
 /// SEE-ALSO: `session_ghostex_cli_executable` in server/src/zmx/scripts.rs, which pins each session's prompt editor to the bundled CLI without needing PATH.
 pub(crate) fn gpui_auto_install_ghostex_cli_wrappers() {
-    if gpui_uses_isolated_storage() {
+    // A portable copy leaves the public wrappers to the installed Ghostex; its sessions find its own CLI first on PATH (scripts_windows.rs).
+    if gpui_uses_isolated_storage() || ghostex_paths::portable::current().is_some() {
         return;
     }
     let Ok(cli_dir) = gpui_bundled_ghostex_cli_resource_dir() else {

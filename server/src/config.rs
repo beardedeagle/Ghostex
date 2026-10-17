@@ -110,6 +110,9 @@ pub fn read_selected_local_api_port() -> Result<u16> {
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
     else {
+        if let Some(ports) = ghostex_paths::portable::ports() {
+            return Ok(ports.gxserver);
+        }
         return Ok(if cfg!(windows) {
             58_746
         } else {

@@ -43,7 +43,8 @@ pub(crate) fn hand_off_to_running_instance() -> bool {
 }
 
 /// Brings the other Ghostex's main window forward: the largest visible unowned top-level window of
-/// another process running this same executable name.
+/// another process running this same executable file. The full path, not just `Ghostex.exe`, so a
+/// portable copy relaunched beside an installed Ghostex raises its own window (ghostex_paths::portable).
 fn activate_running_instance() {
     struct Search {
         executable: Vec<u16>,
@@ -57,7 +58,7 @@ fn activate_running_instance() {
         if pid == std::process::id()
             || unsafe { IsWindowVisible(hwnd) } == 0
             || !unsafe { GetWindow(hwnd, GW_OWNER) }.is_null()
-            || process_executable_name(pid).as_deref() != Some(search.executable.as_slice())
+            || process_executable_path(pid).as_deref() != Some(search.executable.as_slice())
         {
             return 1;
         }
@@ -74,10 +75,7 @@ fn activate_running_instance() {
         }
         1
     }
-    let Some(executable) = std::env::current_exe()
-        .ok()
-        .and_then(|path| path.file_name().map(lowercase_wide))
-    else {
+    let Some(executable) = std::env::current_exe().ok().map(|path| path_key(&path)) else {
         return;
     };
     let mut search = Search {
@@ -99,8 +97,8 @@ fn activate_running_instance() {
     }
 }
 
-/// The lower-cased file name of process `pid`'s executable.
-fn process_executable_name(pid: u32) -> Option<Vec<u16>> {
+/// The lower-cased full path of process `pid`'s executable.
+fn process_executable_path(pid: u32) -> Option<Vec<u16>> {
     // SAFETY: the process handle is only queried and then closed; the buffer outlives the call.
     unsafe {
         let process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
@@ -115,11 +113,18 @@ fn process_executable_name(pid: u32) -> Option<Vec<u16>> {
             return None;
         }
         buffer.truncate(length as usize);
-        let path = std::path::PathBuf::from(std::ffi::OsString::from(
-            <std::ffi::OsString as std::os::windows::ffi::OsStringExt>::from_wide(&buffer),
-        ));
-        path.file_name().map(lowercase_wide)
+        let path = <std::ffi::OsString as std::os::windows::ffi::OsStringExt>::from_wide(&buffer);
+        Some(path_key(std::path::Path::new(&path)))
     }
+}
+
+/// One spelling per file (long names, one case), so both sides of the comparison agree.
+fn path_key(path: &std::path::Path) -> Vec<u16> {
+    lowercase_wide(
+        std::fs::canonicalize(path)
+            .unwrap_or_else(|_| path.to_path_buf())
+            .as_os_str(),
+    )
 }
 
 fn lowercase_wide(name: &std::ffi::OsStr) -> Vec<u16> {

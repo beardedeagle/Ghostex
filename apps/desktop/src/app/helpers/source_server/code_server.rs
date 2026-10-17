@@ -744,6 +744,7 @@ pub(crate) fn source_code_server_editor_port() -> u16 {
         .ok()
         .and_then(|value| value.trim().parse::<u16>().ok())
         .filter(|port| *port != 0)
+        .or_else(|| ghostex_paths::portable::ports().map(|ports| ports.code_server))
         .unwrap_or(SOURCE_CODE_SERVER_EDITOR_PORT)
 }
 

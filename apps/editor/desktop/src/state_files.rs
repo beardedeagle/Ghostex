@@ -55,6 +55,9 @@ pub(crate) fn resolved_state_directory() -> PathBuf {
     if let Some(ghostex_home) = absolute_environment_path("GHOSTEX_HOME") {
         return ghostex_home.join("state");
     }
+    if let Some(copy) = ghostex_paths::portable::current() {
+        return copy.data_dir.join("state");
+    }
     let user_home = absolute_environment_path("USERPROFILE").unwrap_or_else(|| PathBuf::from("."));
     absolute_environment_path("LOCALAPPDATA")
         .unwrap_or_else(|| user_home.join("AppData/Local"))
@@ -72,6 +75,9 @@ pub(crate) fn resolved_state_directory() -> PathBuf {
 pub(crate) fn windows_webview_data_directory() -> PathBuf {
     if let Some(ghostex_home) = absolute_environment_path("GHOSTEX_HOME") {
         return ghostex_home.join("state/editor-webview2");
+    }
+    if let Some(copy) = ghostex_paths::portable::current() {
+        return copy.data_dir.join("state/editor-webview2");
     }
     let user_home = absolute_environment_path("USERPROFILE").unwrap_or_else(|| PathBuf::from("."));
     absolute_environment_path("LOCALAPPDATA")

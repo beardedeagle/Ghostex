@@ -12,9 +12,14 @@ checksum = "c2db04e74f0a9a93103b50e90b96024c9b2bdca8bce6a632ec71b88736d3d359"
 name = "ghostex-editor-client"
 version = "0.1.0"
 dependencies = [
+ "ghostex-paths",
  "interprocess",
  "windows-sys",
 ]
+
+[[package]]
+name = "ghostex-paths"
+version = "0.1.0"
 
 [[package]]
 name = "interprocess"

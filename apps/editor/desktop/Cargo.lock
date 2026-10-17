@@ -728,6 +728,7 @@ dependencies = [
  "base64",
  "ctrlc",
  "ghostex-editor-client",
+ "ghostex-paths",
  "interprocess",
  "mime_guess",
  "percent-encoding",
@@ -744,9 +745,14 @@ dependencies = [
 name = "ghostex-editor-client"
 version = "0.1.0"
 dependencies = [
+ "ghostex-paths",
  "interprocess",
  "windows-sys 0.61.2",
 ]
+
+[[package]]
+name = "ghostex-paths"
+version = "0.1.0"
 
 [[package]]
 name = "gio"

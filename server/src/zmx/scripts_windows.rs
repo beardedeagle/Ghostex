@@ -184,8 +184,9 @@ fn start(
     // The profile runs after ConPTY applies launch.cwd and may change location.
     // Restore the selected project before any agent command can run.
     let startup = format!(
-        "Set-Location -LiteralPath {} -ErrorAction Stop; $env:GHOSTEX_PROMPT_EDITOR_MACHINE_VISUAL=$env:VISUAL; $env:GHOSTEX_PROMPT_EDITOR_MACHINE_EDITOR=$env:EDITOR; $env:VISUAL={}; $env:EDITOR=$env:VISUAL; $env:GHOSTEX_PROMPT_EDITING_ENABLED='1'; {}",
+        "Set-Location -LiteralPath {} -ErrorAction Stop; {}$env:GHOSTEX_PROMPT_EDITOR_MACHINE_VISUAL=$env:VISUAL; $env:GHOSTEX_PROMPT_EDITOR_MACHINE_EDITOR=$env:EDITOR; $env:VISUAL={}; $env:EDITOR=$env:VISUAL; $env:GHOSTEX_PROMPT_EDITING_ENABLED='1'; {}",
         quote(cwd),
+        portable_cli_first_on_path(&cli),
         quote(&editor),
         agent_without_powershell7_modules(startup.unwrap_or_default().trim_end_matches(['\r', '\n']))
     );
@@ -196,6 +197,21 @@ fn start(
     let encoded =
         STANDARD.encode(serde_json::to_vec(&launch).expect("serialize native session launch"));
     invocation(program, vec!["start-encoded".into(), encoded], environment)
+}
+
+/// CDXC:PlatformSupport 2026-10-17 WHY:
+/// A portable copy does not install the public `ghostex` wrappers, which belong to an installed Ghostex (ghostex_paths::portable), so `ghostex` typed in its sessions, by the user or an agent, would reach the installed app's gxserver. Its sessions put this gxserver's own CLI folder first on PATH, after the profile has run. An installed Ghostex's sessions keep the PATH their profile gives them.
+fn portable_cli_first_on_path(cli: &std::path::Path) -> String {
+    if ghostex_paths::portable::current().is_none() {
+        return String::new();
+    }
+    let Some(directory) = cli.parent() else {
+        return String::new();
+    };
+    format!(
+        "$env:Path={} + ';' + $env:Path; ",
+        quote(&directory.to_string_lossy())
+    )
 }
 
 /// Runs the agent's startup command with PowerShell 7's own module folder out of `PSModulePath`, then puts the shell's value back.

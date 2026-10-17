@@ -395,11 +395,16 @@ const GHOSTEX_GPUI_BUNDLE_ID: &str = "com.madda.ghostex.gpui";
 #[cfg(any(target_os = "windows", target_os = "linux", test))]
 const WINDOWS_GHOSTEX_DESKTOP_SCRIPT: &str = r#"
 $ErrorActionPreference = 'Stop'
-$running = @(Get-Process -Name 'Ghostex','ghostex-gpui-runtime' -ErrorAction SilentlyContinue)
+# A portable copy (a `.portable` file beside its current folder) is a separate app, not this one.
+function Get-GhostexDesktop {
+    Get-Process -Name 'Ghostex','ghostex-gpui-runtime' -ErrorAction SilentlyContinue |
+        Where-Object { -not ($_.Path -and (Test-Path -LiteralPath (Join-Path (Split-Path -Parent (Split-Path -Parent $_.Path)) '.portable') -PathType Leaf)) }
+}
+$running = @(Get-GhostexDesktop)
 if ($running.Count -gt 0) {
     $process = $null
     for ($attempt = 0; $attempt -lt 20 -and -not $process; $attempt++) {
-        $process = Get-Process -Name 'Ghostex','ghostex-gpui-runtime' -ErrorAction SilentlyContinue |
+        $process = Get-GhostexDesktop |
             Where-Object { $_.MainWindowHandle -ne 0 } |
             Select-Object -First 1
         if ($process) { break }
@@ -479,6 +484,29 @@ fn resolve_windows_desktop_launch() -> Launch {
             "-NonInteractive".to_string(),
             "-Command".to_string(),
             WINDOWS_GHOSTEX_DESKTOP_SCRIPT.to_string(),
+        ],
+        cwd: None,
+        env: Vec::new(),
+    }
+}
+
+/// A portable copy's CLI opens that copy's app, never the installed one; when the copy already
+/// runs, the app's single-instance lock brings its window forward (apps/desktop/src/windows_single_instance.rs).
+#[cfg(target_os = "windows")]
+fn resolve_windows_portable_desktop_launch(copy: &ghostex_paths::portable::PortableCopy) -> Launch {
+    let executable = copy.app_executable();
+    let quote = |path: &Path| format!("'{}'", path.to_string_lossy().replace('\'', "''"));
+    Launch {
+        command: "powershell.exe".to_string(),
+        args: vec![
+            "-NoProfile".to_string(),
+            "-NonInteractive".to_string(),
+            "-Command".to_string(),
+            format!(
+                "$ErrorActionPreference = 'Stop'; Start-Process -FilePath {} -WorkingDirectory {}",
+                quote(&executable),
+                quote(&copy.root.join("current"))
+            ),
         ],
         cwd: None,
         env: Vec::new(),
@@ -659,6 +687,9 @@ pub fn resolve_ghostex_desktop_launch() -> CliResult<Launch> {
     }
     #[cfg(target_os = "windows")]
     {
+        if let Some(copy) = ghostex_paths::portable::current() {
+            return Ok(resolve_windows_portable_desktop_launch(copy));
+        }
         return Ok(resolve_windows_desktop_launch());
     }
     #[cfg(target_os = "linux")]
