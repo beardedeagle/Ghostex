@@ -114,8 +114,13 @@ fn opencode_config_dir(hook_paths: &HookPaths) -> Option<std::path::PathBuf> {
         .map(Path::to_path_buf)
 }
 
+/// The plugin file that carries Ghostex's gxserver and notify paths.
+pub(crate) fn opencode_plugin_file(config_dir: &Path) -> std::path::PathBuf {
+    config_dir.join(PLUGIN_DIRECTORY).join("tui.js")
+}
+
 pub(crate) fn inspect_opencode_hook(hooks: &HookPaths, config_dir: &Path) -> HookInspection {
-    let text = read_file_text(&config_dir.join(PLUGIN_DIRECTORY).join("tui.js"));
+    let text = read_file_text(&opencode_plugin_file(config_dir));
     let config = read_file_text(&config_dir.join("cli.json"));
     let retired = retired_plugin_present(config_dir);
     HookInspection {

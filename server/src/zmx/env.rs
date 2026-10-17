@@ -1,10 +1,20 @@
 use std::{collections::HashMap, path::Path};
 
+/// CDXC:AgentHooks 2026-10-17 DECISION:
+/// The user chose that "hook state follows each session's own Ghostex (through its session env)". A hook command in the user's agent config names one Ghostex's gxserver and notify script, but every Ghostex on the computer (an installed one and portable copies) runs its sessions under it. Its events already go to the session's own gxserver (`GHOSTEX_GXSERVER_BASE_URL`); its sidecars (Claude's hook sessions, the status line payloads) went to the folder of whichever copy wrote the hook command, so the other copy's sessions lost their transcript links and status lines. Every session now names its own Ghostex's hook state folder, which the notify and status line hooks prefer over the folder their script names.
+/// SEE-ALSO: server/src/agent_hooks/windows.rs (`notify`), `run_native_statusline_hook` in server/src/agent_hooks/statusline.rs, the bash notify and status line scripts (plugin_sources.rs, statusline.rs), server/src/agent_hooks/foreign_owner.rs.
 pub(crate) fn build_gxserver_zmx_child_environment() -> HashMap<String, String> {
     let mut environment = std::env::vars().collect::<HashMap<_, _>>();
     for key in environment_keys_to_strip() {
         environment.remove(key);
     }
+    environment.insert(
+        "GHOSTEX_AGENT_HOOK_STATE_DIR".to_string(),
+        crate::agent_hooks::config::HookPaths::from_paths(&crate::paths::get_gxserver_paths(None))
+            .hook_state_directory
+            .to_string_lossy()
+            .into_owned(),
+    );
     remove_gxserver_zmx_color_disabling_environment_values(&mut environment);
     environment.insert("COLORTERM".to_string(), "truecolor".to_string());
     environment.insert("TERM_PROGRAM".to_string(), "ghostty".to_string());
@@ -70,6 +80,7 @@ fn environment_keys_to_strip() -> Vec<&'static str> {
 pub(crate) fn session_identity_environment_keys() -> Vec<&'static str> {
     let mut keys = vec![
         "GHOSTEX_AGENT",
+        "GHOSTEX_AGENT_HOOK_STATE_DIR",
         "GHOSTEX_GLOBAL_SESSION_REF",
         "GHOSTEX_GXSERVER_AUTH_TOKEN_FILE",
         "GHOSTEX_GXSERVER_BASE_URL",

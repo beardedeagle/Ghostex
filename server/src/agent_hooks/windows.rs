@@ -165,12 +165,21 @@ pub(crate) fn notify(args: Vec<String>) -> anyhow::Result<()> {
     if let Some(object) = payload.as_object_mut() {
         object.entry("agent").or_insert_with(|| json!(agent));
     }
-    let script = std::fs::read_to_string(
-        args.first()
-            .ok_or_else(|| anyhow::anyhow!("Missing hook path"))?,
-    )?;
-    let directory = super::install::notify_hook_state_directory(&script)
-        .ok_or_else(|| anyhow::anyhow!("Missing hook state directory"))?;
+    // The session's own Ghostex names its hook state folder; the script's folder is the fallback (CDXC:AgentHooks 2026-10-17 in server/src/zmx/env.rs).
+    let directory = match std::env::var("GHOSTEX_AGENT_HOOK_STATE_DIR")
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+    {
+        Some(directory) => std::path::PathBuf::from(directory),
+        None => {
+            let script = std::fs::read_to_string(
+                args.first()
+                    .ok_or_else(|| anyhow::anyhow!("Missing hook path"))?,
+            )?;
+            super::install::notify_hook_state_directory(&script)
+                .ok_or_else(|| anyhow::anyhow!("Missing hook state directory"))?
+        }
+    };
     let answer = super::run_notify_hook(vec![
         state,
         payload.to_string(),

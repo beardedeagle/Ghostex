@@ -68,6 +68,8 @@ notes with an **Open download page** button instead of installing the update;
 install the new package the same way you installed Ghostex. On Windows, the
 portable zip keeps all its data in a `GhostexData` folder next to itself and runs
 beside an installed Ghostex without sharing its sessions, settings or projects.
+It uses the agent hooks the installed Ghostex set up (its Settings lists them as
+installed by another Ghostex) instead of rewriting them.
 
 **Open a view** is the picker the panel shows when nothing is open in it. It
 lists every view you can open here: the built-in views first, then your own views

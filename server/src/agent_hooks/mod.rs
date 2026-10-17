@@ -7,6 +7,7 @@ pub(crate) mod codex_trust;
 pub mod config;
 pub(crate) mod cursor_statusline;
 pub mod event_mapping;
+mod foreign_owner;
 mod hermes_gateway;
 mod hook_store;
 pub mod install;

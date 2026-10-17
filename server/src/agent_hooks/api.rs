@@ -6,6 +6,7 @@ use crate::{domain::DomainStateError, paths::GxserverPaths};
 
 use super::codex_trust::{codex_hook_trust_status_for_paths, CodexHookTrustStatus};
 use super::config::{hook_format, HookDefinition, HookFormat, HookPaths, HOOK_DEFINITIONS};
+use super::foreign_owner::hooks_belong_to_another_ghostex;
 use super::install::{
     antigravity_ghostex_hook_disabled, claude_all_hooks_disabled, inspect_agent_hook_installation,
     install_agent_hook, install_notify_hook, is_notify_hook_current, migrate_hook_session_sidecars,
@@ -102,6 +103,13 @@ pub fn install_agent_hooks(
         absent, so this call re-probes and refreshes the cache entry.
         */
         if !command_exists_uncached(definition.cli_command, &hook_paths.home_dir) {
+            continue;
+        }
+        // Another Ghostex's hooks already serve this portable copy's sessions (foreign_owner.rs).
+        if hooks_belong_to_another_ghostex(
+            definition,
+            &provider_hook_paths(definition.agent_id, &hook_paths),
+        ) {
             continue;
         }
         installed_paths.extend(install_agent_hook(definition, &hook_paths)?);
@@ -257,6 +265,13 @@ pub fn uninstall_agent_hooks(
         else {
             continue;
         };
+        // A portable copy never removes another Ghostex's hooks (foreign_owner.rs).
+        if hooks_belong_to_another_ghostex(
+            definition,
+            &provider_hook_paths(definition.agent_id, &hook_paths),
+        ) {
+            continue;
+        }
         for removed_path in uninstall_agent_hook(definition, &hook_paths)? {
             push_unique_path(&mut removed_paths, removed_path);
         }
@@ -305,6 +320,20 @@ fn read_hook_status(
         .iter()
         .map(|path| path_string(path))
         .collect::<Vec<_>>();
+    if cli_installed && hooks_belong_to_another_ghostex(definition, &provider_paths) {
+        return Ok(json!({
+            "agentId": definition.agent_id,
+            "cliCommand": definition.cli_command,
+            "cliInstalled": true,
+            "detail": format!(
+                "Installed by another Ghostex on this computer in {}; its hooks serve this copy's sessions too.",
+                display_path(paths.first().map(String::as_str).unwrap_or_default(), &hook_paths.home_dir)
+            ),
+            "hookInstalled": true,
+            "paths": paths,
+            "status": "installed",
+        }));
+    }
     let notify_hook_contents = read_file_text(&hook_paths.notify_hook_path);
     let notify_current = is_notify_hook_current(hook_paths, &notify_hook_contents)
         // CDXC:AgentHooks 2026-09-03 WHY: Claude and Cursor also depend on

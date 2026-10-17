@@ -35,6 +35,14 @@ pub(crate) fn inspect_agent_hook_installation(
     hook_paths: &HookPaths,
     config_paths: &[PathBuf],
 ) -> HookInspection {
+    // A portable copy treats another Ghostex's hooks as its own current install (foreign_owner.rs).
+    if crate::agent_hooks::foreign_owner::hooks_belong_to_another_ghostex(definition, config_paths)
+    {
+        return HookInspection {
+            current_hook_installed: true,
+            ghostex_hook_present: true,
+        };
+    }
     let command = command_for_agent(definition, &hook_paths.notify_hook_path);
     match hook_format(definition.agent_id) {
         HookFormat::Opencode => match config_paths.get(1).and_then(|path| path.parent()) {
