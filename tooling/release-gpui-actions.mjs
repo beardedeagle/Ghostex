@@ -348,7 +348,7 @@ function requireSecrets(secrets, label, names) {
 
 function resolveWindowsSigning(options, secrets) {
   if (!options.windowsX64 && !options.windowsArm64) return false;
-  const names = ['WINDOWS_CODE_SIGN_PFX_BASE64', 'WINDOWS_CODE_SIGN_PFX_PASSWORD'];
+  const names = ['SIGNPATH_API_TOKEN'];
   const available = names.every((name) => secrets.has(name));
   if (options.windowsSigning === 'required' && !available) {
     requireSecrets(secrets, 'Windows signing', names);

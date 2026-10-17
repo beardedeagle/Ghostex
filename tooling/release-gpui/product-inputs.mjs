@@ -268,6 +268,8 @@ function windowsProduct(arch) {
       ...DESKTOP_APP_PATHSPECS,
       { pathspec: 'tooling/release-gpui/windows.ps1' },
       { pathspec: 'tooling/release-gpui/windows-build-watchdog.ps1' },
+      { pathspec: 'tooling/release-gpui/vpk-signpath-hook.ps1' },
+      { pathspec: '.signpath/artifact-configuration.xml' },
       { pathspec: 'tooling/release-gpui/prepare-zig.ps1' },
       { pathspec: 'tooling/release-gpui/windows-update-feed.mjs' },
       { pathspec: 'tooling/release-gpui/verify-code-server-archive.mjs' },
