@@ -32,6 +32,9 @@ pub struct Meta {
     pub thinking: String,
     #[serde(default)]
     pub plan: String,
+    /// The Hermes profile whose store holds the session (`default` for `HERMES_HOME` itself).
+    #[serde(default)]
+    pub profile: String,
     #[serde(default)]
     pub usage: Usage,
 }
@@ -62,6 +65,18 @@ impl Record {
             return &self.session;
         }
         "Untitled session"
+    }
+
+    /// Argv that resumes this prompt's session.
+    ///
+    /// CDXC:Bots 2026-10-17 WHY:
+    /// Hermes keeps each profile's sessions in its own store and plain `hermes` follows the sticky profile, so a Hermes resume names the profile of the store the prompt was read from, the way gxserver's resume plan does (`with_session_hermes_profile`).
+    pub fn resume_argv(&self, accept_all: bool) -> Vec<String> {
+        let mut argv = self.agent.resume_argv(&self.session, accept_all);
+        if self.agent == Agent::Hermes && !self.meta.profile.is_empty() {
+            argv.splice(1..1, ["-p".to_string(), self.meta.profile.clone()]);
+        }
+        argv
     }
 
     /// Last path segment of the project directory, or "".

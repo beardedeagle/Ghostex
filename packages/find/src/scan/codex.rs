@@ -338,6 +338,7 @@ impl Scanner {
                     model: string_field(&v, "model").unwrap_or("").to_string(),
                     thinking: string_field(&v, "thinking").unwrap_or("").to_string(),
                     plan: string_field(&v, "plan").unwrap_or("").to_string(),
+                    profile: String::new(),
                     usage: Usage {
                         input: int_val(field(&v, "input")),
                         output: int_val(field(&v, "output")),

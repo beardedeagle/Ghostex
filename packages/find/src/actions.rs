@@ -139,7 +139,7 @@ pub fn focus_live_ghostex_session(rec: &Record) -> GhostexFocusOutcome {
             "--agent-session-id",
             &rec.session,
             "--agent",
-            rec.agent.label(),
+            rec.agent.ghostex_agent_id(),
             "--if-running",
         ])
         .status()
@@ -173,7 +173,7 @@ pub fn resume_session(rec: &Record, accept_all: bool) -> Result<(), String> {
         }
     }
 
-    let argv = rec.agent.resume_argv(&rec.session, accept_all);
+    let argv = rec.resume_argv(accept_all);
     // Resume from the recorded project dir, but fall back to the current dir if
     // it no longer exists (moved/deleted), rather than failing the spawn.
     let project = usable_project(&rec.project);

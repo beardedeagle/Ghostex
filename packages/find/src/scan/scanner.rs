@@ -40,6 +40,9 @@ impl Scanner {
         self.scan_cursor();
         self.scan_grok();
         self.scan_empryo();
+        self.scan_antigravity();
+        self.scan_hermes();
+        self.scan_copilot();
         self.dedup();
     }
 

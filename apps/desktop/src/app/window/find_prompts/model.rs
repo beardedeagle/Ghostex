@@ -10,11 +10,21 @@ use serde::Deserialize;
 use std::ops::Range;
 
 /// `FIND_PROMPT_AGENTS`: the fork and filter order.
-pub(crate) const FIND_PROMPT_AGENTS: [&str; 7] = [
-    "claude", "codex", "pi", "opencode", "cursor", "grok", "empryo",
+pub(crate) const FIND_PROMPT_AGENTS: [&str; 10] = [
+    "claude",
+    "codex",
+    "pi",
+    "opencode",
+    "cursor",
+    "grok",
+    "empryo",
+    "antigravity",
+    "hermes",
+    "copilot",
 ];
 /// The fork targets are the leading agents of `FIND_PROMPT_AGENTS`: Empryo's terminal app takes
-/// no starting prompt, so it filters and resumes but is never forked into.
+/// no starting prompt, and the agents after it (added 2026-10-17) filter and resume but are not
+/// numbered fork targets, so it is never forked into.
 pub(crate) const FIND_PROMPT_FORK_AGENT_COUNT: usize = 6;
 /// Rows fetched per page (`FIND_PROMPTS_PAGE_SIZE`).
 pub(crate) const FIND_PROMPTS_PAGE_SIZE: usize = 120;

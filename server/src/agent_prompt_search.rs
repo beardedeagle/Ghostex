@@ -537,11 +537,11 @@ fn session_owns_agent_conversation(
         .and_then(Value::as_str)
         .unwrap_or_default();
     session_agent.is_empty()
-        || session_agent.eq_ignore_ascii_case(agent.label())
+        || session_agent.eq_ignore_ascii_case(agent.ghostex_agent_id())
         || candidate
             .agent_family_id
             .as_deref()
-            .is_some_and(|family| family.trim().eq_ignore_ascii_case(agent.label()))
+            .is_some_and(|family| family.trim().eq_ignore_ascii_case(agent.ghostex_agent_id()))
 }
 
 /// `POST /api/resolveAgentPromptLaunch`
@@ -607,7 +607,7 @@ pub fn resolve_agent_prompt_launch(
                     },
                     None => PromptLaunchPlan::Launch {
                         agent: rec.agent,
-                        command: rec.agent.resume_argv(&rec.session, accept_all),
+                        command: rec.resume_argv(accept_all),
                         cwd: rec.project.clone(),
                         cwd_exists: !rec.project.is_empty()
                             && std::path::Path::new(&rec.project).is_dir(),

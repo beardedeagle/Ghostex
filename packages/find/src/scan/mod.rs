@@ -9,6 +9,9 @@
 //! | cursor   | `~/.cursor/projects/*/agent-transcripts/*/*.jsonl`                    |
 //! | grok     | `~/.grok/sessions/*/*/chat_history.jsonl` plus sibling `summary.json` |
 //! | empryo   | `<repo>/.empryo/sessions/*/session.jsonl` for each repo in `~/.empryo/threads.db` |
+//! | antigravity | `~/.gemini/antigravity-cli/history.jsonl` (titles from `conversation_summaries.db`) |
+//! | hermes   | `~/.hermes/state.db` and `~/.hermes/profiles/*/state.db` (SQLite)     |
+//! | copilot  | `~/.copilot/session-state/*/events.jsonl` plus sibling `workspace.yaml` |
 //!
 //! CDXC:PromptSearch 2026-08-20:
 //! opencode history used to be read by shelling out to the `sqlite3` CLI, so a
@@ -16,13 +19,16 @@
 //! SQLite directly, which removes that external dependency instead of papering
 //! over it with a skip-and-warn path.
 
+mod antigravity;
 mod claude;
 mod codex;
+mod copilot;
 mod cursor;
 mod dates;
 mod empryo;
 mod files;
 mod grok;
+mod hermes;
 mod json;
 mod opencode;
 mod pi;
@@ -32,6 +38,8 @@ mod scanner;
 #[cfg(test)]
 mod tests;
 
+pub use antigravity::*;
+pub use copilot::*;
 pub use dates::*;
 pub use empryo::*;
 use files::*;

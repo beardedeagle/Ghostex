@@ -69,7 +69,7 @@ pub struct Tui<'a> {
     // toggles returns to the first visible result instead of a stale scroll.
     pub(super) group_by_day: bool,
     /// Bit mask of selected agents. 0 means no filter, so all agents show.
-    pub(super) agent_filter_mask: u8,
+    pub(super) agent_filter_mask: u16,
     pub(super) rows: u16,
     pub(super) cols: u16,
     /// When set, the picker is in "fork into which agent?" mode and digit keys

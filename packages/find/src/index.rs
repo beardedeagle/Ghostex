@@ -209,7 +209,7 @@ impl SearchIndex {
         let agent_mask = options
             .agents
             .iter()
-            .fold(0u8, |mask, agent| mask | agent.bit());
+            .fold(0u16, |mask, agent| mask | agent.bit());
         let project = options.project.as_deref();
 
         let mut hits = self.collect_hits(needle, agent_mask, project);
@@ -253,7 +253,7 @@ impl SearchIndex {
     fn collect_hits(
         &mut self,
         needle: &[u8],
-        agent_mask: u8,
+        agent_mask: u16,
         project: Option<&str>,
     ) -> Vec<RankedHit> {
         let workers = query_worker_count(self.records.len());
@@ -334,7 +334,7 @@ fn match_range(
     start: usize,
     end: usize,
     needle: &[u8],
-    agent_mask: u8,
+    agent_mask: u16,
     project: Option<&str>,
     matcher: &mut Matcher,
 ) -> Vec<RankedHit> {

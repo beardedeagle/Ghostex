@@ -11,9 +11,14 @@ pub enum Agent {
     Cursor,
     Grok,
     Empryo,
+    Antigravity,
+    Hermes,
+    Copilot,
 }
 
-pub const ALL_AGENTS: [Agent; 7] = [
+/// Filter order. The three agents added on 2026-10-17 come after Empryo so the fork targets stay
+/// the leading six every surface numbers 1-6.
+pub const ALL_AGENTS: [Agent; 10] = [
     Agent::Claude,
     Agent::Codex,
     Agent::Pi,
@@ -21,6 +26,9 @@ pub const ALL_AGENTS: [Agent; 7] = [
     Agent::Cursor,
     Agent::Grok,
     Agent::Empryo,
+    Agent::Antigravity,
+    Agent::Hermes,
+    Agent::Copilot,
 ];
 
 impl Agent {
@@ -33,6 +41,18 @@ impl Agent {
             Agent::Cursor => "cursor",
             Agent::Grok => "grok",
             Agent::Empryo => "empryo",
+            Agent::Antigravity => "antigravity",
+            Agent::Hermes => "hermes",
+            Agent::Copilot => "copilot",
+        }
+    }
+
+    /// The id Ghostex stores as a session's `agentId` for this agent, which a live owner's row is
+    /// matched against. Only Hermes differs from its label.
+    pub fn ghostex_agent_id(self) -> &'static str {
+        match self {
+            Agent::Hermes => "hermes-agent",
+            other => other.label(),
         }
     }
 
@@ -40,7 +60,7 @@ impl Agent {
         ALL_AGENTS.into_iter().find(|agent| agent.label() == name)
     }
 
-    pub fn bit(self) -> u8 {
+    pub fn bit(self) -> u16 {
         match self {
             Agent::Claude => 1 << 0,
             Agent::Codex => 1 << 1,
@@ -49,6 +69,9 @@ impl Agent {
             Agent::Cursor => 1 << 4,
             Agent::Grok => 1 << 5,
             Agent::Empryo => 1 << 6,
+            Agent::Antigravity => 1 << 7,
+            Agent::Hermes => 1 << 8,
+            Agent::Copilot => 1 << 9,
         }
     }
 
@@ -62,6 +85,9 @@ impl Agent {
             Agent::Cursor => "\x1b[38;2;74;144;226m", // Cursor blue
             Agent::Grok => "\x1b[38;2;180;160;255m",  // xAI/Grok purple accent
             Agent::Empryo => "\x1b[38;2;31;163;29m",  // #1FA31D Empryo logo green
+            Agent::Antigravity => "\x1b[38;2;66;133;244m", // #4285F4 Google blue
+            Agent::Hermes => "\x1b[38;2;232;184;74m", // #E8B84A Hermes gold
+            Agent::Copilot => "\x1b[38;2;137;87;229m", // #8957E5 GitHub Copilot purple
         }
     }
 
@@ -75,6 +101,9 @@ impl Agent {
             Agent::Cursor => "#4A90E2",
             Agent::Grok => "#B4A0FF",
             Agent::Empryo => "#1FA31D",
+            Agent::Antigravity => "#4285F4",
+            Agent::Hermes => "#E8B84A",
+            Agent::Copilot => "#8957E5",
         }
     }
 
@@ -108,6 +137,14 @@ impl Agent {
                     session,
                 ],
                 Agent::Empryo => vec!["empryo", "--session", session],
+                Agent::Antigravity => vec![
+                    "agy",
+                    "--dangerously-skip-permissions",
+                    "--conversation",
+                    session,
+                ],
+                Agent::Hermes => vec!["hermes", "--yolo", "--resume", session],
+                Agent::Copilot => vec!["copilot", "--yolo", "--resume", session],
             }
         } else {
             match self {
@@ -118,6 +155,9 @@ impl Agent {
                 Agent::Cursor => vec!["cursor-agent", "--resume", session],
                 Agent::Grok => vec!["grok", "--resume", session],
                 Agent::Empryo => vec!["empryo", "--session", session],
+                Agent::Antigravity => vec!["agy", "--conversation", session],
+                Agent::Hermes => vec!["hermes", "--resume", session],
+                Agent::Copilot => vec!["copilot", "--resume", session],
             }
         };
         parts.into_iter().map(str::to_string).collect()
@@ -134,9 +174,16 @@ impl Agent {
             Agent::Opencode => "opencode",
             Agent::Cursor => "cursor-agent",
             Agent::Grok => "grok",
+            Agent::Antigravity => "agy",
+            Agent::Hermes => "hermes",
+            Agent::Copilot => "copilot",
             Agent::Empryo => return None,
         };
         let mut argv = vec![executable.to_string()];
+        // Hermes seeds an interactive chat from `chat -q` on a terminal.
+        if self == Agent::Hermes {
+            argv.push("chat".to_string());
+        }
         if accept_all {
             match self {
                 Agent::Claude => argv.push("--dangerously-skip-permissions".to_string()),
@@ -147,8 +194,16 @@ impl Agent {
                     argv.push("--permission-mode".to_string());
                     argv.push("bypassPermissions".to_string());
                 }
+                Agent::Antigravity => argv.push("--dangerously-skip-permissions".to_string()),
+                Agent::Hermes | Agent::Copilot => argv.push("--yolo".to_string()),
                 Agent::Pi | Agent::Empryo => {}
             }
+        }
+        // These take a bare argument as a one-shot prompt; the flag keeps the session open.
+        match self {
+            Agent::Antigravity | Agent::Copilot => argv.push("-i".to_string()),
+            Agent::Hermes => argv.push("-q".to_string()),
+            _ => {}
         }
         argv.push(prompt.to_string());
         Some(argv)
@@ -164,7 +219,8 @@ mod tests {
         assert_eq!(Agent::parse("claude"), Some(Agent::Claude));
         assert_eq!(Agent::parse("opencode"), Some(Agent::Opencode));
         assert_eq!(Agent::parse("grok"), Some(Agent::Grok));
-        assert_eq!(Agent::parse("antigravity"), None);
+        assert_eq!(Agent::parse("antigravity"), Some(Agent::Antigravity));
+        assert_eq!(Agent::parse("hermes-agent"), None);
     }
 
     #[test]
