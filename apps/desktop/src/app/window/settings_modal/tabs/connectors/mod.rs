@@ -11,6 +11,7 @@ mod composio;
 mod data;
 mod executor;
 mod rules;
+mod signin_panel;
 mod widgets;
 
 use super::super::fields::{
@@ -45,6 +46,8 @@ pub(crate) struct ConnectorsTab {
     /// A line to show under a workspace's section after an action (a sign-in code, what to do in
     /// the browser), keyed `<workspace>:<section>`.
     notes: HashMap<String, String>,
+    /// A browser sign-in waiting to be finished, keyed `<workspace>:<section>` (signin_panel.rs).
+    pending: HashMap<String, signin_panel::PendingSignIn>,
     /// Executor catalog results per workspace, from the last search.
     catalog_results: HashMap<String, Vec<Value>>,
     /// The page was the active one at the last store change, to read again when it comes back.
@@ -96,6 +99,7 @@ impl ConnectorsTab {
             loading: false,
             busy: HashSet::new(),
             notes: HashMap::new(),
+            pending: HashMap::new(),
             catalog_results: HashMap::new(),
             was_active: true,
             pending_reread: None,

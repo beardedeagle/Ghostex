@@ -3,6 +3,7 @@
 use super::super::super::store::{post_store_message, store_gxserver_rpc};
 use super::ConnectorsTab;
 use super::data::{self, busy_key};
+use super::signin_panel::{DoneWhen, PendingSignIn};
 use gpui::Context;
 use serde_json::{Value, json};
 use std::time::Duration;
@@ -40,6 +41,7 @@ impl ConnectorsTab {
                         Ok(result) => {
                             page.connectors = Some(result);
                             page.error = None;
+                            page.drop_finished_sign_ins();
                         }
                         Err(error) => page.error = Some(error),
                     }
@@ -152,11 +154,22 @@ impl ConnectorsTab {
             .unwrap_or_else(|| what.to_string());
         match result.get("url").and_then(Value::as_str) {
             Some(url) if !data::flag(result, "alreadyConnected") => {
-                self.open_url(url, cx);
-                self.note(
+                self.clear_note(workspace, section);
+                let done_when = if section == "executor" {
+                    DoneWhen::ExecutorApp(what.to_string())
+                } else {
+                    DoneWhen::ComposioApp(what.to_string())
+                };
+                self.begin_sign_in(
                     workspace,
                     section,
-                    format!("Finish connecting {name} in your browser. This page updates when you're done."),
+                    PendingSignIn {
+                        title: format!("Finish connecting {name}"),
+                        url: url.to_string(),
+                        code: None,
+                        done_when,
+                    },
+                    cx,
                 );
             }
             _ => self.note(workspace, section, format!("{name} is already connected.")),
@@ -175,11 +188,17 @@ impl ConnectorsTab {
             "Couldn't start the Composio sign-in",
             |page, workspace, result, cx| match result.get("signInUrl").and_then(Value::as_str) {
                 Some(url) => {
-                    page.open_url(url, cx);
-                    page.note(
+                    page.clear_note(workspace, "composio");
+                    page.begin_sign_in(
                         workspace,
                         "composio",
-                        "Finish signing in to Composio in your browser. This page updates when you're done.",
+                        PendingSignIn {
+                            title: "Finish signing in to Composio".to_string(),
+                            url: url.to_string(),
+                            code: None,
+                            done_when: DoneWhen::ComposioSignedIn,
+                        },
+                        cx,
                     );
                 }
                 None => page.note(workspace, "composio", "Already signed in to Composio."),
@@ -393,6 +412,13 @@ impl ConnectorsTab {
     // ---- Command-line sign-ins -----------------------------------------------------------------
 
     pub(super) fn cli_sign_in(&mut self, workspace: &str, tool: &str, cx: &mut Context<Self>) {
+        let tool_id = tool.to_string();
+        let tool_name = match tool {
+            "gh" => "the GitHub CLI",
+            "gws" => "the Google Workspace CLI",
+            _ => tool,
+        }
+        .to_string();
         self.act(
             workspace,
             &format!("cli-sign-in-{tool}"),
@@ -400,22 +426,24 @@ impl ConnectorsTab {
             json!({ "tool": tool }),
             COMPOSIO_TIMEOUT,
             "Couldn't start the sign-in",
-            |page, workspace, result, cx| {
-                if let Some(url) = result.get("url").and_then(Value::as_str) {
-                    page.open_url(url, cx);
+            move |page, workspace, result, cx| {
+                let url = data::text(&result, "url");
+                if url.is_empty() {
+                    page.note(workspace, "cli", data::text(&result, "message"));
+                    return;
                 }
-                let code = data::text(&result, "code");
-                let message = data::text(&result, "message");
-                let note = match (code.is_empty(), message.is_empty()) {
-                    (false, false) => format!("{message} Code: {code}"),
-                    (false, true) => format!("Enter this code in your browser: {code}"),
-                    (true, false) => message,
-                    (true, true) => {
-                        "Finish signing in in your browser. This page updates when you're done."
-                            .to_string()
-                    }
-                };
-                page.note(workspace, "cli", note);
+                let code = Some(data::text(&result, "code")).filter(|code| !code.is_empty());
+                page.begin_sign_in(
+                    workspace,
+                    &format!("cli-{tool_id}"),
+                    PendingSignIn {
+                        title: format!("Finish signing in to {tool_name}"),
+                        url,
+                        code,
+                        done_when: DoneWhen::Cli(tool_id.clone()),
+                    },
+                    cx,
+                );
             },
             cx,
         );

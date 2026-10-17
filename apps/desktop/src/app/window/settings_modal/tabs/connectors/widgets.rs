@@ -15,9 +15,9 @@ pub(super) fn note_row(p: &SettingsPalette, text: &str) -> AnyElement {
         .w_full()
         .px(px(ROW_PADDING_X))
         .py(px(ROW_PADDING_Y))
-        .text_size(px(13.0))
-        .line_height(px(18.2))
-        .text_color(hsla(p.muted))
+        .text_size(px(14.0))
+        .line_height(px(20.0))
+        .text_color(hsla(p.foreground))
         .child(text.to_string())
         .into_any_element()
 }

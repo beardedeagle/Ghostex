@@ -135,6 +135,9 @@ pub(crate) fn close_app_modal_on_click_away<V: super::native_modal_kit::ModalCor
 ///
 /// CDXC:AppModal 2026-10-16 DECISION:
 /// User, asked what should close Settings on a click away, picked "Only a click in Ghostex closes it": the Settings window (all its page kinds: Settings, Hotkeys, Configure Agents, Configure Actions, Open Targets) no longer closes when focus goes to another app on macOS and Windows, only when another Ghostex window takes focus, as on Linux. Coming back by clicking the main window still closes it: the modal remembers that focus left the app, and the main window becoming active afterwards is that click. The other click-away modals keep the 2026-10-09 rule above.
+///
+/// CDXC:AppModal 2026-10-17 DECISION:
+/// User: "we need to keep settings open when this page is open when i alt tab away and back" (Settings › Connectors, whose sign-ins send them to the browser). While a modal says `keeps_open_after_leaving_app` (Settings on the Connectors page), the main window becoming active after focus left the app does not close it, since an app switch back looks the same; a press in the main window still does.
 pub(crate) fn close_app_modal_on_click_in_ghostex<V: super::native_modal_kit::ModalCornerClose>(
     window: &mut Window,
     cx: &mut Context<V>,
@@ -198,7 +201,9 @@ fn close_app_modal_when_clicked_away<V: super::native_modal_kit::ModalCornerClos
                     let activated = cx.global::<WorkspaceWindowActivation>().window;
                     if left_app.get() && activated != own_window && !window.is_window_active() {
                         left_app.set(false);
-                        close_unless_kept(this, window, cx);
+                        if !this.keeps_open_after_leaving_app(window, cx) {
+                            close_unless_kept(this, window, cx);
+                        }
                     }
                 },
             ));

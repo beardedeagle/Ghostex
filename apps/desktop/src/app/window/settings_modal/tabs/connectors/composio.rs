@@ -88,6 +88,7 @@ impl ConnectorsTab {
         if let Some(note) = self.notes.get(&busy_key(&id, "composio")) {
             rows.push(note_row(p, note));
         }
+        rows.extend(self.sign_in_panel(p, &id, "composio", cx));
         let actions = signed_in.then(|| {
             let refreshing = self.is_busy(&id, "composio-refresh");
             let signing_out = self.is_busy(&id, "composio-sign-out");

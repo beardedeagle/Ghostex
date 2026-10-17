@@ -369,6 +369,7 @@ impl ConnectorsTab {
         if let Some(note) = self.notes.get(&busy_key(&id, "executor")) {
             rows.push(note_row(p, note));
         }
+        rows.extend(self.sign_in_panel(p, &id, "executor", cx));
         settings_section(
             p,
             title,

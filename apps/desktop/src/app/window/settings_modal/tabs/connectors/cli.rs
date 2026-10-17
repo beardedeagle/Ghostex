@@ -89,6 +89,9 @@ impl ConnectorsTab {
         if let Some(note) = self.notes.get(&busy_key(&id, "cli")) {
             rows.push(note_row(p, note));
         }
+        for (tool, _) in TOOLS {
+            rows.extend(self.sign_in_panel(p, &id, &format!("cli-{tool}"), cx));
+        }
         settings_section(
             p,
             title,
