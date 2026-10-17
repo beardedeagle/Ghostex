@@ -273,6 +273,7 @@ fn main() {
         #[cfg(target_os = "windows")]
         cef::register_windows_shutdown(cx);
         gpui_component::init(cx);
+        crate::app::native_docs::grammars::register();
         cx.bind_keys([KeyBinding::new(
             "shift-insert",
             gpui_component::input::Paste,

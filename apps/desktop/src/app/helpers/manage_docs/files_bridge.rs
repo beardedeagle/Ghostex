@@ -370,6 +370,22 @@ pub(crate) fn manage_files_bridge_result(
             "requestId": request_id,
             "rootName": MANAGE_DOCS_RELATIVE_PATH,
         })),
+        // A SQLite database's tables and one page of rows; gxserver answers the same action for
+        // a remote project (server/src/project_docs/actions.rs).
+        "sqlite" => {
+            let path =
+                manage_docs_path(context, manage_request_string(request, "path").as_deref())?;
+            let target = manage_existing_url(&path)?;
+            manage_validate_accessible_relative_path(&path, context)?;
+            if path.inner.is_empty() || !target.is_file() {
+                return Err("Select a database to open.".to_string());
+            }
+            let params = request.as_object().cloned().unwrap_or_default();
+            let mut answer = ghostex_docs::sqlite::sqlite_action(&target, &params)?;
+            answer["action"] = serde_json::json!(action);
+            answer["requestId"] = serde_json::json!(request_id);
+            Ok(answer)
+        }
         _ => Err("Unsupported Files action.".to_string()),
     }
 }

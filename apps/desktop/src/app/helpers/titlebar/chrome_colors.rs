@@ -202,6 +202,7 @@ pub(crate) fn apply_gpui_component_theme(cx: &mut App) {
     .into();
     theme.tokens.scrollbar_thumb = thumb.into();
     theme.tokens.scrollbar_thumb_hover = thumb.into();
+    crate::app::native_docs::data_table::apply_table_theme(theme, titlebar_uses_light_theme());
 }
 
 pub(crate) fn titlebar_popup_menu_disabled_text_color() -> Hsla {

@@ -5,4 +5,7 @@ edition = "2021"
 publish = false
 
 [dependencies]
+# The same rusqlite the desktop and gxserver already build; `limits` and `hooks` let the SQLite
+# reader refuse ATTACH and stop a long query.
+rusqlite = { version = "0.32", features = ["bundled", "limits", "hooks"] }
 serde_json = "1"

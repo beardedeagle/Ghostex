@@ -52,25 +52,38 @@ pub(crate) enum DocsFileKind {
     Video,
     /// Played by the embed page's `<audio>`.
     Audio,
+    /// Shown by the embedded browser's own PDF viewer in the embed page.
+    Pdf,
+    /// A picture GPUI cannot decode that the embed page's `<img>` can (AVIF).
+    BrowserImage,
+    /// A font file, previewed by the embed page.
+    Font,
+    /// A SQLite database, browsed read-only natively (`sqlite_view.rs`).
+    Sqlite,
     /// Opened by the system's own app instead of in Files.
     SystemApp,
 }
 
 /// CDXC:Docs 2026-09-27 DECISION:
-/// User: video and audio play in the Files view's embedded browser "to keep it simple", and formats that browser cannot play open in the system app. Ghostex's CEF is the standard build without licensed codecs, so H.264 and AAC (most `.mp4`, `.mov`, `.m4v`, `.m4a`, `.aac`) cannot play there; PDFs wait for a later change ("pdf we'll think about later").
+/// User: video and audio play in the Files view's embedded browser "to keep it simple", and formats that browser cannot play open in the system app. Ghostex's CEF is the standard build without licensed codecs, so H.264 and AAC (most `.mp4`, `.mov`, `.m4v`, `.m4a`, `.aac`) cannot play there; PDFs wait for a later change ("pdf we'll think about later", since answered below).
+///
+/// CDXC:Docs 2026-10-17 DECISION:
+/// User picked, on the Files view formats page: PDF "browser viewer" (Q222), AVIF "in browser" with HEIC and JPEG XL staying in the system app (Q227), and fonts "preview page" (Q228). PDFs, AVIF pictures and font files show in the Files view's embed page (`apps/desktop/views/manage/embed.tsx`); `.heic`, `.heif`, `.jxl`, `.jp2` and `.apng` keep opening in the system app.
 const BROWSER_VIDEO_EXTENSIONS: &[&str] = &["webm", "ogv"];
 const BROWSER_AUDIO_EXTENSIONS: &[&str] = &["mp3", "ogg", "oga", "opus", "wav", "flac"];
-/// Media the embedded browser cannot decode, images GPUI cannot draw, and PDFs.
+/// Media the embedded browser cannot decode, and images neither GPUI nor the browser can draw.
 const SYSTEM_APP_EXTENSIONS: &[&str] = &[
     "mp4", "m4v", "mov", "avi", "mkv", "wmv", "flv", "3gp", "3g2", "mpeg", "mpg", "m2ts", "mts",
-    "vob", "asf", "ogm", "m4a", "aac", "aif", "aiff", "wma", "pdf", "heic", "heif", "avif", "apng",
-    "jp2", "jxl",
+    "vob", "asf", "ogm", "m4a", "aac", "aif", "aiff", "wma", "heic", "heif", "apng", "jp2", "jxl",
 ];
+/// Pictures the embed page shows because GPUI cannot decode them.
+const BROWSER_IMAGE_EXTENSIONS: &[&str] = &["avif"];
+const FONT_EXTENSIONS: &[&str] = &["ttf", "otf", "woff", "woff2"];
 const IMAGE_EXTENSIONS: &[&str] = &[
     "png", "jpg", "jpeg", "jfif", "jpe", "gif", "webp", "svg", "bmp", "ico", "tif", "tiff",
 ];
 /// Images Files hands to the system app.
-const SYSTEM_APP_IMAGE_EXTENSIONS: &[&str] = &["heic", "heif", "avif", "apng", "jp2", "jxl"];
+const SYSTEM_APP_IMAGE_EXTENSIONS: &[&str] = &["heic", "heif", "apng", "jp2", "jxl"];
 const VIDEO_EXTENSIONS: &[&str] = &[
     "webm", "ogv", "mp4", "m4v", "mov", "avi", "mkv", "wmv", "flv", "3gp", "3g2", "mpeg", "mpg",
     "m2ts", "mts", "vob", "asf", "ogm",
@@ -99,7 +112,9 @@ impl DocsMediaKind {
     pub(crate) fn for_path(path: &str) -> Option<Self> {
         let extension = file_extension(path);
         let extension = extension.as_str();
-        if IMAGE_EXTENSIONS.contains(&extension) || SYSTEM_APP_IMAGE_EXTENSIONS.contains(&extension)
+        if IMAGE_EXTENSIONS.contains(&extension)
+            || BROWSER_IMAGE_EXTENSIONS.contains(&extension)
+            || SYSTEM_APP_IMAGE_EXTENSIONS.contains(&extension)
         {
             Some(Self::Image)
         } else if VIDEO_EXTENSIONS.contains(&extension) {
@@ -123,6 +138,10 @@ impl DocsFileKind {
             _ if IMAGE_EXTENSIONS.contains(&extension) => Self::Image,
             _ if BROWSER_VIDEO_EXTENSIONS.contains(&extension) => Self::Video,
             _ if BROWSER_AUDIO_EXTENSIONS.contains(&extension) => Self::Audio,
+            "pdf" => Self::Pdf,
+            _ if BROWSER_IMAGE_EXTENSIONS.contains(&extension) => Self::BrowserImage,
+            _ if FONT_EXTENSIONS.contains(&extension) => Self::Font,
+            _ if ghostex_docs::sqlite::SQLITE_EXTENSIONS.contains(&extension) => Self::Sqlite,
             _ if SYSTEM_APP_EXTENSIONS.contains(&extension) => Self::SystemApp,
             _ => Self::Text,
         }
@@ -132,7 +151,28 @@ impl DocsFileKind {
     pub(crate) fn uses_browser_area(self) -> bool {
         matches!(
             self,
-            Self::Html | Self::Excalidraw | Self::Video | Self::Audio
+            Self::Html
+                | Self::Excalidraw
+                | Self::Video
+                | Self::Audio
+                | Self::Pdf
+                | Self::BrowserImage
+                | Self::Font
+        )
+    }
+
+    /// Shown as a picture, a player or a viewer rather than text: the header shows the file's own
+    /// icon and an Open in system app button.
+    pub(crate) fn is_viewer(self) -> bool {
+        matches!(
+            self,
+            Self::Image
+                | Self::Video
+                | Self::Audio
+                | Self::Pdf
+                | Self::BrowserImage
+                | Self::Font
+                | Self::Sqlite
         )
     }
 
@@ -148,6 +188,15 @@ impl DocsFileKind {
             "CMakeLists.txt" => return "cmake",
             "Gemfile" | "Rakefile" => return "ruby",
             ".bashrc" | ".zshrc" | ".profile" | ".bash_profile" | ".envrc" => return "bash",
+            // Comment-and-pattern files read best as shell (CDXC:Docs 2026-10-17, grammars.rs).
+            ".gitignore" | ".dockerignore" | ".npmignore" | ".prettierignore" | ".eslintignore"
+            | ".gitattributes" | ".gitmodules" | ".npmrc" | ".env" => return "bash",
+            ".editorconfig" | ".gitconfig" => return "toml",
+            ".babelrc" | ".eslintrc" | ".prettierrc" => return "json",
+            _ if name.starts_with(".env.") => return "bash",
+            _ if name.starts_with("Dockerfile") || name.starts_with("Containerfile") => {
+                return "dockerfile";
+            }
             _ => {}
         }
         match file_extension(path).as_str() {
@@ -156,7 +205,13 @@ impl DocsFileKind {
             "ts" | "mts" | "cts" => "typescript",
             "tsx" => "tsx",
             "js" | "mjs" | "cjs" | "jsx" => "javascript",
-            "json" | "jsonc" | "json5" | "excalidraw" => "json",
+            "json" | "jsonc" | "json5" | "excalidraw" | "jsonl" | "ndjson" | "ipynb"
+            | "geojson" | "webmanifest" => "json",
+            "env" | "ignore" => "bash",
+            "ini" | "cfg" | "conf" | "properties" => "toml",
+            "dockerfile" | "containerfile" => "dockerfile",
+            "ps1" | "psm1" | "psd1" => "powershell",
+            "tf" | "tfvars" | "hcl" => "hcl",
             "toml" => "toml",
             "yaml" | "yml" => "yaml",
             "py" | "pyi" => "python",
@@ -297,6 +352,10 @@ pub(crate) struct DocsDocument {
     /// The title's tooltip reads "Copied!" until then.
     pub(crate) title_copied_until: Option<std::time::Instant>,
     pub(crate) _editor_subscription: Option<Subscription>,
+    /// CSV/TSV and JSON: the header's Table / Tree switch is on (CSV opens with it on).
+    pub(crate) data_view_open: bool,
+    /// The table or tree, built from the editor's text while the switch is on (`data_views.rs`).
+    pub(crate) data_view: Option<super::data_views::DocsDataView>,
 }
 
 impl DocsDocument {
@@ -307,6 +366,7 @@ impl DocsDocument {
             .find(|part| !part.is_empty())
             .unwrap_or(&display_path)
             .to_string();
+        let data_view_open = super::data_views::opens_as_table(&path);
         Self {
             kind: DocsFileKind::for_path(&path),
             path,
@@ -341,6 +401,8 @@ impl DocsDocument {
             saved_flash_until: None,
             title_copied_until: None,
             _editor_subscription: None,
+            data_view_open,
+            data_view: None,
         }
     }
 }
@@ -496,6 +558,8 @@ pub(crate) struct NativeDocsState {
     pub(crate) parked: std::collections::HashMap<String, NativeDocsState>,
     /// The highest generation handed out, so a new project never reuses a parked one's.
     pub(crate) generations_issued: u64,
+    /// Open SQLite databases' browsers, by path (`sqlite_view.rs`).
+    pub(crate) sqlite: std::collections::HashMap<String, super::sqlite_view::DocsSqliteView>,
 }
 
 impl NativeDocsState {

@@ -65,6 +65,152 @@ export const MANAGE_STYLES = `
     width: min(560px, 100%);
   }
 
+  /* An AVIF picture: centred and never larger than the view, like the native picture view. */
+  .manage-embed-image {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+  }
+
+  /* A PDF: Chromium's own viewer fills the view. */
+  .manage-embed-pdf {
+    border: 0;
+    display: block;
+    height: 100%;
+    width: 100%;
+  }
+
+  /* A font file's preview page (preview/font-viewer.tsx): one scrolling column. */
+  .manage-embed-font {
+    height: 100%;
+    overflow: auto;
+    padding: 28px 32px 48px;
+  }
+
+  .manage-font-header {
+    border-bottom: 1px solid var(--manage-border-strong);
+    padding-bottom: 20px;
+  }
+
+  .manage-font-title {
+    font-size: 40px;
+    font-weight: normal;
+    line-height: 1.15;
+    margin: 0 0 10px;
+    overflow-wrap: anywhere;
+  }
+
+  .manage-font-facts {
+    color: var(--manage-muted);
+    display: flex;
+    flex-wrap: wrap;
+    font-size: 12.5px;
+    gap: 6px 14px;
+  }
+
+  .manage-font-credit {
+    color: var(--manage-muted);
+    font-size: 11.5px;
+    margin-top: 8px;
+    opacity: 0.8;
+  }
+
+  .manage-font-section {
+    border-bottom: 1px solid var(--manage-border-strong);
+    padding: 20px 0;
+  }
+
+  .manage-font-section:last-child {
+    border-bottom: 0;
+  }
+
+  .manage-font-section-title {
+    align-items: baseline;
+    color: var(--manage-muted);
+    display: flex;
+    font-size: 12px;
+    font-weight: 500;
+    gap: 8px;
+    letter-spacing: 0.04em;
+    margin: 0 0 12px;
+    text-transform: uppercase;
+  }
+
+  .manage-font-section-title span {
+    letter-spacing: 0;
+    opacity: 0.75;
+    text-transform: none;
+  }
+
+  .manage-font-sample-input {
+    background: var(--manage-accent-muted);
+    border: 1px solid var(--manage-border-strong);
+    border-radius: 7px;
+    color: var(--manage-text);
+    font-size: 13px;
+    height: 30px;
+    margin-bottom: 14px;
+    outline: 0;
+    padding: 0 10px;
+    width: min(560px, 100%);
+  }
+
+  .manage-font-sample-input:focus {
+    border-color: light-dark(rgba(0, 0, 0, 0.3), rgba(255, 255, 255, 0.3));
+  }
+
+  .manage-font-sample-row {
+    align-items: baseline;
+    display: flex;
+    gap: 16px;
+    padding: 6px 0;
+  }
+
+  .manage-font-sample-size {
+    color: var(--manage-muted);
+    flex: none;
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    width: 28px;
+  }
+
+  .manage-font-sample-text {
+    line-height: 1.25;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .manage-font-glyph-grid {
+    display: grid;
+    gap: 6px;
+    grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+  }
+
+  .manage-font-glyph {
+    align-items: center;
+    border: 1px solid var(--manage-border-strong);
+    border-radius: 7px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    justify-content: center;
+    padding: 10px 4px 6px;
+  }
+
+  .manage-font-glyph-char {
+    font-size: 26px;
+    line-height: 1.1;
+  }
+
+  .manage-font-glyph-code {
+    color: var(--manage-muted);
+    font-size: 9.5px;
+    font-variant-numeric: tabular-nums;
+  }
+
   body {
     color: var(--manage-text);
     font-family: "Inter Variable", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;

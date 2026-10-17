@@ -90,15 +90,13 @@ impl GhostexGpuiApp {
         let path = document.path.clone();
         let review = document.review_session_title.clone();
         let deleted = document.disk == super::state::DocsDiskState::Deleted;
-        let wraps = document.editor.is_some() && kind != DocsFileKind::Markdown;
+        let wraps =
+            document.editor.is_some() && kind != DocsFileKind::Markdown && !document.data_view_open;
         let word_wrap = self.native_docs.word_wrap;
         let html_annotate = document.html_annotate;
         let svg = kind == DocsFileKind::Image && DocsFileKind::is_svg(&path);
         let svg_source = document.svg_source;
-        let media = matches!(
-            kind,
-            DocsFileKind::Image | DocsFileKind::Video | DocsFileKind::Audio
-        );
+        let media = kind.is_viewer();
         // CDXC:Docs 2026-10-01 WHY: the Show files button is the header row's last control, not a corner overlay drawn over the row's right end; a guessed reserve for the overlay let it cover the actions (the Open With arrow and Reload) whenever the row and the overlay disagreed.
         // CDXC:Docs 2026-10-09 DECISION: User: "when i hover the button to show files list pls keep the bar behind to not change". The button stays in the row while the list floats over it (a peek or a drawer) and goes only once the list is docked, so opening the floating list never re-lays out the bar: the title, the meta strip and the other buttons stay exactly where they were.
         let restore = (!layout.docked).then(|| self.render_native_docs_restore_button(p, cx));
@@ -141,6 +139,7 @@ impl GhostexGpuiApp {
         } else {
             Vec::new()
         };
+        let data_tiles = self.render_native_docs_data_tiles(p, cx);
         div()
             .flex()
             .flex_none()
@@ -251,6 +250,7 @@ impl GhostexGpuiApp {
                     .items_center()
                     .gap(px(2.0))
                     .children(note_actions)
+                    .children(data_tiles)
                     .when(kind.opens_externally() && review.is_none(), |this| {
                         let (open_path, menu_path) = (path.clone(), path.clone());
                         this.child(
@@ -462,6 +462,10 @@ impl GhostexGpuiApp {
                 .into_any_element()
         };
         let format_bar = self.render_native_docs_format_bar(p, cx);
+        // CSV's table and JSON's tree stand in for the text while their switch is on.
+        if let Some(view) = self.render_native_docs_data_view(p, cx) {
+            return view;
+        }
         let Some(document) = self.native_docs.active_document() else {
             return notice("files-view/t-file-175.svg", "Select a file".to_string());
         };
@@ -577,7 +581,10 @@ impl GhostexGpuiApp {
             DocsFileKind::Html
             | DocsFileKind::Excalidraw
             | DocsFileKind::Video
-            | DocsFileKind::Audio => {
+            | DocsFileKind::Audio
+            | DocsFileKind::Pdf
+            | DocsFileKind::BrowserImage
+            | DocsFileKind::Font => {
                 // The web runtime prompt (app/render/web_runtime_prompt.rs) with this file's Open
                 // in system app beside Install.
                 if let Some(prompt) =
@@ -662,6 +669,10 @@ impl GhostexGpuiApp {
                     ))
                     .children(format_bar)
                     .into_any_element();
+            }
+            DocsFileKind::Sqlite => {
+                let path = document.path.clone();
+                return self.render_native_docs_sqlite(&path, p, window, cx);
             }
             DocsFileKind::Text => {}
         }

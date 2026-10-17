@@ -108,6 +108,7 @@ impl GhostexGpuiApp {
         self.native_docs_refresh_highlights(cx);
         self.native_docs_sync_browser_area(cx);
         let p = self.native_docs_palette(window, cx);
+        self.native_docs_build_data_views(&p, window, cx);
         let focus = self.native_docs.focus.clone()?;
 
         let layout = self.native_docs_sidebar_layout();

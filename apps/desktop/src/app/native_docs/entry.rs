@@ -11,8 +11,9 @@ use crate::shared_settings::{
 
 /// Where a file opens when clicked in chat or a terminal or picked in Quick Access, by its kind
 /// and Settings > File opening: HTML, Markdown and pictures follow `documentFileOpenTarget`, video
-/// and audio their own settings, Excalidraw drawings always Files, PDFs and media Files cannot show
-/// the system app, and everything else `otherFileOpenTarget`.
+/// and audio their own settings, Excalidraw drawings always Files, pictures and media Files cannot
+/// show the system app, and everything else (PDFs, fonts and SQLite databases included)
+/// `otherFileOpenTarget`.
 ///
 /// CDXC:Navigation 2026-10-17 DECISION:
 /// User: a picked file "should always open that file in the files app not in code (unless the user picks open files in "Code" (setting)". This supersedes the rule that sent every file other than Markdown, HTML, Excalidraw and media to Code; the dropdowns themselves are in packages/settings-catalog/src/file_opening.rs.
@@ -48,6 +49,12 @@ pub(crate) fn file_open_target_for_path(path: &std::path::Path) -> SharedFileOpe
             }
             "html" | "htm" => settings.document_file_open_target(SharedDocumentFileKind::Html),
             "excalidraw" => SharedFileOpenTarget::Files,
+            // CDXC:Docs 2026-10-17 DECISION:
+            // User (Q224): notebooks get the "code view": an `.ipynb` opens in the Code view, which shows it as cells, wherever other files would open in Files; an editor app picked under Settings > File opening keeps it. A remote notebook takes the remote Code route the same way, and when the Code view is missing the open falls back to Files.
+            "ipynb" => match settings.other_file_open_target() {
+                SharedFileOpenTarget::Files => SharedFileOpenTarget::Code,
+                target => target,
+            },
             _ if files_cannot_show => SharedFileOpenTarget::SystemApp,
             _ => settings.other_file_open_target(),
         },
@@ -62,9 +69,11 @@ pub(crate) fn file_open_target_for_path(path: &std::path::Path) -> SharedFileOpe
 /// User (Q218): "Yes, binary files open in the system app": a binary file picked in Quick Access's Files tab, or opened from a chat or terminal link, that the Files view can't show opens in the system app. A remote project's file keeps the Files notice, because this computer's apps cannot reach it, so the remote route never asks here.
 pub(crate) fn local_file_open_target(path: &std::path::Path) -> SharedFileOpenTarget {
     let target = file_open_target_for_path(path);
+    let kind = DocsFileKind::for_path(&path.to_string_lossy());
     if target == SharedFileOpenTarget::Files
-        && DocsFileKind::for_path(&path.to_string_lossy()) == DocsFileKind::Text
-        && !looks_like_text(path)
+        && ((kind == DocsFileKind::Text && !looks_like_text(path))
+            // A `.db` that is not SQLite (a Berkeley DB, `Thumbs.db`) is another app's file.
+            || (kind == DocsFileKind::Sqlite && !looks_like_sqlite(path)))
     {
         return SharedFileOpenTarget::SystemApp;
     }
@@ -90,6 +99,17 @@ fn looks_like_text(path: &std::path::Path) -> bool {
         Ok(_) => true,
         // A character cut off by the 64 KB sample is still text.
         Err(error) => error.error_len().is_none(),
+    }
+}
+
+/// The file starts with SQLite's header. A file that cannot be read counts as SQLite, so Files
+/// shows its own error.
+fn looks_like_sqlite(path: &std::path::Path) -> bool {
+    use std::io::Read as _;
+    let mut header = [0u8; 16];
+    match std::fs::File::open(path).and_then(|mut file| file.read_exact(&mut header)) {
+        Ok(()) => &header == b"SQLite format 3\0",
+        Err(error) => error.kind() != std::io::ErrorKind::UnexpectedEof,
     }
 }
 

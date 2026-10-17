@@ -1,6 +1,7 @@
-//! The browser area: HTML files, Excalidraw drawings, video and audio need a browser engine, so
-//! the Docs page runs in embed mode (`apps/desktop/views/manage/embed.tsx`) as a normal child of
-//! the document area, showing that one file.
+//! The browser area: HTML files, Excalidraw drawings, video, audio, PDFs, AVIF pictures and fonts
+//! need a browser engine, so the Docs page runs in embed mode
+//! (`apps/desktop/views/manage/embed.tsx`) as a normal child of the document area, showing that
+//! one file.
 
 use gpui::{AnyElement, Context, IntoElement as _};
 
@@ -24,6 +25,9 @@ impl GhostexGpuiApp {
         let media = match document.kind {
             DocsFileKind::Video => "video",
             DocsFileKind::Audio => "audio",
+            DocsFileKind::Pdf => "pdf",
+            DocsFileKind::BrowserImage => "image",
+            DocsFileKind::Font => "font",
             _ => "",
         };
         let base =

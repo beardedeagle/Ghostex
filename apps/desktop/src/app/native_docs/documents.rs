@@ -35,7 +35,8 @@ impl GhostexGpuiApp {
         self.native_docs_notify(cx);
     }
 
-    /// Reads a file from disk into its document. Images, HTML and drawings are not read as text.
+    /// Reads a file from disk into its document. Images, HTML and drawings are not read as text,
+    /// and a SQLite database is read a page at a time.
     pub(crate) fn native_docs_read(&mut self, path: &str, cx: &mut Context<Self>) {
         let Some(kind) = self
             .native_docs
@@ -57,6 +58,9 @@ impl GhostexGpuiApp {
             if let Some(document) = self.native_docs.document_mut(path) {
                 document.load = DocsDocumentLoad::Ready;
             }
+            return;
+        } else if kind == DocsFileKind::Sqlite {
+            self.native_docs_sqlite_load(path, cx);
             return;
         }
         let generation = self.native_docs.generation;
@@ -238,6 +242,8 @@ impl GhostexGpuiApp {
             else {
                 continue;
             };
+            // A table or tree shows the new text too.
+            document.data_view = None;
             editor.update(cx, |state, cx| {
                 let selection = state.selected_range();
                 let scroll = state.scroll_offset();
@@ -342,6 +348,7 @@ impl GhostexGpuiApp {
         };
         document.editor = None;
         document._editor_subscription = None;
+        document.data_view = None;
         document.live = None;
         document._live_subscription = None;
         document.image = None;
@@ -471,6 +478,7 @@ impl GhostexGpuiApp {
             return;
         };
         self.native_docs.documents.remove(index);
+        self.native_docs.sqlite.remove(path);
         self.native_docs_clear_draft(path, cx);
         if self.native_docs.active.as_deref() == Some(path) {
             let next = index.min(self.native_docs.documents.len().saturating_sub(1));

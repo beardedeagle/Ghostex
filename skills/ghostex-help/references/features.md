@@ -351,7 +351,20 @@ view from the strip.
   edits a notice offers Compare, Keep mine, or Take theirs (Save waits until you
   pick), and a file deleted on disk is marked Deleted until you save it again.
   Text and code files have a wrap button in the header that turns line wrapping
-  on or off for every file, and the choice is remembered. The button at the sidebar's
+  on or off for every file, and the choice is remembered. CSV and TSV files
+  open as a read-only table: click a column header to sort by it (click again to
+  change the order), drag a column's edge to resize it, and click a cell and press
+  Cmd+C (Ctrl+C on Windows and Linux) to copy it. The header's Raw button shows the
+  file's text, which you can edit and save; a file with more than 50,000 rows shows
+  its first 50,000 in the table. JSON files have Format and Minify buttons that
+  re-space the file without changing its key order (an unsaved edit you can undo;
+  .jsonc files don't get them, because their comments would be lost), and a Tree
+  button that shows the file as a tree: fold objects and arrays, search keys and
+  values, and hover a row to copy its path (such as $.scripts.build) or its value.
+  Dockerfiles, PowerShell scripts and Terraform files are coloured, and so are
+  .env, .gitignore, .ini and .jsonl files. A Jupyter notebook (.ipynb) opened from
+  Quick Access or a link opens in the Code view, which shows its cells; opened from
+  the files list it shows its JSON, with an Open in Code view button. The button at the sidebar's
   window edge hides the files list; the same button in the corner brings it
   back, and hovering that button peeks the list without pinning it. Hidden or pinned is remembered. When the Files view is narrower than 800px the list opens as a
   temporary drawer over the document and closes when you open a file, press
@@ -376,10 +389,22 @@ view from the strip.
   is listed but cannot be picked. If you had changed the old Markdown, HTML or
   Images setting, the first dropdown reads As before and keeps those choices
   until you pick something else. Videos and audio keep their own Files or system
-  app choice, and PDFs and formats Files cannot show open in the system app. A
+  app choice; AVIF pictures follow the first dropdown, and PDFs, fonts and
+  SQLite databases the second. HEIC and JPEG XL pictures, and videos or audio
+  Files cannot play, open in the system app. A
   file on this computer that Files cannot show as text (a binary file such as a
-  zip, a database or an Office file) opens in the system app instead; a remote
+  zip or an Office file) opens in the system app instead; a remote
   project's binary file shows Files' "not previewed" notice.
+  Files shows a PDF in the built-in browser's PDF viewer (zoom, search, page
+  thumbnails, print) and an AVIF picture like any other picture. A font file
+  (.ttf, .otf, .woff, .woff2) opens as a preview: its name, version and
+  weights, sample text you can edit at several sizes, and a grid of its
+  characters; nothing is installed. A SQLite database (.db, .sqlite, .sqlite3)
+  opens read-only: pick a table or view on the left to page through its rows,
+  or type a SELECT query and press Enter or Run; Back to table leaves the query.
+  Files never writes to the database, and a query that runs longer than a few
+  seconds is stopped. In a remote project these work too, with PDFs, pictures
+  and fonts up to 12 MB.
 - **Terminal**: a command terminal in the view panel that works like the
   Commands pane, only on the right beside your sessions instead of below them.
   It has its own tab bar with a **+** for new terminals, Cmd+Shift+T for another

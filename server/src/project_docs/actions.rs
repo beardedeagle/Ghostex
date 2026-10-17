@@ -185,6 +185,20 @@ pub(super) fn run_action(
                 "requestId": request_id,
             }))
         }
+        // A SQLite database's tables and one page of rows, for a remote project's Files view (the
+        // desktop answers a local project's itself, through the same `ghostex_docs::sqlite`).
+        "sqlite" => {
+            let path = docs_path(context, string_param(params, "path").as_deref())?;
+            let target = existing_path(&path)?;
+            validate_accessible_path(&path, context)?;
+            if path.inner.is_empty() || !target.is_file() {
+                return Err("Select a database to open.".to_string());
+            }
+            let mut answer = ghostex_docs::sqlite::sqlite_action(&target, params)?;
+            answer["action"] = json!(action);
+            answer["requestId"] = json!(request_id);
+            Ok(answer)
+        }
         _ => Err("Unsupported Files action.".to_string()),
     }
 }

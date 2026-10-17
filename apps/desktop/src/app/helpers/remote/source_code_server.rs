@@ -446,6 +446,7 @@ pub(crate) fn run_remote_manage_files_bridge_request_for_project_snapshot(
                 | "copyFullPath"
                 | "addToSessionContext"
                 | "search"
+                | "sqlite"
         ) {
             return if action == "openWithSystemApp" {
                 Err("Files on a remote computer can't open in this computer's apps.".to_string())
@@ -482,7 +483,9 @@ pub(crate) fn run_remote_manage_files_bridge_request_for_project_snapshot(
                 serde_json::Value::String("project".to_string()),
             );
         }
-        for key in ["path", "newPath", "content", "revision", "query"] {
+        for key in [
+            "path", "newPath", "content", "revision", "query", "table", "sql",
+        ] {
             if let Some(value) = manage_request_string(&request, key) {
                 params.insert(key.to_string(), serde_json::Value::String(value));
             }
@@ -490,6 +493,11 @@ pub(crate) fn run_remote_manage_files_bridge_request_for_project_snapshot(
         for key in ["directoryOnly", "deferGitBaseline", "force"] {
             if let Some(value) = request.get(key).and_then(serde_json::Value::as_bool) {
                 params.insert(key.to_string(), serde_json::Value::Bool(value));
+            }
+        }
+        for key in ["offset", "limit"] {
+            if let Some(value) = request.get(key).and_then(serde_json::Value::as_u64) {
+                params.insert(key.to_string(), serde_json::Value::from(value));
             }
         }
         let response = gpui_remote_gxserver_rpc_result(

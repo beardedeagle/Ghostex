@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { MANAGE_CONTENT_AUTOSAVE_DELAY_MS } from './constants';
 import { requestManageFiles } from './files-bridge';
 import { ManageExcalidrawEditor } from './preview/excalidraw-editor';
+import { ManageFontViewer } from './preview/font-viewer';
 import { ManageHtmlRenderViewer } from './preview/html-viewer';
 import type { ManageWebKitWindow } from './types';
 
@@ -40,9 +41,32 @@ function ManageEmbedMedia({ media, path, revision }: { media: 'audio' | 'video';
 }
 
 /**
+ * CDXC:Docs 2026-10-17 DECISION:
+ * User (Q222) picked the "browser viewer" for PDFs and (Q227) AVIF "in browser": the Files view sends `media=pdf` for a PDF, shown by Chromium's own PDF viewer (zoom, search, thumbnails, print) in a frame, and `media=image` for an AVIF picture, which GPUI cannot decode. Both stream from the Docs resource origin, which serves a remote project's files too.
+ */
+function ManageEmbedViewer({ media, path }: { media: 'image' | 'pdf'; path: string }) {
+  const [failed, setFailed] = useState(false);
+  const source = manageDocsResourceUrl(path);
+  if (!source || failed) {
+    return <div className='manage-preview-message'>This file can't be shown here.</div>;
+  }
+  if (media === 'image') {
+    return (
+      <div className='manage-embed-media'>
+        <img alt='' className='manage-embed-image' onError={() => setFailed(true)} src={source} />
+      </div>
+    );
+  }
+  if (navigator.pdfViewerEnabled === false) {
+    return <div className='manage-preview-message'>This browser has no PDF viewer.</div>;
+  }
+  return <iframe className='manage-embed-pdf' src={source} title={path.split('/').pop() ?? path} />;
+}
+
+/**
  * CDXC:Docs 2026-09-24 WHY:
- * The native Docs view draws everything itself except HTML files, Excalidraw drawings, video and audio, which
- * need a browser engine. For those the app loads this page with `embed=1&path=…` as a normal child
+ * The native Docs view draws everything itself except HTML files, Excalidraw drawings, video, audio, PDFs, AVIF
+ * pictures and fonts, which need a browser engine. For those the app loads this page with `embed=1&path=…` as a normal child
  * of the document area, and it shows only that one file: no files list, no header. The native side
  * reloads it (a new `revision`) when the file changes on disk or the user presses Reload.
  * SEE-ALSO: apps/desktop/src/app/native_docs/browser_area.rs.
@@ -50,6 +74,20 @@ function ManageEmbedMedia({ media, path, revision }: { media: 'audio' | 'video';
 export function ManageEmbed() {
   const params = new URLSearchParams(window.location.search);
   const media = params.get('media');
+  const resourcePath = params.get('resourcePath') ?? params.get('path') ?? '';
+  const revision = params.get('revision') ?? '';
+  if (media === 'pdf' || media === 'image') {
+    return <ManageEmbedViewer key={revision} media={media} path={resourcePath} />;
+  }
+  if (media === 'font') {
+    const source = manageDocsResourceUrl(resourcePath);
+    if (!source) {
+      return <div className='manage-preview-message'>This font can't be shown here.</div>;
+    }
+    return (
+      <ManageFontViewer fileName={resourcePath.split('/').pop() ?? resourcePath} revision={revision} source={source} />
+    );
+  }
   if (media === 'video' || media === 'audio') {
     return (
       <ManageEmbedMedia

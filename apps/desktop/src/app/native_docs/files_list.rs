@@ -53,6 +53,9 @@ pub(crate) fn file_icon(path: &str) -> &'static str {
         DocsFileKind::Markdown => "files-view/t-markdown-175.svg",
         DocsFileKind::Html => "files-view/t-file-type-html-175.svg",
         DocsFileKind::Excalidraw => "files-view/t-edit-175.svg",
+        DocsFileKind::Pdf => "files-view/t-file-type-pdf-175.svg",
+        DocsFileKind::Font => "titlebar/letter-case.svg",
+        DocsFileKind::Sqlite => "titlebar/database.svg",
         DocsFileKind::Text if DocsFileKind::editor_language(path) != "text" => {
             "titlebar/file-code.svg"
         }

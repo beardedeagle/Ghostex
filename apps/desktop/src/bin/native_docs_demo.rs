@@ -3,7 +3,7 @@
 //! overlays the app draws, in a window of its own, so the look can be compared with the React
 //! Files page without launching Ghostex.
 //!
-//!     GHOSTEX_NATIVE_DOCS_DEMO_FILE=<absolute .md path>   (default: native_docs_demo/parity.md)
+//!     GHOSTEX_NATIVE_DOCS_DEMO_FILE=<absolute path>       (default: native_docs_demo/parity.md; a CSV, JSON or code file opens the views in native_docs_demo/data.rs)
 //!     GHOSTEX_NATIVE_DOCS_DEMO_THEME=dark|light           (default dark)
 //!     GHOSTEX_NATIVE_DOCS_DEMO_MODE=live|source           (default live)
 //!     GHOSTEX_NATIVE_DOCS_DEMO_SIZE=<w>x<h>               (logical px, default 1100x900)
@@ -26,6 +26,8 @@ mod ui_fonts;
 /// do not exist, and macOS will not walk `..` out of a missing folder.
 #[path = "native_docs_demo/app.rs"]
 mod app;
+#[path = "native_docs_demo/data.rs"]
+mod data;
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -160,6 +162,21 @@ fn main() {
         _ => demo_dir.join("parity.md"),
     };
     let text = std::fs::read_to_string(&file).expect("read the demo document");
+    let (width, height) = env("GHOSTEX_NATIVE_DOCS_DEMO_SIZE")
+        .split_once('x')
+        .and_then(|(w, h)| Some((w.parse::<f32>().ok()?, h.parse::<f32>().ok()?)))
+        .unwrap_or((1100.0, 900.0));
+    // Anything but Markdown: the CSV table, the JSON tree or the code editor (data.rs).
+    if !matches!(
+        file.extension()
+            .and_then(|e| e.to_str())
+            .map(str::to_ascii_lowercase)
+            .as_deref(),
+        Some("md" | "markdown" | "mdx")
+    ) {
+        data::run(&file, text, light, width, height);
+        return;
+    }
     let base = match env("GHOSTEX_NATIVE_DOCS_DEMO_BASE") {
         path if !path.is_empty() => std::fs::read_to_string(path).ok(),
         _ => None,
@@ -170,10 +187,6 @@ fn main() {
         .file_name()
         .map(|name| name.to_string_lossy().to_string())
         .unwrap_or_default();
-    let (width, height) = env("GHOSTEX_NATIVE_DOCS_DEMO_SIZE")
-        .split_once('x')
-        .and_then(|(w, h)| Some((w.parse::<f32>().ok()?, h.parse::<f32>().ok()?)))
-        .unwrap_or((1100.0, 900.0));
     let caret_line: Option<usize> = env("GHOSTEX_NATIVE_DOCS_DEMO_CARET").parse().ok();
     gpui_platform::application()
         .with_assets(assets::GhostexAssets)

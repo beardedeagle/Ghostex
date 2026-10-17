@@ -62,7 +62,7 @@ impl GhostexGpuiApp {
             );
             return;
         };
-        // CDXC:Navigation 2026-10-17 WHY: a remote file follows Settings > File opening too, but an editor app or the system app on this computer cannot reach a file on the session computer: an editor choice opens it in Files, and video, audio and what only the system app could show (PDFs) keep opening in Code as they did before.
+        // CDXC:Navigation 2026-10-17 WHY: a remote file follows Settings > File opening too, but an editor app or the system app on this computer cannot reach a file on the session computer: an editor choice opens it in Files, and video, audio and what only the system app could show (HEIC, JPEG XL) keep opening in Code as they did before.
         let video_or_audio = matches!(
             crate::app::native_docs::state::DocsMediaKind::for_path(path),
             Some(
