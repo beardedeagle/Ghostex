@@ -105,6 +105,11 @@ pub fn is_advanced_setting(key: &str) -> bool {
     data::ADVANCED_MAIN_SETTING_KEYS.contains(&key)
 }
 
+/// Rows that carry a "Not recommended" label (`NOT_RECOMMENDED_SETTING_KEYS`).
+pub fn is_not_recommended_setting(key: &str) -> bool {
+    data::NOT_RECOMMENDED_SETTING_KEYS.contains(&key)
+}
+
 /// The setting keys each General group renders, for groups whose sections are not listed in `GENERAL_GROUPS`.
 pub fn general_group_setting_keys(group: &str) -> &'static [&'static str] {
     data::MAIN_SETTINGS_SECTION_SETTING_KEYS

@@ -1432,7 +1432,7 @@ its own switch, also on by default.
 
 Grey thinking (Settings > Chat, off by default) shows the agent's thinking in grey and its replies in the full text colour, so the two are easy to tell apart (`sessionChatMutedThinking`); the phone has the same switch in its Settings > Chat.
 
-Marked handovers: orchestrators and their threads always begin each part of
+Marked handovers: orchestrators and their threads begin each part of
 the message they hand back with a marker: ❓ Needs you, ✅ Done, ⚠️ Read this,
 🛫 Kicked off (work started this turn), 🔄 In progress, 🧪 Untested, 🚀 Shipped or 🛑 Blocked, so a quick skim shows
 what needs you, and every bullet under a marker starts with a capital letter; a thread's report to its orchestrator is marked too. Turn on
@@ -1444,12 +1444,13 @@ instructions it started with until it is resumed. The chat colours each marked s
 its kind, in the style picked under Marked sections style right below the
 switch (shown while it is on): coloured labels (the default), a thin left rule, or a coloured
 badge naming the kind; the eye button next to it previews all three side by
-side. Show marker emojis, under it and off by default, adds the marker emoji
+side. Show marker emojis, under it and off by default (an advanced setting, not recommended), adds the marker emoji
 to every style; while it is off the colour and the label show the kind.
 Copying a message still gives the agent's own text. The phone app sets both in
 its own Settings > Chat > Marked sections, which also offers Plain text.
+Orchestrators answer without markers (Settings > Chat, an advanced setting, off by default and not recommended) makes orchestrators started or resumed afterwards answer normally, while their threads still mark the reports they send them.
 Settings: `markedHandovers`, `markedHandoversStyle` (`labels`, `rule`,
-`badge`), `markedHandoversEmoji`.
+`badge`), `markedHandoversEmoji`, `orchestratorPlainReplies`.
 
 Catch me up: turn on Catch me up button (Settings > Chat, off by default) and
 the chat box shows a Catch me up button at its top right while it is empty, on

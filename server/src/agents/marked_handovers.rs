@@ -7,8 +7,8 @@ use serde_json::Value;
 use super::*;
 use crate::paths::{get_gxserver_paths, GxserverPaths};
 
-/// CDXC:MarkedHandovers 2026-10-11 DECISION:
-/// User: "Setting, every agent session", then: "we should force the marked handovers for coordinators/orchestrator threads and their children by default and make it disabled by default for non-orchestrator/child threads". Orchestrators and their threads always get this note; every other agent session Ghostex starts gets it only while the Marked handovers setting is on (off by default). The agent otherwise writes as it does today. The note goes into every such session's prompt, so it stays short and plain.
+/// CDXC:MarkedHandovers 2026-10-17 DECISION:
+/// User: "please allow launching an orchestrator without the reply style so the orchestrator answers normally. but put "Not recommended" and make it an advanced setting". Supersedes the 2026-10-11 "force the marked handovers for coordinators/orchestrator threads and their children": threads always get this note, orchestrators get it unless Orchestrators answer without markers (`orchestratorPlainReplies`, off by default) is on, and every other agent session Ghostex starts gets it only while the Marked handovers setting is on (off by default). The agent otherwise writes as it does today. The note goes into every such session's prompt, so it stays short and plain.
 /// CDXC:MarkedHandovers 2026-10-11 WHY:
 /// Wording tested in throwaway Claude sessions (Haiku and Sonnet, in this repo and in a plain folder): a plain list of markers was followed in a plain folder but ignored under this repo's long AGENTS.md (the models said they "missed" it). What made it stick: saying it applies on top of CLAUDE.md and AGENTS.md and overrides the no-emoji default, keeping the agent's own headings with the marker in front, naming the sections that always get ❓ and 🧪, and a check before sending. In this repo models still miss a section now and then.
 /// CDXC:MarkedHandovers 2026-10-11 DECISION:
@@ -36,10 +36,21 @@ A section that asks the user anything always gets ❓, and one about what you di
 Before you send that final message, check that every matching section starts with its marker on a line of its own. Leave the markers out of your other messages.";
 
 const SETTING_KEY: &str = "markedHandovers";
+const ORCHESTRATOR_PLAIN_SETTING_KEY: &str = "orchestratorPlainReplies";
 
 /// Whether the Marked handovers setting is on, read fresh from the shared settings file so a
 /// change reaches the next launch or resume without a gxserver restart.
 pub(crate) fn marked_handovers_enabled(paths: &GxserverPaths) -> bool {
+    bool_setting(paths, SETTING_KEY)
+}
+
+/// Whether orchestrators answer without markers (no note in their role), read fresh like
+/// [`marked_handovers_enabled`].
+pub(crate) fn orchestrator_plain_replies(paths: &GxserverPaths) -> bool {
+    bool_setting(paths, ORCHESTRATOR_PLAIN_SETTING_KEY)
+}
+
+fn bool_setting(paths: &GxserverPaths, key: &str) -> bool {
     // Unit tests assert exact commands, which must not depend on the user's settings.
     if cfg!(test) {
         return false;
@@ -47,12 +58,12 @@ pub(crate) fn marked_handovers_enabled(paths: &GxserverPaths) -> bool {
     std::fs::read_to_string(paths.app_config_dir.join("native-sidebar-settings.json"))
         .ok()
         .and_then(|text| serde_json::from_str::<Value>(&text).ok())
-        .and_then(|settings| settings.get(SETTING_KEY).and_then(Value::as_bool))
+        .and_then(|settings| settings.get(key).and_then(Value::as_bool))
         .unwrap_or(false)
 }
 
 /// CDXC:MarkedHandovers 2026-10-11 WHY:
-/// For a session the setting covers, the note is added when the launch or resume command is resolved instead of being saved in the session's base command: the command is resolved again on every start, resume, fork and account switch, so turning the setting on or off reaches each session the next time it starts or resumes, while a running agent keeps the instructions it started with. Orchestrators carry it in their role (role.rs), and threads have it saved in their base command at creation (`with_thread_marked_handovers`), so both keep it whatever the setting says. Claude keeps only the last `--append-system-prompt-file` (tested 2026-10-11 on Claude Code 2.1.296) and Codex reads one `developer_instructions`, so a command that already names its own is left alone rather than lose it, except a Codex orchestrator's guide pointer, which the note joins. ZCode has no such flag and gets the note as SessionStart hook context (activity.rs); Empryo ignores hook context and other agents have no channel Ghostex can use, so they do not get the note outside an Empryo orchestrator's profile.
+/// For a session the setting covers, the note is added when the launch or resume command is resolved instead of being saved in the session's base command: the command is resolved again on every start, resume, fork and account switch, so turning the setting on or off reaches each session the next time it starts or resumes, while a running agent keeps the instructions it started with. Orchestrators carry it in their role (role.rs) unless they answer without markers, and threads have it saved in their base command at creation (`with_thread_marked_handovers`), so both keep it whatever the setting says. Claude keeps only the last `--append-system-prompt-file` (tested 2026-10-11 on Claude Code 2.1.296) and Codex reads one `developer_instructions`, so a command that already names its own is left alone rather than lose it, except a Codex orchestrator's guide pointer, which the note joins. ZCode has no such flag and gets the note as SessionStart hook context (activity.rs); Empryo ignores hook context and other agents have no channel Ghostex can use, so they do not get the note outside an Empryo orchestrator's profile.
 /// SEE-ALSO: server/src/agents/launch_plan.rs (`resolve_agent_launch_command` calls this), server/src/coordinators/role.rs (`with_coordinator_role`, the role flags this combines with).
 pub(crate) fn with_marked_handovers(agent_id: &str, icon: Option<&str>, command: &str) -> String {
     if command.trim().is_empty() {
@@ -65,11 +76,24 @@ pub(crate) fn with_marked_handovers(agent_id: &str, icon: Option<&str>, command:
     let Some(family) = family else {
         return command.to_string();
     };
+    let paths = get_gxserver_paths(None);
+    if family == "claude" {
+        let role_file = crate::coordinators::coordinator_role_file(&paths);
+        if command.contains(role_file.to_string_lossy().as_ref()) {
+            // A Claude orchestrator reads its role file at every start and resume, so it is
+            // rewritten here to follow Orchestrators answer without markers; its note is the role's.
+            let _ = crate::coordinators::ensure_coordinator_role_file(&paths);
+            return command.to_string();
+        }
+    }
     if family == "codex" {
         let pointer_arg = crate::coordinators::codex_developer_instructions_arg(
             crate::coordinators::GUIDE_POINTER_COORDINATOR_INSTRUCTIONS,
         );
         if command.contains(&pointer_arg) {
+            if orchestrator_plain_replies(&paths) {
+                return command.to_string();
+            }
             let combined = format!(
                 "{}\n\n{MARKED_HANDOVERS_NOTE}",
                 crate::coordinators::GUIDE_POINTER_COORDINATOR_INSTRUCTIONS
@@ -77,7 +101,6 @@ pub(crate) fn with_marked_handovers(agent_id: &str, icon: Option<&str>, command:
             return command.replace(&pointer_arg, &codex_note_arg(&combined));
         }
     }
-    let paths = get_gxserver_paths(None);
     if !marked_handovers_enabled(&paths) {
         return command.to_string();
     }

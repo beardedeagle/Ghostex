@@ -267,6 +267,11 @@ impl SettingsCatalog {
         catalog::is_advanced_setting(key)
     }
 
+    /// `NOT_RECOMMENDED_SETTING_KEYS`: rows that carry a "Not recommended" label.
+    pub(crate) fn is_not_recommended(&self, key: &str) -> bool {
+        catalog::is_not_recommended_setting(key)
+    }
+
     pub(crate) fn general_section(&self, id: &str) -> Option<&SearchSectionDef> {
         self.general_sections
             .iter()

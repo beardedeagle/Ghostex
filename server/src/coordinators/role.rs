@@ -43,21 +43,37 @@ pub fn coordinator_role_file(paths: &GxserverPaths) -> PathBuf {
         .join("coordinator-role.md")
 }
 
-/// Writes the role file when it is missing or out of date, so an upgrade reaches every
-/// coordinator at its next launch or resume.
+/// Writes the role file when it is missing or out of date, so an upgrade or a change to
+/// Orchestrators answer without markers reaches every coordinator at its next launch or resume.
 pub fn ensure_coordinator_role_file(paths: &GxserverPaths) -> std::io::Result<PathBuf> {
     let path = coordinator_role_file(paths);
-    write_if_changed(&path, &coordinator_role_with_marked_handovers())?;
+    write_if_changed(&path, &coordinator_role_with_marked_handovers(paths))?;
     Ok(path)
 }
 
-/// The playbook with the Marked handovers note after it: an orchestrator always marks its
-/// handovers (CDXC:MarkedHandovers in agents/marked_handovers.rs), so the role it loads at launch
-/// carries the note whatever the setting says.
-fn coordinator_role_with_marked_handovers() -> String {
+/// The playbook as an orchestrator reads it. While orchestrators answer without markers, its
+/// handover lines name the Kicked off and In progress sections without their marker emoji.
+pub fn coordinator_playbook(paths: &GxserverPaths) -> String {
+    if crate::agents::orchestrator_plain_replies(paths) {
+        COORDINATOR_ROLE_PROMPT
+            .replace("\"🛫 Kicked off\"", "\"Kicked off\"")
+            .replace("\"🔄 In progress\"", "\"In progress\"")
+    } else {
+        COORDINATOR_ROLE_PROMPT.to_string()
+    }
+}
+
+/// The playbook with the Marked handovers note after it: an orchestrator marks its handovers
+/// (CDXC:MarkedHandovers in agents/marked_handovers.rs) whatever the Marked handovers setting
+/// says, unless Orchestrators answer without markers is on, which leaves the note out.
+fn coordinator_role_with_marked_handovers(paths: &GxserverPaths) -> String {
+    let playbook = coordinator_playbook(paths);
+    if crate::agents::orchestrator_plain_replies(paths) {
+        return format!("{}\n", playbook.trim());
+    }
     format!(
         "{}\n\n{}\n",
-        COORDINATOR_ROLE_PROMPT.trim(),
+        playbook.trim(),
         crate::agents::MARKED_HANDOVERS_NOTE
     )
 }
@@ -107,7 +123,7 @@ pub fn ensure_empryo_coordinator_agent_file(paths: &GxserverPaths) -> std::io::R
         &path,
         &format!(
             "---\nname: {EMPRYO_COORDINATOR_AGENT_NAME}\ndescription: The Ghostex orchestrator role. Ghostex starts an orchestrator session with it; never delegate a task to it.\n---\n\n{}",
-            coordinator_role_with_marked_handovers()
+            coordinator_role_with_marked_handovers(paths)
         ),
     )?;
     Ok(path)

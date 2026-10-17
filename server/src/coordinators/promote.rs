@@ -12,8 +12,8 @@ use super::records::{
     COORDINATOR_GOAL_MAX_CHARS,
 };
 use super::role::{
-    coordinator_agent_family_supported, coordinator_role_queued_command, with_coordinator_role,
-    COORDINATOR_AGENT_FAMILIES_TEXT, COORDINATOR_ROLE_PROMPT,
+    coordinator_agent_family_supported, coordinator_playbook, coordinator_role_queued_command,
+    with_coordinator_role, COORDINATOR_AGENT_FAMILIES_TEXT,
 };
 use crate::domain::{DomainRepository, DomainStateError};
 
@@ -225,7 +225,7 @@ pub fn playbook_message(goal: &str, role_in_system_prompt: bool) -> String {
     );
     if !role_in_system_prompt {
         message.push_str("\n\n---\n\n");
-        message.push_str(COORDINATOR_ROLE_PROMPT.trim());
+        message.push_str(coordinator_playbook(&crate::paths::get_gxserver_paths(None)).trim());
     }
     message
 }

@@ -136,9 +136,14 @@ impl RowSpec {
         self
     }
 
-    /// `getSettingModificationProps(key)`: the advanced marker and the modified asterisk of a setting.
-    pub(crate) fn keyed(self, values: &SettingsValues, key: &str) -> Self {
-        let advanced = super::super::catalog::settings_catalog().is_advanced(key);
+    /// `getSettingModificationProps(key)`: the advanced marker, the modified asterisk and the
+    /// "Not recommended" label of a setting.
+    pub(crate) fn keyed(mut self, values: &SettingsValues, key: &str) -> Self {
+        let catalog = super::super::catalog::settings_catalog();
+        let advanced = catalog.is_advanced(key);
+        if catalog.is_not_recommended(key) {
+            self.badge = Some("Not recommended".into());
+        }
         let modified = values.is_modified(key);
         self.advanced(advanced).modified(modified)
     }

@@ -470,9 +470,12 @@ fn coordinator_session_start_context(
         &lifecycle.session_id,
     )?
     .is_some();
-    let marked = coordinator
-        || thread
-        || super::marked_handovers_enabled(&crate::paths::get_gxserver_paths(None));
+    let paths = crate::paths::get_gxserver_paths(None);
+    let marked = if coordinator {
+        !super::orchestrator_plain_replies(&paths)
+    } else {
+        thread || super::marked_handovers_enabled(&paths)
+    };
     let parts = [
         coordinator.then_some(crate::coordinators::GUIDE_POINTER_COORDINATOR_INSTRUCTIONS),
         marked.then_some(super::MARKED_HANDOVERS_NOTE),

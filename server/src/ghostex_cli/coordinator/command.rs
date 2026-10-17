@@ -26,7 +26,10 @@ pub(crate) fn run(args: &[String]) -> CliResult<()> {
     let parsed = parse_args(&args[1..]);
     match command {
         "guide" => {
-            print!("{}", crate::coordinators::COORDINATOR_ROLE_PROMPT);
+            print!(
+                "{}",
+                crate::coordinators::coordinator_playbook(&crate::paths::get_gxserver_paths(None))
+            );
             Ok(())
         }
         "create" => create(&parsed),

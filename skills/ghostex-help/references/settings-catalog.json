@@ -1096,7 +1096,7 @@
     {
       "key": "markedHandovers",
       "title": "Marked handovers in every session",
-      "subtitle": "Orchestrators and their threads always start each part of the message they hand back with a marker such as ❓ Needs you, ✅ Done, ⚠️ Read this, 🧪 Untested or 🛑 Blocked, so a quick skim shows what needs you. Turn this on to have every other agent session do the same. Applies to sessions started or resumed after you change it.",
+      "subtitle": "Orchestrators and their threads start each part of the message they hand back with a marker such as ❓ Needs you, ✅ Done, ⚠️ Read this, 🧪 Untested or 🛑 Blocked, so a quick skim shows what needs you. Turn this on to have every other agent session do the same. Applies to sessions started or resumed after you change it.",
       "tab": "settings",
       "tabTitle": "General",
       "group": "chat",
@@ -1110,7 +1110,7 @@
     {
       "key": "markedHandoversEmoji",
       "title": "Show marker emojis",
-      "subtitle": "Show the marker emoji (❓ ✅ ⚠️ and the rest) at the start of each coloured section, in every style. Off: the colour and the label show the kind. Shown while Marked handovers is on.",
+      "subtitle": "Not recommended. Show the marker emoji (❓ ✅ ⚠️ and the rest) at the start of each coloured section, in every style. Off: the colour and the label show the kind. Shown while Marked handovers is on.",
       "tab": "settings",
       "tabTitle": "General",
       "group": "chat",
@@ -1119,6 +1119,7 @@
       "sectionTitle": "Chat",
       "type": "boolean",
       "default": false,
+      "advanced": true,
       "agentWritable": true
     },
     {
@@ -1147,6 +1148,21 @@
           "value": "badge"
         }
       ],
+      "agentWritable": true
+    },
+    {
+      "key": "orchestratorPlainReplies",
+      "title": "Orchestrators answer without markers",
+      "subtitle": "Not recommended. Orchestrators answer normally, without marking the sections of their handovers. Their threads still mark the reports they send to the orchestrator. Applies to orchestrators started or resumed after you change it.",
+      "tab": "settings",
+      "tabTitle": "General",
+      "group": "chat",
+      "groupTitle": "Chat",
+      "section": "chat",
+      "sectionTitle": "Chat",
+      "type": "boolean",
+      "default": false,
+      "advanced": true,
       "agentWritable": true
     },
     {
