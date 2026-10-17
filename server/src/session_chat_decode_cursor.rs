@@ -153,18 +153,65 @@ fn cursor_message_blocks(role: &str, content: Option<&Value>) -> (Vec<SessionCha
                 let plan = (name == "CreatePlan")
                     .then(|| cursor_plan_markdown(&input))
                     .flatten();
+                let (name, input) = canonical_cursor_tool(name, input);
                 blocks.push(SessionChatBlock::ToolCall {
                     name,
                     input,
-                    call_id: None,
+                    // The chat mirror names each call from Cursor's store (`session_chat_cursor_mirror`).
+                    call_id: extract_string(record.get("id")),
                 });
                 blocks.extend(plan.map(text_block));
             }
+            // A result the chat mirror read from Cursor's store.
+            Some("tool_result") => blocks.push(SessionChatBlock::ToolResult {
+                output: extract_string(record.get("content")).unwrap_or_default(),
+                is_error: record.get("is_error").and_then(Value::as_bool),
+                call_id: extract_string(record.get("tool_use_id")),
+                patch: record
+                    .get("diff")
+                    .and_then(Value::as_str)
+                    .and_then(crate::session_chat_file_patch::unified_diff_patch),
+            }),
             _ => {}
         }
     }
     let reasoning_only = thinking_blocks > 0 && thinking_blocks == blocks.len();
     (blocks, reasoning_only)
+}
+
+/// CDXC:SessionChat 2026-10-17 WHY: Cursor names its tools `Shell`, `StrReplace`, `Read {path}`, `Write {path, contents}` and `Glob {glob_pattern, target_directory}`, none of which the chat knows, so a command showed only its description, an edit expanded to raw JSON with no diff card and a search read `Glob: {"glob_pattern":…}` (agent flow tests, Windows, 2026-10-17). They are shown as the Claude tools they are, the way Antigravity's and Copilot's are; `Shell` must not stay `Shell`, which is the chat's own name for a command the user ran with `!`.
+fn canonical_cursor_tool(name: String, input: Value) -> (String, Value) {
+    let Value::Object(mut fields) = input else {
+        return (name, input);
+    };
+    let mut rename = |from: &str, to: &str| {
+        if let Some(value) = fields.remove(from) {
+            fields.entry(to.to_string()).or_insert(value);
+        }
+    };
+    let canonical = match name.as_str() {
+        "Shell" => "Bash",
+        "StrReplace" => {
+            rename("path", "file_path");
+            "Edit"
+        }
+        "Read" => {
+            rename("path", "file_path");
+            "Read"
+        }
+        "Write" => {
+            rename("path", "file_path");
+            rename("contents", "content");
+            "Write"
+        }
+        "Glob" => {
+            rename("glob_pattern", "pattern");
+            rename("target_directory", "path");
+            "Glob"
+        }
+        _ => return (name, Value::Object(fields)),
+    };
+    (canonical.to_string(), Value::Object(fields))
 }
 
 /// CDXC:SessionChat 2026-10-07 WHY: Cursor's Plan mode writes its plan only as the `plan` argument of a `CreatePlan` tool call, which the chat folded away with the other tool rows (its open row showed the argument as escaped JSON), while the terminal shows the plan above its "Ready to build?" panel. The plan follows the call as Markdown so it reads in the chat before the build decision; Cursor drops the leading `<!-- … -->` marker the same way.
@@ -251,6 +298,7 @@ pub fn decode_cursor_transcript_line(line: &str, fallback_id: &str) -> Option<Se
         },
         "assistant" if reasoning_only => (SessionChatRole::Reasoning, blocks),
         "assistant" => (SessionChatRole::Assistant, blocks),
+        "tool" => (SessionChatRole::Tool, blocks),
         _ => return None,
     };
     Some(SessionChatMessage {

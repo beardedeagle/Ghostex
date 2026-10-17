@@ -42,6 +42,16 @@ pub fn detect_session_chat_selection(
                 if let Some(selection) = match_cursor_statusline(scanned) {
                     found = selection;
                     topmost_match = Some(index);
+                    if let Some(above) = index.checked_sub(1) {
+                        if let Some((mode, own_line)) =
+                            match_cursor_mode_line(&scanned_lines[above])
+                        {
+                            found.mode = Some(mode);
+                            if own_line {
+                                topmost_match = Some(above);
+                            }
+                        }
+                    }
                     break;
                 }
                 continue;

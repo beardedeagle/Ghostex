@@ -1069,8 +1069,20 @@ pub(crate) fn normalize_agent_hook_event_activity(params: &Map<String, Value>) -
             "Stop",
             &Value::Object(params.clone()),
         )
-    } else if let Some(agent @ ("mastra" | "hermes-agent")) = agent.as_deref() {
-        // Both decide from the payload; Hermes needs the tool name.
+    } else if let Some(event @ ("stop" | "postToolUse" | "postToolUseFailure")) = event
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|_| agent.as_deref() == Some("cursor"))
+    {
+        // Cursor's stop says whether the turn finished or was aborted (`stopStatus`), and its
+        // finished-tool reports can land after that stop.
+        crate::agent_hooks::event_mapping::activity_for_hook_event(
+            "cursor",
+            event,
+            &Value::Object(params.clone()),
+        )
+    } else if let Some(agent @ ("mastra" | "hermes-agent" | "copilot")) = agent.as_deref() {
+        // These decide from the payload; Hermes needs the tool name, Copilot the notification type.
         crate::agent_hooks::event_mapping::activity_for_hook_event(
             agent,
             event.and_then(Value::as_str).unwrap_or_default(),

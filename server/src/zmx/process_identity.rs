@@ -314,6 +314,26 @@ fn resolve_wrapped_agent_process_invocation(
     if !matches!(executable_name.as_str(), "bun" | "node") {
         return None;
     }
+    /*
+    CDXC:SessionIdentity 2026-10-17 WHY:
+    On native Windows Cursor CLI runs as `cmd /c cursor-agent.cmd` → `powershell -File cursor-agent.ps1` → `node.exe …\cursor-agent\versions\<version>\index.js --resume <id>`, and none of them is named cursor-agent (on macOS and Linux its launcher `exec -a`s the name onto node). Unrecognised, the session had no running agent as far as the process scan knew, so chat Interrupt & Send never interrupted: the message went into Cursor's own follow-up queue behind the running turn (agent flow tests, Windows, 2026-10-17). Node running the script of Cursor's versioned install is Cursor.
+    */
+    if let Some(index) = tokens.iter().take(8).skip(1).position(|token| {
+        normalize_process_token(Some(token)).is_some_and(|path| {
+            let path = path.replace('\\', "/");
+            path.ends_with("/index.js") && path.contains("/cursor-agent/versions/")
+        })
+    }) {
+        let index = index + 1;
+        return Some(ProcessIdentityObservation {
+            confidence: GXSERVER_WRAPPED_AGENT_PROCESS_CONFIDENCE,
+            identity: ZmxProcessIdentity {
+                agent_id: Some("cursor".to_string()),
+                agent_session_id: extract_agent_process_session_id("cursor", tokens, index),
+                ..ZmxProcessIdentity::default()
+            },
+        });
+    }
     for index in 1..tokens.len().min(8) {
         if let Some(observation) = resolve_agent_process_invocation(
             tokens,

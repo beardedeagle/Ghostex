@@ -361,6 +361,9 @@ pub(crate) fn match_cursor_statusline(line: &str) -> Option<SessionChatDetectedS
     if combined.is_empty() || combined == "\u{2014}" {
         return None;
     }
+    // CDXC:AgentScreenDetection 2026-10-17 WHY: Cursor paints "Fast" only on models that run fast
+    // ("Grok 4.7 256K Medium Fast"), so a footer without it means Fast is off. Reporting nothing
+    // there kept the chat's Fast mode "On" after a switch from Grok to Sonnet.
     let (combined, fast) = if let Some(without_fast) = combined
         .strip_suffix(" Fast")
         .or_else(|| combined.strip_suffix(" fast"))
@@ -369,7 +372,7 @@ pub(crate) fn match_cursor_statusline(line: &str) -> Option<SessionChatDetectedS
     {
         (without_fast.trim_end(), Some(true))
     } else {
-        (combined, None)
+        (combined, Some(false))
     };
     let (model_label, context_window, effort) = split_cursor_model_context_and_effort(combined);
     // CDXC:SessionChatDetectedOptions 2026-09-23 WHY: Cursor reports no context payload, so the
@@ -418,6 +421,32 @@ pub(crate) fn match_cursor_statusline(line: &str) -> Option<SessionChatDetectedS
         model_catalog: None,
         ..SessionChatDetectedSelection::default()
     })
+}
+
+/// The mode Cursor shows on the row above its footer, and whether that row is the mode's own.
+///
+/// CDXC:AgentScreenDetection 2026-10-17 WHY: Cursor (2026.10.16) prints `Plan (shift+tab to
+/// cycle)`, `Debug …` or `Ask …` between its composer and its footer, and nothing there in Agent
+/// mode, where the composer's bottom border sits directly above the footer. Any other row (an
+/// approval panel, a picker) says nothing about the mode.
+pub(crate) fn match_cursor_mode_line(line: &str) -> Option<(SessionChatDetectedChoice, bool)> {
+    let line = line.trim();
+    let choice = |value: &str, label: &str| SessionChatDetectedChoice {
+        value: value.to_string(),
+        label: label.to_string(),
+        source: SessionChatOptionEvidence::Terminal,
+    };
+    if !line.is_empty() && line.chars().all(|ch| ch == '\u{2580}') {
+        return Some((choice("default", "Agent"), false));
+    }
+    let label = line.strip_suffix(" (shift+tab to cycle)")?;
+    let value = match label {
+        "Plan" => "plan",
+        "Debug" => "debug",
+        "Ask" => "search",
+        _ => return None,
+    };
+    Some((choice(value, label), true))
 }
 
 // ---------------------------------------------------------------------------

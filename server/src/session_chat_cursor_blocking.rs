@@ -110,6 +110,17 @@ pub fn cursor_is_processing(text: &str) -> bool {
     lines[frame_foot - 1].contains("ctrl+c to stop")
 }
 
+/// Cursor's composer asks what to do instead of a skipped command: "Tell the agent what to do
+/// instead (Enter to send, empty to skip, Esc to cancel)". It opens when an approval's Skip row
+/// (Escape) is taken; Escape here goes back to the approval.
+pub fn cursor_asks_instead_of_skipped(text: &str) -> bool {
+    let lines = scan_lines(text);
+    let Some(frame_foot) = latest_frame_foot(&lines) else {
+        return false;
+    };
+    lines[frame_foot - 1].contains("empty to skip")
+}
+
 pub fn detect_cursor_blocking_screen(text: &str) -> Option<CursorBlockingScreen> {
     let lines = scan_lines(text);
     let frame_foot = latest_frame_foot(&lines)?;

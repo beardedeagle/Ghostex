@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -14,6 +15,7 @@ impl Scanner {
 
     pub(super) fn scan_cursor(&mut self) {
         let base = self.path(".cursor/projects");
+        let chat_metas = self.cursor_chat_metas();
         for project_dir in read_dir_sorted(&base) {
             let encoded = project_dir
                 .file_name()
@@ -43,6 +45,17 @@ impl Scanner {
                 };
                 let mut info = self.cursor_info_for_session(&session_id);
                 if info.project.is_empty() {
+                    if let Some(chat) = chat_metas
+                        .get(&session_id)
+                        .and_then(|path| cursor_info_from_meta(path))
+                    {
+                        info.project = chat.project;
+                        if info.title.is_empty() {
+                            info.title = chat.title;
+                        }
+                    }
+                }
+                if info.project.is_empty() {
                     info.project = fallback_project.clone();
                 }
                 self.parse_cursor_transcript(
@@ -60,26 +73,20 @@ impl Scanner {
         let meta_path = self
             .home
             .join(format!(".cursor/acp-sessions/{session_id}/meta.json"));
-        let Some(data) = read_all(&meta_path) else {
-            return CursorInfo::default();
-        };
-        let Ok(v) = serde_json::from_slice::<Value>(&data) else {
-            return CursorInfo::default();
-        };
-        CursorInfo {
-            project: string_field(&v, "cwd").unwrap_or("").to_string(),
-            title: title_from_fields(
-                &v,
-                &[
-                    "thread_name",
-                    "threadName",
-                    "title",
-                    "session_title",
-                    "sessionTitle",
-                ],
-            )
-            .unwrap_or_default(),
+        cursor_info_from_meta(&meta_path).unwrap_or_default()
+    }
+
+    /// CDXC:PromptSearch 2026-10-17 WHY: Cursor CLI keeps each chat's `meta.json` (with its `cwd` and title) under `~/.cursor/chats/<md5 of the workspace>/<chat id>/`; only ACP sessions write `acp-sessions/<id>/meta.json`. Without it a CLI prompt's project came only from decoding the transcript folder's name, which drops `_` and, on Windows, the drive letter, so every Windows Cursor row had no project and the project filter found nothing (agent flow tests, Windows, 2026-10-17).
+    fn cursor_chat_metas(&self) -> HashMap<String, PathBuf> {
+        let mut metas = HashMap::new();
+        for workspace in read_dir_sorted(&self.path(".cursor/chats")) {
+            for chat in read_dir_sorted(&workspace) {
+                if let Some(id) = chat.file_name().and_then(|n| n.to_str()) {
+                    metas.insert(id.to_string(), chat.join("meta.json"));
+                }
+            }
         }
+        metas
     }
 
     // CDXC:PromptSearch 2026-06-11-10:25:
@@ -133,6 +140,25 @@ impl Scanner {
             });
         }
     }
+}
+
+fn cursor_info_from_meta(meta_path: &Path) -> Option<CursorInfo> {
+    let data = read_all(meta_path)?;
+    let v = serde_json::from_slice::<Value>(&data).ok()?;
+    Some(CursorInfo {
+        project: string_field(&v, "cwd").unwrap_or("").to_string(),
+        title: title_from_fields(
+            &v,
+            &[
+                "thread_name",
+                "threadName",
+                "title",
+                "session_title",
+                "sessionTitle",
+            ],
+        )
+        .unwrap_or_default(),
+    })
 }
 
 #[derive(Default, Clone)]

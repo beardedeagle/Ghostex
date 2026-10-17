@@ -29,6 +29,8 @@ pub struct CursorDecisionRow {
     /// What the terminal is sent to pick the row: its letter, or Enter.
     pub key: String,
     pub selected: bool,
+    /// Escape answers this row too (`Reject (n or esc)`, `Skip … (esc or n)`).
+    pub dismisses: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -40,6 +42,8 @@ pub struct CursorDecision {
     pub rows: Vec<CursorDecisionRow>,
     /// The plan file the panel names ("Saved to …"), on a plan's "Ready to build?".
     pub plan_file: Option<String>,
+    /// The command a "Run this command?" approval is about (`$  New-Item … in .`).
+    pub command: Option<String>,
 }
 
 fn panel_text(line: &str) -> String {
@@ -59,20 +63,34 @@ fn is_rule(line: &str) -> bool {
             .all(|character| matches!(character, '\u{2500}'..='\u{259f}') || character == ' ')
 }
 
-/// `→ 1. Yes, build locally (b)` or `  Reject (n or esc)`.
+/// The bytes one key name of a row's hint types.
+fn hint_key(name: &str) -> Option<&'static str> {
+    Some(match name {
+        "enter" => "\r",
+        "tab" => "\t",
+        "shift+tab" => "\u{1b}[Z",
+        "esc" => "\u{1b}",
+        _ => return None,
+    })
+}
+
+/// `→ 1. Yes, build locally (b)`, `  Reject (n or esc)` or `  Run Everything (shift+tab)`.
+///
+/// CDXC:AgentScreenDetection 2026-10-17 WHY: Cursor's command approval ("Run this command?", drawn whenever Run Everything is off, which is the default without "Agent approvals: accept all") keys its rows `(y)`, `(tab)`, `(shift+tab)` and `(esc or n)`. Only letters and Enter were read, so the panel never parsed, no card reached the chat and a new user's Cursor sat on "Orbiting…" until someone answered in the terminal (agent flow tests, Windows, 2026-10-17). A row's letter wins over its other keys, so `(esc or n)` types `n`.
 fn parse_row(line: &str) -> Option<CursorDecisionRow> {
     let selected = line.starts_with('\u{2192}');
     let rest = line.trim_start_matches('\u{2192}').trim();
     let open = rest.rfind(" (")?;
-    let hint = rest[open + 2..].strip_suffix(')')?;
-    let first = hint.split(" or ").next()?.trim().to_ascii_lowercase();
-    let key = match first.as_str() {
-        "enter" => "\r".to_string(),
-        letter if letter.len() == 1 && letter.chars().all(|c| c.is_ascii_lowercase()) => {
-            letter.to_string()
-        }
-        _ => return None,
+    let hint = rest[open + 2..].strip_suffix(')')?.to_ascii_lowercase();
+    let names: Vec<&str> = hint.split(" or ").map(str::trim).collect();
+    let letter = names
+        .iter()
+        .find(|name| name.len() == 1 && name.chars().all(|c| c.is_ascii_lowercase()));
+    let key = match letter {
+        Some(letter) => letter.to_string(),
+        None => hint_key(names.first()?)?.to_string(),
     };
+    let dismisses = names.contains(&"esc");
     let label = rest[..open].trim();
     let label = match label.split_once(". ") {
         Some((number, text))
@@ -86,6 +104,7 @@ fn parse_row(line: &str) -> Option<CursorDecisionRow> {
         label: label.to_string(),
         key,
         selected,
+        dismisses,
     })
 }
 
@@ -142,11 +161,25 @@ pub fn detect_cursor_decision(text: &str) -> Option<CursorDecision> {
         .rev()
         .find_map(|line| line.strip_prefix("Saved to "))
         .map(|path| path.trim().to_string());
+    let command = lines[first_row.saturating_sub(6)..first_row]
+        .iter()
+        .rev()
+        .find_map(|line| line.strip_prefix('$'))
+        .map(|command| {
+            let command = command.trim();
+            command
+                .rsplit_once(" in ")
+                .map_or(command, |(command, _)| command)
+                .trim()
+                .to_string()
+        })
+        .filter(|command| !command.is_empty());
     Some(CursorDecision {
         question,
         explanation,
         rows,
         plan_file,
+        command,
     })
 }
 
@@ -197,6 +230,23 @@ pub fn cursor_decision_answer_key(text: &str, index: usize) -> Option<String> {
         .map(|row| row.key.clone())
 }
 
+/// What Stop types to close the live panel: Escape, when one of its rows takes it. Cursor ignores
+/// Ctrl+C while a panel owns its input, so Stop wrote "Interrupted the agent" and left the
+/// approval on screen.
+pub fn cursor_decision_dismiss_key(text: &str) -> Option<&'static str> {
+    detect_cursor_decision(text)?
+        .rows
+        .iter()
+        .any(|row| row.dismisses)
+        .then_some("\u{1b}")
+}
+
+/// A decision panel owns Cursor's input. Its rows answer to keys the chat also sends for other
+/// reasons (Shift+Tab is the Mode pill's cycle key and the approval's "Run Everything").
+pub fn cursor_decision_visible(text: &str) -> bool {
+    detect_cursor_decision(text).is_some()
+}
+
 /// The live panel as a choice card.
 pub fn detect_cursor_decision_notice(text: &str) -> Option<SessionChatTerminalNotice> {
     let decision = detect_cursor_decision(text)?;
@@ -216,6 +266,20 @@ pub fn detect_cursor_decision_notice(text: &str) -> Option<SessionChatTerminalNo
             detail.push_str(&plan);
         }
         ("Cursor's plan is ready".to_string(), detail)
+    } else if question == "Run this command?" {
+        let mut detail = decision
+            .command
+            .as_deref()
+            .map(|command| format!("```\n{command}\n```"))
+            .unwrap_or_default();
+        let reason = decision.explanation.join(" ");
+        if !reason.is_empty() {
+            if !detail.is_empty() {
+                detail.push_str("\n\n");
+            }
+            detail.push_str(&reason);
+        }
+        ("Cursor wants to run a command".to_string(), detail)
     } else if question.starts_with("Switch to ") {
         let mut detail = decision.explanation.join(" ");
         if !detail.is_empty() {
@@ -242,8 +306,9 @@ pub fn detect_cursor_decision_notice(text: &str) -> Option<SessionChatTerminalNo
         .with_screen_tail(session_chat_terminal_screen_tail(text))
         .with_choices({
             // A collapsed card shows its first two rows, so building in the cloud goes last and
-            // "No, propose changes" (the row Esc answers) stays one click away. Each row keeps its
-            // screen index, which is what its answer sends.
+            // "No, propose changes" (the row Esc answers) stays one click away; a command
+            // approval's allowlist rows (Tab, Shift+Tab) follow its Skip row for the same reason.
+            // Each row keeps its screen index, which is what its answer sends.
             let mut choices: Vec<SessionChatTerminalNoticeChoice> = decision
                 .rows
                 .iter()
@@ -254,7 +319,10 @@ pub fn detect_cursor_decision_notice(text: &str) -> Option<SessionChatTerminalNo
                     selected: row.selected,
                 })
                 .collect();
-            choices.sort_by_key(|choice| decision.rows[choice.index].key == "c");
+            choices.sort_by_key(|choice| {
+                let key = decision.rows[choice.index].key.as_str();
+                (key == "c", matches!(key, "\t" | "\u{1b}[Z"))
+            });
             choices
         })
         .with_actions(vec![SessionChatTerminalNoticeAction::switch_to_terminal(

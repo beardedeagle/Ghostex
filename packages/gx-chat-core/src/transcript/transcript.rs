@@ -8,7 +8,8 @@ use crate::transcript::foreign::{merge_messages_with, order_messages};
 use crate::transcript::image_markers::normalize_image_transcript_messages;
 use crate::transcript::local_command::{fold_shell_commands, normalize_local_command_messages};
 use crate::transcript::noise::{
-    drop_hidden_messages, fold_model_effort_pairs, is_turn_seam, suppressed_turn_label,
+    drop_hidden_messages, fold_model_effort_pairs, is_command_turn, is_turn_seam,
+    suppressed_turn_label,
 };
 use crate::transcript::side_question::fold_side_questions;
 use crate::transcript::tool_fold::fold_tool_messages;
@@ -47,14 +48,14 @@ pub fn completed_chat_work(
                 .iter()
                 .position(|message| Some(message.id.as_str()) == final_id);
             /* CDXC:SessionChat 2026-10-07 WHY:
-            gxserver folds a turn up to its last row, so a seam after the reply (a compaction, or a model or effort change made between turns) comes back with the turn's work although the turn already draws it after itself; kept, it showed twice. */
+            gxserver folds a turn up to its last row, so a seam after the reply (a compaction, or a model or effort change made between turns) comes back with the turn's work although the turn already draws it after itself; kept, it showed twice. A slash command gxserver archived after the reply comes back the same way and opens its own turn (`completed_work_render_items`). */
             let filtered: Vec<ChatMessage> = deferred
                 .iter()
                 .enumerate()
                 .filter(|(at, message)| {
                     Some(message.id.as_str()) != final_id
                         && !(final_at.is_some_and(|final_at| *at > final_at)
-                            && is_turn_seam(message))
+                            && (is_turn_seam(message) || is_command_turn(message)))
                 })
                 .map(|(_, message)| message.clone())
                 .collect();

@@ -363,11 +363,12 @@ impl SessionOptionCatalog {
             }
             CatalogOptions::Cursor { agent, catalog } => {
                 let efforts = agent.efforts_for_model(model_value);
-                if efforts.is_empty() {
-                    Vec::new()
-                } else {
-                    vec![reasoning_effort_picker(catalog, &efforts)]
+                let mut descriptors = Vec::new();
+                if !efforts.is_empty() {
+                    descriptors.push(reasoning_effort_picker(catalog, &efforts));
                 }
+                descriptors.push(cursor_mode());
+                sort_descriptors(descriptors)
             }
             CatalogOptions::Grok { agent, catalog } => vec![reasoning_effort_picker(
                 catalog,
@@ -689,6 +690,40 @@ fn build_opencode_catalog(
         catalog: Box::new(catalog.clone()),
     };
     result
+}
+
+/// CDXC:AgentProviders 2026-10-17 WHY:
+/// Cursor CLI has no command that returns to Agent mode (`/plan` only enters Plan, `/ask` and
+/// `/debug` toggle), so the Mode pill presses Shift+Tab, which cycles Agent → Plan → Debug → Ask in
+/// that order (2026.10.16). gxserver reads the current mode from the row Cursor prints above its
+/// footer (`match_cursor_mode_line`) and refuses the key while a command approval is open, where
+/// Shift+Tab means "Run Everything".
+fn cursor_mode() -> OptionDescriptor {
+    let mut descriptor = OptionDescriptor::new(
+        "mode",
+        "Mode",
+        OptionCategory::Mode,
+        OptionDispatch::CyclicKeySteps {
+            key: "shift-tab".to_string(),
+        },
+    );
+    descriptor.choices = Some(
+        [
+            ("default", "Agent"),
+            ("plan", "Plan"),
+            ("debug", "Debug"),
+            ("search", "Ask"),
+        ]
+        .into_iter()
+        .map(|(value, label)| OptionChoice {
+            value: value.to_string(),
+            label: label.to_string(),
+            ..OptionChoice::default()
+        })
+        .collect(),
+    );
+    descriptor.description = Some("Select Cursor's mode.".to_string());
+    descriptor
 }
 
 fn build_cursor_catalog(catalog: &AgentModelCatalog, agent: &CatalogAgent) -> SessionOptionCatalog {

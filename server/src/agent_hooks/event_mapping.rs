@@ -166,6 +166,28 @@ pub(crate) fn activity_for_hook_event(
     if matches!(agent_key, "pi" | "omp" | "amp") && lower == "stop" {
         return Some("attention".to_string());
     }
+    /*
+    CDXC:Notifications 2026-10-17 WHY:
+    Cursor CLI (2026.10.16) fires `stop` at the end of every agent loop and names how it ended: `status: "completed"` for a turn it finished, `"aborted"` for a Ctrl+C (chat Stop), `"error"` for a failed request. The generic table settled all three to idle, so a finished Cursor turn never rang (agent flow tests, Windows, 2026-10-17). A completed turn enters attention like Claude's and Codex's; an aborted or failed one only ends the turn. gxserver's table reads the same field as `stopStatus`, because its `status` is the hook's own posted status.
+    SEE-ALSO: normalize_agent_hook_event_activity in server/src/agents/activity.rs, the cursor params in server/src/agent_hooks/notify_runtime.rs.
+    */
+    if agent_key == "cursor" && lower == "stop" {
+        let status = first_string([payload.get("stopStatus"), payload.get("status")]);
+        return Some(
+            match status.as_deref() {
+                Some("aborted" | "error") => "idle",
+                _ => "attention",
+            }
+            .to_string(),
+        );
+    }
+    /*
+    CDXC:SessionStatus 2026-10-17 WHY:
+    Cursor (2026.10.16) reports a finished tool asynchronously, so a command cancelled by Stop arrives as a `postToolUse` (exit code 0) or a `postToolUseFailure` (`is_interrupt: true`) after the `stop` that ended the turn. Mapped to working like any tool event, it re-claimed the session: Cursor sat at its prompt saying "Cancelled" while the chat kept its spinner and Stop button until the next message (agent flow tests, Windows and Mac, 2026-10-17). A finished tool never starts a turn (`beforeSubmitPrompt` and `preToolUse` do), so it changes nothing.
+    */
+    if agent_key == "cursor" && matches!(compact.as_str(), "posttooluse" | "posttoolusefailure") {
+        return None;
+    }
     // OpenClaude emits Claude's hook contract verbatim, and Empryo runs Claude-format hooks
     // (CDXC:AgentHooks 2026-10-06 in config.rs), so both share every Claude-specific rule below
     // instead of falling through to the generic tables (which have no PostCompact trigger check

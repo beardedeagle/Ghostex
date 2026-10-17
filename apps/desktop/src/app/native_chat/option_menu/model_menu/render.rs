@@ -228,16 +228,21 @@ impl ChatOptionMenuPanel {
                 }
             }))
             // A click keeps its old meaning; it carries a level only when the keyboard or the Reasoning list moved one.
+            // CDXC:SessionChat 2026-10-17 WHY: a pick by mouse closes the pop-up as Enter does and as the phone's sheet does; it used to leave the pop-up open over the composer until the model pill was clicked again.
             .on_click(cx.listener(move |panel, _, _, cx| {
                 let effort = panel.model_menu_browsed_effort(index, cx);
-                panel.model_menu_pick(index, false, effort, cx);
+                if panel.model_menu_pick(index, false, effort, cx) {
+                    panel.menu.update(cx, |menu, cx| menu.close(None, cx));
+                }
             }))
             // Right-click applies the model to this session only, where the agent can.
             .on_mouse_down(
                 gpui::MouseButton::Right,
                 cx.listener(move |panel, _, _, cx| {
                     let effort = panel.model_menu_browsed_effort(index, cx);
-                    panel.model_menu_pick(index, true, effort, cx);
+                    if panel.model_menu_pick(index, true, effort, cx) {
+                        panel.menu.update(cx, |menu, cx| menu.close(None, cx));
+                    }
                 }),
             )
             .child(body)

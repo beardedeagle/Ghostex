@@ -158,7 +158,8 @@ fn hex_string(bytes: &[u8]) -> String {
 #[derive(Clone, Debug)]
 enum CursorStep {
     Text(String),
-    Tool,
+    /// A tool call, with the id its result in the store's message list names.
+    Tool(Option<String>),
     Thinking {
         text: String,
         duration_ms: Option<u64>,
@@ -187,7 +188,13 @@ fn decode_cursor_step(bytes: &[u8]) -> CursorStep {
             .and_then(|inner| proto_bytes(&inner, 1).map(|text| text.to_vec()))
             .map(|text| CursorStep::Text(String::from_utf8_lossy(&text).into_owned()))
             .unwrap_or(CursorStep::Other),
-        Some((2, _)) => CursorStep::Tool,
+        Some((2, ProtoValue::Bytes(inner))) => CursorStep::Tool(
+            proto_fields(inner)
+                .and_then(|inner| proto_bytes(&inner, 57).map(|id| id.to_vec()))
+                .and_then(|id| String::from_utf8(id).ok())
+                .filter(|id| !id.trim().is_empty()),
+        ),
+        Some((2, _)) => CursorStep::Tool(None),
         Some((3, ProtoValue::Bytes(inner))) => {
             let Some(inner) = proto_fields(inner) else {
                 return CursorStep::Other;
@@ -292,6 +299,99 @@ fn load_cursor_turns(
         turns.push(steps);
     }
     Some(turns)
+}
+
+/// What a finished tool call returned, as the chat shows it.
+#[derive(Clone, Debug)]
+struct CursorToolResult {
+    call_id: String,
+    output: String,
+    is_error: bool,
+    /// The unified diff of a file edit (`diffString`).
+    diff: Option<String>,
+}
+
+/// One `{"role":"tool", …}` message of the store's model log, or `None` for any other blob.
+fn decode_cursor_tool_result(bytes: &[u8]) -> Option<CursorToolResult> {
+    if bytes.first() != Some(&b'{') {
+        return None;
+    }
+    let record = serde_json::from_slice::<Value>(bytes).ok()?;
+    if record.get("role").and_then(Value::as_str) != Some("tool") {
+        return None;
+    }
+    let item = record
+        .get("content")?
+        .as_array()?
+        .iter()
+        .find(|item| item.get("type").and_then(Value::as_str) == Some("tool-result"))?;
+    let call_id = item.get("toolCallId").and_then(Value::as_str)?.to_string();
+    let tool_name = item
+        .get("toolName")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let high = record.pointer("/providerOptions/cursor/highLevelToolCallResult");
+    let success = high.and_then(|high| high.pointer("/output/success"));
+    let text = |value: Option<&Value>| {
+        value
+            .and_then(Value::as_str)
+            .map(|text| text.replace("\r\n", "\n").trim_end().to_string())
+    };
+    let raw = text(item.get("result")).unwrap_or_default();
+    let output = match tool_name {
+        // The model's copy wraps the output in "Exit code / Command output / ``` / Command
+        // completed in …"; the structured result holds just what the command printed.
+        "Shell" => text(success.and_then(|success| {
+            success
+                .get("interleavedOutput")
+                .or_else(|| success.get("stdout"))
+        }))
+        .unwrap_or(raw),
+        _ => raw,
+    };
+    Some(CursorToolResult {
+        call_id,
+        output,
+        is_error: high
+            .and_then(|high| high.get("isError"))
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
+        diff: text(success.and_then(|success| success.get("diffString")))
+            .filter(|diff| !diff.is_empty()),
+    })
+}
+
+/// Every tool result the root's message list (field 1) holds, by call id. A blob that is missing
+/// or is not a tool result is skipped: results only add output to rows the jsonl already has.
+fn load_cursor_tool_results(
+    connection: &Connection,
+    root_id: &str,
+    cache: &mut HashMap<String, Option<CursorToolResult>>,
+) -> HashMap<String, CursorToolResult> {
+    let mut results = HashMap::new();
+    let Some(root) = read_cursor_blob(connection, root_id) else {
+        return results;
+    };
+    let Some(root_fields) = proto_fields(&root) else {
+        return results;
+    };
+    for message_id in proto_blob_ids(&root_fields, 1) {
+        let result = match cache.get(&message_id) {
+            Some(result) => result.clone(),
+            None => {
+                let Some(bytes) = read_cursor_blob(connection, &message_id) else {
+                    continue;
+                };
+                let result = decode_cursor_tool_result(&bytes);
+                cache.insert(message_id, result.clone());
+                result
+            }
+        };
+        if let Some(result) = result {
+            results.insert(result.call_id.clone(), result);
+        }
+    }
+    results
 }
 
 /* --------------------------------------------------------------- merge */
@@ -507,6 +607,8 @@ fn push_thinking_line(
 
 enum RecordText {
     Keep,
+    /// The text stays, but the record changed (its tool calls got their ids).
+    Rewrite,
     Remove,
     Replace(String),
 }
@@ -544,7 +646,7 @@ fn push_record_line(
                         }
                     }
                 }
-                RecordText::Keep => {}
+                RecordText::Keep | RecordText::Rewrite => {}
             }
         }
     }
@@ -563,6 +665,7 @@ struct TurnWalk<'a> {
     turn: usize,
     steps: &'a [CursorStep],
     index: usize,
+    results: &'a HashMap<String, CursorToolResult>,
 }
 
 impl<'a> TurnWalk<'a> {
@@ -640,16 +743,18 @@ impl<'a> TurnWalk<'a> {
                     }
                     break;
                 }
-                CursorStep::Tool => break,
+                CursorStep::Tool(_) => break,
                 CursorStep::Other => self.index += 1,
             }
         }
 
         // One tool step per tool_use; thinking met in between trails the record.
         let mut needed = tool_count;
+        let mut calls: Vec<(usize, Option<&'a String>)> = Vec::new();
         while needed > 0 {
             match self.peek() {
-                Some(CursorStep::Tool) => {
+                Some(CursorStep::Tool(call_id)) => {
+                    calls.push((self.index, call_id.as_ref()));
                     self.index += 1;
                     needed -= 1;
                 }
@@ -662,11 +767,70 @@ impl<'a> TurnWalk<'a> {
             }
         }
 
+        // CDXC:SessionChat 2026-10-17 WHY: Cursor's jsonl records a tool call with no id and never its result, so a command row showed no output and an edit no diff (agent flow tests, Windows, 2026-10-17). Each tool step in the store names its call id and the store's model log holds that call's result, so the call gets its id and the result follows the record as a `tool` line, the way Claude's transcript pairs them.
+        let mut record = record;
+        let mut identified = false;
+        if let Some(items) = record
+            .get_mut("message")
+            .and_then(Value::as_object_mut)
+            .and_then(|message| message.get_mut("content"))
+            .and_then(Value::as_array_mut)
+        {
+            let tool_uses = items
+                .iter_mut()
+                .filter(|item| item.get("type").and_then(Value::as_str) == Some("tool_use"));
+            for (item, (_, call_id)) in tool_uses.zip(&calls) {
+                if let (Some(call_id), Some(item)) = (call_id, item.as_object_mut()) {
+                    item.insert("id".into(), json!(call_id));
+                    identified = true;
+                }
+            }
+        }
+        let rewrite = match rewrite {
+            RecordText::Keep if identified => RecordText::Rewrite,
+            rewrite => rewrite,
+        };
         push_record_line(out, line, record, rewrite, *clock);
+        for (index, call_id) in calls {
+            if let Some(result) = call_id.and_then(|call_id| self.results.get(call_id)) {
+                push_tool_result_line(out, result, self.turn, index, *clock);
+            }
+        }
         for (index, step) in deferred {
             push_thinking_line(out, step, self.turn, index, clock);
         }
     }
+}
+
+fn push_tool_result_line(
+    out: &mut Vec<u8>,
+    result: &CursorToolResult,
+    turn: usize,
+    index: usize,
+    clock: Option<i64>,
+) {
+    let mut block = json!({
+        "type": "tool_result",
+        "tool_use_id": result.call_id,
+        "content": result.output,
+    });
+    if result.is_error {
+        block["is_error"] = json!(true);
+    }
+    if let Some(diff) = &result.diff {
+        block["diff"] = json!(diff);
+    }
+    let mut line = json!({
+        "role": "tool",
+        "message": { "content": [block] },
+        "origin": "cursor-store",
+        "ghostexId": format!("result:{turn}:{index}"),
+    });
+    if let Some(timestamp) = clock {
+        line["ghostexTimestamp"] = json!(timestamp);
+    }
+    out.extend_from_slice(line.to_string().as_bytes());
+    out.push(b'\n');
 }
 
 /// CDXC:SessionChat 2026-09-16 WHY:
@@ -676,7 +840,11 @@ impl<'a> TurnWalk<'a> {
 /// The mirror's full content for a raw jsonl and the store's turns. Only
 /// newline-terminated raw lines are consumed; a trailing partial line waits
 /// for the next sync so it is never emitted as a truncated record.
-fn merge_cursor_transcript(raw: &[u8], turns: &[Vec<CursorStep>]) -> Vec<u8> {
+fn merge_cursor_transcript(
+    raw: &[u8],
+    turns: &[Vec<CursorStep>],
+    results: &HashMap<String, CursorToolResult>,
+) -> Vec<u8> {
     let mut out = Vec::with_capacity(raw.len() + raw.len() / 4);
     let complete_end = raw
         .iter()
@@ -686,6 +854,7 @@ fn merge_cursor_transcript(raw: &[u8], turns: &[Vec<CursorStep>]) -> Vec<u8> {
         turn: 0,
         steps: &[],
         index: 0,
+        results,
     };
     let mut turn_index = 0usize;
     let mut raw_offset = 0usize;
@@ -714,6 +883,7 @@ fn merge_cursor_transcript(raw: &[u8], turns: &[Vec<CursorStep>]) -> Vec<u8> {
                     turn: turn_index,
                     steps: turns.get(turn_index).map(Vec::as_slice).unwrap_or(&[]),
                     index: 0,
+                    results,
                 };
                 turn_index += 1;
                 if let Some(minute) = prompt_minute {
@@ -763,6 +933,7 @@ struct CursorMirrorState {
     output_len: usize,
     output_hash: u64,
     steps: HashMap<String, CursorStep>,
+    results: HashMap<String, Option<CursorToolResult>>,
 }
 
 static MIRROR_STATES: Mutex<Option<HashMap<String, CursorMirrorState>>> = Mutex::new(None);
@@ -856,9 +1027,15 @@ fn sync_cursor_transcript_mirror(session_id: &str, raw_hint: Option<&Path>) -> O
         return Some(mirror_path);
     }
     let turns = turns.unwrap_or_default();
+    let results = match (&connection, root_id.as_deref()) {
+        (Some(connection), Some(root_id)) => {
+            load_cursor_tool_results(connection, root_id, &mut state.results)
+        }
+        _ => HashMap::new(),
+    };
 
     let raw = fs::read(&raw_path).ok()?;
-    let output = merge_cursor_transcript(&raw, &turns);
+    let output = merge_cursor_transcript(&raw, &turns, &results);
     write_mirror(&mirror_path, &output, state, mirror_exists)?;
     state.raw_len = raw_len;
     state.raw_modified = raw_modified;

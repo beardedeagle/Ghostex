@@ -291,10 +291,15 @@ pub fn completed_work_render_items(
         }
 
         let mut next_user_index = index + 1;
+        // CDXC:SessionChat 2026-10-17 WHY: a slash command opens its own turn (the 2026-09-10
+        // decision on `is_command_turn`) even after a turn gxserver folded. gxserver's archived row
+        // for a command the agent does not record (Cursor's `/run-everything`) has no byte offset,
+        // so it was folded into the turn before it and drawn above that turn's reply.
         while next_user_index < messages.len()
             && (messages[next_user_index].role != ChatRole::User
                 || (message.deferred_work.is_some()
-                    && messages[next_user_index].byte_offset.is_none()))
+                    && messages[next_user_index].byte_offset.is_none()
+                    && !is_command_turn(&messages[next_user_index])))
         {
             next_user_index += 1;
         }

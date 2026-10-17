@@ -933,7 +933,7 @@ transcripts, question and approval cards, rewind, and a note per session.
 Type `@` in the chat box to mention a project file and `$` to pick one of the
 agent's skills. The `$` list holds the skills that agent's own CLI loads: its
 home skills folders (Codex, Pi, Cursor, Gemini CLI and GitHub Copilot also read
-`~/.agents/skills`) and the skills folders inside the session's project. A picked skill shows as a pill in the way that agent invokes
+`~/.agents/skills`, and Cursor lists its own built-in skills too) and the skills folders inside the session's project. A picked skill shows as a pill in the way that agent invokes
 skills: `/skill-name` for Claude Code, which Claude receives as its slash
 command, and `$skill-name` for Codex.
 Skills, second from the bottom of the chat's More actions menu and of the ⋯ menu
@@ -1015,10 +1015,14 @@ When Cursor isn't signed in, its chat shows Sign in to Cursor: Sign in opens
 Cursor's sign-in page in the browser, and the card then shows the sign-in link,
 which also works from your phone or another computer. The chat continues by
 itself once you're signed in. If Cursor closes without signing in, the card's
-Sign in starts it again. Cursor's plan approval (Ready to build?: build here,
-build in the cloud, or propose changes), its requests to switch mode, and its
-questions are answered from the chat too, and the plan shows in the
-conversation.
+Sign in starts it again. Cursor's command approvals (Run this command?: run it
+once, skip it, add it to the allowlist, or run everything), its plan approval
+(Ready to build?: build here, build in the cloud, or propose changes), its
+requests to switch mode, and its questions are answered from the chat too, and
+the plan shows in the conversation. Stop while Cursor waits on a command
+approval skips the command and ends the turn. After Skip, Cursor waits for what
+to do instead: your next chat message is that answer. The mode button switches Cursor between Agent, Plan,
+Debug and Ask; it waits while a command approval is open.
 Ghostex supports OpenCode 2 (version 2.0 or newer); OpenCode 1 is not supported.
 OpenCode chats read and send through OpenCode's own background service instead
 of its terminal screen, and support streamed replies, reasoning, tool results,
@@ -1545,7 +1549,7 @@ Right change the highlighted model's reasoning level, which the reasoning button
 shows; the letter on each bottom button's icon uses it (R Reasoning, C Context,
 F Fast mode, A Account); Tab and Shift+Tab move through the Favorites and agent tabs. Enter applies the highlighted model and level and
 saves them as the agent's default, Option+Enter uses them in this session only and
-leaves the default alone (either one closes the picker), and Option+1 to Option+9
+leaves the default alone (either one closes the picker, as does clicking a model), and Option+1 to Option+9
 jump the highlight to one of the first nine rows without applying it. Escape closes it
 without changing anything. The key reminder along the bottom lists these.
 

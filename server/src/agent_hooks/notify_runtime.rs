@@ -534,6 +534,23 @@ fn post_gxserver_hook_event(
             params.insert("background_tasks".to_string(), tasks.clone());
         }
     }
+    // The server re-derives a Copilot Notification's activity from why it fired
+    // (CDXC:Notifications 2026-10-17 in event_mapping.rs).
+    if agent_key == "copilot" {
+        if let Some(kind) = first_string([
+            payload.get("notification_type"),
+            payload.get("notificationType"),
+        ]) {
+            params.insert("notificationType".to_string(), json!(kind));
+        }
+    }
+    // The server re-derives a Cursor stop's activity from how the loop ended
+    // (CDXC:Notifications 2026-10-17 in event_mapping.rs); `status` is taken by the posted status.
+    if agent_key == "cursor" && event_name.trim().eq_ignore_ascii_case("stop") {
+        if let Some(status) = first_string([payload.get("status")]) {
+            params.insert("stopStatus".to_string(), json!(status));
+        }
+    }
     params.insert("agentName".to_string(), json!(agent_key));
     params.insert("eventName".to_string(), json!(event_name));
     params.insert("projectId".to_string(), json!(project_id));

@@ -134,6 +134,26 @@ async fn send_session_chat_message_attempt(
                 },
             );
         };
+        // CDXC:AgentScreenDetection 2026-10-17 WHY: the Mode pill cycles Cursor with Shift+Tab, which
+        // on Cursor's command approval is "Run Everything" and would turn approvals off for the
+        // whole session, so a mode step waits until the approval is answered.
+        if key == "shift-tab"
+            && session_chat_agent_for_session(&target.session).as_deref() == Some("cursor")
+            && capture_session_terminal_text(&target.zmx_name)
+                .await
+                .is_some_and(|screen| {
+                    crate::session_chat_cursor_decision::cursor_decision_visible(&screen)
+                })
+        {
+            return domain_error_response(
+                endpoint_path,
+                request_id,
+                DomainStateError {
+                    code: "sessionInputFailed",
+                    message: "Cursor is waiting for an answer in the terminal; answer it before changing the mode.".to_string(),
+                },
+            );
+        }
         if let Err(error) = crate::session_chat_send::execute_session_chat_send(
             &target.project_id,
             &target.session_id,

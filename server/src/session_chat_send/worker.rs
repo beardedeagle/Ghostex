@@ -374,11 +374,54 @@ pub(super) async fn run_session_chat_send_worker(
                     // `session_chat_interrupt_escape_steps` says why Cursor's Ctrl+C waits.
                     let deadline = Instant::now() + Duration::from_secs(8);
                     let mut processing = false;
+                    // CDXC:SessionChat 2026-10-17 WHY: a decision panel (a command approval)
+                    // ignores Ctrl+C. Its Escape row (Skip) opens Cursor's "tell the agent what to
+                    // do instead" box, where an empty Enter skips the command and the agent runs
+                    // on (Cursor 2026.10.16), so Stop answers both and then stops that run with
+                    // Ctrl+C. Escape in the box returns to the approval, so each key goes once
+                    // per panel.
+                    let mut dismissed = false;
                     loop {
                         if let Some(screen) = capture_session_terminal_text(&zmx_name).await {
-                            if crate::session_chat_cursor_blocking::cursor_is_processing(&screen) {
+                            // The box also shows "ctrl+c to stop", and Ctrl+C there sends the skip.
+                            let asks =
+                                crate::session_chat_cursor_blocking::cursor_asks_instead_of_skipped(
+                                    &screen,
+                                );
+                            if !asks
+                                && crate::session_chat_cursor_blocking::cursor_is_processing(
+                                    &screen,
+                                )
+                            {
                                 processing = true;
                                 break;
+                            }
+                            let key = if asks {
+                                Some("\r")
+                            } else if !dismissed {
+                                crate::session_chat_cursor_decision::cursor_decision_dismiss_key(
+                                    &screen,
+                                )
+                            } else {
+                                None
+                            };
+                            if let Some(key) = key {
+                                if let Err(error) = write_session_chat_payload(
+                                    &project_id,
+                                    &session_id,
+                                    &zmx_name,
+                                    &source,
+                                    key,
+                                )
+                                .await
+                                {
+                                    outcome = Err(SessionChatSendError::new(
+                                        SessionChatSendFailure::Write,
+                                        error,
+                                    ));
+                                    break;
+                                }
+                                dismissed = key != "\r";
                             }
                         }
                         if Instant::now() >= deadline {

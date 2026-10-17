@@ -325,8 +325,11 @@ fn provider_skill_roots(agent_id: &str) -> &'static [&'static [&'static str]] {
     match agent_id {
         "claude" => &[&[".claude", "skills"]],
         "codex" => &[&[".codex", "skills"], &[".agents", "skills"]],
+        // `skills-cursor` holds the skills Cursor ships and syncs itself (`create-hook`, `review`,
+        // `statusline` …), which its own `/` list offers beside the user's.
         "cursor" => &[
             &[".cursor", "skills"],
+            &[".cursor", "skills-cursor"],
             &[".agents", "skills"],
             &[".claude", "skills"],
             &[".codex", "skills"],
