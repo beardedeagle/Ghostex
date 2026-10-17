@@ -222,8 +222,9 @@ everything in step 2, verifies the GPUI reference contract and the Ghostty Zig
 pin, runs `bun run release:test` (about 11 seconds), checks the repository
 secrets, and previews the change-aware plan (build, reuse or skip per product).
 A normal release (10.9.1) uses **no flags**: every platform is in scope,
-Sparkle is on, and Windows signing is `auto` (currently off: no
-`WINDOWS_CODE_SIGN_PFX_*` secrets, so Windows ships unsigned).
+Sparkle is on, and Windows signing is `auto`: on when the
+`SIGNPATH_API_TOKEN` secret exists (SignPath, `docs/code-signing.md`), otherwise
+Windows ships unsigned.
 
 Scope flags, only on the user's instruction: `--skip-macos --skip-sparkle`,
 `--skip-linux`, `--skip-windows`, `--skip-android`, `--only-macos`,

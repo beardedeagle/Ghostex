@@ -176,8 +176,11 @@ if (platforms.android) {
     'GHOSTEX_MOBILE_DEPLOY_KEY',
   ]);
 }
-if (signWindows && (platforms.windowsX64 || platforms.windowsArm64)) {
-  requireValues('Windows signing', ['WINDOWS_CODE_SIGN_PFX_BASE64', 'WINDOWS_CODE_SIGN_PFX_PASSWORD']);
+/* The Windows jobs package unsigned with a notice when the SignPath token is missing (release-gpui-windows.yml). */
+if (signWindows && (platforms.windowsX64 || platforms.windowsArm64) && !process.env.SIGNPATH_API_TOKEN) {
+  console.log(
+    '::warning::Windows signing was requested but SIGNPATH_API_TOKEN is not set; the Windows packages will be unsigned.'
+  );
 }
 
 const componentManifestPath =

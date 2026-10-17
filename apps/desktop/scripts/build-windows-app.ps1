@@ -319,21 +319,7 @@ Copy-Item (Join-Path $RepoRoot ".dependencies/wmx/target/release/wmx.exe") $Nati
 # The native CLI resolves its offline skill catalog next to resources/native.
 # First-run setup must work without a source checkout or a GitHub download.
 Copy-Item -LiteralPath (Join-Path $RepoRoot "skills") -Destination (Join-Path $AppDir "resources/skills") -Recurse
-# CDXC:PlatformSupport 2026-09-14 WHY:
-# Native gxserver survives app exit. Seal its runtime identity so an updated app replaces an older control plane while preserving session hosts.
-$NativeHashes = @("gxserver.exe", "ghostex.exe", "wmx.exe") | ForEach-Object {
-    (Get-FileHash (Join-Path $NativeResources $_) -Algorithm SHA256).Hash.ToLowerInvariant()
-}
-$NativeHasher = [Security.Cryptography.SHA256]::Create()
-try {
-    $NativeFingerprint = "sha256:" + (-join ($NativeHasher.ComputeHash([Text.Encoding]::UTF8.GetBytes(($NativeHashes -join "`n") + "`n")) | ForEach-Object { $_.ToString("x2") }))
-} finally { $NativeHasher.Dispose() }
-$NativeIdentity = @{
-    buildIdentity = "gxserver:0.1.0:$NativeFingerprint"
-    fingerprint = $NativeFingerprint
-    packageVersion = "0.1.0"
-} | ConvertTo-Json
-[IO.File]::WriteAllText((Join-Path $AppDir "resources/build-identity.json"), $NativeIdentity + "`n", [Text.UTF8Encoding]::new($false))
+& (Join-Path $PSScriptRoot "write-windows-native-identity.ps1") -AppDir $AppDir
 $WslArchive = $env:GHOSTEX_WINDOWS_WSL_GXSERVER_ARCHIVE
 $WslCodeServerArchive = $env:GHOSTEX_WINDOWS_WSL_CODE_SERVER_ARCHIVE
 $RequireWslArchive = $env:GHOSTEX_WINDOWS_REQUIRE_WSL_RUNTIME -ne "0"

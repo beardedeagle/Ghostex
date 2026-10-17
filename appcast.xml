@@ -8,6 +8,32 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
         <link>https://github.com/maddada/Ghostex/releases</link>
         <description>Sparkle appcast for Ghostex macOS releases.</description>
         <item>
+            <title>10.25.1</title>
+            <pubDate>Sat, 17 Oct 2026 09:29:09 +0000</pubDate>
+            <sparkle:fullReleaseNotesLink>https://github.com/maddada/Ghostex/releases/tag/v10.25.1</sparkle:fullReleaseNotesLink>
+            <sparkle:version>102501</sparkle:version>
+            <sparkle:shortVersionString>10.25.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[# Ghostex 10.25.1
+
+## 10.25.1 - 2026-10-17
+
+**Ghostex 10.25.1 is out.** Agents start without stopping at a "Do you trust this folder?" prompt, the chat status line stays on one row, and the phone's Catch me up moves into the ⋯ menu.
+
+### 🤖 Agents
+- **Agents no longer stop at a "Do you trust this folder?" prompt:** before Claude Code, Codex, Cursor CLI, Copilot, Gemini, Grok Build, Antigravity, Pi or Factory Droid starts, Ghostex marks its project or worktree folder as trusted, and it never trusts your home folder or anything above it. Turn it off in Settings > Agents > Trust project folders automatically.
+
+### 💬 Chat
+- **The status line stays on one row** and scrolls sideways instead of wrapping, on the computer and the phone; on the computer a vertical mouse wheel over it scrolls it too.
+
+### 📱 On the phone
+- **Catch me up moves into the ⋯ menu** above Side chat, and the chat box no longer shrinks while you scroll.
+- **Move left and Move right in a machine tab's long-press menu** reorder the machine strip.
+]]></description>
+            <enclosure url="https://github.com/maddada/Ghostex/releases/download/v10.25.1/ghostex-10.25.1-arm64.dmg" length="114671516" type="application/octet-stream" sparkle:edSignature="PeG4o+sfrSbiewlyDT0XQeuYpVQ7lcQweH953ro2RVw5sBtj8dDMG4Gs+xO45NcOsKtoB2hCisi8AEngXzD5Cw=="/>
+        </item>
+        <item>
             <title>10.25.0</title>
             <pubDate>Sat, 17 Oct 2026 03:42:43 +0000</pubDate>
             <sparkle:fullReleaseNotesLink>https://github.com/maddada/Ghostex/releases/tag/v10.25.0</sparkle:fullReleaseNotesLink>
@@ -315,32 +341,6 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
             <enclosure url="https://github.com/maddada/Ghostex/releases/download/v10.21.0/ghostex-10.21.0-arm64.dmg" length="112413420" type="application/octet-stream" sparkle:edSignature="kVVpVBYb9NjC/pS2evd0Ggy+66dEzMzuVNvbPUZHdWjcypK83dXnnLhpOVmRdxNT8vviBiblsHBbhOpwPE+DAw=="/>
         </item>
         <item>
-            <title>10.20.1</title>
-            <pubDate>Sun, 11 Oct 2026 13:35:13 +0000</pubDate>
-            <sparkle:fullReleaseNotesLink>https://github.com/maddada/Ghostex/releases/tag/v10.20.1</sparkle:fullReleaseNotesLink>
-            <sparkle:version>102001</sparkle:version>
-            <sparkle:shortVersionString>10.20.1</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[# Ghostex 10.20.1
-
-## 10.20.1 - 2026-10-11
-
-**Ghostex 10.20.1 is out.** Messages with pictures wait for a slow-starting agent too, sessions move to an account with room faster when they hit a usage limit, and chat cards sit darker.
-
-### 💬 Chat
-- **Messages with pictures wait for a slow-starting agent** instead of giving up after 40 seconds; Ghostex keeps its own copy of each picture until the message goes through.
-- **Chat cards sit darker** and question cards use a softer yellow, matching the question cards on agents' pages.
-- **A finished background task just says it completed;** "exit code 0" and the duration are gone, and a failed task still shows its exit code.
-
-### 🤖 Accounts
-- **A session that hits its usage limit moves to an account with room within about 30 seconds,** instead of waiting minutes for a fresh usage reading.
-- **A sleeping session wakes on an account with room** when its own account is already at its limit.
-- **When every account is full,** the chat shows a card saying which limit was hit and when work continues, and the bell gets one notification.
-]]></description>
-            <enclosure url="https://github.com/maddada/Ghostex/releases/download/v10.20.1/ghostex-10.20.1-arm64.dmg" length="110838153" type="application/octet-stream" sparkle:edSignature="jGl/12ihE8DrOwKDBucTfvyNFUXWKH7NjeYiCprgWQp/w60e2MUyx4jnEHWPse6sYjoVqeI9cY1kEmgn8ms/Dw=="/>
-        </item>
-        <item>
             <title>3.26.1</title>
             <pubDate>Mon, 01 Jun 2026 18:43:20 +0400</pubDate>
             <sparkle:fullReleaseNotesLink>https://github.com/maddada/Ghostex/releases/tag/v3.26.1</sparkle:fullReleaseNotesLink>
@@ -352,6 +352,6 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
     </channel>
 </rss>
 <!-- sparkle-signatures:
-edSignature: uS4NjFuAthoHYYNGQvP31BouvEvP6WNZKVEfI21+6HOSniCAAwYau2nFDteSyKf1JLwxk2RmgkwfegGgcOCQCQ==
-length: 32694
+edSignature: VQtBS5+tD/dmIaI43hvWFC7AB699g6dTJExvo+rwDfCX36aHBXVGRl15XRiChamoknUgi6q7ielTtWuViKx2DA==
+length: 32637
 -->

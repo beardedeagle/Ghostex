@@ -49,7 +49,9 @@ export function isNonProductArtifactDirectory(name) {
   return (
     name === RELEASE_PLAN_ARTIFACT_DIRECTORY ||
     name.startsWith('release-provenance-') ||
-    name.startsWith('release-code-server-')
+    name.startsWith('release-code-server-') ||
+    /* The Windows jobs' SignPath round-trip uploads (release-gpui-windows.yml). */
+    name.startsWith('signpath-')
   );
 }
 

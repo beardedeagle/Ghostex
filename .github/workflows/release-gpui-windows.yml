@@ -67,9 +67,9 @@ on:
         default: ''
         type: string
     secrets:
-      WINDOWS_CODE_SIGN_PFX_BASE64:
+      COMPONENTS_GITHUB_TOKEN:
         required: false
-      WINDOWS_CODE_SIGN_PFX_PASSWORD:
+      SIGNPATH_API_TOKEN:
         required: false
   workflow_dispatch:
     inputs:
@@ -85,6 +85,7 @@ on:
         options: [x64, arm64]
 
 permissions:
+  actions: read
   attestations: write
   contents: write
   id-token: write
@@ -123,7 +124,9 @@ jobs:
     # minutes; ARM64 needs more. That is a slow job, not a wedge, and the
     # silence watchdog still catches wedges, so the budget only has to cover
     # real work.
-    timeout-minutes: ${{ inputs.arch == 'arm64' && 150 || 100 }}
+    # A SignPath-signed build adds a second `vpk pack` and three signing round
+    # trips to the packaging phase, hence the extra 30 minutes.
+    timeout-minutes: ${{ inputs.arch == 'arm64' && (inputs.sign && 180 || 150) || (inputs.sign && 130 || 100) }}
     env:
       GHOSTEX_RELEASE_SOURCE_SHA: ${{ github.sha }}
       GHOSTEX_RELEASE_WORKFLOW_SHA: ${{ github.sha }}
@@ -132,6 +135,12 @@ jobs:
       SCCACHE_GHA_VERSION: windows-${{ inputs.arch }}-1
       RUSTC_WRAPPER: sccache
       CARGO_INCREMENTAL: '0'
+      # CDXC:Release 2026-10-17 DECISION: Windows releases are signed through the SignPath Foundation OSS program (organization "Ghostex [OSS]"). The user chose test-signing as the default policy until SignPath imports the production certificate; switching is the one repository variable SIGNPATH_SIGNING_POLICY_SLUG=release-signing. Without the SIGNPATH_API_TOKEN secret (forks, before setup) the build is packaged unsigned with a notice instead of failing. Setup steps: docs/code-signing.md.
+      SIGNPATH_ORGANIZATION_ID: ${{ vars.SIGNPATH_ORGANIZATION_ID || 'ba647e4a-b517-4fc1-b133-5817d7de0c68' }}
+      SIGNPATH_PROJECT_SLUG: ${{ vars.SIGNPATH_PROJECT_SLUG || 'Ghostex' }}
+      SIGNPATH_SIGNING_POLICY_SLUG: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG || 'test-signing' }}
+      SIGNPATH_ARTIFACT_CONFIGURATION_SLUG: ${{ vars.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG || 'initial' }}
+      SIGNPATH_ROOT: build/release-gpui/${{ inputs.version }}/windows-${{ inputs.arch }}-signpath
     steps:
       - uses: actions/checkout@v6
         with:
@@ -140,6 +149,23 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.4.0
+      - name: Decide whether SignPath signs this build
+        id: signpath
+        shell: bash
+        env:
+          SIGN_REQUESTED: ${{ inputs.sign }}
+          SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+        run: |
+          if [[ "$SIGN_REQUESTED" != "true" ]]; then
+            echo "Windows code signing was not requested for this build; packaging it unsigned."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          elif [[ -z "$SIGNPATH_API_TOKEN" ]]; then
+            echo "::notice title=Windows build is unsigned::The SIGNPATH_API_TOKEN secret is not configured (a fork, or SignPath setup is unfinished), so the Windows ${{ inputs.arch }} build is packaged unsigned. See docs/code-signing.md."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "SignPath signs the Windows ${{ inputs.arch }} build: organization $SIGNPATH_ORGANIZATION_ID, project $SIGNPATH_PROJECT_SLUG, policy $SIGNPATH_SIGNING_POLICY_SLUG, artifact configuration $SIGNPATH_ARTIFACT_CONFIGURATION_SLUG."
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
       # Component tags are published to a separate repository that
       # github.token cannot write; fail before any build work when the PAT is
       # missing (see tooling/release-gpui/components-repo-setup.md).
@@ -222,13 +248,6 @@ jobs:
       - name: Install JavaScript dependencies
         shell: bash
         run: tooling/release-gpui/retry.sh 3 5 -- bun install --frozen-lockfile
-      - name: Restore Windows code-signing certificate
-        if: ${{ inputs.sign }}
-        shell: pwsh
-        env:
-          PFX_BASE64: ${{ secrets.WINDOWS_CODE_SIGN_PFX_BASE64 }}
-        run: |
-          [IO.File]::WriteAllBytes("$env:RUNNER_TEMP\ghostex-code-signing.pfx", [Convert]::FromBase64String($env:PFX_BASE64))
       # CDXC:WindowsWedgedRunnerWatchdog 2026-09-01, split into phases 2026-09-02:
       # windows.ps1 is the only long work in this job (cargo build + zig +
       # vite + vpk pack + signtool), and it is where both documented
@@ -276,9 +295,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           GH_TOKEN: ${{ github.token }}
-          GHOSTEX_WINDOWS_SIGNING_PFX: ${{ runner.temp }}\ghostex-code-signing.pfx
-          GHOSTEX_WINDOWS_SIGNING_PASSWORD: ${{ secrets.WINDOWS_CODE_SIGN_PFX_PASSWORD }}
-          GHOSTEX_WINDOWS_REQUIRE_SIGNING: ${{ inputs.sign && '1' || '0' }}
           GHOSTEX_WINDOWS_REQUIRE_WSL_RUNTIME: ${{ inputs.runtime_artifacts_ready && '1' || '0' }}
           GHOSTEX_WINDOWS_WSL_GXSERVER_ARCHIVE: ${{ github.workspace }}\build\runtime-artifacts\${{ inputs.arch }}\gxserver-linux-${{ inputs.arch }}.tar.gz
           GHOSTEX_CODE_SERVER_COMPONENT_VERSION: ${{ steps.code_server_identity.outputs.component_version }}
@@ -395,17 +411,15 @@ jobs:
             .dependencies/wmx/target/release/wmx.exe apps/editor/desktop/target/release/ghostex-editor.exe
       # Phase 2 of windows.ps1: stage the app directory from the compiled
       # binaries, seal the CEF / code-server components, verify the staged
-      # tree, sign the binaries, vpk pack, bundle and sign the launcher, and
-      # write manifest.json. Same env as phase 1.
-      - name: Stage, package, and sign the installer and portable package
+      # tree, vpk pack, bundle the launcher, and write manifest.json. Same env
+      # as phase 1. Unsigned builds run it as the single `package` phase.
+      - name: Stage and package the unsigned installer and portable package
+        if: ${{ steps.signpath.outputs.enabled != 'true' }}
         shell: pwsh
         env:
           GITHUB_TOKEN: ${{ github.token }}
           GH_TOKEN: ${{ github.token }}
           COMPONENTS_GITHUB_TOKEN: ${{ secrets.COMPONENTS_GITHUB_TOKEN }}
-          GHOSTEX_WINDOWS_SIGNING_PFX: ${{ runner.temp }}\ghostex-code-signing.pfx
-          GHOSTEX_WINDOWS_SIGNING_PASSWORD: ${{ secrets.WINDOWS_CODE_SIGN_PFX_PASSWORD }}
-          GHOSTEX_WINDOWS_REQUIRE_SIGNING: ${{ inputs.sign && '1' || '0' }}
           GHOSTEX_WINDOWS_REQUIRE_WSL_RUNTIME: ${{ inputs.runtime_artifacts_ready && '1' || '0' }}
           GHOSTEX_WINDOWS_WSL_GXSERVER_ARCHIVE: ${{ github.workspace }}\build\runtime-artifacts\${{ inputs.arch }}\gxserver-linux-${{ inputs.arch }}.tar.gz
           GHOSTEX_CODE_SERVER_COMPONENT_VERSION: ${{ steps.code_server_identity.outputs.component_version }}
@@ -414,6 +428,122 @@ jobs:
           GHOSTEX_WINDOWS_BUILD_SILENCE_SECONDS: '900'
         run: |
           & (Join-Path $env:GITHUB_WORKSPACE 'tooling/release-gpui/windows-build-watchdog.ps1') -Phase package -Version '${{ inputs.version }}' -Arch '${{ inputs.arch }}'
+      # A SignPath-signed build runs the same packaging as four phases with a
+      # SignPath round trip after each of the first three (the CDXC:Release
+      # note at the top of windows.ps1 explains why):
+      #   1. every PE file `vpk pack` would sign: our binaries plus the
+      #      Update.exe and launcher stub Velopack generates;
+      #   2. the inner Velopack Setup.exe, which embeds the signed package;
+      #   3. the customer-facing installer (launcher + signed setup + trailer).
+      # One artifact configuration (.signpath/artifact-configuration.xml)
+      # covers all three uploads.
+      - name: Stage the app and collect its binaries for SignPath
+        if: ${{ steps.signpath.outputs.enabled == 'true' }}
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
+          COMPONENTS_GITHUB_TOKEN: ${{ secrets.COMPONENTS_GITHUB_TOKEN }}
+          GHOSTEX_WINDOWS_REQUIRE_WSL_RUNTIME: ${{ inputs.runtime_artifacts_ready && '1' || '0' }}
+          GHOSTEX_WINDOWS_WSL_GXSERVER_ARCHIVE: ${{ github.workspace }}\build\runtime-artifacts\${{ inputs.arch }}\gxserver-linux-${{ inputs.arch }}.tar.gz
+          GHOSTEX_CODE_SERVER_COMPONENT_VERSION: ${{ steps.code_server_identity.outputs.component_version }}
+          GHOSTEX_WINDOWS_WSL_CODE_SERVER_ARCHIVE: ${{ github.workspace }}\build\runtime-artifacts\${{ inputs.arch }}\${{ steps.code_server_identity.outputs.archive_name }}
+          GHOSTEX_WINDOWS_NATIVE_CODE_SERVER_ARCHIVE: ${{ inputs.runtime_artifacts_ready && format('{0}\build\runtime-artifacts\native-editor-{1}\{2}', github.workspace, inputs.arch, steps.code_server_native.outputs.archive_name) || '' }}
+          GHOSTEX_WINDOWS_BUILD_SILENCE_SECONDS: '900'
+        run: |
+          & (Join-Path $env:GITHUB_WORKSPACE 'tooling/release-gpui/windows-build-watchdog.ps1') -Phase package-collect -Version '${{ inputs.version }}' -Arch '${{ inputs.arch }}'
+      - name: Upload the unsigned binaries for SignPath
+        id: signpath_binaries_upload
+        if: ${{ steps.signpath.outputs.enabled == 'true' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: signpath-windows-${{ inputs.arch }}-binaries
+          path: ${{ env.SIGNPATH_ROOT }}/collect/
+          if-no-files-found: error
+          retention-days: 1
+      - name: Sign the binaries with SignPath
+        if: ${{ steps.signpath.outputs.enabled == 'true' }}
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ env.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ env.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ env.SIGNPATH_SIGNING_POLICY_SLUG }}
+          artifact-configuration-slug: ${{ env.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG }}
+          github-artifact-id: ${{ steps.signpath_binaries_upload.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 1800
+          output-artifact-directory: ${{ env.SIGNPATH_ROOT }}/collect-signed
+      - name: Package the signed binaries with Velopack
+        if: ${{ steps.signpath.outputs.enabled == 'true' }}
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
+          GHOSTEX_WINDOWS_SIGNING_POLICY: ${{ env.SIGNPATH_SIGNING_POLICY_SLUG }}
+          GHOSTEX_WINDOWS_BUILD_SILENCE_SECONDS: '900'
+        run: |
+          & (Join-Path $env:GITHUB_WORKSPACE 'tooling/release-gpui/windows-build-watchdog.ps1') -Phase package-pack -Version '${{ inputs.version }}' -Arch '${{ inputs.arch }}'
+      - name: Upload the unsigned Velopack setup for SignPath
+        id: signpath_setup_upload
+        if: ${{ steps.signpath.outputs.enabled == 'true' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: signpath-windows-${{ inputs.arch }}-velopack-setup
+          path: ${{ env.SIGNPATH_ROOT }}/setup/
+          if-no-files-found: error
+          retention-days: 1
+      - name: Sign the Velopack setup with SignPath
+        if: ${{ steps.signpath.outputs.enabled == 'true' }}
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ env.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ env.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ env.SIGNPATH_SIGNING_POLICY_SLUG }}
+          artifact-configuration-slug: ${{ env.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG }}
+          github-artifact-id: ${{ steps.signpath_setup_upload.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 1800
+          output-artifact-directory: ${{ env.SIGNPATH_ROOT }}/setup-signed
+      - name: Bundle the signed setup behind the Ghostex installer launcher
+        if: ${{ steps.signpath.outputs.enabled == 'true' }}
+        shell: pwsh
+        env:
+          GHOSTEX_WINDOWS_SIGNING_POLICY: ${{ env.SIGNPATH_SIGNING_POLICY_SLUG }}
+          GHOSTEX_WINDOWS_BUILD_SILENCE_SECONDS: '900'
+        run: |
+          & (Join-Path $env:GITHUB_WORKSPACE 'tooling/release-gpui/windows-build-watchdog.ps1') -Phase package-bundle -Version '${{ inputs.version }}' -Arch '${{ inputs.arch }}'
+      - name: Upload the unsigned installer for SignPath
+        id: signpath_installer_upload
+        if: ${{ steps.signpath.outputs.enabled == 'true' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: signpath-windows-${{ inputs.arch }}-installer
+          path: ${{ env.SIGNPATH_ROOT }}/installer/
+          if-no-files-found: error
+          retention-days: 1
+      - name: Sign the installer with SignPath
+        if: ${{ steps.signpath.outputs.enabled == 'true' }}
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ env.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ env.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ env.SIGNPATH_SIGNING_POLICY_SLUG }}
+          artifact-configuration-slug: ${{ env.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG }}
+          github-artifact-id: ${{ steps.signpath_installer_upload.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 1800
+          output-artifact-directory: ${{ env.SIGNPATH_ROOT }}/installer-signed
+      - name: Finalize the signed installer and the release manifest
+        if: ${{ steps.signpath.outputs.enabled == 'true' }}
+        shell: pwsh
+        env:
+          GHOSTEX_WINDOWS_SIGNING_POLICY: ${{ env.SIGNPATH_SIGNING_POLICY_SLUG }}
+          GHOSTEX_WINDOWS_BUILD_SILENCE_SECONDS: '900'
+        run: |
+          & (Join-Path $env:GITHUB_WORKSPACE 'tooling/release-gpui/windows-build-watchdog.ps1') -Phase package-finalize -Version '${{ inputs.version }}' -Arch '${{ inputs.arch }}'
       - name: Write release provenance
         if: ${{ inputs.plan != '' }}
         shell: bash
