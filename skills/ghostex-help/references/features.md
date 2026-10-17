@@ -789,7 +789,10 @@ trash button to delete one (sessions that carried it become untagged). The
 mobile app shows the same tags. `ghostex tag-session <selector> <tag>` accepts a
 custom tag by name. Claude and Codex name their own sessions; Ghostex
 syncs those names without running a first-prompt title job or blocking terminal
-input. Pi and OMP use the Title Generation Agent for first-prompt names.
+input. If Codex has not named a session about a minute after a prompt, Ghostex
+names it in the background with the Title Generation Agent, without blocking
+typing, and Codex's own name replaces it if Codex names the session later.
+Pi and OMP use the Title Generation Agent for first-prompt names.
 Manual Generate Name and `/rename` in chat remain available for Claude and Codex.
 In a Hermes chat, `/rename <name>` is sent as Hermes' own `/title <name>`.
 A renamed agent session shows its new name right away, on the computer and the

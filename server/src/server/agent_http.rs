@@ -144,6 +144,9 @@ pub(crate) fn dispatch_agent_http_blocking(
                     );
                 }
             }
+            if endpoint_path == "/api/ingestAgentHookEvent" {
+                schedule_codex_title_fallback(state, &params, &result);
+            }
             let should_queue_agent_title_metadata_check =
                 should_schedule_agent_title_metadata_check(&endpoint_path, &result);
             let should_schedule_first_prompt_auto_title =
