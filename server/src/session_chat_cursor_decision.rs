@@ -231,18 +231,24 @@ pub fn cursor_decision_answer_key(text: &str, index: usize) -> Option<String> {
 }
 
 /// Whether row `index` of the live panel is the command approval's "Skip & tell the agent what to
-/// do instead", which the chat answers with Escape and then an empty Enter in the box it opens
-/// (`SessionChatSendStep::SkipCursorInsteadBox`).
+/// do instead", which the chat shows as "Skip" and answers with Escape and then a fixed reason in
+/// the box it opens (`SessionChatSendStep::SkipCursorInsteadBox`).
 ///
-/// CDXC:SessionChat 2026-10-17 DECISION: Asked whether the chat's Skip should leave Cursor asking "what to do instead" or skip outright, the user picked "skip outright": the card's Skip skips straight away (Escape, then the empty Enter), so Cursor never waits in its "Tell the agent what to do instead" box and the next chat message is a normal new message, with no false "might not have reached the agent" warning.
+/// CDXC:SessionChat 2026-10-17 DECISION: Asked whether the chat's Skip should leave Cursor asking "what to do instead" or skip outright, the user picked "skip outright": the card's Skip, labelled "Skip", skips straight away, so Cursor never waits in its "Tell the agent what to do instead" box and the next chat message is a normal new message, with no false "might not have reached the agent" warning. The box gets the fixed reason "The user skipped this command. Don't run it again." rather than an empty Enter, because an empty skip told the model nothing and Grok 4.7 retried the same command.
 pub fn cursor_decision_skips_outright(text: &str, index: usize) -> bool {
     detect_cursor_decision(text).is_some_and(|decision| {
-        decision.command.is_some()
-            && decision
-                .rows
-                .get(index)
-                .is_some_and(|row| row.dismisses && row.label.starts_with("Skip"))
+        decision
+            .rows
+            .get(index)
+            .is_some_and(|row| is_outright_skip(&decision, row))
     })
+}
+
+/// What the chat's Skip types into Cursor's "Tell the agent what to do instead" box.
+pub const CURSOR_SKIP_REASON: &str = "The user skipped this command. Don't run it again.";
+
+fn is_outright_skip(decision: &CursorDecision, row: &CursorDecisionRow) -> bool {
+    decision.command.is_some() && row.dismisses && row.label.starts_with("Skip")
 }
 
 /// What Stop types to close the live panel: Escape, when one of its rows takes it. Cursor ignores
@@ -330,7 +336,12 @@ pub fn detect_cursor_decision_notice(text: &str) -> Option<SessionChatTerminalNo
                 .enumerate()
                 .map(|(index, row)| SessionChatTerminalNoticeChoice {
                     index,
-                    label: row.label.clone(),
+                    // The chat's Skip never asks what to do instead (the DECISION above).
+                    label: if is_outright_skip(&decision, row) {
+                        "Skip".to_string()
+                    } else {
+                        row.label.clone()
+                    },
                     selected: row.selected,
                 })
                 .collect();

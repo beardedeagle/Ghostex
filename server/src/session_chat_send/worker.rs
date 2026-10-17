@@ -444,15 +444,33 @@ pub(super) async fn run_session_chat_send_worker(
                                 )
                             })
                         {
-                            if let Err(error) = write_session_chat_payload(
+                            let reason = crate::session_chat_send::build_session_chat_paste_bytes(
+                                crate::session_chat_cursor_decision::CURSOR_SKIP_REASON,
+                            );
+                            let written = match write_session_chat_payload(
                                 &project_id,
                                 &session_id,
                                 &zmx_name,
                                 &source,
-                                "\r",
+                                &reason,
                             )
                             .await
                             {
+                                Ok(_) => {
+                                    // Cursor takes a burst of text and its Enter as one paste.
+                                    tokio::time::sleep(Duration::from_millis(300)).await;
+                                    write_session_chat_payload(
+                                        &project_id,
+                                        &session_id,
+                                        &zmx_name,
+                                        &source,
+                                        "\r",
+                                    )
+                                    .await
+                                }
+                                Err(error) => Err(error),
+                            };
+                            if let Err(error) = written {
                                 outcome = Err(SessionChatSendError::new(
                                     SessionChatSendFailure::Write,
                                     error,
