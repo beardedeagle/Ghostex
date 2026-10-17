@@ -33,7 +33,7 @@ pub(crate) fn resolve_allowed_session_identity(
     } else {
         None
     };
-    if let Some(conflict) = unwritten_claude_conflict(
+    if let Some(conflict) = unwritten_conversation_conflict(
         current_identity,
         current_session,
         observed_identity,
@@ -102,7 +102,9 @@ pub(crate) fn resolve_allowed_session_identity(
 /// `align_observed_identity_with_launch_profile` has already renamed a Claude observation to its `custom-…` profile by the time this runs, so the family is read from the session's launch icon for those ids; checking for the literal `claude` let every custom Claude profile skip the guard.
 /// CDXC:SessionIdentity 2026-09-24 WHY:
 /// The guard also covers live process scans, and an observation without a transcript path is checked against `<id>.jsonl` beside the current transcript instead of passing unchecked. A fresh Claude that never received a prompt replaced conversation 083f9352 in session G3aa6 on 2026-09-21, and after a reboot the sidebar click resumed an id Claude had never written.
-fn unwritten_claude_conflict(
+/// CDXC:SessionIdentity 2026-10-17 WHY:
+/// Copilot CLI gets the same guard (its transcript is `session-state/<id>/events.jsonl`). `copilot --resume <id>` also opens a scratch session it never writes, and its hooks reported that id, so a session woken once stored it and the next wake ran `copilot --resume <scratch id>`: Copilot printed its usage, the pane fell back to the shell and the conversation was gone from the row (seen live 2026-10-17, session G8nen).
+fn unwritten_conversation_conflict(
     current_identity: &ResolvedIdentity,
     current_session: &Value,
     observed_identity: &ResolvedIdentity,
@@ -117,18 +119,17 @@ fn unwritten_claude_conflict(
     ) {
         return None;
     }
-    let is_claude = |agent_id: Option<&str>| {
-        agent_id == Some("claude")
+    let is_family = |agent_id: Option<&str>, family: &str| {
+        agent_id == Some(family)
             || (agent_id.is_some_and(|agent_id| agent_id.starts_with("custom-"))
-                && session_launch_agent_provider_id(current_session).as_deref() == Some("claude"))
+                && session_launch_agent_provider_id(current_session).as_deref() == Some(family))
     };
-    let observes_claude = is_claude(observed_agent_id)
-        || (observed_agent_id.is_none()
-            && is_claude(current_agent_id)
-            && is_claude(resolved_agent_id));
-    if !observes_claude {
-        return None;
-    }
+    let family = ["claude", "copilot"].into_iter().find(|family| {
+        is_family(observed_agent_id, family)
+            || (observed_agent_id.is_none()
+                && is_family(current_agent_id, family)
+                && is_family(resolved_agent_id, family))
+    })?;
     let incoming = trimmed_identity_value(observed_identity.agent_session_id.as_deref())?;
     let current = trimmed_identity_value(current_identity.agent_session_id.as_deref())?;
     if incoming == current {
@@ -140,13 +141,17 @@ fn unwritten_claude_conflict(
     let incoming_path =
         match trimmed_identity_value(observed_identity.agent_session_path.as_deref()) {
             Some(path) => crate::resume_lookup::expand_home(&path),
+            None if family == "copilot" => current_path
+                .parent()?
+                .with_file_name(&incoming)
+                .join("events.jsonl"),
             None => current_path.with_file_name(format!("{incoming}.jsonl")),
         };
     if incoming_path.is_file() {
         return None;
     }
     Some(SessionIdentityConflict {
-        agent_id: "claude".to_string(),
+        agent_id: family.to_string(),
         current_agent_session_id: Some(current),
         incoming_agent_session_id: incoming,
         owner_project_id: None,

@@ -302,8 +302,8 @@ no agent in it. Relaunch it from its stored launch plan instead, which is exactl
 the command it was created with, so waking or reopening a draft is byte-identical
 to opening it the first time.
 */
-/// CDXC:SessionSleep 2026-09-23 WHY:
-/// Sessions created before the draft marker can lose their provider at an upgrade or login screen before recording a conversation. If neither resume metadata nor prior prompt activity exists, their explicit saved launch is still the only command they were created to run.
+/// CDXC:SessionSleep 2026-10-17 WHY:
+/// An agent session with no conversation to reopen comes back on the command it was created with. This supersedes the 2026-09-23 rule, which relaunched only when the session had no stored id, no first message and no `lastActiveAt`: a login or approval screen stamps `lastActiveAt` before any prompt (Grok, Antigravity CLI), and OMP stores its id at launch but writes nothing until the first prompt, so those sessions slept before their first prompt ran nothing on wake. The row still flipped to running, `ghostex wake` said "woke", and a chat message that woke it waited forever. The launch command is the agent alone (the first prompt is typed by the queue), so relaunching never repeats a prompt.
 pub(crate) fn get_provider_restart_startup_text_for_session(
     project: &Value,
     session: &Value,
@@ -322,23 +322,7 @@ pub(crate) fn get_provider_restart_startup_text_for_session(
         return get_agent_launch_startup_text_for_session(session);
     }
     let resume_startup_text = get_agent_startup_text_for_session(project, session, agent_settings);
-    if resume_startup_text.is_some()
-        || session.get("kind").and_then(Value::as_str) != Some("agent")
-        || session_has_ever_been_active(session)
-        || [
-            "/runtimeSettings/agentSessionId",
-            "/runtimeSettings/agentSessionPath",
-            "/runtimeSettings/firstUserMessage",
-            "/launchSettings/firstUserMessage",
-            "/launchSettings/agentLaunchPlan/firstUserMessage",
-        ]
-        .iter()
-        .any(|pointer| {
-            session
-                .pointer(pointer)
-                .and_then(Value::as_str)
-                .is_some_and(|value| !value.trim().is_empty())
-        })
+    if resume_startup_text.is_some() || session.get("kind").and_then(Value::as_str) != Some("agent")
     {
         return resume_startup_text;
     }
