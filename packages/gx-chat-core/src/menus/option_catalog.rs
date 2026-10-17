@@ -797,9 +797,11 @@ fn antigravity_effort(
     descriptor
 }
 
-/// Shift+Tab cycles agy's mode in this order and the footer names the current one, which gxserver
-/// reports with these values (`match_antigravity_statusline` in
-/// `server/src/session_chat_options/agent_matchers.rs`).
+/// Shift+Tab cycles agy's mode in this order (Antigravity CLI 1.4.0) and the footer names the
+/// current one, which gxserver reports with these values (`match_antigravity_statusline` in
+/// `server/src/session_chat_options/agent_matchers.rs`). A pick is queued to gxserver, which presses
+/// Shift+Tab one step at a time and reads the footer back until agy is in the chosen mode, so the
+/// order here only sets the menu's order.
 fn antigravity_mode() -> OptionDescriptor {
     let mut descriptor = OptionDescriptor::new(
         "mode",
@@ -813,6 +815,7 @@ fn antigravity_mode() -> OptionDescriptor {
         [
             ("default", "Default"),
             ("accept-edits", "Accept edits"),
+            ("auto", "Auto"),
             ("plan", "Plan"),
         ]
         .into_iter()

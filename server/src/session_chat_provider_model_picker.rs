@@ -46,6 +46,31 @@ fn applied(screen: &str, plan: &CodexPickerPlan) -> bool {
     })
 }
 
+/// CDXC:SessionChat 2026-10-17 WHY:
+/// Antigravity CLI answers a `/model` it does not offer with `⎿  Invalid model "<id>" (available: …)` (and a bare id that needs an effort with `requires effort`) and stays on its model. Waiting only for the footer timed out, which the queue treats as worth retrying, so the refused `/model` was retyped every five seconds and the chat kept showing the refused model as the one heading in. The refusal is final: the pick fails with agy's reason, and the chat goes back to the model agy is really on.
+/// Returns the reason of every refusal on screen for the id this command types, oldest first.
+fn antigravity_refusals(screen: &str, command: &str) -> Vec<String> {
+    let Some(id) = command.strip_prefix("/model ").map(str::trim) else {
+        return Vec::new();
+    };
+    let quoted = format!("\"{id}\"");
+    screen_lines(screen)
+        .iter()
+        .filter_map(|line| {
+            let text = line.trim().trim_start_matches('⎿').trim();
+            let refused = (text.starts_with("Invalid model") && text.contains(&quoted))
+                || (text.contains(id) && text.contains("requires effort"));
+            refused.then(|| {
+                text.split(" (available:")
+                    .next()
+                    .unwrap_or(text)
+                    .trim()
+                    .to_string()
+            })
+        })
+        .collect()
+}
+
 /// CDXC:SessionChat 2026-10-07 WHY: Cursor's picker names Claude models "Claude Fable 5" where the catalog says "Fable 5", and its fuzzy filter can highlight a longer name first ("Claude Fable 5.1" for "Fable 5"), so waiting for the highlighted row to be the catalog label timed out ("did not confirm the model picker's Cursor model row step"). A row matches with or without the "Claude " prefix, and the highlight is moved onto the matching row before it is confirmed.
 fn cursor_row_name_matches(row: &str, label: &str) -> bool {
     let matches = |name: &str| {
@@ -717,6 +742,7 @@ impl PickerDriver<'_> {
                 "Waiting for the terminal input to be sent or cleared.",
             ));
         }
+        let refusals_before = antigravity_refusals(&screen, &command);
         let mut opened_cursor = false;
         let result = async {
             self.write(&build_session_chat_paste_bytes(&command))
@@ -803,10 +829,24 @@ impl PickerDriver<'_> {
                 .await?;
             }
             self.write(CODEX_SUBMIT).await?;
-            self.wait_for("applied model and effort", |screen| {
-                applied(screen, plan).then_some(())
-            })
-            .await
+            let refused = self
+                .wait_for("applied model and effort", |screen| {
+                    if applied(screen, plan) {
+                        return Some(None);
+                    }
+                    (plan.provider == "antigravity")
+                        .then(|| antigravity_refusals(screen, &command))
+                        .filter(|refusals| refusals.len() > refusals_before.len())
+                        .and_then(|refusals| refusals.last().cloned())
+                        .map(Some)
+                })
+                .await?;
+            match refused {
+                Some(reason) => Err(unsupported_selection(format!(
+                    "Antigravity CLI refused the model: {reason}."
+                ))),
+                None => Ok(()),
+            }
         }
         .await;
         if result.is_err() && !(self.cancelled)() {
@@ -868,6 +908,17 @@ pub(crate) async fn run_provider_model_picker_job(
         "pi" => driver.drive_pi(&plan).await,
         "omp" => driver.drive_omp(&plan).await,
         "empryo" => driver.drive_empryo(&plan).await,
+        "antigravity" => {
+            async {
+                if !plan.model.is_empty() {
+                    driver.drive_provider(&plan).await?;
+                }
+                driver
+                    .drive_options(&plan, SessionChatOptionAgent::Antigravity)
+                    .await
+            }
+            .await
+        }
         _ => driver.drive_provider(&plan).await,
     };
     if let Err(error) = &outcome {

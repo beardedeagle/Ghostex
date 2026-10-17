@@ -42,6 +42,7 @@ pub(crate) fn read_options(
         "opencode" => !mode.trim().is_empty() && mode.len() <= 160,
         "codex" => matches!(mode, "plan" | "default"),
         "claude" => matches!(mode, "bypass" | "auto" | "manual" | "accept-edits" | "plan"),
+        "antigravity" => matches!(mode, "default" | "accept-edits" | "auto" | "plan"),
         _ => false,
     });
     if (options.fast_mode.is_some() && !matches!(provider, "codex" | "claude"))
@@ -228,7 +229,11 @@ pub(crate) fn enqueue(
     let scope = read_scope(&provider, params)?;
     if !model.is_empty() || incoming_options.is_empty() {
         validate_selection(&provider, model, effort)?;
-    } else if !matches!(provider.as_str(), "codex" | "claude" | "opencode") || !effort.is_empty() {
+    } else if !matches!(
+        provider.as_str(),
+        "codex" | "claude" | "opencode" | "antigravity"
+    ) || !effort.is_empty()
+    {
         return Err(DomainStateError {
             code: "invalidParams",
             message: "An effort change requires its model.".into(),

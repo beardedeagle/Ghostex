@@ -1,7 +1,7 @@
 {
   "_readme": "Do not edit blind. docs/important/agent-model-catalog.md explains the schema, how every Ghostex client loads this file from GitHub (with the bundled copy as the offline source), how to publish a change, and how to re-collect models, efforts and fast mode from the agent CLIs' own /model pickers.",
   "schemaVersion": 1,
-  "updatedAt": "2026-10-07T19:12:00Z",
+  "updatedAt": "2026-10-17T09:07:27Z",
   "effortLabels": {
     "none": "None",
     "minimal": "Minimal",
@@ -61,7 +61,7 @@
     },
     "codex": {
       "name": "Codex CLI",
-      "cliVersion": "0.159.1",
+      "cliVersion": "0.163.0",
       "modelCommand": "/model",
       "effortCommand": null,
       "efforts": ["low", "medium", "high", "xhigh", "max", "ultra"],
@@ -85,7 +85,7 @@
           "description": "Frontier intelligence for the most demanding work.",
           "default": true,
           "efforts": ["low", "medium", "high", "xhigh", "max", "ultra"],
-          "defaultEffort": "medium",
+          "defaultEffort": "low",
           "fastMode": true
         },
         {
@@ -93,7 +93,7 @@
           "label": "GPT 6.1 Sol",
           "description": "Latest workhorse model for coding and everyday work.",
           "efforts": ["low", "medium", "high", "xhigh", "max", "ultra"],
-          "defaultEffort": "low",
+          "defaultEffort": "medium",
           "fastMode": true
         },
         {
@@ -118,7 +118,7 @@
           "label": "GPT 5.6 Sol",
           "description": "Older generation workhorse model.",
           "efforts": ["low", "medium", "high", "xhigh", "max", "ultra"],
-          "defaultEffort": "low",
+          "defaultEffort": "medium",
           "fastMode": true,
           "group": "legacy"
         },
@@ -130,22 +130,13 @@
           "defaultEffort": "medium",
           "fastMode": true,
           "group": "legacy"
-        },
-        {
-          "value": "gpt-5.5",
-          "label": "GPT 5.5",
-          "description": "Legacy coding model.",
-          "efforts": ["low", "medium", "high", "xhigh"],
-          "defaultEffort": "medium",
-          "fastMode": true,
-          "group": "legacy"
         }
       ],
-      "notes": "Re-read on 0.159.1 (2026-09-30). GPT-6.1 Sol (`gpt-6.1-sol`, efforts Low to Ultra, default Low, Fast tier) is in 0.159.1's built-in model list at the top of the picker, but the server had not yet offered it to the account used for the scan, whose /model still listed GPT-6-Astra, GPT-6-Sol, GPT-6-Luna, GPT-5.6-Sol, GPT-5.6-Terra, GPT-5.6-Luna, GPT-5.5. The user asked to show Sol 6.1 and move GPT 6 Sol under Legacy, so the top level is Astra, Sol 6.1, Luna and Legacy holds GPT 6 Sol, GPT 5.6 Sol, GPT 5.6 Luna and GPT 5.5. GPT 5.6 Terra is left out on purpose even though the picker still offers it: the user asked to remove it (\"Nobody is going to use that one\")."
+      "notes": "Re-read on 0.163.0 (2026-10-17) from `codex debug models`: the listed models are GPT-6.1-Sol, GPT-6-Astra, GPT-6-Sol, GPT-6-Luna, GPT-5.6-Sol, GPT-5.6-Terra and GPT-5.6-Luna, so GPT 5.5 is gone, and the default efforts are Astra Low, 6.1 Sol Medium, 5.6 Sol Medium. Re-read on 0.159.1 (2026-09-30). GPT-6.1 Sol (`gpt-6.1-sol`, efforts Low to Ultra, default Low, Fast tier) is in 0.159.1's built-in model list at the top of the picker, but the server had not yet offered it to the account used for the scan, whose /model still listed GPT-6-Astra, GPT-6-Sol, GPT-6-Luna, GPT-5.6-Sol, GPT-5.6-Terra, GPT-5.6-Luna, GPT-5.5. The user asked to show Sol 6.1 and move GPT 6 Sol under Legacy, so the top level is Astra, Sol 6.1, Luna and Legacy holds GPT 6 Sol, GPT 5.6 Sol, GPT 5.6 Luna and GPT 5.5. GPT 5.6 Terra is left out on purpose even though the picker still offers it: the user asked to remove it (\"Nobody is going to use that one\")."
     },
     "cursor": {
       "name": "Cursor CLI",
-      "cliVersion": "2026.10.01-e373342",
+      "cliVersion": "2026.10.16-e3cb207",
       "modelCommand": "/model <pickerLabel>",
       "effortCommand": null,
       "efforts": ["none", "minimal", "low", "medium", "high", "xhigh", "max"],
@@ -232,6 +223,13 @@
           "fastMode": true
         },
         {
+          "value": "gemini-4-argon",
+          "label": "Gemini 4 Argon",
+          "pickerLabel": "Gemini 4 Argon",
+          "efforts": ["low", "medium", "high"],
+          "fastMode": false
+        },
+        {
           "value": "gemini-3.8-flash",
           "label": "Gemini 3.8 Flash",
           "pickerLabel": "Gemini 3.8 Flash",
@@ -246,6 +244,13 @@
           "contextWindows": ["300K", "1M"],
           "efforts": ["minimal", "low", "medium", "high", "xhigh", "max"],
           "defaultEffort": "high",
+          "fastMode": false
+        },
+        {
+          "value": "muse-wonder-1.0",
+          "label": "Muse Wonder",
+          "pickerLabel": "Muse Wonder",
+          "efforts": ["minimal", "low", "medium", "high", "xhigh", "max"],
           "fastMode": false
         },
         {
@@ -488,7 +493,7 @@
           "group": "legacy"
         }
       ],
-      "notes": "Labels drop the 'Claude' word the TUI shows (Cursor dropped its own 'Cursor Grok' prefix in 2026.09.18); pickerLabel is the exact row text the /model filter needs. Row count re-read on 2026-09-03 (36 rows; Gemini 3.8 Flash added between Cursor Grok 4.5 and Gemini 3.7 Flash). Re-read on 2026.09.26-dd393fe (2026-09-29): Claude Opus 5.5 (300K/1M, Low to Max, default Medium, Fast) and Claude Sonnet 5.5 (300K/1M, Low to Max, default High, no Fast) replace Opus 5 and Sonnet 5 at the user's request, and no longer share a /model filter with them. Re-read on 2026.10.01-e373342 (2026-10-07): Claude Haiku 5.5 (300K/1M, Low to Max, default High, Thinking toggle) replaces Haiku 4.5 at the user's request and sits at the top level beside Sonnet 5.5; Haiku 4.5 is dropped from the catalog even though the picker still lists it."
+      "notes": "Labels drop the 'Claude' word the TUI shows (Cursor dropped its own 'Cursor Grok' prefix in 2026.09.18); pickerLabel is the exact row text the /model filter needs. Row count re-read on 2026-09-03 (36 rows; Gemini 3.8 Flash added between Cursor Grok 4.5 and Gemini 3.7 Flash). Re-read on 2026.09.26-dd393fe (2026-09-29): Claude Opus 5.5 (300K/1M, Low to Max, default Medium, Fast) and Claude Sonnet 5.5 (300K/1M, Low to Max, default High, no Fast) replace Opus 5 and Sonnet 5 at the user's request, and no longer share a /model filter with them. Re-read on 2026.10.01-e373342 (2026-10-07): Claude Haiku 5.5 (300K/1M, Low to Max, default High, Thinking toggle) replaces Haiku 4.5 at the user's request and sits at the top level beside Sonnet 5.5; Haiku 4.5 is dropped from the catalog even though the picker still lists it. Checked against `cursor-agent --list-models` on 2026.10.16-e3cb207 (2026-10-17, on the Windows test machine, the only logged-in Cursor): Gemini 4 Argon (Low to High) and Muse Wonder (Minimal to Max, no Fast) added; their picker rows and default efforts were not read from the TUI. Opus 5 and Sonnet 5 stay out at the user's earlier request."
     },
     "grok": {
       "name": "Grok Build",
@@ -543,7 +548,7 @@
     },
     "antigravity": {
       "name": "Antigravity CLI",
-      "cliVersion": "1.2.14",
+      "cliVersion": "1.4.0",
       "modelCommand": "/model <value>-<effort> for models with efforts, /model <value> otherwise; ids from `agy models`",
       "effortCommand": null,
       "efforts": ["low", "medium", "high"],
@@ -553,37 +558,38 @@
         "scope": null,
         "notes": "No /fast entry in the slash-command list; no Fast toggle in /model."
       },
-      "notes": "The /model picker is a list with an Effort slider under models that have one (←/→). `agy models` flattens model and effort into one id (gemini-3.8-flash-high); Ghostex keys rows by the model part and appends the effort when it types the command. Labels drop the parenthetical the TUI shows; pickerLabel keeps it.",
-      "groups": [
-        {
-          "id": "legacy",
-          "label": "Legacy"
-        }
-      ],
+      "notes": "Re-read on 1.4.0 (2026-10-17) from `agy models` and the /model picker. The /model picker is a list with an Effort slider (low, medium, high; medium preselected) under every model but GPT-OSS 120B. `agy models` flattens model and effort into one id (gemini-4-argon-medium); Ghostex keys rows by the model part and appends the effort when it types the command. A model without a slider is its full id and prints its pickerLabel in the footer. 1.4.0 dropped Gemini 3.7 Flash, 3.6 Flash, 3.1 Pro and the Claude 4.6 rows and refuses them with Invalid model.",
       "models": [
+        {
+          "value": "gemini-4-argon",
+          "label": "Gemini 4 Argon",
+          "pickerLabel": "Gemini 4 Argon",
+          "efforts": ["low", "medium", "high"],
+          "defaultEffort": "medium",
+          "fastMode": false
+        },
         {
           "value": "gemini-3.8-flash",
           "label": "Gemini 3.8 Flash",
           "pickerLabel": "Gemini 3.8 Flash",
-          "default": true,
           "efforts": ["low", "medium", "high"],
-          "defaultEffort": "high",
+          "defaultEffort": "medium",
           "fastMode": false
         },
         {
-          "value": "claude-sonnet-4-6",
-          "label": "Claude Sonnet 4.6",
-          "pickerLabel": "Claude Sonnet 4.6 (Thinking)",
-          "description": "Thinking",
-          "efforts": [],
+          "value": "claude-opus-5-5",
+          "label": "Claude Opus 5.5",
+          "pickerLabel": "Claude Opus 5.5",
+          "efforts": ["low", "medium", "high"],
+          "defaultEffort": "medium",
           "fastMode": false
         },
         {
-          "value": "claude-opus-4-6-thinking",
-          "label": "Claude Opus 4.6",
-          "pickerLabel": "Claude Opus 4.6 (Thinking)",
-          "description": "Thinking",
-          "efforts": [],
+          "value": "claude-sonnet-5-5",
+          "label": "Claude Sonnet 5.5",
+          "pickerLabel": "Claude Sonnet 5.5",
+          "efforts": ["low", "medium", "high"],
+          "defaultEffort": "medium",
           "fastMode": false
         },
         {
@@ -593,32 +599,6 @@
           "description": "Medium reasoning",
           "efforts": [],
           "fastMode": false
-        },
-        {
-          "value": "gemini-3.1-pro",
-          "label": "Gemini 3.1 Pro",
-          "pickerLabel": "Gemini 3.1 Pro",
-          "efforts": ["low", "high"],
-          "defaultEffort": "low",
-          "fastMode": false
-        },
-        {
-          "value": "gemini-3.7-flash",
-          "label": "Gemini 3.7 Flash",
-          "pickerLabel": "Gemini 3.7 Flash",
-          "efforts": ["low", "medium", "high"],
-          "defaultEffort": "low",
-          "fastMode": false,
-          "group": "legacy"
-        },
-        {
-          "value": "gemini-3.6-flash",
-          "label": "Gemini 3.6 Flash",
-          "pickerLabel": "Gemini 3.6 Flash",
-          "efforts": ["low", "medium", "high"],
-          "defaultEffort": "low",
-          "fastMode": false,
-          "group": "legacy"
         }
       ]
     },

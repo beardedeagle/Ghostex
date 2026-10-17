@@ -1029,9 +1029,11 @@ files it reads and searches, and its file edits with their changes. When
 Antigravity asks questions, they appear as a card in the chat: pick options,
 write your own answer, or skip a question, and the answer goes to Antigravity
 as if you had answered in its terminal. The mode button next to the model pill
-switches Antigravity between Default, Accept edits and Plan (Shift+Tab in its
-terminal). Commands: `ghostex send-session-chat-message`,
-`ghostex answer-session-chat-prompt`.
+switches Antigravity between Default, Accept edits, Auto (edits and safe
+commands run without asking) and Plan, and the button always shows the mode
+Antigravity is really in. Commands: `ghostex send-session-chat-message`,
+`ghostex answer-session-chat-prompt`,
+`ghostex select-session-chat-model <session> --mode default|accept-edits|auto|plan`.
 Sending a message to a sleeping session wakes it. While the agent is still
 starting, the message shows in the chat right away and is typed in as soon as
 the agent's input box appears. It keeps waiting for as long as the session is

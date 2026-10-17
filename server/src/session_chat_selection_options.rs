@@ -7,10 +7,10 @@ use crate::session_chat_composer::{
 use crate::session_chat_send::{build_session_chat_paste_bytes, SESSION_CHAT_SHIFT_TAB};
 
 fn agent_name(agent: SessionChatOptionAgent) -> &'static str {
-    if agent == SessionChatOptionAgent::Claude {
-        "claude"
-    } else {
-        "codex"
+    match agent {
+        SessionChatOptionAgent::Claude => "claude",
+        SessionChatOptionAgent::Antigravity => "antigravity",
+        _ => "codex",
     }
 }
 
@@ -140,7 +140,7 @@ impl PickerDriver<'_> {
 
     /// CDXC:SessionChat 2026-09-08 WHY:
     /// Queued toggles store their destination, not a count of keypresses: every retry reads the live state, so an interrupted confirmation cannot toggle a successful change back.
-    /// Claude permission modes are cycled one step at a time with fresh footer confirmation instead of trusting a stale client-side cycle index.
+    /// Claude and Antigravity modes are cycled one step at a time with fresh footer confirmation instead of trusting a stale client-side cycle index.
     pub(super) async fn drive_options(
         &self,
         plan: &CodexPickerPlan,

@@ -130,9 +130,7 @@ pub(super) fn match_claude_mode(segment: &str) -> Option<SessionChatDetectedChoi
     let status = segment
         .strip_prefix("⏵⏵ ")
         .or_else(|| segment.strip_prefix("⏸ "))?;
-    let status = status
-        .strip_suffix(" (shift+tab to cycle)")
-        .unwrap_or(status);
+    let status = strip_mode_cycle_hint(status);
     let (value, label) = match status {
         "auto mode on" => ("auto", "Auto"),
         "bypass permissions on" => ("bypass", "Bypass permissions"),
@@ -239,13 +237,19 @@ footer means default mode: the terminal layer reports no mode, and Codex has
 no transcript or statusline mode to fall back to.
 */
 const CODEX_PLAN_MODE_MARKER: &str = "Plan mode";
-const CODEX_MODE_CYCLE_HINT: &str = " (shift+tab to cycle)";
+
+/// CDXC:AgentScreenDetection 2026-10-17 WHY:
+/// Codex 0.163 prints its mode hint as `(⇧tab to cycle)` where earlier releases printed `(shift+tab to cycle)`. Matching only the old spelling read every Plan-mode footer as default mode, so the chat showed Plan mode off while Codex was in it, `--mode default` answered ok without leaving it, and turning it on timed out waiting for a change it never saw. Any `(<key> to cycle)` hint is stripped, whatever the CLI calls the key.
+pub(super) fn strip_mode_cycle_hint(text: &str) -> &str {
+    text.strip_suffix(" to cycle)")
+        .and_then(|rest| rest.rsplit_once(" ("))
+        .filter(|(_, key)| !key.is_empty() && !key.contains(['(', ')']))
+        .map_or(text, |(before, _)| before)
+}
 
 pub(super) fn strip_codex_plan_mode_marker(line: &str) -> (&str, bool) {
     let trimmed = line.trim_end();
-    let without_hint = trimmed
-        .strip_suffix(CODEX_MODE_CYCLE_HINT)
-        .unwrap_or(trimmed);
+    let without_hint = strip_mode_cycle_hint(trimmed);
     match without_hint.strip_suffix(CODEX_PLAN_MODE_MARKER) {
         Some(rest) if rest.ends_with(' ') => (rest, true),
         _ => (line, false),
@@ -525,16 +529,22 @@ pub(super) fn match_grok_segment(segment: &str) -> Option<SessionChatDetectedSel
 
 const ANTIGRAVITY_EFFORTS: &[&str] = &["low", "medium", "high"];
 
-/// Shift+Tab cycles agy's mode default → accept-edits → plan, and the footer names a
-/// non-default mode in front of the model (`plan · Gemini 3.8 Flash · high`). The values match
-/// the mode pill's choices in `packages/gx-chat-core/src/menus/option_catalog.rs`.
+/// The footer names a non-default mode in front of the model (`plan · Gemini 3.8 Flash · high`).
+/// The values match the mode pill's choices in `packages/gx-chat-core/src/menus/option_catalog.rs`.
+///
+/// CDXC:AgentScreenDetection 2026-10-17 WHY:
+/// Antigravity CLI 1.4.0 added `auto` (edits and safe commands auto-approved) to its Shift+Tab cycle, which is now default → accept-edits → auto → plan. The chat counted presses through the old three-mode order, so picking Plan left agy in `auto` while the pill said Plan, and an unknown `auto` footer read as default. gxserver now presses once at a time and reads this footer back until it names the mode that was asked for (`drive_mode_option`), so a mode agy adds later is never landed on by mistake.
 const ANTIGRAVITY_DEFAULT_MODE: (&str, &str) = ("default", "Default");
-const ANTIGRAVITY_MODES: &[(&str, &str)] = &[("accept-edits", "Accept edits"), ("plan", "Plan")];
+const ANTIGRAVITY_MODES: &[(&str, &str)] = &[
+    ("accept-edits", "Accept edits"),
+    ("auto", "Auto"),
+    ("plan", "Plan"),
+];
 
 /// `Gemini 3.8 Flash` ⇒ `gemini-3.8-flash`; `Gemini 3.1 Pro` ⇒ `gemini-3.1-pro`.
 ///
 /// The live catalog answers first: `agy models` folds a fixed reasoning mode
-/// into some ids (`Claude Opus 4.6` ⇒ `claude-opus-4-6-thinking`), so only a
+/// into some ids (`GPT-OSS 120B` ⇒ `gpt-oss-120b-medium`), so only a
 /// Gemini name not in it yet is derived.
 fn antigravity_model_id(name: &str) -> Option<String> {
     if let Some(value) = crate::agent_model_catalog::model_value_for_label("antigravity", name) {
@@ -607,9 +617,16 @@ pub(super) fn match_antigravity_statusline(line: &str) -> Option<SessionChatDete
             .strip_suffix(')')
             .and_then(|rest| rest.rsplit_once(" ("))
         {
-            // Startup banner: `Gemini 3.8 Flash (High)`.
+            // Startup banner: `Gemini 3.8 Flash (High)`. A model without an effort slider prints
+            // its whole name that way in the footer too (`GPT-OSS 120B (Medium)`, its
+            // `pickerLabel`), and that footer still means default mode.
             Some((name, effort))
-                if ANTIGRAVITY_EFFORTS.contains(&effort.to_ascii_lowercase().as_str()) =>
+                if ANTIGRAVITY_EFFORTS.contains(&effort.to_ascii_lowercase().as_str())
+                    && crate::agent_model_catalog::model_value_for_label(
+                        "antigravity",
+                        antigravity_trailing_name(model),
+                    )
+                    .is_none() =>
             {
                 (
                     antigravity_trailing_name(name),

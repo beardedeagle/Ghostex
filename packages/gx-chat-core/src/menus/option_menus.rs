@@ -138,7 +138,7 @@ pub fn native_option_menus(
 ) -> NativeOptionMenus {
     let queued_controls = matches!(
         catalog.map(|catalog| catalog.model_icon.as_str()),
-        Some("codex") | Some("claude")
+        Some("codex") | Some("claude") | Some("antigravity-cli")
     );
     let caps = OptionCaps {
         can_pick_model: params.can_pick_model,

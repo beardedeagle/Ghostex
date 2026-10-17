@@ -152,7 +152,7 @@ pub fn compute_native_chat_options(state: &ChatState, _context: &ChatContext) ->
     let can_pick_model = !state.session.pending_model_selection.is_absent() && provider.is_some();
     let queued_controls = matches!(
         catalog.as_ref().map(|catalog| catalog.model_icon.as_str()),
-        Some("codex") | Some("claude") | Some("opencode")
+        Some("codex") | Some("claude") | Some("opencode") | Some("antigravity-cli")
     );
     let can_send_key = menus.can_send_key;
     let draft_agents = DraftAgent::list(state.session.available_agents.as_ref());
