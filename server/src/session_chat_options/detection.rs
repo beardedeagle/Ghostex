@@ -18,11 +18,17 @@ pub fn detect_session_chat_selection(
     } else {
         None
     };
+    let claude_footer_rule = (agent == SessionChatOptionAgent::Claude)
+        .then(|| claude_footer_rule(&scanned_lines))
+        .flatten();
     let mut found = SessionChatDetectedSelection::default();
     // Index of the topmost line that supplied any value; the footer capture
     // starts there.
     let mut topmost_match: Option<usize> = None;
     for (index, scanned) in scanned_lines.iter().enumerate().rev() {
+        if claude_footer_rule.is_some_and(|rule| index <= rule) {
+            break;
+        }
         match agent {
             SessionChatOptionAgent::Antigravity => {
                 if let Some(selection) = match_antigravity_statusline(scanned) {
@@ -237,6 +243,12 @@ fn claude_ultracode_on_lines(lines: &[String]) -> Option<bool> {
             .split(|ch: char| ch == '\u{2500}' || ch.is_whitespace())
             .any(|word| word == "ultracode"),
     )
+}
+
+/// CDXC:AgentScreenDetection 2026-10-17 WHY:
+/// Claude draws its own status line under the bottom rule of its input box, so only the lines under that rule describe this session. Everything above it is the conversation, and an agent that quotes another session's footer there ("Haiku 5.5 | low", read back with `ghostex read-text`) made gxserver report that model as this session's terminal reading whenever its own footer had no model segment the grammar knows (a custom status line), which is GitHub issue #248: an Opus session's chip read "Haiku 5.5 xHigh". `None` when no rule is in the window, which keeps the whole window as before.
+fn claude_footer_rule(lines: &[String]) -> Option<usize> {
+    lines.iter().rposition(|line| is_divider_line(line))
 }
 
 /// Agents whose questions exist only on their screen: no hook announces them, so the prompt
