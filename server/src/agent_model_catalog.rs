@@ -1,15 +1,21 @@
 //! The published agent model catalog (`agent-model-catalog.json`), kept
 //! current while gxserver runs.
 //!
-//! CDXC:AgentProviders 2026-09-22 DECISION:
+//! CDXC:AgentProviders 2026-10-17 DECISION:
 //! User: new models must show in the model menu and the quick picker almost
-//! as soon as the catalog is pushed, with a robust combination of every
-//! delivery path. gxserver polls the file on GitHub main, keeps the last good
-//! copy on disk, and broadcasts `agentModelCatalogChanged` (carrying the whole
-//! document) to every event socket, including chat-only ones, and sends the
-//! copy it holds to each socket as it connects. The same copy is what screen
-//! detection maps footer names through and what the Cursor, Grok and
-//! Antigravity picker drivers accept, so a model added to the file is
+//! as soon as they exist, with a robust combination of every delivery path.
+//! gxserver polls the file on GitHub main, keeps the last good copy on disk,
+//! and broadcasts `agentModelCatalogChanged` (carrying the whole document) to
+//! every event socket, including chat-only ones, and sends the copy it holds
+//! to each socket as it connects. The user confirmed (2026-10-17) that the
+//! Antigravity, Codex, Cursor and Grok lineups are read from their CLIs instead
+//! ("read the list for them and for cursor now please", then Grok's from
+//! `grok models`; `agent_model_lineups.rs`), which supersedes the 2026-09-22 rule that the
+//! file alone names every agent's models: a lineup a CLI printed takes that
+//! agent's place in the document gxserver serves, and the file's rows for it
+//! remain only for released apps and for a computer whose CLI never answered.
+//! The served document is what screen detection maps footer names through and
+//! what the Cursor, Grok and Antigravity picker drivers accept, so a model is
 //! selectable and recognised without a release. Until 2026-09-25 the
 //! TypeScript clients also polled GitHub themselves (the deleted
 //! `packages/shared/agent-model-catalog-state.ts`); the Rust chat clients take
@@ -25,11 +31,12 @@
 //! validation mirrors).
 
 use std::{
+    collections::BTreeMap,
     fs,
     io::Read,
     path::PathBuf,
     sync::{Arc, OnceLock, RwLock},
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use serde_json::{json, Value};
@@ -52,9 +59,23 @@ const POLL_INTERVAL: Duration = Duration::from_secs(5 * 60);
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(15);
 const MAX_CATALOG_BYTES: u64 = 2 * 1024 * 1024;
 const USER_AGENT: &str = "ghostex-gxserver";
+/// A lineup read from a CLI is read again after this long, and sooner when the CLI did not answer.
+const LINEUP_TTL: Duration = Duration::from_secs(10 * 60);
+const LINEUP_RETRY: Duration = Duration::from_secs(2 * 60);
+const LINEUP_TICK: Duration = Duration::from_secs(15);
+
+/// One agent's lineup as its CLI last printed it, and when it last changed.
+struct Lineup {
+    entry: Value,
+    changed_at: String,
+}
 
 struct CatalogState {
+    /// The published document: the newest of the bundle, the cache and GitHub.
     catalog: Arc<Value>,
+    /// What gxserver serves: `catalog` with each CLI's lineup in its agent's place.
+    effective: Arc<Value>,
+    lineups: BTreeMap<String, Lineup>,
     /// True from boot: the effective lineup (the newest of the bundle and
     /// the cache) counts as published, so every client is told it, not only
     /// once a fetch succeeds. See adopt_cached_copy.
@@ -71,8 +92,11 @@ fn state() -> &'static RwLock<CatalogState> {
             is_valid_catalog(&bundled),
             "bundled agent model catalog does not validate"
         );
+        let bundled = Arc::new(bundled);
         RwLock::new(CatalogState {
-            catalog: Arc::new(bundled),
+            catalog: bundled.clone(),
+            effective: bundled,
+            lineups: BTreeMap::new(),
             published: false,
             etag: None,
         })
@@ -80,12 +104,142 @@ fn state() -> &'static RwLock<CatalogState> {
 }
 
 /// The catalog in effect: the newest of the bundle and the cache from boot,
-/// then the last good copy fetched from GitHub.
+/// then the last good copy fetched from GitHub, with the lineups the agent
+/// CLIs printed in their agents' places.
 pub fn current() -> Arc<Value> {
     state()
         .read()
-        .map(|state| state.catalog.clone())
-        .unwrap_or_else(|poisoned| poisoned.into_inner().catalog.clone())
+        .map(|state| state.effective.clone())
+        .unwrap_or_else(|poisoned| poisoned.into_inner().effective.clone())
+}
+
+/// Recomputes the served document after the published copy or a lineup changed. Its `updatedAt`
+/// is the later of the file's and the newest lineup change, so clients, which keep the newer
+/// document, adopt a changed lineup.
+fn rebuild_effective(state: &mut CatalogState) {
+    if state.lineups.is_empty() {
+        state.effective = state.catalog.clone();
+        return;
+    }
+    let mut effective = (*state.catalog).clone();
+    if let Some(agents) = effective.get_mut("agents").and_then(Value::as_object_mut) {
+        for (agent, lineup) in &state.lineups {
+            agents.insert(agent.clone(), lineup.entry.clone());
+        }
+    }
+    if let Some(newest) = state
+        .lineups
+        .values()
+        .map(|lineup| lineup.changed_at.as_str())
+        .max()
+        .filter(|newest| *newest > updated_at(&state.catalog))
+    {
+        effective["updatedAt"] = json!(newest);
+    }
+    state.effective = Arc::new(effective);
+}
+
+fn lineups_path(paths: &GxserverPaths) -> PathBuf {
+    paths.app_cache_dir.join("agent-model-lineups.json")
+}
+
+fn read_cached_lineups(paths: &GxserverPaths) -> BTreeMap<String, Lineup> {
+    let Some(cached) = fs::read_to_string(lineups_path(paths))
+        .ok()
+        .and_then(|text| serde_json::from_str::<Value>(&text).ok())
+    else {
+        return BTreeMap::new();
+    };
+    crate::agent_model_lineups::RUNTIME_AGENTS
+        .iter()
+        .filter_map(|agent| {
+            let saved = cached.get(*agent)?;
+            let entry = saved.get("entry").filter(|entry| is_valid_agent(entry))?;
+            Some((
+                agent.to_string(),
+                Lineup {
+                    entry: entry.clone(),
+                    changed_at: saved.get("changedAt")?.as_str()?.to_string(),
+                },
+            ))
+        })
+        .collect()
+}
+
+fn write_cached_lineups(paths: &GxserverPaths) {
+    let Some(text) = state().read().ok().and_then(|state| {
+        let saved: serde_json::Map<String, Value> = state
+            .lineups
+            .iter()
+            .map(|(agent, lineup)| {
+                (
+                    agent.clone(),
+                    json!({ "changedAt": lineup.changed_at, "entry": lineup.entry }),
+                )
+            })
+            .collect();
+        serde_json::to_string_pretty(&Value::Object(saved)).ok()
+    }) else {
+        return;
+    };
+    let path = lineups_path(paths);
+    if let Some(parent) = path.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+    let staged = path.with_extension("json.tmp");
+    if fs::write(&staged, text).is_ok() {
+        let _ = fs::rename(&staged, &path);
+    }
+}
+
+/// Puts a lineup a CLI printed in its agent's place. Returns whether the served document changed.
+fn adopt_lineup(agent: &str, entry: Value) -> bool {
+    let Ok(mut state) = state().write() else {
+        return false;
+    };
+    if state
+        .lineups
+        .get(agent)
+        .is_some_and(|lineup| lineup.entry == entry)
+    {
+        return false;
+    }
+    state.lineups.insert(
+        agent.to_string(),
+        Lineup {
+            entry,
+            changed_at: chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string(),
+        },
+    );
+    rebuild_effective(&mut state);
+    true
+}
+
+/// Reads each CLI's lineup now and again every [`LINEUP_TTL`] for as long as the server runs,
+/// telling every client when one changed. A CLI that cannot answer keeps its last lineup.
+fn refresh_lineups(paths: GxserverPaths, event_hub: GxserverEventHub, server_id: String) {
+    let agents = crate::agent_model_lineups::RUNTIME_AGENTS;
+    let mut due = vec![Instant::now(); agents.len()];
+    loop {
+        for (index, agent) in agents.iter().enumerate() {
+            if Instant::now() < due[index] {
+                continue;
+            }
+            let entry = crate::agent_model_lineups::read_lineup(agent)
+                .filter(|entry| is_valid_agent(entry));
+            due[index] = Instant::now()
+                + if entry.is_some() {
+                    LINEUP_TTL
+                } else {
+                    LINEUP_RETRY
+                };
+            if entry.is_some_and(|entry| adopt_lineup(agent, entry)) {
+                write_cached_lineups(&paths);
+                event_hub.broadcast(changed_event(&server_id, &current()));
+            }
+        }
+        std::thread::sleep(LINEUP_TICK);
+    }
 }
 
 fn agent_models(catalog: &Value, agent: &str) -> Vec<Value> {
@@ -172,7 +326,7 @@ pub fn connect_event(server_id: &str) -> Option<Value> {
     let state = state().read().ok()?;
     state
         .published
-        .then(|| changed_event(server_id, &state.catalog))
+        .then(|| changed_event(server_id, &state.effective))
 }
 
 fn remote_enabled() -> bool {
@@ -213,6 +367,7 @@ pub fn adopt_cached_copy(paths: &GxserverPaths) {
         .ok()
         .and_then(|text| serde_json::from_str::<Value>(&text).ok())
         .filter(is_valid_catalog);
+    let lineups = read_cached_lineups(paths);
     let Ok(mut state) = state().write() else {
         return;
     };
@@ -221,6 +376,11 @@ pub fn adopt_cached_copy(paths: &GxserverPaths) {
             state.catalog = Arc::new(cached);
         }
     }
+    // The lineups the CLIs printed on an earlier run serve until this run reads them again.
+    if state.lineups.is_empty() {
+        state.lineups = lineups;
+    }
+    rebuild_effective(&mut state);
     state.published = true;
 }
 
@@ -285,6 +445,7 @@ fn poll_once(
             *state.catalog != catalog && updated_at(&catalog) >= updated_at(&state.catalog);
         if changed {
             state.catalog = Arc::new(catalog.clone());
+            rebuild_effective(&mut state);
         }
         changed
     };
@@ -299,7 +460,7 @@ fn poll_once(
                 let _ = fs::rename(&staged, &path);
             }
         }
-        event_hub.broadcast(changed_event(server_id, &catalog));
+        event_hub.broadcast(changed_event(server_id, &current()));
     }
     Ok(changed)
 }
@@ -313,6 +474,12 @@ pub fn start(
     logger: Arc<GxserverLogger>,
 ) {
     adopt_cached_copy(&paths);
+    if !cfg!(test) {
+        let (paths, event_hub, server_id) = (paths.clone(), event_hub.clone(), server_id.clone());
+        let _ = std::thread::Builder::new()
+            .name("agent-model-lineups".to_string())
+            .spawn(move || refresh_lineups(paths, event_hub, server_id));
+    }
     if !remote_enabled() {
         return;
     }

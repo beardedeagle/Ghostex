@@ -471,6 +471,59 @@ impl ChatOptionMenuPanel {
         Some(tray.into_any_element())
     }
 
+    /// The tab's Legacy models toggle under its rows; the core lists the legacy rows after the
+    /// current ones while it is open.
+    fn render_model_legacy_toggle(
+        &self,
+        legacy: &serde_json::Map<String, Value>,
+        appearance: &ChatAppearance,
+        palette: &Palette,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let scale = appearance.scale;
+        let open = legacy.get("open") == Some(&Value::Bool(true));
+        let label = format!(
+            "{} ({})",
+            legacy
+                .get("label")
+                .and_then(Value::as_str)
+                .unwrap_or_default(),
+            legacy.get("count").and_then(Value::as_u64).unwrap_or(0)
+        );
+        let hover = palette.ink(0.06);
+        div()
+            .id("model-menu-legacy")
+            .role(gpui::Role::Button)
+            .aria_label(label.clone())
+            .flex_shrink_0()
+            .mx(px(4.0 * scale))
+            .mt(px(2.0 * scale))
+            .px(px(8.0 * scale))
+            .h(px(26.0 * scale))
+            .rounded(px(ITEM_RADIUS * scale))
+            .flex()
+            .items_center()
+            .gap(px(6.0 * scale))
+            .text_size(px(12.0 * scale))
+            .text_color(palette.muted)
+            .hover(move |style| style.bg(hover))
+            .on_click(cx.listener(move |panel, _, _, cx| {
+                panel.model_menu_send(json!({"type":"modelMenuView","legacyOpen":!open}), cx);
+            }))
+            .child(
+                svg()
+                    .path(if open {
+                        "titlebar/chevron-down.svg"
+                    } else {
+                        "titlebar/chevron-right.svg"
+                    })
+                    .size(px(12.0 * scale))
+                    .text_color(palette.muted),
+            )
+            .child(label)
+            .into_any_element()
+    }
+
     pub(in crate::app::native_chat::option_menu) fn render_model_menu(
         &mut self,
         window: &mut gpui::Window,
@@ -586,7 +639,17 @@ impl ChatOptionMenuPanel {
                     .bg(palette.ink(0.02))
                     // Picks wait while the agent cannot take one; the rows say so by dimming.
                     .opacity(if view["disabled"] == true { 0.5 } else { 1.0 })
-                    .child(list),
+                    .flex()
+                    .flex_col()
+                    .child(div().flex_1().min_h_0().child(list))
+                    .when_some(view["legacy"].as_object().cloned(), |area, legacy| {
+                        area.child(self.render_model_legacy_toggle(
+                            &legacy,
+                            &appearance,
+                            &palette,
+                            cx,
+                        ))
+                    }),
             )
             .children(self.render_model_traits(
                 &view,

@@ -9,9 +9,10 @@ use serde_json::{json, Value};
 use crate::menus::catalog::AgentModelCatalog;
 use crate::menus::option_catalog::session_option_catalog;
 use crate::menus::picker::model_menu::{
-    model_menu_empty_text, model_menu_entries, model_menu_opening_tab, model_menu_pick_value,
-    model_menu_rows, model_menu_tabs, ModelMenuCatalogs, ModelMenuCurrent, ModelMenuEffort,
-    ModelMenuRow, ModelMenuView, MODEL_MENU_FAVORITES_TAB, MODEL_MENU_SEARCH_PLACEHOLDER,
+    model_menu_empty_text, model_menu_entries, model_menu_legacy_count, model_menu_opening_tab,
+    model_menu_pick_value, model_menu_rows, model_menu_tabs, ModelMenuCatalogs, ModelMenuCurrent,
+    ModelMenuEffort, ModelMenuRow, ModelMenuView, MODEL_MENU_FAVORITES_TAB,
+    MODEL_MENU_SEARCH_PLACEHOLDER,
 };
 use crate::menus::picker::model_picker::{
     model_picker_scope_reason, model_picker_supports_session_scope, ModelPickerProvider,
@@ -203,17 +204,19 @@ pub fn model_menu_projection(
             .and_then(Value::as_str),
         catalog,
     );
+    let current = ModelMenuCurrent {
+        provider: context
+            .provider
+            .map(|provider| provider.as_str().to_string()),
+        model: context.model_value.clone(),
+    };
     let rows: Vec<ModelMenuRow> = model_menu_rows(
         &entries,
         tab,
         &view.query,
         favorites,
-        &ModelMenuCurrent {
-            provider: context
-                .provider
-                .map(|provider| provider.as_str().to_string()),
-            model: context.model_value.clone(),
-        },
+        &current,
+        view.legacy_open,
     )
     .into_iter()
     .map(|mut row| {
@@ -238,6 +241,16 @@ pub fn model_menu_projection(
             })
             .collect::<Vec<_>>(),
         "rows": rows,
+        // The tab's Legacy models list: a toggle below the current models, whose rows follow
+        // them in `rows` while it is open.
+        "legacy": match model_menu_legacy_count(&entries, tab, &view.query, favorites, &current) {
+            0 => Value::Null,
+            count => json!({
+                "label": crate::menus::catalog::LEGACY_GROUP_LABEL,
+                "count": count,
+                "open": view.legacy_open,
+            }),
+        },
         "emptyText": rows
             .is_empty()
             .then(|| model_menu_empty_text(tab, &view.query)),
@@ -287,5 +300,6 @@ pub fn model_menu_visible_rows(
                 .map(|provider| provider.as_str().to_string()),
             model: context.model_value.clone(),
         },
+        view.legacy_open,
     )
 }

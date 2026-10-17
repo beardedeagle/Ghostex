@@ -40,18 +40,26 @@ fn model_menu_view(state: &mut ChatState, action: &UserAction) -> Vec<Effect> {
     match tab {
         Some(Value::Null) => {
             state.pickers.model_menu_view.tab = None;
+            state.pickers.model_menu_view.legacy_open = false;
             effects.push(Effect::ReadStorage {
                 key: model_favorites_key(),
             });
         }
         Some(Value::String(tab)) => {
-            state.pickers.model_menu_view.tab = Some(ModelMenuTabId::from_wire(tab));
+            let tab = Some(ModelMenuTabId::from_wire(tab));
+            if state.pickers.model_menu_view.tab != tab {
+                state.pickers.model_menu_view.legacy_open = false;
+            }
+            state.pickers.model_menu_view.tab = tab;
         }
         // `command.tab === undefined` leaves the tab alone.
         _ => {}
     }
     if let Some(query) = action.param("query").and_then(Value::as_str) {
         state.pickers.model_menu_view.query = query.to_string();
+    }
+    if let Some(open) = action.param("legacyOpen").and_then(Value::as_bool) {
+        state.pickers.model_menu_view.legacy_open = open;
     }
     effects
 }

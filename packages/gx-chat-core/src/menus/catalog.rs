@@ -241,6 +241,10 @@ fn parse_agent(input: &Value) -> Option<CatalogAgent> {
         }
         models.push(model);
     }
+    let mut groups = groups;
+    if object.get("legacyRule").and_then(Value::as_str) == Some(LEGACY_RULE_NEWEST_PER_FAMILY) {
+        group_older_versions(&mut groups, &mut models);
+    }
     let fast_mode_input = object.get("fastMode").and_then(Value::as_object);
     let fast_mode = CatalogFastMode {
         available: fast_mode_input
@@ -260,6 +264,81 @@ fn parse_agent(input: &Value) -> Option<CatalogAgent> {
         groups,
         models,
     })
+}
+
+/// The `legacyRule` gxserver sets on a lineup it read from the agent's CLI.
+pub const LEGACY_RULE_NEWEST_PER_FAMILY: &str = "newestPerFamily";
+/// The group older models move into; the model menu draws it as its "Legacy models" list.
+pub const LEGACY_GROUP_ID: &str = "legacy";
+pub const LEGACY_GROUP_LABEL: &str = "Legacy models";
+
+/// CDXC:AgentProviders 2026-10-17 DECISION:
+/// User: for the model lists read from the CLIs (Antigravity, Codex, Cursor, then Grok) "we should have 'legacy models' menu and just show the new ones at the top". No CLI flags a model as old (Codex's `visibility` only hides internal models, which gxserver drops), so the rule reads the names: a model's family is its name without the version number ("GPT 6.1 Sol" is GPT Sol, version 6.1), only the newest version of each family stays at the top, and the older ones move, in their order, into the Legacy models group after them. A name without a version number (Auto, GPT-OSS 120B, Muse Wonder) stays at the top.
+/// SEE-ALSO: server/src/agent_model_lineups.rs (the lineups that carry the rule), packages/gx-chat-core/src/menus/picker/model_menu.rs (the menu's Legacy models list).
+fn group_older_versions(groups: &mut Vec<CatalogGroup>, models: &mut Vec<CatalogModel>) {
+    let keys: Vec<Option<(String, Vec<u32>)>> = models
+        .iter()
+        .map(|model| family_and_version(&model.label))
+        .collect();
+    let mut newest: BTreeMap<&str, &Vec<u32>> = BTreeMap::new();
+    for (family, version) in keys.iter().flatten() {
+        let entry = newest.entry(family.as_str()).or_insert(version);
+        if version > *entry {
+            *entry = version;
+        }
+    }
+    let older: Vec<bool> = models
+        .iter()
+        .zip(&keys)
+        .map(|(model, key)| {
+            model.group.is_none()
+                && key
+                    .as_ref()
+                    .is_some_and(|(family, version)| newest[family.as_str()] > version)
+        })
+        .collect();
+    if !older.contains(&true) {
+        return;
+    }
+    let (mut current, mut legacy): (Vec<_>, Vec<_>) = std::mem::take(models)
+        .into_iter()
+        .zip(older)
+        .partition(|(_, older)| !older);
+    models.extend(current.drain(..).map(|(model, _)| model));
+    models.extend(legacy.drain(..).map(|(mut model, _)| {
+        model.group = Some(LEGACY_GROUP_ID.to_string());
+        model
+    }));
+    if !groups.iter().any(|group| group.id == LEGACY_GROUP_ID) {
+        groups.push(CatalogGroup {
+            id: LEGACY_GROUP_ID.to_string(),
+            label: LEGACY_GROUP_LABEL.to_string(),
+            description: None,
+        });
+    }
+}
+
+/// A model name's family (its other words, lower case) and its version number: the first word of
+/// digits and dots. `None` for a name without one.
+fn family_and_version(label: &str) -> Option<(String, Vec<u32>)> {
+    let mut family = Vec::new();
+    let mut version = None;
+    for word in label.split([' ', '-']).filter(|word| !word.is_empty()) {
+        if version.is_none()
+            && word.starts_with(|ch: char| ch.is_ascii_digit())
+            && word.chars().all(|ch| ch.is_ascii_digit() || ch == '.')
+        {
+            version = word
+                .split('.')
+                .map(|part| part.parse::<u32>().ok())
+                .collect::<Option<Vec<u32>>>();
+            if version.is_some() {
+                continue;
+            }
+        }
+        family.push(word.to_lowercase());
+    }
+    Some((family.join(" "), version?))
 }
 
 fn parse_groups(input: Option<&Value>) -> Option<Vec<CatalogGroup>> {

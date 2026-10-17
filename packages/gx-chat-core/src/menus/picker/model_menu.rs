@@ -72,6 +72,8 @@ impl ModelMenuTabId {
 pub struct ModelMenuView {
     pub tab: Option<ModelMenuTabId>,
     pub query: String,
+    /// Whether the open tab lists its Legacy models below the current ones.
+    pub legacy_open: bool,
 }
 
 /// One model choice as family e1's session option catalog lists it.
@@ -86,6 +88,9 @@ pub struct ModelChoice {
     pub label: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
+    /// The catalog put the model in its Legacy models group.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub legacy: bool,
 }
 
 /// One agent's model lineup, as the menu needs it.
@@ -125,6 +130,9 @@ pub struct ModelMenuEntry {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     pub variants: Vec<ModelMenuVariant>,
+    /// Listed under the tab's Legacy models, below the current models.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub legacy: bool,
 }
 
 /// One row of the open tab.
@@ -222,6 +230,7 @@ fn entries_for(provider: ModelPickerProvider, catalog: &ModelMenuCatalog) -> Vec
             label: choice.label.clone(),
             description: choice.description.clone(),
             variants,
+            legacy: choice.legacy,
         });
     }
     entries
@@ -326,6 +335,7 @@ pub fn model_menu_rows(
     query: &str,
     favorites: &[String],
     current: &ModelMenuCurrent,
+    legacy_open: bool,
 ) -> Vec<ModelMenuRow> {
     let favorites_tab = tab == ModelMenuTabId::Favorites;
     // A row's star is saved under its own value, or under its 1M twin's, which is where a model
@@ -346,11 +356,29 @@ pub fn model_menu_rows(
     } else {
         entries_of(entries, tab.as_str()).iter().collect()
     };
+    let selected_entry = model_menu_entry_for(
+        entries,
+        current.provider.as_deref(),
+        current.model.as_deref(),
+    );
     let query = query.trim().to_lowercase();
     let mut ranked: Vec<(&ModelMenuEntry, bool, usize, usize)> = Vec::new();
     for (index, entry) in pool.iter().enumerate() {
         let favorite = is_favorite(entry);
         if query.is_empty() {
+            // An agent's tab lists its legacy models after the current ones, and only once its
+            // Legacy models list is open; a starred one stays with the favorites at the top, and
+            // the session's own model stays in view.
+            if !favorites_tab
+                && entry.legacy
+                && !favorite
+                && selected_entry.is_none_or(|selected| selected != *entry)
+            {
+                if legacy_open {
+                    ranked.push((entry, favorite, index, 1));
+                }
+                continue;
+            }
             ranked.push((entry, favorite, index, 0));
             continue;
         }
@@ -383,11 +411,6 @@ pub fn model_menu_rows(
             .then_with(|| right.1.cmp(&left.1))
             .then_with(|| left.2.cmp(&right.2))
     });
-    let selected_entry = model_menu_entry_for(
-        entries,
-        current.provider.as_deref(),
-        current.model.as_deref(),
-    );
     ranked
         .into_iter()
         .enumerate()
@@ -404,6 +427,37 @@ pub fn model_menu_rows(
             entry: (*entry).clone(),
         })
         .collect()
+}
+
+/// How many legacy models the open tab folds into its Legacy models list: none on the favorites
+/// tab or during a search, which list every match.
+pub fn model_menu_legacy_count(
+    entries: &ModelMenuEntries,
+    tab: ModelMenuTabId,
+    query: &str,
+    favorites: &[String],
+    current: &ModelMenuCurrent,
+) -> usize {
+    if tab == ModelMenuTabId::Favorites || !query.trim().is_empty() {
+        return 0;
+    }
+    let selected_entry = model_menu_entry_for(
+        entries,
+        current.provider.as_deref(),
+        current.model.as_deref(),
+    );
+    entries_of(entries, tab.as_str())
+        .iter()
+        .filter(|entry| {
+            entry.legacy
+                && selected_entry.is_none_or(|selected| selected != *entry)
+                && !std::iter::once(&entry.value)
+                    .chain(entry.variants.iter().map(|variant| &variant.value))
+                    .any(|value| {
+                        favorites.contains(&model_menu_favorite_key(entry.provider.as_str(), value))
+                    })
+        })
+        .count()
 }
 
 /// `modelMenuEmptyText`.

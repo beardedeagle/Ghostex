@@ -80,6 +80,8 @@ fn model_menu_catalogs(state: &ChatState, session_provider: Option<&str>) -> Mod
                         value: choice.value.clone(),
                         label: choice.label.clone(),
                         description: choice.description.clone(),
+                        legacy: choice.group.as_deref()
+                            == Some(crate::menus::catalog::LEGACY_GROUP_ID),
                     })
                     .collect(),
                 agent_name: if provider == ModelPickerProvider::Hermes {

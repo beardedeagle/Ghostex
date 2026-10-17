@@ -1526,7 +1526,11 @@ mode button switches it; the reasoning button opens a short list to the side. A
 button the current model has no choice for is dimmed: reasoning and context
 window read Default, and Fast mode reads Off. Grok Build's fast model (Grok 4.7
 Fast) is not its own row: pick Grok 4.7 and switch Fast mode on or off. Auto, where an agent offers it,
-always sits at the top of that agent's list. Click a row's star to keep that
+always sits at the top of that agent's list. Older versions of a model (GPT 6 Sol
+once GPT 6.1 Sol is out, for example) sit under Legacy models at the bottom of
+the tab; click it to show them, or star one to keep it at the top. Codex,
+Cursor, Grok Build and Antigravity's lists come from the CLI installed on that computer, so
+new models show up without a Ghostex update. Click a row's star to keep that
 model on the Favorites tab; hover the info icon that appears on a row to read
 what that model is for. In a session that has started, another agent's tab
 shows a small handoff badge: picking one of its models hands the conversation
