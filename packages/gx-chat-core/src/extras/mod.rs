@@ -28,6 +28,7 @@ pub mod terminal_tail_format;
 pub mod time;
 pub mod transcript_search;
 pub mod welcome;
+pub mod working_card;
 pub mod working_strip;
 pub mod working_words;
 

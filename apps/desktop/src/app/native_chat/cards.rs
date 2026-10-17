@@ -154,11 +154,11 @@ impl NativeChatView {
 
     /// The card's shell around its header, its body column (already spaced) and its footer.
     ///
-    /// CDXC:SessionChat 2026-09-16 DECISION:
-    /// User: every card above the composer, and the status cards in the transcript, shares one shell so a change is made once.
+    /// CDXC:SessionChat 2026-10-17 DECISION:
+    /// User (2026-09-16): every card above the composer, and the status cards in the transcript, shares one shell so a change is made once.
     /// Two tones: a panel for the header and body, and a band under a hairline for the actions; an input border, 0.75rem radius, 1rem/0.75rem padding, 0.875rem text.
     /// Each card leads with its own icon, the title matches the transcript text at regular weight, a dismiss is a circled X, and actions sit right-aligned in the footer band.
-    /// A card whose border carries a colour is one tone. The working strip stays a bare line and never becomes a card.
+    /// A card whose border carries a colour is one tone. User (2026-10-17, Q253 "card"): the working indicator becomes a card too, the working card at the transcript's end, with this shell's border, radius and panel tone (working_card.rs draws it, one line high). Supersedes "The working strip stays a bare line and never becomes a card."
     /// Light-mode tones: see the Theming 2026-09-22 decision in appearance.rs. The question counter moved into the header on 2026-09-21 (question.rs).
     fn status_card_panel(
         &self,

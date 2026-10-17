@@ -60,7 +60,7 @@ pub(crate) struct NativeChatView {
     /// Which trigger owns the open menu, so pressing it again shuts it (`menu_toggle.rs`).
     pub(super) menu_toggle: super::menu_toggle::ChatMenuToggle,
     /// The working row's pills, measured where their menus open (`chat_pills.rs`).
-    pub(super) pill_bounds: super::chat_pills::ChatPillBounds,
+    pub(super) working_lane: super::working_card::WorkingLaneCells,
     pub(super) save_markdown_window: super::save_markdown::SaveMarkdownWindowState,
     pub(super) rewind_window: super::rewind::RewindWindowState,
     pub(super) image_viewer: super::image_viewer::ImageViewerState,
@@ -208,7 +208,7 @@ pub(crate) struct NativeChatView {
     /// Which transcript row asked for each detail, and the rows drawn since the last sync (row_details.rs).
     pub(super) detail_rows: super::row_details::DetailRows,
     pub(super) detail_sync_scheduled: bool,
-    /// Armed Delayed Send / Close After Done labels drawn on the working row, set by the app (session_chat_armed_actions.rs).
+    /// Armed Delayed Send / Close After Done labels drawn on the working card, set by the app (session_chat_armed_actions.rs).
     pub(crate) armed_actions: Value,
     pub(crate) collapsed: HashSet<String>,
     /// How each fenced block the reader has touched wraps; the rest follow `code_wrap_default`.
@@ -366,7 +366,7 @@ impl NativeChatView {
             input_focus_listeners: Vec::new(),
             option_menu: None,
             menu_toggle: Default::default(),
-            pill_bounds: Default::default(),
+            working_lane: Default::default(),
             context_editor_window: Default::default(),
             save_markdown_window: Default::default(),
             rewind_window: Default::default(),

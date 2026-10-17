@@ -1,1 +1,0 @@
-../../../../desktop/src/app/native_chat/terminal_tool_row.rs

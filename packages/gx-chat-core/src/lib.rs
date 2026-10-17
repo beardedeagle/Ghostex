@@ -49,7 +49,7 @@ pub use crate::document::{
     FrameParts, HostAction, IncomingDraft, Interaction, ItemsSplice, LoadingNotice, MinimapMarker,
     NewSessionWelcome, Note, ProjectedMessage, QuestionCard, QuestionControls, QuestionDraft,
     Queue, QueueCapabilities, QueuedPrompt, RowDetails, TerminalTail, TerminalTailNotice,
-    TranscriptItem, ViewState, WorkingStrip,
+    TranscriptItem, ViewState, WorkingCard, WorkingStrip,
 };
 pub use crate::effect::{Effect, HostRequest, OpenTarget, RequestKind, StorageWrite};
 pub use crate::event::{

@@ -20,18 +20,6 @@ const ROW_HEIGHT: f32 = 22.0;
 const ROW_GAP: f32 = 2.0;
 const LIST_MAX: f32 = 220.0;
 
-/// The Tasks pill's menu: the header line, the rows and the "N more tasks" fold.
-pub(super) fn tasks_menu_height(panel: &Value) -> f32 {
-    let rows = panel["rows"].as_array().map_or(0, Vec::len);
-    let list = (rows as f32 * ROW_HEIGHT + rows.saturating_sub(1) as f32 * ROW_GAP).min(LIST_MAX);
-    let footer = if text(panel, "foldLabel").is_empty() {
-        0.0
-    } else {
-        super::chat_pills::MENU_SECTION_GAP + super::chat_pills::MENU_FOOTER_HEIGHT
-    };
-    super::chat_pills::MENU_HEADER_HEIGHT + super::chat_pills::MENU_SECTION_GAP + list + footer
-}
-
 impl NativeChatView {
     /// The Tasks pill's floating menu: what the Tasks panel above the composer showed, the progress
     /// bar beside its header line and the same rows and fold.

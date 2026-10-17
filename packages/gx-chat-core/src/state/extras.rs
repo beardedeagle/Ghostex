@@ -83,6 +83,11 @@ pub struct PanelsState {
     pub threads_open_request: Option<u64>,
     /// The grouped background-task row is unfolded to its tasks; folded by default, per chat.
     pub background_tasks_open: bool,
+    /// The working card at the transcript's end is open (`extras::working_card`). Shut when a turn
+    /// ends.
+    pub working_card_open: bool,
+    /// The working flag the card's open state was last settled against.
+    pub working_card_last_working: Option<bool>,
 }
 
 impl Default for PanelsState {
@@ -97,6 +102,8 @@ impl Default for PanelsState {
             threads_all_request: None,
             threads_open_request: None,
             background_tasks_open: false,
+            working_card_open: false,
+            working_card_last_working: None,
         }
     }
 }

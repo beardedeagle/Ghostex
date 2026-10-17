@@ -14,7 +14,7 @@ use crate::event::Event;
 use crate::extras::panels::FLEET_CLOCK_TICK_MS;
 use crate::extras::{
     coordinator_threads, panels, save_markdown, search, subagent, subagent_rows, terminal_tail,
-    working_strip,
+    working_card, working_strip,
 };
 use crate::session::timers::TimerTable;
 use crate::state::{
@@ -145,6 +145,7 @@ fn settle_with_ids(
         Vec::new()
     };
     working_strip::settle_working_word(&mut state.extras.working_word, working, context);
+    working_card::settle(state, working);
     panels::settle_task_signature(&mut state.extras.panels, tasks.as_ref());
     if state.core.operation_error_code.as_deref() != Some("composerNotReady") {
         terminal_tail::retire(&mut state.extras.terminal_tail);

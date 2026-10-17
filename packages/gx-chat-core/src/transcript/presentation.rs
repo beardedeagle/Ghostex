@@ -411,6 +411,46 @@ pub struct Projection {
     /// pointing at the row index of the list it just built. Family f owns the rail's rules; this
     /// pass is where the TypeScript calls them, so it is where the core calls them too.
     pub minimap: Vec<crate::extras::minimap_rail::MinimapMarkerRow>,
+    /// The newest turn's id and its "Worked 2m 13s" once it has finished and nothing was sent
+    /// after it: the working card's line at the transcript's end (`extras::working_card`).
+    pub worked_turn: Option<(String, String)>,
+}
+
+/// "Worked 2m 5s" for a finished turn, the label on its fold.
+fn turn_worked_label(turn: &crate::transcript::turns::CompletedWorkTurn) -> String {
+    worked_duration_label(
+        turn.user.timestamp,
+        turn.final_message
+            .as_ref()
+            .and_then(|message| message.timestamp)
+            .or_else(|| {
+                turn.user
+                    .deferred_work
+                    .as_ref()
+                    .and_then(|deferred| deferred.completed_at)
+            })
+            // An interrupted turn has no final reply; it ran until its last row.
+            .or_else(|| turn.work.iter().rev().find_map(|row| row.timestamp)),
+    )
+}
+
+/// The newest turn's Worked line, when that turn has finished, timed, with no prompt after it.
+fn latest_worked_turn(items: &[RenderItem], working: bool) -> Option<(String, String)> {
+    if working {
+        return None;
+    }
+    for item in items.iter().rev() {
+        match item {
+            RenderItem::Message(message) if message.role == ChatRole::User => return None,
+            RenderItem::Message(_) => continue,
+            RenderItem::CompletedWork(turn) => {
+                let label = turn_worked_label(turn);
+                // A turn with no length to show says only "Worked", which would be no news.
+                return (label != "Worked").then(|| (turn.user.id.clone(), label));
+            }
+        }
+    }
+    None
 }
 
 /// The inputs of ONE `NativeChatPresentation` instance.
@@ -639,6 +679,7 @@ pub fn build_scope(
         scope.live_side_question.as_deref(),
     );
     let summary = scope.summary;
+    let worked_turn = latest_worked_turn(&projection.items, scope.working);
     let length = if summary {
         projection.summary_turns.len()
     } else {
@@ -768,20 +809,7 @@ pub fn build_scope(
                     .and_then(|deferred| serde_json::to_value(deferred).ok());
                 TranscriptItem::CompletedWork {
                     id: turn.user.id.clone(),
-                    label: worked_duration_label(
-                        turn.user.timestamp,
-                        turn.final_message
-                            .as_ref()
-                            .and_then(|message| message.timestamp)
-                            .or_else(|| {
-                                turn.user
-                                    .deferred_work
-                                    .as_ref()
-                                    .and_then(|deferred| deferred.completed_at)
-                            })
-                            // An interrupted turn has no final reply; it ran until its last row.
-                            .or_else(|| turn.work.iter().rev().find_map(|row| row.timestamp)),
-                    ),
+                    label: turn_worked_label(turn),
                     stats,
                     files_card: crate::transcript::file_change_rows::file_change_card(&files),
                     files,
@@ -888,6 +916,7 @@ pub fn build_scope(
         askers,
         backfill,
         minimap,
+        worked_turn,
     }
 }
 

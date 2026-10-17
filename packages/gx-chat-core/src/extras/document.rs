@@ -11,7 +11,7 @@ use crate::extras::welcome::{
 };
 use crate::extras::{
     chat_pills, coordinator_threads, panels, save_markdown, search, subagent, terminal_tail,
-    working_strip,
+    working_card, working_strip,
 };
 use crate::state::{ChatContext, ChatState};
 
@@ -48,6 +48,13 @@ pub fn document(state: &ChatState, context: &ChatContext, into: &mut Document) {
     }
     into.chat_pills =
         chat_pills::chat_pills(&threads_panel, &tasks_panel, &fleet_strip, &background);
+    // The ? question pill rides on the card, so a waiting question alone keeps the lane.
+    into.working_card = working_card::working_card(
+        state,
+        &into.working_strip,
+        &into.chat_pills,
+        into.open_questions.count > 0,
+    );
     into.agent_fleet_strip = Tri::Value(fleet_strip);
     into.agent_tasks_panel = Tri::Value(tasks_panel);
     into.coordinator_threads_panel = Tri::Value(threads_panel);

@@ -24,7 +24,7 @@ use crate::document::{
     AccountStatus, AsyncQuestions, ChatPill, ComposerActions, ComposerChrome, ComposerOverflow,
     DeferredWorkRow, Draft, EmptyState, HostAction, IncomingDraft, Interaction, InterruptToast,
     LoadingNotice, NewSessionWelcome, Note, QuestionCard, Queue, TerminalTail, ViewState,
-    WorkingStrip,
+    WorkingCard, WorkingStrip,
 };
 
 /// Everything the chat renderer draws, in one value.
@@ -201,8 +201,10 @@ pub struct Document {
     /// The background tasks the agent left running (`extras::background_tasks`), which the
     /// Background pill's menu lists, or `null`. Family f.
     pub background_tasks_panel: Tri<Value>,
-    /// The pills on the working row, each opening one of the panels above. Family f.
+    /// The pills on the working card, each a summary of one of the panels above. Family f.
     pub chat_pills: Vec<ChatPill>,
+    /// The working card at the transcript's end. Family f.
+    pub working_card: WorkingCard,
     /// The subagent viewer, or `null` when closed. Family f.
     pub subagent: Tri<Value>,
     /// Transcript search, or `null` when closed. Family f.

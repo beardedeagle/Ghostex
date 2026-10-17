@@ -314,7 +314,7 @@ pub fn compose(
     );
 
     // Order, from `controller.ts`: the transient terminal statuses, then the app-command rows, then
-    // the markers, then the streaming bubble, then the pending tool row, then the pending echoes.
+    // the markers, then the streaming bubble, then the pending echoes.
     let mut tail: Vec<ChatMessage> =
         unreconciled_terminal_statuses(&state.pending.terminal_status_messages, &boundaried);
     tail.extend(surface_skill_invocation_user_turns(
@@ -347,9 +347,7 @@ pub fn compose(
     if let Some(text) = streaming_text.filter(|text| !text.is_empty()) {
         tail.push(streaming_message(&text));
     }
-    if let Some(tool) = visible_tool {
-        tail.push(tool.clone());
-    }
+    // CDXC:SessionChat 2026-10-17 DECISION: User (Q253, "card"): the pending tool card and the working row become one card, the transcript's last item (`extras::working_card`). The pending tool no longer rides in the tail as a row of its own; the card's label and its open "Running now" section show it.
     tail.extend(pending_messages);
 
     let mut composed = transcript;

@@ -105,6 +105,10 @@ pub fn refresh(state: &mut ChatState, context: &ChatContext) {
     state.extras.minimap = projection.minimap;
     let view = &mut state.transcript_view;
     view.items = projection.items;
+    view.worked_line = projection.worked_turn.map(|(id, label)| {
+        without_worked_time(&mut view.items, &id);
+        label
+    });
     view.final_ids = projection.final_ids;
     view.answered_pages = projection.answered_pages;
     view.question_forms = projection.question_forms;
@@ -160,4 +164,20 @@ pub fn advance(state: &mut ChatState, context: &ChatContext) -> bool {
     state.transcript_view.backfill_revision += 1;
     refresh(state, context);
     true
+}
+
+/// The finished turn whose "Worked 2m 13s" the working card shows drops it from its own fold, which
+/// keeps its counts, so the time is on screen once.
+///
+/// CDXC:SessionChat 2026-10-17 DECISION:
+/// User (Q257, the lane when the turn ends: "worked line"): "then you need to not show the same text up top in the collapsed section that mentions how many tool calls were done in this case if you get me (because otherwise we'd have "worked 2m 13s" twice on screen". While the working card shows a turn's Worked line, that turn's fold shows only its counts.
+fn without_worked_time(items: &mut [TranscriptItem], turn_id: &str) {
+    for item in items.iter_mut().rev() {
+        if let TranscriptItem::CompletedWork { id, label, .. } = item {
+            if id == turn_id {
+                label.clear();
+            }
+            return;
+        }
+    }
 }

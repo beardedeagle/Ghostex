@@ -1108,7 +1108,7 @@ Empryo adds for its model), its replies and thinking, and the tools it runs with
 their results, and they can be exported like any other chat. Empryo saves a
 reply when the turn ends, and on longer turns sometimes a progress snapshot while
 it works, so the chat fills in step by step rather than word by word, with the
-working strip shown until the turn ends. One Ghostex session follows one Empryo
+working card shown until the turn ends. One Ghostex session follows one Empryo
 tab, the tab of your latest message; Empryo's other tabs show only in its
 terminal.
 Messages sent from the chat (or with `ghostex send-message`) go into Empryo's
@@ -1178,8 +1178,8 @@ sent, and stays open with the error if they could not be. Until you send,
 what you picked and typed is kept, in a form and on a page alike, even when
 you close the page or the chat, switch sessions, or restart. With Settings >
 Chat > Previous question button turned on (it is off by default), a small "?"
-button sits near the left end of the pills above the chat box (after Scroll to
-bottom when that shows) while a form or
+button sits on the working card at the end of the conversation, left of the other
+pills (after Scroll to bottom when that shows), while a form or
 question page in the chat is still waiting for your answers (desktop, web and
 mobile): each
 click goes to the next older unanswered one, round again after the oldest, and
@@ -1253,9 +1253,9 @@ Paste images into an answer to add numbered image references and the same
 clickable thumbnails as the composer. The references stay with the saved answer.
 
 Press Ctrl+Shift+Down to scroll the focused chat to the bottom, including while
-typing. When you scroll up, a small down-arrow button (Scroll to bottom) appears at
-the left end of the pills above the chat box, before everything else, so it never
-moves the other pills. On desktop
+typing. When you scroll up, a small down-arrow button (Scroll to bottom) appears on
+the working card just above the chat box, left of everything else, so it never
+moves the other pills (with nothing else on the card it shows on its own). On desktop
 and web, hover it to see its name and your current shortcut; mobile shows the button
 without a keyboard shortcut. Both stop any
 ongoing scroll momentum so the conversation settles at the bottom. This takes
@@ -1298,15 +1298,22 @@ Claude's queue and adds its text and pictures to your chat draft instead, unsent
 empty chat box does the same for the newest queued message, like Up in Claude's own input. Prompts you explicitly
 queue stay in the list above the input. This also applies when reopening the chat
 or continuing on another device.
-The agent's subagents, its task list, an orchestrator's threads and the commands
-still running in the background are small pills (Threads, Tasks, Subagents,
-Background) at the right end of the "Working" line above the chat box, each with a
-count, after the Scroll to bottom and "?" buttons when those show. The Background
-menu lists each running command with its own timer; hover a row (press and hold on
-the phone) to see the command itself. When they do not fit, the pills scroll sideways; in a narrow chat
-and on the phone they sit on their own line under "Working". Click or tap a pill to
-open its list in a menu that floats over the conversation (a sheet on the phone);
-click outside it or press Escape to close it.
+While the agent works, a one-line card at the end of the conversation says what it
+is doing: the running tool's description (or its command) while a tool runs, and
+a working word such as "Considering…" between tools. When the turn ends the card
+reads "Worked 2m 13s" until you send your next message, and that turn's fold
+above it then shows only its counts, so the time appears once. Scrolled up, the
+same card stays put just above the chat box, so nothing in the chat moves. The
+agent's subagents, its task list, an orchestrator's threads and the commands still
+running in the background are small pills on that card (Threads, Tasks, Subagents,
+Background), each with a count, also while the agent is idle; the Scroll to bottom
+and "?" buttons and an armed Delayed Send sit to their left. A long label is cut
+with "…" so the pills keep their full size; hover it to read all of it (on the
+phone, press and hold the card). Click or tap the card to open it: it shows the
+command the running tool is making and each pill's list (the Background list has
+each running command with its own timer; hover a row, or press and hold it on the
+phone, to see the command itself). Click or tap it again to close it; an open card
+also closes by itself when the turn ends.
 Claude children stay in the Subagents list while the terminal lists them, including
 between monitor events. Idle children are labelled Idle and their clocks pause;
 click a child's name or task to open its transcript.
@@ -2270,17 +2277,17 @@ version of the Projects features in Cursor and Claude Code.
   **Mark Thread Done** (greyed out while it is working or waiting on you) to
   mark it done and close its session, or **Reopen Thread** on a done thread to
   resume it under its orchestrator. On the phone, long-press the thread.
-- **Threads pill in the chat**: above the orchestrator's message box, a small
-  "Threads" pill counts the threads working or waiting on you. Click or tap it
-  to open the threads list in a menu that floats over the conversation (a sheet
-  on the phone): the working threads first, then "Show recent" for the ones
+- **Threads pill in the chat**: on the working card at the end of the
+  orchestrator's conversation, a small "Threads" pill counts the threads working
+  or waiting on you. Click or tap the card to open the threads list inside it:
+  the working threads first, then "Show recent" for the ones
   active in the last 2 hours, each with one line (what it is doing or how its
   last report began) and its branch; "N more" lists every other thread, closed
   ones included, and "Show fewer" folds them again. Tap or click any thread to
   open it and talk to it. A thread stuck on something only you can allow (a
   permission prompt or a folder-trust question) carries an amber "Needs your
-  approval" tag, and the pill shows an amber dot. Click outside the menu or
-  press Escape to close it. It shows on the phone and in the browser too.
+  approval" tag, and the pill shows an amber dot. Click or tap the card again to
+  close it. It shows on the phone and in the browser too.
 - **Reports come back by themselves**: when a thread finishes a turn, Ghostex
   sends its final message to the orchestrator (a "Message from" card in its
   chat); when a thread waits on a question, an approval, or a screen such as

@@ -1,14 +1,14 @@
-//! The pills on the working row: one small pill per panel that used to stand above the composer.
-//! A pill opens a floating menu with that panel's rows; the renderers only lay the row out and
-//! draw the menu from the panel values beside it (`coordinatorThreadsPanel`, `agentTasksPanel`,
-//! `agentFleetStrip`, `backgroundTasksPanel`). The renderers put two icon pills of their own before
-//! these: "Scroll to bottom" (it depends on their scroll) and "Previous question".
+//! The pills on the working card: one small pill per panel that used to stand above the composer.
+//! They are a summary; the card at the transcript's end opens to every panel's section
+//! (extras/working_card.rs), drawn from the panel values beside them (`coordinatorThreadsPanel`,
+//! `agentTasksPanel`, `agentFleetStrip`, `backgroundTasksPanel`). The renderers put two icon pills of
+//! their own before these: "Scroll to bottom" (it depends on their scroll) and "Previous question".
 //!
-//! CDXC:SessionChat 2026-10-15 DECISION:
-//! User: "i want threads to be a small pill above the chat and i want other things to also be pills above the chat that are aligned to the right on the same row as "working" and scrollable horizontally when there's no space", "i want to reduce the amout of vertical space taken up by these", "on mobile or when the chat is really narrow then this pills row can be below the "working" status line instead of in the same row as it", and "when i click on the Threads pill we should show a menu that shows what we have now but floating basically instead of pushing up the chat transcript like we do now". So Threads, Tasks, Subagents and (2026-10-15, user's answer) Background are pills in this order, right-aligned on the working row (the word keeps the left side), scrolling sideways and never wrapping; a narrow chat (and the phone, always) puts the pills on their own line under the word; a pill's menu floats over the transcript and closes on a click outside or Escape. Background tasks were first left a card; the user then asked for them as a pill too (extras/background_tasks.rs). Later the same day: "make the Question pill and scroll to bottom pill not floating, make them appear as the leftmost in the pills row and they should both just be icons", then "make the scroll to bottom appear left most so it doesn't push stuff when it appears": the renderers draw scroll-to-bottom (a down arrow) first, then Previous question (a ?), then these.
+//! CDXC:SessionChat 2026-10-17 DECISION:
+//! User (2026-10-15): "i want threads to be a small pill above the chat and i want other things to also be pills above the chat that are aligned to the right on the same row as "working" and scrollable horizontally when there's no space", "i want to reduce the amout of vertical space taken up by these", and later "make the Question pill and scroll to bottom pill not floating, make them appear as the leftmost in the pills row and they should both just be icons". So Threads, Tasks, Subagents and Background are pills in this order, right-aligned beside the label, with scroll-to-bottom (a down arrow) and Previous question (a ?) leftmost. User (2026-10-17, the working indicator review): the pills ride on the working card at the transcript's end ("on the pill", Q259; "in the lane" when idle, Q260), they are a summary and opening the card shows every section inline (Q256, recommended A), "make the scroll to bottom pill always appear on the leftmost so it doesn't push other pills when it appears", and "shouldn't allow wrapping in the pill itself, we should truncate the text on the left to make space for the pills (... at the end)": one line, the pills at full width and the label cut with an ellipsis. Supersedes the 2026-10-15 row above the composer, its own line under the word on a narrow chat and the phone, and each pill's floating menu (a sheet on the phone).
 //!
-//! CDXC:SessionChat 2026-10-15 SEE-ALSO:
-//! apps/desktop/src/app/native_chat/working_strip.rs and chat_pills.rs (desktop and web), apps/mobile/app/src/chat/native/cards/WorkingStrip.tsx and ChatPills.tsx (phone) draw this list and must match.
+//! CDXC:SessionChat 2026-10-17 SEE-ALSO:
+//! apps/desktop/src/app/native_chat/working_card.rs and chat_pills.rs (desktop and web), apps/mobile/app/src/chat/native/cards/WorkingCard.tsx and ChatPills.tsx (phone) draw this list and must match.
 
 use serde_json::Value;
 

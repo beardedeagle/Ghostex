@@ -35,8 +35,8 @@ pub fn settle_working_word(word: &mut WorkingWordState, working: bool, context: 
 /// The word is only shown when nothing more specific is: a live terminal activity (compaction)
 /// replaces it, because it says what is actually happening.
 ///
-/// CDXC:SessionChat 2026-10-15 DECISION:
-/// User (2026-10-11): while a turn runs and background tasks are running too, the chat must still show the working indicator; background tasks are an extra, not a replacement. Background tasks say nothing about the turn, so they never take the word's place. Since 2026-10-15 they are the Background pill on the working row (extras/chat_pills.rs) rather than a card under it; `extras::document` moves them out of `presentation` into `backgroundTasksPanel`.
+/// CDXC:SessionChat 2026-10-17 DECISION:
+/// User (2026-10-11): while a turn runs and background tasks are running too, the chat must still show the working indicator; background tasks are an extra, not a replacement. Background tasks say nothing about the turn, so they never take the word's place. They are the Background pill (extras/chat_pills.rs), which since 2026-10-17 rides on the working card at the transcript's end with its section inside the open card (extras/working_card.rs) instead of on the working row above the composer; `extras::document` moves them out of `presentation` into `backgroundTasksPanel`.
 pub fn working_strip(state: &ChatState, context: &ChatContext, working: bool) -> WorkingStrip {
     let activity = state.session.terminal_activity.clone();
     let background = activity

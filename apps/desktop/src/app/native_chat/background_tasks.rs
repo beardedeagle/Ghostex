@@ -20,14 +20,6 @@ use std::time::Duration;
 const ROW_HEIGHT: f32 = 22.0;
 const ROW_GAP: f32 = 4.0;
 
-/// The Background pill's menu: the header line, one row per named task and "+N more".
-pub(super) fn background_menu_height(tasks: &Value) -> f32 {
-    let rows =
-        tasks["rows"].as_array().map_or(0, Vec::len) + usize::from(tasks["more"].is_string());
-    let list = rows as f32 * ROW_HEIGHT + rows.saturating_sub(1) as f32 * ROW_GAP;
-    super::chat_pills::MENU_HEADER_HEIGHT + super::chat_pills::MENU_SECTION_GAP + list
-}
-
 impl NativeChatView {
     /// The Background pill's floating menu: the rows the background-task card above the composer
     /// showed, under a header line with the running count.

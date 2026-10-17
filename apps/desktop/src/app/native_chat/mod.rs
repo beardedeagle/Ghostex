@@ -54,12 +54,12 @@ mod new_session_welcome;
 mod note;
 mod notice;
 mod open_questions;
-mod question_ping;
 mod pagination;
 mod panel_blocks;
 mod question;
 mod question_exchange;
 mod question_form;
+mod question_ping;
 pub(crate) mod queue;
 mod reference_menu;
 mod rewind;
@@ -76,7 +76,6 @@ mod status_rows;
 mod subagent_view;
 mod system_cards;
 mod terminal_ready;
-mod terminal_tool_row;
 mod thinking;
 mod tool_run;
 
@@ -124,7 +123,8 @@ mod clipboard;
 mod disclosure_anchor;
 mod disclosure_motion;
 mod working_spark;
-mod working_strip;
+mod working_card;
+mod working_lane;
 
 mod zoom;
 

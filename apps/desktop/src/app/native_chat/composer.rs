@@ -350,11 +350,6 @@ impl NativeChatView {
                     .child(super::suggestions::stack_marker(&stack_top)),
             );
         }
-        if !maximized {
-            if let Some(strip) = self.render_working_strip(p, cx) {
-                footer = footer.child(strip);
-            }
-        }
         // A `composerNotReady` refusal gets its own card instead of the plain error line.
         if let Some(card) = self.render_composer_not_ready(p, cx) {
             footer = footer.child(super::suggestions::stack_member(card, &stack_top));

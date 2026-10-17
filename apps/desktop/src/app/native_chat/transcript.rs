@@ -180,8 +180,11 @@ impl NativeChatView {
                 };
                 this.pt(px(32.0 * s + header))
             })
+            // The last row keeps the lane the working card sits in (working_card.rs); a subagent's
+            // transcript has no card.
             .when(index + 1 == items.len(), |this| {
-                this.pb(px(super::transcript_layout::LAYOUT.end_padding * s))
+                let lane = if main { self.working_lane_reserve() } else { 0.0 };
+                this.pb(px(super::transcript_layout::LAYOUT.end_padding * s + lane))
             })
             .child(
                 div()
@@ -367,12 +370,6 @@ impl NativeChatView {
             if message["pageAnswers"]["withText"] != true {
                 return row.into_any_element();
             }
-        }
-        if message["terminalTool"].is_object() {
-            let activity = message["terminalTool"].clone();
-            return row
-                .child(self.terminal_tool_row(&activity, p, cx))
-                .into_any_element();
         }
         if message["shellCommand"] == true {
             return row

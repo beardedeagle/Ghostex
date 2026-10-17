@@ -151,6 +151,8 @@ impl Render for NativeChatView {
             None
         } else {
             let content = transcript;
+            // After the transcript, so its placement reads the list's layout from this frame.
+            let working_card = self.render_working_lane(&p, cx);
             Some(
                 div()
                     .id("chat-transcript")
@@ -164,6 +166,7 @@ impl Render for NativeChatView {
                     .min_h_0()
                     .w_full()
                     .child(content)
+                    .children(working_card)
                     .into_any_element(),
             )
         };

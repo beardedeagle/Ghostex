@@ -3,14 +3,13 @@ use crate::app::hotkeys::{
     GPUI_DEFAULT_GHOSTEX_HOTKEYS, gpui_configured_hotkey_label, gpui_keystroke_from_shared_hotkey,
     gpui_migrated_hotkey_for_action, gpui_platform_hotkey_for_action,
 };
-use crate::app::native_chat::cursor::ChatCursor as _;
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
     AnyElement, App, Context, EntityInputHandler as _, Focusable as _, FontWeight,
     InteractiveElement, IntoElement, KeyBinding, ParentElement, StatefulInteractiveElement, Styled,
     Window, div, px,
 };
-use gpui_component::tooltip::{ManagedTooltipExt as _, ManagedTooltipPlacement};
+use gpui_component::tooltip::ManagedTooltipPlacement;
 use serde::Deserialize;
 use std::{collections::HashSet, sync::LazyLock};
 
@@ -205,8 +204,8 @@ impl NativeChatView {
     /// waits, then the red "Agent was interrupted" (`interrupt` in
     /// `packages/gx-chat-core/src/composer/send.rs`).
     ///
-    /// CDXC:SessionChat 2026-10-15 DECISION:
-    /// User (2026-10-01): the Escape toast and the scroll-to-bottom pill must be centred on each other, in "exact same style", with the Escape one hiding the scroll one while it shows; the red "Agent was interrupted" one takes the same spot and look. The toasts take that slot and shape (in-window and in the frosted window), visual only: no click, hover, focus or tooltip. User (2026-10-15): the scroll-to-bottom pill left that slot for an icon pill on the working row (chat_pills.rs), so the toasts keep the floating slot on their own.
+    /// CDXC:SessionChat 2026-10-17 DECISION:
+    /// User (2026-10-01): the Escape toast and the scroll-to-bottom pill must be centred on each other, in "exact same style", with the Escape one hiding the scroll one while it shows; the red "Agent was interrupted" one takes the same spot and look. The toasts take that slot and shape (in-window and in the frosted window), visual only: no click, hover, focus or tooltip. User (2026-10-15): the scroll-to-bottom pill left that slot for an icon pill on the working row (chat_pills.rs), so the toasts keep the floating slot on their own. User (2026-10-17, the working card): that pill rides on the working card, which sits where the slot was, so the toasts float just above the card.
     pub(super) fn pill_toast(&self) -> Option<PillToast> {
         let toast = &self.snapshot["interruptToast"];
         Some(PillToast {
@@ -256,27 +255,26 @@ impl NativeChatView {
     }
 
     /// What still floats over the transcript's bottom edge: the Escape and "Agent was interrupted"
-    /// toasts, and "Scroll to bottom" in a transcript-only view (the phone's GPUI transcript), which
-    /// has no working row. Elsewhere "Scroll to bottom" and "Previous question" are icon pills on the
-    /// working row (chat_pills.rs, CDXC:SessionChat 2026-10-15).
+    /// toasts. "Scroll to bottom" and "Previous question" are icon pills on the working card
+    /// (working_card.rs, chat_pills.rs), which a transcript-only view (the phone's GPUI transcript)
+    /// draws too.
     pub(super) fn scroll_bottom_button(&self, cx: &Context<Self>) -> AnyElement {
         let glass = crate::app::helpers::window_glass_active_for(self.main_window);
         let p = ChatAppearance::current(&self.snapshot).on_window_glass(glass);
         let toast = self.pill_toast();
-        let left_bottom = transcript_left_bottom(&self.list);
-        self.scroll_bottom_drawn.set(left_bottom);
-        let floating_scroll = left_bottom && self.transcript_only;
-        let shown = toast.is_some() || floating_scroll;
+        self.scroll_bottom_drawn
+            .set(transcript_left_bottom(&self.list));
+        let shown = toast.is_some();
         if glass {
-            let label = toast.map_or_else(|| SPEC.label.clone(), |toast| toast.text);
-            return pill_row(&p)
+            let label = toast.map_or_else(String::new, |toast| toast.text);
+            return pill_row(&p, self.working_lane_reserve())
                 .child(self.scroll_bottom_window_placeholder(shown, label, &p, cx))
                 .into_any_element();
         }
-        if !shown {
+        let Some(toast) = toast else {
             return div().into_any_element();
-        }
-        let row = pill_row(&p);
+        };
+        let row = pill_row(&p, self.working_lane_reserve());
         // The pill wears the composer's own chrome: the same opaque card fill, the 1px outline and
         // the inset top highlight session-chat-composer-focus.css gives both of them.
         let outline = if p.light {
@@ -285,58 +283,31 @@ impl NativeChatView {
             gpui::white().opacity(0.05)
         };
         let highlight = gpui::white().opacity(if p.light { 0.0 } else { 0.03 });
-        if let Some(toast) = toast {
-            let (fill, border, text) = match toast.error {
-                true => error_tone(p.light),
-                false => (p.composer_background, outline, p.primary),
-            };
-            return row
-                .child(
-                    pill_shape(div(), p.scale)
-                        .id("chat-interrupt-toast")
-                        .role(gpui::Role::Status)
-                        .aria_label(toast.text.clone())
-                        .border_color(border)
-                        .bg(fill)
-                        .text_color(text)
-                        .when(!toast.error, |pill| pill.child(pill_highlight(highlight)))
-                        .child(toast.text),
-                )
-                .into_any_element();
-        }
-        let label = SPEC.label.clone();
-        let shortcut = shortcut_label();
-        row.when(floating_scroll, |row| {
-            row.child(
-                pill_shape(div(), p.scale)
-                    .id("chat-scroll-bottom")
-                    .tab_index(0)
-                    .role(gpui::Role::Button)
-                    .aria_label(label.clone())
-                    .chat_cursor_pointer()
-                    .when_some(shortcut, |pill, key| {
-                        pill.managed_tooltip_with_placement(TOOLTIP_PLACEMENT, move |window, cx| {
-                            shortcut_tooltip(key.clone(), window, cx)
-                        })
-                    })
-                    .border_color(outline)
-                    .bg(p.composer_background)
-                    .text_color(p.primary)
-                    .focus_visible(|style| style.border_color(p.ring))
-                    .child(pill_highlight(highlight))
-                    .child(label)
-                    .on_click(cx.listener(|chat, _, _, cx| chat.jump_to_bottom(cx))),
-            )
-        })
+        let (fill, border, text) = match toast.error {
+            true => error_tone(p.light),
+            false => (p.composer_background, outline, p.primary),
+        };
+        row.child(
+            pill_shape(div(), p.scale)
+                .id("chat-interrupt-toast")
+                .role(gpui::Role::Status)
+                .aria_label(toast.text.clone())
+                .border_color(border)
+                .bg(fill)
+                .text_color(text)
+                .when(!toast.error, |pill| pill.child(pill_highlight(highlight)))
+                .child(toast.text),
+        )
         .into_any_element()
     }
 }
 
-/// The centred row the pills sit in, just above the composer.
-fn pill_row(p: &ChatAppearance) -> gpui::Div {
+/// The centred row the toasts sit in, just above the composer, or above the working card when one
+/// shows (`lift`, its height in window pixels), which they must not cover.
+fn pill_row(p: &ChatAppearance, lift: f32) -> gpui::Div {
     div()
         .absolute()
-        .bottom(px(SPEC.bottom * p.scale))
+        .bottom(px(SPEC.bottom * p.scale + lift))
         .w_full()
         .flex()
         .justify_center()
