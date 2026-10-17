@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+## 10.25.1 - 2026-10-17
+
+**Ghostex 10.25.1 is out.** Agents start without stopping at a "Do you trust this folder?" prompt, the chat status line stays on one row, and the phone's Catch me up moves into the ⋯ menu.
+
+### 🤖 Agents
+- **Agents no longer stop at a "Do you trust this folder?" prompt:** before Claude Code, Codex, Cursor CLI, Copilot, Gemini, Grok Build, Antigravity, Pi or Factory Droid starts, Ghostex marks its project or worktree folder as trusted, and it never trusts your home folder or anything above it. Turn it off in Settings > Agents > Trust project folders automatically.
+
+### 💬 Chat
+- **The status line stays on one row** and scrolls sideways instead of wrapping, on the computer and the phone; on the computer a vertical mouse wheel over it scrolls it too.
+
+### 📱 On the phone
+- **Catch me up moves into the ⋯ menu** above Side chat, and the chat box no longer shrinks while you scroll.
+- **Move left and Move right in a machine tab's long-press menu** reorder the machine strip.
+
 ## 10.25.0 - 2026-10-17
 
 **Ghostex 10.25.0 is out.** Update Ghostex on your other computers from anywhere, find any project file with Cmd+O, open CSV, JSON, PDF, SQLite and font files right in Files, chat with OpenCode 2 with live replies, and the phone reconnects on its own after being in the background.
