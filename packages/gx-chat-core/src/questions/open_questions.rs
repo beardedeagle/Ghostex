@@ -25,6 +25,9 @@ pub struct OpenQuestions {
     pub text: String,
     /// What a screen reader says for it.
     pub accessibility_label: String,
+    /// The newest unanswered form's or page's id, or `null` when none waits. The renderers ping the
+    /// pill when this changes without `count` dropping: a new question arrived.
+    pub newest: Option<String>,
     /// The last jump, or `null` before the first.
     pub jump: Option<OpenQuestionJump>,
 }
@@ -105,11 +108,12 @@ pub fn answers_on_the_way(state: &ChatState) -> Vec<PageAnswers> {
 
 /// The document's `openQuestions`.
 pub fn project(state: &ChatState) -> OpenQuestions {
-    let count = if state.core.previous_question_enabled {
-        unanswered(state).len() as u32
+    let open = if state.core.previous_question_enabled {
+        unanswered(state)
     } else {
-        0
+        Vec::new()
     };
+    let count = open.len() as u32;
     OpenQuestions {
         count,
         text: "Previous question \u{2191}".to_string(),
@@ -117,6 +121,7 @@ pub fn project(state: &ChatState) -> OpenQuestions {
             1 => "1 unanswered question: go to it".to_string(),
             _ => format!("{count} unanswered questions: go to the previous one"),
         },
+        newest: open.last().map(|asker| asker.id.clone()),
         jump: state.questions.open_questions.jump.clone(),
     }
 }

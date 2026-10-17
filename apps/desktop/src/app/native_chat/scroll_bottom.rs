@@ -27,6 +27,18 @@ struct ScrollBottom {
     question_tone: ErrorTone,
     pill_gap: f32,
     question_flash_ms: u64,
+    question_ping: QuestionPingSpec,
+}
+
+/// The "Previous question" pill's attention dot and ping (question_ping.rs).
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct QuestionPingSpec {
+    duration_ms: u64,
+    every_ms: u64,
+    dot_size: f32,
+    scale: f32,
+    alpha: f32,
 }
 
 #[derive(Deserialize)]
@@ -62,6 +74,28 @@ pub(super) fn font_size() -> f32 {
 /// How long a jump's highlight stays on the question it landed on.
 pub(super) fn question_flash_ms() -> u64 {
     SPEC.question_flash_ms
+}
+
+/// How long one ping of the question pill's dot lasts, and how often it repeats.
+pub(super) fn question_ping_ms() -> u64 {
+    SPEC.question_ping.duration_ms
+}
+
+pub(super) fn question_ping_every_ms() -> u64 {
+    SPEC.question_ping.every_ms
+}
+
+/// The dot's size, how many times its size the ring spreads to, and the ring's starting opacity.
+pub(super) fn question_ping_dot() -> f32 {
+    SPEC.question_ping.dot_size
+}
+
+pub(super) fn question_ping_scale() -> f32 {
+    SPEC.question_ping.scale
+}
+
+pub(super) fn question_ping_alpha() -> f32 {
+    SPEC.question_ping.alpha
 }
 
 /// CDXC:SessionChat 2026-09-29 DECISION:

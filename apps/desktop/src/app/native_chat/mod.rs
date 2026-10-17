@@ -54,6 +54,7 @@ mod new_session_welcome;
 mod note;
 mod notice;
 mod open_questions;
+mod question_ping;
 mod pagination;
 mod panel_blocks;
 mod question;

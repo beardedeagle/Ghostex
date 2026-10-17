@@ -177,6 +177,8 @@ pub(crate) struct NativeChatView {
     /// highlight on the question it landed on (open_questions.rs).
     pub(super) open_question_jump_revision: Option<u64>,
     pub(super) question_flash: Option<super::open_questions::QuestionFlash>,
+    /// The "Previous question" pill's attention ping (question_ping.rs).
+    pub(super) question_ping: super::question_ping::QuestionPing,
     /// The find the row being drawn gives its text views, set only while a searched row is drawn
     /// (search.rs, `begin_row_find`).
     pub(super) row_find: Option<gpui_component::text::TextFind>,
@@ -439,6 +441,7 @@ impl NativeChatView {
             files_links_jump_revision: 0,
             open_question_jump_revision: None,
             question_flash: None,
+            question_ping: Default::default(),
             row_find: None,
             issue_link_base: None,
             search_pending_open: None,

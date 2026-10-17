@@ -33,7 +33,7 @@ pub(super) const PILLS_OWN_LINE_BELOW: f32 = 560.0;
 const PILLS_MIN_BESIDE_WORD: f32 = 96.0;
 
 /// The amber of a thread waiting on the user's approval (coordinator_threads.rs).
-const ATTENTION_COLOR: u32 = 0xf5a524;
+pub(super) const ATTENTION_COLOR: u32 = 0xf5a524;
 
 /// Each pill's frame at its last paint, which its menu opens against.
 #[derive(Default)]
@@ -252,14 +252,12 @@ impl NativeChatView {
         )
     }
 
-    /// "Previous question" as a ? pill in the Threads pill's neutral look, while the chat has
-    /// unanswered questions; a click jumps to the previous one (open_questions.rs).
+    /// "Previous question" as a ? pill in the Threads pill's neutral look with its amber attention
+    /// dot, while the chat has unanswered questions; a click jumps to the previous one
+    /// (open_questions.rs), and the dot pings now and then (question_ping.rs).
     ///
-    /// CDXC:SessionChat 2026-10-15 DECISION:
-    /// User: "I also want the previous question pill to have same height as the threads and scroll to bottom pills (and same color)". The ? pill takes the Threads pill's edge, icon colour and hover, and every icon pill is built like the label pills so their heights match. Supersedes the same day's amber outline on this pill.
-    ///
-    /// CDXC:SessionChat 2026-10-15 DECISION:
-    /// User: "make the Question pill and scroll to bottom pill not floating, make them appear as the leftmost in the pills row and they should both just be icons. (down arrow for scroll to bottom and ? icon for the question button) always leftmost pls". Both are icon pills at the left end of the working row's pills, with their name in a tooltip; they keep what they did. Then: "make the scroll to bottom appear left most so it doesn't push stuff when it appears", so scroll-to-bottom comes first, then the question pill; the row is right-aligned, so the one that comes and goes most sits where it moves nothing. This supersedes their floating spot over the transcript's bottom edge (2026-09-23, 2026-10-14), which the Escape and "Agent was interrupted" toasts keep on their own (scroll_bottom.rs). The phone does the same in ChatPills.tsx.
+    /// CDXC:SessionChat 2026-10-17 DECISION:
+    /// User (2026-10-15): "make the Question pill and scroll to bottom pill not floating, make them appear as the leftmost in the pills row and they should both just be icons. (down arrow for scroll to bottom and ? icon for the question button) always leftmost pls", then "make the scroll to bottom appear left most so it doesn't push stuff when it appears", and "I also want the previous question pill to have same height as the threads and scroll to bottom pills (and same color)". So both are icon pills at the left end of the working row's pills, scroll-to-bottom first, built like the label pills, with the ? pill in the Threads pill's edge, icon colour and hover. Then (2026-10-17): "make the Previous question button animate every once in a while to indicate to the user that there's something there", picking the attention dot ping (Q236 G) every 30 s (Q237): the pill keeps that neutral look and adds the Threads pill's amber attention dot, which pings (question_ping.rs, where the cadence lives). Supersedes the 2026-10-15 pill with no dot; the floating spot over the transcript's bottom edge (2026-09-23, 2026-10-14) stays gone, the Escape and "Agent was interrupted" toasts keep it (scroll_bottom.rs). The phone does the same in ChatPills.tsx.
     fn previous_question_icon_pill(
         &self,
         p: &ChatAppearance,
@@ -275,13 +273,21 @@ impl NativeChatView {
                 color,
                 p,
             )
+            .relative()
             .aria_label(label)
             .border_color(p.foreground.opacity(0.1))
             .hover(|style| style.bg(p.foreground.opacity(0.06)))
             .tooltip(|window, cx| {
                 gpui_component::tooltip::Tooltip::new("Previous question").build(window, cx)
             })
+            .on_hover(
+                cx.listener(|chat, hovered: &bool, _, cx| chat.question_pill_hovered(*hovered, cx)),
+            )
             .on_click(cx.listener(|chat, _, _, cx| chat.previous_question(cx)))
+            .children(super::question_ping::attention_dot(
+                self.question_ping_frame(),
+                p,
+            ))
             .into_any_element(),
         )
     }

@@ -14,5 +14,6 @@
     "light": { "background": "#fff7ed", "border": "#ea580c", "borderAlpha": 0.35, "text": "#c2410c" }
   },
   "pillGap": 8,
-  "questionFlashMs": 1600
+  "questionFlashMs": 1600,
+  "questionPing": { "durationMs": 800, "everyMs": 30000, "dotSize": 6, "scale": 2.8, "alpha": 0.8 }
 }
