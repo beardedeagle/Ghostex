@@ -2,8 +2,7 @@
 //!
 //! This subdirectory is family e2's alone. Family e1 owns the rest of `src/menus/` and calls the
 //! two entry points below from `menus/document.rs` and `menus/actions.rs`, so e2 never edits an
-//! e1 file. Document keys: `contextMeter`, `contextEditor`, `contextStatusRows`. Actions:
-//! `context*`, `measureContextStatus`.
+//! e1 file. Document keys: `contextMeter`, `contextEditor`. Actions: `context*`.
 
 pub mod actions;
 pub mod codex;

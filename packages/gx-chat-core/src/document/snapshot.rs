@@ -188,8 +188,6 @@ pub struct Document {
     pub context_meter: Tri<Value>,
     /// The context rows editor, or `null` when closed. Family e.
     pub context_editor: Tri<Value>,
-    /// Where the status line wraps, measured by the renderer and folded back in.
-    pub context_status_rows: Vec<u32>,
 
     // ---- panels and extras ------------------------------------------------
     pub working_strip: WorkingStrip,

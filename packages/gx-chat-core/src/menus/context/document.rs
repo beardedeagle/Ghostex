@@ -1,6 +1,6 @@
-//! Family e2's context keys: the meter, the row editor and the measured status line.
+//! Family e2's context keys: the meter and the row editor.
 //!
-//! Port of the `contextEditor`, `contextStatusRows` and `contextMeter` slices of `publish` in
+//! Port of the `contextEditor` and `contextMeter` slices of `publish` in
 //! `packages/shared/session-chat-controller/native-host.ts`.
 
 use ghostex_gx_protocol::Tri;
@@ -74,8 +74,6 @@ pub fn document(state: &ChatState, context: &ChatContext, into: &mut Document) {
         Value::Null => Tri::Null,
         editor => Tri::Value(editor),
     };
-
-    into.context_status_rows = pickers.context.status_rows.clone();
 }
 
 /// The session's saved account, read out of the answer family e1 folded.

@@ -1,7 +1,7 @@
-//! The context meter under the composer, and where its status line wraps.
+//! The context meter under the composer, and whether its status line holds its row.
 //!
 //! Ports of `computeNativeChatContext` (`packages/shared/session-chat-controller/
-//! native-context.ts`) and of `sessionChatStatusLineReserved` plus `balancedRowStarts`
+//! native-context.ts`) and of `sessionChatStatusLineReserved`
 //! (`packages/shared/session-chat-presentation/status-line-layout.ts`).
 
 use serde_json::{json, Value};
@@ -36,66 +36,6 @@ pub const STATUS_LINE_ROW_HEIGHT_PX: u32 = 16;
 /// This supersedes the fixed three-second initial wait; configured items still reserve space while loading.
 pub fn status_line_reserved(has_configured_items: bool, item_count: usize) -> bool {
     has_configured_items || item_count > 0
-}
-
-/// CDXC:SessionChat 2026-09-14 DECISION:
-/// User: center every status-line row, avoid a row with only one item where possible, and show
-/// separators only between items on the same row. This supersedes the 2026-09-04 container-only
-/// centering and left-aligned wrapped rows.
-pub fn balanced_row_starts(widths: &[f64], available: f64, separator: f64) -> Vec<u32> {
-    #[derive(Clone)]
-    struct Layout {
-        rows: usize,
-        singletons: usize,
-        slack: f64,
-        starts: Vec<u32>,
-    }
-    let mut layouts: Vec<Option<Layout>> = vec![Some(Layout {
-        rows: 0,
-        singletons: 0,
-        slack: 0.0,
-        starts: Vec::new(),
-    })];
-    for end in 1..=widths.len() {
-        let mut best: Option<Layout> = None;
-        let mut width = 0.0;
-        for start in (0..end).rev() {
-            width += widths[start].min(available) + if start < end - 1 { separator } else { 0.0 };
-            if width > available {
-                break;
-            }
-            let Some(previous) = layouts[start].as_ref() else {
-                continue;
-            };
-            let mut starts = previous.starts.clone();
-            starts.push(start as u32);
-            let candidate = Layout {
-                rows: previous.rows + 1,
-                singletons: previous.singletons + usize::from(end - start == 1),
-                slack: previous.slack + (available - width).powi(2),
-                starts,
-            };
-            let better = match best.as_ref() {
-                None => true,
-                Some(best) => {
-                    candidate.rows < best.rows
-                        || (candidate.rows == best.rows
-                            && (candidate.singletons < best.singletons
-                                || (candidate.singletons == best.singletons
-                                    && candidate.slack < best.slack)))
-                }
-            };
-            if better {
-                best = Some(candidate);
-            }
-        }
-        layouts.push(best);
-    }
-    layouts
-        .pop()
-        .flatten()
-        .map(|layout| layout.starts)
-        .unwrap_or_default()
 }
 
 /// Everything `computeNativeChatContext` needs that family a and e1 own.

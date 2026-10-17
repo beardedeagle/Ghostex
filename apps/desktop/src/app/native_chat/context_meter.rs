@@ -42,10 +42,6 @@ pub(crate) fn status_line_skeleton(p: &ChatAppearance) -> AnyElement {
 /// `min-height` of `.ghostex-chat-status-line.is-reserved`.
 pub(super) const STATUS_LINE_ROW_HEIGHT: f32 = 16.0;
 
-/// Width the status line's edit pen takes after the last item: the value of React's
-/// `SESSION_CHAT_STATUS_LINE_EDIT_RESERVE_PX`.
-const STATUS_LINE_EDIT_RESERVE: f32 = 18.0;
-
 /// The hover group of the status line, which reveals its edit pen.
 const CONTEXT_STATUS_GROUP: &str = "context-status";
 
@@ -254,17 +250,15 @@ impl NativeChatView {
             .into_any_element()
     }
 
-    /// The pen that floats right of the status line's last item and opens Context details, the
-    /// same `contextEdit` the pen in the context meter popover sends.
+    /// The pen at the status line's right end, outside the values it scrolls, which opens Context
+    /// details: the same `contextEdit` the pen in the context meter popover sends.
     fn context_status_edit(appearance: &ChatAppearance, cx: &Context<Self>) -> AnyElement {
         let scale = appearance.scale;
         div()
             .id("context-status-edit")
             .role(gpui::Role::Button)
             .aria_label("Edit status line")
-            .absolute()
-            .left(gpui::relative(1.0))
-            .top_0()
+            .flex_shrink_0()
             .ml(px(2.0 * scale))
             .size(px(STATUS_LINE_ROW_HEIGHT * scale))
             .flex()
@@ -298,10 +292,11 @@ impl NativeChatView {
             .into_any_element()
     }
 
+    /// CDXC:SessionChat 2026-10-17 DECISION:
+    /// User: "make the status line on phones and narrow screen not wrap anymore but it should scroll sideways (on pc scrolling vertically should scroll out horizontally". The line is always one row; when it is wider than the chat it scrolls sideways under the wheel, a vertical wheel included, and the pen stays at its right end instead of scrolling away. This supersedes the 2026-09-14 balanced, centered rows. `apps/mobile/app/src/chat/native/composer/StatusLine.tsx` draws the same line on the phone.
     pub(super) fn render_context_status(
         &self,
         appearance: &ChatAppearance,
-        window: &gpui::Window,
         cx: &Context<Self>,
     ) -> AnyElement {
         let scale = appearance.scale;
@@ -312,37 +307,22 @@ impl NativeChatView {
         {
             return status_line_skeleton(appearance);
         }
-        let mut style = window.text_style();
-        style.font_family = appearance.font.clone().into();
-        let mut widths = Vec::new();
-        let mut lines = Vec::new();
-        let mut line = div()
+        let mut values = div()
+            .id("context-status-values")
+            .track_scroll(&self.context_status_scroll)
+            .overflow_x_scroll()
             .flex()
             .items_center()
-            .justify_center()
-            .w_full()
-            .min_w_0();
-        let starts = self.snapshot["contextStatusRows"].as_array();
-        let starred = self.snapshot["contextMeter"]["starred"].as_array();
-        let last = starred.map_or(0, Vec::len).saturating_sub(1);
-        for (index, item) in starred.into_iter().flatten().enumerate() {
-            let row_start = index == 0
-                || starts.is_some_and(|starts| {
-                    starts
-                        .iter()
-                        .any(|value| value.as_u64() == Some(index as u64))
-                });
-            if row_start && index > 0 {
-                lines.push(line.into_any_element());
-                line = div()
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .w_full()
-                    .min_w_0();
-            }
-            if !row_start {
-                line = line.child(
+            .min_w_0()
+            .whitespace_nowrap();
+        for (index, item) in self.snapshot["contextMeter"]["starred"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .enumerate()
+        {
+            if index > 0 {
+                values = values.child(
                     div()
                         .w(px(18.0 * scale))
                         .flex_shrink_0()
@@ -352,19 +332,6 @@ impl NativeChatView {
                         .child("◆"),
                 );
             }
-            let value = text(item, "value");
-            widths.push(
-                window
-                    .text_system()
-                    .shape_line(
-                        value.clone().into(),
-                        px(11.0 * scale),
-                        &[style.to_run(value.len())],
-                        None,
-                    )
-                    .width
-                    .as_f32(),
-            );
             let copy = item["copy"]["text"].as_str().map(str::to_owned);
             let label = format!(
                 "{}{}",
@@ -375,55 +342,86 @@ impl NativeChatView {
                     ""
                 }
             );
-            let value = div()
-                .id(format!("context-status-{index}"))
-                .min_w_0()
-                .text_ellipsis()
-                .child(value)
-                .tooltip(move |window, cx| {
-                    gpui_component::tooltip::Tooltip::new(label.clone()).build(window, cx)
-                })
-                .when_some(copy, |item, copy| {
-                    item.chat_cursor_pointer()
-                        .on_click(cx.listener(move |_, _, _, cx| {
-                            crate::app::helpers::gpui_copy_to_clipboard(
-                                gpui::ClipboardItem::new_string(copy.clone()),
-                                cx,
-                            );
-                        }))
-                });
-            if index == last {
-                line = line.child(
-                    div()
-                        .relative()
-                        .min_w_0()
-                        .child(value)
-                        .child(Self::context_status_edit(appearance, cx)),
-                );
-            } else {
-                line = line.child(value);
-            }
+            values = values.child(
+                div()
+                    .id(format!("context-status-{index}"))
+                    .flex_shrink_0()
+                    .child(text(item, "value"))
+                    .tooltip(move |window, cx| {
+                        gpui_component::tooltip::Tooltip::new(label.clone()).build(window, cx)
+                    })
+                    .when_some(copy, |item, copy| {
+                        item.chat_cursor_pointer()
+                            .on_click(cx.listener(move |_, _, _, cx| {
+                                crate::app::helpers::gpui_copy_to_clipboard(
+                                    gpui::ClipboardItem::new_string(copy.clone()),
+                                    cx,
+                                );
+                            }))
+                    }),
+            );
         }
-        if let Some(width) = widths.last_mut() {
-            *width += STATUS_LINE_EDIT_RESERVE * scale;
-        }
-        lines.push(line.into_any_element());
-        let chat = cx.weak_entity();
-        div().group(CONTEXT_STATUS_GROUP).relative().flex().flex_col().w_full().min_w_0().min_h(px(STATUS_LINE_ROW_HEIGHT*scale)).px(px(4.0*scale))
-            .text_size(px(11.0*scale)).line_height(px(STATUS_LINE_ROW_HEIGHT*scale)).text_color(appearance.muted.opacity(0.8)).children(lines)
-            .child(canvas(move |bounds,window,cx| {
-                let measurement=json!({"available":(bounds.size.width.as_f32()-8.0*scale).max(0.0),"widths":widths,"separator":18.0*scale});
-                let chat=chat.clone();
-                window.defer(cx,move |_,cx| {
-                    let _=chat.update(cx,|chat,cx| {
-                        // A sliding panel's width is not the settled one; the core hears that one (see `composer_measurement`).
-                        if chat.context_status_measurements.as_ref()==Some(&measurement) || crate::terminal_element::grid_resize_held() {return;}
-                        chat.context_status_measurements=Some(measurement.clone());
-                        let mut command=measurement;
-                        command["type"]="measureContextStatus".into();
-                        chat.invoke(command,cx);
-                    });
-                });
-            },|_,_,_,_|{}).absolute().size_full()).into_any_element()
+        let wheel = self.context_status_scroll.clone();
+        div()
+            .group(CONTEXT_STATUS_GROUP)
+            .relative()
+            .flex()
+            .items_center()
+            .justify_center()
+            .w_full()
+            .min_w_0()
+            .h(px(STATUS_LINE_ROW_HEIGHT * scale))
+            .px(px(4.0 * scale))
+            .text_size(px(11.0 * scale))
+            .line_height(px(STATUS_LINE_ROW_HEIGHT * scale))
+            .text_color(appearance.muted.opacity(0.8))
+            .child(
+                div()
+                    .relative()
+                    .flex()
+                    .min_w_0()
+                    .child(values)
+                    // CDXC:SessionChat 2026-10-17 WHY: the composer is drawn over the transcript, whose list also hears a wheel over the line. The line takes the wheel on the capture pass and stops it only while it actually moves, so a line that fits, or one already at its end, leaves the scroll to the transcript (nested_scroll.rs does the same for boxes inside rows).
+                    .child(
+                        canvas(
+                            |bounds, window, _| {
+                                window.insert_hitbox(bounds, gpui::HitboxBehavior::Normal)
+                            },
+                            move |_, hitbox, window, _| {
+                                let handle = wheel.clone();
+                                window.on_mouse_event(
+                                    move |event: &gpui::ScrollWheelEvent, phase, window, cx| {
+                                        if phase != gpui::DispatchPhase::Capture
+                                            || !hitbox.should_handle_scroll(window)
+                                        {
+                                            return;
+                                        }
+                                        let delta = event.delta.pixel_delta(window.line_height());
+                                        let delta = if delta.x.abs() > delta.y.abs() {
+                                            delta.x
+                                        } else {
+                                            delta.y
+                                        };
+                                        let offset = handle.offset();
+                                        let next = (offset.x + delta)
+                                            .clamp(-handle.max_offset().x, px(0.0));
+                                        if next == offset.x {
+                                            return;
+                                        }
+                                        handle.set_offset(point(next, offset.y));
+                                        cx.stop_propagation();
+                                        window.refresh();
+                                    },
+                                );
+                            },
+                        )
+                        .absolute()
+                        .top_0()
+                        .left_0()
+                        .size_full(),
+                    ),
+            )
+            .child(Self::context_status_edit(appearance, cx))
+            .into_any_element()
     }
 }

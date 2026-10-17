@@ -249,8 +249,6 @@ pub enum Measurement {
         overflowed: Vec<String>,
         options_overflowed: bool,
     },
-    /// Where the status line wraps.
-    ContextStatusRows { rows: Vec<u32> },
     /// The rows the renderer currently draws open, so only those ship their detail.
     OpenRowDetails { rows: Vec<OpenRowDetail> },
 }

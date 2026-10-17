@@ -195,7 +195,6 @@ action_kinds! {
     ContextReset => "contextReset",
     ContextSave => "contextSave",
     ContextCompact => "contextCompact",
-    MeasureContextStatus => "measureContextStatus",
 
     // The session note and Save to Markdown.
     ToggleNote => "toggleNote",

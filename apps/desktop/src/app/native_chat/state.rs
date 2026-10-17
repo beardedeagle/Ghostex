@@ -110,7 +110,8 @@ pub(crate) struct NativeChatView {
     pub(crate) send_hold_task: Option<gpui::Task<()>>,
     pub(crate) send_hold_fired: bool,
     pub(crate) stop_cooldown_task: Option<gpui::Task<()>>,
-    pub(super) context_status_measurements: Option<Value>,
+    /// How far the status line under the composer is scrolled sideways (context_meter.rs).
+    pub(super) context_status_scroll: gpui::ScrollHandle,
     pub(crate) composer_measurements: Option<Value>,
     pub(super) composer_held_key: Option<String>,
     /// When the last `Paste` reached a chat field, for the slow clipboard read log (clipboard.rs).
@@ -402,7 +403,7 @@ impl NativeChatView {
             composer_held_key: None,
             paste_started: None,
             composer_animation: Default::default(),
-            context_status_measurements: None,
+            context_status_scroll: Default::default(),
             bounds: Default::default(),
             settled_text_width: None,
             held_text_width: None,

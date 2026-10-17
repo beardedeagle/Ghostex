@@ -33,8 +33,7 @@ pub fn handle(state: &mut ChatState, action: &UserAction, context: &ChatContext)
         | ActionKind::ContextReorder
         | ActionKind::ContextReset
         | ActionKind::ContextSave
-        | ActionKind::ContextCompact
-        | ActionKind::MeasureContextStatus => crate::menus::context::handle(state, action, context),
+        | ActionKind::ContextCompact => crate::menus::context::handle(state, action, context),
 
         ActionKind::Accounts => accounts(state, action),
         ActionKind::SwitchDraftAgent => switch_draft_agent(state, action),

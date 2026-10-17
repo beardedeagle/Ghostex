@@ -116,9 +116,6 @@ enum MeasurementJson {
         overflowed: Vec<String>,
         options_overflowed: bool,
     },
-    ContextStatusRows {
-        rows: Vec<u32>,
-    },
     OpenRowDetails {
         rows: Vec<OpenRowDetail>,
     },
@@ -177,7 +174,6 @@ pub(crate) fn parse(json: &str) -> Result<Event, String> {
                 overflowed,
                 options_overflowed,
             },
-            MeasurementJson::ContextStatusRows { rows } => Measurement::ContextStatusRows { rows },
             MeasurementJson::OpenRowDetails { rows } => Measurement::OpenRowDetails { rows },
         }),
         EventJson::DraftChanged { text } => Event::DraftChanged { text },

@@ -115,27 +115,13 @@ pub struct ForkBranchesState {
     pub branches: Vec<ForkBranch>,
 }
 
-/// The context meter, the row editor and the measured status line.
-#[derive(Clone, Debug, PartialEq)]
+/// The context meter and the row editor.
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct ContextState {
     /// The saved row preferences, per agent. Claude and Codex are saved independently.
     pub preferences: ContextPreferencesByAgent,
     /// The row editor's draft, or `None` when the dialog is closed.
     pub editor: Option<ContextEditorState>,
-    /// Where the status line wraps, as the renderer measured it. `[0]` until it reports.
-    pub status_rows: Vec<u32>,
-}
-
-impl Default for ContextState {
-    fn default() -> Self {
-        Self {
-            preferences: ContextPreferencesByAgent::default(),
-            editor: None,
-            // `let contextStatusRows = [0]`: one row from the first frame, before the renderer
-            // has measured anything, so the status line never starts unwrapped.
-            status_rows: vec![0],
-        }
-    }
 }
 
 /// One preferences record per agent.

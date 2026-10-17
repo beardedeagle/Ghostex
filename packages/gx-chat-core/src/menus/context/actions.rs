@@ -1,9 +1,7 @@
-//! Family e2's context actions: the row editor's commands, Compact, and the status line's
-//! measurement.
+//! Family e2's context actions: the row editor's commands and Compact.
 //!
 //! Port of `nativeContextEditorCommand` (`packages/shared/session-chat-controller/
-//! native-context-editor.ts`) and of the `measureContextStatus` and `contextCompact` arms of
-//! `native-host.ts`.
+//! native-context-editor.ts`) and of the `contextCompact` arm of `native-host.ts`.
 
 use serde_json::Value;
 
@@ -12,7 +10,6 @@ use crate::effect::Effect;
 use crate::menus::context::editor::{
     editor_row, reorder_context_details, toggle_context_detail_star, ContextEditorState,
 };
-use crate::menus::context::meter::balanced_row_starts;
 use crate::menus::context::preferences::{
     context_preferences_key, normalize_preferences, serialize_preferences,
 };
@@ -23,20 +20,6 @@ use crate::state::{ChatContext, ChatState};
 /// Handles one context meter, context editor or context details action.
 pub fn handle(state: &mut ChatState, action: &UserAction, context: &ChatContext) -> Vec<Effect> {
     match action.kind {
-        ActionKind::MeasureContextStatus => {
-            let available = number(action.param("available")).unwrap_or(0.0);
-            if available > 0.0 {
-                let widths: Vec<f64> = action
-                    .param("widths")
-                    .and_then(Value::as_array)
-                    .map(|widths| widths.iter().filter_map(Value::as_f64).collect())
-                    .unwrap_or_default();
-                let separator = number(action.param("separator")).unwrap_or(0.0);
-                state.pickers.context.status_rows =
-                    balanced_row_starts(&widths, available, separator);
-            }
-            Vec::new()
-        }
         ActionKind::ContextCompact => {
             // `if (!chat.working) await chat.send('/compact')`. Sending is family d's; the
             // refusal while the agent is busy is drawn by the meter's `compactDisabled`.
@@ -139,8 +122,4 @@ fn editor_agent(state: &ChatState, context: &ChatContext) -> ContextDetailsAgent
             .agent_icon
             .as_deref(),
     )
-}
-
-fn number(value: Option<&Value>) -> Option<f64> {
-    value.and_then(Value::as_f64)
 }

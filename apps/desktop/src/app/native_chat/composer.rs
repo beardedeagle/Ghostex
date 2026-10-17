@@ -611,7 +611,7 @@ impl NativeChatView {
                 .child(content),
         );
         if self.status_line_reserved() {
-            footer = footer.child(self.render_context_status(p, window, cx));
+            footer = footer.child(self.render_context_status(p, cx));
         }
         div()
             .flex()

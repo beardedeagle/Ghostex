@@ -150,8 +150,7 @@ pub fn owner(kind: &ActionKind) -> Option<Family> {
         | ActionKind::ContextReorder
         | ActionKind::ContextReset
         | ActionKind::ContextSave
-        | ActionKind::ContextCompact
-        | ActionKind::MeasureContextStatus => Family::Menus,
+        | ActionKind::ContextCompact => Family::Menus,
 
         ActionKind::ToggleAgentFleet
         | ActionKind::ToggleAgentTasks
@@ -194,8 +193,7 @@ pub fn owner(kind: &ActionKind) -> Option<Family> {
 pub fn dispatch(state: &mut ChatState, action: &UserAction, context: &ChatContext) -> Vec<Effect> {
     // `if (!controller) { if (command.type === 'retry') start(bootConfig); return; }`
     // (`native-host.ts`, the top of `action`): until the boot read answers there is no controller,
-    // so every gesture is dropped. The renderer's first `measureContextStatus` lands in that
-    // window on every real chat, which is why the TypeScript kept its `[0]` and the core must too.
+    // so every gesture is dropped.
     // Every `action` call is its own promise, so what it awaits is a chain of its own. A dispatch
     // nested inside another (the controller's own `restoreReturned` effect) hands the outer chain
     // back when it returns.
@@ -271,7 +269,6 @@ fn clears_error(kind: &ActionKind) -> bool {
             | ActionKind::ComposerSelection
             | ActionKind::SuggestionHighlight
             | ActionKind::MeasureComposer
-            | ActionKind::MeasureContextStatus
             | ActionKind::ComposerScroll
             | ActionKind::ComposerExpand
             | ActionKind::RowDetails
@@ -313,7 +310,6 @@ fn renders_nothing(kind: &ActionKind) -> bool {
             ActionKind::ComposerScroll
                 | ActionKind::ComposerExpand
                 | ActionKind::MeasureComposer
-                | ActionKind::MeasureContextStatus
                 | ActionKind::ComposerSelection
         )
 }
