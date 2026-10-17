@@ -48,7 +48,6 @@ impl DisclosureRail {
             Self::Work => 23.0,
         }
     }
-
 }
 
 /// The width of every disclosure rail's line.

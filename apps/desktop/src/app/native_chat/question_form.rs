@@ -10,9 +10,7 @@ use std::cell::Cell;
 use std::collections::HashSet;
 use std::rc::Rc;
 
-use super::ask_card::{
-    AskBodyMotion, AskOption, AskTone, ask_head, chevron, keycap, press_head,
-};
+use super::ask_card::{AskBodyMotion, AskOption, AskTone, ask_head, chevron, keycap, press_head};
 use super::{appearance::ChatAppearance, state::NativeChatView, transcript::text};
 use crate::app::native_chat::cursor::ChatCursor as _;
 use gpui::Focusable as _;

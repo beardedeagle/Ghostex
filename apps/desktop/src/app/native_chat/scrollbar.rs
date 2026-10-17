@@ -13,9 +13,9 @@
 //! pane's edge, so the column beside them covers nothing interactive.
 
 use super::state::NativeChatView;
+use crate::app::window::native_modal_kit::app_vertical_scrollbar;
 use gpui::prelude::FluentBuilder as _;
 use gpui::{AnyElement, IntoElement as _, ParentElement as _, Styled as _, div, px, size};
-use crate::app::window::native_modal_kit::app_vertical_scrollbar;
 use gpui_component::scroll::Scrollbar;
 
 /// Unscaled track and thumb width of the transcript's table scrollbars, the value in

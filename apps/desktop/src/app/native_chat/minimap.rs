@@ -161,7 +161,11 @@ impl NativeChatView {
             .max(px(0.0))
             .as_f32();
         let cap = SPEC.max_height * s;
-        let height = if available > 0.0 { available.min(cap) } else { cap };
+        let height = if available > 0.0 {
+            available.min(cap)
+        } else {
+            cap
+        };
         let slots = minimap_slots(markers.len(), height, SPEC.min_step * s);
         let step = px((SPEC.spacing * s).min(height / slots.len().max(1) as f32));
         let dash_height = px(SPEC.dash_height * s).min(step);

@@ -65,6 +65,10 @@ mod new_thread_picker_demo;
 mod onboarding;
 #[path = "native_modal_demo/onboarding.rs"]
 mod onboarding_demo;
+#[path = "native_modal_demo/permission_guide.rs"]
+mod permission_guide_demo;
+#[path = "../app/os_integration/permission_guide/tag.rs"]
+mod permission_guide_tag;
 #[path = "../app/window/popup_dismissal.rs"]
 mod popup_dismissal;
 #[path = "native_modal_demo/portless_setup.rs"]
@@ -87,10 +91,6 @@ mod rename_session_modal;
 mod rename_worktree_demo;
 #[path = "../app/window/rename_worktree_modal.rs"]
 mod rename_worktree_modal;
-#[path = "native_modal_demo/permission_guide.rs"]
-mod permission_guide_demo;
-#[path = "../app/os_integration/permission_guide/tag.rs"]
-mod permission_guide_tag;
 #[path = "native_modal_demo/session_note.rs"]
 mod session_note_demo;
 #[path = "../app/window/session_note_modal.rs"]

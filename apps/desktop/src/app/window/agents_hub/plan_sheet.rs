@@ -1,7 +1,7 @@
 //! Agent Sync's plan sheet (packages/core-ui/agents-hub-sync/sync-plan-sheet.tsx (deleted 2026-10-01)): the plan as
 //! switchable groups of operations over a scrim, then the apply result.
 use super::super::native_modal_kit::{
-    hsla, modal_rgba, modal_switch, MODAL_MONO_FONT, MODAL_UI_FONT,
+    MODAL_MONO_FONT, MODAL_UI_FONT, hsla, modal_rgba, modal_switch,
 };
 use super::palette::HubPalette;
 use super::sync_model::*;
@@ -9,9 +9,9 @@ use super::widgets::*;
 use super::window::GpuiAgentsHubModalWindow;
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
-    div, font, point, px, AnyElement, ClickEvent, Context, FontWeight, InteractiveElement as _,
-    IntoElement, ParentElement as _, Rgba, SharedString, StatefulInteractiveElement as _,
-    Styled as _, StyledText, TextRun,
+    AnyElement, ClickEvent, Context, FontWeight, InteractiveElement as _, IntoElement,
+    ParentElement as _, Rgba, SharedString, StatefulInteractiveElement as _, Styled as _,
+    StyledText, TextRun, div, font, point, px,
 };
 use gpui_component::{h_flex, v_flex};
 

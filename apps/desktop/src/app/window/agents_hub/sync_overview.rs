@@ -8,9 +8,9 @@ use super::widgets::*;
 use super::window::GpuiAgentsHubModalWindow;
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
-    canvas, div, point, px, AnyElement, Bounds, ClickEvent, Context, FontWeight,
-    InteractiveElement as _, IntoElement, ParentElement as _, Pixels, SharedString,
-    StatefulInteractiveElement as _, Styled as _, Window,
+    AnyElement, Bounds, ClickEvent, Context, FontWeight, InteractiveElement as _, IntoElement,
+    ParentElement as _, Pixels, SharedString, StatefulInteractiveElement as _, Styled as _, Window,
+    canvas, div, point, px,
 };
 use gpui_component::{h_flex, v_flex};
 

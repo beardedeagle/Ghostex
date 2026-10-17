@@ -542,7 +542,11 @@ pub(super) fn machines_section(
         tab.machine_dialog = None;
     }
     let mut tiles = vec![add_tile(t, cx)];
-    tiles.extend(machines.iter().map(|machine| machine_tile(tab, t, machine, cx)));
+    tiles.extend(
+        machines
+            .iter()
+            .map(|machine| machine_tile(tab, t, machine, cx)),
+    );
     let mut rows = Vec::new();
     let mut tiles = tiles.into_iter().peekable();
     while tiles.peek().is_some() {

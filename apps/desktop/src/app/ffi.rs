@@ -544,7 +544,11 @@ pub extern "C" fn GhostexGpuiSparkleUnattendedUpdateEvent(
     use crate::app::os_integration::app_update_remote_control as remote;
     let text = (!text.is_null())
         // SAFETY: Sparkle's bridge passes a NUL-terminated UTF-8 string valid for this call.
-        .then(|| unsafe { std::ffi::CStr::from_ptr(text) }.to_string_lossy().to_string());
+        .then(|| {
+            unsafe { std::ffi::CStr::from_ptr(text) }
+                .to_string_lossy()
+                .to_string()
+        });
     match kind {
         2 => remote::note_remote_install_failed("Ghostex is already up to date."),
         3 => remote::note_remote_install_failed(
