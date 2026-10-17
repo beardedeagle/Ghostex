@@ -142,6 +142,8 @@ fn gpui_describe_cli_install_dirs(install_dirs: &[PathBuf]) -> String {
 
 /// CDXC:Cli 2026-09-24 DECISION:
 /// User: "pls fix root cause here. if we need ghostex cli then lets auto install it". Chat sends and agents need the `ghostex` command, so packaged startup installs the public `ghostex` and `gx` wrappers when either name is missing, and refreshes Ghostex-owned wrappers that point at another or older bundle (Sparkle and DMG updates swap the bundle but never rewrite them). This supersedes the 2026-08-30 rule that startup only refreshed existing wrappers and never did a first install. It runs the same repair as Settings > Integrations, so a command of the same name that Ghostex did not write is never overwritten, and when every wrapper already matches nothing is written.
+/// CDXC:Cli 2026-10-17 DECISION:
+/// User, on whether a Windows portable copy installs the public wrappers: "never for portable". A portable copy (ghostex_paths::portable) never installs or refreshes the public `ghostex` and `gx` wrappers, even when none exist; the terminals it opens use its own CLI through PATH (`portable_cli_first_on_path` in server/src/zmx/scripts_windows.rs).
 /// SEE-ALSO: `session_ghostex_cli_executable` in server/src/zmx/scripts.rs, which pins each session's prompt editor to the bundled CLI without needing PATH.
 pub(crate) fn gpui_auto_install_ghostex_cli_wrappers() {
     // A portable copy leaves the public wrappers to the installed Ghostex; its sessions find its own CLI first on PATH (scripts_windows.rs).
