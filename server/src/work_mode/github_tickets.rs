@@ -51,8 +51,9 @@ pub(crate) fn create_github_issue(
     if let Some(repo) = issue.repo {
         args.extend(["--repo", repo]);
     }
-    let run = run_gh_full(Some(cwd), &args, CREATE_TIMEOUT)
-        .ok_or("The GitHub CLI (gh) did not answer. Is it installed and signed in (gh auth login)?")?;
+    let run = run_gh_full(Some(cwd), &args, CREATE_TIMEOUT).ok_or(
+        "The GitHub CLI (gh) did not answer. Is it installed and signed in (gh auth login)?",
+    )?;
     if !run.success {
         return Err(format!(
             "GitHub did not create the issue: {}",

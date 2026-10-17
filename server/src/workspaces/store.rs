@@ -244,7 +244,14 @@ pub(crate) fn update_workspace_in(
     if params.contains_key("name") && bounded_text(params.get("name"), MAX_NAME_CHARS).is_none() {
         return Err(DomainStateError::bad_request("A workspace needs a name."));
     }
-    for key in ["name", "color", "letter", "kind", "claudeAccountId", "tracker"] {
+    for key in [
+        "name",
+        "color",
+        "letter",
+        "kind",
+        "claudeAccountId",
+        "tracker",
+    ] {
         match params.get(key) {
             Some(Value::Null) => {
                 workspace.remove(key);

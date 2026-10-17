@@ -1,6 +1,6 @@
-use super::{Client, decode_messages, error, safe_id};
+use super::{decode_messages, error, safe_id, Client};
 use crate::{domain::DomainStateError, session_chat::*, session_chat_options::*};
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use std::{
     collections::HashMap,
     fs,
@@ -81,9 +81,8 @@ pub(crate) fn snapshot(id: &str) -> Result<Snapshot, DomainStateError> {
         if let Some(snapshot) = cached.snapshot.clone() {
             let (live, changed) = super::events::live(id, None);
             if changed {
-                write_mirror(id, &snapshot, &live).map_err(|e| {
-                    error(format!("Could not update the OpenCode transcript: {e}"))
-                })?;
+                write_mirror(id, &snapshot, &live)
+                    .map_err(|e| error(format!("Could not update the OpenCode transcript: {e}")))?;
             }
             return Ok(snapshot);
         }

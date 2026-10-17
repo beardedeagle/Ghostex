@@ -685,8 +685,7 @@ fn uninstall_removes_plugin_yaml_and_opencode_ghostex_content_only() {
         &opencode_plugin_path,
         &format!("// {OPENCODE_PLUGIN_MARKER} v3\nexport default {{}};\n"),
     );
-    let removed_opencode =
-        remove_retired_opencode_plugin(temp.path()).expect("opencode uninstall");
+    let removed_opencode = remove_retired_opencode_plugin(temp.path()).expect("opencode uninstall");
     assert!(removed_opencode.contains(&path_string(&opencode_config_path)));
     assert!(removed_opencode.contains(&path_string(&opencode_plugin_path)));
     assert!(!opencode_plugin_path.exists());

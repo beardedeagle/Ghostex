@@ -4,8 +4,8 @@
 //! OpenCode owns mutable messages and session controls in its shared service, not a JSONL transcript or a per-terminal agent process. Read its authenticated service registration and public API; never infer conversation identity from another client's server process.
 
 use crate::domain::DomainStateError;
-use base64::{Engine as _, engine::general_purpose::STANDARD};
-use serde_json::{Value, json};
+use base64::{engine::general_purpose::STANDARD, Engine as _};
+use serde_json::{json, Value};
 use std::{fs, path::PathBuf, time::Duration};
 
 pub(crate) fn error(message: impl Into<String>) -> DomainStateError {

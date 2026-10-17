@@ -194,9 +194,7 @@ fn run_operation(tool: ToolId, operation: &str, home: &Path, log: &Log) -> Resul
         (ToolId::SystemTools, true) => system_tools::install(home, log)?,
         (ToolId::SystemTools, false) => return Err("Ghostex does not remove system tools.".into()),
         (ToolId::PowerShell, true) => powershell::install(log)?,
-        (ToolId::PowerShell, false) => {
-            return Err("Ghostex does not remove PowerShell 7.".into())
-        }
+        (ToolId::PowerShell, false) => return Err("Ghostex does not remove PowerShell 7.".into()),
     }
     crate::agent_hooks::probing::refresh_cli_environment(home);
     Ok(())

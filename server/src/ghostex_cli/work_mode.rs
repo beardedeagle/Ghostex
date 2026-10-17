@@ -240,17 +240,19 @@ fn answer_cleanup(rest: &[String], flags: &super::args::Flags) -> CliResult<()> 
     let (selector, answer) = match rest {
         [answer] => (None, answer),
         [selector, answer] => (Some(selector), answer),
-        _ => {
-            return Err(CliError::Other(
-                "Pass the session and the answer: ghostex work-mode cleanup <session> clean-up|keep."
-                    .to_string(),
-            ))
-        }
+        _ => return Err(CliError::Other(
+            "Pass the session and the answer: ghostex work-mode cleanup <session> clean-up|keep."
+                .to_string(),
+        )),
     };
     let answer = match answer.trim().to_ascii_lowercase().as_str() {
         "clean-up" | "cleanup" => "cleanUp",
         "keep" => "keep",
-        _ => return Err(CliError::Other("The answer is clean-up or keep.".to_string())),
+        _ => {
+            return Err(CliError::Other(
+                "The answer is clean-up or keep.".to_string(),
+            ))
+        }
     };
     let mut payload = Map::new();
     if let Some(selector) = flags
@@ -352,7 +354,8 @@ pub(super) fn link_session_command(args: &[String]) -> CliResult<()> {
         .any(|key| params.contains_key(*key))
     {
         return Err(CliError::Other(
-            "Pass --pr, --linear, --issue, --linear-project, --github-project or --auto.".to_string(),
+            "Pass --pr, --linear, --issue, --linear-project, --github-project or --auto."
+                .to_string(),
         ));
     }
     let result = rpc::call_gxserver_rpc("/api/setSessionWorkLinks", &Value::Object(params), flags)?;

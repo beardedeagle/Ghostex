@@ -61,7 +61,9 @@ pub(crate) fn status() -> Status {
 #[cfg(windows)]
 pub(crate) fn install(log: &Log) -> Result<(), String> {
     let winget = winget().ok_or_else(|| {
-        format!("winget isn't available on this computer. Download PowerShell 7 from {DOWNLOAD_PAGE}")
+        format!(
+            "winget isn't available on this computer. Download PowerShell 7 from {DOWNLOAD_PAGE}"
+        )
     })?;
     log.line("Installing PowerShell 7 with winget. Windows may ask you to allow the installer.");
     super::run::run(

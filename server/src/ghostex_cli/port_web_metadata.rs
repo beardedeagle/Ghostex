@@ -79,7 +79,10 @@ fn connect_addresses(listeners: &[TcpListenerDetail], port: u16) -> Vec<SocketAd
         .iter()
         .filter(|listener| listener.port == port)
         .flat_map(|listener| {
-            let address = listener.address.trim_start_matches('[').trim_end_matches(']');
+            let address = listener
+                .address
+                .trim_start_matches('[')
+                .trim_end_matches(']');
             let address = address.split('%').next().unwrap_or_default();
             match address.parse::<IpAddr>() {
                 Ok(IpAddr::V4(ip)) if ip.is_unspecified() => vec![loopbacks[0]],

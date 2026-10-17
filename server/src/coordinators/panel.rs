@@ -21,7 +21,8 @@ use super::brief::report_headline;
 use super::endpoint::session_title_of;
 use super::records::{list_coordinators, list_threads, SessionKey};
 use super::state::{
-    classify_thread_session, thread_needs_user_approval, waiting_prompt, ThreadProgress, ThreadState,
+    classify_thread_session, thread_needs_user_approval, waiting_prompt, ThreadProgress,
+    ThreadState,
 };
 use crate::domain::DomainRepository;
 use crate::presentation::now_iso;
@@ -30,9 +31,8 @@ use crate::presentation::now_iso;
 const RECENT_THREAD_MS: i64 = 2 * 60 * 60 * 1000;
 
 fn is_recent(active_at: &str, now: chrono::DateTime<chrono::Utc>) -> bool {
-    chrono::DateTime::parse_from_rfc3339(active_at).is_ok_and(|at| {
-        now.signed_duration_since(at).num_milliseconds() < RECENT_THREAD_MS
-    })
+    chrono::DateTime::parse_from_rfc3339(active_at)
+        .is_ok_and(|at| now.signed_duration_since(at).num_milliseconds() < RECENT_THREAD_MS)
 }
 
 /// One coordinator's cached panel: what frames carry, and what "N more" reads.
@@ -204,7 +204,9 @@ pub fn refresh_coordinator_panels(
     };
     let mut changed = next
         .iter()
-        .filter(|(key, panel)| panels.get(*key).map(|cached| &cached.summary) != Some(&panel.summary))
+        .filter(|(key, panel)| {
+            panels.get(*key).map(|cached| &cached.summary) != Some(&panel.summary)
+        })
         .map(|(key, _)| key.clone())
         .collect::<Vec<_>>();
     // A coordinator that went away keeps its last panel on any open chat; nothing to republish.

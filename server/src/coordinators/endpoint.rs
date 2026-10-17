@@ -7,9 +7,9 @@ use serde_json::{json, Map, Value};
 use super::records::{
     drop_thread_pending_message, link_thread, list_coordinators, list_threads, list_threads_for,
     now_iso, read_coordinator, read_thread, set_thread_pending_message, set_thread_resolved,
-    unlink_thread, write_coordinator, CoordinatorMemoryNote, CoordinatorRecord, SessionKey, ThreadRecord,
-    COORDINATOR_GOAL_MAX_CHARS, COORDINATOR_INSTRUCTIONS_MAX_CHARS, COORDINATOR_MEMORY_MAX_NOTES,
-    COORDINATOR_MEMORY_NOTE_MAX_CHARS,
+    unlink_thread, write_coordinator, CoordinatorMemoryNote, CoordinatorRecord, SessionKey,
+    ThreadRecord, COORDINATOR_GOAL_MAX_CHARS, COORDINATOR_INSTRUCTIONS_MAX_CHARS,
+    COORDINATOR_MEMORY_MAX_NOTES, COORDINATOR_MEMORY_NOTE_MAX_CHARS,
 };
 use super::state::{classify_thread_session, ThreadProgress, ThreadState};
 use crate::domain::{DomainRepository, DomainStateError};

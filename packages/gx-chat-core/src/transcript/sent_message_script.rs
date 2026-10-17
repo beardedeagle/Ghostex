@@ -107,7 +107,9 @@ impl<'a> Script<'a> {
             text.push_str(&rest[..start]);
             let after = &rest[start + 1..];
             let (name, length) = match after.strip_prefix('{') {
-                Some(braced) => braced.find('}').map_or(("", 0), |end| (&braced[..end], end + 2)),
+                Some(braced) => braced
+                    .find('}')
+                    .map_or(("", 0), |end| (&braced[..end], end + 2)),
                 None => {
                     let end = after
                         .find(|character: char| !(character.is_alphanumeric() || character == '_'))
@@ -115,12 +117,13 @@ impl<'a> Script<'a> {
                     (&after[..end], end)
                 }
             };
-            let value = (!name.is_empty() && !name.starts_with(|first: char| first.is_ascii_digit()))
-                .then(|| self.value(&format!("${name}"), at, send))
-                .and_then(|resolved| match resolved {
-                    Resolved::Text(value) => Some(value),
-                    Resolved::Unknown => None,
-                });
+            let value = (!name.is_empty()
+                && !name.starts_with(|first: char| first.is_ascii_digit()))
+            .then(|| self.value(&format!("${name}"), at, send))
+            .and_then(|resolved| match resolved {
+                Resolved::Text(value) => Some(value),
+                Resolved::Unknown => None,
+            });
             match value {
                 Some(value) => text.push_str(&value),
                 None => text.push_str(&rest[start..start + 1 + length]),

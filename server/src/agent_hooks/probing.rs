@@ -186,7 +186,11 @@ pub(super) fn resolve_command_path(command: &str, home_dir: &Path) -> Option<Str
 }
 
 /// Stdout of a one-line CLI script run the way `resolve_command_path` finds CLIs, so a probe reaches the same binary a session would launch.
-pub(crate) fn cli_script_stdout(script: &str, home_dir: &Path, timeout: Duration) -> Option<String> {
+pub(crate) fn cli_script_stdout(
+    script: &str,
+    home_dir: &Path,
+    timeout: Duration,
+) -> Option<String> {
     let shell = command_shell();
     let mut command_process = Command::new(&shell.executable);
     command_process.args(shell.profileless_script_args(script));

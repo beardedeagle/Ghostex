@@ -79,8 +79,7 @@ impl LiveText {
     fn prune(&mut self, messages: &[Value]) {
         self.parts.retain(|(message, _, _), _| {
             !messages.iter().any(|row| {
-                row["id"].as_str() == Some(message.as_str())
-                    && !row["time"]["completed"].is_null()
+                row["id"].as_str() == Some(message.as_str()) && !row["time"]["completed"].is_null()
             })
         });
     }

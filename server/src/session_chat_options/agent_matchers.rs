@@ -829,10 +829,7 @@ pub(super) fn match_omp_statusline(line: &str) -> Option<SessionChatDetectedSele
 pub(super) fn match_empryo_statusline(line: &str) -> Option<SessionChatDetectedSelection> {
     let (head, _) = line.split_once('\u{2301}')?;
     // The text after the last icon glyph (Nerd Font private-use characters).
-    let segment = head
-        .rsplit(is_nerd_font_icon)
-        .next()?
-        .trim();
+    let segment = head.rsplit(is_nerd_font_icon).next()?.trim();
     let (name, effort) = match segment.rsplit_once(" [") {
         Some((name, level)) => {
             let level = level.strip_suffix(']')?;
@@ -848,7 +845,11 @@ pub(super) fn match_empryo_statusline(line: &str) -> Option<SessionChatDetectedS
     {
         return None;
     }
-    Some(pi_family_selection(name.to_string(), name.to_string(), effort))
+    Some(pi_family_selection(
+        name.to_string(),
+        name.to_string(),
+        effort,
+    ))
 }
 
 /// CDXC:AgentScreenDetection 2026-10-07 WHY:

@@ -47,7 +47,11 @@ pub(crate) fn dismiss_work_notice(db: &Connection, notice: &str) -> Result<(), D
         VALUES (?1, ?2, ?3)
         ON CONFLICT(key) DO UPDATE SET value = excluded.value, updatedAt = excluded.updatedAt
         "#,
-        rusqlite::params![DISMISSED_NOTICES_KEY, Value::Object(dismissed).to_string(), now],
+        rusqlite::params![
+            DISMISSED_NOTICES_KEY,
+            Value::Object(dismissed).to_string(),
+            now
+        ],
     )
     .map_err(sql_error)?;
     Ok(())

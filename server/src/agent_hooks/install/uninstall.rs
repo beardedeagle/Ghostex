@@ -258,7 +258,11 @@ fn remove_nested_hook_groups(groups: &[Value], command: &str) -> Vec<Value> {
     next_groups
 }
 
-pub(super) fn without_marked_block(lines: &[String], begin_marker: &str, end_marker: &str) -> Vec<String> {
+pub(super) fn without_marked_block(
+    lines: &[String],
+    begin_marker: &str,
+    end_marker: &str,
+) -> Vec<String> {
     let mut result = Vec::new();
     let mut index = 0;
     while index < lines.len() {

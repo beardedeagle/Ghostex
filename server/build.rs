@@ -23,7 +23,10 @@ fn main() {
     println!("cargo:rerun-if-env-changed=GHOSTEX_GPUI_MARKETING_VERSION");
     let (marketing_version, stamped) = marketing_version();
     println!("cargo:rustc-env=GHOSTEX_BUILD_MARKETING_VERSION={marketing_version}");
-    println!("cargo:rustc-env=GHOSTEX_BUILD_VERSION_STAMPED={}", u8::from(stamped));
+    println!(
+        "cargo:rustc-env=GHOSTEX_BUILD_VERSION_STAMPED={}",
+        u8::from(stamped)
+    );
 }
 
 fn marketing_version() -> (String, bool) {

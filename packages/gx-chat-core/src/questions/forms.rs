@@ -505,10 +505,7 @@ pub fn project(state: &ChatState) -> BTreeMap<String, Value> {
             let mut value = serde_json::to_value(form).unwrap_or_default();
             if let Some(object) = value.as_object_mut() {
                 object.insert("state".to_string(), json!(phase));
-                object.insert(
-                    "canSend".to_string(),
-                    json!(phase == "open"),
-                );
+                object.insert("canSend".to_string(), json!(phase == "open"));
                 // CDXC:SessionChat 2026-10-12 DECISION: User: "i see the answer twice fam" (the answered form showed the picks and "Sent to the agent" while the answer message below repeated them); picked option c of docs/2026-10-12/handover-colors-and-answers/index.html: once the transcript carries a form's answers it collapses to one line (a check, the title, "Answered", a chevron) that opens the full read-only form and closes it again, collapsed by default and after a reload; the "You answered" card below stays as the record.
                 object.insert(
                     "collapsed".to_string(),

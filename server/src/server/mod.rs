@@ -108,8 +108,6 @@ use crate::{
 };
 
 #[cfg(test)]
-use axum::http::Request;
-#[cfg(test)]
 use crate::{
     automations::AutomationRuntime,
     delayed_sends::DelayedSendRuntime,
@@ -120,33 +118,41 @@ use crate::{
     protocol::{MigrationStatus, RuntimeMetadata},
     repository_clone::RepositoryCloneJobManager,
 };
+#[cfg(test)]
+use axum::http::Request;
 
 pub(crate) mod accounts_http;
 pub(crate) mod agent_cli_http;
-pub(crate) mod agentbox_http;
-mod agent_message_delivery_runtime;
-pub(crate) mod managed_tools_http;
 pub mod agent_http;
+mod agent_message_delivery_runtime;
 pub mod agent_prompt_search_http;
+pub(crate) mod agentbox_http;
+mod app_state;
 pub mod background_tasks;
 mod bot_sync;
 mod browser_tcp;
 mod close_after_done_runtime;
+pub mod commit_message_generation;
 mod coordinator_open_http;
 mod coordinator_resolve;
 mod coordinator_runtime;
 mod empty_session_cleanup_runtime;
-pub mod commit_message_generation;
+mod foreground;
+mod http_dispatch;
 pub mod http_endpoints;
 pub mod http_infra;
+pub(crate) mod managed_tools_http;
 mod open_conversation_http;
-mod previous_session_restore_http;
 pub mod presentation_delta;
+mod previous_session_restore_http;
 mod project_docs_http;
 pub mod project_paths;
+mod route_http;
 mod session_auto_sleep_sweep;
 pub mod session_state_sync;
+mod shutdown_bounds;
 mod sidebar_spaces_switch;
+mod stale_server_takeover;
 pub mod telemetry_http;
 pub mod telemetry_tasks;
 #[cfg(test)]
@@ -154,28 +160,27 @@ mod tests;
 pub mod title_generation;
 pub(crate) mod title_job_recovery;
 pub mod typed_operation_http;
-pub mod worktree_ops;
 mod work_mode_sync;
 mod workspaces_switch;
+pub mod worktree_ops;
 pub mod ws;
 pub mod zmx_http;
-mod app_state;
-mod foreground;
-mod http_dispatch;
-mod route_http;
-mod shutdown_bounds;
-mod stale_server_takeover;
 
 pub(crate) use agent_http::*;
 pub(crate) use agent_prompt_search_http::*;
+pub use app_state::*;
 pub(crate) use background_tasks::*;
 pub(crate) use commit_message_generation::*;
 pub(crate) use coordinator_runtime::queue_session_chat_prompt;
+pub use foreground::*;
+use http_dispatch::*;
 pub(crate) use http_endpoints::*;
 pub(crate) use http_infra::*;
 pub(crate) use presentation_delta::*;
 pub(crate) use project_paths::*;
+use route_http::*;
 pub(crate) use session_state_sync::*;
+use stale_server_takeover::*;
 pub(crate) use telemetry_http::*;
 pub(crate) use telemetry_tasks::*;
 pub(crate) use title_generation::*;
@@ -183,9 +188,3 @@ pub(crate) use typed_operation_http::*;
 pub(crate) use worktree_ops::*;
 pub(crate) use ws::*;
 pub(crate) use zmx_http::*;
-pub use app_state::*;
-pub use foreground::*;
-use http_dispatch::*;
-use route_http::*;
-use stale_server_takeover::*;
-

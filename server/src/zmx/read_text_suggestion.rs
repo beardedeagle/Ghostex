@@ -17,7 +17,8 @@ pub(super) fn mark_claude_input_suggestion(
     let Ok(capture) = super::screen_capture::read_zmx_session_screen_capture_vt(zmx_name) else {
         return (text, None);
     };
-    let Some(input) = crate::session_chat_composer::session_chat_composer_input(agent, &capture.text)
+    let Some(input) =
+        crate::session_chat_composer::session_chat_composer_input(agent, &capture.text)
     else {
         return (text, None);
     };

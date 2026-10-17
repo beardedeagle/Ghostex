@@ -189,8 +189,7 @@ pub(super) fn to_mobile_session_list(result: &Value) -> Value {
                             if let Some(workspace_id) =
                                 crate::workspaces::stored_project_workspace_id(project)
                             {
-                                project_map
-                                    .insert("workspaceId".to_string(), json!(workspace_id));
+                                project_map.insert("workspaceId".to_string(), json!(workspace_id));
                             }
                             if crate::workspaces::project_in_every_workspace(project) {
                                 project_map.insert("everyWorkspace".to_string(), json!(true));
@@ -251,7 +250,11 @@ pub(super) fn to_mobile_session_list(result: &Value) -> Value {
     }
     // Already normalized by gxserver (`SidebarWorkspacesState`); the phone re-narrows it on parse.
     if crate::workspaces::workspaces_feature_enabled() {
-        insert_present(&mut map, "sidebarWorkspaces", result.get("sidebarWorkspaces"));
+        insert_present(
+            &mut map,
+            "sidebarWorkspaces",
+            result.get("sidebarWorkspaces"),
+        );
     }
     Value::Object(map)
 }

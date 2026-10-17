@@ -423,7 +423,11 @@ fn list_project_candidates(owner: Option<&str>) -> Result<Vec<Candidate>, String
                 continue;
             }
             candidates.push(Candidate {
-                label: if title.is_empty() { value.clone() } else { title },
+                label: if title.is_empty() {
+                    value.clone()
+                } else {
+                    title
+                },
                 detail: Some(value.clone()),
                 value,
                 title: String::new(),

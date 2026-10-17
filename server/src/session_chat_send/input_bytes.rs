@@ -59,9 +59,8 @@ pub fn sanitize_bracketed_paste_text(text: &str) -> String {
 /// CDXC:SessionChat 2026-10-04 WHY:
 /// A control character in a message reaches the agent CLI as a keystroke, not as text: a form feed that PowerShell made out of a backticked `fsutil` sat in a `ghostex agents send` paste, and Claude Code then ignored every Return, so the message stayed in its input box while the sender was told "accepted". Every C0 control except tab, line feed and carriage return, and DEL, is therefore written as its visible Control Pictures sign (U+2400 block, ␌ for a form feed), the rule ESC already followed: the agent still sees that something was there, and nothing in the text can act as a key. Applied where the send decides what the agent is handed (session_chat_queue_runtime/send.rs), so the paste check and the delivery watchdog compare the same text the terminal shows.
 pub fn picture_terminal_control_characters(text: &str) -> std::borrow::Cow<'_, str> {
-    let is_key = |character: char| {
-        character.is_ascii_control() && !matches!(character, '\t' | '\n' | '\r')
-    };
+    let is_key =
+        |character: char| character.is_ascii_control() && !matches!(character, '\t' | '\n' | '\r');
     if !text.contains(is_key) {
         return std::borrow::Cow::Borrowed(text);
     }

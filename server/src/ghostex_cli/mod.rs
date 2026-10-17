@@ -1,20 +1,21 @@
-mod accounts;
 mod account_login;
+mod accounts;
 pub mod actions;
-pub mod agent_sync;
 mod agent_cli;
+pub mod agent_sync;
 mod agentbox_cli;
 mod agents;
-mod connectors;
-mod connectors_executor;
-mod connectors_mcp;
-mod coordinator;
+pub mod app_update;
 pub mod args;
 pub mod attach;
 pub mod automations;
 pub mod board;
-mod built_in_extensions;
 pub mod browser_mcp;
+mod built_in_extensions;
+mod connectors;
+mod connectors_executor;
+mod connectors_mcp;
+mod coordinator;
 pub mod diagnostics;
 pub mod editors;
 pub mod extensions;
@@ -41,16 +42,15 @@ mod sessions_brief;
 pub mod settings;
 mod settings_hotkeys;
 mod show;
-mod visual;
 pub mod skills;
-pub mod app_update;
 pub mod tailcat;
 pub mod tailcat_tunnel;
-pub mod usage;
-pub mod wait;
-pub mod web;
 mod team;
 mod team_slack;
+pub mod usage;
+mod visual;
+pub mod wait;
+pub mod web;
 mod work_mode;
 mod workspace;
 
@@ -646,9 +646,7 @@ fn run_command(name: &str, args: &[String]) -> CliResult<()> {
         }
         "saved-prompts" => saved_prompts::saved_prompts_command(args),
         "previous-sessions" => previous_sessions::previous_sessions_command(args),
-        "restore-previous-session" => {
-            previous_sessions::restore_previous_session_command(args)
-        }
+        "restore-previous-session" => previous_sessions::restore_previous_session_command(args),
         "paired-device-seen" => paired_device::paired_device_seen_command(args),
         "pin-session" => {
             run_bridge_action("pinSession", Parser::SessionBoolean("pinned"), plain, args)

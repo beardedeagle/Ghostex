@@ -7,9 +7,9 @@ use serde_json::{json, Map, Value};
 use crate::domain::DomainStateError;
 use crate::work_mode::{
     create_github_issue, dismiss_work_notice, github_projects_status_json,
-    refresh_github_projects_access, remember_team_work_tracker,
-    resolve_work_mode_project, stored_workspace_work_tracker, work_notice_dismissed,
-    workspace_work_tracker, NewGithubIssue, WorkTracker,
+    refresh_github_projects_access, remember_team_work_tracker, resolve_work_mode_project,
+    stored_workspace_work_tracker, work_notice_dismissed, workspace_work_tracker, NewGithubIssue,
+    WorkTracker,
 };
 use crate::workspaces::{
     find_workspace_id, project_workspace_id, read_sidebar_workspaces, update_workspace_in,
@@ -57,7 +57,9 @@ pub(super) async fn route_work_tracker_http(
                     ));
                 }
                 match route.as_str() {
-                    "/api/readWorkTracker" => read_work_tracker(&worker_state, repository, db, params),
+                    "/api/readWorkTracker" => {
+                        read_work_tracker(&worker_state, repository, db, params)
+                    }
                     "/api/setWorkTracker" => set_work_tracker(&worker_state, db, params),
                     "/api/createGithubIssue" => create_issue(repository, params),
                     _ => {
@@ -141,7 +143,10 @@ fn read_work_tracker(
             &crate::work_mode::workspace_params(&workspace_id),
         ) {
             Ok(flow) => {
-                remember_team_work_tracker(&workspace_id, WorkTracker::from_wire(flow.get("tracker")));
+                remember_team_work_tracker(
+                    &workspace_id,
+                    WorkTracker::from_wire(flow.get("tracker")),
+                );
                 can_edit = flow.get("canEdit").and_then(Value::as_bool) != Some(false);
             }
             // Unreachable team: show what this computer knows and do not offer the switch.
@@ -232,4 +237,3 @@ fn create_issue(
         "repo": created.repo,
     }))
 }
-

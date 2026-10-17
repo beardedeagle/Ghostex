@@ -16,10 +16,10 @@ use crate::logging::{GxserverLogInput, LogLevel};
 use crate::platform::process::background_command;
 use crate::server::AppState;
 
-use crate::cloud_runner::run_with_stdin;
 use super::connections::TeamConnection;
 use super::convex_http::ConvexCallKind;
 use super::operations::member_call;
+use crate::cloud_runner::run_with_stdin;
 
 const SUMMARY_TIMEOUT: Duration = Duration::from_secs(60);
 const SUMMARY_MODEL: &str = "haiku";

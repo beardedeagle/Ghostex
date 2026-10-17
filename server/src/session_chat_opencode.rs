@@ -1,5 +1,5 @@
-mod controls;
 mod config;
+mod controls;
 pub(crate) use config::*;
 pub(crate) use controls::*;
 mod attachments;
@@ -10,7 +10,8 @@ mod mirror;
 mod prompts;
 mod status;
 pub(crate) use status::*;
-#[cfg(test)] mod tests;
+#[cfg(test)]
+mod tests;
 
 pub(crate) use client::*;
 pub(crate) use decode::*;

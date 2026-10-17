@@ -75,9 +75,10 @@ fn loop_values(words: &[String], before: &[ShellCommand]) -> Option<Vec<String>>
     let mut values = Vec::new();
     for word in words {
         if let Some(name) = variable_name(word) {
-            let (_, assigned) = before.iter().rev().find_map(|shell| {
-                assignment(shell).filter(|(assigned, _)| *assigned == name)
-            })?;
+            let (_, assigned) = before
+                .iter()
+                .rev()
+                .find_map(|shell| assignment(shell).filter(|(assigned, _)| *assigned == name))?;
             match assigned.as_slice() {
                 [value] if !is_expansion(value) && !value.contains('$') => {
                     values.extend(value.split_whitespace().map(str::to_string))
@@ -240,9 +241,7 @@ fn list_values(list: &str, script: &str) -> Option<Vec<String>> {
             Some(quoting) if character == quoting => quote = None,
             Some(_) => item.push(character),
             None if matches!(character, '\'' | '"') => quote = Some(character),
-            None if matches!(character, ',' | ';' | '\n') => {
-                values.push(std::mem::take(&mut item))
-            }
+            None if matches!(character, ',' | ';' | '\n') => values.push(std::mem::take(&mut item)),
             None => item.push(character),
         }
     }
@@ -252,8 +251,8 @@ fn list_values(list: &str, script: &str) -> Option<Vec<String>> {
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
         .collect();
-    let literal = values.iter().all(|value| {
-        !value.contains(['$', '(', ')', '`', '@', '{', '}', ' ', '\t', '|'])
-    });
+    let literal = values
+        .iter()
+        .all(|value| !value.contains(['$', '(', ')', '`', '@', '{', '}', ' ', '\t', '|']));
     (literal && !values.is_empty() && values.len() <= MAX_LOOP_VALUES).then_some(values)
 }
