@@ -360,6 +360,12 @@ impl Render for FrostedHostView {
         // (CDXC:Theming 2026-10-15 on `apply_frosted_menu_blur`).
         #[cfg(target_os = "macos")]
         crate::app::helpers::apply_frosted_menu_blur(window);
+        // A sidebar menu's host hands its tooltips (the New Orchestrator… (i)) to the frosted
+        // tooltip window, attached above this one, so the bubble is neither clipped to the menu's
+        // window nor drawn under it.
+        if matches!(self.kind, FrostedHostKind::SidebarMenu(_)) {
+            sync_frosted_tooltip_presenter(window, cx);
+        }
         let content = with_slot(self.kind, |slot| slot.content.clone());
         let mut host = div().size_full();
         if let Some(content) = content {

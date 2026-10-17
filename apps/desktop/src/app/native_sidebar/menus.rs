@@ -333,8 +333,8 @@ impl GhostexGpuiApp {
                         previous_focus,
                         trigger: toggle.map(|(trigger, _)| trigger),
                         scale,
-                        // CDXC:Tooltips 2026-09-15 DECISION: User: no tooltip may show while a context menu is open; the suppression is held for as long as the menu is.
-                        _tooltips: Root::suppress_tooltips(window, cx),
+                        // CDXC:Tooltips 2026-10-17 DECISION: User (2026-09-15): no tooltip may show while a context menu is open; the suppression is held for as long as the menu is. The one exception, the user's choice on 2026-10-17 ("real tooltip"): the (i) beside New Orchestrator… shows its benefits as a real tooltip while the menu is open, so the suppression is lifted only while the pointer is on that (i) (`set_native_sidebar_menu_info_hover` in agent_launcher_menu.rs). Every other tooltip stays hidden while a menu is open.
+                        tooltips: Some(Root::suppress_tooltips(window, cx)),
                     });
                     if let Some(command) = on_open {
                         app.dispatch_native_sidebar_ui(command, cx);
