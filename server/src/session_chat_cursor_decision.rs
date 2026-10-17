@@ -230,6 +230,21 @@ pub fn cursor_decision_answer_key(text: &str, index: usize) -> Option<String> {
         .map(|row| row.key.clone())
 }
 
+/// Whether row `index` of the live panel is the command approval's "Skip & tell the agent what to
+/// do instead", which the chat answers with Escape and then an empty Enter in the box it opens
+/// (`SessionChatSendStep::SkipCursorInsteadBox`).
+///
+/// CDXC:SessionChat 2026-10-17 DECISION: Asked whether the chat's Skip should leave Cursor asking "what to do instead" or skip outright, the user picked "skip outright": the card's Skip skips straight away (Escape, then the empty Enter), so Cursor never waits in its "Tell the agent what to do instead" box and the next chat message is a normal new message, with no false "might not have reached the agent" warning.
+pub fn cursor_decision_skips_outright(text: &str, index: usize) -> bool {
+    detect_cursor_decision(text).is_some_and(|decision| {
+        decision.command.is_some()
+            && decision
+                .rows
+                .get(index)
+                .is_some_and(|row| row.dismisses && row.label.starts_with("Skip"))
+    })
+}
+
 /// What Stop types to close the live panel: Escape, when one of its rows takes it. Cursor ignores
 /// Ctrl+C while a panel owns its input, so Stop wrote "Interrupted the agent" and left the
 /// approval on screen.

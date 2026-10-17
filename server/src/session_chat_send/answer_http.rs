@@ -734,9 +734,17 @@ pub(crate) async fn handle_answer_session_chat_prompt_http(
                 );
             };
             let agent = session_chat_agent_for_session(&target.session);
-            let answer_key =
-                crate::session_chat_send::capture_session_terminal_text(&target.zmx_name)
-                    .await
+            let screen =
+                crate::session_chat_send::capture_session_terminal_text(&target.zmx_name).await;
+            let skips_outright = screen.as_deref().is_some_and(|text| {
+                crate::session_chat_options::session_chat_option_agent(agent.as_deref())
+                    == Some(crate::session_chat_options::SessionChatOptionAgent::Cursor)
+                    && crate::session_chat_cursor_decision::cursor_decision_skips_outright(
+                        text,
+                        choice_index,
+                    )
+            });
+            let answer_key = screen
                     .as_deref()
                     .and_then(|text| {
                         let option_agent = crate::session_chat_options::session_chat_option_agent(
@@ -796,7 +804,14 @@ pub(crate) async fn handle_answer_session_chat_prompt_http(
                     },
                 );
             };
-            crate::session_chat_send::build_terminal_picker_answer_steps(&answer_key)
+            if skips_outright {
+                vec![
+                    crate::session_chat_send::SessionChatSendStep::Write("\u{1b}".to_string()),
+                    crate::session_chat_send::SessionChatSendStep::SkipCursorInsteadBox,
+                ]
+            } else {
+                crate::session_chat_send::build_terminal_picker_answer_steps(&answer_key)
+            }
         }
         _ => {
             return domain_error_response(

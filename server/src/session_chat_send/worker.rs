@@ -433,6 +433,39 @@ pub(super) async fn run_session_chat_send_worker(
                         break;
                     }
                 }
+                SessionChatSendStep::SkipCursorInsteadBox => {
+                    let deadline = Instant::now() + Duration::from_secs(3);
+                    loop {
+                        if capture_session_terminal_text(&zmx_name)
+                            .await
+                            .is_some_and(|screen| {
+                                crate::session_chat_cursor_blocking::cursor_asks_instead_of_skipped(
+                                    &screen,
+                                )
+                            })
+                        {
+                            if let Err(error) = write_session_chat_payload(
+                                &project_id,
+                                &session_id,
+                                &zmx_name,
+                                &source,
+                                "\r",
+                            )
+                            .await
+                            {
+                                outcome = Err(SessionChatSendError::new(
+                                    SessionChatSendFailure::Write,
+                                    error,
+                                ));
+                            }
+                            break;
+                        }
+                        if Instant::now() >= deadline {
+                            break;
+                        }
+                        tokio::time::sleep(Duration::from_millis(150)).await;
+                    }
+                }
                 SessionChatSendStep::GuardCopilotInterrupt => {
                     // A Stop right after a send may come before Copilot shows the turn running.
                     let deadline = Instant::now() + Duration::from_secs(3);

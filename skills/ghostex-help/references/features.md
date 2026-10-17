@@ -1020,8 +1020,8 @@ once, skip it, add it to the allowlist, or run everything), its plan approval
 (Ready to build?: build here, build in the cloud, or propose changes), its
 requests to switch mode, and its questions are answered from the chat too, and
 the plan shows in the conversation. Stop while Cursor waits on a command
-approval skips the command and ends the turn. After Skip, Cursor waits for what
-to do instead: your next chat message is that answer. The mode button switches Cursor between Agent, Plan,
+approval skips the command and ends the turn. Skip skips the command straight
+away, and your next chat message is a new message. The mode button switches Cursor between Agent, Plan,
 Debug and Ask; it waits while a command approval is open.
 Ghostex supports OpenCode 2 (version 2.0 or newer); OpenCode 1 is not supported.
 OpenCode chats read and send through OpenCode's own background service instead

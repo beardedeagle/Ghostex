@@ -14,6 +14,9 @@ pub enum SessionChatSendStep {
     GuardClaudeInterrupt,
     /// Wait for Cursor to show "ctrl+c to stop", and stop this interrupt job if it never does.
     GuardCursorInterrupt,
+    /// Press Enter on the empty "Tell the agent what to do instead" box Cursor opens after an
+    /// approval's Skip, once it shows (`cursor_decision_skips_outright`).
+    SkipCursorInsteadBox,
     /// Stop this interrupt job unless Hermes shows a running turn and an empty input line
     /// (session_chat_hermes_interrupt.rs).
     GuardHermesInterrupt,
