@@ -7,11 +7,12 @@
 
 use std::borrow::Cow;
 
-/// Whether the agent invokes a skill as a slash command.
+/// Whether the agent invokes a skill as a slash command. Copilot CLI runs a skill as `/name` too
+/// (1.0.98 completes `/figm` to the `/figma` skill).
 fn invokes_skills_with_slash(agent: Option<&str>) -> bool {
     matches!(
         crate::agents::identity::normalize_agent_id(agent).as_deref(),
-        Some("claude" | "openclaude")
+        Some("claude" | "openclaude" | "copilot")
     )
 }
 

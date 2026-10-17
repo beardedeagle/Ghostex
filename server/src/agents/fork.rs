@@ -56,7 +56,7 @@ pub(crate) fn fork_session(
             .is_none()
     {
         return Err(DomainStateError::bad_request(
-            "Fork is only available for Codex, Claude, Pi, and Empryo sessions with a restorable identity.",
+            "Fork is only available for Codex, Claude, Pi, Empryo, and Copilot sessions with a restorable identity.",
         )
         .into());
     }
@@ -82,14 +82,40 @@ pub(crate) fn fork_session(
             json!(folder.session_log().to_string_lossy()),
         );
     }
+    // Copilot's fork resumes a copy of the session folder (`fork_copilot.rs`), recorded on the row
+    // at once for the same reason as Empryo's above.
+    let copilot_fork = plan
+        .get("copilotForkSessionId")
+        .and_then(Value::as_str)
+        .map(|fork_id| {
+            super::fork_copilot::fork_copilot_session_folder(&source_session, fork_id)
+                .map(|folder| (fork_id.to_string(), folder))
+        })
+        .transpose()?;
+    if let (Some((fork_id, folder)), Some(runtime)) = (
+        copilot_fork.as_ref(),
+        fork_params
+            .get_mut("runtimeSettings")
+            .and_then(Value::as_object_mut),
+    ) {
+        runtime.insert("agentSessionId".to_string(), json!(fork_id));
+        runtime.insert(
+            "agentSessionPath".to_string(),
+            json!(folder.session_log().to_string_lossy()),
+        );
+    }
     let fork_params = fork_params
         .as_object()
         .ok_or_else(|| DomainStateError::corrupt_state("Fork params must be an object."))?;
     let empryo_fork = empryo_fork.map(|(_, folder)| folder);
+    let copilot_fork = copilot_fork.map(|(_, folder)| folder);
     let created_session = match repository.create_session(fork_params, false) {
         Ok(session) => session,
         Err(error) => {
             if let Some(folder) = empryo_fork {
+                folder.discard();
+            }
+            if let Some(folder) = copilot_fork {
                 folder.discard();
             }
             return Err(error.into());
@@ -141,6 +167,7 @@ pub(crate) fn build_agent_fork_plan(
         .map(str::to_string);
     let trusted_title = trusted_resume_title(session);
     let mut empryo_fork_id = None;
+    let mut copilot_fork_id = None;
     let primary_command = match (agent_id, runtime_command) {
         (Some("codex"), Some(command)) => exact_reference
             .as_deref()
@@ -165,6 +192,12 @@ pub(crate) fn build_agent_fork_plan(
             empryo_fork_id = Some(fork_id);
             invocation
         }),
+        (Some("copilot"), Some(command)) => exact_reference.map(|_| {
+            let fork_id = uuid::Uuid::new_v4().to_string();
+            let invocation = format!("{command} --resume {}", quote_shell_double_arg(&fork_id));
+            copilot_fork_id = Some(fork_id);
+            invocation
+        }),
         _ => None,
     };
     let mut plan = Map::new();
@@ -179,6 +212,7 @@ pub(crate) fn build_agent_fork_plan(
     );
     insert_optional_string(&mut plan, "displayCommand", primary_command.clone());
     insert_optional_string(&mut plan, "empryoForkSessionId", empryo_fork_id);
+    insert_optional_string(&mut plan, "copilotForkSessionId", copilot_fork_id);
     insert_optional_string(&mut plan, "primaryCommand", primary_command.clone());
     insert_optional_string(
         &mut plan,
@@ -313,8 +347,9 @@ pub(crate) fn create_agent_fork_session_params(
             "autoTitleFromFirstPrompt": false,
             "forkFirstPromptAutoTitlePending": true,
             "forkedFromSessionId": source_session_id,
-            // Empryo's copy already carries the fork's name (`fork_empryo.rs`).
-            "gxserverForkInitialRenameStatus": if agent_id == "empryo" { "applied" } else { "pending" },
+            // Empryo's and Copilot's copies already carry the fork's name (`fork_empryo.rs`,
+            // `fork_copilot.rs`).
+            "gxserverForkInitialRenameStatus": if matches!(agent_id, "empryo" | "copilot") { "applied" } else { "pending" },
             "startupText": startup_text,
             "titleSource": "placeholder",
         }),

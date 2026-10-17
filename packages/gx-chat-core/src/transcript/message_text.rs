@@ -229,8 +229,12 @@ fn strip_emphasis(value: &str) -> String {
             .count();
         let before = value[..start].chars().next_back();
         let after = value[start + len..].chars().next();
-        let can_open = !is_ascii_alphanumeric(before) && after.is_some_and(|c| !is_js_space(c));
-        let can_close = !is_ascii_alphanumeric(after) && before.is_some_and(|c| !is_js_space(c));
+        // An escaped run (`\_`) is text, never a delimiter.
+        let escaped = before == Some('\\');
+        let can_open =
+            !escaped && !is_ascii_alphanumeric(before) && after.is_some_and(|c| !is_js_space(c));
+        let can_close =
+            !escaped && !is_ascii_alphanumeric(after) && before.is_some_and(|c| !is_js_space(c));
         let index = runs.len();
         runs.push(Run {
             start,
@@ -284,10 +288,20 @@ fn strip_emphasis(value: &str) -> String {
 /// A separate pass, exactly as in the TypeScript: the emphasis pass above runs first and has
 /// already eaten the asterisk out of a `\*`, so folding the two into one scan would keep an escaped
 /// character the shipped rules drop.
+///
+/// An absolute Windows path (`C:\Users\me\dev\_scratch`) keeps every backslash, as
+/// `literal_windows_prose_paths` in native_markdown.rs keeps it in the rendered Markdown.
 fn strip_escapes(value: &str) -> String {
     let mut out = String::with_capacity(value.len());
     let mut cursor = 0;
     while cursor < value.len() {
+        if let Some(end) =
+            crate::transcript::native_markdown::windows_prose_path_end(value.as_bytes(), cursor)
+        {
+            out.push_str(&value[cursor..end]);
+            cursor = end;
+            continue;
+        }
         let rest = &value[cursor..];
         if let Some(after) = rest.strip_prefix('\\') {
             if let Some(escaped) = after.chars().next() {

@@ -14,6 +14,11 @@ pub enum SessionChatSendStep {
     GuardClaudeInterrupt,
     /// Wait for Cursor to show "ctrl+c to stop", and stop this interrupt job if it never does.
     GuardCursorInterrupt,
+    /// Stop this interrupt job unless Hermes shows a running turn and an empty input line
+    /// (session_chat_hermes_interrupt.rs).
+    GuardHermesInterrupt,
+    /// Stop this interrupt job unless Copilot shows a running turn (session_chat_copilot_interrupt.rs).
+    GuardCopilotInterrupt,
     /// Recheck the transcript pager and cross-client visibility at the front of the queue.
     CloseUnwatchedCodexTranscriptPager,
     /// Scroll Claude's `/btw` panel end to end and keep its whole answer (session_chat_claude_panel.rs).
@@ -443,6 +448,18 @@ pub(crate) fn session_chat_interrupt_escape_steps(agent: Option<&str>) -> Vec<Se
         // CDXC:SessionChat 2026-10-07 WHY: Cursor CLI stops a running turn on Ctrl+C ("ctrl+c to stop") and ignores Escape while it works, so chat Stop answered "interrupted" while the turn kept running. Ctrl+C stops the turn only once Cursor shows it is processing (about 5 s after a send on Windows); before that it only arms "Press Ctrl+C again to exit", so the guard waits for that state and sends nothing if it never comes.
         Some("cursor" | "cursor-agent") => {
             steps.push(SessionChatSendStep::GuardCursorInterrupt);
+            steps.push(SessionChatSendStep::Write("\u{3}".to_string()));
+            return steps;
+        }
+        // Copilot's Escape only backgrounds a running shell (session_chat_copilot_interrupt.rs).
+        Some("copilot") => {
+            steps.push(SessionChatSendStep::GuardCopilotInterrupt);
+            steps.push(SessionChatSendStep::Write("\u{3}".to_string()));
+            return steps;
+        }
+        // Hermes cancels a turn on Ctrl+C, never on Escape (session_chat_hermes_interrupt.rs).
+        Some("hermes") => {
+            steps.push(SessionChatSendStep::GuardHermesInterrupt);
             steps.push(SessionChatSendStep::Write("\u{3}".to_string()));
             return steps;
         }

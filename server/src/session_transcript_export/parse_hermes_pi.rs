@@ -18,6 +18,13 @@ pub(super) fn parse_freebuff_record(builder: &mut TranscriptBuilder, line: &str)
     }
 }
 
+/// Copilot's `events.jsonl`, read through the chat's own decoder.
+pub(super) fn parse_copilot_record(builder: &mut TranscriptBuilder, line: &str) {
+    if let Some(message) = crate::session_chat::decode_copilot_transcript_line(line, "copilot") {
+        parse_normalized_record(builder, message);
+    }
+}
+
 /// Empryo mirror rows (`session_chat_decode_empryo.rs`), whose calls and results name their
 /// own call ids because one row can carry a whole group of parallel calls.
 pub(super) fn parse_empryo_record(builder: &mut TranscriptBuilder, line: &str) {

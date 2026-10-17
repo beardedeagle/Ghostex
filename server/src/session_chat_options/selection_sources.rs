@@ -588,6 +588,8 @@ fn read_session_chat_transcript_selection(
             SessionChatOptionAgent::Empryo => return None,
             // ZCode's statusline names no catalog values chat needs.
             SessionChatOptionAgent::Zcode => return None,
+            // Copilot's footer names the model and the mode for the whole session.
+            SessionChatOptionAgent::Copilot => return None,
         })?;
     let path = crate::session_chat::resolve_session_chat_transcript_path(
         transcript_agent,
@@ -779,9 +781,12 @@ pub(super) fn read_session_chat_stored_selections(
             agent @ (SessionChatOptionAgent::Pi
             | SessionChatOptionAgent::Omp
             | SessionChatOptionAgent::Empryo),
-        ) => {
-            crate::session_chat_pi_models::read_pi_family_selection(
-                repository, project_id, session_id, agent,
+        ) => crate::session_chat_pi_models::read_pi_family_selection(
+            repository, project_id, session_id, agent,
+        ),
+        Some(SessionChatOptionAgent::Antigravity) => {
+            crate::session_chat_antigravity_status::read_antigravity_context_selection(
+                repository, project_id, session_id,
             )
         }
         _ => None,

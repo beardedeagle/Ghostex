@@ -86,7 +86,7 @@ pub(crate) fn can_wake(row: &SessionRow) -> bool {
 fn supports_fork(row: &SessionRow) -> bool {
     matches!(
         row.agent_icon.as_deref().unwrap_or_default(),
-        "codex" | "claude" | "pi" | "empryo"
+        "codex" | "claude" | "copilot" | "pi" | "empryo"
     )
 }
 
@@ -116,5 +116,8 @@ pub(crate) fn supports_full_reload(row: &SessionRow) -> bool {
             .as_deref()
             .is_some_and(|id| !js_trim(id).is_empty());
     }
-    matches!(icon, "codex" | "claude" | "opencode" | "pi" | "cursor-cli")
+    matches!(
+        icon,
+        "codex" | "claude" | "copilot" | "opencode" | "pi" | "cursor-cli"
+    )
 }

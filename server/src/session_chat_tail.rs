@@ -10,7 +10,7 @@ use crate::session_chat_branch::{
     remember_session_chat_branch_boundary, session_chat_branch_boundary, ActiveBranchScan,
     BranchVerdict,
 };
-use crate::session_chat_decode_pi::decode_pi_transcript_entry;
+use crate::session_chat_decode_pi::{decode_pi_transcript_entry, decode_pi_turn_lifecycle};
 
 // ---------------------------------------------------------------------------
 // Shared primitives (upstream chat spec §1)
@@ -499,11 +499,16 @@ pub(crate) fn read_pi_session_chat_transcript_tail_file(
     }
 
     let mut chronological = Vec::new();
+    // The newest turn boundary on the active branch (`decode_pi_turn_lifecycle`).
+    let mut lifecycle = None;
     for entry in entries {
         if entry.offset >= selection_end || !active_ids.contains(&entry.id) {
             continue;
         }
         let fallback_id = transcript_fallback_id(file_path, entry.offset);
+        if let Some(next) = decode_pi_turn_lifecycle(&entry.line, &fallback_id) {
+            lifecycle = Some(next);
+        }
         for mut message in decode_pi_transcript_entry(&entry.line, &fallback_id) {
             message.byte_offset = Some(entry.offset);
             chronological.push((message, entry.offset));
@@ -528,7 +533,7 @@ pub(crate) fn read_pi_session_chat_transcript_tail_file(
     Ok(SessionChatTailFileResult {
         codex_stats: Default::default(),
         messages: selected.into_iter().map(|(message, _)| message).collect(),
-        lifecycle: None,
+        lifecycle,
         consumed_to,
         has_more,
         before_offset,

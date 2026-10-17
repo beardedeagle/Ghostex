@@ -216,6 +216,27 @@ fn edit_lines(edit: &Value) -> Option<Vec<DiffLine>> {
     Some(lines)
 }
 
+/// A file edit Pi's `cursor:local` provider ran: one `cursor` activity call naming the file, whose
+/// result carries the patch gxserver read from the provider's diff (`with_result` draws it).
+fn cursor_activity_change<'a>(kind: &str, input: &Value) -> Option<FileChange<'a>> {
+    if kind != "cursor" {
+        return None;
+    }
+    let (action, status) = match input.get("activityTitle").and_then(Value::as_str)? {
+        "Cursor edit" => ("Edit", "edited"),
+        "Cursor write" => ("Write", "new"),
+        "Cursor delete" => ("Delete", "deleted"),
+        _ => return None,
+    };
+    Some(FileChange {
+        path: tool_file_path(input)?.to_string(),
+        action,
+        status,
+        lines: Vec::new(),
+        result: None,
+    })
+}
+
 pub(crate) fn file_changes<'a>(name: &str, input: &Value) -> Vec<FileChange<'a>> {
     let kind = tool_kind(name);
     let input = decoded_input(input);
@@ -243,6 +264,9 @@ pub(crate) fn file_changes<'a>(name: &str, input: &Value) -> Vec<FileChange<'a>>
                 .collect();
         }
         return Vec::new();
+    }
+    if let Some(change) = cursor_activity_change(&kind, &input) {
+        return vec![change];
     }
     if !matches!(
         kind.as_str(),

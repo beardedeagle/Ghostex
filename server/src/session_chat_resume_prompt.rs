@@ -233,6 +233,8 @@ pub enum SessionChatTerminalPickerKind {
     /// Antigravity CLI's tool permission panel
     /// (`session_chat_antigravity_permission.rs`), answered by row number.
     AntigravityPermission,
+    /// Copilot CLI's tool approval panel (`session_chat_copilot_permission.rs`).
+    CopilotPermission,
 }
 
 /// One row of an on-screen picker, in the order it is painted.
@@ -332,6 +334,11 @@ impl SessionChatTerminalPicker {
             && row.label.starts_with(RESUME_FULL_SESSION_LABEL)
         {
             return Some(crate::session_chat_send::SESSION_CHAT_INTERRUPT.to_string());
+        }
+        if self.kind == SessionChatTerminalPickerKind::CopilotPermission {
+            return crate::session_chat_copilot_permission::copilot_permission_answer_key(
+                self, target,
+            );
         }
         if self.kind == SessionChatTerminalPickerKind::PermissionPrompt {
             let step = if target >= self.selected_index {

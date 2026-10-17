@@ -476,8 +476,29 @@ pub fn resolve_gxserver_server_target(flags: &Flags, params: &Value) -> CliResul
             trimmed
         }
     };
+    /*
+    CDXC:RemotePairing 2026-10-17 WHY:
+    A global ref (`S8g:P46v4:G7kuo`) used to pick its server before an explicit `--server` was read,
+    so a CLI talking to another machine through `--server http://…` or a profile was refused with
+    "no gxserver connection profile exists" for that machine's own refs, while `P46v4:G7kuo` worked.
+    An explicit server now wins; the ref only has to belong to it, which its health check confirms
+    when it reports a server id.
+    */
     if let Some(global_ref) = find_global_ref_candidate(params) {
         let server_id = global_ref.split(':').next().unwrap_or_default().to_string();
+        if server != "local" {
+            let target = resolve_named_gxserver_target(&server, flags)?;
+            if let Ok(Some(health)) = fetch_gxserver_health(&target, 2_000) {
+                if let Some(answered) = health.get("serverId").and_then(Value::as_str) {
+                    if answered != server_id {
+                        return Err(CliError::Other(format!(
+                            "Global session ref {global_ref} targets {server_id}, but --server {server} is {answered}."
+                        )));
+                    }
+                }
+            }
+            return Ok(target);
+        }
         let local = resolve_local_gxserver_target()?;
         if local_gxserver_server_id().as_deref() == Some(server_id.as_str()) {
             return Ok(local);
@@ -494,6 +515,13 @@ pub fn resolve_gxserver_server_target(flags: &Flags, params: &Value) -> CliResul
         };
         return resolve_gxserver_profile_target(&profile, flags);
     }
+    resolve_named_gxserver_target(&server, flags)
+}
+
+/// The gxserver `--server` names: `local`, an `ssh://` URL, `tailcat:<address>`, an `http(s)://`
+/// URL, or a connection profile.
+fn resolve_named_gxserver_target(server: &str, flags: &Flags) -> CliResult<Target> {
+    let server = server.to_string();
     if server == "local" {
         return resolve_local_gxserver_target();
     }

@@ -51,6 +51,7 @@ pub(super) async fn detect_and_adopt_successor_transcript(
         // Codex stems are `rollout-<ts>-<uuid>`; only the trailing uuid is it.
         SessionChatTranscriptAgent::Codex => codex_rollout_session_id(stem)?,
         SessionChatTranscriptAgent::Antigravity
+        | SessionChatTranscriptAgent::Copilot
         | SessionChatTranscriptAgent::Cursor
         | SessionChatTranscriptAgent::Empryo
         | SessionChatTranscriptAgent::Grok

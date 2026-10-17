@@ -224,6 +224,7 @@ pub(super) fn classify_watchdog_record(
         // No catalogued record shapes, so no evidence either way. The delivery
         // tiers and the 10s deadline still cover these agents unchanged.
         SessionChatTranscriptAgent::Antigravity
+        | SessionChatTranscriptAgent::Copilot
         | SessionChatTranscriptAgent::Grok
         | SessionChatTranscriptAgent::Cursor
         | SessionChatTranscriptAgent::Empryo

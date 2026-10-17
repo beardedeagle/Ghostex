@@ -174,10 +174,27 @@ pub fn run_notify_hook(args: Vec<String>) -> Result<Option<String>, DomainStateE
     Hermes runs a delegate_task subagent inside the terminal's own process, and its terminal tool can start another `hermes` run; both fire this terminal's hooks under their own session id, without the parent's. Each one rebound the Ghostex session to the child: chat showed the child's transcript, the row took the child's title ("Subagent: …"), and the child's end marked the session idle mid-turn (observed 2026-09-27 in the Dobby bot, sessions G26an and G30nd). Hermes marks every process it starts for a subagent with `HERMES_DELEGATED_CHILD_CONTEXT` and starts terminal-tool commands in a new session with no controlling terminal, so neither is the session's agent. A nested run is dropped; a subagent keeps only its approval prompt, which waits in this terminal, and never names the conversation.
     */
     let hermes = agent_key == "hermes-agent";
-    if hermes && !hook_process_has_terminal() {
-        return Ok(None);
-    }
-    let hermes_subagent = hermes && env_string("HERMES_DELEGATED_CHILD_CONTEXT").is_some();
+    // A turn Hermes 0.22 runs in its shared gateway reports to the terminal showing it (hermes_gateway.rs).
+    let hermes_route = if hermes {
+        super::hermes_gateway::route_hermes_hook(session_id.as_deref(), &payload)
+    } else {
+        super::hermes_gateway::HermesHookRoute::InTerminal
+    };
+    let gateway_subagent = match hermes_route {
+        super::hermes_gateway::HermesHookRoute::Unattached => return Ok(None),
+        super::hermes_gateway::HermesHookRoute::Attached { subagent } => {
+            state = Map::new();
+            subagent
+        }
+        super::hermes_gateway::HermesHookRoute::InTerminal => false,
+    };
+    let has_state_path = has_state_path
+        && !matches!(
+            hermes_route,
+            super::hermes_gateway::HermesHookRoute::Attached { .. }
+        );
+    let hermes_subagent =
+        hermes && (gateway_subagent || env_string("HERMES_DELEGATED_CHILD_CONTEXT").is_some());
     if hermes_subagent
         && !matches!(
             event_name.as_str(),
@@ -398,11 +415,6 @@ fn empryo_session_log_path(session_id: Option<&str>) -> Option<String> {
             .to_string_lossy()
             .into_owned(),
     )
-}
-
-/// A `setsid` process cannot open `/dev/tty`; Windows has no controlling terminal, so every hook counts there.
-fn hook_process_has_terminal() -> bool {
-    !cfg!(unix) || fs::File::open("/dev/tty").is_ok()
 }
 
 pub(crate) fn read_hook_state(path: &Path) -> Map<String, Value> {

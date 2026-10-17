@@ -229,6 +229,11 @@ pub fn parse_session_chat_questions(
         input
     };
     let record = input.as_object()?;
+    // Copilot's ask_user is an elicitation form (session_chat_copilot_question.rs).
+    if let Some(questions) = crate::session_chat_copilot_question::parse_copilot_elicitation(record)
+    {
+        return Some(questions);
+    }
     let is_cursor_ask_question = tool_name.is_some_and(|tool_name| {
         normalize_session_chat_tool_name(tool_name) == "askquestion"
             && !is_antigravity_ask_question_tool(tool_name)

@@ -882,6 +882,7 @@ pub(super) fn notice_rules(agent: SessionChatOptionAgent) -> &'static [NoticeRul
         // and Pi have source-derived focused-component detectors after this
         // catalog; the other agents rely on measured composer readiness.
         SessionChatOptionAgent::Antigravity
+        | SessionChatOptionAgent::Copilot
         | SessionChatOptionAgent::Empryo
         | SessionChatOptionAgent::Grok
         | SessionChatOptionAgent::Hermes

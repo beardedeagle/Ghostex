@@ -1,5 +1,5 @@
-pub mod api;
 mod ancestor_session;
+pub mod api;
 mod claude_daemon;
 pub(crate) mod claude_retention;
 pub(crate) mod codex_status_line;
@@ -7,9 +7,10 @@ pub(crate) mod codex_trust;
 pub mod config;
 pub(crate) mod cursor_statusline;
 pub mod event_mapping;
+mod hermes_gateway;
 mod hook_store;
-pub(crate) mod nested_agent;
 pub mod install;
+pub(crate) mod nested_agent;
 pub mod notify_runtime;
 pub mod plugin_sources;
 mod probe_cache;
@@ -22,13 +23,13 @@ mod tests;
 pub(crate) mod windows;
 mod zcode;
 
+pub(crate) use ancestor_session::adopt_ancestor_session_routing;
 pub use api::{
     install_agent_hooks, read_agent_hook_status, repair_installed_agent_hook_paths,
     uninstall_agent_hooks,
 };
-pub(crate) use ancestor_session::adopt_ancestor_session_routing;
 pub use notify_runtime::run_notify_hook;
 pub(crate) use resolution::read_claude_hook_surface_records;
 pub(crate) use resolution::read_codex_hook_session_identities;
-pub(crate) use zcode::zcode_settings_files;
 pub use statusline::run_statusline_hook;
+pub(crate) use zcode::zcode_settings_files;

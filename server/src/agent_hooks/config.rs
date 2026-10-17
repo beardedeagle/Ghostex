@@ -5,7 +5,7 @@ use crate::paths::GxserverPaths;
 use super::probing::{normalize_environment_path, unique_path_bufs};
 
 pub(crate) const NOTIFY_HOOK_MARKER: &str = "ghostex-gxserver-agent-notify-hook-marker";
-pub(crate) const NOTIFY_HOOK_VERSION: usize = 11;
+pub(crate) const NOTIFY_HOOK_VERSION: usize = 12;
 pub(crate) const STATUSLINE_HOOK_MARKER: &str = "ghostex-gxserver-agent-statusline-hook-marker";
 pub(crate) const STATUSLINE_HOOK_VERSION: usize = 1;
 pub(crate) const OPENCODE_PLUGIN_MARKER: &str = "ghostex-opencode-session-plugin-marker";

@@ -808,12 +808,13 @@ Fork (a session's right-click menu, or More actions in its chat) opens the new
 session beside the original and switches to it. It starts as
 `Fork: <original name>` and saves that name through the agent's own rename
 command so it survives reopening the conversation.
-Fork works for Claude, Codex, Pi and Empryo sessions. Empryo has no command-line
-fork, so Ghostex copies the Empryo conversation up to its last finished
-reply under a new id and opens that copy; fork an Empryo session once a turn has
-finished. The copy gets its own copies of Empryo's checkpoints, so undo works in
-the fork, and deleting or closing either session leaves the other's checkpoints
-alone.
+Fork works for Claude, Codex, Pi, Empryo and GitHub Copilot sessions. Empryo has
+no command-line fork, so Ghostex copies the Empryo conversation up to its last
+finished reply under a new id and opens that copy; fork an Empryo session once a
+turn has finished. The copy gets its own copies of Empryo's checkpoints, so undo
+works in the fork, and deleting or closing either session leaves the other's
+checkpoints alone. Copilot has no command-line fork either, so Ghostex copies the
+Copilot conversation under a new id and resumes the copy.
 Once a conversation has forks, a small branch button in the chat's top right
 lists every session that shares the earlier history, including the thread you
 forked away from, and switches to the one you pick; a stopped branch is resumed
@@ -904,8 +905,9 @@ when you open it.
   result shows the whole prompt with Resume, Fork, Copy and Star.
   It lists prompts from Claude, Codex, Pi, OpenCode, Cursor, Grok, Empryo
   (from every repository Empryo has run in), Antigravity CLI, Hermes Agent
-  (every profile) and Copilot CLI, and resuming one reopens that agent's
-  session, or focuses it when it is already open in the sidebar. A prompt can
+  (every profile), Copilot CLI, Factory Droid, OMP and ZCode, and resuming
+  one reopens that agent's session, or focuses it when it is already open in
+  the sidebar. A prompt can
   be forked into Claude, Codex, Pi, OpenCode, Cursor or Grok.
 - Delayed Actions opens Session Automations. Send Enter defaults to **When all
   agents finish**. It can also run after a delay, when this agent finishes, or
@@ -926,7 +928,9 @@ image paste and Ctrl+G rich prompt editor, a prompt queue that sends when the
 agent stops, transcript with thinking, tool, and edit cards, subagent
 transcripts, question and approval cards, rewind, and a note per session.
 Type `@` in the chat box to mention a project file and `$` to pick one of the
-agent's skills. A picked skill shows as a pill in the way that agent invokes
+agent's skills. The `$` list holds the skills that agent's own CLI loads: its
+home skills folders (Codex, Pi, Cursor, Gemini CLI and GitHub Copilot also read
+`~/.agents/skills`) and the skills folders inside the session's project. A picked skill shows as a pill in the way that agent invokes
 skills: `/skill-name` for Claude Code, which Claude receives as its slash
 command, and `$skill-name` for Codex.
 Skills, second from the bottom of the chat's More actions menu and of the ⋯ menu
@@ -1031,7 +1035,9 @@ write your own answer, or skip a question, and the answer goes to Antigravity
 as if you had answered in its terminal. The mode button next to the model pill
 switches Antigravity between Default, Accept edits, Auto (edits and safe
 commands run without asking) and Plan, and the button always shows the mode
-Antigravity is really in. Commands: `ghostex send-session-chat-message`,
+Antigravity is really in. The context meter shows how many tokens Antigravity's
+latest step filled; Antigravity does not report its window size, so the meter
+shows no percentage. Commands: `ghostex send-session-chat-message`,
 `ghostex answer-session-chat-prompt`,
 `ghostex select-session-chat-model <session> --mode default|accept-edits|auto|plan`.
 Sending a message to a sleeping session wakes it. While the agent is still
@@ -1057,6 +1063,21 @@ named after your first message. Switch to Terminal for sign-in, `/model`, and
 Freebuff's other commands and settings. For agents whose models the chat cannot
 list, such as Freebuff, the model menu offers Switch model in CLI, which opens
 the session's terminal.
+GitHub Copilot chats show its replies, the commands it runs, the files it reads,
+creates and edits with their changes, and its thinking when the model shares it.
+When Copilot asks for approval (in Manual Approval mode), the request appears as
+a card in the chat with Copilot's own choices; Yes and "don't ask again" answer
+from the card, and No stops the turn so you can tell Copilot what to do instead.
+Its `ask_user` questions appear as a question card: pick an option or write your
+own answer. While Copilot waits on either, the sidebar shows the session needs
+you, and a finished turn shows done. Stop really ends the turn, including a
+shell command it is running. The mode button switches Copilot between
+Interactive, Plan and Autopilot; the model pill shows the model Copilot reports
+(Auto and the model it routed to), and the model is changed in the CLI with
+`/model`, since which models you can pick depends on your Copilot plan. The `/`
+menu lists Copilot's own commands, and `$` lists your Copilot skills, which run
+as `/skill-name`. Sleeping and waking a Copilot session, Full Reload and Fork
+keep the same conversation.
 Empryo chats show your messages as you typed them (without the repository map
 Empryo adds for its model), its replies and thinking, and the tools it runs with
 their results, and they can be exported like any other chat. Empryo saves a

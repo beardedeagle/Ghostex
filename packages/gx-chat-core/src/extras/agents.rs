@@ -67,6 +67,7 @@ pub fn transcript_agent(candidates: [Option<&str>; 2]) -> Option<&'static str> {
             "antigravity" | "antigravity-cli" | "antigravity cli" | "agy" => Some("antigravity"),
             "claude" | "openclaude" => Some("claude"),
             "codex" => Some("codex"),
+            "copilot" | "github copilot" | "github-copilot" => Some("copilot"),
             "cursor" | "cursor-agent" | "cursor cli" => Some("cursor"),
             "empryo" => Some("empryo"),
             "grok" | "grok-build" => Some("grok"),

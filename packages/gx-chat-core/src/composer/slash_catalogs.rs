@@ -1,4 +1,4 @@
-//! The six per-agent `/` catalogs, as data.
+//! The per-agent `/` catalogs, as data.
 //!
 //! Split out of `slash_commands.rs` so the rules stay readable beside a table this long. It is a
 //! curated snapshot of what each agent CLI intercepts, not a runtime discovery, and it also feeds
@@ -1188,6 +1188,499 @@ pub(crate) const HERMES: &[SlashCommand] = &[
     SlashCommand {
         name: "quit",
         description: "Exit the CLI",
+        insert_text: None,
+    },
+];
+
+/// Pi's `BUILTIN_SLASH_COMMANDS` (`@earendil-works/pi-coding-agent` 1.3.0, `dist/core/slash-commands.js`), in Pi's order.
+pub(crate) const PI: &[SlashCommand] = &[
+    SlashCommand {
+        name: "settings",
+        description: "Open settings menu",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "model",
+        description: "Select model",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "tree",
+        description: "Navigate session tree (switch branches)",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "thinking",
+        description: "Set thinking level",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "scoped-models",
+        description: "Enable/disable models for Ctrl+P cycling",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "export",
+        description: "Export session (HTML default, or specify path: .html/.jsonl)",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "import",
+        description: "Import and resume a session from a JSONL file",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "share",
+        description: "Share session via a Radius artifact or a GitHub gist",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "bug",
+        description: "Report a bug to the Pi developers",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "copy",
+        description: "Copy last agent message to clipboard",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "name",
+        description: "Set session display name",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "session",
+        description: "Show session info and stats",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "changelog",
+        description: "Show changelog entries",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "hotkeys",
+        description: "Show all keyboard shortcuts",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "fork",
+        description: "Create a new fork from a previous user message",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "clone",
+        description: "Duplicate the current session at the current position",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "trust",
+        description: "Save project trust decision for future sessions",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "login",
+        description: "Configure provider authentication",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "logout",
+        description: "Remove provider authentication",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "new",
+        description: "Start a new session",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "compact",
+        description: "Manually compact the session context",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "resume",
+        description: "Resume a different session",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "reload",
+        description: "Reload keybindings, extensions, skills, prompts, themes, and context files",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "quit",
+        description: "Quit Pi",
+        insert_text: None,
+    },
+];
+
+/// Copilot CLI's interactive commands (`copilot help commands`, GitHub Copilot CLI 1.0.98), in Copilot's order.
+pub(crate) const COPILOT: &[SlashCommand] = &[
+    SlashCommand {
+        name: "init",
+        description: "Initialize Copilot instructions for this repository",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "agent",
+        description: "Browse and select agents: /agent [name]",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "skills",
+        description: "Manage skills for enhanced capabilities",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "mcp",
+        description: "Manage MCP server configuration",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "plugin",
+        description: "Manage plugins and plugin marketplaces",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "model",
+        description: "Select the AI model for this session (use 'auto' to let Copilot pick automatically). Use /config model to set the user default, '--repo'/'--local' to set the repo default, or 'plan'/'--plan' to set the plan-mode model.",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "delegate",
+        description: "Send this session to GitHub and Copilot will create a PR; use --base to choose the PR target branch",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "fleet",
+        description: "Enable fleet mode for parallel subagent execution",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "autopilot",
+        description: "Toggle autopilot mode, or set an autopilot objective with an optional AI-credit limit (--max-ai-credits)",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "tasks",
+        description: "View and manage tasks (subagents and shell commands)",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "ide",
+        description: "Connect to an IDE workspace",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "diff",
+        description: "Review the changes made in the current directory",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "pr",
+        description: "Operate on pull requests for the current branch",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "review",
+        description: "Run code review agent to analyze changes",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "security-review",
+        description: "Analyze staged and unstaged changes for security vulnerabilities.",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "rubber-duck",
+        description: "Get an independent critique of your current work from the rubber duck agent",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "lsp",
+        description: "Manage language server configuration",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "terminal-setup",
+        description: "Configure terminal for multiline input support (shift+enter)",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "permissions",
+        description: "Switch between permission modes",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "allow-all",
+        description: "Enable all permissions (tools, paths, and URLs)",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "sandbox",
+        description: "Manage sandbox settings, including file path permissions, network permissions, and more",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "add-dir",
+        description: "Allow file access to a directory and load its .github skills and agents as trusted configuration",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "list-dirs",
+        description: "Display allowed directories and exact session path grants",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "cwd",
+        description: "Change working directory or show current directory",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "reset-allowed-tools",
+        description: "Reset session tool and exact-path approvals",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "resume",
+        description: "Switch sessions by local or cloud history ID, task ID, or name",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "rename",
+        description: "Rename the current session, or auto-generate a name from conversation",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "fork",
+        description: "Fork the current session into a new session, optionally with a name. Use `/fork worktree` to fork into a new worktree based on the current branch.",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "worktree",
+        description: "Create a new git worktree from your configured base ref and switch into it, leaving your uncommitted changes behind. Use `/new worktree` for an empty session or `/fork worktree` to preserve the current context. The deprecated `/worktree new` command still works for now.",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "move",
+        description: "Move your uncommitted changes into a new git worktree and switch into it. Pass a branch name, a task to start, or nothing to auto-name.",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "context",
+        description: "Show context window token usage and visualization",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "usage",
+        description: "Display session usage metrics and statistics",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "session",
+        description: "View and manage sessions. Use subcommands for details.",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "compact",
+        description: "Summarize conversation history to reduce context window usage. Optionally provide focus instructions.",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "share",
+        description: "Share session or research report to a markdown file, HTML file, GitHub gist, or a shareable GitHub link",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "remote",
+        description: "Share this session: remote control from GitHub web and mobile, or directly with another CLI",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "copy",
+        description: "Copy the last response to the clipboard",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "rewind",
+        description: "Rewind the last turn and revert file changes",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "help",
+        description: "Show help for interactive commands",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "changelog",
+        description: "Display changelog for CLI versions. Add 'summarize' to get an AI summary.",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "feedback",
+        description: "Provide feedback about the CLI",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "diagnose",
+        description: "Analyze the current session log, optionally with a custom prompt",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "theme",
+        description: "View or set color mode",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "statusline",
+        description: "Configure status line items",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "footer",
+        description: "Configure status line items",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "update",
+        description: "Update the CLI to the latest version",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "version",
+        description: "Display version information and check for updates",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "experimental",
+        description: "Show available experimental features, or enable/disable experimental mode",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "memory",
+        description: "Show memory status, or enable/disable memory across sessions",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "clear",
+        description: "Abandon this session and start fresh",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "instructions",
+        description: "View and toggle custom instruction files",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "app",
+        description: "Prefer a visual workspace? Try out the GitHub Copilot desktop app",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "ask",
+        description: "Ask a side question or reopen a recently cached answer without adding to history",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "chronicle",
+        description: "Session history tools and insights",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "collect-debug-logs",
+        description: "Collect debug logs to a local .tgz file, share with GitHub after consent, or create a secret GitHub gist",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "computer",
+        description: "Show or toggle Computer Use",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "env",
+        description: "Show loaded environment details (instructions, MCP servers, skills, agents, hooks, plugins, LSPs, extensions)",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "exit",
+        description: "Exit the CLI; use 'print' to print the session after exiting alt screen",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "keep-alive",
+        description: "Manage keep-alive mode (prevents system sleep).",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "limits",
+        description: "View or edit session limits; the AI Credit limit is a soft cap",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "login",
+        description: "Log in to Copilot",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "logout",
+        description: "Log out of an OAuth login session",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "new",
+        description: "Start a new conversation",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "plan",
+        description: "Create an implementation plan before coding",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "refine",
+        description: "Rewrite a rough, stream-of-consciousness prompt into a clear one for review (Ctrl+X / then /refine cleans up your current input)",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "research",
+        description: "Run deep research investigation using GitHub search and web sources",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "restart",
+        description: "Restart the CLI, restoring supported live sessions in this process",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "search",
+        description: "Search the conversation timeline (experimental)",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "settings",
+        description: "Open the settings UI, show, set, or unset a single value ('/settings unset <key>' removes it). Use '--repo'/'--local' to target repo settings.",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "subagents",
+        description: "Configure default and per-agent subagent models",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "user",
+        description: "Manage signed-in accounts",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "vim",
+        description: "Toggle Vim mode for the input (hjkl/w/b/e/ge/0/^/$/gg/G motions, f/F/t/T/;/, char search, i/a/o insert, r/~/J/x/D/C edit, d/c/y operators, y/p/P yank & put, . repeat, u/ctrl+r undo & redo, counts, esc for normal mode)",
+        insert_text: None,
+    },
+    SlashCommand {
+        name: "voice",
+        description: "Manage voice mode (dictation transcription via Foundry Local)",
         insert_text: None,
     },
 ];

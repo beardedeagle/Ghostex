@@ -556,6 +556,35 @@ pub(crate) async fn handle_answer_session_chat_prompt_http(
                         ),
                     )
                 }
+                Some("copilot") => {
+                    let keys =
+                        crate::session_chat_send::capture_session_terminal_text(&target.zmx_name)
+                            .await
+                            .and_then(|screen_text| {
+                                crate::session_chat_copilot_question::detect_copilot_question_form(
+                                    &screen_text,
+                                )
+                            })
+                            .and_then(|form| {
+                                crate::session_chat_copilot_question::build_copilot_ask_answer_keys(
+                                    &form,
+                                    &questions,
+                                    &selections,
+                                )
+                            });
+                    let Some(keys) = keys else {
+                        return domain_error_response(
+                            endpoint_path,
+                            request_id,
+                            DomainStateError {
+                                code: "invalidState",
+                                message: "Copilot's question is not on screen the way the card shows it, so the answer was not sent. Answer it in the terminal."
+                                    .to_string(),
+                            },
+                        );
+                    };
+                    crate::session_chat_send::build_ask_answer_steps(&keys)
+                }
                 Some("freebuff") => {
                     let form = crate::session_chat_send::capture_session_terminal_text(
                         &target.zmx_name,
@@ -728,6 +757,13 @@ pub(crate) async fn handle_answer_session_chat_prompt_http(
                                 .is_some()
                         {
                             crate::session_chat_antigravity_permission::detect_antigravity_permission_picker(text)
+                                .and_then(|picker| picker.answer_key(choice_index))
+                        } else if option_agent
+                            == Some(crate::session_chat_options::SessionChatOptionAgent::Copilot)
+                            && crate::session_chat_copilot_permission::detect_copilot_permission_picker(text)
+                                .is_some()
+                        {
+                            crate::session_chat_copilot_permission::detect_copilot_permission_picker(text)
                                 .and_then(|picker| picker.answer_key(choice_index))
                         } else if option_agent
                             == Some(crate::session_chat_options::SessionChatOptionAgent::Cursor)

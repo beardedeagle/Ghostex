@@ -36,6 +36,7 @@ export const SESSION_CHAT_SUPPORTED_AGENTS = new Set([
   "claude",
   "openclaude",
   "codex",
+  "copilot",
   "cursor",
   "empryo",
   "grok",
@@ -52,6 +53,7 @@ export type SessionChatTranscriptAgent =
   | "antigravity"
   | "claude"
   | "codex"
+  | "copilot"
   | "cursor"
   | "empryo"
   | "grok"
@@ -77,6 +79,8 @@ export function resolveSessionChatTranscriptAgent(
     }
     if (normalized === "claude" || normalized === "openclaude") return "claude";
     if (normalized === "codex") return "codex";
+    if (normalized === "copilot" || normalized === "github copilot")
+      return "copilot";
     if (
       normalized === "cursor" ||
       normalized === "cursor-agent" ||

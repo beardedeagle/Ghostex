@@ -178,6 +178,7 @@ impl GhostexGpuiApp {
                     | "claude"
                     | "openclaude"
                     | "codex"
+                    | "copilot"
                     | "cursor-cli"
                     | "empryo"
                     | "grok-build"

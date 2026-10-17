@@ -10,9 +10,13 @@ use std::borrow::Cow;
 use crate::composer::reference_pills::{composer_references, ReferenceKind};
 use crate::composer::text::Utf16Text;
 
-/// Whether the agent invokes a skill as a slash command.
+/// Whether the agent invokes a skill as a slash command. Copilot CLI runs a skill as `/name` too
+/// (1.0.98 completes `/figm` to the `/figma` skill).
 fn invokes_skills_with_slash(agent: Option<&str>) -> bool {
-    matches!(agent, Some("claude" | "openclaude" | "claude-code"))
+    matches!(
+        agent,
+        Some("claude" | "openclaude" | "claude-code" | "copilot")
+    )
 }
 
 /// The character the agent invokes a skill with: `/` for Claude Code, `$` for Codex and every

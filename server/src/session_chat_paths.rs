@@ -100,6 +100,7 @@ pub fn resolve_session_chat_transcript_path(
                 None,
             )
         }
+        SessionChatTranscriptAgent::Copilot => find_copilot_events_log(session_id),
         SessionChatTranscriptAgent::Grok => find_grok_session_update_log(session_id),
         SessionChatTranscriptAgent::Hermes => {
             crate::session_chat_hermes::resolve_hermes_chat_transcript_path(session_id)
@@ -127,6 +128,19 @@ pub(crate) fn find_cursor_chat_transcript(session_id: &str) -> Option<PathBuf> {
         }
     }
     None
+}
+
+/// Copilot keeps each session in `session-state/<id>/events.jsonl` under its home
+/// (`$COPILOT_HOME`, else `~/.copilot`).
+fn find_copilot_events_log(session_id: &str) -> Option<PathBuf> {
+    if session_id.contains(['/', '\\']) || session_id.starts_with('.') {
+        return None;
+    }
+    let candidate = configured_agent_directory("COPILOT_HOME", ".copilot")
+        .join("session-state")
+        .join(session_id)
+        .join("events.jsonl");
+    candidate.is_file().then_some(candidate)
 }
 
 pub(crate) fn configured_agent_directory(env_key: &str, fallback: &str) -> PathBuf {

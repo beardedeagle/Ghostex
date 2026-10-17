@@ -915,6 +915,48 @@ fn hermes_catalog() -> SessionOptionCatalog {
     }
 }
 
+/// CDXC:AgentProviders 2026-10-17 WHY:
+/// Copilot CLI's model lineup depends on the account's plan (a Copilot Free account is offered only
+/// Auto, and `/model <id>` refuses the rest), and nothing outside the CLI lists it, so the model pill
+/// shows the model Copilot's footer reports and hands the change to the CLI's `/model`. The mode is
+/// Copilot's Shift+Tab cycle, Interactive → Plan → Autopilot, in that order (1.0.98), whose current
+/// value the footer also names (`session_chat_copilot_status.rs` in gxserver).
+fn copilot_catalog() -> SessionOptionCatalog {
+    let mut mode = OptionDescriptor::new(
+        "mode",
+        "Mode",
+        OptionCategory::Mode,
+        OptionDispatch::CyclicKeySteps {
+            key: "shift-tab".to_string(),
+        },
+    );
+    mode.choices = Some(
+        [
+            ("interactive", "Interactive"),
+            ("plan", "Plan"),
+            ("autopilot", "Autopilot"),
+        ]
+        .into_iter()
+        .map(|(value, label)| OptionChoice {
+            value: value.to_string(),
+            label: label.to_string(),
+            ..OptionChoice::default()
+        })
+        .collect(),
+    );
+    mode.description = Some("Select Copilot's mode.".to_string());
+    SessionOptionCatalog {
+        model: handoff(
+            "model",
+            "Model",
+            OptionCategory::Model,
+            Some("Change the model in the CLI by using /model"),
+        ),
+        model_icon: "copilot".to_string(),
+        options: CatalogOptions::Fixed(vec![mode]),
+    }
+}
+
 /// CDXC:AgentProviders 2026-09-30 DECISION:
 /// User: "set up for me the model selector for these 3 in chat view" (OpenCode, Pi and OMP, each
 /// logged in with their Codex subscription). Pi and OMP list every model their own CLI can reach
@@ -984,6 +1026,7 @@ pub fn session_option_catalog(
         "cursor" | "cursor-cli" => ("cursor", build_cursor_catalog),
         "grok" | "grok-build" => ("grok", build_grok_catalog),
         "antigravity" | "antigravity-cli" => ("antigravity", build_antigravity_catalog),
+        "copilot" => return Some(copilot_catalog()),
         "hermes" | "hermes-agent" => {
             return Some(match catalog.agents.get("hermes") {
                 Some(agent) => build_hermes_catalog(catalog, agent),

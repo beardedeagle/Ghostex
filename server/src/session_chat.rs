@@ -281,6 +281,7 @@ pub enum SessionChatTranscriptAgent {
     Antigravity,
     Claude,
     Codex,
+    Copilot,
     Cursor,
     Empryo,
     Freebuff,
@@ -301,6 +302,9 @@ pub fn resolve_session_chat_transcript_agent(
         }
         "claude" | "openclaude" => Some(SessionChatTranscriptAgent::Claude),
         "codex" => Some(SessionChatTranscriptAgent::Codex),
+        "copilot" | "github copilot" | "github-copilot" => {
+            Some(SessionChatTranscriptAgent::Copilot)
+        }
         "cursor" | "cursor-agent" | "cursor cli" => Some(SessionChatTranscriptAgent::Cursor),
         "empryo" => Some(SessionChatTranscriptAgent::Empryo),
         "grok" | "grok-build" => Some(SessionChatTranscriptAgent::Grok),
@@ -318,6 +322,7 @@ pub fn session_chat_transcript_agent_id(agent: Option<&str>) -> Option<&'static 
         SessionChatTranscriptAgent::Antigravity => Some("antigravity"),
         SessionChatTranscriptAgent::Claude => Some("claude"),
         SessionChatTranscriptAgent::Codex => Some("codex"),
+        SessionChatTranscriptAgent::Copilot => Some("copilot"),
         SessionChatTranscriptAgent::Cursor => Some("cursor"),
         SessionChatTranscriptAgent::Empryo => Some("empryo"),
         SessionChatTranscriptAgent::Grok => Some("grok"),
@@ -337,6 +342,7 @@ pub fn session_chat_line_decoder(agent: SessionChatTranscriptAgent) -> SessionCh
         SessionChatTranscriptAgent::Antigravity => decode_antigravity_transcript_line,
         SessionChatTranscriptAgent::Claude => decode_claude_transcript_line,
         SessionChatTranscriptAgent::Codex => decode_codex_transcript_line,
+        SessionChatTranscriptAgent::Copilot => decode_copilot_transcript_line,
         SessionChatTranscriptAgent::Cursor => decode_cursor_transcript_line,
         SessionChatTranscriptAgent::Empryo => decode_empryo_transcript_line,
         SessionChatTranscriptAgent::Grok => decode_grok_transcript_line,
@@ -355,6 +361,7 @@ pub fn session_chat_lifecycle_decoder(
         SessionChatTranscriptAgent::Antigravity => Some(decode_antigravity_turn_lifecycle),
         SessionChatTranscriptAgent::Claude => Some(decode_claude_turn_lifecycle),
         SessionChatTranscriptAgent::Codex => Some(decode_codex_turn_lifecycle),
+        SessionChatTranscriptAgent::Copilot => Some(decode_copilot_turn_lifecycle),
         SessionChatTranscriptAgent::Cursor => Some(decode_cursor_turn_lifecycle),
         SessionChatTranscriptAgent::Empryo => Some(decode_empryo_turn_lifecycle),
         SessionChatTranscriptAgent::Grok => Some(decode_grok_turn_lifecycle),
@@ -362,7 +369,7 @@ pub fn session_chat_lifecycle_decoder(
         SessionChatTranscriptAgent::OpenCode => {
             Some(crate::session_chat_opencode::decode_lifecycle)
         }
-        SessionChatTranscriptAgent::Pi => None,
+        SessionChatTranscriptAgent::Pi => Some(decode_pi_turn_lifecycle),
         SessionChatTranscriptAgent::Zcode => Some(decode_zcode_turn_lifecycle),
         SessionChatTranscriptAgent::Freebuff => Some(decode_freebuff_turn_lifecycle),
     }
@@ -440,6 +447,7 @@ pub fn session_chat_lineage_extractor(
         SessionChatTranscriptAgent::Claude => Some(claude_transcript_lineage),
         SessionChatTranscriptAgent::Antigravity
         | SessionChatTranscriptAgent::Codex
+        | SessionChatTranscriptAgent::Copilot
         | SessionChatTranscriptAgent::Cursor
         | SessionChatTranscriptAgent::Empryo
         | SessionChatTranscriptAgent::Grok
@@ -1119,6 +1127,7 @@ pub fn boundary_fingerprint(file_path: &Path, offset: u64) -> std::io::Result<St
 pub use crate::session_chat_decode_antigravity::*;
 pub use crate::session_chat_decode_claude::*;
 pub use crate::session_chat_decode_codex::*;
+pub use crate::session_chat_decode_copilot::*;
 pub use crate::session_chat_decode_cursor::*;
 pub use crate::session_chat_decode_empryo::*;
 pub use crate::session_chat_decode_freebuff::*;

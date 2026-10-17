@@ -868,6 +868,101 @@ fn literal_windows_link_destinations(markdown: &str) -> String {
     result.join("\n")
 }
 
+/// Where an absolute Windows path written into prose ends, when one starts at `start`: a drive
+/// letter with `:\` (`C:\Users\me\_scratch`) or a `\\server\share` path, up to whitespace or a
+/// character Windows never allows in a path (`<>"|?*`, plus the backtick and brackets that end it in
+/// Markdown). A run that is not one of those, such as `snake\_case`, is ordinary escaped Markdown.
+pub(crate) fn windows_prose_path_end(bytes: &[u8], start: usize) -> Option<usize> {
+    let before = start.checked_sub(1).map(|at| bytes[at]);
+    if before
+        .is_some_and(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'\\' | b':' | b'/'))
+    {
+        return None;
+    }
+    let drive = bytes.get(start).is_some_and(u8::is_ascii_alphabetic)
+        && bytes.get(start + 1) == Some(&b':')
+        && bytes.get(start + 2) == Some(&b'\\');
+    let unc = bytes.get(start) == Some(&b'\\')
+        && bytes.get(start + 1) == Some(&b'\\')
+        && bytes.get(start + 2).is_some_and(u8::is_ascii_alphanumeric);
+    if !drive && !unc {
+        return None;
+    }
+    let end = bytes[start..]
+        .iter()
+        .position(|byte| {
+            byte.is_ascii_whitespace()
+                || matches!(
+                    byte,
+                    b'<' | b'>' | b'"' | b'|' | b'?' | b'*' | b'`' | b'[' | b']'
+                )
+        })
+        .map_or(bytes.len(), |offset| start + offset);
+    is_literal_windows_destination(&bytes[start..end]).then_some(end)
+}
+
+/// CDXC:SessionChat 2026-10-17 WHY:
+/// The 2026-10-06 rule for link destinations, extended to a Windows path an agent writes as plain
+/// text: CommonMark read `C:\Users\me\dev\_scratch\x` as an escaped `_` and showed
+/// `C:\Users\me\dev_scratch\x` on Windows, on the computer and the phone. An absolute Windows path in
+/// prose gets its backslashes doubled here, so both parsers print it as written; code is never
+/// touched, and `snake\_case` and other escapes outside such a path stay escapes. A path already
+/// written with doubled backslashes fails `is_literal_windows_destination` and is left alone, which
+/// keeps the phone's own copy of the rule from applying twice.
+/// SEE-ALSO: apps/mobile/app/src/chat/native/transcript/markdown/parse.ts (`windowsProsePathEnd`),
+/// transcript/message_text.rs (`strip_escapes`).
+fn literal_windows_prose_paths(markdown: &str) -> String {
+    let mut options = ParseOptions::gfm();
+    options.constructs.math_text = true;
+    options.constructs.math_flow = true;
+    let Ok(tree) = markdown::to_mdast(markdown, &options) else {
+        return markdown.to_string();
+    };
+    let mut texts: Vec<(usize, usize)> = Vec::new();
+    collect_text_ranges(&tree, &mut texts);
+    let bytes = markdown.as_bytes();
+    let mut paths: Vec<(usize, usize)> = Vec::new();
+    for (start, end) in texts {
+        let mut at = start;
+        // Bounded by the text node, so a reply's hard-break backslash after a path stays a break.
+        let text = &bytes[..end];
+        while at < end {
+            match windows_prose_path_end(text, at) {
+                Some(path_end) => {
+                    paths.push((at, path_end));
+                    at = path_end;
+                }
+                None => at += 1,
+            }
+        }
+    }
+    if paths.is_empty() {
+        return markdown.to_string();
+    }
+    let mut out = String::with_capacity(markdown.len() + 16);
+    let mut copied = 0;
+    for (start, end) in paths {
+        out.push_str(&markdown[copied..start]);
+        out.push_str(&markdown[start..end].replace('\\', "\\\\"));
+        copied = end;
+    }
+    out.push_str(&markdown[copied..]);
+    out
+}
+
+/// The source ranges of the prose text nodes: never code, a link destination or raw HTML.
+fn collect_text_ranges(node: &Node, ranges: &mut Vec<(usize, usize)>) {
+    if let Node::Text(text) = node {
+        if let Some(position) = &text.position {
+            ranges.push((position.start.offset, position.end.offset));
+        }
+        return;
+    }
+    for child in node.children().map(Vec::as_slice).unwrap_or_default() {
+        collect_text_ranges(child, ranges);
+    }
+}
+
 fn literal_windows_line(line: &str) -> String {
     if !line.contains("](") {
         return line.to_string();
@@ -923,6 +1018,7 @@ pub fn native_markdown(markdown: &str, bare_paths: bool) -> String {
     let markdown = escaped.as_str();
     let windows_links_wanted = markdown.contains("](")
         && (markdown.contains(":\\") || markdown.contains(":/") || markdown.contains("\\\\"));
+    let windows_paths_wanted = markdown.contains(":\\") || markdown.contains("\\\\");
     let bare_wanted = bare_paths && has_path_evidence(markdown);
     let paths_wanted = bare_wanted || has_inline_code_path_evidence(markdown);
     let blocks_wanted = markdown.contains("```")
@@ -930,7 +1026,7 @@ pub fn native_markdown(markdown: &str, bare_paths: bool) -> String {
         || markdown.contains('>')
         || markdown.contains('|')
         || has_image_evidence(markdown);
-    if !paths_wanted && !blocks_wanted && !windows_links_wanted {
+    if !paths_wanted && !blocks_wanted && !windows_links_wanted && !windows_paths_wanted {
         return markdown.to_string();
     }
     let linked = if paths_wanted {
@@ -941,6 +1037,11 @@ pub fn native_markdown(markdown: &str, bare_paths: bool) -> String {
     // After the inline-code references become links, so theirs keep their backslashes too.
     let linked = if windows_links_wanted || paths_wanted {
         literal_windows_link_destinations(&linked)
+    } else {
+        linked
+    };
+    let linked = if windows_paths_wanted {
+        literal_windows_prose_paths(&linked)
     } else {
         linked
     };

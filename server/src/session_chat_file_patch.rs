@@ -107,3 +107,45 @@ pub(crate) fn claude_tool_patch(tool_use_result: &Value) -> Option<SessionChatTo
     }
     Some(patch)
 }
+
+/// The patch a unified diff describes (`--- a/…`, `+++ b/…`, then `@@ -a,b +c,d @@ heading` hunks),
+/// or `None` when the text holds no hunk.
+///
+/// CDXC:SessionChat 2026-10-17 WHY: an edit Pi's `cursor:local` provider runs is recorded as one generic `cursor` call, with the real patch only as a unified diff in its result (`details.diffString`); read here it gives the chat the same file change card a Claude edit gets instead of a raw `cursor` row (agent flow tests, 2026-10-17).
+pub(crate) fn unified_diff_patch(diff: &str) -> Option<SessionChatToolPatch> {
+    let mut budget = MAX_PATCH_LINES;
+    let mut patch = SessionChatToolPatch::default();
+    let mut current: Option<SessionChatPatchHunk> = None;
+    for line in diff.lines() {
+        if let Some(header) = line.strip_prefix("@@ -") {
+            if let Some(hunk) = current.take() {
+                patch.hunks.push(hunk);
+            }
+            let (ranges, heading) = header.split_once(" @@")?;
+            let (old, new) = ranges.split_once(" +")?;
+            let start = |range: &str| range.split(',').next()?.parse::<u32>().ok();
+            current = Some(SessionChatPatchHunk {
+                old_start: start(old)?,
+                new_start: start(new)?,
+                heading: Some(heading.trim())
+                    .filter(|heading| !heading.is_empty())
+                    .map(|heading| clipped(heading, MAX_HEADING_CHARS)),
+                lines: Vec::new(),
+            });
+            continue;
+        }
+        let Some(hunk) = current.as_mut() else {
+            continue;
+        };
+        if !line.starts_with([' ', '+', '-', '\\']) {
+            continue;
+        }
+        if budget == 0 {
+            break;
+        }
+        budget -= 1;
+        hunk.lines.push(clipped(line, MAX_LINE_CHARS));
+    }
+    patch.hunks.extend(current);
+    (!patch.hunks.is_empty()).then_some(patch)
+}

@@ -76,6 +76,8 @@ fn notice_from_picker(
     let picker = picker.with_catalog_model_names();
     let guidance = if picker.kind == SessionChatTerminalPickerKind::AntigravityPermission {
         "Antigravity CLI accepts no input until this is answered. Pick an option to answer it here."
+    } else if picker.kind == SessionChatTerminalPickerKind::CopilotPermission {
+        "Copilot accepts no input until this is answered. Pick an option to answer it here."
     } else {
         "Claude Code accepts no input until this is answered. Pick an option to answer it here."
     };
@@ -107,6 +109,10 @@ fn notice_from_picker(
         SessionChatTerminalPickerKind::AntigravityPermission => (
             SESSION_CHAT_NOTICE_PERMISSION_PROMPT,
             "Antigravity CLI is asking for permission to proceed",
+        ),
+        SessionChatTerminalPickerKind::CopilotPermission => (
+            SESSION_CHAT_NOTICE_PERMISSION_PROMPT,
+            "Copilot is asking for permission to proceed",
         ),
     };
     SessionChatTerminalNotice::new(
@@ -363,6 +369,13 @@ pub fn classify_session_chat_terminal_notice(
             crate::session_chat_antigravity_permission::detect_antigravity_permission_picker(
                 screen_text,
             )
+        {
+            return Some(notice_from_picker(&screen, picker));
+        }
+    }
+    if agent == SessionChatOptionAgent::Copilot {
+        if let Some(picker) =
+            crate::session_chat_copilot_permission::detect_copilot_permission_picker(screen_text)
         {
             return Some(notice_from_picker(&screen, picker));
         }

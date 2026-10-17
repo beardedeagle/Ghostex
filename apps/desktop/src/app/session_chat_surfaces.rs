@@ -25,6 +25,7 @@ impl GhostexGpuiApp {
             Some("claude") => Some("claude"),
             Some("openclaude") => Some("claude"),
             Some("codex") => Some("codex"),
+            Some("copilot") => Some("copilot"),
             Some("cursor-cli") => Some("cursor"),
             Some("empryo") => Some("empryo"),
             Some("grok-build") => Some("grok"),

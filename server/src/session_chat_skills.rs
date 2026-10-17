@@ -15,7 +15,7 @@ use crate::domain::{read_domain_rpc_params, DomainRepository, DomainStateError};
 use crate::paths::GxserverPaths;
 use crate::protocol::rpc_success;
 use crate::server::{domain_error_response, routed_json, AppState, RoutedResponse};
-use crate::session_chat_follower::session_chat_agent_for_session;
+use crate::session_chat_follower::session_chat_display_agent_for_session;
 use crate::session_chat_skill_invocation::skill_invocation;
 use crate::session_chat_skill_variants::{
     collapse_session_chat_skill_variants, read_claude_installed_plugin_roots,
@@ -51,9 +51,9 @@ CDXC:AgentSkills 2026-08-15:
 Chat skill mentions are discovered by gxserver on the session's machine. Grok
 Build owns a resolved catalog that includes bundled skills and collision-safe
 invocation names, so its own `inspect` output is authoritative. Other agents
-use their provider-owned roots plus the shared Claude/Codex roots. A project
-contributes its own .agents/.claude roots without letting a client submit
-arbitrary scan paths.
+use the roots their own CLI loads (`provider_skill_roots`,
+`project_skill_roots`). A project contributes its own roots without letting a
+client submit arbitrary scan paths.
 */
 pub fn read_session_chat_skills(
     paths: &GxserverPaths,
@@ -67,41 +67,22 @@ pub fn read_session_chat_skills(
     let mut roots = Vec::<(PathBuf, SkillRootSpec)>::new();
 
     if let Some(project_path) = project_path.filter(|path| path.is_absolute()) {
-        if agent_id == "claude" {
-            roots.push((
-                project_path.join(".claude").join("skills"),
-                SkillRootSpec {
-                    source_kind: "repository",
-                },
-            ));
-        }
-        if matches!(agent_id.as_str(), "claude" | "codex") {
-            roots.push((
-                project_path.join(".agents").join("skills"),
-                SkillRootSpec {
-                    source_kind: "repository",
-                },
-            ));
+        let (relatives, walk) = project_skill_roots(&agent_id);
+        for folder in project_skill_folders(project_path, walk, &paths.home_dir) {
+            for relative in relatives {
+                roots.push((
+                    join_relative(&folder, relative),
+                    SkillRootSpec {
+                        source_kind: "repository",
+                    },
+                ));
+            }
         }
     }
 
     for relative in provider_skill_roots(&agent_id) {
         roots.push((
             join_relative(&paths.home_dir, relative),
-            SkillRootSpec {
-                source_kind: "global",
-            },
-        ));
-    }
-    if matches!(agent_id.as_str(), "claude" | "codex") {
-        roots.push((
-            paths.home_dir.join(".agents").join("skills"),
-            SkillRootSpec {
-                source_kind: "global",
-            },
-        ));
-        roots.push((
-            paths.home_dir.join("agents").join("skills"),
             SkillRootSpec {
                 source_kind: "global",
             },
@@ -335,28 +316,176 @@ fn normalize_agent_id(agent_id: &str) -> String {
     }
 }
 
+/// The home folders each agent's own CLI loads skills from, nearest-first as the CLI ranks them.
+///
+/// CDXC:AgentSkills 2026-10-17 WHY:
+/// The `$` picker lists what the session's agent can actually run, so every row mirrors the CLI's own loader (agent flow tests, 2026-10-17: Pi 1.3 loads all of its skills from `~/.agents/skills`, which the picker never read, so it showed "No skills available"). Sources: Pi `core/package-manager.js` and omp `src/discovery/`; Codex `ext/skills/src/host_roots.rs`; OpenCode `config/discovery.ts`; gemini-cli `config/storage.ts`; Claude Code, Cursor, Copilot, Droid, agy, Amp, CodeBuddy and Qoder from their shipped bundles and docs. Claude Code reads no `.agents/skills` folder (cswap account folders link their `skills` to `~/.claude/skills`), and no agent reads `~/agents/skills`.
+/// SEE-ALSO: `project_skill_roots` below.
 fn provider_skill_roots(agent_id: &str) -> &'static [&'static [&'static str]] {
     match agent_id {
         "claude" => &[&[".claude", "skills"]],
-        "codex" => &[&[".codex", "skills"]],
-        "cursor" => &[&[".cursor", "skills"]],
-        "opencode" => &[&[".config", "opencode", "skills"]],
-        "pi" | "omp" => &[&[".pi", "agent", "skills"]],
-        "gemini" => &[&[".gemini", "skills"]],
-        "copilot" => &[&[".copilot", "skills"]],
-        "droid" => &[&[".factory", "skills"]],
+        "codex" => &[&[".codex", "skills"], &[".agents", "skills"]],
+        "cursor" => &[
+            &[".cursor", "skills"],
+            &[".agents", "skills"],
+            &[".claude", "skills"],
+            &[".codex", "skills"],
+            &[".grok", "skills"],
+        ],
+        "opencode" => &[
+            &[".config", "opencode", "skill"],
+            &[".config", "opencode", "skills"],
+            &[".claude", "skills"],
+            &[".agents", "skills"],
+        ],
+        "pi" => &[&[".pi", "agent", "skills"], &[".agents", "skills"]],
+        "omp" => &[
+            &[".omp", "agent", "skills"],
+            &[".agents", "skills"],
+            &[".agent", "skills"],
+        ],
+        "gemini" => &[&[".gemini", "skills"], &[".agents", "skills"]],
+        "copilot" => &[&[".copilot", "skills"], &[".agents", "skills"]],
+        "droid" => &[
+            &[".factory", "skills"],
+            &[".agents", "skills"],
+            &[".agent", "skills"],
+        ],
         "antigravity" => &[
+            &[".gemini", "config", "skills"],
             &[".gemini", "antigravity-cli", "skills"],
             &[".gemini", "antigravity", "skills"],
         ],
-        "amp" => &[&[".config", "agents", "skills"]],
-        "hermes-agent" => &[&[".hermes", "skills"]],
+        "amp" => &[
+            &[".config", "agents", "skills"],
+            &[".config", "amp", "skills"],
+            &[".claude", "skills"],
+            &[".agents", "skills"],
+        ],
+        // The chat asks with its transcript id, `hermes`; the agent catalog's id is `hermes-agent`.
+        "hermes" | "hermes-agent" => &[&[".hermes", "skills"]],
         "kiro" => &[&[".kiro", "skills"]],
-        "codebuddy" => &[&[".codebuddy", "skills"]],
-        "qoder" => &[&[".qoder", "skills"]],
-        "rovodev" => &[&[".rovodev", "skills"]],
+        "codebuddy" => &[
+            &[".codebuddy", "skills"],
+            &[".codebuddy", "connectors", "skills"],
+        ],
+        "qoder" => &[&[".qoder", "skills"], &[".agents", "skills"]],
+        "rovodev" => &[&[".rovodev", "skills"], &[".agents", "skills"]],
         _ => &[],
     }
+}
+
+/// How far above the session's folder an agent looks for project skills.
+#[derive(Clone, Copy)]
+enum ProjectSkillWalk {
+    /// The session's folder only.
+    Folder,
+    /// Every folder from the session's up to the repository root (the first holding `.git`).
+    RepositoryRoot,
+    /// Every folder up to `/` (OpenCode and Amp).
+    FilesystemRoot,
+}
+
+/// The project folders each agent's own CLI loads skills from, and how far up it looks.
+fn project_skill_roots(agent_id: &str) -> (&'static [&'static [&'static str]], ProjectSkillWalk) {
+    use ProjectSkillWalk::{FilesystemRoot, Folder, RepositoryRoot};
+    match agent_id {
+        "claude" => (&[&[".claude", "skills"]], RepositoryRoot),
+        "codex" => (
+            &[&[".agents", "skills"], &[".codex", "skills"]],
+            RepositoryRoot,
+        ),
+        "cursor" => (
+            &[
+                &[".cursor", "skills"],
+                &[".agents", "skills"],
+                &[".claude", "skills"],
+                &[".codex", "skills"],
+                &[".grok", "skills"],
+            ],
+            Folder,
+        ),
+        "opencode" => (
+            &[
+                &[".opencode", "skill"],
+                &[".opencode", "skills"],
+                &[".claude", "skills"],
+                &[".agents", "skills"],
+            ],
+            FilesystemRoot,
+        ),
+        "pi" => (
+            &[&[".pi", "skills"], &[".agents", "skills"]],
+            RepositoryRoot,
+        ),
+        "omp" => (
+            &[
+                &[".omp", "skills"],
+                &[".agents", "skills"],
+                &[".agent", "skills"],
+                &[".claude", "skills"],
+                &[".codex", "skills"],
+                &[".github", "skills"],
+            ],
+            RepositoryRoot,
+        ),
+        "gemini" => (&[&[".gemini", "skills"], &[".agents", "skills"]], Folder),
+        "copilot" => (
+            &[
+                &[".github", "skills"],
+                &[".agents", "skills"],
+                &[".claude", "skills"],
+            ],
+            RepositoryRoot,
+        ),
+        "droid" => (
+            &[
+                &[".factory", "skills"],
+                &[".agents", "skills"],
+                &[".agent", "skills"],
+            ],
+            RepositoryRoot,
+        ),
+        "antigravity" => (
+            &[
+                &[".agents", "skills"],
+                &["_agents", "skills"],
+                &[".agent", "skills"],
+                &["_agent", "skills"],
+            ],
+            Folder,
+        ),
+        "amp" => (
+            &[&[".agents", "skills"], &[".claude", "skills"]],
+            FilesystemRoot,
+        ),
+        "kiro" => (&[&[".kiro", "skills"]], Folder),
+        "codebuddy" => (&[&[".codebuddy", "skills"]], Folder),
+        "qoder" => (&[&[".qoder", "skills"], &[".agents", "skills"]], Folder),
+        "rovodev" => (&[&[".rovodev", "skills"], &[".agents", "skills"]], Folder),
+        _ => (&[], Folder),
+    }
+}
+
+/// The folders `walk` covers, nearest first. The home folder is left to the global roots, and a
+/// repository walk outside any repository stops below it.
+fn project_skill_folders(start: &Path, walk: ProjectSkillWalk, home_dir: &Path) -> Vec<PathBuf> {
+    let mut folders = Vec::new();
+    for folder in start.ancestors() {
+        if folder == home_dir {
+            if matches!(walk, ProjectSkillWalk::FilesystemRoot) {
+                continue;
+            }
+            break;
+        }
+        folders.push(folder.to_path_buf());
+        match walk {
+            ProjectSkillWalk::Folder => break,
+            ProjectSkillWalk::RepositoryRoot if folder.join(".git").exists() => break,
+            _ => {}
+        }
+    }
+    folders
 }
 
 fn join_relative(root: &Path, parts: &[&str]) -> PathBuf {
@@ -563,15 +692,7 @@ mod tests {
             .iter()
             .filter_map(|skill| skill["name"].as_str())
             .collect::<Vec<_>>();
-        assert_eq!(
-            claude_names,
-            vec![
-                "claude-skill",
-                "project-claude",
-                "project-shared",
-                "shared-skill",
-            ]
-        );
+        assert_eq!(claude_names, vec!["claude-skill", "project-claude"]);
     }
 }
 
@@ -624,13 +745,18 @@ pub(crate) async fn handle_read_session_chat_skills_http(
                 code: "notFound",
                 message: "The project no longer exists.".to_string(),
             })?;
-        let agent_id = session_chat_agent_for_session(&session).unwrap_or_default();
-        let project_path = project
-            .get("path")
-            .and_then(Value::as_str)
-            .map(str::trim)
-            .filter(|path| !path.is_empty())
-            .map(PathBuf::from);
+        // The CLI the session runs (OMP keeps its own folders though its transcript reads as Pi's).
+        let agent_id = session_chat_display_agent_for_session(&session).unwrap_or_default();
+        // The agent loads project skills from the folder it runs in (a worktree session's own checkout).
+        let folder = |value: &Value, key: &str| {
+            value
+                .get(key)
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|path| Path::new(path).is_absolute())
+                .map(PathBuf::from)
+        };
+        let project_path = folder(&session, "cwd").or_else(|| folder(&project, "path"));
         Ok::<_, DomainStateError>((agent_id, project_path))
     })();
     let (agent_id, project_path) = match resolved {

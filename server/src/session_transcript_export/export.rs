@@ -152,6 +152,7 @@ pub(super) fn agent_display_name(agent: SessionChatTranscriptAgent) -> &'static 
         SessionChatTranscriptAgent::Antigravity => "Antigravity CLI",
         SessionChatTranscriptAgent::Claude => "Claude",
         SessionChatTranscriptAgent::Codex => "Codex",
+        SessionChatTranscriptAgent::Copilot => "GitHub Copilot",
         SessionChatTranscriptAgent::Cursor => "Cursor CLI",
         SessionChatTranscriptAgent::Empryo => "Empryo",
         SessionChatTranscriptAgent::Grok => "Grok",

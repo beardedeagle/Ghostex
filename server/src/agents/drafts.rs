@@ -433,6 +433,7 @@ pub(crate) fn chat_supported_base_agent_id(value: Option<&str>) -> Option<&'stat
         "antigravity" | "antigravity-cli" => Some("antigravity"),
         "claude" | "openclaude" => Some("claude"),
         "codex" => Some("codex"),
+        "copilot" => Some("copilot"),
         "cursor" | "cursor-cli" => Some("cursor"),
         "grok" | "grok-build" => Some("grok"),
         "hermes" | "hermes-agent" => Some("hermes-agent"),

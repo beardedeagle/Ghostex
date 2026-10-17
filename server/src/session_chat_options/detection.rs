@@ -79,6 +79,16 @@ pub fn detect_session_chat_selection(
                 }
                 continue;
             }
+            SessionChatOptionAgent::Copilot => {
+                if let Some(selection) =
+                    crate::session_chat_copilot_status::match_copilot_statusline(scanned)
+                {
+                    found = selection;
+                    topmost_match = Some(index);
+                    break;
+                }
+                continue;
+            }
             _ => {}
         }
         // Grok draws its statusline on the composer box's bottom border.
@@ -152,6 +162,9 @@ pub fn detect_session_chat_selection(
                 // ZCode has no segment grammar: it is an option agent only so
                 // the notice classifier accepts it (see the enum's CDXC).
                 SessionChatOptionAgent::Zcode => {}
+                SessionChatOptionAgent::Copilot => {
+                    unreachable!("Copilot is parsed as a complete statusline")
+                }
             }
         }
         if (

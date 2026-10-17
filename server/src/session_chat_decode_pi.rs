@@ -105,6 +105,30 @@ pub fn decode_pi_transcript_entry(line: &str, fallback_id: &str) -> Vec<SessionC
     vec![thinking, message]
 }
 
+/// CDXC:SessionChat 2026-10-17 WHY:
+/// Pi writes no turn markers: a user row opens a turn and the assistant row whose `stopReason` is not `toolUse` closes it (`aborted` is an Esc). Without this the queue, delayed sends and the send recovery saw a Pi turn only through hooks and Pi's own status report, and both go quiet while a provider runs its tools inside one response (Pi's `cursor:local` provider records the whole run when it ends): a queued message went into a running 40-second command and the send recovery restarted Pi, losing the turn (agent flow tests, 2026-10-17).
+pub fn decode_pi_turn_lifecycle(line: &str, fallback_id: &str) -> Option<SessionChatTurnLifecycle> {
+    let record = parse_json_object(line)?;
+    if record.get("type").and_then(Value::as_str) != Some("message") {
+        return None;
+    }
+    let message = as_record(record.get("message"))?;
+    let state = match message.get("role").and_then(Value::as_str)? {
+        "user" => SessionChatTurnLifecycleState::Working,
+        "assistant" => match message.get("stopReason").and_then(Value::as_str)? {
+            "toolUse" => return None,
+            "aborted" => SessionChatTurnLifecycleState::Interrupted,
+            _ => SessionChatTurnLifecycleState::Completed,
+        },
+        _ => return None,
+    };
+    Some(SessionChatTurnLifecycle {
+        state,
+        turn_id: extract_string(record.get("id")).unwrap_or_else(|| fallback_id.to_string()),
+        timestamp: parse_timestamp(record.get("timestamp")),
+    })
+}
+
 fn decode_pi_record(record: &Map<String, Value>, fallback_id: &str) -> Option<SessionChatMessage> {
     let record_type = record.get("type").and_then(Value::as_str)?;
     let id = extract_string(record.get("id")).unwrap_or_else(|| fallback_id.to_string());
@@ -150,7 +174,13 @@ fn decode_pi_record(record: &Map<String, Value>, fallback_id: &str) -> Option<Se
 
     let message = as_record(record.get("message"))?;
     let role = message.get("role").and_then(Value::as_str)?;
-    let timestamp = parse_timestamp(message.get("timestamp")).or(record_timestamp);
+    // CDXC:SessionChat 2026-10-17 WHY: an assistant message's own `timestamp` is when Pi began streaming it, a few milliseconds after the prompt, while its entry is written when the response ends. The chat times a turn from the prompt to its final reply, so a turn that was one long response read "Worked 1s" (agent flow tests, 2026-10-17); the entry's time is when the reply landed.
+    let message_timestamp = parse_timestamp(message.get("timestamp"));
+    let timestamp = if role == "assistant" {
+        record_timestamp.or(message_timestamp)
+    } else {
+        message_timestamp.or(record_timestamp)
+    };
     let (mut blocks, reasoning) = pi_message_content(message.get("content"));
     match role {
         "user" => {
@@ -190,11 +220,14 @@ fn decode_pi_record(record: &Map<String, Value>, fallback_id: &str) -> Option<Se
             let output = tool_result_output(message.get("content"));
             let is_error = message.get("isError") == Some(&Value::Bool(true));
             // Pi runs one response's tool calls in parallel, so a result names its call.
+            let patch = as_record(message.get("details"))
+                .and_then(|details| extract_string(details.get("diffString")))
+                .and_then(|diff| crate::session_chat_file_patch::unified_diff_patch(&diff));
             let mut tool_blocks = vec![SessionChatBlock::ToolResult {
                 output,
                 is_error: if is_error { Some(true) } else { None },
                 call_id: extract_string(message.get("toolCallId")),
-                patch: None,
+                patch,
             }];
             tool_blocks.extend(
                 blocks

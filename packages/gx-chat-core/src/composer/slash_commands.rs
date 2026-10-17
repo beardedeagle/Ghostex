@@ -1,11 +1,13 @@
 //! The per-agent `/` catalogs and the picker's filter.
 //!
-//! Port of `packages/core-ui/chat/session-chat-slash-commands.ts`. The six catalogs themselves are
+//! Port of `packages/core-ui/chat/session-chat-slash-commands.ts`. The catalogs themselves are
 //! in `slash_catalogs.rs`; this file is the filter and the headings.
 
 use serde::{Deserialize, Serialize};
 
-use crate::composer::slash_catalogs::{CLAUDE_CODE, CODEX, CURSOR, FALLBACK, GROK, HERMES};
+use crate::composer::slash_catalogs::{
+    CLAUDE_CODE, CODEX, COPILOT, CURSOR, FALLBACK, GROK, HERMES, PI,
+};
 
 /// One offered `/` command.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -25,10 +27,12 @@ pub fn slash_heading_for_agent(agent: Option<&str>) -> &'static str {
         Some("antigravity") => "Antigravity CLI",
         Some("claude") => "Claude Code",
         Some("codex") => "Codex",
+        Some("copilot") => "Copilot",
         Some("cursor") => "Cursor CLI",
         Some("grok") => "Grok",
         Some("hermes") => "Hermes Agent",
         Some("openclaude") => "OpenClaude",
+        Some("pi") => "Pi Agent",
         _ => "Commands",
     }
 }
@@ -38,9 +42,11 @@ pub fn slash_commands_for_agent(agent: Option<&str>) -> &'static [SlashCommand] 
     match agent {
         Some("claude") | Some("openclaude") => CLAUDE_CODE,
         Some("codex") => CODEX,
+        Some("copilot") => COPILOT,
         Some("cursor") => CURSOR,
         Some("grok") => GROK,
         Some("hermes") => HERMES,
+        Some("pi") => PI,
         _ => FALLBACK,
     }
 }

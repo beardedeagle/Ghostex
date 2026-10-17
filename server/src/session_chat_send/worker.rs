@@ -390,6 +390,60 @@ pub(super) async fn run_session_chat_send_worker(
                         break;
                     }
                 }
+                SessionChatSendStep::GuardCopilotInterrupt => {
+                    // A Stop right after a send may come before Copilot shows the turn running.
+                    let deadline = Instant::now() + Duration::from_secs(3);
+                    let mut interruptible = false;
+                    loop {
+                        if let Some(screen) = capture_session_terminal_text(&zmx_name).await {
+                            if crate::session_chat_copilot_interrupt::copilot_turn_is_interruptible(
+                                &screen,
+                            ) {
+                                interruptible = true;
+                                break;
+                            }
+                        }
+                        if Instant::now() >= deadline {
+                            break;
+                        }
+                        tokio::time::sleep(Duration::from_millis(250)).await;
+                    }
+                    if !interruptible
+                        || !crate::session_chat_copilot_interrupt::claim_copilot_interrupt(
+                            &project_id,
+                            &session_id,
+                        )
+                    {
+                        break;
+                    }
+                }
+                SessionChatSendStep::GuardHermesInterrupt => {
+                    // A Stop right after a send may come before Hermes shows the turn running.
+                    let deadline = Instant::now() + Duration::from_secs(3);
+                    let mut interruptible = false;
+                    loop {
+                        if let Some(screen) = capture_session_terminal_text(&zmx_name).await {
+                            if crate::session_chat_hermes_interrupt::hermes_turn_is_interruptible(
+                                &screen,
+                            ) {
+                                interruptible = true;
+                                break;
+                            }
+                        }
+                        if Instant::now() >= deadline {
+                            break;
+                        }
+                        tokio::time::sleep(Duration::from_millis(250)).await;
+                    }
+                    if !interruptible
+                        || !crate::session_chat_hermes_interrupt::claim_hermes_interrupt(
+                            &project_id,
+                            &session_id,
+                        )
+                    {
+                        break;
+                    }
+                }
                 SessionChatSendStep::GuardCodexInterrupt => {
                     let Some(screen) = capture_session_terminal_text(&zmx_name).await else {
                         outcome = Err(SessionChatSendError::not_attempted(

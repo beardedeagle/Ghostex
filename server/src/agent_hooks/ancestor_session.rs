@@ -25,6 +25,12 @@ pub(crate) fn adopt_ancestor_session_routing() {
         "GHOSTEX_GLOBAL_SESSION_REF",
         crate::ids::create_global_session_ref(server, project, session),
     );
+    adopt_local_gxserver_address();
+}
+
+/// Fills in the machine-wide local gxserver address and token file the `ghostex` CLI uses, where
+/// the hook's environment carries none.
+pub(crate) fn adopt_local_gxserver_address() {
     if env::var_os("GHOSTEX_GXSERVER_BASE_URL").is_none() {
         env::set_var(
             "GHOSTEX_GXSERVER_BASE_URL",

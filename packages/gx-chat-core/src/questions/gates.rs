@@ -44,6 +44,14 @@ pub fn notice_visible(state: &ChatState) -> bool {
     {
         return false;
     }
+    // CDXC:SessionChat 2026-10-17 WHY: a question an agent asks through a tool reaches the chat twice, as its question card and as the live terminal card of the menu that tool draws (Pi's `cursor_ask_question` showed "Pi is waiting for a choice" above "Needs your answer"; agent flow tests, 2026-10-17). The question card answers that same menu, so the live terminal card steps aside while it stands.
+    let prompt = InteractivePrompt::parse(state.session.prompt.as_ref());
+    if notice.passthrough
+        && prompt.as_ref().is_some_and(InteractivePrompt::is_question)
+        && question_card_visible(state, prompt.as_ref(), Some(&notice))
+    {
+        return false;
+    }
     !is_notice_dismissed(&notice, questions.dismissed_notice.as_ref())
 }
 

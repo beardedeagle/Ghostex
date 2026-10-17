@@ -1187,6 +1187,15 @@ pub(crate) fn normalize_agent_hook_activity(
             return Some("idle".to_string());
         }
     }
+    // Copilot's Stop is a finished turn; its Notification needs the payload
+    // (CDXC:Notifications 2026-10-17 in agent_hooks/event_mapping.rs).
+    if normalized_agent.as_deref() == Some("copilot") {
+        match lower.as_str() {
+            "stop" => return Some("attention".to_string()),
+            "notification" => return None,
+            _ => {}
+        }
+    }
     if matches!(
         normalized_agent.as_deref(),
         Some("copilot" | "codebuddy" | "droid" | "qoder")

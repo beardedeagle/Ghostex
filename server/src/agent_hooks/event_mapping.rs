@@ -229,6 +229,35 @@ pub(crate) fn activity_for_hook_event(
             return Some("idle".to_string());
         }
     }
+    /*
+    CDXC:Notifications 2026-10-17 WHY:
+    Copilot CLI (1.0.98) fires Stop only when a turn finishes on its own (`stop_reason: end_turn`; a Ctrl+C abort fires none), so its Stop is the same completed-turn boundary as Claude's and enters attention. Its Notification names why it fired: `permission_prompt` and `elicitation_dialog` mean Copilot is waiting on the user (an approval panel or an ask_user form), while `shell_completed` and the rest are information that must not move the session. Copilot's PermissionRequest hook fires for every tool, auto-approved ones included, and carries no event name, so it is never the attention signal.
+    */
+    if agent_key == "copilot" {
+        if lower == "stop" {
+            return Some("attention".to_string());
+        }
+        if lower == "notification" {
+            let kind = first_string([
+                payload.get("notification_type"),
+                payload.get("notificationType"),
+            ]);
+            return matches!(
+                kind.as_deref(),
+                Some("permission_prompt" | "elicitation_dialog")
+            )
+            .then(|| "attention".to_string());
+        }
+        if matches!(
+            lower.as_str(),
+            "userpromptsubmit" | "pretooluse" | "posttooluse" | "posttoolusefailure"
+        ) {
+            return Some("working".to_string());
+        }
+        if matches!(lower.as_str(), "sessionend" | "session-end") {
+            return Some("idle".to_string());
+        }
+    }
     if matches!(agent_key, "copilot" | "codebuddy" | "droid" | "qoder") {
         if matches!(
             lower.as_str(),

@@ -332,6 +332,22 @@ pub(crate) fn record_session_chat_interrupt(
         request_id.to_string(),
         escape_params,
     );
+    /*
+    CDXC:SessionChat 2026-10-17 WHY:
+    Copilot's Stop is a Ctrl+C that aborts the turn (session_chat_copilot_interrupt.rs), and Copilot fires no hook for an aborted turn and keeps no status in its terminal title, so the Escape rule above left the session "working" for good. Its chat Stop settles it idle; an Escape typed in Copilot's terminal pane only backgrounds a running shell and keeps the rule above.
+    */
+    if session_chat_agent_for_session(&target.session).as_deref() == Some("copilot") {
+        let mut idle_params = Map::new();
+        idle_params.insert("projectId".to_string(), json!(target.project_id));
+        idle_params.insert("sessionId".to_string(), json!(target.session_id));
+        idle_params.insert("activity".to_string(), json!("idle"));
+        let _ = crate::server::dispatch_agent_http_blocking(
+            state,
+            "/api/updateAgentActivity".to_string(),
+            request_id.to_string(),
+            idle_params,
+        );
+    }
     crate::session_chat_interactive::retire_interrupted_session_chat_prompt(
         state,
         &target.project_id,
