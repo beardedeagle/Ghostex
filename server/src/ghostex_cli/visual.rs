@@ -243,8 +243,13 @@ fn report_question_form(form: &ghostex_gx_visual::questions::QuestionForm) -> Cl
                 ghostex_gx_visual::questions::OTHER_CHOICE
             )
         };
+        let tag = if question.tag.is_empty() {
+            String::new()
+        } else {
+            format!("{}: ", question.tag)
+        };
         println!(
-            "- {} (answer key \"{}\"): {kind}",
+            "- {tag}{} (answer key \"{}\"): {kind}",
             question.title, question.key
         );
     }

@@ -168,6 +168,33 @@ fn choice(value: &Value, number: usize, question: usize) -> Result<FormChoice, S
     })
 }
 
+/// A tag written at the start of a question's title instead of in `"tag"` (`"Q198: Which key…"`),
+/// and the title after it: `[A-Z]{1,8}-?[0-9]{1,6}` followed by a colon.
+///
+/// CDXC:SessionChat 2026-10-17 WHY:
+/// Agents often write `"question": "Q198: …"` with no `"tag"`. Read as untagged, such a form could never be replaced by a later form asking Q198 again nor withdrawn, so it came back as unanswered and the Previous question pill sent the user to answer it a second time. The answer key stays the full title, so answers already sent still match.
+fn title_tag(title: &str) -> Option<(&str, &str)> {
+    let bytes = title.as_bytes();
+    let letters = bytes
+        .iter()
+        .take_while(|byte| byte.is_ascii_uppercase())
+        .count();
+    if letters == 0 || letters > 8 {
+        return None;
+    }
+    let mut end = letters + usize::from(bytes.get(letters) == Some(&b'-'));
+    let digits = bytes[end..]
+        .iter()
+        .take_while(|byte| byte.is_ascii_digit())
+        .count();
+    if digits == 0 || digits > 6 {
+        return None;
+    }
+    end += digits;
+    let rest = title[end..].strip_prefix(':')?.trim_start();
+    (!rest.is_empty()).then(|| (&title[..end], rest))
+}
+
 fn question(
     object: &Map<String, Value>,
     number: usize,
@@ -200,6 +227,13 @@ fn question(
     let base = Some(string(object.get("name")))
         .filter(|name| !name.is_empty())
         .unwrap_or_else(|| title.clone());
+    let mut tag = string(object.get("tag"));
+    let mut title = title;
+    if tag.is_empty() {
+        if let Some((written, rest)) = title_tag(&title) {
+            (tag, title) = (written.to_string(), rest.to_string());
+        }
+    }
     let mut key = base.clone();
     let mut copy = 2;
     while used.contains(&key) {
@@ -209,7 +243,7 @@ fn question(
     used.push(key.clone());
     Ok(FormQuestion {
         key,
-        tag: string(object.get("tag")),
+        tag,
         detail: string(object.get("detail").or_else(|| object.get("description"))),
         multiple: object
             .get("multiple")
@@ -358,9 +392,9 @@ pub fn takes_notes(form: &QuestionForm) -> bool {
 /// question's key when a question already answers under it.
 pub fn notes_key(form: &QuestionForm) -> String {
     let taken = |key: &str| {
-        form.questions.iter().any(|question| {
-            question.key == key || format!("{}{NOTE_SUFFIX}", question.key) == key
-        })
+        form.questions
+            .iter()
+            .any(|question| question.key == key || format!("{}{NOTE_SUFFIX}", question.key) == key)
     };
     let mut key = NOTES_KEY.to_string();
     let mut copy = 2;
