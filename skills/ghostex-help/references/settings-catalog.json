@@ -8740,6 +8740,18 @@
       "agentWritable": false
     },
     {
+      "key": "trustProjectFoldersAutomatically",
+      "title": "Trust project folders automatically",
+      "subtitle": "Mark each project and worktree folder as trusted before its agent starts, so no session stops at a \"Do you trust this folder?\" prompt. Turn it off to answer that prompt yourself.",
+      "tab": "agents",
+      "tabTitle": "Agents",
+      "section": "config",
+      "sectionTitle": "Defaults",
+      "type": "boolean",
+      "default": true,
+      "agentWritable": true
+    },
+    {
       "key": "agentAcceptAllEnabled",
       "title": "Agent approvals: accept all",
       "subtitle": "Start supported agents with approvals turned off (full access) by default. Off keeps each agent CLI default approval mode. Projects can override it.",

@@ -113,39 +113,24 @@ impl GhostexGpuiApp {
     /// "Set it up for me" on Settings > Cloud Boxes: an agent session in the Ghostex folder
     /// project (the one Help chats use) that installs and configures agentbox.
     pub(crate) fn run_agentbox_setup_chat(&mut self, cx: &mut gpui::Context<Self>) {
-        let project_dir = shared_settings::ghostex_storage_paths().config_dir.clone();
-        let project_path = project_dir.to_string_lossy().to_string();
-        let background = cx.background_executor().clone();
-        cx.spawn(async move |this, cx| {
-            let trust_warnings = background
-                .spawn(async move { gpui_trust_folder_for_agent_clis(&project_dir) })
-                .await;
-            let _ = this.update(cx, |this, cx| {
-                if !trust_warnings.is_empty() {
-                    this.dispatch_gpui_app_modal_toast(
-                        "warning",
-                        "Could not mark the Ghostex folder as trusted",
-                        trust_warnings.join(" ").as_str(),
-                        cx,
-                    );
-                }
-                let dispatched = this.dispatch_gpui_os_integration_command_message(
-                    serde_json::json!({
-                        "action": "createAgentboxSetupChat",
-                        "projectPath": project_path,
-                    }),
-                    cx,
-                );
-                if !dispatched {
-                    this.dispatch_gpui_app_modal_toast(
-                        "warning",
-                        "Couldn't start the setup agent",
-                        "The sidebar is not ready to start a session yet.",
-                        cx,
-                    );
-                }
-            });
-        })
-        .detach();
+        let project_path = shared_settings::ghostex_storage_paths()
+            .config_dir
+            .to_string_lossy()
+            .to_string();
+        let dispatched = self.dispatch_gpui_os_integration_command_message(
+            serde_json::json!({
+                "action": "createAgentboxSetupChat",
+                "projectPath": project_path,
+            }),
+            cx,
+        );
+        if !dispatched {
+            self.dispatch_gpui_app_modal_toast(
+                "warning",
+                "Couldn't start the setup agent",
+                "The sidebar is not ready to start a session yet.",
+                cx,
+            );
+        }
     }
 }

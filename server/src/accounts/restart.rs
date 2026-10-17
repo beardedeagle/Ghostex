@@ -208,6 +208,22 @@ pub(crate) fn start(
         }),
     );
     endpoint::update_session(repository, session, runtime)?;
+    let cwd = session["cwd"].as_str().map(str::to_string).or_else(|| {
+        repository
+            .get_project(&project_id)
+            .ok()
+            .flatten()
+            .and_then(|project| project["path"].as_str().map(str::to_string))
+    });
+    if let Some(cwd) = cwd {
+        crate::agent_folder_trust::trust_session_folder_before_launch(
+            repository,
+            &project_id,
+            &session_id,
+            session,
+            &cwd,
+        );
+    }
     // Pending sends belong to the CLI that is about to exit; the new generation also makes this sequence the only writer until it finishes.
     crate::session_chat_send::cancel_session_chat_sends(&project_id, &session_id);
     let mut steps = if let Some(background) = plan.background {

@@ -221,7 +221,9 @@ pub fn session_folders_remembered(
 
 /// CDXC:Feedback 2026-10-16 DECISION:
 /// User: "please auto-trust that folder when we run from it" (the Ghostex config folder, where the feedback agent runs). Any agent session whose working directory or project is the config folder, or a folder inside it (a report's own `feedback/<timestamp>/`), has its trust prompt answered like a remembered folder's, without the user remembering it first.
-/// SEE-ALSO: server/src/feedback/agent.rs (`start_report_folder`).
+/// CDXC:Onboarding 2026-09-10 DECISION:
+/// User: the Ghostex config folder that hosts Help chats is known to be safe, so mark it trusted in Claude Code and Codex up front instead of letting each new Help session stop on the trust prompt. Since 2026-10-17 gxserver does this for every agent with a trust step before it starts one there, through `agent_folder_trust`, even with "Trust project folders automatically" off; the desktop's own Claude and Codex writer is gone.
+/// SEE-ALSO: server/src/feedback/agent.rs (`start_report_folder`), server/src/agent_folder_trust/launch.rs.
 fn ghostex_config_folder_trusted(folders: &[String]) -> bool {
     let Some(config_dir) = normalize_folder(
         &ghostex_paths::GhostexPaths::resolve()

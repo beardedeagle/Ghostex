@@ -376,10 +376,8 @@ pub(crate) fn validate_session(
         })?;
     validate_identity(&home()?, account)
 }
-pub(crate) fn validate_identity(
-    home: &Path,
-    account: &SavedAccount,
-) -> Result<(), DomainStateError> {
+/// xswap's data folder: `XSWAP_HOME`, else `codex-swap` in its platform data folder. Its saved Codex accounts are `accounts/<slot>` inside it.
+pub(crate) fn xswap_root(home: &Path) -> PathBuf {
     let data_home = std::env::var_os("XDG_DATA_HOME")
         .map(PathBuf::from)
         .filter(|p| p.is_absolute())
@@ -391,15 +389,21 @@ pub(crate) fn validate_identity(
         std::env::var_os("LOCALAPPDATA")
             .map(PathBuf::from)
             .filter(|p| p.is_absolute())
-            .unwrap_or_else(|| data_home.clone())
+            .unwrap_or(data_home)
     } else {
-        data_home.clone()
+        data_home
     };
+    std::env::var_os("XSWAP_HOME")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| xswap_data_home.join("codex-swap"))
+}
+
+pub(crate) fn validate_identity(
+    home: &Path,
+    account: &SavedAccount,
+) -> Result<(), DomainStateError> {
     let path = match account.provider {
-        Provider::Codex => std::env::var_os("XSWAP_HOME")
-            .map(PathBuf::from)
-            .unwrap_or_else(|| xswap_data_home.join("codex-swap"))
-            .join("accounts.json"),
+        Provider::Codex => xswap_root(home).join("accounts.json"),
         Provider::Claude => super::claude_resets::swap_root(home).join("sequence.json"),
     };
     let fail = || {

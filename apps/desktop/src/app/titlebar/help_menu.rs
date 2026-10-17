@@ -253,14 +253,9 @@ impl GhostexGpuiApp {
         let project_path = project_dir.to_string_lossy().to_string();
         let background = cx.background_executor().clone();
         cx.spawn(async move |this, cx| {
-            let (install_result, trust_warnings) = background
+            let install_result = background
                 .spawn(async move {
-                    let install_result = gpui_install_bundled_ghostex_skill(
-                        &["guide", "install-skill"],
-                        "Ghostex Help",
-                    );
-                    let trust_warnings = gpui_trust_folder_for_agent_clis(&project_dir);
-                    (install_result, trust_warnings)
+                    gpui_install_bundled_ghostex_skill(&["guide", "install-skill"], "Ghostex Help")
                 })
                 .await;
             let _ = this.update(cx, |this, cx| {
@@ -269,14 +264,6 @@ impl GhostexGpuiApp {
                         "warning",
                         "Ghostex Help skill not installed",
                         message.as_str(),
-                        cx,
-                    );
-                }
-                if !trust_warnings.is_empty() {
-                    this.dispatch_gpui_app_modal_toast(
-                        "warning",
-                        "Could not mark the Ghostex folder as trusted",
-                        trust_warnings.join(" ").as_str(),
                         cx,
                     );
                 }

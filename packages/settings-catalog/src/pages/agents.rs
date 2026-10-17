@@ -18,6 +18,7 @@ pub(crate) fn config() -> Section {
             row("titleGenerationAgent", "Title Generation Agent", "Choose the headless agent Ghostex uses for first-prompt session title generation. Hover the info icon to see the exact command Ghostex sends.").options(SESSION_TITLE_GENERATION_AGENT_OPTIONS),
             row("customTitleCommand", "Custom Title Command", "Run this command with the title prompt on stdin. It should print only the title."),
             row("acceptAll", "Agent approvals", "Choose whether supported agents ask before editing files or running commands. Per-agent settings can override this default."),
+            row("trustProjectFoldersAutomatically", "Trust project folders automatically", "Mark each project and worktree folder as trusted before its agent starts, so no session stops at a \"Do you trust this folder?\" prompt. Turn it off to answer that prompt yourself."),
         ],
     )
 }

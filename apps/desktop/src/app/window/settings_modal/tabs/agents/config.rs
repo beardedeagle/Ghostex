@@ -1,12 +1,12 @@
 //! The Defaults card of Settings > Agents: Default Prompt Agent, Title Generation Agent (the exact
-//! command in its info tooltip), Custom Title Command, and Agent approvals
+//! command in its info tooltip), Custom Title Command, Agent approvals
 //! (`AgentApprovalPolicyControl`, packages/core-ui/agent-approval-policy-control.tsx (deleted 2026-10-01)) with its
-//! Skip permissions? confirmation.
+//! Skip permissions? confirmation, and Trust project folders automatically.
 use super::super::super::catalog::{SettingOption, settings_catalog};
 use super::super::super::fields::{
     ButtonVariant, PageAction, RowSpec, SELECT_WIDTH, SettingsDialogSpec, dialog_footer,
     select_field, setting_row, settings_button, settings_dialog, settings_section,
-    settings_segmented, settings_select, static_note, text_field,
+    settings_segmented, settings_select, static_note, text_field, toggle_field,
 };
 use super::super::super::palette::SettingsPalette;
 use super::super::super::search::{TabSearch, should_show_setting};
@@ -24,6 +24,7 @@ const DEFAULT_PROMPT_AGENT: &str = "defaultPromptAgentId";
 const TITLE_AGENT: &str = "sessionTitleGenerationAgent";
 const CUSTOM_TITLE_COMMAND: &str = "customSessionTitleGenerationCommand";
 const ACCEPT_ALL: &str = "agentAcceptAllEnabled";
+const TRUST_PROJECT_FOLDERS: &str = "trustProjectFoldersAutomatically";
 /// A shadcn `Select` with this many items becomes the searchable dropdown.
 const SEARCHABLE_SELECT_ITEMS: usize = 8;
 
@@ -257,6 +258,18 @@ impl AgentsTab {
                 ),
                 None,
                 control,
+                cx,
+            ));
+        }
+        if should_show_setting(&section, TRUST_PROJECT_FOLDERS, true) {
+            rows.push(toggle_field(
+                self,
+                p,
+                TRUST_PROJECT_FOLDERS,
+                RowSpec::new("Trust project folders automatically").description(
+                    "Mark each project and worktree folder as trusted before its agent starts, so no session stops at a \"Do you trust this folder?\" prompt. Turn it off to answer that prompt yourself.",
+                ),
+                values.bool(TRUST_PROJECT_FOLDERS),
                 cx,
             ));
         }

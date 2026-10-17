@@ -1278,8 +1278,16 @@ To compact before sending a new prompt, press `⌥Enter` on macOS or `Alt+Enter`
 Option-click Send (Alt-click on Windows and Linux), or right-click Send and choose Compact & Send. Ghostex sends `/compact` first,
 then puts your written prompt in the queue above the input to send after compaction.
 In narrow chats, notice cards hide Show terminal output; Open terminal remains available.
-When an agent asks whether to trust the project folder (Claude Code, Codex,
-Cursor, Grok Build, Pi, and Antigravity all do on a new folder), chat shows a
+Ghostex trusts each project and worktree folder for you before it starts an
+agent there, so sessions never stop at the agent's own "Do you trust this
+folder?" question. It marks the folder trusted the way the agent would if you
+answered yes (Claude Code, Codex, Cursor, Gemini, Copilot, Grok Build,
+Antigravity, Pi and Factory Droid have such a question; OMP, OpenCode and Hermes
+don't). Only the folder the session runs in is trusted, never your home folder or
+a folder above it. To answer the question yourself, turn off **Trust project
+folders automatically** in Settings > Agents > Defaults
+(`trustProjectFoldersAutomatically`).
+With it off, when an agent asks whether to trust the project folder, chat shows a
 folder-trust card with the agent's own Yes/No choices. Its **Trust and Remember**
 button trusts the folder now and remembers it: from then on Ghostex answers the
 trust prompt for that project on its own, whichever agent asks, without showing

@@ -1,5 +1,6 @@
 pub(crate) mod accounts;
 pub(crate) mod agent_cli;
+pub mod agent_folder_trust;
 pub mod agent_hooks;
 pub mod agent_message_deliveries;
 pub mod agent_model_catalog;

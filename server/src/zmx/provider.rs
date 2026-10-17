@@ -292,6 +292,13 @@ pub(crate) fn start_session_provider_with_observed_state(
         ));
     };
     let command = if should_start_with_startup_text {
+        crate::agent_folder_trust::trust_session_folder_before_launch(
+            repository,
+            &lifecycle.project_id,
+            &lifecycle.session_id,
+            &probed_session,
+            &cwd,
+        );
         let startup_text = startup_text.unwrap_or_default();
         let startup_text =
             if crate::session_chat_composer::session_chat_composer_agent_id(&probed_session)
