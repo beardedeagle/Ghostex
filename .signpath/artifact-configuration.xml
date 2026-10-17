@@ -16,15 +16,26 @@
        code-server/ is never uploaded.
     2. signpath-windows-<arch>-velopack-setup: Ghostex-Velopack-Setup.exe.
     3. signpath-windows-<arch>-installer: ghostex-<version>-windows-<arch>.exe.
-  Every zip holds only PE files, so the configuration signs every .exe and,
-  when present, every .dll and .node at any depth.
+  Every zip holds only PE files, at one of two known depths: round 1 always
+  nests each file exactly one folder deep (<sha256>/<file>, written by
+  tooling/release-gpui/vpk-signpath-hook.ps1), and rounds 2 and 3 put their one
+  file at the zip root. The patterns name both depths explicitly instead of
+  using "**", because SignPath's docs do not say whether "**" also matches zero
+  folders; a single "*" never crosses a folder separator, so the root and
+  one-folder patterns can never match the same file. Every include is
+  optional (min-matches="0") because each round fills only one depth;
+  windows.ps1 checks that every file SignPath returns carries a signature, so a
+  request that signed nothing still fails the release.
 -->
 <artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
   <zip-file>
     <pe-file-set>
-      <include path="**/*.exe" max-matches="unbounded" />
-      <include path="**/*.dll" min-matches="0" max-matches="unbounded" />
-      <include path="**/*.node" min-matches="0" max-matches="unbounded" />
+      <include path="*.exe" min-matches="0" max-matches="unbounded" />
+      <include path="*/*.exe" min-matches="0" max-matches="unbounded" />
+      <include path="*.dll" min-matches="0" max-matches="unbounded" />
+      <include path="*/*.dll" min-matches="0" max-matches="unbounded" />
+      <include path="*.node" min-matches="0" max-matches="unbounded" />
+      <include path="*/*.node" min-matches="0" max-matches="unbounded" />
       <for-each>
         <authenticode-sign />
       </for-each>

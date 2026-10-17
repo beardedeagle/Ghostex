@@ -52,4 +52,4 @@ From then on the workflow also requires every signature to be fully valid (`Get-
 ## Things to confirm on the first signed run
 
 - The throwaway pack and the real pack must produce byte-identical `Squirrel.exe` and launcher stub files: the real pack finds each signed copy by the SHA-256 of the unsigned bytes and fails with "No SignPath-signed copy of …" if they differ.
-- SignPath's `**/*.exe` pattern must match the files at the root of the round 2 and round 3 zips as well as the nested round 1 files. If SignPath reports that a pattern matched nothing, add `*.exe` includes next to the `**/` ones.
+- Each round should list its files as signed in the SignPath signing request. The artifact configuration names the two depths the zips use (root for rounds 2 and 3, one folder for round 1) with single-`*` patterns and no `**`, and every include is optional, so a request that matches nothing would not be rejected by SignPath; the release still fails in that case, because `windows.ps1` checks that every returned file carries a signature.
