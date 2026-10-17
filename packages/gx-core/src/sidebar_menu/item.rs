@@ -80,6 +80,9 @@ pub struct MenuItem {
     /// The hotkey action id (`ghostex-hotkeys.ts`) that runs the same action; the renderer shows
     /// its current binding in the button's tooltip.
     pub hotkey: Option<String>,
+    /// Text behind an (i) icon at the row's end, shown as a tooltip while it is hovered (a tap
+    /// shows it on the phone).
+    pub info: Option<String>,
 }
 
 impl MenuItem {
@@ -174,6 +177,7 @@ impl MenuItem {
         text("agentIcon", &self.agent_icon);
         text("menuOwner", &self.menu_owner);
         text("hotkey", &self.hotkey);
+        text("info", &self.info);
         let mut flag = |key: &str, value: bool| {
             if value {
                 object.insert(key.to_string(), Value::Bool(true));

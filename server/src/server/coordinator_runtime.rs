@@ -1020,26 +1020,66 @@ fn refresh_thread_screen_waits(
     coordinators::replace_thread_screen_waits(waits);
 }
 
-/// `/api/createAgentSession` with a `coordinator` object: points the launch at the role file.
+/// `/api/createAgentSession` with a `coordinator` object: marks the session as one that takes its
+/// role from the `ghostex-orchestrator` skill, so the older role channels (ZCode's SessionStart
+/// pointer) leave it alone.
 pub(crate) fn prepare_coordinator_create_params(
-    state: &AppState,
     params: &Map<String, Value>,
 ) -> std::result::Result<Map<String, Value>, DomainStateError> {
     let mut params = params.clone();
-    let Some(coordinator) = params.get_mut("coordinator").and_then(Value::as_object_mut) else {
+    if !params.get("coordinator").is_some_and(Value::is_object) {
         return Ok(params);
-    };
-    let role_file = coordinators::ensure_coordinator_role_file(&state.paths).map_err(|error| {
-        DomainStateError {
-            code: "internalError",
-            message: format!("Could not write the orchestrator role file: {error}"),
-        }
-    })?;
-    coordinator.insert(
-        "roleFile".to_string(),
-        Value::String(role_file.to_string_lossy().to_string()),
-    );
+    }
+    let runtime = params
+        .entry("runtimeSettings".to_string())
+        .or_insert_with(|| Value::Object(Map::new()));
+    if let Some(runtime) = runtime.as_object_mut() {
+        runtime.insert(
+            coordinators::COORDINATOR_ROLE_SETTING.to_string(),
+            json!(coordinators::COORDINATOR_ROLE_SKILL),
+        );
+    }
     Ok(params)
+}
+
+/// Hands a just-created orchestrator its role: installs the `ghostex-orchestrator` skill for its
+/// agent and queues its first message (the skill line, then the create's first request) as a
+/// startup send. A ZCode orchestrator's chosen model goes first as a `/model` line, because ZCode
+/// has no launch model flag and the first message must run on the model the user picked.
+pub(crate) fn start_orchestrator_role(
+    state: &AppState,
+    project_id: &str,
+    session_id: &str,
+    family: &str,
+    params: &Map<String, Value>,
+) -> std::result::Result<(), DomainStateError> {
+    coordinators::ensure_orchestrator_skill_installed(&state.paths, family)?;
+    if family == "zcode" {
+        if let Some(model) = params
+            .get("agentModel")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|model| !model.is_empty())
+        {
+            queue_session_chat_prompt(
+                state,
+                project_id,
+                session_id,
+                &format!("/model {model}"),
+                true,
+            )?;
+        }
+    }
+    let first_request = coordinators::coordinator_create_request(params)?
+        .map(|request| request.first_request)
+        .unwrap_or_default();
+    queue_session_chat_prompt(
+        state,
+        project_id,
+        session_id,
+        &coordinators::orchestrator_first_message(family, &first_request),
+        true,
+    )
 }
 
 /// Queues a message in a session's chat queue and tells its viewers. A `startup_send` is a new
@@ -1071,26 +1111,6 @@ pub(crate) fn queue_session_chat_prompt(
     Ok(())
 }
 
-/// Hands a coordinator whose role arrives as a queued line (Empryo's `/agent`, see
-/// `coordinator_role_queued_command`) its role: writes the profile the line names, then queues
-/// it. A new coordinator's line waits for the input box like a first message; a promoted one's
-/// waits for the running turn to end.
-pub(crate) fn queue_coordinator_role_command(
-    state: &AppState,
-    project_id: &str,
-    session_id: &str,
-    command: &str,
-    startup_send: bool,
-) -> std::result::Result<(), DomainStateError> {
-    coordinators::ensure_empryo_coordinator_agent_file(&state.paths).map_err(|error| {
-        DomainStateError {
-            code: "internalError",
-            message: format!("Could not write the Empryo orchestrator profile: {error}"),
-        }
-    })?;
-    queue_session_chat_prompt(state, project_id, session_id, command, startup_send)
-}
-
 /// `/api/promoteCoordinator`: makes an existing session a coordinator, then queues its playbook
 /// in the session's chat queue, which hands it over only once the agent is idle (never mid-turn).
 /// See the CDXC:Coordinators decision on `promote_session_to_coordinator`.
@@ -1100,38 +1120,27 @@ pub(crate) fn promote_coordinator(
     repository: &DomainRepository<'_>,
     params: &Map<String, Value>,
 ) -> std::result::Result<Value, DomainStateError> {
-    let role_file = coordinators::ensure_coordinator_role_file(&state.paths).map_err(|error| {
-        DomainStateError {
-            code: "internalError",
-            message: format!("Could not write the orchestrator role file: {error}"),
-        }
-    })?;
     let promotion = coordinators::promote_session_to_coordinator(
         db,
         state.metadata.server_id.as_str(),
         params,
-        &role_file,
     )?;
     let (project_id, session_id) = &promotion.key;
     schedule_presentation_session_delta(state, db, repository, project_id, session_id)?;
     // The coordinator record is committed, so a failure from here on is reported, not raised.
-    let playbook_error = promotion
-        .role_command
-        .as_deref()
-        .map_or(Ok(()), |command| {
-            queue_coordinator_role_command(state, project_id, session_id, command, false)
-        })
-        .and_then(|()| {
-            queue_session_chat_prompt(
-                state,
-                project_id,
-                session_id,
-                &promotion.playbook_message,
-                false,
-            )
-        })
-        .err()
-        .map(|error| error.message);
+    let playbook_error =
+        coordinators::ensure_orchestrator_skill_installed(&state.paths, &promotion.family)
+            .and_then(|_| {
+                queue_session_chat_prompt(
+                    state,
+                    project_id,
+                    session_id,
+                    &promotion.playbook_message,
+                    false,
+                )
+            })
+            .err()
+            .map(|error| error.message);
     Ok(json!({
         "ok": true,
         "globalRef": crate::ids::create_global_session_ref(state.metadata.server_id.as_str(), project_id, session_id),

@@ -57,6 +57,10 @@ mod git_commit_modal;
 mod missing_project_folder_demo;
 #[path = "../app/window/missing_project_folder_modal.rs"]
 mod missing_project_folder_modal;
+#[path = "native_modal_demo/new_coordinator.rs"]
+mod new_coordinator_demo;
+#[path = "../app/window/new_coordinator_modal.rs"]
+mod new_coordinator_modal;
 #[path = "../app/window/new_thread_picker.rs"]
 mod new_thread_picker;
 #[path = "native_modal_demo/new_thread_picker.rs"]
@@ -355,6 +359,7 @@ fn main() {
                 "rename-worktree" => rename_worktree_demo::open(&demo, cx),
                 "missing-project-folder" => missing_project_folder_demo::open(&demo, cx),
                 "rename-session" => rename_session_demo::open(&demo, cx),
+                "new-orchestrator" => new_coordinator_demo::open(&demo, cx),
                 "session-note" => session_note_demo::open(&demo, cx),
                 "permission-guide" => permission_guide_demo::open(&demo, cx),
                 "install-hooks" => agent_hooks_required_demo::open(&demo, cx),

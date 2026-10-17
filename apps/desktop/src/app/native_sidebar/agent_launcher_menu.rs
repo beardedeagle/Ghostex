@@ -221,6 +221,22 @@ impl GhostexGpuiApp {
                 ),
             };
             content = content.child(row);
+            if panel.info_item == Some(item_index) {
+                if let Some(info) = item["info"].as_str() {
+                    content = content.child(
+                        v_flex()
+                            .w_full()
+                            .flex_shrink_0()
+                            .px(scaled(10.0))
+                            .pb(scaled(6.0))
+                            .gap(scaled(2.0))
+                            .text_size(scaled(11.5))
+                            .line_height(scaled(16.0))
+                            .text_color(palette.label)
+                            .children(info.lines().map(|line| div().child(line.to_owned()))),
+                    );
+                }
+            }
         }
         content.into_any_element()
     }
@@ -237,6 +253,12 @@ impl GhostexGpuiApp {
         cx: &mut gpui::Context<Self>,
     ) -> AnyElement {
         let scaled = |value: f32| px(value * scale);
+        let info_open = self
+            .native_sidebar
+            .menu
+            .as_ref()
+            .and_then(|menu| menu.panels.get(panel_index))
+            .is_some_and(|panel| panel.info_item == Some(item_index));
         let disabled = item["disabled"] == true;
         let primary = item["primary"] == true;
         let account = matches!(LauncherRow::of(item), LauncherRow::Account { .. });
@@ -371,6 +393,39 @@ impl GhostexGpuiApp {
                 row.bg(palette.hover)
             })
             .child(launch)
+            // The (i) beside "New Orchestrator…". Its text opens under the row while the (i) is
+            // hovered (a click opens it too): no tooltip shows while a sidebar menu is open
+            // (CDXC:Tooltips 2026-09-15 in menus.rs).
+            .when(item["info"].is_string(), |row| {
+                row.child(
+                    div()
+                        .id(format!(
+                            "native-agent-launcher-info-{panel_index}-{item_index}"
+                        ))
+                        .flex_shrink_0()
+                        .mr(scaled(8.0))
+                        .p(scaled(2.0))
+                        .rounded(scaled(4.0))
+                        .hover(|button| button.bg(palette.hover))
+                        .child(
+                            svg()
+                                .path(crate::app::consts::TITLEBAR_ICON_INFO)
+                                .size(scaled(14.0))
+                                .text_color(if info_open {
+                                    palette.foreground
+                                } else {
+                                    palette.muted
+                                }),
+                        )
+                        .on_hover(cx.listener(move |app, hovered: &bool, _, cx| {
+                            app.set_native_sidebar_menu_info(panel_index, item_index, *hovered, cx);
+                        }))
+                        .on_click(cx.listener(move |app, _, _, cx| {
+                            cx.stop_propagation();
+                            app.set_native_sidebar_menu_info(panel_index, item_index, true, cx);
+                        })),
+                )
+            })
             .when_some(item.get("secondary"), |row, secondary| {
                 let count = secondary["label"].as_str().unwrap_or_default().to_owned();
                 row.child(
@@ -427,5 +482,35 @@ impl GhostexGpuiApp {
                 )
             })
             .into_any_element()
+    }
+
+    /// Shows or hides the (i) text under a launcher row.
+    fn set_native_sidebar_menu_info(
+        &mut self,
+        panel_index: usize,
+        item_index: usize,
+        open: bool,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        let Some(panel) = self
+            .native_sidebar
+            .menu
+            .as_mut()
+            .and_then(|menu| menu.panels.get_mut(panel_index))
+        else {
+            return;
+        };
+        let info_item = if open {
+            Some(item_index)
+        } else if panel.info_item == Some(item_index) {
+            None
+        } else {
+            panel.info_item
+        };
+        if panel.info_item != info_item {
+            panel.info_item = info_item;
+            panel.measured_height = None;
+            cx.notify();
+        }
     }
 }

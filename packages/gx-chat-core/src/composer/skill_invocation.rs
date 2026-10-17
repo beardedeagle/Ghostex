@@ -34,6 +34,18 @@ pub fn skill_invocation(name: &str, agent: Option<&str>) -> String {
     format!("{}{name}", skill_sigil(agent))
 }
 
+/// The line every new orchestrator's first message starts with, in the agent's own skill
+/// spelling: "Read and adhere to this skill: /ghostex-orchestrator" for Claude Code and Copilot,
+/// `$ghostex-orchestrator` for every other agent. gxserver sends it, and the New Orchestrator
+/// dialog shows it as the locked first line.
+/// SEE-ALSO: server/src/coordinators/role.rs (`orchestrator_first_message`, the CDXC:Coordinators 2026-10-17 decision).
+pub fn orchestrator_skill_line(agent: Option<&str>) -> String {
+    format!(
+        "Read and adhere to this skill: {}",
+        skill_invocation("ghostex-orchestrator", agent)
+    )
+}
+
 /// The name in a `$name` or `/name` pill label, when it is one gxserver's scanner also accepts,
 /// so the two sides convert the same links.
 fn skill_name(label: &str) -> Option<&str> {

@@ -29,38 +29,41 @@ USAGE
   ghostex orchestrator guide
 
 WHAT AN ORCHESTRATOR IS
-  An orchestrator is an agent session (Claude, Codex, ZCode or Empryo) with a standing role: it
+  An orchestrator is an agent session with a standing role: it
   answers quick questions itself and starts a thread for every piece of real
   work. Threads are ordinary agent sessions; they sit under their orchestrator in
   the sidebar. When a thread finishes a turn, Ghostex forwards its final message
   to the orchestrator as a "Message from another agent" (first line
   "Ghostex thread report: ...", sender block last); when a thread waits on a question or an
   approval, the orchestrator is told what it asks. The orchestrator never has to
-  poll. `ghostex orchestrator guide` prints the orchestrator's full playbook.
+  poll. Its role is the ghostex-orchestrator skill: Ghostex installs it for the
+  orchestrator's agent, and its first message always starts with "Read and
+  adhere to this skill: /ghostex-orchestrator" ($ghostex-orchestrator for agents
+  other than Claude Code and Copilot). `ghostex orchestrator guide` prints the
+  playbook with the reply format the user chose for orchestrators.
 
 CREATE
   create starts an orchestrator in your project (--project-id picks another).
   --agent takes an id from `ghostex agents types`; it must be a Claude, Codex,
-  ZCode or Empryo agent, and defaults to the first configured one, preferring Claude.
-  --model picks
-  its model (a value from the agent's model list, such as sonnet or opus[1m]);
-  a Claude orchestrator defaults to Opus 5.5 (opus[1m]), a Codex, ZCode or Empryo
-  one to its configured model. --effort defaults to medium, which is plenty for
-  routing work; a ZCode orchestrator takes no effort, and an Empryo one keeps its
-  own unless you pass one. --goal is one line the
-  orchestrator works toward. --task sends
-  it a first message.
+  ZCode, Cursor, Grok, Copilot, Antigravity, Pi or OMP agent, and defaults to the
+  first configured one, preferring Claude. --model picks its model (a value from
+  the agent's model list, such as sonnet or opus[1m]) for Claude, Codex, Pi, ZCode
+  and Antigravity; a Claude orchestrator defaults to Opus 5.5 (opus[1m]), every
+  other one to its configured model. --effort defaults to xhigh for Claude and
+  Codex and high for Antigravity; a ZCode orchestrator takes no effort, and the
+  other agents keep their own unless you pass one. --goal is one line the
+  orchestrator works toward. --task follows the skill line in its first message.
   options lists the agents an orchestrator can run on, with each one's models,
-  the model it starts on, and the efforts each model accepts.
+  the model it starts on, the efforts it offers (High and XHigh, or the agent's
+  two highest below Max), and the skill line its first message starts with.
 
 PROMOTE
-  promote makes a session that already exists (Claude, Codex, ZCode or Empryo) a
+  promote makes a session that already exists (of an agent create accepts) an
   orchestrator, keeping its conversation: the sidebar's Advanced > Make
   Orchestrator does the same. Without <session-ref> it promotes the session it runs in. It never
-  restarts or interrupts the agent: the orchestrator playbook is queued in the
-  session's chat and reaches it once its current turn is over, and the next
-  time the session starts or resumes on its own (waking from sleep, a Full
-  Reload, an app restart) it gets the role as a system prompt, like a created
+  restarts or interrupts the agent: Ghostex installs the ghostex-orchestrator
+  skill and queues a message that starts with the skill line, which reaches the
+  session once its current turn is over, like the first message of a created
   orchestrator. --goal sets the goal. A session that is already an orchestrator,
   a thread of one, a draft, or in a box cannot be promoted. Sessions it started
   earlier are not its threads; adopt each with link.

@@ -33,8 +33,6 @@ impl GhostexGpuiApp {
             if let NewCoordinatorModalCommand::Create {
                 agent_id,
                 name,
-                goal,
-                first_request,
                 model,
                 effort,
             } = command
@@ -43,8 +41,6 @@ impl GhostexGpuiApp {
                     &group_id,
                     &agent_id,
                     &name,
-                    &goal,
-                    &first_request,
                     model.as_deref(),
                     effort.as_deref(),
                     cx,

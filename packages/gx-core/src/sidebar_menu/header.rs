@@ -296,15 +296,29 @@ pub fn agent_launcher_items_with_accounts(
 /// The launcher's "New Coordinator…" row.
 ///
 /// CDXC:Coordinators 2026-10-03 DECISION:
-/// User: "Please move this to the top in both apps": "New Coordinator…" is the first row of a project's agent launcher, above the agents, on the desktop, the web build and the phone. A coordinator is started where agents are started, so the launcher offers it; the dialog behind it names the coordinator and picks its Claude, Codex, ZCode or Empryo agent. Supersedes the 2026-09-30 placement after Run in a box.
+/// User: "Please move this to the top in both apps": "New Coordinator…" is the first row of a project's agent launcher, above the agents, on the desktop, the web build and the phone. A coordinator is started where agents are started, so the launcher offers it; the dialog behind it names the coordinator and picks its agent. Supersedes the 2026-09-30 placement after Run in a box.
 /// SEE-ALSO: `agentMenuItems` in apps/mobile/app/src/screens/sessions-screen/use-sessions-screen-menus.tsx (the phone's agent menu keeps the same order).
 fn new_coordinator_row(group_id: &str) -> MenuItem {
-    MenuItem::row(
-        "New Orchestrator…",
-        "users-group",
-        MenuCommand::project_action(group_id, "coordinator", None),
-    )
+    MenuItem {
+        info: Some(NEW_ORCHESTRATOR_BENEFITS.to_string()),
+        ..MenuItem::row(
+            "New Orchestrator…",
+            "users-group",
+            MenuCommand::project_action(group_id, "coordinator", None),
+        )
+    }
 }
+
+/// The tooltip behind the (i) beside "New Orchestrator…".
+///
+/// CDXC:Coordinators 2026-10-17 DECISION:
+/// User: "please add an i icon next to the "New Orchestrator..." menu item that can be hovered to explain the benefits of using it, in short bullet points. Say it's recommended, and it's the main way Ghostex is built, and you need to use a very good model for it (ex. Opus 5.5 high or xhigh), you just talk to 1 agent and work gets done, and it keeps improving as it saves more memories about your project". The phone shows the same text when its (i) is tapped.
+/// SEE-ALSO: apps/desktop/src/app/native_sidebar/agent_launcher_menu.rs (the icon and tooltip), apps/mobile/app/src/screens/sessions-screen/use-sessions-screen-menus.tsx (the phone's copy).
+pub const NEW_ORCHESTRATOR_BENEFITS: &str = "Recommended
+• The main way Ghostex itself is built
+• You talk to one agent and the work gets done
+• It keeps improving as it saves memories about your project
+• Needs a very good model, e.g. Opus 5.5 at high or xhigh";
 
 /// `providerFor`: only Claude and Codex have an account switcher.
 pub(crate) fn account_provider(agent_id: &str, icon: Option<&str>) -> Option<&'static str> {

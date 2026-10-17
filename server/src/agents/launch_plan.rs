@@ -98,13 +98,7 @@ pub(crate) fn create_agent_session_params_for_project(
     } else {
         configured_command
     };
-    let configured_command = apply_coordinator_role(
-        &agent_id,
-        &agent_config,
-        &launch_settings,
-        params,
-        configured_command,
-    )?;
+    refuse_unsupported_coordinator_agent(&agent_id, &agent_config, &launch_settings, params)?;
     let configured_command = if agentbox_provider.is_none() {
         apply_thread_marked_handovers(
             &agent_id,
@@ -607,34 +601,27 @@ fn pin_remembered_agent_model(
     })
 }
 
-/// CDXC:Coordinators 2026-09-30 WHY:
-/// A coordinator's role is a system prompt flag in the saved base command (see coordinators/role.rs), added here beside the per-session model flags so resume, fork and account wrapping keep it. Claude carries the whole role file this way; Codex and ZCode carry only the guide pointer (ZCode has no such flag, so its role arrives through the SessionStart hook instead); Empryo has no such flag either and gets its role from a queued `/agent` line (`coordinator_role_queued_command`). An agent outside the supported families is refused rather than started without its role.
-fn apply_coordinator_role(
+/// A new orchestrator gets its role from the `ghostex-orchestrator` skill and its first message
+/// (coordinators/role.rs), so its command stays as the launcher has it; an agent that cannot run
+/// that skill is refused before the session is made.
+fn refuse_unsupported_coordinator_agent(
     agent_id: &str,
     agent_config: &Map<String, Value>,
     launch_settings: &Map<String, Value>,
     params: &Map<String, Value>,
-    command: Option<String>,
-) -> Result<Option<String>, DomainStateError> {
-    let Some(request) = crate::coordinators::coordinator_create_request(params)? else {
-        return Ok(command);
-    };
-    let role_file = request.role_file.ok_or_else(|| {
-        DomainStateError::corrupt_state("The orchestrator role file was not prepared.")
-    })?;
-    let family = resume_agent_family_id(Some(agent_id.to_string()), agent_config, launch_settings)
+) -> Result<(), DomainStateError> {
+    if crate::coordinators::coordinator_create_request(params)?.is_none() {
+        return Ok(());
+    }
+    resume_agent_family_id(Some(agent_id.to_string()), agent_config, launch_settings)
         .filter(|family| crate::coordinators::coordinator_agent_family_supported(family))
+        .map(|_| ())
         .ok_or_else(|| {
             DomainStateError::bad_request(format!(
                 "An orchestrator runs on {}. Pick one of those agents.",
                 crate::coordinators::COORDINATOR_AGENT_FAMILIES_TEXT
             ))
-        })?;
-    let base = command
-        .or_else(|| default_agent_command(&family).map(str::to_string))
-        .unwrap_or_else(|| family.clone());
-    crate::coordinators::with_coordinator_role(&base, &family, std::path::Path::new(&role_file))
-        .map(Some)
+        })
 }
 
 /// CDXC:MarkedHandovers 2026-10-11 WHY:

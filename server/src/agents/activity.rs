@@ -427,8 +427,9 @@ pub(crate) fn ingest_agent_hook_event(
         "agentSessionIdChanged".to_string(),
         Value::Bool(agent_session_id_changed),
     );
+    let context = coordinator_session_start_context(repository, lifecycle, params, &session)?;
     result.insert("session".to_string(), session);
-    if let Some(context) = coordinator_session_start_context(repository, lifecycle, params)? {
+    if let Some(context) = context {
         result.insert("additionalContext".to_string(), Value::String(context));
     }
     Ok(Value::Object(result))
@@ -441,12 +442,15 @@ guide pointer rides the SessionStart hook: this endpoint answers the ingest with
 and the hook prints it for zcode to fold into context. Only a ZCode SessionStart on a session with
 a coordinators row, of a thread, or any ZCode SessionStart while Marked handovers is on (its note
 follows the pointer; agents/marked_handovers.rs), is answered, so every other hook response stays
-unchanged.
+unchanged. Since 2026-10-17 a new orchestrator takes its role from the `ghostex-orchestrator` skill
+(coordinators/role.rs), so only coordinators made before then get the pointer; every coordinator
+still gets the Marked handovers note unless orchestrators answer without markers.
 */
 fn coordinator_session_start_context(
     repository: &DomainRepository<'_>,
     lifecycle: &LifecycleParams,
     params: &Map<String, Value>,
+    session: &Value,
 ) -> Result<Option<String>, DomainStateError> {
     let agent = crate::agent_hooks::event_mapping::normalized_hook_agent_key(
         read_text(params, "agentName")
@@ -476,8 +480,10 @@ fn coordinator_session_start_context(
     } else {
         thread || super::marked_handovers_enabled(&paths)
     };
+    let legacy_coordinator =
+        coordinator && !crate::coordinators::coordinator_role_is_skill(session);
     let parts = [
-        coordinator.then_some(crate::coordinators::GUIDE_POINTER_COORDINATOR_INSTRUCTIONS),
+        legacy_coordinator.then_some(crate::coordinators::GUIDE_POINTER_COORDINATOR_INSTRUCTIONS),
         marked.then_some(super::MARKED_HANDOVERS_NOTE),
     ];
     let context = parts.into_iter().flatten().collect::<Vec<_>>().join("\n\n");

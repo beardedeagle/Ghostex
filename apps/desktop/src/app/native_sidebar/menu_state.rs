@@ -33,6 +33,8 @@ pub(crate) struct SidebarMenuPanel {
     pub(crate) measured_height: Option<Pixels>,
     /// The row of this panel that opened the panel stacked on top of it, if one is open.
     pub(crate) child_item: Option<usize>,
+    /// The row whose (i) text (`info`) is shown under it, while its (i) is hovered or clicked.
+    pub(crate) info_item: Option<usize>,
 }
 
 pub(crate) struct SidebarMenuState {
@@ -59,6 +61,7 @@ impl SidebarMenuPanel {
             pages: vec![],
             measured_height: None,
             child_item: None,
+            info_item: None,
         }
     }
 
@@ -68,6 +71,7 @@ impl SidebarMenuPanel {
         self.selected = None;
         self.measured_height = None;
         self.child_item = None;
+        self.info_item = None;
     }
 
     pub(crate) fn is_agent_launcher(&self) -> bool {

@@ -49,6 +49,9 @@ pub struct ModelMenuContext {
     /// A draft has no conversation yet, so another agent's model switches the draft instead of
     /// handing off.
     pub draft: bool,
+    /// An orchestrator's chat: every row offers only the orchestrator effort levels
+    /// (`orchestrator_efforts`).
+    pub orchestrator: bool,
     /// The value `modelMenuContext` itself is published as.
     ///
     /// Its `descriptors` and `state` are family e1's own shapes, which e2 does not model, so e1
@@ -156,6 +159,16 @@ fn model_menu_row_efforts(
                 })
                 .unwrap_or_default()
         }
+    };
+    let choices: Vec<(String, String)> = if context.orchestrator {
+        let values: Vec<&str> = choices.iter().map(|(value, _)| value.as_str()).collect();
+        let offered = crate::menus::orchestrator_effort::orchestrator_efforts(&values);
+        choices
+            .into_iter()
+            .filter(|(value, _)| offered.contains(value))
+            .collect()
+    } else {
+        choices
     };
     let efforts: Vec<ModelMenuEffort> = choices
         .into_iter()

@@ -2183,28 +2183,37 @@ version of the Projects features in Cursor and Claude Code.
 
 - **Start one**: hover a project in the sidebar, open the Select Agent menu (the
   arrow beside its agent button) and choose **New Orchestrator…**, the first
-  item of that menu. On the phone, open the same menu from the project's agent
-  button and pick **New Orchestrator…** at its top. Name it, pick
-  Claude, Codex, ZCode or Empryo and its model (Opus 5.5 on Claude, GLM 5.3 Flash on
-  ZCode; without a choice each agent starts on its own default) and the effort
-  the model takes — medium by default, which is plenty for routing work — and
-  optionally give it a one-line goal and a first request;
-  it opens in chat. The name is what its sidebar row shows, and the
-  orchestrator keeps it: unlike other sessions it is not renamed from your
-  first message (Rename in the sidebar still changes it; left blank, it is
-  named once from its first conversation). A project can have several
-  orchestrators, one per stream of work.
-- **Turn a session into an orchestrator**: right-click a Claude, Codex, ZCode or
-  Empryo session in the sidebar, open **Advanced** and choose **Make Orchestrator**
-  (optionally with a goal); on the phone it is in the session's menu too.
-  The session keeps its conversation and is never restarted or interrupted:
-  it gets the crown right away, and the orchestrator playbook waits in its
-  chat queue until its current turn is over. The next time the session
-  starts again on its own (waking from sleep, a Full Reload, an app
-  restart) it runs with the orchestrator role built in, like one made with
-  New Orchestrator. Sessions it started before are not its threads yet; ask
-  it to adopt them. A thread of another orchestrator, a session in a box, or
-  a draft cannot be made an orchestrator.
+  item of that menu; hover the (i) beside it for why it is worth it. On the
+  phone, open the same menu from the project's agent button and pick **New
+  Orchestrator…** at its top (tap its (i) for the same). Name it, pick its agent
+  from the Agent dropdown (Claude, Codex, ZCode, Cursor, Grok, Copilot,
+  Antigravity, Pi or OMP, whichever you have set up), its model where the agent
+  lets Ghostex choose one (Opus 5.5 on Claude; otherwise each agent starts on its
+  own default) and its effort: High or XHigh, XHigh by default (an agent without
+  XHigh offers its two highest levels). Use a very good model: the orchestrator
+  is the agent you talk to all day, and the main way Ghostex itself is built.
+  Its first message is always "Read and adhere to this skill:
+  /ghostex-orchestrator" (`$ghostex-orchestrator` on agents other than Claude
+  Code and Copilot), shown locked in the dialog: Ghostex installs the
+  ghostex-orchestrator skill for that agent, and the skill is the orchestrator's
+  playbook. Then it opens in chat, where you write your first request. The name
+  is what its sidebar row shows, and the orchestrator keeps it: unlike other
+  sessions it is not renamed from your first message (Rename in the sidebar
+  still changes it; left blank, it is named once from its first conversation).
+  A project can have several orchestrators, one per stream of work. In an
+  orchestrator's chat the effort picker offers the same High and XHigh only.
+  From a terminal: `ghostex orchestrator create [--agent <id>] [--goal <text>]
+  [--task <first request>]`.
+- **Turn a session into an orchestrator**: right-click a session of one of
+  those agents in the sidebar, open **Advanced** and choose **Make
+  Orchestrator** (optionally with a goal); on the phone it is in the session's
+  menu too. The session keeps its conversation and is never restarted or
+  interrupted: it gets the crown right away, Ghostex installs the
+  ghostex-orchestrator skill for its agent, and a message telling it to read
+  the skill waits in its chat queue until its current turn is over. Sessions
+  it started before are not its threads yet; ask it to adopt them. A thread of
+  another orchestrator, a session in a box, or a draft cannot be made an
+  orchestrator.
 - **Threads in the sidebar**: an orchestrator's row shows a crown in
   place of its agent's logo, and a crew icon
   with one number: how many of its threads are working; when none are

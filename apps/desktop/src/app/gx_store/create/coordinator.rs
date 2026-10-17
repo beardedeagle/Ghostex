@@ -1,5 +1,5 @@
 //! Creating a coordinator from the New Coordinator dialog: the agent session gxserver gives the
-//! coordinator role, its optional first request, and opening it in chat.
+//! coordinator role (the orchestrator skill and its first message), and opening it in chat.
 //!
 //! CDXC:Coordinators 2026-09-30 WHY:
 //! A coordinator is created like any sidebar agent launch (the same launch settings, the same focus of the created session), with three differences: the `coordinator` object that makes gxserver add the role and the record; no draft, because a draft can switch its agent before the first prompt and the role would not follow; and a title the user chose, saved as the user's so gxserver keeps it when the agent names the conversation. It opens in chat, where the coordinator's reports read best.
@@ -7,8 +7,8 @@
 
 use ghostex_gx_core::{
     ProjectKey, SessionKey, created_session, default_agent_id_for_icon, local_agent_launch_params,
-    open_remote_session_terminal, queue_startup_prompt_params, remote_agent_launch_params,
-    remote_launch_agent_id, resolve_sidebar_agent, start_provider_params,
+    open_remote_session_terminal, remote_agent_launch_params, remote_launch_agent_id,
+    resolve_sidebar_agent, start_provider_params,
 };
 use serde_json::{Map, Value, json};
 
@@ -19,8 +19,9 @@ use crate::app::remote_conn::sidebar_rpc::{
     GpuiRemoteSidebarRpcMode, gpui_remote_sidebar_rpc_failure_reason,
 };
 use crate::app::window::{NewCoordinatorAgent, NewCoordinatorModel};
+use ghostex_gx_chat_core::composer::skill_invocation::orchestrator_skill_line;
 
-/// The agent families a coordinator can run on (gxserver `coordinator_agent_family_supported`).
+/// The agent families a coordinator can run on (gxserver `COORDINATOR_AGENT_FAMILIES`).
 fn coordinator_family(agent: &Value) -> Option<&'static str> {
     let icon = agent.get("icon").and_then(Value::as_str);
     let id = agent.get("agentId").and_then(Value::as_str);
@@ -31,23 +32,23 @@ fn coordinator_family(agent: &Value) -> Option<&'static str> {
         "claude" => Some("claude"),
         "codex" => Some("codex"),
         "zcode" => Some("zcode"),
-        "empryo" => Some("empryo"),
+        "cursor" => Some("cursor"),
+        "grok" => Some("grok"),
+        "copilot" => Some("copilot"),
+        "antigravity" => Some("antigravity"),
+        "pi" => Some("pi"),
+        "omp" => Some("omp"),
         _ => None,
     }
 }
 
-/// The family of a launcher chosen by id, for the create flows that hold only the id.
-fn coordinator_family_for_agent(hud: Option<&Value>, agent_id: &str) -> Option<&'static str> {
-    hud?.get("agents")?
-        .as_array()?
-        .iter()
-        .find(|row| row.get("agentId").and_then(Value::as_str) == Some(agent_id))
-        .and_then(coordinator_family)
-}
-
 /// The model lineup a coordinator on this family can pick from: the newest catalog this computer
-/// has, each model with the efforts it accepts.
+/// has, each model with the efforts it accepts. Empty for an agent whose launch takes no model
+/// (gxserver `apply_agent_model_options`): it starts on its configured one.
 fn coordinator_models(family: &str) -> Vec<NewCoordinatorModel> {
+    if !matches!(family, "claude" | "codex" | "pi" | "zcode" | "antigravity") {
+        return Vec::new();
+    }
     let Some(catalog) = crate::app::gx_chat::current_model_catalog() else {
         return Vec::new();
     };
@@ -85,7 +86,6 @@ fn coordinator_title(name: &str) -> (&str, &'static str) {
 fn coordinator_params(
     mut params: Value,
     title_source: &str,
-    goal: &str,
     model: Option<&str>,
     effort: Option<&str>,
 ) -> Value {
@@ -97,7 +97,7 @@ fn coordinator_params(
             object.insert("agentEffort".to_string(), json!(effort));
         }
         object.remove("draft");
-        object.insert("coordinator".to_string(), json!({ "goal": goal }));
+        object.insert("coordinator".to_string(), json!({}));
         let runtime = object
             .entry("runtimeSettings")
             .or_insert_with(|| Value::Object(Map::new()));
@@ -109,7 +109,7 @@ fn coordinator_params(
 }
 
 impl GhostexGpuiApp {
-    /// The Claude, Codex, ZCode and Empryo launchers, Claude first, in launcher order.
+    /// The launchers an orchestrator can run on, Claude first, in launcher order.
     pub(crate) fn gx_store_coordinator_agents(&self) -> Vec<NewCoordinatorAgent> {
         let hud = self.gx_store_launch_hud();
         let rows = hud
@@ -132,6 +132,7 @@ impl GhostexGpuiApp {
                             .unwrap_or(family)
                             .to_string(),
                         models: coordinator_models(family),
+                        skill_line: orchestrator_skill_line(Some(family)),
                     },
                 ))
             })
@@ -140,15 +141,13 @@ impl GhostexGpuiApp {
         agents.into_iter().map(|(_, agent)| agent).collect()
     }
 
-    /// Creates the coordinator in the project a group id names (this computer or a remote one),
-    /// queues its first request, and opens it in chat.
+    /// Creates the coordinator in the project a group id names (this computer or a remote one) and
+    /// opens it in chat. gxserver queues its first message (the skill line) before it answers.
     pub(crate) fn gx_store_create_coordinator(
         &mut self,
         group_id: &str,
         agent_id: &str,
         name: &str,
-        goal: &str,
-        first_request: &str,
         model: Option<&str>,
         effort: Option<&str>,
         cx: &mut gpui::Context<Self>,
@@ -157,25 +156,7 @@ impl GhostexGpuiApp {
             return;
         };
         let hud = self.gx_store_launch_hud();
-        let first_request = first_request.trim().to_string();
         let (name, title_source) = coordinator_title(name);
-        // A ZCode coordinator has no launch model flag: the chosen model reaches the session as
-        // a `/model` line queued ahead of the first request (gxserver refuses it anywhere else).
-        let zcode_model_line = (coordinator_family_for_agent(hud.as_deref(), agent_id)
-            == Some("zcode"))
-        .then(|| {
-            model
-                .filter(|model| !model.is_empty())
-                .map(|model| format!("/model {model}"))
-        })
-        .flatten();
-        let mut startup_prompts: Vec<String> = Vec::new();
-        if let Some(line) = zcode_model_line {
-            startup_prompts.push(line);
-        }
-        if !first_request.is_empty() {
-            startup_prompts.push(first_request);
-        }
         if let Some(machine_id) = project.machine.remote_id().map(str::to_string) {
             let params = coordinator_params(
                 remote_agent_launch_params(
@@ -186,7 +167,6 @@ impl GhostexGpuiApp {
                     name,
                 ),
                 title_source,
-                goal,
                 model,
                 effort,
             );
@@ -201,7 +181,7 @@ impl GhostexGpuiApp {
             let project_id = project.project_id.clone();
             cx.spawn(async move |this, cx| {
                 let result = task.await;
-                let created = this.update(cx, |this, cx| {
+                let _ = this.update(cx, |this, cx| {
                     const NOT_CREATED: &str =
                         "The remote computer could not create it. Its Ghostex may need an update.";
                     let created = match result {
@@ -214,69 +194,28 @@ impl GhostexGpuiApp {
                     match created {
                         Ok((created_project, session_id)) => {
                             let created_project = created_project.unwrap_or(project_id.clone());
-                            Some((created_project, session_id))
-                        }
-                        Err(reason) => {
-                            this.gx_store_create_toast(
-                                "warning",
-                                "Orchestrator not created",
-                                Some(&reason),
+                            let session = SessionKey::remote(
+                                machine_id.as_str(),
+                                created_project,
+                                session_id,
+                            );
+                            let payload = open_remote_session_terminal(
+                                &session.to_sidebar_session_id(),
+                                true,
+                                Some("chat"),
+                            );
+                            this.receive_sidebar_native_project_path_action_payload(
+                                &payload.to_string(),
                                 cx,
                             );
-                            None
                         }
-                    }
-                });
-                let Ok(Some((created_project, session_id))) = created else {
-                    return;
-                };
-                // Queued one at a time, each awaited before the next starts, so the `/model`
-                // line lands before the first request; when one fails the rest are not queued,
-                // so a first request never runs on a model the user did not pick.
-                for prompt in &startup_prompts {
-                    let task = this.update(cx, |this, cx| {
-                        this.start_gpui_remote_sidebar_rpc(
-                            &machine_id,
-                            "/api/queueSessionChatPrompt",
-                            Some(queue_startup_prompt_params(
-                                &created_project,
-                                &session_id,
-                                prompt,
-                            )),
-                            REMOTE_TIMEOUT,
-                            GpuiRemoteSidebarRpcMode::Awaited,
+                        Err(reason) => this.gx_store_create_toast(
+                            "warning",
+                            "Orchestrator not created",
+                            Some(&reason),
                             cx,
-                        )
-                    });
-                    let Ok(task) = task else { return };
-                    if let Err(error) = task.await {
-                        let reason = gpui_remote_sidebar_rpc_failure_reason(
-                            &error,
-                            "The remote computer did not take it.",
-                        );
-                        let _ = this.update(cx, |this, cx| {
-                            this.gx_store_create_toast(
-                                "warning",
-                                "Orchestrator's first request not sent",
-                                Some(&reason),
-                                cx,
-                            );
-                        });
-                        break;
+                        ),
                     }
-                }
-                let _ = this.update(cx, |this, cx| {
-                    let session =
-                        SessionKey::remote(machine_id.as_str(), created_project, session_id);
-                    let payload = open_remote_session_terminal(
-                        &session.to_sidebar_session_id(),
-                        true,
-                        Some("chat"),
-                    );
-                    this.receive_sidebar_native_project_path_action_payload(
-                        &payload.to_string(),
-                        cx,
-                    );
                 });
             })
             .detach();
@@ -298,14 +237,19 @@ impl GhostexGpuiApp {
         let params = coordinator_params(
             local_agent_launch_params(&agent, &project_id, Map::new(), None, name),
             title_source,
-            goal,
             model,
             effort,
         );
         cx.spawn(async move |this, cx| {
             let created = gx_rpc(None, "/api/createAgentSession", params).await;
-            let created = match created {
-                Ok(response) => created_session(&response, Some(&project_id)),
+            let (created, role_error) = match created {
+                Ok(response) => (
+                    created_session(&response, Some(&project_id)),
+                    response
+                        .get("coordinatorRoleError")
+                        .and_then(Value::as_str)
+                        .map(str::to_string),
+                ),
                 Err(error) => {
                     let message = error.message.clone();
                     let _ = this.update(cx, |this, cx| {
@@ -323,37 +267,23 @@ impl GhostexGpuiApp {
                 return;
             };
             let created_project = created_project.unwrap_or(project_id.clone());
-            // Started here rather than by the attach, so the first request's startup send has an
-            // agent to wait for even when the chat is not opened yet.
+            // Started here rather than by the attach, so its first message has an agent to wait
+            // for even when the chat is not opened yet.
             let _ = gx_rpc(
                 None,
                 "/api/startSessionProvider",
                 start_provider_params(&created_project, &session_id),
             )
             .await;
-            // In order, stopping at the first failure so a first request never runs on a model
-            // the user did not pick.
-            for prompt in &startup_prompts {
-                if let Err(error) = gx_rpc(
-                    None,
-                    "/api/queueSessionChatPrompt",
-                    queue_startup_prompt_params(&created_project, &session_id, prompt),
-                )
-                .await
-                {
-                    let message = error.message.clone();
-                    let _ = this.update(cx, |this, cx| {
-                        this.gx_store_create_toast(
-                            "warning",
-                            "Orchestrator's first request not sent",
-                            Some(&message),
-                            cx,
-                        );
-                    });
-                    break;
-                }
-            }
             let _ = this.update(cx, |this, cx| {
+                if let Some(message) = role_error.as_deref() {
+                    this.gx_store_create_toast(
+                        "warning",
+                        "Orchestrator's skill not set up",
+                        Some(message),
+                        cx,
+                    );
+                }
                 this.gx_store_focus_created_session(
                     &created_project,
                     &session_id,

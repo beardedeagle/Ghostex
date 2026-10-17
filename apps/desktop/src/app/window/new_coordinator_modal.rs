@@ -1,21 +1,24 @@
-//! Native GPUI New Coordinator dialog: name the coordinator, pick its agent, and optionally give it
-//! a goal and a first request.
+//! Native GPUI New Coordinator dialog: name the orchestrator, pick its agent, model and effort, and
+//! see the locked line its first message starts with.
 //!
-//! CDXC:Coordinators 2026-09-30 WHY:
-//! Claude's New project dialog asks for a name and an optional goal and then opens the conversation; Ghostex does the same inside a project, plus the agent (a coordinator runs on Claude, Codex, ZCode or Empryo, the agents Ghostex can hand its role) and an optional first request, so the coordinator can start planning the moment it opens instead of waiting for a second step.
-//! SEE-ALSO: apps/desktop/src/app/new_coordinator_modal_lifecycle.rs (open, create), apps/desktop/src/app/gx_store/create/coordinator.rs (the gxserver calls), server/src/coordinators/ (what a coordinator is).
+//! CDXC:Coordinators 2026-10-17 DECISION:
+//! User: "let's please allow picking more cli agents here (should be a dropdown). we should just include a line that can't be removed saying: "Read and adhere to this skill: /ghostex-orchestrator" ... also remove this [First request] and this [Goal]". The Agent field is a dropdown of every launcher an orchestrator can run on (gxserver `COORDINATOR_AGENT_FAMILIES`), the dialog shows the skill line (in the chosen agent's own skill spelling) as a locked first message, and it has no Goal or First request field; the goal stays settable with `ghostex orchestrator set-goal` and Goal & Instructions…. Supersedes the 2026-09-30 WHY that mirrored Claude's New project dialog with an optional goal and first request.
+//! SEE-ALSO: apps/desktop/src/app/new_coordinator_modal_lifecycle.rs (open, create), apps/desktop/src/app/gx_store/create/coordinator.rs (the gxserver calls), server/src/coordinators/role.rs (the skill and the first message), apps/mobile/app/src/screens/sessions-screen/NewCoordinatorSheet.tsx (the phone's same form).
 use super::native_modal_kit::*;
-use gpui::{
-    AnyElement, App, AppContext as _, Context, Entity, FocusHandle, Focusable as _,
-    InteractiveElement as _, IntoElement, KeyDownEvent, ParentElement as _, Render, SharedString,
-    Styled as _, Subscription, Window, px,
+use ghostex_gx_chat_core::menus::orchestrator_effort::{
+    default_orchestrator_effort, orchestrator_efforts,
 };
-use gpui_component::input::{Enter, Escape, InputEvent, InputState, TextareaState};
+use gpui::{
+    AnyElement, App, AppContext as _, Context, Entity, FocusHandle, InteractiveElement as _,
+    IntoElement, KeyDownEvent, ParentElement as _, Render, Styled as _, Subscription, Window, div,
+    px, svg,
+};
+use gpui_component::input::{Enter, Escape, InputEvent, InputState};
 use gpui_component::{h_flex, v_flex};
 use std::rc::Rc;
 
 pub(crate) const NEW_COORDINATOR_MODAL_WIDTH: f32 = 540.0;
-pub(crate) const NEW_COORDINATOR_MODAL_INITIAL_HEIGHT: f32 = 640.0;
+pub(crate) const NEW_COORDINATOR_MODAL_INITIAL_HEIGHT: f32 = 580.0;
 
 const TITLE: &str = "New Orchestrator";
 const FIELD_NAME: &str = "Name";
@@ -25,27 +28,27 @@ const NAME_HINT: &str =
 const FIELD_AGENT: &str = "Agent";
 const FIELD_MODEL: &str = "Model";
 const FIELD_EFFORT: &str = "Effort";
-/// CDXC:Coordinators 2026-09-30 DECISION:
-/// User (question 2, answer 2B): a coordinator runs at medium effort by default, and the user picks its model (and can change the effort) when creating it. Routing work does not need the deepest thinking, and a faster coordinator answers and reacts to reports sooner.
-const DEFAULT_COORDINATOR_EFFORT: &str = "medium";
+const FIELD_FIRST_MESSAGE: &str = "First message";
+const FIRST_MESSAGE_HINT: &str = "Every orchestrator starts with this line, which loads its playbook. Write your first request in its chat.";
+const LOCK_ICON: &str = "titlebar/lock.svg";
 /// CDXC:Coordinators 2026-10-01 DECISION:
-/// User: a coordinator on a Claude launcher starts on Opus 5.5 at medium effort ("my preferences should be the preferences for this feature for customers using the same setup, since that's what I tested"). `opus[1m]` is Opus 5.5's row in the Claude lineup; a Codex lineup has no such row and keeps its own default model.
+/// User: a coordinator on a Claude launcher starts on Opus 5.5 ("my preferences should be the preferences for this feature for customers using the same setup, since that's what I tested"). `opus[1m]` is Opus 5.5's row in the Claude lineup; a Codex lineup has no such row and keeps its own default model. Its effort is XHigh since 2026-10-17 (`orchestrator_efforts` in gx-chat-core).
 /// SEE-ALSO: DEFAULT_CLAUDE_COORDINATOR_MODEL in server/src/ghostex_cli/coordinator/command.rs (`ghostex coordinator create` keeps the same default).
 const DEFAULT_CLAUDE_COORDINATOR_MODEL: &str = "opus[1m]";
 const FIELD_GOAL: &str = "Goal (optional)";
 const GOAL_PLACEHOLDER: &str = "One line it works toward, e.g. Ship the new checkout by Friday";
-const FIELD_REQUEST: &str = "First request (optional)";
-const REQUEST_PLACEHOLDER: &str =
-    "Describe the work. It plans it, starts a thread for each task, and reports back.";
 const CANCEL: &str = "Cancel";
 const CREATE: &str = "Create";
 
-/// An agent a coordinator can run on (a Claude, Codex, ZCode or Empryo launcher), with its model lineup.
+/// An agent an orchestrator can run on, with its model lineup and the line its first message
+/// starts with.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct NewCoordinatorAgent {
     pub(crate) agent_id: String,
     pub(crate) name: String,
+    /// Empty for an agent whose launch takes no model: it starts on its configured one.
     pub(crate) models: Vec<NewCoordinatorModel>,
+    pub(crate) skill_line: String,
 }
 
 /// One model of the lineup, with the efforts it accepts as `(value, label)`.
@@ -61,8 +64,6 @@ pub(crate) enum NewCoordinatorModalCommand {
     Create {
         agent_id: String,
         name: String,
-        goal: String,
-        first_request: String,
         model: Option<String>,
         effort: Option<String>,
     },
@@ -86,14 +87,11 @@ pub(crate) struct GpuiNewCoordinatorModalWindow {
     selected_agent: usize,
     model_index: usize,
     effort: Option<String>,
+    agent_select: ModalSelect,
     model_select: ModalSelect,
     effort_select: ModalSelect,
     name_input: Entity<InputState>,
-    goal_input: Entity<InputState>,
-    request_input: Entity<TextareaState>,
     name: String,
-    goal: String,
-    request: String,
     fit: ModalFit,
     focus_handle: FocusHandle,
     _subscriptions: Vec<Subscription>,
@@ -107,41 +105,16 @@ impl GpuiNewCoordinatorModalWindow {
         cx: &mut Context<Self>,
     ) -> Self {
         let name_input = cx.new(|cx| InputState::new(window, cx).placeholder(NAME_PLACEHOLDER));
-        let goal_input = cx.new(|cx| InputState::new(window, cx).placeholder(GOAL_PLACEHOLDER));
-        let request_input =
-            cx.new(|cx| TextareaState::new(window, cx).placeholder(REQUEST_PLACEHOLDER));
-        let subscriptions = vec![
-            cx.subscribe_in(
-                &name_input,
-                window,
-                |this: &mut Self, input, event: &InputEvent, _window, cx| {
-                    if matches!(event, InputEvent::Change) {
-                        this.name = input.read(cx).value().to_string();
-                        cx.notify();
-                    }
-                },
-            ),
-            cx.subscribe_in(
-                &goal_input,
-                window,
-                |this: &mut Self, input, event: &InputEvent, _window, cx| {
-                    if matches!(event, InputEvent::Change) {
-                        this.goal = input.read(cx).value().to_string();
-                        cx.notify();
-                    }
-                },
-            ),
-            cx.subscribe_in(
-                &request_input,
-                window,
-                |this: &mut Self, input, event: &InputEvent, _window, cx| {
-                    if matches!(event, InputEvent::Change) {
-                        this.request = input.read(cx).value().to_string();
-                        cx.notify();
-                    }
-                },
-            ),
-        ];
+        let subscriptions = vec![cx.subscribe_in(
+            &name_input,
+            window,
+            |this: &mut Self, input, event: &InputEvent, _window, cx| {
+                if matches!(event, InputEvent::Change) {
+                    this.name = input.read(cx).value().to_string();
+                    cx.notify();
+                }
+            },
+        )];
         name_input.update(cx, |input, cx| input.focus(window, cx));
         let selected_agent = config
             .selected_agent
@@ -154,14 +127,11 @@ impl GpuiNewCoordinatorModalWindow {
             selected_agent,
             model_index: 0,
             effort: None,
+            agent_select: ModalSelect::new(),
             model_select: ModalSelect::new(),
             effort_select: ModalSelect::new(),
             name_input,
-            goal_input,
-            request_input,
             name: String::new(),
-            goal: String::new(),
-            request: String::new(),
             fit: ModalFit::fixed(),
             focus_handle: cx.focus_handle(),
             _subscriptions: subscriptions,
@@ -178,14 +148,28 @@ impl GpuiNewCoordinatorModalWindow {
         self.agent()?.models.get(self.model_index)
     }
 
+    /// The model's efforts an orchestrator is offered: High and XHigh, or the two highest below
+    /// Max.
     fn efforts(&self) -> Vec<(String, String)> {
-        self.model()
-            .map(|model| model.efforts.clone())
-            .unwrap_or_default()
+        let Some(model) = self.model() else {
+            return Vec::new();
+        };
+        let values: Vec<&str> = model
+            .efforts
+            .iter()
+            .map(|(value, _)| value.as_str())
+            .collect();
+        let offered = orchestrator_efforts(&values);
+        model
+            .efforts
+            .iter()
+            .filter(|(value, _)| offered.contains(value))
+            .cloned()
+            .collect()
     }
 
-    /// Opus 5.5 on Claude, otherwise the agent's default model, and medium effort when that model
-    /// takes it.
+    /// Opus 5.5 on Claude, otherwise the agent's default model, and its highest orchestrator
+    /// effort (XHigh where it has it).
     fn reset_model(&mut self) {
         self.model_index = self
             .agent()
@@ -197,6 +181,7 @@ impl GpuiNewCoordinatorModalWindow {
                     .or_else(|| agent.models.iter().position(|model| model.default))
             })
             .unwrap_or(0);
+        self.effort = None;
         self.reset_effort();
     }
 
@@ -207,22 +192,39 @@ impl GpuiNewCoordinatorModalWindow {
             .as_ref()
             .filter(|effort| efforts.iter().any(|(value, _)| value == *effort))
             .cloned();
-        self.effort = keep.or_else(|| {
-            efforts
-                .iter()
-                .find(|(value, _)| value == DEFAULT_COORDINATOR_EFFORT)
-                .or_else(|| efforts.first())
-                .map(|(value, _)| value.clone())
-        });
+        let values: Vec<&str> = efforts.iter().map(|(value, _)| value.as_str()).collect();
+        self.effort = keep.or_else(|| default_orchestrator_effort(&values));
+    }
+
+    fn close_menus(&mut self) {
+        self.agent_select.close();
+        self.model_select.close();
+        self.effort_select.close();
+    }
+
+    fn toggle_agent_menu(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.agents.len() < 2 {
+            return;
+        }
+        let open = self.agent_select.open;
+        self.close_menus();
+        self.focus_handle.focus(window, cx);
+        if !open {
+            self.agent_select.toggle(Some(self.selected_agent));
+        }
+        cx.notify();
     }
 
     fn toggle_model_menu(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.agent().is_none_or(|agent| agent.models.is_empty()) {
             return;
         }
-        self.effort_select.close();
+        let open = self.model_select.open;
+        self.close_menus();
         self.focus_handle.focus(window, cx);
-        self.model_select.toggle(Some(self.model_index));
+        if !open {
+            self.model_select.toggle(Some(self.model_index));
+        }
         cx.notify();
     }
 
@@ -231,12 +233,22 @@ impl GpuiNewCoordinatorModalWindow {
         if efforts.is_empty() {
             return;
         }
-        self.model_select.close();
+        let open = self.effort_select.open;
+        self.close_menus();
         self.focus_handle.focus(window, cx);
-        let selected = efforts
-            .iter()
-            .position(|(value, _)| Some(value) == self.effort.as_ref());
-        self.effort_select.toggle(selected);
+        if !open {
+            let selected = efforts
+                .iter()
+                .position(|(value, _)| Some(value) == self.effort.as_ref());
+            self.effort_select.toggle(selected);
+        }
+        cx.notify();
+    }
+
+    fn choose_agent(&mut self, index: usize, cx: &mut Context<Self>) {
+        self.selected_agent = index;
+        self.agent_select.close();
+        self.reset_model();
         cx.notify();
     }
 
@@ -253,6 +265,10 @@ impl GpuiNewCoordinatorModalWindow {
         }
         self.effort_select.close();
         cx.notify();
+    }
+
+    fn any_menu_open(&self) -> bool {
+        self.agent_select.open || self.model_select.open || self.effort_select.open
     }
 
     fn can_create(&self) -> bool {
@@ -281,26 +297,13 @@ impl GpuiNewCoordinatorModalWindow {
         let command = NewCoordinatorModalCommand::Create {
             agent_id: agent.agent_id,
             name,
-            goal: self.goal.trim().to_string(),
-            first_request: self.request.trim().to_string(),
             model: self.model().map(|model| model.value.clone()),
             effort: self.effort.clone().filter(|_| !self.efforts().is_empty()),
         };
         self.close_window_and_send(command, window, cx);
     }
 
-    /// Enter creates from the one-line fields; in the request it is a newline, and Cmd/Ctrl+Enter
-    /// creates from anywhere.
-    fn on_enter_action(&mut self, action: &Enter, window: &mut Window, cx: &mut Context<Self>) {
-        let in_request = self
-            .request_input
-            .read(cx)
-            .focus_handle(cx)
-            .is_focused(window);
-        if in_request && !action.secondary {
-            cx.propagate();
-            return;
-        }
+    fn on_enter_action(&mut self, _: &Enter, window: &mut Window, cx: &mut Context<Self>) {
         cx.stop_propagation();
         if self.can_create() {
             self.create(window, cx);
@@ -309,9 +312,8 @@ impl GpuiNewCoordinatorModalWindow {
 
     fn on_escape_action(&mut self, _: &Escape, window: &mut Window, cx: &mut Context<Self>) {
         cx.stop_propagation();
-        if self.model_select.open || self.effort_select.open {
-            self.model_select.close();
-            self.effort_select.close();
+        if self.any_menu_open() {
+            self.close_menus();
             cx.notify();
             return;
         }
@@ -320,6 +322,19 @@ impl GpuiNewCoordinatorModalWindow {
 
     fn on_key_down(&mut self, event: &KeyDownEvent, window: &mut Window, cx: &mut Context<Self>) {
         let key = event.keystroke.key.as_str();
+        match self.agent_select.handle_key(key, self.agents.len()) {
+            ModalSelectKey::Consumed => {
+                cx.notify();
+                cx.stop_propagation();
+                return;
+            }
+            ModalSelectKey::Choose(index) => {
+                self.choose_agent(index, cx);
+                cx.stop_propagation();
+                return;
+            }
+            ModalSelectKey::Ignored => {}
+        }
         let models = self.agent().map_or(0, |agent| agent.models.len());
         match self.model_select.handle_key(key, models) {
             ModalSelectKey::Consumed => {
@@ -355,13 +370,22 @@ impl GpuiNewCoordinatorModalWindow {
         cx.stop_propagation();
     }
 
-    fn field(&self, label: &'static str, control: AnyElement) -> AnyElement {
+    /// A select under its label, with its trigger bounds captured for the floating list.
+    fn select_field(
+        &self,
+        label: &'static str,
+        select: &ModalSelect,
+        trigger: AnyElement,
+    ) -> gpui::Div {
         v_flex()
-            .w_full()
             .gap(px(8.0))
             .child(modal_section_title(&self.palette, label))
-            .child(control)
-            .into_any_element()
+            .child(
+                h_flex()
+                    .w_full()
+                    .on_children_prepainted(capture_child_bounds(select.trigger_bounds.clone(), 0))
+                    .child(trigger),
+            )
     }
 
     fn render_body(&self, window: &Window, cx: &mut Context<Self>) -> AnyElement {
@@ -375,72 +399,76 @@ impl GpuiNewCoordinatorModalWindow {
                 .child(modal_text_input(&p, &self.name_input, false, window, cx))
                 .child(modal_hint(&p, NAME_HINT)),
         );
-        if self.agents.is_empty() {
-            body = body.child(modal_error(
-                &p,
-                "An orchestrator runs on Claude, Codex, ZCode or Empryo. Add one of them in Settings > Agents first.",
-            ));
-        } else if self.agents.len() > 1 {
-            let items = self
-                .agents
-                .iter()
-                .map(|agent| ModalRailItem {
-                    label: SharedString::from(agent.name.clone()),
-                    trailing: None,
-                })
-                .collect::<Vec<_>>();
-            let control = modal_bordered_segmented_control(
-                p.foreground,
-                p.hairline,
-                p.muted,
-                "new-coordinator-agent",
-                &items,
-                self.selected_agent,
-                |this: &mut Self, index, _window, cx| {
-                    this.selected_agent = index;
-                    this.reset_model();
-                    cx.notify();
-                },
-                cx,
-            )
-            .w_full()
-            .into_any_element();
-            body = body.child(self.field(FIELD_AGENT, control));
-        }
+        let Some(agent) = self.agent() else {
+            return body
+                .child(modal_error(
+                    &p,
+                    "An orchestrator runs on Claude, Codex, ZCode, Cursor, Grok, Copilot, Antigravity, Pi or OMP. Add one of them in Settings > Agents first.",
+                ))
+                .into_any_element();
+        };
+        let agent_trigger = modal_select_trigger(
+            &p,
+            &self.agent_select,
+            "new-coordinator-agent-select",
+            Some(agent.name.clone()),
+            "Choose an agent",
+            self.agents.len() < 2,
+            |this, window, cx| this.toggle_agent_menu(window, cx),
+            cx,
+        );
+        body = body.child(
+            self.select_field(FIELD_AGENT, &self.agent_select, agent_trigger)
+                .w_full(),
+        );
         if let Some(row) = self.render_model_row(cx) {
             body = body.child(row);
         }
-        body = body.child(self.field(
-            FIELD_GOAL,
-            modal_text_input(&p, &self.goal_input, false, window, cx),
-        ));
-        body.child(
-            v_flex()
-                .w_full()
-                .flex_1()
-                .min_h_0()
-                .gap(px(8.0))
-                .child(modal_section_title(&p, FIELD_REQUEST))
-                .child(modal_text_area(
-                    &p,
-                    &self.request_input,
-                    None,
-                    false,
-                    window,
-                    cx,
-                ))
-                .child(modal_hint(
-                    &p,
-                    format!(
-                        "Threads show up under the orchestrator in the sidebar. Press {} to create.",
-                        crate::hotkey_label::terminal_overlay_hotkey_chord_label("cmd+enter")
-                    ),
-                )),
-        )
-        .into_any_element()
+        body.child(self.render_first_message(&agent.skill_line))
+            .into_any_element()
     }
 
-    /// Model and effort side by side; the effort half is left out for a model without efforts.
+    /// The skill line, drawn as a read-only box with a lock: it cannot be edited or removed.
+    fn render_first_message(&self, line: &str) -> AnyElement {
+        let p = self.palette;
+        v_flex()
+            .w_full()
+            .gap(px(8.0))
+            .child(modal_section_title(&p, FIELD_FIRST_MESSAGE))
+            .child(
+                h_flex()
+                    .id("new-coordinator-first-message")
+                    .w_full()
+                    .gap(px(8.0))
+                    .px(px(10.0))
+                    .py(px(8.0))
+                    .rounded(px(8.0))
+                    .border_1()
+                    .border_color(p.hairline)
+                    .bg(p.raised)
+                    .child(
+                        svg()
+                            .path(LOCK_ICON)
+                            .size(px(14.0))
+                            .flex_shrink_0()
+                            .text_color(p.muted),
+                    )
+                    .child(
+                        div()
+                            .flex_1()
+                            .min_w_0()
+                            .text_size(px(13.0))
+                            .line_height(px(18.0))
+                            .text_color(p.muted)
+                            .child(line.to_string()),
+                    ),
+            )
+            .child(modal_hint(&p, FIRST_MESSAGE_HINT))
+            .into_any_element()
+    }
+
+    /// Model and effort side by side; the effort half is left out for a model without efforts,
+    /// and the row for an agent whose launch takes no model.
     fn render_model_row(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
         let agent = self.agent()?;
         if agent.models.is_empty() {
@@ -459,20 +487,9 @@ impl GpuiNewCoordinatorModalWindow {
         );
         let efforts = self.efforts();
         let mut row = h_flex().w_full().gap(px(12.0)).child(
-            v_flex()
+            self.select_field(FIELD_MODEL, &self.model_select, model)
                 .flex_1()
-                .min_w_0()
-                .gap(px(8.0))
-                .child(modal_section_title(&p, FIELD_MODEL))
-                .child(
-                    h_flex()
-                        .w_full()
-                        .on_children_prepainted(capture_child_bounds(
-                            self.model_select.trigger_bounds.clone(),
-                            0,
-                        ))
-                        .child(model),
-                ),
+                .min_w_0(),
         );
         if !efforts.is_empty() {
             let label = efforts
@@ -490,20 +507,9 @@ impl GpuiNewCoordinatorModalWindow {
                 cx,
             );
             row = row.child(
-                v_flex()
+                self.select_field(FIELD_EFFORT, &self.effort_select, effort)
                     .w(px(170.0))
-                    .flex_shrink_0()
-                    .gap(px(8.0))
-                    .child(modal_section_title(&p, FIELD_EFFORT))
-                    .child(
-                        h_flex()
-                            .w_full()
-                            .on_children_prepainted(capture_child_bounds(
-                                self.effort_select.trigger_bounds.clone(),
-                                0,
-                            ))
-                            .child(effort),
-                    ),
+                    .flex_shrink_0(),
             );
         }
         Some(row.into_any_element())
@@ -512,6 +518,27 @@ impl GpuiNewCoordinatorModalWindow {
     /// The one open select's list, floated above the dialog.
     fn render_open_menu(&self, window: &Window, cx: &mut Context<Self>) -> Option<AnyElement> {
         let p = self.palette;
+        if self.agent_select.open {
+            let labels = self
+                .agents
+                .iter()
+                .map(|agent| agent.name.clone())
+                .collect::<Vec<_>>();
+            return modal_select_menu(
+                &p,
+                &self.agent_select,
+                "new-coordinator-agent-menu",
+                &labels,
+                Some(self.selected_agent),
+                |this: &mut Self, index, _window, cx| this.choose_agent(index, cx),
+                |this: &mut Self, _window, cx| {
+                    this.agent_select.close();
+                    cx.notify();
+                },
+                window,
+                cx,
+            );
+        }
         if self.model_select.open {
             let labels = self
                 .agent()

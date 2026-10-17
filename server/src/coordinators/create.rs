@@ -8,12 +8,14 @@ use super::records::{
 };
 use crate::domain::DomainStateError;
 
-/// The `coordinator` object of a create request: `{ goal?, instructions?, roleFile }`. `roleFile`
-/// is filled in by gxserver, never by a client.
+/// The `coordinator` object of a create request: `{ goal?, instructions?, firstRequest? }`.
+/// `firstRequest` follows the skill line in the orchestrator's first message
+/// (`orchestrator_first_message`); a client that queues its first request itself instead (the
+/// phone before 2026-10-17) gets it as the second message.
 pub struct CoordinatorCreateRequest {
     pub goal: String,
     pub instructions: String,
-    pub role_file: Option<String>,
+    pub first_request: String,
 }
 
 pub fn coordinator_create_request(
@@ -48,11 +50,10 @@ pub fn coordinator_create_request(
             "Standing instructions are limited to {COORDINATOR_INSTRUCTIONS_MAX_CHARS} characters."
         )));
     }
-    let role_file = Some(field("roleFile")).filter(|value| !value.is_empty());
     Ok(Some(CoordinatorCreateRequest {
         goal,
         instructions,
-        role_file,
+        first_request: field("firstRequest"),
     }))
 }
 

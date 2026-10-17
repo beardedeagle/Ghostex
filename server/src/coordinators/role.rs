@@ -1,13 +1,15 @@
-//! The coordinator's role: the playbook it runs by, and how it reaches the agent at launch.
+//! The coordinator's role: the playbook it runs by (the bundled `ghostex-orchestrator` skill), how a
+//! new orchestrator is handed it, and the older channels that orchestrators created before
+//! 2026-10-17 still read it through.
 
 use std::path::{Path, PathBuf};
 
 use crate::domain::DomainStateError;
 use crate::paths::GxserverPaths;
 
-/// CDXC:Coordinators 2026-09-30 WHY:
-/// The role reaches the agent as a system prompt, not as a chat message: a first message scrolls away, is summarised by compaction, and shows in the chat as if the user typed it. The flag lives in the session's saved base command, which resume, fork and account wrapping rebuild from, so it survives all three (the same mechanism as per-session model flags). Dynamic state (goal, instructions, memory, threads) is read through `ghostex coordinator status` instead, because it changes while the session runs.
-/// SEE-ALSO: server/src/agents/launch_plan.rs (applies the flags), server/src/ghostex_cli/coordinator/ (the verbs this playbook names).
+/// CDXC:Coordinators 2026-10-17 DECISION:
+/// User: "we should just include a line that can't be removed saying: "Read and adhere to this skill: /ghostex-orchestrator" and we should install this orchestrator skill when user picks the orchstrator option so no need to inject things the other way." The playbook is the bundled skill `skills/ghostex-orchestrator/SKILL.md`; creating or promoting an orchestrator installs it for that agent ([`ensure_orchestrator_skill_installed`]) and queues [`orchestrator_first_message`], which always starts with [`orchestrator_skill_line`] in the agent's own skill spelling. Nothing is added to the agent's command any more. Supersedes the 2026-09-30 WHY that carried the role as a system prompt flag (Claude's role file, Codex `developer_instructions`, ZCode's SessionStart context, Empryo's `/agent` profile): those channels now serve only orchestrators created before this change, whose saved commands or records still name them, so they keep their role on resume, sleep and wake, and account switches.
+/// SEE-ALSO: server/src/server/coordinator_runtime.rs (`start_orchestrator_role`), server/src/agents/marked_handovers.rs and server/src/agents/activity.rs (the older channels), apps/desktop/src/app/window/new_coordinator_modal.rs (the locked line in the dialog).
 ///
 /// CDXC:Coordinators 2026-10-09 DECISION:
 /// User: "If a tool call got rejected with ("STOP and wait") just as a thread report arrives then this is Ghostex's delivery Escape, not the owner pausing your work: retry the tool call and carry on." The playbook's "Waiting means ending your turn" section says so.
@@ -22,20 +24,168 @@ use crate::paths::GxserverPaths;
 /// User, on question numbers restarting at Q1 in a new form: "save this in the memory for this thread and for the orchestrator skill/instructinos please so users get this too!" The playbook's "Asking the user" section has the orchestrator tag every question Q1, Q2, … and keep counting across the whole conversation (forms, pages, questions asked again, a thread's questions brought to the user), never restarting, so a number always means one question.
 ///
 /// CDXC:Coordinators 2026-10-12 DECISION:
-/// User: "when you say 'In progress' but don't share all of the actual in progress tasks this isn't nice because it makes me think some tasks aren't running when they actually are running", and for the threads started this turn: "let's call it 'Kicked off'". Then (2026-10-12), on a thread listed under both: "let's not share same update in 2 places pls". The playbook's "Talking to the user" section has a handover list the threads started this turn under 🛫 Kicked off and every other thread still working (from `ghostex orchestrator status`) under 🔄 In progress, so each running thread appears exactly once. Supersedes the 2026-10-11 wording that listed every working thread under In progress.
+/// User: "when you say 'In progress' but don't share all of the actual in progress tasks this isn't nice because it makes me think some tasks aren't running when they actually are running", and for the threads started this turn: "let's call it 'Kicked off'". Then (2026-10-12), on a thread listed under both: "let's not share same update in 2 places pls". The playbook's "Talking to the user" section has a handover list the threads started this turn under Kicked off and every other thread still working (from `ghostex orchestrator status`) under In progress, so each running thread appears exactly once; the Marked handovers note gives the two their 🛫 and 🔄 markers.
 ///
 /// CDXC:Coordinators 2026-10-10 DECISION:
 /// User: "let's please rename "Coordinator" to "Orchestrator" everywhere so it's clearer to everyone." The playbook and the guide pointer call the role an orchestrator and name `ghostex orchestrator` verbs; the role file's name on disk and every internal name keep "coordinator".
-pub const COORDINATOR_ROLE_PROMPT: &str = include_str!("role.md");
+const ORCHESTRATOR_SKILL_MD: &str = include_str!("../../../skills/ghostex-orchestrator/SKILL.md");
+const ORCHESTRATOR_SKILL_OPENAI_YAML: &str =
+    include_str!("../../../skills/ghostex-orchestrator/agents/openai.yaml");
 
-/// CDXC:Coordinators 2026-10-03 WHY:
-/// Codex takes its extra instructions inline (`-c developer_instructions=...`), and ZCode has no
-/// system-prompt or config flag a launch command could carry, so both get this short pointer —
-/// Codex inline at launch, ZCode as SessionStart hook context — and read the full playbook from
-/// `ghostex coordinator guide`. Claude is the only family that carries the whole role file.
-pub const GUIDE_POINTER_COORDINATOR_INSTRUCTIONS: &str = "You are a Ghostex orchestrator: the user talks only to you, and you hand real work to thread sessions instead of doing it yourself, so you stay free to talk. Before your first reply, and again after any context compaction, run `ghostex orchestrator guide` and follow it for the whole session. Run `ghostex orchestrator status` at the start of every request.";
+/// The bundled skill every orchestrator works by.
+pub const ORCHESTRATOR_SKILL_NAME: &str = "ghostex-orchestrator";
 
-/// Where gxserver keeps the role file Claude coordinators load at launch.
+/// The session runtime setting that marks an orchestrator as taking its role from the skill
+/// (created or promoted since 2026-10-17); the older role channels skip such a session.
+pub const COORDINATOR_ROLE_SETTING: &str = "coordinatorRole";
+pub const COORDINATOR_ROLE_SKILL: &str = "skill";
+
+/// True when the session takes its orchestrator role from the skill.
+pub fn coordinator_role_is_skill(session: &serde_json::Value) -> bool {
+    session
+        .get("runtimeSettings")
+        .and_then(|runtime| runtime.get(COORDINATOR_ROLE_SETTING))
+        .and_then(serde_json::Value::as_str)
+        == Some(COORDINATOR_ROLE_SKILL)
+}
+
+/// The playbook: the skill's body without its frontmatter.
+pub fn coordinator_playbook() -> &'static str {
+    ORCHESTRATOR_SKILL_MD
+        .strip_prefix("---\n")
+        .and_then(|rest| rest.split_once("\n---\n"))
+        .map_or(ORCHESTRATOR_SKILL_MD, |(_, body)| body)
+        .trim_start()
+}
+
+/// What `ghostex orchestrator guide` prints, and what the older role channels carry: the playbook
+/// and then the reply format Orchestrators answer without markers (`orchestratorPlainReplies`)
+/// picks. A static skill cannot read that setting, so the skill sends the orchestrator here.
+pub fn coordinator_guide(paths: &GxserverPaths) -> String {
+    let playbook = coordinator_playbook().trim();
+    if crate::agents::orchestrator_plain_replies(paths) {
+        return format!(
+            "{playbook}\n\nReply format: the user chose plain answers for orchestrators. Write your handovers as ordinary text with your own headings, without section marker emoji.\n"
+        );
+    }
+    format!("{playbook}\n\n{}\n", crate::agents::MARKED_HANDOVERS_NOTE)
+}
+
+/// The line every new orchestrator's first message starts with (`/ghostex-orchestrator` for Claude
+/// Code and Copilot, `$ghostex-orchestrator` for every other agent); the dialogs show the same
+/// line from the same function.
+pub fn orchestrator_skill_line(family: &str) -> String {
+    ghostex_gx_chat_core::composer::skill_invocation::orchestrator_skill_line(Some(family))
+}
+
+/// A new orchestrator's first message: the skill line, then the user's first request when the
+/// create carried one.
+pub fn orchestrator_first_message(family: &str, first_request: &str) -> String {
+    let line = orchestrator_skill_line(family);
+    match first_request.trim() {
+        "" => line,
+        request => format!("{line}\n\n{request}"),
+    }
+}
+
+/// The agent families a new orchestrator can run on, in the order `ghostex orchestrator create`
+/// prefers them when no agent is named.
+///
+/// CDXC:Coordinators 2026-10-17 WHY:
+/// An orchestrator must read a skill, run the `ghostex` CLI and take Ghostex's chat sends (the user's messages and its threads' reports). These are the chat agents that load skills from a folder Ghostex can install into. Left out: Empryo (no skill folder Ghostex knows of; its older orchestrators keep the `/agent` profile), Hermes (its replies and queued sends never reach the chat, agent flow tests 2026-10-17), Freebuff (no skill folder), and agents without a chat (Gemini, OpenCode and the rest).
+pub const COORDINATOR_AGENT_FAMILIES: [&str; 9] = [
+    "claude",
+    "codex",
+    "zcode",
+    "cursor",
+    "grok",
+    "copilot",
+    "antigravity",
+    "pi",
+    "omp",
+];
+
+/// What gxserver answers when an orchestrator is asked to run on another agent.
+pub const COORDINATOR_AGENT_FAMILIES_TEXT: &str =
+    "Claude, Codex, ZCode, Cursor, Grok, Copilot, Antigravity, Pi or OMP";
+
+/// True for the agent families a new orchestrator can run on.
+pub fn coordinator_agent_family_supported(family: &str) -> bool {
+    COORDINATOR_AGENT_FAMILIES.contains(&family)
+}
+
+/// The effort `ghostex orchestrator create` starts an orchestrator on when none is named, for the
+/// families whose launch takes one: xhigh where the agent has it, else its highest level.
+/// SEE-ALSO: `orchestrator_efforts` in packages/gx-chat-core/src/menus/orchestrator_effort.rs (the dialog and the chat composer).
+pub fn default_orchestrator_effort(family: &str) -> Option<&'static str> {
+    match family {
+        "claude" | "codex" => Some("xhigh"),
+        "antigravity" => Some("high"),
+        _ => None,
+    }
+}
+
+/// The Agent Sync catalog id of a family's own skills folder; `None` for agents that read
+/// `~/.agents/skills` themselves.
+fn orchestrator_skill_agent(family: &str) -> Option<&'static str> {
+    match family {
+        "claude" => Some("claude-code"),
+        "codex" => Some("codex"),
+        "zcode" => Some("zcode"),
+        "cursor" => Some("cursor"),
+        "grok" => Some("grok"),
+        "copilot" => Some("github-copilot"),
+        "antigravity" => Some("antigravity-cli"),
+        "pi" => Some("pi"),
+        _ => None,
+    }
+}
+
+/// Installs the orchestrator skill for `family`: one copy in `~/.agents/skills`, written from this
+/// build when it is missing, and a link in the agent's own skills folder when the agent does not
+/// read `~/.agents/skills` itself (the shape Settings installs make). An existing copy is left as
+/// it is: the startup refresh keeps it equal to GitHub main (agent_skills_remote.rs).
+pub fn ensure_orchestrator_skill_installed(
+    paths: &GxserverPaths,
+    family: &str,
+) -> Result<PathBuf, DomainStateError> {
+    let home = paths.agent_config_home_dir();
+    let canonical = home
+        .join(crate::agent_skills::CANONICAL_AGENT_SKILLS_DIR)
+        .join(ORCHESTRATOR_SKILL_NAME);
+    let install_error = |path: &Path, error: std::io::Error| DomainStateError {
+        code: "internalError",
+        message: format!(
+            "Could not install the {ORCHESTRATOR_SKILL_NAME} skill at {}: {error}",
+            path.display()
+        ),
+    };
+    if !canonical.join("SKILL.md").is_file() {
+        write_if_changed(
+            &canonical.join("agents").join("openai.yaml"),
+            ORCHESTRATOR_SKILL_OPENAI_YAML,
+        )
+        .map_err(|error| install_error(&canonical, error))?;
+        write_if_changed(&canonical.join("SKILL.md"), ORCHESTRATOR_SKILL_MD)
+            .map_err(|error| install_error(&canonical, error))?;
+    }
+    let agent_root = orchestrator_skill_agent(family).and_then(|agent_id| {
+        ghostex_agent_sync::agent_catalog(home)
+            .into_iter()
+            .find(|spec| spec.id == agent_id && !spec.universal)
+            .and_then(|spec| spec.skills_dir)
+    });
+    if let Some(root) = agent_root {
+        crate::agent_skills::link_skill_into_agent_root(
+            &canonical,
+            &root.join(ORCHESTRATOR_SKILL_NAME),
+        )?;
+    }
+    Ok(canonical)
+}
+
+/// Where gxserver keeps the role file Claude coordinators created before 2026-10-17 load at
+/// every launch (their saved command names it).
 pub fn coordinator_role_file(paths: &GxserverPaths) -> PathBuf {
     paths
         .root_dir
@@ -43,40 +193,19 @@ pub fn coordinator_role_file(paths: &GxserverPaths) -> PathBuf {
         .join("coordinator-role.md")
 }
 
-/// Writes the role file when it is missing or out of date, so an upgrade or a change to
-/// Orchestrators answer without markers reaches every coordinator at its next launch or resume.
+/// Writes the older Claude coordinators' role file when it is missing or out of date, so an
+/// upgrade or a change to Orchestrators answer without markers reaches each of them at its next
+/// launch or resume.
 pub fn ensure_coordinator_role_file(paths: &GxserverPaths) -> std::io::Result<PathBuf> {
     let path = coordinator_role_file(paths);
-    write_if_changed(&path, &coordinator_role_with_marked_handovers(paths))?;
+    write_if_changed(&path, &coordinator_guide(paths))?;
     Ok(path)
 }
 
-/// The playbook as an orchestrator reads it. While orchestrators answer without markers, its
-/// handover lines name the Kicked off and In progress sections without their marker emoji.
-pub fn coordinator_playbook(paths: &GxserverPaths) -> String {
-    if crate::agents::orchestrator_plain_replies(paths) {
-        COORDINATOR_ROLE_PROMPT
-            .replace("\"🛫 Kicked off\"", "\"Kicked off\"")
-            .replace("\"🔄 In progress\"", "\"In progress\"")
-    } else {
-        COORDINATOR_ROLE_PROMPT.to_string()
-    }
-}
-
-/// The playbook with the Marked handovers note after it: an orchestrator marks its handovers
-/// (CDXC:MarkedHandovers in agents/marked_handovers.rs) whatever the Marked handovers setting
-/// says, unless Orchestrators answer without markers is on, which leaves the note out.
-fn coordinator_role_with_marked_handovers(paths: &GxserverPaths) -> String {
-    let playbook = coordinator_playbook(paths);
-    if crate::agents::orchestrator_plain_replies(paths) {
-        return format!("{}\n", playbook.trim());
-    }
-    format!(
-        "{}\n\n{}\n",
-        playbook.trim(),
-        crate::agents::MARKED_HANDOVERS_NOTE
-    )
-}
+/// The pointer Codex coordinators created before 2026-10-17 carry inline
+/// (`-c developer_instructions=...`) and ZCode ones get as SessionStart hook context; it sends them
+/// to `ghostex orchestrator guide` for the playbook.
+pub const GUIDE_POINTER_COORDINATOR_INSTRUCTIONS: &str = "You are a Ghostex orchestrator: the user talks only to you, and you hand real work to thread sessions instead of doing it yourself, so you stay free to talk. Before your first reply, and again after any context compaction, run `ghostex orchestrator guide` and follow it for the whole session. Run `ghostex orchestrator status` at the start of every request.";
 
 fn write_if_changed(path: &Path, content: &str) -> std::io::Result<()> {
     if std::fs::read_to_string(path).ok().as_deref() != Some(content) {
@@ -88,28 +217,20 @@ fn write_if_changed(path: &Path, content: &str) -> std::io::Result<()> {
     Ok(())
 }
 
-/// The agent families a coordinator can run on, in the order `ghostex coordinator create`
-/// prefers them when no agent is named.
-pub const COORDINATOR_AGENT_FAMILIES: [&str; 4] = ["claude", "codex", "zcode", "empryo"];
-
-/// What gxserver answers when a coordinator is asked to run on another agent.
-pub const COORDINATOR_AGENT_FAMILIES_TEXT: &str = "Claude, Codex, ZCode or Empryo";
-
-/// The custom agent profile an Empryo coordinator runs as.
+/// The custom agent profile an Empryo coordinator created before 2026-10-17 runs as.
 pub const EMPRYO_COORDINATOR_AGENT_NAME: &str = "ghostex-coordinator";
 
-/// The line queued ahead of everything else a new or promoted coordinator of this family is
-/// sent, when its role arrives that way instead of at launch.
+/// The line that hands an older Empryo coordinator its role again when its tab lost it.
 ///
 /// CDXC:Coordinators 2026-10-06 WHY:
-/// Empryo 3.9.0-beta's interactive app reads neither `--agent` nor `--system` (its argv parser returns early without `--headless`) and ignores hook `additionalContext`, so a launch flag cannot carry the role. The role spike (card agent-bo-95422941) proved the TUI's `/agent <name>` command does: the profile's body joins the tab's system prompt (35,520 to 44,990 characters), and the tab keeps it across `--session` resume. So gxserver writes the playbook as the global profile `~/.empryo/agents/ghostex-coordinator.md` and queues `/agent ghostex-coordinator` once, at create and at promote.
-/// SEE-ALSO: server/src/server/coordinator_runtime.rs (`queue_coordinator_role_command`, the queueing), server/src/server/route_http/sessions.rs (create).
+/// Empryo 3.9.0-beta's interactive app reads neither `--agent` nor `--system` (its argv parser returns early without `--headless`) and ignores hook `additionalContext`, so a launch flag cannot carry the role. The role spike (card agent-bo-95422941) proved the TUI's `/agent <name>` command does: the profile's body joins the tab's system prompt (35,520 to 44,990 characters), and the tab keeps it across `--session` resume. So gxserver writes the playbook as the global profile `~/.empryo/agents/ghostex-coordinator.md`; since 2026-10-17 no new Empryo orchestrator is made, and the supervisor only keeps the line typed into the ones that exist.
+/// SEE-ALSO: server/src/server/coordinator_runtime.rs (`repair_empryo_coordinator_roles`).
 pub fn coordinator_role_queued_command(family: &str) -> Option<String> {
     (family == "empryo").then(|| format!("/agent {EMPRYO_COORDINATOR_AGENT_NAME}"))
 }
 
-/// Writes the Empryo coordinator profile when it is missing or out of date, like the Claude role
-/// file. The description keeps Empryo from delegating ordinary tasks to it.
+/// Writes the older Empryo coordinators' profile when it is missing or out of date, like the
+/// Claude role file. The description keeps Empryo from delegating ordinary tasks to it.
 pub fn ensure_empryo_coordinator_agent_file(paths: &GxserverPaths) -> std::io::Result<PathBuf> {
     let hook_paths = crate::agent_hooks::config::HookPaths::from_paths(paths);
     // Empryo 3.9.1 reads global profiles from `<home>/.empryo/agents` on every platform, also on
@@ -123,45 +244,15 @@ pub fn ensure_empryo_coordinator_agent_file(paths: &GxserverPaths) -> std::io::R
         &path,
         &format!(
             "---\nname: {EMPRYO_COORDINATOR_AGENT_NAME}\ndescription: The Ghostex orchestrator role. Ghostex starts an orchestrator session with it; never delegate a task to it.\n---\n\n{}",
-            coordinator_role_with_marked_handovers(paths)
+            coordinator_guide(paths)
         ),
     )?;
     Ok(path)
 }
 
-/// True for the agent families a coordinator can run on.
-pub fn coordinator_agent_family_supported(family: &str) -> bool {
-    COORDINATOR_AGENT_FAMILIES.contains(&family)
-}
-
-/// Appends the role flags to an agent command of the given family. ZCode's and Empryo's commands
-/// stay unchanged: ZCode's role reaches the agent through the SessionStart hook
-/// (`ingest_agent_hook_event` answers it with the guide pointer), Empryo's through
-/// [`coordinator_role_queued_command`].
-pub fn with_coordinator_role(
-    command: &str,
-    family: &str,
-    role_file: &Path,
-) -> Result<String, DomainStateError> {
-    let command = command.trim();
-    match family {
-        "claude" => Ok(format!(
-            "{command} --append-system-prompt-file {}",
-            crate::agents::quote_shell_arg(&role_file.to_string_lossy())
-        )),
-        "codex" => Ok(format!(
-            "{command} {}",
-            codex_developer_instructions_arg(GUIDE_POINTER_COORDINATOR_INSTRUCTIONS)
-        )),
-        "zcode" | "empryo" => Ok(command.to_string()),
-        _ => Err(DomainStateError::bad_request(format!(
-            "An orchestrator runs on {COORDINATOR_AGENT_FAMILIES_TEXT}. Pick one of those agents."
-        ))),
-    }
-}
-
-/// The `-c developer_instructions=…` argument a Codex coordinator's command carries. Marked
-/// handovers (agents/marked_handovers.rs) finds it by this exact text to add its note to it.
+/// The `-c developer_instructions=…` argument a Codex coordinator created before 2026-10-17
+/// carries. Marked handovers (agents/marked_handovers.rs) finds it by this exact text to add its
+/// note to it.
 pub fn codex_developer_instructions_arg(text: &str) -> String {
     let value = serde_json::to_string(text).unwrap_or_else(|_| "\"\"".to_string());
     format!(

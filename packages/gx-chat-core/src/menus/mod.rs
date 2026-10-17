@@ -31,6 +31,7 @@ pub mod option_storage;
 pub mod option_store;
 pub mod option_values;
 pub mod options;
+pub mod orchestrator_effort;
 pub mod picker;
 pub mod run_location;
 pub mod time;

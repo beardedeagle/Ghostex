@@ -35,7 +35,16 @@ pub const GHOSTEX_AGENT_SKILL_NAMES: &[&str] = &[
     User: the visuals skill is used "only when I mention the skill". `$ghostex-visuals` teaches the chat's ```visual blocks and `ghostex show` pages, and ships with `disable-model-invocation: true` and `allow_implicit_invocation: false` so an agent never picks it up on its own.
     */
     "ghostex-visuals",
+    /*
+    CDXC:Coordinators 2026-10-17 WHY:
+    The orchestrator playbook is a bundled skill gxserver installs when an orchestrator is created or promoted (coordinators/role.rs), so it is listed here for the startup refresh from GitHub main, but left out of the default install set (`ORCHESTRATOR_ONLY_GHOSTEX_AGENT_SKILL_NAMES`): an ordinary session never needs it.
+    */
+    "ghostex-orchestrator",
 ];
+
+/// Bundled skills installed only for the agent an orchestrator runs on, never by a plain "install
+/// the Ghostex skills".
+pub const ORCHESTRATOR_ONLY_GHOSTEX_AGENT_SKILL_NAMES: &[&str] = &["ghostex-orchestrator"];
 
 /// Bundled skills that only work on macOS: left out of the default install set elsewhere, and
 /// refused when asked for by name (`SPACEO_MACOS_ONLY_MESSAGE`).
@@ -596,8 +605,9 @@ pub fn normalize_agent_skill_names(
         GHOSTEX_AGENT_SKILL_NAMES
             .iter()
             .filter(|skill_name| {
-                cfg!(target_os = "macos")
-                    || !MACOS_ONLY_GHOSTEX_AGENT_SKILL_NAMES.contains(skill_name)
+                (cfg!(target_os = "macos")
+                    || !MACOS_ONLY_GHOSTEX_AGENT_SKILL_NAMES.contains(skill_name))
+                    && !ORCHESTRATOR_ONLY_GHOSTEX_AGENT_SKILL_NAMES.contains(skill_name)
             })
             .map(|skill_name| (*skill_name).to_string())
             .collect()

@@ -1,3 +1,4 @@
+use ghostex_gx_chat_core::menus::orchestrator_effort::orchestrator_efforts;
 use serde_json::{json, Value};
 
 use super::{sleep_threads, threads};
@@ -28,7 +29,7 @@ pub(crate) fn run(args: &[String]) -> CliResult<()> {
         "guide" => {
             print!(
                 "{}",
-                crate::coordinators::coordinator_playbook(&crate::paths::get_gxserver_paths(None))
+                crate::coordinators::coordinator_guide(&crate::paths::get_gxserver_paths(None))
             );
             Ok(())
         }
@@ -178,6 +179,7 @@ fn create(parsed: &ParsedArgs) -> CliResult<()> {
     };
     let title = named.unwrap_or_else(|| "Orchestrator".to_string());
     let goal = flag_text(&parsed.flags, "goal").unwrap_or_default();
+    let task = flag_text(&parsed.flags, "task").unwrap_or_default();
     let family = agent_rows
         .iter()
         .find(|row| agents::text(row, "agentId") == agent_id)
@@ -195,20 +197,17 @@ fn create(parsed: &ParsedArgs) -> CliResult<()> {
             "launchSettings": launch_settings_for(&agent_rows, &agent_id),
             "title": title,
             "runtimeSettings": { "titleSource": title_source },
-            "coordinator": { "goal": goal },
+            "coordinator": { "goal": goal, "firstRequest": task },
         })
         .as_object()
         .map(|object| {
             let mut object = object.clone();
-            // CDXC:Coordinators 2026-09-30 SEE-ALSO: DEFAULT_COORDINATOR_EFFORT in apps/desktop/src/app/window/new_coordinator_modal.rs (the user's medium-effort decision); the CLI keeps the same default. ZCode takes no effort choice, so it is sent no default; its --model rides agentModel and reaches the session as a queued `/model` line.
-            // Empryo rejects an effort its model does not support, so it gets only one asked for.
-            let effort = match family {
-                Some("zcode") => None,
-                Some("empryo") => flag_text(&parsed.flags, "effort"),
-                _ => {
-                    Some(flag_text(&parsed.flags, "effort").unwrap_or_else(|| "medium".to_string()))
-                }
-            };
+            // CDXC:Coordinators 2026-10-17 SEE-ALSO: packages/gx-chat-core/src/menus/orchestrator_effort.rs (the user's High/XHigh decision); without --effort an orchestrator starts on its agent's highest orchestrator level where its launch takes an effort. ZCode takes no effort choice; its --model rides agentModel and gxserver queues it as a `/model` line ahead of the first message.
+            let effort = flag_text(&parsed.flags, "effort").or_else(|| {
+                family
+                    .and_then(crate::coordinators::default_orchestrator_effort)
+                    .map(str::to_string)
+            });
             if let Some(effort) = effort {
                 object.insert("agentEffort".to_string(), json!(effort));
             }
@@ -244,31 +243,17 @@ fn create(parsed: &ParsedArgs) -> CliResult<()> {
         "globalRef": reference,
         "session": agents::summary(&session),
     });
-    // A ZCode coordinator's chosen model reaches the session as a `/model` line queued ahead of
-    // the first request; ZCode has no launch model flag for it to ride (see launch_plan.rs).
-    let mut startup_prompts: Vec<String> = Vec::new();
-    if family == Some("zcode") {
-        if let Some(model) = flag_text(&parsed.flags, "model").filter(|model| !model.is_empty()) {
-            startup_prompts.push(format!("/model {model}"));
-        }
-    }
-    let mut task_queued = false;
-    if let Some(task) = flag_text(&parsed.flags, "task") {
-        startup_prompts.push(task);
-        task_queued = true;
-    }
-    for prompt in &startup_prompts {
-        call_gxserver_rpc(
-            "/api/queueSessionChatPrompt",
-            &json!({
-                "globalRef": reference, "projectId": session["projectId"], "sessionId": session["sessionId"],
-                "text": prompt, "startupSend": true, "sendRequestId": uuid::Uuid::new_v4().to_string(),
-            }),
-            &flags,
-        )?;
-    }
-    if task_queued {
+    // gxserver queued the first message (the skill line, then the task) before it answered.
+    if !task.is_empty() {
         result["taskStatus"] = json!("queued");
+    }
+    let role_error = agents::text(&created, "coordinatorRoleError").to_string();
+    if !role_error.is_empty() {
+        result["roleError"] = json!(role_error);
+        eprintln!(
+            "Its orchestrator skill or first message could not be set up ({role_error}). Send it: ghostex agents send {reference} \"{}\"",
+            crate::coordinators::orchestrator_skill_line(family.unwrap_or_default())
+        );
     }
     if parsed.flags.truthy("json") {
         print_json(&result);
@@ -279,7 +264,7 @@ fn create(parsed: &ParsedArgs) -> CliResult<()> {
     Ok(())
 }
 
-/// `promote [<session-ref>]`: makes an existing Claude, Codex, ZCode or Empryo session (the calling session when
+/// `promote [<session-ref>]`: makes an existing session of a supported agent (the calling session when
 /// no ref is given) a coordinator without restarting or interrupting it; see
 /// `promote_session_to_coordinator` in server/src/coordinators/promote.rs.
 fn promote(parsed: &ParsedArgs) -> CliResult<()> {
@@ -314,10 +299,10 @@ fn promote(parsed: &ParsedArgs) -> CliResult<()> {
         agents::text(&result, "title")
     );
     if result["playbookQueued"].as_bool() == Some(true) {
-        println!("Its playbook is queued and reaches it once it is idle; its next resume loads the role as a system prompt.");
+        println!("The orchestrator skill is installed and the message to read it is queued; it reaches the session once it is idle.");
     } else {
         println!(
-            "Its playbook could not be queued ({}). Send it with: ghostex agents send {reference} \"Run ghostex orchestrator guide and follow it from now on.\"",
+            "Its orchestrator skill or message could not be set up ({}). Send it with: ghostex agents send {reference} \"Run ghostex orchestrator guide and follow it from now on.\"",
             agents::text(&result, "playbookError")
         );
     }
@@ -325,12 +310,12 @@ fn promote(parsed: &ParsedArgs) -> CliResult<()> {
     Ok(())
 }
 
-/// What a New Coordinator form offers: the Claude, Codex, ZCode and Empryo launchers (Claude first, in launcher
+/// What a New Coordinator form offers: the launchers an orchestrator can run on (Claude first, in launcher
 /// order), each with its model lineup from the catalog gxserver serves, the model it starts on, and
 /// the efforts each model accepts.
 ///
 /// CDXC:Coordinators 2026-10-03 WHY:
-/// The phone's New Coordinator form reads its choices here instead of parsing the model catalog itself, so its lineup is the one gxserver serves and its defaults are the ones `create` applies (Opus 5.5 for Claude, medium effort).
+/// The phone's New Coordinator form reads its choices here instead of parsing the model catalog itself, so its lineup is the one gxserver serves and its defaults are the ones `create` applies (Opus 5.5 for Claude, XHigh effort, the orchestrator levels only, and the locked skill line each agent's first message starts with).
 /// SEE-ALSO: apps/desktop/src/app/gx_store/create/coordinator.rs (the desktop dialog's lineup), apps/mobile/app/src/screens/sessions-screen/NewCoordinatorSheet.tsx (the phone's form).
 fn options(parsed: &ParsedArgs) -> CliResult<()> {
     let flags = server_flags(&parsed.flags);
@@ -351,7 +336,11 @@ fn options(parsed: &ParsedArgs) -> CliResult<()> {
         .iter()
         .filter_map(|row| {
             let family = agent_family(row)?;
-            let lineup = catalog.pointer(&format!("/agents/{family}"));
+            // Only these agents' launches take a model (launch_plan.rs `apply_agent_model_options`);
+            // the others start on their own configured model, so their form shows no model choice.
+            let lineup = matches!(family, "claude" | "codex" | "pi" | "zcode" | "antigravity")
+                .then(|| catalog.pointer(&format!("/agents/{family}")))
+                .flatten();
             let agent_efforts = lineup
                 .and_then(|agent| agent.get("efforts"))
                 .cloned()
@@ -363,7 +352,7 @@ fn options(parsed: &ParsedArgs) -> CliResult<()> {
                 .unwrap_or_default()
                 .iter()
                 .map(|model| {
-                    let efforts: Vec<Value> = model
+                    let levels: Vec<&str> = model
                         .get("efforts")
                         .unwrap_or(&agent_efforts)
                         .as_array()
@@ -371,6 +360,10 @@ fn options(parsed: &ParsedArgs) -> CliResult<()> {
                         .unwrap_or_default()
                         .iter()
                         .filter_map(Value::as_str)
+                        .collect();
+                    let offered = orchestrator_efforts(&levels);
+                    let efforts: Vec<Value> = offered
+                        .iter()
                         .map(|effort| json!({ "value": effort, "label": effort_label(effort) }))
                         .collect();
                     json!({
@@ -378,6 +371,7 @@ fn options(parsed: &ParsedArgs) -> CliResult<()> {
                         "label": model["label"],
                         "default": model.get("default").and_then(Value::as_bool) == Some(true),
                         "efforts": efforts,
+                        "defaultEffort": offered.last(),
                     })
                 })
                 .collect();
@@ -398,6 +392,7 @@ fn options(parsed: &ParsedArgs) -> CliResult<()> {
                     "family": family,
                     "models": models,
                     "defaultModel": default_model,
+                    "skillLine": crate::coordinators::orchestrator_skill_line(family),
                 }),
             ))
         })
@@ -406,8 +401,8 @@ fn options(parsed: &ParsedArgs) -> CliResult<()> {
     let agents: Vec<Value> = agents.into_iter().map(|(_, agent)| agent).collect();
     let result = json!({
         "agents": agents,
-        // CDXC:Coordinators 2026-09-30 SEE-ALSO: DEFAULT_COORDINATOR_EFFORT in apps/desktop/src/app/window/new_coordinator_modal.rs (the user's medium-effort decision).
-        "defaultEffort": "medium",
+        // CDXC:Coordinators 2026-10-17 SEE-ALSO: packages/gx-chat-core/src/menus/orchestrator_effort.rs (the user's High/XHigh decision); each model's own `defaultEffort` is its highest offered level, and this is the level where the model has it.
+        "defaultEffort": "xhigh",
     });
     if parsed.flags.truthy("json") {
         print_json(&result);
@@ -453,23 +448,22 @@ pub(super) fn launch_settings_for(rows: &[Value], agent_id: &str) -> Value {
 /// CDXC:Coordinators 2026-10-01 SEE-ALSO: DEFAULT_CLAUDE_COORDINATOR_MODEL in apps/desktop/src/app/window/new_coordinator_modal.rs (the user's Opus 5.5 decision); `create` on a Claude agent without `--model` uses the same, a Codex agent keeps its configured model.
 const DEFAULT_CLAUDE_COORDINATOR_MODEL: &str = "opus[1m]";
 
-/// `claude`, `codex`, `zcode` or `empryo` when a launcher row runs that executable or has that
-/// agent id.
+/// The orchestrator family of a launcher row (`COORDINATOR_AGENT_FAMILIES`): by its icon, its
+/// agent id, or the executable its command runs.
 fn agent_family(row: &Value) -> Option<&'static str> {
-    let executable = agents::text(row, "command")
-        .split_whitespace()
-        .find(|word| !word.contains('='))
-        .map(|word| {
-            std::path::Path::new(word)
-                .file_name()
-                .and_then(|name| name.to_str())
-                .unwrap_or_default()
-                .to_string()
-        })
-        .unwrap_or_default();
-    crate::coordinators::COORDINATOR_AGENT_FAMILIES
+    let icon = agents::text(row, "icon");
+    let by_icon = crate::agents::default_agent_icon_to_id(icon).map(str::to_string);
+    let by_id = Some(agents::text(row, "agentId").to_string());
+    let by_command =
+        crate::agents::infer_agent_id_from_command_executable(agents::text(row, "command"));
+    [by_icon, by_id, by_command]
         .into_iter()
-        .find(|family| executable == *family || agents::text(row, "agentId") == *family)
+        .flatten()
+        .find_map(|family| {
+            crate::coordinators::COORDINATOR_AGENT_FAMILIES
+                .into_iter()
+                .find(|supported| *supported == family)
+        })
 }
 
 fn default_coordinator_agent(rows: &[Value]) -> Option<String> {

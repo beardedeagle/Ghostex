@@ -55,8 +55,7 @@ pub(super) async fn route_sessions_http(
             &body_json,
             |repository, db, params, _| {
                 let project = repository.resolve_create_session_project(params)?;
-                let params =
-                    &coordinator_runtime::prepare_coordinator_create_params(&state, params)?;
+                let params = &coordinator_runtime::prepare_coordinator_create_params(params)?;
                 let create_params = create_agent_session_params_for_project(db, &project, params)?;
                 let created_session = repository.create_session(&create_params, false)?;
                 let session =
@@ -65,22 +64,19 @@ pub(super) async fn route_sessions_http(
                     crate::coordinators::register_created_coordinator(db, params, &session)?;
                 let project_id = value_text(&session, "projectId")?;
                 let session_id = value_text(&session, "sessionId")?;
-                // Queued before the response, so it goes ahead of the first request a client
+                // Queued before the response, so the skill line goes ahead of anything a client
                 // queues next. The session and its coordinator record are committed, so a failure
                 // from here on is reported, not raised.
                 let role_error = is_coordinator
                     .then(|| crate::agents::session_agent_family_id(&project, &session))
                     .flatten()
                     .and_then(|family| {
-                        crate::coordinators::coordinator_role_queued_command(&family)
-                    })
-                    .and_then(|command| {
-                        coordinator_runtime::queue_coordinator_role_command(
+                        coordinator_runtime::start_orchestrator_role(
                             &state,
                             &project_id,
                             &session_id,
-                            &command,
-                            true,
+                            &family,
+                            params,
                         )
                         .err()
                     })

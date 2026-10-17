@@ -125,19 +125,42 @@ impl NativeChatOptions {
     }
 }
 
+/// True in an orchestrator's chat, whose effort pickers offer only the orchestrator levels.
+pub(crate) fn is_orchestrator(state: &ChatState) -> bool {
+    crate::extras::coordinator_threads::is_coordinator(state.session.coordinator_threads.as_ref())
+}
+
+/// Keeps only the orchestrator levels (`orchestrator_efforts`) in an effort descriptor's choices.
+pub(crate) fn limit_to_orchestrator_efforts(descriptors: &mut [OptionDescriptor]) {
+    for descriptor in descriptors
+        .iter_mut()
+        .filter(|descriptor| descriptor.id == "effort")
+    {
+        let Some(choices) = descriptor.choices.as_mut() else {
+            continue;
+        };
+        let values: Vec<&str> = choices.iter().map(|choice| choice.value.as_str()).collect();
+        let offered = crate::menus::orchestrator_effort::orchestrator_efforts(&values);
+        choices.retain(|choice| offered.contains(&choice.value));
+    }
+}
+
 /// `computeNativeChatOptions`.
 pub fn compute_native_chat_options(state: &ChatState, _context: &ChatContext) -> NativeChatOptions {
     let menus = &state.menus;
     let agent = state.session.agent.as_deref();
     let catalog = session_option_catalog(&menus.model_catalog, agent);
     let values = menus.options.state().clone();
-    let option_descriptors = match &catalog {
+    let mut option_descriptors = match &catalog {
         Some(catalog) => {
             let model_value = current_model_value(catalog, &values);
             catalog.options_for_model(&model_value)
         }
         None => Vec::new(),
     };
+    if is_orchestrator(state) {
+        limit_to_orchestrator_efforts(&mut option_descriptors);
+    }
     // A model pill that hands the change to the terminal has no picker behind it, so a Hermes chat
     // keeps its `/model` hint until gxserver has read the profile's lineup (Hermes writes the
     // session row, and with it the profile, only on the first turn).

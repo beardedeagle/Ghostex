@@ -1,7 +1,5 @@
-//! Making an existing Claude, Codex, ZCode or Empryo session a coordinator (`/api/promoteCoordinator`, the
-//! sidebar's Advanced > Make Coordinator, `ghostex coordinator promote`).
-
-use std::path::Path;
+//! Making an existing session a coordinator (`/api/promoteCoordinator`, the sidebar's Advanced >
+//! Make Coordinator, `ghostex coordinator promote`).
 
 use rusqlite::{Connection, Transaction, TransactionBehavior};
 use serde_json::{json, Map, Value};
@@ -12,34 +10,28 @@ use super::records::{
     COORDINATOR_GOAL_MAX_CHARS,
 };
 use super::role::{
-    coordinator_agent_family_supported, coordinator_playbook, coordinator_role_queued_command,
-    with_coordinator_role, COORDINATOR_AGENT_FAMILIES_TEXT,
+    coordinator_agent_family_supported, orchestrator_skill_line, COORDINATOR_AGENT_FAMILIES_TEXT,
 };
 use crate::domain::{DomainRepository, DomainStateError};
 
-/// The session commands a resume, an account switch or a fork rebuilds the agent from; the role
-/// flag goes into each one the session has.
-const SAVED_COMMAND_KEYS: [&str; 3] = ["agentCommand", "accountBaseCommand", "accountCommand"];
-
-/// What a promotion did: the session it turned into a coordinator, and the message that hands the
-/// running agent its playbook.
+/// What a promotion did: the session it turned into a coordinator, its agent family (whose skill
+/// folder gets the orchestrator skill), and the message that hands the running agent its role.
 pub struct CoordinatorPromotion {
     pub key: SessionKey,
     pub title: String,
-    /// The line that hands the session its role, queued ahead of the playbook, for a family whose
-    /// role arrives that way (`coordinator_role_queued_command`).
-    pub role_command: Option<String>,
+    pub family: String,
     pub playbook_message: String,
 }
 
 /// CDXC:Coordinators 2026-10-04 DECISION:
-/// User: "Make Coordinator" sits in the session context menu's Advanced submenu, "but I wanna be able to switch to coordinator without affecting the running thread at all". So promoting never restarts, reloads or interrupts the session: it stores the coordinator record (the crown, the thread tree, reports and `ghostex coordinator status` follow from it), writes the role flag into the session's saved commands so the next start or resume the session makes for its own reasons (sleep and wake, a Full Reload, an app restart) launches it with the role exactly like a created coordinator, and queues the playbook as a chat message that the queue delivers only once the agent is idle. Ghostex never resumes the session to apply the role.
-/// SEE-ALSO: server/src/server/coordinator_runtime.rs (`promote_coordinator`, which queues the message), server/src/agents/launch_plan.rs (`apply_coordinator_role`, the same flag at creation), packages/gx-core/src/sidebar_menu/session.rs (the menu row).
+/// User: "Make Coordinator" sits in the session context menu's Advanced submenu, "but I wanna be able to switch to coordinator without affecting the running thread at all". So promoting never restarts, reloads or interrupts the session: it stores the coordinator record (the crown, the thread tree, reports and `ghostex coordinator status` follow from it) and queues the message that hands over the role, which the queue delivers only once the agent is idle. Ghostex never resumes the session to apply the role.
+/// CDXC:Coordinators 2026-10-17 DECISION:
+/// User: "we should install this orchestrator skill when user picks the orchstrator option so no need to inject things the other way". A promoted session gets its role like a created one: gxserver installs the `ghostex-orchestrator` skill for its agent and the queued message starts with the skill line. Its saved commands are no longer rewritten with a role flag (supersedes that part of the 2026-10-04 decision); the session is marked as taking its role from the skill.
+/// SEE-ALSO: server/src/server/coordinator_runtime.rs (`promote_coordinator`, which installs the skill and queues the message), server/src/coordinators/role.rs (the skill line), packages/gx-core/src/sidebar_menu/session.rs (the menu row).
 pub fn promote_session_to_coordinator(
     db: &Connection,
     server_id: &str,
     params: &Map<String, Value>,
-    role_file: &Path,
 ) -> Result<CoordinatorPromotion, DomainStateError> {
     let text = |key: &str| {
         params
@@ -93,43 +85,10 @@ pub fn promote_session_to_coordinator(
         .and_then(Value::as_object)
         .cloned()
         .unwrap_or_default();
-    for key in SAVED_COMMAND_KEYS {
-        let Some(command) = runtime
-            .get(key)
-            .and_then(Value::as_str)
-            .map(str::trim)
-            .filter(|command| !command.is_empty())
-            .map(str::to_string)
-        else {
-            continue;
-        };
-        if command_has_coordinator_role(&command, &family) {
-            continue;
-        }
-        runtime.insert(
-            key.to_string(),
-            json!(with_coordinator_role(&command, &family, role_file)?),
-        );
-    }
-    // A session that never saved its command resumes from its launcher's command (else the
-    // agent's default), which has no role; save that command with the role so the next resume
-    // carries it.
-    if !runtime.contains_key("agentCommand") {
-        let agent_id = crate::agents::read_text_value(&session, "agentId").unwrap_or_default();
-        let launch_settings = crate::agents::object_field(&session, "launchSettings");
-        let config = crate::agents::resolve_project_agent_config(
-            &project,
-            &agent_id,
-            Some(&launch_settings),
-        );
-        let base = crate::agents::read_text_from_map(&config, "command")
-            .or_else(|| crate::agents::default_agent_command(&family).map(str::to_string))
-            .unwrap_or_else(|| family.clone());
-        runtime.insert(
-            "agentCommand".to_string(),
-            json!(with_coordinator_role(&base, &family, role_file)?),
-        );
-    }
+    runtime.insert(
+        super::role::COORDINATOR_ROLE_SETTING.to_string(),
+        json!(super::role::COORDINATOR_ROLE_SKILL),
+    );
     let mut update = Map::new();
     update.insert("projectId".to_string(), json!(project_id));
     update.insert("sessionId".to_string(), json!(session_id));
@@ -138,12 +97,11 @@ pub fn promote_session_to_coordinator(
     insert_coordinator(&transaction, &project_id, &session_id, &goal, "")?;
     transaction.commit().map_err(sql_error)?;
 
-    let role_command = coordinator_role_queued_command(&family);
-    let playbook_message = playbook_message(&goal, role_command.is_some());
+    let playbook_message = playbook_message(&family, &goal);
     Ok(CoordinatorPromotion {
         key: (project_id, session_id),
         title,
-        role_command,
+        family,
         playbook_message,
     })
 }
@@ -192,40 +150,18 @@ fn refuse_ineligible(
     Ok(())
 }
 
-/// True when a saved command already carries the coordinator role flag of its family.
-fn command_has_coordinator_role(command: &str, family: &str) -> bool {
-    match family {
-        "claude" => command.contains("--append-system-prompt-file"),
-        "codex" => command.contains("developer_instructions="),
-        _ => false,
-    }
-}
-
-/// The chat message that hands a promoted session its role. It carries the whole playbook, so it
-/// works without the CLI, and stays in the conversation until the next resume adds the role as a
-/// system prompt. A session handed its role by a queued line (Empryo's `/agent`) already runs by
-/// the playbook when it reads this, so its message leaves the playbook out.
-pub fn playbook_message(goal: &str, role_in_system_prompt: bool) -> String {
-    let mut message = String::from(if role_in_system_prompt {
-        "Ghostex: this session is now an orchestrator. You keep this conversation; from now on you work by the orchestrator playbook, which is now part of your instructions."
-    } else {
-        "Ghostex: this session is now an orchestrator. You keep this conversation; from now on you work by the orchestrator playbook below."
-    });
+/// The chat message that hands a promoted session its role: the skill line, then what changed.
+pub fn playbook_message(family: &str, goal: &str) -> String {
+    let mut message = orchestrator_skill_line(family);
+    message.push_str(
+        "\n\nGhostex: this session is now an orchestrator. You keep this conversation; from now on you work by that skill.",
+    );
     if !goal.trim().is_empty() {
         message.push_str(&format!("\n\nYour goal: {}", goal.trim()));
-    }
-    if !role_in_system_prompt {
-        message.push_str(
-            "\n\nGhostex adds this playbook to your system prompt the next time this session starts or resumes. Until then, re-read it with `ghostex orchestrator guide` whenever your context was compacted.",
-        );
     }
     message.push_str(
         "\n\nSessions you started earlier in this conversation are not your threads yet. If there are any, list them for the user and, once they confirm, adopt each one with `ghostex orchestrator link <session ref> --task \"<what it works on>\"`.\
 \n\nNow run `ghostex orchestrator status`, then tell the user in a line or two that you are their orchestrator.",
     );
-    if !role_in_system_prompt {
-        message.push_str("\n\n---\n\n");
-        message.push_str(coordinator_playbook(&crate::paths::get_gxserver_paths(None)).trim());
-    }
     message
 }
