@@ -73,7 +73,8 @@
     "docsUrl": "https://pi.dev/docs/latest",
     "npmPackage": "@earendil-works/pi-coding-agent",
     "npmFlags": ["--ignore-scripts"],
-    "miseTool": "pi"
+    "miseTool": "pi",
+    "selfUpdate": "pi update self"
   },
   {
     "agentId": "opencode",
@@ -104,7 +105,8 @@
     "brewFormula": "copilot-cli",
     "brewCask": true,
     "wingetId": "GitHub.Copilot",
-    "miseTool": "copilot"
+    "miseTool": "copilot",
+    "selfUpdate": "copilot update"
   },
   {
     "agentId": "droid",
@@ -180,7 +182,8 @@
       "requires": {
         "unix": ["git"]
       }
-    }
+    },
+    "updateCheck": ["update", "--check"]
   },
   {
     "agentId": "rovodev",
@@ -241,10 +244,12 @@
     "packageManagers": ["bun"],
     "brewFormula": "can1357/tap/omp",
     "native": {
-      "install": "curl -fsSL https://omp.sh/install | sh",
-      "windowsInstall": "irm https://omp.sh/install.ps1 | iex",
+      "install": "curl -fsSL https://omp.sh/install | sh -s -- --binary",
+      "update": "omp update",
+      "windowsInstall": "& ([scriptblock]::Create((irm https://omp.sh/install.ps1))) -Binary",
       "pathMarkers": ["/appdata/local/omp/"]
     },
+    "minimumBunVersion": "1.3.14",
     "installDirs": {
       "windows": ["%LOCALAPPDATA%/omp"],
       "unix": ["~/.local/bin"]

@@ -159,6 +159,8 @@ pub(super) struct CliJobInfo {
     pub(super) status: String,
     pub(super) output: String,
     pub(super) error: Option<String>,
+    /// A finished update that still leaves a newer release (mise held it back), in plain words.
+    pub(super) notice: Option<String>,
 }
 
 impl CliJobInfo {
@@ -179,6 +181,14 @@ pub(super) struct CliState {
     pub(super) path_directory: Option<String>,
     pub(super) latest_version: Option<String>,
     pub(super) update_available: bool,
+    /// The CLI's own update check, in its words ("Update available: 14220 commits behind origin/main.").
+    pub(super) update_summary: Option<String>,
+    /// The CLI's own update check is still running in gxserver.
+    pub(super) update_checking: bool,
+    /// Why mise does not install the newer release yet (the user's `minimum_release_age`).
+    pub(super) update_held_back: Option<String>,
+    /// mise installs an older eligible release now and holds the newest back.
+    pub(super) update_note: Option<String>,
     pub(super) methods: Vec<CliMethod>,
     pub(super) job: Option<CliJobInfo>,
 }
@@ -205,6 +215,10 @@ impl CliState {
             path_directory: nonempty(value, "pathDirectory"),
             latest_version: nonempty(value, "latestVersion"),
             update_available: value.get("updateAvailable").and_then(Value::as_bool) == Some(true),
+            update_summary: nonempty(value, "updateSummary"),
+            update_checking: value.get("updateChecking").and_then(Value::as_bool) == Some(true),
+            update_held_back: nonempty(value, "updateHeldBack"),
+            update_note: nonempty(value, "updateNote"),
             methods: value
                 .get("methods")
                 .and_then(Value::as_array)
@@ -221,6 +235,7 @@ impl CliState {
                         .unwrap_or_default()
                         .to_string(),
                     error: nonempty(job, "error"),
+                    notice: nonempty(job, "notice"),
                 })
             }),
         })
@@ -239,6 +254,18 @@ impl CliState {
 
     fn job_active(&self) -> bool {
         self.job.as_ref().is_some_and(CliJobInfo::active)
+    }
+
+    /// An update Ghostex can run now: not one mise holds back.
+    fn update_offered(&self) -> bool {
+        self.update_available && self.update_held_back.is_none()
+    }
+
+    /// What the newer release is called: its version, else the CLI's own words.
+    fn newer_release(&self) -> Option<String> {
+        self.latest_version
+            .clone()
+            .or_else(|| self.update_summary.clone())
     }
 }
 
@@ -439,7 +466,11 @@ impl AgentsTab {
         job.loading = false;
         // CDXC:AgentProviders 2026-09-28 WHY (use-agent-cli-job.ts (deleted 2026-10-01)): polling is keyed on finished reads, so a queued job or a quiet installer keeps being re-read until the job ends.
         job.poll = None;
-        if job.state.as_ref().is_some_and(CliState::job_active) {
+        if job
+            .state
+            .as_ref()
+            .is_some_and(|state| state.job_active() || state.update_checking)
+        {
             let agent = agent_id.to_string();
             job.poll = Some(cx.spawn(async move |this, cx| {
                 cx.background_executor().timer(POLL).await;
@@ -766,15 +797,22 @@ impl AgentsTab {
         }
         let state = state?;
         let detected = state.detected_method_id.clone()?;
-        if !state.update_available {
+        if !state.update_offered() {
             return None;
         }
         let title = error.clone().unwrap_or_else(|| {
-            let update = format!(
-                "Update {} to {}.",
-                definition.binary,
-                state.latest_version.clone().unwrap_or_default()
-            );
+            let update = match &state.latest_version {
+                Some(latest) => format!("Update {} to {latest}.", definition.binary),
+                None => format!(
+                    "Update {}. {}",
+                    definition.binary,
+                    state.update_summary.clone().unwrap_or_default()
+                ),
+            };
+            let update = match &state.update_note {
+                Some(note) => format!("{update} {note}"),
+                None => update,
+            };
             match state
                 .methods
                 .iter()
@@ -815,7 +853,7 @@ impl AgentsTab {
         let list = self.cli.list.get(agent_id);
         cli_missing
             || list.is_some_and(|state| state.path_directory.is_some())
-            || list.is_some_and(|state| state.update_available)
+            || list.is_some_and(CliState::update_offered)
     }
 
     /// `cliMissing` of a row: the list's answer, else the hook status.
@@ -900,9 +938,17 @@ impl AgentsTab {
                     .clone()
                     .unwrap_or_else(|| "Installed".to_string());
                 if state.update_available
-                    && let Some(latest) = &state.latest_version
+                    && let Some(newer) = state.newer_release()
                 {
-                    text.push_str(&format!(" · {latest} available"));
+                    if state.update_held_back.is_some() {
+                        text.push_str(&format!(" · {newer} held back by mise"));
+                    } else if state.latest_version.is_some() {
+                        text.push_str(&format!(" · {newer} available"));
+                    } else {
+                        text.push_str(&format!(" · {newer}"));
+                    }
+                } else if state.update_checking {
+                    text.push_str(" · checking for updates…");
                 }
                 text
             }
@@ -1210,6 +1256,14 @@ impl AgentsTab {
                 }
             }
         }
+        if let Some(held_back) = state.as_ref().and_then(|state| {
+            state
+                .update_held_back
+                .clone()
+                .or_else(|| state.update_note.clone())
+        }) {
+            body = body.child(small(held_back, muted));
+        }
         if let Some(version_error) = state.as_ref().and_then(|state| state.version_error.clone()) {
             body = body.child(small(
                 format!("Version check failed: {version_error}"),
@@ -1230,8 +1284,10 @@ impl AgentsTab {
                     .error
                     .clone()
                     .unwrap_or_else(|| "CLI operation failed.".to_string()),
-                _ => "CLI command completed. Start a new session to use the installed version."
-                    .to_string(),
+                _ => job.notice.clone().unwrap_or_else(|| {
+                    "CLI command completed. Start a new session to use the installed version."
+                        .to_string()
+                }),
             };
             let mut job_block = v_flex()
                 .w_full()

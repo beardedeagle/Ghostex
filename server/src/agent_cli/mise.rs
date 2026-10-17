@@ -172,3 +172,92 @@ pub(crate) fn command(tool: &str, installed: bool) -> String {
         )
     }
 }
+
+/// What mise does with a newer release than the installed one.
+#[derive(Clone)]
+pub(crate) struct HeldBack {
+    pub message: String,
+    /// The older release mise would still install now (`None`: nothing to install yet).
+    pub installable: Option<String>,
+}
+
+/// CDXC:AgentProviders 2026-10-17 WHY:
+/// mise skips a release younger than the user's `minimum_release_age` and still reports "All tools are up to date", so an OMP update "succeeded" while staying one release behind. That setting is the user's safety choice and Ghostex never overrides it: the state and the finished job say which release mise holds back and until when, instead of calling the CLI current or the update failed. When an older release is already eligible (Claude 2.1.301 while 2.1.302 waits), the update is still offered and says which release it installs.
+pub(crate) async fn held_back(tool: &str, latest: &str, home: &Path) -> Option<HeldBack> {
+    static CACHE: LazyLock<Mutex<HashMap<(String, String), (Instant, Option<HeldBack>)>>> =
+        LazyLock::new(|| Mutex::new(HashMap::new()));
+    let key = (tool.to_string(), latest.to_string());
+    if let Some((_, held)) = CACHE
+        .lock()
+        .ok()
+        .and_then(|cache| cache.get(&key).cloned())
+        .filter(|(checked, _)| checked.elapsed() < Duration::from_secs(600))
+    {
+        return held;
+    }
+    let held = dry_run_held_back(tool, home).await;
+    if let Ok(mut cache) = CACHE.lock() {
+        cache.insert(key, (Instant::now(), held.clone()));
+    }
+    held
+}
+
+async fn dry_run_held_back(tool: &str, home: &Path) -> Option<HeldBack> {
+    let mise = process::resolve("mise", home)?;
+    let output = std::sync::Arc::new(Mutex::new(String::new()));
+    let capture = output.clone();
+    // Through the job shell, so mise's npm backend finds npm on the same PATH an update would use.
+    let call = if cfg!(windows) { "& " } else { "" };
+    let script = format!(
+        "{call}{} upgrade --dry-run --bump --yes {}",
+        process::quote(&mise),
+        process::quote(tool)
+    );
+    let env = std::collections::BTreeMap::new();
+    process::run(&script, home, &env, Duration::from_secs(8), move |chunk| {
+        if let Ok(mut output) = capture.lock() {
+            if output.len() < 16 * 1024 {
+                output.push_str(&chunk);
+            }
+        }
+    })
+    .await
+    .ok()?;
+    let text = output.lock().ok()?.clone();
+    // "Would install claude@2.1.301": the eligible release this update installs.
+    let installable = text
+        .lines()
+        .find_map(|line| line.trim().strip_prefix("Would install "))
+        .and_then(|target| target.rsplit_once('@'))
+        .map(|(_, version)| version.trim().to_string())
+        .filter(|version| !version.is_empty());
+    let message = held_back_message(&text, installable.as_deref())?;
+    Some(HeldBack {
+        message,
+        installable,
+    })
+}
+
+/// The plain-words form of mise's "newer … release 18.11.3 (released …, eligible 2026-10-18 01:52 +04)
+/// ignored by minimum_release_age (24h)" warning.
+pub(crate) fn held_back_message(output: &str, installable: Option<&str>) -> Option<String> {
+    let line = output
+        .lines()
+        .find(|line| line.contains("ignored by minimum_release_age"))?;
+    let between = |start: &str, end: char| -> Option<String> {
+        let rest = &line[line.find(start)? + start.len()..];
+        Some(rest[..rest.find(end)?].trim().to_string())
+    };
+    let release = between(" release ", ' ').unwrap_or_else(|| "the newest release".to_string());
+    let until = between("eligible ", ')').map_or(String::new(), |date| format!(" until {date}"));
+    let age =
+        between("minimum_release_age (", ')').map_or(String::new(), |age| format!(" ({age})"));
+    Some(match installable {
+        Some(version) => format!(
+            "mise can update to {version} now; it holds back {release}{until} because of your mise minimum_release_age setting{age}. Ghostex does not change this setting."
+        ),
+        None => format!(
+            "mise holds back {release}{until} because of your mise minimum_release_age setting{age}. Update again after that; Ghostex does not change this setting."
+        ),
+    })
+}

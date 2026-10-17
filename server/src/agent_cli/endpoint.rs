@@ -1,6 +1,6 @@
 use super::{
     catalog::{self, Definition, CATALOG},
-    latest, mise, path_setup, process,
+    latest, mise, path_setup, process, update_check,
 };
 use crate::{domain::DomainStateError, paths::GxserverPaths};
 use serde_json::{json, Map, Value};
@@ -194,6 +194,13 @@ async fn start(
         .get("methodId")
         .and_then(Value::as_str)
         .ok_or_else(|| refused("Choose an installation method."))?;
+    if method_id == "manual" {
+        return Err(refused(format!(
+            "Another tool (mise, Scoop or Nix) manages {} at {}, so Ghostex does not update it. Update it with that tool.",
+            definition.binary,
+            state["executablePath"].as_str().unwrap_or_default()
+        )));
+    }
     let method = state["methods"]
         .as_array()
         .and_then(|methods| methods.iter().find(|method| method["id"] == method_id))
@@ -214,7 +221,7 @@ async fn start(
         .as_str()
         .ok_or_else(|| error("Missing CLI command."))?
         .to_string();
-    let mut env = if method_id == "native" {
+    let mut env = if method_id == "native" || method_id == "self" {
         definition.native_env()
     } else {
         BTreeMap::new()
@@ -291,6 +298,10 @@ async fn start(
             Ok(()) => finish(definition, &home, &key).await,
             Err(error) => Err(error),
         };
+        let notice = match &result {
+            Ok(verified) if !installing => update_notice(definition, verified, &key),
+            _ => None,
+        };
         if result.is_ok() && installing {
             install_chat_hooks(definition, &paths, &key).await;
         }
@@ -301,6 +312,9 @@ async fn start(
                 } else {
                     "failed"
                 });
+                if let Some(notice) = notice {
+                    job.progress["notice"] = json!(notice);
+                }
                 if let Err(error) = result {
                     job.progress["error"] = json!(error);
                 }
@@ -346,7 +360,7 @@ async fn finish(
     definition: &'static Definition,
     home: &Path,
     key: &(PathBuf, String),
-) -> Result<(), String> {
+) -> Result<Value, String> {
     let mut verified = read_state_with(definition, home, VERSION_TIMEOUT_AFTER_INSTALL)
         .await
         .map_err(|error| error.message)?;
@@ -374,7 +388,52 @@ async fn finish(
             "The installer finished, but the CLI version check failed: {reason}"
         ));
     }
-    Ok(())
+    Ok(verified)
+}
+
+/// CDXC:AgentProviders 2026-10-17 WHY:
+/// An updater that exits 0 without installing anything newer (mise holding a release back, or a mise plugin that pins Hermes to its commit) used to end in "CLI command completed", which read as up to date. A finished update that still leaves a newer release says so, and what to do next.
+fn update_notice(
+    definition: &Definition,
+    verified: &Value,
+    key: &(PathBuf, String),
+) -> Option<String> {
+    let output = JOBS
+        .lock()
+        .ok()
+        .and_then(|jobs| jobs.get(key).map(|job| job.progress["output"].clone()))
+        .and_then(|output| output.as_str().map(str::to_string))
+        .unwrap_or_default();
+    if verified["updateAvailable"] != true {
+        return None;
+    }
+    if let Some(message) = verified["updateHeldBack"]
+        .as_str()
+        .map(str::to_string)
+        .or_else(|| mise::held_back_message(&output, None))
+    {
+        return Some(message);
+    }
+    let newer = match (
+        verified["latestVersion"].as_str(),
+        verified["updateSummary"].as_str(),
+    ) {
+        (Some(latest), _) => format!(" ({latest})"),
+        (None, Some(summary)) => format!(" ({})", summary.trim_end_matches('.')),
+        (None, None) => String::new(),
+    };
+    let next = if verified["detectedMethodId"] == "mise" {
+        format!(
+            " mise decides which version it installs here, so check how your mise installs {} (its plugin or settings).",
+            definition.binary
+        )
+    } else {
+        " Check the command output for what stopped it.".to_string()
+    };
+    Some(format!(
+        "The update finished, but {} still reports a newer version{newer}.{next}",
+        definition.binary
+    ))
 }
 
 /// CDXC:AgentHooks 2026-10-07 DECISION:
@@ -483,7 +542,7 @@ async fn read_state_with(
 ) -> Result<Value, DomainStateError> {
     let _permit = PROBES.acquire().await.map_err(error)?;
     let owned_home = home.to_path_buf();
-    let (executable, methods, detected_method, path_directory) =
+    let (executable, methods, detected_method, path_directory, mise_tool) =
         tokio::task::spawn_blocking(move || {
             crate::agent_hooks::probing::refresh_cli_environment(&owned_home);
             let install_dirs = definition.install_dirs(&owned_home);
@@ -493,7 +552,7 @@ async fn read_state_with(
                 .as_ref()
                 .map(|installation| installation.executable.clone())
                 .or(executable);
-            let methods = catalog::methods(
+            let mut methods = catalog::methods(
                 definition,
                 executable.as_deref(),
                 &owned_home,
@@ -509,6 +568,21 @@ async fn read_state_with(
                     .as_deref()
                     .and_then(|path| catalog::detected_method(path, definition))
             };
+            // An installation Ghostex cannot place updates through the CLI's own updater.
+            let detected = detected.or_else(|| {
+                let updater = definition.self_updater().filter(|_| executable.is_some())?;
+                if methods
+                    .iter()
+                    .any(|method| method.id == "native" && method.command == updater)
+                {
+                    return Some("native".to_string());
+                }
+                methods.push(catalog::self_method(definition)?);
+                Some("self".to_string())
+            });
+            let mise_tool = mise
+                .as_ref()
+                .and_then(|installation| installation.tool.clone());
             // Only a folder the agent's own installer uses is offered for PATH, never an arbitrary one.
             let path_directory = executable
                 .as_deref()
@@ -520,7 +594,7 @@ async fn read_state_with(
                 })
                 .filter(|directory| !path_setup::on_path(directory, &owned_home))
                 .map(Path::to_path_buf);
-            (executable, methods, detected, path_directory)
+            (executable, methods, detected, path_directory, mise_tool)
         })
         .await
         .map_err(error)?;
@@ -571,6 +645,42 @@ async fn read_state_with(
             .as_deref()
             .is_some_and(|current| latest::is_newer(&latest_version, current)));
         state["latestVersion"] = json!(latest_version);
+    }
+    if let Some(version) = state["version"].as_str().map(str::to_string) {
+        match update_check::status(definition, &path, &version, home) {
+            Some(update_check::Status::Ready(outcome)) => {
+                if let Some(available) = outcome.available {
+                    state["updateAvailable"] = json!(available);
+                }
+                if let Some(summary) = outcome.summary {
+                    state["updateSummary"] = json!(summary);
+                }
+            }
+            Some(update_check::Status::Checking) => state["updateChecking"] = json!(true),
+            None => {}
+        }
+    }
+    // mise's minimum_release_age only holds back releases with a publish date, the ones `latestVersion` reads.
+    if let (true, Some("mise"), Some(tool), Some(latest)) = (
+        state["updateAvailable"] == true,
+        detected_method.as_deref(),
+        &mise_tool,
+        state["latestVersion"].as_str().map(str::to_string),
+    ) {
+        match mise::held_back(tool, &latest, home).await {
+            Some(mise::HeldBack {
+                message,
+                installable: None,
+            }) => state["updateHeldBack"] = json!(message),
+            Some(mise::HeldBack {
+                message,
+                installable: Some(version),
+            }) => {
+                state["updateNote"] = json!(message);
+                state["updateInstallable"] = json!(version);
+            }
+            None => {}
+        }
     }
     Ok(state)
 }

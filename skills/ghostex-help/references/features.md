@@ -1955,8 +1955,17 @@ and Grok Build install through their official installers (PowerShell on
 Windows). When an installer leaves its folder off PATH (Claude Code's does), Ghostex
 adds it to your user PATH so new terminals find the command; Add to PATH
 does the same for a CLI installed earlier. Installs run one at a time and wait
-their turn. Ghostex selects an updater for recognized installations; choose the
-original installation method when it cannot be detected. mise is offered for supported CLIs and is the
+their turn. Ghostex updates a CLI the way it was installed; when it cannot tell,
+it uses the CLI's own updater (such as `copilot update`, `pi update self` or
+`omp update`), and only a CLI without one asks you to choose the original
+installation method. Hermes Agent is checked with its own `hermes update --check`,
+so Update available is shown when Hermes is behind even if its version number has
+not changed. When mise's `minimum_release_age` setting holds a newer release back,
+the CLI shows that release as held back by mise and the date it becomes eligible
+(when an older release is already eligible, the update installs that one);
+Ghostex leaves that setting alone. If a CLI needs a newer tool first (OMP's Bun
+install needs Bun 1.3.14 or newer), the method says what to update; the official
+installer downloads OMP's own binary and needs no Bun. mise is offered for supported CLIs and is the
 default install choice when it can install that CLI on your computer; otherwise
 (Cursor on Windows, or a CLI mise installs with npm when npm is missing) the
 official installer or npm is. When Chat is your default view, installing a CLI

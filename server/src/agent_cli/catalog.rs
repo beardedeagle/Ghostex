@@ -29,6 +29,13 @@ pub(crate) struct Definition {
     /// The update kills running processes of the CLI (Droid's installer runs `pkill droid`).
     #[serde(default)]
     pub update_stops_sessions: bool,
+    /// The CLI's own updater for an agent without an official installer entry (`copilot update`).
+    pub self_update: Option<String>,
+    /// Arguments of the CLI's own "is there an update" check, for an agent whose version number does not
+    /// move with its releases (Hermes updates by git commit).
+    pub update_check: Option<Vec<String>>,
+    /// The oldest Bun the bun-installed package runs on (OMP).
+    pub minimum_bun_version: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -81,6 +88,14 @@ impl Definition {
         dirs.iter()
             .filter_map(|dir| expand_dir(dir, home))
             .collect()
+    }
+
+    /// The command the CLI updates itself with, whichever way it was installed.
+    pub(crate) fn self_updater(&self) -> Option<&str> {
+        self.native
+            .as_ref()
+            .and_then(|native| native.update.as_deref())
+            .or(self.self_update.as_deref())
     }
 
     pub(crate) fn native_env(&self) -> BTreeMap<String, String> {
@@ -263,6 +278,12 @@ pub(crate) fn methods(
             } else {
                 method.unavailable_reason = missing;
             }
+            if manager == "bun" && method.unavailable_reason.is_none() {
+                method.unavailable_reason = definition
+                    .minimum_bun_version
+                    .as_deref()
+                    .and_then(|minimum| bun_too_old(&definition.binary, minimum, home));
+            }
             methods.push(method);
         }
     }
@@ -323,6 +344,33 @@ pub(crate) fn methods(
         }
     }
     methods
+}
+
+/// CDXC:AgentProviders 2026-10-17 WHY:
+/// OMP runs on Bun and refuses a Bun older than 1.3.14 (phase 0 hit 1.3.12 on Windows). Bun is not a tool Ghostex installs for the user, so like git outside Linux the bun method names what to update and how instead of failing halfway; the official installer always downloads OMP's own binary (`--binary`), which needs no Bun.
+fn bun_too_old(binary: &str, minimum: &str, home: &Path) -> Option<String> {
+    let bun = super::process::resolve("bun", home)?;
+    let mut command = crate::platform::process::background_command(&bun);
+    command.arg("--version").current_dir(home);
+    let current = crate::agent_hooks::probing::run_command_stdout_with_timeout(
+        command,
+        std::time::Duration::from_secs(3),
+    )
+    .and_then(|text| super::latest::version_in(&text))?;
+    super::latest::is_newer(minimum, &current).then(|| {
+        format!("{binary} needs Bun {minimum} or newer, and this computer has Bun {current}. Run bun upgrade in a terminal, then try again, or use the official installer, which needs no Bun.")
+    })
+}
+
+/// The CLI's own updater, offered when Ghostex cannot tell how the CLI was installed.
+pub(crate) fn self_method(definition: &Definition) -> Option<Method> {
+    let command = definition.self_updater()?;
+    Some(Method::new(
+        "self",
+        "Built-in updater",
+        command.into(),
+        format!("Runs {command}, the CLI's own updater, which updates it the way it was installed. No password needed."),
+    ))
 }
 
 /// What the official installer needs on this computer, and what Ghostex can install for it.
@@ -448,7 +496,7 @@ fn brew_package(path: &str) -> Option<String> {
 
 /// CDXC:AgentProviders 2026-09-14 WHY:
 /// A global npm install can leave a second CLI behind a Homebrew or native binary on PATH.
-/// Resolve symlinks before choosing an updater; unknown and source installations require an explicit method selection.
+/// Resolve symlinks before choosing an updater. An unknown installation never gets a package manager's updater (that installs a second copy); since 2026-10-17 it updates through the CLI's own updater when it has one (`copilot update`, `pi update self`, see `Definition::self_updater`), which knows how it was installed, and only a CLI without one needs an explicit method selection.
 pub(crate) fn detected_method(path: &str, definition: &Definition) -> Option<String> {
     if super::mise::looks_managed(path) {
         // Unresolved shims must not offer a native self-updater that would modify mise's installation.

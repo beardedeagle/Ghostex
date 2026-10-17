@@ -4,3 +4,4 @@ pub(crate) mod latest;
 pub(crate) mod mise;
 pub(crate) mod path_setup;
 pub(crate) mod process;
+pub(crate) mod update_check;

@@ -24,7 +24,11 @@ pub(crate) async fn latest(definition: &'static Definition) -> Option<String> {
         (None, None) => return None,
     };
     if let Some((at, value)) = CACHE.lock().ok()?.get(&definition.agent_id).cloned() {
-        let ttl = if value.is_some() { FOUND_TTL } else { MISSING_TTL };
+        let ttl = if value.is_some() {
+            FOUND_TTL
+        } else {
+            MISSING_TTL
+        };
         if at.elapsed() < ttl {
             return value;
         }
@@ -97,4 +101,3 @@ fn numbers(version: &str) -> Vec<u64> {
         .map_while(|part| part.parse().ok())
         .collect()
 }
-

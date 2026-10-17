@@ -21,7 +21,8 @@ USAGE
   path), or one agent in detail with its install methods. install uses the
   official installer by default (PowerShell on Windows); --method picks another
   listed method such as npm, brew, winget, or mise. update uses the method that
-  installed the CLI. Both wait and print the installer's output unless --no-wait.
+  installed the CLI, or the CLI's own updater (such as copilot update) when
+  Ghostex cannot tell. Both wait and print the installer's output unless --no-wait.
   add-to-path puts an installed CLI's folder on your PATH when its installer did
   not, so new terminals find it.
 
@@ -57,10 +58,7 @@ pub(crate) fn run(args: &[String]) -> CliResult<()> {
                     Some(_) => text(state, "version", "installed"),
                     None => "not installed".to_string(),
                 };
-                let latest = match state["updateAvailable"].as_bool() {
-                    Some(true) => format!("{} (update available)", text(state, "latestVersion", "")),
-                    _ => text(state, "latestVersion", "-"),
-                };
+                let latest = latest_column(state);
                 println!(
                     "{}\t{version}\t{latest}\t{}",
                     text(state, "agentId", ""),
@@ -69,7 +67,13 @@ pub(crate) fn run(args: &[String]) -> CliResult<()> {
             }
         }
         ("status", Some(agent_id)) => {
-            let state = request(json!({"action": "read", "agentId": agent_id}))?;
+            let mut state = request(json!({"action": "read", "agentId": agent_id}))?;
+            // The CLI's own update check runs in gxserver's background (Hermes's takes about 30 s).
+            let deadline = Instant::now() + Duration::from_secs(150);
+            while state["updateChecking"] == true && Instant::now() < deadline {
+                std::thread::sleep(Duration::from_secs(2));
+                state = request(json!({"action": "read", "agentId": agent_id}))?;
+            }
             if json_output {
                 print_json(&state);
             } else {
@@ -97,8 +101,9 @@ pub(crate) fn run(args: &[String]) -> CliResult<()> {
                     .map(str::to_string)
                     .ok_or_else(|| {
                         CliError::Other(format!(
-                            "Ghostex cannot tell how {agent_id} was installed. Pass --method (one of: {}).",
-                            method_ids(&state)
+                            "Ghostex cannot tell how {agent_id} at {} was installed, and it has no updater of its own. Update it the way you installed it:\n{}\nOr pass --method <id> and Ghostex runs that command.",
+                            text(&state, "executablePath", ""),
+                            method_commands(&state)
                         ))
                     })?,
                 None => state["methods"]
@@ -129,7 +134,10 @@ pub(crate) fn run(args: &[String]) -> CliResult<()> {
                 }
                 return Ok(());
             }
-            let job_id = started["job"]["id"].as_str().unwrap_or_default().to_string();
+            let job_id = started["job"]["id"]
+                .as_str()
+                .unwrap_or_default()
+                .to_string();
             if !json_output {
                 println!("> {}", text(&started["job"], "command", ""));
             }
@@ -140,7 +148,9 @@ pub(crate) fn run(args: &[String]) -> CliResult<()> {
                 let state = request(json!({"action": "read", "agentId": agent_id}))?;
                 let job = &state["job"];
                 if job["id"].as_str() != Some(job_id.as_str()) {
-                    return Err(CliError::Other("The install job disappeared; check `ghostex agent-cli status`.".into()));
+                    return Err(CliError::Other(
+                        "The install job disappeared; check `ghostex agent-cli status`.".into(),
+                    ));
                 }
                 let output = job["output"].as_str().unwrap_or_default();
                 if !json_output && output.len() > printed {
@@ -162,6 +172,11 @@ pub(crate) fn run(args: &[String]) -> CliResult<()> {
                 println!();
                 print_state(&finished);
             }
+            if let Some(notice) = finished["job"]["notice"].as_str() {
+                if !json_output {
+                    println!("Note: {notice}");
+                }
+            }
             if finished["job"]["status"] != "succeeded" {
                 return Err(CliError::Other(text(
                     &finished["job"],
@@ -179,7 +194,9 @@ pub(crate) fn run(args: &[String]) -> CliResult<()> {
             }
         }
         _ => {
-            return Err(CliError::Other(format!("Unknown agent-cli command.\n\n{HELP}")));
+            return Err(CliError::Other(format!(
+                "Unknown agent-cli command.\n\n{HELP}"
+            )));
         }
     }
     Ok(())
@@ -199,11 +216,38 @@ fn print_state(state: &Value) {
                 };
                 println!("Latest: {latest}{note}");
             }
-            if let Some(method) = state["detectedMethodId"].as_str() {
-                println!("Installed with: {method}");
+            if let Some(summary) = state["updateSummary"].as_str() {
+                println!("Update check: {summary}");
+            } else if state["updateChecking"] == true {
+                println!("Update check: still running");
+            } else if state["updateAvailable"] == false && state["latestVersion"].is_null() {
+                println!("Update check: up to date");
+            }
+            if let Some(held) = state["updateHeldBack"].as_str() {
+                println!("Held back: {held}");
+            }
+            if let Some(note) = state["updateNote"].as_str() {
+                println!("Note: {note}");
+            }
+            match state["detectedMethodId"].as_str() {
+                Some("self") => println!(
+                    "Updates with: its own updater ({})",
+                    state["methods"]
+                        .as_array()
+                        .into_iter()
+                        .flatten()
+                        .find(|method| method["id"] == "self")
+                        .and_then(|method| method["command"].as_str())
+                        .unwrap_or_default()
+                ),
+                Some(method) => println!("Installed with: {method}"),
+                None => {}
             }
             if let Some(directory) = state["pathDirectory"].as_str() {
-                println!("Not on PATH: {directory} (run `ghostex agent-cli add-to-path {}`)", text(state, "agentId", ""));
+                println!(
+                    "Not on PATH: {directory} (run `ghostex agent-cli add-to-path {}`)",
+                    text(state, "agentId", "")
+                );
             }
             if let Some(error) = state["versionError"].as_str() {
                 println!("Version check failed: {error}");
@@ -224,14 +268,44 @@ fn print_state(state: &Value) {
     }
 }
 
-fn method_ids(state: &Value) -> String {
+fn method_commands(state: &Value) -> String {
     state["methods"]
         .as_array()
         .into_iter()
         .flatten()
-        .filter_map(|method| method["id"].as_str())
+        .filter_map(|method| {
+            Some(format!(
+                "  {}: {}",
+                method["id"].as_str()?,
+                method["command"].as_str()?
+            ))
+        })
         .collect::<Vec<_>>()
-        .join(", ")
+        .join("\n")
+}
+
+fn latest_column(state: &Value) -> String {
+    if state["updateHeldBack"].is_string() {
+        return format!(
+            "{} (held back by mise)",
+            text(state, "latestVersion", "newer")
+        );
+    }
+    if state["updateChecking"] == true {
+        return "checking".into();
+    }
+    match state["updateAvailable"].as_bool() {
+        Some(true) => match state["latestVersion"].as_str() {
+            Some(latest) if state["updateInstallable"].is_string() => format!(
+                "{latest} (mise installs {} now)",
+                text(state, "updateInstallable", "")
+            ),
+            Some(latest) => format!("{latest} (update available)"),
+            None => "update available".into(),
+        },
+        Some(false) if state["latestVersion"].is_null() => "up to date".into(),
+        _ => text(state, "latestVersion", "-"),
+    }
 }
 
 fn unavailable_reasons(state: &Value) -> String {
