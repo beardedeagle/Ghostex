@@ -1,7 +1,6 @@
 //! The working card (`workingCard`, decided in packages/gx-chat-core/src/extras/working_card.rs):
 //! one line with the spark, the label and the pills, in its own row at the top of the composer's
 //! stack (composer.rs). It never opens; each pill opens its own menu (chat_pills.rs).
-//! working_lane.rs places it; this draws it.
 //!
 //! CDXC:SessionChat 2026-10-18 SEE-ALSO:
 //! The phone draws the same card in apps/mobile/app/src/chat/native/cards/WorkingCard.tsx.
@@ -47,9 +46,10 @@ impl NativeChatView {
         self.list.item_count() > 0 && (self.snapshot["workingCard"]["visible"] == true || armed)
     }
 
-    /// The card for the top of the composer's stack, placed by
-    /// [`super::working_lane::WorkingLane`]: in its own row there, or under a transcript too short
-    /// to reach it.
+    /// The card for the top of the composer's stack.
+    ///
+    /// CDXC:SessionChat 2026-10-18 WHY:
+    /// The card is a row of the composer's stack, not a transcript row: a row lives in the cached transcript view (transcript_host.rs), and the card's spark animates for as long as the agent works, so every frame of it would lay out every visible row again, the cost that view exists to avoid. Outside the list, the transcript's visible area ends above it and nothing ever scrolls under it. It stays in that row in a short conversation too; lifting it under the last message left the gap above the composer the user asked about (the removed working_lane.rs, which must not come back).
     pub(super) fn render_working_card(
         &mut self,
         p: &ChatAppearance,
@@ -76,18 +76,9 @@ impl NativeChatView {
             .bg(p.card_panel)
             .overflow_hidden()
             .text_color(p.card_muted)
-            // Lifted under a short transcript it paints over the list's empty end; a press there
-            // is the card's.
-            .block_mouse_except_scroll()
             .child(header)
             .into_any_element();
-        Some(
-            super::working_lane::WorkingLane {
-                list: self.list.clone(),
-                child: card,
-            }
-            .into_any_element(),
-        )
+        Some(card)
     }
 
     /// Scroll-to-bottom on its own over the transcript's bottom edge, while the reader is away from
