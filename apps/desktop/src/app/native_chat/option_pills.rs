@@ -35,12 +35,22 @@ fn pill(
             }
         )
     };
+    // The pill cuts a long provider/model to its width, so its tooltip names all of it, plus the
+    // effort the pill shows.
+    let full_name = if kind == "model" {
+        values["modelMenu"]["pill"]["tooltip"]
+            .as_str()
+            .filter(|_| merged_menu(values))
+            .unwrap_or(label)
+    } else {
+        label
+    };
     let tooltip = if !loading && kind != "mode" {
         let shortcut = crate::app::hotkeys::gpui_configured_hotkey_label("openModelPicker");
         if kind == "model" {
             match shortcut.filter(|_| merged_menu(values)) {
-                Some(shortcut) => format!("Model ({shortcut})"),
-                None => "Model".to_owned(),
+                Some(shortcut) => format!("{full_name} ({shortcut})"),
+                None => full_name.to_owned(),
             }
         } else {
             let tooltip = values["optionsTooltip"].as_str().unwrap_or("Options");
@@ -52,11 +62,10 @@ fn pill(
     } else {
         title.clone()
     };
-    let display = if kind == "model" {
-        values["modelDisplay"].as_str().unwrap_or(label)
-    } else {
-        label
-    };
+    // CDXC:SessionChat 2026-10-18 WHY: The pill shows the full model name and lets its width cap
+    // cut it, instead of the core's 20-character `modelDisplay`, which cut names short with the
+    // row half empty.
+    let display = label;
     // The merged pill: the picker's own label, then its reasoning and context window, muted.
     let merged = kind == "model" && values["modelMenu"].is_object();
     let display = values["modelMenu"]["pill"]["label"]
@@ -74,7 +83,7 @@ fn pill(
         .aria_label(title.clone())
         .chat_cursor_pointer()
         .min_w_0()
-        .max_w(px(if merged { 248.0 } else { 160.0 } * scale))
+        .max_w(px(pill_max_width(kind) * scale))
         .h(px(24.0 * scale))
         .px(px(if icon_only { 6.0 } else { 10.0 } * scale))
         .flex()
@@ -257,11 +266,7 @@ impl NativeChatView {
                 .as_f32()
         };
         let measure = |kind: &str| {
-            let label = values[if kind == "model" {
-                "modelDisplay"
-            } else {
-                "options"
-            }]
+            let label = values[if kind == "model" { "model" } else { "options" }]
             .as_str()
             .unwrap_or_default();
             let pill = &values["modelMenu"]["pill"];
@@ -300,8 +305,7 @@ impl NativeChatView {
             } else {
                 0.0
             };
-            (text_width + (36.0 + agent + badges) * scale)
-                .min(if merged { 248.0 } else { 160.0 } * scale)
+            (text_width + (36.0 + agent + badges) * scale).min(pill_max_width(kind) * scale)
         };
         if values["showModel"] != true {
             return 0.0;
@@ -402,6 +406,12 @@ impl NativeChatView {
             )
             .into_any_element()
     }
+}
+
+/// The widest a pill grows before its text is cut: the model name gets the room, since it is the
+/// longest label (provider/model), the options pill stays compact.
+fn pill_max_width(kind: &str) -> f32 {
+    if kind == "model" { 320.0 } else { 160.0 }
 }
 
 /// The agent's accent, with the white and near-white ones turned to ink on a light theme.

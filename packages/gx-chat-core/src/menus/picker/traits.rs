@@ -356,10 +356,18 @@ pub fn model_menu_pill_labels(
         .filter_map(|trait_row| trait_row.value_label.clone())
         .filter(|value| !value.is_empty())
         .collect();
+    let label = entry
+        .map(|entry| entry.label.clone())
+        .or_else(|| model_label.map(str::to_string));
+    let suffix = (!parts.is_empty()).then(|| parts.join(" · "));
+    // The pill cuts a long name to its width, so its tooltip carries the whole of it.
+    let tooltip = label.as_ref().map(|label| match &suffix {
+        Some(suffix) => format!("{label} \u{b7} {suffix}"),
+        None => label.clone(),
+    });
     json!({
-        "label": entry
-            .map(|entry| entry.label.clone())
-            .or_else(|| model_label.map(str::to_string)),
-        "suffix": (!parts.is_empty()).then(|| parts.join(" · ")),
+        "label": label,
+        "suffix": suffix,
+        "tooltip": tooltip,
     })
 }
