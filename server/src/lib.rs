@@ -204,6 +204,7 @@ pub mod session_chat_trust_memory;
 pub mod session_chat_watchdog;
 pub mod session_chat_workspace_trust;
 pub mod session_chat_zcode;
+pub mod session_chat_zcode_question;
 pub(crate) mod session_files_links;
 pub mod session_git_status;
 pub mod session_keep_awake;

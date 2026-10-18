@@ -694,6 +694,36 @@ pub(crate) async fn handle_answer_session_chat_prompt_http(
                         ),
                     )
                 }
+                // ZCode's question list replaces its input box while it waits, so the answer is
+                // driven through the list (session_chat_zcode_question.rs).
+                Some("zcode") => {
+                    let on_screen =
+                        crate::session_chat_send::capture_session_terminal_text(&target.zmx_name)
+                            .await
+                            .is_some_and(|screen_text| {
+                                crate::session_chat_zcode_question::zcode_question_on_screen(
+                                    &questions,
+                                    &screen_text,
+                                )
+                            });
+                    if !on_screen {
+                        return domain_error_response(
+                            endpoint_path,
+                            request_id,
+                            DomainStateError {
+                                code: "invalidState",
+                                message: "ZCode's question is not on screen at its first question, so the answer was not sent. Answer it in the terminal."
+                                    .to_string(),
+                            },
+                        );
+                    }
+                    crate::session_chat_send::build_ask_answer_steps(
+                        &crate::session_chat_zcode_question::build_zcode_ask_answer_keys(
+                            &questions,
+                            &selections,
+                        ),
+                    )
+                }
                 // Hermes' clarify panel owns the composer while it is open (the
                 // Enter binding routes buffer text to the clarify queue), so
                 // the composer fallback would corrupt it; drive the panel's
