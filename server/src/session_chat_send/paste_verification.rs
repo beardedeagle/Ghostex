@@ -136,6 +136,7 @@ pub(crate) async fn verify_session_chat_paste_landed(
                 .to_lowercase()
                 .contains(SESSION_CHAT_PASTED_PLACEHOLDER_NEEDLE)
                 || needles.iter().any(|needle| normalized.contains(needle))
+                || omp_paste_chip_landed(agent, &screen)
             {
                 return SessionChatPasteVerification::Landed;
             }
@@ -156,6 +157,18 @@ pub(crate) async fn verify_session_chat_paste_landed(
         SessionChatPasteVerification::Absent
     } else {
         SessionChatPasteVerification::Unreadable
+    }
+}
+
+/// Whether OMP's input box shows the chip it draws for a long paste (`omp_paste_chip_shown`).
+/// OMP's sends take the whole-screen watch (`agent` is `None`), so the input box is found on the
+/// whole screen; only OMP draws that box, so no other agent's screen can match.
+fn omp_paste_chip_landed(agent: Option<&str>, screen: &str) -> bool {
+    match agent {
+        Some("omp") => crate::session_chat_composer::omp_paste_chip_shown(screen),
+        Some(_) => false,
+        None => crate::session_chat_composer::session_chat_composer_input("omp", screen)
+            .is_some_and(|input| crate::session_chat_composer::omp_paste_chip_shown(&input.text)),
     }
 }
 

@@ -418,6 +418,21 @@ pub(super) fn omp_input_region(lines: &[String]) -> Option<Range<usize>> {
     omp_input(lines).map(|(region, _)| region)
 }
 
+/// OMP's `chip.paste` symbol in its Unicode, Nerd Font and ASCII symbol presets.
+const OMP_PASTE_CHIP_GLYPHS: &[&str] = &["\u{1f4c4}", "\u{f15c}", "txt"];
+
+/// CDXC:Clipboard 2026-10-18 WHY:
+/// OMP 18.11 keeps a long paste in its editor as `[Paste #N, +M lines]` but draws it in the input box as a `<chip.paste> #N` chip (`📄 #1`), with the paste's first lines in a separate box above the input. The input box showed neither the pasted text nor the `[Paste` spelling paste verification looked for, so every OMP message over ten lines failed as "The terminal did not accept the pasted message", was cleared with Ctrl+C and retried until the row failed: Send Bug / Feedback's brief (GitHub #254) and an orchestrator's first brief to an OMP thread. A chip in the input box is OMP's proof that the paste landed.
+pub(crate) fn omp_paste_chip_shown(input_text: &str) -> bool {
+    let words: Vec<&str> = input_text.split_whitespace().collect();
+    words.windows(2).any(|pair| {
+        OMP_PASTE_CHIP_GLYPHS.contains(&pair[0])
+            && pair[1]
+                .strip_prefix('#')
+                .is_some_and(|n| !n.is_empty() && n.chars().all(|c| c.is_ascii_digit()))
+    })
+}
+
 /// The `composer.shape` that drew OMP's input, which decides how each row's chrome is stripped.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum OmpShape {
@@ -1110,6 +1125,13 @@ pub fn session_chat_composer_input(agent: &str, screen: &str) -> Option<SessionC
             .enumerate()
             .map(|(index, line)| match omp_shape {
                 Some(shape) => omp_row_text(shape, index == 0, line),
+                // ZCode's editor pads each row with one space and fills it to the pane's width;
+                // the draft moved into the chat is the text alone.
+                None if agent == "zcode" => line
+                    .strip_prefix(' ')
+                    .unwrap_or(line)
+                    .trim_end()
+                    .to_string(),
                 None => line.clone(),
             })
             .collect::<Vec<_>>()

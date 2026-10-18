@@ -73,6 +73,7 @@ pub const SESSION_CHAT_VERIFY_PASTING_EXTENSION_MS: u64 = 4_000;
 /// spellings, one shared prefix — so the match is that prefix,
 /// case-insensitively, against the whitespace-stripped screen. (Matching only
 /// the Claude form aborted Codex sends that had in fact been delivered.)
+/// OMP 18.11 draws its placeholder as a chip instead (`omp_paste_chip_shown`).
 pub(super) const SESSION_CHAT_PASTED_PLACEHOLDER_NEEDLE: &str = "[paste";
 /// Claude Code's still-ingesting indicator, `Pasting text…`, normalized.
 pub(super) const SESSION_CHAT_PASTING_INDICATOR_NEEDLE: &str = "Pastingtext";
