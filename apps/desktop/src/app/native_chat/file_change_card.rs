@@ -8,6 +8,7 @@
 //! `CDXC:SessionChat 2026-10-11 DECISION` on `file_change_card` there); this file only lays it out.
 //! The phone draws the same card in `apps/mobile/app/src/chat/native/transcript/FileChanges.tsx`.
 
+use super::cards::SINGLE_LINE_CARD;
 use super::{
     appearance::{ChatAppearance, ChatFilledButton as _},
     state::NativeChatView,
@@ -297,19 +298,9 @@ impl NativeChatView {
             .px(px(14.0 * s))
             .py(px(12.0 * s))
             .min_w_0()
-            .child(
-                div()
-                    .size(px(28.0 * s))
-                    .flex_shrink_0()
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .rounded(px(8.0 * s))
-                    .bg(palette.edited.opacity(0.15))
-                    .border_1()
-                    .border_color(palette.edited.opacity(0.22))
-                    .child(icon("titlebar/pencil.svg", 15.0 * s, palette.edited)),
-            )
+            // The one-line cards' neutral tile (Q296 A, the SessionChat 2026-10-18 DECISION on
+            // `SINGLE_LINE_CARD`): the counts and the bar are the card's only colour.
+            .child(SINGLE_LINE_CARD.tile("titlebar/pencil.svg", p))
             .child(
                 div()
                     .flex()

@@ -68,7 +68,7 @@ impl NativeChatView {
         if delivery.is_object() {
             body = body.child(self.answers_delivery(answers, delivery, p, cx));
         }
-        self.ask_card(head, Some(body.into_any_element()), Vec::new(), None, p)
+        self.lined_ask_card(head, Some(body.into_any_element()), p)
     }
 
     /// The bottom-left line of answers on their way: a spinner while the queue holds or types

@@ -11,8 +11,8 @@ use std::collections::HashSet;
 use std::rc::Rc;
 
 use super::ask_card::{
-    AskBodyMotion, AskOption, AskTone, ask_head, keycap, single_line_ask_head,
-    single_line_press_head,
+    AskBodyMotion, AskOption, QuestionBadge, ask_color, keycap, question_ask_head,
+    single_line_ask_head, single_line_press_head,
 };
 use super::cards::SINGLE_LINE_CARD;
 use super::{appearance::ChatAppearance, state::NativeChatView, transcript::text};
@@ -273,12 +273,14 @@ impl NativeChatView {
         }
         let error = text(form, "error");
         if !error.is_empty() {
-            let head = ask_head(
-                "titlebar/alert-circle.svg",
-                AskTone::Quiet,
+            let not_shown = SINGLE_LINE_CARD
+                .pill(None, Some("Not shown".to_string()), error_color(p), p)
+                .into_any_element();
+            let head = question_ask_head(
+                QuestionBadge::None,
                 title,
                 "These questions could not be shown".to_string(),
-                Vec::new(),
+                vec![not_shown],
                 p,
             )
             .into_any_element();
@@ -327,34 +329,22 @@ impl NativeChatView {
         if phase == "answered" {
             return self.answered_form(id, title, body, form["collapsed"] != true, p, cx);
         }
-        let (icon, tone, detail) = match phase.as_str() {
-            "answered" => (
-                "titlebar/check.svg",
-                AskTone::Answered,
-                "Sent to the agent".to_string(),
-            ),
-            "sending" => (
-                "titlebar/help-circle.svg",
-                AskTone::Ask,
-                "Sending…".to_string(),
-            ),
-            "queued" => (
-                "titlebar/help-circle.svg",
-                AskTone::Ask,
-                "Queued".to_string(),
-            ),
-            _ if questions.len() == 1 => (
-                "titlebar/help-circle.svg",
-                AskTone::Ask,
-                "1 question".to_string(),
-            ),
-            _ => (
-                "titlebar/help-circle.svg",
-                AskTone::Ask,
-                format!("{} questions", questions.len()),
-            ),
+        // The form's state is a pill on the right, as "Answered" is once it folds.
+        let detail = if questions.len() == 1 {
+            "1 question".to_string()
+        } else {
+            format!("{} questions", questions.len())
         };
-        let head = ask_head(icon, tone, title, detail, Vec::new(), p).into_any_element();
+        let (glyph, state) = match phase.as_str() {
+            "sending" => (None, "Sending…"),
+            "queued" => (Some("titlebar/clock.svg"), "Queued"),
+            _ => (Some("titlebar/clock.svg"), "Waiting"),
+        };
+        let state = SINGLE_LINE_CARD
+            .pill(glyph, Some(state.to_string()), ask_color(p), p)
+            .into_any_element();
+        let head = question_ask_head(QuestionBadge::None, title, detail, vec![state], p)
+            .into_any_element();
         let send_error = text(form, "sendError");
         let can_send = form["canSend"] == true;
         let status = match phase.as_str() {
@@ -441,12 +431,7 @@ impl NativeChatView {
             .into_any_element();
         let form_id = id.to_string();
         let head = single_line_press_head(
-            single_line_ask_head(
-                title,
-                String::new(),
-                vec![answered],
-                p,
-            ),
+            single_line_ask_head(title, String::new(), vec![answered], p),
             SharedString::from(format!("question-form-head:{id}")),
             if open {
                 "Hide the questions"
@@ -509,15 +494,28 @@ impl NativeChatView {
                     .border_color(p.foreground.opacity(0.06))
             })
             .child(
-                // CDXC:SessionChat 2026-10-11 DECISION: User picked from the looks page: a question's tag is a filled chip (no border) placed above its title, "b, but pls make it show like eyebrow (in terms of position)"; and choices keep the radio or checkbox with the letter as a muted keycap on the right (look A). The phone (QuestionForm.tsx) and the page kit (server/src/visual_pages/kit.rs) match.
+                // CDXC:SessionChat 2026-10-11 DECISION: User picked from the looks page: a question's tag is a filled chip (no border), "b, but pls make it show like eyebrow"; and choices keep the radio or checkbox with the letter as a muted keycap on the right (look A). User (2026-10-19): "please move the Q294 to be right aligned same row as the question", so the chip sits at the right end of the title's first line and a long title wraps beside it, superseding the chip above the title. The phone (QuestionForm.tsx) and the page kit (server/src/visual_pages/kit.rs) match.
                 div()
                     .flex()
-                    .flex_col()
                     .items_start()
-                    .gap(px(4.0 * s))
+                    .gap(px(10.0 * s))
+                    .w_full()
+                    .min_w_0()
+                    .child(
+                        div()
+                            .flex_1()
+                            .min_w_0()
+                            .text_size(px(15.0 * s))
+                            .line_height(px(22.0 * s))
+                            .font_weight(FontWeight::MEDIUM)
+                            .text_color(p.foreground)
+                            .child(text(question, "title")),
+                    )
                     .when(!tag.is_empty(), |header| {
                         header.child(
                             div()
+                                .flex_shrink_0()
+                                .mt(px(2.0 * s))
                                 .px(px(7.0 * s))
                                 .rounded_full()
                                 .bg(p.muted.opacity(0.18))
@@ -528,17 +526,7 @@ impl NativeChatView {
                                 .text_color(p.muted)
                                 .child(tag),
                         )
-                    })
-                    .child(
-                        div()
-                            .w_full()
-                            .min_w_0()
-                            .text_size(px(15.0 * s))
-                            .line_height(px(22.0 * s))
-                            .font_weight(FontWeight::MEDIUM)
-                            .text_color(p.foreground)
-                            .child(text(question, "title")),
-                    ),
+                    }),
             )
             .when(!detail.is_empty(), |column| {
                 column.child(

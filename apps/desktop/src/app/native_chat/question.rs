@@ -1,5 +1,5 @@
 use super::ask_card::{
-    AskBodyMotion, AskOption, AskTone, ask_head, chevron, press_head, progress_dots,
+    AskBodyMotion, AskOption, QuestionBadge, chevron, press_head, progress_dots, question_ask_head,
 };
 use super::{
     appearance::{ChatAppearance, ChatFilledButton as _},
@@ -256,9 +256,8 @@ impl NativeChatView {
         let shows_body = !collapsed || motion.is_some();
         let toggle_key = collapse_key.clone();
         let head = press_head(
-            ask_head(
-                "titlebar/help-circle.svg",
-                AskTone::Ask,
+            question_ask_head(
+                QuestionBadge::Asking,
                 "Needs your answer".to_string(),
                 detail,
                 trailing,

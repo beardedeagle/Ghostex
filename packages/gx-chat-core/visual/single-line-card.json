@@ -17,18 +17,20 @@
     "borderAlpha": 0.1
   },
   "tile": {
-    "size": 22,
-    "radius": 6,
-    "glyphSize": 14,
+    "size": 28,
+    "radius": 8,
+    "glyphSize": 15,
     "fillAlpha": 0.06,
     "glyphAlpha": 0.8
   },
   "badge": {
-    "size": 13,
+    "size": 16,
     "ring": 2,
-    "offset": -4,
-    "glyphSize": 8,
+    "offset": -5,
+    "glyphSize": 10,
     "fill": "#16a34a",
-    "errorFill": "#dc2626"
+    "errorFill": "#dc2626",
+    "askFill": "#D2A024",
+    "askInk": "#161616"
   }
 }

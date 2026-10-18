@@ -23,11 +23,9 @@ use gpui::{
 use gpui_component::tooltip::ManagedTooltipExt as _;
 use serde_json::Value;
 
-/// What a card's tile says about the question.
+/// Whether an answered exchange got an answer.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum AskTone {
-    /// Waiting for the reader.
-    Ask,
     /// Answered.
     Answered,
     /// Closed without an answer, or not a question at all any more.
@@ -39,77 +37,73 @@ pub(super) fn ask_color(p: &ChatAppearance) -> Hsla {
     rgb(if p.light { 0xb45309 } else { 0xfbbf24 }).into()
 }
 
-pub(super) fn tone_color(tone: AskTone, p: &ChatAppearance) -> Hsla {
-    match tone {
-        AskTone::Ask => ask_color(p),
-        AskTone::Answered => p.success(),
-        AskTone::Quiet => p.muted,
+/// What the question tile's badge says: nothing, a question waiting on the reader, or answered.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum QuestionBadge {
+    None,
+    Asking,
+    Answered,
+}
+
+/// The one-line cards' question tile on a question card's panel, the badge's ring in that panel.
+fn question_tile(badge: QuestionBadge, p: &ChatAppearance) -> AnyElement {
+    let shape = &*SINGLE_LINE_CARD;
+    let ring = p.background.blend(p.card_panel);
+    let tile = shape.tile("titlebar/chat-card-question.svg", p);
+    match badge {
+        QuestionBadge::None => tile,
+        QuestionBadge::Asking => tile.child(shape.ask_badge(p).border_color(ring)),
+        QuestionBadge::Answered => tile.child(shape.check_badge(p).border_color(ring)),
     }
+    .into_any_element()
 }
 
-/// The 28px tile that leads the card's header.
-pub(super) fn ask_tile(icon: &'static str, tone: AskTone, p: &ChatAppearance) -> AnyElement {
-    let s = p.scale;
-    let hue = tone_color(tone, p);
-    // A waiting question's amber is a light tint; the answered and quiet tiles keep their strength.
-    let (ring, fill, ink) = if tone == AskTone::Ask {
-        (0.14, 0.09, 0.8)
-    } else {
-        (0.22, 0.15, 1.0)
-    };
-    div()
-        .flex_shrink_0()
-        .size(px(28.0 * s))
-        .rounded(px(8.0 * s))
-        .border_1()
-        .border_color(hue.opacity(ring))
-        .bg(hue.opacity(fill))
-        .flex()
-        .items_center()
-        .justify_center()
-        .child(
-            svg()
-                .path(icon)
-                .size(px(15.0 * s))
-                .text_color(hue.opacity(ink)),
-        )
-        .into_any_element()
-}
-
-/// The header row: tile, title over a muted detail line, then whatever trails it (progress, a
-/// time, a chevron). Callers that fold the card give it an id and a click.
-pub(super) fn ask_head(
-    icon: &'static str,
-    tone: AskTone,
+/// The header of a question card that is still open (the live question card, an open questions
+/// form): `ask_head` led by the question tile.
+pub(super) fn question_ask_head(
+    badge: QuestionBadge,
     title: String,
     detail: String,
     trailing: Vec<AnyElement>,
     p: &ChatAppearance,
 ) -> Div {
-    ask_head_led(ask_tile(icon, tone, p), title, detail, trailing, p)
+    ask_head_led(
+        question_tile(badge, p),
+        title,
+        detail,
+        trailing,
+        14.0,
+        FontWeight::SEMIBOLD,
+        p,
+    )
 }
 
-/// The header of an answered card that never folds (the page answers): the shared question tile
-/// of the one-line cards with their green check badge, its ring in this card's own panel.
+/// The header of an answered card that never folds (the page answers): the question tile with the
+/// green check, its tile and title at the one-line cards' x and in their title weight
+/// (`lined_ask_card` keeps the body on the same edge).
 pub(super) fn answered_ask_head(title: String, p: &ChatAppearance) -> Div {
     let shape = &*SINGLE_LINE_CARD;
-    let tile = shape
-        .tile("titlebar/chat-card-question.svg", p)
-        .child(
-            shape
-                .check_badge(p)
-                .border_color(p.background.blend(p.card_panel)),
-        )
-        .into_any_element();
-    ask_head_led(tile, title, String::new(), Vec::new(), p)
+    ask_head_led(
+        question_tile(QuestionBadge::Answered, p),
+        title,
+        String::new(),
+        Vec::new(),
+        shape.padding_x,
+        FontWeight(shape.title_weight),
+        p,
+    )
 }
 
-/// `ask_head` led by `lead` rather than a tinted tile.
+/// The header row: `lead`, the title over a muted detail line, then whatever trails it (progress,
+/// a pill, a chevron), `pad_x` from the card's edge. Callers that fold the card give it an id and
+/// a click.
 fn ask_head_led(
     lead: AnyElement,
     title: String,
     detail: String,
     trailing: Vec<AnyElement>,
+    pad_x: f32,
+    title_weight: FontWeight,
     p: &ChatAppearance,
 ) -> Div {
     let s = p.scale;
@@ -119,7 +113,7 @@ fn ask_head_led(
         .gap(px(10.0 * s))
         .w_full()
         .min_w_0()
-        .px(px(14.0 * s))
+        .px(px(pad_x * s))
         .py(px(12.0 * s))
         .child(lead)
         .child(
@@ -134,7 +128,7 @@ fn ask_head_led(
                         .truncate()
                         .text_size(px(13.5 * s))
                         .line_height(px(18.0 * s))
-                        .font_weight(FontWeight::SEMIBOLD)
+                        .font_weight(title_weight)
                         .text_color(p.foreground)
                         .child(title),
                 )
@@ -360,6 +354,30 @@ impl NativeChatView {
             .border_color(p.input_border)
             .bg(p.card_panel);
         self.ask_card_in(shell, 14.0, head, body, footer, motion, p)
+    }
+
+    /// An answered card that never folds (the page answers), its body on the one-line cards'
+    /// edge so its numbered answers line up with `answered_ask_head`.
+    pub(super) fn lined_ask_card(
+        &self,
+        head: AnyElement,
+        body: Option<AnyElement>,
+        p: &ChatAppearance,
+    ) -> AnyElement {
+        let shell = div()
+            .rounded(px(14.0 * p.scale))
+            .border_1()
+            .border_color(p.input_border)
+            .bg(p.card_panel);
+        self.ask_card_in(
+            shell,
+            SINGLE_LINE_CARD.padding_x,
+            head,
+            body,
+            Vec::new(),
+            None,
+            p,
+        )
     }
 
     /// An answered card that folds to its `single_line_ask_head`, in the shell every one-line card

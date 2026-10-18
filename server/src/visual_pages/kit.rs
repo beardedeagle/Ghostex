@@ -38,8 +38,8 @@
 //!
 //! CDXC:SessionChat 2026-10-11 DECISION:
 //! User: "please same style for the html modal also and the inline questions": each question is a "Clear ask, clear answer" card like the chat's (apps/desktop/src/app/native_chat/ask_card.rs): a tile beside the tag chip and title (see the later decision on the yellow "?"), picks that turn green with it, options that light up amber when picked (the mockup Pick button too), and a footer bar with the status and a filled send button showing its key. It takes the chat card's own colours too: its light-grey Recommended badge and send button and its bright labels and titles at medium weight. The card is darker ("The colors are too light for the bg of the question cards please make it darker", then "background for the whole question component still too light"), and its amber is quieter ("please make the yellow more subtle"); the chat's cards then took both ("yellow + dark all"): a picked option, the tile, the mockup ring and the Picked button take a light amber tint instead of a strong one or a solid fill. Only the tile stays beside the tag chip and title, since a page spreads its questions between mockups.
-//! User, about the yellow "?" tile at the left of every question heading: "remove this yellow thing here please so i can tell what i answered and what i didn't answer". The tile no longer shows a "?"; a question shows the green check tile as soon as it has an answer (a pick made, text typed, or a restored draft) and nothing before, in a slot that is always kept so the heading never shifts. After the page is sent, an answered question keeps the green check and one left blank keeps the muted tile.
-//! User picked from the looks page: a question's tag is a filled chip above its title ("make it show like eyebrow"), and a choice keeps its radio or checkbox with the letter as a muted keycap on the right; the in-chat form (apps/desktop/src/app/native_chat/question_form.rs, the phone's QuestionForm.tsx) matches.
+//! User, about the yellow "?" tile at the left of every question heading: "remove this yellow thing here please so i can tell what i answered and what i didn't answer". The tile no longer shows a "?"; a question shows the green check as soon as it has an answer (a pick made, text typed, or a restored draft) and nothing before, in a slot that is always kept so the heading never shifts. After the page is sent, an answered question keeps the green check and one left blank keeps the plain tile. User (2026-10-19): "can we make this match the look of other icons we just worked on please?", so that tile is the chat's shared one (the SessionChat 2026-10-18 DECISION on `SINGLE_LINE_CARD` in apps/desktop/src/app/native_chat/cards.rs: 28px neutral tile, question-bubble glyph, a 16px green check badge), superseding the tinted green and muted squares.
+//! User picked from the looks page: a question's tag is a filled chip ("make it show like eyebrow"), and a choice keeps its radio or checkbox with the letter as a muted keycap on the right; the in-chat form (apps/desktop/src/app/native_chat/question_form.rs, the phone's QuestionForm.tsx) matches. User (2026-10-19): "please move the Q294 to be right aligned same row as the question", so the chip sits at the right end of the title's first line and a long title wraps beside it, superseding the chip above the title.
 //! User: Ctrl+Enter (Cmd+Enter on macOS) presses the page's send button from anywhere on it, a note box included; the in-chat form does the same.
 //! User: a reader picks an option right at its mockup (a Pick button by the mockup's title that picks that choice in its question, shown picked on both and cleared from either), and writes a note under each mockup that arrives with the answers keyed to that question and choice, is kept as a draft, and shows in the answers card.
 //! User: "question cards in the html having different width is an absolute NO GO … all take up the width as they should": every question card fills the column, even when a page's own CSS centres it with auto margins (which shrink a grid item to its content).
@@ -68,13 +68,15 @@ gx-wide,gx-choice{display:block;min-width:0}
 gx-question{display:block;border:1px solid var(--gx-card-border);background:var(--gx-card);color:var(--gx-card-muted);border-radius:14px;padding:12px 14px 14px}
 gx-questions gx-question{width:100%;box-sizing:border-box;min-width:0}
 .gx-q-head{display:flex;align-items:center;gap:10px;margin-bottom:12px}
-.gx-q-tile{flex:none;display:grid;place-items:center;width:28px;height:28px;box-sizing:border-box;border-radius:8px;visibility:hidden;color:var(--success);background:color-mix(in srgb,var(--success) 15%,transparent);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--success) 22%,transparent)}
+.gx-q-tile{position:relative;flex:none;display:grid;place-items:center;width:28px;height:28px;border-radius:8px;visibility:hidden;color:color-mix(in srgb,var(--gx-fg) 80%,transparent);background:color-mix(in srgb,var(--gx-fg) 6%,transparent)}
 gx-question.gx-has-answer .gx-q-tile,gx-question.gx-answered .gx-q-tile,gx-question.gx-unanswered .gx-q-tile{visibility:visible}
-.gx-q-tile svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
-gx-question.gx-unanswered .gx-q-tile{color:var(--muted-foreground);background:color-mix(in srgb,var(--muted-foreground) 12%,transparent);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--muted-foreground) 20%,transparent)}
-.gx-q-heading{display:flex;flex:1;min-width:0;flex-direction:column;align-items:flex-start;gap:4px}
-.gx-q-tag{font:500 10.5px/18px var(--font-mono);color:var(--muted-foreground);background:color-mix(in srgb,var(--muted-foreground) 18%,transparent);border-radius:999px;padding:0 7px}
-.gx-q-title{align-self:stretch;color:var(--gx-fg);font-size:15px;font-weight:500;line-height:22px}
+.gx-q-tile>svg{width:15px;height:15px}
+.gx-q-badge{position:absolute;right:-5px;bottom:-5px;display:grid;place-items:center;width:20px;height:20px;box-sizing:border-box;border-radius:50%;border:2px solid var(--gx-card);background:#16a34a;color:#fff}
+.gx-q-badge svg{width:10px;height:10px}
+gx-question.gx-unanswered .gx-q-badge{display:none}
+.gx-q-heading{display:flex;flex:1;min-width:0;align-items:flex-start;gap:10px}
+.gx-q-tag{flex:none;margin-top:2px;font:500 10.5px/18px var(--font-mono);color:var(--muted-foreground);background:color-mix(in srgb,var(--muted-foreground) 18%,transparent);border-radius:999px;padding:0 7px}
+.gx-q-title{flex:1;min-width:0;color:var(--gx-fg);font-size:15px;font-weight:500;line-height:22px}
 .gx-q-desc{color:var(--muted-foreground);font-size:13px;line-height:1.5;margin:-4px 0 12px}
 .gx-q-desc>:first-child{margin-top:0}.gx-q-desc>:last-child{margin-bottom:0}
 .gx-choices{display:flex;flex-direction:column;gap:8px}
@@ -138,8 +140,7 @@ gx-question.gx-answered .gx-choice[aria-checked=true] .gx-mark{border-color:var(
 /// loaded, after `PAGE_API` (theme.rs) has its answered state.
 pub(super) const KIT_SCRIPT: &str = r#"<script>(function(){
 var OTHER="Other / none of these",SKIPPED="skipped";
-var ASK_ICON='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0"/><path d="M12 16v.01"/><path d="M12 13a2 2 0 0 0 .914 -3.782a1.98 1.98 0 0 0 -2.414 .483"/></svg>';
-var DONE_ICON='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>';
+var TILE_ICON='<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 3.5h10a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H7l-3 2.5V11.5H3a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1Z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M6.6 6.2a1.5 1.5 0 1 1 2.1 1.4c-.5.2-.7.5-.7 1" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><circle cx="8" cy="10" r=".7" fill="currentColor"/></svg><span class="gx-q-badge"><svg viewBox="0 0 10 10" aria-hidden="true"><path d="M2 5.2 4.2 7.4 8 2.8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>';
 function el(tag,cls,text){var e=document.createElement(tag);if(cls)e.className=cls;if(text!=null)e.textContent=text;return e;}
 function kids(node){return Array.prototype.slice.call(node.childNodes);}
 function labelText(node){var c=node.cloneNode(true);c.querySelectorAll("small").forEach(function(s){s.remove();});return c.textContent.replace(/\s+/g," ").trim();}
@@ -150,14 +151,14 @@ function question(qe,index,used,changed){
   var multiple=qe.hasAttribute("multiple"),text=(qe.getAttribute("type")||"").toLowerCase()==="text";
   var titleId="gx-q-"+index,head=el("div","gx-q-head"),heading=el("div","gx-q-heading"),tile=el("span","gx-q-tile"),tag=qe.getAttribute("tag");
   qe.removeAttribute("title");
-  tile.innerHTML=DONE_ICON;head.append(tile,heading);
-  if(tag)heading.append(el("span","gx-q-tag",tag));
+  tile.innerHTML=TILE_ICON;head.append(tile,heading);
   var titleEl=el("div","gx-q-title",title);titleEl.id=titleId;heading.append(titleEl);
-  /* The tile (its slot is always kept, so the heading never shifts) shows a green check as soon as the question has an answer; once sent, a question left blank shows a muted tile. */
+  if(tag)heading.append(el("span","gx-q-tag",tag));
+  /* The tile (its slot is always kept, so the heading never shifts) shows with its green check badge as soon as the question has an answer; once sent, a question left blank shows the tile without the badge. */
   var has=function(){return false;};
   function live(){qe.classList.toggle("gx-has-answer",has());}
   function notify(){live();changed();}
-  function answered(given){if(given)qe.classList.add("gx-answered");else{qe.classList.add("gx-unanswered");tile.innerHTML=ASK_ICON;}}
+  function answered(given){if(given)qe.classList.add("gx-answered");else qe.classList.add("gx-unanswered");}
   var choiceEls=[],desc=el("div","gx-q-desc");
   kids(qe).forEach(function(node){if(node.nodeName==="GX-CHOICE")choiceEls.push(node);else desc.append(node);});
   qe.textContent="";qe.append(head);
