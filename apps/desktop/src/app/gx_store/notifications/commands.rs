@@ -22,7 +22,7 @@
 
 use futures::future::join_all;
 use ghostex_gx_core::{
-    MachineId, NotificationFeedCommand, NotificationFeedTab, SessionKey,
+    MachineId, NotificationFeedCommand, NotificationFeedTab, SessionKey, SidebarUiIntent,
     merged_notification_feed_jump_target, notification_feed_item_machine,
 };
 use serde_json::{Value, json};
@@ -283,8 +283,20 @@ impl GhostexGpuiApp {
             let marked = update_notification_feed(route, mark_read).await;
             let _ = this.update(cx, |this, cx| {
                 if let Some(message) = marked {
-                    this.gx_store_store_notification_feed(machine, message, cx);
+                    this.gx_store_store_notification_feed(machine.clone(), message, cx);
                 }
+                // CDXC:Notifications 2026-10-18 DECISION:
+                // User: "when i click on a notification from another machine please switch the sidebar to show that other machine". The sidebar first switches to the row's computer with the same intent its machine picker sends, then the session is focused there. The reveal below would also switch, but only when it can place the row, so it cannot be relied on for this.
+                let machine_tab = machine
+                    .remote_id()
+                    .unwrap_or(ghostex_gx_core::LOCAL_MACHINE_ID)
+                    .to_string();
+                this.gx_store_apply_sidebar_ui_intent(
+                    SidebarUiIntent::SelectMachine {
+                        machine_id: machine_tab,
+                    },
+                    cx,
+                );
                 // The same focus a sidebar row click ends in (gx_store/focus_perform.rs), which
                 // opens a remote session on its computer.
                 this.gx_store_focus_activated_session(&sidebar_session_id, cx);

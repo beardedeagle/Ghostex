@@ -286,6 +286,13 @@ pub(crate) fn modal_bordered_segmented_control<V: 'static>(
     on_select: impl Fn(&mut V, usize, &mut Window, &mut Context<V>) + Clone + 'static,
     cx: &mut Context<V>,
 ) -> Stateful<Div> {
+    // CDXC:AppModal 2026-10-18 WHY:
+    // GPUI's `overflow_hidden` clips to the control's rectangle, not its rounded border, so the
+    // pressed or hovered end segment's square fill poked out past the outer corners (seen on the
+    // Notifications panel's tabs). The end segments round their outer corners to the border's inner
+    // radius instead of relying on the clip.
+    let inner_radius = px(MODAL_RADIUS_CONTROL - 1.0);
+    let last = items.len().saturating_sub(1);
     let segments = items.iter().enumerate().map(|(index, item)| {
         let pressed = index == selected;
         let on_select = on_select.clone();
@@ -302,6 +309,8 @@ pub(crate) fn modal_bordered_segmented_control<V: 'static>(
             .justify_center()
             .gap(px(6.0))
             .px(px(12.0))
+            .when(index == 0, |this| this.rounded_l(inner_radius))
+            .when(index == last, |this| this.rounded_r(inner_radius))
             .when(index > 0, |this| {
                 this.border_l_1().border_color(hsla(border))
             })
