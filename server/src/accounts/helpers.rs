@@ -13,6 +13,10 @@ use std::{
 /// `platform::live_path` resolves PATHEXT spellings over the live registry PATH; this adds the helpers' own install directories.
 /// SEE-ALSO: server/src/accounts/launch.rs, server/src/agent_hooks/windows.rs.
 pub(crate) fn executable(home: &Path, name: &str) -> Option<PathBuf> {
+    // Windows: a cswap started while its install is being switched would hold the files mid-move.
+    if name == Provider::Claude.helper() {
+        super::claude_swap_switch::wait_for_switch();
+    }
     crate::platform::live_path::find(name, &install_dirs(home))
 }
 

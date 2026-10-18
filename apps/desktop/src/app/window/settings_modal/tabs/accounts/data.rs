@@ -563,6 +563,15 @@ impl HelperTool {
             .map(str::to_string)
     }
 
+    /// `pendingSwitch.message`: a Windows Claude Swap update, reinstall or uninstall that waits
+    /// for the running Claude sessions to close (server/src/accounts/claude_swap_switch.rs).
+    pub(crate) fn pending_switch_message(&self) -> Option<String> {
+        self.raw["pendingSwitch"]["message"]
+            .as_str()
+            .filter(|message| !message.is_empty())
+            .map(str::to_string)
+    }
+
     pub(crate) fn unavailable_reason(&self) -> Option<String> {
         self.raw
             .get("unavailableReason")

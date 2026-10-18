@@ -196,6 +196,9 @@ pub(crate) fn launch_command(
         None | Some(ShareHistory::Supported) => return Ok(command),
         // CDXC:AgentProviders 2026-10-16 DECISION in claude_swap_windows.rs: Windows gets Ghostex's own build, which shares history.
         Some(_) if super::claude_swap_windows::applies() => {
+            if super::claude_swap_switch::pending().is_some() {
+                return Err(DomainStateError::bad_request("Claude Swap on this computer can't share conversation history on Windows. Ghostex's Windows build of Claude Swap is ready and replaces it as soon as no program uses the installed one; Settings > Accounts shows when. Start the session again then."));
+            }
             match super::helper_tools::install_windows_build_in_background(home) {
                 Ok(()) => "Claude Swap on this computer can't share conversation history on Windows, so Ghostex is installing its own Windows build of Claude Swap now (Settings > Accounts shows the progress). Start the session again in a minute.".to_string(),
                 Err(reason) => format!("Claude Swap on this computer can't share conversation history on Windows, so this account's conversations would never reach the chat. {reason}"),

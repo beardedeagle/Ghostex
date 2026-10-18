@@ -1741,8 +1741,12 @@ a helper installed some other way the buttons are off, so update it the way you
 installed it.
 On Windows, Ghostex installs its own build of Claude Swap, because the released
 one can't share conversation history between accounts there yet. Install and
-Update in Settings > Accounts use it, and if a session finds the released Claude
-Swap, Ghostex replaces it on its own; start the session again once it finishes.
+Update in Settings > Accounts use it, and Ghostex moves any other Claude Swap on
+the computer to it on its own. Running Claude sessions keep the installed Claude
+Swap in use, so an update, reinstall or uninstall is prepared at once and applied
+on its own as soon as they have all closed (after a restart of the computer at the
+latest); until then the Claude Swap line says so, offers no buttons, and new
+sessions keep working.
 Before sending a session's first message, use the model menu's Switch Agent CLI
 to change between Claude and Codex. The new agent uses its New sessions start
 on rule, just like the sidebar agent button, while the terminal and your

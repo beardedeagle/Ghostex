@@ -76,6 +76,10 @@ impl AccountsTab {
             let name = helper_label(&provider);
             let (_, done, failed) = action_words(job["action"].as_str().unwrap_or_default());
             if job["status"] == "complete" {
+                if let Some(message) = tool.pending_switch_message() {
+                    self.helper_toast("success", &format!("{name} is ready"), &message, cx);
+                    continue;
+                }
                 let description = if job["action"] == "uninstall" {
                     "Saved logins and shared conversations were kept.".to_string()
                 } else if let Some(version) = tool.version() {
@@ -395,6 +399,16 @@ impl AccountsTab {
         }
         if !tool.installed() && running.is_none() {
             return Vec::new();
+        }
+        // A switch that waits for running sessions offers no action: each would replace files they use.
+        if let (Some(message), None) = (tool.pending_switch_message(), &running) {
+            return vec![footer_line(
+                p,
+                provider,
+                ListItemStatus::Warning,
+                message,
+                Vec::new(),
+            )];
         }
         let checking = self.helpers.checking;
         let installed_suffix = tool

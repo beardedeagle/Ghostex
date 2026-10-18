@@ -111,6 +111,16 @@ pub(crate) fn process_is_alive(pid: u32) -> bool {
 /// Whether `pid` runs an executable named `gxserver.exe` (wherever it lives, including a `.retired-native` copy), so a recorded pid that Windows has since reused is never mistaken for a daemon.
 #[cfg(windows)]
 pub(crate) fn process_runs_gxserver(pid: u32) -> bool {
+    process_image_path(pid).is_some_and(|image| {
+        image
+            .file_name()
+            .is_some_and(|file| file.eq_ignore_ascii_case("gxserver.exe"))
+    })
+}
+
+/// The full path of the executable `pid` runs, or `None` when it has exited or cannot be opened (another user's or an elevated process).
+#[cfg(windows)]
+pub(crate) fn process_image_path(pid: u32) -> Option<std::path::PathBuf> {
     use std::os::windows::ffi::OsStringExt;
     use windows_sys::Win32::{
         Foundation::CloseHandle,
@@ -120,24 +130,50 @@ pub(crate) fn process_runs_gxserver(pid: u32) -> bool {
         },
     };
     if pid == 0 {
-        return false;
+        return None;
     }
     let mut name = vec![0u16; 32_768];
     let mut length = name.len() as u32;
     let read = unsafe {
         let process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
         if process.is_null() {
-            return false;
+            return None;
         }
         let read =
             QueryFullProcessImageNameW(process, PROCESS_NAME_WIN32, name.as_mut_ptr(), &mut length);
         CloseHandle(process);
         read
     };
-    read != 0
-        && std::path::PathBuf::from(std::ffi::OsString::from_wide(&name[..length as usize]))
-            .file_name()
-            .is_some_and(|file| file.eq_ignore_ascii_case("gxserver.exe"))
+    (read != 0)
+        .then(|| std::path::PathBuf::from(std::ffi::OsString::from_wide(&name[..length as usize])))
+}
+
+/// Every process id running now, from one Toolhelp snapshot.
+#[cfg(windows)]
+pub(crate) fn process_ids() -> Vec<u32> {
+    use windows_sys::Win32::{
+        Foundation::{CloseHandle, INVALID_HANDLE_VALUE},
+        System::Diagnostics::ToolHelp::{
+            CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W,
+            TH32CS_SNAPPROCESS,
+        },
+    };
+    let mut ids = Vec::new();
+    unsafe {
+        let snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+        if snapshot == INVALID_HANDLE_VALUE {
+            return ids;
+        }
+        let mut entry: PROCESSENTRY32W = std::mem::zeroed();
+        entry.dwSize = std::mem::size_of::<PROCESSENTRY32W>() as u32;
+        let mut more = Process32FirstW(snapshot, &mut entry) != 0;
+        while more {
+            ids.push(entry.th32ProcessID);
+            more = Process32NextW(snapshot, &mut entry) != 0;
+        }
+        CloseHandle(snapshot);
+    }
+    ids
 }
 
 /// Ends `pid` at once and waits up to `wait` for it to be gone; `true` once it has exited.
