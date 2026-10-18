@@ -235,7 +235,7 @@ fn create_agent_session_params_use_project_agent_config_and_settings() {
         runtime_settings
             .get("agentActivity")
             .and_then(|value| value.get("activity")),
-        Some(&json!("working"))
+        Some(&json!("idle"))
     );
     assert_eq!(
         runtime_settings

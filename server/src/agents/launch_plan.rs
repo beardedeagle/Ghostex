@@ -280,19 +280,12 @@ pub(crate) fn create_agent_session_params_for_project(
         )));
     }
     /*
-    CDXC:SessionStatus 2026-09-27 WHY: A new session starts "working" only when its launch submits a first prompt (`firstUserMessage`). The launch plan's startup text is the agent command alone and every agent launch has one, so keying on it started every session "working". Claude and Codex hide that by projection and settle it with their own titles and hooks, but an agent that fires nothing before its first turn (Hermes runs `on_session_start` from its first conversation turn) read "working" at an empty prompt until the user typed.
+    CDXC:SessionStatus 2026-10-18 WHY: Every new session starts idle, including one whose runtime settings carry a `firstUserMessage`: no local launch puts that prompt on its command line, the chat queue's startup send types it once the input box is up, and the agent's own hooks report working when the turn starts. Starting such a session "working" (the 2026-09-27 rule this supersedes) held that same startup send forever on an agent that reports nothing before its first turn, so Send Bug / Feedback's Start Agent never delivered its brief to ZCode (GitHub #254). A box session starts idle too: agentbox passes the prompt on its own command line and its activity poller reports working once the agent's screen shows it (see agentbox/activity.rs).
     */
-    // A box session starts idle: its box takes a minute to come up, and the box activity poller
-    // reports working once the agent's screen shows it (see agentbox/activity.rs).
-    let launch_submits_prompt = agentbox_provider.is_none()
-        && read_text_from_map(&launch_plan_object, "firstUserMessage").is_some();
     let agent_activity = if runtime_settings.get("agentActivity").is_some() {
         normalize_agent_activity_value(runtime_settings.get("agentActivity"), "idle")
     } else {
-        default_activity(
-            Some(&session_agent_id),
-            launch_submits_prompt.then_some("working"),
-        )
+        default_activity(Some(&session_agent_id), None)
     };
     runtime_settings.insert("agentActivity".to_string(), agent_activity);
     runtime_settings.insert(

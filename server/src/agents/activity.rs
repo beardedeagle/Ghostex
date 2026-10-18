@@ -1419,8 +1419,8 @@ pub(crate) fn default_activity(agent_id: Option<&str>, override_activity: Option
     had happened, and the chat surface — empty transcript, known agent session
     — read that as "turn in flight, transcript not flushed" and replaced its
     welcome with the blank "Loading conversation…" hold until the spinner
-    settled. A creation that starts "working" (a launch that submits a first
-    prompt, see CDXC:SessionStatus in `launch_plan.rs`) keeps the
+    settled. A creation that starts "working" (a fork whose launch types its
+    startup text, see `fork.rs`) keeps the
     expired stamp: its own titles must stay able to settle it back to idle.
     */
     activity.insert(
