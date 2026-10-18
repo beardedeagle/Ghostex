@@ -3,6 +3,7 @@
 //! and the launch helpers are re-exported.
 
 mod api;
+mod client;
 mod launch;
 mod signin;
 mod tools;

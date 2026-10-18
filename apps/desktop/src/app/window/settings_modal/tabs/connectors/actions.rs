@@ -449,6 +449,60 @@ impl ConnectorsTab {
         );
     }
 
+    /// Asks for a client_secret.json and gives the workspace's gws that Google OAuth client.
+    pub(super) fn cli_choose_client(&mut self, workspace: &str, cx: &mut Context<Self>) {
+        let receiver = cx.prompt_for_paths(gpui::PathPromptOptions {
+            files: true,
+            directories: false,
+            multiple: false,
+            prompt: Some("Use this client".into()),
+        });
+        let workspace = workspace.to_string();
+        cx.spawn(async move |page, cx| {
+            let Ok(Ok(Some(paths))) = receiver.await else {
+                return;
+            };
+            let Some(path) = paths.into_iter().next() else {
+                return;
+            };
+            let _ = page.update(cx, |page, cx| {
+                page.cli_set_client(&workspace, Some(path.to_string_lossy().into_owned()), cx)
+            });
+        })
+        .detach();
+    }
+
+    /// The workspace's own gws client (`Some(path)`), or the usual one again (`None`).
+    pub(super) fn cli_set_client(
+        &mut self,
+        workspace: &str,
+        path: Option<String>,
+        cx: &mut Context<Self>,
+    ) {
+        let params = match path {
+            Some(path) => json!({ "path": path }),
+            None => json!({}),
+        };
+        self.act(
+            workspace,
+            "cli-client-gws",
+            "/api/setConnectorCliClient",
+            params,
+            READ_TIMEOUT,
+            "Couldn't change the Google OAuth client",
+            |page, workspace, _, cx| {
+                page.pending.remove(&busy_key(workspace, "cli-gws"));
+                page.note(
+                    workspace,
+                    "cli",
+                    "Google OAuth client changed. Sign in to the Google Workspace CLI again.",
+                );
+                cx.notify();
+            },
+            cx,
+        );
+    }
+
     pub(super) fn cli_sign_out(&mut self, workspace: &str, tool: &str, cx: &mut Context<Self>) {
         self.act(
             workspace,

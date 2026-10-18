@@ -7,7 +7,8 @@ use super::super::super::palette::SettingsPalette;
 use super::ConnectorsTab;
 use super::data::{busy_key, flag, text};
 use super::widgets::{detail, note_row};
-use gpui::{AnyElement, Context, Div};
+use gpui::{AnyElement, Context, Div, IntoElement as _, ParentElement as _, Styled as _, px};
+use gpui_component::h_flex;
 use serde_json::Value;
 
 const TOOLS: [(&str, &str); 2] = [
@@ -43,6 +44,24 @@ impl ConnectorsTab {
             } else {
                 "Not signed in for this workspace".to_string()
             };
+            // gws signs in with a Google OAuth client: the workspace's own, or the user's usual one.
+            let client = state.get("client").filter(|client| client.is_object());
+            let line = match client {
+                Some(client) => {
+                    let project = text(client, "project");
+                    let whose = if flag(client, "own") {
+                        "this workspace's own"
+                    } else {
+                        "your usual"
+                    };
+                    if project.is_empty() {
+                        format!("{line} · Google OAuth client: {whose}")
+                    } else {
+                        format!("{line} · Google OAuth client: {whose} ({project})")
+                    }
+                }
+                None => line,
+            };
             let control = installed.then(|| {
                 let target = id.clone();
                 if signed_in {
@@ -73,6 +92,42 @@ impl ConnectorsTab {
                     )
                 }
             });
+            let control = match (control, client) {
+                (Some(control), Some(client)) => {
+                    let mut buttons = h_flex().gap(px(8.0)).child(control);
+                    let busy = self.is_busy(&id, "cli-client-gws");
+                    let target = id.clone();
+                    buttons = buttons.child(settings_button(
+                        p,
+                        format!("connectors-{id}-cli-client-choose"),
+                        "Choose client…",
+                        None,
+                        ButtonVariant::Outline,
+                        offline || busy,
+                        None,
+                        move |page: &mut Self, _window, cx| page.cli_choose_client(&target, cx),
+                        cx,
+                    ));
+                    if flag(client, "own") {
+                        let target = id.clone();
+                        buttons = buttons.child(settings_button(
+                            p,
+                            format!("connectors-{id}-cli-client-usual"),
+                            "Use usual",
+                            None,
+                            ButtonVariant::Outline,
+                            offline || busy,
+                            None,
+                            move |page: &mut Self, _window, cx| {
+                                page.cli_set_client(&target, None, cx)
+                            },
+                            cx,
+                        ));
+                    }
+                    Some(buttons.into_any_element())
+                }
+                (control, _) => control,
+            };
             rows.push(settings_list_item(
                 p,
                 Some(if signed_in {

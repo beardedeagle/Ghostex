@@ -42,6 +42,24 @@ pub(crate) fn sign_in_connector_cli(
     }))
 }
 
+/// `/api/setConnectorCliClient`: the workspace's own Google OAuth client for gws (`path` to a
+/// client_secret.json), or the usual one again (no `path`). Signs the workspace out of gws.
+pub(crate) fn set_connector_cli_client(
+    state: &AppState,
+    params: &Map<String, Value>,
+) -> Result<Value, DomainStateError> {
+    let workspace = workspace_param(state, params)?;
+    let path = params
+        .get("path")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|path| !path.is_empty())
+        .map(std::path::PathBuf::from);
+    let client =
+        super::client::set_client(&state.paths, &workspace, path.as_deref()).map_err(failed)?;
+    Ok(json!({ "workspaceId": workspace, "tool": "gws", "client": client }))
+}
+
 /// `/api/signOutConnectorCli`: the workspace's agents use the user's usual sign-in again.
 pub(crate) fn sign_out_connector_cli(
     state: &AppState,

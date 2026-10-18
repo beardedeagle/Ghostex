@@ -89,25 +89,6 @@ fn create_private_dir(dir: &Path) -> Result<(), String> {
     Ok(())
 }
 
-/// The user's own Google Cloud OAuth client, copied into the workspace's `gws` folder.
-fn ensure_gws_client(paths: &GxserverPaths, dir: &Path) -> Result<(), String> {
-    let target = dir.join("client_secret.json");
-    if target.is_file() || std::env::var_os("GOOGLE_WORKSPACE_CLI_CLIENT_ID").is_some() {
-        return Ok(());
-    }
-    let usual = std::env::var_os("GOOGLE_WORKSPACE_CLI_CONFIG_DIR")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| paths.home_dir.join(".config").join("gws"));
-    let source = Some(usual.join("client_secret.json"))
-        .filter(|file| file.is_file())
-        .ok_or_else(|| {
-            "gws needs your own Google Cloud OAuth client first: run `gws auth setup` once (it uses gcloud), or put its client_secret.json in ~/.config/gws, then sign in again.".to_string()
-        })?;
-    fs::copy(&source, &target)
-        .map(|_| ())
-        .map_err(|error| format!("Couldn't copy your gws OAuth client: {error}"))
-}
-
 /// What a started login shows the user.
 pub(crate) struct CliSignIn {
     pub(crate) url: String,
@@ -164,7 +145,7 @@ pub(crate) fn sign_in(
     let dir = config_dir(paths, workspace, tool);
     create_private_dir(&dir)?;
     if tool == CliTool::Gws {
-        ensure_gws_client(paths, &dir)?;
+        super::client::ensure_client(paths, &dir)?;
     }
     stop_login(&dir);
     let mut command = crate::platform::process::background_command(&program);
@@ -248,11 +229,15 @@ pub(crate) fn sign_in(
     Ok(started)
 }
 
-/// Signs the workspace out of the tool: its folder goes away, so its agents use the user's usual
-/// sign-in again.
+/// Signs the workspace out of the tool: its folder goes away (a `gws` client the workspace chose
+/// stays), so its agents use the user's usual sign-in again.
 pub(crate) fn sign_out(paths: &GxserverPaths, workspace: &str, tool: CliTool) {
     let dir = config_dir(paths, workspace, tool);
     stop_login(&dir);
+    let kept = super::client::kept_client(&dir);
     let _ = fs::remove_dir_all(&dir);
+    if let Some(client) = kept {
+        super::client::restore_client(&dir, &client);
+    }
     notify_changed(workspace);
 }

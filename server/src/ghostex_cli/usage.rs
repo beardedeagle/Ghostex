@@ -494,7 +494,7 @@ pub fn usage() -> String {
             "A workspace's connectors: sign it in to Composio in your browser, connect one of its apps (gmail, slack, discordbot to read a Discord server…), list the apps and tools its agents get, and run a tool that only reads",
         ),
         format_help_command(
-            "connectors gh|gws [status] | sign-in | sign-out  (each takes --workspace name|id; sign-in takes --no-open)",
+            "connectors gh|gws [status] | sign-in | sign-out | gws client <client_secret.json>|default  (each takes --workspace name|id; sign-in takes --no-open)",
             "A workspace's own GitHub CLI or Google Workspace CLI sign-in: Claude and Codex agents started in that workspace use it instead of your usual one",
         ),
         format_help_command(

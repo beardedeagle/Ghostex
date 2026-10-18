@@ -3204,9 +3204,13 @@ backend: `ghostex team deploy|join|invite|identity|status|ping|leave`. Slack:
   that start or resume in that workspace use it instead of your usual
   sign-in; your own commands in the terminal keep your usual one.
   `ghostex connectors gh` shows it and `ghostex connectors gh sign-out`
-  removes it. `gws` needs your own Google Cloud OAuth client, the one your
-  usual `gws` uses (set up once with `gws auth setup`). This is part of
-  Connectors and also experimental.
+  removes it. `gws` needs your own Google Cloud OAuth client: by default the
+  one your usual `gws` uses (set up once with `gws auth setup`), or one just
+  for this workspace with `ghostex connectors gws client
+  <client_secret.json>` (or Choose client… in Settings › Connectors; `default`
+  or Use usual goes back). An Internal client only signs in accounts of its
+  own Google organization, so a personal Gmail needs an External one. This is
+  part of Connectors and also experimental.
 - Executor is the second way Connectors links apps, next to Composio, and
   runs on this computer. `ghostex connectors executor enable` turns it on for
   a workspace (the first time, Ghostex downloads Executor). Each workspace

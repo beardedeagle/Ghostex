@@ -116,6 +116,7 @@ pub(crate) fn status(paths: &GxserverPaths, workspace: &str) -> Value {
                 "signedIn": signed_in(paths, workspace, tool),
                 "account": account,
                 "signingIn": super::signin::signing_in(paths, workspace, tool),
+                "client": (tool == CliTool::Gws).then(|| super::client::client_status(paths, workspace)),
             }),
         );
     }

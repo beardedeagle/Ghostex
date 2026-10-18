@@ -146,8 +146,9 @@ pub(super) fn connectors_command(args: &[String]) -> CliResult<()> {
     }
 }
 
-/// `ghostex connectors gh|gws [status] | sign-in [--no-open] | sign-out`: the workspace's own
-/// sign-in for that tool, which its Claude and Codex agents use.
+/// `ghostex connectors gh|gws [status] | sign-in [--no-open] | sign-out`, and `gws client
+/// <client_secret.json>|default`: the workspace's own sign-in for that tool (and the Google OAuth
+/// client gws signs in with), which its Claude and Codex agents use.
 fn cli_command(
     tool: &str,
     rest: &[String],
@@ -191,6 +192,20 @@ fn cli_command(
         }
         "sign-out" | "signout" | "logout" => {
             call_and_print("/api/signOutConnectorCli", params, flags)
+        }
+        "client" if tool == "gws" => {
+            let Some(choice) = rest.get(1).map(String::as_str) else {
+                return Err(CliError::Other(
+                    "Use: ghostex connectors gws client <client_secret.json> | default".to_string(),
+                ));
+            };
+            if choice != "default" {
+                let path = std::path::absolute(choice).map_err(|error| {
+                    CliError::Other(format!("Couldn't read the path {choice}: {error}"))
+                })?;
+                params.insert("path".to_string(), json!(path.to_string_lossy()));
+            }
+            call_and_print("/api/setConnectorCliClient", params, flags)
         }
         other => Err(CliError::Other(format!(
             "Unknown {tool} command \"{other}\". Use status, sign-in or sign-out."
