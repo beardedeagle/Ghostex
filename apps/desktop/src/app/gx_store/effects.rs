@@ -1,6 +1,6 @@
 use futures::StreamExt as _;
 use futures::channel::mpsc;
-use ghostex_gx_core::{Effect, MachineId};
+use ghostex_gx_core::Effect;
 
 use super::host::GxStoreHost;
 use crate::GhostexGpuiApp;
@@ -70,17 +70,14 @@ impl GxStoreHost {
                 Effect::RememberProjectSession { session, .. } => {
                     self.local_focus.remember(session);
                 }
-                // The notification feed is this computer's daemon's: the old runtime read it on
-                // its local socket only, and a remote machine's feed is not shown.
-                Effect::RefetchNotificationFeed { machine } if machine.is_local() => {
-                    self.app_effects
-                        .push(Effect::RefetchNotificationFeed { machine });
-                }
+                // Every computer's feed: the bell shows remote computers' rows too
+                // (gx_store/notifications/feeds.rs).
+                effect @ Effect::RefetchNotificationFeed { .. } => self.app_effects.push(effect),
                 // Connectors are this computer's (their sign-ins never leave it).
                 Effect::ConnectorsChanged { machine } if machine.is_local() => {
                     self.app_effects.push(Effect::ConnectorsChanged { machine });
                 }
-                // A stream that went live reads the feed (this computer's only) and the HUD
+                // A stream that went live reads that computer's notification feed and the HUD
                 // (gx_store/hud/); the HUD is read again when its announcements say so.
                 effect @ (Effect::MachineLive { .. }
                 | Effect::RefetchSidebarHud { .. }
@@ -128,9 +125,9 @@ impl GhostexGpuiApp {
 
     fn gx_store_perform_app_effect(&mut self, effect: Effect, cx: &mut gpui::Context<Self>) {
         match effect {
-            Effect::RefetchNotificationFeed {
-                machine: MachineId::Local,
-            } => self.gx_store_refresh_notification_feed(cx),
+            Effect::RefetchNotificationFeed { machine } => {
+                self.gx_store_refresh_notification_feed(machine, cx)
+            }
             // An open Settings › Connectors page reads the connectors again.
             Effect::ConnectorsChanged { .. } => {
                 self.receive_native_settings_modal_payload(
@@ -144,8 +141,8 @@ impl GhostexGpuiApp {
                 self.gx_store_perform_attention_effect(effect, cx)
             }
             Effect::MachineLive { machine } => {
+                self.gx_store_refresh_notification_feed(machine.clone(), cx);
                 if machine.is_local() {
-                    self.gx_store_refresh_notification_feed(cx);
                     self.navigation_history_refresh(cx);
                 }
                 self.gx_store_perform_hud_effect(Effect::MachineLive { machine }, cx);

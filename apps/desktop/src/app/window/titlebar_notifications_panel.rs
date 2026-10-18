@@ -2,12 +2,17 @@
 //! bell. It renders the cached feed the Rust store pushed (see
 //! `crate::notification_feed`), edits its own copy optimistically so clicks
 //! feel instant, and sends one command per click back through the main app.
+//! The rows are every online computer's (gx-core `notification_feeds.rs`): with a remote
+//! computer in the sidebar the panel shows All, This computer and Remote tabs, a remote row
+//! names its computer in a chip by the title, and an offline computer gets one line at the top.
+use super::native_modal_kit::{ModalRailItem, modal_bordered_segmented_control};
 use super::resources_style::*;
 use crate::app::helpers::*;
 use crate::notification_feed::{
     GpuiNotificationFeedItem, GpuiNotificationFeedState, notification_feed_relative_time,
 };
 use crate::*;
+use ghostex_gx_core::{MachineId, NotificationFeedTab, SessionKey};
 
 const NOTIFICATION_PANEL_BELL_ICON: &str = "titlebar/bell.svg";
 const NOTIFICATION_PANEL_CHECK_ICON: &str = "titlebar/check.svg";
@@ -15,6 +20,10 @@ const NOTIFICATION_PANEL_CHECK_ICON: &str = "titlebar/check.svg";
 const NOTIFICATION_CARD_CHECK_SIZE: f32 = 22.0;
 /// Title line height, so the line keeps one height whether or not it is hovered.
 const NOTIFICATION_CARD_TITLE_LINE_HEIGHT: f32 = 18.0;
+const NOTIFICATION_CHIP_ICON: &str = "titlebar/device-desktop.svg";
+const NOTIFICATION_OFFLINE_ICON: &str = "titlebar/alert-triangle.svg";
+/// The offline line's amber (the mockup's `#f5c26b`).
+const NOTIFICATION_OFFLINE_AMBER: u32 = 0xf5c26b;
 
 impl GpuiTitlebarReadingPanel {
     pub(crate) fn notifications(
@@ -27,6 +36,7 @@ impl GpuiTitlebarReadingPanel {
             state: GpuiTitlebarReadingPanelState::Notifications {
                 feed,
                 hovered_id: None,
+                tab: NotificationFeedTab::All,
             },
         }
     }
@@ -56,33 +66,84 @@ impl GpuiTitlebarReadingPanel {
         }
     }
 
+    /// The open tab; All when the panel draws no tabs (no remote computer in the sidebar).
+    fn notifications_tab(&self) -> NotificationFeedTab {
+        match &self.state {
+            GpuiTitlebarReadingPanelState::Notifications { tab, feed, .. }
+                if feed.has_remote_machines =>
+            {
+                *tab
+            }
+            _ => NotificationFeedTab::All,
+        }
+    }
+
+    fn select_notifications_tab(
+        &mut self,
+        next: NotificationFeedTab,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        if let GpuiTitlebarReadingPanelState::Notifications {
+            tab, hovered_id, ..
+        } = &mut self.state
+            && *tab != next
+        {
+            *tab = next;
+            *hovered_id = None;
+            cx.notify();
+        }
+    }
+
     fn send_notification_feed_command(
         &self,
         action: &'static str,
-        notification_id: Option<String>,
+        row: Option<(MachineId, String)>,
         cx: &mut gpui::Context<Self>,
     ) {
+        let tab = self.notifications_tab();
         let _ = self.main_app.update_in(cx, move |app, _main_window, cx| {
-            app.request_notification_feed_command(action, notification_id.as_deref(), cx);
+            app.request_notification_feed_command(
+                action,
+                row.as_ref().map(|(machine, id)| (machine, id.as_str())),
+                tab,
+                cx,
+            );
         });
     }
 
-    fn open_notification(&mut self, id: String, window: &mut Window, cx: &mut gpui::Context<Self>) {
+    fn open_notification(
+        &mut self,
+        key: String,
+        window: &mut Window,
+        cx: &mut gpui::Context<Self>,
+    ) {
         let mut reveal_session_id = None;
+        let mut row = None;
         if let Some(feed) = self.notifications_feed_mut()
-            && let Some(item) = feed.items.iter_mut().find(|item| item.id == id)
+            && let Some(index) = feed.items.iter().position(|item| item.key() == key)
         {
-            if !item.read {
-                item.read = true;
-                feed.unread_count = feed.unread_count.saturating_sub(1);
+            let machine = feed.items[index].machine.clone();
+            if !feed.items[index].read {
+                feed.items[index].read = true;
+                feed.note_read(&machine);
             }
+            let item = &feed.items[index];
             // An account row has no session to reveal; the store opens the account instead.
-            reveal_session_id = item
-                .account_id
-                .is_none()
-                .then(|| gpui_combined_presentation_session_id(&item.project_id, &item.session_id));
+            reveal_session_id = item.account_id.is_none().then(|| match &item.machine {
+                MachineId::Local => {
+                    gpui_combined_presentation_session_id(&item.project_id, &item.session_id)
+                }
+                MachineId::Remote(machine_id) => {
+                    SessionKey::remote(machine_id, &item.project_id, &item.session_id)
+                        .to_sidebar_session_id()
+                }
+            });
+            row = Some((machine, item.id.clone()));
         }
-        self.send_notification_feed_command("open", Some(id), cx);
+        let Some(row) = row else {
+            return;
+        };
+        self.send_notification_feed_command("open", Some(row), cx);
         // The store (gx_store/notifications/) focuses and reveals the session; this only makes sure a collapsed sidebar opens so the reveal is visible, the same as the titlebar's reveal-active-session button.
         if let Some(session_id) = reveal_session_id {
             let _ = self.main_app.update_in(cx, move |app, _main_window, cx| {
@@ -92,84 +153,103 @@ impl GpuiTitlebarReadingPanel {
         self.close_popup(window, cx);
     }
 
-    fn dismiss_notification(&mut self, id: String, cx: &mut gpui::Context<Self>) {
+    fn dismiss_notification(&mut self, key: String, cx: &mut gpui::Context<Self>) {
+        let tab = self.notifications_tab();
         let mut next_hovered_id = None;
+        let mut row = None;
         if let Some(feed) = self.notifications_feed_mut()
-            && let Some(index) = feed.items.iter().position(|item| item.id == id)
+            && let Some(index) = feed.items.iter().position(|item| item.key() == key)
         {
             let removed = feed.items.remove(index);
             if !removed.read {
-                feed.unread_count = feed.unread_count.saturating_sub(1);
+                feed.note_read(&removed.machine);
             }
-            if feed.next_unread_id.as_deref() == Some(id.as_str()) {
+            if feed.next_unread_id.as_deref() == Some(removed.id.as_str())
+                && feed.next_unread_machine == removed.machine
+            {
                 feed.next_unread_id = None;
             }
             // Hover only updates on mouse movement, so the card that slides into the removed slot is marked hovered here; the pointer was on the title line, which lands inside the next card's title line.
-            // Cards are grouped by read state, so the slot is filled by the next card of the same group.
+            // Cards are grouped by read state, so the slot is filled by the next card of the same group on this tab.
             next_hovered_id = feed
                 .items
                 .iter()
                 .skip(index)
-                .find(|item| item.read == removed.read)
-                .map(|item| item.id.clone());
+                .find(|item| item.read == removed.read && tab.includes(&item.machine))
+                .map(GpuiNotificationFeedItem::key);
+            row = Some((removed.machine, removed.id));
         }
         if let GpuiTitlebarReadingPanelState::Notifications { hovered_id, .. } = &mut self.state {
             *hovered_id = next_hovered_id;
         }
-        self.send_notification_feed_command("dismiss", Some(id), cx);
+        if let Some(row) = row {
+            self.send_notification_feed_command("dismiss", Some(row), cx);
+        }
         cx.notify();
     }
 
-    fn toggle_notification_read(&mut self, id: String, cx: &mut gpui::Context<Self>) {
+    fn toggle_notification_read(&mut self, key: String, cx: &mut gpui::Context<Self>) {
+        let tab = self.notifications_tab();
         let Some(feed) = self.notifications_feed_mut() else {
             return;
         };
-        let Some(item) = feed.items.iter_mut().find(|item| item.id == id) else {
+        let Some(index) = feed.items.iter().position(|item| item.key() == key) else {
             return;
         };
-        let was_read = item.read;
-        item.read = !item.read;
-        let action = if item.read {
-            feed.unread_count = feed.unread_count.saturating_sub(1);
-            "markRead"
-        } else {
-            feed.unread_count += 1;
+        let machine = feed.items[index].machine.clone();
+        let was_read = feed.items[index].read;
+        feed.items[index].read = !was_read;
+        let action = if was_read {
+            feed.note_unread(&machine);
             "markUnread"
+        } else {
+            feed.note_read(&machine);
+            "markRead"
         };
+        let row = (machine, feed.items[index].id.clone());
         // The card leaves its group, so the next card of that group slides under the pointer; hand it the hover like a dismiss does.
         let next_hovered_id = feed
             .items
             .iter()
-            .skip_while(|item| item.id != id)
-            .skip(1)
-            .find(|item| item.read == was_read)
-            .map(|item| item.id.clone());
+            .skip(index + 1)
+            .find(|item| item.read == was_read && tab.includes(&item.machine))
+            .map(GpuiNotificationFeedItem::key);
         if let GpuiTitlebarReadingPanelState::Notifications { hovered_id, .. } = &mut self.state
-            && hovered_id.as_deref() == Some(id.as_str())
+            && hovered_id.as_deref() == Some(key.as_str())
         {
             *hovered_id = next_hovered_id;
         }
-        self.send_notification_feed_command(action, Some(id), cx);
+        self.send_notification_feed_command(action, Some(row), cx);
         cx.notify();
     }
 
+    /// Reads every row the open tab shows, on every online computer it covers.
     fn mark_all_notifications_read(&mut self, cx: &mut gpui::Context<Self>) {
+        let tab = self.notifications_tab();
         if let Some(feed) = self.notifications_feed_mut() {
             for item in &mut feed.items {
-                item.read = true;
+                if tab.includes(&item.machine) {
+                    item.read = true;
+                }
             }
-            feed.unread_count = 0;
-            feed.next_unread_id = None;
+            if tab.includes(&feed.next_unread_machine) {
+                feed.next_unread_id = None;
+            }
+            reset_tab_unread_counts(feed, tab);
         }
         self.send_notification_feed_command("markAllRead", None, cx);
         cx.notify();
     }
 
+    /// Clears every row the open tab shows, on every online computer it covers.
     fn clear_all_notifications(&mut self, cx: &mut gpui::Context<Self>) {
+        let tab = self.notifications_tab();
         if let Some(feed) = self.notifications_feed_mut() {
-            feed.items.clear();
-            feed.unread_count = 0;
-            feed.next_unread_id = None;
+            feed.items.retain(|item| !tab.includes(&item.machine));
+            if tab.includes(&feed.next_unread_machine) {
+                feed.next_unread_id = None;
+            }
+            reset_tab_unread_counts(feed, tab);
         }
         self.send_notification_feed_command("clearAll", None, cx);
         cx.notify();
@@ -194,19 +274,24 @@ impl GpuiTitlebarReadingPanel {
     }
 
     pub(super) fn render_notifications(&self, cx: &mut gpui::Context<Self>) -> AnyElement {
-        let GpuiTitlebarReadingPanelState::Notifications { feed, hovered_id } = &self.state else {
+        let GpuiTitlebarReadingPanelState::Notifications {
+            feed, hovered_id, ..
+        } = &self.state
+        else {
             unreachable!();
         };
+        // Without a remote computer there is only one tab, so none is drawn and everything shows.
+        let tab = self.notifications_tab();
         let mut render_group = |read: bool| {
             feed.items
                 .iter()
                 .enumerate()
-                .filter(|(_, item)| item.read == read)
+                .filter(|(_, item)| item.read == read && tab.includes(&item.machine))
                 .map(|(index, item)| {
                     self.render_notification_row(
                         index,
                         item,
-                        hovered_id.as_deref() == Some(item.id.as_str()),
+                        hovered_id.as_deref() == Some(item.key().as_str()),
                         cx,
                     )
                 })
@@ -216,6 +301,11 @@ impl GpuiTitlebarReadingPanel {
         let read_rows = render_group(true);
         let has_unread = !unread_rows.is_empty();
         let has_read = !read_rows.is_empty();
+        let offline_notice = feed
+            .offline_notice
+            .as_deref()
+            .filter(|_| tab.shows_offline_notice())
+            .map(Self::render_notifications_offline_notice);
         let mut body = v_flex().w_full().p(px(10.0)).pt(px(8.0));
         if has_unread {
             body = body
@@ -231,7 +321,10 @@ impl GpuiTitlebarReadingPanel {
         v_flex()
             .size_full()
             .overflow_hidden()
-            .child(self.render_notifications_header(feed, cx))
+            .child(self.render_notifications_header(feed, tab, cx))
+            .when(feed.has_remote_machines, |this| {
+                this.child(self.render_notifications_tabs(feed, tab, cx))
+            })
             .child(
                 div()
                     .relative()
@@ -239,14 +332,35 @@ impl GpuiTitlebarReadingPanel {
                     .min_h_0()
                     .flex_1()
                     .child(if !has_unread && !has_read {
-                        Self::render_notifications_empty_state()
+                        v_flex()
+                            .size_full()
+                            .when_some(offline_notice, |this, notice| {
+                                this.child(div().w_full().px(px(10.0)).pt(px(8.0)).child(notice))
+                            })
+                            .child(
+                                div()
+                                    .w_full()
+                                    .min_h_0()
+                                    .flex_1()
+                                    .child(Self::render_notifications_empty_state()),
+                            )
+                            .into_any_element()
                     } else {
                         div()
                             .id("ghostex-gpui-titlebar-notifications-scroll-area")
                             .size_full()
                             .overflow_y_scroll()
                             .track_scroll(&self.scroll_handle)
-                            .child(body)
+                            .child(
+                                v_flex()
+                                    .w_full()
+                                    .when_some(offline_notice, |this, notice| {
+                                        this.child(
+                                            div().w_full().px(px(10.0)).pt(px(8.0)).child(notice),
+                                        )
+                                    })
+                                    .child(body),
+                            )
                             .into_any_element()
                     })
                     .child(
@@ -254,6 +368,76 @@ impl GpuiTitlebarReadingPanel {
                             .thickness(px(TITLEBAR_DROPDOWN_SCROLLBAR_WIDTH)),
                     ),
             )
+            .into_any_element()
+    }
+
+    /// All · This computer · Remote, each with its own unread count, in the shared bordered
+    /// segmented control (the mockup's tab A).
+    fn render_notifications_tabs(
+        &self,
+        feed: &GpuiNotificationFeedState,
+        tab: NotificationFeedTab,
+        cx: &mut gpui::Context<Self>,
+    ) -> AnyElement {
+        let items: Vec<ModalRailItem> = NotificationFeedTab::TABS
+            .iter()
+            .map(|tab| ModalRailItem {
+                label: tab.label().into(),
+                trailing: Some(feed.tab_unread_count(*tab).to_string().into()),
+            })
+            .collect();
+        let selected = NotificationFeedTab::TABS
+            .iter()
+            .position(|candidate| *candidate == tab)
+            .unwrap_or(0);
+        let ink = chrome_ink();
+        div()
+            .w_full()
+            .flex_shrink_0()
+            .px(px(10.0))
+            .pt(px(9.0))
+            .child(
+                modal_bordered_segmented_control(
+                    ink,
+                    gpui::Rgba { a: 0.14, ..ink },
+                    gpui::Rgba { a: 0.55, ..ink },
+                    "ghostex-gpui-titlebar-notifications-tabs",
+                    &items,
+                    selected,
+                    |this: &mut Self, index, _window, cx| {
+                        if let Some(tab) = NotificationFeedTab::TABS.get(index) {
+                            this.select_notifications_tab(*tab, cx);
+                        }
+                    },
+                    cx,
+                )
+                .w_full(),
+            )
+            .into_any_element()
+    }
+
+    /// "<Computer> is offline. Its notifications show again when it reconnects." at the top of the
+    /// list while a remote computer's rows are hidden.
+    fn render_notifications_offline_notice(notice: &str) -> AnyElement {
+        h_flex()
+            .w_full()
+            .items_center()
+            .gap(px(8.0))
+            .mb(px(2.0))
+            .px(px(9.0))
+            .py(px(7.0))
+            .rounded(px(RESOURCE_CONTROL_RADIUS))
+            .border_1()
+            .border_color(rgb(NOTIFICATION_OFFLINE_AMBER).opacity(0.30))
+            .bg(rgb(NOTIFICATION_OFFLINE_AMBER).opacity(0.10))
+            .text_size(px(12.0))
+            .text_color(rgb(NOTIFICATION_OFFLINE_AMBER).opacity(0.85))
+            .child(titlebar_svg_icon(
+                NOTIFICATION_OFFLINE_ICON,
+                14.0,
+                rgb(NOTIFICATION_OFFLINE_AMBER).opacity(0.85).into(),
+            ))
+            .child(div().min_w_0().flex_1().child(notice.to_string()))
             .into_any_element()
     }
 
@@ -281,9 +465,13 @@ impl GpuiTitlebarReadingPanel {
     fn render_notifications_header(
         &self,
         feed: &GpuiNotificationFeedState,
+        tab: NotificationFeedTab,
         cx: &mut gpui::Context<Self>,
     ) -> AnyElement {
+        // Next unread spans every computer; Mark all read and Clear all act on the open tab.
         let unread_count = feed.unread_count;
+        let tab_unread_count = feed.tab_unread_count(tab);
+        let tab_has_rows = feed.items.iter().any(|item| tab.includes(&item.machine));
         resource_header()
             .border_color(chrome_ink().opacity(0.12))
             .child(
@@ -323,7 +511,7 @@ impl GpuiTitlebarReadingPanel {
                         "Mark all read",
                         NOTIFICATION_PANEL_CHECK_ICON,
                         None,
-                        unread_count > 0,
+                        tab_unread_count > 0,
                         false,
                         cx.listener(|this, _: &MouseDownEvent, window, cx| {
                             window.prevent_default();
@@ -336,7 +524,7 @@ impl GpuiTitlebarReadingPanel {
                         "Clear all",
                         "titlebar/xmark.svg",
                         None,
-                        !feed.items.is_empty(),
+                        tab_has_rows,
                         true,
                         cx.listener(|this, _: &MouseDownEvent, window, cx| {
                             window.prevent_default();
@@ -419,11 +607,12 @@ impl GpuiTitlebarReadingPanel {
         hovered: bool,
         cx: &mut gpui::Context<Self>,
     ) -> AnyElement {
-        let hover_id = item.id.clone();
-        let open_id = item.id.clone();
-        let toggle_id = item.id.clone();
-        let read_id = item.id.clone();
-        let dismiss_id = item.id.clone();
+        let key = item.key();
+        let hover_id = key.clone();
+        let open_id = key.clone();
+        let toggle_id = key.clone();
+        let read_id = key.clone();
+        let dismiss_id = key;
         let time_label = notification_feed_relative_time(item.created_at_epoch_secs);
         let unread = !item.read;
         let accent = item.kind.accent();
@@ -570,6 +759,9 @@ impl GpuiTitlebarReadingPanel {
                                     .text_color(chrome_ink().opacity(0.94))
                                     .child(title),
                             )
+                            .when_some(item.machine_name.clone(), |this, name| {
+                                this.child(Self::render_notification_machine_chip(name))
+                            })
                             .child(time_slot),
                     )
                     .when(!item.body.is_empty(), |this| {
@@ -667,6 +859,39 @@ impl GpuiTitlebarReadingPanel {
             .children(check_button)
             .into_any_element()
     }
+    /// A remote row's computer, by the title (the mockup's label B). Rows from this computer have
+    /// none.
+    fn render_notification_machine_chip(name: String) -> AnyElement {
+        h_flex()
+            .flex_shrink_0()
+            .max_w(px(150.0))
+            .h(px(17.0))
+            .items_center()
+            .gap(px(4.0))
+            .px(px(6.0))
+            .rounded(px(5.0))
+            .border_1()
+            .border_color(chrome_ink().opacity(0.16))
+            .bg(chrome_ink().opacity(0.07))
+            .text_size(px(10.5))
+            .font_weight(FontWeight::SEMIBOLD)
+            .text_color(chrome_ink().opacity(0.80))
+            .child(titlebar_svg_icon(
+                NOTIFICATION_CHIP_ICON,
+                11.0,
+                chrome_ink().opacity(0.80).into(),
+            ))
+            .child(
+                div()
+                    .min_w_0()
+                    .overflow_hidden()
+                    .whitespace_nowrap()
+                    .text_ellipsis()
+                    .child(name),
+            )
+            .into_any_element()
+    }
+
     fn render_notifications_empty_state() -> AnyElement {
         v_flex()
             .size_full()
@@ -694,4 +919,17 @@ impl GpuiTitlebarReadingPanel {
             )
             .into_any_element()
     }
+}
+
+/// The tab's unread rows were all read or cleared: its counts drop to zero, and All loses them.
+fn reset_tab_unread_counts(feed: &mut GpuiNotificationFeedState, tab: NotificationFeedTab) {
+    match tab {
+        NotificationFeedTab::All => {
+            feed.local_unread_count = 0;
+            feed.remote_unread_count = 0;
+        }
+        NotificationFeedTab::ThisComputer => feed.local_unread_count = 0,
+        NotificationFeedTab::Remote => feed.remote_unread_count = 0,
+    }
+    feed.unread_count = feed.local_unread_count + feed.remote_unread_count;
 }

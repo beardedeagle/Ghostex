@@ -125,6 +125,10 @@ impl GpuiNotificationFeedKind {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct GpuiNotificationFeedItem {
+    /// The computer whose gxserver owns the row; every command on it goes there.
+    pub(crate) machine: ghostex_gx_core::MachineId,
+    /// A remote computer's name as the sidebar shows it, for the row's chip.
+    pub(crate) machine_name: Option<String>,
     pub(crate) id: String,
     pub(crate) project_id: String,
     pub(crate) session_id: String,
@@ -148,7 +152,13 @@ impl GpuiNotificationFeedItem {
             return None;
         }
         let created_at = text("createdAt")?;
+        let machine = ghostex_gx_core::notification_feed_item_machine(value);
         Some(Self {
+            machine_name: (!machine.is_local())
+                .then(|| text("machineName"))
+                .flatten()
+                .filter(|name| !name.is_empty()),
+            machine,
             created_at_epoch_secs: parse_iso_epoch_secs(&created_at),
             created_at,
             project_id: text("projectId")?,
@@ -163,14 +173,76 @@ impl GpuiNotificationFeedItem {
             id,
         })
     }
+
+    /// Unique across computers: a row id is unique only on the daemon that wrote it.
+    pub(crate) fn key(&self) -> String {
+        match self.machine.remote_id() {
+            None => self.id.clone(),
+            Some(machine_id) => format!("{machine_id}/{}", self.id),
+        }
+    }
 }
 
-/// The cached feed the titlebar and the dropdown render from. Newest first.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+/// The cached feed the titlebar and the dropdown render from: every online computer's rows,
+/// newest first (gx-core `merged_notification_feed_message`).
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct GpuiNotificationFeedState {
+    /// Every online computer's unread rows: the bell's badge and the All tab.
     pub(crate) unread_count: usize,
+    pub(crate) local_unread_count: usize,
+    pub(crate) remote_unread_count: usize,
     pub(crate) next_unread_id: Option<String>,
+    pub(crate) next_unread_machine: ghostex_gx_core::MachineId,
     pub(crate) items: Vec<GpuiNotificationFeedItem>,
+    /// "<Computer> is offline. …" while a remote computer's rows are hidden.
+    pub(crate) offline_notice: Option<String>,
+    /// The sidebar has a remote computer, so the panel shows its tabs.
+    pub(crate) has_remote_machines: bool,
+}
+
+impl Default for GpuiNotificationFeedState {
+    fn default() -> Self {
+        Self {
+            unread_count: 0,
+            local_unread_count: 0,
+            remote_unread_count: 0,
+            next_unread_id: None,
+            next_unread_machine: ghostex_gx_core::MachineId::Local,
+            items: Vec::new(),
+            offline_notice: None,
+            has_remote_machines: false,
+        }
+    }
+}
+
+impl GpuiNotificationFeedState {
+    pub(crate) fn tab_unread_count(&self, tab: ghostex_gx_core::NotificationFeedTab) -> usize {
+        match tab {
+            ghostex_gx_core::NotificationFeedTab::All => self.unread_count,
+            ghostex_gx_core::NotificationFeedTab::ThisComputer => self.local_unread_count,
+            ghostex_gx_core::NotificationFeedTab::Remote => self.remote_unread_count,
+        }
+    }
+
+    /// Takes one row's unread count off the totals, as an optimistic edit does.
+    pub(crate) fn note_read(&mut self, machine: &ghostex_gx_core::MachineId) {
+        self.unread_count = self.unread_count.saturating_sub(1);
+        if machine.is_local() {
+            self.local_unread_count = self.local_unread_count.saturating_sub(1);
+        } else {
+            self.remote_unread_count = self.remote_unread_count.saturating_sub(1);
+        }
+    }
+
+    /// Puts one row's unread count back on the totals.
+    pub(crate) fn note_unread(&mut self, machine: &ghostex_gx_core::MachineId) {
+        self.unread_count += 1;
+        if machine.is_local() {
+            self.local_unread_count += 1;
+        } else {
+            self.remote_unread_count += 1;
+        }
+    }
 }
 
 impl GpuiNotificationFeedState {
@@ -180,6 +252,12 @@ impl GpuiNotificationFeedState {
     /// titlebar has.
     pub(crate) fn from_bridge_message(message: &serde_json::Value) -> Option<Self> {
         let unread_count = message.get("unreadCount")?.as_u64()? as usize;
+        let count = |key: &str| {
+            message
+                .get(key)
+                .and_then(serde_json::Value::as_u64)
+                .unwrap_or(0) as usize
+        };
         let items = message
             .get("items")?
             .as_array()?
@@ -192,8 +270,25 @@ impl GpuiNotificationFeedState {
         };
         Some(Self {
             unread_count,
+            local_unread_count: count("localUnreadCount"),
+            remote_unread_count: count("remoteUnreadCount"),
             next_unread_id,
+            next_unread_machine: match message
+                .get("nextUnreadMachineId")
+                .and_then(serde_json::Value::as_str)
+            {
+                Some(machine_id) => ghostex_gx_core::MachineId::Remote(machine_id.to_string()),
+                None => ghostex_gx_core::MachineId::Local,
+            },
             items,
+            offline_notice: message
+                .get("offlineNotice")
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_string),
+            has_remote_machines: message
+                .get("hasRemoteMachines")
+                .and_then(serde_json::Value::as_bool)
+                .unwrap_or(false),
         })
     }
 }
@@ -354,21 +449,23 @@ impl GhostexGpuiApp {
         cx.notify();
     }
 
-    /// Acts on the feed: the Rust store performs the command against gxserver
-    /// (`app/gx_store/notifications/commands.rs`).
+    /// Acts on the feed: the Rust store performs the command against the gxserver that owns the
+    /// row (`app/gx_store/notifications/commands.rs`). `row` names a row by its computer and id;
+    /// `tab` is the panel tab Mark all read and Clear all act on.
     pub(crate) fn request_notification_feed_command(
         &mut self,
         action: &'static str,
-        notification_id: Option<&str>,
+        row: Option<(&ghostex_gx_core::MachineId, &str)>,
+        tab: ghostex_gx_core::NotificationFeedTab,
         cx: &mut gpui::Context<Self>,
     ) {
         let Some(command) = ghostex_gx_core::NotificationFeedCommand::from_action(action) else {
             return;
         };
-        if notification_id.is_some_and(|id| !notification_feed_id_is_safe(id)) {
+        if row.is_some_and(|(_, id)| !notification_feed_id_is_safe(id)) {
             return;
         }
-        self.gx_store_notification_feed_command(command, notification_id, cx);
+        self.gx_store_notification_feed_command(command, row, tab, cx);
     }
 
     pub(crate) fn titlebar_notification_bell_visible(&self) -> bool {

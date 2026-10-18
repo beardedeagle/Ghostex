@@ -2708,6 +2708,15 @@ Scripts and agent hooks can post their own rows with
 `ghostex notify --title <text> [--body <text>]`.
 A banked Claude or Codex usage reset that is about to expire shows as a red
 row; it opens that account's usage dropdown instead of a session.
+The bell also covers your remote computers: its count includes unread
+notifications from every connected remote computer, and with a remote computer
+in the sidebar the panel has All, This computer, and Remote tabs, each with its
+own unread count. A remote row names its computer in a small chip next to the
+title; clicking it opens that session on its computer, and reading, dismissing
+or clearing it updates that computer's own list. Mark all read and Clear all act
+on the open tab, while Next unread goes through every computer. While a remote
+computer is offline its notifications are hidden and left out of the count, and
+the panel says so until it reconnects.
 
 Session status from (Settings > Sidebar) chooses how Ghostex knows a session is
 working, waiting for you, or done. Ghostex detection, the default, reads each

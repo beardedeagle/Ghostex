@@ -123,7 +123,7 @@ fn normalize_item(value: &Value) -> Option<Value> {
 }
 
 /// The daemon's feed answer as the state message the bell reads:
-/// `{ items, nextUnreadId?, type, unreadCount }`. Anything that is not an object is the empty
+/// `{ items, nextUnreadId?, nextUnreadDeferredAt?, type, unreadCount }`. Anything that is not an object is the empty
 /// feed, as in the TypeScript, which posted it.
 pub fn notification_feed_state_message(result: &Value) -> Value {
     let raw = result.as_object();
@@ -150,6 +150,14 @@ pub fn notification_feed_state_message(result: &Value) -> Value {
     message.insert("items".into(), Value::Array(items));
     if let Some(next_unread_id) = next_unread_id {
         message.insert("nextUnreadId".into(), Value::from(next_unread_id));
+        // Set when that row was pushed back; the merge across computers ranks it last
+        // (notification_feeds.rs). Older daemons never send it.
+        if let Some(deferred_at) = raw
+            .and_then(|raw| text(raw, "nextUnreadDeferredAt"))
+            .filter(|at| !at.is_empty())
+        {
+            message.insert("nextUnreadDeferredAt".into(), Value::from(deferred_at));
+        }
     }
     message.insert(
         "type".into(),

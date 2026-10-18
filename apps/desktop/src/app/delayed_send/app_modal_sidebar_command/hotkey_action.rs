@@ -150,7 +150,12 @@ impl GhostexGpuiApp {
                     if command == "open" {
                         self.toggle_gpui_titlebar_notifications_popup(window, cx);
                     } else {
-                        self.request_notification_feed_command(command, None, cx);
+                        self.request_notification_feed_command(
+                            command,
+                            None,
+                            ghostex_gx_core::NotificationFeedTab::All,
+                            cx,
+                        );
                     }
                     return;
                 }

@@ -58,6 +58,8 @@ export type NotificationFeedState = {
    * The daemon computes it so every client jumps in the same order.
    */
   nextUnreadId?: string;
+  /** Set when the nextUnreadId row was pushed back; a desktop merging several computers' feeds ranks it last. */
+  nextUnreadDeferredAt?: string;
 };
 
 export const EMPTY_NOTIFICATION_FEED_STATE: NotificationFeedState = {

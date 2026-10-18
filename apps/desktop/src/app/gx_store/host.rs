@@ -182,6 +182,8 @@ pub(crate) struct GxStoreHost {
     pub(super) app_effects: super::effects::AppEffectQueue,
     /// The sidebar HUD's sources (hud/).
     pub(super) hud: super::hud::HudHost,
+    /// Every computer's notification feed, merged into the bell (notifications/).
+    pub(super) notifications: super::notifications::NotificationFeedsHost,
     /// The status item's and the pet's per-machine views (indicators/).
     pub(super) indicators: super::indicators::IndicatorsHost,
     /// The collection a project move just created, which the renderer opens its Rename on. Held

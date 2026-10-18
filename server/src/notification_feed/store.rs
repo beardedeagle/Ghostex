@@ -251,6 +251,9 @@ pub(crate) fn read_notification_feed_item(
 }
 
 /// The full feed state every endpoint returns: newest first, unread count, and the jump target.
+///
+/// CDXC:Notifications 2026-10-18 WHY:
+/// `nextUnreadDeferredAt` rides with the jump target when that row was pushed back: a desktop that shows remote computers in its bell merges every daemon's jump target into one order, and ranks deferred targets last the way this query does within one machine.
 pub(crate) fn read_notification_feed_state(db: &Connection) -> DomainResult<Value> {
     drop_orphaned_notification_feed_rows(db)?;
     prune_notification_feed(db)?;
@@ -275,10 +278,10 @@ pub(crate) fn read_notification_feed_state(db: &Connection) -> DomainResult<Valu
     /*
     The jump order: newest undeferred unread first; deferred rows come last, oldest deferral first, so cycling with defer walks every pending row before returning to the first one.
     */
-    let next_unread_id: Option<String> = db
+    let next_unread: Option<(String, Option<String>)> = db
         .query_row(
             r#"
-            SELECT id FROM notification_feed WHERE readAt IS NULL
+            SELECT id, deferredAt FROM notification_feed WHERE readAt IS NULL
             ORDER BY (deferredAt IS NOT NULL) ASC,
                      CASE WHEN deferredAt IS NULL THEN createdAt END DESC,
                      deferredAt ASC,
@@ -286,7 +289,7 @@ pub(crate) fn read_notification_feed_state(db: &Connection) -> DomainResult<Valu
             LIMIT 1
             "#,
             [],
-            |row| row.get(0),
+            |row| Ok((row.get(0)?, row.get(1)?)),
         )
         .optional()
         .map_err(sql_error)?;
@@ -294,8 +297,11 @@ pub(crate) fn read_notification_feed_state(db: &Connection) -> DomainResult<Valu
         "items": items,
         "unreadCount": unread_count,
     });
-    if let Some(next_unread_id) = next_unread_id {
+    if let Some((next_unread_id, deferred_at)) = next_unread {
         state["nextUnreadId"] = Value::String(next_unread_id);
+        if let Some(deferred_at) = deferred_at {
+            state["nextUnreadDeferredAt"] = Value::String(deferred_at);
+        }
     }
     Ok(state)
 }

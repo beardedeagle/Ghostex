@@ -29,6 +29,7 @@ pub mod indicators;
 mod keys;
 pub mod navigation_history;
 mod notification_feed;
+mod notification_feeds;
 mod overlay;
 mod presentation_store;
 mod project_activation;
@@ -82,6 +83,10 @@ pub use crate::notification_feed::{
     notification_feed_jump_target, notification_feed_state_message, NotificationFeedCommand,
     NOTIFICATION_FEED_READ_ENDPOINT, NOTIFICATION_FEED_STATE_MESSAGE_TYPE,
     NOTIFICATION_FEED_UPDATE_ENDPOINT,
+};
+pub use crate::notification_feeds::{
+    merged_notification_feed_jump_target, merged_notification_feed_message,
+    notification_feed_item_machine, MachineNotificationFeed, NotificationFeedTab,
 };
 pub use crate::overlay::{SessionPatch, RENAME_PATCH_TTL_MS};
 pub use crate::presentation_store::{
