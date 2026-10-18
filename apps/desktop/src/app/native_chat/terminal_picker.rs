@@ -23,7 +23,7 @@ use web_time::Instant;
 /// The picker's search field, kept while the same picker stays open.
 pub(super) struct TerminalPickerInput {
     identity: String,
-    input: Entity<InputState>,
+    pub(super) input: Entity<InputState>,
     /// When the user last typed, so a search the agent has not repainted yet is not overwritten.
     edited: Option<Instant>,
     /// Set while the field is being given the agent's search text, which is not the user typing.

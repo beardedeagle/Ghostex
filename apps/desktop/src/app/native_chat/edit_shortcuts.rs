@@ -272,18 +272,67 @@ impl NativeChatView {
 
     /// Which Edit menu commands the chat can act on this frame. GPUI enables a menu item only
     /// while a handler for its action sits on the focus path, so the handlers are registered
-    /// only when they would act; a focus, draft or transcript selection change redraws the chat.
+    /// only when they would act; a focus, draft, field or transcript selection change redraws
+    /// the chat.
     pub(super) fn edit_menu(&self, window: &mut Window, cx: &mut Context<Self>) -> ChatEditMenu {
         let draft = self.composer_focused && !self.draft.is_empty();
+        let field = self.focused_field_selection(window, cx);
+        let field_selection = field == Some(true);
         // The selection check walks every transcript text block, so it runs only while the
         // menu can reach this view at all.
         ChatEditMenu {
             copy: draft
+                || field_selection
                 || (self.surface_focus.contains_focused(window, cx)
                     && gpui_component::TextSelection::has_selection(window, cx)),
-            cut: draft,
-            composer: self.composer_focused,
+            cut: draft || field_selection,
+            text_field: self.composer_focused || field.is_some(),
         }
+    }
+
+    /// The focused chat text field other than the composer (the note, a question's answer, the
+    /// transcript search, Files & Links, a terminal dialog or the terminal picker), and whether
+    /// it has a selection to copy or cut.
+    fn focused_field_selection(&self, window: &Window, cx: &gpui::App) -> Option<bool> {
+        use gpui_component::input::{InputState, TextareaState};
+        let line = |input: &gpui::Entity<InputState>| {
+            let input = input.read(cx);
+            input
+                .focus_handle(cx)
+                .is_focused(window)
+                .then(|| !input.selected_range().is_empty())
+        };
+        let lines = |input: &gpui::Entity<TextareaState>| {
+            let input = input.read(cx);
+            input
+                .focus_handle(cx)
+                .is_focused(window)
+                .then(|| !input.selected_range().is_empty())
+        };
+        let dialog = self
+            .terminal_dialog_input
+            .iter()
+            .find_map(|dialog| match &dialog.field {
+                super::terminal_dialog::TerminalDialogField::Line(input) => line(input),
+                super::terminal_dialog::TerminalDialogField::Lines(input) => lines(input),
+            });
+        self.note_input
+            .iter()
+            .chain(self.answer_input.iter().map(|(_, input)| input))
+            .chain(self.async_answer_input.iter().map(|(_, input)| input))
+            .find_map(lines)
+            .or_else(|| {
+                self.search_input
+                    .iter()
+                    .chain(self.files_links_input.iter())
+                    .chain(
+                        self.terminal_picker_input
+                            .iter()
+                            .map(|picker| &picker.input),
+                    )
+                    .find_map(line)
+            })
+            .or(dialog)
     }
 
     /// Runs a VS Code line command on the composer as one undoable edit.
@@ -527,14 +576,14 @@ impl NativeChatView {
 pub(super) struct ChatEditMenu {
     copy: bool,
     cut: bool,
-    /// Paste and Select All act on the focused composer.
-    composer: bool,
+    /// Paste and Select All act on the focused composer or other chat text field.
+    text_field: bool,
 }
 
 /// Edit › Cut, Copy, Paste and Select All (`app/helpers/os_cli/main_menus.rs`), forwarded as the
-/// input actions Cmd+X, Cmd+C, Cmd+V and Cmd+A dispatch, so the composer and the transcript
-/// (gpui-component's `Root` copies the window selection) answer them the same way. The web
-/// page has no app menu.
+/// input actions Cmd+X, Cmd+C, Cmd+V and Cmd+A dispatch, so the composer, the chat's other text
+/// fields and the transcript (gpui-component's `Root` copies the window selection) answer them
+/// the same way. The web page has no app menu.
 pub(super) trait ChatEditMenuActions: gpui::InteractiveElement + Sized {
     #[cfg(target_family = "wasm")]
     fn chat_edit_menu_actions(self, _: ChatEditMenu) -> Self {
@@ -559,7 +608,7 @@ pub(super) trait ChatEditMenuActions: gpui::InteractiveElement + Sized {
             this =
                 this.on_action(|_: &GpuiEditMenuCut, window, cx| forward::<input::Cut>(window, cx));
         }
-        if menu.composer {
+        if menu.text_field {
             this = this
                 .on_action(|_: &GpuiEditMenuPaste, window, cx| forward::<input::Paste>(window, cx))
                 .on_action(|_: &GpuiEditMenuSelectAll, window, cx| {
