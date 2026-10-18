@@ -1,9 +1,9 @@
-//! The working card at the transcript's end (`workingCard`, decided in
-//! packages/gx-chat-core/src/extras/working_card.rs): one line with the spark, the label and the
-//! pills, which a click opens to the running tool's call and a section per pill. working_lane.rs
-//! places it; this draws it.
+//! The working card (`workingCard`, decided in packages/gx-chat-core/src/extras/working_card.rs):
+//! one line with the spark, the label and the pills, in its own row at the top of the composer's
+//! stack (composer.rs). It never opens; each pill opens its own menu (chat_pills.rs).
+//! working_lane.rs places it; this draws it.
 //!
-//! CDXC:SessionChat 2026-10-17 SEE-ALSO:
+//! CDXC:SessionChat 2026-10-18 SEE-ALSO:
 //! The phone draws the same card in apps/mobile/app/src/chat/native/cards/WorkingCard.tsx.
 
 use super::{
@@ -13,153 +13,59 @@ use super::{
     working_spark::{css_ease_in_out, spark},
 };
 use crate::app::helpers::ThrottledAnimationExt;
-use crate::app::native_chat::cursor::ChatCursor as _;
 use crate::assets::chat_working::VISUAL;
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
     AnyElement, Context, FontFeatures, InteractiveElement as _, IntoElement, ParentElement as _,
     StatefulInteractiveElement as _, Styled as _, canvas, div, px, relative, svg,
 };
-use serde_json::{Value, json};
+use serde_json::Value;
 use std::{cell::Cell, rc::Rc, time::Duration};
-
-/// The disclosure key the card's body opens and closes under.
-const CARD_KEY: &str = "working-card";
 
 /// The header line's padding above and below (unscaled).
 const HEADER_PAD_Y: f32 = 6.0;
 
+/// A pill's height (unscaled): its 16px line, 2px above and below and a 1px edge (chat_pills.rs).
+/// The line keeps that height with no pill on it, so a pill arriving or leaving never changes the
+/// card's height and with it the transcript's visible area above.
+const PILL_HEIGHT: f32 = 22.0;
+
 /// What the card measured at its last paint.
 #[derive(Default)]
-pub(super) struct WorkingLaneCells {
-    /// The height the transcript's last row reserves below itself for the card, in window pixels.
-    pub(super) reserved: Rc<Cell<f32>>,
+pub(super) struct WorkingCardCells {
     /// The label did not fit its line, so hovering it shows the whole text.
     label_truncated: Rc<Cell<bool>>,
 }
 
 impl NativeChatView {
-    /// The extra space the transcript's last row keeps under itself for the card.
-    pub(super) fn working_lane_reserve(&self) -> f32 {
-        self.working_lane.reserved.get()
-    }
-
-    /// The card (or, with nothing to show while the reader is scrolled up, the scroll-to-bottom
-    /// pill alone) over the transcript, placed by [`super::working_lane::WorkingLane`].
-    pub(super) fn render_working_lane(
-        &mut self,
-        p: &ChatAppearance,
-        cx: &mut Context<Self>,
-    ) -> Option<AnyElement> {
-        let s = p.scale;
-        let card = self.snapshot["workingCard"].clone();
+    /// The card shows: the transcript has rows and the core has something for it, or a timer is armed.
+    fn working_card_shown(&self) -> bool {
         let armed = self
             .armed_actions
             .as_array()
             .is_some_and(|actions| !actions.is_empty());
-        let rows = self.list.item_count();
-        let visible = rows > 0 && (card["visible"] == true || armed);
-        let left_bottom = rows > 0 && super::scroll_bottom::transcript_left_bottom(&self.list);
-        if !visible {
-            self.set_lane_reserve(0.0, cx);
-        }
-        let content = if visible {
-            self.working_card(&card, left_bottom, p, cx)
-        } else if left_bottom {
-            div()
-                .flex()
-                .justify_end()
-                .px(px(VISUAL.padding_x * s))
-                .block_mouse_except_scroll()
-                .children(self.scroll_bottom_icon_pill(p, cx))
-                .into_any_element()
-        } else {
-            return None;
-        };
-        // The column the transcript's rows use (transcript.rs), so the card lines up with them.
-        let column = div()
-            .w_full()
-            .max_w(px(768.0 * s))
-            .px(px(16.0 * s))
-            .when_some(p.transcript_width, |this, width| {
-                this.max_w(relative(1.0)).w(relative(width))
-            })
-            .when_some(self.held_text_width, |this, width| {
-                this.flex_shrink_0().w(px(width)).max_w(px(width))
-            })
-            .child(content);
-        let layer = div()
-            .absolute()
-            .inset_0()
-            .flex()
-            .flex_col()
-            .justify_end()
-            .pb(px(super::transcript_layout::LAYOUT.end_padding * s))
-            .child(div().w_full().flex().justify_center().child(column))
-            .into_any_element();
-        Some(
-            super::working_lane::WorkingLane {
-                list: self.list.clone(),
-                child: layer,
-            }
-            .into_any_element(),
-        )
+        self.list.item_count() > 0 && (self.snapshot["workingCard"]["visible"] == true || armed)
     }
 
-    /// Sets the space the last row keeps for the card and has that row measured again.
-    fn set_lane_reserve(&self, height: f32, cx: &mut Context<Self>) {
-        if self.working_lane.reserved.replace(height) == height {
-            return;
-        }
-        if let Some(last) = self.list.item_count().checked_sub(1) {
-            self.list.remeasure_items(last..last + 1);
-        }
-        if let Some(host) = &self.transcript_host {
-            gpui::App::notify(cx, host.entity_id());
-        }
-    }
-
-    fn working_card(
+    /// The card for the top of the composer's stack, placed by
+    /// [`super::working_lane::WorkingLane`]: in its own row there, or under a transcript too short
+    /// to reach it.
+    pub(super) fn render_working_card(
         &mut self,
-        card: &Value,
-        left_bottom: bool,
         p: &ChatAppearance,
         cx: &mut Context<Self>,
-    ) -> AnyElement {
+    ) -> Option<AnyElement> {
+        if !self.working_card_shown() {
+            return None;
+        }
         let s = p.scale;
-        let expandable = card["expandable"] == true;
-        let open = expandable && card["open"] == true;
-        let motion = self.disclosure_frame(CARD_KEY, open, cx);
-        let header = self.working_card_header(card, left_bottom, expandable, open, p, cx);
-        let body = (open || motion.is_some())
-            .then(|| self.working_card_body(card, p, cx))
-            .map(|body| self.disclosure_body_motion(CARD_KEY, motion, 0.0, body));
-        // The card's border box, which the transcript's last row reserves below itself.
-        let reserved = self.working_lane.reserved.clone();
-        let list = self.list.clone();
-        let host = self.transcript_host.as_ref().map(|host| host.entity_id());
-        let measure = canvas(
-            move |bounds, _, cx| {
-                let height = f32::from(bounds.size.height);
-                if (reserved.get() - height).abs() > 0.5 {
-                    reserved.set(height);
-                    if let Some(last) = list.item_count().checked_sub(1) {
-                        list.remeasure_items(last..last + 1);
-                    }
-                    if let Some(host) = host {
-                        cx.notify(host);
-                    }
-                }
-            },
-            |_, _, _, _| {},
-        )
-        .absolute()
-        .inset(px(-1.0));
-        div()
+        let card = self.snapshot["workingCard"].clone();
+        let left_bottom = super::scroll_bottom::transcript_left_bottom(&self.list);
+        let header = self.working_card_header(&card, left_bottom, p, cx);
+        let card = div()
             .id("chat-working-card")
-            .relative()
             .role(gpui::Role::Status)
-            .aria_label(text(card, "ariaLabel"))
+            .aria_label(text(&card, "ariaLabel"))
             .w_full()
             .min_w_0()
             .flex()
@@ -170,13 +76,63 @@ impl NativeChatView {
             .bg(p.card_panel)
             .overflow_hidden()
             .text_color(p.card_muted)
-            // Over the transcript, a press or a hover on the card is the card's; the wheel still
-            // scrolls the transcript under it.
+            // Lifted under a short transcript it paints over the list's empty end; a press there
+            // is the card's.
             .block_mouse_except_scroll()
             .child(header)
-            .children(body)
-            .child(measure)
-            .into_any_element()
+            .into_any_element();
+        Some(
+            super::working_lane::WorkingLane {
+                list: self.list.clone(),
+                child: card,
+            }
+            .into_any_element(),
+        )
+    }
+
+    /// Scroll-to-bottom on its own over the transcript's bottom edge, while the reader is away from
+    /// the bottom and no card shows to carry it (or the view has no composer: the phone's GPUI
+    /// transcript).
+    pub(super) fn render_lone_scroll_bottom(
+        &self,
+        p: &ChatAppearance,
+        cx: &mut Context<Self>,
+    ) -> Option<AnyElement> {
+        if self.list.item_count() == 0 || (!self.transcript_only && self.working_card_shown()) {
+            return None;
+        }
+        let pill = self.scroll_bottom_icon_pill(p, cx)?;
+        let s = p.scale;
+        // The column the transcript's rows use (transcript.rs), the pill at its right end.
+        let column = div()
+            .w_full()
+            .max_w(px(768.0 * s))
+            .px(px(16.0 * s))
+            .when_some(p.transcript_width, |this, width| {
+                this.max_w(relative(1.0)).w(relative(width))
+            })
+            .when_some(self.held_text_width, |this, width| {
+                this.flex_shrink_0().w(px(width)).max_w(px(width))
+            })
+            .child(
+                div()
+                    .flex()
+                    .justify_end()
+                    .px(px(VISUAL.padding_x * s))
+                    .block_mouse_except_scroll()
+                    .child(pill),
+            );
+        Some(
+            div()
+                .absolute()
+                .bottom(px(super::transcript_layout::LAYOUT.end_padding * s))
+                .left_0()
+                .right_0()
+                .flex()
+                .justify_center()
+                .child(column)
+                .into_any_element(),
+        )
     }
 
     /// The card's line: the lead glyph and the label on the left, cut with an ellipsis where it
@@ -185,8 +141,6 @@ impl NativeChatView {
         &self,
         card: &Value,
         left_bottom: bool,
-        expandable: bool,
-        open: bool,
         p: &ChatAppearance,
         cx: &mut Context<Self>,
     ) -> AnyElement {
@@ -262,7 +216,7 @@ impl NativeChatView {
             .children(self.armed_action_items(p, cx))
             .children(self.previous_question_icon_pill(p, cx))
             .children(
-                card["sections"]
+                card["pills"]
                     .as_array()
                     .into_iter()
                     .flatten()
@@ -273,16 +227,13 @@ impl NativeChatView {
                             .iter()
                             .find(|pill| pill["id"] == id)
                     })
-                    .map(|pill| super::chat_pills::chat_pill(pill, p)),
+                    .map(|pill| self.chat_pill(pill, p, cx)),
             );
-        let hover = super::cards::card_hover_fill(p);
         div()
             .id("chat-working-card-header")
-            .role(gpui::Role::Button)
-            .aria_expanded(open)
             .w_full()
             .min_w_0()
-            .min_h(px(VISUAL.min_height * s))
+            .min_h(px((PILL_HEIGHT + 2.0 * HEADER_PAD_Y) * s))
             .pl(px(12.0 * s))
             .pr(px(10.0 * s))
             .pt(px(HEADER_PAD_Y * s))
@@ -290,14 +241,6 @@ impl NativeChatView {
             .flex()
             .items_center()
             .gap(px(VISUAL.gap * s))
-            .when(expandable, |header| {
-                header
-                    .chat_cursor_pointer()
-                    .hover(move |style| style.bg(hover))
-                    .on_click(cx.listener(move |chat, _, _, cx| {
-                        chat.invoke(json!({"type":"toggleWorkingCard","open":!open}), cx);
-                    }))
-            })
             .children(lead)
             .child(
                 // Takes what the pills leave; empty when the card carries only pills.
@@ -324,7 +267,7 @@ impl NativeChatView {
         p: &ChatAppearance,
     ) -> AnyElement {
         let s = p.scale;
-        let truncated = self.working_lane.label_truncated.clone();
+        let truncated = self.working_card.label_truncated.clone();
         let cut = truncated.get();
         let measured = label.clone();
         let full = label.clone();
@@ -367,81 +310,6 @@ impl NativeChatView {
                 .absolute()
                 .inset_0(),
             )
-            .into_any_element()
-    }
-
-    /// The open card: the running tool's call, then one section per pill, each drawn with the rows
-    /// its pill's menu used to show.
-    fn working_card_body(
-        &mut self,
-        card: &Value,
-        p: &ChatAppearance,
-        cx: &mut Context<Self>,
-    ) -> AnyElement {
-        let s = p.scale;
-        let mut sections: Vec<AnyElement> = Vec::new();
-        let tool = &card["tool"];
-        if tool.is_object() {
-            let header = super::chat_pills::pill_menu_header(
-                "titlebar/terminal-2.svg",
-                "Running now",
-                text(tool, "label"),
-                None,
-                p,
-            );
-            let detail = div()
-                .id("chat-working-card-tool-detail")
-                .max_h(px(200.0 * s))
-                .overflow_y_scroll()
-                .p(px(10.0 * s))
-                .bg(p.input)
-                .rounded(px(6.0 * s))
-                .child(self.markdown(
-                    "working-card-tool".to_string(),
-                    format!("```\n{}\n```", text(tool, "detail")),
-                    &Value::Null,
-                    p,
-                    cx,
-                ))
-                .into_any_element();
-            sections.push(super::chat_pills::pill_menu_column(
-                "chat-working-card-tool",
-                "Running now",
-                header,
-                Some(detail),
-                None,
-                p,
-            ));
-        }
-        for id in card["sections"]
-            .as_array()
-            .into_iter()
-            .flatten()
-            .filter_map(Value::as_str)
-        {
-            let section = match id {
-                "threads" => self.threads_menu_body(p, cx),
-                "tasks" => self.tasks_menu_body(p, cx),
-                "subagents" => self.fleet_menu_body(p, cx),
-                "background" => self.background_menu_body(p),
-                _ => None,
-            };
-            sections.extend(section);
-        }
-        let pane = f32::from(self.bounds.get().size.height);
-        div()
-            .id("chat-working-card-body")
-            .w_full()
-            .min_w_0()
-            .max_h(px((pane * 0.5).max(160.0 * s)))
-            .overflow_y_scroll()
-            .px(px(8.0 * s))
-            .pt(px(2.0 * s))
-            .pb(px(10.0 * s))
-            .flex()
-            .flex_col()
-            .gap(px(12.0 * s))
-            .children(sections)
             .into_any_element()
     }
 

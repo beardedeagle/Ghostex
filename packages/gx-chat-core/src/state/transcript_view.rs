@@ -78,8 +78,8 @@ pub struct TranscriptViewState {
     pub saved_prompts: BTreeMap<String, String>,
     /// The last built item list, so a publish that changed nothing ships nothing.
     pub items: Vec<TranscriptItem>,
-    /// The newest finished turn's "Worked 2m 13s", which the working card shows at the transcript's
-    /// end instead of that turn's fold (`extras::working_card`), or `None`.
+    /// The newest finished turn's "Worked 2m 13s", which the working card above the composer shows
+    /// instead of that turn's fold (`extras::working_card`), or `None`.
     pub worked_line: Option<String>,
     /// The ids of the assistant rows that carry a turn's one copy affordance.
     pub final_ids: Vec<String>,

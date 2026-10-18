@@ -42,10 +42,6 @@ pub fn handle_with_ids(
             state.extras.panels.background_tasks_open = flag(action, "open");
             Vec::new()
         }
-        ActionKind::ToggleWorkingCard => {
-            crate::extras::working_card::set_open(state, flag(action, "open"));
-            Vec::new()
-        }
         ActionKind::ToggleCoordinatorThreadsMore => {
             let panels = &mut state.extras.panels;
             let step = action.param("step").and_then(Value::as_u64).unwrap_or(0);

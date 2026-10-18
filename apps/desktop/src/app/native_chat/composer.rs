@@ -293,6 +293,12 @@ impl NativeChatView {
             .pb(px(12.0 * s))
             .max_w(px(768.0 * s))
             .when(maximized, |this| this.p_0().max_w_full().h_full().min_h_0());
+        // First in the stack, right above whatever else waits on the user (working_card.rs).
+        if !maximized {
+            if let Some(card) = self.render_working_card(p, cx) {
+                footer = footer.child(card);
+            }
+        }
         if self.snapshot["incomingDraft"].is_object() {
             /*
             CDXC:Drafts 2026-09-18 DECISION:

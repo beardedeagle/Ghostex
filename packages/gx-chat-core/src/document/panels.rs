@@ -23,12 +23,12 @@ pub struct WorkingStrip {
     pub extra: serde_json::Map<String, Value>,
 }
 
-/// The working card at the transcript's end (`extras::working_card`): one line with the spark, a
-/// label and the pills, which opens to the running tool's call and a section per pill.
+/// The working card (`extras::working_card`): one line with the spark, a label and the pills, in its
+/// own row right above the composer. It never opens; each pill opens its own menu.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkingCard {
-    /// The lane at the transcript's end shows the card.
+    /// The row above the composer shows the card.
     pub visible: bool,
     /// `working`, `worked` (the turn ended and its Worked line shows) or `idle`.
     pub phase: String,
@@ -43,20 +43,13 @@ pub struct WorkingCard {
     /// A live activity's clock and progress (compaction): `elapsedLabel`, `tokens`, `percent`,
     /// `indeterminate`, `hint`, as `workingStrip.presentation` carried them.
     pub activity: Option<Value>,
-    /// The open card's first section, the call the running tool is making:
-    /// `{ title: "Running now", label, detail }`.
-    pub tool: Option<Value>,
-    /// The pill ids (`chatPills`) whose sections the open card lists, in the pills' order.
-    pub sections: Vec<String>,
-    /// The card has a body to open.
-    pub expandable: bool,
-    /// The card is open.
-    pub open: bool,
+    /// The pill ids (`chatPills`) on the card, in the pills' order.
+    pub pills: Vec<String>,
     /// What a screen reader says for the card.
     pub aria_label: String,
 }
 
-/// One pill on the working row (`extras::chat_pills`): a panel folded into a pill that opens a
+/// One pill on the working card (`extras::chat_pills`): a panel folded into a pill that opens a
 /// floating menu with the panel's rows.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

@@ -180,11 +180,8 @@ impl NativeChatView {
                 };
                 this.pt(px(32.0 * s + header))
             })
-            // The last row keeps the lane the working card sits in (working_card.rs); a subagent's
-            // transcript has no card.
             .when(index + 1 == items.len(), |this| {
-                let lane = if main { self.working_lane_reserve() } else { 0.0 };
-                this.pb(px(super::transcript_layout::LAYOUT.end_padding * s + lane))
+                this.pb(px(super::transcript_layout::LAYOUT.end_padding * s))
             })
             .child(
                 div()

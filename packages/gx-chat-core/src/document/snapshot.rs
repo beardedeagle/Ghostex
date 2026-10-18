@@ -201,9 +201,9 @@ pub struct Document {
     /// The background tasks the agent left running (`extras::background_tasks`), which the
     /// Background pill's menu lists, or `null`. Family f.
     pub background_tasks_panel: Tri<Value>,
-    /// The pills on the working card, each a summary of one of the panels above. Family f.
+    /// The pills on the working card, each opening the menu of one of the panels above. Family f.
     pub chat_pills: Vec<ChatPill>,
-    /// The working card at the transcript's end. Family f.
+    /// The working card right above the composer. Family f.
     pub working_card: WorkingCard,
     /// The subagent viewer, or `null` when closed. Family f.
     pub subagent: Tri<Value>,

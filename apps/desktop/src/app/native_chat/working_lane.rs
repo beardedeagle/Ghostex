@@ -1,17 +1,16 @@
-//! The element that places the working card (working_card.rs): in the lane the transcript's last
-//! row reserves for it, and pinned at that same spot over the transcript's bottom edge once the
-//! reader scrolls the lane out of view, so the card never moves.
+//! The element that places the working card (working_card.rs): in its own row at the top of the
+//! composer's stack, or, under a transcript too short to reach that row, right after its last row.
 
 use gpui::{
     AnyElement, App, Bounds, Element, ElementId, GlobalElementId, InspectorElementId, IntoElement,
     LayoutId, ListState, Pixels, Window, point, px,
 };
 
-/// CDXC:SessionChat 2026-10-17 WHY:
-/// The card is drawn by the chat over the transcript, not as a row inside it. A row lives in the cached transcript view (transcript_host.rs), and the card's spark animates for as long as the agent works: every frame of it would lay out every visible row again, the cost that view exists to avoid. The last row reserves the card's measured height instead, and this element reads the list's layout from the same frame (it prepaints after the transcript) to set the card on that lane, or keep it at the lane's bottom-of-transcript spot when the lane has scrolled below the view. The card is one element in both places, so it cannot differ in size, look or contents, and it never moves while the reader scrolls up.
+/// CDXC:SessionChat 2026-10-18 WHY:
+/// The card is a row of the composer's stack, not a transcript row: a row lives in the cached transcript view (transcript_host.rs), and the card's spark animates for as long as the agent works, so every frame of it would lay out every visible row again, the cost that view exists to avoid. Being outside the list, the transcript's visible area ends above it and nothing ever scrolls under it (supersedes the 2026-10-17 card that the last row reserved room for and that stayed pinned over the transcript's bottom edge). A transcript shorter than the view would leave the card far below its last row, so this element reads the list's layout from the same frame (the composer prepaints after the transcript) and lifts the card into the list's empty end, right after the last row; the lift shrinks to nothing as the rows reach the view's bottom, so the card is one element in one place that never jumps.
 pub(super) struct WorkingLane {
     pub(super) list: ListState,
-    /// A full-size layer whose content sits at the lane's bottom-of-transcript spot.
+    /// The card, laid out in its row.
     pub(super) child: AnyElement,
 }
 
@@ -54,7 +53,7 @@ impl Element for WorkingLane {
         window: &mut Window,
         cx: &mut App,
     ) -> Self::PrepaintState {
-        // A transcript shorter than the view ends above its bottom: the lane follows its last row
+        // A transcript shorter than the view ends above its bottom: the card follows its last row
         // there. Otherwise the last row reaches the bottom (or lies below it) and the card stays put.
         let viewport = self.list.viewport_bounds();
         let lift = self

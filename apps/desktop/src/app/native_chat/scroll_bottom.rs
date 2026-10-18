@@ -204,8 +204,8 @@ impl NativeChatView {
     /// waits, then the red "Agent was interrupted" (`interrupt` in
     /// `packages/gx-chat-core/src/composer/send.rs`).
     ///
-    /// CDXC:SessionChat 2026-10-17 DECISION:
-    /// User (2026-10-01): the Escape toast and the scroll-to-bottom pill must be centred on each other, in "exact same style", with the Escape one hiding the scroll one while it shows; the red "Agent was interrupted" one takes the same spot and look. The toasts take that slot and shape (in-window and in the frosted window), visual only: no click, hover, focus or tooltip. User (2026-10-15): the scroll-to-bottom pill left that slot for an icon pill on the working row (chat_pills.rs), so the toasts keep the floating slot on their own. User (2026-10-17, the working card): that pill rides on the working card, which sits where the slot was, so the toasts float just above the card.
+    /// CDXC:SessionChat 2026-10-18 DECISION:
+    /// User (2026-10-01): the Escape toast and the scroll-to-bottom pill must be centred on each other, in "exact same style", with the Escape one hiding the scroll one while it shows; the red "Agent was interrupted" one takes the same spot and look. The toasts take that slot and shape (in-window and in the frosted window), visual only: no click, hover, focus or tooltip. User (2026-10-15): the scroll-to-bottom pill left that slot for an icon pill on the working row (chat_pills.rs), so the toasts keep the floating slot on their own. User (2026-10-17, the working card): that pill rides on the working card. User (2026-10-18): the card sits in its own row right above the composer, outside the transcript, so the toasts keep the slot at the transcript's bottom edge, just above the card (supersedes the 2026-10-17 lift over a card pinned inside the transcript).
     pub(super) fn pill_toast(&self) -> Option<PillToast> {
         let toast = &self.snapshot["interruptToast"];
         Some(PillToast {
@@ -267,14 +267,14 @@ impl NativeChatView {
         let shown = toast.is_some();
         if glass {
             let label = toast.map_or_else(String::new, |toast| toast.text);
-            return pill_row(&p, self.working_lane_reserve())
+            return pill_row(&p)
                 .child(self.scroll_bottom_window_placeholder(shown, label, &p, cx))
                 .into_any_element();
         }
         let Some(toast) = toast else {
             return div().into_any_element();
         };
-        let row = pill_row(&p, self.working_lane_reserve());
+        let row = pill_row(&p);
         // The pill wears the composer's own chrome: the same opaque card fill, the 1px outline and
         // the inset top highlight session-chat-composer-focus.css gives both of them.
         let outline = if p.light {
@@ -302,12 +302,12 @@ impl NativeChatView {
     }
 }
 
-/// The centred row the toasts sit in, just above the composer, or above the working card when one
-/// shows (`lift`, its height in window pixels), which they must not cover.
-fn pill_row(p: &ChatAppearance, lift: f32) -> gpui::Div {
+/// The centred row the toasts sit in, at the transcript's bottom edge, just above the working card
+/// or the composer.
+fn pill_row(p: &ChatAppearance) -> gpui::Div {
     div()
         .absolute()
-        .bottom(px(SPEC.bottom * p.scale + lift))
+        .bottom(px(SPEC.bottom * p.scale))
         .w_full()
         .flex()
         .justify_center()

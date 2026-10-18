@@ -26,6 +26,19 @@ const ROW_HEIGHT: f32 = 24.0;
 const ROW_GAP: f32 = 2.0;
 const LIST_MAX: f32 = 360.0;
 
+/// The Threads pill's menu: the header line, the rows and "Show recent" / "N more" / "Show fewer".
+pub(super) fn threads_menu_height(panel: &Value) -> f32 {
+    let rows = panel["rows"].as_array().map_or(0, Vec::len)
+        + usize::from(!text(panel, "emptyLabel").is_empty());
+    let list = (rows as f32 * ROW_HEIGHT + rows.saturating_sub(1) as f32 * ROW_GAP).min(LIST_MAX);
+    let footer = if text(panel, "moreLabel").is_empty() {
+        0.0
+    } else {
+        super::chat_pills::MENU_SECTION_GAP + super::chat_pills::MENU_FOOTER_HEIGHT
+    };
+    super::chat_pills::MENU_HEADER_HEIGHT + super::chat_pills::MENU_SECTION_GAP + list + footer
+}
+
 impl NativeChatView {
     /// The Threads pill's floating menu: what the Threads panel above the composer listed, with the
     /// same rows and steps. Drawn in the menu's window (`option_menu/pill_menu.rs`) with this

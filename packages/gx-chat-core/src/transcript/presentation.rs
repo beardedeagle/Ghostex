@@ -412,7 +412,7 @@ pub struct Projection {
     /// pass is where the TypeScript calls them, so it is where the core calls them too.
     pub minimap: Vec<crate::extras::minimap_rail::MinimapMarkerRow>,
     /// The newest turn's id and its "Worked 2m 13s" once it has finished and nothing was sent
-    /// after it: the working card's line at the transcript's end (`extras::working_card`).
+    /// after it: the working card's line above the composer (`extras::working_card`).
     pub worked_turn: Option<(String, String)>,
 }
 

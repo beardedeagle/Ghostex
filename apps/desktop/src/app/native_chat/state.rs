@@ -59,8 +59,10 @@ pub(crate) struct NativeChatView {
     pub(super) option_menu: Option<Entity<super::option_menu::ChatOptionMenu>>,
     /// Which trigger owns the open menu, so pressing it again shuts it (`menu_toggle.rs`).
     pub(super) menu_toggle: super::menu_toggle::ChatMenuToggle,
-    /// The working row's pills, measured where their menus open (`chat_pills.rs`).
-    pub(super) working_lane: super::working_card::WorkingLaneCells,
+    /// The working card's pills, measured where their menus open (`chat_pills.rs`).
+    pub(super) pill_bounds: super::chat_pills::ChatPillBounds,
+    /// What the working card measured at its last paint (`working_card.rs`).
+    pub(super) working_card: super::working_card::WorkingCardCells,
     pub(super) save_markdown_window: super::save_markdown::SaveMarkdownWindowState,
     pub(super) rewind_window: super::rewind::RewindWindowState,
     pub(super) image_viewer: super::image_viewer::ImageViewerState,
@@ -366,7 +368,8 @@ impl NativeChatView {
             input_focus_listeners: Vec::new(),
             option_menu: None,
             menu_toggle: Default::default(),
-            working_lane: Default::default(),
+            pill_bounds: Default::default(),
+            working_card: Default::default(),
             context_editor_window: Default::default(),
             save_markdown_window: Default::default(),
             rewind_window: Default::default(),

@@ -18,6 +18,13 @@ const ROW_HEIGHT: f32 = 22.0;
 const ROW_GAP: f32 = 2.0;
 const LIST_MAX: f32 = 180.0;
 
+/// The Subagents pill's menu: the header line, the "unavailable" line of a stale roster and the rows.
+pub(super) fn fleet_menu_height(strip: &Value) -> f32 {
+    let rows = strip["rows"].as_array().map_or(0, Vec::len) + usize::from(strip["stale"] == true);
+    let list = (rows as f32 * ROW_HEIGHT + rows.saturating_sub(1) as f32 * ROW_GAP).min(LIST_MAX);
+    super::chat_pills::MENU_HEADER_HEIGHT + super::chat_pills::MENU_SECTION_GAP + list
+}
+
 impl NativeChatView {
     /// The Subagents pill's floating menu: what the Subagents strip above the composer listed.
     pub(super) fn fleet_menu_body(

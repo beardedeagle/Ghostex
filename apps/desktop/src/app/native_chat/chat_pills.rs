@@ -1,30 +1,62 @@
-//! The pills on the working card (working_card.rs). Always leftmost, two icon pills: "Scroll to
-//! bottom" and "Previous question". Then Threads, Tasks, Subagents and Background, whose labels,
-//! counts and order come from the core (`chatPills`, packages/gx-chat-core/src/extras/chat_pills.rs,
-//! where the user's decision lives): a summary, since opening the card shows each one's section with
-//! the rows these menus' builders draw (coordinator_threads.rs, agent_tasks.rs, agent_fleet.rs,
-//! background_tasks.rs). The menu helpers here also serve the Files and links menu
-//! (`option_menu/pill_menu.rs`).
+//! The pills on the working card (working_card.rs) and the floating menu each one opens. Always
+//! leftmost, two icon pills: "Scroll to bottom" and "Previous question". Then Threads, Tasks,
+//! Subagents and Background, whose labels, counts and order come from the core (`chatPills`,
+//! packages/gx-chat-core/src/extras/chat_pills.rs, where the user's decision lives); this opens the
+//! menu, a chat option menu window (`option_menu/pill_menu.rs`) that draws the panel's rows with
+//! this view's own row builders (coordinator_threads.rs, agent_tasks.rs, agent_fleet.rs,
+//! background_tasks.rs). The same menu window serves the Files and links menu.
 //!
-//! CDXC:SessionChat 2026-10-17 SEE-ALSO:
-//! The phone draws the same pills in apps/mobile/app/src/chat/native/cards/ChatPills.tsx.
+//! CDXC:SessionChat 2026-10-18 SEE-ALSO:
+//! The phone draws the same pills and menus in apps/mobile/app/src/chat/native/cards/ChatPills.tsx.
 
 use super::{appearance::ChatAppearance, state::NativeChatView, transcript::text};
 use crate::app::native_chat::cursor::ChatCursor as _;
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
-    AnyElement, Context, FontFeatures, InteractiveElement as _, IntoElement, ParentElement as _,
-    StatefulInteractiveElement as _, Styled as _, Window, div, px, rgb, svg,
+    AnyElement, Bounds, Context, FontFeatures, InteractiveElement as _, IntoElement,
+    ParentElement as _, Pixels, StatefulInteractiveElement as _, Styled as _, Window, canvas, div,
+    px, rgb, svg,
 };
-use serde_json::Value;
+use serde_json::{Value, json};
+use std::{cell::Cell, rc::Rc};
 
-/// A section's header line, the gap between its parts and its footer line ("N more"), unscaled.
+/// A menu's header line, the gap between its sections and its footer line ("N more"), unscaled.
 pub(super) const MENU_HEADER_HEIGHT: f32 = 24.0;
 pub(super) const MENU_SECTION_GAP: f32 = 4.0;
 pub(super) const MENU_FOOTER_HEIGHT: f32 = 22.0;
 
 /// The amber of a thread waiting on the user's approval (coordinator_threads.rs).
 pub(super) const ATTENTION_COLOR: u32 = 0xf5a524;
+
+/// Each pill's frame at its last paint, which its menu opens against.
+#[derive(Default)]
+pub(super) struct ChatPillBounds {
+    threads: Rc<Cell<Bounds<Pixels>>>,
+    tasks: Rc<Cell<Bounds<Pixels>>>,
+    subagents: Rc<Cell<Bounds<Pixels>>>,
+    background: Rc<Cell<Bounds<Pixels>>>,
+}
+
+impl ChatPillBounds {
+    fn cell(&self, id: &str) -> Rc<Cell<Bounds<Pixels>>> {
+        match id {
+            "threads" => self.threads.clone(),
+            "tasks" => self.tasks.clone(),
+            "background" => self.background.clone(),
+            _ => self.subagents.clone(),
+        }
+    }
+}
+
+/// The menu-toggle key of a pill (menu_toggle.rs).
+fn trigger_id(id: &str) -> &'static str {
+    match id {
+        "threads" => "chat-pill-threads",
+        "tasks" => "chat-pill-tasks",
+        "background" => "chat-pill-background",
+        _ => "chat-pill-subagents",
+    }
+}
 
 fn icon(id: &str) -> &'static str {
     match id {
@@ -35,53 +67,30 @@ fn icon(id: &str) -> &'static str {
     }
 }
 
-/// One panel pill in the Worked row's chip look (completed_work_row.rs): icon, label, count, and
-/// the amber dot when something in it needs the user. It has no menu of its own: a press reaches the
-/// card, which opens to every section.
-pub(super) fn chat_pill(pill: &Value, p: &ChatAppearance) -> AnyElement {
-    let s = p.scale;
-    let id = text(pill, "id");
-    let count = text(pill, "count");
-    div()
-        .flex()
-        .items_center()
-        .flex_shrink_0()
-        .gap(px(5.0 * s))
-        .px(px(8.0 * s))
-        .py(px(2.0 * s))
-        .rounded_full()
-        .border(px(s))
-        .border_color(p.foreground.opacity(0.1))
-        .text_size(px(11.5 * s))
-        .line_height(px(16.0 * s))
-        .whitespace_nowrap()
-        .text_color(p.card_muted)
-        .child(
-            svg()
-                .path(icon(&id))
-                .size(px(12.0 * s))
-                .flex_shrink_0()
-                .text_color(p.card_muted),
-        )
-        .child(text(pill, "label"))
-        .when(!count.is_empty(), |pill| {
-            pill.child(
-                div()
-                    .text_color(p.foreground)
-                    .font_features(FontFeatures(vec![("tnum".into(), 1)].into()))
-                    .child(count),
-            )
-        })
-        .when(pill["attention"] == true, |pill| {
-            pill.child(
-                div()
-                    .size(px(6.0 * s))
-                    .rounded_full()
-                    .flex_shrink_0()
-                    .bg(rgb(ATTENTION_COLOR)),
-            )
-        })
-        .into_any_element()
+fn menu_width(id: &str) -> f32 {
+    match id {
+        "tasks" => 360.0,
+        _ => 440.0,
+    }
+}
+
+/// The menu's content height (unscaled) for `id`, or `None` when its panel is gone.
+fn panel_menu_height(id: &str, snapshot: &Value) -> Option<f32> {
+    let (key, height): (&str, fn(&Value) -> f32) = match id {
+        "threads" => (
+            "coordinatorThreadsPanel",
+            super::coordinator_threads::threads_menu_height,
+        ),
+        "tasks" => ("agentTasksPanel", super::agent_tasks::tasks_menu_height),
+        "subagents" => ("agentFleetStrip", super::agent_fleet::fleet_menu_height),
+        "background" => (
+            "backgroundTasksPanel",
+            super::background_tasks::background_menu_height,
+        ),
+        _ => return None,
+    };
+    let panel = &snapshot[key];
+    panel.is_object().then(|| height(panel))
 }
 
 /// A menu's first line: the panel's icon and title, its muted detail, and an optional ornament.
@@ -226,7 +235,7 @@ impl NativeChatView {
     /// names it and its shortcut (scroll_bottom.rs).
     ///
     /// CDXC:SessionChat 2026-10-17 DECISION:
-    /// User: "make the scroll to bottom pill always appear on the leftmost so it doesn't push other pills when it appears". On the working card, in the lane or over the transcript's bottom edge, it takes the leftmost place among the card's pills and timers, which are laid out from the card's right edge, so appearing moves none of them; the label gives up the room. With nothing on the card it stands alone at the card's right end.
+    /// User: "make the scroll to bottom pill always appear on the leftmost so it doesn't push other pills when it appears". On the working card it takes the leftmost place among the card's pills and timers, which are laid out from the card's right edge, so appearing moves none of them; the label gives up the room. With no card to carry it, it stands alone over the transcript's bottom edge at the rows' right end (working_card.rs, `render_lone_scroll_bottom`).
     pub(super) fn scroll_bottom_icon_pill(
         &self,
         p: &ChatAppearance,
@@ -261,22 +270,128 @@ impl NativeChatView {
         )
     }
 
-    /// The Files and links menu's content height (unscaled), capped at 60% of the pane; its list
-    /// scrolls inside.
-    pub(super) fn pill_menu_height(&self, id: &str) -> Option<f32> {
-        if id != "filesLinks" {
-            return None;
-        }
-        let scale = ChatAppearance::current(&self.snapshot).scale;
-        let pane = f32::from(self.bounds.get().size.height) / scale;
-        super::files_links::files_links_menu_height(
-            &self.snapshot["filesLinks"],
-            (pane * 0.6).max(160.0),
-        )
+    /// One panel pill in the Worked row's chip look (completed_work_row.rs): icon, label, count, and
+    /// the amber dot when something in it needs the user. A click opens its menu.
+    pub(super) fn chat_pill(
+        &self,
+        pill: &Value,
+        p: &ChatAppearance,
+        cx: &Context<Self>,
+    ) -> AnyElement {
+        let s = p.scale;
+        let id = text(pill, "id");
+        let trigger = trigger_id(&id);
+        let open = self.chat_menu_is_open(trigger);
+        let bounds = self.pill_bounds.cell(&id);
+        let measured = bounds.clone();
+        let count = text(pill, "count");
+        div()
+            .id(trigger)
+            .relative()
+            .role(gpui::Role::Button)
+            .aria_label(text(pill, "ariaLabel"))
+            .aria_expanded(open)
+            .flex()
+            .items_center()
+            .flex_shrink_0()
+            .gap(px(5.0 * s))
+            .px(px(8.0 * s))
+            .py(px(2.0 * s))
+            .rounded_full()
+            .border(px(s))
+            .border_color(p.foreground.opacity(0.1))
+            .text_size(px(11.5 * s))
+            .line_height(px(16.0 * s))
+            .whitespace_nowrap()
+            .text_color(p.card_muted)
+            .chat_cursor_pointer()
+            .when(open, |pill| pill.bg(p.foreground.opacity(0.08)))
+            .hover(|style| style.bg(p.foreground.opacity(0.06)))
+            .child(
+                svg()
+                    .path(icon(&id))
+                    .size(px(12.0 * s))
+                    .flex_shrink_0()
+                    .text_color(p.card_muted),
+            )
+            .child(text(pill, "label"))
+            .when(!count.is_empty(), |pill| {
+                pill.child(
+                    div()
+                        .text_color(p.foreground)
+                        .font_features(FontFeatures(vec![("tnum".into(), 1)].into()))
+                        .child(count),
+                )
+            })
+            .when(pill["attention"] == true, |pill| {
+                pill.child(
+                    div()
+                        .size(px(6.0 * s))
+                        .rounded_full()
+                        .flex_shrink_0()
+                        .bg(rgb(ATTENTION_COLOR)),
+                )
+            })
+            .on_click(cx.listener(move |this, _, window, cx| {
+                this.toggle_pill_menu(&id, bounds.get(), window, cx)
+            }))
+            .child(
+                // The pill's own border box, which its menu lines up with (4px above, right edges
+                // equal). An absolute child with no insets sits at the content start (border plus
+                // padding in) at the padding box's size, so it measured the pill 7px too far right
+                // and 1px too low; insets on the padding box, one border width out, give the border
+                // box (the composer measures its card the same way, composer.rs).
+                canvas(move |bounds, _, _| measured.set(bounds), |_, _, _, _| {})
+                    .absolute()
+                    .inset(px(-s)),
+            )
+            .into_any_element()
     }
 
-    /// The body the Files and links menu draws, built with this view's listeners so its rows act on
-    /// this chat; `window` is the menu's own.
+    /// Opens `id`'s menu against its pill, or shuts it when it is the one on screen.
+    fn toggle_pill_menu(
+        &mut self,
+        id: &str,
+        trigger: Bounds<Pixels>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let trigger_id = trigger_id(id);
+        if self.chat_menu_toggled_shut(trigger_id, cx) {
+            return;
+        }
+        let Some(height) = self.pill_menu_height(id) else {
+            return;
+        };
+        self.menu_side = Some(super::option_menu::MenuSide::Right);
+        self.show_chat_menu(
+            vec![json!({"pillMenu": {"id": id, "height": height}})],
+            trigger,
+            menu_width(id),
+            window,
+            cx,
+        );
+        if let Some(menu) = &self.option_menu {
+            menu.update(cx, |menu, _| menu.set_pill(trigger_id));
+        }
+    }
+
+    /// The menu's content height (unscaled) for `id`, or `None` when its panel is gone. The Files
+    /// and links menu is capped at 60% of the pane; its list scrolls inside.
+    pub(super) fn pill_menu_height(&self, id: &str) -> Option<f32> {
+        if id == "filesLinks" {
+            let scale = ChatAppearance::current(&self.snapshot).scale;
+            let pane = f32::from(self.bounds.get().size.height) / scale;
+            return super::files_links::files_links_menu_height(
+                &self.snapshot["filesLinks"],
+                (pane * 0.6).max(160.0),
+            );
+        }
+        panel_menu_height(id, &self.snapshot)
+    }
+
+    /// The body `id`'s menu draws, built with this view's listeners so its rows act on this chat;
+    /// `window` is the menu's own.
     pub(super) fn pill_menu_body(
         &mut self,
         id: &str,
@@ -286,19 +401,27 @@ impl NativeChatView {
     ) -> Option<AnyElement> {
         match id {
             "filesLinks" => self.files_links_menu_body(p, window, cx),
+            "threads" => self.threads_menu_body(p, cx),
+            "tasks" => self.tasks_menu_body(p, cx),
+            "subagents" => self.fleet_menu_body(p, cx),
+            "background" => self.background_menu_body(p),
             _ => None,
         }
     }
 
-    /// Closes the open menu, after a row that leaves the chat (a thread opened).
+    /// Closes the open pill menu, after a row that leaves the chat (a thread opened).
     pub(super) fn close_pill_menu(&mut self, cx: &mut Context<Self>) {
         if let Some(menu) = self.option_menu.clone() {
             menu.update(cx, |menu, cx| menu.close(None, cx));
         }
     }
 
-    /// A menu opened against a trigger went away.
+    /// A pill's menu went away. The Threads list goes back to its first step, as folding the panel
+    /// did (CDXC:Coordinators 2026-10-18 in gx-chat-core's coordinator_threads.rs).
     pub(super) fn pill_menu_closed(&mut self, trigger: &'static str, cx: &mut Context<Self>) {
+        if trigger == "chat-pill-threads" {
+            self.invoke(json!({"type":"toggleCoordinatorThreadsMore","step":0}), cx);
+        }
         if trigger == super::files_links::FILES_LINKS_TRIGGER {
             self.files_links_menu_closed(cx);
         }

@@ -347,7 +347,7 @@ pub fn compose(
     if let Some(text) = streaming_text.filter(|text| !text.is_empty()) {
         tail.push(streaming_message(&text));
     }
-    // CDXC:SessionChat 2026-10-17 DECISION: User (Q253, "card"): the pending tool card and the working row become one card, the transcript's last item (`extras::working_card`). The pending tool no longer rides in the tail as a row of its own; the card's label and its open "Running now" section show it.
+    // CDXC:SessionChat 2026-10-18 DECISION: User (Q253, "card"): the pending tool card and the working row become one card (`extras::working_card`, since 2026-10-18 in its own row right above the composer). The pending tool no longer rides in the tail as a row of its own; the card's label shows it. Supersedes the 2026-10-17 open "Running now" section, gone with the card's opening ("let's make the pill itself not expandable at all").
     tail.extend(pending_messages);
 
     let mut composed = transcript;
