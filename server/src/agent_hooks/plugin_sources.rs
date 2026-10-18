@@ -766,10 +766,6 @@ function isIdle(ctx: ExtensionContext): boolean {
 }
 
 export default function ghostexOmpSessionExtension(api: ExtensionAPI) {
-  // The same turn-end rules as Ghostex's Pi extension: wait for `agent_settled` once it is known
-  // to exist, so a retry or queued follow-up does not end the turn early.
-  let settledSeen = false;
-  let pendingTurnEnd: TurnEnd | null = null;
   let promptOpen = false;
 
   api.on("session_start", async (_event, ctx) => {
@@ -780,25 +776,13 @@ export default function ghostexOmpSessionExtension(api: ExtensionAPI) {
     await sendHook("prompt-submit", ctx, { prompt: event.prompt });
   });
 
-  registerOptional(api, "agent_start", () => {
-    pendingTurnEnd = null;
-  });
-
+  // OMP has no `agent_settled`: an end it will continue past (a retry, a compaction or todo
+  // continuation, a wait on a background job) says so with `willContinue`, so only the others
+  // end the turn.
   api.on("agent_end", async (event, ctx) => {
+    if ((event as { willContinue?: unknown }).willContinue === true) return;
     const turnEnd = turnEndFor(event);
-    if (settledSeen) {
-      pendingTurnEnd = turnEnd;
-      return;
-    }
     await sendHook(turnEnd.event, ctx, turnEnd.extra);
-  });
-
-  registerOptional(api, "agent_settled", async (_event, ctx) => {
-    const firstSettle = !settledSeen;
-    settledSeen = true;
-    const turnEnd = pendingTurnEnd;
-    pendingTurnEnd = null;
-    if (turnEnd && !firstSettle) await sendHook(turnEnd.event, ctx, turnEnd.extra);
   });
 
   registerOptional(api, "ui_prompt_start", async (event, ctx) => {
@@ -851,7 +835,7 @@ pub(crate) fn current_plugin_marker(marker: &str) -> String {
     if marker == PI_EXTENSION_MARKER || marker == AMP_PLUGIN_MARKER {
         format!("{marker} v5")
     } else if marker == OMP_EXTENSION_MARKER {
-        format!("{marker} v3")
+        format!("{marker} v4")
     } else {
         format!("{marker} v2")
     }
