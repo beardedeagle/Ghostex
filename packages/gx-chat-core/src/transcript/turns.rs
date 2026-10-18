@@ -395,26 +395,30 @@ pub fn sticky_fold_holds(messages: &[ChatMessage], settled_at: Option<&str>) -> 
     settled_at.is_some() && messages.last().map(|message| message.id.as_str()) == settled_at
 }
 
-/// "Worked 12s", the label on a finished turn's fold (the 2026-10-11 work look, `work_summary.rs`).
+/// "Worked for 12s", the label on a finished turn's fold and the working card's end line (the
+/// 2026-10-11 work look, `work_summary.rs`); plain "Worked" for a turn with no length to show.
+///
+/// CDXC:SessionChat 2026-10-18 DECISION:
+/// User: "Say Worked for 12s not Worked 12s. this is in all places we mention how long we worked please". Every work duration reads "Worked for 12s", "Worked for 2m 5s" or "Worked for 2m"; the renderers draw this label and format none of their own. Supersedes the "Worked 2m 5s" wording of the 2026-10-11 work look.
 pub fn worked_duration_label(started_at: Option<i64>, completed_at: Option<i64>) -> String {
     let (Some(started_at), Some(completed_at)) = (started_at, completed_at) else {
         return "Worked".to_string();
     };
     // A turn the transcript times only to its prompt (a Cursor turn with no timed thinking) has no
-    // length to show; "Worked 1s" would be invented.
+    // length to show; "Worked for 1s" would be invented.
     if completed_at <= started_at {
         return "Worked".to_string();
     }
     let elapsed = (completed_at - started_at) as f64 / 1000.0;
     let seconds = (elapsed.round() as i64).max(1);
     if seconds < 60 {
-        return format!("Worked {seconds}s");
+        return format!("Worked for {seconds}s");
     }
     let minutes = seconds / 60;
     let remainder = seconds % 60;
     if remainder > 0 {
-        format!("Worked {minutes}m {remainder}s")
+        format!("Worked for {minutes}m {remainder}s")
     } else {
-        format!("Worked {minutes}m")
+        format!("Worked for {minutes}m")
     }
 }

@@ -58,7 +58,7 @@ pub enum TranscriptItem {
     #[serde(rename = "completed-work", rename_all = "camelCase")]
     CompletedWork {
         id: String,
-        /// "Worked 2m 5s".
+        /// "Worked for 2m 5s".
         label: String,
         /// The counts beside the label, `{kind, label}` each (`transcript/work_summary.rs`).
         #[serde(default, skip_serializing_if = "Vec::is_empty")]

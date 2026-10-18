@@ -1,4 +1,4 @@
-//! A finished turn: its "Worked 2m 5s" summary with the turn's counts beside it, the work log
+//! A finished turn: its "Worked for 2m 5s" summary with the turn's counts beside it, the work log
 //! behind it, the "N files changed" fold, the artifacts and answered questions it keeps in view,
 //! and the final reply. What the summary says is decided in gx-chat-core `work_summary.rs`.
 //!
@@ -132,7 +132,7 @@ impl NativeChatView {
         self.moving_completed_work_row(&id, frame, heading, log, files, tail, s)
     }
 
-    /// The bar a finished turn folds behind: a chevron, "Worked 2m 5s", and the turn's counts as
+    /// The bar a finished turn folds behind: a chevron, "Worked for 2m 5s", and the turn's counts as
     /// chips, so the closed fold still says what happened. Pressing it opens the log, reading a
     /// turn whose rows are still on the server first.
     ///

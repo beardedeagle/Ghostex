@@ -1,7 +1,7 @@
 //! What a finished turn's work fold says while it is closed, and what each tool row reports on its
-//! right: the counts beside "Worked 2m 5s", every call's duration, and a failed call's reason.
+//! right: the counts beside "Worked for 2m 5s", every call's duration, and a failed call's reason.
 //!
-//! CDXC:SessionChat 2026-10-11 DECISION: User picked the "proposed" work and reply look (docs/2026-10-10/chat-cards-questions/06-work.html): "Worked 2m 5s" carries its counts beside it (tool calls, files; the failure chip was dropped 2026-10-12, see `work_stats`) so the closed fold still tells the story; tool rows get a check or cross and their duration on the right, and a failed call is tinted and says what failed. The same day the user took back the design's labelled reply toolbar (Copy · Annotate · Save): a reply's actions stay the icon-only buttons shown on hover. The GPUI chat (`completed_work_row.rs`, `tool_run.rs`) and the phone (`TranscriptItemRow.tsx`, `ToolRows.tsx`) draw what this file decides.
+//! CDXC:SessionChat 2026-10-18 DECISION: User picked the "proposed" work and reply look (docs/2026-10-10/chat-cards-questions/06-work.html): "Worked for 2m 5s" carries its counts beside it (tool calls, files; the failure chip was dropped 2026-10-12, see `work_stats`) so the closed fold still tells the story; tool rows get a check or cross and their duration on the right, and a failed call is tinted and says what failed. The same day the user took back the design's labelled reply toolbar (Copy · Annotate · Save): a reply's actions stay the icon-only buttons shown on hover. The GPUI chat (`completed_work_row.rs`, `tool_run.rs`) and the phone (`TranscriptItemRow.tsx`, `ToolRows.tsx`) draw what this file decides. User (2026-10-18): "Say Worked for 12s not Worked 12s. this is in all places we mention how long we worked please", superseding the design's "Worked 2m 5s" wording (`turns::worked_duration_label`).
 
 use std::collections::HashMap;
 
@@ -123,7 +123,7 @@ pub fn failure_note(output: &str) -> String {
     truncate_tool_preview(line, FAILURE_NOTE_LENGTH)
 }
 
-/// The counts beside a finished turn's "Worked 2m 5s": its tool calls and the files it changed.
+/// The counts beside a finished turn's "Worked for 2m 5s": its tool calls and the files it changed.
 ///
 /// CDXC:SessionChat 2026-10-12 DECISION: User: "no need to show "Failed" here" (the "1 failed" chip beside "Worked 5m 19s"). The fold counts only tool calls and files; a failed call still shows its cross and reason on its own row once the fold is opened. Supersedes the 2026-10-11 design's failure chip ("a failure that was fixed").
 ///

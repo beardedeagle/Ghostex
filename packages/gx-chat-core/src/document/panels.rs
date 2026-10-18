@@ -36,7 +36,7 @@ pub struct WorkingCard {
     pub working: bool,
     /// The one-line label: the running tool's ("Bash(cargo test)"), a live activity's
     /// ("Compacting conversation"), the working word ("Considering…") or the Worked line
-    /// ("Worked 2m 13s"); `null` when the card carries only pills.
+    /// ("Worked for 2m 13s"); `null` when the card carries only pills.
     pub label: Option<String>,
     /// Which of those the label is: `tool`, `activity`, `word` or `worked`.
     pub label_kind: Option<String>,

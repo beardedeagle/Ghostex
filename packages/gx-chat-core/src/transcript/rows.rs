@@ -166,7 +166,7 @@ pub fn advance(state: &mut ChatState, context: &ChatContext) -> bool {
     true
 }
 
-/// The finished turn whose "Worked 2m 13s" the working card shows drops it from its own fold, which
+/// The finished turn whose "Worked for 2m 13s" the working card shows drops it from its own fold, which
 /// reads "Previous turn" beside its counts instead, so the time is on screen once.
 ///
 /// CDXC:SessionChat 2026-10-18 DECISION:

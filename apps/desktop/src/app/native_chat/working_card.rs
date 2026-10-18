@@ -15,14 +15,22 @@ use crate::app::helpers::ThrottledAnimationExt;
 use crate::assets::chat_working::VISUAL;
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
-    AnyElement, Context, FontFeatures, InteractiveElement as _, IntoElement, ParentElement as _,
-    StatefulInteractiveElement as _, Styled as _, canvas, div, px, relative, svg,
+    AnyElement, Bounds, Context, FontFeatures, InteractiveElement as _, IntoElement,
+    ParentElement as _, Pixels, StatefulInteractiveElement as _, Styled as _, canvas, div, point,
+    px, relative, svg,
 };
 use serde_json::Value;
 use std::{cell::Cell, rc::Rc, time::Duration};
 
 /// The header line's padding above and below (unscaled).
 const HEADER_PAD_Y: f32 = 6.0;
+
+/// The gap (unscaled) between the card's bottom edge and the chat box's top edge, when nothing else
+/// stacks between them (composer.rs).
+///
+/// CDXC:SessionChat 2026-10-18 DECISION:
+/// User, pointing at the gap between the working card and the chat box: "reduce the margin here to 9px" (it was 16px: the stack's 8px gap plus the box's own 8px lead-in). Only that gap changes; a card or notice stacked between them keeps the usual spacing. The phone matches in apps/mobile/app/src/chat/native/cards/WorkingCard.tsx.
+pub(super) const WORKING_CARD_GAP: f32 = 9.0;
 
 /// A pill's height (unscaled): its 16px line, 2px above and below and a 1px edge (chat_pills.rs).
 /// The line keeps that height with no pill on it, so a pill arriving or leaving never changes the
@@ -34,6 +42,23 @@ const PILL_HEIGHT: f32 = 22.0;
 pub(super) struct WorkingCardCells {
     /// The label did not fit its line, so hovering it shows the whole text.
     label_truncated: Rc<Cell<bool>>,
+    /// The card's border box, which the pills' menus open above.
+    bounds: Rc<Cell<Bounds<Pixels>>>,
+}
+
+impl WorkingCardCells {
+    /// Where a pill's menu opens against: the pill's left and right edges with the card's top, so
+    /// the menu's bottom sits the menu's 4px gap above the card, not above the pill.
+    ///
+    /// CDXC:SessionChat 2026-10-18 DECISION:
+    /// User: "please make these floating menus appear with 4px gap from the working card itself, not from the pill". Anchored to the pill, a pill's menu (Threads, Background and the others) overlapped the card's top edge; it now opens with its bottom edge 4px above the card, keeping its horizontal placement against the pill (chat_pills.rs).
+    pub(super) fn menu_anchor(&self, pill: Bounds<Pixels>) -> Bounds<Pixels> {
+        let card = self.bounds.get();
+        if card.size.height <= px(0.0) {
+            return pill;
+        }
+        Bounds::new(point(pill.left(), card.top()), pill.size)
+    }
 }
 
 impl NativeChatView {
@@ -62,8 +87,10 @@ impl NativeChatView {
         let card = self.snapshot["workingCard"].clone();
         let left_bottom = super::scroll_bottom::transcript_left_bottom(&self.list);
         let header = self.working_card_header(&card, left_bottom, p, cx);
+        let measured = self.working_card.bounds.clone();
         let card = div()
             .id("chat-working-card")
+            .relative()
             .role(gpui::Role::Status)
             .aria_label(text(&card, "ariaLabel"))
             .w_full()
@@ -77,6 +104,13 @@ impl NativeChatView {
             .overflow_hidden()
             .text_color(p.card_muted)
             .child(header)
+            .child(
+                // An absolute child with no insets sits inside the 1px border; one border width
+                // out gives the border box.
+                canvas(move |bounds, _, _| measured.set(bounds), |_, _, _, _| {})
+                    .absolute()
+                    .inset(px(-1.0)),
+            )
             .into_any_element();
         Some(card)
     }

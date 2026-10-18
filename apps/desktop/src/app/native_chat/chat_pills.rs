@@ -333,11 +333,12 @@ impl NativeChatView {
                 )
             })
             .on_click(cx.listener(move |this, _, window, cx| {
-                this.toggle_pill_menu(&id, bounds.get(), window, cx)
+                let anchor = this.working_card.menu_anchor(bounds.get());
+                this.toggle_pill_menu(&id, anchor, window, cx)
             }))
             .child(
-                // The pill's own border box, which its menu lines up with (4px above, right edges
-                // equal). An absolute child with no insets sits at the content start (border plus
+                // The pill's own border box, which its menu lines up with (right edges equal; it
+                // opens 4px above the card, `WorkingCardCells::menu_anchor`). An absolute child with no insets sits at the content start (border plus
                 // padding in) at the padding box's size, so it measured the pill 7px too far right
                 // and 1px too low; insets on the padding box, one border width out, give the border
                 // box (the composer measures its card the same way, composer.rs).

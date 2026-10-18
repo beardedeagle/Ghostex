@@ -1303,7 +1303,7 @@ While the agent works, a one-line card just above the chat box says what it is
 doing: the running tool's description (or its command) while a tool runs, and a
 working word such as "Considering…" between tools. The conversation ends above the
 card, so nothing in the chat ever scrolls under it; at the bottom of the chat it
-reads as the last thing in it. When the turn ends the card reads "Worked 2m 13s"
+reads as the last thing in it. When the turn ends the card reads "Worked for 2m 13s"
 until you send your next message, and that turn's fold then reads "Previous turn"
 beside its counts, so the time appears once. The agent's subagents, its task list,
 an orchestrator's threads and the commands still running in the background are

@@ -294,11 +294,15 @@ impl NativeChatView {
             .max_w(px(768.0 * s))
             .when(maximized, |this| this.p_0().max_w_full().h_full().min_h_0());
         // First in the stack, right above whatever else waits on the user (working_card.rs).
-        if !maximized {
-            if let Some(card) = self.render_working_card(p, cx) {
-                footer = footer.child(card);
-            }
-        }
+        let working_card = if maximized {
+            None
+        } else {
+            self.render_working_card(p, cx)
+        };
+        let card_above_box = working_card.is_some();
+        footer = footer.children(working_card);
+        // What stacks between the card and the box.
+        let mut waiting: Vec<AnyElement> = Vec::new();
         if self.snapshot["incomingDraft"].is_object() {
             /*
             CDXC:Drafts 2026-09-18 DECISION:
@@ -312,7 +316,7 @@ impl NativeChatView {
                 .chars()
                 .take(600)
                 .collect();
-            footer = footer.child(
+            waiting.push(
                 div()
                     .flex()
                     .items_center()
@@ -353,28 +357,30 @@ impl NativeChatView {
                         p,
                         cx,
                     ))
-                    .child(super::suggestions::stack_marker(&stack_top)),
+                    .child(super::suggestions::stack_marker(&stack_top))
+                    .into_any_element(),
             );
         }
         // A `composerNotReady` refusal gets its own card instead of the plain error line.
         if let Some(card) = self.render_composer_not_ready(p, cx) {
-            footer = footer.child(super::suggestions::stack_member(card, &stack_top));
+            waiting.push(super::suggestions::stack_member(card, &stack_top).into_any_element());
         } else if let Some(error) = self.snapshot["operationError"].as_str() {
-            footer = footer.child(
+            waiting.push(
                 div()
                     .text_color(gpui::rgb(0xef9999))
                     .child(error.to_string())
-                    .child(super::suggestions::stack_marker(&stack_top)),
+                    .child(super::suggestions::stack_marker(&stack_top))
+                    .into_any_element(),
             );
         }
         if let Some(notice) = self.render_notice(p, window, cx) {
-            footer = footer.child(notice);
+            waiting.push(notice.into_any_element());
         }
         if let Some(card) = self.render_unrecorded_api_error(p, cx) {
-            footer = footer.child(card);
+            waiting.push(card.into_any_element());
         }
         if let Some(questions) = self.render_async_questions(p, window, cx) {
-            footer = footer.child(questions);
+            waiting.push(questions.into_any_element());
         }
         if let Some(prompt) = self.render_prompt(p, window, cx) {
             if self.snapshot["prompt"]["kind"] == "question" {
@@ -383,28 +389,29 @@ impl NativeChatView {
                     .w_full()
                     .justify_center()
                     .flex_shrink_0()
-                    .child(footer.child(prompt))
+                    .child(footer.children(waiting).child(prompt))
                     .into_any_element();
             }
-            footer = footer.child(prompt);
+            waiting.push(prompt.into_any_element());
         }
         if let Some(note) = self.render_note(p, window, cx) {
-            footer = footer.child(note);
+            waiting.push(note.into_any_element());
         }
         if let Some(card) = self.render_catch_up(p, window, cx) {
-            footer = footer.child(card);
+            waiting.push(card.into_any_element());
         }
         self.sync_files_links_menu(window, cx);
         if maximized {
             if let Some(suggestions) = self.inline_suggestions(window, cx) {
                 let height =
                     super::suggestions::suggestion_panel_height(&self.snapshot["suggestions"], s);
-                footer = footer.child(
+                waiting.push(
                     div()
                         .h(height)
                         .max_h(gpui::relative(0.4))
                         .flex_shrink_0()
-                        .child(suggestions),
+                        .child(suggestions)
+                        .into_any_element(),
                 );
             }
         }
@@ -587,8 +594,10 @@ impl NativeChatView {
             )
             .when(!maximized, |this| this.child(content_measure));
         if !maximized && let Some(run_location) = self.render_run_location(p, cx) {
-            footer = footer.child(run_location);
+            waiting.push(run_location.into_any_element());
         }
+        let card_above_box = card_above_box && waiting.is_empty();
+        footer = footer.children(waiting);
         // CDXC:SessionChat 2026-09-18 WHY: React's inline composer had a zero-height notification section before its field, contributing one grid gap even while idle. Reserve that same gap here, after any cards or note.
         footer = footer.child(
             div()
@@ -597,7 +606,13 @@ impl NativeChatView {
                 .flex_col()
                 .w_full()
                 .min_w_0()
-                .when(!maximized, |this| this.mt(px(8.0 * s)))
+                .when(!maximized, |this| {
+                    this.mt(px(if card_above_box {
+                        super::working_card::WORKING_CARD_GAP - 8.0
+                    } else {
+                        8.0
+                    } * s))
+                })
                 .child(suggestion_anchor)
                 .rounded(px(22.0 * s))
                 .border_1()

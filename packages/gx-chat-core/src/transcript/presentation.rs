@@ -411,12 +411,12 @@ pub struct Projection {
     /// pointing at the row index of the list it just built. Family f owns the rail's rules; this
     /// pass is where the TypeScript calls them, so it is where the core calls them too.
     pub minimap: Vec<crate::extras::minimap_rail::MinimapMarkerRow>,
-    /// The newest turn's id and its "Worked 2m 13s" once it has finished and nothing was sent
+    /// The newest turn's id and its "Worked for 2m 13s" once it has finished and nothing was sent
     /// after it: the working card's line above the composer (`extras::working_card`).
     pub worked_turn: Option<(String, String)>,
 }
 
-/// "Worked 2m 5s" for a finished turn, the label on its fold.
+/// "Worked for 2m 5s" for a finished turn, the label on its fold.
 fn turn_worked_label(turn: &crate::transcript::turns::CompletedWorkTurn) -> String {
     worked_duration_label(
         turn.user.timestamp,
