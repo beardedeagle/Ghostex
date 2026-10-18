@@ -61,7 +61,7 @@ enum HookAnswer {
 impl GhostexGpuiApp {
     /// The sidebar HUD the launch reads its agents from, the same document the launcher's menus
     /// are built from (runtime_facts.rs).
-    pub(super) fn gx_store_launch_hud(&self) -> Option<Arc<Value>> {
+    pub(crate) fn gx_store_launch_hud(&self) -> Option<Arc<Value>> {
         self.gx_store.runtime_facts.hud.clone()
     }
 

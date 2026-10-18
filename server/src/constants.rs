@@ -21,9 +21,13 @@ Chat attachments cap at 32 MiB on disk (saveSessionChatAttachment); the same
 */
 pub const GXSERVER_ATTACHMENT_BODY_LIMIT_BYTES: usize = 44 * 1024 * 1024;
 /*
-CDXC:Feedback 2026-10-04 WHY:
-sendFeedback carries up to five 5 MiB images as base64 (about 35 MB), the same
-36 MiB request cap the feedback relay itself enforces.
+CDXC:Feedback 2026-10-18 WHY:
+sendFeedback and startFeedbackAgent carry up to five 5 MiB images as base64
+(about 35 MB), the same 36 MiB request cap the feedback relay itself enforces;
+`FeedbackImage::from_params` checks the count and size of each image. The Send
+Bug / Feedback dialog's Start Agent posted to startFeedbackAgent under the
+general 1 MiB cap, so screenshots over about 750 KB in total failed with 413
+(GitHub issue #253). Supersedes the 2026-10-04 note that named only sendFeedback.
 */
 pub const GXSERVER_FEEDBACK_BODY_LIMIT_BYTES: usize = 36 * 1024 * 1024;
 /// The app version (`package.json`), not the placeholder crate version; see `server/build.rs`.

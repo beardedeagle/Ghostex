@@ -2,8 +2,8 @@ use super::images::FEEDBACK_MAX_IMAGES;
 use super::state::{FeedbackStep, GpuiFeedbackModalWindow, github_username};
 use crate::app::window::native_modal_kit::*;
 use gpui::{
-    AnyElement, ClickEvent, Context, InteractiveElement as _, IntoElement, ParentElement as _,
-    Render, StatefulInteractiveElement as _, Styled as _, Window, div, px,
+    AnyElement, ClickEvent, Context, ExternalPaths, InteractiveElement as _, IntoElement,
+    ParentElement as _, Render, StatefulInteractiveElement as _, Styled as _, Window, div, px,
 };
 use gpui_component::v_flex;
 use std::rc::Rc;
@@ -12,11 +12,19 @@ impl GpuiFeedbackModalWindow {
     fn render_compose(&self, window: &Window, cx: &mut Context<Self>) -> Vec<AnyElement> {
         let p = self.palette;
         let paste: ModalPasteHandler = Rc::new(Self::paste_handler(cx.entity().downgrade()));
-        let paste_hint = format!(
-            "You can paste screenshots into this box with {}: up to {FEEDBACK_MAX_IMAGES} PNG, \
-             JPEG or WebP images.",
-            crate::hotkey_label::terminal_overlay_hotkey_chord_label("cmd+v")
-        );
+        let paste_chord = crate::hotkey_label::terminal_overlay_hotkey_chord_label("cmd+v");
+        // The web build's GPUI platform delivers no file drops, so the page only offers paste.
+        let paste_hint = if cfg!(target_family = "wasm") {
+            format!(
+                "You can paste screenshots into this box with {paste_chord}: up to \
+                 {FEEDBACK_MAX_IMAGES} PNG, JPEG or WebP images."
+            )
+        } else {
+            format!(
+                "You can paste screenshots into this box with {paste_chord} or drop them here: up \
+                 to {FEEDBACK_MAX_IMAGES} PNG, JPEG or WebP images."
+            )
+        };
         let message = v_flex()
             .w_full()
             .flex_1()
@@ -62,16 +70,24 @@ impl GpuiFeedbackModalWindow {
             })
             .into_any_element();
         let busy = self.busy;
+        let agent_hint = match &self.agent_machine {
+            Some(machine) => format!(
+                "An agent on {}, where this session runs, reads its Ghostex logs and settings, \
+                 looks into the problem without changing anything, and shows you the issue before \
+                 it posts it.",
+                machine.name
+            ),
+            None => "An agent reads this computer's Ghostex logs and settings, looks into the \
+                     problem without changing anything, and shows you the issue before it posts \
+                     it."
+            .to_string(),
+        };
         let agent = modal_panel(&p)
             .child(
                 modal_panel_row(
                     &p,
                     "Collect more data with an agent",
-                    Some(
-                        "An agent reads this computer's Ghostex logs and settings, looks into the \
-                         problem without changing anything, and shows you the issue before it \
-                         posts it.",
-                    ),
+                    Some(agent_hint),
                     modal_switch(&p, self.collect_with_agent, busy),
                     false,
                 )
@@ -280,5 +296,9 @@ impl Render for GpuiFeedbackModalWindow {
         )
         .capture_action(cx.listener(Self::on_enter_action))
         .capture_action(cx.listener(Self::on_escape_action))
+        .on_drop(cx.listener(|this, paths: &ExternalPaths, _window, cx| {
+            this.drop_paths(paths, cx);
+            cx.stop_propagation();
+        }))
     }
 }

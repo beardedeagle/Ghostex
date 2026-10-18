@@ -1,13 +1,16 @@
-//! Images pasted into the feedback message: what the relay accepts, and the thumbnail strip.
+//! Images pasted or dropped into the feedback message: what the relay accepts, and the thumbnail
+//! strip.
 
-use super::state::GpuiFeedbackModalWindow;
+use super::state::{FeedbackStep, GpuiFeedbackModalWindow};
 use crate::app::window::native_modal_kit::*;
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
-    AnyElement, App, ClipboardEntry, ClipboardItem, Context, Image, ImageFormat,
+    AnyElement, App, ClipboardEntry, ClipboardItem, Context, ExternalPaths, Image, ImageFormat,
     InteractiveElement as _, IntoElement, ParentElement as _, StatefulInteractiveElement as _,
     Styled as _, StyledImage as _, WeakEntity, Window, div, img, px,
 };
+use std::io::Read as _;
+use std::path::Path;
 use std::sync::Arc;
 
 /// The relay's limits (`LIMITS` in its `src/validate.ts`, checked again by gxserver).
@@ -43,8 +46,42 @@ impl GpuiFeedbackModalWindow {
         if pasted.is_empty() {
             return false;
         }
+        self.add_images(
+            pasted
+                .into_iter()
+                .map(|image| move || prepare_feedback_image(image))
+                .collect(),
+            cx,
+        );
+        true
+    }
+
+    /// Image files dropped on the pop-up while the message is being written are attached like
+    /// pasted ones: the same five-image limit, formats and 5 MB size (a larger PNG is scaled
+    /// down).
+    pub(super) fn drop_paths(&mut self, paths: &ExternalPaths, cx: &mut Context<Self>) {
+        if self.busy || !matches!(self.step, FeedbackStep::Compose) {
+            return;
+        }
+        self.add_images(
+            paths
+                .paths()
+                .iter()
+                .cloned()
+                .map(|path| move || read_dropped_image(&path).and_then(prepare_feedback_image))
+                .collect(),
+            cx,
+        );
+    }
+
+    /// Prepares each image off the UI thread, with a dashed tile per image still in the works,
+    /// until the five-image limit.
+    fn add_images<F>(&mut self, loads: Vec<F>, cx: &mut Context<Self>)
+    where
+        F: FnOnce() -> Result<Image, String> + Send + 'static,
+    {
         self.image_error = None;
-        for image in pasted {
+        for load in loads {
             if self.images.len() + self.pending_images >= FEEDBACK_MAX_IMAGES {
                 self.image_error = Some(format!(
                     "You can attach up to {FEEDBACK_MAX_IMAGES} images."
@@ -52,9 +89,7 @@ impl GpuiFeedbackModalWindow {
                 break;
             }
             self.pending_images += 1;
-            let prepared = cx
-                .background_executor()
-                .spawn(async move { prepare_feedback_image(image) });
+            let prepared = cx.background_executor().spawn(async move { load() });
             cx.spawn(async move |this, cx| {
                 let prepared = prepared.await;
                 let _ = this.update(cx, |this, cx| {
@@ -69,7 +104,6 @@ impl GpuiFeedbackModalWindow {
             .detach();
         }
         cx.notify();
-        true
     }
 
     /// The pasted images as 48px tiles, each with a remove button that shows while it is hovered,
@@ -156,6 +190,40 @@ impl GpuiFeedbackModalWindow {
         }
         Some(row.into_any_element())
     }
+}
+
+/// Larger dropped files are not screenshots; refusing them up front spares reading a video into
+/// memory to find that out.
+const DROPPED_FILE_MAX_BYTES: u64 = 64 * 1024 * 1024;
+
+/// A dropped file as an image, its type read from the bytes rather than the file name.
+fn read_dropped_image(path: &Path) -> Result<Image, String> {
+    let unreadable = || format!("{} could not be read.", file_label(path));
+    let not_an_image = || "Only PNG, JPEG and WebP images can be attached.".to_string();
+    let mut file = std::fs::File::open(path).map_err(|_| unreadable())?;
+    let metadata = file.metadata().map_err(|_| unreadable())?;
+    if !metadata.is_file() {
+        return Err(not_an_image());
+    }
+    let mut head = [0u8; 16];
+    let read = file.read(&mut head).map_err(|_| unreadable())?;
+    let format = match image::guess_format(&head[..read]) {
+        Ok(image::ImageFormat::Png) => ImageFormat::Png,
+        Ok(image::ImageFormat::Jpeg) => ImageFormat::Jpeg,
+        Ok(image::ImageFormat::WebP) => ImageFormat::Webp,
+        _ => return Err(not_an_image()),
+    };
+    if metadata.len() > DROPPED_FILE_MAX_BYTES {
+        return Err("Images must be 5 MB or smaller.".to_string());
+    }
+    let bytes = std::fs::read(path).map_err(|_| unreadable())?;
+    Ok(Image::from_bytes(format, bytes))
+}
+
+fn file_label(path: &Path) -> String {
+    path.file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "That file".to_string())
 }
 
 /// An image the relay accepts: PNG, JPEG or WebP of at most 5 MB. A larger PNG (a full-screen

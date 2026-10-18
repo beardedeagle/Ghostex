@@ -1,4 +1,5 @@
 use crate::app::gx_store::{gx_rpc, gx_rpc_with_timeout, write_client_document_value};
+use crate::app::model::GpuiRemoteGxserverRequestTarget;
 use crate::app::window::native_modal_kit::*;
 use base64::Engine as _;
 use gpui::{
@@ -20,12 +21,29 @@ const SEND_TIMEOUT: Duration = Duration::from_secs(180);
 /// What the pop-up asks its host to do. The pop-up removes its own window before sending it.
 pub(crate) enum FeedbackModalCommand {
     Closed,
-    /// gxserver started the feedback agent in this session; the host opens it.
+    /// gxserver started the feedback agent in this session; the host opens it. The ids are that
+    /// machine's own: `remote_machine_id` names the remote machine it runs on, `None` this computer.
     OpenSession {
+        remote_machine_id: Option<String>,
         project_id: String,
         session_id: String,
         agent_id: String,
     },
+}
+
+/// The remote machine the feedback agent starts on.
+///
+/// CDXC:Feedback 2026-10-18 WHY:
+/// Start Agent always asked this computer's gxserver, so a report about a session on a remote machine got an agent that read this computer's logs and settings instead of the machine where the problem is. The machine is the focused session's (else the active project's) when the dialog opens, and the agent starts there through the same SSH tunnel `gx_rpc` already uses for remote sessions (Ghostex Capture, the Git menu); that gxserver saves the screenshots, runs the agent in its own Ghostex config folder, and the agent files the issue with that machine's `ghostex feedback send`. A machine that is not connected is reported as such, never swapped for this computer.
+#[derive(Clone)]
+pub(crate) struct FeedbackAgentMachine {
+    pub(crate) machine_id: String,
+    pub(crate) name: String,
+    /// The live tunnel to the machine's gxserver; `None` while it is not connected.
+    pub(crate) target: Option<GpuiRemoteGxserverRequestTarget>,
+    /// The agent to start, as that machine knows it (a custom agent of this computer travels as
+    /// the built-in agent its icon names).
+    pub(crate) agent_id: Option<String>,
 }
 
 pub(crate) type FeedbackModalHost = Rc<dyn Fn(FeedbackModalCommand, &mut App)>;
@@ -39,6 +57,8 @@ pub(crate) struct FeedbackModalConfig {
     /// The agent the feedback agent runs as: the sidebar's default agent for new sessions, else
     /// gxserver picks the Default Prompt Agent.
     pub(crate) agent_id: Option<String>,
+    /// The remote machine the reported session runs on; `None` starts the agent on this computer.
+    pub(crate) agent_machine: Option<FeedbackAgentMachine>,
 }
 
 /// Client storage's `feedbackGithubUser` store: the GitHub username the last feedback named.
@@ -91,6 +111,7 @@ pub(crate) struct GpuiFeedbackModalWindow {
     /// the Review step.
     pub(super) collect_with_agent: bool,
     pub(super) agent_id: Option<String>,
+    pub(super) agent_machine: Option<FeedbackAgentMachine>,
     /// Pasted images still being checked (and shrunk when too large).
     pub(super) pending_images: usize,
     pub(super) image_error: Option<String>,
@@ -187,6 +208,7 @@ impl GpuiFeedbackModalWindow {
             github,
             collect_with_agent: false,
             agent_id: config.agent_id,
+            agent_machine: config.agent_machine,
             pending_images: 0,
             image_error: None,
             title_input,
@@ -370,10 +392,19 @@ impl GpuiFeedbackModalWindow {
         .detach();
     }
 
-    /// Compose → the feedback agent: gxserver saves the screenshots, starts the agent with the
-    /// message, and the pop-up closes onto the agent's session.
+    /// Compose → the feedback agent: gxserver (the reported session's machine's) saves the
+    /// screenshots, starts the agent with the message, and the pop-up closes onto the agent's
+    /// session.
     pub(super) fn start_agent(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if !self.can_review() {
+            return;
+        }
+        if let Some(machine) = self.agent_machine.as_ref().filter(|m| m.target.is_none()) {
+            self.error = Some(format!(
+                "{} is not connected right now. Reconnect it to start the agent there.",
+                machine.name
+            ));
+            cx.notify();
             return;
         }
         self.busy = true;
@@ -385,14 +416,22 @@ impl GpuiFeedbackModalWindow {
             "message": self.message.trim(),
             "githubUsername": self.username(),
         });
-        if let Some(agent_id) = &self.agent_id {
+        let (remote, remote_machine_id, agent_id) = match &self.agent_machine {
+            Some(machine) => (
+                machine.target.clone(),
+                Some(machine.machine_id.clone()),
+                machine.agent_id.clone(),
+            ),
+            None => (None, None, self.agent_id.clone()),
+        };
+        if let Some(agent_id) = agent_id {
             params["agentId"] = json!(agent_id);
         }
         let encode = self.encoded_images(cx);
         cx.spawn_in(window, async move |this, cx| {
             params["images"] = Value::Array(encode.await);
             let result =
-                gx_rpc_with_timeout(None, "/api/startFeedbackAgent", params, SEND_TIMEOUT).await;
+                gx_rpc_with_timeout(remote, "/api/startFeedbackAgent", params, SEND_TIMEOUT).await;
             let _ = this.update_in(cx, |this, window, cx| {
                 this.busy = false;
                 let text = |value: &Value, key: &str| value[key].as_str().map(str::to_string);
@@ -404,6 +443,7 @@ impl GpuiFeedbackModalWindow {
                             window.remove_window();
                             (this.host)(
                                 FeedbackModalCommand::OpenSession {
+                                    remote_machine_id,
                                     project_id,
                                     session_id,
                                     agent_id,

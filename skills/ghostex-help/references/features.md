@@ -3388,8 +3388,9 @@ opens the feedback pop-up. Enter your GitHub username first ("name" or "@name");
 it is required, the issue starts with "Reported by @name" so GitHub tells you
 when it is fixed, and Ghostex remembers it for next time. Then write what is
 broken, confusing or missing and paste screenshots into the text box with Cmd+V
-(Ctrl+V on Windows and Linux): up to five PNG, JPEG or WebP images of 5 MB each;
-a larger PNG screenshot is scaled down to fit. Review then shows the exact
+(Ctrl+V on Windows and Linux), or drag image files onto the pop-up (desktop
+app only): up to five PNG, JPEG or WebP images of 5 MB each; a larger PNG
+screenshot is scaled down to fit. Review then shows the exact
 GitHub issue, title and description, and you can edit both before Send; Ghostex
 adds your screenshots and a line with the app, its version and your operating
 system. The issue is public on the Ghostex GitHub, and after it is sent Open
@@ -3408,7 +3409,12 @@ changing anything, keeps tokens, passwords and your files' contents out of the
 issue, then shows you the whole draft in the chat and posts it once you say yes.
 It files the issue with `ghostex feedback send --title <text> --body-file <file>
 --github-user <name> [--image <file>]...`, which you or any agent can also run
-by hand (`--dry-run` prints what would be sent without posting).
+by hand (`--dry-run` prints what would be sent without posting). When the
+session you are looking at (or, with none focused, the active project) is on a
+connected remote machine, the agent starts on that machine instead, in its own
+Ghostex config folder, and reads that machine's version, settings and logs; the
+switch's description names the machine. If that machine is not connected, Start
+Agent says so instead of starting on this computer.
 
 On the phone, Send Bug / Feedback is in the menu at the top of the Sessions
 screen, under Settings. It has the same form: your GitHub username (required,

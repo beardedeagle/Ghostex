@@ -77,7 +77,7 @@ pub(crate) fn json_body_limit_bytes(endpoint_path: &str) -> usize {
         crate::constants::GXSERVER_IMAGE_BODY_LIMIT_BYTES
     } else if endpoint_path == "/api/saveSessionChatAttachment" {
         crate::constants::GXSERVER_ATTACHMENT_BODY_LIMIT_BYTES
-    } else if endpoint_path == "/api/sendFeedback" {
+    } else if endpoint_path == "/api/sendFeedback" || endpoint_path == "/api/startFeedbackAgent" {
         crate::constants::GXSERVER_FEEDBACK_BODY_LIMIT_BYTES
     } else if endpoint_path == "/api/runProjectDocsAction" {
         3 * 1024 * 1024
