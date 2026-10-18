@@ -8,15 +8,15 @@
 //! part whose height eases to nothing takes its gap with it and the first and last frames match
 //! the live rows and the settled row exactly.
 
+use super::cards::SINGLE_LINE_CARD;
 use super::disclosure_body::{DisclosureRail, disclosure_body};
 use super::disclosure_motion::{FoldFrame, FoldMotionKind, motion_clip};
 use super::transcript::text;
 use super::{appearance::ChatAppearance, state::NativeChatView};
 use crate::app::native_chat::cursor::ChatCursor as _;
-use gpui::prelude::FluentBuilder as _;
 use gpui::{
-    AnyElement, Context, FontWeight, InteractiveElement as _, IntoElement, ParentElement as _,
-    SharedString, StatefulInteractiveElement as _, Styled as _, Window, div, px,
+    AnyElement, Context, InteractiveElement as _, IntoElement, ParentElement as _, SharedString,
+    StatefulInteractiveElement as _, Styled as _, Window, div, px,
 };
 use serde_json::{Value, json};
 use std::{cell::Cell, rc::Rc};
@@ -132,9 +132,11 @@ impl NativeChatView {
         self.moving_completed_work_row(&id, frame, heading, log, files, tail, s)
     }
 
-    /// The bar a finished turn folds behind: a chevron, "Worked for 2m 5s", and the turn's counts as
-    /// chips, so the closed fold still says what happened. Pressing it opens the log, reading a
+    /// The bar a finished turn folds behind: "Worked for 2m 5s" and the turn's counts as pills, so
+    /// the closed fold still says what happened; the whole bar opens and closes it, with no chevron. Pressing it opens the log, reading a
     /// turn whose rows are still on the server first.
+    ///
+    /// Its height, fill and type are every one-line card's (`SINGLE_LINE_CARD`, cards.rs).
     ///
     /// CDXC:SessionChat 2026-10-11 DECISION: User: move the count pills to the right side of the "Worked …" row and give them fully rounded (pill) corners. They wrap among themselves, right-aligned, when the row is narrow; the phone's `TranscriptItemRow.tsx` lays them out the same way.
     fn work_summary(
@@ -158,6 +160,7 @@ impl NativeChatView {
             .chain(stats.iter().map(|(_, label)| label.clone()))
             .collect::<Vec<_>>()
             .join(", ");
+        let card = &*SINGLE_LINE_CARD;
         let chip = |kind: &str, label: String| {
             let failed = matches!(kind, "failed" | "recovered");
             let tone = if failed { p.error() } else { p.card_muted };
@@ -166,24 +169,10 @@ impl NativeChatView {
                 "failed" | "recovered" => "titlebar/alert-triangle.svg",
                 _ => "titlebar/tool.svg",
             };
-            div()
-                .flex()
-                .items_center()
-                .flex_shrink_0()
-                .gap(px(5.0 * s))
-                .px(px(8.0 * s))
-                .py(px(2.0 * s))
-                .rounded_full()
-                .border(px(s))
-                .border_color(p.foreground.opacity(0.1))
-                .text_size(px(11.5 * s))
-                .line_height(px(16.0 * s))
-                .whitespace_nowrap()
-                .text_color(tone)
-                .child(gpui::svg().path(icon).size(px(12.0 * s)).text_color(tone))
-                .child(label)
+            card.pill(Some(icon), Some(label), tone, p)
         };
-        let mut bar = div()
+        let mut bar = card
+            .shell(div(), p)
             .id(SharedString::from(format!("{id}:summary")))
             .role(gpui::Role::Button)
             .aria_label(spoken)
@@ -191,32 +180,12 @@ impl NativeChatView {
             .flex()
             .items_center()
             .w_full()
+            .h(px(card.height * s))
+            .flex_shrink_0()
             .gap(px(8.0 * s))
-            .pl(px(8.0 * s))
-            .pr(px(10.0 * s))
-            .py(px(6.0 * s))
-            .rounded(px(10.0 * s))
-            .border(px(s))
-            .border_color(p.foreground.opacity(0.06))
-            .bg(p.input.opacity(0.75))
-            .when(expandable, |bar| {
-                bar.child(
-                    gpui::svg()
-                        .path(if expanded {
-                            "titlebar/chevron-down.svg"
-                        } else {
-                            "titlebar/chevron-right.svg"
-                        })
-                        .size(px(14.0 * s))
-                        .flex_shrink_0()
-                        .text_color(p.muted),
-                )
-            })
+            .px(px(card.padding_x * s))
             .child(
-                div()
-                    .flex_shrink_0()
-                    .text_size(px(13.5 * s))
-                    .font_weight(FontWeight::MEDIUM)
+                card.title(div().flex_shrink_0(), p)
                     .text_color(if expandable { p.foreground } else { p.muted })
                     .child(label),
             )

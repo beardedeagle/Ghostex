@@ -7,7 +7,8 @@
 //! same after the fact as it did while it was being given.
 
 use super::ask_card::{
-    AskBodyMotion, AskTone, answer_aside, ask_head, chevron, plain_answer, press_head, receipt_row,
+    AskBodyMotion, AskTone, answer_aside, plain_answer, receipt_row, single_line_ask_head,
+    single_line_press_head,
 };
 use super::{appearance::ChatAppearance, state::NativeChatView, transcript::text};
 use gpui::{
@@ -143,8 +144,8 @@ impl NativeChatView {
         }
         let body = div().mt(px(-6.0 * s)).child(rows).into_any_element();
         let toggle_key = fold_key.clone();
-        let head = press_head(
-            ask_head(icon, tone, title, detail, vec![chevron(open, p)], p),
+        let head = single_line_press_head(
+            single_line_ask_head(icon, tone, title, detail, Vec::new(), p),
             SharedString::from(format!("question-receipt-head:{key}")),
             if open {
                 "Hide the answers"
@@ -162,10 +163,9 @@ impl NativeChatView {
         }))
         .into_any_element();
         let has_rows = total > 0 || !text(exchange, "fallbackText").is_empty();
-        self.ask_card(
+        self.single_line_ask_card(
             head,
             (has_rows && (open || motion.is_some())).then_some(body),
-            Vec::new(),
             Some(AskBodyMotion {
                 key: &fold_key,
                 frame: motion,

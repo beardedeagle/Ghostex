@@ -1,14 +1,15 @@
 //! The cards for messages between agents: one another agent sent this session, one this session's
-//! agent sent another, and a subagent's reply. Each is one 40px row (the agent's logo, one sentence
-//! such as `Message from "<session>"`, the time, the status and a chevron) that opens to the whole
+//! agent sent another, and a subagent's reply. Each is one 44px row (the agent's logo, one sentence
+//! such as `Message from "<session>"`, the time and the status as a pill) that opens to the whole
 //! message; a message
 //! sent to several sessions at once lists each of them above it.
 //! Which rows these are, whom a message went to, and everything a card says comes from the core's
 //! `card` object (packages/gx-chat-core/src/transcript/agent_message_card.rs, where the user's pick
-//! is the `CDXC:SessionChat 2026-10-12 DECISION`); this file only lays it out.
+//! is the `CDXC:SessionChat 2026-10-12 DECISION`); this file only lays it out, in the shell, height
+//! and title type every one-line card shares (`SINGLE_LINE_CARD`, cards.rs).
 //! The phone draws the same cards in apps/mobile/app/src/chat/native/transcript/AgentMessageCards.tsx.
 
-use super::cards::card_hover_fill;
+use super::cards::{SINGLE_LINE_CARD, card_hover_fill};
 use super::new_session_welcome::brand_logo_color;
 use super::{
     appearance::{ChatAppearance, ChatFilledButton as _},
@@ -19,14 +20,10 @@ use crate::app::helpers::workspace_tab_agent_icon_path;
 use crate::app::native_chat::cursor::ChatCursor as _;
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
-    AnyElement, Context, FontWeight, Hsla, InteractiveElement as _, IntoElement,
-    ParentElement as _, SharedString, StatefulInteractiveElement as _, Styled as _, div, img, px,
-    rgb,
+    AnyElement, Context, Hsla, InteractiveElement as _, IntoElement, ParentElement as _,
+    SharedString, StatefulInteractiveElement as _, Styled as _, div, img, px, rgb,
 };
 use serde_json::{Value, json};
-
-/// The row's height, before the chat's zoom.
-const ROW_HEIGHT: f32 = 40.0;
 
 fn hue(p: &ChatAppearance, dark: u32, light: u32) -> Hsla {
     rgb(if p.light { light } else { dark }).into()
@@ -181,16 +178,13 @@ impl NativeChatView {
             self.disclosure_body_motion(&key, motion, 0.0, message)
         });
         let failure = self.agent_card_failure(&key, card, hairline, p, cx);
-        div()
+        SINGLE_LINE_CARD
+            .shell(div(), p)
             .group(SharedString::from(format!("agent-card:{key}")))
             .flex()
             .flex_col()
             .w_full()
             .min_w_0()
-            .rounded(px(10.0 * s))
-            .border_1()
-            .border_color(p.input_border)
-            .bg(p.card_panel)
             .overflow_hidden()
             .child(self.agent_card_row(&key, card, expandable, expanded, p, cx))
             .children(opened)
@@ -199,7 +193,7 @@ impl NativeChatView {
     }
 
     /// The logo, the core's sentence (the same collapsed and opened), then Go to session on hover,
-    /// the time, the status and the chevron. The row opens and closes the message.
+    /// the time and the status pill; no chevron. The row opens and closes the message.
     fn agent_card_row(
         &self,
         key: &str,
@@ -214,23 +208,21 @@ impl NativeChatView {
         let status = &card["status"];
         let time = text(card, "time");
         let group = SharedString::from(format!("agent-card:{key}"));
+        let shape = &*SINGLE_LINE_CARD;
         let row = div()
             .id(SharedString::from(format!("{key}:row")))
-            .h(px(ROW_HEIGHT * s))
-            .px(px(12.0 * s))
+            .h(px(shape.header_height(s)))
+            .flex_shrink_0()
+            .px(px(shape.padding_x * s))
             .flex()
             .items_center()
             .gap(px(9.0 * s))
             .min_w_0()
-            .text_size(px(14.0 * s))
             .child(self.agent_card_mark(card, p))
             .child(
-                div()
-                    .flex_1()
-                    .min_w_0()
-                    .truncate()
+                shape
+                    .title(div().flex_1().min_w_0().truncate(), p)
                     .text_color(p.foreground)
-                    .font_weight(FontWeight::SEMIBOLD)
                     .child(text(card, "name")),
             )
             .when(
@@ -283,17 +275,6 @@ impl NativeChatView {
             })
             .when(status.is_object(), |row| {
                 row.child(self.agent_card_status(key, status, p))
-            })
-            .when(expandable, |row| {
-                row.child(icon(
-                    if expanded {
-                        "titlebar/chevron-down.svg"
-                    } else {
-                        "titlebar/chevron-right.svg"
-                    },
-                    14.0 * s,
-                    p.muted,
-                ))
             });
         if !expandable {
             return row.into_any_element();
@@ -370,9 +351,9 @@ impl NativeChatView {
         )
     }
 
-    /// Delivered is a small check; Queued, Waiting for agent and Not sent say so in their colour.
+    /// A pill (`SINGLE_LINE_CARD`, cards.rs): Delivered is a green check; Queued, Waiting for agent
+    /// and Not sent say so in their colour.
     fn agent_card_status(&self, key: &str, status: &Value, p: &ChatAppearance) -> AnyElement {
-        let s = p.scale;
         let color = tone_color(&text(status, "tone"), p);
         let glyph = match text(status, "icon").as_str() {
             "alert" => "titlebar/alert-triangle.svg",
@@ -381,19 +362,16 @@ impl NativeChatView {
         };
         let hint = SharedString::from(text(status, "hint"));
         let icon_only = status["iconOnly"] == true;
-        div()
+        SINGLE_LINE_CARD
+            .pill(
+                Some(glyph),
+                (!icon_only).then(|| text(status, "label")),
+                color,
+                p,
+            )
             .id(SharedString::from(format!("{key}:status")))
-            .flex()
-            .flex_shrink_0()
-            .items_center()
-            .gap(px(4.0 * s))
-            .text_size(px(12.0 * s))
-            .text_color(color)
-            .whitespace_nowrap()
             .role(gpui::Role::Status)
             .aria_label(hint.clone())
-            .child(icon(glyph, if icon_only { 13.0 } else { 12.0 } * s, color))
-            .when(!icon_only, |row| row.child(text(status, "label")))
             .tooltip(move |window, cx| {
                 gpui_component::tooltip::Tooltip::new(hint.clone()).build(window, cx)
             })

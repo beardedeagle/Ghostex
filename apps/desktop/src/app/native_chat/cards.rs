@@ -2,13 +2,117 @@ use super::disclosure_motion::{FoldFrame, measured, motion_clip};
 use super::{appearance::ChatAppearance, state::NativeChatView};
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
-    AnyElement, Div, Hsla, InteractiveElement as _, IntoElement, ParentElement as _, Stateful,
-    Styled as _, div, px,
+    AnyElement, Div, FontWeight, Hsla, InteractiveElement as _, IntoElement, ParentElement as _,
+    Stateful, Styled, div, px,
 };
+use serde::Deserialize;
+use std::sync::LazyLock;
 
 /// The fill a pressable card, or the pressable header of one, takes under the pointer.
 pub(super) fn card_hover_fill(p: &ChatAppearance) -> Hsla {
     p.foreground.opacity(0.04)
+}
+
+/// `packages/gx-chat-core/visual/single-line-card.json`, in unscaled pixels.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct SingleLineCard {
+    /// The folded card's whole height, its border included.
+    pub height: f32,
+    pub radius: f32,
+    pub padding_x: f32,
+    pub title_size: f32,
+    pub title_line_height: f32,
+    pub title_weight: f32,
+    /// A tinted icon tile leading the row (the question cards' check), shrunk to fit the row.
+    pub icon_box: f32,
+    pub icon_size: f32,
+    border_alpha: f32,
+    fill_input_alpha: f32,
+    pill: SingleLinePill,
+}
+
+/// The pill a one-line card puts its counts and its status in, the fold's "1 tool call".
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SingleLinePill {
+    padding_x: f32,
+    padding_y: f32,
+    gap: f32,
+    text_size: f32,
+    line_height: f32,
+    icon_size: f32,
+    border_alpha: f32,
+}
+
+/// CDXC:SessionChat 2026-10-18 DECISION:
+/// User: "let's please make all these single line cards look the same and also have same height (44px is good, like the Message from "Send Bug / Feedback" has", then "same font and font size too please, the one in Worked for xyz is good font and font size, use that. also the color of the bg needs to be like "Worked for 8s" for all of them". Every transcript card that folds to one line (the "Worked for 12s" / "Previous turn" fold, the Message from / Message to / subagent reply cards, the answered question form and the "You answered" receipts) is 44px tall with its border, wears the fold's fill, hairline and 10px radius, and titles in the fold's 13.5px medium type; icons shrink to fit the row rather than growing it, and an opened card keeps its body under the 44px header. The working card above the composer and the message bubbles are not part of this. Later the same day: "keep in mind no need for the chevron for all of them and i like the pills on the right side instead of this" (an amber clock and "Queued" beside a chevron): none of these cards draws a chevron (the whole card still opens and closes), and every status on a card's right (Queued, Waiting for agent, Not sent, Delivered, Answered) is a pill shaped like the fold's "1 tool call" in its own colour; a time stays plain muted text left of the pills. The phone reads the same values (apps/mobile/app/src/chat/native/transcript/singleLineCard.ts).
+pub(super) static SINGLE_LINE_CARD: LazyLock<SingleLineCard> = LazyLock::new(|| {
+    serde_json::from_str(include_str!(
+        "../../../../../packages/gx-chat-core/visual/single-line-card.json"
+    ))
+    .expect("shared single-line card")
+});
+
+impl SingleLineCard {
+    /// The header inside a bordered shell, so the folded card is `height` tall with its border.
+    pub(super) fn header_height(&self, s: f32) -> f32 {
+        (self.height - 2.0) * s
+    }
+
+    /// The fold's look: its fill, hairline and radius. The shell's border is one scaled pixel,
+    /// which `header_height` leaves room for.
+    pub(super) fn shell<E: Styled>(&self, element: E, p: &ChatAppearance) -> E {
+        element
+            .rounded(px(self.radius * p.scale))
+            .border(px(p.scale))
+            .border_color(p.foreground.opacity(self.border_alpha))
+            .bg(p.input.opacity(self.fill_input_alpha))
+    }
+
+    /// A pill on the card's right: `tone` colours its glyph and words, its hairline stays neutral.
+    pub(super) fn pill(
+        &self,
+        icon: Option<&'static str>,
+        label: Option<String>,
+        tone: Hsla,
+        p: &ChatAppearance,
+    ) -> Div {
+        let s = p.scale;
+        let pill = &self.pill;
+        div()
+            .flex()
+            .items_center()
+            .flex_shrink_0()
+            .gap(px(pill.gap * s))
+            .px(px(pill.padding_x * s))
+            .py(px(pill.padding_y * s))
+            .rounded_full()
+            .border(px(s))
+            .border_color(p.foreground.opacity(pill.border_alpha))
+            .text_size(px(pill.text_size * s))
+            .line_height(px(pill.line_height * s))
+            .whitespace_nowrap()
+            .text_color(tone)
+            .when_some(icon, |this, icon| {
+                this.child(
+                    gpui::svg()
+                        .path(icon)
+                        .size(px(pill.icon_size * s))
+                        .flex_shrink_0()
+                        .text_color(tone),
+                )
+            })
+            .when_some(label, |this, label| this.child(label))
+    }
+
+    /// The title's type, the fold's "Worked for 12s".
+    pub(super) fn title<E: Styled>(&self, element: E, p: &ChatAppearance) -> E {
+        element
+            .text_size(px(self.title_size * p.scale))
+            .line_height(px(self.title_line_height * p.scale))
+            .font_weight(FontWeight(self.title_weight))
+    }
 }
 
 /// CDXC:SessionChat 2026-09-23 DECISION:

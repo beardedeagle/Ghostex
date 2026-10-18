@@ -10,7 +10,11 @@ use std::cell::Cell;
 use std::collections::HashSet;
 use std::rc::Rc;
 
-use super::ask_card::{AskBodyMotion, AskOption, AskTone, ask_head, chevron, keycap, press_head};
+use super::ask_card::{
+    AskBodyMotion, AskOption, AskTone, ask_head, keycap, single_line_ask_head,
+    single_line_press_head,
+};
+use super::cards::SINGLE_LINE_CARD;
 use super::{appearance::ChatAppearance, state::NativeChatView, transcript::text};
 use crate::app::native_chat::cursor::ChatCursor as _;
 use gpui::Focusable as _;
@@ -412,9 +416,10 @@ impl NativeChatView {
             .into_any_element()
     }
 
-    /// An answered form: one line (its check, title, "Answered" and a chevron) that opens the
-    /// read-only form below it and closes it again. Whether it is open is the core's (`collapsed`,
-    /// see the SessionChat 2026-10-12 DECISION in packages/gx-chat-core/src/questions/forms.rs).
+    /// An answered form: one 44px line (its check, title and a green "Answered" pill, the shared
+    /// one-line card of cards.rs, with no chevron) that opens the read-only form below it and closes it again.
+    /// Whether it is open is the core's (`collapsed`, see the SessionChat 2026-10-12 DECISION in
+    /// packages/gx-chat-core/src/questions/forms.rs).
     fn answered_form(
         &self,
         id: &str,
@@ -426,20 +431,17 @@ impl NativeChatView {
     ) -> AnyElement {
         let fold_key = format!("question-form:{id}");
         let motion = self.disclosure_frame(&fold_key, open, cx);
-        let answered = div()
-            .flex_shrink_0()
-            .text_size(px(12.0 * p.scale))
-            .text_color(p.muted)
-            .child("Answered")
+        let answered = SINGLE_LINE_CARD
+            .pill(None, Some("Answered".to_string()), p.success(), p)
             .into_any_element();
         let form_id = id.to_string();
-        let head = press_head(
-            ask_head(
+        let head = single_line_press_head(
+            single_line_ask_head(
                 "titlebar/check.svg",
                 AskTone::Answered,
                 title,
                 String::new(),
-                vec![answered, chevron(open, p)],
+                vec![answered],
                 p,
             ),
             SharedString::from(format!("question-form-head:{id}")),
@@ -455,10 +457,9 @@ impl NativeChatView {
             this.invoke(json!({"type":"formToggle","form":form_id}), cx);
         }))
         .into_any_element();
-        self.ask_card(
+        self.single_line_ask_card(
             head,
             (open || motion.is_some()).then_some(body),
-            Vec::new(),
             Some(AskBodyMotion {
                 key: &fold_key,
                 frame: motion,

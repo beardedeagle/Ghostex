@@ -1,0 +1,21 @@
+{
+  "height": 44,
+  "radius": 10,
+  "paddingX": 12,
+  "titleSize": 13.5,
+  "titleLineHeight": 18,
+  "titleWeight": 500,
+  "iconBox": 24,
+  "iconSize": 13,
+  "borderAlpha": 0.06,
+  "fillInputAlpha": 0.75,
+  "pill": {
+    "paddingX": 8,
+    "paddingY": 2,
+    "gap": 5,
+    "textSize": 11.5,
+    "lineHeight": 16,
+    "iconSize": 12,
+    "borderAlpha": 0.1
+  }
+}

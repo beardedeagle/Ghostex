@@ -10,6 +10,7 @@
 //! CDXC:SessionChat 2026-10-11 SEE-ALSO:
 //! The phone's copy is apps/mobile/app/src/chat/native/cards/askCard.tsx; the HTML question pages draw it in server/src/visual_pages/kit.rs. Change them together.
 
+use super::cards::SINGLE_LINE_CARD;
 use super::disclosure_motion::{FoldFrame, motion_clip};
 use super::{appearance::ChatAppearance, state::NativeChatView};
 use crate::app::native_chat::cursor::ChatCursor as _;
@@ -48,6 +49,17 @@ pub(super) fn tone_color(tone: AskTone, p: &ChatAppearance) -> Hsla {
 
 /// The 28px tile that leads the card's header.
 pub(super) fn ask_tile(icon: &'static str, tone: AskTone, p: &ChatAppearance) -> AnyElement {
+    ask_tile_sized(icon, tone, 28.0, 15.0, p)
+}
+
+/// The tile at `size` with its glyph at `glyph`, both unscaled.
+fn ask_tile_sized(
+    icon: &'static str,
+    tone: AskTone,
+    size: f32,
+    glyph: f32,
+    p: &ChatAppearance,
+) -> AnyElement {
     let s = p.scale;
     let hue = tone_color(tone, p);
     // A waiting question's amber is a light tint; the answered and quiet tiles keep their strength.
@@ -58,8 +70,8 @@ pub(super) fn ask_tile(icon: &'static str, tone: AskTone, p: &ChatAppearance) ->
     };
     div()
         .flex_shrink_0()
-        .size(px(28.0 * s))
-        .rounded(px(8.0 * s))
+        .size(px(size * s))
+        .rounded(px(size * 2.0 / 7.0 * s))
         .border_1()
         .border_color(hue.opacity(ring))
         .bg(hue.opacity(fill))
@@ -69,7 +81,7 @@ pub(super) fn ask_tile(icon: &'static str, tone: AskTone, p: &ChatAppearance) ->
         .child(
             svg()
                 .path(icon)
-                .size(px(15.0 * s))
+                .size(px(glyph * s))
                 .text_color(hue.opacity(ink)),
         )
         .into_any_element()
@@ -126,6 +138,61 @@ pub(super) fn ask_head(
         .children(trailing)
 }
 
+/// The head of an answered card that folds to one line: `ask_head` in the 44px row, the shared
+/// title type and a smaller tile so the row keeps its height (`SINGLE_LINE_CARD`, cards.rs).
+pub(super) fn single_line_ask_head(
+    icon: &'static str,
+    tone: AskTone,
+    title: String,
+    detail: String,
+    trailing: Vec<AnyElement>,
+    p: &ChatAppearance,
+) -> Div {
+    let s = p.scale;
+    let shape = &*SINGLE_LINE_CARD;
+    div()
+        .flex()
+        .flex_shrink_0()
+        .items_center()
+        .gap(px(10.0 * s))
+        .w_full()
+        .min_w_0()
+        .h(px(shape.header_height(s)))
+        .px(px(shape.padding_x * s))
+        .child(ask_tile_sized(
+            icon,
+            tone,
+            shape.icon_box,
+            shape.icon_size,
+            p,
+        ))
+        .child(
+            div()
+                .flex_1()
+                .min_w_0()
+                .flex()
+                .flex_col()
+                .child(
+                    shape
+                        .title(div().min_w_0().truncate(), p)
+                        .text_color(p.foreground)
+                        .child(title),
+                )
+                .when(!detail.is_empty(), |column| {
+                    column.child(
+                        div()
+                            .min_w_0()
+                            .truncate()
+                            .text_size(px(12.0 * s))
+                            .line_height(px(16.0 * s))
+                            .text_color(p.muted)
+                            .child(detail),
+                    )
+                }),
+        )
+        .children(trailing)
+}
+
 /// A head the reader presses to fold the card; it lights under the pointer to the card's edges.
 pub(super) fn press_head(
     head: Div,
@@ -134,8 +201,30 @@ pub(super) fn press_head(
     open_body: bool,
     p: &ChatAppearance,
 ) -> gpui::Stateful<Div> {
-    let s = p.scale;
-    let radius = px((14.0 * s - 1.0).max(0.0));
+    press_head_rounded(head, id, label, open_body, 14.0 * p.scale - 1.0, p)
+}
+
+/// The head of a one-line card (`single_line_ask_head`), rounded to that card's shell.
+pub(super) fn single_line_press_head(
+    head: Div,
+    id: impl Into<gpui::ElementId>,
+    label: &'static str,
+    open_body: bool,
+    p: &ChatAppearance,
+) -> gpui::Stateful<Div> {
+    let radius = (SINGLE_LINE_CARD.radius - 1.0) * p.scale;
+    press_head_rounded(head, id, label, open_body, radius, p)
+}
+
+fn press_head_rounded(
+    head: Div,
+    id: impl Into<gpui::ElementId>,
+    label: &'static str,
+    open_body: bool,
+    radius: f32,
+    p: &ChatAppearance,
+) -> gpui::Stateful<Div> {
+    let radius = px(radius.max(0.0));
     let hover = super::cards::card_hover_fill(p);
     head.id(id)
         .role(gpui::Role::Button)
@@ -258,13 +347,46 @@ impl NativeChatView {
         motion: Option<AskBodyMotion>,
         p: &ChatAppearance,
     ) -> AnyElement {
+        let shell = div()
+            .rounded(px(14.0 * p.scale))
+            .border_1()
+            .border_color(p.input_border)
+            .bg(p.card_panel);
+        self.ask_card_in(shell, 14.0, head, body, footer, motion, p)
+    }
+
+    /// An answered card that folds to its `single_line_ask_head`, in the shell every one-line card
+    /// shares (`SINGLE_LINE_CARD`, cards.rs); opened, its body sits under that head.
+    pub(super) fn single_line_ask_card(
+        &self,
+        head: AnyElement,
+        body: Option<AnyElement>,
+        motion: Option<AskBodyMotion>,
+        p: &ChatAppearance,
+    ) -> AnyElement {
+        let shape = &*SINGLE_LINE_CARD;
+        let shell = shape.shell(div(), p);
+        self.ask_card_in(shell, shape.padding_x, head, body, Vec::new(), motion, p)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn ask_card_in(
+        &self,
+        shell: Div,
+        pad: f32,
+        head: AnyElement,
+        body: Option<AnyElement>,
+        footer: Vec<AnyElement>,
+        motion: Option<AskBodyMotion>,
+        p: &ChatAppearance,
+    ) -> AnyElement {
         let s = p.scale;
         let body = body.map(|body| {
             let padded = div()
                 .w_full()
                 .min_w_0()
-                .px(px(14.0 * s))
-                .pb(px(14.0 * s))
+                .px(px(pad * s))
+                .pb(px(pad * s))
                 .child(body)
                 .into_any_element();
             match motion {
@@ -275,15 +397,11 @@ impl NativeChatView {
                 _ => padded,
             }
         });
-        div()
+        shell
             .w_full()
             .min_w_0()
             .flex()
             .flex_col()
-            .rounded(px(14.0 * s))
-            .border_1()
-            .border_color(p.input_border)
-            .bg(p.card_panel)
             .overflow_hidden()
             .text_color(p.card_muted)
             .text_size(px(14.0 * s))
