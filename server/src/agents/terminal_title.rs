@@ -280,6 +280,45 @@ pub(crate) fn strip_codex_action_required_prefix(title: &str) -> &str {
     after.strip_prefix('|').unwrap_or(after).trim()
 }
 
+/// CDXC:SessionTitles 2026-10-18 WHY:
+/// Codex's default terminal title is `<activity> <thread name> | <project name>`, the project name being the folder of the git root (else of the working folder) cut to 24 characters. Ghostex stored that whole string as the session's name, so a Codex session whose conversation id was never recorded resumed with `codex resume "<thread> | <project>"`, which names no thread, and Codex exited (GitHub issue #256). The project segment is Codex chrome, like Copilot's suffix: it is dropped, and a title that is only the project name (before Codex names the thread) gives no title. Returns `None` for that bare project name.
+pub(crate) fn strip_codex_project_title_suffix(title: &str, cwd: Option<&str>) -> Option<String> {
+    let title = title.trim();
+    let Some(cwd) = cwd.map(str::trim).filter(|cwd| !cwd.is_empty()) else {
+        return Some(title.to_string());
+    };
+    let cwd = std::path::Path::new(cwd);
+    let git_root = cwd
+        .ancestors()
+        .find(|dir| dir.join(".git").symlink_metadata().is_ok());
+    let project_names = [git_root, Some(cwd)]
+        .into_iter()
+        .flatten()
+        .filter_map(|dir| dir.file_name().and_then(|name| name.to_str()))
+        .map(codex_terminal_title_project_name)
+        .collect::<Vec<_>>();
+    if project_names.iter().any(|name| name == title) {
+        return None;
+    }
+    let stripped = project_names
+        .iter()
+        .find_map(|name| title.strip_suffix(name.as_str())?.strip_suffix(" | "))
+        .unwrap_or(title)
+        .trim();
+    Some(stripped.to_string())
+}
+
+/// Codex's `truncate_terminal_title_part(project, 24)` (codex-rs/tui/src/chatwidget/status_surfaces.rs), by characters.
+fn codex_terminal_title_project_name(name: &str) -> String {
+    const MAX_CHARS: usize = 24;
+    if name.chars().count() <= MAX_CHARS {
+        return name.to_string();
+    }
+    let mut truncated = name.chars().take(MAX_CHARS - 3).collect::<String>();
+    truncated.push_str("...");
+    truncated
+}
+
 /// CDXC:SessionTitles 2026-10-17 WHY:
 /// GitHub Copilot CLI titles its terminal `<title> - GitHub Copilot`, and a bare `GitHub Copilot` before its first prompt, so session rows kept the product name as part of their name ("Reply with OK - GitHub Copilot"). The suffix is provider decoration like Empryo's and is stripped; a bare title reads as the generic "Copilot" placeholder.
 /// SEE-ALSO: server/src/presentation/title_normalization.rs and packages/gx-core/src/quick_access/session_titles.rs normalize titles with the same rule.

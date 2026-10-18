@@ -545,6 +545,15 @@ pub(crate) fn ingest_terminal_title_event_with_home(
     let decision_agent_name = read_text(params, "agentName")
         .or_else(|| read_text_from_map(&runtime_settings, "agentName"))
         .or_else(|| read_text_value(&current, "agentId"));
+    let visible_title = if normalize_agent_id(decision_agent_name.as_deref()).as_deref()
+        == Some("codex")
+    {
+        visible_title.and_then(|title| {
+            strip_codex_project_title_suffix(&title, read_text_value(&current, "cwd").as_deref())
+        })
+    } else {
+        visible_title
+    };
     let promotion_agent_name = read_text(params, "agentName").or(title_detected_agent.clone());
     let captured_agent_session_id = raw_title
         .as_deref()

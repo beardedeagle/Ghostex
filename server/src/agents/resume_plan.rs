@@ -480,11 +480,7 @@ pub(crate) fn build_agent_resume_command(
         .agent_lookup_command
         .as_deref()
         .unwrap_or(agent_command);
-    let resume_title = if agent_id == "pi" {
-        None
-    } else {
-        trusted_resume_title_for_input(input)
-    };
+    let resume_title = agent_resume_title(agent_id, input);
     let exact_reference = get_exact_agent_session_reference(agent_id, input);
     let codex_exact_reference = (agent_id == "codex")
         .then(|| get_codex_session_reference(input))
@@ -754,7 +750,7 @@ pub(crate) fn build_agent_resume_fallback_command(input: &AgentResumeInput) -> O
         .agent_lookup_command
         .as_deref()
         .unwrap_or(agent_command);
-    let resume_title = trusted_resume_title_for_input(input)?;
+    let resume_title = agent_resume_title(agent_id, input)?;
     match agent_id {
         "codex" => {
             let exact = get_codex_session_reference(input)?;
@@ -1190,6 +1186,17 @@ pub(crate) fn collect_stored_agent_resume_command_candidates(session: &Value) ->
         }
     }
     output
+}
+
+/// The title a resume looks the conversation up by. Pi resumes by its session file, never by title; Codex rows stored before ingest dropped Codex's ` | <project>` title segment still carry it (see `strip_codex_project_title_suffix`).
+fn agent_resume_title(agent_id: &str, input: &AgentResumeInput) -> Option<String> {
+    match agent_id {
+        "pi" => None,
+        "codex" => trusted_resume_title_for_input(input).and_then(|title| {
+            strip_codex_project_title_suffix(&title, input.project_path.as_deref())
+        }),
+        _ => trusted_resume_title_for_input(input),
+    }
 }
 
 pub(crate) fn trusted_resume_title_for_input(input: &AgentResumeInput) -> Option<String> {
