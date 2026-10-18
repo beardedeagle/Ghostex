@@ -30,7 +30,7 @@ pub(crate) fn with_codex_no_daemon(agent_id: &str, icon: Option<&str>, command: 
 }
 
 /// Successful probes are cached for a minute; failed probes can retry on the next launch.
-fn installed_codex_supports_no_daemon() -> bool {
+pub(crate) fn installed_codex_supports_no_daemon() -> bool {
     // Unit tests assert exact commands, which must not depend on the Codex installed on the machine.
     if cfg!(test) {
         return false;

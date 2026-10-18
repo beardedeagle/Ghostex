@@ -6,6 +6,9 @@ use super::scripts::shell_quote;
 ///
 /// CDXC:Terminal 2026-10-14 WHY:
 /// Powerlevel10k's instant prompt points stdin at /dev/null and stdout/stderr at a temp file while .zshrc loads, and gives the terminal back only when the first prompt is expanded, after every precmd hook and `sched +0` event (moving the launch to `sched +0` was tried and still saw /dev/null). An agent started from the first precmd therefore had no terminal: Codex quit with "stdin is not a terminal" (GitHub #228, zsh with p10k under WSL). So the hook first asks p10k to end its instant prompt (`p10k clear-instant-prompt`, a no-op when none is showing), which restores the terminal and erases the cached prompt before the agent draws.
+///
+/// CDXC:AgentProviders 2026-10-18 WHY:
+/// The `codex` wrapper (codex_wrapper.rs) must stay first on PATH for a `codex` typed at this shell, but the user's .zshrc and per-prompt PATH managers (mise, direnv) prepend their own folders after the provider's setup ran. The startup's setup puts the wrapper's folder in front when the first precmd runs, and `_ghostex_session_bin_first`, appended to precmd_functions after every hook the user's config registered, keeps it there before each prompt.
 pub(super) fn agent_shell_command(shell_path: &str, startup: &str) -> String {
     let zshenv = format!(
         r#"
@@ -18,9 +21,14 @@ else
 fi
 builtin unset GHOSTEX_ZSH_ORIGINAL_ZDOTDIR
 [[ ! -r "${{ZDOTDIR-$HOME}}/.zshenv" ]] || builtin source -- "${{ZDOTDIR-$HOME}}/.zshenv"
+function _ghostex_session_bin_first() {{
+  [[ -n ${{GHOSTEX_SESSION_BIN_DIR-}} ]] || return 0
+  path=("$GHOSTEX_SESSION_BIN_DIR" "${{(@)path:#${{(b)GHOSTEX_SESSION_BIN_DIR}}}}")
+}}
 function _ghostex_start_agent() {{
   precmd_functions=("${{(@)precmd_functions:#_ghostex_start_agent}}")
   builtin unfunction _ghostex_start_agent
+  precmd_functions+=(_ghostex_session_bin_first)
   (( ! ${{+functions[p10k]}} )) || p10k clear-instant-prompt
   builtin eval {}
   return 0

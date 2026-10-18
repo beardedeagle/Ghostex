@@ -12,8 +12,9 @@ pub(super) fn agent_shell_command(
     prompt_editor_setup: &str,
     startup: &str,
 ) -> String {
+    // CDXC:AgentProviders 2026-10-18 WHY: config.fish and per-prompt PATH managers prepend their folders after the provider's setup ran, so the `codex` wrapper's folder (codex_wrapper.rs) goes back in front once config.fish has run and before each prompt. SEE-ALSO: `_ghostex_session_bin_first` in zsh_startup.rs.
     let init_command = format!(
-        "set -l ghostex_agent_command $GHOSTEX_AGENT_STARTUP_COMMAND; set -e GHOSTEX_AGENT_STARTUP_COMMAND; {} {} $ghostex_agent_command; set -e ghostex_agent_command",
+        "if set -q GHOSTEX_SESSION_BIN_DIR; function _ghostex_session_bin_first --on-event fish_prompt; while contains -- $GHOSTEX_SESSION_BIN_DIR $PATH; set -e PATH[(contains -i -- $GHOSTEX_SESSION_BIN_DIR $PATH)]; end; set -gx PATH $GHOSTEX_SESSION_BIN_DIR $PATH; end; _ghostex_session_bin_first; end; set -l ghostex_agent_command $GHOSTEX_AGENT_STARTUP_COMMAND; set -e GHOSTEX_AGENT_STARTUP_COMMAND; {} {} $ghostex_agent_command; set -e ghostex_agent_command",
         shell_quote(&script_shell.executable),
         script_shell.command_flag(true),
     );

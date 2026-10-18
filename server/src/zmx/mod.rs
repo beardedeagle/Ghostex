@@ -1,3 +1,4 @@
+mod codex_wrapper;
 pub mod endpoint;
 pub mod env;
 mod fish_startup;

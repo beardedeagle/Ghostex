@@ -309,7 +309,7 @@ pub(crate) fn build_zmx_run_command(input: ZmxRunCommandInput) -> String {
     let startup_command =
         with_atuin_ignored_shell_history_prefix(input.startup_text.trim_end_matches(['\r', '\n']));
     let prompt_editor_setup =
-        zmx_provider_prompt_editor_setup_shell_command(input.prompt_editor.as_deref());
+        zmx_provider_session_setup_shell_command(input.prompt_editor.as_deref());
     let startup = format!("{}\n{}", prompt_editor_setup, startup_command);
     let login_shell = user_login_shell_path();
     let login_shell_name = std::path::Path::new(&login_shell)
@@ -344,7 +344,7 @@ pub(crate) fn build_zmx_run_command(input: ZmxRunCommandInput) -> String {
 pub(crate) fn build_zmx_shell_provider_command(input: ZmxShellProviderCommandInput) -> String {
     let provider_shell_command = format!(
         "{}\n{}",
-        zmx_provider_prompt_editor_setup_shell_command(input.prompt_editor.as_deref()),
+        zmx_provider_session_setup_shell_command(input.prompt_editor.as_deref()),
         user_login_shell_exec_command()
     );
     format_zmx_provider_run_script(
@@ -466,6 +466,18 @@ printf '%s\n' "$zmx_sessions" | grep -F -x -- "$zmx_session" >/dev/null 2>&1
     )
     .trim()
     .to_string()
+}
+
+/// The setup every zmx provider's shell runs before the session's shell or agent: the prompt-editor wrapper, then the `codex` wrapper (`codex_wrapper.rs`).
+fn zmx_provider_session_setup_shell_command(prompt_editor: Option<&str>) -> String {
+    let prompt_editor_setup = zmx_provider_prompt_editor_setup_shell_command(prompt_editor);
+    let codex_wrapper_setup =
+        super::codex_wrapper::zmx_provider_codex_wrapper_setup_shell_command();
+    if codex_wrapper_setup.is_empty() {
+        prompt_editor_setup
+    } else {
+        format!("{prompt_editor_setup}\n{codex_wrapper_setup}")
+    }
 }
 
 fn zmx_provider_prompt_editor_setup_shell_command(prompt_editor: Option<&str>) -> String {
