@@ -10,7 +10,7 @@ use gpui::{
     Styled as _, StyledImage as _, WeakEntity, Window, div, img, px,
 };
 use std::io::Read as _;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 /// The relay's limits (`LIMITS` in its `src/validate.ts`, checked again by gxserver).
@@ -34,6 +34,8 @@ impl GpuiFeedbackModalWindow {
         }
     }
 
+    /// CDXC:Feedback 2026-10-18 WHY:
+    /// CleanShot (and any tool that copies the saved file) puts a file URL next to the image data, and GPUI's macOS clipboard reads a file URL first and hands over only the path and its text, so a pasted screenshot landed in the message as its path. Image files on the clipboard are therefore attached like dropped ones; a clipboard of other files still pastes their paths as text.
     fn paste_images(&mut self, clipboard: &ClipboardItem, cx: &mut Context<Self>) -> bool {
         let pasted: Vec<Image> = clipboard
             .entries
@@ -43,13 +45,34 @@ impl GpuiFeedbackModalWindow {
                 _ => None,
             })
             .collect();
-        if pasted.is_empty() {
+        if !pasted.is_empty() {
+            self.add_images(
+                pasted
+                    .into_iter()
+                    .map(|image| move || prepare_feedback_image(image))
+                    .collect(),
+                cx,
+            );
+            return true;
+        }
+        let files: Vec<PathBuf> = clipboard
+            .entries
+            .iter()
+            .filter_map(|entry| match entry {
+                ClipboardEntry::ExternalPaths(paths) => Some(paths.paths()),
+                _ => None,
+            })
+            .flatten()
+            .filter(|path| image_file_format(path).is_some())
+            .cloned()
+            .collect();
+        if files.is_empty() {
             return false;
         }
         self.add_images(
-            pasted
+            files
                 .into_iter()
-                .map(|image| move || prepare_feedback_image(image))
+                .map(|path| move || read_image_file(&path).and_then(prepare_feedback_image))
                 .collect(),
             cx,
         );
@@ -68,7 +91,7 @@ impl GpuiFeedbackModalWindow {
                 .paths()
                 .iter()
                 .cloned()
-                .map(|path| move || read_dropped_image(&path).and_then(prepare_feedback_image))
+                .map(|path| move || read_image_file(&path).and_then(prepare_feedback_image))
                 .collect(),
             cx,
         );
@@ -192,28 +215,34 @@ impl GpuiFeedbackModalWindow {
     }
 }
 
-/// Larger dropped files are not screenshots; refusing them up front spares reading a video into
+/// Larger image files are not screenshots; refusing them up front spares reading a video into
 /// memory to find that out.
-const DROPPED_FILE_MAX_BYTES: u64 = 64 * 1024 * 1024;
+const IMAGE_FILE_MAX_BYTES: u64 = 64 * 1024 * 1024;
 
-/// A dropped file as an image, its type read from the bytes rather than the file name.
-fn read_dropped_image(path: &Path) -> Result<Image, String> {
-    let unreadable = || format!("{} could not be read.", file_label(path));
-    let not_an_image = || "Only PNG, JPEG and WebP images can be attached.".to_string();
-    let mut file = std::fs::File::open(path).map_err(|_| unreadable())?;
-    let metadata = file.metadata().map_err(|_| unreadable())?;
-    if !metadata.is_file() {
-        return Err(not_an_image());
+/// A PNG, JPEG or WebP file's format, read from its first bytes rather than its name; `None` for
+/// anything else, a folder, or a file that cannot be read.
+fn image_file_format(path: &Path) -> Option<ImageFormat> {
+    let mut file = std::fs::File::open(path).ok()?;
+    if !file.metadata().ok()?.is_file() {
+        return None;
     }
     let mut head = [0u8; 16];
-    let read = file.read(&mut head).map_err(|_| unreadable())?;
-    let format = match image::guess_format(&head[..read]) {
-        Ok(image::ImageFormat::Png) => ImageFormat::Png,
-        Ok(image::ImageFormat::Jpeg) => ImageFormat::Jpeg,
-        Ok(image::ImageFormat::WebP) => ImageFormat::Webp,
-        _ => return Err(not_an_image()),
-    };
-    if metadata.len() > DROPPED_FILE_MAX_BYTES {
+    let read = file.read(&mut head).ok()?;
+    match image::guess_format(&head[..read]) {
+        Ok(image::ImageFormat::Png) => Some(ImageFormat::Png),
+        Ok(image::ImageFormat::Jpeg) => Some(ImageFormat::Jpeg),
+        Ok(image::ImageFormat::WebP) => Some(ImageFormat::Webp),
+        _ => None,
+    }
+}
+
+/// A dropped or pasted image file as an image.
+fn read_image_file(path: &Path) -> Result<Image, String> {
+    let unreadable = || format!("{} could not be read.", file_label(path));
+    let metadata = std::fs::metadata(path).map_err(|_| unreadable())?;
+    let format = image_file_format(path)
+        .ok_or_else(|| "Only PNG, JPEG and WebP images can be attached.".to_string())?;
+    if metadata.len() > IMAGE_FILE_MAX_BYTES {
         return Err("Images must be 5 MB or smaller.".to_string());
     }
     let bytes = std::fs::read(path).map_err(|_| unreadable())?;
