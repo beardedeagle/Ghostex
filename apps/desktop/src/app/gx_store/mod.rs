@@ -37,7 +37,8 @@
 //! document (Rename, a colour, Ungroup), `space_editor.rs` the New/Edit Space dialog's result,
 //! `remote_project_docs.rs` the same two documents on a REMOTE machine, which are held rather than
 //! owned and go back down that machine's own tunnel,
-//! `space_switch.rs` the row a Space switch restores the focus to,
+//! `space_switch.rs` the row a Space switch restores the focus to, `machine_switch.rs` the same
+//! for the machine picker (and the session every machine switch remembers),
 //! `added_project.rs` the Space and the order a newly added project joins, and
 //! `diagnostics_project_docs.rs` their record lines;
 //! `sidebar_ui_paths.rs` holds the three routes into the sidebar's own state that are NOT
@@ -80,6 +81,7 @@ mod indicators;
 mod layout_persist;
 mod local_delayed_sends;
 mod local_focus;
+mod machine_switch;
 mod notifications;
 mod presentation_ready;
 mod primary_launcher;

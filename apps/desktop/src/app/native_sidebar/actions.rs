@@ -315,6 +315,8 @@ impl GhostexGpuiApp {
         // The Space a `selectSpace` is LEAVING, read before the intent below moves it: the restore
         // that follows only runs when the selection really changed (gx_store/space_switch.rs).
         let space_switch = self.gx_store_space_switch_before(&command);
+        // The same for a machine-picker switch (gx_store/machine_switch.rs).
+        let machine_switch = self.gx_store_machine_switch_before(&command);
         // A command that moves the sidebar's own state (collapse, Space, filters, hidden items,
         // selection) moves the Rust state here, and that IS its whole answer: nothing else has an
         // arm for any of them (gx_store/sidebar_ui_commands.rs).
@@ -331,6 +333,10 @@ impl GhostexGpuiApp {
         // to see (gx_store/space_switch.rs).
         if let Some(before) = space_switch {
             self.gx_store_restore_space_switch_focus(before, cx);
+        }
+        // The computer the picker switched to reopens the session it was last left on.
+        if let Some(before) = machine_switch {
+            self.gx_store_restore_machine_switch_focus(before, cx);
         }
     }
 }

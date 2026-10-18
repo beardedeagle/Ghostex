@@ -19,6 +19,7 @@ pub(crate) mod collections;
 mod groups;
 mod inputs;
 mod machine_connection;
+mod machine_switch;
 pub(crate) mod machine_spaces;
 mod machines;
 pub(crate) mod membership;
@@ -70,6 +71,9 @@ pub use session_slot::{rendered_session_ids, session_slot_plan, SessionSlotPlan}
 pub use slot_hotkey::{project_slot_plan, ProjectSlotPlan};
 pub use space_landing::space_landing_project_ids;
 pub use space_sleep::{plan_space_sleep, SpaceSleepPlan, SpaceSleepPlans, SpaceSleepScope};
+pub use machine_switch::{
+    machine_switch_memory, plan_machine_switch_restore, MACHINE_SESSION_MEMORY_SPACE_ID,
+};
 pub use space_switch::{
     plan_space_switch_restore, plan_workspace_switch_restore, SpaceSwitchFocus,
 };

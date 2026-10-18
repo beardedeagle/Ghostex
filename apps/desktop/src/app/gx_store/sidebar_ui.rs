@@ -375,6 +375,8 @@ impl GhostexGpuiApp {
         intent: SidebarUiIntent,
         cx: &mut gpui::Context<Self>,
     ) -> bool {
+        // A machine switch first remembers the session it leaves (machine_switch.rs).
+        self.gx_store_remember_machine_switch_session(&intent, cx);
         let ui = &mut self.gx_store.sidebar_ui;
         ui.counters.intents += 1;
         if !ui.restored {
