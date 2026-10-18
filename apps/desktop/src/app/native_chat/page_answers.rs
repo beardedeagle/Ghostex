@@ -4,7 +4,7 @@
 //! CDXC:SessionChat 2026-10-11 SEE-ALSO:
 //! The phone draws the same card in apps/mobile/app/src/chat/native/transcript/PageAnswersCard.tsx; the page's own card reads Answered in visual.rs. Change them together.
 
-use super::ask_card::{AskTone, answer_aside, ask_head, plain_answer, receipt_row};
+use super::ask_card::{answer_aside, answered_ask_head, plain_answer, receipt_row};
 use super::{appearance::ChatAppearance, state::NativeChatView, transcript::text};
 use crate::app::helpers::ThrottledAnimationExt as _;
 use crate::app::native_chat::cursor::ChatCursor as _;
@@ -35,15 +35,8 @@ impl NativeChatView {
     ) -> AnyElement {
         let rows: Vec<Value> = answers["rows"].as_array().cloned().unwrap_or_default();
         let more = answers["more"].as_u64().unwrap_or(0) as usize;
-        let head = ask_head(
-            "titlebar/check.svg",
-            AskTone::Answered,
-            format!("You answered “{}”", text(answers, "title")),
-            String::new(),
-            Vec::new(),
-            p,
-        )
-        .into_any_element();
+        let head = answered_ask_head(format!("You answered “{}”", text(answers, "title")), p)
+            .into_any_element();
         let s = p.scale;
         let mut body = div().mt(px(-6.0 * s)).flex().flex_col().w_full().min_w_0();
         for (index, row) in rows.iter().enumerate() {

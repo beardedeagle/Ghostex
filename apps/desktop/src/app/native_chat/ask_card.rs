@@ -86,6 +86,32 @@ pub(super) fn ask_head(
     trailing: Vec<AnyElement>,
     p: &ChatAppearance,
 ) -> Div {
+    ask_head_led(ask_tile(icon, tone, p), title, detail, trailing, p)
+}
+
+/// The header of an answered card that never folds (the page answers): the shared question tile
+/// of the one-line cards with their green check badge, its ring in this card's own panel.
+pub(super) fn answered_ask_head(title: String, p: &ChatAppearance) -> Div {
+    let shape = &*SINGLE_LINE_CARD;
+    let tile = shape
+        .tile("titlebar/chat-card-question.svg", p)
+        .child(
+            shape
+                .check_badge(p)
+                .border_color(p.background.blend(p.card_panel)),
+        )
+        .into_any_element();
+    ask_head_led(tile, title, String::new(), Vec::new(), p)
+}
+
+/// `ask_head` led by `lead` rather than a tinted tile.
+fn ask_head_led(
+    lead: AnyElement,
+    title: String,
+    detail: String,
+    trailing: Vec<AnyElement>,
+    p: &ChatAppearance,
+) -> Div {
     let s = p.scale;
     div()
         .flex()
@@ -95,7 +121,7 @@ pub(super) fn ask_head(
         .min_w_0()
         .px(px(14.0 * s))
         .py(px(12.0 * s))
-        .child(ask_tile(icon, tone, p))
+        .child(lead)
         .child(
             div()
                 .flex_1()
