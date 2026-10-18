@@ -216,7 +216,7 @@ impl NativeChatView {
             .px(px(shape.padding_x * s))
             .flex()
             .items_center()
-            .gap(px(9.0 * s))
+            .gap(px(10.0 * s))
             .min_w_0()
             .child(self.agent_card_mark(card, p))
             .child(
@@ -339,7 +339,7 @@ impl NativeChatView {
                     div()
                         .flex()
                         .items_center()
-                        .gap(px(8.0 * s))
+                        .gap(px(10.0 * s))
                         .min_w_0()
                         .child(self.agent_card_mark(recipient, p))
                         .child(name)
@@ -380,12 +380,16 @@ impl NativeChatView {
 
     /// The agent's own logo (a coordinator's crown, `CDXC:Coordinators 2026-10-15` in the core's
     /// agent_message_card.rs) with a small arrow badge (prose grey coming in, sky going out), or
-    /// the sparkle of a subagent.
+    /// the sparkle of a subagent, the size of the fold's tile and wearing its badge
+    /// (`SINGLE_LINE_CARD`, cards.rs) so the left icons line up.
     fn agent_card_mark(&self, card: &Value, p: &ChatAppearance) -> AnyElement {
         let s = p.scale;
+        let shape = &*SINGLE_LINE_CARD;
+        // The mark is the size of the fold's and the question cards' tiles, so the left icons line up.
+        let mark = shape.icon_size() * s;
         let direction = text(card, "direction");
         if direction == "subagent" {
-            return icon("titlebar/sparkles.svg", 16.0 * s, p.prose);
+            return icon("titlebar/sparkles.svg", mark, p.prose);
         }
         let (badge, arrow) = if direction == "sent" {
             (hue(p, 0x7dd3fc, 0x0284c7), "titlebar/arrow-up-right.svg")
@@ -403,7 +407,7 @@ impl NativeChatView {
             // The sidebar's coordinator crown and colours (`coordinator_icon` in native_sidebar/threads.rs).
             _ if card["coordinator"] == true => icon(
                 "titlebar/coordinator-crown.svg",
-                17.0 * s,
+                mark,
                 if p.light {
                     rgb(0x000000).into()
                 } else {
@@ -411,35 +415,20 @@ impl NativeChatView {
                 },
             ),
             // OMP's artwork is deliberately multicolour (`new_session_agent_mark`).
-            Some(asset) if agent == "omp" => img(asset).size(px(17.0 * s)).into_any_element(),
+            Some(asset) if agent == "omp" => img(asset).size(px(mark)).into_any_element(),
             Some(asset) => gpui::svg()
                 .path(asset)
-                .size(px(17.0 * s))
+                .size(px(mark))
                 .text_color(brand_logo_color(&agent, p))
                 .into_any_element(),
-            None => icon("titlebar/robot.svg", 17.0 * s, p.foreground),
+            None => icon("titlebar/robot.svg", mark, p.foreground),
         };
         div()
             .relative()
-            .size(px(17.0 * s))
+            .size(px(mark))
             .flex_shrink_0()
             .child(logo)
-            .child(
-                div()
-                    .absolute()
-                    .right(px(-4.0 * s))
-                    .bottom(px(-4.0 * s))
-                    .size(px(11.0 * s))
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .rounded_full()
-                    .bg(badge)
-                    // The ring that parts the badge from the logo is the card's own panel.
-                    .border_1()
-                    .border_color(p.card_panel)
-                    .child(icon(arrow, 8.0 * s, arrow_ink)),
-            )
+            .child(shape.badge(badge, arrow, arrow_ink, p))
             .into_any_element()
     }
 

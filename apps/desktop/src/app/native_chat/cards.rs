@@ -68,7 +68,7 @@ struct SingleLinePill {
 }
 
 /// CDXC:SessionChat 2026-10-18 DECISION:
-/// User: "let's please make all these single line cards look the same and also have same height (44px is good, like the Message from "Send Bug / Feedback" has", then "same font and font size too please, the one in Worked for xyz is good font and font size, use that. also the color of the bg needs to be like "Worked for 8s" for all of them". Every transcript card that folds to one line (the "Worked for 12s" / "Previous turn" fold, the Message from / Message to / subagent reply cards, the answered question form and the "You answered" receipts) is 44px tall with its border, wears the fold's fill, hairline and 10px radius, and titles in the fold's 13.5px medium type; icons shrink to fit the row rather than growing it, and an opened card keeps its body under the 44px header. The working card above the composer and the message bubbles are not part of this. Later the same day: "keep in mind no need for the chevron for all of them and i like the pills on the right side instead of this" (an amber clock and "Queued" beside a chevron): none of these cards draws a chevron (the whole card still opens and closes), and every status on a card's right (Queued, Waiting for agent, Not sent, Delivered, Answered) is a pill shaped like the fold's "1 tool call" in its own colour; a time stays plain muted text left of the pills. Then the user picked the left icons (Q288 "C", Q289 "D"): the fold leads with a clock tile wearing a green check badge where its chevron was, and the answered question form and the "You answered" receipts lead with a question-bubble tile and no badge, both sized like the agent mark on "Message from" (`tile`). The phone reads the same values (apps/mobile/app/src/chat/native/transcript/singleLineCard.tsx).
+/// User: "let's please make all these single line cards look the same and also have same height (44px is good, like the Message from "Send Bug / Feedback" has", then "same font and font size too please, the one in Worked for xyz is good font and font size, use that. also the color of the bg needs to be like "Worked for 8s" for all of them". Every transcript card that folds to one line (the "Worked for 12s" / "Previous turn" fold, the Message from / Message to / subagent reply cards, the answered question form and the "You answered" receipts) is 44px tall with its border, wears the fold's fill, hairline and 10px radius, and titles in the fold's 13.5px medium type; icons shrink to fit the row rather than growing it, and an opened card keeps its body under the 44px header. The working card above the composer and the message bubbles are not part of this. Later the same day: "keep in mind no need for the chevron for all of them and i like the pills on the right side instead of this" (an amber clock and "Queued" beside a chevron): none of these cards draws a chevron (the whole card still opens and closes), and every status on a card's right (Queued, Waiting for agent, Not sent, Delivered, Answered) is a pill shaped like the fold's "1 tool call" in its own colour; a time stays plain muted text left of the pills. Then the user picked the left icons (Q288 "C", Q289 "D"): the fold leads with a clock tile wearing a green check badge where its chevron was, and the answered question form and the "You answered" receipts lead with a question-bubble tile and no badge, both sized like the agent mark on "Message from" (`tile`); and (Q291 "Yes, match the tiles") that mark grows to the tile's 22px with the same 13px badge and 2px ring, so all three left icons line up. The phone reads the same values (apps/mobile/app/src/chat/native/transcript/singleLineCard.tsx).
 pub(super) static SINGLE_LINE_CARD: LazyLock<SingleLineCard> = LazyLock::new(|| {
     serde_json::from_str(include_str!(
         "../../../../../packages/gx-chat-core/visual/single-line-card.json"
@@ -137,9 +137,6 @@ impl SingleLineCard {
         let fill = u32::from_str_radix(badge.fill.trim_start_matches('#'), 16)
             .map(|fill| Hsla::from(gpui::rgb(fill)))
             .unwrap_or_else(|_| p.success());
-        // The ring parts the badge from the tile in the card's own fill, made opaque so the
-        // tile's corner does not show through it.
-        let ring = p.background.blend(p.input.opacity(self.fill_input_alpha));
         div()
             .relative()
             .flex()
@@ -156,27 +153,52 @@ impl SingleLineCard {
                     .text_color(p.foreground.opacity(tile.glyph_alpha)),
             )
             .when(checked, |this| {
-                this.child(
-                    div()
-                        .absolute()
-                        .right(px(badge.offset * s))
-                        .bottom(px(badge.offset * s))
-                        .size(px((badge.size + 2.0 * badge.ring) * s))
-                        .flex()
-                        .items_center()
-                        .justify_center()
-                        .rounded_full()
-                        .bg(fill)
-                        .border(px(badge.ring * s))
-                        .border_color(ring)
-                        .child(
-                            gpui::svg()
-                                .path("titlebar/chat-card-check.svg")
-                                .size(px(badge.glyph_size * s))
-                                .text_color(gpui::white()),
-                        ),
-                )
+                this.child(self.badge(
+                    fill,
+                    "titlebar/chat-card-check.svg",
+                    gpui::white(),
+                    p,
+                ))
             })
+    }
+
+    /// The side of a row's leading icon, unscaled: the tile, and the agent mark on "Message from"
+    /// that matches it.
+    pub(super) fn icon_size(&self) -> f32 {
+        self.tile.size
+    }
+
+    /// The round badge at the bottom right of a row's leading icon (the tile's check, the agent
+    /// mark's arrow), its ring in the card's own fill made opaque so the icon's corner does not
+    /// show through it.
+    pub(super) fn badge(
+        &self,
+        fill: Hsla,
+        glyph: &'static str,
+        ink: Hsla,
+        p: &ChatAppearance,
+    ) -> Div {
+        let s = p.scale;
+        let badge = &self.badge;
+        let ring = p.background.blend(p.input.opacity(self.fill_input_alpha));
+        div()
+            .absolute()
+            .right(px(badge.offset * s))
+            .bottom(px(badge.offset * s))
+            .size(px((badge.size + 2.0 * badge.ring) * s))
+            .flex()
+            .items_center()
+            .justify_center()
+            .rounded_full()
+            .bg(fill)
+            .border(px(badge.ring * s))
+            .border_color(ring)
+            .child(
+                gpui::svg()
+                    .path(glyph)
+                    .size(px(badge.glyph_size * s))
+                    .text_color(ink),
+            )
     }
 
     /// The title's type, the fold's "Worked for 12s".
