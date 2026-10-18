@@ -51,7 +51,16 @@ struct SingleLineBadge {
     ring: f32,
     offset: f32,
     glyph_size: f32,
+    /// The check badge's green.
     fill: String,
+    /// A failed status's red.
+    error_fill: String,
+}
+
+fn hex_fill(hex: &str, fallback: Hsla) -> Hsla {
+    u32::from_str_radix(hex.trim_start_matches('#'), 16)
+        .map(|fill| Hsla::from(gpui::rgb(fill)))
+        .unwrap_or(fallback)
 }
 
 /// The pill a one-line card puts its counts and its status in, the fold's "1 tool call".
@@ -68,7 +77,7 @@ struct SingleLinePill {
 }
 
 /// CDXC:SessionChat 2026-10-18 DECISION:
-/// User: "let's please make all these single line cards look the same and also have same height (44px is good, like the Message from "Send Bug / Feedback" has", then "same font and font size too please, the one in Worked for xyz is good font and font size, use that. also the color of the bg needs to be like "Worked for 8s" for all of them". Every transcript card that folds to one line (the "Worked for 12s" / "Previous turn" fold, the Message from / Message to / subagent reply cards, the answered question form and the "You answered" receipts) is 44px tall with its border, wears the fold's fill, hairline and 10px radius, and titles in the fold's 13.5px medium type; icons shrink to fit the row rather than growing it, and an opened card keeps its body under the 44px header. The working card above the composer and the message bubbles are not part of this. Later the same day: "keep in mind no need for the chevron for all of them and i like the pills on the right side instead of this" (an amber clock and "Queued" beside a chevron): none of these cards draws a chevron (the whole card still opens and closes), and every status on a card's right (Queued, Waiting for agent, Not sent, Delivered, Answered) is a pill shaped like the fold's "1 tool call" in its own colour; a time stays plain muted text left of the pills. Then the user picked the left icons (Q288 "C", Q289 "D"): the fold leads with a clock tile wearing a green check badge where its chevron was, and the answered question form and the "You answered" receipts lead with a question-bubble tile and no badge, both sized like the agent mark on "Message from" (`tile`); and (Q291 "Yes, match the tiles") that mark grows to the tile's 22px with the same 13px badge and 2px ring, so all three left icons line up. The phone reads the same values (apps/mobile/app/src/chat/native/transcript/singleLineCard.tsx).
+/// User: "let's please make all these single line cards look the same and also have same height (44px is good, like the Message from "Send Bug / Feedback" has", then "same font and font size too please, the one in Worked for xyz is good font and font size, use that. also the color of the bg needs to be like "Worked for 8s" for all of them". Every transcript card that folds to one line (the "Worked for 12s" / "Previous turn" fold, the Message from / Message to / subagent reply cards, the answered question form and the "You answered" receipts) is 44px tall with its border, wears the fold's fill, hairline and 10px radius, and titles in the fold's 13.5px medium type; icons shrink to fit the row rather than growing it, and an opened card keeps its body under the 44px header. The working card above the composer and the message bubbles are not part of this. Later the same day: "keep in mind no need for the chevron for all of them and i like the pills on the right side instead of this" (an amber clock and "Queued" beside a chevron): none of these cards draws a chevron (the whole card still opens and closes), and every status on a card's right (Queued, Waiting for agent, Not sent, Delivered, Answered) is a pill shaped like the fold's "1 tool call" in its own colour; a time stays plain muted text left of the pills. Then the user picked the left icons (Q288 "C", Q289 "D"): the fold leads with a clock tile wearing a green check badge where its chevron was, and the answered question form and the "You answered" receipts lead with a question-bubble tile and no badge, both sized like the agent mark on "Message from" (`tile`); and (Q291 "Yes, match the tiles") that mark grows to the tile's 22px with the same 13px badge and 2px ring, so all three left icons line up. Later: "this card also please needs to be like the others" (a "Background command … completed" row): every status row (a background task's end, a model, effort or Fast mode change, a compaction) is a one-line card too, its tile saying what it is about and its badge the tone (a green check, a red cross, none when neutral), the sentence on one line with the whole of it on hover (a long press on the phone) and a fact such as "exit code 1" as a pill, superseding the 2026-09-04 wrapping status pill (status_rows.rs). And "these dont look all the same too": every title is the foreground colour (a fold that cannot open no longer greys its title), Delivered and Answered are each a check with the word in a green pill, and every card takes the same hover fill. The phone reads the same values (apps/mobile/app/src/chat/native/transcript/singleLineCard.tsx).
 pub(super) static SINGLE_LINE_CARD: LazyLock<SingleLineCard> = LazyLock::new(|| {
     serde_json::from_str(include_str!(
         "../../../../../packages/gx-chat-core/visual/single-line-card.json"
@@ -128,15 +137,11 @@ impl SingleLineCard {
             .when_some(label, |this, label| this.child(label))
     }
 
-    /// The tile leading the row: `glyph` in a neutral rounded square, with the green check badge
-    /// at its bottom right when `checked`.
-    pub(super) fn tile(&self, glyph: &'static str, checked: bool, p: &ChatAppearance) -> Div {
+    /// The tile leading the row: `glyph` in a neutral rounded square. A badge (`check_badge`,
+    /// `error_badge`) goes in as its child.
+    pub(super) fn tile(&self, glyph: &'static str, p: &ChatAppearance) -> Div {
         let s = p.scale;
         let tile = &self.tile;
-        let badge = &self.badge;
-        let fill = u32::from_str_radix(badge.fill.trim_start_matches('#'), 16)
-            .map(|fill| Hsla::from(gpui::rgb(fill)))
-            .unwrap_or_else(|_| p.success());
         div()
             .relative()
             .flex()
@@ -152,14 +157,26 @@ impl SingleLineCard {
                     .size(px(tile.glyph_size * s))
                     .text_color(p.foreground.opacity(tile.glyph_alpha)),
             )
-            .when(checked, |this| {
-                this.child(self.badge(
-                    fill,
-                    "titlebar/chat-card-check.svg",
-                    gpui::white(),
-                    p,
-                ))
-            })
+    }
+
+    /// The green check badge: the turn's work, or a status that went well.
+    pub(super) fn check_badge(&self, p: &ChatAppearance) -> Div {
+        self.badge(
+            hex_fill(&self.badge.fill, p.success()),
+            "titlebar/chat-card-check.svg",
+            gpui::white(),
+            p,
+        )
+    }
+
+    /// The red badge of a status that failed.
+    pub(super) fn error_badge(&self, p: &ChatAppearance) -> Div {
+        self.badge(
+            hex_fill(&self.badge.error_fill, p.error()),
+            "titlebar/chat-card-x.svg",
+            gpui::white(),
+            p,
+        )
     }
 
     /// The side of a row's leading icon, unscaled: the tile, and the agent mark on "Message from"

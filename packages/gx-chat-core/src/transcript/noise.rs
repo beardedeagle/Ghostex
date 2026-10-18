@@ -938,6 +938,17 @@ fn fits_inline_suppressed_turn(body: &str) -> bool {
         && body.split('\n').count() <= INLINE_BODY_MAX_LINES
 }
 
+/// What a status row is about, so each renderer leads it with a fitting glyph: a background
+/// `task`, a context `compaction`, or a `setting` the reader changed (model, effort, Fast mode).
+fn status_subject(label: &str) -> &'static str {
+    match label {
+        CONTEXT_COMPACTED_LABEL | COMPACTION_COMPLETED_LABEL | NOTHING_TO_COMPRESS_LABEL => {
+            "compaction"
+        }
+        _ => "setting",
+    }
+}
+
 fn status_row_value(row: &StatusRow) -> Value {
     let mut entry = Map::new();
     entry.insert("label".to_string(), row.label.clone().into());
@@ -971,6 +982,7 @@ pub fn suppressed_turn_presentation(message: &ChatMessage) -> Value {
         if !statuses.is_empty() {
             let mut out = Map::new();
             out.insert("kind".to_string(), "status".into());
+            out.insert("subject".to_string(), "task".into());
             out.insert("label".to_string(), label.clone().into());
             out.insert("text".to_string(), raw_text.clone().into());
             if let Some(tone) = tone {
@@ -1019,6 +1031,7 @@ pub fn suppressed_turn_presentation(message: &ChatMessage) -> Value {
             ];
             return json!({
                 "kind": "status",
+                "subject": "setting",
                 "label": label,
                 "text": text,
                 "statuses": statuses,
@@ -1037,6 +1050,9 @@ pub fn suppressed_turn_presentation(message: &ChatMessage) -> Value {
 
     let mut out = Map::new();
     out.insert("kind".to_string(), kind.into());
+    if kind == "status" {
+        out.insert("subject".to_string(), status_subject(&label).into());
+    }
     out.insert("label".to_string(), label.into());
     out.insert("text".to_string(), text.into());
     if kind == "status" {

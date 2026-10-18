@@ -8,7 +8,7 @@
 //! part whose height eases to nothing takes its gap with it and the first and last frames match
 //! the live rows and the settled row exactly.
 
-use super::cards::SINGLE_LINE_CARD;
+use super::cards::{SINGLE_LINE_CARD, card_hover_fill};
 use super::disclosure_body::{DisclosureRail, disclosure_body};
 use super::disclosure_motion::{FoldFrame, FoldMotionKind, motion_clip};
 use super::transcript::text;
@@ -185,10 +185,10 @@ impl NativeChatView {
             .flex_shrink_0()
             .gap(px(10.0 * s))
             .px(px(card.padding_x * s))
-            .child(card.tile("titlebar/chat-card-clock.svg", true, p))
+            .child(card.tile("titlebar/chat-card-clock.svg", p).child(card.check_badge(p)))
             .child(
                 card.title(div().flex_shrink_0(), p)
-                    .text_color(if expandable { p.foreground } else { p.muted })
+                    .text_color(p.foreground)
                     .child(label),
             )
             .child(
@@ -208,7 +208,7 @@ impl NativeChatView {
                 .filter(|_| item["deferred"].is_object());
             bar = bar
                 .chat_cursor_pointer()
-                .hover(|style| style.bg(p.input))
+                .hover(|style| style.bg(card_hover_fill(p)))
                 .on_click(cx.listener(move |this, _, _, cx| {
                     this.anchor_disclosure_toggle(&id, !expanded);
                     if expanded {

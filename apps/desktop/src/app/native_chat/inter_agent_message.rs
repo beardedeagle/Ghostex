@@ -351,8 +351,8 @@ impl NativeChatView {
         )
     }
 
-    /// A pill (`SINGLE_LINE_CARD`, cards.rs): Delivered is a green check; Queued, Waiting for agent
-    /// and Not sent say so in their colour.
+    /// A pill (`SINGLE_LINE_CARD`, cards.rs) with its glyph and word: Delivered in green, like
+    /// Answered; Queued, Waiting for agent and Not sent in their colour.
     fn agent_card_status(&self, key: &str, status: &Value, p: &ChatAppearance) -> AnyElement {
         let color = tone_color(&text(status, "tone"), p);
         let glyph = match text(status, "icon").as_str() {
@@ -361,14 +361,8 @@ impl NativeChatView {
             _ => "titlebar/check.svg",
         };
         let hint = SharedString::from(text(status, "hint"));
-        let icon_only = status["iconOnly"] == true;
         SINGLE_LINE_CARD
-            .pill(
-                Some(glyph),
-                (!icon_only).then(|| text(status, "label")),
-                color,
-                p,
-            )
+            .pill(Some(glyph), Some(text(status, "label")), color, p)
             .id(SharedString::from(format!("{key}:status")))
             .role(gpui::Role::Status)
             .aria_label(hint.clone())

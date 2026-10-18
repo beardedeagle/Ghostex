@@ -416,7 +416,7 @@ impl NativeChatView {
             .into_any_element()
     }
 
-    /// An answered form: one 44px line (its check, title and a green "Answered" pill, the shared
+    /// An answered form: one 44px line (its question tile, title and a green "Answered" pill, the shared
     /// one-line card of cards.rs, with no chevron) that opens the read-only form below it and closes it again.
     /// Whether it is open is the core's (`collapsed`, see the SessionChat 2026-10-12 DECISION in
     /// packages/gx-chat-core/src/questions/forms.rs).
@@ -432,7 +432,12 @@ impl NativeChatView {
         let fold_key = format!("question-form:{id}");
         let motion = self.disclosure_frame(&fold_key, open, cx);
         let answered = SINGLE_LINE_CARD
-            .pill(None, Some("Answered".to_string()), p.success(), p)
+            .pill(
+                Some("titlebar/check.svg"),
+                Some("Answered".to_string()),
+                p.success(),
+                p,
+            )
             .into_any_element();
         let form_id = id.to_string();
         let head = single_line_press_head(

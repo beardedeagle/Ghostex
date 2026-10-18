@@ -146,7 +146,7 @@ pub(super) fn single_line_ask_head(
         .min_w_0()
         .h(px(shape.header_height(s)))
         .px(px(shape.padding_x * s))
-        .child(shape.tile("titlebar/chat-card-question.svg", false, p))
+        .child(shape.tile("titlebar/chat-card-question.svg", p))
         .child(
             div()
                 .flex_1()
