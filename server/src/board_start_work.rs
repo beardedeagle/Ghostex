@@ -36,6 +36,9 @@ pub struct StartBoardWorkOutcome {
     /// `(projectId, sessionId)` of a newly created session so the caller can
     /// schedule the presentation delta and start the zmx provider.
     pub created_session: Option<(String, String)>,
+    /// The bead work prompt of a newly created session, which the caller queues
+    /// as the session's startup send once its provider is started.
+    pub created_prompt: Option<String>,
     /// RPC payload returned to the caller.
     pub result: Value,
 }
@@ -83,6 +86,7 @@ pub fn start_board_work(
         return Ok(StartBoardWorkOutcome {
             created: false,
             created_session: None,
+            created_prompt: None,
             result: json!({
                 "created": false,
                 "projectId": existing_project_id,
@@ -123,8 +127,8 @@ pub fn start_board_work(
     );
 
     // Compose the create-agent path: the same parameter builder and repository
-    // insert `/api/createAgentSession` uses, with the work prompt staged as the
-    // gxserver first user message.
+    // insert `/api/createAgentSession` uses. `firstUserMessage` only names the
+    // session; the caller queues the prompt as its startup send.
     let mut create_params = Map::new();
     create_params.insert("agentId".to_string(), Value::String(agent_id.clone()));
     create_params.insert(
@@ -194,6 +198,7 @@ pub fn start_board_work(
     Ok(StartBoardWorkOutcome {
         created: true,
         created_session: Some((session_project_id.clone(), session_id.clone())),
+        created_prompt: Some(prompt),
         result: json!({
             "created": true,
             "projectId": session_project_id,

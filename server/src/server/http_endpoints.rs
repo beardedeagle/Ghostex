@@ -399,6 +399,7 @@ pub(crate) async fn handle_board_start_work_http(
         let blocking_state = state.clone();
         let blocking_request_id = request_id.clone();
         let mut result = std::mem::take(&mut outcome.result);
+        let prompt = outcome.created_prompt.take();
         let started = tokio::task::spawn_blocking(move || {
             let status = start_board_work_session_provider(
                 &blocking_state,
@@ -407,6 +408,17 @@ pub(crate) async fn handle_board_start_work_http(
                 &session_id,
                 &mut result,
             );
+            if status.is_ok() {
+                if let Some(prompt) = prompt {
+                    queue_board_work_prompt(
+                        &blocking_state,
+                        &project_id,
+                        &session_id,
+                        &prompt,
+                        &mut result,
+                    );
+                }
+            }
             (result, status)
         })
         .await;
@@ -432,6 +444,23 @@ pub(crate) async fn handle_board_start_work_http(
     )
 }
 
+/// CDXC:ProjectBoard 2026-10-18 WHY: `runtimeSettings.firstUserMessage` is metadata nothing types, so a worker started by `ghostex board start-work` sat at an empty prompt. The bead prompt goes through the session's chat queue as its startup send, the way the board's own Start work (gx_store/create/board_links_host.rs), the feedback agent and orchestrator threads deliver theirs: the queue holds it until the agent's input box is up and sends it once. A failed provider start still queues it, and the send wakes the session.
+fn queue_board_work_prompt(
+    state: &AppState,
+    project_id: &str,
+    session_id: &str,
+    prompt: &str,
+    result: &mut Value,
+) {
+    let queued = queue_session_chat_prompt(state, project_id, session_id, prompt, true);
+    if let Some(result) = result.as_object_mut() {
+        result.insert("promptQueued".to_string(), Value::Bool(queued.is_ok()));
+        if let Err(error) = queued {
+            result.insert("promptQueueError".to_string(), Value::String(error.message));
+        }
+    }
+}
+
 /// Materializes the zmx provider for a freshly linked board worker session and
 /// records the outcome on `result`. Errors are the ones that used to answer the
 /// request directly: opening state, projecting the session, and reading agent
@@ -451,7 +480,7 @@ fn start_board_work_session_provider(
     let repository = DomainRepository::new(&db, state.metadata.server_id.as_str());
     schedule_presentation_session_delta(state, &db, &repository, project_id, session_id)?;
     // Materialize the zmx provider like `ghostex create-agent`, so the
-    // staged bead prompt reaches a live agent instead of an inert row.
+    // queued bead prompt reaches a live agent instead of an inert row.
     let context = ZmxServerContext {
         auth_token_file: state.paths.auth_token_file.to_string_lossy().to_string(),
         base_url: format!(
