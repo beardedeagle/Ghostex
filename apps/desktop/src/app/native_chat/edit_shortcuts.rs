@@ -278,20 +278,23 @@ impl NativeChatView {
         let draft = self.composer_focused && !self.draft.is_empty();
         let field = self.focused_field_selection(window, cx);
         let field_selection = field == Some(true);
-        // The selection check walks every transcript text block, so it runs only while the
-        // menu can reach this view at all.
+        // A focused text field takes Copy itself, so a transcript selection left over from
+        // before counts only while no field has focus. The selection check walks every
+        // transcript text block, so it runs only while the menu can reach this view at all.
         ChatEditMenu {
             copy: draft
                 || field_selection
-                || (self.surface_focus.contains_focused(window, cx)
+                || (!self.composer_focused
+                    && field.is_none()
+                    && self.surface_focus.contains_focused(window, cx)
                     && gpui_component::TextSelection::has_selection(window, cx)),
             cut: draft || field_selection,
             text_field: self.composer_focused || field.is_some(),
         }
     }
 
-    /// The focused chat text field other than the composer (the note, a question's answer, the
-    /// transcript search, Files & Links, a terminal dialog or the terminal picker), and whether
+    /// The focused chat text field other than the composer (the note, a question's answer or
+    /// form field, the transcript search, Files & Links, a terminal dialog or the terminal picker), and whether
     /// it has a selection to copy or cut.
     fn focused_field_selection(&self, window: &Window, cx: &gpui::App) -> Option<bool> {
         use gpui_component::input::{InputState, TextareaState};
@@ -320,6 +323,7 @@ impl NativeChatView {
             .iter()
             .chain(self.answer_input.iter().map(|(_, input)| input))
             .chain(self.async_answer_input.iter().map(|(_, input)| input))
+            .chain(self.form_inputs.values().map(|entry| &entry.input))
             .find_map(lines)
             .or_else(|| {
                 self.search_input
