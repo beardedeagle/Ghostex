@@ -130,10 +130,18 @@ fn get_bd_tool_status() -> ToolCapabilityStatus {
 }
 
 fn get_bd_tool_status_for_candidates(candidates: &[ToolCandidate]) -> ToolCapabilityStatus {
-    if let Some(candidate) = candidates
+    let mut not_executable = None;
+    let available = candidates
         .iter()
-        .find(|candidate| matches!(inspect_candidate(candidate), CandidateInspection::Available))
-    {
+        .find(|candidate| match inspect_candidate(candidate) {
+            CandidateInspection::Available => true,
+            CandidateInspection::NotExecutable => {
+                not_executable.get_or_insert(*candidate);
+                false
+            }
+            CandidateInspection::Missing => false,
+        });
+    if let Some(candidate) = available {
         return ToolCapabilityStatus {
             availability: "available".to_string(),
             candidate_paths: None,
@@ -149,12 +157,7 @@ fn get_bd_tool_status_for_candidates(candidates: &[ToolCandidate]) -> ToolCapabi
         .iter()
         .map(|candidate| candidate.executable_path.to_string_lossy().to_string())
         .collect::<Vec<_>>();
-    if let Some(candidate) = candidates.iter().find(|candidate| {
-        matches!(
-            inspect_candidate(candidate),
-            CandidateInspection::NotExecutable
-        )
-    }) {
+    if let Some(candidate) = not_executable {
         return ToolCapabilityStatus {
             availability: "notExecutable".to_string(),
             candidate_paths: Some(candidate_paths),
@@ -300,11 +303,58 @@ fn system_bd_directories(
     ]);
     // Beads installed by Ghostex (Project board's Install Beads button).
     directories.push(crate::managed_tools::paths::bin_dir());
+    let windows_mounts = wsl_windows_mount_points();
     let mut seen = std::collections::HashSet::new();
     directories
         .into_iter()
         .filter(|directory| directory.is_absolute())
+        .filter(|directory| {
+            !windows_mounts
+                .iter()
+                .any(|mount| directory.starts_with(mount))
+        })
         .filter(|directory| seen.insert(directory.clone()))
+        .collect()
+}
+
+/// CDXC:ServerDaemon 2026-10-18 WHY:
+/// WSL inherits Windows PATH entries, and probing for a missing bd on each Windows drive can push the daemon's health answer past the 800ms check, so a running gxserver reads as unavailable and Chat View loses its token (PR #202 by Mriganka Mondal). Beads must be a Linux bd anyway, so Windows mounts are skipped for Beads discovery only; terminal sessions keep the full PATH. The mount table is read rather than assuming /mnt/c so custom automount roots work and Linux disks under /mnt still count.
+fn wsl_windows_mount_points() -> Vec<PathBuf> {
+    if !cfg!(target_os = "linux")
+        || (env::var_os("WSL_DISTRO_NAME").is_none() && env::var_os("WSL_INTEROP").is_none())
+    {
+        return Vec::new();
+    }
+    let Ok(mounts) = fs::read_to_string("/proc/mounts") else {
+        return Vec::new();
+    };
+    windows_mount_points_from(&mounts)
+}
+
+fn windows_mount_points_from(mounts: &str) -> Vec<PathBuf> {
+    mounts
+        .lines()
+        .filter_map(|line| {
+            let mut fields = line.split_whitespace();
+            let _source = fields.next()?;
+            let mount = fields.next()?;
+            let filesystem = fields.next()?;
+            let options = fields.next()?;
+            let windows_mount = filesystem == "drvfs"
+                || (filesystem == "9p"
+                    && options.split(',').any(|option| {
+                        option == "aname=drvfs" || option.starts_with("aname=drvfs;")
+                    }));
+            windows_mount.then(|| {
+                PathBuf::from(
+                    mount
+                        .replace("\\040", " ")
+                        .replace("\\011", "\t")
+                        .replace("\\012", "\n")
+                        .replace("\\134", "\\"),
+                )
+            })
+        })
         .collect()
 }
 

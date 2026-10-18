@@ -278,7 +278,8 @@ if ($OnDemandComponents) {
     $CefComponentStage = Join-Path $ComponentRoot "cef-windows-$ReleaseArch-stage"
     $CefComponentAsset = Join-Path $ComponentAssetDir "cef-$CefComponentVersion-windows-$ReleaseArch.tar.gz"
     New-Item -ItemType Directory -Force -Path $ComponentAssetDir | Out-Null
-    '{"components":{}}' | Set-Content -Encoding UTF8 $ComponentManifest
+    # CDXC:Build 2026-10-18 WHY: Windows PowerShell 5.1 (what local `cargo xtask start` runs) writes UTF8 with a BOM, which the Node component sealer rejects.
+    [IO.File]::WriteAllText($ComponentManifest, '{"components":{}}' + "`n", [Text.UTF8Encoding]::new($false))
     if (Test-Path $CefComponentStage) { Remove-Item -Recurse -Force $CefComponentStage }
     New-Item -ItemType Directory -Force -Path $CefComponentStage | Out-Null
     foreach ($sourceRoot in @($CefRelease.FullName, $CefResources) | Select-Object -Unique) {
