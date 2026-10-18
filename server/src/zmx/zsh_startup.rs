@@ -12,19 +12,8 @@ use super::scripts::shell_quote;
 pub(super) fn agent_shell_command(shell_path: &str, startup: &str) -> String {
     let zshenv = format!(
         r#"
-command rm -f -- "$ZDOTDIR/.zshenv"
-command rmdir -- "$ZDOTDIR"
-if [[ -n ${{GHOSTEX_ZSH_ORIGINAL_ZDOTDIR+x}} ]]; then
-  builtin export ZDOTDIR="$GHOSTEX_ZSH_ORIGINAL_ZDOTDIR"
-else
-  builtin unset ZDOTDIR
-fi
-builtin unset GHOSTEX_ZSH_ORIGINAL_ZDOTDIR
-[[ ! -r "${{ZDOTDIR-$HOME}}/.zshenv" ]] || builtin source -- "${{ZDOTDIR-$HOME}}/.zshenv"
-function _ghostex_session_bin_first() {{
-  [[ -n ${{GHOSTEX_SESSION_BIN_DIR-}} ]] || return 0
-  path=("$GHOSTEX_SESSION_BIN_DIR" "${{(@)path:#${{(b)GHOSTEX_SESSION_BIN_DIR}}}}")
-}}
+{RESTORE_ZDOTDIR}
+{SESSION_BIN_FIRST}
 function _ghostex_start_agent() {{
   precmd_functions=("${{(@)precmd_functions:#_ghostex_start_agent}}")
   builtin unfunction _ghostex_start_agent
@@ -37,6 +26,49 @@ precmd_functions=(_ghostex_start_agent "${{precmd_functions[@]}}")
 "#,
         shell_quote(startup),
     );
+    exec_with_zshenv(shell_path, &zshenv)
+}
+
+/// A plain terminal's zsh, with only `_ghostex_session_bin_first` added, so a `codex` typed there finds the wrapper ahead of the user's own folders (CDXC:AgentProviders in codex_wrapper.rs).
+///
+/// CDXC:AgentProviders 2026-10-18 WHY:
+/// A function appended to precmd_functions during a precmd pass only runs from the next prompt on, so the first prompt of a plain terminal still had mise's folder in front (seen live: `which codex` gave mise's Codex). The first precmd therefore also queues `sched +0 _ghostex_session_bin_first`, which zsh runs after the remaining precmd hooks of that pass. An agent session needs no such step: its first precmd runs the agent, and the user's next prompt is already a second pass.
+pub(super) fn plain_shell_command(shell_path: &str) -> String {
+    let zshenv = format!(
+        r#"
+{RESTORE_ZDOTDIR}
+{SESSION_BIN_FIRST}
+function _ghostex_session_bin_hook() {{
+  precmd_functions=("${{(@)precmd_functions:#_ghostex_session_bin_hook}}")
+  builtin unfunction _ghostex_session_bin_hook
+  precmd_functions+=(_ghostex_session_bin_first)
+  builtin zmodload zsh/sched 2>/dev/null && builtin sched +0 _ghostex_session_bin_first
+  return 0
+}}
+precmd_functions=(_ghostex_session_bin_hook "${{precmd_functions[@]}}")
+"#
+    );
+    exec_with_zshenv(shell_path, &zshenv)
+}
+
+/// Removes the temporary ZDOTDIR that carried Ghostex's `.zshenv`, restores the user's, and runs their `.zshenv`, so the user's startup files load exactly as without Ghostex.
+const RESTORE_ZDOTDIR: &str = r#"command rm -f -- "$ZDOTDIR/.zshenv"
+command rmdir -- "$ZDOTDIR"
+if [[ -n ${GHOSTEX_ZSH_ORIGINAL_ZDOTDIR+x} ]]; then
+  builtin export ZDOTDIR="$GHOSTEX_ZSH_ORIGINAL_ZDOTDIR"
+else
+  builtin unset ZDOTDIR
+fi
+builtin unset GHOSTEX_ZSH_ORIGINAL_ZDOTDIR
+[[ ! -r "${ZDOTDIR-$HOME}/.zshenv" ]] || builtin source -- "${ZDOTDIR-$HOME}/.zshenv""#;
+
+const SESSION_BIN_FIRST: &str = r#"function _ghostex_session_bin_first() {
+  [[ -n ${GHOSTEX_SESSION_BIN_DIR-} ]] || return 0
+  path=("$GHOSTEX_SESSION_BIN_DIR" "${(@)path:#${(b)GHOSTEX_SESSION_BIN_DIR}}")
+}"#;
+
+/// Starts the login zsh with `zshenv` as its first startup file, through a temporary ZDOTDIR.
+fn exec_with_zshenv(shell_path: &str, zshenv: &str) -> String {
     format!(
         r#"
 ghostex_zsh_startup_dir=$(mktemp -d "${{TMPDIR:-/tmp}}/ghostex-zsh.XXXXXXXX") || exit

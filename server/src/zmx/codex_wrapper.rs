@@ -1,5 +1,5 @@
 //! CDXC:AgentProviders 2026-10-18 DECISION:
-//! User: "can we force running it as no daemon like we do for others?" and "i wanna unify a and b and do a for all". Every Ghostex session puts a `codex` wrapper first on its PATH, so a `codex`, `codex resume` or `codex fork` typed by hand in a session's shell runs without Codex's shared background server, like the Codex sessions Ghostex launches itself (`with_codex_no_daemon`). The wrapper's folder goes back to the front of PATH after the user's shell config has run (zsh and fish agent sessions, every PowerShell session).
+//! User: "can we force running it as no daemon like we do for others?" and "i wanna unify a and b and do a for all". Every Ghostex session puts a `codex` wrapper first on its PATH, so a `codex`, `codex resume` or `codex fork` typed by hand in a session's shell runs without Codex's shared background server, like the Codex sessions Ghostex launches itself (`with_codex_no_daemon`). The wrapper's folder goes back to the front of PATH after the user's shell config has run (zsh and fish sessions, agent and plain, and every PowerShell session).
 //!
 //! CDXC:AgentProviders 2026-10-18 WHY:
 //! A hand-typed `codex` joined Codex's shared server, which keeps the conversation loaded and its writer lock held for 30 minutes after the TUI quits (`thread_unload_delay_secs`, default 1800). Ghostex's own `codex --no-daemon resume <id>` then stopped on "This conversation is open in another app" and every chat send hung (GitHub #256). Codex 0.163 has no environment variable or config key that turns the shared server off: only command-line flags do, and `features.daemon_auto_start = false` still joins a server that is already running. Hence a wrapper rather than session environment. It adds `--no-daemon` only to the interactive TUI and passes every other subcommand, and any call already carrying `--no-daemon` or `--remote`, through untouched.
@@ -69,9 +69,14 @@ exec "$ghostex_real" "$@"
     )
 }
 
+/// Whether sessions get the wrapper: only when the installed Codex accepts `--no-daemon` (0.156+), the same gate as Ghostex's own Codex launches.
+pub(crate) fn codex_wrapper_enabled() -> bool {
+    crate::agents::installed_codex_supports_no_daemon()
+}
+
 /// POSIX shell lines for a zmx provider's setup: write the wrapper into `<state>/session-bin` (atomically, since other sessions may be running it) and put that folder first on PATH. The provider's own shell writes it, the same way it writes the prompt-editor wrapper, so it lands on the filesystem the session runs on (WSL, a remote Linux host). Empty when the installed Codex predates `--no-daemon`, the same gate as Ghostex's own Codex launches.
 pub(crate) fn zmx_provider_codex_wrapper_setup_shell_command() -> String {
-    if !crate::agents::installed_codex_supports_no_daemon() {
+    if !codex_wrapper_enabled() {
         return String::new();
     }
     format!(
@@ -160,7 +165,7 @@ fn cmd_wrapper() -> String {
 /// CDXC:AgentProviders 2026-10-18 WHY: a `codex.ps1` first on PATH would stop every `codex` under the Restricted execution policy (Windows PowerShell's default on client Windows), even where the real Codex is `codex.exe`. The session's own PowerShell gets a `codex` function instead, which runs the wrapper's text through `ScriptBlock::Create` (not subject to the policy) and outranks every file on PATH; the wrapper file is named so nothing resolves it as `codex`, and `codex.cmd` serves cmd.exe and child processes.
 #[cfg(windows)]
 pub(crate) fn wmx_codex_wrapper_path_command() -> String {
-    if !crate::agents::installed_codex_supports_no_daemon() {
+    if !codex_wrapper_enabled() {
         return String::new();
     }
     let directory = ghostex_paths::GhostexPaths::resolve()

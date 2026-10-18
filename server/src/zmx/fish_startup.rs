@@ -12,9 +12,8 @@ pub(super) fn agent_shell_command(
     prompt_editor_setup: &str,
     startup: &str,
 ) -> String {
-    // CDXC:AgentProviders 2026-10-18 WHY: config.fish and per-prompt PATH managers prepend their folders after the provider's setup ran, so the `codex` wrapper's folder (codex_wrapper.rs) goes back in front once config.fish has run and before each prompt. SEE-ALSO: `_ghostex_session_bin_first` in zsh_startup.rs.
     let init_command = format!(
-        "if set -q GHOSTEX_SESSION_BIN_DIR; function _ghostex_session_bin_first --on-event fish_prompt; while contains -- $GHOSTEX_SESSION_BIN_DIR $PATH; set -e PATH[(contains -i -- $GHOSTEX_SESSION_BIN_DIR $PATH)]; end; set -gx PATH $GHOSTEX_SESSION_BIN_DIR $PATH; end; _ghostex_session_bin_first; end; set -l ghostex_agent_command $GHOSTEX_AGENT_STARTUP_COMMAND; set -e GHOSTEX_AGENT_STARTUP_COMMAND; {} {} $ghostex_agent_command; set -e ghostex_agent_command",
+        "{SESSION_BIN_FIRST} set -l ghostex_agent_command $GHOSTEX_AGENT_STARTUP_COMMAND; set -e GHOSTEX_AGENT_STARTUP_COMMAND; {} {} $ghostex_agent_command; set -e ghostex_agent_command",
         shell_quote(&script_shell.executable),
         script_shell.command_flag(true),
     );
@@ -26,3 +25,16 @@ pub(super) fn agent_shell_command(
         shell_quote(&init_command),
     )
 }
+
+/// A plain terminal's fish, with only the session-bin step from the agent launch, so a `codex` typed there finds the wrapper ahead of the user's own folders (CDXC:AgentProviders in codex_wrapper.rs).
+pub(super) fn plain_shell_command(shell_path: &str, setup: &str) -> String {
+    format!(
+        "{}\nexec {} -l -i -C {}",
+        setup,
+        shell_quote(shell_path),
+        shell_quote(SESSION_BIN_FIRST.trim_end()),
+    )
+}
+
+/// CDXC:AgentProviders 2026-10-18 WHY: config.fish and per-prompt PATH managers prepend their folders after the provider's setup ran, so the `codex` wrapper's folder (codex_wrapper.rs) goes back in front once config.fish has run (this runs in `--init-command`) and before each prompt (a `fish_prompt` handler defined after config.fish's). SEE-ALSO: `_ghostex_session_bin_first` in zsh_startup.rs.
+const SESSION_BIN_FIRST: &str = "if set -q GHOSTEX_SESSION_BIN_DIR; function _ghostex_session_bin_first --on-event fish_prompt; while contains -- $GHOSTEX_SESSION_BIN_DIR $PATH; set -e PATH[(contains -i -- $GHOSTEX_SESSION_BIN_DIR $PATH)]; end; set -gx PATH $GHOSTEX_SESSION_BIN_DIR $PATH; end; _ghostex_session_bin_first; end;";
