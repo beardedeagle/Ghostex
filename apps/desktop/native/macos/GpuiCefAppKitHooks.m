@@ -200,6 +200,8 @@ static GhostexGpuiSidebarPointerTrackingState g_ghostexGpuiSidebarPointerState =
 extern void GhostexGpuiSidebarPointerInsideChanged(bool inside);
 extern void GhostexGpuiSidebarOutsideMouseDown(void);
 
+// CDXC:Sidebar 2026-10-18 WHY:
+// Never set acceptsMouseMovedEvents on the sidebar's window. AppKit then hands the window pointer moves for points another window covers, so with Settings open over the main window its left menu lit up the sidebar rows behind it. GPUI's own tracking area already delivers moves only while the window is the topmost one under the pointer, and this observer sees those same moves in sendEvent.
 void GhostexGpuiCEFSetSidebarPointerTrackingView(void *view) {
   NSView *sidebarView = (__bridge NSView *)view;
   g_ghostexGpuiSidebarUsesNativeBounds = NO;
@@ -207,8 +209,6 @@ void GhostexGpuiCEFSetSidebarPointerTrackingView(void *view) {
   // Unknown until the next mouse event recomputes it against the new view.
   g_ghostexGpuiSidebarPointerState =
       GhostexGpuiSidebarPointerTrackingStateUnknown;
-  // Pointer-moved events are only generated for a window that asks for them.
-  sidebarView.window.acceptsMouseMovedEvents = YES;
 }
 
 // CDXC:Sidebar 2026-09-17 WHY:
@@ -300,11 +300,6 @@ static void GhostexGpuiSidebarPointerTrackingObserveEvent(NSEvent *event) {
     return;
   }
   NSWindow *window = event.window;
-  if (isDown) {
-    // A window that never got armed at registration time (view not yet in a
-    // window) still delivers button events, so re-arm from one of those.
-    sidebarView.window.acceptsMouseMovedEvents = YES;
-  }
   BOOL inside = GhostexGpuiSidebarPointerTrackingContainsScreenPoint(NSEvent.mouseLocation);
   GhostexGpuiSidebarPointerTrackingReport(inside);
   if (isDown) {
