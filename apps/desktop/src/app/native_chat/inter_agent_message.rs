@@ -374,16 +374,19 @@ impl NativeChatView {
 
     /// The agent's own logo (a coordinator's crown, `CDXC:Coordinators 2026-10-15` in the core's
     /// agent_message_card.rs) with a small arrow badge (prose grey coming in, sky going out), or
-    /// the sparkle of a subagent, the size of the fold's tile and wearing its badge
-    /// (`SINGLE_LINE_CARD`, cards.rs) so the left icons line up.
+    /// the sparkle of a subagent, inside the fold's tile and wearing its badge
+    /// (`SINGLE_LINE_CARD`, cards.rs) so the left icons look alike.
     fn agent_card_mark(&self, card: &Value, p: &ChatAppearance) -> AnyElement {
         let s = p.scale;
         let shape = &*SINGLE_LINE_CARD;
-        // The mark is the size of the fold's and the question cards' tiles, so the left icons line up.
-        let mark = shape.icon_size() * s;
+        // The logo sits in the tile the fold and the status cards lead with, at its glyph's size.
+        let mark = shape.glyph_size() * s;
         let direction = text(card, "direction");
         if direction == "subagent" {
-            return icon("titlebar/sparkles.svg", mark, p.prose);
+            return shape
+                .tile_box(p)
+                .child(icon("titlebar/sparkles.svg", mark, p.prose))
+                .into_any_element();
         }
         let (badge, arrow) = if direction == "sent" {
             (hue(p, 0x7dd3fc, 0x0284c7), "titlebar/arrow-up-right.svg")
@@ -417,10 +420,8 @@ impl NativeChatView {
                 .into_any_element(),
             None => icon("titlebar/robot.svg", mark, p.foreground),
         };
-        div()
-            .relative()
-            .size(px(mark))
-            .flex_shrink_0()
+        shape
+            .tile_box(p)
             .child(logo)
             .child(shape.badge(badge, arrow, arrow_ink, p))
             .into_any_element()
