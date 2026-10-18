@@ -11,7 +11,7 @@ use std::collections::HashSet;
 use std::rc::Rc;
 
 use super::ask_card::{
-    AskBodyMotion, AskOption, QuestionBadge, ask_color, keycap, question_ask_head,
+    AskBodyMotion, AskOption, QUESTION_GLYPH, QuestionBadge, ask_color, keycap, question_ask_head,
     single_line_ask_head, single_line_press_head,
 };
 use super::cards::SINGLE_LINE_CARD;
@@ -277,6 +277,7 @@ impl NativeChatView {
                 .pill(None, Some("Not shown".to_string()), error_color(p), p)
                 .into_any_element();
             let head = question_ask_head(
+                QUESTION_GLYPH,
                 QuestionBadge::None,
                 title,
                 "These questions could not be shown".to_string(),
@@ -343,8 +344,15 @@ impl NativeChatView {
         let state = SINGLE_LINE_CARD
             .pill(glyph, Some(state.to_string()), ask_color(p), p)
             .into_any_element();
-        let head = question_ask_head(QuestionBadge::None, title, detail, vec![state], p)
-            .into_any_element();
+        let head = question_ask_head(
+            QUESTION_GLYPH,
+            QuestionBadge::None,
+            title,
+            detail,
+            vec![state],
+            p,
+        )
+        .into_any_element();
         let send_error = text(form, "sendError");
         let can_send = form["canSend"] == true;
         let status = match phase.as_str() {

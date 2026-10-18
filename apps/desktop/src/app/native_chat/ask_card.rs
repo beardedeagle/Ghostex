@@ -37,6 +37,11 @@ pub(super) fn ask_color(p: &ChatAppearance) -> Hsla {
     rgb(if p.light { 0xb45309 } else { 0xfbbf24 }).into()
 }
 
+/// The question bubble every question card's tile shows, but the live question card's.
+pub(super) const QUESTION_GLYPH: &str = "titlebar/chat-card-question.svg";
+/// The live question card's tile glyph (the SessionChat 2026-10-18 DECISION on `SINGLE_LINE_CARD`).
+pub(super) const CHECKLIST_GLYPH: &str = "titlebar/chat-card-checklist.svg";
+
 /// What the question tile's badge says: nothing, a question waiting on the reader, or answered.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum QuestionBadge {
@@ -46,10 +51,10 @@ pub(super) enum QuestionBadge {
 }
 
 /// The one-line cards' question tile on a question card's panel, the badge's ring in that panel.
-fn question_tile(badge: QuestionBadge, p: &ChatAppearance) -> AnyElement {
+fn question_tile(glyph: &'static str, badge: QuestionBadge, p: &ChatAppearance) -> AnyElement {
     let shape = &*SINGLE_LINE_CARD;
     let ring = p.background.blend(p.card_panel);
-    let tile = shape.tile("titlebar/chat-card-question.svg", p);
+    let tile = shape.tile(glyph, p);
     match badge {
         QuestionBadge::None => tile,
         QuestionBadge::Asking => tile.child(shape.ask_badge(p).border_color(ring)),
@@ -61,6 +66,7 @@ fn question_tile(badge: QuestionBadge, p: &ChatAppearance) -> AnyElement {
 /// The header of a question card that is still open (the live question card, an open questions
 /// form): `ask_head` led by the question tile.
 pub(super) fn question_ask_head(
+    glyph: &'static str,
     badge: QuestionBadge,
     title: String,
     detail: String,
@@ -68,7 +74,7 @@ pub(super) fn question_ask_head(
     p: &ChatAppearance,
 ) -> Div {
     ask_head_led(
-        question_tile(badge, p),
+        question_tile(glyph, badge, p),
         title,
         detail,
         trailing,
@@ -84,7 +90,7 @@ pub(super) fn question_ask_head(
 pub(super) fn answered_ask_head(title: String, p: &ChatAppearance) -> Div {
     let shape = &*SINGLE_LINE_CARD;
     ask_head_led(
-        question_tile(QuestionBadge::Answered, p),
+        question_tile(QUESTION_GLYPH, QuestionBadge::Answered, p),
         title,
         String::new(),
         Vec::new(),

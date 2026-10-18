@@ -19,15 +19,15 @@
   "tile": {
     "size": 28,
     "radius": 8,
-    "glyphSize": 15,
+    "glyphSize": 17,
     "fillAlpha": 0.06,
     "glyphAlpha": 0.8
   },
   "badge": {
-    "size": 16,
+    "size": 12,
     "ring": 2,
-    "offset": -5,
-    "glyphSize": 10,
+    "offset": -4,
+    "glyphSize": 6,
     "fill": "#16a34a",
     "errorFill": "#dc2626",
     "askFill": "#D2A024",
