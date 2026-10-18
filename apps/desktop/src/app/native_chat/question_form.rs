@@ -437,8 +437,6 @@ impl NativeChatView {
         let form_id = id.to_string();
         let head = single_line_press_head(
             single_line_ask_head(
-                "titlebar/check.svg",
-                AskTone::Answered,
                 title,
                 String::new(),
                 vec![answered],

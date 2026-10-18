@@ -49,17 +49,6 @@ pub(super) fn tone_color(tone: AskTone, p: &ChatAppearance) -> Hsla {
 
 /// The 28px tile that leads the card's header.
 pub(super) fn ask_tile(icon: &'static str, tone: AskTone, p: &ChatAppearance) -> AnyElement {
-    ask_tile_sized(icon, tone, 28.0, 15.0, p)
-}
-
-/// The tile at `size` with its glyph at `glyph`, both unscaled.
-fn ask_tile_sized(
-    icon: &'static str,
-    tone: AskTone,
-    size: f32,
-    glyph: f32,
-    p: &ChatAppearance,
-) -> AnyElement {
     let s = p.scale;
     let hue = tone_color(tone, p);
     // A waiting question's amber is a light tint; the answered and quiet tiles keep their strength.
@@ -70,8 +59,8 @@ fn ask_tile_sized(
     };
     div()
         .flex_shrink_0()
-        .size(px(size * s))
-        .rounded(px(size * 2.0 / 7.0 * s))
+        .size(px(28.0 * s))
+        .rounded(px(8.0 * s))
         .border_1()
         .border_color(hue.opacity(ring))
         .bg(hue.opacity(fill))
@@ -81,7 +70,7 @@ fn ask_tile_sized(
         .child(
             svg()
                 .path(icon)
-                .size(px(glyph * s))
+                .size(px(15.0 * s))
                 .text_color(hue.opacity(ink)),
         )
         .into_any_element()
@@ -138,11 +127,9 @@ pub(super) fn ask_head(
         .children(trailing)
 }
 
-/// The head of an answered card that folds to one line: `ask_head` in the 44px row, the shared
-/// title type and a smaller tile so the row keeps its height (`SINGLE_LINE_CARD`, cards.rs).
+/// The head of an answered card that folds to one line: `ask_head` in the 44px row, led by the
+/// question-bubble tile in the shared title type (`SINGLE_LINE_CARD`, cards.rs).
 pub(super) fn single_line_ask_head(
-    icon: &'static str,
-    tone: AskTone,
     title: String,
     detail: String,
     trailing: Vec<AnyElement>,
@@ -159,13 +146,7 @@ pub(super) fn single_line_ask_head(
         .min_w_0()
         .h(px(shape.header_height(s)))
         .px(px(shape.padding_x * s))
-        .child(ask_tile_sized(
-            icon,
-            tone,
-            shape.icon_box,
-            shape.icon_size,
-            p,
-        ))
+        .child(shape.tile("titlebar/chat-card-question.svg", false, p))
         .child(
             div()
                 .flex_1()

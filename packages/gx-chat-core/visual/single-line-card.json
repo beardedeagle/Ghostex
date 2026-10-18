@@ -5,8 +5,6 @@
   "titleSize": 13.5,
   "titleLineHeight": 18,
   "titleWeight": 500,
-  "iconBox": 24,
-  "iconSize": 13,
   "borderAlpha": 0.06,
   "fillInputAlpha": 0.75,
   "pill": {
@@ -17,5 +15,19 @@
     "lineHeight": 16,
     "iconSize": 12,
     "borderAlpha": 0.1
+  },
+  "tile": {
+    "size": 22,
+    "radius": 6,
+    "glyphSize": 14,
+    "fillAlpha": 0.06,
+    "glyphAlpha": 0.8
+  },
+  "badge": {
+    "size": 13,
+    "ring": 2,
+    "offset": -4,
+    "glyphSize": 8,
+    "fill": "#16a34a"
   }
 }

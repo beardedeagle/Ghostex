@@ -77,10 +77,9 @@ impl NativeChatView {
             .map(|question| text(question, "header"))
             .filter(|header| !header.is_empty())
             .collect();
-        let (tone, icon, title) = if answered > 0 || !fallback.is_empty() {
+        let (tone, title) = if answered > 0 || !fallback.is_empty() {
             (
                 AskTone::Answered,
-                "titlebar/check.svg",
                 if total <= 1 || answered == 0 {
                     "You answered the question".to_string()
                 } else if answered == total {
@@ -92,13 +91,11 @@ impl NativeChatView {
         } else if dismissed {
             (
                 AskTone::Quiet,
-                "titlebar/help-circle.svg",
                 "Dismissed without answering".to_string(),
             )
         } else {
             (
                 AskTone::Quiet,
-                "titlebar/help-circle.svg",
                 if total > 1 {
                     "Questions skipped".to_string()
                 } else {
@@ -145,7 +142,7 @@ impl NativeChatView {
         let body = div().mt(px(-6.0 * s)).child(rows).into_any_element();
         let toggle_key = fold_key.clone();
         let head = single_line_press_head(
-            single_line_ask_head(icon, tone, title, detail, Vec::new(), p),
+            single_line_ask_head(title, detail, Vec::new(), p),
             SharedString::from(format!("question-receipt-head:{key}")),
             if open {
                 "Hide the answers"

@@ -132,9 +132,10 @@ impl NativeChatView {
         self.moving_completed_work_row(&id, frame, heading, log, files, tail, s)
     }
 
-    /// The bar a finished turn folds behind: "Worked for 2m 5s" and the turn's counts as pills, so
-    /// the closed fold still says what happened; the whole bar opens and closes it, with no chevron. Pressing it opens the log, reading a
-    /// turn whose rows are still on the server first.
+    /// The bar a finished turn folds behind: a clock tile with a green check badge, "Worked for
+    /// 2m 5s" and the turn's counts as pills, so the closed fold still says what happened; the
+    /// whole bar opens and closes it, with no chevron. Pressing it opens the log, reading a turn
+    /// whose rows are still on the server first.
     ///
     /// Its height, fill and type are every one-line card's (`SINGLE_LINE_CARD`, cards.rs).
     ///
@@ -182,8 +183,9 @@ impl NativeChatView {
             .w_full()
             .h(px(card.height * s))
             .flex_shrink_0()
-            .gap(px(8.0 * s))
+            .gap(px(10.0 * s))
             .px(px(card.padding_x * s))
+            .child(card.tile("titlebar/chat-card-clock.svg", true, p))
             .child(
                 card.title(div().flex_shrink_0(), p)
                     .text_color(if expandable { p.foreground } else { p.muted })
