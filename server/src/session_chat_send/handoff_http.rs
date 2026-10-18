@@ -154,8 +154,8 @@ pub(crate) async fn handle_handoff_session_chat_draft_http(
         );
     }
     let agent = session_chat_agent_for_session(&target.session);
-    if agent.as_deref() == Some("empryo") {
-        let recovered = empryo_draft_to_chat(state, &target).await;
+    if let Some(agent @ ("empryo" | "zcode")) = agent.as_deref() {
+        let recovered = input_box_draft_to_chat(state, &target, agent).await;
         return match recovered {
             Ok(result) => routed_json(
                 Some(endpoint_path),
@@ -222,18 +222,22 @@ pub(crate) async fn handle_handoff_session_chat_draft_http(
 
 /// CDXC:Drafts 2026-10-06 WHY:
 /// Every other agent hands its terminal draft over through its prompt editor (Ctrl+G), and Ctrl+G opens Empryo's Git menu, so each switch to Chat left that menu open and failed after 16 seconds (seen live 2026-10-06). Empryo's draft is read off its input box instead, saved to Saved Prompts like the editor route saves it, and only then cleared with Empryo's own Ctrl+U clear.
-async fn empryo_draft_to_chat(
+/// CDXC:Drafts 2026-10-18 WHY:
+/// ZCode never answers the Ctrl+G handshake either, so every switch of a ZCode session between Chat and the terminal waited 16 seconds and failed with "The terminal did not finish preserving its current draft" (GitHub #254). Its draft is read off its input box the same way and cleared with the send's own clear.
+async fn input_box_draft_to_chat(
     state: &AppState,
     target: &SessionChatSendTarget,
+    agent: &str,
 ) -> std::result::Result<Value, DomainStateError> {
     let internal = |message: String| DomainStateError {
         code: "internalError",
         message,
     };
-    let Some(content) = crate::session_chat_send::read_empryo_terminal_draft(
+    let Some(content) = crate::session_chat_send::read_input_box_terminal_draft(
         &target.project_id,
         &target.session_id,
         &target.zmx_name,
+        agent,
     )
     .await
     .map_err(internal)?
@@ -256,19 +260,21 @@ async fn empryo_draft_to_chat(
         .and_then(Value::as_str)
         .ok_or_else(|| internal("The terminal draft could not be saved.".to_string()))?
         .to_string();
+    let mut steps = Vec::new();
+    if agent == "empryo" {
+        steps.push(SessionChatSendStep::SelectEmpryoTab {
+            wait_ms: crate::session_chat_empryo_tabs::EMPRYO_SEND_TAB_WAIT_MS,
+        });
+    }
+    steps.push(SessionChatSendStep::ClearComposer {
+        agent: agent.to_string(),
+    });
     crate::session_chat_send::execute_session_chat_send(
         &target.project_id,
         &target.session_id,
         &target.zmx_name,
         "session-chat-draft-handoff",
-        vec![
-            SessionChatSendStep::SelectEmpryoTab {
-                wait_ms: crate::session_chat_empryo_tabs::EMPRYO_SEND_TAB_WAIT_MS,
-            },
-            SessionChatSendStep::ClearComposer {
-                agent: "empryo".to_string(),
-            },
-        ],
+        steps,
     )
     .await
     .map_err(|error| internal(error.message))?;

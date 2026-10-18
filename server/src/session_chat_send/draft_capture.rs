@@ -131,26 +131,31 @@ pub async fn capture_session_chat_terminal_draft(
         .map_err(|_| "The terminal draft capture reported no result.".to_string())
 }
 
-/// The text in Empryo's input box, read inside the session's send queue so no send is typing
-/// into it at the time. `None` for an empty box.
-pub(crate) async fn read_empryo_terminal_draft(
+/// The text in the agent's input box (Empryo, ZCode), read inside the session's send queue so no
+/// send is typing into it at the time. `None` for an empty box.
+pub(crate) async fn read_input_box_terminal_draft(
     project_id: &str,
     session_id: &str,
     zmx_name: &str,
+    agent: &str,
 ) -> Result<Option<String>, String> {
     let (completion_tx, completion_rx) = oneshot::channel();
     let (draft_tx, draft_rx) = oneshot::channel();
+    let mut steps = Vec::new();
+    if agent == "empryo" {
+        steps.push(SessionChatSendStep::SelectEmpryoTab {
+            wait_ms: crate::session_chat_empryo_tabs::EMPRYO_SEND_TAB_WAIT_MS,
+        });
+    }
+    steps.push(SessionChatSendStep::ReadInputBoxDraft {
+        agent: agent.to_string(),
+    });
     queue_session_chat_send(
         project_id,
         session_id,
         zmx_name,
         "session-chat-draft-handoff",
-        vec![
-            SessionChatSendStep::SelectEmpryoTab {
-                wait_ms: crate::session_chat_empryo_tabs::EMPRYO_SEND_TAB_WAIT_MS,
-            },
-            SessionChatSendStep::ReadEmpryoDraft,
-        ],
+        steps,
         Some(completion_tx),
         Some(draft_tx),
         None,

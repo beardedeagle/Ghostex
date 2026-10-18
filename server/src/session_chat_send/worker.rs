@@ -809,15 +809,16 @@ pub(super) async fn run_session_chat_send_worker(
                         break;
                     }
                 }
-                SessionChatSendStep::ReadEmpryoDraft => {
+                SessionChatSendStep::ReadInputBoxDraft { agent } => {
                     let Some(input) = capture_session_terminal_text_vt(&zmx_name)
                         .await
                         .filter(|screen| {
-                            !crate::session_chat_composer::empryo_input_unfocused(screen)
+                            agent != "empryo"
+                                || !crate::session_chat_composer::empryo_input_unfocused(screen)
                         })
                         .and_then(|screen| {
                             crate::session_chat_composer::session_chat_composer_input(
-                                "empryo", &screen,
+                                &agent, &screen,
                             )
                         })
                     else {

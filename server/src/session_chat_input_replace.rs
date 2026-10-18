@@ -20,7 +20,11 @@ enum ComposerClearMethod {
 
 fn composer_clear_method(agent: &str) -> Option<ComposerClearMethod> {
     match agent {
-        "claude" | "codex" | "cursor" | "grok" | "hermes-agent" | "pi" | "omp" => {
+        /*
+        CDXC:Drafts 2026-10-18 WHY:
+        ZCode had no verified clear, so moving its terminal draft into the chat read the draft and then failed with "The terminal draft could not be cleared and verified". ZCode's editor is Pi's and so is its Ctrl+C (`@zcode/tui` 3.15.3, checked live): with text it empties the box, on an empty box it ends a running turn or quits ZCode, so it takes Pi's one Ctrl+C after the box shows text.
+        */
+        "claude" | "codex" | "cursor" | "grok" | "hermes-agent" | "pi" | "omp" | "zcode" => {
             Some(ComposerClearMethod::InterruptOnce)
         }
         "antigravity" | "openclaude" => Some(ComposerClearMethod::KillLines),
