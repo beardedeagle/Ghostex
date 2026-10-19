@@ -1,7 +1,7 @@
 use ghostex_gx_chat_core::menus::orchestrator_effort::orchestrator_efforts;
 use serde_json::{json, Value};
 
-use super::{instructions, sleep_threads, threads};
+use super::{playbook, sleep_threads, threads};
 use crate::ghostex_cli::{
     agents,
     args::{parse_args, Flags, ParsedArgs},
@@ -26,13 +26,7 @@ pub(crate) fn run(args: &[String]) -> CliResult<()> {
     let command = args[0].as_str();
     let parsed = parse_args(&args[1..]);
     match command {
-        "guide" => {
-            print!(
-                "{}",
-                crate::coordinators::coordinator_guide(&crate::paths::get_gxserver_paths(None))
-            );
-            Ok(())
-        }
+        "guide" => playbook::guide(&parsed),
         "create" => create(&parsed),
         "promote" => promote(&parsed),
         "options" => options(&parsed),
@@ -47,8 +41,8 @@ pub(crate) fn run(args: &[String]) -> CliResult<()> {
         "sleep-inactive-threads" => sleep_threads::sleep_inactive_threads(&parsed),
         "remember" | "forget" | "set-goal" | "set-instructions" => update(command, &parsed),
         "edit" => edit(&parsed),
-        "default-instructions" => instructions::show(&parsed),
-        "set-default-instructions" => instructions::set(&parsed),
+        "playbook" => playbook::show(&parsed),
+        "set-playbook" => playbook::set(&parsed),
         other => Err(CliError::Other(format!(
             "Unknown orchestrator command: {other}. See ghostex orchestrator --help."
         ))),
@@ -538,6 +532,10 @@ fn first_line(text: &str, max: usize) -> String {
 
 pub(super) fn print_status(view: &Value, all: bool) {
     let coordinator = &view["coordinator"];
+    let notice = agents::text(view, "playbookNotice");
+    if !notice.is_empty() {
+        println!("{notice}");
+    }
     println!(
         "Orchestrator: {} ({})",
         agents::text(coordinator, "title"),

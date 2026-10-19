@@ -5,10 +5,11 @@
 //! User: "let's please allow picking more cli agents here (should be a dropdown). we should just include a line that can't be removed saying: "Read and adhere to this skill: /ghostex-orchestrator" ... also remove this [First request] and this [Goal]". The Agent field is a dropdown of every launcher an orchestrator can run on (gxserver `COORDINATOR_AGENT_FAMILIES`), the dialog shows the skill line (in the chosen agent's own skill spelling) as a locked first message, and it has no Goal or First request field; the goal stays settable with `ghostex orchestrator set-goal` and Goal & Instructions…. Supersedes the 2026-09-30 WHY that mirrored Claude's New project dialog with an optional goal and first request.
 //! SEE-ALSO: apps/desktop/src/app/new_coordinator_modal_lifecycle.rs (open, create), apps/desktop/src/app/gx_store/create/coordinator.rs (the gxserver calls), server/src/coordinators/role.rs (the skill and the first message), apps/mobile/app/src/screens/sessions-screen/NewCoordinatorSheet.tsx (the phone's same form).
 //!
-//! The Orchestrator instructions row shows which text the new orchestrator starts with (the
-//! project's own, else the one for all projects) and its Edit button turns the dialog into their
-//! editor; see CDXC:Coordinators 2026-10-19 in server/src/coordinators/default_instructions.rs.
+//! The Orchestrator playbook row says which playbook orchestrators in the project follow and its
+//! Edit button turns the dialog into the playbook editor (new_coordinator_playbook.rs).
 use super::native_modal_kit::*;
+#[path = "new_coordinator_playbook.rs"]
+mod playbook;
 use ghostex_gx_chat_core::menus::orchestrator_effort::{
     default_orchestrator_effort, orchestrator_efforts,
 };
@@ -19,6 +20,7 @@ use gpui::{
 };
 use gpui_component::input::{Enter, Escape, InputEvent, InputState, TextareaState};
 use gpui_component::{h_flex, v_flex};
+pub(crate) use playbook::*;
 use serde_json::Value;
 use std::rc::Rc;
 
@@ -44,82 +46,6 @@ const FIELD_GOAL: &str = "Goal (optional)";
 const GOAL_PLACEHOLDER: &str = "One line it works toward, e.g. Ship the new checkout by Friday";
 const CANCEL: &str = "Cancel";
 const CREATE: &str = "Create";
-const FIELD_INSTRUCTIONS: &str = "Orchestrator instructions";
-const INSTRUCTIONS_TITLE: &str = "Orchestrator instructions";
-const INSTRUCTIONS_PLACEHOLDER: &str = "e.g. Branch from main and never push without asking.";
-const EDIT: &str = "Edit";
-const BACK: &str = "Back";
-const SAVE: &str = "Save";
-const SAVING: &str = "Saving…";
-
-/// The Orchestrator instructions of the dialog's project, as `/api/readCoordinatorDefaultInstructions`
-/// answers them: the text for all projects and the project's own (for a worktree, its project's).
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub(crate) struct OrchestratorInstructionsInfo {
-    pub(crate) all_projects: String,
-    /// The project whose own text covers this one (the parent of a worktree).
-    pub(crate) project_id: String,
-    pub(crate) project_name: String,
-    pub(crate) project: String,
-}
-
-impl OrchestratorInstructionsInfo {
-    pub(crate) fn from_view(view: &Value) -> Self {
-        let text = |value: &Value, key: &str| {
-            value
-                .get(key)
-                .and_then(Value::as_str)
-                .unwrap_or_default()
-                .to_string()
-        };
-        let project = view.get("project").cloned().unwrap_or(Value::Null);
-        Self {
-            all_projects: text(view, "defaultInstructions"),
-            project_id: text(&project, "projectId"),
-            project_name: text(&project, "name"),
-            project: text(&project, "instructions"),
-        }
-    }
-
-    /// The text a new orchestrator here starts with, and whether it is the project's own.
-    fn in_effect(&self) -> (&str, Option<bool>) {
-        if !self.project.trim().is_empty() {
-            (&self.project, Some(true))
-        } else if !self.all_projects.trim().is_empty() {
-            (&self.all_projects, Some(false))
-        } else {
-            ("", None)
-        }
-    }
-}
-
-/// Where a save's outcome goes: the dialog that sent it, in its own window.
-pub(crate) struct NewCoordinatorInstructionsReply {
-    view: WeakEntity<GpuiNewCoordinatorModalWindow>,
-    window: AnyWindowHandle,
-}
-
-impl NewCoordinatorInstructionsReply {
-    /// Hands the outcome (gxserver's new view, or why it refused) to the dialog.
-    pub(crate) fn finish(self, result: Result<Value, String>, cx: &mut App) {
-        let view = self.view;
-        let _ = self.window.update(cx, |_root, window, cx| {
-            view.update(cx, |dialog, cx| {
-                dialog.finish_instructions_save(result, window, cx)
-            })
-        });
-    }
-}
-
-/// The editor page the Edit button opens in place of the form.
-struct InstructionsEditor {
-    /// Editing the project's own text (else the one for all projects).
-    project_scope: bool,
-    /// The text typed for each scope: `[all projects, project]`.
-    drafts: [String; 2],
-    saving: bool,
-    error: Option<String>,
-}
 
 /// An agent an orchestrator can run on, with its model lineup and the line its first message
 /// starts with.
@@ -148,12 +74,12 @@ pub(crate) enum NewCoordinatorModalCommand {
         model: Option<String>,
         effort: Option<String>,
     },
-    /// Saves Orchestrator instructions: the project's own with `project_id`, else the ones for
+    /// Changes the orchestrator playbook: the project's copy with `project_id`, else the one for
     /// all projects. The dialog stays open and waits on `reply`.
-    SaveInstructions {
+    SavePlaybook {
         project_id: Option<String>,
-        instructions: String,
-        reply: NewCoordinatorInstructionsReply,
+        change: PlaybookChange,
+        reply: NewCoordinatorPlaybookReply,
     },
     Cancel,
 }
@@ -164,8 +90,8 @@ pub(crate) struct NewCoordinatorModalConfig {
     pub(crate) project_name: String,
     pub(crate) agents: Vec<NewCoordinatorAgent>,
     pub(crate) selected_agent: usize,
-    /// `None` until the host has read them; the row is left out while they are unknown.
-    pub(crate) instructions: Option<OrchestratorInstructionsInfo>,
+    /// `None` until the host has read it; the row is left out while it is unknown.
+    pub(crate) playbook: Option<OrchestratorPlaybookInfo>,
     pub(crate) palette: ModalPalette,
 }
 
@@ -182,9 +108,9 @@ pub(crate) struct GpuiNewCoordinatorModalWindow {
     effort_select: ModalSelect,
     name_input: Entity<InputState>,
     name: String,
-    instructions: Option<OrchestratorInstructionsInfo>,
-    instructions_input: Entity<TextareaState>,
-    editor: Option<InstructionsEditor>,
+    playbook: Option<OrchestratorPlaybookInfo>,
+    playbook_input: Entity<TextareaState>,
+    editor: Option<PlaybookEditor>,
     fit: ModalFit,
     focus_handle: FocusHandle,
     _subscriptions: Vec<Subscription>,
@@ -198,8 +124,7 @@ impl GpuiNewCoordinatorModalWindow {
         cx: &mut Context<Self>,
     ) -> Self {
         let name_input = cx.new(|cx| InputState::new(window, cx).placeholder(NAME_PLACEHOLDER));
-        let instructions_input =
-            cx.new(|cx| TextareaState::new(window, cx).placeholder(INSTRUCTIONS_PLACEHOLDER));
+        let playbook_input = cx.new(|cx| TextareaState::new(window, cx));
         let subscriptions = vec![
             cx.subscribe_in(
                 &name_input,
@@ -212,7 +137,7 @@ impl GpuiNewCoordinatorModalWindow {
                 },
             ),
             cx.subscribe_in(
-                &instructions_input,
+                &playbook_input,
                 window,
                 |this: &mut Self, input, event: &InputEvent, _window, cx| {
                     if !matches!(event, InputEvent::Change) {
@@ -243,8 +168,8 @@ impl GpuiNewCoordinatorModalWindow {
             effort_select: ModalSelect::new(),
             name_input,
             name: String::new(),
-            instructions: config.instructions,
-            instructions_input,
+            playbook: config.playbook,
+            playbook_input,
             editor: None,
             fit: ModalFit::fixed(),
             focus_handle: cx.focus_handle(),
@@ -417,133 +342,11 @@ impl GpuiNewCoordinatorModalWindow {
         self.close_window_and_send(command, window, cx);
     }
 
-    /// The project's Orchestrator instructions, once the host has read them.
-    pub(crate) fn set_instructions(
-        &mut self,
-        info: Option<OrchestratorInstructionsInfo>,
-        cx: &mut Context<Self>,
-    ) {
-        self.instructions = info;
-        cx.notify();
-    }
-
-    /// Turns the dialog into the editor, on the text the new orchestrator would start with.
-    fn open_instructions_editor(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(info) = self.instructions.clone() else {
-            return;
-        };
-        self.close_menus();
-        let project_scope = info.in_effect().1 == Some(true);
-        let drafts = [info.all_projects.clone(), info.project.clone()];
-        let text = drafts[usize::from(project_scope)].clone();
-        self.editor = Some(InstructionsEditor {
-            project_scope,
-            drafts,
-            saving: false,
-            error: None,
-        });
-        self.instructions_input.update(cx, |input, cx| {
-            input.set_value(text, window, cx);
-            input.focus(window, cx);
-        });
-        cx.notify();
-    }
-
-    fn close_instructions_editor(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.editor = None;
-        self.name_input
-            .update(cx, |input, cx| input.focus(window, cx));
-        cx.notify();
-    }
-
-    /// Shows the other scope's text; what was typed in each scope stays until Back.
-    fn choose_instructions_scope(
-        &mut self,
-        project_scope: bool,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        let Some(editor) = self.editor.as_mut() else {
-            return;
-        };
-        if editor.project_scope == project_scope || editor.saving {
-            return;
-        }
-        editor.project_scope = project_scope;
-        editor.error = None;
-        let text = editor.drafts[usize::from(project_scope)].clone();
-        self.instructions_input
-            .update(cx, |input, cx| input.set_value(text, window, cx));
-        cx.notify();
-    }
-
-    fn save_instructions(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let project_id = self
-            .instructions
-            .as_ref()
-            .map(|info| info.project_id.clone())
-            .filter(|id| !id.is_empty());
-        let Some(editor) = self.editor.as_mut() else {
-            return;
-        };
-        if editor.saving {
-            return;
-        }
-        let instructions = editor.drafts[usize::from(editor.project_scope)]
-            .trim()
-            .to_string();
-        let project_id = if editor.project_scope {
-            match project_id {
-                Some(project_id) => Some(project_id),
-                None => return,
-            }
-        } else {
-            None
-        };
-        editor.saving = true;
-        editor.error = None;
-        let reply = NewCoordinatorInstructionsReply {
-            view: cx.entity().downgrade(),
-            window: window.window_handle(),
-        };
-        cx.notify();
-        (self.host)(
-            NewCoordinatorModalCommand::SaveInstructions {
-                project_id,
-                instructions,
-                reply,
-            },
-            cx,
-        );
-    }
-
-    /// A saved text goes back to the form, which now shows it; a refusal keeps the editor open.
-    fn finish_instructions_save(
-        &mut self,
-        result: Result<Value, String>,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        match result {
-            Ok(view) => {
-                self.instructions = Some(OrchestratorInstructionsInfo::from_view(&view));
-                self.close_instructions_editor(window, cx);
-            }
-            Err(message) => {
-                if let Some(editor) = self.editor.as_mut() {
-                    editor.saving = false;
-                    editor.error = Some(message);
-                }
-                cx.notify();
-            }
-        }
-    }
-
     fn on_enter_action(&mut self, action: &Enter, window: &mut Window, cx: &mut Context<Self>) {
         if self.editor.is_some() {
-            // Enter is a newline in the instructions; Cmd/Ctrl+Enter saves.
+            // Enter is a newline in the playbook; Cmd/Ctrl+Enter saves.
             let in_text = self
-                .instructions_input
+                .playbook_input
                 .read(cx)
                 .focus_handle(cx)
                 .is_focused(window);
@@ -552,7 +355,7 @@ impl GpuiNewCoordinatorModalWindow {
                 return;
             }
             cx.stop_propagation();
-            self.save_instructions(window, cx);
+            self.save_playbook(window, cx);
             return;
         }
         cx.stop_propagation();
@@ -564,7 +367,7 @@ impl GpuiNewCoordinatorModalWindow {
     fn on_escape_action(&mut self, _: &Escape, window: &mut Window, cx: &mut Context<Self>) {
         cx.stop_propagation();
         if self.editor.is_some() {
-            self.close_instructions_editor(window, cx);
+            self.close_playbook_editor(window, cx);
             return;
         }
         if self.any_menu_open() {
@@ -579,7 +382,7 @@ impl GpuiNewCoordinatorModalWindow {
         let key = event.keystroke.key.as_str();
         if self.editor.is_some() {
             if key == "escape" {
-                self.close_instructions_editor(window, cx);
+                self.close_playbook_editor(window, cx);
                 cx.stop_propagation();
             }
             return;
@@ -686,162 +489,11 @@ impl GpuiNewCoordinatorModalWindow {
         if let Some(row) = self.render_model_row(cx) {
             body = body.child(row);
         }
-        if let Some(row) = self.render_instructions_row(cx) {
+        if let Some(row) = self.render_playbook_row(cx) {
             body = body.child(row);
         }
         body.child(self.render_first_message(&agent.skill_line))
             .into_any_element()
-    }
-
-    /// The text this orchestrator will start with, where it comes from, and the Edit button.
-    fn render_instructions_row(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
-        let info = self.instructions.as_ref()?;
-        let p = self.palette;
-        let (text, own) = info.in_effect();
-        let project = if info.project_name.trim().is_empty() {
-            "this project".to_string()
-        } else {
-            info.project_name.clone()
-        };
-        let hint = match own {
-            Some(true) => format!(
-                "It starts with {project}'s own instructions, which cover all of its worktrees."
-            ),
-            Some(false) => {
-                "It starts with the instructions for all projects. Every thread it starts gets them too."
-                    .to_string()
-            }
-            None => "None set: it starts without standing instructions. Edit to add some for all projects or for this project.".to_string(),
-        };
-        let source = match own {
-            Some(true) => project.clone(),
-            Some(false) => "All projects".to_string(),
-            None => "None".to_string(),
-        };
-        let edit = modal_action_button(
-            &p,
-            "new-coordinator-instructions-edit",
-            EDIT,
-            None,
-            ModalButtonTone::Neutral,
-            false,
-            |this, window, cx| this.open_instructions_editor(window, cx),
-            cx,
-        );
-        let preview = if text.trim().is_empty() {
-            div()
-                .text_color(p.muted)
-                .child("No instructions")
-                .into_any_element()
-        } else {
-            div()
-                .text_color(p.foreground)
-                .line_clamp(3)
-                .child(text.trim().to_string())
-                .into_any_element()
-        };
-        Some(
-            v_flex()
-                .w_full()
-                .gap(px(8.0))
-                .child(
-                    h_flex()
-                        .w_full()
-                        .justify_between()
-                        .child(modal_section_title(&p, FIELD_INSTRUCTIONS))
-                        .child(
-                            div()
-                                .id("new-coordinator-instructions-source")
-                                .text_size(px(12.0))
-                                .text_color(p.muted)
-                                .child(source),
-                        ),
-                )
-                .child(
-                    h_flex()
-                        .id("new-coordinator-instructions")
-                        .w_full()
-                        .items_start()
-                        .gap(px(10.0))
-                        .px(px(10.0))
-                        .py(px(8.0))
-                        .rounded(px(8.0))
-                        .border_1()
-                        .border_color(p.hairline)
-                        .bg(p.raised)
-                        .child(
-                            div()
-                                .flex_1()
-                                .min_w_0()
-                                .text_size(px(13.0))
-                                .line_height(px(18.0))
-                                .child(preview),
-                        )
-                        .child(div().flex_shrink_0().w(px(72.0)).child(edit)),
-                )
-                .child(modal_hint(&p, hint))
-                .into_any_element(),
-        )
-    }
-
-    /// The editor page: which text (all projects or this project), the text, and why it matters.
-    fn render_instructions_editor(&self, window: &Window, cx: &mut Context<Self>) -> AnyElement {
-        let p = self.palette;
-        let Some(editor) = self.editor.as_ref() else {
-            return div().into_any_element();
-        };
-        let info = self.instructions.clone().unwrap_or_default();
-        let project = if info.project_name.trim().is_empty() {
-            "this project".to_string()
-        } else {
-            info.project_name.clone()
-        };
-        let items = [
-            ModalSegmentedItem {
-                icon: None,
-                label: "All projects",
-            },
-            ModalSegmentedItem {
-                icon: None,
-                label: "This project",
-            },
-        ];
-        let scope = modal_segmented_control(
-            &p,
-            "new-coordinator-instructions-scope",
-            &items,
-            usize::from(editor.project_scope),
-            |this: &mut Self, index, window, cx| {
-                this.choose_instructions_scope(index == 1, window, cx)
-            },
-            cx,
-        );
-        let hint = if editor.project_scope {
-            format!(
-                "New orchestrators in {project} and all of its worktrees start with these instead of the ones for all projects. Leave empty to use the ones for all projects."
-            )
-        } else {
-            "Every new orchestrator starts with these, unless its project has its own. Orchestrators you already have keep theirs.".to_string()
-        };
-        let mut column = v_flex()
-            .w_full()
-            .flex_1()
-            .min_h_0()
-            .gap(px(12.0))
-            .child(scope)
-            .child(modal_text_area(
-                &p,
-                &self.instructions_input,
-                None,
-                editor.saving,
-                window,
-                cx,
-            ))
-            .child(modal_hint(&p, hint));
-        if let Some(error) = &editor.error {
-            column = column.child(modal_error(&p, error.clone()));
-        }
-        column.into_any_element()
     }
 
     /// The skill line, drawn as a read-only box with a lock: it cannot be edited or removed.
@@ -1006,28 +658,8 @@ impl GpuiNewCoordinatorModalWindow {
 
     fn render_footer(&self, cx: &mut Context<Self>) -> AnyElement {
         let p = self.palette;
-        if let Some(editor) = self.editor.as_ref() {
-            let back = modal_action_button(
-                &p,
-                "new-coordinator-instructions-back",
-                BACK,
-                None,
-                ModalButtonTone::Neutral,
-                false,
-                |this, window, cx| this.close_instructions_editor(window, cx),
-                cx,
-            );
-            let save = modal_action_button(
-                &p,
-                "new-coordinator-instructions-save",
-                if editor.saving { SAVING } else { SAVE },
-                None,
-                ModalButtonTone::Primary,
-                editor.saving,
-                |this, window, cx| this.save_instructions(window, cx),
-                cx,
-            );
-            return modal_footer(vec![back, save]);
+        if self.editor.is_some() {
+            return self.render_playbook_footer(cx);
         }
         let cancel = modal_action_button(
             &p,
@@ -1065,22 +697,7 @@ impl Render for GpuiNewCoordinatorModalWindow {
             self.project_name
         );
         let content = if self.editor.is_some() {
-            let project = self
-                .instructions
-                .as_ref()
-                .map(|info| info.project_name.clone())
-                .filter(|name| !name.trim().is_empty())
-                .unwrap_or_else(|| self.project_name.clone());
-            vec![
-                modal_header(
-                    &p,
-                    INSTRUCTIONS_TITLE,
-                    Some(format!(
-                        "Standing instructions a new orchestrator starts with, set once for all projects or just for {project}. Every thread it starts gets them too."
-                    )),
-                ),
-                self.render_instructions_editor(window, cx),
-            ]
+            self.render_playbook_page(window, cx)
         } else {
             vec![
                 modal_header(&p, TITLE, Some(description)),

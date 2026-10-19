@@ -161,7 +161,7 @@ pub(super) fn open(demo: &super::DemoEnv, cx: &mut App) {
                 ..
             } => {
                 eprintln!("gxserver rpc: {path} {params}");
-                if let Some(result) = orchestrator_instructions_rpc(&path, &params) {
+                if let Some(result) = orchestrator_playbook_rpc(&host_state, &path, &params) {
                     cx.defer(move |cx| reply(result, cx));
                     return;
                 }
@@ -212,7 +212,7 @@ pub(super) fn open(demo: &super::DemoEnv, cx: &mut App) {
             json!({ "initialSearchQuery": if query.is_empty() { "font".to_string() } else { query } })
         }
         "search-other" => json!({ "initialSearchQuery": "tailscale" }),
-        "orchestrator-instructions" | "orchestrator-instructions-edit" => {
+        state if state.starts_with("orchestrator-playbook") => {
             json!({ "initialSection": "chat" })
         }
         "terminal" | "pick-color" => json!({ "initialSection": "terminal" }),
@@ -270,47 +270,107 @@ pub(super) fn open(demo: &super::DemoEnv, cx: &mut App) {
     *slot.borrow_mut() = Some((window, view));
 }
 
-thread_local! {
-    /// The scripted Orchestrator instructions: `(all projects, project-ghostex's own)`.
-    static ORCHESTRATOR_INSTRUCTIONS: std::cell::RefCell<(String, String)> = std::cell::RefCell::new((
-        "Branch from main and never push without asking.\nRun the typecheck before reporting.".to_string(),
-        String::new(),
-    ));
+/// The playbook Ghostex ships, as the scripted gxserver serves it: the skill's body.
+fn shipped_playbook() -> String {
+    let skill = include_str!("../../../../../skills/ghostex-orchestrator/SKILL.md");
+    skill
+        .strip_prefix("---\n")
+        .and_then(|rest| rest.split_once("\n---\n"))
+        .map_or(skill, |(_, body)| body)
+        .trim()
+        .to_string()
 }
 
-/// The scripted gxserver's `/api/readCoordinatorDefaultInstructions` and
-/// `/api/setCoordinatorDefaultInstructions` (states `orchestrator-instructions`,
-/// `orchestrator-instructions-edit`, `projects-orchestrator-instructions-edit`).
-fn orchestrator_instructions_rpc(path: &str, params: &Value) -> Option<Result<Value, String>> {
+/// One scripted edited copy: `(text, enabled)`.
+type DemoCopy = Option<(String, bool)>;
+
+thread_local! {
+    /// The scripted orchestrator playbook copies: `(all projects, project-ghostex's own)`, seeded
+    /// from the state on first use (`…-edited…`: an edited copy for all projects, on, whose
+    /// default changed since, and an edited project copy that is off).
+    static ORCHESTRATOR_PLAYBOOKS: std::cell::RefCell<Option<(DemoCopy, DemoCopy)>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+fn demo_scope(copy: &DemoCopy, default: &str, default_changed: bool) -> Value {
+    match copy {
+        Some((text, enabled)) => json!({
+            "edited": true,
+            "text": text,
+            "enabled": enabled,
+            "defaultText": default,
+            "defaultChanged": default_changed,
+        }),
+        None => json!({ "edited": false, "text": "", "enabled": true, "defaultText": default }),
+    }
+}
+
+/// The scripted gxserver's `/api/readCoordinatorPlaybook` and `/api/setCoordinatorPlaybook`
+/// (states `orchestrator-playbook`, `orchestrator-playbook-edit`,
+/// `orchestrator-playbook-edited-edit`, `orchestrator-playbook-edited-armed`,
+/// `projects-orchestrator-playbook-edit`, `projects-orchestrator-playbook-edited`).
+fn orchestrator_playbook_rpc(
+    state: &str,
+    path: &str,
+    params: &Value,
+) -> Option<Result<Value, String>> {
     if !matches!(
         path,
-        "/api/readCoordinatorDefaultInstructions" | "/api/setCoordinatorDefaultInstructions"
+        "/api/readCoordinatorPlaybook" | "/api/setCoordinatorPlaybook"
     ) {
         return None;
     }
+    let shipped = shipped_playbook();
     let project_id = params.get("projectId").and_then(Value::as_str);
-    ORCHESTRATOR_INSTRUCTIONS.with(|stored| {
+    ORCHESTRATOR_PLAYBOOKS.with(|stored| {
         let mut stored = stored.borrow_mut();
-        if path == "/api/setCoordinatorDefaultInstructions" {
-            let text = params["instructions"]
-                .as_str()
-                .unwrap_or_default()
-                .to_string();
-            if project_id.is_some() {
-                stored.1 = text;
+        let (all, project) = stored.get_or_insert_with(|| {
+            if state.contains("edited") {
+                (
+                    Some((
+                        format!("{shipped}\n\n## House rules\n\nNever push without asking."),
+                        true,
+                    )),
+                    Some((
+                        "# Ghostex orchestrator for this project\n\nKeep threads small."
+                            .to_string(),
+                        false,
+                    )),
+                )
             } else {
-                stored.0 = text;
+                (None, None)
+            }
+        });
+        if path == "/api/setCoordinatorPlaybook" {
+            let target = if project_id.is_some() {
+                &mut *project
+            } else {
+                &mut *all
+            };
+            if params["reset"] == true {
+                *target = None;
+            } else if let Some(enabled) = params["enabled"].as_bool() {
+                if let Some(copy) = target.as_mut() {
+                    copy.1 = enabled;
+                }
+            } else if let Some(text) = params["text"].as_str() {
+                *target = Some((
+                    text.trim().to_string(),
+                    target.as_ref().is_none_or(|copy| copy.1),
+                ));
             }
         }
-        let mut view = json!({ "defaultInstructions": stored.0 });
+        let all_in_effect = match all {
+            Some((text, true)) => text.clone(),
+            _ => shipped.clone(),
+        };
+        let mut view = json!({ "allProjects": demo_scope(all, &shipped, true) });
         if let Some(project_id) = project_id {
-            view["project"] = json!({
-                "projectId": project_id,
-                "name": "Ghostex",
-                "requestedProjectId": project_id,
-                "isWorktree": false,
-                "instructions": stored.1,
-            });
+            let mut scope = demo_scope(project, &all_in_effect, false);
+            scope["projectId"] = json!(project_id);
+            scope["name"] = json!("Ghostex");
+            scope["isWorktree"] = json!(false);
+            view["project"] = scope;
         }
         Some(Ok(view))
     })

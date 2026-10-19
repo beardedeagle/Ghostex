@@ -245,8 +245,8 @@ pub(crate) struct ProjectsTab {
     preview_applied: bool,
     /// The selected project's Work mode switch and Linear key (work_mode.rs).
     work: work_mode::ProjectWorkModeState,
-    /// The projects' own Orchestrator instructions and their editor.
-    orchestrator_instructions: super::orchestrator_instructions::OrchestratorInstructionsState,
+    /// The projects' own orchestrator playbooks and their editor.
+    orchestrator_playbook: super::orchestrator_playbook::OrchestratorPlaybookState,
 }
 
 impl ProjectsTab {
@@ -265,10 +265,17 @@ impl ProjectsTab {
             .initial_project_id
             .clone()
             .unwrap_or_default();
-        // The preview binary's `projects-orchestrator-instructions-edit` state opens the project's
-        // Orchestrator instructions editor.
-        let open_instructions = store.read(cx).request().preview_state.as_deref()
-            == Some("projects-orchestrator-instructions-edit");
+        // The preview binary's `projects-orchestrator-playbook-edit` state opens the project's
+        // playbook editor.
+        let open_instructions = store
+            .read(cx)
+            .request()
+            .preview_state
+            .as_deref()
+            .is_some_and(|state| {
+                state.starts_with("projects")
+                    && super::orchestrator_playbook::preview_opens_editor(state)
+            });
         let mut page = Self {
             store,
             fields: FieldStates::default(),
@@ -281,11 +288,11 @@ impl ProjectsTab {
             placeholders: HashMap::new(),
             preview_applied: false,
             work: work_mode::ProjectWorkModeState::default(),
-            orchestrator_instructions: Default::default(),
+            orchestrator_playbook: Default::default(),
         };
         if open_instructions {
             let project_id = Some(page.selected_project_id.clone()).filter(|id| !id.is_empty());
-            super::orchestrator_instructions::open_instructions_sheet(
+            super::orchestrator_playbook::open_playbook_sheet(
                 &mut page,
                 project_id.or_else(|| Some("project-ghostex".to_string())),
                 window,
@@ -562,11 +569,11 @@ impl super::HoldsUnsavedInput for ProjectsTab {
     }
 }
 
-impl super::orchestrator_instructions::HasOrchestratorInstructions for ProjectsTab {
-    fn orchestrator_instructions(
+impl super::orchestrator_playbook::HasOrchestratorPlaybook for ProjectsTab {
+    fn orchestrator_playbook(
         &mut self,
-    ) -> &mut super::orchestrator_instructions::OrchestratorInstructionsState {
-        &mut self.orchestrator_instructions
+    ) -> &mut super::orchestrator_playbook::OrchestratorPlaybookState {
+        &mut self.orchestrator_playbook
     }
 }
 
@@ -840,7 +847,7 @@ impl Render for ProjectsTab {
             first.margin_top += TAB_SCROLL_PADDING;
         }
         let instructions =
-            super::orchestrator_instructions::render_instructions_sheet(self, &p, window, cx);
+            super::orchestrator_playbook::render_playbook_sheet(self, &p, window, cx);
         div()
             .size_full()
             .child(settings_page(
@@ -855,58 +862,38 @@ impl Render for ProjectsTab {
 }
 
 impl ProjectsTab {
-    /// The project's own Orchestrator instructions: their first line (or that it uses the ones for
-    /// all projects) and the Edit button that opens their editor. A worktree shows and edits its
-    /// project's (CDXC:Coordinators 2026-10-19 in server/src/coordinators/default_instructions.rs).
-    fn orchestrator_instructions_row(
+    /// The project's own orchestrator playbook: its state, the switch that turns an edited copy
+    /// off, and the Edit button that opens its editor. A worktree shows and edits its project's
+    /// (CDXC:Coordinators 2026-10-19 in server/src/coordinators/playbook.rs).
+    fn orchestrator_playbook_row(
         &mut self,
         p: &SettingsPalette,
         project: &ProjectItem,
         cx: &mut Context<Self>,
     ) -> AnyElement {
-        use super::orchestrator_instructions::{
-            instructions_control, instructions_summary, open_instructions_sheet, summary_line,
-        };
-        let summary = instructions_summary(self, Some(&project.project_id), cx);
-        let all_projects = instructions_summary(self, None, cx);
-        let mut state = summary_line(summary.as_ref(), true);
-        if let Some(summary) = summary
-            .as_ref()
-            .filter(|summary| summary.is_worktree && !summary.text.trim().is_empty())
-        {
-            state = format!("From {}: {state}", summary.owner_name);
-        }
-        let inherited = summary
-            .as_ref()
-            .is_some_and(|summary| summary.text.trim().is_empty())
-            && all_projects
-                .as_ref()
-                .is_some_and(|summary| !summary.text.trim().is_empty());
-        let project_id = project.project_id.clone();
-        let edit = settings_button(
+        use super::orchestrator_playbook::{playbook_control, playbook_scope};
+        let scope = playbook_scope(self, Some(&project.project_id), cx);
+        let inherited = scope.as_ref().is_some_and(|scope| !scope.in_use());
+        let rpc_available = self.store.read(cx).request().gxserver_rpc_available;
+        let control = playbook_control(
             p,
-            "project-orchestrator-instructions-edit",
-            "Edit…",
-            None,
-            ButtonVariant::Outline,
-            !self.store.read(cx).request().gxserver_rpc_available,
-            None,
-            move |tab: &mut ProjectsTab, window, cx| {
-                open_instructions_sheet(tab, Some(project_id.clone()), window, cx)
-            },
+            "project-orchestrator-playbook",
+            Some(project.project_id.clone()),
+            scope.as_ref(),
+            rpc_available,
             cx,
         );
-        let id = SharedString::from("project-orchestrator-instructions");
+        let id = SharedString::from("project-orchestrator-playbook");
         plain_row(
             p,
-            &SharedString::from("project-orchestrator-instructions-row"),
-            "Orchestrator instructions",
+            &SharedString::from("project-orchestrator-playbook-row"),
+            "Orchestrator playbook",
             Some(
-                "Standing instructions new orchestrators in this project and all of its worktrees start with, instead of the ones for all projects (Settings > Chat). Orchestrators you already have keep theirs.",
+                "The playbook orchestrators in this project and all of its worktrees follow, instead of the one for all projects (Settings > Chat). The switch turns an edited playbook off without losing it.",
             ),
             inherited.then(|| inherited_badge(p, &id)),
             false,
-            instructions_control(p, &state, edit),
+            control,
             cx,
         )
     }
@@ -936,7 +923,7 @@ impl ProjectsTab {
             Some(picker),
         ));
         rows.extend(self.work_mode_rows(p, projects, project, window, cx));
-        rows.push(self.orchestrator_instructions_row(p, project, cx));
+        rows.push(self.orchestrator_playbook_row(p, project, cx));
 
         // CDXC:Projects 2026-06-15-03:21 SEE-ALSO: the worktree command is the first editable project field; ticket key and Beads directory follow.
         let command_inherited =

@@ -2326,21 +2326,28 @@ version of the Projects features in Cursor and Claude Code.
   goal and the standing instructions) or **Memory…** (every note, with a button
   to remove one and a field to add one); on the phone, long-press it. Save
   applies to threads it starts from then on; Cancel leaves everything as it was.
-- **Orchestrator instructions**: standing instructions every new orchestrator
-  starts with, so you write your usual rules once instead of telling each new
-  orchestrator. Set one text for all projects in **Settings > Chat >
-  Orchestrator instructions** (Edit…), and give a project its own in **Settings
-  > Projects** (pick the project, then Orchestrator instructions, Edit…); a
-  project's text also covers all of its worktrees, and an empty one means the
-  project uses the text for all projects. The New Orchestrator dialog shows
-  which text the new orchestrator starts with (the project's own, or the one
-  for all projects) and its **Edit** button changes either. Orchestrators
-  created from the phone or the CLI, and sessions made orchestrators with Make
-  Orchestrator, get them too. Saving never changes orchestrators you already
-  have; edit those with Goal & Instructions…. From a terminal: `ghostex
-  orchestrator default-instructions` shows them, and `ghostex orchestrator
-  set-default-instructions "<text>" [--project-id <id> | --this-project]` sets
-  them (`--clear` removes them).
+- **Orchestrator playbook**: the playbook every orchestrator follows (how it
+  talks to you, starts and briefs threads, and reports back) is editable, so
+  you can change how your orchestrators work instead of telling each one.
+  Edit it for all projects in **Settings > Chat > Orchestrator playbook**
+  (Edit…), and give a project its own in **Settings > Projects** (pick the
+  project, then Orchestrator playbook, Edit…); a project's playbook also covers
+  all of its worktrees. The New Orchestrator dialog says which playbook its
+  orchestrators follow, and its **Edit** button changes either one. The editor
+  opens with the playbook in use; **Reset to Default** (bottom left, click it
+  twice to confirm) goes back to Ghostex's playbook, or for a project to the
+  one for all projects, and saving text that matches the default keeps no
+  edited copy. The switch on each row turns an edited playbook off without
+  losing it. Every orchestrator, existing ones too, follows the change from
+  its next guide read; `ghostex orchestrator status` tells it when its
+  playbook changed. When Ghostex ships a new playbook after you edited yours,
+  the editor says so: Reset to Default takes the new one, or ask an agent to
+  merge it into your copy. Each orchestrator's own goal and standing
+  instructions (Goal & Instructions…) stay separate. From a terminal:
+  `ghostex orchestrator playbook [--this-project | --project-id <id>] [--text |
+  --default]` shows it, and `ghostex orchestrator set-playbook (--body-file
+  <path> | --reset | --off | --on) [--this-project | --project-id <id>]` changes
+  it.
 - **Just ask**: "run these three as separate threads", "use worktrees", "give me
   a status of every thread", "use a cheaper model for threads", "don't merge
   anything without asking" all work in plain words.

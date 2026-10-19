@@ -540,6 +540,8 @@ pub fn coordinator_view(
         _ => ThreadState::Done.order(),
     };
     threads.sort_by_key(|thread| order(thread["state"].as_str().unwrap_or_default()));
+    let playbook_notice =
+        super::playbook::playbook_status_notice(db, repository, &coordinator.key())?;
     Ok(json!({
         "coordinator": {
             "globalRef": create_global_session_ref(repository.server_id.as_str(), &coordinator.project_id, &coordinator.session_id),
@@ -553,6 +555,7 @@ pub fn coordinator_view(
             "createdAt": coordinator.created_at,
         },
         "threads": threads,
+        "playbookNotice": playbook_notice,
         "generatedAt": Utc::now().to_rfc3339(),
     }))
 }

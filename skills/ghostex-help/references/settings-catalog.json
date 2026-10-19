@@ -1166,9 +1166,9 @@
       "agentWritable": true
     },
     {
-      "key": "orchestratorInstructions",
-      "title": "Orchestrator instructions",
-      "subtitle": "Standing instructions every new orchestrator starts with, so every thread it starts gets them too. A project can have its own in Settings > Projects, which also covers its worktrees. Orchestrators you already have keep their own.",
+      "key": "orchestratorPlaybook",
+      "title": "Orchestrator playbook",
+      "subtitle": "How every orchestrator works: the playbook it follows. Edit it for all projects here, or for one project and its worktrees in Settings > Projects. Orchestrators, existing ones too, follow the edited playbook from their next guide read, and a switch turns an edited playbook off without losing it.",
       "tab": "settings",
       "tabTitle": "General",
       "group": "chat",

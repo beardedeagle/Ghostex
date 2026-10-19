@@ -1,7 +1,8 @@
 //! New Orchestrator preview. States (`GHOSTEX_NATIVE_MODAL_DEMO_STATE`): default (Claude
 //! selected, Opus 5.5 at XHigh), `codex`, `cursor` (an agent whose launch takes no model),
 //! `antigravity` (no XHigh: Medium and High), `none` (no agent an orchestrator can run on),
-//! `project-instructions` (the project has its own Orchestrator instructions), `no-instructions`.
+//! `project-playbook` (the project has its own edited playbook), `playbook-off` (edited copies,
+//! both off).
 use super::new_coordinator_modal::*;
 use gpui::{App, AppContext as _};
 use std::rc::Rc;
@@ -96,7 +97,8 @@ pub(super) fn open(demo: &super::DemoEnv, cx: &mut App) {
         "antigravity" => 5,
         _ => 0,
     };
-    let host: NewCoordinatorModalHost = Rc::new(|command, cx: &mut App| {
+    let demo_state = demo.state.clone();
+    let host: NewCoordinatorModalHost = Rc::new(move |command, cx: &mut App| {
         match command {
             NewCoordinatorModalCommand::Create {
                 agent_id,
@@ -104,20 +106,24 @@ pub(super) fn open(demo: &super::DemoEnv, cx: &mut App) {
                 model,
                 effort,
             } => eprintln!("create: {agent_id} {name:?} {model:?} {effort:?}"),
-            NewCoordinatorModalCommand::SaveInstructions {
+            NewCoordinatorModalCommand::SavePlaybook {
                 project_id,
-                instructions,
+                change,
                 reply,
             } => {
-                eprintln!("save instructions: {project_id:?} {instructions:?}");
-                let mut view = serde_json::json!({
-                    "defaultInstructions": "Branch from main. Never push without asking.",
-                    "project": { "projectId": "P1", "name": "Ghostex", "instructions": "" },
-                });
+                let reset = matches!(change, PlaybookChange::Reset);
+                eprintln!("save playbook: {project_id:?} reset={reset}");
+                let mut view = demo_playbook_view(&demo_state);
                 if project_id.is_some() {
-                    view["project"]["instructions"] = serde_json::json!(instructions);
+                    view["project"]["edited"] = serde_json::json!(!reset);
+                    if let PlaybookChange::Text(text) = change {
+                        view["project"]["text"] = serde_json::json!(text);
+                    }
                 } else {
-                    view["defaultInstructions"] = serde_json::json!(instructions);
+                    view["allProjects"]["edited"] = serde_json::json!(!reset);
+                    if let PlaybookChange::Text(text) = change {
+                        view["allProjects"]["text"] = serde_json::json!(text);
+                    }
                 }
                 reply.finish(Ok(view), cx);
                 return;
@@ -130,21 +136,11 @@ pub(super) fn open(demo: &super::DemoEnv, cx: &mut App) {
         project_name: "Ghostex".to_string(),
         agents,
         selected_agent,
-        // `project-instructions`: the project has its own; `no-instructions`: none set.
-        instructions: Some(OrchestratorInstructionsInfo {
-            all_projects: if demo.state == "no-instructions" {
-                String::new()
-            } else {
-                "Branch from main. Never push without asking.".to_string()
-            },
-            project_id: "P1".to_string(),
-            project_name: "Ghostex".to_string(),
-            project: if demo.state == "project-instructions" {
-                "Run cargo xtask typecheck before reporting.\nCommit path-scoped only.".to_string()
-            } else {
-                String::new()
-            },
-        }),
+        // `project-playbook`: the project has its own edited playbook; `playbook-off`: edited
+        // copies for all projects and the project, both off.
+        playbook: Some(OrchestratorPlaybookInfo::from_view(&demo_playbook_view(
+            &demo.state,
+        ))),
         palette: demo.palette,
     };
     let _ = super::open_modal_window(
@@ -153,4 +149,35 @@ pub(super) fn open(demo: &super::DemoEnv, cx: &mut App) {
         move |window, cx| cx.new(|cx| GpuiNewCoordinatorModalWindow::new(config, host, window, cx)),
         cx,
     );
+}
+
+/// The scripted `/api/readCoordinatorPlaybook` answer for a demo state.
+fn demo_playbook_view(state: &str) -> serde_json::Value {
+    let skill = include_str!("../../../../../skills/ghostex-orchestrator/SKILL.md");
+    let shipped = skill
+        .strip_prefix("---\n")
+        .and_then(|rest| rest.split_once("\n---\n"))
+        .map_or(skill, |(_, body)| body)
+        .trim()
+        .to_string();
+    let edited_all = format!("{shipped}\n\n## House rules\n\nNever push without asking.");
+    let off = state == "playbook-off";
+    serde_json::json!({
+        "allProjects": {
+            "edited": off,
+            "text": if off { edited_all.clone() } else { String::new() },
+            "enabled": !off,
+            "defaultText": shipped,
+            "defaultChanged": false,
+        },
+        "project": {
+            "projectId": "P1",
+            "name": "Ghostex",
+            "edited": off || state == "project-playbook",
+            "text": "# Ghostex orchestrator for this project\n\nKeep threads small.",
+            "enabled": !off,
+            "defaultText": shipped,
+            "defaultChanged": state == "project-playbook",
+        },
+    })
 }

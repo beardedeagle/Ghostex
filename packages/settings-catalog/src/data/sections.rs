@@ -369,7 +369,7 @@ pub const MAIN_SETTINGS_SCROLL_TARGET_SETTING_KEYS: &[(&str, &[&str])] = &[
             "markedHandoversEmoji",
             "markedHandoversStyle",
             "orchestratorPlainReplies",
-            "orchestratorInstructions",
+            "orchestratorPlaybook",
         ],
     ),
     (
@@ -706,7 +706,7 @@ pub const MAIN_SETTINGS_SECTION_SETTING_KEYS: &[(&str, &[&str])] = &[
             "markedHandoversEmoji",
             "markedHandoversStyle",
             "orchestratorPlainReplies",
-            "orchestratorInstructions",
+            "orchestratorPlaybook",
         ],
     ),
     (

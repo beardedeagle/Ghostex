@@ -62,7 +62,15 @@ pub fn coordinator_playbook() -> &'static str {
 /// and then the reply format Orchestrators answer without markers (`orchestratorPlainReplies`)
 /// picks. A static skill cannot read that setting, so the skill sends the orchestrator here.
 pub fn coordinator_guide(paths: &GxserverPaths) -> String {
-    let playbook = coordinator_playbook().trim();
+    coordinator_guide_for(coordinator_playbook(), paths)
+}
+
+/// [`coordinator_guide`] for a given playbook: the one in effect for an orchestrator's project
+/// (playbook.rs `resolve_playbook`), which `ghostex orchestrator guide` prints. The older role
+/// channels, written once for every orchestrator they serve, keep the shipped playbook; their
+/// playbook still sends them to the guide.
+pub fn coordinator_guide_for(playbook: &str, paths: &GxserverPaths) -> String {
+    let playbook = playbook.trim();
     if crate::agents::orchestrator_plain_replies(paths) {
         return format!(
             "{playbook}\n\nReply format: the user chose plain answers for orchestrators. Write your handovers as ordinary text with your own headings, without section marker emoji.\n"

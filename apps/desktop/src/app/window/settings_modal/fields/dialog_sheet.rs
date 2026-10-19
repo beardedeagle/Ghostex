@@ -1,36 +1,24 @@
-//! The nested shadcn dialog with its absolute close button (`<DialogContent nested
-//! showCloseButton>`: Arrange views, Connect your accounts) and the bare backdrop other nested
-//! sheets reuse (the extension install consent). dialog.rs draws the variant without the close
-//! button in the corner; this one keeps the button at `top-4 right-4` over the header, caps the
-//! sheet at a `max-height` with its body (or the whole sheet) scrolling, and keeps a key typed on
-//! the sheet from reaching the Settings search behind it.
+//! The nested dialog with a close button (`<DialogContent nested showCloseButton>`: Arrange views,
+//! Connect your accounts, the Marked sections preview, Orchestrator playbook) and the bare
+//! backdrop other nested sheets reuse (the extension install consent). dialog.rs draws the variant
+//! without a close button; this one puts the Settings window's own round X on its top-right
+//! corner, caps the sheet at a `max-height` with its body (or the whole sheet) scrolling, and keeps
+//! a key typed on the sheet from reaching the Settings search behind it.
 use super::super::super::native_modal_kit::*;
 use super::super::palette::SettingsPalette;
 use super::dialog::dialog_background;
-use super::icon;
-use super::row::settings_icon;
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
-    AnchoredPositionMode, AnyElement, ClickEvent, Context, FocusHandle, FontWeight,
+    AnchoredPositionMode, AnyElement, Bounds, Context, DispatchPhase, FocusHandle, FontWeight,
     InteractiveElement as _, IntoElement, KeyDownEvent, MouseButton, MouseDownEvent,
-    ParentElement as _, SharedString, StatefulInteractiveElement as _, Styled as _, Window,
-    anchored, deferred, div, point, px,
+    MouseExitEvent, MouseMoveEvent, ParentElement as _, Pixels, SharedString,
+    StatefulInteractiveElement as _, Styled as _, Window, anchored, canvas, deferred, div, point,
+    px, size,
 };
 use gpui_component::v_flex;
 
 /// `[data-slot='dialog-overlay'] { background: rgb(0 0 0 / 65%) }`.
 const BACKDROP_ALPHA: f32 = 0.65;
-
-/// `bg-secondary`: the close button's fill.
-pub(crate) fn dialog_close_fill(p: &SettingsPalette) -> gpui::Rgba {
-    if p.glass && !p.light {
-        css_mix(gpui::rgb(0xffffff), 0.06, p.modal.solid_surface)
-    } else if p.light {
-        gpui::rgb(0xf1f1f1)
-    } else {
-        gpui::rgb(0x27272a)
-    }
-}
 
 /// The window-wide backdrop with `content` centered on it; a press on the backdrop runs
 /// `on_dismiss` (Base UI closes a dialog on an outside press).
@@ -86,6 +74,10 @@ pub(crate) fn settings_dialog_layer<V: 'static>(
 /// The nested dialog. `focus` is tracked on the sheet (focus it when the dialog opens) so Escape
 /// closes it. `scroll_all` scrolls the whole sheet (the account guide); otherwise the body is a
 /// flexible column whose own children scroll (the view order list).
+///
+/// CDXC:AppModal 2026-10-19 DECISION:
+/// User: "please make the x button on the top right of this appear just like the x button we have for the settings modal itself", then "the x button for the modals in settings that appear inside the settings (like orchestrator instructions for example) need to be only shown when i hover near the top of that modal please (for all similar modals too)". Every sheet nested in Settings closes with the Settings window's own corner X (`modal_corner_close_button`: same size, icon, colours, hover, centred on the top-right corner) instead of the filled square, and like it the X shows only while the pointer is in the sheet's top 80px (`MODAL_CORNER_CLOSE_REVEAL_HEIGHT`) or on the X itself.
+/// SEE-ALSO: window/modal_window_frame.rs (the app modals' X and its top band).
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn settings_dialog_sheet<V: 'static>(
     p: &SettingsPalette,
@@ -101,7 +93,7 @@ pub(crate) fn settings_dialog_sheet<V: 'static>(
     body: Vec<AnyElement>,
     footer: Option<AnyElement>,
     on_close: impl Fn(&mut V, &mut Window, &mut Context<V>) + Clone + 'static,
-    window: &Window,
+    window: &mut Window,
     cx: &mut Context<V>,
 ) -> AnyElement {
     dialog_sheet(
@@ -118,20 +110,16 @@ pub(crate) fn settings_dialog_sheet<V: 'static>(
         body,
         footer,
         on_close,
-        SheetClose::Square,
+        false,
         window,
         cx,
     )
 }
 
-/// [`settings_dialog_sheet`] with the Settings window's own close button: the round X centred on
-/// the sheet's top-right corner, shown while the pointer is over the sheet's top band
-/// (`modal_corner_close_button`, the one window/modal_window_frame.rs draws for app modals).
-///
-/// CDXC:AppModal 2026-10-19 DECISION:
-/// User, on the Orchestrator instructions editor nested in Settings: "please make the x button on the top right of this appear just like the x button we have for the settings modal itself". The sheet reuses the modal's corner X (same component, size, icon, colours, hover and corner position, revealed from the top band) instead of the filled square; the other nested sheets keep the square until the user asks.
+/// [`settings_dialog_sheet`] whose X shows at rest: the preview binary's screenshots, which cannot
+/// hover.
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn settings_dialog_sheet_with_corner_close<V: 'static>(
+pub(crate) fn settings_dialog_sheet_close_shown<V: 'static>(
     p: &SettingsPalette,
     id: impl Into<SharedString>,
     focus: &FocusHandle,
@@ -144,15 +132,9 @@ pub(crate) fn settings_dialog_sheet_with_corner_close<V: 'static>(
     body: Vec<AnyElement>,
     footer: Option<AnyElement>,
     on_close: impl Fn(&mut V, &mut Window, &mut Context<V>) + Clone + 'static,
-    close_always_shown: bool,
-    window: &Window,
+    window: &mut Window,
     cx: &mut Context<V>,
 ) -> AnyElement {
-    let close = if close_always_shown {
-        SheetClose::CornerShown
-    } else {
-        SheetClose::Corner
-    };
     dialog_sheet(
         p,
         id,
@@ -167,21 +149,59 @@ pub(crate) fn settings_dialog_sheet_with_corner_close<V: 'static>(
         body,
         footer,
         on_close,
-        close,
+        true,
         window,
         cx,
     )
 }
 
-/// Which close button a sheet draws.
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum SheetClose {
-    /// The filled square at `top-4 right-4`.
-    Square,
-    /// The modal's corner X, revealed from the top band.
-    Corner,
-    /// The corner X shown at rest (the preview binary's screenshots, which cannot hover).
-    CornerShown,
+/// Whether the sheet's X shows: the pointer is in the sheet's top band or on the X.
+#[derive(Default)]
+struct CloseReveal {
+    shown: bool,
+}
+
+/// Tracks the pointer over the sheet (`bounds`) the way the app modals' frame does
+/// (`ModalWindowFrame::top_band_tracker`): window-wide listeners, so the sheet's own controls
+/// cannot swallow the moves and nothing under it loses input.
+fn close_reveal_tracker(reveal: gpui::Entity<CloseReveal>) -> impl IntoElement {
+    canvas(
+        |_, _, _| (),
+        move |bounds: Bounds<Pixels>, _, window, _| {
+            let half = MODAL_CORNER_CLOSE_SIZE / 2.0;
+            let corner = bounds.top_right();
+            let button = Bounds::new(
+                point(corner.x - px(half), corner.y - px(half)),
+                size(px(MODAL_CORNER_CLOSE_SIZE), px(MODAL_CORNER_CLOSE_SIZE)),
+            );
+            let set = |reveal: &gpui::Entity<CloseReveal>, shown: bool, cx: &mut gpui::App| {
+                reveal.update(cx, |reveal, cx| {
+                    if reveal.shown != shown {
+                        reveal.shown = shown;
+                        cx.notify();
+                    }
+                });
+            };
+            let move_reveal = reveal.clone();
+            window.on_mouse_event(move |event: &MouseMoveEvent, phase, _, cx| {
+                if phase != DispatchPhase::Capture {
+                    return;
+                }
+                let position = event.position;
+                let in_band = bounds.contains(&position)
+                    && f32::from(position.y - bounds.top()) <= MODAL_CORNER_CLOSE_REVEAL_HEIGHT;
+                set(&move_reveal, in_band || button.contains(&position), cx);
+            });
+            let exit_reveal = reveal.clone();
+            window.on_mouse_event(move |_: &MouseExitEvent, phase, _, cx| {
+                if phase == DispatchPhase::Capture {
+                    set(&exit_reveal, false, cx);
+                }
+            });
+        },
+    )
+    .absolute()
+    .inset_0()
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -199,26 +219,27 @@ fn dialog_sheet<V: 'static>(
     body: Vec<AnyElement>,
     footer: Option<AnyElement>,
     on_close: impl Fn(&mut V, &mut Window, &mut Context<V>) + Clone + 'static,
-    close_kind: SheetClose,
-    window: &Window,
+    close_always_shown: bool,
+    window: &mut Window,
     cx: &mut Context<V>,
 ) -> AnyElement {
     let id: SharedString = id.into();
-    let corner_close = close_kind != SheetClose::Square;
-    // The band that reveals the corner X: the sheet's top padding and its header.
-    let band: SharedString = format!("{id}-top-band").into();
-    let close_fill = dialog_close_fill(p);
-    let close_hover = css_mix(p.foreground, 0.05, close_fill);
-    let close = if corner_close {
+    let reveal = window.use_keyed_state(
+        SharedString::from(format!("{id}-close-reveal")),
+        cx,
+        |_, _| CloseReveal::default(),
+    );
+    let shown = close_always_shown || reveal.read(cx).shown;
+    let close = {
         let on_close = on_close.clone();
         let half = MODAL_CORNER_CLOSE_SIZE / 2.0;
         modal_corner_close_button(
             &p.modal,
             SharedString::from(format!("{id}-close")),
-            if close_kind == SheetClose::CornerShown {
+            if shown {
                 ModalCornerCloseReveal::Shown
             } else {
-                ModalCornerCloseReveal::OnGroupHover(band.clone())
+                ModalCornerCloseReveal::Hidden
             },
             move |page: &mut V, window, cx| on_close(page, window, cx),
             cx,
@@ -230,33 +251,9 @@ fn dialog_sheet<V: 'static>(
         // The half outside the sheet sits over the backdrop, whose press would close the sheet
         // on mouse-down instead of on the button's own click.
         .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-        .into_any_element()
-    } else {
-        let on_close = on_close.clone();
-        div()
-            .id(SharedString::from(format!("{id}-close")))
-            .absolute()
-            .top(px(16.0))
-            .right(px(16.0))
-            .size(px(28.0))
-            .flex()
-            .items_center()
-            .justify_center()
-            .rounded(px(MODAL_RADIUS_CONTROL))
-            .bg(hsla(close_fill))
-            .cursor_pointer()
-            .hover(move |this| this.bg(hsla(close_hover)))
-            .on_click(cx.listener(move |page, _: &ClickEvent, window, cx| {
-                on_close(page, window, cx);
-            }))
-            .child(settings_icon(icon::X, 16.0, p.foreground))
-            .into_any_element()
     };
     let header = v_flex()
-        .id(band.clone())
-        .group(band)
         .w_full()
-        .when(corner_close, |this| this.pt(px(padding)))
         .gap(px(6.0))
         .child(
             div()
@@ -337,14 +334,11 @@ fn dialog_sheet<V: 'static>(
                 .min_h_0()
                 .flex()
                 .flex_col()
-                // With the corner X the header carries the top padding, so the band that reveals
-                // the X starts at the sheet's top edge.
-                .px(px(padding))
-                .pb(px(padding))
-                .when(!corner_close, |this| this.pt(px(padding)))
+                .p(px(padding))
                 .child(content)
                 .into_any_element()
         })
+        .child(close_reveal_tracker(reveal))
         .child(close)
         .into_any_element();
     settings_dialog_overlay(

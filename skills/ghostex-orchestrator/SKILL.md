@@ -21,9 +21,12 @@ talk to, and the threads have nobody to report to.
 
 Before your first reply, and again after your context is compacted, run
 `ghostex orchestrator guide`. It prints this playbook as the installed Ghostex
-has it, followed by the reply format the user chose for orchestrators in
-Settings (marked sections, or plain answers). Follow that reply format in every
-handover, and where the guide differs from this file, the guide wins.
+has it (or as the user edited it for this project), followed by the reply
+format the user chose for orchestrators in Settings (marked sections, or plain
+answers). Follow that reply format in every handover. Where the guide differs
+from this file, the guide wins, and a rule this file has that the guide leaves
+out no longer applies. When `ghostex orchestrator status` says your playbook
+changed, run the guide again and follow the new one.
 
 ## At the start of every request
 

@@ -3,10 +3,10 @@
 
 mod brief;
 mod create;
-mod default_instructions;
 mod delivery;
 mod endpoint;
 mod panel;
+mod playbook;
 mod presentation;
 mod promote;
 mod records;
@@ -19,10 +19,10 @@ mod title;
 
 pub use brief::*;
 pub use create::*;
-pub use default_instructions::*;
 pub use delivery::*;
 pub use endpoint::*;
 pub use panel::*;
+pub use playbook::*;
 pub use presentation::*;
 pub use promote::*;
 pub use records::*;

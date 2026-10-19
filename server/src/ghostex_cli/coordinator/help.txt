@@ -26,10 +26,10 @@ USAGE
   ghostex orchestrator set-instructions (<text> | --body-file <path>) [--orchestrator <ref>]
   ghostex orchestrator edit [--goal=<text>] [--instructions=<text>] [--notes-json=<json>]
                               [--orchestrator <ref>] [--json]
-  ghostex orchestrator default-instructions [--project-id <id> | --this-project] [--json]
-  ghostex orchestrator set-default-instructions (<text> | --body-file <path> | --clear)
+  ghostex orchestrator guide [--project-id <id>]
+  ghostex orchestrator playbook [--project-id <id> | --this-project] [--text | --default] [--json]
+  ghostex orchestrator set-playbook (<text> | --body-file <path> | --reset | --off | --on)
                               [--project-id <id> | --this-project] [--json]
-  ghostex orchestrator guide
 
 WHAT AN ORCHESTRATOR IS
   An orchestrator is an agent session with a standing role: it
@@ -43,7 +43,8 @@ WHAT AN ORCHESTRATOR IS
   orchestrator's agent, and its first message always starts with "Read and
   adhere to this skill: /ghostex-orchestrator" ($ghostex-orchestrator for agents
   other than Claude Code and Copilot). `ghostex orchestrator guide` prints the
-  playbook with the reply format the user chose for orchestrators.
+  playbook in effect for the orchestrator's project (see ORCHESTRATOR
+  PLAYBOOK) with the reply format the user chose for orchestrators.
 
 CREATE
   create starts an orchestrator in your project (--project-id picks another).
@@ -134,24 +135,29 @@ MEMORY AND INSTRUCTIONS
   strings) in one call, the way the Goal & Instructions and Memory editors on
   an orchestrator's sidebar menu save.
 
-ORCHESTRATOR INSTRUCTIONS
-  Orchestrator instructions are the standing instructions every new
-  orchestrator starts with, so every thread it briefs gets them too. Set one
-  text for all projects, and optionally a different one for a project; a
-  project's text also covers all of its worktrees. A new orchestrator gets its
-  project's text when it has one, otherwise the one for all projects. create,
-  promote, the New Orchestrator dialog and the phone all apply them. Saving
-  never changes orchestrators that already exist: change one of those with
-  set-instructions or Goal & Instructions on its sidebar menu.
-  default-instructions prints both texts and which one a new orchestrator in
-  the project gets (the calling session's project unless --project-id names
-  another). set-default-instructions saves the text for all projects; with
-  --project-id <id> (a worktree's id means its project) or --this-project it
-  saves that project's text instead. --clear, or an empty text, removes it, so
-  a project goes back to the text for all projects. Put flags after the text.
-  In the app: Settings > Chat > Orchestrator instructions, the project's
-  Orchestrator instructions button in Settings > Projects, and the
-  Orchestrator instructions button in the New Orchestrator dialog.
+ORCHESTRATOR PLAYBOOK
+  The orchestrator playbook is the ghostex-orchestrator skill's text: how every
+  orchestrator works. The user can edit it for all projects, and give a project
+  its own edited copy, which also covers all of that project's worktrees.
+  `guide` prints the playbook in effect for the orchestrator's project: the
+  project's copy if it is on, else the copy for all projects if it is on, else
+  the one Ghostex ships. Every orchestrator, existing ones too, reads it at its
+  next guide, and `status` tells an orchestrator when its playbook changed
+  since it last read it. Each orchestrator's own goal and standing
+  instructions are separate (set-goal, set-instructions).
+  playbook says which copies exist, whether each is on, and which one
+  orchestrators in the project read (the calling session's project unless
+  --project-id names another); --text prints the scope's text (its edited copy,
+  else what it uses), --default prints what Reset to Default goes back to:
+  Ghostex's playbook for all projects, the playbook for all projects for a
+  project. A copy edited from an older default is marked, so it can be merged.
+  set-playbook saves a copy for all projects; with --project-id <id> (a
+  worktree's id means its project) or --this-project, that project's copy.
+  Text equal to the default stores no copy. --reset removes the copy, --off
+  keeps it but stops using it, --on uses it again. Put flags after the text.
+  In the app: Settings > Chat > Orchestrator playbook, the project's
+  Orchestrator playbook row in Settings > Projects, and the Orchestrator
+  playbook row of the New Orchestrator dialog.
 
 STATES
   waiting   a question, an approval or another prompt needs an answer

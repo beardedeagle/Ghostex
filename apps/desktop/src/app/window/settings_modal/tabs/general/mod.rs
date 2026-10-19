@@ -35,8 +35,8 @@ pub(crate) struct GeneralTab {
     powershell: powershell::PowerShellState,
     /// The Marked sections style Preview dialog, while it is open (its focus, for Escape).
     marked_preview: Option<gpui::FocusHandle>,
-    /// Orchestrator instructions for all projects and their editor.
-    orchestrator_instructions: super::orchestrator_instructions::OrchestratorInstructionsState,
+    /// The orchestrator playbook for all projects and its editor.
+    orchestrator_playbook: super::orchestrator_playbook::OrchestratorPlaybookState,
 }
 
 impl GeneralTab {
@@ -54,24 +54,31 @@ impl GeneralTab {
             // The preview binary's `marked-preview` state opens the Marked sections Preview.
             marked_preview: (preview_state.as_deref() == Some("marked-preview"))
                 .then(|| cx.focus_handle()),
-            orchestrator_instructions: Default::default(),
+            orchestrator_playbook: Default::default(),
         };
         if settings_catalog().flag(module::SEARCH_CATALOG, "IS_WINDOWS_HOST") {
             page.load_powershell(cx);
         }
-        // The preview binary's `orchestrator-instructions-edit` state opens their editor.
-        if preview_state.as_deref() == Some("orchestrator-instructions-edit") {
-            super::orchestrator_instructions::open_instructions_sheet(&mut page, None, window, cx);
+        // The preview binary's `orchestrator-playbook…-edit` and `…-armed` states open its editor.
+        if let Some(state) = preview_state
+            .as_deref()
+            .filter(|state| super::orchestrator_playbook::preview_opens_editor(state))
+            .filter(|state| !state.starts_with("projects"))
+        {
+            super::orchestrator_playbook::open_playbook_sheet(&mut page, None, window, cx);
+            if state.ends_with("-armed") {
+                super::orchestrator_playbook::preview_arm_reset(&mut page);
+            }
         }
         page
     }
 }
 
-impl super::orchestrator_instructions::HasOrchestratorInstructions for GeneralTab {
-    fn orchestrator_instructions(
+impl super::orchestrator_playbook::HasOrchestratorPlaybook for GeneralTab {
+    fn orchestrator_playbook(
         &mut self,
-    ) -> &mut super::orchestrator_instructions::OrchestratorInstructionsState {
-        &mut self.orchestrator_instructions
+    ) -> &mut super::orchestrator_playbook::OrchestratorPlaybookState {
+        &mut self.orchestrator_playbook
     }
 }
 
@@ -390,7 +397,7 @@ impl Render for GeneralTab {
         ));
         let preview = self.marked_sections_preview(&g, window, cx);
         let instructions =
-            super::orchestrator_instructions::render_instructions_sheet(self, &g.p, window, cx);
+            super::orchestrator_playbook::render_playbook_sheet(self, &g.p, window, cx);
         div()
             .size_full()
             .child(settings_page(

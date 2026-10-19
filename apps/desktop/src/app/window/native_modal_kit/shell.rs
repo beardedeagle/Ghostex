@@ -369,10 +369,6 @@ pub(crate) fn modal_corner_close_button<V: 'static>(
     match reveal {
         ModalCornerCloseReveal::Shown => close.hover(move |style| style.bg(hsla(hover))),
         ModalCornerCloseReveal::Hidden => close.opacity(0.0),
-        ModalCornerCloseReveal::OnGroupHover(group) => close
-            .opacity(0.0)
-            .group_hover(group, |style| style.opacity(1.0))
-            .hover(move |style| style.opacity(1.0).bg(hsla(hover))),
     }
 }
 
@@ -380,8 +376,6 @@ pub(crate) fn modal_corner_close_button<V: 'static>(
 pub(crate) enum ModalCornerCloseReveal {
     Shown,
     Hidden,
-    /// While the pointer is over the named group (a dialog's top band) or the button itself.
-    OnGroupHover(gpui::SharedString),
 }
 
 const MODAL_CORNER_CLOSE_ICON: &str = "modals/kit/x.svg";

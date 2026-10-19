@@ -1,6 +1,6 @@
 mod command;
 mod delivery;
-mod instructions;
+mod playbook;
 mod sleep_threads;
 mod threads;
 

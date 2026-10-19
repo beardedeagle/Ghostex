@@ -13,7 +13,7 @@ pub(crate) mod hotkeys;
 pub(crate) mod integrations;
 pub(crate) mod open_forms;
 pub(crate) mod open_targets;
-pub(crate) mod orchestrator_instructions;
+pub(crate) mod orchestrator_playbook;
 pub(crate) mod os_integration;
 pub(crate) mod projects;
 pub(crate) mod remote;

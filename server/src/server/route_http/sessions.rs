@@ -61,9 +61,7 @@ pub(super) async fn route_sessions_http(
                 let session =
                     apply_created_session_identity(repository, &created_session, &create_params)?;
                 let is_coordinator =
-                    crate::coordinators::register_created_coordinator(
-                        db, repository, params, &session,
-                    )?;
+                    crate::coordinators::register_created_coordinator(db, params, &session)?;
                 let project_id = value_text(&session, "projectId")?;
                 let session_id = value_text(&session, "sessionId")?;
                 // Queued before the response, so the skill line goes ahead of anything a client
@@ -485,7 +483,9 @@ pub(super) async fn route_sessions_http(
                 },
             )
         }
-        "/api/readCoordinatorDefaultInstructions" | "/api/setCoordinatorDefaultInstructions" => {
+        "/api/readCoordinatorPlaybook"
+        | "/api/setCoordinatorPlaybook"
+        | "/api/readCoordinatorGuide" => {
             let path = endpoint.path.clone();
             handle_domain_http(
                 &state,
@@ -493,7 +493,7 @@ pub(super) async fn route_sessions_http(
                 request_id,
                 &body_json,
                 |repository, db, params, _| {
-                    crate::coordinators::handle_coordinator_default_instructions_endpoint(
+                    crate::coordinators::handle_coordinator_playbook_endpoint(
                         &path, db, repository, params,
                     )
                 },

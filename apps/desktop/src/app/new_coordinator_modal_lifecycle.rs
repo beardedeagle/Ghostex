@@ -23,8 +23,8 @@ impl GhostexGpuiApp {
             return;
         };
         let agents = self.gx_store_coordinator_agents();
-        // The machine whose gxserver creates the orchestrator also keeps its Orchestrator
-        // instructions; an unconnected remote one shows none.
+        // The machine whose gxserver runs the orchestrator also keeps its playbook; an unconnected
+        // remote one shows none.
         let project = ghostex_gx_core::ProjectKey::parse_sidebar_group_id(&group_id);
         let instructions_target =
             project
@@ -40,7 +40,7 @@ impl GhostexGpuiApp {
             project_name: text("projectName").unwrap_or_else(|| "this project".to_string()),
             agents,
             selected_agent: 0,
-            instructions: None,
+            playbook: None,
             palette: self.gpui_native_modal_palette(),
         };
         let save_target = instructions_target.clone();
@@ -60,23 +60,26 @@ impl GhostexGpuiApp {
                     cx,
                 ),
                 // The dialog stays open until gxserver answers the save.
-                NewCoordinatorModalCommand::SaveInstructions {
+                NewCoordinatorModalCommand::SavePlaybook {
                     project_id,
-                    instructions,
+                    change,
                     reply,
                 } => {
                     let Some(remote) = save_target.clone() else {
                         reply.finish(Err("That computer is not connected.".to_string()), cx);
                         return;
                     };
-                    let mut params = serde_json::json!({ "instructions": instructions });
+                    let mut params = match change {
+                        PlaybookChange::Text(text) => serde_json::json!({ "text": text }),
+                        PlaybookChange::Reset => serde_json::json!({ "reset": true }),
+                    };
                     if let Some(project_id) = project_id {
                         params["projectId"] = serde_json::json!(project_id);
                     }
                     cx.spawn(async move |_this, cx| {
                         let saved = crate::app::gx_store::gx_rpc(
                             remote,
-                            "/api/setCoordinatorDefaultInstructions",
+                            "/api/setCoordinatorPlaybook",
                             params,
                         )
                         .await
@@ -110,22 +113,20 @@ impl GhostexGpuiApp {
             cx.spawn(async move |_this, cx| {
                 let read = crate::app::gx_store::gx_rpc(
                     remote,
-                    "/api/readCoordinatorDefaultInstructions",
+                    "/api/readCoordinatorPlaybook",
                     serde_json::json!({ "projectId": project_id }),
                 )
                 .await;
-                // An older gxserver without Orchestrator instructions leaves the row out.
+                // An older gxserver without the playbook editor leaves the row out.
                 let Ok(view) = read else {
                     return;
                 };
-                let info = OrchestratorInstructionsInfo::from_view(&view);
+                let info = OrchestratorPlaybookInfo::from_view(&view);
                 let Some(dialog) = dialog.borrow().as_ref().and_then(|dialog| dialog.upgrade())
                 else {
                     return;
                 };
-                cx.update(|cx| {
-                    dialog.update(cx, |dialog, cx| dialog.set_instructions(Some(info), cx))
-                });
+                cx.update(|cx| dialog.update(cx, |dialog, cx| dialog.set_playbook(Some(info), cx)));
             })
             .detach();
         }
