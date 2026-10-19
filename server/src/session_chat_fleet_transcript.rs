@@ -84,6 +84,18 @@ pub(crate) fn scan_tail(
     Ok(())
 }
 
+/// CDXC:SessionStatus 2026-10-19 WHY:
+/// Claude can write a child's last answer with `stop_reason: null` (the block lands before the stop reason does), and a null reason is also how text streams before a tool call, so the record alone cannot end the turn. The scan then walked back to an earlier tool call and kept a finished teammate "running" until the session was reloaded (GitHub #259). The `SubagentStop` and `TeammateIdle` hooks Ghostex installs fire only once the child has stopped, so their records end the turn; a hook that blocked the stop is followed by new turn records, which the backward scan meets first.
+fn child_stop_hook(record: &Value) -> bool {
+    let Some(attachment) = record.get("attachment") else {
+        return false;
+    };
+    matches!(
+        attachment.get("hookEvent").and_then(Value::as_str),
+        Some("SubagentStop" | "TeammateIdle")
+    ) && attachment.get("type").and_then(Value::as_str) != Some("hook_blocking_error")
+}
+
 type Cache = HashMap<PathBuf, (TranscriptFileVersion, Option<ChildTurn>)>;
 
 pub(crate) fn latest_child_turn(
@@ -121,9 +133,10 @@ pub(crate) fn latest_child_turn(
             return Ok(true);
         }
         let event = crate::session_chat_decode_claude::decode_claude_turn_lifecycle(line, "");
-        if event
-            .as_ref()
-            .is_some_and(|event| event.state != SessionChatTurnLifecycleState::Working)
+        if child_stop_hook(&record)
+            || event
+                .as_ref()
+                .is_some_and(|event| event.state != SessionChatTurnLifecycleState::Working)
         {
             if turn.is_none() {
                 turn = Some(ChildTurn {

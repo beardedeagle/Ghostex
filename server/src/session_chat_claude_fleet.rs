@@ -41,6 +41,10 @@ struct Parent {
     started_at: Option<i64>,
     workflows: crate::session_chat_claude_workflows::WorkflowRuns,
     background: crate::session_chat_claude_background::ClaudeBackgroundLaunches,
+    /// TaskStop calls awaiting their result: tool use id to the `task_id` the lead passed.
+    stop_requests: HashMap<String, Option<String>>,
+    /// Agent-team teammates by name and by `name@team`, to their agent id.
+    teammates: HashMap<String, String>,
 }
 
 #[derive(Clone)]
@@ -137,6 +141,58 @@ fn notifications(parent: &mut Parent, content: &str, at: i64, queued: bool) {
     }
 }
 
+/// CDXC:SessionStatus 2026-10-19 WHY:
+/// Claude sends no task-notification when an agent-team teammate (`in_process_teammate`) is stopped, and the teammate's own transcript just ends mid-turn, so its last persisted turn reads as working forever (GitHub #259). The lead's transcript holds the real signal: the successful TaskStop result, and the "N background agents were stopped by the user: "…"" notice that Claude's stop-all-agents writes, which names each agent by its description. Settle the child at that moment; a later turn of its own still wins.
+fn settle_stopped(parent: &mut Parent, id: &str, at: i64) {
+    if let Some(child) = parent.children.get_mut(id) {
+        apply_turn(child, false, at);
+    }
+}
+
+/// The child a successful TaskStop result names: its agent id, the name or `name@team` the lead
+/// passed, or else the one child launched with the stopped task's description.
+fn stopped_child(parent: &Parent, request: Option<&str>, result: &Value) -> Option<String> {
+    let known = |id: &str| parent.children.contains_key(id).then(|| id.to_string());
+    result
+        .get("task_id")
+        .and_then(Value::as_str)
+        .and_then(known)
+        .or_else(|| request.and_then(known))
+        .or_else(|| request.and_then(|name| parent.teammates.get(name).cloned()))
+        .or_else(|| {
+            let command = result.get("command").and_then(Value::as_str)?;
+            let mut matches = parent
+                .children
+                .iter()
+                .filter(|(_, child)| child.launch.task.as_deref() == Some(command));
+            let (id, _) = matches.next()?;
+            matches.next().is_none().then(|| id.clone())
+        })
+}
+
+/// Every agent a "… stopped by the user: "a", "b"" notice names, by launch description.
+fn stopped_by_user(parent: &mut Parent, content: &str, at: i64) {
+    let Some((_, names)) = content.split_once("stopped by the user") else {
+        return;
+    };
+    let descriptions: Vec<&str> = names.split('"').skip(1).step_by(2).collect();
+    let ids: Vec<String> = parent
+        .children
+        .iter()
+        .filter(|(_, child)| {
+            child
+                .launch
+                .task
+                .as_deref()
+                .is_some_and(|task| descriptions.contains(&task))
+        })
+        .map(|(id, _)| id.clone())
+        .collect();
+    for id in ids {
+        settle_stopped(parent, &id, at);
+    }
+}
+
 fn read_parent_record(parent: &mut Parent, record: &Value) {
     let Some(at) = timestamp(record) else {
         return;
@@ -171,6 +227,15 @@ fn read_parent_record(parent: &mut Parent, record: &Value) {
                     );
                 }
             }
+            if block.get("type").and_then(Value::as_str) == Some("tool_use")
+                && block.get("name").and_then(Value::as_str) == Some("TaskStop")
+            {
+                if let Some(id) = text(block.get("id")) {
+                    let task = text(block.pointer("/input/task_id"))
+                        .or_else(|| text(block.pointer("/input/shell_id")));
+                    parent.stop_requests.insert(id, task);
+                }
+            }
         }
     }
     if let Some(result) = record.get("toolUseResult") {
@@ -203,22 +268,72 @@ fn read_parent_record(parent: &mut Parent, record: &Value) {
             }
         }
     }
+    if record
+        .pointer("/toolUseResult/status")
+        .and_then(Value::as_str)
+        == Some("teammate_spawned")
+    {
+        if let Some(id) = text(record.pointer("/toolUseResult/agentId")) {
+            for key in ["/toolUseResult/name", "/toolUseResult/teammate_id"] {
+                if let Some(name) = text(record.pointer(key)) {
+                    parent.teammates.insert(name, id.clone());
+                }
+            }
+        }
+    }
+    if let (Some(result), Some(blocks)) = (
+        record
+            .get("toolUseResult")
+            .filter(|result| result.get("task_type").is_some()),
+        blocks,
+    ) {
+        let request = blocks.iter().find_map(|block| {
+            block
+                .get("tool_use_id")
+                .and_then(Value::as_str)
+                .and_then(|id| parent.stop_requests.remove(id))
+        });
+        if let Some(request) = request {
+            if let Some(id) = stopped_child(parent, request.as_deref(), result) {
+                settle_stopped(parent, &id, at);
+            }
+        }
+    }
     if record.get("type").and_then(Value::as_str) == Some("user")
         && (record.pointer("/origin/kind").and_then(Value::as_str) == Some("task-notification")
             || record.get("queueSkipAttachments").and_then(Value::as_bool) == Some(true)
             || record.get("promptSource").and_then(Value::as_str) == Some("queued"))
     {
+        let harness =
+            record.pointer("/origin/kind").and_then(Value::as_str) == Some("task-notification");
         if let Some(content) = record.pointer("/message/content").and_then(Value::as_str) {
             notifications(parent, content, at, false);
+            if harness {
+                stopped_by_user(parent, content, at);
+            }
         }
         if let Some(blocks) = blocks {
             for block in blocks {
                 if block.get("type").and_then(Value::as_str) == Some("text") {
                     if let Some(content) = block.get("text").and_then(Value::as_str) {
                         notifications(parent, content, at, false);
+                        if harness {
+                            stopped_by_user(parent, content, at);
+                        }
                     }
                 }
             }
+        }
+    }
+    // A notice the lead absorbs mid-turn is written only as this attachment, never as a user row.
+    if record.pointer("/attachment/type").and_then(Value::as_str) == Some("queued_command")
+        && record
+            .pointer("/attachment/origin/kind")
+            .and_then(Value::as_str)
+            == Some("task-notification")
+    {
+        if let Some(content) = record.pointer("/attachment/prompt").and_then(Value::as_str) {
+            stopped_by_user(parent, content, at);
         }
     }
     // Completion is known when Claude queues the notification, before the lead consumes it.
