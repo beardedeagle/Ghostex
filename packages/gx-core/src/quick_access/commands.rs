@@ -96,7 +96,7 @@ const SIDEBAR_MESSAGE_COMMANDS: &[(&str, &str, &str)] = &[
     (
         "extensions",
         "Extensions store installed add-ons official built-in features components VS Code code-server CEF gxserver Beads bd runtimes",
-        "Extensions",
+        "Extension Store",
     ),
     (
         "openCurrentProjectInFinder",

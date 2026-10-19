@@ -282,6 +282,9 @@ pub(crate) struct SettingsStore {
     app_icon_error: Option<String>,
     /// The dialogs and forms the last visit left open (settings_modal/restore.rs).
     open_forms: OpenFormMemory,
+    /// Whether the rail's Extensions group is open (`extensionsGroupOpen` in
+    /// `settingsModalNavigation`; see `SettingsTabId::EXTENSIONS_GROUP`).
+    extensions_group_open: bool,
 }
 
 impl EventEmitter<SettingsStoreEvent> for SettingsStore {}
@@ -327,8 +330,18 @@ impl SettingsStore {
             pending_app_icon_source: None,
             app_icon_error: None,
             open_forms,
+            extensions_group_open: false,
         };
         store.active_tab = store.initial_tab();
+        store.extensions_group_open = store
+            .value("settingsModalNavigation")
+            .get("extensionsGroupOpen")
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+            || store
+                .request
+                .initial_tab
+                .is_some_and(|tab| store.active_tab == tab && tab.in_extensions_group());
         if request_deep_links(&store.request) {
             store.open_forms.defer(store.active_tab);
         }
@@ -867,6 +880,9 @@ impl SettingsStore {
 
     fn show_tab(&mut self, tab: SettingsTabId, cx: &mut Context<Self>) {
         self.remember_active_scroll();
+        if tab.in_extensions_group() {
+            self.extensions_group_open = true;
+        }
         REMEMBERED_TAB.with(|remembered| remembered.set(Some(tab)));
         self.active_tab = tab;
         self.persist_navigation(cx);
@@ -988,6 +1004,7 @@ impl SettingsStore {
         }
         json!({
             "activeTab": self.active_tab.id(),
+            "extensionsGroupOpen": self.extensions_group_open,
             "scrollTopByTab": Value::Object(tops),
             "version": 1,
         })
@@ -1021,6 +1038,18 @@ impl SettingsStore {
             },
             cx,
         );
+    }
+
+    /// Whether the rail's Extensions group is open (a search shows it open whatever this says).
+    pub(crate) fn extensions_group_open(&self) -> bool {
+        self.extensions_group_open
+    }
+
+    /// The Extensions group's header: opens or closes the group and saves it.
+    pub(crate) fn toggle_extensions_group(&mut self, cx: &mut Context<Self>) {
+        self.extensions_group_open = !self.extensions_group_open;
+        self.persist_navigation(cx);
+        cx.notify();
     }
 
     /// The dialogs and forms the last visit left open, for the pages to take back.

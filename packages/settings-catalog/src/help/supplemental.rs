@@ -11,7 +11,7 @@ pub(crate) type Tab = (&'static str, &'static str);
 pub(crate) const GENERAL: Tab = ("settings", "General");
 /// The Theme page renders the `appearance` group's sections (Theme, App Icon) on its own tab.
 pub(crate) const THEME: Tab = ("theme", "Theme");
-const EXTENSIONS: Tab = ("extensions", "Extensions");
+const EXTENSIONS: Tab = ("extensions", "Store");
 const AGENTS: Tab = ("agents", "Agents");
 const PROJECTS: Tab = ("projects", "Projects");
 const OPEN_TARGETS: Tab = ("openTargets", "Open In");
@@ -207,7 +207,7 @@ pub(crate) const SUPPLEMENTAL_ROWS: &[Supplemental] = &[
         section: "viewOrder",
         section_title: "Views",
         title: "Hide Sentry view",
-        subtitle: "Enable Sentry in Settings > Extensions, then choose its home URL when opening the view. Disabled by default.",
+        subtitle: "Enable Sentry in Settings > Extensions > Store, then choose its home URL when opening the view. Disabled by default.",
         options: &[],
         user_only: false,
     },
@@ -218,7 +218,7 @@ pub(crate) const SUPPLEMENTAL_ROWS: &[Supplemental] = &[
         section: "viewOrder",
         section_title: "Views",
         title: "Hide Figma view",
-        subtitle: "Enable Figma in Settings > Extensions, then choose its home URL when opening the view. Disabled by default.",
+        subtitle: "Enable Figma in Settings > Extensions > Store, then choose its home URL when opening the view. Disabled by default.",
         options: &[],
         user_only: false,
     },
@@ -229,7 +229,7 @@ pub(crate) const SUPPLEMENTAL_ROWS: &[Supplemental] = &[
         section: "viewOrder",
         section_title: "Views",
         title: "Hide Vercel view",
-        subtitle: "Enable Vercel in Settings > Extensions, then choose its home URL when opening the view. Disabled by default.",
+        subtitle: "Enable Vercel in Settings > Extensions > Store, then choose its home URL when opening the view. Disabled by default.",
         options: &[],
         user_only: false,
     },
@@ -240,7 +240,7 @@ pub(crate) const SUPPLEMENTAL_ROWS: &[Supplemental] = &[
         section: "viewOrder",
         section_title: "Views",
         title: "Hide Supabase view",
-        subtitle: "Enable Supabase in Settings > Extensions, then choose its home URL when opening the view. Disabled by default.",
+        subtitle: "Enable Supabase in Settings > Extensions > Store, then choose its home URL when opening the view. Disabled by default.",
         options: &[],
         user_only: false,
     },
@@ -251,7 +251,7 @@ pub(crate) const SUPPLEMENTAL_ROWS: &[Supplemental] = &[
         section: "viewOrder",
         section_title: "Views",
         title: "Hide GitHub Actions view",
-        subtitle: "Enable GitHub Actions in Settings > Extensions, then choose its home URL when opening the view. Disabled by default.",
+        subtitle: "Enable GitHub Actions in Settings > Extensions > Store, then choose its home URL when opening the view. Disabled by default.",
         options: &[],
         user_only: false,
     },
@@ -262,7 +262,7 @@ pub(crate) const SUPPLEMENTAL_ROWS: &[Supplemental] = &[
         section: "viewOrder",
         section_title: "Views",
         title: "Hide PostHog view",
-        subtitle: "Enable PostHog in Settings > Extensions, then choose its home URL when opening the view. Disabled by default.",
+        subtitle: "Enable PostHog in Settings > Extensions > Store, then choose its home URL when opening the view. Disabled by default.",
         options: &[],
         user_only: false,
     },
@@ -273,7 +273,7 @@ pub(crate) const SUPPLEMENTAL_ROWS: &[Supplemental] = &[
         section: "viewOrder",
         section_title: "Views",
         title: "Hide Custom Website view",
-        subtitle: "Enable Custom Website in Settings > Extensions, then choose its home URL when opening the view. Disabled by default.",
+        subtitle: "Enable Custom Website in Settings > Extensions > Store, then choose its home URL when opening the view. Disabled by default.",
         options: &[],
         user_only: false,
     },

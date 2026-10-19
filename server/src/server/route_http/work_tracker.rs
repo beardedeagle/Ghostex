@@ -53,7 +53,7 @@ pub(super) async fn route_work_tracker_http(
             |repository, db, params, _| {
                 if !workspaces_feature_enabled() {
                     return Err(DomainStateError::bad_request(
-                        "Workspaces is turned off (Settings > Extensions).",
+                        "Workspaces is turned off (Settings > Extensions > Store).",
                     ));
                 }
                 match route.as_str() {

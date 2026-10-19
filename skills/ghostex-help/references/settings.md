@@ -357,7 +357,7 @@ How to use this file:
 - **Start a thread in a box** `agentboxStartThread` (Settings UI row without a settings key; use `ghostex settings open`): Open New Thread and pick where it runs under Run on. Boxes open in the terminal view. Only on macOS and Linux.
 - **Open a box's web app** `agentboxWebApp` (Settings UI row without a settings key; use `ghostex settings open`): Right-click the session and choose Open Box Web App to open it on this computer. Add an agentbox.yaml with services.web.expose.port to start your dev server in the box automatically. Only on macOS and Linux.
 - **Cloud boxes bill until stopped** `agentboxBilling` (Settings UI row without a settings key; use `ghostex settings open`): Cloud providers charge while a box exists. Deleting a session stops its box and keeps its work; Destroy removes the box. Only on macOS and Linux.
-## Extensions (tab `extensions`)
+## Store (tab `extensions`)
 
 ### Views
 
@@ -370,13 +370,13 @@ How to use this file:
 - **Hide Linear view** `linearViewTabHidden` (boolean, default false): Hide the Linear view from the view picker and tab menus.
 - **Hide Jira view** `jiraViewTabHidden` (boolean, default false): Hide the Jira view from the view picker and tab menus.
 - **Hide GitHub view** `githubViewTabHidden` (boolean, default false): Hide the automatic repository view from the view picker and tab menus.
-- **Hide Sentry view** `sentryViewTabHidden` (boolean, default true): Enable Sentry in Settings > Extensions, then choose its home URL when opening the view. Disabled by default.
-- **Hide Figma view** `figmaViewTabHidden` (boolean, default true): Enable Figma in Settings > Extensions, then choose its home URL when opening the view. Disabled by default.
-- **Hide Vercel view** `vercelViewTabHidden` (boolean, default true): Enable Vercel in Settings > Extensions, then choose its home URL when opening the view. Disabled by default.
-- **Hide Supabase view** `supabaseViewTabHidden` (boolean, default true): Enable Supabase in Settings > Extensions, then choose its home URL when opening the view. Disabled by default.
-- **Hide GitHub Actions view** `githubActionsViewTabHidden` (boolean, default true): Enable GitHub Actions in Settings > Extensions, then choose its home URL when opening the view. Disabled by default.
-- **Hide PostHog view** `posthogViewTabHidden` (boolean, default true): Enable PostHog in Settings > Extensions, then choose its home URL when opening the view. Disabled by default.
-- **Hide Custom Website view** `customWebsiteViewTabHidden` (boolean, default true): Enable Custom Website in Settings > Extensions, then choose its home URL when opening the view. Disabled by default.
+- **Hide Sentry view** `sentryViewTabHidden` (boolean, default true): Enable Sentry in Settings > Extensions > Store, then choose its home URL when opening the view. Disabled by default.
+- **Hide Figma view** `figmaViewTabHidden` (boolean, default true): Enable Figma in Settings > Extensions > Store, then choose its home URL when opening the view. Disabled by default.
+- **Hide Vercel view** `vercelViewTabHidden` (boolean, default true): Enable Vercel in Settings > Extensions > Store, then choose its home URL when opening the view. Disabled by default.
+- **Hide Supabase view** `supabaseViewTabHidden` (boolean, default true): Enable Supabase in Settings > Extensions > Store, then choose its home URL when opening the view. Disabled by default.
+- **Hide GitHub Actions view** `githubActionsViewTabHidden` (boolean, default true): Enable GitHub Actions in Settings > Extensions > Store, then choose its home URL when opening the view. Disabled by default.
+- **Hide PostHog view** `posthogViewTabHidden` (boolean, default true): Enable PostHog in Settings > Extensions > Store, then choose its home URL when opening the view. Disabled by default.
+- **Hide Custom Website view** `customWebsiteViewTabHidden` (boolean, default true): Enable Custom Website in Settings > Extensions > Store, then choose its home URL when opening the view. Disabled by default.
 - **Hide Storybook view** `storybookViewTabHidden` (boolean, default false): Hide the built-in component workshop. When enabled, it appears only in projects with Storybook.
 - **Hide Terminal view** `terminalViewTabHidden` (boolean, default false): Stop offering the Terminal view, so it is missing from the view panel tab strip, its + menu and the view picker.
 - **Hide Tips button** `tipsAndTricksTitlebarButtonHidden` (boolean, default false): Stop offering the Tips & Tricks page, so it is missing from the header ⋯ menu and the view picker.
@@ -417,7 +417,7 @@ How to use this file:
 - **Spaces** `spaces` (Settings UI row without a settings key; use `ghostex settings open`): Group projects into Spaces and switch between them from a row of icons at the top of the sidebar, or by swiping.
 - **Cloud Boxes** `cloudBoxes` (Settings UI row without a settings key; use `ghostex settings open`): Run agent sessions in isolated boxes, in Docker on this computer or in the cloud, from New Thread's Run on choice or Run in a Box in the Select Agent menu.
 - **Workspaces** `workspaces` (Settings UI row without a settings key; use `ghostex settings open`): Keep each company's projects, Spaces, browser sign-ins and Claude account in its own workspace, and turn on work mode: Linear tickets and GitHub pull requests on your sessions, the Work view and your team's Slack flow.
-- **Extensions** `extensionsButton` (Settings UI row without a settings key; use `ghostex settings open`): An entry in the work area header’s ⋯ menu that opens this Extensions page.
+- **Extensions** `extensionsButton` (Settings UI row without a settings key; use `ghostex settings open`): An entry in the work area header’s ⋯ menu that lists your installed extensions.
 - **Chromium runtime (CEF)** `cef` (Settings UI row without a settings key; use `ghostex settings open`): Install, reinstall or uninstall the optional web runtime used by the Browser, the Code view, website and extension views, and HTML files in Files.
 - **Hide Bots** `botsHidden` (boolean, default true): Stop offering Bots, the sidebar mode with one row per Hermes profile. Hidden by default; offered only where the Hermes CLI is installed.
 - **Hide Bot automations** `botAutomationsHidden` (boolean, default true): Stop offering Bot automations, the Automations row in the Bots sidebar that opens a feed of every Hermes cron run. Hidden by default; needs Bots.

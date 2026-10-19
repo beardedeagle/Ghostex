@@ -228,6 +228,337 @@ fn chevron(expanded: bool) -> &'static str {
     }
 }
 
+/// One rail page: its row and, when it has them and is expanded, its sections.
+fn render_page(
+    shell: &GpuiSettingsModalWindow,
+    p: &SettingsPalette,
+    page: RailPage,
+    active_tab: SettingsTabId,
+    cx: &mut Context<GpuiSettingsModalWindow>,
+) -> AnyElement {
+    let accent = p.raised_hover;
+    let resting = p.foreground_alpha(0.82);
+    let dim = p.rail_dim();
+    let tab = page.tab;
+    let expanded = shell
+        .rail
+        .expanded_pages
+        .get(&tab)
+        .copied()
+        .unwrap_or(false);
+    let has_sections = !page.sections.is_empty();
+    let active = active_tab == tab;
+    let fill_when_active = active && !(has_sections && expanded);
+    let row = h_flex()
+        .w_full()
+        .min_w_0()
+        .gap(px(2.0))
+        .rounded(px(MODAL_RADIUS_CONTROL))
+        .when(fill_when_active, |this| this.bg(hsla(accent)))
+        .when(!(has_sections && expanded), |this| {
+            this.hover(move |this| this.bg(hsla(accent)))
+        })
+        .child(
+            h_flex()
+                .id(SharedString::from(format!("rail-page-{}", tab.id())))
+                .role(gpui::Role::Button)
+                .aria_label(tab.title())
+                .aria_selected(active)
+                .accessibility_id(format!("rail-page-{}", tab.id()))
+                .flex_1()
+                .min_w_0()
+                .min_h(px(32.0))
+                .px(px(10.0))
+                .py(px(6.0))
+                .gap(px(8.0))
+                .items_center()
+                .rounded(px(6.0))
+                .cursor_pointer()
+                .text_size(px(13.0))
+                .line_height(px(18.0))
+                .text_color(hsla(if active { p.foreground } else { resting }))
+                .when(active, |this| this.font_weight(FontWeight::MEDIUM))
+                .hover(|this| this.text_color(hsla(p.foreground)))
+                .on_press(cx, move |shell, window, cx| {
+                    shell.select_page(tab, window, cx);
+                })
+                .child(
+                    settings_icon(
+                        tab.icon(),
+                        16.0,
+                        if active { p.foreground } else { resting },
+                    )
+                    .flex_shrink_0(),
+                )
+                .child(
+                    div()
+                        .min_w_0()
+                        .overflow_hidden()
+                        .whitespace_nowrap()
+                        .text_ellipsis()
+                        .child(tab.title()),
+                ),
+        )
+        .when(has_sections, |this| {
+            this.child(
+                div()
+                    .id(SharedString::from(format!(
+                        "rail-page-disclosure-{}",
+                        tab.id()
+                    )))
+                    .role(gpui::Role::Button)
+                    .aria_label(format!("{} sections", tab.title()))
+                    .aria_expanded(expanded)
+                    .flex_shrink_0()
+                    .size(px(32.0))
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .rounded(px(MODAL_RADIUS_CONTROL))
+                    .cursor_pointer()
+                    .on_press(cx, move |shell, _window, cx| {
+                        let entry = shell.rail.expanded_pages.entry(tab).or_insert(false);
+                        *entry = !*entry;
+                        cx.notify();
+                    })
+                    .child(settings_icon(
+                        chevron(expanded),
+                        12.0,
+                        if active { p.foreground } else { p.muted },
+                    )),
+            )
+        });
+    let mut group = v_flex().w_full().min_w_0().gap(px(2.0)).child(row);
+    if has_sections && expanded {
+        let mut list = v_flex().ml(px(8.0)).min_w_0().gap(px(2.0));
+        for section in page.sections {
+            let section_key = format!("{}:{}", tab.id(), section.id);
+            let has_sub = !section.subsections.is_empty();
+            let sub_expanded = has_sub
+                && shell
+                    .rail
+                    .expanded_sections
+                    .get(&section_key)
+                    .copied()
+                    .unwrap_or(false);
+            let any_sub_active = section.subsections.iter().any(|(_, _, active)| *active);
+            let section_id = section.id.clone();
+            let button = div()
+                .id(SharedString::from(format!("rail-section-{section_key}")))
+                .role(gpui::Role::Button)
+                .aria_label(section.title.clone())
+                .aria_selected(section.active)
+                .accessibility_id(format!("rail-section-{section_key}"))
+                .flex_1()
+                .min_w_0()
+                .h(px(32.0))
+                .pl(px(24.0))
+                .pr(px(10.0))
+                .flex()
+                .items_center()
+                .rounded(px(MODAL_RADIUS_CONTROL))
+                .cursor_pointer()
+                .text_size(px(14.0))
+                .line_height(px(20.0))
+                .text_color(hsla(if section.active { p.foreground } else { dim }))
+                .when(section.active, |this| this.font_weight(FontWeight::MEDIUM))
+                .when(!section.active, |this| {
+                    this.hover(|this| this.text_color(hsla(p.muted)))
+                })
+                .on_press(cx, move |shell, window, cx| {
+                    shell.select_section(tab, &section_id, window, cx);
+                })
+                .child(
+                    div()
+                        .min_w_0()
+                        .overflow_hidden()
+                        .whitespace_nowrap()
+                        .text_ellipsis()
+                        .child(section.title.clone()),
+                );
+            let key_for_toggle = section_key.clone();
+            list = list.child(h_flex().w_full().min_w_0().gap(px(2.0)).child(button).when(
+                has_sub,
+                |this| {
+                    this.child(
+                        div()
+                            .id(SharedString::from(format!(
+                                "rail-section-disclosure-{section_key}"
+                            )))
+                            .role(gpui::Role::Button)
+                            .aria_label(format!("{} subsections", section.title))
+                            .aria_expanded(sub_expanded)
+                            .flex_shrink_0()
+                            .size(px(28.0))
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .rounded(px(MODAL_RADIUS_CONTROL))
+                            .cursor_pointer()
+                            .on_press(cx, move |shell, _window, cx| {
+                                let entry = shell
+                                    .rail
+                                    .expanded_sections
+                                    .entry(key_for_toggle.clone())
+                                    .or_insert(false);
+                                *entry = !*entry;
+                                cx.notify();
+                            })
+                            .child(settings_icon(
+                                chevron(sub_expanded),
+                                12.0,
+                                if any_sub_active || section.active {
+                                    p.foreground
+                                } else {
+                                    dim
+                                },
+                            )),
+                    )
+                },
+            ));
+            if sub_expanded {
+                for (sub_id, sub_title, sub_active) in section.subsections {
+                    let sub_target = sub_id.clone();
+                    list = list.child(
+                        div()
+                            .id(SharedString::from(format!(
+                                "rail-subsection-{}:{sub_id}",
+                                tab.id()
+                            )))
+                            .role(gpui::Role::Button)
+                            .aria_label(sub_title.clone())
+                            .aria_selected(sub_active)
+                            .w_full()
+                            .min_w_0()
+                            .h(px(32.0))
+                            .pl(px(38.0))
+                            .pr(px(10.0))
+                            .flex()
+                            .items_center()
+                            .rounded(px(MODAL_RADIUS_CONTROL))
+                            .cursor_pointer()
+                            .text_size(px(14.0))
+                            .line_height(px(20.0))
+                            .text_color(hsla(if sub_active { p.foreground } else { dim }))
+                            .when(sub_active, |this| this.font_weight(FontWeight::MEDIUM))
+                            .when(!sub_active, |this| {
+                                this.hover(|this| this.text_color(hsla(p.muted)))
+                            })
+                            .on_press(cx, move |shell, window, cx| {
+                                shell.select_section(tab, &sub_target, window, cx);
+                            })
+                            .child(
+                                div()
+                                    .min_w_0()
+                                    .overflow_hidden()
+                                    .whitespace_nowrap()
+                                    .text_ellipsis()
+                                    .child(sub_title),
+                            ),
+                    );
+                }
+            }
+        }
+        group = group.child(list);
+    }
+    group.into_any_element()
+}
+
+/// The Extensions group (`SettingsTabId::EXTENSIONS_GROUP`, CDXC:Settings 2026-10-19 in model.rs):
+/// under a hairline, a header that only opens and closes it, and its pages indented below. A
+/// search keeps it open. Collapsed over the open page, the header takes the selected fill.
+fn render_extensions_group(
+    p: &SettingsPalette,
+    pages: Vec<AnyElement>,
+    open: bool,
+    searching: bool,
+    holds_active: bool,
+    cx: &mut Context<GpuiSettingsModalWindow>,
+) -> AnyElement {
+    let accent = p.raised_hover;
+    let resting = p.foreground_alpha(0.82);
+    let foreground = p.foreground;
+    let selected = holds_active && !open;
+    let header = h_flex()
+        .id("rail-extensions-group")
+        .role(gpui::Role::Button)
+        .aria_label("Extensions")
+        .aria_expanded(open)
+        .aria_selected(selected)
+        .accessibility_id("rail-extensions-group")
+        .w_full()
+        .min_w_0()
+        .min_h(px(32.0))
+        .pl(px(10.0))
+        .gap(px(8.0))
+        .items_center()
+        .rounded(px(MODAL_RADIUS_CONTROL))
+        .cursor_pointer()
+        .text_size(px(13.0))
+        .line_height(px(18.0))
+        .text_color(hsla(if selected { p.foreground } else { resting }))
+        .when(selected, |this| {
+            this.bg(hsla(accent)).font_weight(FontWeight::MEDIUM)
+        })
+        .hover(move |this| this.bg(hsla(accent)).text_color(hsla(foreground)))
+        .on_press(cx, move |shell, _window, cx| {
+            if searching {
+                return;
+            }
+            let store = shell.store.clone();
+            store.update(cx, |store, cx| store.toggle_extensions_group(cx));
+        })
+        .child(
+            settings_icon(
+                "modals/settings/puzzle.svg",
+                16.0,
+                if selected { p.foreground } else { resting },
+            )
+            .flex_shrink_0(),
+        )
+        .child(
+            div()
+                .flex_1()
+                .min_w_0()
+                .overflow_hidden()
+                .whitespace_nowrap()
+                .text_ellipsis()
+                .child("Extensions"),
+        )
+        .child(
+            div()
+                .flex_shrink_0()
+                .size(px(32.0))
+                .flex()
+                .items_center()
+                .justify_center()
+                .child(settings_icon(
+                    chevron(open),
+                    12.0,
+                    if selected { p.foreground } else { p.muted },
+                )),
+        );
+    v_flex()
+        .w_full()
+        .min_w_0()
+        .pt(px(8.0))
+        .gap(px(2.0))
+        .border_t_1()
+        .border_color(hsla(p.hairline))
+        .child(header)
+        .when(open, |this| {
+            this.child(
+                v_flex()
+                    .w_full()
+                    .min_w_0()
+                    .pl(px(8.0))
+                    .gap(px(4.0))
+                    .children(pages),
+            )
+        })
+        .into_any_element()
+}
+
 /// The rail.
 pub(crate) fn render_rail(
     shell: &GpuiSettingsModalWindow,
@@ -238,237 +569,44 @@ pub(crate) fn render_rail(
     cx: &mut Context<GpuiSettingsModalWindow>,
 ) -> AnyElement {
     let accent = p.raised_hover;
-    let resting = p.foreground_alpha(0.82);
-    let dim = p.rail_dim();
+    let (group_open, searching) = {
+        let store = shell.store.read(cx);
+        (
+            store.is_searching() || store.extensions_group_open(),
+            store.is_searching(),
+        )
+    };
     let mut groups: Vec<AnyElement> = Vec::new();
+    let mut extension_pages: Vec<AnyElement> = Vec::new();
+    let mut about: Option<AnyElement> = None;
     for page in pages {
         let tab = page.tab;
-        let expanded = shell
-            .rail
-            .expanded_pages
-            .get(&tab)
-            .copied()
-            .unwrap_or(false);
-        let has_sections = !page.sections.is_empty();
-        let active = active_tab == tab;
-        let fill_when_active = active && !(has_sections && expanded);
-        let row = h_flex()
-            .w_full()
-            .min_w_0()
-            .gap(px(2.0))
-            .rounded(px(MODAL_RADIUS_CONTROL))
-            .when(fill_when_active, |this| this.bg(hsla(accent)))
-            .when(!(has_sections && expanded), |this| {
-                this.hover(move |this| this.bg(hsla(accent)))
-            })
-            .child(
-                h_flex()
-                    .id(SharedString::from(format!("rail-page-{}", tab.id())))
-                    .role(gpui::Role::Button)
-                    .aria_label(tab.title())
-                    .aria_selected(active)
-                    .accessibility_id(format!("rail-page-{}", tab.id()))
-                    .flex_1()
-                    .min_w_0()
-                    .min_h(px(32.0))
-                    .px(px(10.0))
-                    .py(px(6.0))
-                    .gap(px(8.0))
-                    .items_center()
-                    .rounded(px(6.0))
-                    .cursor_pointer()
-                    .text_size(px(13.0))
-                    .line_height(px(18.0))
-                    .text_color(hsla(if active { p.foreground } else { resting }))
-                    .when(active, |this| this.font_weight(FontWeight::MEDIUM))
-                    .hover(|this| this.text_color(hsla(p.foreground)))
-                    .on_press(cx, move |shell, window, cx| {
-                        shell.select_page(tab, window, cx);
-                    })
-                    .child(
-                        settings_icon(
-                            tab.icon(),
-                            16.0,
-                            if active { p.foreground } else { resting },
-                        )
-                        .flex_shrink_0(),
-                    )
-                    .child(
-                        div()
-                            .min_w_0()
-                            .overflow_hidden()
-                            .whitespace_nowrap()
-                            .text_ellipsis()
-                            .child(tab.title()),
-                    ),
-            )
-            .when(has_sections, |this| {
-                this.child(
-                    div()
-                        .id(SharedString::from(format!(
-                            "rail-page-disclosure-{}",
-                            tab.id()
-                        )))
-                        .role(gpui::Role::Button)
-                        .aria_label(format!("{} sections", tab.title()))
-                        .aria_expanded(expanded)
-                        .flex_shrink_0()
-                        .size(px(32.0))
-                        .flex()
-                        .items_center()
-                        .justify_center()
-                        .rounded(px(MODAL_RADIUS_CONTROL))
-                        .cursor_pointer()
-                        .on_press(cx, move |shell, _window, cx| {
-                            let entry = shell.rail.expanded_pages.entry(tab).or_insert(false);
-                            *entry = !*entry;
-                            cx.notify();
-                        })
-                        .child(settings_icon(
-                            chevron(expanded),
-                            12.0,
-                            if active { p.foreground } else { p.muted },
-                        )),
-                )
-            });
-        let mut group = v_flex().w_full().min_w_0().gap(px(2.0)).child(row);
+        let element = render_page(shell, p, page, active_tab, cx);
         if tab == SettingsTabId::About {
-            group = group.mt_auto();
+            about = Some(element);
+        } else if tab.in_extensions_group() {
+            extension_pages.push(element);
+        } else {
+            groups.push(element);
         }
-        if has_sections && expanded {
-            let mut list = v_flex().ml(px(8.0)).min_w_0().gap(px(2.0));
-            for section in page.sections {
-                let section_key = format!("{}:{}", tab.id(), section.id);
-                let has_sub = !section.subsections.is_empty();
-                let sub_expanded = has_sub
-                    && shell
-                        .rail
-                        .expanded_sections
-                        .get(&section_key)
-                        .copied()
-                        .unwrap_or(false);
-                let any_sub_active = section.subsections.iter().any(|(_, _, active)| *active);
-                let section_id = section.id.clone();
-                let button = div()
-                    .id(SharedString::from(format!("rail-section-{section_key}")))
-                    .role(gpui::Role::Button)
-                    .aria_label(section.title.clone())
-                    .aria_selected(section.active)
-                    .accessibility_id(format!("rail-section-{section_key}"))
-                    .flex_1()
-                    .min_w_0()
-                    .h(px(32.0))
-                    .pl(px(24.0))
-                    .pr(px(10.0))
-                    .flex()
-                    .items_center()
-                    .rounded(px(MODAL_RADIUS_CONTROL))
-                    .cursor_pointer()
-                    .text_size(px(14.0))
-                    .line_height(px(20.0))
-                    .text_color(hsla(if section.active { p.foreground } else { dim }))
-                    .when(section.active, |this| this.font_weight(FontWeight::MEDIUM))
-                    .when(!section.active, |this| {
-                        this.hover(|this| this.text_color(hsla(p.muted)))
-                    })
-                    .on_press(cx, move |shell, window, cx| {
-                        shell.select_section(tab, &section_id, window, cx);
-                    })
-                    .child(
-                        div()
-                            .min_w_0()
-                            .overflow_hidden()
-                            .whitespace_nowrap()
-                            .text_ellipsis()
-                            .child(section.title.clone()),
-                    );
-                let key_for_toggle = section_key.clone();
-                list = list.child(h_flex().w_full().min_w_0().gap(px(2.0)).child(button).when(
-                    has_sub,
-                    |this| {
-                        this.child(
-                            div()
-                                .id(SharedString::from(format!(
-                                    "rail-section-disclosure-{section_key}"
-                                )))
-                                .role(gpui::Role::Button)
-                                .aria_label(format!("{} subsections", section.title))
-                                .aria_expanded(sub_expanded)
-                                .flex_shrink_0()
-                                .size(px(28.0))
-                                .flex()
-                                .items_center()
-                                .justify_center()
-                                .rounded(px(MODAL_RADIUS_CONTROL))
-                                .cursor_pointer()
-                                .on_press(cx, move |shell, _window, cx| {
-                                    let entry = shell
-                                        .rail
-                                        .expanded_sections
-                                        .entry(key_for_toggle.clone())
-                                        .or_insert(false);
-                                    *entry = !*entry;
-                                    cx.notify();
-                                })
-                                .child(settings_icon(
-                                    chevron(sub_expanded),
-                                    12.0,
-                                    if any_sub_active || section.active {
-                                        p.foreground
-                                    } else {
-                                        dim
-                                    },
-                                )),
-                        )
-                    },
-                ));
-                if sub_expanded {
-                    for (sub_id, sub_title, sub_active) in section.subsections {
-                        let sub_target = sub_id.clone();
-                        list = list.child(
-                            div()
-                                .id(SharedString::from(format!(
-                                    "rail-subsection-{}:{sub_id}",
-                                    tab.id()
-                                )))
-                                .role(gpui::Role::Button)
-                                .aria_label(sub_title.clone())
-                                .aria_selected(sub_active)
-                                .w_full()
-                                .min_w_0()
-                                .h(px(32.0))
-                                .pl(px(38.0))
-                                .pr(px(10.0))
-                                .flex()
-                                .items_center()
-                                .rounded(px(MODAL_RADIUS_CONTROL))
-                                .cursor_pointer()
-                                .text_size(px(14.0))
-                                .line_height(px(20.0))
-                                .text_color(hsla(if sub_active { p.foreground } else { dim }))
-                                .when(sub_active, |this| this.font_weight(FontWeight::MEDIUM))
-                                .when(!sub_active, |this| {
-                                    this.hover(|this| this.text_color(hsla(p.muted)))
-                                })
-                                .on_press(cx, move |shell, window, cx| {
-                                    shell.select_section(tab, &sub_target, window, cx);
-                                })
-                                .child(
-                                    div()
-                                        .min_w_0()
-                                        .overflow_hidden()
-                                        .whitespace_nowrap()
-                                        .text_ellipsis()
-                                        .child(sub_title),
-                                ),
-                        );
-                    }
-                }
-            }
-            group = group.child(list);
-        }
-        groups.push(group.into_any_element());
     }
+    let mut bottom = v_flex()
+        .mt_auto()
+        .pt(px(8.0))
+        .w_full()
+        .min_w_0()
+        .gap(px(4.0));
+    if !extension_pages.is_empty() {
+        bottom = bottom.child(render_extensions_group(
+            p,
+            extension_pages,
+            group_open,
+            searching,
+            active_tab.in_extensions_group(),
+            cx,
+        ));
+    }
+    groups.push(bottom.children(about).into_any_element());
     let footer = div()
         .w_full()
         .flex_shrink_0()

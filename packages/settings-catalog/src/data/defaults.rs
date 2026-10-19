@@ -71,6 +71,7 @@ pub const DEFAULT_GHOSTEX_SETTINGS: &[(&str, J)] = &[
         "settingsModalNavigation",
         J::Obj(&[
             ("activeTab", J::Str("settings")),
+            ("extensionsGroupOpen", J::Bool(false)),
             ("scrollTopByTab", J::Obj(&[])),
             ("version", J::Num(1.0)),
         ]),

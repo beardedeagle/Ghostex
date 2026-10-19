@@ -273,7 +273,7 @@ pub const GHOSTEX_OFFICIAL_EXTENSIONS: J = J::Arr(&[
         ("settingKeys", J::Arr(&[J::Str("projectWorkMode"), J::Str("projectLinearApiKey")])),
     ]),
     J::Obj(&[
-        ("description", J::Str("An entry in the work area header’s ⋯ menu that opens this Extensions page.")),
+        ("description", J::Str("An entry in the work area header’s ⋯ menu that lists your installed extensions.")),
         ("category", J::Str("menus-and-panels")),
         ("id", J::Str("extensionsButton")),
         ("placement", J::Str("titlebar-button")),

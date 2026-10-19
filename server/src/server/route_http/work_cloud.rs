@@ -36,7 +36,7 @@ pub(super) async fn route_work_cloud_http(
     let result = tokio::task::spawn_blocking(move || {
         if !workspaces_feature_enabled() {
             return Err(DomainStateError::bad_request(
-                "Workspaces is turned off (Settings > Extensions).",
+                "Workspaces is turned off (Settings > Extensions > Store).",
             ));
         }
         if start {

@@ -23,7 +23,7 @@ Default bindings are listed for macOS (`cmd`) with the Windows/Linux default whe
 | Open Commands Panel | `cmd+j` | `f12` | Open the project command terminal panel (F12 always works too). When the pane is already focused, hide it; press again to show it. | `openCommandsPanel` |
 | Open Commands Panel (Second Key) | `shift+escape` |  | A second key that opens or hides the Commands panel, like Open Commands Panel. | `openCommandsPanelSecondKey` |
 | Open Settings | `cmd+,` |  | Open app settings. | `openSettings` |
-| Open Extensions | unassigned |  | Open the Extensions page in Settings to manage built-in features and installed extensions. | `openExtensions` |
+| Open Extension Store | unassigned |  | Open the Store page in Settings > Extensions to manage built-in features and installed extensions. | `openExtensions` |
 | Ask Ghostex Help | unassigned |  | Open the Ghostex Help menu: sample questions an agent can answer and settings it can change for you. | `openGhostexHelp` |
 | Open File | unassigned |  | Open the Files view with its search box ready: type a file name, or paste the path of any file on this computer, and press Enter. | `openFileInFiles` |
 | Hotkeys | `cmd+/` |  | Open app hotkeys. | `openHotkeys` |

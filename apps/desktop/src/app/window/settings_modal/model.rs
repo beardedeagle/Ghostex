@@ -25,27 +25,47 @@ pub(crate) enum SettingsTabId {
 }
 
 impl SettingsTabId {
-    /// The rail order (`createSettingsSidebarPages`); OS Integration and Debugging are filtered
-    /// by the shell, and About is pinned to the rail's bottom.
+    /// The rail order (`createSettingsSidebarPages`): the everyday pages, then the Extensions
+    /// group's pages ([`Self::EXTENSIONS_GROUP`]), then About, pinned to the rail's bottom. Pages
+    /// the shell filters (OS Integration, Connectors, Debugging, the built-in extensions' pages)
+    /// leave the rail while they are off.
     pub(crate) const RAIL_ORDER: [SettingsTabId; 17] = [
         SettingsTabId::General,
         SettingsTabId::Theme,
         SettingsTabId::Agents,
         SettingsTabId::Accounts,
-        SettingsTabId::Workspaces,
-        SettingsTabId::Connectors,
         SettingsTabId::Integrations,
-        SettingsTabId::CloudBoxes,
-        SettingsTabId::Extensions,
         SettingsTabId::Remote,
         SettingsTabId::Projects,
         SettingsTabId::Hotkeys,
+        SettingsTabId::Extensions,
+        SettingsTabId::Workspaces,
+        SettingsTabId::CloudBoxes,
+        SettingsTabId::Connectors,
         SettingsTabId::Actions,
         SettingsTabId::OpenTargets,
         SettingsTabId::OsIntegration,
         SettingsTabId::Debugging,
         SettingsTabId::About,
     ];
+
+    /// CDXC:Settings 2026-10-19 DECISION:
+    /// User: "i want to put certain sidebar pages in the settings into a new collapsible area at the bottom called "Extensions"". Q306: the group holds Workspaces, Connectors, Cloud Boxes, Extensions (the store), Actions, Open In, OS Integration and Debugging. Q307: "Collapsed the first time, then remembers" (open or closed is saved in `settingsModalNavigation`). Q308: the store page is "Renamed "Store", first item in the group", so the group header only opens and closes it. A search opens the group and lists only its matching pages; a deep link to one of its pages opens it; while it is collapsed over the open page, its header shows the selected fill.
+    pub(crate) const EXTENSIONS_GROUP: [SettingsTabId; 8] = [
+        SettingsTabId::Extensions,
+        SettingsTabId::Workspaces,
+        SettingsTabId::CloudBoxes,
+        SettingsTabId::Connectors,
+        SettingsTabId::Actions,
+        SettingsTabId::OpenTargets,
+        SettingsTabId::OsIntegration,
+        SettingsTabId::Debugging,
+    ];
+
+    /// Whether the page sits in the rail's Extensions group.
+    pub(crate) fn in_extensions_group(self) -> bool {
+        Self::EXTENSIONS_GROUP.contains(&self)
+    }
 
     /// The id the settings file and the open message use (`SettingsModalTab`).
     pub(crate) fn id(self) -> &'static str {
@@ -81,7 +101,7 @@ impl SettingsTabId {
             SettingsTabId::Theme => "Theme",
             SettingsTabId::Integrations => "Integrations",
             SettingsTabId::CloudBoxes => "Cloud Boxes",
-            SettingsTabId::Extensions => "Extensions",
+            SettingsTabId::Extensions => "Store",
             SettingsTabId::OsIntegration => "OS Integration",
             SettingsTabId::Remote => "Remote",
             SettingsTabId::Projects => "Projects",
@@ -104,7 +124,7 @@ impl SettingsTabId {
             SettingsTabId::Theme => "modals/settings/palette.svg",
             SettingsTabId::Integrations => "modals/settings/tools.svg",
             SettingsTabId::CloudBoxes => "modals/settings/box.svg",
-            SettingsTabId::Extensions => "modals/settings/puzzle.svg",
+            SettingsTabId::Extensions => "modals/settings/download.svg",
             SettingsTabId::OsIntegration => "modals/settings/device-desktop.svg",
             SettingsTabId::Remote => "modals/settings/cloud.svg",
             SettingsTabId::Projects => "modals/settings/folder-open.svg",

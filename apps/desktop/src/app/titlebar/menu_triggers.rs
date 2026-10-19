@@ -96,7 +96,7 @@ impl GhostexGpuiApp {
         remain unchanged.
         */
         GpuiContextMenu::new()
-            .menu("Extensions", Box::new(OpenGpuiExtensionsModal))
+            .menu("Extension Store", Box::new(OpenGpuiExtensionsModal))
             .show(position, window, cx);
     }
 
@@ -109,7 +109,7 @@ impl GhostexGpuiApp {
         cx: &mut gpui::Context<Self>,
     ) {
         GpuiContextMenu::new()
-            .menu("Extensions", Box::new(OpenGpuiExtensionsModal))
+            .menu("Extension Store", Box::new(OpenGpuiExtensionsModal))
             .menu("Accounts", Box::new(OpenGpuiAccountsModal))
             .show(position, window, cx);
     }

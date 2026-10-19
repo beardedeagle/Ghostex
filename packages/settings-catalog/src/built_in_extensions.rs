@@ -188,7 +188,7 @@ pub fn title(id: &str) -> &'static str {
 /// The one sentence every surface shows when something belongs to a feature that is off.
 pub fn turned_off_message(id: &str) -> String {
     format!(
-        "{} is turned off. Turn it on in Settings > Extensions.",
+        "{} is turned off. Turn it on in Settings > Extensions > Store.",
         title(id)
     )
 }
