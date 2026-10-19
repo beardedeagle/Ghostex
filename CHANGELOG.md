@@ -26,6 +26,9 @@
 - **One notification bell for every connected computer,** with All, This computer and Remote tabs: a remote notification names its computer, and clicking it switches the sidebar to that computer.
 - **Switching computers reopens the session you were last on there,** the way switching Spaces does.
 
+### 🐧 Linux
+- **Ghostex comes for Linux ARM64:** a .deb, an .rpm and a tarball for 64-bit ARM computers sit next to the x64 downloads.
+
 ### 🩹 Fixes and polish
 - **The Subagents pill no longer counts stopped or interrupted subagents as running:** subagents stopped with TaskStop or Stop all, or finished in an unusual way, leave the count, so their timers no longer grow for hours (#259).
 - **A codex typed in a plain zsh or fish terminal stays off Codex's shared server** even when mise or another tool reorders your PATH.
