@@ -232,7 +232,12 @@ pub(crate) fn gpui_parse_native_resource_servers(output: &str) -> Vec<GpuiNative
 
 #[cfg(not(target_os = "windows"))]
 pub(crate) fn gpui_read_native_resource_servers() -> Vec<GpuiNativeResourceServer> {
-    let Ok(output) = Command::new("/usr/sbin/lsof")
+    // Linux distributions install lsof in /usr/bin, macOS in /usr/sbin.
+    #[cfg(target_os = "macos")]
+    let executable = "/usr/sbin/lsof";
+    #[cfg(not(target_os = "macos"))]
+    let executable = "lsof";
+    let Ok(output) = Command::new(executable)
         .args(["-nP", "-iTCP", "-sTCP:LISTEN", "-F", "pcn"])
         .stdout(Stdio::piped())
         .stderr(Stdio::null())

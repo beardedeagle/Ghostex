@@ -570,25 +570,12 @@ pub(in crate::windows_terminal_backend) fn stop_leftover_source_code_server(
     else {
         return Ok(false);
     };
+    let owners_scan = wsl_port_owners_script(port);
     let script = format!(
         r#"set -eu
 {WSL_STORAGE_DIRS_SCRIPT}
 user_data_dir="${{ghostex_data_dir%/}}/code-server-runtime-gpui/user-data"
-port_hex="$(printf '%04X' {port})"
-inodes="$(awk -v suffix=":$port_hex" 'FNR > 1 && $4 == "0A" && substr($2, length($2) - 4) == suffix {{ print $10 }}' /proc/net/tcp /proc/net/tcp6 2>/dev/null || true)"
-owners=""
-if [ -n "$inodes" ]; then
-    for fd in /proc/[0-9]*/fd/*; do
-        target="$(readlink "$fd" 2>/dev/null)" || continue
-        for inode in $inodes; do
-            if [ "$target" = "socket:[$inode]" ]; then
-                pid="${{fd#/proc/}}"
-                pid="${{pid%%/*}}"
-                case " $owners " in *" $pid "*) ;; *) owners="$owners $pid" ;; esac
-            fi
-        done
-    done
-fi
+{owners_scan}
 if [ -z "$owners" ]; then
     echo none
     exit 0
@@ -631,6 +618,109 @@ echo stopped
     let output = run_wsl_capture(&distribution, &script)
         .ok_or_else(|| "Could not inspect the Code editor port inside WSL.".to_string())?;
     Ok(output.trim() == "stopped")
+}
+
+/// Sets `owners` to the pids of the WSL processes listening on `port`, read from `/proc` so it
+/// needs neither lsof nor ss.
+fn wsl_port_owners_script(port: u16) -> String {
+    format!(
+        r#"port_hex="$(printf '%04X' {port})"
+inodes="$(awk -v suffix=":$port_hex" 'FNR > 1 && $4 == "0A" && substr($2, length($2) - 4) == suffix {{ print $10 }}' /proc/net/tcp /proc/net/tcp6 2>/dev/null || true)"
+owners=""
+if [ -n "$inodes" ]; then
+    for fd in /proc/[0-9]*/fd/*; do
+        target="$(readlink "$fd" 2>/dev/null)" || continue
+        for inode in $inodes; do
+            if [ "$target" = "socket:[$inode]" ]; then
+                pid="${{fd#/proc/}}"
+                pid="${{pid%%/*}}"
+                case " $owners " in *" $pid "*) ;; *) owners="$owners $pid" ;; esac
+            fi
+        done
+    done
+fi"#
+    )
+}
+
+/// The WSL processes listening on `port`, as (pid, program name).
+pub(in crate::windows_terminal_backend) fn source_code_server_port_owners(
+    port: u16,
+) -> Result<Vec<(u32, String)>, String> {
+    let ResolvedWindowsTerminalBackend::Wsl { distribution } =
+        resolve(super::current_preference())?
+    else {
+        return Ok(Vec::new());
+    };
+    let owners_scan = wsl_port_owners_script(port);
+    let script = format!(
+        r#"set -eu
+{owners_scan}
+for pid in $owners; do
+    printf '%s %s\n' "$pid" "$(cat "/proc/$pid/comm" 2>/dev/null || echo unknown)"
+done
+"#
+    );
+    let output = run_wsl_capture(&distribution, &script)
+        .ok_or_else(|| "Could not inspect the Code editor port inside WSL.".to_string())?;
+    Ok(output
+        .lines()
+        .filter_map(|line| {
+            let (pid, name) = line.trim().split_once(' ')?;
+            Some((pid.parse().ok()?, name.to_string()))
+        })
+        .collect())
+}
+
+/// Ends every WSL process listening on `port` (the Code view's "Close it and retry"): true when
+/// one was ended, false when none listens, and an error when WSL would not let them be ended.
+pub(in crate::windows_terminal_backend) fn end_source_code_server_port_owners(
+    port: u16,
+) -> Result<bool, String> {
+    let ResolvedWindowsTerminalBackend::Wsl { distribution } =
+        resolve(super::current_preference())?
+    else {
+        return Ok(false);
+    };
+    let owners_scan = wsl_port_owners_script(port);
+    let script = format!(
+        r#"set -eu
+{owners_scan}
+if [ -z "$owners" ]; then
+    echo none
+    exit 0
+fi
+kill -TERM $owners 2>/dev/null || true
+waited=0
+while [ "$waited" -lt 30 ]; do
+    alive=""
+    for pid in $owners; do
+        if [ -d "/proc/$pid" ]; then alive="$alive $pid"; fi
+    done
+    if [ -z "$alive" ]; then
+        echo ended
+        exit 0
+    fi
+    sleep 0.1
+    waited=$((waited + 1))
+done
+kill -KILL $alive 2>/dev/null || true
+sleep 0.2
+for pid in $alive; do
+    if [ -d "/proc/$pid" ]; then
+        echo denied
+        exit 0
+    fi
+done
+echo ended
+"#
+    );
+    let output = run_wsl_capture(&distribution, &script)
+        .ok_or_else(|| "Could not reach WSL to close the program.".to_string())?;
+    match output.trim() {
+        "ended" => Ok(true),
+        "none" => Ok(false),
+        _ => Err("It runs as another user in WSL, so Ghostex can’t close it.".to_string()),
+    }
 }
 
 pub(in crate::windows_terminal_backend) fn source_code_server_open_file_command(

@@ -177,15 +177,31 @@ impl GhostexGpuiApp {
                 };
             }
             SourceCodeServerRuntimeLaunchState::Failed => {
+                let failure = self
+                    .source_code_server_runtime
+                    .failure
+                    .unwrap_or(SourceCodeServerRuntimeFailure::Launch);
+                if let (SourceCodeServerRuntimeFailure::PortInUse, Some(port_in_use)) =
+                    (failure, &self.source_code_server_runtime.port_in_use)
+                {
+                    return ProjectEditorPlaceholderSignature {
+                        mode: TitlebarMode::Source,
+                        title: Some("Source needs another try".to_string()),
+                        message: port_in_use.placeholder_message(),
+                        actions: if port_in_use.closing {
+                            Vec::new()
+                        } else {
+                            vec![
+                                ProjectEditorPlaceholderAction::CloseSourcePortHolderAndRetry,
+                                ProjectEditorPlaceholderAction::RetrySourceLoad,
+                            ]
+                        },
+                    };
+                }
                 return ProjectEditorPlaceholderSignature {
                     mode: TitlebarMode::Source,
                     title: Some("Source needs another try".to_string()),
-                    message: self
-                        .source_code_server_runtime
-                        .failure
-                        .unwrap_or(SourceCodeServerRuntimeFailure::Launch)
-                        .placeholder_message()
-                        .to_string(),
+                    message: failure.placeholder_message().to_string(),
                     actions: vec![ProjectEditorPlaceholderAction::RetrySourceLoad],
                 };
             }
@@ -449,6 +465,10 @@ impl GhostexGpuiApp {
                 ProjectEditorPlaceholderAction::RetrySourceLoad => {
                     ("ghostex-gpui-source-load-retry", "Retry")
                 }
+                ProjectEditorPlaceholderAction::CloseSourcePortHolderAndRetry => (
+                    "ghostex-gpui-source-close-port-holder",
+                    "Close it and retry",
+                ),
                 ProjectEditorPlaceholderAction::HideViewTab => {
                     hide_view_tab_label = format!("Hide “{}” tab", mode.tab_label());
                     (
@@ -519,6 +539,9 @@ impl GhostexGpuiApp {
                                 }
                                 ProjectEditorPlaceholderAction::RetrySourceLoad => {
                                     this.retry_source_code_server_load(cx);
+                                }
+                                ProjectEditorPlaceholderAction::CloseSourcePortHolderAndRetry => {
+                                    this.close_source_code_server_port_holder_and_retry(cx);
                                 }
                                 ProjectEditorPlaceholderAction::HideViewTab => {
                                     let _ = this

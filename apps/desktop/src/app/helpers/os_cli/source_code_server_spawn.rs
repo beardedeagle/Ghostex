@@ -15,12 +15,36 @@ process.stdin.resume();
 require(process.argv[1]);
 "#;
 
+/// Why a Code editor launch ended before the editor ran.
+pub(crate) enum SourceCodeServerSpawnError {
+    /// Another program answers on the editor's port; the card names it and offers to close it.
+    PortInUse(SourceCodeServerPortInUse),
+    Message(String),
+}
+
+impl From<String> for SourceCodeServerSpawnError {
+    fn from(message: String) -> Self {
+        Self::Message(message)
+    }
+}
+
+/// The editor's port is still answering after the wait for a previous editor to let go.
+fn source_code_server_port_in_use() -> SourceCodeServerSpawnError {
+    let port = source_code_server_editor_port();
+    SourceCodeServerSpawnError::PortInUse(SourceCodeServerPortInUse {
+        port,
+        holder: source_code_server_port_holder(port),
+        closing: false,
+        close_problem: None,
+    })
+}
+
 #[cfg(not(target_os = "windows"))]
 pub(crate) fn source_code_server_spawn_runtime(
     target: &SourceCodeServerRuntimeTarget,
     settings: &SourceCodeServerRuntimeSettings,
     startup_deadline: Instant,
-) -> Result<SourceCodeServerRuntimeStartOutput, String> {
+) -> Result<SourceCodeServerRuntimeStartOutput, SourceCodeServerSpawnError> {
     source_code_server_spawn_host_runtime(target, settings, startup_deadline)
 }
 
@@ -28,15 +52,20 @@ fn source_code_server_spawn_host_runtime(
     target: &SourceCodeServerRuntimeTarget,
     settings: &SourceCodeServerRuntimeSettings,
     startup_deadline: Instant,
-) -> Result<SourceCodeServerRuntimeStartOutput, String> {
+) -> Result<SourceCodeServerRuntimeStartOutput, SourceCodeServerSpawnError> {
     if matches!(
         target.endpoint,
         SourceCodeServerRuntimeEndpoint::Remote { .. }
     ) {
         #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
-        return source_code_server_spawn_remote_runtime(target, startup_deadline);
+        return Ok(source_code_server_spawn_remote_runtime(
+            target,
+            startup_deadline,
+        )?);
         #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
-        return Err("Remote Source runtime is unavailable from this SSH host.".to_string());
+        return Err("Remote Source runtime is unavailable from this SSH host."
+            .to_string()
+            .into());
     }
     let readiness_timeout = startup_deadline.saturating_duration_since(Instant::now());
     if source_code_server_health_check() {
@@ -44,10 +73,7 @@ fn source_code_server_spawn_host_runtime(
         if !source_code_server_wait_until_not_responsive(
             SOURCE_CODE_SERVER_PORT_BUSY_WAIT_INTERVAL.min(remaining),
         ) {
-            return Err(format!(
-                "Code editor port {} is already in use by another runtime.",
-                source_code_server_editor_port()
-            ));
+            return Err(source_code_server_port_in_use());
         }
     }
 
@@ -128,12 +154,15 @@ pub(crate) fn source_code_server_spawn_runtime(
     target: &SourceCodeServerRuntimeTarget,
     settings: &SourceCodeServerRuntimeSettings,
     startup_deadline: Instant,
-) -> Result<SourceCodeServerRuntimeStartOutput, String> {
+) -> Result<SourceCodeServerRuntimeStartOutput, SourceCodeServerSpawnError> {
     if matches!(
         target.endpoint,
         SourceCodeServerRuntimeEndpoint::Remote { .. }
     ) {
-        return source_code_server_spawn_remote_runtime(target, startup_deadline);
+        return Ok(source_code_server_spawn_remote_runtime(
+            target,
+            startup_deadline,
+        )?);
     }
     if windows_terminal_backend::current_preference()
         == windows_terminal_backend::WindowsTerminalBackendPreference::PowerShell
@@ -164,10 +193,7 @@ pub(crate) fn source_code_server_spawn_runtime(
                 SOURCE_CODE_SERVER_PORT_BUSY_WAIT_INTERVAL,
             ))
         {
-            return Err(format!(
-                "Code editor port {} is already in use by another runtime.",
-                source_code_server_editor_port()
-            ));
+            return Err(source_code_server_port_in_use());
         }
     }
 

@@ -782,7 +782,63 @@ pub(crate) enum SourceCodeServerRuntimeFailure {
     /// The remote computer's own Ghostex has no Code editor to run (a Mac that never downloaded
     /// it, or a Windows install without its native editor); a launch timeout would hide that.
     RemoteEditorMissing,
+    /// Another program answers on the editor's port; the card's text comes from
+    /// `SourceCodeServerRuntimeOwner::port_in_use`.
+    PortInUse,
     Launch,
+}
+
+/// The program found on the editor's port when a launch gave up on it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct SourceCodeServerPortHolder {
+    /// The program's file name (`node.exe`).
+    pub(crate) name: String,
+    pub(crate) pid: u32,
+    /// A node process in another Windows session: a Code editor started over SSH from another computer.
+    pub(crate) started_by_another_computer: bool,
+    pub(crate) in_wsl: bool,
+}
+
+/// What the Code view's card shows while another program holds the editor's port.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct SourceCodeServerPortInUse {
+    pub(crate) port: u16,
+    pub(crate) holder: Option<SourceCodeServerPortHolder>,
+    /// "Close it and retry" is ending the holder.
+    pub(crate) closing: bool,
+    /// Why the last "Close it and retry" could not end it.
+    pub(crate) close_problem: Option<String>,
+}
+
+impl SourceCodeServerPortInUse {
+    pub(crate) fn placeholder_message(&self) -> String {
+        if self.closing {
+            return format!(
+                "Closing the program on the Code editor’s port ({})…",
+                self.port
+            );
+        }
+        let program = match &self.holder {
+            Some(holder) if holder.started_by_another_computer => format!(
+                "A Code editor another computer started ({}, pid {})",
+                holder.name, holder.pid
+            ),
+            Some(holder) if holder.in_wsl => format!(
+                "Another program, {} (pid {} in WSL),",
+                holder.name, holder.pid
+            ),
+            Some(holder) => format!("Another program, {} (pid {}),", holder.name, holder.pid),
+            None => "Another program".to_string(),
+        };
+        let message = format!(
+            "{program} is using the Code editor’s port ({}). Close it or restart, then Retry.",
+            self.port
+        );
+        match &self.close_problem {
+            Some(problem) => format!("{message}\n{problem}"),
+            None => message,
+        }
+    }
 }
 
 impl SourceCodeServerRuntimeFailure {
@@ -802,6 +858,9 @@ impl SourceCodeServerRuntimeFailure {
             Self::EditorMissing => "This Ghostex build doesn’t include the VS Code IDE component.",
             Self::RemoteEditorMissing => {
                 "Ghostex on the remote computer doesn’t have the VS Code IDE yet. Open the Code view on that computer once to install it, or update Ghostex there, then try again."
+            }
+            Self::PortInUse => {
+                "Another program is using the Code editor’s port. Close it or restart, then Retry."
             }
             Self::Launch => "VS Code didn’t start in time.",
         }
@@ -848,6 +907,8 @@ pub(crate) struct SourceCodeServerRuntimeOwner {
     /// Launching here means waiting for another window's launch to finish, to adopt its process.
     pub(crate) waiting_for_shared_launch: bool,
     pub(crate) failure: Option<SourceCodeServerRuntimeFailure>,
+    /// Set with `SourceCodeServerRuntimeFailure::PortInUse`.
+    pub(crate) port_in_use: Option<SourceCodeServerPortInUse>,
     pub(crate) install_progress: Option<component_store::ComponentStoreProgressPhase>,
     pub(crate) started_at: Option<Instant>,
     pub(crate) generation: u64,
@@ -865,6 +926,7 @@ impl SourceCodeServerRuntimeOwner {
             child: None,
             waiting_for_shared_launch: false,
             failure: None,
+            port_in_use: None,
             install_progress: None,
             started_at: None,
             generation: 0,
@@ -1004,6 +1066,7 @@ impl SourceCodeServerRuntimeOwner {
         self.waiting_for_shared_launch = false;
         self.state = SourceCodeServerRuntimeLaunchState::Launching;
         self.failure = None;
+        self.port_in_use = None;
         self.install_progress = None;
         self.target = Some(target);
         self.settings = Some(settings);
@@ -1060,6 +1123,7 @@ impl SourceCodeServerRuntimeOwner {
         self.waiting_for_shared_launch = false;
         self.state = SourceCodeServerRuntimeLaunchState::Failed;
         self.failure = Some(failure);
+        self.port_in_use = None;
         self.install_progress = None;
         self.target = Some(target);
         self.settings = Some(settings);
@@ -1229,6 +1293,7 @@ impl SourceCodeServerRuntimeOwner {
         self.started_at = None;
         self.state = SourceCodeServerRuntimeLaunchState::Idle;
         self.failure = None;
+        self.port_in_use = None;
         self.install_progress = None;
         self.target = None;
         self.settings = None;

@@ -257,7 +257,7 @@ impl GhostexGpuiApp {
             (
                 SourceCodeServerRuntimeTarget,
                 SourceCodeServerRuntimeSettings,
-                String,
+                SourceCodeServerSpawnError,
             ),
         >,
         cx: &mut gpui::Context<Self>,
@@ -307,18 +307,23 @@ impl GhostexGpuiApp {
                 );
                 self.refresh_project_workarea_runtime_cef_surfaces_from_runtime_state(cx);
             }
-            Err((target, settings, message)) => {
-                self.source_code_server_runtime.set_failed(
-                    target,
-                    settings,
-                    None,
-                    None,
-                    if message == SOURCE_CODE_SERVER_REMOTE_EDITOR_MISSING_MESSAGE {
-                        SourceCodeServerRuntimeFailure::RemoteEditorMissing
-                    } else {
-                        SourceCodeServerRuntimeFailure::Launch
-                    },
-                );
+            Err((target, settings, error)) => {
+                let (failure, port_in_use) = match error {
+                    SourceCodeServerSpawnError::PortInUse(port_in_use) => {
+                        (SourceCodeServerRuntimeFailure::PortInUse, Some(port_in_use))
+                    }
+                    SourceCodeServerSpawnError::Message(message)
+                        if message == SOURCE_CODE_SERVER_REMOTE_EDITOR_MISSING_MESSAGE =>
+                    {
+                        (SourceCodeServerRuntimeFailure::RemoteEditorMissing, None)
+                    }
+                    SourceCodeServerSpawnError::Message(_) => {
+                        (SourceCodeServerRuntimeFailure::Launch, None)
+                    }
+                };
+                self.source_code_server_runtime
+                    .set_failed(target, settings, None, None, failure);
+                self.source_code_server_runtime.port_in_use = port_in_use;
                 self.remove_project_workarea_runtime_cef_surface(
                     ProjectWorkareaCefSurfaceSlotKey::Source,
                     cx,
@@ -499,6 +504,56 @@ impl GhostexGpuiApp {
         self.stop_source_code_server_runtime(cx);
         self.ensure_source_code_server_runtime_for_current_context(cx);
         cx.notify();
+    }
+
+    /// The Code view card's "Close it and retry": ends the program on the editor's port, found
+    /// again now, then opens the editor as Retry does.
+    ///
+    /// CDXC:CodeEditor 2026-10-19 DECISION:
+    /// User: "Add a button there to kill that other app and retry please". When another program holds the Code editor's port the card names it and offers this button next to Retry. On Windows a program this app may not end (a Code editor another computer started over SSH runs elevated) is ended after the user approves the Windows permission prompt; a declined prompt is said on the card.
+    pub(crate) fn close_source_code_server_port_holder_and_retry(
+        &mut self,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        let Some(port_in_use) = self.source_code_server_runtime.port_in_use.as_mut() else {
+            self.retry_source_code_server_load(cx);
+            return;
+        };
+        if port_in_use.closing {
+            return;
+        }
+        port_in_use.closing = true;
+        port_in_use.close_problem = None;
+        let port = port_in_use.port;
+        let generation = self.source_code_server_runtime.generation;
+        cx.notify();
+        let background = cx.background_executor().clone();
+        cx.spawn(async move |this, cx| {
+            let close = background
+                .spawn(async move { source_code_server_close_port_holders(port) })
+                .await;
+            let _ = this.update(cx, |this, cx| {
+                if this.source_code_server_runtime.generation != generation {
+                    return;
+                }
+                let problem = match close {
+                    SourceCodeServerPortHolderClose::Closed => {
+                        this.retry_source_code_server_load(cx);
+                        return;
+                    }
+                    SourceCodeServerPortHolderClose::ElevationRefused => {
+                        "Windows didn’t get permission to close it.".to_string()
+                    }
+                    SourceCodeServerPortHolderClose::Failed(message) => message,
+                };
+                if let Some(port_in_use) = this.source_code_server_runtime.port_in_use.as_mut() {
+                    port_in_use.closing = false;
+                    port_in_use.close_problem = Some(problem);
+                }
+                cx.notify();
+            });
+        })
+        .detach();
     }
 
     pub(crate) fn install_source_code_server_component(&mut self, cx: &mut gpui::Context<Self>) {

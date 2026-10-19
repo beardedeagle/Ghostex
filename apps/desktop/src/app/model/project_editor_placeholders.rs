@@ -22,6 +22,8 @@ pub(crate) enum ProjectEditorPlaceholderAction {
     HideCodeViewTab,
     InstallSourceComponent,
     RetrySourceLoad,
+    /// "Close it and retry": end the program on the Code editor's port, then open it again.
+    CloseSourcePortHolderAndRetry,
     ProjectViewRetry,
     ProjectViewStop,
     ProjectViewOutput,

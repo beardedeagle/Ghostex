@@ -234,6 +234,16 @@ pub(crate) fn stop_leftover_source_code_server(port: u16) -> Result<bool, String
 }
 
 #[cfg(target_os = "windows")]
+pub(crate) fn source_code_server_port_owners(port: u16) -> Result<Vec<(u32, String)>, String> {
+    platform::source_code_server_port_owners(port)
+}
+
+#[cfg(target_os = "windows")]
+pub(crate) fn end_source_code_server_port_owners(port: u16) -> Result<bool, String> {
+    platform::end_source_code_server_port_owners(port)
+}
+
+#[cfg(target_os = "windows")]
 pub(crate) fn source_code_server_open_file_command(
     file_path: &std::path::Path,
     line: Option<u32>,

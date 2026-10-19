@@ -66,13 +66,13 @@ pub(crate) fn source_code_server_start_runtime_for_target(
     (
         SourceCodeServerRuntimeTarget,
         SourceCodeServerRuntimeSettings,
-        String,
+        SourceCodeServerSpawnError,
     ),
 > {
     let result = source_code_server_spawn_runtime(&target, &settings, startup_deadline);
     match result {
         Ok(output) => Ok((target, settings, output)),
-        Err(message) => Err((target, settings, message)),
+        Err(error) => Err((target, settings, error)),
     }
 }
 
