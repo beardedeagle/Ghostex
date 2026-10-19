@@ -20,7 +20,7 @@ struct Variant {
 }
 
 /// CDXC:Build 2026-09-20 WHY:
-/// A variant is one complete alternative app identity: its own app name, bundle id, storage root and the three ports a running instance owns (gxserver, code-server, CEF remote debugging). Keeping them in one table is what lets a second checkout build and run its own copy next to the user's normal Ghostex without sharing state or fighting over a port, and every value here must stay clear of the main instance (58744, 3777) and of every other row. Add a row to introduce a variant; never branch the launcher on which one is selected.
+/// A variant is one complete alternative app identity: its own app name, bundle id, storage root and the three ports a running instance owns (gxserver, code-server, CEF remote debugging). Keeping them in one table is what lets a second checkout build and run its own copy next to the user's normal Ghostex without sharing state or fighting over a port, and every value here must stay clear of the main instance (58744, 3777, and 3779 for the Code editor a remote computer starts here; SOURCE_CODE_SERVER_REMOTE_PORT) and of every other row. Add a row to introduce a variant; never branch the launcher on which one is selected.
 const VARIANTS: &[Variant] = &[
     // CDXC:Build 2026-09-13 DECISION:
     // User: ghostex-3 must start separately from the main Ghostex with separate configuration, sharing only the existing hooks via a symlink.

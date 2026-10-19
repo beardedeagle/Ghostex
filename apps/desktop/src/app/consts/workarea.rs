@@ -287,7 +287,9 @@ pub(crate) const SOURCE_CODE_SERVER_PORT_BUSY_WAIT_INTERVAL: Duration = Duration
 
 pub(crate) const SOURCE_CODE_SERVER_HEALTH_POLL_INTERVAL: Duration = Duration::from_millis(200);
 
-pub(crate) const SOURCE_CODE_SERVER_REMOTE_PORT: u16 = 3777;
+/// CDXC:CodeEditor 2026-10-19 WHY:
+/// The editor another computer starts on this one over SSH has its own profile (`code-server/runtime`), so it gets its own port. It shared 3777 with this computer's own Code view: a remote editor, live or left behind by a dropped SSH connection, held the port and every local Source open failed with "VS Code didn't start in time" (a Windows PC, 2026-10-19), and a remote client could tunnel into the local editor's profile instead of its own.
+pub(crate) const SOURCE_CODE_SERVER_REMOTE_PORT: u16 = 3779;
 
 pub(crate) const SOURCE_CODE_SERVER_TUNNEL_PORT_MIN: u16 = 43_000;
 

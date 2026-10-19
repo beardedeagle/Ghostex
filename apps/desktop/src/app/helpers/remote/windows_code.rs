@@ -26,6 +26,9 @@ if (!$gxCode) {{ throw 'The Windows Ghostex installation is missing its native C
 /// CDXC:PromptEditor 2026-09-23 WHY:
 /// Windows SSH launches Code elevated; its default pipe ACL grants Administrators write access but excludes the account's non-elevated agent. Restrict the owned pipe to the account SID and SYSTEM so both tokens can connect.
 /// Windows PowerShell supplies the framework PipeSecurity APIs; keeping this initializer small also respects OpenSSH's command-line limit.
+///
+/// CDXC:CodeEditor 2026-10-19 WHY:
+/// Windows OpenSSH leaves the session's PowerShell running when the client disconnects, so waiting only for Code to exit kept it (and its port) alive for days after the computer that opened it was gone. The client keeps SSH stdin open for the editor's whole life after the script (`source_code_server_spawn_remote_runtime`), and this script ends Code when that stdin closes, the way `source_code_supervisor.js` does on Linux and macOS hosts.
 pub(crate) fn gpui_remote_windows_code_launch(project_path: &Path) -> String {
     format!(
         r#"{}
@@ -50,7 +53,16 @@ try {{
     & {{
 {}
     }} -PipePath $gxPipe
-    $gxChild.WaitForExit()
+    $gxInput=[Console]::OpenStandardInput()
+    $gxByte=[byte[]]::new(1)
+    $gxRead=$gxInput.ReadAsync($gxByte,0,1)
+    while (!$gxChild.HasExited) {{
+        if ($gxRead.Wait(500)) {{
+            if ($gxRead.Result -eq 0) {{ break }}
+            $gxRead=$gxInput.ReadAsync($gxByte,0,1)
+        }}
+    }}
+    if (!$gxChild.HasExited) {{ $gxChild.Kill(); $gxChild.WaitForExit() }}
     exit $gxChild.ExitCode
 }} finally {{ if (!$gxChild.HasExited) {{ $gxChild.Kill() }} }}
 "#,

@@ -38,6 +38,7 @@ fn source_code_server_spawn_host_runtime(
         #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
         return Err("Remote Source runtime is unavailable from this SSH host.".to_string());
     }
+    let readiness_timeout = startup_deadline.saturating_duration_since(Instant::now());
     if source_code_server_health_check() {
         let remaining = startup_deadline.saturating_duration_since(Instant::now());
         if !source_code_server_wait_until_not_responsive(
@@ -56,9 +57,6 @@ fn source_code_server_spawn_host_runtime(
     let (user_data_dir, extensions_dir) = source_code_server_runtime_storage()?;
     if source_code_server_should_seed_default_theme(settings) {
         source_code_server_ensure_default_theme(&user_data_dir)?;
-    }
-    if Instant::now() >= startup_deadline {
-        return Err("Source runtime startup timed out".to_string());
     }
 
     let mut command = gpui_background_command(&node_path);
@@ -106,6 +104,9 @@ fn source_code_server_spawn_host_runtime(
             .arg(source_code_server_native_session_socket(&user_data_dir));
     }
 
+    // CDXC:CodeEditor 2026-10-19 WHY:
+    // Resolving the payload runs `node --version` and checks the install (about 0.8s on a Windows PC), and a cold first launch there took 6.3s to answer, so preparation inside the 7s budget could fail an editor that was about to come up. The budget starts at spawn, as for WSL and remote launches.
+    let startup_deadline = Instant::now() + readiness_timeout;
     let started_at = Instant::now();
     let child = command
         .spawn()

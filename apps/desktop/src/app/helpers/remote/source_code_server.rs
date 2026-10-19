@@ -18,6 +18,9 @@ use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use crate::app::helpers::*;
 use crate::*;
 
+/// The line after the Windows Code launch script on SSH stdin; the input stays open after it.
+const SOURCE_CODE_SERVER_REMOTE_WINDOWS_SCRIPT_END: &str = "#ghostex-code-launch-end";
+
 #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
 /// CDXC:CodeEditor 2026-09-23 WHY:
 /// Remote preflight and payload transfer have their own bounded timeouts; charging them against editor readiness could exhaust its budget before any tunnel starts. Windows sends the launch script through unused SSH stdin so long workspace paths cannot exceed OpenSSH's command-line limit.
@@ -96,8 +99,9 @@ pub(crate) fn source_code_server_spawn_remote_runtime(
         arguments.push(gpui_remote_command_for_execution_target(
             execution_target,
             &if native_windows {
-                "$gxLaunch=[Console]::In.ReadToEnd(); & ([ScriptBlock]::Create($gxLaunch))"
-                    .to_string()
+                format!(
+                    "$gxLaunch=[Text.StringBuilder]::new(); while (($gxLine=[Console]::In.ReadLine()) -ne $null -and $gxLine -ne '{SOURCE_CODE_SERVER_REMOTE_WINDOWS_SCRIPT_END}') {{ [void]$gxLaunch.AppendLine($gxLine) }}; & ([ScriptBlock]::Create($gxLaunch.ToString()))"
+                )
             } else {
                 source_code_server_remote_launch_command(&target.project_path, macos_host)
             },
@@ -121,7 +125,10 @@ pub(crate) fn source_code_server_spawn_remote_runtime(
             Err(_) => continue,
         };
         if native_windows {
-            let script = gpui_remote_windows_code_launch(&target.project_path);
+            let script = format!(
+                "{}\n{SOURCE_CODE_SERVER_REMOTE_WINDOWS_SCRIPT_END}\n",
+                gpui_remote_windows_code_launch(&target.project_path)
+            );
             let Some(mut stdin) = child.stdin.take() else {
                 let _ = child.kill();
                 let _ = child.wait();
@@ -129,17 +136,21 @@ pub(crate) fn source_code_server_spawn_remote_runtime(
             };
             let (written, result) = std::sync::mpsc::sync_channel(1);
             std::thread::spawn(move || {
-                let result = stdin.write_all(script.as_bytes());
-                drop(stdin);
-                let _ = written.send(result);
+                let result = stdin
+                    .write_all(script.as_bytes())
+                    .and_then(|()| stdin.flush());
+                let _ = written.send(result.map(|()| stdin));
             });
-            if !matches!(
-                result.recv_timeout(startup_deadline.saturating_duration_since(Instant::now())),
-                Ok(Ok(()))
-            ) {
-                let _ = child.kill();
-                let _ = child.wait();
-                return Err("Could not send the remote Code launch script over SSH.".to_string());
+            match result.recv_timeout(startup_deadline.saturating_duration_since(Instant::now())) {
+                // The open input owns the remote Code's life (gpui_remote_windows_code_launch).
+                Ok(Ok(stdin)) => child.stdin = Some(stdin),
+                _ => {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    return Err(
+                        "Could not send the remote Code launch script over SSH.".to_string()
+                    );
+                }
             }
         } else {
             let Some(mut stdout) = child.stdout.take() else {
