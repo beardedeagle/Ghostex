@@ -114,6 +114,105 @@ fn emit_libghostty_vt_rerun_hints(ghostty_dir: &Path) {
 }
 
 /*
+CDXC:Release 2026-10-19 DECISION: "Yes, cache its output": the Windows release jobs reuse the libghostty-vt library between releases instead of building it with Zig every time (6.8 minutes of the ARM64 critical path in run 39305668478, where the x64 Zig runs under emulation because native ARM64 Zig 0.16.0 crashes). The workflow restores GHOSTEX_LIBGHOSTTY_VT_CACHE_DIR by the exact key it passes as GHOSTEX_LIBGHOSTTY_VT_CACHE_KEY, which covers every input of the build: the Ghostty gitlink (its sources, build files, packages and patches), this file (target, optimize and cpu flags), the Zig pin and the runner image (the MSVC and Windows SDK headers Zig compiles against). A folder stamped with another key, or a stamp without the library, fails the build instead of being used; an empty folder builds as before and is filled for the next release. Unset, nothing changes.
+*/
+fn cached_libghostty_vt(manifest_dir: &Path, archive_relative_path: &str) -> LibGhosttyVtBuild {
+    println!("cargo:rerun-if-env-changed=GHOSTEX_LIBGHOSTTY_VT_CACHE_DIR");
+    println!("cargo:rerun-if-env-changed=GHOSTEX_LIBGHOSTTY_VT_CACHE_KEY");
+    let setting = |name: &str| env::var(name).ok().filter(|value| !value.is_empty());
+    let (cache_dir, key) = match (
+        setting("GHOSTEX_LIBGHOSTTY_VT_CACHE_DIR"),
+        setting("GHOSTEX_LIBGHOSTTY_VT_CACHE_KEY"),
+    ) {
+        (Some(cache_dir), Some(key)) => (PathBuf::from(cache_dir), key),
+        (None, None) => return build_libghostty_vt_with_zig(manifest_dir, archive_relative_path),
+        _ => panic!(
+            "GHOSTEX_LIBGHOSTTY_VT_CACHE_DIR and GHOSTEX_LIBGHOSTTY_VT_CACHE_KEY must be set together"
+        ),
+    };
+    let stamp = cache_dir.join("cache-key");
+    let cached_archive = cache_dir.join(archive_relative_path);
+    let cached_themes = cache_dir.join("share/ghostty/themes");
+    let out_archive = PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR"))
+        .join("libghostty-vt")
+        .join(archive_relative_path);
+    if stamp.exists() {
+        emit_libghostty_vt_rerun_hints(&manifest_dir.join("../../.dependencies/ghostty"));
+        let stored = fs::read_to_string(&stamp)
+            .unwrap_or_else(|error| panic!("failed to read {}: {error}", stamp.display()));
+        assert!(
+            stored.trim() == key,
+            "{} holds libghostty-vt for key {}, not {key}",
+            cache_dir.display(),
+            stored.trim()
+        );
+        assert!(
+            cached_archive.is_file() && cached_themes.is_dir(),
+            "{} is stamped {key} but lacks {} or share/ghostty/themes",
+            cache_dir.display(),
+            archive_relative_path
+        );
+        fs::create_dir_all(out_archive.parent().expect("archive parent"))
+            .expect("failed to create Cargo libghostty-vt output directory");
+        fs::copy(&cached_archive, &out_archive)
+            .unwrap_or_else(|error| panic!("failed to copy {}: {error}", cached_archive.display()));
+        println!("cargo:warning=libghostty-vt cache hit ({key}); Zig build skipped");
+        return LibGhosttyVtBuild {
+            archive: out_archive,
+            themes_dir: cached_themes,
+        };
+    }
+    if cache_dir.exists() {
+        // Only an empty folder may stand in for a miss.
+        fs::remove_dir(&cache_dir).unwrap_or_else(|error| {
+            panic!(
+                "{} has no cache-key stamp but is not empty ({error}); refusing a partial libghostty-vt cache",
+                cache_dir.display()
+            )
+        });
+    }
+    let build = build_libghostty_vt_with_zig(manifest_dir, archive_relative_path);
+    // Filled beside the cache folder and renamed into place, so a build the
+    // stdout watchdog kills mid-copy never leaves a folder that looks complete.
+    let staging = cache_dir.with_extension("partial");
+    if staging.exists() {
+        fs::remove_dir_all(&staging)
+            .unwrap_or_else(|error| panic!("failed to remove {}: {error}", staging.display()));
+    }
+    let staged_archive = staging.join(archive_relative_path);
+    fs::create_dir_all(staged_archive.parent().expect("archive parent"))
+        .expect("failed to create the libghostty-vt cache directory");
+    fs::copy(&build.archive, &staged_archive)
+        .unwrap_or_else(|error| panic!("failed to copy {}: {error}", build.archive.display()));
+    copy_dir_files(&build.themes_dir, &staging.join("share/ghostty/themes"));
+    fs::write(staging.join("cache-key"), &key)
+        .unwrap_or_else(|error| panic!("failed to write the libghostty-vt cache key: {error}"));
+    fs::create_dir_all(cache_dir.parent().expect("cache parent"))
+        .expect("failed to create the libghostty-vt cache parent directory");
+    fs::rename(&staging, &cache_dir)
+        .unwrap_or_else(|error| panic!("failed to move {} into place: {error}", staging.display()));
+    println!("cargo:warning=libghostty-vt cache miss ({key}); built with Zig and stored");
+    build
+}
+
+fn copy_dir_files(source: &Path, destination: &Path) {
+    fs::create_dir_all(destination)
+        .unwrap_or_else(|error| panic!("failed to create {}: {error}", destination.display()));
+    for entry in fs::read_dir(source)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", source.display()))
+    {
+        let path = entry.expect("directory entry").path();
+        let target = destination.join(path.file_name().expect("file name"));
+        if path.is_dir() {
+            copy_dir_files(&path, &target);
+        } else {
+            fs::copy(&path, &target)
+                .unwrap_or_else(|error| panic!("failed to copy {}: {error}", path.display()));
+        }
+    }
+}
+
+/*
 CDXC:PlatformSupport 2026-07-04:
 Windows and Linux builds need only libghostty-vt (the GPUI terminal engine);
 the GhosttyKit archive, ObjC shims, and Apple frameworks are macOS-only by
@@ -561,8 +660,7 @@ fn main() {
     if env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
         let manifest_dir =
             PathBuf::from(env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR"));
-        let libghostty_vt =
-            build_libghostty_vt_with_zig(&manifest_dir, "lib/ghostty-vt-static.lib");
+        let libghostty_vt = cached_libghostty_vt(&manifest_dir, "lib/ghostty-vt-static.lib");
         generate_embedded_ghostty_themes(&libghostty_vt.themes_dir);
         build_windows_app_resource(&manifest_dir);
         println!("cargo:rustc-link-arg={}", libghostty_vt.archive.display());

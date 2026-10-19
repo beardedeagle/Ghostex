@@ -208,6 +208,15 @@ jobs:
             printf 'cef=%s\n' "$(git rev-parse HEAD:.dependencies/cef-rs)"
             printf 'zig=%s\n' "$(git rev-parse HEAD:.dependencies/ghostty)"
           } >> "$GITHUB_OUTPUT"
+          # The libghostty-vt key (CDXC:Release 2026-10-19 DECISION in apps/desktop/build.rs): the Ghostty
+          # gitlink, build.rs (target, optimize and cpu flags), the Zig pin and the runner image.
+          if [[ -z "${ImageVersion:-}" ]]; then
+            echo "::notice title=libghostty-vt is not cached::The runner reports no ImageVersion, so this build compiles libghostty-vt with Zig and stores nothing."
+          else
+            flags="$(sha256sum apps/desktop/build.rs tooling/release-gpui/prepare-zig.ps1 | sha256sum | cut -c1-16)"
+            printf 'libghostty_vt=libghostty-vt-windows-%s-%s-%s-%s\n' '${{ inputs.arch }}' \
+              "$(git rev-parse HEAD:.dependencies/ghostty)" "$flags" "$ImageVersion" >> "$GITHUB_OUTPUT"
+          fi
       - name: Restore Cargo registry cache
         uses: actions/cache@v6
         id: cargo_cache
@@ -245,6 +254,16 @@ jobs:
       - name: Install pinned Zig
         shell: pwsh
         run: tooling/release-gpui/prepare-zig.ps1 -Arch "${{ inputs.arch }}"
+      # Exact key only, no restore-keys: build.rs refuses a folder stamped with
+      # another key. About 5 MB per architecture (the static library and the
+      # themes); the save step below fills it after a miss.
+      - name: Restore the libghostty-vt build output
+        id: libghostty_vt_cache
+        if: ${{ steps.cache_keys.outputs.libghostty_vt != '' }}
+        uses: actions/cache/restore@v6
+        with:
+          path: build/libghostty-vt-cache
+          key: ${{ steps.cache_keys.outputs.libghostty_vt }}
       - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: 8.0.x
@@ -311,8 +330,18 @@ jobs:
           GHOSTEX_CARGO_TIMINGS: '1'
           # CDXC:Release 2026-10-19 WHY: a release run packages the published native editor component and the Linux Source archive, so nothing in this job reads the VS Code source; its clone cost about a minute of the ARM64 compile step. A standalone dispatch builds the editor from source and clones it in the editor-tools step above.
           GHOSTEX_RELEASE_SKIP_VSCODE_SOURCE: ${{ inputs.runtime_artifacts_ready && '1' || '0' }}
+          GHOSTEX_LIBGHOSTTY_VT_CACHE_DIR: ${{ steps.cache_keys.outputs.libghostty_vt != '' && format('{0}\build\libghostty-vt-cache', github.workspace) || '' }}
+          GHOSTEX_LIBGHOSTTY_VT_CACHE_KEY: ${{ steps.cache_keys.outputs.libghostty_vt }}
         run: |
           & (Join-Path $env:GITHUB_WORKSPACE 'tooling/release-gpui/windows-build-watchdog.ps1') -Phase compile-app -Version '${{ inputs.version }}' -Arch '${{ inputs.arch }}'
+      # Saved right after the compile, not at job end, so a later packaging
+      # failure still leaves the library for the next run.
+      - name: Save the libghostty-vt build output
+        if: ${{ steps.cache_keys.outputs.libghostty_vt != '' && steps.libghostty_vt_cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v6
+        with:
+          path: build/libghostty-vt-cache
+          key: ${{ steps.cache_keys.outputs.libghostty_vt }}
       # The runtime artifacts are only read by the packaging phase (WSL
       # gxserver staging + code-server component resealing), so they are
       # awaited here, after the compile, not before it.
@@ -578,6 +607,7 @@ jobs:
             echo "- Cargo registry cache: ${{ steps.cargo_cache.outputs.cache-hit == 'true' && 'hit' || 'miss' }}"
             echo "- CEF distribution cache: ${{ steps.cef_cache.outputs.cache-hit == 'true' && 'hit' || 'miss' }}"
             echo "- Zig package cache: ${{ steps.zig_cache.outputs.cache-hit == 'true' && 'hit' || 'miss' }}"
+            echo "- libghostty-vt build output: ${{ steps.cache_keys.outputs.libghostty_vt == '' && 'not cached (no ImageVersion)' || (steps.libghostty_vt_cache.outputs.cache-hit == 'true' && 'hit' || 'miss') }}"
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Report sccache statistics
         if: ${{ always() }}

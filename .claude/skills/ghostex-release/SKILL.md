@@ -285,6 +285,19 @@ the release after 10.14.0; watch that one closely):
   installer" step and every SignPath step is skipped. A `--reuse-from-run` of
   a run that was still signed rebuilds both Windows platforms, because the
   signing mode is part of their fingerprint.
+- Each Windows build job also reuses the libghostty-vt terminal library
+  between releases ("Restore the libghostty-vt build output" before the
+  compile, "Save the libghostty-vt build output" right after it on a miss; the
+  job summary says hit or miss). The key is the Ghostty gitlink,
+  `apps/desktop/build.rs`, `prepare-zig.ps1` and the runner image, so the
+  first release after any of those changes, or after a runner image update,
+  builds it with Zig again (about 7 minutes on ARM64, 2-4 on x64). The compile
+  log says `libghostty-vt cache hit` or `cache miss`. A build that fails with
+  "holds libghostty-vt for key …" or "refusing a partial libghostty-vt cache"
+  means the restored folder does not match its key. Nothing stale ships, but
+  every redispatch restores the same entry, so ask the user before deleting it
+  (`gh cache delete <key> -R maddada/Ghostex`, key from the restore step's log),
+  then redispatch; the next run builds and stores it fresh.
 - `cargo --timings` reports: `cargo-timings-macos-arm64`,
   `cargo-timings-windows-<arch>` (desktop crate) and
   `cargo-timings-windows-<arch>-runtime` (gxserver, wmx, prompt editor). Open
