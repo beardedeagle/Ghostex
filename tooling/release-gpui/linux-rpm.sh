@@ -28,8 +28,16 @@ rm -rf "$PACKAGE_ROOT/DEBIAN"
 RPM_ROOT="$REPO_ROOT/build/release-gpui/rpmbuild"
 rm -rf "$RPM_ROOT"
 mkdir -p "$RPM_ROOT"/{BUILD,BUILDROOT,RPMS,SOURCES,SPECS,SRPMS}
+# CDXC:Release 2026-10-19 WHY:
+# rpmbuild derives Requires from every ELF it packages, and the GPUI runtime and
+# CEF helper link libcef.so, which no distribution package provides: CEF is the
+# on-demand component the bootstrap installs and puts on LD_LIBRARY_PATH. Left
+# in, `libcef.so()(64bit)` made dnf refuse the package; the release job's own
+# check installs with --nodeps, so it never noticed. The exclusion drops only
+# that one generated requirement.
 tar -C "$PACKAGE_ROOT" -czf "$RPM_ROOT/SOURCES/ghostex-$VERSION.tar.gz" .
 cat >"$RPM_ROOT/SPECS/ghostex.spec" <<EOF
+%global __requires_exclude ^libcef[.]so
 Name: ghostex
 Version: $VERSION
 Release: 1%{?dist}

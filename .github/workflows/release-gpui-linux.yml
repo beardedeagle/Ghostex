@@ -318,6 +318,13 @@ jobs:
             echo "RPM payload leaked DEBIAN/ control metadata" >&2
             exit 1
           fi
+          # The install checks below use --nodeps, so check the generated
+          # requirements here: CEF arrives on demand and no distribution
+          # package provides libcef.so (linux-rpm.sh excludes it).
+          if rpm -qpR "$RPM_PATH" | grep -q '^libcef'; then
+            echo "RPM requires libcef.so, which dnf cannot resolve" >&2
+            exit 1
+          fi
           # Exercise the package manager's exact same-version replacement path
           # in an isolated root. Downloaded RPMs must support both upgrades and
           # an explicit reinstall without retaining stale /opt payload files.
