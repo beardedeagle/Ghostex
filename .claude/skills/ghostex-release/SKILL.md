@@ -353,6 +353,13 @@ while any other exit `0` means only that a job changed state.
   and `*.nupkg` assets on the GitHub release (`windows-update-feed.mjs`).
 - **Android**: `ghostex-android.apk` on the GitHub release, built from the
   `apps/mobile/app` submodule at the dispatched commit.
+- **Google Play (not automatic)**: the Play build is a separate workflow,
+  "Release mobile Android to Google Play" (`release-mobile-android-play.yml`),
+  which builds `ghostex-android-play.aab` without the self-updater and uploads it
+  to a Play track. Skip it while `gh secret list` shows no
+  `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`. Otherwise ask the user which track, then
+  `gh workflow run release-mobile-android-play.yml --ref vX.Y.Z -f version=X.Y.Z -f track=internal -f release_status=completed`
+  (`draft` until the app's first production release is live).
 - **Homebrew**: the official cask is updated by Homebrew's autobump bot, which
   opens the `ghostex X.Y.Z` PR on Homebrew/homebrew-cask (e.g. #291473 for 10.9.1)
   within about half an hour of the release; our workflow no longer opens one (user

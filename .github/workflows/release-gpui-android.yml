@@ -11,6 +11,11 @@ on:
         required: false
         default: ''
         type: string
+      distribution:
+        description: github (the sideloaded APK with the in-app updater) or play (the Google Play bundle without it)
+        required: false
+        default: github
+        type: string
     secrets:
       ANDROID_RELEASE_KEYSTORE_BASE64:
         required: true
@@ -28,6 +33,14 @@ on:
         description: Semver release version
         required: true
         type: string
+      distribution:
+        description: github (the sideloaded APK with the in-app updater) or play (the Google Play bundle without it)
+        required: false
+        default: github
+        type: choice
+        options:
+          - github
+          - play
 
 permissions:
   attestations: write
@@ -56,7 +69,20 @@ jobs:
       # `ndk.abiFilters`, which also filters the prebuilt jniLibs below).
       # Compression and R8: apps/mobile/app/plugins/withAndroidReleaseSize.js.
       GHOSTEX_ANDROID_ABIS: arm64-v8a
+      # tooling/release-mobile/android.sh: `github` builds ghostex-android.apk into
+      # build/release-gpui/<version>/android, `play` builds ghostex-android-play.aab into
+      # build/release-gpui/<version>/android-play. Artifact names follow the folder, so the
+      # GitHub release keeps reading `release-android`.
+      GHOSTEX_ANDROID_DISTRIBUTION: ${{ inputs.distribution }}
+      ANDROID_RELEASE_PLATFORM: ${{ inputs.distribution == 'play' && 'android-play' || 'android' }}
+      ANDROID_RELEASE_FILE: ${{ inputs.distribution == 'play' && 'ghostex-android-play.aab' || 'ghostex-android.apk' }}
     steps:
+      - name: Check the distribution
+        run: |
+          case "$GHOSTEX_ANDROID_DISTRIBUTION" in
+          github | play) ;;
+          *) echo "::error::distribution must be github or play, got $GHOSTEX_ANDROID_DISTRIBUTION"; exit 1 ;;
+          esac
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
@@ -215,13 +241,26 @@ jobs:
           sudo apt-get install -y --no-install-recommends ccache \
             || { sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends ccache; }
           ccache --zero-stats
+      # The Play bundle checks read the bundle's manifest and signature and cut a universal APK
+      # from it with bundletool (tooling/release-mobile/android.sh). The jar is pinned by checksum.
+      - name: Install pinned bundletool
+        if: ${{ inputs.distribution == 'play' }}
+        env:
+          BUNDLETOOL_VERSION: 1.18.3
+          BUNDLETOOL_SHA256: a099cfa1543f55593bc2ed16a70a7c67fe54b1747bb7301f37fdfd6d91028e29
+        run: |
+          JAR="$RUNNER_TEMP/bundletool-all-$BUNDLETOOL_VERSION.jar"
+          tooling/release-gpui/retry.sh 3 5 -- curl -fsSL -o "$JAR" \
+            "https://github.com/google/bundletool/releases/download/$BUNDLETOOL_VERSION/bundletool-all-$BUNDLETOOL_VERSION.jar"
+          echo "$BUNDLETOOL_SHA256  $JAR" | sha256sum -c -
+          echo "GHOSTEX_BUNDLETOOL_JAR=$JAR" >> "$GITHUB_ENV"
       - name: Restore external Android signing keystore
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_RELEASE_KEYSTORE_BASE64 }}
         run: |
           printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/ghostex-release.jks"
           chmod 600 "$RUNNER_TEMP/ghostex-release.jks"
-      - name: Build and verify signed APK
+      - name: Build and verify signed Android release
         env:
           GHOSTEX_ANDROID_SIGNING_STORE_FILE: ${{ runner.temp }}/ghostex-release.jks
           GHOSTEX_ANDROID_SIGNING_STORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_STORE_PASSWORD }}
@@ -247,21 +286,21 @@ jobs:
       - name: Attest build provenance
         uses: actions/attest-build-provenance@v4
         with:
-          subject-path: build/release-gpui/${{ inputs.version }}/android/ghostex-android.apk
+          subject-path: build/release-gpui/${{ inputs.version }}/${{ env.ANDROID_RELEASE_PLATFORM }}/${{ env.ANDROID_RELEASE_FILE }}
       # The R8 mapping turns obfuscated stack traces from phones back into
       # source names. It stays a workflow artifact, never a release asset.
       - uses: actions/upload-artifact@v7
         with:
-          name: release-android-r8-mapping
-          path: build/release-gpui/${{ inputs.version }}/android-r8/
+          name: release-${{ env.ANDROID_RELEASE_PLATFORM }}-r8-mapping
+          path: build/release-gpui/${{ inputs.version }}/${{ env.ANDROID_RELEASE_PLATFORM }}-r8/
           if-no-files-found: error
           retention-days: 90
       - uses: actions/upload-artifact@v7
         with:
-          name: release-android
-          path: build/release-gpui/${{ inputs.version }}/android/
+          name: release-${{ env.ANDROID_RELEASE_PLATFORM }}
+          path: build/release-gpui/${{ inputs.version }}/${{ env.ANDROID_RELEASE_PLATFORM }}/
           if-no-files-found: error
-          retention-days: 14
+          retention-days: ${{ inputs.distribution == 'play' && 90 || 14 }}
       - uses: actions/upload-artifact@v7
         if: ${{ inputs.plan != '' }}
         with:

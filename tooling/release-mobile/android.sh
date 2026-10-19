@@ -8,7 +8,37 @@ source "$SCRIPT_DIR/../release-gpui/common.sh"
 VERSION="${1:-}"
 release_gpui_require_version "$VERSION"
 REPO_ROOT="$(release_gpui_repo_root)"
-OUTPUT="${2:-$(release_gpui_default_output "$REPO_ROOT" "$VERSION" android)}"
+
+# CDXC:Release 2026-10-19 WHY: Ghostex ships the phone app two ways from the same source.
+# `github` (the default) is the sideloaded APK on the GitHub release, with the in-app updater
+# that installs newer APKs. `play` is the Android App Bundle for Google Play: Play accepts only
+# bundles for new apps and rejects apps that can install other packages, so it is built with
+# GHOSTEX_ANDROID_SELF_UPDATE=0 (apps/mobile/app/app.config.js) and is checked below to carry no
+# installer or overlay permission. Both are signed with the same release key, so a phone can move
+# from the GitHub APK to the Play install without uninstalling.
+DISTRIBUTION="${GHOSTEX_ANDROID_DISTRIBUTION:-github}"
+case "$DISTRIBUTION" in
+github)
+	PLATFORM=android
+	GRADLE_TASK=":app:assembleRelease"
+	export GHOSTEX_ANDROID_SELF_UPDATE=1
+	;;
+play)
+	PLATFORM=android-play
+	GRADLE_TASK=":app:bundleRelease"
+	export GHOSTEX_ANDROID_SELF_UPDATE=0
+	: "${GHOSTEX_BUNDLETOOL_JAR:?Missing bundletool jar path (GHOSTEX_BUNDLETOOL_JAR) for the Play bundle checks}"
+	[[ -s "$GHOSTEX_BUNDLETOOL_JAR" ]] || {
+		echo "bundletool jar not found: $GHOSTEX_BUNDLETOOL_JAR" >&2
+		exit 1
+	}
+	;;
+*)
+	echo "GHOSTEX_ANDROID_DISTRIBUTION must be github or play, got $DISTRIBUTION" >&2
+	exit 2
+	;;
+esac
+OUTPUT="${2:-$(release_gpui_default_output "$REPO_ROOT" "$VERSION" "$PLATFORM")}"
 BUILD_NUMBER="$(release_gpui_build_number "$VERSION")"
 MOBILE_ROOT="$REPO_ROOT/apps/mobile/app"
 
@@ -53,7 +83,7 @@ bunx expo prebuild --platform android --no-install
 # gradle.properties.
 ./android/gradlew --no-daemon --stacktrace -p android \
 	"-Dorg.gradle.jvmargs=-Xmx6g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8" \
-	"-PreactNativeArchitectures=$REACT_NATIVE_ARCHITECTURES" :app:assembleRelease
+	"-PreactNativeArchitectures=$REACT_NATIVE_ARCHITECTURES" "$GRADLE_TASK"
 
 BUILD_TOOLS="${ANDROID_HOME:?ANDROID_HOME is required}/build-tools/36.0.0"
 AAPT="$BUILD_TOOLS/aapt"
@@ -63,7 +93,35 @@ APKSIGNER="$BUILD_TOOLS/apksigner"
 	exit 1
 }
 
-APK_SOURCE="$MOBILE_ROOT/android/app/build/outputs/apk/release/app-release.apk"
+KEYSTORE_CERT="$(keytool -exportcert -keystore "$GHOSTEX_ANDROID_SIGNING_STORE_FILE" -storepass "$GHOSTEX_ANDROID_SIGNING_STORE_PASSWORD" -alias "$GHOSTEX_ANDROID_SIGNING_KEY_ALIAS" | release_gpui_sha256 /dev/stdin)"
+
+if [[ "$DISTRIBUTION" == play ]]; then
+	AAB_SOURCE="$MOBILE_ROOT/android/app/build/outputs/bundle/release/app-release.aab"
+	[[ -f "$AAB_SOURCE" ]] || {
+		echo "React Native release bundle was not produced" >&2
+		exit 1
+	}
+	java -jar "$GHOSTEX_BUNDLETOOL_JAR" validate --bundle="$AAB_SOURCE" >/dev/null
+	AAB_CERT="$(keytool -printcert -jarfile "$AAB_SOURCE" | sed -n 's/^[[:space:]]*SHA256: //p' | head -n 1 | tr -d ': ' | tr '[:upper:]' '[:lower:]')"
+	if [[ -z "$AAB_CERT" || "$AAB_CERT" != "$KEYSTORE_CERT" ]]; then
+		echo "Bundle signing certificate does not match the established Ghostex keystore ($AAB_CERT != $KEYSTORE_CERT)" >&2
+		exit 1
+	fi
+	# The checks below read an APK. The universal APK bundletool builds from the bundle carries
+	# the bundle's manifest, dex files and native libraries, which is what the split APKs Play
+	# serves are cut from.
+	UNIVERSAL_DIR="$(mktemp -d)"
+	trap 'rm -rf "$UNIVERSAL_DIR"' EXIT
+	(umask 077 && printf '%s' "$GHOSTEX_ANDROID_SIGNING_STORE_PASSWORD" >"$UNIVERSAL_DIR/store-pass" && printf '%s' "$GHOSTEX_ANDROID_SIGNING_KEY_PASSWORD" >"$UNIVERSAL_DIR/key-pass")
+	java -jar "$GHOSTEX_BUNDLETOOL_JAR" build-apks --mode=universal \
+		--bundle="$AAB_SOURCE" --output="$UNIVERSAL_DIR/universal.apks" \
+		--ks="$GHOSTEX_ANDROID_SIGNING_STORE_FILE" --ks-pass="file:$UNIVERSAL_DIR/store-pass" \
+		--ks-key-alias="$GHOSTEX_ANDROID_SIGNING_KEY_ALIAS" --key-pass="file:$UNIVERSAL_DIR/key-pass"
+	unzip -q -o "$UNIVERSAL_DIR/universal.apks" universal.apk -d "$UNIVERSAL_DIR"
+	APK_SOURCE="$UNIVERSAL_DIR/universal.apk"
+else
+	APK_SOURCE="$MOBILE_ROOT/android/app/build/outputs/apk/release/app-release.apk"
+fi
 [[ -f "$APK_SOURCE" ]] || {
 	echo "React Native release APK was not produced" >&2
 	exit 1
@@ -82,6 +140,20 @@ BADGING="$($AAPT dump badging "$APK_SOURCE" | head -n 1)"
 	exit 1
 }
 
+# Google Play rejects the installer permission (the GitHub self-updater); the overlay permission
+# is an Expo template leftover the app never uses (blocked in apps/mobile/app/app.json).
+PERMISSIONS="$($AAPT dump permissions "$APK_SOURCE")"
+FORBIDDEN_PERMISSIONS=(android.permission.SYSTEM_ALERT_WINDOW)
+if [[ "$DISTRIBUTION" == play ]]; then
+	FORBIDDEN_PERMISSIONS+=(android.permission.REQUEST_INSTALL_PACKAGES)
+fi
+for permission in "${FORBIDDEN_PERMISSIONS[@]}"; do
+	if grep -q "name='$permission'" <<<"$PERMISSIONS"; then
+		echo "The $DISTRIBUTION build must not request $permission" >&2
+		exit 1
+	fi
+done
+
 APK_ABIS="$(unzip -Z1 "$APK_SOURCE" 'lib/*' | cut -d/ -f2 | sort -u | tr '\n' ' ')"
 EXPECTED_ABIS="$(printf '%s\n' "${ANDROID_ABI_LIST[@]}" | sort -u | tr '\n' ' ')"
 [[ "$APK_ABIS" == "$EXPECTED_ABIS" ]] || {
@@ -98,18 +170,22 @@ EXPECTED_ABIS="$(printf '%s\n' "${ANDROID_ABI_LIST[@]}" | sort -u | tr '\n' ' ')
 
 $APKSIGNER verify --verbose "$APK_SOURCE"
 APK_CERT="$($APKSIGNER verify --print-certs "$APK_SOURCE" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | tr -d ': ' | tr '[:upper:]' '[:lower:]')"
-KEYSTORE_CERT="$(keytool -exportcert -keystore "$GHOSTEX_ANDROID_SIGNING_STORE_FILE" -storepass "$GHOSTEX_ANDROID_SIGNING_STORE_PASSWORD" -alias "$GHOSTEX_ANDROID_SIGNING_KEY_ALIAS" | release_gpui_sha256 /dev/stdin)"
 if [[ -z "$APK_CERT" || "$APK_CERT" != "$KEYSTORE_CERT" ]]; then
 	echo "APK signing certificate does not match the established Ghostex keystore ($APK_CERT != $KEYSTORE_CERT)" >&2
 	exit 1
 fi
 
 release_gpui_prepare_output "$REPO_ROOT" "$OUTPUT"
-APK="$OUTPUT/ghostex-android.apk"
-cp "$APK_SOURCE" "$APK"
-R8_OUTPUT="$(dirname "$OUTPUT")/android-r8"
+if [[ "$DISTRIBUTION" == play ]]; then
+	ARTIFACT="$OUTPUT/ghostex-android-play.aab"
+	cp "$AAB_SOURCE" "$ARTIFACT"
+else
+	ARTIFACT="$OUTPUT/ghostex-android.apk"
+	cp "$APK_SOURCE" "$ARTIFACT"
+fi
+R8_OUTPUT="$(dirname "$OUTPUT")/$PLATFORM-r8"
 rm -rf "$R8_OUTPUT"
 mkdir -p "$R8_OUTPUT"
 cp "$MOBILE_ROOT/android/app/build/outputs/mapping/release/mapping.txt" "$R8_OUTPUT/"
-release_gpui_write_manifest "$OUTPUT" android "$VERSION" "$APK"
-echo "React Native Android APK ready: $APK"
+release_gpui_write_manifest "$OUTPUT" "$PLATFORM" "$VERSION" "$ARTIFACT"
+echo "React Native Android $DISTRIBUTION build ready: $ARTIFACT"

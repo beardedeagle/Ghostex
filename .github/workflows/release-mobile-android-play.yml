@@ -1,0 +1,135 @@
+name: Release mobile Android to Google Play
+
+# CDXC:Release 2026-10-19 WHY: the Play build of the phone app is the same source as the GitHub
+# APK, built as an Android App Bundle without the in-app updater
+# (release-gpui-android.yml with distribution: play). Run it from the release tag (Use workflow
+# from > Tags > v<version>) so the bundle is the released source; the version input names the
+# versionName and versionCode. Play's API refuses the app's very first bundle: for that one, run
+# with upload off and upload the `release-android-play` artifact in Play Console by hand.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version (MAJOR.MINOR.PATCH); the versionCode comes from it
+        required: true
+        type: string
+      upload:
+        description: Upload to Google Play (off = only build the bundle artifact for a manual upload)
+        required: false
+        default: true
+        type: boolean
+      track:
+        description: Play track
+        required: false
+        default: internal
+        type: choice
+        options:
+          - internal
+          - alpha
+          - beta
+          - production
+      release_status:
+        description: draft (roll out by hand in Play Console; the only status Play takes before the first live release), completed (whole track), inProgress (staged rollout)
+        required: false
+        default: draft
+        type: choice
+        options:
+          - draft
+          - completed
+          - inProgress
+      rollout_fraction:
+        description: Share of users for an inProgress rollout, between 0 and 1
+        required: false
+        default: '0.2'
+        type: string
+      release_notes:
+        description: Optional en-US "What's new" text (500 characters at most)
+        required: false
+        default: ''
+        type: string
+      validate_only:
+        description: Let Play validate the upload without committing it
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  attestations: write
+  contents: read
+  id-token: write
+
+# One run at a time: Play accepts each versionCode once, and two open edits on one app conflict.
+concurrency:
+  group: release-mobile-android-play
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check inputs and the Play secret
+        env:
+          VERSION: ${{ inputs.version }}
+          UPLOAD: ${{ inputs.upload }}
+          RELEASE_STATUS: ${{ inputs.release_status }}
+          ROLLOUT_FRACTION: ${{ inputs.rollout_fraction }}
+          RELEASE_NOTES: ${{ inputs.release_notes }}
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::version must be MAJOR.MINOR.PATCH, got $VERSION"; exit 1; }
+          if [[ "$UPLOAD" == true && -z "$PLAY_SERVICE_ACCOUNT_JSON" ]]; then
+            echo "::error::GOOGLE_PLAY_SERVICE_ACCOUNT_JSON is not set; add the Play service account's JSON key as a repository secret, or run with upload off"
+            exit 1
+          fi
+          if [[ "$RELEASE_STATUS" == inProgress ]]; then
+            awk -v f="$ROLLOUT_FRACTION" 'BEGIN { exit !(f + 0 > 0 && f + 0 < 1) }' \
+              || { echo "::error::rollout_fraction must be between 0 and 1 for an inProgress rollout, got $ROLLOUT_FRACTION"; exit 1; }
+          fi
+          (( ${#RELEASE_NOTES} <= 500 )) || { echo "::error::release_notes are ${#RELEASE_NOTES} characters; Play allows 500"; exit 1; }
+
+  build:
+    needs: validate
+    uses: ./.github/workflows/release-gpui-android.yml
+    with:
+      version: ${{ inputs.version }}
+      distribution: play
+    secrets: inherit
+
+  upload:
+    needs: build
+    if: ${{ inputs.upload }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+          submodules: false
+          sparse-checkout: tooling/release-mobile
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.13.1
+      - uses: actions/download-artifact@v8
+        with:
+          name: release-android-play
+          path: build/play/bundle
+      - uses: actions/download-artifact@v8
+        with:
+          name: release-android-play-r8-mapping
+          path: build/play/r8
+      - name: Upload to Google Play
+        env:
+          GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          GHOSTEX_PLAY_RELEASE_NOTES: ${{ inputs.release_notes }}
+          VERSION: ${{ inputs.version }}
+          TRACK: ${{ inputs.track }}
+          RELEASE_STATUS: ${{ inputs.release_status }}
+          ROLLOUT_FRACTION: ${{ inputs.rollout_fraction }}
+          VALIDATE_ONLY: ${{ inputs.validate_only }}
+        run: |
+          args=(--version "$VERSION" --bundle build/play/bundle/ghostex-android-play.aab
+            --mapping build/play/r8/mapping.txt --track "$TRACK" --status "$RELEASE_STATUS"
+            --rollout-fraction "$ROLLOUT_FRACTION")
+          if [[ "$VALIDATE_ONLY" == true ]]; then args+=(--validate-only); fi
+          node tooling/release-mobile/play-upload.mjs "${args[@]}"
