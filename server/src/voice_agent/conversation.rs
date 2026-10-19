@@ -34,6 +34,9 @@ const REPLAY_LIMIT: usize = 50;
 /// cuts the reply at its own estimate.
 const TRUNCATE_WAIT: Duration = Duration::from_millis(400);
 const TICK: Duration = Duration::from_millis(100);
+/// How long gxserver waits for the provider's transcript of a cut reply before it sends its own
+/// estimate.
+const CUT_CAPTION_WAIT: Duration = Duration::from_millis(1_200);
 
 pub(super) enum ClientFrame {
     Json(Value),
@@ -80,6 +83,45 @@ pub(super) enum Input {
 struct ItemAudio {
     item_id: String,
     audio_ms: u64,
+    /// The provider sent all of this reply's audio.
+    audio_done: bool,
+}
+
+/// An interrupted reply waiting for its `cut` caption: the provider's transcript of what was
+/// played (xAI sends it with `conversation.item.truncated`), else gxserver's estimate.
+struct CutPending {
+    item_id: String,
+    estimate: String,
+    deadline: Instant,
+}
+
+/// The cut caption's text when the provider gives none: the share of the reply's text that its
+/// played audio covers, ended at a word. While audio was still arriving the reply's length is
+/// unknown, so a speaking rate of 15 characters a second stands in.
+fn played_text(text: &str, played_ms: u64, item: Option<&ItemAudio>) -> String {
+    let text = text.trim();
+    let total = text.chars().count();
+    let chars = match item {
+        Some(item) if item.audio_done && item.audio_ms > 0 => {
+            (total as u64 * played_ms.min(item.audio_ms) / item.audio_ms) as usize
+        }
+        _ => (played_ms as usize * 15 / 1000).min(total),
+    };
+    if chars >= total {
+        return text.to_string();
+    }
+    let cut: String = text.chars().take(chars).collect();
+    let next_is_space = text.chars().nth(chars).is_some_and(char::is_whitespace);
+    let cut = if next_is_space {
+        cut
+    } else {
+        match cut.rfind(char::is_whitespace) {
+            Some(index) => cut[..index].to_string(),
+            None => String::new(),
+        }
+    };
+    cut.trim_end_matches(|c: char| c.is_whitespace() || c == ',' || c == ';' || c == ':')
+        .to_string()
 }
 
 pub(super) struct Conversation {
@@ -106,6 +148,11 @@ pub(super) struct Conversation {
     agent_captions: HashMap<String, String>,
     user_captions: HashMap<String, String>,
     truncate_pending: Option<(String, u64, Instant)>,
+    /// The full caption text of recent agent replies, kept after `final` so a cut can be trimmed.
+    agent_texts: HashMap<String, String>,
+    /// Replies the user talked over: their later caption events are not passed on.
+    cut_items: HashSet<String>,
+    cut_pending: Option<CutPending>,
     user_speaking: bool,
     announcements: Vec<Announcement>,
     typed_turns: u64,
@@ -154,6 +201,9 @@ impl Conversation {
             agent_captions: HashMap::new(),
             user_captions: HashMap::new(),
             truncate_pending: None,
+            agent_texts: HashMap::new(),
+            cut_items: HashSet::new(),
+            cut_pending: None,
             user_speaking: false,
             announcements: Vec::new(),
             typed_turns: 0,
@@ -431,10 +481,9 @@ impl Conversation {
                 if notify || self.client.is_some() {
                     self.to_client(json!({"type": "interrupted", "itemId": item_id}));
                 }
-                // The cut reply's caption stops growing; close it so clients do not wait for more.
-                if let Some(text) = self.agent_captions.remove(&item_id) {
-                    self.to_client(json!({"type": "caption", "role": "agent", "itemId": item_id, "text": text.trim(), "final": true, "cut": true}));
-                }
+                // Its caption stops here; the `cut` caption follows once the cut point is known.
+                self.agent_captions.remove(&item_id);
+                self.cut_items.insert(item_id.clone());
                 self.truncate_pending = Some((item_id, estimate, now + TRUNCATE_WAIT));
             }
             self.playback_end = now;
@@ -444,6 +493,13 @@ impl Conversation {
 
     async fn truncate(&mut self, item_id: String, audio_end_ms: u64) -> Result<(), Ended> {
         self.truncate_pending = None;
+        let text = self.agent_texts.get(&item_id).cloned().unwrap_or_default();
+        let item = self.item.as_ref().filter(|item| item.item_id == item_id);
+        self.cut_pending = Some(CutPending {
+            estimate: played_text(&text, audio_end_ms, item),
+            item_id: item_id.clone(),
+            deadline: Instant::now() + CUT_CAPTION_WAIT,
+        });
         self.provider_send(json!({
             "type": "conversation.item.truncate",
             "item_id": item_id,
@@ -453,8 +509,35 @@ impl Conversation {
         .await
     }
 
+    /// CDXC:VoiceMode 2026-10-20 WHY:
+    /// Every interruption ends with a `cut` caption of what was actually heard. Grok finishes a reply's text well before its audio has played, so closing the growing caption at the interruption (the first version) usually sent nothing and clients showed the whole reply as heard (found by the phone thread).
+    fn send_cut_caption(&mut self, provider_text: Option<String>) {
+        let Some(cut) = self.cut_pending.take() else {
+            return;
+        };
+        let text = provider_text
+            .map(|text| text.trim().to_string())
+            .filter(|text| !text.is_empty())
+            .unwrap_or(cut.estimate);
+        self.to_client(json!({
+            "type": "caption",
+            "role": "agent",
+            "itemId": cut.item_id,
+            "text": text,
+            "final": true,
+            "cut": true,
+        }));
+    }
+
     async fn on_tick(&mut self) -> Result<(), Ended> {
         let now = Instant::now();
+        if self
+            .cut_pending
+            .as_ref()
+            .is_some_and(|cut| cut.deadline <= now)
+        {
+            self.send_cut_caption(None);
+        }
         if let Some((item_id, estimate, deadline)) = self.truncate_pending.clone() {
             if deadline <= now {
                 self.truncate(item_id, estimate).await?;
@@ -571,7 +654,10 @@ impl Conversation {
                     self.item = Some(ItemAudio {
                         item_id: item_id.clone(),
                         audio_ms: 0,
+                        audio_done: false,
                     });
+                    // Only the reply being relayed can be cut from now on.
+                    self.agent_texts.retain(|id, _| *id == item_id);
                     self.to_client(json!({"type": "audioStart", "itemId": item_id}));
                 }
                 if let Some(item) = &mut self.item {
@@ -587,10 +673,20 @@ impl Conversation {
             }
             "response.output_audio.done" | "response.audio.done" => {
                 let item_id = str_field("item_id");
+                if let Some(item) = self.item.as_mut().filter(|item| item.item_id == item_id) {
+                    item.audio_done = true;
+                }
                 self.to_client(json!({"type": "audioDone", "itemId": item_id}));
             }
             "response.output_audio_transcript.delta" | "response.audio_transcript.delta" => {
                 let item_id = str_field("item_id");
+                self.agent_texts
+                    .entry(item_id.clone())
+                    .or_default()
+                    .push_str(&str_field("delta"));
+                if self.cut_items.contains(&item_id) {
+                    return Ok(());
+                }
                 let caption = self.agent_captions.entry(item_id.clone()).or_default();
                 caption.push_str(&str_field("delta"));
                 let text = caption.clone();
@@ -602,7 +698,22 @@ impl Conversation {
                 let text = Some(str_field("transcript"))
                     .filter(|text| !text.trim().is_empty())
                     .unwrap_or(streamed);
+                if !text.trim().is_empty() {
+                    self.agent_texts.insert(item_id.clone(), text.clone());
+                }
+                if self.cut_items.contains(&item_id) {
+                    return Ok(());
+                }
                 self.to_client(json!({"type": "caption", "role": "agent", "itemId": item_id, "text": text.trim(), "final": true}));
+            }
+            "conversation.item.truncated" => {
+                if self
+                    .cut_pending
+                    .as_ref()
+                    .is_some_and(|cut| cut.item_id == str_field("item_id"))
+                {
+                    self.send_cut_caption(Some(str_field("transcript")));
+                }
             }
             "response.function_call_arguments.done" => {
                 self.start_tool(

@@ -22,7 +22,8 @@ const USAGE: &str = "Usage:
   ghostex voice --text \"What are my agents doing?\" [--text \"…\"]… [--provider xai|openai] [--save reply.wav] [--listen <seconds>]
   ghostex voice --wav question.wav [--wav next.wav]… [--save reply.wav] [--listen <seconds>]
   ghostex voice --dictate speech.wav [--language en]
-  Testing extras: --barge-in talk.wav (spoken over the agent's first reply), --detach (leave
+  Testing extras: --barge-in talk.wav (spoken over the agent's first reply), --report-playback
+  (answer an interruption with how much audio a real-time player had played), --detach (leave
   without hanging up and print the conversation id), --resume <conversationId> (reattach).
 
 Runs a voice-agent conversation (or, with --dictate, a Grok dictation) against this computer's
@@ -39,6 +40,7 @@ struct Options {
     listen: u64,
     turn_timeout: u64,
     barge_in: Option<String>,
+    report_playback: bool,
     detach: bool,
     resume: Option<String>,
 }
@@ -58,6 +60,7 @@ fn parse(args: &[String]) -> CliResult<Options> {
         listen: 0,
         turn_timeout: 120,
         barge_in: None,
+        report_playback: false,
         detach: false,
         resume: None,
     };
@@ -88,6 +91,11 @@ fn parse(args: &[String]) -> CliResult<Options> {
             }
             "--barge-in" => options.barge_in = Some(value(index, flag)?),
             "--resume" => options.resume = Some(value(index, flag)?),
+            "--report-playback" => {
+                options.report_playback = true;
+                index += 1;
+                continue;
+            }
             "--detach" => {
                 options.detach = true;
                 index += 1;
@@ -259,6 +267,11 @@ struct TurnWatch {
     state: String,
     quiet_since: Option<Instant>,
     ended: bool,
+    /// The agent reply being received: its id, when its audio started and how many bytes came.
+    audio_item: Option<(String, Instant, usize)>,
+    /// `--report-playback`: answer `interrupted` with the `playback` frame a real client sends.
+    report_playback: bool,
+    playback_report: Option<(String, u64)>,
 }
 
 impl TurnWatch {
@@ -278,6 +291,9 @@ fn handle_frame(message: Message, start: Instant, watch: &mut TurnWatch, audio: 
         Message::Binary(bytes) => {
             audio.extend_from_slice(&bytes);
             watch.quiet_since = None;
+            if let Some((_, _, received)) = &mut watch.audio_item {
+                *received += bytes.len();
+            }
         }
         Message::Text(text) => {
             let frame: Value = serde_json::from_str(&text).unwrap_or(Value::Null);
@@ -313,7 +329,11 @@ fn handle_frame(message: Message, start: Instant, watch: &mut TurnWatch, audio: 
                         if field("role") == "agent" {
                             watch.agent_spoke = true;
                         }
-                        println!("{at}  {who}: {}", field("text"));
+                        if frame.get("cut").and_then(Value::as_bool) == Some(true) {
+                            println!("{at}  {who} (cut, as heard): {}", field("text"));
+                        } else {
+                            println!("{at}  {who}: {}", field("text"));
+                        }
                     }
                 }
                 "tool" => {
@@ -330,7 +350,30 @@ fn handle_frame(message: Message, start: Instant, watch: &mut TurnWatch, audio: 
                     }
                 }
                 "announcement" => println!("{at}  [announcement] {}", field("text")),
-                "interrupted" => println!("{at}  [interrupted] {}", field("itemId")),
+                "interrupted" => {
+                    // A real-time player has played the reply's audio since it started, up to what arrived.
+                    let played = watch
+                        .audio_item
+                        .as_ref()
+                        .filter(|(id, _, _)| *id == field("itemId"))
+                        .map(|(_, since, received)| {
+                            (since.elapsed().as_millis() as u64).min((*received / 48) as u64)
+                        });
+                    match played {
+                        Some(ms) if watch.report_playback => {
+                            println!(
+                                "{at}  [interrupted] {} (reporting {ms} ms played)",
+                                field("itemId")
+                            );
+                            watch.playback_report = Some((field("itemId"), ms));
+                        }
+                        Some(ms) => println!(
+                            "{at}  [interrupted] {} (about {ms} ms played)",
+                            field("itemId")
+                        ),
+                        None => println!("{at}  [interrupted] {}", field("itemId")),
+                    }
+                }
                 "error" => println!(
                     "{at}  [error] {}: {} (fatal: {})",
                     field("code"),
@@ -351,7 +394,8 @@ fn handle_frame(message: Message, start: Instant, watch: &mut TurnWatch, audio: 
                     field("text")
                 ),
                 "done" => println!("{at}  [dictation done] {}", field("text")),
-                "audioStart" | "audioDone" | "notice" => {}
+                "audioStart" => watch.audio_item = Some((field("itemId"), Instant::now(), 0)),
+                "audioDone" | "notice" => {}
                 other => println!("{at}  [{other}] {text}"),
             }
         }
@@ -360,9 +404,22 @@ fn handle_frame(message: Message, start: Instant, watch: &mut TurnWatch, audio: 
     }
 }
 
+fn send_playback_report(socket: &mut WebSocket<TcpStream>, watch: &mut TurnWatch) -> CliResult<()> {
+    match watch.playback_report.take() {
+        Some((item_id, played_ms)) => send_json(
+            socket,
+            json!({"type": "playback", "itemId": item_id, "playedMs": played_ms}),
+        ),
+        None => Ok(()),
+    }
+}
+
 fn converse(socket: &mut WebSocket<TcpStream>, options: &Options) -> CliResult<()> {
     let start = Instant::now();
-    let mut watch = TurnWatch::default();
+    let mut watch = TurnWatch {
+        report_playback: options.report_playback,
+        ..TurnWatch::default()
+    };
     let mut audio: Vec<u8> = Vec::new();
     let silence = vec![0u8; CHUNK_BYTES];
     // Wait for `ready`.
@@ -420,6 +477,7 @@ fn converse(socket: &mut WebSocket<TcpStream>, options: &Options) -> CliResult<(
             }
             while let Some(message) = read(socket)? {
                 handle_frame(message, start, watch, audio);
+                send_playback_report(socket, watch)?;
             }
         }
         Ok(())
@@ -444,6 +502,7 @@ fn converse(socket: &mut WebSocket<TcpStream>, options: &Options) -> CliResult<(
                     while Instant::now() < next_chunk {
                         while let Some(message) = read(socket)? {
                             handle_frame(message, start, &mut watch, &mut audio);
+                            send_playback_report(socket, &mut watch)?;
                         }
                     }
                     send_audio(socket, chunk)?;
