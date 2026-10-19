@@ -21,7 +21,9 @@
     "radius": 8,
     "glyphSize": 17,
     "fillAlpha": 0.06,
-    "glyphAlpha": 0.8
+    "glyphAlpha": 0.8,
+    "numberSize": 13,
+    "numberWeight": 600
   },
   "badge": {
     "size": 12,

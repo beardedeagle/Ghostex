@@ -745,6 +745,9 @@ pub(super) fn plain_answer(words: String, p: &ChatAppearance) -> AnyElement {
         .into_any_element()
 }
 
+/// The line height of an answered question in a receipt row.
+const RECEIPT_QUESTION_LINE: f32 = 19.0;
+
 /// One answered question in a receipt: its number, the question (muted), and under it the plain
 /// answer and whatever follows it (an option's description, a note, "Show all options").
 pub(super) fn receipt_row(
@@ -756,6 +759,7 @@ pub(super) fn receipt_row(
     p: &ChatAppearance,
 ) -> AnyElement {
     let s = p.scale;
+    let question_lead = (SINGLE_LINE_CARD.tile_size() - RECEIPT_QUESTION_LINE) / 2.0;
     div()
         .flex()
         .items_start()
@@ -766,20 +770,9 @@ pub(super) fn receipt_row(
         .when(!first, |row| {
             row.border_t_1().border_color(p.foreground.opacity(0.05))
         })
-        .child(
-            div()
-                .flex_shrink_0()
-                .size(px(22.0 * s))
-                .rounded(px(6.0 * s))
-                .bg(p.foreground.opacity(0.07))
-                .flex()
-                .items_center()
-                .justify_center()
-                .text_size(px(11.0 * s))
-                .font_weight(FontWeight::SEMIBOLD)
-                .text_color(p.muted)
-                .child(number.to_string()),
-        )
+        // The card's own tile with the number in it, so the question and answer line up under
+        // the title (`SINGLE_LINE_CARD.number_tile`).
+        .child(SINGLE_LINE_CARD.number_tile(number, p))
         .child(
             div()
                 .flex_1()
@@ -787,11 +780,13 @@ pub(super) fn receipt_row(
                 .flex()
                 .flex_col()
                 .gap(px(4.0 * s))
+                // The question's first line sits centred on the tile.
+                .pt(px(question_lead * s))
                 .when(!question.is_empty(), |column| {
                     column.child(
                         div()
                             .text_size(px(13.0 * s))
-                            .line_height(px(19.0 * s))
+                            .line_height(px(RECEIPT_QUESTION_LINE * s))
                             .text_color(p.muted)
                             .child(question),
                     )
