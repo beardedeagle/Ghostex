@@ -195,6 +195,13 @@ pub(crate) fn refresh_for_path(path: &Path) {
 pub(crate) fn detect(session: &Value) -> SessionChatTerminalDetection {
     let id = match super::session_id(session) {
         Ok(id) => id,
+        Err(_) if just_created(session) => {
+            return SessionChatTerminalDetection {
+                attempted: true,
+                captured: true,
+                ..Default::default()
+            }
+        }
         Err(e) => return unavailable(&e.message),
     };
     let snapshot = match snapshot(&id) {
@@ -273,8 +280,31 @@ pub(crate) fn detect(session: &Value) -> SessionChatTerminalDetection {
             detected_at: chrono::Utc::now().to_rfc3339(),
         }),
         prompt: super::interactive_prompt(&snapshot),
+        composer: composer(&snapshot),
         ..Default::default()
     }
+}
+
+/// CDXC:SessionChat 2026-10-20 WHY:
+/// OpenCode takes chat sends through its server API, so its input box is "ready" once the conversation answers idle with no permission or form waiting. A new chat's first message (and an orchestrator's skill line) is a startup send that waits for a Ready composer; this reading replaces the screen capture for OpenCode, and leaving it Unknown held those sends in the queue forever.
+fn composer(snapshot: &Snapshot) -> crate::session_chat_composer::SessionChatComposerReadiness {
+    use crate::session_chat_composer::{SessionChatComposerReadiness, SessionChatComposerState};
+    let mut composer = SessionChatComposerReadiness::default();
+    if !snapshot.working && snapshot.permissions.is_empty() && snapshot.forms.is_empty() {
+        composer.state = SessionChatComposerState::Ready;
+    }
+    composer
+}
+
+/// CDXC:SessionChat 2026-10-20 WHY:
+/// A new OpenCode TUI has no conversation until Ghostex's plugin creates one a few seconds after it starts (`ghostex-v2/tui.js`), so for its first minute a missing conversation is a start, not a screen someone must fix. Showing "OpenCode chat is not connected" then made an orchestrator report a fresh OpenCode thread as waiting for an answer.
+fn just_created(session: &Value) -> bool {
+    session["createdAt"]
+        .as_str()
+        .and_then(|created| chrono::DateTime::parse_from_rfc3339(created).ok())
+        .is_some_and(|created| {
+            chrono::Utc::now().signed_duration_since(created) < chrono::Duration::seconds(60)
+        })
 }
 
 fn handoff(title: &str, detail: &str) -> crate::session_chat_notice::SessionChatTerminalNotice {

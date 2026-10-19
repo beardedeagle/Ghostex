@@ -2218,7 +2218,7 @@ version of the Projects features in Cursor and Claude Code.
   phone, open the same menu from the project's agent button and pick **New
   Orchestrator…** at its top (tap its (i) for the same). Name it, pick its agent
   from the Agent dropdown (Claude, Codex, ZCode, Cursor, Grok, Copilot,
-  Antigravity, Pi or OMP, whichever you have set up), its model where the agent
+  Antigravity, Pi, OMP or OpenCode, whichever you have set up), its model where the agent
   lets Ghostex choose one (Opus 5.5 on Claude; otherwise each agent starts on its
   own default) and its effort: High or XHigh, XHigh by default (an agent without
   XHigh offers its two highest levels). Use a very good model: the orchestrator

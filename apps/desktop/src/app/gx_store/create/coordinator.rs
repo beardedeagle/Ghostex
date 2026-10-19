@@ -38,6 +38,7 @@ fn coordinator_family(agent: &Value) -> Option<&'static str> {
         "antigravity" => Some("antigravity"),
         "pi" => Some("pi"),
         "omp" => Some("omp"),
+        "opencode" => Some("opencode"),
         _ => None,
     }
 }

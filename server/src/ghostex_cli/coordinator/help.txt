@@ -49,8 +49,8 @@ WHAT AN ORCHESTRATOR IS
 CREATE
   create starts an orchestrator in your project (--project-id picks another).
   --agent takes an id from `ghostex agents types`; it must be a Claude, Codex,
-  ZCode, Cursor, Grok, Copilot, Antigravity, Pi or OMP agent, and defaults to the
-  first configured one, preferring Claude. --model picks its model (a value from
+  ZCode, Cursor, Grok, Copilot, Antigravity, Pi, OMP or OpenCode agent, and
+  defaults to the first configured one, preferring Claude. --model picks its model (a value from
   the agent's model list, such as sonnet or opus[1m]) for Claude, Codex, Pi, ZCode
   and Antigravity; a Claude orchestrator defaults to Opus 5.5 (opus[1m]), every
   other one to its configured model. --effort defaults to xhigh for Claude and
