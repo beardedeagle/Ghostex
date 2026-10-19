@@ -135,7 +135,7 @@ jobs:
       SCCACHE_GHA_VERSION: windows-${{ inputs.arch }}-1
       RUSTC_WRAPPER: sccache
       CARGO_INCREMENTAL: '0'
-      # CDXC:Release 2026-10-17 DECISION: Windows releases are signed through the SignPath Foundation OSS program (organization "Ghostex [OSS]"). The user chose test-signing as the default policy until SignPath imports the production certificate; switching is the one repository variable SIGNPATH_SIGNING_POLICY_SLUG=release-signing. Without the SIGNPATH_API_TOKEN secret (forks, before setup) the build is packaged unsigned with a notice instead of failing. Setup steps: docs/code-signing.md.
+      # CDXC:Release 2026-10-19 DECISION: "Turn signing off for now": releases ship Windows unsigned until SignPath imports the production certificate (supersedes the 2026-10-17 choice of test-signing every release, which added about 10 minutes per Windows job for a certificate Windows does not trust). The switch is the repository variable SIGNPATH_SIGNING_POLICY_SLUG: `bun run release:actions` (--windows-signing auto) signs only when it is release-signing and the SIGNPATH_API_TOKEN secret exists, so `gh variable set SIGNPATH_SIGNING_POLICY_SLUG --body release-signing` turns signing back on with the production policy, and `--windows-signing required` still test-signs a single dispatch. The SignPath steps below stay in place for a signed build; without the token the build is packaged unsigned with a notice instead of failing. Setup steps: docs/code-signing.md.
       SIGNPATH_ORGANIZATION_ID: ${{ vars.SIGNPATH_ORGANIZATION_ID || 'ba647e4a-b517-4fc1-b133-5817d7de0c68' }}
       SIGNPATH_PROJECT_SLUG: ${{ vars.SIGNPATH_PROJECT_SLUG || 'Ghostex' }}
       SIGNPATH_SIGNING_POLICY_SLUG: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG || 'test-signing' }}
@@ -236,6 +236,12 @@ jobs:
           path: build/zig-global-cache
           key: zig-windows-${{ inputs.arch }}-${{ steps.cache_keys.outputs.zig }}
           restore-keys: zig-windows-${{ inputs.arch }}-
+      # CDXC:Release 2026-10-19 WHY: downloading and expanding the pinned Zig zip took 1.0-1.4 minutes of every ARM64 job (0.5-0.7 on x64). prepare-zig.ps1 verifies the zip checksum before it extracts, skips the download when the folder exists, and checks `zig version` either way, so a restored folder is held to the same pin.
+      - name: Restore the pinned Zig toolchain
+        uses: actions/cache@v6
+        with:
+          path: ${{ runner.temp }}/zig-0.16.0-x64
+          key: zig-toolchain-windows-${{ inputs.arch }}-${{ hashFiles('tooling/release-gpui/prepare-zig.ps1') }}
       - name: Install pinned Zig
         shell: pwsh
         run: tooling/release-gpui/prepare-zig.ps1 -Arch "${{ inputs.arch }}"
@@ -301,6 +307,10 @@ jobs:
           GHOSTEX_WINDOWS_WSL_CODE_SERVER_ARCHIVE: ${{ github.workspace }}\build\runtime-artifacts\${{ inputs.arch }}\${{ steps.code_server_identity.outputs.archive_name }}
           GHOSTEX_WINDOWS_NATIVE_CODE_SERVER_ARCHIVE: ${{ inputs.runtime_artifacts_ready && format('{0}\build\runtime-artifacts\native-editor-{1}\{2}', github.workspace, inputs.arch, steps.code_server_native.outputs.archive_name) || '' }}
           GHOSTEX_WINDOWS_BUILD_SILENCE_SECONDS: '900'
+          # `--timings` only writes apps/desktop/target/cargo-timings/*.html, uploaded below.
+          GHOSTEX_CARGO_TIMINGS: '1'
+          # CDXC:Release 2026-10-19 WHY: a release run packages the published native editor component and the Linux Source archive, so nothing in this job reads the VS Code source; its clone cost about a minute of the ARM64 compile step. A standalone dispatch builds the editor from source and clones it in the editor-tools step above.
+          GHOSTEX_RELEASE_SKIP_VSCODE_SOURCE: ${{ inputs.runtime_artifacts_ready && '1' || '0' }}
         run: |
           & (Join-Path $env:GITHUB_WORKSPACE 'tooling/release-gpui/windows-build-watchdog.ps1') -Phase compile-app -Version '${{ inputs.version }}' -Arch '${{ inputs.arch }}'
       # The runtime artifacts are only read by the packaging phase (WSL
@@ -573,6 +583,16 @@ jobs:
         if: ${{ always() }}
         shell: pwsh
         run: sccache --show-stats
+      # The desktop crate's `cargo build --timings` report: which units fill the
+      # 23-26 minute ARM64 compile (the crate itself, its build script with the
+      # libghostty-vt Zig build, or dependencies), same as cargo-timings-macos-arm64.
+      - uses: actions/upload-artifact@v7
+        if: ${{ always() }}
+        with:
+          name: cargo-timings-windows-${{ inputs.arch }}
+          path: apps/desktop/target/cargo-timings/
+          if-no-files-found: ignore
+          retention-days: 14
       - uses: actions/upload-artifact@v7
         with:
           name: release-windows-${{ inputs.arch }}
@@ -648,6 +668,12 @@ jobs:
         uses: mozilla-actions/sccache-action@v0.0.11
       # tooling/prepare-windows-build.ps1 requires the pinned Zig for every
       # Windows build entry, even though this half compiles no Zig code.
+      # Same cache as jobs.build.
+      - name: Restore the pinned Zig toolchain
+        uses: actions/cache@v6
+        with:
+          path: ${{ runner.temp }}/zig-0.16.0-x64
+          key: zig-toolchain-windows-${{ inputs.arch }}-${{ hashFiles('tooling/release-gpui/prepare-zig.ps1') }}
       - name: Install pinned Zig
         shell: pwsh
         run: tooling/release-gpui/prepare-zig.ps1 -Arch "${{ inputs.arch }}"
@@ -660,6 +686,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           GH_TOKEN: ${{ github.token }}
           GHOSTEX_WINDOWS_BUILD_SILENCE_SECONDS: '900'
+          GHOSTEX_CARGO_TIMINGS: '1'
         run: |
           & (Join-Path $env:GITHUB_WORKSPACE 'tooling/release-gpui/windows-build-watchdog.ps1') -Phase compile-runtime -Version '${{ inputs.version }}' -Arch '${{ inputs.arch }}'
       - name: Record the native runtime checksums
@@ -692,3 +719,14 @@ jobs:
         if: ${{ always() }}
         shell: pwsh
         run: sccache --show-stats
+      - uses: actions/upload-artifact@v7
+        if: ${{ always() }}
+        with:
+          name: cargo-timings-windows-${{ inputs.arch }}-runtime
+          path: |
+            server/target/cargo-timings/
+            .dependencies/wmx/target/cargo-timings/
+            apps/editor/desktop/target/cargo-timings/
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 14

@@ -28,7 +28,9 @@ Without signing (no token, or `sign_windows` off) the job runs the single `packa
 
 The variables are optional; the workflow falls back to the values above when a variable is not set. The artifact configuration source is `.signpath/artifact-configuration.xml`; SignPath does not read it from the repository, so paste it again whenever it changes.
 
-When `SIGNPATH_API_TOKEN` is missing (forks, or before setup is finished) the Windows job logs a notice ("Windows build is unsigned") and packages unsigned instead of failing. `bun run release:actions` turns `sign_windows` on automatically once the secret exists (`--windows-signing auto`).
+When `SIGNPATH_API_TOKEN` is missing (forks, or before setup is finished) the Windows job logs a notice ("Windows build is unsigned") and packages unsigned instead of failing.
+
+**Signing is off until the production certificate is imported** (user decision 2026-10-19, "Turn signing off for now"). `bun run release:actions` (`--windows-signing auto`) turns `sign_windows` on only when the secret exists **and** `SIGNPATH_SIGNING_POLICY_SLUG` is `release-signing`, so with the variable unset every release ships Windows unsigned. Test-signing every release added about 10 minutes to each Windows job for a certificate Windows does not trust. `--windows-signing required` still signs one dispatch with the configured policy (test-signing by default), and `--windows-signing off` never signs.
 
 ## Manual steps left in SignPath and GitHub
 
@@ -37,7 +39,7 @@ When `SIGNPATH_API_TOKEN` is missing (forks, or before setup is finished) the Wi
 3. **Let the CI user submit.** In *Projects > Ghostex > Signing policies*, open `test-signing` and `release-signing` and add the user **CI builds** as a *Submitter* on both.
 4. **Create the API token and store it.** In *Users > CI builds*, generate an API token, then add it to GitHub: `gh secret set SIGNPATH_API_TOKEN -R maddada/Ghostex` (paste the token when prompted). Never put it in a file or commit.
 5. **Link the GitHub.com trusted build system.** In *Trusted build systems*, make sure the predefined **GitHub.com** system is added to the organization and linked to the **Ghostex** project, and that both signing policies accept it (origin verification). Then install the [SignPath GitHub App](https://github.com/apps/signpath) on `maddada/Ghostex`. It is required, not optional: without it every signing step fails before a signing request is created, with "Failed to retrieve GitHub App token. Ensure that the GitHub App 'https://github.com/apps/signpath' is installed and not suspended" (release 10.25.1, run 39019284165). The workflow already grants `actions: read`, which the connector needs to read job details and download the artifact.
-6. **Do a test-signed run.** Dispatch a release with `sign_windows` on (`bun run release:actions` does this once the secret exists). Each of the three *Sign … with SignPath* steps links to its signing request. Test-signed files carry a SignPath test certificate that Windows does not trust; the workflow only checks that a signature is present.
+6. **Do a test-signed run.** Dispatch a release with `sign_windows` on (`bun run release:actions <version> --windows-signing required`; `auto` no longer test-signs). Each of the three *Sign … with SignPath* steps links to its signing request. Test-signed files carry a SignPath test certificate that Windows does not trust; the workflow only checks that a signature is present.
 
 ## Switching to release-signing
 
@@ -47,7 +49,7 @@ Once SignPath has reviewed the setup and imported the production certificate int
 gh variable set SIGNPATH_SIGNING_POLICY_SLUG -R maddada/Ghostex --body release-signing
 ```
 
-From then on the workflow also requires every signature to be fully valid (`Get-AuthenticodeSignature` status `Valid`), so a misconfigured policy fails the release instead of shipping a broken signature. SignPath Foundation's release-signing policy may need a manual approval per request; each signing step waits up to 30 minutes (`wait-for-completion-timeout-in-seconds: 1800`), so approve the three requests of each architecture while the job runs. To go back to test signing, delete the variable or set it to `test-signing`.
+That one variable also turns signing back on: from the next `bun run release:actions`, `auto` signs every Windows build again. From then on the workflow also requires every signature to be fully valid (`Get-AuthenticodeSignature` status `Valid`), so a misconfigured policy fails the release instead of shipping a broken signature. SignPath Foundation's release-signing policy may need a manual approval per request; each signing step waits up to 30 minutes (`wait-for-completion-timeout-in-seconds: 1800`), so approve the three requests of each architecture while the job runs. Deleting the variable or setting it to `test-signing` turns `auto` signing off again; test signing is then only `--windows-signing required`.
 
 ## Things to confirm on the first signed run
 

@@ -112,12 +112,28 @@ reuse_signature() {
 	echo "Reusing signature: $1"
 }
 
+# CDXC:Release 2026-10-19 WHY: Apple's timestamp server sometimes refuses requests for a short while ("The timestamp service is not available."); in 10.22.0 (run 38358214637) that failed the macOS job after 50 minutes and the re-run cost 35 more. `codesign --force` can simply run again, so only that error is retried, three attempts in all; every other failure stops the build at once.
+codesign_retrying_timestamp() {
+	local attempt output status
+	for attempt in 1 2 3; do
+		status=0
+		output="$(codesign "$@" 2>&1)" || status=$?
+		[[ -z "$output" ]] || printf '%s\n' "$output" >&2
+		[[ "$status" != 0 ]] || return 0
+		if [[ "$attempt" == 3 || "$output" != *"The timestamp service is not available"* ]]; then
+			return "$status"
+		fi
+		echo "codesign could not reach Apple's timestamp service (attempt $attempt/3); retrying in $((attempt * 15))s" >&2
+		sleep "$((attempt * 15))"
+	done
+}
+
 sign_code() {
 	local code_path="${!#}" signature_digest
 	if reuse_signature "$code_path"; then
 		return 0
 	fi
-	codesign "$@"
+	codesign_retrying_timestamp "$@"
 	if [[ -n "$SIGNATURE_CACHE_DIR" ]]; then
 		signature_digest="$(signature_fingerprint "$code_path")"
 		[[ -n "$signature_digest" ]]
@@ -156,7 +172,7 @@ sign_plain_macho() {
 # Independent nested items were signed one after another; signing leaves in parallel took a test set of 36 Mach-O files from 2.5s to 0.9s.
 # Order stays inside-out: every parallel batch finishes before the bundle that contains it is signed.
 SIGN_JOBS="${GHOSTEX_GPUI_SIGN_JOBS:-8}"
-export -f signature_stamp_path signature_fingerprint reuse_signature sign_code requires_v8_runtime_entitlements sign_plain_macho
+export -f signature_stamp_path signature_fingerprint reuse_signature codesign_retrying_timestamp sign_code requires_v8_runtime_entitlements sign_plain_macho
 export APP_PATH CEF_ENTITLEMENTS CODE_SIGN_TIMESTAMP_FLAG CODE_SIGN_IDENTITY SIGNATURE_CACHE_DIR SIGNATURE_RECIPE
 
 # Signs every Mach-O among the NUL-separated paths on stdin, several at a time.
@@ -333,7 +349,7 @@ fi
 # CDXC:Build 2026-09-05 WHY:
 # Nested code is signed explicitly above; a recursive outer signing pass signed it a second time and added several seconds per start.
 # Keep deep verification below to validate the complete bundle.
-codesign \
+codesign_retrying_timestamp \
 	--force \
 	--options runtime \
 	--entitlements "$CEF_ENTITLEMENTS" \

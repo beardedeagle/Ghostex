@@ -3,6 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/common.sh"
+source "$SCRIPT_DIR/retry.sh"
 REPO_ROOT="$(release_gpui_repo_root)"
 COMMAND="${1:-}"
 VERSION="${2:-}"
@@ -100,8 +101,9 @@ poll)
 		echo "Apple notarization is still in progress; retry only the poll/staple stage" >&2
 		exit 1
 	}
-	xcrun stapler staple "$DMG"
-	xcrun stapler validate "$DMG"
+	# CDXC:Release 2026-10-19 WHY: stapling fetches the ticket from Apple's CloudKit, and a dropped connection there ("The network connection was lost.", Error 68) failed 10.27.0's macOS job (run 39185640979) after notarization had already been accepted. The classified retry repeats only network errors (failure-classification.mjs, rule apple-network).
+	release_gpui_retry 3 15 -- xcrun stapler staple "$DMG"
+	release_gpui_retry 3 15 -- xcrun stapler validate "$DMG"
 	;;
 *)
 	echo "Usage: macos-notary.sh submit <version> <dmg> <submission-json> | poll <version> <dmg> <submission-id>" >&2

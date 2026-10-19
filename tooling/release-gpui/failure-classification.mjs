@@ -75,6 +75,17 @@ export const RETRYABLE_RULES = Object.freeze([
    * 30-minute macOS build to this and the retry produced the DMG.
    */
   { id: 'hdiutil-busy', pattern: /hdiutil:.*(?:Resource busy|Device busy|error -?5341)/i },
+  /*
+   * CDXC:Release 2026-10-19 WHY:
+   * `xcrun stapler` fetches the notarization ticket from Apple's CloudKit and
+   * reports a dropped or timed-out connection as an NSURLErrorDomain error
+   * (then "Error 68"). 10.27.0 lost its macOS job to one after notarization
+   * was already accepted (run 39185640979).
+   */
+  {
+    id: 'apple-network',
+    pattern: /NSURLErrorDomain Code=-10(?:01|04|05|09)\b|The network connection was lost\./,
+  },
 ]);
 
 /*

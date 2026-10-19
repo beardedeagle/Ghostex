@@ -208,7 +208,8 @@ prepare_ghosttykit() {
 # in apps/desktop/scripts/prepare-macos-runtime.sh: same cargo resolution
 # (GXSERVER_RUST_CARGO, then CARGO, then PATH), same manifest, same target for
 # GHOSTEX_MACOS_ARCH=arm64, same GHOSTEX_GPUI_MARKETING_VERSION (the only env
-# server/build.rs reads), and the caller's cwd, which is what that script uses.
+# server/build.rs reads), and the same cwd, the server crate.
+# CDXC:Release 2026-10-19 WHY: this pre-warm ran from the repo root while that script has built from inside server/ since 2026-09-02, so it missed server/rust-toolchain.toml and server/.cargo/config.toml: it compiled with the runner's default Rust, and stage-runtime then installed the pinned 1.95.0 and recompiled all 272 units (4.8-7.7 minutes lost in every release, for example 10.26.0 run 39117676218).
 phase_build_server() {
 	if [[ "$USE_PREPARED_RUNTIME" == "1" ]]; then
 		echo "Prepared macOS runtime is in use; nothing to pre-build for gxserver."
@@ -220,8 +221,11 @@ phase_build_server() {
 	if [[ -z "$cargo_bin" ]]; then
 		cargo_bin="$(command -v cargo)"
 	fi
-	GHOSTEX_GPUI_MARKETING_VERSION="$VERSION" \
-		"$cargo_bin" build --release --bins --manifest-path "$gxserver_root/Cargo.toml" --target aarch64-apple-darwin ${CARGO_TIMINGS_ARGS[@]+"${CARGO_TIMINGS_ARGS[@]}"}
+	(
+		cd "$gxserver_root"
+		GHOSTEX_GPUI_MARKETING_VERSION="$VERSION" \
+			"$cargo_bin" build --release --bins --manifest-path "$gxserver_root/Cargo.toml" --target aarch64-apple-darwin ${CARGO_TIMINGS_ARGS[@]+"${CARGO_TIMINGS_ARGS[@]}"}
+	)
 }
 
 phase_stage_runtime() {
@@ -265,10 +269,12 @@ phase_stage_runtime() {
 }
 
 # Opt-in pre-warm of the desktop crate. Mirrors the cargo step inside
-# apps/desktop/scripts/build-macos-app.sh: cwd apps/desktop, CEF_PATH exported
-# to the crate-local cef-cache, and the same environment block phase_assemble
-# hands that script (keep the two lists identical) so every rerun-if-env-changed
-# input matches and the later build is a no-op.
+# apps/desktop/scripts/build-macos-rust.sh (run by build-macos-app.sh): cwd
+# apps/desktop, CEF_PATH exported to the crate-local cef-cache, the same two
+# binaries, and the same environment block phase_assemble hands that script
+# (keep the two lists identical) so every rerun-if-env-changed input matches
+# and the later build is a no-op.
+# CDXC:Release 2026-10-19 WHY: the pre-warm built `--bins`, which also compiled and linked the smoke and demo binaries and the Windows installer that the bundle never ships (build-macos-rust.sh dropped them on 2026-09-04).
 phase_build_desktop() {
 	if [[ "$USE_PREBUILT_RUST" == "1" ]]; then
 		echo "Prebuilt GPUI Rust binaries are in use; nothing to pre-build for ghostex-gpui."
@@ -291,7 +297,7 @@ phase_build_desktop() {
 			GHOSTEX_ON_DEMAND_ASSETS=1 \
 			GHOSTEX_GPUI_SIGN_IDENTITY="$SIGNING_IDENTITY" \
 			GHOSTEX_GPUI_SIGN_TIMESTAMP_FLAG=--timestamp \
-			cargo build --release --bins ${CARGO_TIMINGS_ARGS[@]+"${CARGO_TIMINGS_ARGS[@]}"}
+			cargo build --release --bin ghostex-gpui --bin ghostex-gpui-cef-helper ${CARGO_TIMINGS_ARGS[@]+"${CARGO_TIMINGS_ARGS[@]}"}
 	)
 }
 

@@ -222,9 +222,14 @@ everything in step 2, verifies the GPUI reference contract and the Ghostty Zig
 pin, runs `bun run release:test` (about 11 seconds), checks the repository
 secrets, and previews the change-aware plan (build, reuse or skip per product).
 A normal release (10.9.1) uses **no flags**: every platform is in scope,
-Sparkle is on, and Windows signing is `auto`: on when the
-`SIGNPATH_API_TOKEN` secret exists (SignPath, `docs/code-signing.md`), otherwise
-Windows ships unsigned.
+Sparkle is on, and Windows signing is `auto`: **off until SignPath imports the
+production certificate** (user decision 2026-10-19, "Turn signing off for now").
+`auto` signs only when the `SIGNPATH_API_TOKEN` secret exists and the repository
+variable `SIGNPATH_SIGNING_POLICY_SLUG` is `release-signing`; with the variable
+unset, the dispatch prints `Windows signing: disabled` and Windows ships
+unsigned. `gh variable set SIGNPATH_SIGNING_POLICY_SLUG -R maddada/Ghostex --body release-signing`
+turns it back on for every later release; `--windows-signing required`
+test-signs one dispatch, only on the user's instruction (`docs/code-signing.md`).
 
 Scope flags, only on the user's instruction: `--skip-macos --skip-sparkle`,
 `--skip-linux` (both architectures), `--skip-linux-x64`, `--skip-linux-arm64`,
@@ -269,6 +274,25 @@ the release after 10.14.0; watch that one closely):
 - macOS compiles gxserver before it waits for the Linux runtime artifacts, so
   "Await the runtime artifacts of this run" now comes after
   "Cargo build gxserver" and is usually short.
+- Since 2026-10-19 (first shipped with the release after 10.27.0; watch that
+  one closely): macOS "Cargo build gxserver" uses the pinned Rust, so
+  "Stage macOS runtime" should be about 5-8 minutes shorter (no second gxserver compile), and
+  "Cargo build ghostex-gpui" builds only the two shipped binaries. Each Windows
+  job restores the pinned Zig from the Actions cache ("Restore the pinned Zig
+  toolchain"; the first run after a change to `prepare-zig.ps1` misses and
+  downloads it) and skips the VS Code source clone in its compile step. With
+  signing off, the build job runs the single "Stage and package the unsigned
+  installer" step and every SignPath step is skipped. A `--reuse-from-run` of
+  a run that was still signed rebuilds both Windows platforms, because the
+  signing mode is part of their fingerprint.
+- `cargo --timings` reports: `cargo-timings-macos-arm64`,
+  `cargo-timings-windows-<arch>` (desktop crate) and
+  `cargo-timings-windows-<arch>-runtime` (gxserver, wmx, prompt editor). Open
+  `cargo-timing.html` to see which units fill a slow compile.
+- macOS retries two Apple network flakes on its own: codesign's "The timestamp
+  service is not available" (3 attempts) and a stapler NSURLErrorDomain or
+  "The network connection was lost" error (classified retry, 3 attempts). Any
+  other codesign or stapler failure still fails the job at once.
 
 Exit codes: `0` finished, `1` a job failed, `2` `--max-minutes` elapsed, `3` `gh` failed five polls in a row. With
 `--exit-on-change`, a stdout line `run <id> completed:` means the run is over,

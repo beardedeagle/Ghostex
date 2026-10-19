@@ -52,7 +52,9 @@ Product flags for amend (all are disabled by default; opt-in):
 Release options:
   --skip-sparkle
   --prerelease
-  --windows-signing <auto|required|off>  Default: auto
+  --windows-signing <auto|required|off>  Default: auto (signs only when the SIGNPATH_SIGNING_POLICY_SLUG
+                                         repository variable is release-signing; required signs with the
+                                         configured policy, test-signing by default)
   --source-run-id <id>                   Required by publish
   --stage <name>                         publish only: one stage of a staged release
                                          (macos, android, linux, linux-arm64, windows-x64, windows-arm64)
@@ -445,6 +447,19 @@ function requireSecrets(secrets, label, names) {
   if (missing.length > 0) throw new Error(`${label} requires repository secrets: ${missing.join(', ')}`);
 }
 
+/* The SignPath policy the Windows jobs sign with: the repository variable, else test-signing (release-gpui-windows.yml). */
+function windowsSigningPolicy() {
+  const json = run('gh', ['variable', 'list', '--repo', repo, '--json', 'name,value']);
+  const variable = (json ? JSON.parse(json) : []).find(({ name }) => name === 'SIGNPATH_SIGNING_POLICY_SLUG');
+  return variable?.value || 'test-signing';
+}
+
+/*
+ * SEE-ALSO: CDXC:Release 2026-10-19 DECISION in .github/workflows/release-gpui-windows.yml.
+ * `auto` signs only with the production policy, so Windows ships unsigned until
+ * SIGNPATH_SIGNING_POLICY_SLUG is release-signing; `required` signs with whatever
+ * policy is configured, test-signing included.
+ */
 function resolveWindowsSigning(options, secrets) {
   if (!options.windowsX64 && !options.windowsArm64) return false;
   const names = ['SIGNPATH_API_TOKEN'];
@@ -453,7 +468,17 @@ function resolveWindowsSigning(options, secrets) {
     requireSecrets(secrets, 'Windows signing', names);
   }
   if (options.windowsSigning === 'off') return false;
-  return available;
+  if (options.windowsSigning === 'required') return true;
+  if (!available) return false;
+  const policy = windowsSigningPolicy();
+  if (policy !== 'release-signing') {
+    console.log(
+      `Windows signing stays off: SignPath policy is ${policy}, and auto signs only with release-signing ` +
+        '(gh variable set SIGNPATH_SIGNING_POLICY_SLUG --body release-signing; --windows-signing required test-signs one dispatch).'
+    );
+    return false;
+  }
+  return true;
 }
 
 function validateRequiredSecrets(options, secrets) {
