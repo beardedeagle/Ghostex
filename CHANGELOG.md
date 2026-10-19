@@ -20,12 +20,14 @@
 - **An Extensions group at the bottom of Settings:** Store (the page that was called Extensions), Workspaces, Cloud Boxes, Connectors, Actions, Open In, OS Integration and Debugging sit in one collapsible group that remembers whether it is open, and a search opens it.
 - **Connectors, OS Integration and Debugging can be turned off in the Store** like the other built-in extensions; turning Connectors off also turns off `ghostex connectors`.
 - **Popups inside Settings close with the same round X as Settings itself,** shown when the pointer is near their top.
+- **Sections in the Settings sidebar fold with the same animation as projects in the sidebar.**
 
 ### 🌐 Remote computers
 - **One notification bell for every connected computer,** with All, This computer and Remote tabs: a remote notification names its computer, and clicking it switches the sidebar to that computer.
 - **Switching computers reopens the session you were last on there,** the way switching Spaces does.
 
 ### 🩹 Fixes and polish
+- **The Subagents pill no longer counts stopped or interrupted subagents as running:** subagents stopped with TaskStop or Stop all, or finished in an unusual way, leave the count, so their timers no longer grow for hours (#259).
 - **A codex typed in a plain zsh or fish terminal stays off Codex's shared server** even when mise or another tool reorders your PATH.
 - **Bordered tab switches keep their rounded corners** when the first or last tab is selected.
 
