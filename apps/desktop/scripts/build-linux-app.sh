@@ -6,8 +6,8 @@
 # CDXC:PlatformSupport 2026-07-05: device-verified on Ubuntu 26.04 —
 # builds, stages, and the staged app launches with working CEF sidebar and
 # local gxserver. Deliberately not yet covered here (macOS-script parity
-# items to port as Linux support matures): completion sound assets, CLI
-# resources, portless admin runtime, updater integration, signing,
+# items to port as Linux support matures): CLI resources, portless admin
+# runtime, updater integration, signing,
 # desktop-entry/icon install, and package formats (deb/rpm/AppImage/flatpak).
 # Source is an on-demand code-server component in relocatable packages. Dev
 # builds resolve a built repository checkout through the baked
@@ -29,6 +29,8 @@
 #                                         /dist/sidebar/ path segment is
 #                                         load-bearing for the CEF helper's
 #                                         first-party URL check.
+#     resources/sounds/                <- completion and copy sounds
+#                                         (gpui_completion_sound_path)
 #
 # Runtime notes:
 # - The app forces X11 app-wide (XWayland on Wayland desktops) and appends
@@ -198,6 +200,11 @@ else
 fi
 mkdir -p "$APP_DIR/dist"
 cp -R "$GPUI_DIR/dist/sidebar" "$APP_DIR/dist/sidebar"
+# Completion and copy sounds, played from resources/sounds beside the
+# executable. Keep in step with build-windows-app.ps1, build-windows-app-wsl.sh
+# and the macOS asset list in build-macos-app.sh.
+mkdir -p "$APP_DIR/resources/sounds"
+cp "$REPO_ROOT"/media/sounds/*.mp3 "$APP_DIR/resources/sounds/"
 
 # 5) Bundle the local gxserver package (bin/gxserver + zmx + node runtime),
 # produced by server/package-remote-linux.mjs. The GPUI app resolves it

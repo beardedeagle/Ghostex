@@ -125,6 +125,10 @@ gpui-component = { path = "../../.dependencies/gpui-component/crates/component",
 # positions/maps/focuses CEF child X11 windows through x11rb, pinned to the same
 # major as gpui's own X11 backend dependency so both speak the protocol from one
 # crate lineage; x11rb needs no libX11/libxcb at link time.
+# CDXC:Notifications 2026-10-20 WHY: completion and copy sounds play in-process on Linux and Windows (app/helpers/os_cli/native_event_queue.rs; macOS uses afplay). rodio 0.20 sits on the cpal 0.15 that GPUI Kit's `speech` feature already builds on Windows; on Linux it needs the ALSA headers (libasound2-dev), which the release and remote-build Linux jobs already install, and libasound2/alsa-lib, which every Linux package already declares. Only the MP3 decoder is enabled.
+[target.'cfg(any(target_os = "linux", target_os = "windows"))'.dependencies]
+rodio = { version = "0.20", default-features = false, features = ["symphonia-mp3"] }
+
 [target.'cfg(target_os = "linux")'.dependencies]
 x11rb = { version = "0.13", features = ["xinput"] }
 oo7 = { version = "0.6", default-features = false, features = ["async-std", "native_crypto"] }

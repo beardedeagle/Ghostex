@@ -260,6 +260,8 @@ function linuxDesktopProduct(format, arch = 'x64') {
     kind: 'product',
     pathspecs: [
       ...DESKTOP_APP_PATHSPECS,
+      /* Linux and Windows stage the completion and copy sounds in resources/sounds. */
+      { pathspec: 'media/sounds/**' },
       { pathspec: 'tooling/release-gpui/linux-stage.sh' },
       { pathspec: `tooling/release-gpui/linux-${format}.sh` },
       { pathspec: '.github/workflows/release-gpui-linux.yml' },
@@ -287,6 +289,7 @@ function windowsProduct(arch) {
     optionalArtifacts: (version) => windowsOptionalArtifacts(version, arch),
     pathspecs: [
       ...DESKTOP_APP_PATHSPECS,
+      { pathspec: 'media/sounds/**' },
       { pathspec: 'tooling/release-gpui/windows.ps1' },
       { pathspec: 'tooling/release-gpui/windows-build-watchdog.ps1' },
       { pathspec: 'tooling/release-gpui/vpk-signpath-hook.ps1' },
@@ -471,9 +474,10 @@ const PRODUCT_LIST = [
     pathspecs: [
       ...DESKTOP_APP_PATHSPECS,
       /*
-       * macOS is the only builder that stages bundled sounds, and the only one
-       * that copies the CLI skills straight into the app bundle (the Linux
-       * packages get them through the gxserver package).
+       * The bundled sounds come from media/ (Linux and Windows list only
+       * media/sounds/**). macOS is the only builder that copies the CLI skills
+       * straight into the app bundle (the Linux packages get them through the
+       * gxserver package).
        */
       { pathspec: 'media/**' },
       { pathspec: 'skills/**' },

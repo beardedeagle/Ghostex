@@ -274,6 +274,11 @@ if (-not $OnDemandComponents) {
 }
 New-Item -ItemType Directory -Force -Path (Join-Path $AppDir "dist") | Out-Null
 Copy-Item -Recurse (Join-Path $GpuiDir "dist/sidebar") (Join-Path $AppDir "dist/sidebar")
+# Completion and copy sounds, played from resources/sounds beside the executable.
+# Keep in step with build-windows-app-wsl.sh, build-linux-app.sh and the macOS asset list in build-macos-app.sh.
+$SoundResources = Join-Path $AppDir "resources/sounds"
+New-Item -ItemType Directory -Force -Path $SoundResources | Out-Null
+Copy-Item (Join-Path $RepoRoot "media/sounds/*.mp3") $SoundResources
 
 $ComponentRoot = Join-Path $RepoRoot "build/on-demand-components"
 $ComponentAssetDir = Join-Path $ComponentRoot "assets"

@@ -60,6 +60,12 @@ APP_DIR="$REPO_ROOT/apps/desktop/build/linux/Ghostex"
 	echo "Linux build is missing the bundled agent skills in its gxserver package (rebuild it with server/package-remote-linux.mjs)" >&2
 	exit 1
 }
+for sound in arcade.mp3 copy.mp3; do
+	[[ -f "$APP_DIR/resources/sounds/$sound" ]] || {
+		echo "Linux build is missing the bundled sound resources/sounds/$sound" >&2
+		exit 1
+	}
+done
 ON_DEMAND_MANIFEST="$APP_DIR/resources/on-demand-resources.json"
 CEF_COMPONENT_VERSION="$(node -e '
 const fs = require("node:fs");

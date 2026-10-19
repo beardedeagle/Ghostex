@@ -148,7 +148,32 @@ pub(crate) fn gpui_spawn_completion_sound_player(path: &Path) -> Result<(), Stri
         .map_err(|_| "Could not start the sound preview player.".to_string())
 }
 
-#[cfg(not(target_os = "macos"))]
+/// CDXC:Notifications 2026-10-20 WHY:
+/// Linux and Windows have no system player that is sure to decode the bundled MP3s (paplay/pw-play need an MP3-enabled libsndfile, Windows has no afplay), so the sound is decoded and played in-process through rodio on the cpal/ALSA (Linux) or WASAPI (Windows) output the packages already depend on.
+/// The file is decoded before returning so a broken asset still reports a failure to Settings; the output stream lives on its own thread until the sound ends.
+#[cfg(any(target_os = "linux", target_os = "windows"))]
+pub(crate) fn gpui_spawn_completion_sound_player(path: &Path) -> Result<(), String> {
+    let file = std::fs::File::open(path)
+        .map_err(|_| "Could not open the bundled completion sound asset.".to_string())?;
+    let source = rodio::Decoder::new(std::io::BufReader::new(file))
+        .map_err(|_| "Could not decode the bundled completion sound asset.".to_string())?;
+    std::thread::Builder::new()
+        .name("ghostex-sound".to_string())
+        .spawn(move || {
+            let Ok((_stream, handle)) = rodio::OutputStream::try_default() else {
+                return;
+            };
+            let Ok(sink) = rodio::Sink::try_new(&handle) else {
+                return;
+            };
+            sink.append(source);
+            sink.sleep_until_end();
+        })
+        .map(|_| ())
+        .map_err(|_| "Could not start the sound preview player.".to_string())
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
 pub(crate) fn gpui_spawn_completion_sound_player(_path: &Path) -> Result<(), String> {
     Err("GPUI sound preview is not available on this platform yet.".to_string())
 }
@@ -244,6 +269,14 @@ pub(crate) fn gpui_completion_sound_path(file_name: &str) -> Option<PathBuf> {
                 if gpui_is_file(&candidate) {
                     return Some(candidate);
                 }
+            }
+        }
+        // The Linux and Windows apps are flat folders (build-linux-app.sh, build-windows-app.ps1, build-windows-app-wsl.sh) that stage the sounds in resources/sounds beside the executable.
+        #[cfg(any(target_os = "linux", target_os = "windows"))]
+        if let Some(exe_dir) = executable.parent() {
+            let candidate = exe_dir.join("resources/sounds").join(file_name);
+            if gpui_is_file(&candidate) {
+                return Some(candidate);
             }
         }
     }
