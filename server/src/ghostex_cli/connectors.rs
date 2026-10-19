@@ -18,14 +18,17 @@ pub(super) fn connectors_enabled() -> bool {
     crate::connectors::connectors_enabled_in(Some(&Value::Object(settings)))
 }
 
+fn connectors_off_message() -> String {
+    let settings = super::settings::read_settings_file().unwrap_or_default();
+    crate::connectors::connectors_off_message_in(Some(&Value::Object(settings)))
+}
+
 /// `Ok` while Connectors is on; otherwise how to turn it on.
 pub(super) fn require_connectors() -> CliResult<()> {
     if connectors_enabled() {
         return Ok(());
     }
-    Err(CliError::Other(
-        crate::connectors::CONNECTORS_OFF_MESSAGE.to_string(),
-    ))
+    Err(CliError::Other(connectors_off_message()))
 }
 
 /// `ghostex connectors [status] | sign-in [--no-open] | sign-out | refresh | connect <app>

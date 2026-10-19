@@ -9984,6 +9984,39 @@
       "agentWritable": false
     },
     {
+      "key": "connectors",
+      "title": "Connectors",
+      "subtitle": "Connect Gmail, Slack, Linear and more apps to a workspace so its agents can use them, from the Connectors page and the ghostex connectors commands.",
+      "tab": "extensions",
+      "tabTitle": "Store",
+      "section": "official",
+      "sectionTitle": "Built-in",
+      "type": "ui",
+      "agentWritable": false
+    },
+    {
+      "key": "osIntegration",
+      "title": "OS Integration",
+      "subtitle": "Make Ghostex your default editor, terminal-link handler and script runner, and check how this computer opens its files and links.",
+      "tab": "extensions",
+      "tabTitle": "Store",
+      "section": "official",
+      "sectionTitle": "Built-in",
+      "type": "ui",
+      "agentWritable": false
+    },
+    {
+      "key": "debugging",
+      "title": "Debugging",
+      "subtitle": "The Debugging page in Settings: debug UI controls and the diagnostic logs you turn on while reproducing an issue.",
+      "tab": "extensions",
+      "tabTitle": "Store",
+      "section": "official",
+      "sectionTitle": "Built-in",
+      "type": "ui",
+      "agentWritable": false
+    },
+    {
       "key": "extensionsButton",
       "title": "Extensions",
       "subtitle": "An entry in the work area header’s ⋯ menu that lists your installed extensions.",
@@ -10088,6 +10121,42 @@
       "sectionTitle": "Built-in",
       "type": "boolean",
       "default": true,
+      "agentWritable": true
+    },
+    {
+      "key": "connectorsHidden",
+      "title": "Turn off Connectors",
+      "subtitle": "Turn off Connectors everywhere: the Connectors page in Settings, the apps your agents get and the ghostex connectors commands. On by default, and shown only while Enable Experimental Features is on; your sign-ins and connected apps are kept.",
+      "tab": "extensions",
+      "tabTitle": "Store",
+      "section": "official",
+      "sectionTitle": "Built-in",
+      "type": "boolean",
+      "default": false,
+      "agentWritable": true
+    },
+    {
+      "key": "osIntegrationHidden",
+      "title": "Turn off OS Integration",
+      "subtitle": "Leave the OS Integration page out of Settings. On by default, and shown only while Enable Experimental Features is on.",
+      "tab": "extensions",
+      "tabTitle": "Store",
+      "section": "official",
+      "sectionTitle": "Built-in",
+      "type": "boolean",
+      "default": false,
+      "agentWritable": true
+    },
+    {
+      "key": "debuggingHidden",
+      "title": "Turn off Debugging",
+      "subtitle": "Leave the Debugging page out of Settings. On by default, and shown only while Show Advanced is on (a search still finds it).",
+      "tab": "extensions",
+      "tabTitle": "Store",
+      "section": "official",
+      "sectionTitle": "Built-in",
+      "type": "boolean",
+      "default": false,
       "agentWritable": true
     },
     {

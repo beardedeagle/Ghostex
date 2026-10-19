@@ -31,6 +31,13 @@ pub const CLOUD_BOXES: &str = "cloudBoxes";
 /// Link to, Create Linear ticket, the Work view, the team's Slack flow, the `ghostex workspace`,
 /// `work-mode`, `link-session`, `team` and `slack` verbs).
 pub const WORKSPACES: &str = "workspaces";
+/// Connectors (Settings > Connectors, the `ghostex connectors` verbs and routes). Gated by Enable
+/// Experimental Features as well as its switch.
+pub const CONNECTORS: &str = "connectors";
+/// OS Integration (Settings > OS Integration). Gated by Enable Experimental Features.
+pub const OS_INTEGRATION: &str = "osIntegration";
+/// Debugging (Settings > Debugging). Gated by Show Advanced.
+pub const DEBUGGING: &str = "debugging";
 
 fn entry(id: &str) -> Option<&'static J> {
     GHOSTEX_OFFICIAL_EXTENSIONS
@@ -124,6 +131,21 @@ pub fn enabled_with(id: &str, read: impl Fn(&str) -> Option<bool>) -> bool {
     };
     let value = read(key).unwrap_or_else(|| crate::default_value(key) == Some(&J::Bool(true)));
     value == enables
+}
+
+/// The setting that must also be on before built-in extension `id` shows at all (`gatedBy`:
+/// Enable Experimental Features for Connectors and OS Integration, Show Advanced for Debugging).
+/// Its switch sits on top of that gate; while the gate is closed its Store card is left out.
+pub fn gate_key(id: &str) -> Option<&'static str> {
+    entry(id)?.get("gatedBy").and_then(J::as_str)
+}
+
+/// Whether the gate of built-in extension `id` is open (none counts as open), reading saved values
+/// through `read` and falling back to the catalog default.
+pub fn gate_open_with(id: &str, read: impl Fn(&str) -> Option<bool>) -> bool {
+    gate_key(id).is_none_or(|key| {
+        read(key).unwrap_or_else(|| crate::default_value(key) == Some(&J::Bool(true)))
+    })
 }
 
 /// [`enabled_with`] over a settings object (the settings file or the desktop's snapshot).

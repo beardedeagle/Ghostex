@@ -277,6 +277,16 @@ impl ExtensionsTab {
             .find(|extension| extension.id == key)
             .and_then(|extension| extension.requires_agent_cli.clone());
         required.is_none_or(|cli| self.installed_clis.contains(&cli))
+            && self.official_gate_open(key, cx)
+    }
+
+    /// The setting gating the entry (`gatedBy`: Enable Experimental Features, Show Advanced) is on;
+    /// while it is off the entry is not offered at all (CDXC:Extensions 2026-10-19).
+    pub(crate) fn official_gate_open(&self, key: &str, cx: &App) -> bool {
+        let store = self.store.read(cx);
+        ghostex_settings_catalog::built_in_extensions::gate_open_with(key, |setting| {
+            Some(store.bool(setting))
+        })
     }
 
     /// The entry's agent CLI (if it needs one) was found; the Settings search is not asked.

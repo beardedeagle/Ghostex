@@ -174,12 +174,17 @@ pub(crate) fn rail_pages(store: &SettingsStore) -> Vec<RailPage> {
     let show_advanced = store.show_advanced();
     SettingsTabId::RAIL_ORDER
         .into_iter()
-        .filter(|tab| match tab {
-            SettingsTabId::OsIntegration => store.os_integration_visible(),
-            SettingsTabId::Connectors => store.connectors_visible(),
-            // CDXC:Settings 2026-09-26 DECISION: Debugging leaves the rail while Show Advanced is off; a search still finds it.
-            SettingsTabId::Debugging => show_advanced || searching,
-            _ => store.built_in_extension_allows_page(*tab),
+        // OS Integration, Connectors and Debugging keep their own gate under their built-in
+        // extension switch (CDXC:Extensions 2026-10-19 in official_extensions.rs).
+        .filter(|tab| {
+            store.built_in_extension_allows_page(*tab)
+                && match tab {
+                    SettingsTabId::OsIntegration => store.os_integration_visible(),
+                    SettingsTabId::Connectors => store.connectors_visible(),
+                    // CDXC:Settings 2026-09-26 DECISION: Debugging leaves the rail while Show Advanced is off; a search still finds it.
+                    SettingsTabId::Debugging => show_advanced || searching,
+                    _ => true,
+                }
         })
         .filter_map(|tab| {
             let sections = match tab {

@@ -123,6 +123,10 @@ pub const DEFAULT_GHOSTEX_SETTINGS: &[(&str, J)] = &[
     ("cloudBoxesHidden", J::Bool(true)),
     // CDXC:Workspaces 2026-10-09 DECISION: Workspaces is off by default (official_extensions.rs).
     ("workspacesHidden", J::Bool(true)),
+    // CDXC:Extensions 2026-10-19 DECISION: Connectors, OS Integration and Debugging are on by default; their old gates still apply (official_extensions.rs).
+    ("connectorsHidden", J::Bool(false)),
+    ("osIntegrationHidden", J::Bool(false)),
+    ("debuggingHidden", J::Bool(false)),
     ("openInTitlebarButtonHidden", J::Bool(false)),
     // CDXC:CodeEditor 2026-05-06-15:00
     // Embedded code-server editor panes can reuse the user's local VS Code

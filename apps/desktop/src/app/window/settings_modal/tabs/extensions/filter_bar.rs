@@ -77,7 +77,10 @@ impl ExtensionsTab {
             // User: the count must be honest. Entries that need an agent CLI this computer does not have (Bots and Bot automations need the Hermes CLI) are not offered, so they are left out of the total as well as the list, and "N of M shown" no longer reads 37 of 39 with every filter on All.
             let offered = official_extensions()
                 .iter()
-                .filter(|extension| self.official_cli_found(&extension.id))
+                .filter(|extension| {
+                    self.official_cli_found(&extension.id)
+                        && self.official_gate_open(&extension.id, cx)
+                })
                 .count();
             (matching + cef, offered + 1)
         } else {

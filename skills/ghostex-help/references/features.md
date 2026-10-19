@@ -3013,7 +3013,11 @@ backend: `ghostex team deploy|join|invite|identity|status|ping|leave`. Slack:
 - Settings keeps its add-on pages in a collapsible **Extensions** group at the
   bottom of the left rail, above About: Store first, then Workspaces, Cloud
   Boxes, Connectors, Actions, Open In, OS Integration and Debugging, each only
-  while it is shown. The group starts collapsed and remembers whether you left
+  while it is shown. Connectors, OS Integration and Debugging are built-in
+  extensions, on by default, with switches in the Store's Features; their
+  pages and cards still need Enable Experimental Features (Connectors, OS
+  Integration) or Show Advanced (Debugging) as before (`connectorsHidden`,
+  `osIntegrationHidden`, `debuggingHidden`). The group starts collapsed and remembers whether you left
   it open; a search opens it and lists only its pages that match, and opening
   one of its pages from elsewhere (a link, a menu, a turned-off message) opens
   it too. While it is collapsed over the page you are on, its header is
@@ -3191,8 +3195,12 @@ backend: `ghostex team deploy|join|invite|identity|status|ping|leave`. Slack:
   Notion, GitHub, Linear, Outlook and many more) through Composio. Connectors
   is experimental: turn on Settings > General > Advanced > Experimental >
   Enable Experimental Features (or run `ghostex settings set showBetaFeatures
-  true`) to use it. If `ghostex connectors` is still not in `ghostex --help`
-  after that, this version of Ghostex does not have Connectors yet. Sign the
+  true`) to use it. It is also a built-in extension, on by default: switching
+  Connectors off in Settings > Extensions > Store (or `ghostex settings set
+  connectorsHidden true`) removes its page and its apps from agents, and
+  `ghostex connectors` refuses until you turn it back on; your sign-ins and
+  connected apps are kept. If `ghostex connectors` is still not in `ghostex
+  --help` with both on, this version of Ghostex does not have Connectors yet. Sign the
   workspace in to Composio once with `ghostex connectors sign-in` (it opens
   your browser), then connect each app with `ghostex connectors connect
   <app>`, for example `gmail`. For Discord, connect `discordbot`, not
@@ -3212,7 +3220,7 @@ backend: `ghostex team deploy|join|invite|identity|status|ping|leave`. Slack:
   `ghostex connectors sign-out` removes a workspace's sign-in. Every command
   takes `--workspace <name>`, and `ghostex connectors help` lists them all,
   so an agent can set connectors up for you. Settings › Connectors (shown while Enable
-  Experimental Features is on) does the same with buttons, one section per
+  Experimental Features and the Connectors extension are on) does the same with buttons, one section per
   workspace: the Composio sign-in and apps, Executor and its apps, the
   Ask/Allow/Never rules and the `gh` and `gws` sign-ins.
 - Agents use connectors on their own: every Claude and Codex session that
@@ -3398,8 +3406,9 @@ Advanced holds Enable Experimental Features and Faster rendering (off by default
 redraws only the parts of a window that changed so Ghostex uses less CPU while agents stream
 and you scroll; it applies at once, and turning it off brings back the usual drawing if part
 of a window ever stops updating (`fasterRendering`). The separate Debugging page sits
-above About and appears in the Settings sidebar only while Show Advanced is on
-(a Settings search still finds it). It starts with Show debug UI controls.
+in the Settings sidebar's Extensions group and appears only while Show Advanced is on
+(a Settings search still finds it) and its Debugging extension is on (it is by default;
+switch it off in Settings > Extensions > Store, or `debuggingHidden`, to drop the page). It starts with Show debug UI controls.
 Enable that switch to see Diagnostic logs. Diagnostic logs has one switch per area (terminals,
 sidebar, chat, modals, board, remote machines, agent activity, prompt editor,
 app lifecycle, server requests) and one Turn logs off after choice (15 min,

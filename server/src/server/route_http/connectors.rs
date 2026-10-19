@@ -8,12 +8,12 @@ use serde_json::{Map, Value};
 use crate::connectors::{
     add_executor_app, add_executor_mcp_server, broadcast_connectors_changed, call_composio_tool,
     call_connector_agent_tool, call_executor_tool, cancel_connector_agent_tool_call,
-    connect_composio_app, connect_executor_app, connectors_enabled, disable_executor,
-    enable_executor, list_composio_tools, list_connector_agent_tools, list_executor_tools,
-    read_connector_rules, read_connectors, refresh_composio, remove_executor_app,
-    search_executor_catalog, set_connector_cli_client, set_connector_rule, sign_in_composio,
-    sign_in_connector_cli, sign_out_composio, sign_out_connector_cli, start_connectors_work,
-    wait_connector_agent_tools, CONNECTORS_OFF_MESSAGE,
+    connect_composio_app, connect_executor_app, connectors_enabled, connectors_off_message,
+    disable_executor, enable_executor, list_composio_tools, list_connector_agent_tools,
+    list_executor_tools, read_connector_rules, read_connectors, refresh_composio,
+    remove_executor_app, search_executor_catalog, set_connector_cli_client, set_connector_rule,
+    sign_in_composio, sign_in_connector_cli, sign_out_composio, sign_out_connector_cli,
+    start_connectors_work, wait_connector_agent_tools,
 };
 use crate::domain::DomainStateError;
 use crate::protocol::rpc_success;
@@ -65,7 +65,7 @@ pub(super) async fn route_connectors_http(
         return Ok(domain_error_response(
             endpoint.path,
             request_id,
-            DomainStateError::bad_request(CONNECTORS_OFF_MESSAGE),
+            DomainStateError::bad_request(connectors_off_message(&state.paths)),
         ));
     }
     start_connectors_work();
