@@ -93,7 +93,9 @@ impl NativeChatView {
                             .bottom_0()
                             .left_0()
                             .right_0()
-                            .h(px(24.0 * p.scale))
+                            // As tall as the gap under the last row, so at the bottom it fades
+                            // only that gap and never the row itself.
+                            .h(px(16.0 * p.scale))
                             .bg(gpui::linear_gradient(
                                 180.0,
                                 gpui::linear_color_stop(p.background.opacity(0.0), 0.0),

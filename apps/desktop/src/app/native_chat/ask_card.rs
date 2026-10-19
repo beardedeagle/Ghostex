@@ -37,9 +37,10 @@ pub(super) fn ask_color(p: &ChatAppearance) -> Hsla {
     rgb(if p.light { 0xb45309 } else { 0xfbbf24 }).into()
 }
 
-/// The question bubble every question card's tile shows, but the live question card's.
+/// The question bubble the answered question cards' tile shows.
 pub(super) const QUESTION_GLYPH: &str = "titlebar/chat-card-question.svg";
-/// The live question card's tile glyph (the SessionChat 2026-10-18 DECISION on `SINGLE_LINE_CARD`).
+/// The tile glyph of a question still waiting on the reader: the live question card and an open
+/// questions form (the SessionChat 2026-10-18 DECISION on `SINGLE_LINE_CARD`).
 pub(super) const CHECKLIST_GLYPH: &str = "titlebar/chat-card-checklist.svg";
 
 /// What the question tile's badge says: nothing, a question waiting on the reader, or answered.

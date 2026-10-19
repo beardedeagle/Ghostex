@@ -180,9 +180,6 @@ impl NativeChatView {
                 };
                 this.pt(px(32.0 * s + header))
             })
-            .when(index + 1 == items.len(), |this| {
-                this.pb(px(super::transcript_layout::LAYOUT.end_padding * s))
-            })
             .child(
                 div()
                     .w_full()

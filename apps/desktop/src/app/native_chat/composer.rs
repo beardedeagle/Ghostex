@@ -300,7 +300,8 @@ impl NativeChatView {
             self.render_working_card(p, cx)
         };
         let card_above_box = working_card.is_some();
-        footer = footer.children(working_card);
+        // The last transcript row's own gap is the space above the card (working_card.rs).
+        footer = footer.when(card_above_box, |this| this.pt_0()).children(working_card);
         // What stacks between the card and the box.
         let mut waiting: Vec<AnyElement> = Vec::new();
         if self.snapshot["incomingDraft"].is_object() {
