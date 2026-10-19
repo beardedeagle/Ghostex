@@ -2,6 +2,33 @@
 
 ## Unreleased
 
+## 10.27.0 - 2026-10-19
+
+**Ghostex 10.27.0 is out.** Every one-line card in the chat gets one clean look, you can edit the orchestrator playbook for all projects or one project, Settings gathers its add-on pages into an Extensions group, and one notification bell covers every connected computer.
+
+### 💬 Chat
+- **Every one-line card looks the same:** "Worked for", "Previous turn", Message from and to, background commands, model and effort changes, compactions and answered questions are all 44px cards with one font and background and a square icon on the left; their status (Delivered, Queued, Waiting, Answered) is a pill on the right, and none has a chevron. On the computer and the phone.
+- **Question cards show what is waiting on you:** a question waiting for your answer leads with a checklist and a yellow "?", an answered one with a question bubble and a green check, and the edited files card with a pencil.
+- **Question numbers sit at the right of each question** in the chat's questions form and on pages, and an unanswered question on a page shows the yellow "?" too.
+- **The conversation ends right above the working card,** without the extra gap that sat under the last message.
+
+### 🧭 Orchestrators
+- **Edit the orchestrator playbook:** Settings > Chat > Orchestrator playbook changes the playbook every orchestrator follows, a project can have its own in Settings > Projects that also covers its worktrees, and New Orchestrator shows and edits the one it will use.
+- **Orchestrators you already have follow an edited playbook,** Reset to Default (click it twice) brings back Ghostex's own, a switch turns an edited copy off without losing it, and the editor tells you when Ghostex's playbook changed since you edited yours. From a terminal: `ghostex orchestrator playbook` and `ghostex orchestrator set-playbook`.
+
+### 🧩 Settings and extensions
+- **An Extensions group at the bottom of Settings:** Store (the page that was called Extensions), Workspaces, Cloud Boxes, Connectors, Actions, Open In, OS Integration and Debugging sit in one collapsible group that remembers whether it is open, and a search opens it.
+- **Connectors, OS Integration and Debugging can be turned off in the Store** like the other built-in extensions; turning Connectors off also turns off `ghostex connectors`.
+- **Popups inside Settings close with the same round X as Settings itself,** shown when the pointer is near their top.
+
+### 🌐 Remote computers
+- **One notification bell for every connected computer,** with All, This computer and Remote tabs: a remote notification names its computer, and clicking it switches the sidebar to that computer.
+- **Switching computers reopens the session you were last on there,** the way switching Spaces does.
+
+### 🩹 Fixes and polish
+- **A codex typed in a plain zsh or fish terminal stays off Codex's shared server** even when mise or another tool reorders your PATH.
+- **Bordered tab switches keep their rounded corners** when the first or last tab is selected.
+
 ## 10.26.0 - 2026-10-18
 
 **Ghostex 10.26.0 is out.** The chat's working indicator becomes one steady card above the chat box, Copilot, Cursor, Grok and OMP work fully from the chat, model menus read each agent's own model list, orchestrators run from a skill with an agent of your choice, and a long list of fixes from your bug reports.
