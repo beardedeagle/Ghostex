@@ -8,6 +8,47 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
         <link>https://github.com/maddada/Ghostex/releases</link>
         <description>Sparkle appcast for Ghostex macOS releases.</description>
         <item>
+            <title>10.27.0</title>
+            <pubDate>Mon, 19 Oct 2026 02:56:27 +0000</pubDate>
+            <sparkle:fullReleaseNotesLink>https://github.com/maddada/Ghostex/releases/tag/v10.27.0</sparkle:fullReleaseNotesLink>
+            <sparkle:version>102700</sparkle:version>
+            <sparkle:shortVersionString>10.27.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[# Ghostex 10.27.0
+
+## 10.27.0 - 2026-10-19
+
+**Ghostex 10.27.0 is out.** Every one-line card in the chat gets one clean look, you can edit the orchestrator playbook for all projects or one project, Settings gathers its add-on pages into an Extensions group, and one notification bell covers every connected computer.
+
+### 💬 Chat
+- **Every one-line card looks the same:** "Worked for", "Previous turn", Message from and to, background commands, model and effort changes, compactions and answered questions are all 44px cards with one font and background and a square icon on the left; their status (Delivered, Queued, Waiting, Answered) is a pill on the right, and none has a chevron. On the computer and the phone.
+- **Question cards show what is waiting on you:** a question waiting for your answer leads with a checklist and a yellow "?", an answered one with a question bubble and a green check, and the edited files card with a pencil.
+- **Question numbers sit at the right of each question** in the chat's questions form and on pages, and an unanswered question on a page shows the yellow "?" too.
+- **The conversation ends right above the working card,** without the extra gap that sat under the last message.
+
+### 🧭 Orchestrators
+- **Edit the orchestrator playbook:** Settings > Chat > Orchestrator playbook changes the playbook every orchestrator follows, a project can have its own in Settings > Projects that also covers its worktrees, and New Orchestrator shows and edits the one it will use.
+- **Orchestrators you already have follow an edited playbook,** Reset to Default (click it twice) brings back Ghostex's own, a switch turns an edited copy off without losing it, and the editor tells you when Ghostex's playbook changed since you edited yours. From a terminal: `ghostex orchestrator playbook` and `ghostex orchestrator set-playbook`.
+
+### 🧩 Settings and extensions
+- **An Extensions group at the bottom of Settings:** Store (the page that was called Extensions), Workspaces, Cloud Boxes, Connectors, Actions, Open In, OS Integration and Debugging sit in one collapsible group that remembers whether it is open, and a search opens it.
+- **Connectors, OS Integration and Debugging can be turned off in the Store** like the other built-in extensions; turning Connectors off also turns off `ghostex connectors`.
+- **Popups inside Settings close with the same round X as Settings itself,** shown when the pointer is near their top.
+- **Sections in the Settings sidebar fold with the same animation as projects in the sidebar.**
+
+### 🌐 Remote computers
+- **One notification bell for every connected computer,** with All, This computer and Remote tabs: a remote notification names its computer, and clicking it switches the sidebar to that computer.
+- **Switching computers reopens the session you were last on there,** the way switching Spaces does.
+
+### 🩹 Fixes and polish
+- **The Subagents pill no longer counts stopped or interrupted subagents as running:** subagents stopped with TaskStop or Stop all, or finished in an unusual way, leave the count, so their timers no longer grow for hours (#259).
+- **A codex typed in a plain zsh or fish terminal stays off Codex's shared server** even when mise or another tool reorders your PATH.
+- **Bordered tab switches keep their rounded corners** when the first or last tab is selected.
+]]></description>
+            <enclosure url="https://github.com/maddada/Ghostex/releases/download/v10.27.0/ghostex-10.27.0-arm64.dmg" length="114975803" type="application/octet-stream" sparkle:edSignature="mL2eW2YoM4zRO4Vy6igwexq2LEnHxQo7OozNBJwnY+PmVxwivIBpkxV6OIACXlp/rHSfTnKRbI5AjxknPtuXAg=="/>
+        </item>
+        <item>
             <title>10.26.0</title>
             <pubDate>Sun, 18 Oct 2026 10:47:50 +0000</pubDate>
             <sparkle:fullReleaseNotesLink>https://github.com/maddada/Ghostex/releases/tag/v10.26.0</sparkle:fullReleaseNotesLink>
@@ -325,44 +366,6 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
             <enclosure url="https://github.com/maddada/Ghostex/releases/download/v10.23.0/ghostex-10.23.0-arm64.dmg" length="112650253" type="application/octet-stream" sparkle:edSignature="4Av1YCnJVuOKdT9o7Ier4tcGMVZYhnZyT4tm/knT+it441pdBx/N//5PcXxfVb2pVUgdc0/J3/D1bS+QthQmAA=="/>
         </item>
         <item>
-            <title>10.22.0</title>
-            <pubDate>Tue, 13 Oct 2026 08:06:06 +0000</pubDate>
-            <sparkle:fullReleaseNotesLink>https://github.com/maddada/Ghostex/releases/tag/v10.22.0</sparkle:fullReleaseNotesLink>
-            <sparkle:version>102200</sparkle:version>
-            <sparkle:shortVersionString>10.22.0</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[# Ghostex 10.22.0
-
-## 10.22.0 - 2026-10-13
-
-**Ghostex 10.22.0 is out.** A Files and links card lists everything a session mentioned, the Kanban board scrolls with a mouse and opens in a window of its own, the Work panel shows formatted Markdown, and Ghostex has a new app icon.
-
-### 💬 Chat
-- **Files and links:** a link button in the chat box's toolbar opens a card listing every attachment, file and link the session mentioned, with a filter and counts; each row opens its item or jumps to the message that mentioned it. For an orchestrator it covers its own chat and every thread, grouped by thread. On the computer, the web and the phone.
-- **Catch me up shows only while the chat box is empty,** fades in and out, and reads the last 30 agent messages.
-- **A tool group's line** is the same thin hairline as the Worked fold's.
-- **macOS: Cmd+V pastes into the chat box again** instead of into the terminal behind the chat, thanks to @banozz0.
-
-### 🗂️ Kanban
-- **The board scrolls sideways with a mouse:** drag the bar under the lanes or use Shift+wheel, each lane has its own scrollbar, and dragging a card to the board's edge scrolls the board, thanks to @landygg.
-- **Open in New Window** moves the board to a window of its own, for a second screen; the panel shows Show Window and Bring Back, and the window follows the project you switch to, thanks to @landygg.
-
-### 🧩 Work Mode
-- **The Work panel shows Markdown:** ticket descriptions and comments, Slack messages and pull request bodies show headings, lists, checklists, tables, code and links.
-- **Video comes right after PR** in the team flow, and "Working thread" is now an optional "Slack thread" step: an optional step shows a grey "?" until it's done. Mark any step optional in Settings > Workspaces > Team-flow steps; a team's owner runs `ghostex team deploy` once so the team can save it.
-- **A session card shows its ticket's new pull request** within moments of it being opened, instead of minutes later.
-
-### 🌸 App icon
-- **A new seven-petal app icon** on the computer and the phone.
-
-### 🩹 Fixes and polish
-- **macOS: the sidebar button sits further from the window buttons,** thanks to @TheOrcDev.
-- **An account is no longer marked disabled** because a CLI started by hand in a session's terminal was refused on a different login.
-]]></description>
-            <enclosure url="https://github.com/maddada/Ghostex/releases/download/v10.22.0/ghostex-10.22.0-arm64.dmg" length="111862452" type="application/octet-stream" sparkle:edSignature="yOVcHlM12SXRj7nhXZOjbuqHEZDKnpYoQD/8jgTJ7KoZtBlE88kVK5ClO/mvbc1C2fVMJH0qzOuncxYIzQqTAw=="/>
-        </item>
-        <item>
             <title>3.26.1</title>
             <pubDate>Mon, 01 Jun 2026 18:43:20 +0400</pubDate>
             <sparkle:fullReleaseNotesLink>https://github.com/maddada/Ghostex/releases/tag/v3.26.1</sparkle:fullReleaseNotesLink>
@@ -374,6 +377,6 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
     </channel>
 </rss>
 <!-- sparkle-signatures:
-edSignature: R2go54aXMnO1f5pzy0BTEUvwnwIrBYhLvuCs1rpa0waMUoiWvtwOkW6i4GJN+OzMDyXCDOgtE7NEuAEBMBsRAg==
-length: 35220
+edSignature: ZNWGf6XS4XEfShamiGFrLaL8w5Lotc2CL2RM8eKNxxmv5Fqp9wRlD9LD7DeO7PP0khDm9BV2e6olVVkJnKAgCw==
+length: 36259
 -->
