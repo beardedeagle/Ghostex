@@ -65,7 +65,10 @@ stay in the same spot. The sidebar's top row also moves the window when you drag
 it. When an update is available, a download button
 appears just before the project name. On Linux the button opens the release
 notes with an **Open download page** button instead of installing the update;
-install the new package the same way you installed Ghostex. On Windows, the
+install the new package the same way you installed Ghostex. Linux downloads come
+for x64 and for ARM64 (aarch64) computers, each as a .deb, an .rpm and a portable
+.tar.zst on the release page; pick the one that matches your computer's processor
+(`uname -m` prints x86_64 or aarch64). On Windows, the
 portable zip keeps all its data in a `GhostexData` folder next to itself and runs
 beside an installed Ghostex without sharing its sessions, settings or projects.
 It uses the agent hooks the installed Ghostex set up (its Settings lists them as

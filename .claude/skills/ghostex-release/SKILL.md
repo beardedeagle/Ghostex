@@ -24,8 +24,8 @@ marked **(unverified)** were inferred and not confirmed from that evidence.
 2. `bun run release:actions -- X.Y.Z` dispatches `.github/workflows/release-gpui.yml`
    on `main`. Every build, signing, notarization and publish step runs on
    GitHub runners (macOS DMG + notarization + Sparkle, Linux deb/rpm/tar,
-   Windows x64/arm64 Velopack + portable zip, Android APK, gxserver Linux and
-   WSL runtimes).
+   Windows x64/arm64 Velopack + portable zip, Android APK, Linux ARM64
+   deb/rpm/tar on `ubuntu-24.04-arm`, gxserver Linux and WSL runtimes).
 3. Each platform has its own publish stage. The first stage to finish creates
    tag `vX.Y.Z` (at the dispatched commit) and the GitHub release. Its body
    opens with a download block of at most 3 lines (macOS + Windows, Linux,
@@ -227,9 +227,20 @@ Sparkle is on, and Windows signing is `auto`: on when the
 Windows ships unsigned.
 
 Scope flags, only on the user's instruction: `--skip-macos --skip-sparkle`,
-`--skip-linux`, `--skip-windows`, `--skip-android`, `--only-macos`,
-`--prerelease` (needs `--skip-sparkle`), `--force-all` or `--force a,b`
-(rebuild even when the inputs are unchanged).
+`--skip-linux` (both architectures), `--skip-linux-x64`, `--skip-linux-arm64`,
+`--skip-windows`, `--skip-android`, `--only-macos`, `--only-linux-arm64`
+(implies `--skip-sparkle`), `--prerelease` (needs `--skip-sparkle`),
+`--force-all` or `--force a,b` (rebuild even when the inputs are unchanged).
+
+`--build-only` builds and uploads Actions artifacts and publishes nothing: no
+tag, no release, no component upload, no attestation (every publish stage is
+skipped and the Linux job seals CEF without uploading it). It covers the Linux
+packages and gxserver runtimes only, allows an existing tag, and runs in its own
+concurrency group, so it never queues behind a real release. Example:
+`bun run release:actions -- X.Y.Z --only-linux-arm64 --build-only`. A tester serves
+the `release-linux-cef-component-arm64` artifact through
+`GHOSTEX_ON_DEMAND_BASE_URL` (`<base>/<downloadTag>/<asset>`), because the CEF
+asset is not on the components repository until a real run publishes it.
 
 The tag is created at the dispatched commit, which is HEAD at dispatch and not
 necessarily the prepare commit (v10.9.0 is at 9f8d3bb6e, two commits after
@@ -285,7 +296,7 @@ while any other exit `0` means only that a job changed state.
 4. **`gates` failed only** (typecheck/test): fix it, push, and redispatch with
    `--reuse-from-run`. Builds are reused, and only the publish stages waited on gates.
 5. **Every product built but publishing failed**: re-run the publish only,
-   from the recorded plan: `bun run release:actions:publish -- X.Y.Z --source-run-id <run-id> [--stage macos|android|linux|windows-x64|windows-arm64]`.
+   from the recorded plan: `bun run release:actions:publish -- X.Y.Z --source-run-id <run-id> [--stage macos|android|linux|linux-arm64|windows-x64|windows-arm64]`.
 6. **A platform failed and the release is already public** (another stage
    created the tag): rebuild **that platform from the release's own sources**.
    Don't ask; this is the user's standing choice. Builds always come from
@@ -315,6 +326,17 @@ while any other exit `0` means only that a job changed state.
       `Revert "chore(release): restore ..."`. Reverting before `prepare` passed
       killed the first 10.9.0 attempt (run 36884637494). Nobody may push in that window.
    5. Watch the rebuild to the end, then check the release's assets (step 8).
+
+   **Adding Linux ARM64 to a release that is already public** (10.27.0 was the
+   first) follows the same restore, dispatch and revert steps, with the Linux
+   ARM64 commit(s) as the fix and this scope:
+   `bun run release:actions -- X.Y.Z --only-linux-arm64 --skip-gxserver-linux-arm64 --reuse-from-run <release-run-id>`.
+   Skipping the runtime is deliberate: the packages then embed the release's live
+   `gxserver-linux-arm64.tar.gz` (the job checks it against GitHub's digest and
+   the release provenance) instead of rebuilding it, because the live macOS app
+   sealed those bytes. Wait for `gxserver-linux-arm64.tar.gz` to be live on the
+   release before dispatching. The `linux-arm64` stage amends the release and
+   adds the ARM64 group to the Linux line of the download block.
 
    Earlier releases sometimes shipped the next patch instead (10.9.0 macOS →
    10.9.1). Do that only if the restore-and-rebuild fails twice, and say so in
@@ -354,15 +376,17 @@ while any other exit `0` means only that a job changed state.
 gh release view vX.Y.Z --repo maddada/Ghostex --json isDraft,isPrerelease,assets --jq '.isDraft,.isPrerelease,(.assets[].name)'
 ```
 
-Expect about 24 assets: `ghostex-X.Y.Z-arm64.dmg`, `ghostex_X.Y.Z_amd64.deb`,
+Expect about 27 assets: `ghostex-X.Y.Z-arm64.dmg`, `ghostex_X.Y.Z_amd64.deb`,
 `ghostex-X.Y.Z-1.x86_64.rpm`, `ghostex-X.Y.Z-linux-x64.tar.zst`,
+`ghostex_X.Y.Z_arm64.deb`, `ghostex-X.Y.Z-1.aarch64.rpm`,
+`ghostex-X.Y.Z-linux-arm64.tar.zst`,
 `ghostex-X.Y.Z-windows-{x64,arm64}.exe` and `-portable.zip`, the Velopack
 files, `ghostex-android.apk`, `gxserver-linux-{x64,arm64}.tar.gz`,
 `gxserver-wsl-windows-{x64,arm64}.zip` and `release-provenance-X.Y.Z.json`.
 
 The body must start with the download block, and every customer asset
-(DMG, both Windows installers and portable zips, deb, rpm, tarball, APK) must
-be linked there; `release:verify` checks both. Checksums, Velopack files,
+(DMG, both Windows installers and portable zips, the x64 and ARM64 deb, rpm and
+tarball, APK) must be linked there; `release:verify` checks both. Checksums, Velopack files,
 gxserver runtimes and provenance stay as unlisted assets.
 
 From Windows (the normal case), skip the macOS-only DMG and Homebrew checks.
