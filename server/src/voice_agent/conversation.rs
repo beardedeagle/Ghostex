@@ -1,0 +1,708 @@
+//! One voice conversation: the provider socket, the attached client (if any), the tool calls in
+//! flight, playback bookkeeping for interruptions, announcements and the idle hang-up. It runs as
+//! one task that owns all of that state; clients and tool tasks talk to it through `Input`.
+
+use std::collections::{HashMap, HashSet, VecDeque};
+use std::sync::Arc;
+use std::time::{Duration, Instant};
+
+use base64::Engine as _;
+use bytes::Bytes;
+use futures_util::stream::{SplitSink, SplitStream};
+use futures_util::{SinkExt as _, StreamExt as _};
+use serde_json::{json, Value};
+use tokio::sync::mpsc;
+use tokio_tungstenite::tungstenite::Message as WsMessage;
+
+use super::prompt;
+use super::provider::{Provider, ProviderSocket, BYTES_PER_MS};
+use super::registry;
+use super::tools::{self, ToolOutcome};
+use crate::server::AppState;
+
+/// CDXC:VoiceMode 2026-10-20 DECISION:
+/// User: the voice agent "hangs up by itself after 5 minutes with nobody talking" because realtime is billed while connected. Talking is user speech the provider detected, typed text, or the agent's audio answering the user; the timer keeps running while no client is attached.
+/// CDXC:VoiceMode 2026-10-20 WHY:
+/// Announcements do not count as talking: with busy sessions they would otherwise keep a forgotten conversation (and its bill) open for ever.
+pub(super) const IDLE_HANGUP: Duration = Duration::from_secs(5 * 60);
+/// CDXC:VoiceMode 2026-10-20 DECISION:
+/// User: the phone keeps the conversation going with the screen locked. A socket that closes without `end` leaves the conversation (and its provider session) open this long so the phone can reattach after a network change or a backgrounded app; captions in between are replayed.
+pub(super) const DETACH_GRACE: Duration = Duration::from_secs(120);
+/// Captions and announcements kept for a client that reattaches.
+const REPLAY_LIMIT: usize = 50;
+/// How long gxserver waits for the client's own playback position after an interruption before it
+/// cuts the reply at its own estimate.
+const TRUNCATE_WAIT: Duration = Duration::from_millis(400);
+const TICK: Duration = Duration::from_millis(100);
+
+pub(super) enum ClientFrame {
+    Json(Value),
+    Audio(Bytes),
+    Close,
+}
+
+/// A session changed state while the conversation was open.
+#[derive(Clone, Debug)]
+pub(super) struct Announcement {
+    pub(super) text: String,
+    pub(super) kind: &'static str,
+    pub(super) project_id: String,
+    pub(super) session_id: String,
+}
+
+pub(super) enum Input {
+    Attach {
+        attach_id: u64,
+        out: mpsc::UnboundedSender<ClientFrame>,
+        resumed: bool,
+    },
+    Detach {
+        attach_id: u64,
+    },
+    Audio(Bytes),
+    Text(String),
+    Interrupt,
+    Playback {
+        item_id: String,
+        played_ms: u64,
+    },
+    End,
+    Announce(Vec<Announcement>),
+    ToolDone {
+        call_id: String,
+        name: String,
+        label: String,
+        outcome: ToolOutcome,
+    },
+}
+
+/// The agent reply whose audio is being relayed (or was, last).
+struct ItemAudio {
+    item_id: String,
+    audio_ms: u64,
+}
+
+pub(super) struct Conversation {
+    id: String,
+    state: Arc<AppState>,
+    provider: Provider,
+    voice: String,
+    sink: SplitSink<ProviderSocket, WsMessage>,
+    stream: SplitStream<ProviderSocket>,
+    rx: mpsc::UnboundedReceiver<Input>,
+    tx: mpsc::UnboundedSender<Input>,
+    client: Option<(u64, mpsc::UnboundedSender<ClientFrame>)>,
+    detached_since: Option<Instant>,
+    replay: VecDeque<Value>,
+    last_talk: Instant,
+    client_state: &'static str,
+    response_active: bool,
+    seen_calls: HashSet<String>,
+    pending_calls: HashSet<String>,
+    outputs_waiting: bool,
+    create_at: Option<Instant>,
+    playback_end: Instant,
+    item: Option<ItemAudio>,
+    agent_captions: HashMap<String, String>,
+    user_captions: HashMap<String, String>,
+    truncate_pending: Option<(String, u64, Instant)>,
+    user_speaking: bool,
+    announcements: Vec<Announcement>,
+    typed_turns: u64,
+    memory: Arc<tools::ToolMemory>,
+    /// The reply in progress was asked for by an announcement, not by the user.
+    announcing: bool,
+}
+
+enum Ended {
+    Reason(&'static str, String),
+}
+
+impl Conversation {
+    pub(super) fn new(
+        id: String,
+        state: Arc<AppState>,
+        provider: Provider,
+        voice: String,
+        socket: ProviderSocket,
+        tx: mpsc::UnboundedSender<Input>,
+        rx: mpsc::UnboundedReceiver<Input>,
+    ) -> Self {
+        let (sink, stream) = socket.split();
+        let now = Instant::now();
+        Self {
+            id,
+            state,
+            provider,
+            voice,
+            sink,
+            stream,
+            rx,
+            tx,
+            client: None,
+            detached_since: Some(now),
+            replay: VecDeque::new(),
+            last_talk: now,
+            client_state: "listening",
+            response_active: false,
+            seen_calls: HashSet::new(),
+            pending_calls: HashSet::new(),
+            outputs_waiting: false,
+            create_at: None,
+            playback_end: now,
+            item: None,
+            agent_captions: HashMap::new(),
+            user_captions: HashMap::new(),
+            truncate_pending: None,
+            user_speaking: false,
+            announcements: Vec::new(),
+            typed_turns: 0,
+            memory: Arc::new(tools::ToolMemory::default()),
+            announcing: false,
+        }
+    }
+
+    pub(super) async fn run(mut self) {
+        let mut shutdown = self.state.shutdown_tx.subscribe();
+        let mut tick = tokio::time::interval(TICK);
+        let ended = loop {
+            let step = tokio::select! {
+                frame = self.stream.next() => match frame {
+                    Some(Ok(WsMessage::Text(text))) => self.on_provider_event(text.as_str()).await,
+                    Some(Ok(WsMessage::Close(frame))) => Err(Ended::Reason(
+                        "providerClosed",
+                        frame.map(|frame| frame.reason.to_string()).filter(|reason| !reason.is_empty())
+                            .unwrap_or_else(|| "The provider ended the conversation.".to_string()),
+                    )),
+                    Some(Ok(_)) => Ok(()),
+                    Some(Err(error)) => Err(Ended::Reason("providerClosed", format!("The provider connection failed: {error}"))),
+                    None => Err(Ended::Reason("providerClosed", "The provider ended the conversation.".to_string())),
+                },
+                input = self.rx.recv() => match input {
+                    Some(input) => self.on_input(input).await,
+                    None => Err(Ended::Reason("error", "The conversation lost its controller.".to_string())),
+                },
+                _ = tick.tick() => self.on_tick().await,
+                _ = shutdown.recv() => Err(Ended::Reason("serverShutdown", "Ghostex's server is restarting.".to_string())),
+            };
+            if let Err(ended) = step {
+                break ended;
+            }
+        };
+        let Ended::Reason(reason, message) = ended;
+        self.finish(reason, &message).await;
+    }
+
+    async fn finish(&mut self, reason: &'static str, message: &str) {
+        registry::remove(&self.id);
+        if matches!(reason, "providerClosed" | "error") {
+            super::warn(
+                &self.state,
+                "voiceAgent.ended",
+                json!({"provider": self.provider.id(), "reason": reason, "message": message}),
+            );
+        }
+        self.to_client(json!({"type": "ended", "reason": reason, "message": message}));
+        if let Some((_, out)) = &self.client {
+            let _ = out.send(ClientFrame::Close);
+        }
+        let _ = self.sink.send(WsMessage::Close(None)).await;
+    }
+
+    /// Sends a JSON frame to the attached client; captions and announcements are kept for a
+    /// client that reattaches.
+    fn to_client(&mut self, frame: Value) {
+        let kind = frame
+            .get("type")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        let keep = matches!(kind, "caption" | "announcement" | "tool")
+            && (kind != "caption" || frame.get("final").and_then(Value::as_bool) == Some(true));
+        if keep {
+            self.replay.push_back(frame.clone());
+            while self.replay.len() > REPLAY_LIMIT {
+                self.replay.pop_front();
+            }
+        }
+        if let Some((_, out)) = &self.client {
+            let _ = out.send(ClientFrame::Json(frame));
+        }
+    }
+
+    fn set_state(&mut self, state: &'static str) {
+        if self.client_state != state {
+            self.client_state = state;
+            self.to_client(json!({"type": "state", "state": state}));
+        }
+    }
+
+    async fn provider_send(&mut self, event: Value) -> Result<(), Ended> {
+        self.sink
+            .send(WsMessage::Text(event.to_string().into()))
+            .await
+            .map_err(|error| {
+                Ended::Reason(
+                    "providerClosed",
+                    format!("The provider connection failed: {error}"),
+                )
+            })
+    }
+
+    fn playing(&self) -> bool {
+        self.playback_end > Instant::now()
+    }
+
+    /// Nothing is being said, generated or run: the moment for an announcement or a hang-up.
+    fn quiet(&self) -> bool {
+        !self.user_speaking
+            && !self.response_active
+            && self.pending_calls.is_empty()
+            && self.create_at.is_none()
+            && !self.playing()
+    }
+
+    async fn on_input(&mut self, input: Input) -> Result<(), Ended> {
+        match input {
+            Input::Attach {
+                attach_id,
+                out,
+                resumed,
+            } => {
+                if let Some((_, previous)) = self.client.take() {
+                    let _ = previous.send(ClientFrame::Json(json!({
+                        "type": "ended",
+                        "reason": "replaced",
+                        "message": "Another device took over this conversation.",
+                    })));
+                    let _ = previous.send(ClientFrame::Close);
+                }
+                let _ = out.send(ClientFrame::Json(json!({
+                    "type": "ready",
+                    "conversationId": self.id,
+                    "provider": self.provider.id(),
+                    "voice": self.voice,
+                    "resumed": resumed,
+                    "idleHangupMs": IDLE_HANGUP.as_millis() as u64,
+                    "audio": {"encoding": "pcm16", "sampleRate": super::provider::SAMPLE_RATE, "channels": 1},
+                })));
+                if resumed {
+                    for frame in &self.replay {
+                        let _ = out.send(ClientFrame::Json(frame.clone()));
+                    }
+                }
+                let _ = out.send(ClientFrame::Json(
+                    json!({"type": "state", "state": self.client_state}),
+                ));
+                self.client = Some((attach_id, out));
+                self.detached_since = None;
+                registry::set_attached(&self.id, true);
+            }
+            Input::Detach { attach_id } => {
+                if self.client.as_ref().is_some_and(|(id, _)| *id == attach_id) {
+                    self.client = None;
+                    self.detached_since = Some(Instant::now());
+                    registry::set_attached(&self.id, false);
+                    // Nobody can hear the rest of the reply.
+                    self.playback_end = Instant::now();
+                }
+            }
+            Input::Audio(bytes) => {
+                if bytes.len() >= 2 {
+                    let even = &bytes[..bytes.len() - bytes.len() % 2];
+                    let audio = base64::engine::general_purpose::STANDARD.encode(even);
+                    self.provider_send(
+                        json!({"type": "input_audio_buffer.append", "audio": audio}),
+                    )
+                    .await?;
+                }
+            }
+            Input::Text(text) => {
+                let text = text.trim().to_string();
+                if !text.is_empty() {
+                    self.last_talk = Instant::now();
+                    self.typed_turns += 1;
+                    let item_id = format!("typed-{}", self.typed_turns);
+                    self.to_client(json!({"type": "caption", "role": "user", "itemId": item_id, "text": text, "final": true}));
+                    if self.response_active {
+                        self.provider_send(json!({"type": "response.cancel"}))
+                            .await?;
+                    }
+                    self.stop_playback(false).await?;
+                    self.provider_send(json!({
+                        "type": "conversation.item.create",
+                        "item": {"type": "message", "role": "user", "content": [{"type": "input_text", "text": text}]},
+                    }))
+                    .await?;
+                    self.create_response_now().await?;
+                }
+            }
+            Input::Interrupt => {
+                if self.response_active {
+                    self.provider_send(json!({"type": "response.cancel"}))
+                        .await?;
+                }
+                self.stop_playback(true).await?;
+                self.set_state("listening");
+            }
+            Input::Playback { item_id, played_ms } => {
+                if self
+                    .truncate_pending
+                    .as_ref()
+                    .is_some_and(|(pending, _, _)| *pending == item_id)
+                {
+                    let total = self
+                        .item
+                        .as_ref()
+                        .filter(|item| item.item_id == item_id)
+                        .map_or(played_ms, |item| item.audio_ms);
+                    self.truncate(item_id, played_ms.min(total)).await?;
+                }
+            }
+            Input::End => {
+                return Err(Ended::Reason(
+                    "user",
+                    "You ended the conversation.".to_string(),
+                ));
+            }
+            Input::Announce(announcements) => {
+                for announcement in announcements {
+                    self.to_client(json!({
+                        "type": "announcement",
+                        "text": announcement.text,
+                        "kind": announcement.kind,
+                        "projectId": announcement.project_id,
+                        "sessionId": announcement.session_id,
+                    }));
+                    self.announcements.push(announcement);
+                }
+            }
+            Input::ToolDone {
+                call_id,
+                name,
+                label,
+                outcome,
+            } => {
+                self.to_client(json!({
+                    "type": "tool",
+                    "phase": "finished",
+                    "callId": call_id,
+                    "name": name,
+                    "label": label,
+                    "ok": outcome.ok,
+                }));
+                self.provider_send(json!({
+                    "type": "conversation.item.create",
+                    "item": {"type": "function_call_output", "call_id": call_id, "output": outcome.output.to_string()},
+                }))
+                .await?;
+                self.pending_calls.remove(&call_id);
+                self.outputs_waiting = true;
+                self.schedule_response_after_tools();
+            }
+        }
+        Ok(())
+    }
+
+    /// Once every tool of a reply has answered and the reply itself is done, ask for the next
+    /// reply after the current audio has played, so the follow-up does not talk over it.
+    fn schedule_response_after_tools(&mut self) {
+        if self.outputs_waiting && self.pending_calls.is_empty() && !self.response_active {
+            self.create_at = Some(self.playback_end.max(Instant::now()));
+        }
+    }
+
+    async fn create_response_now(&mut self) -> Result<(), Ended> {
+        self.create_at = None;
+        self.outputs_waiting = false;
+        self.announcing = false;
+        self.set_state("thinking");
+        self.provider_send(json!({"type": "response.create"})).await
+    }
+
+    /// Stops relaying the current reply's audio: tells the client to drop what it queued and cuts
+    /// the unplayed part from the conversation (now, or once the client reports where it stopped).
+    async fn stop_playback(&mut self, notify: bool) -> Result<(), Ended> {
+        let now = Instant::now();
+        if self.playback_end > now {
+            if let Some(item) = &self.item {
+                let unplayed = self.playback_end.duration_since(now).as_millis() as u64;
+                let estimate = item.audio_ms.saturating_sub(unplayed);
+                let item_id = item.item_id.clone();
+                if notify || self.client.is_some() {
+                    self.to_client(json!({"type": "interrupted", "itemId": item_id}));
+                }
+                // The cut reply's caption stops growing; close it so clients do not wait for more.
+                if let Some(text) = self.agent_captions.remove(&item_id) {
+                    self.to_client(json!({"type": "caption", "role": "agent", "itemId": item_id, "text": text.trim(), "final": true, "cut": true}));
+                }
+                self.truncate_pending = Some((item_id, estimate, now + TRUNCATE_WAIT));
+            }
+            self.playback_end = now;
+        }
+        Ok(())
+    }
+
+    async fn truncate(&mut self, item_id: String, audio_end_ms: u64) -> Result<(), Ended> {
+        self.truncate_pending = None;
+        self.provider_send(json!({
+            "type": "conversation.item.truncate",
+            "item_id": item_id,
+            "content_index": 0,
+            "audio_end_ms": audio_end_ms,
+        }))
+        .await
+    }
+
+    async fn on_tick(&mut self) -> Result<(), Ended> {
+        let now = Instant::now();
+        if let Some((item_id, estimate, deadline)) = self.truncate_pending.clone() {
+            if deadline <= now {
+                self.truncate(item_id, estimate).await?;
+            }
+        }
+        if self.create_at.is_some_and(|at| at <= now) {
+            self.create_response_now().await?;
+        }
+        if self.client_state == "speaking" && !self.playing() && !self.response_active {
+            let next = if self.pending_calls.is_empty() {
+                "listening"
+            } else {
+                "toolRunning"
+            };
+            self.set_state(next);
+        }
+        if !self.announcements.is_empty() && self.quiet() {
+            let lines: Vec<String> = self.announcements.drain(..).map(|a| a.text).collect();
+            self.provider_send(json!({
+                "type": "conversation.item.create",
+                "item": {"type": "message", "role": "user", "content": [{"type": "input_text", "text": prompt::announcement_message(&lines)}]},
+            }))
+            .await?;
+            self.create_response_now().await?;
+            self.announcing = true;
+        }
+        if let Some(since) = self.detached_since {
+            if now.duration_since(since) >= DETACH_GRACE {
+                return Err(Ended::Reason(
+                    "detachedTooLong",
+                    "No device reconnected to the conversation, so it was ended.".to_string(),
+                ));
+            }
+        }
+        if now.duration_since(self.last_talk) >= IDLE_HANGUP && self.quiet() {
+            return Err(Ended::Reason(
+                "idle",
+                "Nobody talked for 5 minutes, so the conversation was ended.".to_string(),
+            ));
+        }
+        Ok(())
+    }
+
+    async fn on_provider_event(&mut self, text: &str) -> Result<(), Ended> {
+        let Ok(event) = serde_json::from_str::<Value>(text) else {
+            return Ok(());
+        };
+        let kind = event
+            .get("type")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        let str_field = |key: &str| {
+            event
+                .get(key)
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string()
+        };
+        match kind {
+            "input_audio_buffer.speech_started" => {
+                self.user_speaking = true;
+                self.last_talk = Instant::now();
+                self.stop_playback(true).await?;
+                // The reply to this speech will see the tool results; a separate one would repeat it.
+                if self.create_at.take().is_some() {
+                    self.outputs_waiting = false;
+                }
+                self.set_state("userSpeaking");
+            }
+            "input_audio_buffer.speech_stopped" => {
+                self.user_speaking = false;
+                self.last_talk = Instant::now();
+                self.set_state("thinking");
+            }
+            "conversation.item.input_audio_transcription.delta" => {
+                let item_id = str_field("item_id");
+                let caption = self.user_captions.entry(item_id.clone()).or_default();
+                caption.push_str(&str_field("delta"));
+                let text = caption.clone();
+                self.to_client(json!({"type": "caption", "role": "user", "itemId": item_id, "text": text, "final": false}));
+            }
+            "conversation.item.input_audio_transcription.updated" => {
+                let item_id = str_field("item_id");
+                let text = str_field("transcript");
+                self.to_client(json!({"type": "caption", "role": "user", "itemId": item_id, "text": text, "final": false}));
+            }
+            "conversation.item.input_audio_transcription.completed" => {
+                let item_id = str_field("item_id");
+                self.user_captions.remove(&item_id);
+                let text = str_field("transcript").trim().to_string();
+                if !text.is_empty() {
+                    self.to_client(json!({"type": "caption", "role": "user", "itemId": item_id, "text": text, "final": true}));
+                }
+            }
+            "response.created" => {
+                self.response_active = true;
+                if self.client_state != "speaking" {
+                    self.set_state("thinking");
+                }
+            }
+            "response.output_audio.delta" | "response.audio.delta" => {
+                let Ok(audio) =
+                    base64::engine::general_purpose::STANDARD.decode(str_field("delta"))
+                else {
+                    return Ok(());
+                };
+                let item_id = str_field("item_id");
+                let now = Instant::now();
+                let ms = (audio.len() / BYTES_PER_MS) as u64;
+                if !self.announcing {
+                    self.last_talk = now;
+                }
+                if self.item.as_ref().map(|item| item.item_id.as_str()) != Some(item_id.as_str()) {
+                    self.item = Some(ItemAudio {
+                        item_id: item_id.clone(),
+                        audio_ms: 0,
+                    });
+                    self.to_client(json!({"type": "audioStart", "itemId": item_id}));
+                }
+                if let Some(item) = &mut self.item {
+                    item.audio_ms += ms;
+                }
+                if self.client.is_some() {
+                    self.playback_end = self.playback_end.max(now) + Duration::from_millis(ms);
+                    if let Some((_, out)) = &self.client {
+                        let _ = out.send(ClientFrame::Audio(Bytes::from(audio)));
+                    }
+                }
+                self.set_state("speaking");
+            }
+            "response.output_audio.done" | "response.audio.done" => {
+                let item_id = str_field("item_id");
+                self.to_client(json!({"type": "audioDone", "itemId": item_id}));
+            }
+            "response.output_audio_transcript.delta" | "response.audio_transcript.delta" => {
+                let item_id = str_field("item_id");
+                let caption = self.agent_captions.entry(item_id.clone()).or_default();
+                caption.push_str(&str_field("delta"));
+                let text = caption.clone();
+                self.to_client(json!({"type": "caption", "role": "agent", "itemId": item_id, "text": text, "final": false}));
+            }
+            "response.output_audio_transcript.done" | "response.audio_transcript.done" => {
+                let item_id = str_field("item_id");
+                let streamed = self.agent_captions.remove(&item_id).unwrap_or_default();
+                let text = Some(str_field("transcript"))
+                    .filter(|text| !text.trim().is_empty())
+                    .unwrap_or(streamed);
+                self.to_client(json!({"type": "caption", "role": "agent", "itemId": item_id, "text": text.trim(), "final": true}));
+            }
+            "response.function_call_arguments.done" => {
+                self.start_tool(
+                    str_field("call_id"),
+                    str_field("name"),
+                    str_field("arguments"),
+                );
+            }
+            "response.done" => {
+                self.response_active = false;
+                self.announcing = false;
+                // OpenAI also lists the reply's function calls here; start any not seen yet.
+                let calls: Vec<(String, String, String)> = event
+                    .pointer("/response/output")
+                    .and_then(Value::as_array)
+                    .into_iter()
+                    .flatten()
+                    .filter(|item| {
+                        item.get("type").and_then(Value::as_str) == Some("function_call")
+                    })
+                    .map(|item| {
+                        let field = |key: &str| {
+                            item.get(key)
+                                .and_then(Value::as_str)
+                                .unwrap_or_default()
+                                .to_string()
+                        };
+                        (field("call_id"), field("name"), field("arguments"))
+                    })
+                    .collect();
+                for (call_id, name, arguments) in calls {
+                    self.start_tool(call_id, name, arguments);
+                }
+                let status = event
+                    .pointer("/response/status")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default();
+                if status == "failed" {
+                    let message = event
+                        .pointer("/response/status_details/error/message")
+                        .and_then(Value::as_str)
+                        .unwrap_or("The provider could not answer.")
+                        .to_string();
+                    self.to_client(json!({"type": "error", "code": "providerError", "message": message, "fatal": false}));
+                }
+                self.schedule_response_after_tools();
+                if !self.playing() && self.pending_calls.is_empty() && self.create_at.is_none() {
+                    self.set_state("listening");
+                }
+            }
+            "error" => {
+                let error = event.get("error").cloned().unwrap_or_else(|| event.clone());
+                let code = error
+                    .get("code")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default();
+                // Cancelling a reply that just finished is harmless.
+                if code != "response_cancel_not_active"
+                    && code != "conversation_already_has_active_response"
+                {
+                    let message = error
+                        .get("message")
+                        .and_then(Value::as_str)
+                        .unwrap_or("The provider reported an error.")
+                        .to_string();
+                    super::warn(
+                        &self.state,
+                        "voiceAgent.providerError",
+                        json!({"provider": self.provider.id(), "code": code, "message": message}),
+                    );
+                    self.to_client(json!({"type": "error", "code": "providerError", "message": message, "fatal": false}));
+                }
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    fn start_tool(&mut self, call_id: String, name: String, arguments: String) {
+        if call_id.is_empty() || !self.seen_calls.insert(call_id.clone()) {
+            return;
+        }
+        let args: Value = serde_json::from_str(&arguments).unwrap_or_else(|_| json!({}));
+        let label = tools::label(&name, &args);
+        self.pending_calls.insert(call_id.clone());
+        self.to_client(json!({"type": "tool", "phase": "started", "callId": call_id, "name": name, "label": label}));
+        if !self.playing() {
+            self.set_state("toolRunning");
+        }
+        let state = self.state.clone();
+        let tx = self.tx.clone();
+        let memory = self.memory.clone();
+        tokio::spawn(async move {
+            let outcome = tools::run(&state, &memory, &name, &args).await;
+            let _ = tx.send(Input::ToolDone {
+                call_id,
+                name,
+                label,
+                outcome,
+            });
+        });
+    }
+}

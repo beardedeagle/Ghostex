@@ -796,6 +796,12 @@ pub fn endpoint_for(path: &str) -> Option<EndpointDescriptor> {
         */
         "/api/setLinearApiKey" | "/api/readWorkModeStatus" => full_local(path),
         /*
+        CDXC:VoiceMode 2026-10-20 WHY:
+        The voice agent's keys are secrets kept on this computer: any client may ask which providers have one (the phone shows whether voice works), only this computer's clients may set one.
+        */
+        "/api/readVoiceAgent" => remote_allowed(path),
+        "/api/setVoiceAgentKey" => full_local(path),
+        /*
         CDXC:Connectors 2026-10-15 WHY:
         A workspace's Composio sign-in and Executor keys are secrets on this computer, and their browser sign-ins come back to this computer's listeners, so only this computer's clients may read or change connectors.
         */

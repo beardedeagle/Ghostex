@@ -1,0 +1,146 @@
+//! The voice agent's settings (provider and voices, from the shared settings file) and its API keys
+//! (sealed in gxserver's vault, never in the settings file).
+//!
+//! CDXC:VoiceMode 2026-10-20 DECISION:
+//! User: the API keys live on the computer, entered in desktop Settings and kept by gxserver; the phone never stores a key. Each provider has its own sealed key and the phone only asks gxserver whether one is set.
+
+use std::fs;
+use std::io::Write as _;
+use std::path::PathBuf;
+use std::time::Duration;
+
+use serde_json::Value;
+
+use super::provider::Provider;
+use crate::paths::GxserverPaths;
+use crate::vault;
+
+pub(super) const PROVIDER_SETTING: &str = "voiceAgentProvider";
+const XAI_VOICE_SETTING: &str = "voiceAgentXaiVoice";
+const OPENAI_VOICE_SETTING: &str = "voiceAgentOpenaiVoice";
+
+/// The shared settings file, read fresh (Settings writes it while gxserver runs).
+pub(super) fn read_settings(paths: &GxserverPaths) -> Value {
+    fs::read_to_string(paths.app_config_dir.join("native-sidebar-settings.json"))
+        .ok()
+        .and_then(|text| serde_json::from_str::<Value>(&text).ok())
+        .unwrap_or(Value::Null)
+}
+
+pub(super) fn selected_provider(paths: &GxserverPaths) -> Provider {
+    read_settings(paths)
+        .get(PROVIDER_SETTING)
+        .and_then(Value::as_str)
+        .and_then(Provider::from_id)
+        .unwrap_or(Provider::Xai)
+}
+
+pub(super) fn selected_voice(paths: &GxserverPaths, provider: Provider) -> String {
+    let key = match provider {
+        Provider::Xai => XAI_VOICE_SETTING,
+        Provider::OpenAi => OPENAI_VOICE_SETTING,
+    };
+    read_settings(paths)
+        .get(key)
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|voice| {
+            !voice.is_empty()
+                && voice.len() <= 64
+                && voice
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+        })
+        .map(str::to_ascii_lowercase)
+        .unwrap_or_else(|| provider.default_voice().to_string())
+}
+
+fn sealed_path(paths: &GxserverPaths, provider: Provider) -> PathBuf {
+    paths
+        .auth_dir
+        .join("voice-agent")
+        .join(format!("{}.sealed", provider.id()))
+}
+
+/// The provider's saved key, unsealed; `None` when none is saved.
+pub(super) fn read_key(
+    paths: &GxserverPaths,
+    provider: Provider,
+) -> Result<Option<String>, String> {
+    match fs::read_to_string(sealed_path(paths, provider)) {
+        Ok(sealed) => vault::unseal(paths, sealed.trim()).map(Some),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(format!("Couldn't read the saved API key: {error}")),
+    }
+}
+
+pub(super) fn key_configured(paths: &GxserverPaths, provider: Provider) -> bool {
+    sealed_path(paths, provider).is_file()
+}
+
+/// Seals and saves the key (a 0600 temporary file renamed over the old one), or removes it when
+/// `key` is `None`.
+pub(super) fn write_key(
+    paths: &GxserverPaths,
+    provider: Provider,
+    key: Option<&str>,
+) -> Result<(), String> {
+    let path = sealed_path(paths, provider);
+    let Some(key) = key else {
+        return match fs::remove_file(&path) {
+            Err(error) if error.kind() != std::io::ErrorKind::NotFound => {
+                Err(format!("Couldn't remove the API key: {error}"))
+            }
+            _ => Ok(()),
+        };
+    };
+    let sealed = vault::seal(paths, key)?;
+    let write = || -> std::io::Result<()> {
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        let temp = path.with_extension("sealed.tmp");
+        let _ = fs::remove_file(&temp);
+        {
+            let mut options = fs::OpenOptions::new();
+            options.write(true).create_new(true);
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::OpenOptionsExt;
+                options.mode(0o600);
+            }
+            let mut file = options.open(&temp)?;
+            file.write_all(sealed.as_bytes())?;
+            file.sync_all()?;
+        }
+        fs::rename(&temp, &path)
+    };
+    write().map_err(|error| format!("Couldn't save the API key: {error}"))
+}
+
+/// What checking a key with its provider found.
+pub(super) enum KeyCheck {
+    Valid,
+    Refused,
+    Unreachable(String),
+}
+
+/// Asks the provider whether the key works (blocking; run it off the async runtime).
+pub(super) fn check_key(provider: Provider, key: &str) -> KeyCheck {
+    let response = ureq::get(provider.key_check_url())
+        .set("authorization", &format!("Bearer {key}"))
+        .timeout(Duration::from_secs(15))
+        .call();
+    match response {
+        Ok(_) => KeyCheck::Valid,
+        Err(ureq::Error::Status(400 | 401 | 403, _)) => KeyCheck::Refused,
+        Err(ureq::Error::Status(status, _)) => {
+            KeyCheck::Unreachable(format!("{} answered HTTP {status}.", provider.label()))
+        }
+        Err(error) => KeyCheck::Unreachable(format!(
+            "Couldn't reach {}: {}",
+            provider.label(),
+            error.kind()
+        )),
+    }
+}

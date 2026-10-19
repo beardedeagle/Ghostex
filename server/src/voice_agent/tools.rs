@@ -1,0 +1,920 @@
+//! The tools the voice model can call, and running them. Every tool answers a small JSON object
+//! the model turns into speech; failures answer `{"ok": false, "error": …}` so the model can say
+//! what went wrong instead of the conversation stopping.
+//!
+//! CDXC:VoiceMode 2026-10-20 DECISION:
+//! User: the voice agent can act on any session, not only the open chat; it sends prompts right away without a spoken confirmation and then says what it sent; it answers question cards and approves or denies permission prompts (saying what it approved); and it can start new agents in a project the user names. Each tool reuses the gxserver route the matching `ghostex` verb calls (sessions, read-session-chat, send-session-chat-message, answer-session-chat-prompt, create-agent).
+
+use std::sync::Arc;
+use std::time::Duration;
+
+use serde_json::{json, Map, Value};
+
+use super::loopback;
+use super::sessions::{self, Match, SessionInfo};
+use crate::server::AppState;
+
+/// Messages `read_session` returns by default and at most.
+const READ_DEFAULT: usize = 6;
+const READ_MAX: usize = 20;
+/// Characters kept of one message, from its end (where the conclusion is).
+const MESSAGE_CHARS: usize = 1_500;
+/// Sessions `list_sessions` returns at most.
+const LIST_MAX: usize = 40;
+
+pub(super) fn definitions() -> Value {
+    let session = json!({
+        "type": "string",
+        "description": "Which session: its ref from list_sessions, or the user's words for it (\"the sidebar one\", \"Linear fix\")."
+    });
+    json!([
+        {
+            "type": "function",
+            "name": "list_sessions",
+            "description": "List the user's open agent sessions with title, project, agent and state (working, waiting on a question, waiting on an approval, idle, sleeping). Waiting sessions come first.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "project": {"type": "string", "description": "Optional: only sessions of this project (its name as the user says it)."}
+                }
+            }
+        },
+        {
+            "type": "function",
+            "name": "read_session",
+            "description": "Read the last messages between the user and the agent in a session (no tool calls, no thinking), plus whether it is working and what it waits on.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "session": session,
+                    "count": {"type": "integer", "description": "How many messages, newest last. Default 6, at most 20."}
+                },
+                "required": ["session"]
+            }
+        },
+        {
+            "type": "function",
+            "name": "send_prompt",
+            "description": "Send a prompt to a session's agent right away, as if the user typed it in that chat. A busy agent gets it at its next turn.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "session": session,
+                    "text": {"type": "string", "description": "The prompt, written as the user's instruction to the agent."}
+                },
+                "required": ["session", "text"]
+            }
+        },
+        {
+            "type": "function",
+            "name": "get_pending_prompt",
+            "description": "Get the question or permission prompt a session is waiting on, with numbered options.",
+            "parameters": {
+                "type": "object",
+                "properties": {"session": session},
+                "required": ["session"]
+            }
+        },
+        {
+            "type": "function",
+            "name": "answer_prompt",
+            "description": "Answer the question or permission prompt a session is waiting on, using option numbers from get_pending_prompt. For a permission prompt, pick the approve or deny option the user chose.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "session": session,
+                    "option": {"type": "integer", "description": "The chosen option number (for a single question or a permission prompt)."},
+                    "answers": {
+                        "type": "array",
+                        "description": "For a card with several questions: one entry per question, in order.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "options": {"type": "array", "items": {"type": "integer"}, "description": "Chosen option numbers (several only when the question allows it)."},
+                                "text": {"type": "string", "description": "A free answer instead of the options, when the question allows one."}
+                            }
+                        }
+                    },
+                    "text": {"type": "string", "description": "A free answer for a single question that allows one."}
+                },
+                "required": ["session"]
+            }
+        },
+        {
+            "type": "function",
+            "name": "list_projects",
+            "description": "List the user's projects (name and folder), to start a new agent in one.",
+            "parameters": {"type": "object", "properties": {}}
+        },
+        {
+            "type": "function",
+            "name": "list_agent_types",
+            "description": "List the agent types the user can start (Claude, Codex and others), with the default first.",
+            "parameters": {"type": "object", "properties": {}}
+        },
+        {
+            "type": "function",
+            "name": "start_agent",
+            "description": "Start a new agent session in a project, optionally with a first prompt it starts working on.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "project": {"type": "string", "description": "The project, as the user names it."},
+                    "agent": {"type": "string", "description": "The agent the user asked for, as they said it (\"Claude\", \"Codex\"). Always pass it when the user named one; leave it out only when they did not, to use their default."},
+                    "prompt": {"type": "string", "description": "Optional first prompt for the new agent."}
+                },
+                "required": ["project"]
+            }
+        }
+    ])
+}
+
+/// What a tool call did: the output for the model, and a short status line for the client.
+pub(super) struct ToolOutcome {
+    pub(super) output: Value,
+    pub(super) ok: bool,
+}
+
+/// A short human line for the client's status while the tool runs.
+pub(super) fn label(name: &str, args: &Value) -> String {
+    // A ref ("P3lv0:G8lhp") means nothing to the user; name it only when it is their words.
+    let target = args
+        .get("session")
+        .or_else(|| args.get("project"))
+        .and_then(Value::as_str)
+        .map(|text| {
+            let is_ref = text.contains(':') && !text.contains(' ');
+            if is_ref {
+                "the session".to_string()
+            } else {
+                text.chars().take(40).collect::<String>()
+            }
+        });
+    match (name, target) {
+        ("list_sessions", _) => "Checking your sessions".to_string(),
+        ("read_session", Some(target)) => format!("Reading {target}"),
+        ("send_prompt", Some(target)) => format!("Sending to {target}"),
+        ("get_pending_prompt", Some(target)) => format!("Checking what {target} asks"),
+        ("answer_prompt", Some(target)) => format!("Answering {target}"),
+        ("list_projects", _) => "Checking your projects".to_string(),
+        ("list_agent_types", _) => "Checking your agents".to_string(),
+        ("start_agent", Some(target)) => format!("Starting an agent in {target}"),
+        (name, _) => name.replace('_', " "),
+    }
+}
+
+fn failure(message: impl Into<String>) -> ToolOutcome {
+    ToolOutcome {
+        output: json!({"ok": false, "error": message.into()}),
+        ok: false,
+    }
+}
+
+fn success(output: Value) -> ToolOutcome {
+    ToolOutcome { output, ok: true }
+}
+
+fn arg_text(args: &Value, key: &str) -> String {
+    args.get(key)
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .unwrap_or_default()
+        .to_string()
+}
+
+/// What a conversation remembers between tool calls: which session each name the user said
+/// resolved to.
+///
+/// CDXC:VoiceMode 2026-10-20 WHY:
+/// Ghostex renames a session from its first prompt, so "the voice test one" stopped matching right after the agent sent it a prompt (live test: the session became "Pineapple"). A name that resolved once keeps naming the same session for the rest of the conversation.
+#[derive(Default)]
+pub(super) struct ToolMemory {
+    names: std::sync::Mutex<std::collections::HashMap<String, String>>,
+}
+
+impl ToolMemory {
+    fn key(name: &str) -> String {
+        name.trim().to_lowercase()
+    }
+
+    fn recall(&self, name: &str) -> Option<String> {
+        self.names.lock().ok()?.get(&Self::key(name)).cloned()
+    }
+
+    fn remember(&self, name: &str, session: &SessionInfo) {
+        if let Ok(mut names) = self.names.lock() {
+            names.insert(Self::key(name), session.reference());
+            names.insert(Self::key(&session.title), session.reference());
+        }
+    }
+}
+
+pub(super) async fn run(
+    state: &Arc<AppState>,
+    memory: &ToolMemory,
+    name: &str,
+    args: &Value,
+) -> ToolOutcome {
+    let result = match name {
+        "list_sessions" => list_sessions(state, args).await,
+        "read_session" => read_session(state, memory, args).await,
+        "send_prompt" => send_prompt(state, memory, args).await,
+        "get_pending_prompt" => get_pending_prompt(state, memory, args).await,
+        "answer_prompt" => answer_prompt(state, memory, args).await,
+        "list_projects" => list_projects(state).await,
+        "list_agent_types" => list_agent_types(state).await,
+        "start_agent" => return start_agent(state, args).await,
+        other => Err(format!("There is no tool called {other}.")),
+    };
+    match result {
+        Ok(output) => success(output),
+        Err(message) => failure(message),
+    }
+}
+
+/// The session the user named, or an error the model can speak (with candidates when ambiguous).
+async fn resolve_session(
+    state: &Arc<AppState>,
+    memory: &ToolMemory,
+    args: &Value,
+) -> Result<SessionInfo, String> {
+    let query = arg_text(args, "session");
+    if query.is_empty() {
+        return Err("Say which session.".to_string());
+    }
+    let all = sessions::list_sessions_async(state).await?;
+    if let Some(reference) = memory.recall(&query) {
+        if let Some(session) = all.iter().find(|session| session.reference() == reference) {
+            return Ok(session.clone());
+        }
+    }
+    match sessions::match_session(&all, &query) {
+        Match::One(session) => {
+            memory.remember(&query, &session);
+            Ok(session)
+        }
+        Match::Ambiguous(candidates) => Err(format!(
+            "Ambiguous: \"{query}\" could be {}. Ask the user which one.",
+            candidates
+                .iter()
+                .map(|session| format!(
+                    "\"{}\" ({}, ref {})",
+                    session.title,
+                    session.project,
+                    session.reference()
+                ))
+                .collect::<Vec<_>>()
+                .join(" or ")
+        )),
+        Match::None => Err(format!(
+            "No open session matches \"{query}\". Call list_sessions to see their titles."
+        )),
+    }
+}
+
+async fn list_sessions(state: &Arc<AppState>, args: &Value) -> Result<Value, String> {
+    let mut all = sessions::list_sessions_async(state).await?;
+    let project = arg_text(args, "project");
+    if !project.is_empty() {
+        let projects = sessions::list_projects_async(state).await?;
+        match sessions::match_project(&projects, &project) {
+            Match::One(found) => all.retain(|session| session.project_id == found.project_id),
+            Match::Ambiguous(candidates) => {
+                return Err(format!(
+                    "Ambiguous project \"{project}\": {}. Ask the user which one.",
+                    candidates
+                        .iter()
+                        .map(project_choice)
+                        .collect::<Vec<_>>()
+                        .join(" or ")
+                ))
+            }
+            Match::None => return Err(format!("No project matches \"{project}\".")),
+        }
+    }
+    let total = all.len();
+    let count = |state: sessions::VoiceState| all.iter().filter(|s| s.state == state).count();
+    Ok(json!({
+        "ok": true,
+        "total": total,
+        "working": count(sessions::VoiceState::Working),
+        "waitingOnQuestion": count(sessions::VoiceState::WaitingOnQuestion),
+        "waitingOnApproval": count(sessions::VoiceState::WaitingOnApproval),
+        "idle": count(sessions::VoiceState::Finished),
+        "sleeping": count(sessions::VoiceState::Sleeping),
+        "sessions": all.iter().take(LIST_MAX).map(SessionInfo::to_tool_value).collect::<Vec<_>>(),
+        "truncated": total > LIST_MAX,
+    }))
+}
+
+/// A message's text blocks only, keeping its end when it is long.
+fn spoken_text(message: &Value) -> String {
+    let text = message
+        .get("blocks")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter(|block| block.get("type").and_then(Value::as_str) == Some("text"))
+        .filter_map(|block| block.get("text").and_then(Value::as_str))
+        .map(str::trim)
+        .filter(|text| !text.is_empty())
+        .collect::<Vec<_>>()
+        .join("\n\n");
+    let count = text.chars().count();
+    if count <= MESSAGE_CHARS {
+        text
+    } else {
+        let tail: String = text.chars().skip(count - MESSAGE_CHARS).collect();
+        format!("…{tail}")
+    }
+}
+
+async fn read_chat(
+    state: &Arc<AppState>,
+    session: &SessionInfo,
+    limit: usize,
+) -> Result<Value, String> {
+    loopback::call(
+        state,
+        "/api/readSessionChat",
+        json!({
+            "projectId": session.project_id,
+            "sessionId": session.session_id,
+            "limit": limit,
+            "historyMode": "detail",
+        }),
+        Duration::from_secs(20),
+    )
+    .await
+}
+
+async fn read_session(
+    state: &Arc<AppState>,
+    memory: &ToolMemory,
+    args: &Value,
+) -> Result<Value, String> {
+    let session = resolve_session(state, memory, args).await?;
+    let count = args
+        .get("count")
+        .and_then(Value::as_u64)
+        .map(|count| (count as usize).clamp(1, READ_MAX))
+        .unwrap_or(READ_DEFAULT);
+    // Tool rows dominate a transcript, so read well past `count` rows to find enough messages.
+    let chat = read_chat(state, &session, (count * 12).clamp(60, 240)).await?;
+    let mut messages: Vec<Value> = chat
+        .get("messages")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|message| {
+            let role = match crate::ghostex_cli::session_chat_transcript::effective_role(message) {
+                "user" => "user",
+                "assistant" => "agent",
+                _ => return None,
+            };
+            let text = spoken_text(message);
+            (!text.is_empty()).then(|| json!({"role": role, "text": text}))
+        })
+        .collect();
+    if messages.len() > count {
+        messages.drain(..messages.len() - count);
+    }
+    Ok(json!({
+        "ok": true,
+        "session": session.to_tool_value(),
+        "working": chat.get("working").and_then(Value::as_bool).unwrap_or(false),
+        "messages": messages,
+    }))
+}
+
+async fn send_prompt(
+    state: &Arc<AppState>,
+    memory: &ToolMemory,
+    args: &Value,
+) -> Result<Value, String> {
+    let text = arg_text(args, "text");
+    if text.is_empty() {
+        return Err("The prompt is empty.".to_string());
+    }
+    let session = resolve_session(state, memory, args).await?;
+    loopback::call(
+        state,
+        "/api/sendSessionChatMessage",
+        json!({
+            "projectId": session.project_id,
+            "sessionId": session.session_id,
+            "text": text,
+            "sendRequestId": uuid::Uuid::new_v4().to_string(),
+        }),
+        Duration::from_secs(45),
+    )
+    .await?;
+    Ok(json!({"ok": true, "sent": true, "session": session.brief(), "text": text}))
+}
+
+/// One option the user can pick, and the exact answer the chat would send for it.
+struct PromptOption {
+    label: String,
+    answer: Value,
+}
+
+/// The prompt a session waits on, read the way the chat reads it: a terminal picker or dialog's
+/// rows, its key actions, else the stored question or approval card.
+enum PendingPrompt {
+    None,
+    /// A question card: each question with its options; answered with `kind: question`.
+    Questions(Vec<Value>),
+    /// A permission prompt or on-screen picker: a title and its options.
+    Choice {
+        title: String,
+        detail: Option<String>,
+        options: Vec<PromptOption>,
+    },
+}
+
+fn pending_prompt(chat: &Value) -> PendingPrompt {
+    let prompt = chat.get("prompt").filter(|prompt| prompt.is_object());
+    if let Some(prompt) = prompt {
+        if prompt.get("kind").and_then(Value::as_str) == Some("question") {
+            if let Some(questions) = prompt.get("questions").and_then(Value::as_array) {
+                if !questions.is_empty() {
+                    return PendingPrompt::Questions(questions.clone());
+                }
+            }
+        }
+    }
+    if let Some(notice) = chat
+        .get("terminalNotice")
+        .filter(|notice| notice.is_object())
+    {
+        let title = notice
+            .get("title")
+            .and_then(Value::as_str)
+            .unwrap_or("The agent is asking")
+            .to_string();
+        let detail = notice
+            .get("approvalCommand")
+            .or_else(|| notice.get("detail"))
+            .and_then(Value::as_str)
+            .map(str::to_string);
+        let dialog_id = notice.pointer("/dialog/id").and_then(Value::as_str);
+        let choice_answer = |index: usize| match dialog_id {
+            Some(id) => json!({"kind": "terminalDialog", "choiceIndex": index, "dialogId": id}),
+            None => json!({"kind": "terminalChoice", "choiceIndex": index}),
+        };
+        let mut options: Vec<PromptOption> = notice
+            .get("choices")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(|choice| {
+                Some(PromptOption {
+                    label: choice.get("label")?.as_str()?.to_string(),
+                    answer: choice_answer(choice.get("index")?.as_u64()? as usize),
+                })
+            })
+            .collect();
+        if options.is_empty() {
+            options = notice
+                .pointer("/dialog/rows")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+                .enumerate()
+                .filter_map(|(index, row)| {
+                    Some(PromptOption {
+                        label: row.get("label")?.as_str()?.to_string(),
+                        answer: choice_answer(index),
+                    })
+                })
+                .collect();
+        }
+        if options.is_empty() {
+            options = notice
+                .get("actions")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+                .filter(|action| action.get("kind").and_then(Value::as_str) == Some("sendKeys"))
+                .filter_map(|action| {
+                    Some(PromptOption {
+                        label: action.get("label")?.as_str()?.to_string(),
+                        answer: json!({"kind": "approval", "approvalSend": action.get("send")?.as_str()?}),
+                    })
+                })
+                .collect();
+        }
+        if !options.is_empty() {
+            return PendingPrompt::Choice {
+                title,
+                detail,
+                options,
+            };
+        }
+    }
+    if let Some(prompt) = prompt {
+        if prompt.get("kind").and_then(Value::as_str) == Some("approval") {
+            let tool = prompt
+                .get("tool")
+                .and_then(Value::as_str)
+                .unwrap_or("a tool");
+            return PendingPrompt::Choice {
+                title: format!("Permission to use {tool}"),
+                detail: prompt
+                    .get("summary")
+                    .and_then(Value::as_str)
+                    .map(str::to_string),
+                options: vec![
+                    PromptOption {
+                        label: "Allow".to_string(),
+                        answer: json!({"kind": "approval", "approvalSend": "1"}),
+                    },
+                    PromptOption {
+                        label: "Deny".to_string(),
+                        answer: json!({"kind": "approval", "approvalSend": ""}),
+                    },
+                ],
+            };
+        }
+    }
+    PendingPrompt::None
+}
+
+fn short(text: &str, max: usize) -> String {
+    if text.chars().count() <= max {
+        text.to_string()
+    } else {
+        format!("{}…", text.chars().take(max).collect::<String>())
+    }
+}
+
+async fn get_pending_prompt(
+    state: &Arc<AppState>,
+    memory: &ToolMemory,
+    args: &Value,
+) -> Result<Value, String> {
+    let session = resolve_session(state, memory, args).await?;
+    let chat = read_chat(state, &session, 20).await?;
+    Ok(match pending_prompt(&chat) {
+        PendingPrompt::None => json!({
+            "ok": true,
+            "session": session.to_tool_value(),
+            "kind": "none",
+            "note": "Nothing is waiting for an answer in this session right now.",
+        }),
+        PendingPrompt::Questions(questions) => json!({
+            "ok": true,
+            "session": session.to_tool_value(),
+            "kind": "question",
+            "questions": questions.iter().enumerate().map(|(index, question)| json!({
+                "number": index + 1,
+                "question": question.get("question").and_then(Value::as_str).map(|text| short(text, 600)),
+                "multiSelect": question.get("multiSelect").and_then(Value::as_bool).unwrap_or(false),
+                "allowsFreeAnswer": question.get("allowCustom").and_then(Value::as_bool).unwrap_or(true),
+                "options": question.get("options").and_then(Value::as_array).into_iter().flatten().enumerate().map(|(n, option)| json!({
+                    "number": n + 1,
+                    "label": option.get("label").and_then(Value::as_str).map(|text| short(text, 200)),
+                    "description": option.get("description").and_then(Value::as_str).map(|text| short(text, 300)),
+                })).collect::<Vec<_>>(),
+            })).collect::<Vec<_>>(),
+        }),
+        PendingPrompt::Choice {
+            title,
+            detail,
+            options,
+        } => json!({
+            "ok": true,
+            "session": session.to_tool_value(),
+            "kind": "permissionOrChoice",
+            "title": short(&title, 300),
+            "detail": detail.map(|detail| short(&detail, 400)),
+            "options": options.iter().enumerate().map(|(n, option)| json!({"number": n + 1, "label": short(&option.label, 200)})).collect::<Vec<_>>(),
+        }),
+    })
+}
+
+fn option_numbers(value: Option<&Value>) -> Vec<usize> {
+    value
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_u64)
+        .filter(|number| *number >= 1)
+        .map(|number| number as usize - 1)
+        .collect()
+}
+
+async fn answer_prompt(
+    state: &Arc<AppState>,
+    memory: &ToolMemory,
+    args: &Value,
+) -> Result<Value, String> {
+    let session = resolve_session(state, memory, args).await?;
+    let chat = read_chat(state, &session, 20).await?;
+    let single_option = args
+        .get("option")
+        .and_then(Value::as_u64)
+        .filter(|n| *n >= 1)
+        .map(|n| n as usize - 1);
+    let free_text = arg_text(args, "text");
+    let (answer, said) = match pending_prompt(&chat) {
+        PendingPrompt::None => {
+            return Err("Nothing is waiting for an answer in that session any more.".to_string())
+        }
+        PendingPrompt::Questions(questions) => {
+            let mut selections: Vec<Value> = Vec::new();
+            let mut said: Vec<String> = Vec::new();
+            let answers = args
+                .get("answers")
+                .and_then(Value::as_array)
+                .cloned()
+                .unwrap_or_default();
+            for (index, question) in questions.iter().enumerate() {
+                let labels: Vec<String> = question
+                    .get("options")
+                    .and_then(Value::as_array)
+                    .into_iter()
+                    .flatten()
+                    .map(|option| {
+                        option
+                            .get("label")
+                            .and_then(Value::as_str)
+                            .unwrap_or_default()
+                            .to_string()
+                    })
+                    .collect();
+                let (indices, other) = match answers.get(index) {
+                    Some(entry) => (
+                        option_numbers(entry.get("options")),
+                        entry
+                            .get("text")
+                            .and_then(Value::as_str)
+                            .map(str::trim)
+                            .filter(|t| !t.is_empty())
+                            .map(str::to_string),
+                    ),
+                    None if index == 0 => (
+                        single_option.into_iter().collect(),
+                        Some(free_text.clone()).filter(|t| !t.is_empty()),
+                    ),
+                    None => (Vec::new(), None),
+                };
+                if indices.iter().any(|i| *i >= labels.len()) {
+                    return Err(format!(
+                        "Question {} has only {} options.",
+                        index + 1,
+                        labels.len()
+                    ));
+                }
+                if indices.is_empty() && other.is_none() {
+                    return Err(format!(
+                        "Question {} needs an answer: an option number or a free answer.",
+                        index + 1
+                    ));
+                }
+                said.extend(indices.iter().map(|i| labels[*i].clone()));
+                if let Some(other) = &other {
+                    said.push(other.clone());
+                }
+                let mut selection = Map::new();
+                selection.insert("indices".to_string(), json!(indices));
+                if let Some(other) = other {
+                    selection.insert("other".to_string(), json!(other));
+                }
+                selections.push(Value::Object(selection));
+            }
+            (
+                json!({"kind": "question", "selections": selections}),
+                said.join(", "),
+            )
+        }
+        PendingPrompt::Choice { options, title, .. } => {
+            let Some(index) = single_option else {
+                return Err(format!(
+                    "Pick one of the {} options of \"{}\" by number.",
+                    options.len(),
+                    short(&title, 120)
+                ));
+            };
+            let Some(option) = options.get(index) else {
+                return Err(format!("There are only {} options.", options.len()));
+            };
+            (option.answer.clone(), option.label.clone())
+        }
+    };
+    let mut params = answer.as_object().cloned().unwrap_or_default();
+    params.insert("projectId".to_string(), json!(session.project_id));
+    params.insert("sessionId".to_string(), json!(session.session_id));
+    params.insert(
+        "sendRequestId".to_string(),
+        json!(uuid::Uuid::new_v4().to_string()),
+    );
+    loopback::call(
+        state,
+        "/api/answerSessionChatPrompt",
+        Value::Object(params),
+        Duration::from_secs(30),
+    )
+    .await?;
+    Ok(json!({"ok": true, "answered": true, "session": session.brief(), "chose": said}))
+}
+
+/// A project in an ambiguity question: its name and, to tell same-named ones apart, its folder.
+fn project_choice(project: &sessions::ProjectInfo) -> String {
+    let home = std::env::var("HOME").unwrap_or_default();
+    let folder = match project.path.strip_prefix(&home) {
+        Some(rest) if !home.is_empty() => format!("~{rest}"),
+        _ => project.path.clone(),
+    };
+    let parent = std::path::Path::new(&project.path)
+        .parent()
+        .and_then(|parent| parent.file_name())
+        .map(|name| name.to_string_lossy().to_string())
+        .unwrap_or_default();
+    format!(
+        "\"{}\" in the \"{parent}\" folder (to pick it, pass project \"{folder}\")",
+        project.name
+    )
+}
+
+async fn list_projects(state: &Arc<AppState>) -> Result<Value, String> {
+    let projects = sessions::list_projects_async(state).await?;
+    Ok(json!({
+        "ok": true,
+        "projects": projects.iter().map(|project| json!({"name": project.name, "folder": project.path})).collect::<Vec<_>>(),
+    }))
+}
+
+/// The agent types the user can start: the visible agents (`ghostex agents types` reads the same
+/// list), with the user's Default Prompt Agent as the default when it is one of them.
+async fn agent_types(
+    state: &Arc<AppState>,
+) -> Result<(Vec<(String, String)>, Option<String>), String> {
+    let hud = loopback::call(
+        state,
+        "/api/readSidebarHud",
+        json!({}),
+        Duration::from_secs(10),
+    )
+    .await?;
+    let agents: Vec<(String, String)> = hud
+        .get("agents")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|agent| {
+            let id = agent.get("agentId")?.as_str()?.to_string();
+            let name = agent
+                .get("name")
+                .and_then(Value::as_str)
+                .unwrap_or(&id)
+                .to_string();
+            Some((id, name))
+        })
+        .collect();
+    let preferred = super::keys::read_settings(&state.paths)
+        .get("defaultPromptAgentId")
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .filter(|id| agents.iter().any(|(agent, _)| agent == id));
+    let default = preferred.or_else(|| agents.first().map(|(id, _)| id.clone()));
+    Ok((agents, default))
+}
+
+async fn list_agent_types(state: &Arc<AppState>) -> Result<Value, String> {
+    let (mut agents, default) = agent_types(state).await?;
+    if let Some(default) = &default {
+        agents.sort_by_key(|(id, _)| id != default);
+    }
+    Ok(json!({
+        "ok": true,
+        "default": default,
+        "agents": agents.iter().map(|(id, name)| json!({"id": id, "name": name})).collect::<Vec<_>>(),
+    }))
+}
+
+async fn start_agent(state: &Arc<AppState>, args: &Value) -> ToolOutcome {
+    let project_query = arg_text(args, "project");
+    if project_query.is_empty() {
+        return failure("Say which project.");
+    }
+    let projects = match sessions::list_projects_async(state).await {
+        Ok(projects) => projects,
+        Err(error) => return failure(error),
+    };
+    let project = match sessions::match_project(&projects, &project_query) {
+        Match::One(project) => project,
+        Match::Ambiguous(candidates) => {
+            return failure(format!(
+                "Ambiguous project \"{project_query}\": {}. Ask the user which one.",
+                candidates
+                    .iter()
+                    .map(project_choice)
+                    .collect::<Vec<_>>()
+                    .join(" or ")
+            ))
+        }
+        Match::None => {
+            return failure(format!(
+                "No project matches \"{project_query}\". Call list_projects."
+            ))
+        }
+    };
+    let (agents, default) = match agent_types(state).await {
+        Ok(found) => found,
+        Err(error) => return failure(error),
+    };
+    let requested = arg_text(args, "agent");
+    let agent_id = if requested.is_empty() {
+        default.or_else(|| agents.first().map(|(id, _)| id.clone()))
+    } else {
+        let lower = requested.to_lowercase();
+        agents
+            .iter()
+            .find(|(id, name)| id.to_lowercase() == lower || name.to_lowercase() == lower)
+            .or_else(|| {
+                agents.iter().find(|(id, name)| {
+                    id.to_lowercase().contains(&lower) || name.to_lowercase().contains(&lower)
+                })
+            })
+            .map(|(id, _)| id.clone())
+    };
+    let Some(agent_id) = agent_id else {
+        return failure(format!(
+            "No agent type matches \"{requested}\". Call list_agent_types."
+        ));
+    };
+    let created = match loopback::call(
+        state,
+        "/api/createAgentSession",
+        json!({"agentId": agent_id, "projectId": project.project_id}),
+        Duration::from_secs(30),
+    )
+    .await
+    {
+        Ok(created) => created,
+        Err(error) => return failure(format!("Couldn't create the session: {error}")),
+    };
+    let session = created.get("session").cloned().unwrap_or(Value::Null);
+    let (Some(project_id), Some(session_id)) = (
+        session
+            .get("projectId")
+            .and_then(Value::as_str)
+            .map(str::to_string),
+        session
+            .get("sessionId")
+            .and_then(Value::as_str)
+            .map(str::to_string),
+    ) else {
+        return failure("gxserver created no session.");
+    };
+    if let Err(error) = loopback::call(
+        state,
+        "/api/startSessionProvider",
+        json!({"projectId": project_id, "sessionId": session_id}),
+        Duration::from_secs(60),
+    )
+    .await
+    {
+        return failure(format!(
+            "The session was created but its agent did not start: {error}"
+        ));
+    }
+    let prompt = arg_text(args, "prompt");
+    let mut sent = false;
+    if !prompt.is_empty() {
+        // The send path waits for the agent's input box, so a fresh agent gets the prompt once it is up.
+        match loopback::call(
+            state,
+            "/api/sendSessionChatMessage",
+            json!({
+                "projectId": project_id,
+                "sessionId": session_id,
+                "text": prompt,
+                "sendRequestId": uuid::Uuid::new_v4().to_string(),
+            }),
+            Duration::from_secs(90),
+        )
+        .await
+        {
+            Ok(_) => sent = true,
+            Err(error) => {
+                return ToolOutcome {
+                    output: json!({"ok": false, "started": true, "project": project.name, "error": format!("The agent started but the first prompt did not go through: {error}")}),
+                    ok: false,
+                }
+            }
+        }
+    }
+    ToolOutcome {
+        output: json!({
+            "ok": true,
+            "started": true,
+            "project": project.name,
+            "agent": agents.iter().find(|(id, _)| *id == agent_id).map_or(agent_id.as_str(), |(_, name)| name.as_str()),
+            "ref": format!("{project_id}:{session_id}"),
+            "promptSent": sent,
+        }),
+        ok: true,
+    }
+}

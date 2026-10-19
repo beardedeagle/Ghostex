@@ -167,7 +167,8 @@ pub async fn run(args: Vec<String>) -> Result<()> {
 /// What a client reaching this daemon through `ghostex server endpoint` may rely on.
 ///
 /// CDXC:Mobile 2026-10-09 WHY: the phone retries a chat send whose HTTP request was lost on its SSH port forward only when gxserver dedupes `sendRequestId` (`session_chat_send_requests.rs`, `send_once`); an older daemon would type the message twice, and no other field tells the phone which it is talking to. SEE-ALSO: apps/mobile/app/src/chat/rust/machine-link.ts
-const ENDPOINT_CAPABILITIES: [&str; 1] = ["sendRequestLedger"];
+/// CDXC:VoiceMode 2026-10-20 SEE-ALSO: `voiceAgent` means `/api/voice` (conversation and dictation) and `/api/readVoiceAgent` exist (docs/2026-10-20/voice-mode/voice-agent-client-contract.md).
+const ENDPOINT_CAPABILITIES: [&str; 2] = ["sendRequestLedger", "voiceAgent"];
 
 /// `gxserver endpoint` (`ghostex server endpoint`): the running daemon's local port and bearer token
 /// as JSON.

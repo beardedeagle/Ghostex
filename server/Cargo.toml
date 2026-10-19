@@ -32,6 +32,9 @@ ghostex-agent-sync = { path = "../packages/agent-sync" }
 # The live subscription to a Work workspace's team Convex project (crate::team_sync). rustls, not the
 # default vendored OpenSSL, so it reuses the TLS stack the server already ships.
 convex = { version = "0.10.4", default-features = false, features = ["rustls-tls-webpki-roots"] }
+# The voice agent's provider sockets (xAI Grok Voice, OpenAI Realtime, xAI speech-to-text): the same
+# tokio-tungstenite build and rustls stack convex already compiles in, so no new TLS code ships.
+tokio-tungstenite = { version = "0.28", default-features = false, features = ["connect", "rustls-tls-webpki-roots"] }
 libc = "0.2"
 markdown = "1"
 md-5 = "0.10"

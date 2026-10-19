@@ -590,6 +590,17 @@ How to use this file:
 ### Command-line sign-ins
 
 - **GitHub CLI and Google Workspace CLI** `connectorCliSignIns` (Settings UI row without a settings key; use `ghostex settings open`): Each workspace's own gh and gws sign-in, which agents started there use.
+## Voice agent (tab `voiceAgent`)
+
+### Voice agent
+
+- **Voice provider** `voiceAgentProvider` (one of xai | openai; default xai): Which realtime voice model you talk to: xAI Grok Voice or OpenAI GPT Realtime. Both are billed by the provider while a conversation is open. Option labels: xai = xAI Grok Voice, openai = OpenAI GPT Realtime.
+- **Grok voice** `voiceAgentXaiVoice` (one of eve | ara | rex | sal | leo | altair | atlas | aurora | carina | castor | celeste | cosmo | helios | helix | iris | kepler | liora | lumen | luna | lux | naksh | orion | perseus | rigel | sirius | ursa | zagan | zenith; default eve): The voice Grok Voice speaks with. Option labels: eve = Eve, ara = Ara, rex = Rex, sal = Sal, leo = Leo, altair = Altair, atlas = Atlas, aurora = Aurora, carina = Carina, castor = Castor, celeste = Celeste, cosmo = Cosmo, helios = Helios, helix = Helix, iris = Iris, kepler = Kepler, liora = Liora, lumen = Lumen, luna = Luna, lux = Lux, naksh = Naksh, orion = Orion, perseus = Perseus, rigel = Rigel, sirius = Sirius, ursa = Ursa, zagan = Zagan, zenith = Zenith.
+- **OpenAI voice** `voiceAgentOpenaiVoice` (one of marin | cedar | alloy | ash | ballad | coral | echo | sage | shimmer | verse; default marin): The voice GPT Realtime speaks with. Marin and Cedar sound the most natural. Option labels: marin = Marin, cedar = Cedar, alloy = Alloy, ash = Ash, ballad = Ballad, coral = Coral, echo = Echo, sage = Sage, shimmer = Shimmer, verse = Verse.
+### API keys
+
+- **xAI API key** `voiceAgentXaiKey` (Settings UI row without a settings key; use `ghostex settings open`): Your xAI API key for Grok Voice and for the chat box's dictation microphone. Kept encrypted on this computer; your phone uses it through this computer and never stores it.
+- **OpenAI API key** `voiceAgentOpenaiKey` (Settings UI row without a settings key; use `ghostex settings open`): Your OpenAI API key for GPT Realtime. Kept encrypted on this computer and never shown again after you save it.
 ## Hotkeys (tab `hotkeys`)
 
 ### Projects

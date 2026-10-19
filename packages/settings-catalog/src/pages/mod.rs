@@ -12,6 +12,7 @@ mod open_targets;
 mod os_integration;
 mod projects;
 mod remote;
+mod voice_agent;
 mod workspaces;
 
 use crate::rows::Page;
@@ -33,5 +34,6 @@ pub fn pages(platform: Platform) -> Vec<Page> {
         remote::page(),
         workspaces::page(),
         connectors::page(),
+        voice_agent::page(),
     ]
 }

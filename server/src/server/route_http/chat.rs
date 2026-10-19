@@ -36,6 +36,19 @@ pub(super) async fn route_chat_http(
         "/api/readSessionChat" => {
             handle_read_session_chat_http(&state, endpoint.path, request_id, &body_json).await
         }
+        "/api/readVoiceAgent" => {
+            crate::voice_agent::handle_read_voice_agent_http(&state, endpoint.path, request_id)
+                .await
+        }
+        "/api/setVoiceAgentKey" => {
+            crate::voice_agent::handle_set_voice_agent_key_http(
+                &state,
+                endpoint.path,
+                request_id,
+                &body_json,
+            )
+            .await
+        }
         "/api/catchUpSession" => {
             crate::session_chat_catch_up::handle_catch_up_session_http(
                 &state,

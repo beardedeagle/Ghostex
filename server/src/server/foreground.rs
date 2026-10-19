@@ -221,6 +221,7 @@ pub async fn run_gxserver_foreground(
         .route("/api/events", any(handle_events))
         .route("/api/terminal", any(handle_terminal))
         .route("/api/browserTcp", any(browser_tcp::handle_browser_tcp))
+        .route("/api/voice", any(crate::voice_agent::handle_voice))
         .fallback_service(service_fn(move |request| {
             handle_http_request(http_state.clone(), request)
         }))

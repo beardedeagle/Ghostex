@@ -49,6 +49,7 @@ mod team;
 mod team_slack;
 pub mod usage;
 mod visual;
+mod voice;
 pub mod wait;
 pub mod web;
 mod work_mode;
@@ -131,6 +132,7 @@ const HELP_GATE_EXCLUDED: &[&str] = &[
     "server",
     "settings",
     "tailcat",
+    "voice",
     "web",
 ];
 
@@ -376,6 +378,7 @@ fn is_known_command(name: &str) -> bool {
         "logs",
         "bundle",
         "help",
+        "voice",
     ];
     NAMES.contains(&name) || automations::is_automation_command(name)
 }
@@ -919,6 +922,7 @@ fn run_command(name: &str, args: &[String]) -> CliResult<()> {
             skills::install_move_codex_session_skill_command(args)
         }
         "guide" => guide::guide_command(args),
+        "voice" => voice::voice_command(args),
         "agent-sync" => agent_sync::agent_sync_command(args),
         "install-help-skill" => skills::install_help_skill_command(args),
         "settings" => settings::settings_command(args),
