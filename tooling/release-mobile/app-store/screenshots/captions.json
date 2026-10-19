@@ -1,0 +1,20 @@
+{
+  "iphone-6.9": [
+    {"file": "01-sessions.png", "raw": "iphone-01-sessions.png", "headline": "Every session within reach", "subline": "Follow your agents across projects."},
+    {"file": "02-chat.png", "raw": "iphone-02-chat.png", "headline": "Keep the conversation moving", "subline": "Read progress and reply from anywhere."},
+    {"file": "03-question.png", "raw": "iphone-03-question.png", "headline": "Answer as work happens", "subline": "Make the next decision wherever you are."},
+    {"file": "04-terminal.png", "raw": "iphone-04-terminal.png", "headline": "Full terminal, full control", "subline": "See every detail and use familiar keys."},
+    {"file": "05-web-preview.png", "raw": "iphone-05-web-preview.png", "headline": "Preview what you're building", "subline": "Open your computer's local site."},
+    {"file": "06-docs.png", "raw": "iphone-06-docs.png", "headline": "Plans in your pocket", "subline": "Read project docs wherever work takes you."},
+    {"file": "07-find.png", "raw": "iphone-07-find.png", "headline": "Find a past prompt", "subline": "Search the questions that started the work."}
+  ],
+  "ipad-13": [
+    {"file": "01-sessions.png", "raw": "ipad-01-sessions.png", "headline": "Every session within reach", "subline": "Follow your agents across projects."},
+    {"file": "02-chat.png", "raw": "ipad-02-chat.png", "headline": "Keep the conversation moving", "subline": "Read progress and reply from anywhere."},
+    {"file": "03-question.png", "raw": "ipad-03-question.png", "headline": "Answer as work happens", "subline": "Make the next decision wherever you are."},
+    {"file": "04-terminal.png", "raw": "ipad-04-terminal.png", "headline": "Full terminal, full control", "subline": "See every detail and use familiar keys."},
+    {"file": "05-web-preview.png", "raw": "ipad-05-web-preview.png", "headline": "Preview what you're building", "subline": "Open your computer's local site."},
+    {"file": "06-docs.png", "raw": "ipad-06-docs.png", "headline": "Plans in your pocket", "subline": "Read project docs wherever work takes you."},
+    {"file": "07-find.png", "raw": "ipad-07-find.png", "headline": "Find a past prompt", "subline": "Search the questions that started the work."}
+  ]
+}

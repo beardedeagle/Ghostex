@@ -1,0 +1,24 @@
+Ghostex is the companion app for Ghostex, a free, open source desktop app (ghostex.dev) that runs command-line coding agents on the user's own computer. The phone app has no account and no content of its own: it connects to the user's computer and shows the agent sessions running there.
+
+For review we run a demo computer with Ghostex and a few sample projects and agent sessions. It stays online for the whole review.
+
+HOW TO CONNECT
+1. Open the app and tap "Connect your computer".
+2. Choose "Use Tailscale", then tap "Or type the details". This form connects over plain SSH to any address; the Tailscale check at the top can be ignored.
+3. Fill in:
+   Address: {{DEMO_ADDRESS}}
+   Username: {{DEMO_USERNAME}}
+   Password: the password in Sign-In Information
+   SSH port (open Advanced): {{DEMO_SSH_PORT}}
+4. Tap Save. The Sessions list shows the demo computer's projects and agent sessions.
+
+WHAT TO TRY
+- Tap a session to open its chat. Scroll the conversation, then send a message such as "Summarize what you changed" and watch the agent answer.
+- Open the same session's terminal from the session's menu and try the extra keys.
+- Open Web Preview from the computer's menu and pick the site running on port 3000.
+- Long-press a project and choose Docs to read its Markdown files.
+
+Real users usually pair with Easy Connect ("Scan a code"): Ghostex on their computer shows a QR code that the app scans. Those codes expire after 15 minutes, which is why review uses the address form above.
+
+DATA
+The app only talks to the computers the user connects. The agents run on those computers under the user's own accounts; the app sends no conversation or code to us or to any AI service. "Send Bug / Feedback" posts the report the user writes to our feedback service, only when the user sends it.

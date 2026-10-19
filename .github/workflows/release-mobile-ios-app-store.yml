@@ -1,0 +1,95 @@
+name: Release mobile iOS to the App Store
+
+# Prepares and submits an App Store version of the iOS app from tooling/release-mobile/app-store/
+# (see its README). Upload the build first with "Release mobile iOS to TestFlight".
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: check (read-only), prepare (write the listing, screenshots, build and review info) or submit (send to App Review)
+        required: true
+        default: check
+        type: choice
+        options:
+          - check
+          - prepare
+          - submit
+      version:
+        description: Mobile semver version, the same one uploaded to TestFlight (prepare and submit need it)
+        required: false
+        default: ''
+        type: string
+      whats_new:
+        description: What's New text (prepare; required from the second App Store version on)
+        required: false
+        default: ''
+        type: string
+      dry_run:
+        description: Show what prepare or submit would do without changing anything
+        required: false
+        default: false
+        type: boolean
+      timeout_minutes:
+        description: How long prepare waits for Apple to finish processing the build
+        required: false
+        default: '60'
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-mobile-ios-app-store
+  cancel-in-progress: false
+
+jobs:
+  app-store:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          fetch-depth: 1
+          submodules: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24.13.1
+      - name: Check the listing files
+        run: node tooling/release-mobile/asc-app-store.mjs validate
+      - name: Install App Store Connect API key
+        env:
+          ASC_ISSUER_ID: ${{ secrets.APPLE_ASC_ISSUER_ID }}
+          ASC_KEY_BASE64: ${{ secrets.APPLE_ASC_KEY_BASE64 }}
+          ASC_KEY_ID: ${{ secrets.APPLE_ASC_KEY_ID }}
+        run: |
+          test -n "$ASC_ISSUER_ID"
+          test -n "$ASC_KEY_BASE64"
+          test -n "$ASC_KEY_ID"
+          KEY_PATH="$RUNNER_TEMP/AuthKey_${ASC_KEY_ID}.p8"
+          printf '%s' "$ASC_KEY_BASE64" | base64 --decode > "$KEY_PATH"
+          chmod 600 "$KEY_PATH"
+          echo "GHOSTEX_ASC_KEY_PATH=$KEY_PATH" >> "$GITHUB_ENV"
+          echo "GHOSTEX_ASC_KEY_ID=$ASC_KEY_ID" >> "$GITHUB_ENV"
+          echo "GHOSTEX_ASC_ISSUER_ID=$ASC_ISSUER_ID" >> "$GITHUB_ENV"
+      - name: ${{ inputs.mode == 'check' && 'Show the App Store state' || inputs.mode == 'prepare' && 'Prepare the App Store version' || 'Submit the version to App Review' }}
+        env:
+          MODE: ${{ inputs.mode }}
+          VERSION: ${{ inputs.version }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          TIMEOUT_MINUTES: ${{ inputs.timeout_minutes }}
+          GHOSTEX_WHATS_NEW: ${{ inputs.whats_new }}
+          GHOSTEX_REVIEW_CONTACT_FIRST_NAME: ${{ secrets.APPLE_REVIEW_CONTACT_FIRST_NAME }}
+          GHOSTEX_REVIEW_CONTACT_LAST_NAME: ${{ secrets.APPLE_REVIEW_CONTACT_LAST_NAME }}
+          GHOSTEX_REVIEW_CONTACT_PHONE: ${{ secrets.APPLE_REVIEW_CONTACT_PHONE }}
+          GHOSTEX_REVIEW_CONTACT_EMAIL: ${{ secrets.APPLE_REVIEW_CONTACT_EMAIL }}
+          GHOSTEX_REVIEW_DEMO_ADDRESS: ${{ secrets.APPLE_REVIEW_DEMO_ADDRESS }}
+          GHOSTEX_REVIEW_DEMO_USERNAME: ${{ secrets.APPLE_REVIEW_DEMO_USERNAME }}
+          GHOSTEX_REVIEW_DEMO_PASSWORD: ${{ secrets.APPLE_REVIEW_DEMO_PASSWORD }}
+          GHOSTEX_REVIEW_DEMO_SSH_PORT: ${{ secrets.APPLE_REVIEW_DEMO_SSH_PORT }}
+        run: |
+          args=("$MODE")
+          if [[ -n "$VERSION" ]]; then args+=(--version "$VERSION"); fi
+          if [[ "$MODE" == prepare ]]; then args+=(--timeout-minutes "$TIMEOUT_MINUTES"); fi
+          if [[ "$MODE" != check && "$DRY_RUN" == true ]]; then args+=(--dry-run); fi
+          node tooling/release-mobile/asc-app-store.mjs "${args[@]}"
