@@ -104,10 +104,134 @@ pub(crate) fn settings_dialog_sheet<V: 'static>(
     window: &Window,
     cx: &mut Context<V>,
 ) -> AnyElement {
+    dialog_sheet(
+        p,
+        id,
+        focus,
+        title,
+        description,
+        width,
+        max_height,
+        padding,
+        gap,
+        scroll_all,
+        body,
+        footer,
+        on_close,
+        SheetClose::Square,
+        window,
+        cx,
+    )
+}
+
+/// [`settings_dialog_sheet`] with the Settings window's own close button: the round X centred on
+/// the sheet's top-right corner, shown while the pointer is over the sheet's top band
+/// (`modal_corner_close_button`, the one window/modal_window_frame.rs draws for app modals).
+///
+/// CDXC:AppModal 2026-10-19 DECISION:
+/// User, on the Orchestrator instructions editor nested in Settings: "please make the x button on the top right of this appear just like the x button we have for the settings modal itself". The sheet reuses the modal's corner X (same component, size, icon, colours, hover and corner position, revealed from the top band) instead of the filled square; the other nested sheets keep the square until the user asks.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn settings_dialog_sheet_with_corner_close<V: 'static>(
+    p: &SettingsPalette,
+    id: impl Into<SharedString>,
+    focus: &FocusHandle,
+    title: impl Into<SharedString>,
+    description: Option<AnyElement>,
+    width: f32,
+    max_height: Option<f32>,
+    padding: f32,
+    gap: f32,
+    body: Vec<AnyElement>,
+    footer: Option<AnyElement>,
+    on_close: impl Fn(&mut V, &mut Window, &mut Context<V>) + Clone + 'static,
+    close_always_shown: bool,
+    window: &Window,
+    cx: &mut Context<V>,
+) -> AnyElement {
+    let close = if close_always_shown {
+        SheetClose::CornerShown
+    } else {
+        SheetClose::Corner
+    };
+    dialog_sheet(
+        p,
+        id,
+        focus,
+        title,
+        description,
+        width,
+        max_height,
+        padding,
+        gap,
+        false,
+        body,
+        footer,
+        on_close,
+        close,
+        window,
+        cx,
+    )
+}
+
+/// Which close button a sheet draws.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum SheetClose {
+    /// The filled square at `top-4 right-4`.
+    Square,
+    /// The modal's corner X, revealed from the top band.
+    Corner,
+    /// The corner X shown at rest (the preview binary's screenshots, which cannot hover).
+    CornerShown,
+}
+
+#[allow(clippy::too_many_arguments)]
+fn dialog_sheet<V: 'static>(
+    p: &SettingsPalette,
+    id: impl Into<SharedString>,
+    focus: &FocusHandle,
+    title: impl Into<SharedString>,
+    description: Option<AnyElement>,
+    width: f32,
+    max_height: Option<f32>,
+    padding: f32,
+    gap: f32,
+    scroll_all: bool,
+    body: Vec<AnyElement>,
+    footer: Option<AnyElement>,
+    on_close: impl Fn(&mut V, &mut Window, &mut Context<V>) + Clone + 'static,
+    close_kind: SheetClose,
+    window: &Window,
+    cx: &mut Context<V>,
+) -> AnyElement {
     let id: SharedString = id.into();
+    let corner_close = close_kind != SheetClose::Square;
+    // The band that reveals the corner X: the sheet's top padding and its header.
+    let band: SharedString = format!("{id}-top-band").into();
     let close_fill = dialog_close_fill(p);
     let close_hover = css_mix(p.foreground, 0.05, close_fill);
-    let close = {
+    let close = if corner_close {
+        let on_close = on_close.clone();
+        let half = MODAL_CORNER_CLOSE_SIZE / 2.0;
+        modal_corner_close_button(
+            &p.modal,
+            SharedString::from(format!("{id}-close")),
+            if close_kind == SheetClose::CornerShown {
+                ModalCornerCloseReveal::Shown
+            } else {
+                ModalCornerCloseReveal::OnGroupHover(band.clone())
+            },
+            move |page: &mut V, window, cx| on_close(page, window, cx),
+            cx,
+        )
+        .absolute()
+        .top(px(-half))
+        .right(px(-half))
+        .size(px(MODAL_CORNER_CLOSE_SIZE))
+        // The half outside the sheet sits over the backdrop, whose press would close the sheet
+        // on mouse-down instead of on the button's own click.
+        .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+        .into_any_element()
+    } else {
         let on_close = on_close.clone();
         div()
             .id(SharedString::from(format!("{id}-close")))
@@ -126,9 +250,13 @@ pub(crate) fn settings_dialog_sheet<V: 'static>(
                 on_close(page, window, cx);
             }))
             .child(settings_icon(icon::X, 16.0, p.foreground))
+            .into_any_element()
     };
     let header = v_flex()
+        .id(band.clone())
+        .group(band)
         .w_full()
+        .when(corner_close, |this| this.pt(px(padding)))
         .gap(px(6.0))
         .child(
             div()
@@ -209,7 +337,11 @@ pub(crate) fn settings_dialog_sheet<V: 'static>(
                 .min_h_0()
                 .flex()
                 .flex_col()
-                .p(px(padding))
+                // With the corner X the header carries the top padding, so the band that reveals
+                // the X starts at the sheet's top edge.
+                .px(px(padding))
+                .pb(px(padding))
+                .when(!corner_close, |this| this.pt(px(padding)))
                 .child(content)
                 .into_any_element()
         })

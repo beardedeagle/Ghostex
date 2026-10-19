@@ -94,7 +94,14 @@ pub fn promote_session_to_coordinator(
     update.insert("sessionId".to_string(), json!(session_id));
     update.insert("runtimeSettings".to_string(), Value::Object(runtime));
     repository.update_session(&update)?;
-    insert_coordinator(&transaction, &project_id, &session_id, &goal, "")?;
+    // Make Orchestrator makes a new orchestrator, so it starts with the Orchestrator instructions
+    // like a created one (CDXC:Coordinators 2026-10-19 in default_instructions.rs).
+    let (instructions, _) = super::default_instructions::resolve_orchestrator_instructions(
+        &transaction,
+        &repository,
+        &project_id,
+    )?;
+    insert_coordinator(&transaction, &project_id, &session_id, &goal, &instructions)?;
     transaction.commit().map_err(sql_error)?;
 
     let playbook_message = playbook_message(&family, &goal);

@@ -2326,6 +2326,21 @@ version of the Projects features in Cursor and Claude Code.
   goal and the standing instructions) or **Memory…** (every note, with a button
   to remove one and a field to add one); on the phone, long-press it. Save
   applies to threads it starts from then on; Cancel leaves everything as it was.
+- **Orchestrator instructions**: standing instructions every new orchestrator
+  starts with, so you write your usual rules once instead of telling each new
+  orchestrator. Set one text for all projects in **Settings > Chat >
+  Orchestrator instructions** (Edit…), and give a project its own in **Settings
+  > Projects** (pick the project, then Orchestrator instructions, Edit…); a
+  project's text also covers all of its worktrees, and an empty one means the
+  project uses the text for all projects. The New Orchestrator dialog shows
+  which text the new orchestrator starts with (the project's own, or the one
+  for all projects) and its **Edit** button changes either. Orchestrators
+  created from the phone or the CLI, and sessions made orchestrators with Make
+  Orchestrator, get them too. Saving never changes orchestrators you already
+  have; edit those with Goal & Instructions…. From a terminal: `ghostex
+  orchestrator default-instructions` shows them, and `ghostex orchestrator
+  set-default-instructions "<text>" [--project-id <id> | --this-project]` sets
+  them (`--clear` removes them).
 - **Just ask**: "run these three as separate threads", "use worktrees", "give me
   a status of every thread", "use a cheaper model for threads", "don't merge
   anything without asking" all work in plain words.

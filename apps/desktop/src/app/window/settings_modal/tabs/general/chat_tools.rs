@@ -2,11 +2,15 @@
 //! File opening.
 use super::super::super::catalog::SettingOption;
 use super::super::super::catalog::{module, settings_catalog};
+use super::super::super::fields::{ButtonVariant, settings_button};
 use super::super::super::fields::{
     RowSpec, SELECT_WIDTH, ignored_ports_field, pet_picker_field, reset_key, segmented_field,
     setting_row, settings_section, settings_select_with_unavailable, text_field,
 };
 use super::super::super::page::PageBlock;
+use super::super::orchestrator_instructions::{
+    instructions_control, instructions_summary, open_instructions_sheet, summary_line,
+};
 use super::{GeneralCx, GeneralTab, save};
 use gpui::{AnyElement, Context, SharedString, Window};
 use serde_json::json;
@@ -112,8 +116,41 @@ fn chat_section(
     rows.extend(page.toggle(g, s, "markedHandovers", "Marked handovers in every session", "Orchestrators and their threads start each part of the message they hand back with a marker such as ❓ Needs you, ✅ Done, ⚠️ Read this, 🧪 Untested or 🛑 Blocked, so a quick skim shows what needs you. Turn this on to have every other agent session do the same. Applies to sessions started or resumed after you change it.", false, cx));
     rows.extend(page.marked_sections_style_row(g, s, window, cx));
     rows.extend(page.toggle(g, s, "orchestratorPlainReplies", "Orchestrators answer without markers", "Orchestrators answer normally, without marking the sections of their handovers. Their threads still mark the reports they send to the orchestrator. Applies to orchestrators started or resumed after you change it.", false, cx));
+    rows.extend(orchestrator_instructions_row(page, g, s, cx));
     settings_section(&g.p, "Chat", None, None, rows)
         .map(|section| PageBlock::section("chat", section))
+}
+
+/// Orchestrator instructions for all projects: the first line of the text and the Edit button that
+/// opens their editor (tabs/orchestrator_instructions.rs). The text lives in gxserver, not in the
+/// settings file.
+fn orchestrator_instructions_row(
+    page: &mut GeneralTab,
+    g: &GeneralCx,
+    section: &str,
+    cx: &mut Context<GeneralTab>,
+) -> Option<AnyElement> {
+    const KEY: &str = "orchestratorInstructions";
+    if !g.visible(section, KEY) {
+        return None;
+    }
+    let summary = instructions_summary(page, None, cx);
+    let spec = RowSpec::new("Orchestrator instructions").description(
+        "Standing instructions every new orchestrator starts with, so every thread it starts gets them too. A project can have its own in Settings > Projects, which also covers its worktrees. Orchestrators you already have keep their own.",
+    );
+    let edit = settings_button(
+        &g.p,
+        "orchestrator-instructions-edit",
+        "Edit…",
+        None,
+        ButtonVariant::Outline,
+        !page.store.read(cx).request().gxserver_rpc_available,
+        None,
+        |page: &mut GeneralTab, window, cx| open_instructions_sheet(page, None, window, cx),
+        cx,
+    );
+    let control = instructions_control(&g.p, &summary_line(summary.as_ref(), false), edit);
+    Some(setting_row(&g.p, KEY, spec, None, control, cx))
 }
 
 fn status_indicators_section(

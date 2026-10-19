@@ -26,6 +26,9 @@ USAGE
   ghostex orchestrator set-instructions (<text> | --body-file <path>) [--orchestrator <ref>]
   ghostex orchestrator edit [--goal=<text>] [--instructions=<text>] [--notes-json=<json>]
                               [--orchestrator <ref>] [--json]
+  ghostex orchestrator default-instructions [--project-id <id> | --this-project] [--json]
+  ghostex orchestrator set-default-instructions (<text> | --body-file <path> | --clear)
+                              [--project-id <id> | --this-project] [--json]
   ghostex orchestrator guide
 
 WHAT AN ORCHESTRATOR IS
@@ -130,6 +133,25 @@ MEMORY AND INSTRUCTIONS
   instructions and the whole note list (--notes-json takes a JSON array of
   strings) in one call, the way the Goal & Instructions and Memory editors on
   an orchestrator's sidebar menu save.
+
+ORCHESTRATOR INSTRUCTIONS
+  Orchestrator instructions are the standing instructions every new
+  orchestrator starts with, so every thread it briefs gets them too. Set one
+  text for all projects, and optionally a different one for a project; a
+  project's text also covers all of its worktrees. A new orchestrator gets its
+  project's text when it has one, otherwise the one for all projects. create,
+  promote, the New Orchestrator dialog and the phone all apply them. Saving
+  never changes orchestrators that already exist: change one of those with
+  set-instructions or Goal & Instructions on its sidebar menu.
+  default-instructions prints both texts and which one a new orchestrator in
+  the project gets (the calling session's project unless --project-id names
+  another). set-default-instructions saves the text for all projects; with
+  --project-id <id> (a worktree's id means its project) or --this-project it
+  saves that project's text instead. --clear, or an empty text, removes it, so
+  a project goes back to the text for all projects. Put flags after the text.
+  In the app: Settings > Chat > Orchestrator instructions, the project's
+  Orchestrator instructions button in Settings > Projects, and the
+  Orchestrator instructions button in the New Orchestrator dialog.
 
 STATES
   waiting   a question, an approval or another prompt needs an answer

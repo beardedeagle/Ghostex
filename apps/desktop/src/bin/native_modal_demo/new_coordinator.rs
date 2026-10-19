@@ -1,6 +1,7 @@
 //! New Orchestrator preview. States (`GHOSTEX_NATIVE_MODAL_DEMO_STATE`): default (Claude
 //! selected, Opus 5.5 at XHigh), `codex`, `cursor` (an agent whose launch takes no model),
-//! `antigravity` (no XHigh: Medium and High), `none` (no agent an orchestrator can run on).
+//! `antigravity` (no XHigh: Medium and High), `none` (no agent an orchestrator can run on),
+//! `project-instructions` (the project has its own Orchestrator instructions), `no-instructions`.
 use super::new_coordinator_modal::*;
 use gpui::{App, AppContext as _};
 use std::rc::Rc;
@@ -103,6 +104,24 @@ pub(super) fn open(demo: &super::DemoEnv, cx: &mut App) {
                 model,
                 effort,
             } => eprintln!("create: {agent_id} {name:?} {model:?} {effort:?}"),
+            NewCoordinatorModalCommand::SaveInstructions {
+                project_id,
+                instructions,
+                reply,
+            } => {
+                eprintln!("save instructions: {project_id:?} {instructions:?}");
+                let mut view = serde_json::json!({
+                    "defaultInstructions": "Branch from main. Never push without asking.",
+                    "project": { "projectId": "P1", "name": "Ghostex", "instructions": "" },
+                });
+                if project_id.is_some() {
+                    view["project"]["instructions"] = serde_json::json!(instructions);
+                } else {
+                    view["defaultInstructions"] = serde_json::json!(instructions);
+                }
+                reply.finish(Ok(view), cx);
+                return;
+            }
             NewCoordinatorModalCommand::Cancel => eprintln!("cancel"),
         }
         cx.quit();
@@ -111,6 +130,21 @@ pub(super) fn open(demo: &super::DemoEnv, cx: &mut App) {
         project_name: "Ghostex".to_string(),
         agents,
         selected_agent,
+        // `project-instructions`: the project has its own; `no-instructions`: none set.
+        instructions: Some(OrchestratorInstructionsInfo {
+            all_projects: if demo.state == "no-instructions" {
+                String::new()
+            } else {
+                "Branch from main. Never push without asking.".to_string()
+            },
+            project_id: "P1".to_string(),
+            project_name: "Ghostex".to_string(),
+            project: if demo.state == "project-instructions" {
+                "Run cargo xtask typecheck before reporting.\nCommit path-scoped only.".to_string()
+            } else {
+                String::new()
+            },
+        }),
         palette: demo.palette,
     };
     let _ = super::open_modal_window(

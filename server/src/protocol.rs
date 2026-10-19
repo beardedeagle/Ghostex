@@ -526,6 +526,9 @@ pub fn endpoint_for(path: &str) -> Option<EndpointDescriptor> {
         | "/api/unlinkCoordinatorThread"
         | "/api/setCoordinatorThreadResolved"
         | "/api/renameCoordinatorThread"
+        // CDXC:Coordinators 2026-10-19 WHY: Orchestrator instructions are applied by the machine that creates the orchestrator, so a client looking at a remote machine reads and sets that machine's. They carry a project id and bounded text.
+        | "/api/readCoordinatorDefaultInstructions"
+        | "/api/setCoordinatorDefaultInstructions"
         | "/api/resolveCoordinatorThread"
         // CDXC:SessionChat 2026-10-14 WHY: `ghostex agents send` hands gxserver a message it left waiting so the sender's chat card can say when it arrived (agent_message_deliveries.rs); like `linkCoordinatorThread` it carries project/session ids, a send id and the message text.
         | "/api/watchAgentMessageDelivery"

@@ -1166,6 +1166,19 @@
       "agentWritable": true
     },
     {
+      "key": "orchestratorInstructions",
+      "title": "Orchestrator instructions",
+      "subtitle": "Standing instructions every new orchestrator starts with, so every thread it starts gets them too. A project can have its own in Settings > Projects, which also covers its worktrees. Orchestrators you already have keep their own.",
+      "tab": "settings",
+      "tabTitle": "General",
+      "group": "chat",
+      "groupTitle": "Chat",
+      "section": "chat",
+      "sectionTitle": "Chat",
+      "type": "ui",
+      "agentWritable": false
+    },
+    {
       "key": "sessionChatVerboseMode",
       "title": "Verbose mode",
       "subtitle": "Expand thinking blocks to show their tool calls by default. Each chat can override it from its composer.",

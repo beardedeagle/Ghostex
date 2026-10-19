@@ -25,6 +25,7 @@ pub(crate) fn chat() -> Section {
             row("markedHandoversEmoji", "Show marker emojis", "Not recommended. Show the marker emoji (❓ ✅ ⚠️ and the rest) at the start of each coloured section, in every style. Off: the colour and the label show the kind. Shown while Marked handovers is on."),
             row("markedHandoversStyle", "Marked sections style", "How the chat colours the sections an agent marks: coloured labels, a thin left rule, or a coloured badge in place of the emoji. Shown while Marked handovers is on.").options(MARKED_HANDOVERS_STYLE_OPTIONS),
             row("orchestratorPlainReplies", "Orchestrators answer without markers", "Not recommended. Orchestrators answer normally, without marking the sections of their handovers. Their threads still mark the reports they send to the orchestrator. Applies to orchestrators started or resumed after you change it."),
+            row("orchestratorInstructions", "Orchestrator instructions", "Standing instructions every new orchestrator starts with, so every thread it starts gets them too. A project can have its own in Settings > Projects, which also covers its worktrees. Orchestrators you already have keep their own."),
             row("sessionChatVerboseMode", "Verbose mode", "Expand thinking blocks to show their tool calls by default. Each chat can override it from its composer."),
         ],
     )

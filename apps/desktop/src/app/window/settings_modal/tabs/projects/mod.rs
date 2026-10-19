@@ -245,6 +245,8 @@ pub(crate) struct ProjectsTab {
     preview_applied: bool,
     /// The selected project's Work mode switch and Linear key (work_mode.rs).
     work: work_mode::ProjectWorkModeState,
+    /// The projects' own Orchestrator instructions and their editor.
+    orchestrator_instructions: super::orchestrator_instructions::OrchestratorInstructionsState,
 }
 
 impl ProjectsTab {
@@ -263,7 +265,11 @@ impl ProjectsTab {
             .initial_project_id
             .clone()
             .unwrap_or_default();
-        Self {
+        // The preview binary's `projects-orchestrator-instructions-edit` state opens the project's
+        // Orchestrator instructions editor.
+        let open_instructions = store.read(cx).request().preview_state.as_deref()
+            == Some("projects-orchestrator-instructions-edit");
+        let mut page = Self {
             store,
             fields: FieldStates::default(),
             selected_project_id,
@@ -275,7 +281,18 @@ impl ProjectsTab {
             placeholders: HashMap::new(),
             preview_applied: false,
             work: work_mode::ProjectWorkModeState::default(),
+            orchestrator_instructions: Default::default(),
+        };
+        if open_instructions {
+            let project_id = Some(page.selected_project_id.clone()).filter(|id| !id.is_empty());
+            super::orchestrator_instructions::open_instructions_sheet(
+                &mut page,
+                project_id.or_else(|| Some("project-ghostex".to_string())),
+                window,
+                cx,
+            );
         }
+        page
     }
 
     fn post(&self, message: Value, cx: &mut App) {
@@ -542,6 +559,14 @@ impl super::HoldsUnsavedInput for ProjectsTab {
                     && initial_draft(view, &self.view_drafts_project).binding != draft.binding
             })
         })
+    }
+}
+
+impl super::orchestrator_instructions::HasOrchestratorInstructions for ProjectsTab {
+    fn orchestrator_instructions(
+        &mut self,
+    ) -> &mut super::orchestrator_instructions::OrchestratorInstructionsState {
+        &mut self.orchestrator_instructions
     }
 }
 
@@ -814,11 +839,78 @@ impl Render for ProjectsTab {
         if let Some(first) = blocks.first_mut() {
             first.margin_top += TAB_SCROLL_PADDING;
         }
-        settings_page(&self.store, SettingsTabId::Projects, &p, blocks, cx)
+        let instructions =
+            super::orchestrator_instructions::render_instructions_sheet(self, &p, window, cx);
+        div()
+            .size_full()
+            .child(settings_page(
+                &self.store,
+                SettingsTabId::Projects,
+                &p,
+                blocks,
+                cx,
+            ))
+            .children(instructions)
     }
 }
 
 impl ProjectsTab {
+    /// The project's own Orchestrator instructions: their first line (or that it uses the ones for
+    /// all projects) and the Edit button that opens their editor. A worktree shows and edits its
+    /// project's (CDXC:Coordinators 2026-10-19 in server/src/coordinators/default_instructions.rs).
+    fn orchestrator_instructions_row(
+        &mut self,
+        p: &SettingsPalette,
+        project: &ProjectItem,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        use super::orchestrator_instructions::{
+            instructions_control, instructions_summary, open_instructions_sheet, summary_line,
+        };
+        let summary = instructions_summary(self, Some(&project.project_id), cx);
+        let all_projects = instructions_summary(self, None, cx);
+        let mut state = summary_line(summary.as_ref(), true);
+        if let Some(summary) = summary
+            .as_ref()
+            .filter(|summary| summary.is_worktree && !summary.text.trim().is_empty())
+        {
+            state = format!("From {}: {state}", summary.owner_name);
+        }
+        let inherited = summary
+            .as_ref()
+            .is_some_and(|summary| summary.text.trim().is_empty())
+            && all_projects
+                .as_ref()
+                .is_some_and(|summary| !summary.text.trim().is_empty());
+        let project_id = project.project_id.clone();
+        let edit = settings_button(
+            p,
+            "project-orchestrator-instructions-edit",
+            "Edit…",
+            None,
+            ButtonVariant::Outline,
+            !self.store.read(cx).request().gxserver_rpc_available,
+            None,
+            move |tab: &mut ProjectsTab, window, cx| {
+                open_instructions_sheet(tab, Some(project_id.clone()), window, cx)
+            },
+            cx,
+        );
+        let id = SharedString::from("project-orchestrator-instructions");
+        plain_row(
+            p,
+            &SharedString::from("project-orchestrator-instructions-row"),
+            "Orchestrator instructions",
+            Some(
+                "Standing instructions new orchestrators in this project and all of its worktrees start with, instead of the ones for all projects (Settings > Chat). Orchestrators you already have keep theirs.",
+            ),
+            inherited.then(|| inherited_badge(p, &id)),
+            false,
+            instructions_control(p, &state, edit),
+            cx,
+        )
+    }
+
     /// The Project section and the selected project's view sections.
     #[allow(clippy::too_many_arguments)]
     fn project_blocks(
@@ -844,6 +936,7 @@ impl ProjectsTab {
             Some(picker),
         ));
         rows.extend(self.work_mode_rows(p, projects, project, window, cx));
+        rows.push(self.orchestrator_instructions_row(p, project, cx));
 
         // CDXC:Projects 2026-06-15-03:21 SEE-ALSO: the worktree command is the first editable project field; ticket key and Beads directory follow.
         let command_inherited =

@@ -161,6 +161,10 @@ pub(super) fn open(demo: &super::DemoEnv, cx: &mut App) {
                 ..
             } => {
                 eprintln!("gxserver rpc: {path} {params}");
+                if let Some(result) = orchestrator_instructions_rpc(&path, &params) {
+                    cx.defer(move |cx| reply(result, cx));
+                    return;
+                }
                 if settings_workspaces::owns(&host_state)
                     && let Some(result) = settings_workspaces::rpc(&host_state, &path, &params)
                 {
@@ -208,6 +212,9 @@ pub(super) fn open(demo: &super::DemoEnv, cx: &mut App) {
             json!({ "initialSearchQuery": if query.is_empty() { "font".to_string() } else { query } })
         }
         "search-other" => json!({ "initialSearchQuery": "tailscale" }),
+        "orchestrator-instructions" | "orchestrator-instructions-edit" => {
+            json!({ "initialSection": "chat" })
+        }
         "terminal" | "pick-color" => json!({ "initialSection": "terminal" }),
         "tags" => {
             json!({ "initialSection": "sidebarTags", "initialSidebarTagsAction": "createTag" })
@@ -261,4 +268,50 @@ pub(super) fn open(demo: &super::DemoEnv, cx: &mut App) {
     );
     settings_f2::after_open(window, cx);
     *slot.borrow_mut() = Some((window, view));
+}
+
+thread_local! {
+    /// The scripted Orchestrator instructions: `(all projects, project-ghostex's own)`.
+    static ORCHESTRATOR_INSTRUCTIONS: std::cell::RefCell<(String, String)> = std::cell::RefCell::new((
+        "Branch from main and never push without asking.\nRun the typecheck before reporting.".to_string(),
+        String::new(),
+    ));
+}
+
+/// The scripted gxserver's `/api/readCoordinatorDefaultInstructions` and
+/// `/api/setCoordinatorDefaultInstructions` (states `orchestrator-instructions`,
+/// `orchestrator-instructions-edit`, `projects-orchestrator-instructions-edit`).
+fn orchestrator_instructions_rpc(path: &str, params: &Value) -> Option<Result<Value, String>> {
+    if !matches!(
+        path,
+        "/api/readCoordinatorDefaultInstructions" | "/api/setCoordinatorDefaultInstructions"
+    ) {
+        return None;
+    }
+    let project_id = params.get("projectId").and_then(Value::as_str);
+    ORCHESTRATOR_INSTRUCTIONS.with(|stored| {
+        let mut stored = stored.borrow_mut();
+        if path == "/api/setCoordinatorDefaultInstructions" {
+            let text = params["instructions"]
+                .as_str()
+                .unwrap_or_default()
+                .to_string();
+            if project_id.is_some() {
+                stored.1 = text;
+            } else {
+                stored.0 = text;
+            }
+        }
+        let mut view = json!({ "defaultInstructions": stored.0 });
+        if let Some(project_id) = project_id {
+            view["project"] = json!({
+                "projectId": project_id,
+                "name": "Ghostex",
+                "requestedProjectId": project_id,
+                "isWorktree": false,
+                "instructions": stored.1,
+            });
+        }
+        Some(Ok(view))
+    })
 }

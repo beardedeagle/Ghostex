@@ -35,12 +35,14 @@ pub(crate) struct GeneralTab {
     powershell: powershell::PowerShellState,
     /// The Marked sections style Preview dialog, while it is open (its focus, for Escape).
     marked_preview: Option<gpui::FocusHandle>,
+    /// Orchestrator instructions for all projects and their editor.
+    orchestrator_instructions: super::orchestrator_instructions::OrchestratorInstructionsState,
 }
 
 impl GeneralTab {
     pub(crate) fn new(
         store: Entity<SettingsStore>,
-        _window: &mut Window,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
         cx.observe(&store, |_, _, cx| cx.notify()).detach();
@@ -52,11 +54,24 @@ impl GeneralTab {
             // The preview binary's `marked-preview` state opens the Marked sections Preview.
             marked_preview: (preview_state.as_deref() == Some("marked-preview"))
                 .then(|| cx.focus_handle()),
+            orchestrator_instructions: Default::default(),
         };
         if settings_catalog().flag(module::SEARCH_CATALOG, "IS_WINDOWS_HOST") {
             page.load_powershell(cx);
         }
+        // The preview binary's `orchestrator-instructions-edit` state opens their editor.
+        if preview_state.as_deref() == Some("orchestrator-instructions-edit") {
+            super::orchestrator_instructions::open_instructions_sheet(&mut page, None, window, cx);
+        }
         page
+    }
+}
+
+impl super::orchestrator_instructions::HasOrchestratorInstructions for GeneralTab {
+    fn orchestrator_instructions(
+        &mut self,
+    ) -> &mut super::orchestrator_instructions::OrchestratorInstructionsState {
+        &mut self.orchestrator_instructions
     }
 }
 
@@ -374,6 +389,8 @@ impl Render for GeneralTab {
                 )),
         ));
         let preview = self.marked_sections_preview(&g, window, cx);
+        let instructions =
+            super::orchestrator_instructions::render_instructions_sheet(self, &g.p, window, cx);
         div()
             .size_full()
             .child(settings_page(
@@ -384,5 +401,6 @@ impl Render for GeneralTab {
                 cx,
             ))
             .children(preview)
+            .children(instructions)
     }
 }

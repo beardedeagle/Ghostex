@@ -3,10 +3,11 @@
 use rusqlite::Connection;
 use serde_json::{Map, Value};
 
+use super::default_instructions::resolve_orchestrator_instructions;
 use super::records::{
     insert_coordinator, COORDINATOR_GOAL_MAX_CHARS, COORDINATOR_INSTRUCTIONS_MAX_CHARS,
 };
-use crate::domain::DomainStateError;
+use crate::domain::{DomainRepository, DomainStateError};
 
 /// The `coordinator` object of a create request: `{ goal?, instructions?, firstRequest? }`.
 /// `firstRequest` follows the skill line in the orchestrator's first message
@@ -57,9 +58,12 @@ pub fn coordinator_create_request(
     }))
 }
 
-/// Stores the coordinator row for a session `/api/createAgentSession` just created.
+/// Stores the coordinator row for a session `/api/createAgentSession` just created. Without
+/// instructions of its own it starts with the Orchestrator instructions for its project
+/// (`resolve_orchestrator_instructions`).
 pub fn register_created_coordinator(
     db: &Connection,
+    repository: &DomainRepository<'_>,
     params: &Map<String, Value>,
     session: &Value,
 ) -> Result<bool, DomainStateError> {
@@ -73,12 +77,18 @@ pub fn register_created_coordinator(
             .unwrap_or_default()
             .to_string()
     };
+    let project_id = text("projectId");
+    let instructions = if request.instructions.is_empty() {
+        resolve_orchestrator_instructions(db, repository, &project_id)?.0
+    } else {
+        request.instructions
+    };
     insert_coordinator(
         db,
-        &text("projectId"),
+        &project_id,
         &text("sessionId"),
         &request.goal,
-        &request.instructions,
+        &instructions,
     )?;
     Ok(true)
 }

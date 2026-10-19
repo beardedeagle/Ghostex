@@ -1,7 +1,7 @@
 use ghostex_gx_chat_core::menus::orchestrator_effort::orchestrator_efforts;
 use serde_json::{json, Value};
 
-use super::{sleep_threads, threads};
+use super::{instructions, sleep_threads, threads};
 use crate::ghostex_cli::{
     agents,
     args::{parse_args, Flags, ParsedArgs},
@@ -47,6 +47,8 @@ pub(crate) fn run(args: &[String]) -> CliResult<()> {
         "sleep-inactive-threads" => sleep_threads::sleep_inactive_threads(&parsed),
         "remember" | "forget" | "set-goal" | "set-instructions" => update(command, &parsed),
         "edit" => edit(&parsed),
+        "default-instructions" => instructions::show(&parsed),
+        "set-default-instructions" => instructions::set(&parsed),
         other => Err(CliError::Other(format!(
             "Unknown orchestrator command: {other}. See ghostex orchestrator --help."
         ))),

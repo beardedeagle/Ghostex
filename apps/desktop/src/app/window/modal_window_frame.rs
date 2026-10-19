@@ -10,14 +10,11 @@ use gpui::prelude::FluentBuilder as _;
 use gpui::{
     AnyView, AnyWindowHandle, App, AppContext as _, Bounds, Context, DispatchPhase, Entity,
     InteractiveElement as _, IntoElement, MouseExitEvent, MouseMoveEvent, ParentElement as _,
-    Render, StatefulInteractiveElement as _, Styled as _, Subscription, Window,
-    WindowBackgroundAppearance, WindowBounds, WindowKind, WindowOptions, canvas, div, point, px,
-    size,
+    Render, Styled as _, Subscription, Window, WindowBackgroundAppearance, WindowBounds,
+    WindowKind, WindowOptions, canvas, div, point, px, size,
 };
 use gpui_component::Root;
 use std::rc::Rc;
-
-const ICON_CLOSE: &str = "modals/kit/x.svg";
 
 /// Whether the corner close button is drawn: shared by the modal's frame, which reports the
 /// pointer in its top band, and the button's own window, which reports the pointer on the button.
@@ -262,32 +259,21 @@ impl ModalCornerCloseButton {
 
 impl Render for ModalCornerCloseButton {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let p = self.palette;
         let visible = self.reveal.read(cx).visible();
-        let hover = css_mix(p.foreground, 0.16, p.solid_surface);
         div()
             .relative()
             .size_full()
             .child(Self::pointer_tracker(self.reveal.clone()))
             .child(
-                div()
-                    .id("app-modal-corner-close")
-                    .role(gpui::Role::Button)
-                    .aria_label("Close")
-                    .size_full()
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .rounded_full()
-                    .border_1()
-                    .border_color(hsla(p.hairline))
-                    .bg(hsla(css_mix(p.foreground, 0.08, p.solid_surface)))
-                    .cursor_pointer()
-                    .opacity(if visible { 1.0 } else { 0.0 })
-                    .when(visible, |this| {
-                        this.hover(move |style| style.bg(hsla(hover)))
-                    })
-                    .on_press(cx, move |this, _window, cx| {
+                modal_corner_close_button(
+                    &self.palette,
+                    "app-modal-corner-close",
+                    if visible {
+                        ModalCornerCloseReveal::Shown
+                    } else {
+                        ModalCornerCloseReveal::Hidden
+                    },
+                    move |this: &mut Self, _window, cx| {
                         cx.stop_propagation();
                         if !this.reveal.read(cx).enabled {
                             return;
@@ -298,8 +284,10 @@ impl Render for ModalCornerCloseButton {
                         cx.defer(move |cx| {
                             let _ = modal.update(cx, |_, window, cx| dismiss(window, cx));
                         });
-                    })
-                    .child(modal_icon(ICON_CLOSE, 14.0, p.foreground)),
+                    },
+                    cx,
+                )
+                .size_full(),
             )
     }
 }

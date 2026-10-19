@@ -341,6 +341,51 @@ pub(crate) const MODAL_CORNER_CLOSE_SIZE: f32 = 24.0;
 /// close button.
 pub(crate) const MODAL_CORNER_CLOSE_REVEAL_HEIGHT: f32 = 80.0;
 
+/// The round X centred on an app modal's top-right corner (window/modal_window_frame.rs draws it
+/// in a window of its own), also used by dialogs nested inside a modal's window so their X looks
+/// the same. Hidden but kept in place until `reveal` shows it; the caller sizes and places it.
+pub(crate) fn modal_corner_close_button<V: 'static>(
+    p: &ModalPalette,
+    id: impl Into<gpui::ElementId>,
+    reveal: ModalCornerCloseReveal,
+    on_press: impl Fn(&mut V, &mut Window, &mut Context<V>) + 'static,
+    cx: &mut Context<V>,
+) -> Stateful<Div> {
+    let hover = css_mix(p.foreground, 0.16, p.solid_surface);
+    let close = div()
+        .id(id)
+        .role(gpui::Role::Button)
+        .aria_label("Close")
+        .flex()
+        .items_center()
+        .justify_center()
+        .rounded_full()
+        .border_1()
+        .border_color(hsla(p.hairline))
+        .bg(hsla(css_mix(p.foreground, 0.08, p.solid_surface)))
+        .cursor_pointer()
+        .on_press(cx, on_press)
+        .child(modal_icon(MODAL_CORNER_CLOSE_ICON, 14.0, p.foreground));
+    match reveal {
+        ModalCornerCloseReveal::Shown => close.hover(move |style| style.bg(hsla(hover))),
+        ModalCornerCloseReveal::Hidden => close.opacity(0.0),
+        ModalCornerCloseReveal::OnGroupHover(group) => close
+            .opacity(0.0)
+            .group_hover(group, |style| style.opacity(1.0))
+            .hover(move |style| style.opacity(1.0).bg(hsla(hover))),
+    }
+}
+
+/// When [`modal_corner_close_button`] shows.
+pub(crate) enum ModalCornerCloseReveal {
+    Shown,
+    Hidden,
+    /// While the pointer is over the named group (a dialog's top band) or the button itself.
+    OnGroupHover(gpui::SharedString),
+}
+
+const MODAL_CORNER_CLOSE_ICON: &str = "modals/kit/x.svg";
+
 /// The hover-only close button a native app modal's window frame draws in its top-right corner
 /// (window/modal_window_frame.rs).
 pub(crate) trait ModalCornerClose: Render {
