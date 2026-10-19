@@ -18,6 +18,8 @@ actions quit the demo.
 mod assets;
 #[path = "../app/window/export_transcript_modal.rs"]
 mod export_transcript_modal;
+#[path = "../fold_motion.rs"]
+mod fold_motion;
 #[path = "../hotkey_label.rs"]
 mod hotkey_label;
 #[path = "../app/window/native_modal_kit/mod.rs"]

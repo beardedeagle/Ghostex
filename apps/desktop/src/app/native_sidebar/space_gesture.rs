@@ -4,6 +4,7 @@ use gpui::{
     Bounds, MouseButton, MouseDownEvent, MouseMoveEvent, Pixels, Point, ScrollDelta,
     ScrollWheelEvent, TouchPhase, Window,
 };
+use crate::fold_motion::bezier;
 use std::sync::Arc;
 use web_time::Instant;
 
@@ -430,20 +431,4 @@ impl GhostexGpuiApp {
         window.request_animation_frame();
         cx.notify();
     }
-}
-
-pub(super) fn bezier(progress: f32, x1: f32, y1: f32, x2: f32, y2: f32) -> f32 {
-    let sample = |t: f32, a: f32, b: f32| {
-        3.0 * (1.0 - t).powi(2) * t * a + 3.0 * (1.0 - t) * t * t * b + t.powi(3)
-    };
-    let (mut low, mut high) = (0.0, 1.0);
-    for _ in 0..16 {
-        let mid = (low + high) / 2.0;
-        if sample(mid, x1, x2) < progress {
-            low = mid;
-        } else {
-            high = mid;
-        }
-    }
-    sample((low + high) / 2.0, y1, y2)
 }

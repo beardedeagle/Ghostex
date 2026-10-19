@@ -15,6 +15,7 @@ mod cef_component_window;
 mod component_store;
 mod ghostty_kit;
 mod ghostty_vt;
+mod fold_motion;
 mod hotkey_label;
 #[cfg(target_os = "linux")]
 mod linux_updater;

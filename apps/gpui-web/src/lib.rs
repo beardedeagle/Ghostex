@@ -47,6 +47,9 @@ mod cef;
 mod ghostty_kit;
 #[allow(dead_code)]
 mod ghostty_vt;
+/// The web build has the sidebar's folds but not the Settings rail, which uses the rest.
+#[allow(dead_code)]
+mod fold_motion;
 mod hotkey_label;
 /// The desktop's notification feed reads a bridge the browser build does not have; the bell stays hidden, so its state is always empty.
 #[allow(dead_code)]

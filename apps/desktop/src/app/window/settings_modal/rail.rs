@@ -11,12 +11,14 @@ use super::search::{
 };
 use super::shell::GpuiSettingsModalWindow;
 use super::store::SettingsStore;
+use crate::fold_motion::{FoldMotion, fold_duration, render_fold};
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
     AnyElement, ClickEvent, Context, FontWeight, InteractiveElement as _, IntoElement,
     ParentElement as _, SharedString, StatefulInteractiveElement as _, Styled as _, div, px,
 };
 use gpui_component::{h_flex, v_flex};
+use std::cell::RefCell;
 use std::collections::HashMap;
 
 /// `--settings-section-sidebar-width`.
@@ -208,12 +210,17 @@ fn clone_section(section: &RailSection) -> RailSection {
     }
 }
 
-/// The rail's expanded pages and sections.
+/// The rail's expanded pages and sections, and the motion of each fold (`crate::fold_motion`),
+/// keyed `page:<tab>`, `section:<tab>:<section>` and `group:extensions`.
 #[derive(Default)]
 pub(crate) struct RailState {
     pub(crate) expanded_pages: HashMap<SettingsTabId, bool>,
     pub(crate) expanded_sections: HashMap<String, bool>,
+    folds: RefCell<HashMap<String, FoldMotion>>,
 }
+
+/// The fold key of the Extensions group.
+const EXTENSIONS_FOLD: &str = "group:extensions";
 
 impl RailState {
     pub(crate) fn new() -> Self {
@@ -221,16 +228,64 @@ impl RailState {
         state.expanded_pages.insert(SettingsTabId::General, true);
         state
     }
+
+    /// How open fold `key` is drawn this frame (0 to 1) and whether its content is drawn, for a
+    /// state that is `open`. A state that changed without a press on its header (a search opening
+    /// the Extensions group, a deep link landing in it) settles there at once.
+    fn fold(&self, key: &str, open: bool) -> (f32, bool) {
+        let mut folds = self.folds.borrow_mut();
+        let motion = folds
+            .entry(key.to_string())
+            .or_insert_with(|| FoldMotion::settled(!open));
+        if motion.collapsed() == open {
+            motion.settle(!open);
+        }
+        (motion.fraction(), motion.present())
+    }
+
+    /// A press is about to turn fold `key` `open`: it animates there.
+    fn fold_toward(&self, key: &str, open: bool, duration: std::time::Duration) {
+        self.folds
+            .borrow_mut()
+            .entry(key.to_string())
+            .or_insert_with(|| FoldMotion::settled(open))
+            .fold_to(!open, duration);
+    }
+}
+
+/// The fold duration: the sidebar's Collapse animation speed, none under Reduce Motion (GPUI's
+/// `reduce_motion`, which the app feeds the system setting).
+fn rail_fold_duration(shell: &GpuiSettingsModalWindow, cx: &gpui::App) -> std::time::Duration {
+    let ms = shell
+        .store
+        .read(cx)
+        .f64("sidebarCollapseAnimationDurationMs")
+        .max(0.0) as u64;
+    fold_duration(ms, cx.reduce_motion())
+}
+
+/// `content` inside fold `key` of the rail.
+fn rail_fold(
+    shell: &GpuiSettingsModalWindow,
+    key: String,
+    content: impl IntoElement,
+    cx: &mut Context<GpuiSettingsModalWindow>,
+) -> AnyElement {
+    let folds = shell.rail.folds.borrow();
+    render_fold(
+        cx.entity().clone(),
+        folds.get(&key),
+        move |shell: &mut GpuiSettingsModalWindow| shell.rail.folds.get_mut().get_mut(&key),
+        content,
+    )
 }
 
 /// CDXC:Settings 2026-09-12 DECISION:
-/// User: Settings table-of-contents titles only navigate; only the small chevron on the right expands or collapses their entries. This replaces the full-header toggle behavior.
-fn chevron(expanded: bool) -> &'static str {
-    if expanded {
-        super::fields::icon::CHEVRON_DOWN
-    } else {
-        super::fields::icon::CHEVRON_RIGHT
-    }
+/// User: Settings table-of-contents titles only navigate; only the small chevron on the right expands or collapses their entries. This replaces the full-header toggle behavior. 2026-10-19: "make the sidebar collapse/expand in the sidebar of settings animate please", with the "same animation as the project collapse/expand in the sidebar": every rail fold (General's and Hotkeys' sections, their subsections, the Extensions group) grows and shrinks through the main sidebar's own fold (`crate::fold_motion`, its timing and easing), and its chevron turns with it. A search or a deep link that opens a fold shows it open without animating.
+fn chevron(fraction: f32, color: gpui::Rgba) -> gpui::Svg {
+    settings_icon(super::fields::icon::CHEVRON_RIGHT, 12.0, color).with_transformation(
+        gpui::Transformation::rotate(gpui::percentage(0.25 * fraction)),
+    )
 }
 
 /// One rail page: its row and, when it has them and is expanded, its sections.
@@ -252,6 +307,8 @@ fn render_page(
         .copied()
         .unwrap_or(false);
     let has_sections = !page.sections.is_empty();
+    let page_fold_key = format!("page:{}", tab.id());
+    let (page_fraction, page_present) = shell.rail.fold(&page_fold_key, has_sections && expanded);
     let active = active_tab == tab;
     let fill_when_active = active && !(has_sections && expanded);
     let row = h_flex()
@@ -322,19 +379,27 @@ fn render_page(
                     .rounded(px(MODAL_RADIUS_CONTROL))
                     .cursor_pointer()
                     .on_press(cx, move |shell, _window, cx| {
-                        let entry = shell.rail.expanded_pages.entry(tab).or_insert(false);
-                        *entry = !*entry;
+                        let open = !shell
+                            .rail
+                            .expanded_pages
+                            .get(&tab)
+                            .copied()
+                            .unwrap_or(false);
+                        let duration = rail_fold_duration(shell, cx);
+                        shell
+                            .rail
+                            .fold_toward(&format!("page:{}", tab.id()), open, duration);
+                        shell.rail.expanded_pages.insert(tab, open);
                         cx.notify();
                     })
-                    .child(settings_icon(
-                        chevron(expanded),
-                        12.0,
+                    .child(chevron(
+                        page_fraction,
                         if active { p.foreground } else { p.muted },
                     )),
             )
         });
-    let mut group = v_flex().w_full().min_w_0().gap(px(2.0)).child(row);
-    if has_sections && expanded {
+    let mut group = v_flex().w_full().min_w_0().child(row);
+    if has_sections && page_present {
         let mut list = v_flex().ml(px(8.0)).min_w_0().gap(px(2.0));
         for section in page.sections {
             let section_key = format!("{}:{}", tab.id(), section.id);
@@ -346,6 +411,8 @@ fn render_page(
                     .get(&section_key)
                     .copied()
                     .unwrap_or(false);
+            let sub_fold_key = format!("section:{section_key}");
+            let (sub_fraction, sub_present) = shell.rail.fold(&sub_fold_key, sub_expanded);
             let any_sub_active = section.subsections.iter().any(|(_, _, active)| *active);
             let section_id = section.id.clone();
             let button = div()
@@ -382,49 +449,64 @@ fn render_page(
                         .child(section.title.clone()),
                 );
             let key_for_toggle = section_key.clone();
-            list = list.child(h_flex().w_full().min_w_0().gap(px(2.0)).child(button).when(
-                has_sub,
-                |this| {
-                    this.child(
-                        div()
-                            .id(SharedString::from(format!(
-                                "rail-section-disclosure-{section_key}"
-                            )))
-                            .role(gpui::Role::Button)
-                            .aria_label(format!("{} subsections", section.title))
-                            .aria_expanded(sub_expanded)
-                            .flex_shrink_0()
-                            .size(px(28.0))
-                            .flex()
-                            .items_center()
-                            .justify_center()
-                            .rounded(px(MODAL_RADIUS_CONTROL))
-                            .cursor_pointer()
-                            .on_press(cx, move |shell, _window, cx| {
-                                let entry = shell
-                                    .rail
-                                    .expanded_sections
-                                    .entry(key_for_toggle.clone())
-                                    .or_insert(false);
-                                *entry = !*entry;
-                                cx.notify();
-                            })
-                            .child(settings_icon(
-                                chevron(sub_expanded),
-                                12.0,
-                                if any_sub_active || section.active {
-                                    p.foreground
-                                } else {
-                                    dim
-                                },
-                            )),
-                    )
-                },
-            ));
-            if sub_expanded {
+            let section_row =
+                h_flex()
+                    .w_full()
+                    .min_w_0()
+                    .gap(px(2.0))
+                    .child(button)
+                    .when(has_sub, |this| {
+                        this.child(
+                            div()
+                                .id(SharedString::from(format!(
+                                    "rail-section-disclosure-{section_key}"
+                                )))
+                                .role(gpui::Role::Button)
+                                .aria_label(format!("{} subsections", section.title))
+                                .aria_expanded(sub_expanded)
+                                .flex_shrink_0()
+                                .size(px(28.0))
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .rounded(px(MODAL_RADIUS_CONTROL))
+                                .cursor_pointer()
+                                .on_press(cx, move |shell, _window, cx| {
+                                    let open = !shell
+                                        .rail
+                                        .expanded_sections
+                                        .get(&key_for_toggle)
+                                        .copied()
+                                        .unwrap_or(false);
+                                    let duration = rail_fold_duration(shell, cx);
+                                    shell.rail.fold_toward(
+                                        &format!("section:{key_for_toggle}"),
+                                        open,
+                                        duration,
+                                    );
+                                    shell
+                                        .rail
+                                        .expanded_sections
+                                        .insert(key_for_toggle.clone(), open);
+                                    cx.notify();
+                                })
+                                .child(chevron(
+                                    sub_fraction,
+                                    if any_sub_active || section.active {
+                                        p.foreground
+                                    } else {
+                                        dim
+                                    },
+                                )),
+                        )
+                    });
+            let mut section_block = v_flex().w_full().min_w_0().child(section_row);
+            if has_sub && sub_present {
+                // The gap above the first subsection sits inside the fold, so closing ends flush.
+                let mut subsections = v_flex().w_full().min_w_0().pt(px(2.0)).gap(px(2.0));
                 for (sub_id, sub_title, sub_active) in section.subsections {
                     let sub_target = sub_id.clone();
-                    list = list.child(
+                    subsections = subsections.child(
                         div()
                             .id(SharedString::from(format!(
                                 "rail-subsection-{}:{sub_id}",
@@ -462,9 +544,18 @@ fn render_page(
                             ),
                     );
                 }
+                section_block =
+                    section_block.child(rail_fold(shell, sub_fold_key, subsections, cx));
             }
+            list = list.child(section_block);
         }
-        group = group.child(list);
+        // The gap between the page row and its first section sits inside the fold too.
+        group = group.child(rail_fold(
+            shell,
+            page_fold_key,
+            v_flex().w_full().min_w_0().pt(px(2.0)).child(list),
+            cx,
+        ));
     }
     group.into_any_element()
 }
@@ -473,6 +564,7 @@ fn render_page(
 /// under a hairline, a header that only opens and closes it, and its pages indented below. A
 /// search keeps it open. Collapsed over the open page, the header takes the selected fill.
 fn render_extensions_group(
+    shell: &GpuiSettingsModalWindow,
     p: &SettingsPalette,
     pages: Vec<AnyElement>,
     open: bool,
@@ -480,6 +572,7 @@ fn render_extensions_group(
     holds_active: bool,
     cx: &mut Context<GpuiSettingsModalWindow>,
 ) -> AnyElement {
+    let (fraction, present) = shell.rail.fold(EXTENSIONS_FOLD, open);
     let accent = p.raised_hover;
     let resting = p.foreground_alpha(0.82);
     let foreground = p.foreground;
@@ -510,6 +603,9 @@ fn render_extensions_group(
             if searching {
                 return;
             }
+            let open = !shell.store.read(cx).extensions_group_open();
+            let duration = rail_fold_duration(shell, cx);
+            shell.rail.fold_toward(EXTENSIONS_FOLD, open, duration);
             let store = shell.store.clone();
             store.update(cx, |store, cx| store.toggle_extensions_group(cx));
         })
@@ -537,30 +633,34 @@ fn render_extensions_group(
                 .flex()
                 .items_center()
                 .justify_center()
-                .child(settings_icon(
-                    chevron(open),
-                    12.0,
+                .child(chevron(
+                    fraction,
                     if selected { p.foreground } else { p.muted },
                 )),
         );
+    let body = present.then(|| {
+        rail_fold(
+            shell,
+            EXTENSIONS_FOLD.to_string(),
+            // The gap under the header sits inside the fold, so closing ends flush.
+            v_flex()
+                .w_full()
+                .min_w_0()
+                .pt(px(2.0))
+                .pl(px(8.0))
+                .gap(px(4.0))
+                .children(pages),
+            cx,
+        )
+    });
     v_flex()
         .w_full()
         .min_w_0()
         .pt(px(8.0))
-        .gap(px(2.0))
         .border_t_1()
         .border_color(hsla(p.hairline))
         .child(header)
-        .when(open, |this| {
-            this.child(
-                v_flex()
-                    .w_full()
-                    .min_w_0()
-                    .pl(px(8.0))
-                    .gap(px(4.0))
-                    .children(pages),
-            )
-        })
+        .children(body)
         .into_any_element()
 }
 
@@ -603,6 +703,7 @@ pub(crate) fn render_rail(
         .gap(px(4.0));
     if !extension_pages.is_empty() {
         bottom = bottom.child(render_extensions_group(
+            shell,
             p,
             extension_pages,
             group_open,
