@@ -221,23 +221,42 @@ function gxserverProduct(arch) {
 }
 
 /*
- * The three Linux x64 desktop packages are one compile and three wrappers over
- * the same staged package root (§7): .deb, .rpm, and the prefix-preserving
- * `.tar.zst` that Arch, ubi, and mise install straight from the release page.
+ * The three Linux desktop packages of each architecture are one compile and
+ * three wrappers over the same staged package root (§7): .deb, .rpm, and the
+ * prefix-preserving `.tar.zst` that Arch, ubi, and mise install straight from
+ * the release page. ARM64 builds natively on ubuntu-24.04-arm with the same
+ * scripts; its names use each format's own spelling of the architecture.
  */
 const LINUX_DESKTOP_ARTIFACT_NAMES = Object.freeze({
-  deb: (version) => [`ghostex_${version}_amd64.deb`],
-  rpm: (version) => [`ghostex-${version}-1.x86_64.rpm`],
-  tar: (version) => [`ghostex-${version}-linux-x64.tar.zst`],
+  x64: Object.freeze({
+    deb: (version) => [`ghostex_${version}_amd64.deb`],
+    rpm: (version) => [`ghostex-${version}-1.x86_64.rpm`],
+    tar: (version) => [`ghostex-${version}-linux-x64.tar.zst`],
+  }),
+  arm64: Object.freeze({
+    deb: (version) => [`ghostex_${version}_arm64.deb`],
+    rpm: (version) => [`ghostex-${version}-1.aarch64.rpm`],
+    tar: (version) => [`ghostex-${version}-linux-arm64.tar.zst`],
+  }),
 });
 
-const LINUX_DESKTOP_SCOPE_FLAGS = Object.freeze({ deb: 'linuxDeb', rpm: 'linuxRpm', tar: 'linuxTar' });
+export const LINUX_DESKTOP_FORMATS = Object.freeze(['deb', 'rpm', 'tar']);
 
-function linuxDesktopProduct(format) {
+/* x64 keeps its original flags so existing scopes and recorded plans read unchanged. */
+const LINUX_DESKTOP_SCOPE_FLAGS = Object.freeze({
+  x64: Object.freeze({ deb: 'linuxDeb', rpm: 'linuxRpm', tar: 'linuxTar' }),
+  arm64: Object.freeze({ deb: 'linuxDebArm64', rpm: 'linuxRpmArm64', tar: 'linuxTarArm64' }),
+});
+
+export function linuxDesktopProductId(format, arch) {
+  return `linux-${format}-${arch}`;
+}
+
+function linuxDesktopProduct(format, arch = 'x64') {
   return {
-    artifacts: LINUX_DESKTOP_ARTIFACT_NAMES[format],
-    composedFrom: ['gxserver-linux-x64', 'code-server', 'cef'],
-    id: `linux-${format}-x64`,
+    artifacts: LINUX_DESKTOP_ARTIFACT_NAMES[arch][format],
+    composedFrom: [`gxserver-linux-${arch}`, 'code-server', 'cef'],
+    id: linuxDesktopProductId(format, arch),
     kind: 'product',
     pathspecs: [
       ...DESKTOP_APP_PATHSPECS,
@@ -245,11 +264,13 @@ function linuxDesktopProduct(format) {
       { pathspec: `tooling/release-gpui/linux-${format}.sh` },
       { pathspec: '.github/workflows/release-gpui-linux.yml' },
     ],
-    platform: { arch: 'x64', os: 'linux', runnerLabel: 'ubuntu-24.04' },
-    scopeFlag: LINUX_DESKTOP_SCOPE_FLAGS[format],
+    platform: { arch, os: 'linux', runnerLabel: arch === 'arm64' ? 'ubuntu-24.04-arm' : 'ubuntu-24.04' },
+    scopeFlag: LINUX_DESKTOP_SCOPE_FLAGS[arch][format],
     sideFiles: [],
     signing: { mode: 'unsigned' },
+    /* `arch` is added for ARM64 only, so the x64 input sets (and their fingerprints' meaning) stay as they were. */
     values: {
+      ...(arch === 'arm64' ? { arch } : {}),
       packageFormat: format,
       zig: TOOLCHAIN.zig,
     },
@@ -435,6 +456,9 @@ const PRODUCT_LIST = [
   linuxDesktopProduct('deb'),
   linuxDesktopProduct('rpm'),
   linuxDesktopProduct('tar'),
+  linuxDesktopProduct('deb', 'arm64'),
+  linuxDesktopProduct('rpm', 'arm64'),
+  linuxDesktopProduct('tar', 'arm64'),
   windowsProduct('x64'),
   windowsProduct('arm64'),
   wslProduct('x64'),
@@ -597,8 +621,10 @@ export function componentPlatformRequirements(productId) {
   if (productId === 'macos-arm64') {
     return { cef: ['darwin-arm64'], 'code-server': ['darwin-arm64', 'linux-arm64', 'linux-x64'] };
   }
-  if (productId === 'linux-deb-x64' || productId === 'linux-rpm-x64' || productId === 'linux-tar-x64') {
-    return { cef: ['linux-x64'], 'code-server': ['linux-x64'] };
+  for (const arch of ['x64', 'arm64']) {
+    if (LINUX_DESKTOP_FORMATS.some((format) => productId === linuxDesktopProductId(format, arch))) {
+      return { cef: [`linux-${arch}`], 'code-server': [`linux-${arch}`] };
+    }
   }
   if (productId === 'windows-x64' || productId === 'windows-arm64') {
     const arch = productId.slice('windows-'.length);
@@ -619,8 +645,11 @@ export function defaultScope(overrides = {}) {
     gxserverWslWindowsArm64: true,
     gxserverWslWindowsX64: true,
     linuxDeb: true,
+    linuxDebArm64: true,
     linuxRpm: true,
+    linuxRpmArm64: true,
     linuxTar: true,
+    linuxTarArm64: true,
     macos: true,
     prerelease: false,
     signWindows: false,

@@ -14,24 +14,23 @@ release_gpui_require_command cargo
 # sidebar bundle has already been built. Fail here instead, by name.
 [[ -z "${RUSTC_WRAPPER:-}" ]] || release_gpui_require_command "$RUSTC_WRAPPER"
 
-if [[ "$(uname -m)" != "x86_64" ]]; then
-	echo "Linux desktop release packaging is x64-only and requires an x86_64 runner." >&2
-	exit 1
-fi
+LINUX_ARCH="$(release_gpui_linux_arch)"
+LINUX_ARCH_UPPER="$(printf '%s' "$LINUX_ARCH" | tr '[:lower:]' '[:upper:]')"
 
 "$SCRIPT_DIR/prepare-references.sh"
-if [[ ! -x "$REPO_ROOT/build/remote-gxserver-linux/x64/package/bin/gxserver" ]]; then
+if [[ ! -x "$REPO_ROOT/build/remote-gxserver-linux/$LINUX_ARCH/package/bin/gxserver" ]]; then
 	GHOSTEX_GPUI_MARKETING_VERSION="$VERSION" \
-		"$REPO_ROOT/tooling/build-remote-gxserver-linux-release.sh" --arch x64
+		"$REPO_ROOT/tooling/build-remote-gxserver-linux-release.sh" --arch "$LINUX_ARCH"
 fi
 CODE_SERVER_COMPONENT_VERSION="${GHOSTEX_CODE_SERVER_COMPONENT_VERSION:-$(node "$SCRIPT_DIR/code-server-component-identity.mjs" --root "$REPO_ROOT/.dependencies/code-server")}"
-CODE_SERVER_ARCHIVE="${GHOSTEX_ON_DEMAND_CODE_SERVER_LINUX_X64_ARCHIVE:-$REPO_ROOT/build/runtime-artifacts/code-server-x64/code-server-$CODE_SERVER_COMPONENT_VERSION-linux-x64.tar.gz}"
+CODE_SERVER_ARCHIVE_ENV="GHOSTEX_ON_DEMAND_CODE_SERVER_LINUX_${LINUX_ARCH_UPPER}_ARCHIVE"
+CODE_SERVER_ARCHIVE="${!CODE_SERVER_ARCHIVE_ENV:-$REPO_ROOT/build/runtime-artifacts/code-server-$LINUX_ARCH/code-server-$CODE_SERVER_COMPONENT_VERSION-linux-$LINUX_ARCH.tar.gz}"
 [[ -f "$CODE_SERVER_ARCHIVE" && -f "$CODE_SERVER_ARCHIVE.sha256" ]] || {
 	echo "Linux release packaging requires the verified Source component archive: $CODE_SERVER_ARCHIVE" >&2
 	exit 1
 }
+export "$CODE_SERVER_ARCHIVE_ENV=$CODE_SERVER_ARCHIVE"
 GHOSTEX_CODE_SERVER_COMPONENT_VERSION="$CODE_SERVER_COMPONENT_VERSION" \
-GHOSTEX_ON_DEMAND_CODE_SERVER_LINUX_X64_ARCHIVE="$CODE_SERVER_ARCHIVE" \
 GHOSTEX_ON_DEMAND_ASSETS=1 \
 	GHOSTEX_GPUI_MARKETING_VERSION="$VERSION" \
 	"$REPO_ROOT/apps/desktop/scripts/build-linux-app.sh"
@@ -66,10 +65,10 @@ CEF_COMPONENT_VERSION="$(node -e '
 const fs = require("node:fs");
 const manifest = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
 const component = manifest.components?.cef;
-const asset = component?.platforms?.["linux-x64"];
+const asset = component?.platforms?.[`linux-${process.argv[2]}`];
 if (!component?.componentVersion || component.downloadTag !== `cef-${component.componentVersion}` || !/^[0-9a-f]{64}$/.test(asset?.sha256 ?? "")) process.exit(1);
 process.stdout.write(component.componentVersion);
-' "$ON_DEMAND_MANIFEST")" || {
+' "$ON_DEMAND_MANIFEST" "$LINUX_ARCH")" || {
 	echo "Linux release build has an invalid sealed CEF component manifest" >&2
 	exit 1
 }
@@ -77,15 +76,25 @@ SEALED_CODE_SERVER_COMPONENT_VERSION="$(node -e '
 const fs = require("node:fs");
 const manifest = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
 const component = manifest.components?.["code-server"];
-const asset = component?.platforms?.["linux-x64"];
-const expectedName = `code-server-${process.argv[2]}-linux-x64.tar.gz`;
+const asset = component?.platforms?.[`linux-${process.argv[3]}`];
+const expectedName = `code-server-${process.argv[2]}-linux-${process.argv[3]}.tar.gz`;
 if (component?.componentVersion !== process.argv[2] || component.downloadTag !== `code-server-${process.argv[2]}` || asset?.assetName !== expectedName || asset?.sha256SidecarName !== `${expectedName}.sha256` || !/^[0-9a-f]{64}$/.test(asset?.sha256 ?? "")) process.exit(1);
 process.stdout.write(component.componentVersion);
-' "$ON_DEMAND_MANIFEST" "$CODE_SERVER_COMPONENT_VERSION")" || {
+' "$ON_DEMAND_MANIFEST" "$CODE_SERVER_COMPONENT_VERSION" "$LINUX_ARCH")" || {
 	echo "Linux release build has an invalid sealed Source component manifest" >&2
 	exit 1
 }
+# CDXC:Release 2026-10-19 WHY:
+# A build-only release run (release-gpui.yml `build_only`) produces packages as
+# Actions artifacts and publishes nothing, the components repository included.
+# The sealed manifest already records the CEF archive's digest, so a tester
+# serves the uploaded archive through GHOSTEX_ON_DEMAND_BASE_URL instead.
+CEF_PUBLISH_MODE=()
+if [[ "${GHOSTEX_RELEASE_BUILD_ONLY:-0}" == "1" ]]; then
+	CEF_PUBLISH_MODE=(--metadata-only)
+fi
 node "$REPO_ROOT/tooling/release-gpui/publish-component.mjs" \
+	"${CEF_PUBLISH_MODE[@]}" \
 	--component cef \
 	--version "$CEF_COMPONENT_VERSION" \
 	--asset-dir "$REPO_ROOT/build/on-demand-components/assets" \
@@ -125,4 +134,4 @@ StartupNotify=true
 StartupWMClass=ghostex
 EOF
 
-printf 'Staged Linux x64 package root in %s\n' "$PACKAGE_ROOT"
+printf 'Staged Linux %s package root in %s\n' "$LINUX_ARCH" "$PACKAGE_ROOT"

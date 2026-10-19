@@ -293,7 +293,8 @@ const WARM_CACHE_JOBS = [
     release: releaseBuildWorkflow('windows'),
   },
   {
-    arch: null,
+    // release-gpui-linux.yml builds both architectures; this warm job warms the x64 namespace.
+    arch: 'x64',
     // linux-stage.sh refuses to start without the gxserver package and the
     // code-server archive, so the warm job runs the cargo command itself.
     duplicatedCargo: {

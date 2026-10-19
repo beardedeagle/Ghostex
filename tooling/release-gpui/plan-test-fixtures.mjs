@@ -315,6 +315,11 @@ export function componentTagStateFixture() {
           sha256: fixtureDigest('cef-darwin-arm64'),
           sizeBytes: 10,
         },
+        'linux-arm64': {
+          assetName: 'cef-154.0.26-ge72305f-chromium-154.0.8037.58-linux-arm64.tar.gz',
+          sha256: fixtureDigest('cef-linux-arm64'),
+          sizeBytes: 10,
+        },
         'linux-x64': {
           assetName: 'cef-154.0.26-ge72305f-chromium-154.0.8037.58-linux-x64.tar.gz',
           sha256: fixtureDigest('cef-linux-x64'),

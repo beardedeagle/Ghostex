@@ -5,7 +5,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/common.sh"
 REPO_ROOT="$(release_gpui_repo_root)"
 VERSION="${1:-}"
-OUTPUT="${2:-$(release_gpui_default_output "$REPO_ROOT" "$VERSION" linux-tar-x64)}"
+LINUX_ARCH="$(release_gpui_linux_arch)"
+OUTPUT="${2:-$(release_gpui_default_output "$REPO_ROOT" "$VERSION" "linux-tar-$LINUX_ARCH")}"
 release_gpui_require_version "$VERSION"
 release_gpui_require_command tar
 release_gpui_require_command zstd
@@ -30,15 +31,15 @@ fi
 }
 
 # This archive is the staged package root and nothing else: a user installs it
-# with `tar -xpf ghostex-<version>-linux-x64.tar.zst -C /`, and Debian control
+# with `tar -xpf ghostex-<version>-linux-<arch>.tar.zst -C /`, and Debian control
 # metadata is not part of a distro-agnostic payload. linux-deb.sh writes DEBIAN/
 # into the shared root, so drop it here the same way linux-rpm.sh does instead of
 # depending on the packaging order.
 rm -rf "$PACKAGE_ROOT/DEBIAN"
 
-TARBALL="$OUTPUT/ghostex-${VERSION}-linux-x64.tar.zst"
+TARBALL="$OUTPUT/ghostex-${VERSION}-linux-${LINUX_ARCH}.tar.zst"
 # Deliberately outside $OUTPUT: that directory is uploaded verbatim as the
-# release-linux-tar-x64 artifact and must contain only the archive, the
+# release-linux-tar-<arch> artifact and must contain only the archive, the
 # manifest, the metadata, and the provenance record.
 FILE_LIST="$(mktemp)"
 trap 'rm -f "$FILE_LIST"' EXIT
@@ -86,5 +87,5 @@ grep -qE '^l.* \./usr/bin/gx -> ghostex$' <<<"$DETAILED" || {
 	exit 1
 }
 
-release_gpui_write_manifest "$OUTPUT" linux-tar-x64 "$VERSION" "$TARBALL"
-printf 'Built portable Linux x64 tarball in %s\n' "$OUTPUT"
+release_gpui_write_manifest "$OUTPUT" "linux-tar-$LINUX_ARCH" "$VERSION" "$TARBALL"
+printf 'Built portable Linux %s tarball in %s\n' "$LINUX_ARCH" "$OUTPUT"

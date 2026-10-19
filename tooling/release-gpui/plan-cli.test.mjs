@@ -112,6 +112,9 @@ describe('plan-cli workflow outputs', () => {
     expect(outputs.job_windows_x64).toBe(plan.jobs.windows_x64);
     expect(outputs.job_validate_windows).toBeUndefined();
     expect(outputs.linux_packages).toBe('deb,rpm,tar');
+    expect(outputs.job_linux_arm64).toBe(plan.jobs.linux_arm64);
+    expect(outputs.linux_arm64_packages).toBe('deb,rpm,tar');
+    expect(outputs.linux_arm64_gxserver_source).toBe('run');
     expect(JSON.parse(outputs.reuse_matrix)).toEqual([]);
     expect(outputs.reuse_count).toBe('0');
   });

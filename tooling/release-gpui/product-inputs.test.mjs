@@ -71,6 +71,9 @@ describe('release product input map', () => {
       'linux-deb-x64',
       'linux-rpm-x64',
       'linux-tar-x64',
+      'linux-deb-arm64',
+      'linux-rpm-arm64',
+      'linux-tar-arm64',
       'windows-x64',
       'windows-arm64',
       'gxserver-wsl-windows-x64',
@@ -86,6 +89,9 @@ describe('release product input map', () => {
     expect(productDefinition('linux-deb-x64').artifacts(version)).toEqual(['ghostex_7.8.0_amd64.deb']);
     expect(productDefinition('linux-rpm-x64').artifacts(version)).toEqual(['ghostex-7.8.0-1.x86_64.rpm']);
     expect(productDefinition('linux-tar-x64').artifacts(version)).toEqual(['ghostex-7.8.0-linux-x64.tar.zst']);
+    expect(productDefinition('linux-deb-arm64').artifacts(version)).toEqual(['ghostex_7.8.0_arm64.deb']);
+    expect(productDefinition('linux-rpm-arm64').artifacts(version)).toEqual(['ghostex-7.8.0-1.aarch64.rpm']);
+    expect(productDefinition('linux-tar-arm64').artifacts(version)).toEqual(['ghostex-7.8.0-linux-arm64.tar.zst']);
     expect(productDefinition('android').artifacts(version)).toEqual(['ghostex-android.apk']);
     expect(productDefinition('gxserver-linux-arm64').artifacts(version)).toEqual(['gxserver-linux-arm64.tar.gz']);
     expect(productDefinition('gxserver-wsl-windows-x64').artifacts(version)).toEqual(['gxserver-wsl-windows-x64.zip']);
@@ -153,6 +159,9 @@ describe('release product input map', () => {
       'linux-deb-x64',
       'linux-rpm-x64',
       'linux-tar-x64',
+      'linux-deb-arm64',
+      'linux-rpm-arm64',
+      'linux-tar-arm64',
       'windows-x64',
       'windows-arm64',
     ]) {
@@ -182,9 +191,11 @@ describe('release product input map', () => {
       'cef',
     ]);
     expect(productDefinition('linux-deb-x64').composedFrom).toEqual(['gxserver-linux-x64', 'code-server', 'cef']);
+    expect(productDefinition('linux-deb-arm64').composedFrom).toEqual(['gxserver-linux-arm64', 'code-server', 'cef']);
     /* Rule 6: every desktop package stages the platform's on-demand code-server component. */
     expect(productDefinition('windows-arm64').composedFrom).toContain('code-server');
     expect(productDefinition('linux-rpm-x64').composedFrom).toContain('code-server');
+    expect(productDefinition('linux-rpm-arm64').composedFrom).toContain('code-server');
     /* Rule 9: a workflow file invalidates only the product it builds. */
     expect(specs('android')).toContain('.github/workflows/release-gpui-android.yml');
     expect(specs('android')).not.toContain('.github/workflows/release-gpui-macos.yml');
@@ -195,8 +206,11 @@ describe('release product input map', () => {
     expect(stamped).toEqual([
       'gxserver-wsl-windows-arm64',
       'gxserver-wsl-windows-x64',
+      'linux-deb-arm64',
       'linux-deb-x64',
+      'linux-rpm-arm64',
       'linux-rpm-x64',
+      'linux-tar-arm64',
       'linux-tar-x64',
       'macos-arm64',
       'windows-arm64',
@@ -230,6 +244,10 @@ describe('release product input map', () => {
     expect(componentPlatformRequirements('linux-tar-x64')).toEqual({
       cef: ['linux-x64'],
       'code-server': ['linux-x64'],
+    });
+    expect(componentPlatformRequirements('linux-deb-arm64')).toEqual({
+      cef: ['linux-arm64'],
+      'code-server': ['linux-arm64'],
     });
     expect(componentPlatformRequirements('android')).toEqual({});
   });

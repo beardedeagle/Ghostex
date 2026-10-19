@@ -40,13 +40,59 @@ const platforms = {
   gxserverWslWindowsArm64: enabled('GHOSTEX_RELEASE_GXSERVER_WSL_WINDOWS_ARM64'),
   gxserverWslWindowsX64: enabled('GHOSTEX_RELEASE_GXSERVER_WSL_WINDOWS_X64'),
   linuxDeb: enabled('GHOSTEX_RELEASE_LINUX_DEB'),
+  linuxDebArm64: enabled('GHOSTEX_RELEASE_LINUX_DEB_ARM64'),
   linuxRpm: enabled('GHOSTEX_RELEASE_LINUX_RPM'),
+  linuxRpmArm64: enabled('GHOSTEX_RELEASE_LINUX_RPM_ARM64'),
   linuxTar: enabled('GHOSTEX_RELEASE_LINUX_TAR'),
+  linuxTarArm64: enabled('GHOSTEX_RELEASE_LINUX_TAR_ARM64'),
   macos: enabled('GHOSTEX_RELEASE_MACOS'),
   windowsArm64: enabled('GHOSTEX_RELEASE_WINDOWS_ARM64'),
   windowsX64: enabled('GHOSTEX_RELEASE_WINDOWS_X64'),
 };
+const linuxArm64Enabled = platforms.linuxDebArm64 || platforms.linuxRpmArm64 || platforms.linuxTarArm64;
+const buildOnly = enabled('GHOSTEX_RELEASE_BUILD_ONLY');
 const prerelease = enabled('GHOSTEX_RELEASE_PRERELEASE');
+
+function remoteReleaseTag() {
+  return execFileSync('git', ['ls-remote', '--tags', 'origin', `refs/tags/v${version}`], { encoding: 'utf8' }).trim();
+}
+
+/*
+ * CDXC:Release 2026-10-19 WHY:
+ * A build-only run (release-gpui.yml `build_only`) must not publish anything:
+ * every publish stage is skipped, and the Linux job seals its CEF component
+ * without uploading it. The other desktop jobs and a code-server component
+ * build publish components from inside the build job, so build-only is limited
+ * to the Linux packages and the gxserver runtimes, with the code-server
+ * component reused from its live tag.
+ */
+const BUILD_ONLY_PRODUCTS = new Set([
+  'gxserver-linux-x64',
+  'gxserver-linux-arm64',
+  'linux-deb-x64',
+  'linux-rpm-x64',
+  'linux-tar-x64',
+  'linux-deb-arm64',
+  'linux-rpm-arm64',
+  'linux-tar-arm64',
+]);
+
+function validateBuildOnlyPlan(plan) {
+  const outside = (plan.expectedPlatforms ?? []).filter((productId) => !BUILD_ONLY_PRODUCTS.has(productId));
+  if (outside.length > 0) {
+    throw new Error(
+      `A build-only run covers the Linux packages and gxserver runtimes only; this scope also has ${outside.join(', ')}`
+    );
+  }
+  const componentBuilds = Object.entries(plan.jobs ?? {})
+    .filter(([job, action]) => job.startsWith('code_server_') && action === 'build')
+    .map(([job]) => job);
+  if (componentBuilds.length > 0) {
+    throw new Error(
+      `A build-only run must not publish components, but ${componentBuilds.join(', ')} would build and publish the code-server component`
+    );
+  }
+}
 const signWindows = enabled('GHOSTEX_RELEASE_SIGN_WINDOWS');
 const updateSparkle = enabled('GHOSTEX_RELEASE_UPDATE_SPARKLE');
 
@@ -71,8 +117,11 @@ function validatePlanAgainstScope(plan) {
     gxserverWslWindowsArm64: platforms.gxserverWslWindowsArm64,
     gxserverWslWindowsX64: platforms.gxserverWslWindowsX64,
     linuxDeb: platforms.linuxDeb,
+    linuxDebArm64: platforms.linuxDebArm64,
     linuxRpm: platforms.linuxRpm,
+    linuxRpmArm64: platforms.linuxRpmArm64,
     linuxTar: platforms.linuxTar,
+    linuxTarArm64: platforms.linuxTarArm64,
     macos: platforms.macos,
     windowsArm64: platforms.windowsArm64,
     windowsX64: platforms.windowsX64,
@@ -96,6 +145,17 @@ function validatePlanAgainstScope(plan) {
   }
   /* Staged publishing: every expected product must belong to a publish stage. */
   assertStagesCoverPlan(plan);
+  if (
+    plan.jobs?.linux_arm64 === 'build' &&
+    plan.jobs?.linux_arm64_gxserver_source === 'release' &&
+    !remoteReleaseTag()
+  ) {
+    throw new Error(
+      `Linux ARM64 packages without gxserver_linux_arm64 embed the live gxserver-linux-arm64.tar.gz of v${version}, ` +
+        'which does not exist yet; enable gxserver_linux_arm64'
+    );
+  }
+  if (buildOnly) validateBuildOnlyPlan(plan);
   const built = PRODUCT_IDS.filter((id) => plan.products[id].action === 'build');
   const reused = PRODUCT_IDS.filter((id) => plan.products[id].action === 'reuse');
   console.log(
@@ -145,6 +205,11 @@ if (
 if ((platforms.windowsArm64 || platforms.gxserverWslWindowsArm64) && !platforms.gxserverLinuxArm64) {
   throw new Error('Enabled ARM64 Windows packages require gxserver_linux_arm64');
 }
+if (linuxArm64Enabled && !platforms.gxserverLinuxArm64 && !remoteReleaseTag()) {
+  throw new Error(
+    'Enabled ARM64 Linux packages require gxserver_linux_arm64, unless they are added to an existing release whose live runtime they embed'
+  );
+}
 
 if (platforms.macos) {
   requireValues('macOS signing', [
@@ -190,6 +255,7 @@ const componentPlatformsEnabled =
   platforms.linuxDeb ||
   platforms.linuxRpm ||
   platforms.linuxTar ||
+  linuxArm64Enabled ||
   platforms.windowsX64 ||
   platforms.windowsArm64;
 if (componentPlatformsEnabled) {
@@ -234,10 +300,9 @@ if (process.env.GITHUB_SHA && remoteMain !== process.env.GITHUB_SHA) {
     `origin/main moved before preflight (${process.env.GITHUB_SHA} -> ${remoteMain}); redispatch the release`
   );
 }
-const remoteTag = execFileSync('git', ['ls-remote', '--tags', 'origin', `refs/tags/v${version}`], {
-  encoding: 'utf8',
-}).trim();
-if (remoteTag && !enabled('GHOSTEX_RELEASE_ALLOW_EXISTING_TAG')) {
+const remoteTag = remoteReleaseTag();
+/* A build-only run publishes nothing, so it may build any version, released or not. */
+if (remoteTag && !enabled('GHOSTEX_RELEASE_ALLOW_EXISTING_TAG') && !buildOnly) {
   throw new Error(`v${version} already exists`);
 }
 

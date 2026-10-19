@@ -22,11 +22,26 @@ on:
       version:
         required: true
         type: string
+      arch:
+        description: Linux package architecture (x64 or arm64); each builds natively on its own runner
+        required: false
+        default: x64
+        type: string
       packages:
         description: Comma-separated package formats to produce (any of deb, rpm, tar)
         required: true
         type: string
       runtime_artifacts_ready:
+        required: false
+        default: false
+        type: boolean
+      gxserver_source:
+        description: run (await this run's gxserver artifact) or release (embed the live runtime of v<version>)
+        required: false
+        default: run
+        type: string
+      build_only:
+        description: Upload Actions artifacts only; seal the CEF component without publishing it, attest nothing
         required: false
         default: false
         type: boolean
@@ -47,6 +62,12 @@ on:
         default: deb,rpm,tar
         type: choice
         options: [deb, rpm, tar, 'deb,rpm', 'deb,rpm,tar']
+      arch:
+        description: Linux package architecture
+        required: true
+        default: x64
+        type: choice
+        options: [x64, arm64]
 
 permissions:
   attestations: write
@@ -55,7 +76,7 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-24.04
+    runs-on: ${{ inputs.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
     timeout-minutes: 120
     env:
       CEF_PATH: ${{ github.workspace }}/apps/desktop/build/cef-cache
@@ -67,7 +88,11 @@ jobs:
       CARGO_INCREMENTAL: '0'
       RUSTC_WRAPPER: sccache
       SCCACHE_GHA_ENABLED: 'true'
-      SCCACHE_GHA_VERSION: linux-x64-1
+      SCCACHE_GHA_VERSION: linux-${{ inputs.arch }}-1
+      GHOSTEX_RELEASE_BUILD_ONLY: ${{ inputs.build_only && '1' || '0' }}
+      LINUX_ARCH: ${{ inputs.arch }}
+      LINUX_DEB_ARCH: ${{ inputs.arch == 'arm64' && 'arm64' || 'amd64' }}
+      LINUX_RPM_ARCH: ${{ inputs.arch == 'arm64' && 'aarch64' || 'x86_64' }}
       ZIG_GLOBAL_CACHE_DIR: ${{ github.workspace }}/build/zig-global-cache
     steps:
       - uses: actions/checkout@v6
@@ -100,6 +125,19 @@ jobs:
       - name: Install sccache
         id: sccache
         uses: mozilla-actions/sccache-action@v0.0.11
+      - name: Validate the requested architecture and gxserver source
+        env:
+          GXSERVER_SOURCE: ${{ inputs.gxserver_source || 'run' }}
+        run: |
+          case "$LINUX_ARCH" in
+            x64) [[ "$(uname -m)" == "x86_64" ]] ;;
+            arm64) [[ "$(uname -m)" == "aarch64" ]] ;;
+            *) echo "arch must be x64 or arm64; got '$LINUX_ARCH'" >&2; exit 2 ;;
+          esac
+          case "$GXSERVER_SOURCE" in
+            run | release) ;;
+            *) echo "gxserver_source must be run or release; got '$GXSERVER_SOURCE'" >&2; exit 2 ;;
+          esac
       - name: Validate the requested package formats
         env:
           REQUESTED_PACKAGES: ${{ inputs.packages }}
@@ -138,7 +176,7 @@ jobs:
         id: cef_cache
         with:
           path: apps/desktop/build/cef-cache
-          key: cef-linux-x64-${{ steps.cache_keys.outputs.cef }}
+          key: cef-linux-${{ env.LINUX_ARCH }}-${{ steps.cache_keys.outputs.cef }}
       - name: Restore Zig package cache
         uses: actions/cache@v6
         id: zig_cache
@@ -146,8 +184,8 @@ jobs:
           path: |
             build/zig-global-cache
             ~/.cache/zig
-          key: zig-linux-x64-${{ steps.cache_keys.outputs.zig }}
-          restore-keys: zig-linux-x64-
+          key: zig-linux-${{ env.LINUX_ARCH }}-${{ steps.cache_keys.outputs.zig }}
+          restore-keys: zig-linux-${{ env.LINUX_ARCH }}-
       - name: Install native packaging dependencies
         run: |
           tooling/release-gpui/retry.sh 3 5 -- sudo apt-get update
@@ -165,7 +203,7 @@ jobs:
         run: git submodule update --init --depth=1 -- .dependencies/code-server
       - name: Resolve immutable code-server component identity
         id: code_server_identity
-        run: node tooling/release-gpui/code-server-component-identity.mjs --root .dependencies/code-server --platform linux-x64 --github-output >> "$GITHUB_OUTPUT"
+        run: node tooling/release-gpui/code-server-component-identity.mjs --root .dependencies/code-server --platform "linux-$LINUX_ARCH" --github-output >> "$GITHUB_OUTPUT"
       - name: Pre-fetch Zig package dependencies
         run: tooling/release-gpui/fetch-zig-deps.sh ghostty
       # Known tradeoff, deliberately not restructured.
@@ -188,21 +226,50 @@ jobs:
         if: ${{ inputs.runtime_artifacts_ready }}
         env:
           GH_TOKEN: ${{ github.token }}
+          GXSERVER_ARTIFACT: ${{ inputs.gxserver_source != 'release' && format('release-gxserver-linux-{0},', inputs.arch) || '' }}
         run: |
           node tooling/release-gpui/await-run-artifacts.mjs \
-            --names "release-gxserver-linux-x64,${{ steps.code_server_identity.outputs.artifact_name }}" \
-            --producer-pattern '^(gxserver_x64|code_server_x64|reuse)' \
+            --names "${GXSERVER_ARTIFACT}${{ steps.code_server_identity.outputs.artifact_name }}" \
+            --producer-pattern "^(gxserver_${LINUX_ARCH}|code_server_${LINUX_ARCH}|reuse)" \
             --timeout-minutes 45
       - uses: actions/download-artifact@v8
-        if: ${{ inputs.runtime_artifacts_ready }}
+        if: ${{ inputs.runtime_artifacts_ready && inputs.gxserver_source != 'release' }}
         with:
-          name: release-gxserver-linux-x64
-          path: build/runtime-artifacts/x64
+          name: release-gxserver-linux-${{ inputs.arch }}
+          path: build/runtime-artifacts/${{ inputs.arch }}
+      # CDXC:Release 2026-10-19 WHY:
+      # Packages added to a release that is already public embed its live
+      # runtime, never a rebuild: the live macOS app sealed those exact bytes
+      # (plan.mjs, linux_arm64_gxserver_source). Both GitHub's asset digest and
+      # the release's provenance record must name the downloaded bytes.
+      - name: Download the live gxserver runtime of the release
+        if: ${{ inputs.runtime_artifacts_ready && inputs.gxserver_source == 'release' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          TAG="v$RELEASE_VERSION"
+          NAME="gxserver-linux-$LINUX_ARCH.tar.gz"
+          PROVENANCE="release-provenance-$RELEASE_VERSION.json"
+          DIR="build/runtime-artifacts/$LINUX_ARCH"
+          mkdir -p "$DIR"
+          tooling/release-gpui/retry.sh 4 2 -- gh release download "$TAG" --repo "$GITHUB_REPOSITORY" \
+            --pattern "$NAME" --pattern "$PROVENANCE" --dir "$DIR" --clobber
+          ACTUAL="$(sha256sum "$DIR/$NAME" | awk '{ print $1 }')"
+          LIVE="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" --jq ".assets[] | select(.name == \"$NAME\") | .digest")"
+          RECORDED="$(jq -r --arg product "gxserver-linux-$LINUX_ARCH" --arg name "$NAME" \
+            '.products[$product].artifacts[] | select(.name == $name) | .sha256' "$DIR/$PROVENANCE")"
+          if [[ "sha256:$ACTUAL" != "$LIVE" || "$ACTUAL" != "$RECORDED" ]]; then
+            echo "::error::$TAG $NAME is $ACTUAL; GitHub reports $LIVE and $PROVENANCE records $RECORDED" >&2
+            exit 1
+          fi
+          rm "$DIR/$PROVENANCE"
+          echo "Embedding the live $TAG $NAME (sha256 $ACTUAL)"
       - uses: actions/download-artifact@v8
         if: ${{ inputs.runtime_artifacts_ready }}
         with:
           name: ${{ steps.code_server_identity.outputs.artifact_name }}
-          path: build/runtime-artifacts/code-server-x64
+          path: build/runtime-artifacts/code-server-${{ inputs.arch }}
       - name: Reuse the published Source component for standalone runs
         if: ${{ ! inputs.runtime_artifacts_ready }}
         env:
@@ -214,26 +281,27 @@ jobs:
             --require-sha256-sidecars \
             --component code-server \
             --version '${{ steps.code_server_identity.outputs.component_version }}' \
-            --platform linux-x64 \
-            --asset-dir build/runtime-artifacts/code-server-x64 \
+            --platform "linux-$LINUX_ARCH" \
+            --asset-dir "build/runtime-artifacts/code-server-$LINUX_ARCH" \
             --output build/runtime-artifacts/code-server-components.json
       - name: Validate the Source component archive
         run: |
           node tooling/release-gpui/verify-code-server-archive.mjs \
-            --archive "build/runtime-artifacts/code-server-x64/${{ steps.code_server_identity.outputs.archive_name }}" \
+            --archive "build/runtime-artifacts/code-server-$LINUX_ARCH/${{ steps.code_server_identity.outputs.archive_name }}" \
             --version '${{ steps.code_server_identity.outputs.component_version }}' \
-            --platform linux-x64
+            --platform "linux-$LINUX_ARCH"
       - name: Restore remote runtime package
         if: ${{ inputs.runtime_artifacts_ready }}
         run: |
-          mkdir -p build/remote-gxserver-linux/x64/package
-          tar -xzf build/runtime-artifacts/x64/gxserver-linux-x64.tar.gz -C build/remote-gxserver-linux/x64/package
+          mkdir -p "build/remote-gxserver-linux/$LINUX_ARCH/package"
+          tar -xzf "build/runtime-artifacts/$LINUX_ARCH/gxserver-linux-$LINUX_ARCH.tar.gz" -C "build/remote-gxserver-linux/$LINUX_ARCH/package"
       - name: Stage the Linux desktop payload once
         env:
           GH_TOKEN: ${{ github.token }}
           COMPONENTS_GITHUB_TOKEN: ${{ secrets.COMPONENTS_GITHUB_TOKEN }}
           GHOSTEX_CODE_SERVER_COMPONENT_VERSION: ${{ steps.code_server_identity.outputs.component_version }}
           GHOSTEX_ON_DEMAND_CODE_SERVER_LINUX_X64_ARCHIVE: ${{ github.workspace }}/build/runtime-artifacts/code-server-x64/${{ steps.code_server_identity.outputs.archive_name }}
+          GHOSTEX_ON_DEMAND_CODE_SERVER_LINUX_ARM64_ARCHIVE: ${{ github.workspace }}/build/runtime-artifacts/code-server-arm64/${{ steps.code_server_identity.outputs.archive_name }}
         run: tooling/release-gpui/linux-stage.sh "${{ inputs.version }}" "$GHOSTEX_LINUX_PACKAGE_ROOT"
       # RPM and the portable tarball first: both archive the whole staged root,
       # and linux-deb.sh creates DEBIAN/ inside it.
@@ -245,7 +313,7 @@ jobs:
           tooling/release-gpui/linux-rpm.sh "${{ inputs.version }}"
           # Risk R8: the shared package root is reused by the DEB step, so prove
           # the RPM payload never contains Debian control metadata.
-          RPM_PATH="$(realpath "build/release-gpui/${{ inputs.version }}/linux-rpm-x64/ghostex-${{ inputs.version }}-1.x86_64.rpm")"
+          RPM_PATH="$(realpath "build/release-gpui/${{ inputs.version }}/linux-rpm-$LINUX_ARCH/ghostex-${{ inputs.version }}-1.$LINUX_RPM_ARCH.rpm")"
           if rpm -qpl "$RPM_PATH" | grep -q '^/DEBIAN'; then
             echo "RPM payload leaked DEBIAN/ control metadata" >&2
             exit 1
@@ -270,7 +338,7 @@ jobs:
           # Prove the published archive really installs onto a filesystem root
           # with its prefix intact: /usr/bin/ghostex wraps hardcoded
           # /opt/ghostex paths, and gx must arrive as a symlink, not a copy.
-          TAR_PATH="$(realpath "build/release-gpui/${{ inputs.version }}/linux-tar-x64/ghostex-${{ inputs.version }}-linux-x64.tar.zst")"
+          TAR_PATH="$(realpath "build/release-gpui/${{ inputs.version }}/linux-tar-$LINUX_ARCH/ghostex-${{ inputs.version }}-linux-$LINUX_ARCH.tar.zst")"
           TAR_TEST_ROOT="$(mktemp -d)"
           trap 'sudo rm -rf "$TAR_TEST_ROOT"' EXIT
           zstd -dc "$TAR_PATH" | sudo tar -xpf - -C "$TAR_TEST_ROOT"
@@ -288,7 +356,7 @@ jobs:
           # database, then install the same downloaded DEB again through dpkg.
           # This catches renamed distro dependencies as well as package-owned
           # file replacement regressions before publication.
-          DEB_PATH="$(realpath "build/release-gpui/${{ inputs.version }}/linux-deb-x64/ghostex_${{ inputs.version }}_amd64.deb")"
+          DEB_PATH="$(realpath "build/release-gpui/${{ inputs.version }}/linux-deb-$LINUX_ARCH/ghostex_${{ inputs.version }}_$LINUX_DEB_ARCH.deb")"
           sudo apt-get install -y --no-install-recommends "$DEB_PATH"
           sudo dpkg --install "$DEB_PATH"
           test -x /opt/ghostex/Ghostex
@@ -296,20 +364,20 @@ jobs:
           test -L /usr/bin/gx
           test "$(dpkg-query --showformat='${Version}' --show ghostex)" = "${{ inputs.version }}"
       - name: Attest the RPM package
-        if: ${{ contains(inputs.packages, 'rpm') }}
+        if: ${{ contains(inputs.packages, 'rpm') && !inputs.build_only }}
         uses: actions/attest-build-provenance@v4
         with:
-          subject-path: build/release-gpui/${{ inputs.version }}/linux-rpm-x64/ghostex-${{ inputs.version }}-1.x86_64.rpm
+          subject-path: build/release-gpui/${{ inputs.version }}/linux-rpm-${{ env.LINUX_ARCH }}/ghostex-${{ inputs.version }}-1.${{ env.LINUX_RPM_ARCH }}.rpm
       - name: Attest the portable tarball
-        if: ${{ contains(inputs.packages, 'tar') }}
+        if: ${{ contains(inputs.packages, 'tar') && !inputs.build_only }}
         uses: actions/attest-build-provenance@v4
         with:
-          subject-path: build/release-gpui/${{ inputs.version }}/linux-tar-x64/ghostex-${{ inputs.version }}-linux-x64.tar.zst
+          subject-path: build/release-gpui/${{ inputs.version }}/linux-tar-${{ env.LINUX_ARCH }}/ghostex-${{ inputs.version }}-linux-${{ env.LINUX_ARCH }}.tar.zst
       - name: Attest the DEB package
-        if: ${{ contains(inputs.packages, 'deb') }}
+        if: ${{ contains(inputs.packages, 'deb') && !inputs.build_only }}
         uses: actions/attest-build-provenance@v4
         with:
-          subject-path: build/release-gpui/${{ inputs.version }}/linux-deb-x64/ghostex_${{ inputs.version }}_amd64.deb
+          subject-path: build/release-gpui/${{ inputs.version }}/linux-deb-${{ env.LINUX_ARCH }}/ghostex_${{ inputs.version }}_${{ env.LINUX_DEB_ARCH }}.deb
       - name: Report sccache statistics
         if: ${{ always() && steps.sccache.conclusion == 'success' }}
         run: sccache --show-stats
@@ -317,7 +385,8 @@ jobs:
         if: ${{ always() }}
         run: |
           {
-            echo "- Packages produced: ${{ inputs.packages }} (single compile)"
+            echo "- Packages produced: ${{ inputs.packages }} for linux-$LINUX_ARCH (single compile)"
+            echo "- gxserver source: ${{ inputs.gxserver_source || 'run' }}; build only: ${{ inputs.build_only && 'yes' || 'no' }}"
             echo "- Cargo registry cache: ${{ steps.cargo_cache.outputs.cache-hit == 'true' && 'hit' || 'miss' }}"
             echo "- CEF distribution cache: ${{ steps.cef_cache.outputs.cache-hit == 'true' && 'hit' || 'miss' }}"
             echo "- Zig package cache: ${{ steps.zig_cache.outputs.cache-hit == 'true' && 'hit' || 'miss' }}"
@@ -325,42 +394,53 @@ jobs:
       - uses: actions/upload-artifact@v7
         if: ${{ contains(inputs.packages, 'rpm') }}
         with:
-          name: release-linux-rpm-x64
-          path: build/release-gpui/${{ inputs.version }}/linux-rpm-x64/
+          name: release-linux-rpm-${{ env.LINUX_ARCH }}
+          path: build/release-gpui/${{ inputs.version }}/linux-rpm-${{ env.LINUX_ARCH }}/
           if-no-files-found: error
           retention-days: 14
       - uses: actions/upload-artifact@v7
         if: ${{ contains(inputs.packages, 'tar') }}
         with:
-          name: release-linux-tar-x64
-          path: build/release-gpui/${{ inputs.version }}/linux-tar-x64/
+          name: release-linux-tar-${{ env.LINUX_ARCH }}
+          path: build/release-gpui/${{ inputs.version }}/linux-tar-${{ env.LINUX_ARCH }}/
           if-no-files-found: error
           retention-days: 14
       - uses: actions/upload-artifact@v7
         if: ${{ contains(inputs.packages, 'deb') }}
         with:
-          name: release-linux-deb-x64
-          path: build/release-gpui/${{ inputs.version }}/linux-deb-x64/
+          name: release-linux-deb-${{ env.LINUX_ARCH }}
+          path: build/release-gpui/${{ inputs.version }}/linux-deb-${{ env.LINUX_ARCH }}/
           if-no-files-found: error
           retention-days: 14
       - uses: actions/upload-artifact@v7
         if: ${{ inputs.plan != '' && contains(inputs.packages, 'rpm') }}
         with:
-          name: release-provenance-linux-rpm-x64
-          path: build/release-gpui/${{ inputs.version }}/linux-rpm-x64/provenance.json
+          name: release-provenance-linux-rpm-${{ env.LINUX_ARCH }}
+          path: build/release-gpui/${{ inputs.version }}/linux-rpm-${{ env.LINUX_ARCH }}/provenance.json
           if-no-files-found: error
           retention-days: 14
       - uses: actions/upload-artifact@v7
         if: ${{ inputs.plan != '' && contains(inputs.packages, 'tar') }}
         with:
-          name: release-provenance-linux-tar-x64
-          path: build/release-gpui/${{ inputs.version }}/linux-tar-x64/provenance.json
+          name: release-provenance-linux-tar-${{ env.LINUX_ARCH }}
+          path: build/release-gpui/${{ inputs.version }}/linux-tar-${{ env.LINUX_ARCH }}/provenance.json
           if-no-files-found: error
           retention-days: 14
       - uses: actions/upload-artifact@v7
         if: ${{ inputs.plan != '' && contains(inputs.packages, 'deb') }}
         with:
-          name: release-provenance-linux-deb-x64
-          path: build/release-gpui/${{ inputs.version }}/linux-deb-x64/provenance.json
+          name: release-provenance-linux-deb-${{ env.LINUX_ARCH }}
+          path: build/release-gpui/${{ inputs.version }}/linux-deb-${{ env.LINUX_ARCH }}/provenance.json
+          if-no-files-found: error
+          retention-days: 14
+      # A build-only run publishes no component, so a tester serves this sealed
+      # archive through GHOSTEX_ON_DEMAND_BASE_URL (<base>/<downloadTag>/<asset>).
+      - uses: actions/upload-artifact@v7
+        if: ${{ inputs.build_only }}
+        with:
+          name: release-linux-cef-component-${{ env.LINUX_ARCH }}
+          path: |
+            build/on-demand-components/assets/cef-*-linux-${{ env.LINUX_ARCH }}.tar.gz
+            build/on-demand-components/components.json
           if-no-files-found: error
           retention-days: 14

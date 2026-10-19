@@ -24,6 +24,11 @@ on:
         required: false
         default: ''
         type: string
+      build_only:
+        description: Upload the Actions artifact only; attest nothing
+        required: false
+        default: false
+        type: boolean
   workflow_dispatch:
     inputs:
       version:
@@ -149,6 +154,7 @@ jobs:
             "${{ inputs.version }}" \
             "$OUTPUT/gxserver-linux-${{ inputs.arch }}.tar.gz"
       - name: Attest build provenance
+        if: ${{ !inputs.build_only }}
         uses: actions/attest-build-provenance@v4
         with:
           subject-path: build/release-gpui/${{ inputs.version }}/gxserver-linux-${{ inputs.arch }}/gxserver-linux-${{ inputs.arch }}.tar.gz

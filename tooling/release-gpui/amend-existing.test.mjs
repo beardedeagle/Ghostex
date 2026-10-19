@@ -98,6 +98,12 @@ describe('product contracts', () => {
     expect(packDependencies('windows-arm64')).toEqual(['gxserver-linux-arm64']);
     expect(companionProducts('windows-arm64')).toEqual(['gxserver-wsl-windows-arm64']);
   });
+
+  test('each Linux package embeds the gxserver runtime of its own architecture', () => {
+    expect(packDependencies('linux-deb-x64')).toEqual(['gxserver-linux-x64']);
+    expect(packDependencies('linux-tar-arm64')).toEqual(['gxserver-linux-arm64']);
+    expect(artifactNamesForProduct('linux-rpm-arm64', VERSION).required).toEqual([`ghostex-${VERSION}-1.aarch64.rpm`]);
+  });
 });
 
 describe('unrelated asset protection', () => {
@@ -184,7 +190,9 @@ describe('release notes merge', () => {
       version: VERSION,
     });
     expect(merged.startsWith(DOWNLOADS_START)).toBe(true);
-    expect(merged.indexOf(customerDownloadUrl(VERSION, installer))).toBeLessThan(merged.indexOf('## 7.7.1 - 2026-08-13'));
+    expect(merged.indexOf(customerDownloadUrl(VERSION, installer))).toBeLessThan(
+      merged.indexOf('## 7.7.1 - 2026-08-13')
+    );
     expect(merged).not.toContain('SHA256');
     expect(merged).not.toContain('Build provenance');
   });
@@ -202,6 +210,24 @@ describe('release notes merge', () => {
     expect(second).toContain(customerDownloadUrl(VERSION, deb));
     const block = second.slice(0, second.indexOf('## 7.7.1'));
     expect(block.trim().split('\n').length).toBeLessThanOrEqual(5);
+  });
+
+  test('offers Linux x64 and ARM64 on the one Linux line', () => {
+    const debX64 = 'ghostex_7.7.1_amd64.deb';
+    const armAssets = ['ghostex_7.7.1_arm64.deb', 'ghostex-7.7.1-1.aarch64.rpm', 'ghostex-7.7.1-linux-arm64.tar.zst'];
+    const merged = mergeReleaseNotes({
+      assetNames: [debX64, ...armAssets],
+      liveBody: '## 7.7.1\n\n- Notes\n',
+      version: VERSION,
+    });
+    const linuxLine = merged.split('\n').find((line) => line.startsWith('**Linux x64:**'));
+    expect(linuxLine).toContain('**Linux ARM64:**');
+    for (const name of [debX64, ...armAssets]) expect(linuxLine).toContain(customerDownloadUrl(VERSION, name));
+    expect(linuxLine.indexOf('AUR (ghostex-bin)')).toBeLessThan(linuxLine.indexOf('**Linux ARM64:**'));
+
+    const armOnly = mergeReleaseNotes({ assetNames: armAssets, liveBody: '## 7.7.1\n\n- Notes\n', version: VERSION });
+    expect(armOnly).toContain('**Linux ARM64:**');
+    expect(armOnly).not.toContain('**Linux x64:**');
   });
 
   test('replaces legacy checksum, provenance and bottom download sections with the top block', () => {

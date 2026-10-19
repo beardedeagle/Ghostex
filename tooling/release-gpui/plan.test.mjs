@@ -45,11 +45,14 @@ describe('bootstrap release', () => {
     for (const entry of Object.values(bootstrapPlan.products)) {
       expect(entry.reason).toBe('no provenance baseline for this product; building');
     }
-    expect(bootstrapPlan.expectedPlatforms).toHaveLength(11);
+    expect(bootstrapPlan.expectedPlatforms).toHaveLength(14);
     expect(bootstrapPlan.jobs.reuse_matrix).toEqual([]);
     expect(bootstrapPlan.jobs.windows_x64).toBe('build');
     expect(bootstrapPlan.jobs.windows_arm64).toBe('build');
     expect(bootstrapPlan.jobs.linux_packages).toEqual(['deb', 'rpm', 'tar']);
+    expect(bootstrapPlan.jobs.linux_arm64_packages).toEqual(['deb', 'rpm', 'tar']);
+    expect(bootstrapPlan.jobs.linux_arm64).toBe('build');
+    expect(bootstrapPlan.jobs.linux_arm64_gxserver_source).toBe('run');
   });
 });
 
@@ -71,6 +74,9 @@ describe('Scenario A — desktop-only change', () => {
       'linux-deb-x64': 'build',
       'linux-rpm-x64': 'build',
       'linux-tar-x64': 'build',
+      'linux-deb-arm64': 'build',
+      'linux-rpm-arm64': 'build',
+      'linux-tar-arm64': 'build',
       'macos-arm64': 'build',
       'windows-arm64': 'build',
       'windows-x64': 'build',
@@ -86,7 +92,7 @@ describe('Scenario A — desktop-only change', () => {
   });
 
   test('still publishes every in-scope product and reports the reuse jobs', () => {
-    expect(plan.expectedPlatforms).toHaveLength(11);
+    expect(plan.expectedPlatforms).toHaveLength(14);
     expect(plan.jobs.reuse_matrix).toEqual(['gxserver-linux-x64', 'gxserver-linux-arm64', 'android']);
     expect(plan.jobs.gxserver_x64).toBe('reuse');
     expect(plan.jobs.android).toBe('reuse');
@@ -180,6 +186,9 @@ describe('Scenario D — Windows-only fix after a partial failure', () => {
       'linux-deb-x64': 'reuse',
       'linux-rpm-x64': 'reuse',
       'linux-tar-x64': 'reuse',
+      'linux-deb-arm64': 'reuse',
+      'linux-rpm-arm64': 'reuse',
+      'linux-tar-arm64': 'reuse',
       'macos-arm64': 'reuse',
       'windows-arm64': 'build',
       'windows-x64': 'build',
@@ -341,7 +350,9 @@ describe('Scenario F — unchanged immutable components', () => {
       version: '7.8.0',
     });
     expect(plan.components.cef.action).toBe('reuse');
-    expect(plan.components.cef.reason).toMatch(/already has darwin-arm64, linux-x64, windows-arm64, windows-x64/u);
+    expect(plan.components.cef.reason).toMatch(
+      /already has darwin-arm64, linux-arm64, linux-x64, windows-arm64, windows-x64/u
+    );
     expect(plan.components['code-server'].action).toBe('reuse');
     expect(plan.jobs.code_server_x64).toBe('reuse');
     expect(plan.jobs.code_server_arm64).toBe('reuse');
@@ -371,8 +382,11 @@ describe('Scenario F — unchanged immutable components', () => {
       componentTagState: componentTagStateFixture(),
       scope: defaultScope({
         linuxDeb: false,
+        linuxDebArm64: false,
         linuxRpm: false,
+        linuxRpmArm64: false,
         linuxTar: false,
+        linuxTarArm64: false,
         macos: false,
         updateSparkle: false,
         windowsArm64: false,
@@ -443,8 +457,11 @@ describe('scope, validation, and reporting', () => {
           gxserverWslWindowsArm64: false,
           gxserverWslWindowsX64: false,
           linuxDeb: false,
+          linuxDebArm64: false,
           linuxRpm: false,
+          linuxRpmArm64: false,
           linuxTar: false,
+          linuxTarArm64: false,
           macos: false,
           updateSparkle: false,
           windowsArm64: false,
@@ -483,7 +500,10 @@ describe('scope, validation, and reporting', () => {
     expect(text).toMatch(/^linux-rpm-x64\s+SKIP\s+not in the requested release scope$/mu);
     expect(text).toMatch(/^cef\s+\S+\s+REUSE\s+/mu);
     expect(text).toContain('FEEDS         sparkle=update  windows-feeds=x64,arm64');
-    expect(text).toContain('JOBS          macos, windows_arm64, windows_x64, wsl_arm64, wsl_x64, linux_x64(deb,tar)');
+    expect(text).toContain(
+      'JOBS          macos, windows_arm64, windows_x64, wsl_arm64, wsl_x64, linux_x64(deb,tar), ' +
+        'linux_arm64(deb,rpm,tar; gxserver from run)'
+    );
     expect(text).not.toContain('validate_windows');
     expect(text).toMatch(/SAVED\s+~\d+ runner-minutes/u);
     expect(planSummaryLine(plan)).toMatch(/\d+ built, \d+ reused, 1 skipped by flag/u);
@@ -499,6 +519,9 @@ describe('scope, validation, and reporting', () => {
       GHOSTEX_RELEASE_LINUX_DEB: 'true',
       GHOSTEX_RELEASE_LINUX_RPM: 'true',
       GHOSTEX_RELEASE_LINUX_TAR: 'true',
+      GHOSTEX_RELEASE_LINUX_DEB_ARM64: 'true',
+      GHOSTEX_RELEASE_LINUX_RPM_ARM64: 'false',
+      GHOSTEX_RELEASE_LINUX_TAR_ARM64: 'true',
       GHOSTEX_RELEASE_MACOS: 'true',
       GHOSTEX_RELEASE_SIGN_WINDOWS: 'true',
       GHOSTEX_RELEASE_UPDATE_SPARKLE: 'true',
@@ -508,5 +531,60 @@ describe('scope, validation, and reporting', () => {
     expect(scope.android).toBe(false);
     expect(scope.macos).toBe(true);
     expect(scope.signWindows).toBe(true);
+    expect(scope.linuxDebArm64).toBe(true);
+    expect(scope.linuxRpmArm64).toBe(false);
+    expect(scope.linuxTarArm64).toBe(true);
+  });
+});
+
+describe('Linux ARM64 packages', () => {
+  const sourceSha = repo.commit('checkpoint for linux arm64');
+  const linuxArm64Only = (overrides = {}) =>
+    defaultScope({
+      android: false,
+      gxserverLinuxX64: false,
+      gxserverWslWindowsArm64: false,
+      gxserverWslWindowsX64: false,
+      linuxDeb: false,
+      linuxRpm: false,
+      linuxTar: false,
+      macos: false,
+      updateSparkle: false,
+      windowsArm64: false,
+      windowsX64: false,
+      ...overrides,
+    });
+
+  test("build on their own job and await this run's ARM64 runtime", () => {
+    const plan = planAt(sourceSha, {
+      componentTagState: componentTagStateFixture(),
+      scope: linuxArm64Only(),
+      version: '7.8.0',
+    });
+    expect(plan.expectedPlatforms).toEqual([
+      'gxserver-linux-arm64',
+      'linux-deb-arm64',
+      'linux-rpm-arm64',
+      'linux-tar-arm64',
+    ]);
+    expect(plan.jobs.linux_arm64).toBe('build');
+    expect(plan.jobs.linux_arm64_packages).toEqual(['deb', 'rpm', 'tar']);
+    expect(plan.jobs.linux_arm64_gxserver_source).toBe('run');
+    expect(plan.jobs.linux_x64).toBe('skip');
+    expect(plan.jobs.code_server_arm64).toBe('reuse');
+    expect(plan.jobs.code_server_x64).toBe('skip');
+    expect(plan.components.cef.requiredPlatforms).toEqual(['linux-arm64']);
+  });
+
+  test('embed the live runtime when added to a release without it in scope', () => {
+    const plan = planAt(sourceSha, {
+      componentTagState: componentTagStateFixture(),
+      scope: linuxArm64Only({ gxserverLinuxArm64: false }),
+      version: '7.8.0',
+    });
+    expect(plan.products['gxserver-linux-arm64'].action).toBe('skip');
+    expect(plan.jobs.gxserver_arm64).toBe('skip');
+    expect(plan.jobs.linux_arm64).toBe('build');
+    expect(plan.jobs.linux_arm64_gxserver_source).toBe('release');
   });
 });

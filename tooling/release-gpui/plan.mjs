@@ -22,8 +22,10 @@ import {
   PRODUCT_IDS,
   TRUSTED_REPO,
   componentPlatformRequirements,
+  LINUX_DESKTOP_FORMATS,
   defaultScope,
   isProductRequested,
+  linuxDesktopProductId,
   nodeDefinition,
   productDefinition,
   validateProductGraph,
@@ -49,8 +51,11 @@ const PRODUCT_RUNNER_MINUTES = Object.freeze({
   'gxserver-linux-x64': 22,
   'gxserver-wsl-windows-arm64': 1,
   'gxserver-wsl-windows-x64': 1,
+  'linux-deb-arm64': 14,
   'linux-deb-x64': 14,
+  'linux-rpm-arm64': 14,
   'linux-rpm-x64': 14,
+  'linux-tar-arm64': 14,
   'linux-tar-x64': 14,
   'macos-arm64': 34,
   'windows-arm64': 27,
@@ -76,8 +81,11 @@ export function scopeFromEnv(env = process.env) {
     gxserverWslWindowsArm64: flag('GHOSTEX_RELEASE_GXSERVER_WSL_WINDOWS_ARM64'),
     gxserverWslWindowsX64: flag('GHOSTEX_RELEASE_GXSERVER_WSL_WINDOWS_X64'),
     linuxDeb: flag('GHOSTEX_RELEASE_LINUX_DEB'),
+    linuxDebArm64: flag('GHOSTEX_RELEASE_LINUX_DEB_ARM64'),
     linuxRpm: flag('GHOSTEX_RELEASE_LINUX_RPM'),
+    linuxRpmArm64: flag('GHOSTEX_RELEASE_LINUX_RPM_ARM64'),
     linuxTar: flag('GHOSTEX_RELEASE_LINUX_TAR'),
+    linuxTarArm64: flag('GHOSTEX_RELEASE_LINUX_TAR_ARM64'),
     macos: flag('GHOSTEX_RELEASE_MACOS'),
     prerelease: flag('GHOSTEX_RELEASE_PRERELEASE'),
     signWindows: flag('GHOSTEX_RELEASE_SIGN_WINDOWS'),
@@ -268,7 +276,7 @@ function componentJobAction({ arch, components, products }) {
   const consumers = [
     'macos-arm64',
     `windows-${arch}`,
-    ...(arch === 'x64' ? ['linux-deb-x64', 'linux-rpm-x64', 'linux-tar-x64'] : []),
+    ...LINUX_DESKTOP_FORMATS.map((format) => linuxDesktopProductId(format, arch)),
   ];
   const needed = consumers.some((productId) => products[productId]?.action === 'build');
   if (!needed) return 'skip';
@@ -313,7 +321,10 @@ function windowsNativeComponentJobAction({ arch, components, products }) {
 
 function planJobs({ components, products }) {
   const action = (productId) => products[productId]?.action ?? 'skip';
-  const linuxPackages = ['deb', 'rpm', 'tar'].filter((format) => action(`linux-${format}-x64`) === 'build');
+  const linuxPackages = (arch) =>
+    LINUX_DESKTOP_FORMATS.filter((format) => action(linuxDesktopProductId(format, arch)) === 'build');
+  const linuxX64Packages = linuxPackages('x64');
+  const linuxArm64Packages = linuxPackages('arm64');
   return {
     android: action('android'),
     code_server_arm64: componentJobAction({ arch: 'arm64', components, products }),
@@ -323,8 +334,21 @@ function planJobs({ components, products }) {
     code_server_x64: componentJobAction({ arch: 'x64', components, products }),
     gxserver_arm64: action('gxserver-linux-arm64'),
     gxserver_x64: action('gxserver-linux-x64'),
-    linux_packages: linuxPackages,
-    linux_x64: linuxPackages.length > 0 ? 'build' : 'skip',
+    linux_arm64: linuxArm64Packages.length > 0 ? 'build' : 'skip',
+    /*
+     * CDXC:Release 2026-10-19 WHY:
+     * Linux ARM64 was added to 10.27.0 after that release was public, and its
+     * live gxserver-linux-arm64.tar.gz is already sealed into the 10.27.0 macOS
+     * app. Rebuilding the runtime would publish different bytes under the same
+     * name, so a run that ships the ARM64 packages without the runtime in scope
+     * embeds the release's live runtime instead (`release`); otherwise the job
+     * awaits this run's runtime artifact (`run`). preflight.mjs allows the
+     * `release` source only when v<version> already exists.
+     */
+    linux_arm64_gxserver_source: action('gxserver-linux-arm64') === 'skip' ? 'release' : 'run',
+    linux_arm64_packages: linuxArm64Packages,
+    linux_packages: linuxX64Packages,
+    linux_x64: linuxX64Packages.length > 0 ? 'build' : 'skip',
     macos: action('macos-arm64'),
     reuse_matrix: PRODUCT_IDS.filter((productId) => action(productId) === 'reuse'),
     /*
@@ -538,10 +562,19 @@ export function renderPlanText(plan) {
       `windows-feeds=${plan.feeds.windowsFeeds.length > 0 ? plan.feeds.windowsFeeds.join(',') : 'none'}`
   );
   const jobNames = Object.entries(plan.jobs)
-    .filter(([name, value]) => !['reuse_matrix', 'linux_packages', 'linux_x64'].includes(name) && value === 'build')
+    .filter(
+      ([name, value]) =>
+        !['reuse_matrix', 'linux_packages', 'linux_x64', 'linux_arm64_packages', 'linux_arm64'].includes(name) &&
+        value === 'build'
+    )
     .map(([name]) => name);
   if (plan.jobs.linux_packages.length > 0) {
     jobNames.push(`linux_x64(${plan.jobs.linux_packages.join(',')})`);
+  }
+  if ((plan.jobs.linux_arm64_packages ?? []).length > 0) {
+    jobNames.push(
+      `linux_arm64(${plan.jobs.linux_arm64_packages.join(',')}; gxserver from ${plan.jobs.linux_arm64_gxserver_source})`
+    );
   }
   lines.push(`JOBS          ${jobNames.join(', ') || '(none)'}`);
   lines.push(`              reuse[${plan.jobs.reuse_matrix.join(', ') || 'none'}]`);

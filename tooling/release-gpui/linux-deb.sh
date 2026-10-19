@@ -5,7 +5,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/common.sh"
 REPO_ROOT="$(release_gpui_repo_root)"
 VERSION="${1:-}"
-OUTPUT="${2:-$(release_gpui_default_output "$REPO_ROOT" "$VERSION" linux-deb-x64)}"
+LINUX_ARCH="$(release_gpui_linux_arch)"
+DEB_ARCH="$(release_gpui_linux_deb_arch "$LINUX_ARCH")"
+OUTPUT="${2:-$(release_gpui_default_output "$REPO_ROOT" "$VERSION" "linux-deb-$LINUX_ARCH")}"
 release_gpui_require_version "$VERSION"
 release_gpui_require_command dpkg-deb
 release_gpui_prepare_output "$REPO_ROOT" "$OUTPUT"
@@ -28,15 +30,15 @@ Package: ghostex
 Version: $VERSION
 Section: devel
 Priority: optional
-Architecture: amd64
+Architecture: $DEB_ARCH
 Maintainer: Ghostex <support@ghostex.app>
 Depends: ffmpeg, libasound2t64 | libasound2, libatk-bridge2.0-0t64 | libatk-bridge2.0-0, libatk1.0-0t64 | libatk1.0-0, libatspi2.0-0t64 | libatspi2.0-0, libc6, libcairo2, libcups2t64 | libcups2, libdbus-1-3, libdrm2, libexpat1, libfontconfig1, libgbm1, libglib2.0-0t64 | libglib2.0-0, libgtk-3-0t64 | libgtk-3-0, libnspr4, libnss3, libpango-1.0-0, libpangocairo-1.0-0, libx11-6, libx11-xcb1, libxcb1, libxcomposite1, libxdamage1, libxext6, libxfixes3, libxkbcommon0, libxrandr2, libxshmfence1
 Recommends: wmctrl
 Description: Ghostex desktop application
  Ghostex provides native AI development workspaces, terminals, and project tools.
 EOF
-DEB="$OUTPUT/ghostex_${VERSION}_amd64.deb"
+DEB="$OUTPUT/ghostex_${VERSION}_${DEB_ARCH}.deb"
 dpkg-deb --build --root-owner-group "$PACKAGE_ROOT" "$DEB"
 dpkg-deb --info "$DEB" >/dev/null
-release_gpui_write_manifest "$OUTPUT" linux-deb-x64 "$VERSION" "$DEB"
-printf 'Built Debian/Ubuntu x64 release payload in %s\n' "$OUTPUT"
+release_gpui_write_manifest "$OUTPUT" "linux-deb-$LINUX_ARCH" "$VERSION" "$DEB"
+printf 'Built Debian/Ubuntu %s release payload in %s\n' "$LINUX_ARCH" "$OUTPUT"

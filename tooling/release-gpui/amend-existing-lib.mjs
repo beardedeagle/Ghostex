@@ -11,7 +11,7 @@
  * mutated when missing from the live release or when the operator selected them.
  */
 
-import { PRODUCT_IDS, productDefinition } from './product-inputs.mjs';
+import { LINUX_DESKTOP_FORMATS, PRODUCT_IDS, linuxDesktopProductId, productDefinition } from './product-inputs.mjs';
 import { buildReleaseProvenanceRecord, compactPlanForRecord } from './publish-provenance.mjs';
 import { mergeCustomerDownloadNotes } from './customer-downloads.mjs';
 import { releaseProvenanceAssetName, validateReleaseProvenance } from './provenance.mjs';
@@ -29,8 +29,10 @@ export function productIdsFromScopeFlags(scope) {
 export function packDependencies(productId) {
   productDefinition(productId);
   if (productId === 'macos-arm64') return ['gxserver-linux-x64', 'gxserver-linux-arm64'];
-  if (productId === 'linux-deb-x64' || productId === 'linux-rpm-x64' || productId === 'linux-tar-x64') {
-    return ['gxserver-linux-x64'];
+  for (const arch of ['x64', 'arm64']) {
+    if (LINUX_DESKTOP_FORMATS.some((format) => productId === linuxDesktopProductId(format, arch))) {
+      return [`gxserver-linux-${arch}`];
+    }
   }
   if (productId === 'windows-x64' || productId === 'gxserver-wsl-windows-x64') return ['gxserver-linux-x64'];
   if (productId === 'windows-arm64' || productId === 'gxserver-wsl-windows-arm64') return ['gxserver-linux-arm64'];
@@ -55,7 +57,16 @@ export function consumersOfGxserver(arch) {
       'macos-arm64',
     ];
   }
-  if (arch === 'arm64') return ['windows-arm64', 'gxserver-wsl-windows-arm64', 'macos-arm64'];
+  if (arch === 'arm64') {
+    return [
+      'windows-arm64',
+      'gxserver-wsl-windows-arm64',
+      'linux-deb-arm64',
+      'linux-rpm-arm64',
+      'linux-tar-arm64',
+      'macos-arm64',
+    ];
+  }
   throw new Error(`Unknown gxserver architecture: ${arch}`);
 }
 

@@ -59,6 +59,20 @@ export function customerDownloadEntries(version, assetNames) {
         link('AUR (ghostex-bin)', AUR_PACKAGE_URL),
       ],
     },
+    /*
+     CDXC:Release 2026-10-19 DECISION:
+     User: Linux ARM64 ships the same three packages as x64 (.deb, .rpm, tarball), starting with 10.27.0.
+     They share the Linux line as their own group; the AUR package is x86_64 only, so it stays with x64.
+    */
+    {
+      line: 2,
+      title: 'Linux ARM64',
+      downloads: [
+        asset('.deb', `ghostex_${version}_arm64.deb`),
+        asset('.rpm', `ghostex-${version}-1.aarch64.rpm`),
+        asset('tarball', `ghostex-${version}-linux-arm64.tar.zst`),
+      ],
+    },
     {
       line: 3,
       title: 'Android',

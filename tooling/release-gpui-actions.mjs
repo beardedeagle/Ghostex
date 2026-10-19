@@ -31,8 +31,11 @@ Usage:
 
 Scope options for start/publish (all are enabled by default):
   --only-macos
+  --only-linux-arm64                     Linux ARM64 packages only (plus their gxserver runtime); implies --skip-sparkle
   --skip-macos
-  --skip-linux | --skip-linux-deb | --skip-linux-rpm | --skip-linux-tar
+  --skip-linux                           Both architectures
+  --skip-linux-x64 | --skip-linux-deb | --skip-linux-rpm | --skip-linux-tar          (x64)
+  --skip-linux-arm64 | --skip-linux-deb-arm64 | --skip-linux-rpm-arm64 | --skip-linux-tar-arm64
   --skip-windows | --skip-windows-x64 | --skip-windows-arm64
   --skip-android
   --skip-gxserver-linux-x64 | --skip-gxserver-linux-arm64
@@ -52,8 +55,11 @@ Release options:
   --windows-signing <auto|required|off>  Default: auto
   --source-run-id <id>                   Required by publish
   --stage <name>                         publish only: one stage of a staged release
-                                         (macos, android, linux, windows-x64, windows-arm64)
+                                         (macos, android, linux, linux-arm64, windows-x64, windows-arm64)
   --dry-run
+  --build-only                           start only: build and upload Actions artifacts, publish nothing
+                                         (no tag, no release, no component uploads). Linux packages and
+                                         gxserver runtimes only; an existing tag is allowed.
 
 Planning options (scope flags express intent; the plan decides build/reuse/skip):
   --force-all                            Rebuild every in-scope product, ignoring verified reuse
@@ -73,6 +79,7 @@ function parseArgs(argv) {
   const amendDefaults = command === 'amend';
   const options = {
     android: !amendDefaults,
+    buildOnly: false,
     dryRun: false,
     forceAll: false,
     forceProducts: '',
@@ -83,8 +90,12 @@ function parseArgs(argv) {
     gxserverWslWindowsArm64: !amendDefaults,
     gxserverWslWindowsX64: !amendDefaults,
     linuxDeb: !amendDefaults,
+    /* release-amend-existing.yml has no Linux ARM64 inputs; an amend never selects them. */
+    linuxDebArm64: !amendDefaults,
     linuxRpm: !amendDefaults,
+    linuxRpmArm64: !amendDefaults,
     linuxTar: !amendDefaults,
+    linuxTarArm64: !amendDefaults,
     macos: !amendDefaults,
     prerelease: false,
     sourceRunId: '',
@@ -110,9 +121,31 @@ function parseArgs(argv) {
         gxserverWslWindowsArm64: false,
         gxserverWslWindowsX64: false,
         linuxDeb: false,
+        linuxDebArm64: false,
         linuxRpm: false,
+        linuxRpmArm64: false,
         linuxTar: false,
+        linuxTarArm64: false,
         macos: true,
+        windowsArm64: false,
+        windowsX64: false,
+      });
+    } else if (arg === '--only-linux-arm64') {
+      rejectSkipOnAmend(arg);
+      Object.assign(options, {
+        android: false,
+        gxserverLinuxArm64: true,
+        gxserverLinuxX64: false,
+        gxserverWslWindowsArm64: false,
+        gxserverWslWindowsX64: false,
+        linuxDeb: false,
+        linuxDebArm64: true,
+        linuxRpm: false,
+        linuxRpmArm64: true,
+        linuxTar: false,
+        linuxTarArm64: true,
+        macos: false,
+        updateSparkle: false,
         windowsArm64: false,
         windowsX64: false,
       });
@@ -138,6 +171,22 @@ function parseArgs(argv) {
     else if (arg === '--skip-linux') {
       rejectSkipOnAmend(arg);
       options.linuxDeb = options.linuxRpm = options.linuxTar = false;
+      options.linuxDebArm64 = options.linuxRpmArm64 = options.linuxTarArm64 = false;
+    } else if (arg === '--skip-linux-x64') {
+      rejectSkipOnAmend(arg);
+      options.linuxDeb = options.linuxRpm = options.linuxTar = false;
+    } else if (arg === '--skip-linux-arm64') {
+      rejectSkipOnAmend(arg);
+      options.linuxDebArm64 = options.linuxRpmArm64 = options.linuxTarArm64 = false;
+    } else if (arg === '--skip-linux-deb-arm64') {
+      rejectSkipOnAmend(arg);
+      options.linuxDebArm64 = false;
+    } else if (arg === '--skip-linux-rpm-arm64') {
+      rejectSkipOnAmend(arg);
+      options.linuxRpmArm64 = false;
+    } else if (arg === '--skip-linux-tar-arm64') {
+      rejectSkipOnAmend(arg);
+      options.linuxTarArm64 = false;
     } else if (arg === '--skip-linux-deb') {
       rejectSkipOnAmend(arg);
       options.linuxDeb = false;
@@ -178,6 +227,7 @@ function parseArgs(argv) {
     } else if (arg === '--skip-sparkle') options.updateSparkle = false;
     else if (arg === '--prerelease') options.prerelease = true;
     else if (arg === '--dry-run') options.dryRun = true;
+    else if (arg === '--build-only') options.buildOnly = true;
     else if (arg === '--skip-local-tests') options.skipLocalTests = true;
     else if (arg === '--force-all') options.forceAll = true;
     else if (arg === '--force') {
@@ -200,6 +250,7 @@ function parseArgs(argv) {
     }
   }
   if (options.stage && command !== 'publish') throw new Error('--stage is only valid with publish');
+  if (options.buildOnly && command !== 'start') throw new Error('--build-only is only valid with start');
   if (options.stage && !PUBLISH_STAGE_NAMES.includes(options.stage)) {
     throw new Error(`--stage must be one of ${PUBLISH_STAGE_NAMES.join(', ')}`);
   }
@@ -224,6 +275,9 @@ function validateScope(options, command) {
     options.linuxDeb,
     options.linuxRpm,
     options.linuxTar,
+    options.linuxDebArm64,
+    options.linuxRpmArm64,
+    options.linuxTarArm64,
     options.windowsX64,
     options.windowsArm64,
     options.android,
@@ -271,12 +325,53 @@ function validateScope(options, command) {
       'gxserver Linux x64 is enabled but no enabled package embeds it; add --skip-gxserver-linux-x64 or enable a consumer'
     );
   }
-  const arm64Consumers = [options.macos, options.windowsArm64, options.gxserverWslWindowsArm64];
+  const arm64Consumers = [
+    options.macos,
+    linuxArm64Enabled(options),
+    options.windowsArm64,
+    options.gxserverWslWindowsArm64,
+  ];
   if (options.gxserverLinuxArm64 && !arm64Consumers.some(Boolean)) {
     throw new Error(
       'gxserver Linux ARM64 is enabled but no enabled package embeds it; add --skip-gxserver-linux-arm64 or enable a consumer'
     );
   }
+}
+
+function linuxArm64Enabled(options) {
+  return options.linuxDebArm64 || options.linuxRpmArm64 || options.linuxTarArm64;
+}
+
+/*
+ * Linux ARM64 normally embeds this run's gxserver-linux-arm64. Added to a
+ * release that is already public (10.27.0), it embeds that release's live
+ * runtime instead, because rebuilding the runtime would publish different
+ * bytes under a name the live macOS app already sealed (plan.mjs,
+ * linux_arm64_gxserver_source). So the runtime may be out of scope only when
+ * the tag exists.
+ */
+function validateLinuxArm64Runtime(options, tagExists) {
+  if (linuxArm64Enabled(options) && !options.gxserverLinuxArm64 && !tagExists) {
+    throw new Error(
+      'Enabled ARM64 Linux packages require gxserver Linux ARM64; only a release that already exists may ' +
+        'skip it (the packages then embed its live gxserver-linux-arm64.tar.gz)'
+    );
+  }
+}
+
+/* release-gpui.yml publishes nothing in a build-only run; the runner's preflight enforces the same scope on the plan. */
+function validateBuildOnly(options) {
+  if (!options.buildOnly) return;
+  const outside = [
+    options.macos && 'macOS',
+    (options.windowsX64 || options.windowsArm64) && 'Windows',
+    options.android && 'Android',
+    (options.gxserverWslWindowsX64 || options.gxserverWslWindowsArm64) && 'the WSL runtimes',
+  ].filter(Boolean);
+  if (outside.length > 0) {
+    throw new Error(`--build-only covers the Linux packages and gxserver runtimes only; skip ${outside.join(', ')}`);
+  }
+  if (options.updateSparkle) throw new Error('--build-only requires --skip-sparkle');
 }
 
 function requiresGpuiReferenceContract(options) {
@@ -285,6 +380,7 @@ function requiresGpuiReferenceContract(options) {
     options.linuxDeb ||
     options.linuxRpm ||
     options.linuxTar ||
+    linuxArm64Enabled(options) ||
     options.windowsX64 ||
     options.windowsArm64
   );
@@ -296,6 +392,9 @@ function expectedPlatforms(options) {
     options.linuxDeb && 'linux-deb-x64',
     options.linuxRpm && 'linux-rpm-x64',
     options.linuxTar && 'linux-tar-x64',
+    options.linuxDebArm64 && 'linux-deb-arm64',
+    options.linuxRpmArm64 && 'linux-rpm-arm64',
+    options.linuxTarArm64 && 'linux-tar-arm64',
     options.windowsX64 && 'windows-x64',
     options.windowsArm64 && 'windows-arm64',
     options.android && 'android',
@@ -376,6 +475,7 @@ function validateRequiredSecrets(options, secrets) {
     options.linuxDeb ||
     options.linuxRpm ||
     options.linuxTar ||
+    linuxArm64Enabled(options) ||
     options.windowsX64 ||
     options.windowsArm64
   ) {
@@ -408,8 +508,11 @@ function previewPlan(version, options, windowsSigned, { required }) {
     gxserverWslWindowsArm64: options.gxserverWslWindowsArm64,
     gxserverWslWindowsX64: options.gxserverWslWindowsX64,
     linuxDeb: options.linuxDeb,
+    linuxDebArm64: options.linuxDebArm64,
     linuxRpm: options.linuxRpm,
+    linuxRpmArm64: options.linuxRpmArm64,
     linuxTar: options.linuxTar,
+    linuxTarArm64: options.linuxTarArm64,
     macos: options.macos,
     prerelease: options.prerelease,
     signWindows: windowsSigned,
@@ -458,6 +561,7 @@ function dispatch(workflow, fields, dryRun) {
 
 const { command, options, version } = parseArgs(process.argv.slice(2));
 validateScope(options, command);
+validateBuildOnly(options);
 /*
  * A staged release may already have created the tag when one platform failed:
  * the recovery redispatch (`start --reuse-from-run`) then targets an existing
@@ -466,9 +570,14 @@ validateScope(options, command);
  */
 const head = validateLocalSource(version, {
   allowExistingTag:
-    command === 'publish' || command === 'amend' || (command === 'start' && Boolean(options.reuseFromRunId)),
+    command === 'publish' ||
+    command === 'amend' ||
+    (command === 'start' && (Boolean(options.reuseFromRunId) || options.buildOnly)),
   requireExistingTag: command === 'amend',
 });
+if (command === 'start') {
+  validateLinuxArm64Runtime(options, Boolean(run('git', ['ls-remote', '--tags', 'origin', `refs/tags/v${version}`])));
+}
 if ((command === 'start' || command === 'amend') && requiresGpuiReferenceContract(options)) {
   run('node', ['tooling/release-gpui/verify-reference-contract.mjs'], { capture: false });
   /* Costs milliseconds here; discovering it on a runner cost 7.8.0 a 14-minute round. */
@@ -508,6 +617,7 @@ if (command === 'start') {
     'release-gpui.yml',
     {
       android: options.android,
+      build_only: options.buildOnly,
       force_all: options.forceAll,
       force_products: options.forceProducts,
       reuse_from_run_id: options.reuseFromRunId,
@@ -516,8 +626,11 @@ if (command === 'start') {
       gxserver_wsl_windows_arm64: options.gxserverWslWindowsArm64,
       gxserver_wsl_windows_x64: options.gxserverWslWindowsX64,
       linux_deb: options.linuxDeb,
+      linux_deb_arm64: options.linuxDebArm64,
       linux_rpm: options.linuxRpm,
+      linux_rpm_arm64: options.linuxRpmArm64,
       linux_tar: options.linuxTar,
+      linux_tar_arm64: options.linuxTarArm64,
       macos: options.macos,
       prerelease: options.prerelease,
       sign_windows: windowsSigned,

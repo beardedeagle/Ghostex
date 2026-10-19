@@ -43,12 +43,12 @@ on:
       # CDXC:Release 2026-09-15 DECISION:
       # User: every platform goes live as soon as its own build finishes. A
       # staged release calls this workflow once per stage (macos, android,
-      # linux, windows-x64, windows-arm64); publish-staged.mjs creates the
+      # linux, linux-arm64, windows-x64, windows-arm64); publish-staged.mjs creates the
       # release when this stage is first and amends it otherwise. Empty means
       # the classic single publish of the whole scope (publish-only recovery,
       # the standalone amend workflow).
       stage:
-        description: Publish stage of a staged release (macos, android, linux, windows-x64, windows-arm64)
+        description: Publish stage of a staged release (macos, android, linux, linux-arm64, windows-x64, windows-arm64)
         required: false
         default: ''
         type: string
@@ -89,7 +89,7 @@ on:
         default: ''
         type: string
       stage:
-        description: Publish only this stage of a staged release (macos, android, linux, windows-x64, windows-arm64); empty publishes the whole recorded scope
+        description: Publish only this stage of a staged release (macos, android, linux, linux-arm64, windows-x64, windows-arm64); empty publishes the whole recorded scope
         required: false
         default: ''
         type: string

@@ -3,8 +3,8 @@
  * User: every platform goes live the moment its own build finishes, without
  * waiting for any other platform. The publish order is whatever the build
  * order happens to be; nothing waits for macOS and macOS waits for nothing.
- * So one release run publishes in five independent stages (macos, android,
- * linux, windows-x64, windows-arm64). The first stage to finish creates the tag
+ * So one release run publishes in independent stages (macos, android, linux,
+ * linux-arm64, windows-x64, windows-arm64). The first stage to finish creates the tag
  * and the release with its own products; every later stage amends that release
  * with its own products. A stage that loses the creation race simply amends.
  * Supersedes the 2026-09-10 design where the macOS stage always created the
@@ -36,6 +36,7 @@ export const PUBLISH_STAGES = Object.freeze({
   macos: Object.freeze(['macos-arm64']),
   android: Object.freeze(['android']),
   linux: Object.freeze(['linux-deb-x64', 'linux-rpm-x64', 'linux-tar-x64']),
+  'linux-arm64': Object.freeze(['linux-deb-arm64', 'linux-rpm-arm64', 'linux-tar-arm64']),
   'windows-x64': Object.freeze(['windows-x64', 'gxserver-wsl-windows-x64']),
   'windows-arm64': Object.freeze(['windows-arm64', 'gxserver-wsl-windows-arm64']),
 });

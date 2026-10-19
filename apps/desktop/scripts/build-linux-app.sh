@@ -104,7 +104,7 @@ fi
 
 prepare_cef_component() {
 	local component_root asset_dir component_manifest stage_root archive_path build_manifest
-	local code_server_archive code_server_component_version code_server_asset_dir expected_code_server_archive
+	local code_server_archive code_server_archive_env code_server_component_version code_server_asset_dir expected_code_server_archive
 	component_root="${GHOSTEX_ON_DEMAND_COMPONENT_ROOT:-$REPO_ROOT/build/on-demand-components}"
 	asset_dir="${GHOSTEX_ON_DEMAND_COMPONENT_ASSET_DIR:-$component_root/assets}"
 	component_manifest="${GHOSTEX_ON_DEMAND_COMPONENTS_MANIFEST:-$component_root/components.json}"
@@ -124,14 +124,15 @@ prepare_cef_component() {
 		--version "$CEF_COMPONENT_VERSION" \
 		--asset-dir "$asset_dir" \
 		--output "$component_manifest"
-	code_server_archive="${GHOSTEX_ON_DEMAND_CODE_SERVER_LINUX_X64_ARCHIVE:-}"
+	code_server_archive_env="GHOSTEX_ON_DEMAND_CODE_SERVER_LINUX_$(printf '%s' "$CEF_COMPONENT_ARCH" | tr '[:lower:]' '[:upper:]')_ARCHIVE"
+	code_server_archive="${!code_server_archive_env:-}"
 	if [[ -n "$code_server_archive" ]]; then
 		code_server_component_version="${GHOSTEX_CODE_SERVER_COMPONENT_VERSION:-}"
 		[[ -n "$code_server_component_version" ]] || {
 			echo "GHOSTEX_CODE_SERVER_COMPONENT_VERSION is required with the Linux Source component archive" >&2
 			exit 1
 		}
-		expected_code_server_archive="code-server-$code_server_component_version-linux-x64.tar.gz"
+		expected_code_server_archive="code-server-$code_server_component_version-linux-$CEF_COMPONENT_ARCH.tar.gz"
 		[[ "$(basename "$code_server_archive")" == "$expected_code_server_archive" ]] || {
 			echo "Linux Source component identity mismatch: expected $expected_code_server_archive" >&2
 			exit 1
@@ -143,7 +144,7 @@ prepare_cef_component() {
 		node "$REPO_ROOT/tooling/release-gpui/verify-code-server-archive.mjs" \
 			--archive "$code_server_archive" \
 			--version "$code_server_component_version" \
-			--platform linux-x64
+			--platform "linux-$CEF_COMPONENT_ARCH"
 		code_server_asset_dir="$(dirname "$code_server_archive")"
 		node "$REPO_ROOT/tooling/release-gpui/publish-component.mjs" \
 			--metadata-only \

@@ -152,6 +152,38 @@ JS
 	release_gpui_write_provenance "$output"
 }
 
+# CDXC:Release 2026-10-19 WHY:
+# The Linux desktop packages are built natively on an x64 runner and on an ARM64
+# runner (ubuntu-24.04-arm), never cross-compiled, so the host CPU names the
+# package architecture. Release names follow linux-x64: "x64"/"arm64" in product
+# ids and tarballs, amd64/arm64 for Debian, x86_64/aarch64 for RPM.
+release_gpui_linux_arch() {
+	case "$(uname -m)" in
+	x86_64) printf 'x64\n' ;;
+	aarch64 | arm64) printf 'arm64\n' ;;
+	*)
+		echo "Linux release packaging supports x86_64 and aarch64 hosts, not $(uname -m)" >&2
+		exit 1
+		;;
+	esac
+}
+
+release_gpui_linux_deb_arch() {
+	case "$1" in
+	x64) printf 'amd64\n' ;;
+	arm64) printf 'arm64\n' ;;
+	*) echo "Unknown Linux package architecture: $1" >&2; exit 2 ;;
+	esac
+}
+
+release_gpui_linux_rpm_arch() {
+	case "$1" in
+	x64) printf 'x86_64\n' ;;
+	arm64) printf 'aarch64\n' ;;
+	*) echo "Unknown Linux package architecture: $1" >&2; exit 2 ;;
+	esac
+}
+
 release_gpui_require_command() {
 	local command_name="$1"
 	command -v "$command_name" >/dev/null 2>&1 || {

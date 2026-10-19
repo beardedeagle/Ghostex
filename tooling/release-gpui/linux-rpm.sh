@@ -5,7 +5,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/common.sh"
 REPO_ROOT="$(release_gpui_repo_root)"
 VERSION="${1:-}"
-OUTPUT="${2:-$(release_gpui_default_output "$REPO_ROOT" "$VERSION" linux-rpm-x64)}"
+LINUX_ARCH="$(release_gpui_linux_arch)"
+RPM_ARCH="$(release_gpui_linux_rpm_arch "$LINUX_ARCH")"
+OUTPUT="${2:-$(release_gpui_default_output "$REPO_ROOT" "$VERSION" "linux-rpm-$LINUX_ARCH")}"
 release_gpui_require_version "$VERSION"
 release_gpui_require_command rpmbuild
 release_gpui_require_command rpm
@@ -35,7 +37,7 @@ Summary: Ghostex desktop application
 License: Proprietary
 URL: https://ghostex.app
 Source0: ghostex-$VERSION.tar.gz
-BuildArch: x86_64
+BuildArch: $RPM_ARCH
 Requires: alsa-lib, atk, cairo, cups-libs, dbus-libs, expat, fontconfig, gtk3, libX11, libXcomposite, libXdamage, libXext, libXfixes, libXrandr, libdrm, libxcb, mesa-libgbm, nspr, nss, pango
 Requires: /usr/bin/ffmpeg, /usr/bin/ffprobe
 Recommends: wmctrl
@@ -64,8 +66,8 @@ RPM_BUILT="$(find "$RPM_ROOT/RPMS" -type f -name '*.rpm' -print -quit)"
 	echo "rpmbuild produced no RPM" >&2
 	exit 1
 }
-RPM="$OUTPUT/ghostex-$VERSION-1.x86_64.rpm"
+RPM="$OUTPUT/ghostex-$VERSION-1.$RPM_ARCH.rpm"
 cp "$RPM_BUILT" "$RPM"
 rpm -qpi "$RPM" >/dev/null
-release_gpui_write_manifest "$OUTPUT" linux-rpm-x64 "$VERSION" "$RPM"
-printf 'Built Fedora/RHEL x64 release payload in %s\n' "$OUTPUT"
+release_gpui_write_manifest "$OUTPUT" "linux-rpm-$LINUX_ARCH" "$VERSION" "$RPM"
+printf 'Built Fedora/RHEL %s release payload in %s\n' "$LINUX_ARCH" "$OUTPUT"

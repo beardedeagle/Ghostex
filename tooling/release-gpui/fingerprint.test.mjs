@@ -173,8 +173,11 @@ describe('release fingerprint algorithm', () => {
     expect(changed(atOldVersion, atNewVersion)).toEqual([
       'gxserver-wsl-windows-arm64',
       'gxserver-wsl-windows-x64',
+      'linux-deb-arm64',
       'linux-deb-x64',
+      'linux-rpm-arm64',
       'linux-rpm-x64',
+      'linux-tar-arm64',
       'linux-tar-x64',
       'macos-arm64',
       'windows-arm64',
