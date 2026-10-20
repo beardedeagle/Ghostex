@@ -147,20 +147,17 @@ impl NativeChatView {
             "moreActions" => "More actions",
             "maximizeComposer" if self.maximized_window.is_some() => "Exit maximize",
             "maximizeComposer" => "Maximize",
-            "summaryMode" => "Summary mode",
             "sessionNote" => "Session note",
             "filesLinks" => "Files and links",
-            "stashPrompt" => "Stash prompt",
             "attachPath" => "Attach a file or folder",
             "terminalView" => "Terminal View",
             "dictate" if self.dictating(cx) => "Stop dictating",
             "dictate" => "Dictate",
             _ => action,
         };
-        // CDXC:SessionChat 2026-09-18 SEE-ALSO: The stash count badge, the session-note presence dot and the pressed Summary/Note states come from the core's composer chrome (`packages/gx-chat-core/src/composer/note.rs`), ported from React's `session-chat-composer-actions.tsx` chrome.
+        // CDXC:SessionChat 2026-09-18 SEE-ALSO: The session-note presence dot and pressed state come from the core's composer chrome (`packages/gx-chat-core/src/composer/note.rs`), ported from React's `session-chat-composer-actions.tsx` chrome.
         let chrome = &self.snapshot["composerChrome"];
         let pressed = match action {
-            "summaryMode" => chrome["summaryPressed"] == true,
             "sessionNote" => chrome["notePressed"] == true,
             "filesLinks" => self.snapshot["filesLinks"]["open"] == true,
             "maximizeComposer" => self.maximized_window.is_some(),
@@ -169,7 +166,6 @@ impl NativeChatView {
             _ => false,
         };
         let badge = match action {
-            "stashPrompt" => chrome["stashBadge"].as_str().map(str::to_owned),
             "sessionNote" if chrome["notePresence"] == true => Some(String::new()),
             _ => None,
         };
@@ -217,9 +213,7 @@ impl NativeChatView {
             })
             .tooltip(move |window, cx| {
                 let hotkey_id = match action {
-                    "summaryMode" => Some("toggleChatSummaryMode"),
                     "sessionNote" => Some("sessionNote"),
-                    "stashPrompt" => Some("stashPrompt"),
                     "attachPath" => Some("attachFileOrFolder"),
                     "maximizeComposer" => Some("toggleChatComposerMaximized"),
                     _ => None,
@@ -258,15 +252,6 @@ impl NativeChatView {
                     gpui::MouseButton::Right,
                     cx.listener(|this, event: &gpui::MouseDownEvent, window, cx| {
                         this.show_dictation_menu(event.position, window, cx);
-                        cx.stop_propagation();
-                    }),
-                )
-            })
-            .when(action == "stashPrompt", |this| {
-                this.on_mouse_down(
-                    gpui::MouseButton::Right,
-                    cx.listener(|this, _, _, cx| {
-                        this.host("stashedPrompts", json!({}), cx);
                         cx.stop_propagation();
                     }),
                 )
