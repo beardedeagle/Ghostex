@@ -11,6 +11,7 @@
 //! - `conversation.rs`: the conversation the work area header's Voice button starts and ends.
 //! - `panel.rs`: the panel that shows it; `header_button.rs`: the Voice button.
 //! - `memory.rs`: the remembered last conversation the panel offers to continue.
+//! - `typing.rs`: whether the user is typing, which keeps the agent's follow from switching sessions.
 //! - `dictation.rs`: the chat box's and the terminal bar's Dictate: `recorder.rs` records to a
 //!   file first, then gxserver keeps and transcribes it (xAI speech-to-text).
 
@@ -32,6 +33,7 @@ pub(crate) mod recorder;
 #[cfg(any(target_os = "linux", target_os = "windows"))]
 mod stretch;
 mod test_mic;
+pub(crate) mod typing;
 
 pub(crate) use conversation::{VOICE_AGENT_AVAILABLE, VoiceAgent};
 pub(crate) use dictation::{

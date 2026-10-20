@@ -53,10 +53,31 @@ impl GhostexGpuiApp {
         let action = command.action.as_str();
         match verb {
             RendererVerb::FocusSession(session) => {
+                // The voice agent's follow (server/src/voice_agent/show.rs) leaves the user where
+                // they are while they type; a focus they asked for always switches.
+                if command.payload.get("unlessTyping") == Some(&Value::Bool(true))
+                    && crate::app::voice_agent::typing::user_is_typing()
+                {
+                    return Ok(json!({
+                        "ok": true,
+                        "reason": "userTyping",
+                        "session": session_json(&session),
+                        "shown": false,
+                    }));
+                }
                 if !self.dispatch_gpui_status_pet_activation(&session.sidebar_session_id, cx) {
                     return Err(RendererCommandError::BridgeUnavailable);
                 }
-                Ok(json!({ "ok": true, "session": session_json(&session) }))
+                // A session in another Space, or hidden by a filter or a closed group, has no
+                // drawn row: reveal it the way a notification click does, or the focus changes
+                // nothing the user can see.
+                let request_id = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map_or(0, |elapsed| elapsed.as_micros() as u64);
+                self.gx_store_note_local_sidebar_reveal(&session.sidebar_session_id, request_id);
+                self.gx_store_note_sidebar_reveal(&session.sidebar_session_id, request_id, cx);
+                self.gx_store_sidebar_state_changed(cx);
+                Ok(json!({ "ok": true, "session": session_json(&session), "shown": true }))
             }
             RendererVerb::RenameCommand {
                 session,

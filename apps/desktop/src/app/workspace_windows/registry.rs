@@ -523,6 +523,7 @@ impl GhostexGpuiApp {
     /// operating system's URL and file opens.
     pub(crate) fn register_app_wide_callback_targets(&self, cx: &mut Context<Self>) {
         crate::app::browser_site_requests::register_browser_site_request_handler(cx);
+        crate::app::voice_agent::typing::watch_typing(cx);
         #[cfg(target_os = "macos")]
         {
             register_gpui_menu_bar_status_callback_target(cx.weak_entity(), cx.to_async());

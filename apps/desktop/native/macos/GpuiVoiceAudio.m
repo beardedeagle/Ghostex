@@ -10,6 +10,7 @@
 */
 
 #import <AVFoundation/AVFoundation.h>
+#import <AppKit/AppKit.h>
 #import <Foundation/Foundation.h>
 #include <math.h>
 #include <stdatomic.h>
@@ -357,4 +358,16 @@ void GhostexVoiceAudioStop(void *handle) {
       audio.engine = nil;
     }
   }
+}
+
+// Whether the focused text field of the key window holds uncommitted IME text (a composition in
+// progress), whichever field it is: the chat box, a terminal or any other GPUI field answer through
+// GPUI's view, a CEF page through Chromium's. The voice agent's follow leaves the user where they
+// are meanwhile (app/voice_agent/typing.rs). Main thread only.
+int32_t GhostexVoiceKeyWindowIsComposingText(void) {
+  NSResponder *responder = NSApp.keyWindow.firstResponder;
+  if (responder == nil || ![responder respondsToSelector:@selector(hasMarkedText)]) {
+    return 0;
+  }
+  return [(id<NSTextInputClient>)responder hasMarkedText] ? 1 : 0;
 }

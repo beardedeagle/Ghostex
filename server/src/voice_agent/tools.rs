@@ -14,6 +14,7 @@ use serde_json::{json, Map, Value};
 use super::loopback;
 use super::question_forms;
 use super::sessions::{self, Match, SessionInfo};
+use super::show;
 use crate::server::AppState;
 
 /// Messages `read_session` returns by default and at most.
@@ -159,6 +160,16 @@ pub(super) fn definitions() -> Value {
         },
         {
             "type": "function",
+            "name": "show_session",
+            "description": "Show a session in the Ghostex app: the sidebar selects it and the work area opens it, switching project when it is in another one. Call it when the user asks to see, show, open or go to a session; it switches even while they type. The other session tools already show the session they work with, unless the user is typing (their result then says shownInApp false).",
+            "parameters": {
+                "type": "object",
+                "properties": {"session": session},
+                "required": ["session"]
+            }
+        },
+        {
+            "type": "function",
             "name": "recall_last_conversation",
             "description": "Get your notes from your previous voice conversation with the user. Call it when the user asks to pick up or continue where you left off, or asks what you talked about last time.",
             "parameters": {"type": "object", "properties": {}}
@@ -198,6 +209,7 @@ pub(super) fn label(name: &str, args: &Value) -> String {
         ("list_projects", _) => "Checking your projects".to_string(),
         ("list_agent_types", _) => "Checking your agents".to_string(),
         ("start_agent", Some(target)) => format!("Starting an agent in {target}"),
+        ("show_session", Some(target)) => format!("Showing {target}"),
         ("recall_last_conversation", _) => "Remembering your last conversation".to_string(),
         (name, _) => name.replace('_', " "),
     }
@@ -285,6 +297,19 @@ pub(super) async fn run(
     name: &str,
     args: &Value,
 ) -> ToolOutcome {
+    let mut outcome = run_tool(state, memory, name, args).await;
+    if outcome.ok && show::FOLLOWING_TOOLS.contains(&name) {
+        show::follow(state, &mut outcome.output).await;
+    }
+    outcome
+}
+
+async fn run_tool(
+    state: &Arc<AppState>,
+    memory: &ToolMemory,
+    name: &str,
+    args: &Value,
+) -> ToolOutcome {
     let result = match name {
         "list_sessions" => list_sessions(state, args).await,
         "read_session" => read_session(state, memory, args).await,
@@ -296,6 +321,10 @@ pub(super) async fn run(
         "list_projects" => list_projects(state).await,
         "list_agent_types" => list_agent_types(state).await,
         "start_agent" => return start_agent(state, args).await,
+        "show_session" => match resolve_session(state, memory, args).await {
+            Ok(session) => show::show_session(state, &session).await,
+            Err(error) => Err(error),
+        },
         "recall_last_conversation" => super::memory::recall(&state.paths),
         other => Err(format!("There is no tool called {other}.")),
     };

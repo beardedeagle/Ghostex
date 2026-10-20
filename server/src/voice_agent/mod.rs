@@ -19,6 +19,7 @@ mod recordings_http;
 mod registry;
 mod sessions;
 mod settings_http;
+mod show;
 mod socket;
 mod tools;
 mod transcribe;

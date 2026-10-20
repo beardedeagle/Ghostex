@@ -2552,7 +2552,12 @@ add to it or replace it). To send an agent a screenshot, copy the image to the
 clipboard on your computer and ask the voice agent to include it: it tells the
 agent to read the image from the clipboard (this works only for agents on that
 computer, not on a remote machine). Name sessions and projects the way you
-would say them ("the sidebar one"); it asks when two match. While the
+would say them ("the sidebar one"); it asks when two match. Whatever session
+it talks about (reading its messages, a question it asks, a draft) is shown in
+the app: the sidebar selects it and the work area opens it, switching project
+or Space when needed, but not while you are typing, so it never pulls you away
+mid-sentence. Say "show me the sidebar one" to switch to a session yourself,
+even while typing. While the
 conversation is open it tells you when a session finishes its turn or starts
 waiting on a question or an approval. The conversation keeps going while you
 switch projects and chats. A small panel under the header shows what it is
