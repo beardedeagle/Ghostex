@@ -257,6 +257,10 @@ pub fn apply_draft_agent_carriage(state: &mut ChatState, result: &ReadSessionCha
     if let Some(all_efforts) = result.all_orchestrator_efforts {
         state.core.all_orchestrator_efforts_enabled = all_efforts;
     }
+    if let Some(strength) = result.marked_heading_strength {
+        state.core.marked_heading_strength =
+            crate::transcript::marked_sections::heading_strength(strength);
+    }
 }
 
 /// Applies one authoritative result: a seed read, a resync read, a snapshot, or the cached

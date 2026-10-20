@@ -56,6 +56,11 @@ pub(crate) fn chat_setting_enabled(paths: &GxserverPaths, key: &str) -> bool {
         .unwrap_or(false)
 }
 
+/// A numeric chat setting from the settings file, `None` while it is unset.
+pub(crate) fn chat_setting_number(paths: &GxserverPaths, key: &str) -> Option<f64> {
+    read_settings(paths).get(key).and_then(Value::as_f64)
+}
+
 fn read_settings(paths: &GxserverPaths) -> Value {
     std::fs::read_to_string(paths.app_config_dir.join("native-sidebar-settings.json"))
         .ok()

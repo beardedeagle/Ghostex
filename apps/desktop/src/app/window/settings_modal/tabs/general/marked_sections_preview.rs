@@ -1,4 +1,6 @@
-//! Settings > Chat: the Marked sections style dropdown with its Preview button, and the Preview
+//! Settings > Chat: the Marked sections style dropdown with its Preview button, the Handover heading
+//! color strength slider (CDXC:MarkedHandovers 2026-10-20 in
+//! packages/gx-chat-core/src/transcript/marked_sections.rs), and the Preview
 //! dialog that draws the same sample reply in all three styles side by side.
 //!
 //! CDXC:MarkedHandovers 2026-10-13 DECISION:
@@ -25,6 +27,7 @@ use serde_json::json;
 
 const KEY: &str = "markedHandoversStyle";
 const EMOJI_KEY: &str = "markedHandoversEmoji";
+const STRENGTH_KEY: &str = "markedHandoversHeadingStrength";
 
 impl GeneralTab {
     /// The style row and the emoji switch under it, while Marked handovers is on.
@@ -57,6 +60,21 @@ impl GeneralTab {
             ));
         }
         rows.extend(self.marked_style_select_row(g, section, window, cx));
+        rows.extend(self.slider(
+            g,
+            section,
+            STRENGTH_KEY,
+            "Handover heading color strength",
+            "How strongly the coloured section headings in agents' handovers (Done, Needs you, Untested and the rest) stand out. 100% is full colour; 0% leaves them in plain bold text.",
+            (
+                g.number("MIN_MARKED_HANDOVERS_HEADING_STRENGTH_PERCENT"),
+                g.number("MAX_MARKED_HANDOVERS_HEADING_STRENGTH_PERCENT"),
+                g.number("MARKED_HANDOVERS_HEADING_STRENGTH_PERCENT_STEP"),
+            ),
+            true,
+            window,
+            cx,
+        ));
         rows
     }
 
@@ -132,7 +150,8 @@ impl GeneralTab {
         cx: &mut Context<Self>,
     ) -> Option<AnyElement> {
         let focus = self.marked_preview.clone()?;
-        let chat = MarkedLook::chat_default(g.p.light, g.values.bool(EMOJI_KEY));
+        let strength = g.values.f64(STRENGTH_KEY).clamp(0.0, 100.0) / 100.0;
+        let chat = MarkedLook::chat_default(g.p.light, g.values.bool(EMOJI_KEY), strength as f32);
         let chat_background = gpui::rgb(if chat.light { 0xffffff } else { 0x0d0d0d });
         let paragraph_gap = gpui::rems(chat.block_gap / 16.0);
         let prose = chat.prose;

@@ -595,6 +595,16 @@ pub(crate) async fn handle_read_session_chat_http(
             "orchestratorAllEfforts"
         )),
     );
+    // Handover heading color strength rides every read too, so the phone draws the computer's
+    // strength (CDXC:MarkedHandovers 2026-10-20 in packages/gx-chat-core/src/transcript/marked_sections.rs).
+    result.insert(
+        "markedHeadingStrength".to_string(),
+        json!(crate::session_chat_catch_up::chat_setting_number(
+            &state.paths,
+            "markedHandoversHeadingStrength"
+        )
+        .unwrap_or(100.0)),
+    );
     if let Some(session_agent_id) = session_agent_id.as_deref() {
         result.insert("sessionAgentId".to_string(), json!(session_agent_id));
     }

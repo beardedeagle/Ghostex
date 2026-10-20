@@ -145,6 +145,10 @@ fn route(state: &mut ChatState, event: &Event, context: &ChatContext) -> Vec<Eff
             if let Some(all_efforts) = settings.all_orchestrator_efforts {
                 state.core.all_orchestrator_efforts_enabled = all_efforts;
             }
+            if let Some(strength) = settings.marked_heading_strength {
+                state.core.marked_heading_strength =
+                    crate::transcript::marked_sections::heading_strength(strength);
+            }
             state.core.request_publish();
             Vec::new()
         }
@@ -237,6 +241,10 @@ pub fn boot_read(
         }
         if let Some(all_efforts) = settings.all_orchestrator_efforts {
             state.core.all_orchestrator_efforts_enabled = all_efforts;
+        }
+        if let Some(strength) = settings.marked_heading_strength {
+            state.core.marked_heading_strength =
+                crate::transcript::marked_sections::heading_strength(strength);
         }
     }
     let config = state.session.boot_config.clone().unwrap_or_default();

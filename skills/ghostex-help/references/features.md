@@ -1502,9 +1502,10 @@ side. Show marker emojis, under it and off by default (an advanced setting, not 
 to every style; while it is off the colour and the label show the kind.
 Copying a message still gives the agent's own text. The phone app sets both in
 its own Settings > Chat > Marked sections, which also offers Plain text.
+Handover heading color strength (Settings > Chat under the style, an advanced setting, 0% to 100%, default 100%) sets how strongly the coloured headings stand out: lower values fade them toward the normal text colour, and 0% leaves plain bold text; the phone follows the computer's value.
 Orchestrators answer without markers (Settings > Chat, an advanced setting, off by default and not recommended) makes orchestrators started or resumed afterwards answer normally, while their threads still mark the reports they send them.
 Settings: `markedHandovers`, `markedHandoversStyle` (`labels`, `rule`,
-`badge`), `markedHandoversEmoji`, `orchestratorPlainReplies`.
+`badge`), `markedHandoversEmoji`, `markedHandoversHeadingStrength`, `orchestratorPlainReplies`.
 
 Catch me up: turn on Catch me up button (Settings > Chat, off by default) and
 the chat box shows a Catch me up button at its top right while it is empty, on

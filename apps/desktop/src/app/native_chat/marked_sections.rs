@@ -13,6 +13,7 @@ pub(super) fn look(p: &ChatAppearance) -> MarkedLook {
     let settings = crate::shared_settings::shared_sidebar_settings_snapshot();
     MarkedLook {
         emoji: super::marked_look::emoji_from_settings(settings.object()),
+        strength: p.marked_heading_strength,
         light: p.light,
         scale: p.scale,
         foreground: p.foreground,

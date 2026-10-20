@@ -241,6 +241,10 @@ pub struct ChatSettings {
     /// The Show all effort levels setting (`orchestratorAllEfforts`), the same way.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub all_orchestrator_efforts: Option<bool>,
+    /// The Handover heading color strength setting (`markedHandoversHeadingStrength`, 0 to 100),
+    /// the same way.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub marked_heading_strength: Option<f64>,
 }
 
 /// A size or position only the renderer can know, folded back into the document.

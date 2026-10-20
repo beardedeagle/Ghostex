@@ -1151,6 +1151,24 @@
       "agentWritable": true
     },
     {
+      "key": "markedHandoversHeadingStrength",
+      "title": "Handover heading color strength",
+      "subtitle": "How strongly the coloured section headings in agents' handovers (Done, Needs you, Untested and the rest) stand out. 100% is full colour; lower values blend the headings toward the normal text colour, and 0% leaves them in plain bold text.",
+      "tab": "settings",
+      "tabTitle": "General",
+      "group": "chat",
+      "groupTitle": "Chat",
+      "section": "chat",
+      "sectionTitle": "Chat",
+      "type": "number",
+      "default": 100,
+      "min": 0,
+      "max": 100,
+      "step": 10,
+      "advanced": true,
+      "agentWritable": true
+    },
+    {
       "key": "orchestratorPlainReplies",
       "title": "Orchestrators answer without markers",
       "subtitle": "Not recommended. Orchestrators answer normally, without marking the sections of their handovers. Their threads still mark the reports they send to the orchestrator. Applies to orchestrators started or resumed after you change it.",

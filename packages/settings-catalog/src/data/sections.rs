@@ -119,6 +119,7 @@ pub const ADVANCED_MAIN_SETTING_KEYS: &[&str] = &[
     "showBetaFeatures",
     "fasterRendering",
     "markedHandoversEmoji",
+    "markedHandoversHeadingStrength",
     "orchestratorPlainReplies",
     "orchestratorAllEfforts",
 ];
@@ -372,6 +373,7 @@ pub const MAIN_SETTINGS_SCROLL_TARGET_SETTING_KEYS: &[(&str, &[&str])] = &[
             "markedHandovers",
             "markedHandoversEmoji",
             "markedHandoversStyle",
+            "markedHandoversHeadingStrength",
             "orchestratorPlainReplies",
             "orchestratorAllEfforts",
             "orchestratorPlaybook",
@@ -711,6 +713,7 @@ pub const MAIN_SETTINGS_SECTION_SETTING_KEYS: &[(&str, &[&str])] = &[
             "markedHandovers",
             "markedHandoversEmoji",
             "markedHandoversStyle",
+            "markedHandoversHeadingStrength",
             "orchestratorPlainReplies",
             "orchestratorAllEfforts",
             "orchestratorPlaybook",

@@ -481,6 +481,7 @@ fn empty_result() -> ReadSessionChatResult {
         previous_question: None,
         send_on_pick: None,
         all_orchestrator_efforts: None,
+        marked_heading_strength: None,
         fork_info: None,
         subagent: None,
         error: None,

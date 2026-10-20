@@ -77,7 +77,7 @@ impl MarkerStyle {
         match self {
             Self::Rule => None,
             Self::Badge => (!meta.label_repeats).then_some(look.foreground),
-            Self::Labels => Some(kind_color(&meta.kind, look.light)),
+            Self::Labels => Some(look.accent(&meta.kind)),
         }
     }
 }
@@ -115,6 +115,9 @@ pub(crate) struct MarkedLook {
     pub(crate) border: Hsla,
     /// Show the marker emoji (`markedHandoversEmoji`).
     pub(crate) emoji: bool,
+    /// Handover heading color strength, 0 to 1: how far the kind's colour is drawn from the
+    /// prose colour toward the palette (the core's `markedHeadingStrength`).
+    pub(crate) strength: f32,
     /// The transcript's prose line height, unscaled.
     pub(crate) line_height: f32,
     /// The gap between Markdown blocks, scaled.
@@ -123,7 +126,7 @@ pub(crate) struct MarkedLook {
 
 impl MarkedLook {
     /// The chat's default tones, for a preview drawn outside a chat.
-    pub(crate) fn chat_default(light: bool, emoji: bool) -> Self {
+    pub(crate) fn chat_default(light: bool, emoji: bool, strength: f32) -> Self {
         let color = |dark: u32, light_color: u32| -> Hsla {
             rgb(if light { light_color } else { dark }).into()
         };
@@ -134,10 +137,37 @@ impl MarkedLook {
             prose: color(0xb4b8c0, 0x4d4d50),
             border: color(0x1c1c1c, 0xe4e4e7),
             emoji,
+            strength,
             line_height: 22.75,
             block_gap: 12.0,
         }
     }
+}
+
+impl MarkedLook {
+    /// A kind's colour at this look's heading strength.
+    pub(crate) fn accent(&self, kind: &str) -> Hsla {
+        blend_strength(kind_color(kind, self.light), self.prose, self.strength)
+    }
+}
+
+/// `palette` drawn at `strength` (0 to 1): blended in sRGB toward `text`, so 1 is the palette
+/// itself and 0 the plain text colour (CDXC:MarkedHandovers 2026-10-20 in
+/// packages/gx-chat-core/src/transcript/marked_sections.rs).
+pub(crate) fn blend_strength(palette: Hsla, text: Hsla, strength: f32) -> Hsla {
+    let strength = strength.clamp(0.0, 1.0);
+    if strength >= 1.0 {
+        return palette;
+    }
+    let (from, to) = (gpui::Rgba::from(text), gpui::Rgba::from(palette));
+    let mix = |a: f32, b: f32| a + (b - a) * strength;
+    gpui::Rgba {
+        r: mix(from.r, to.r),
+        g: mix(from.g, to.g),
+        b: mix(from.b, to.b),
+        a: mix(from.a, to.a),
+    }
+    .into()
 }
 
 /// A kind's colour in the chat's light or dark appearance (the mockup's palette).
@@ -179,7 +209,7 @@ fn first_line_opening(
     label_text: Option<AnyElement>,
 ) -> Vec<AnyElement> {
     let s = look.scale;
-    let color = kind_color(&meta.kind, look.light);
+    let color = look.accent(&meta.kind);
     let line = px(look.line_height * s);
     let mut label_text = label_text;
     let mut label = |color: Hsla| {
@@ -275,7 +305,7 @@ pub(crate) fn section(
     if style == MarkerStyle::Rule {
         return column
             .border_l(px(3.0 * s))
-            .border_color(kind_color(&meta.kind, look.light))
+            .border_color(look.accent(&meta.kind))
             .pl(px(12.0 * s))
             .children(first)
             .children(body)

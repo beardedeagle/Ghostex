@@ -440,6 +440,9 @@ pub struct ReadSessionChatResult {
     /// Whether the Show all effort levels setting is on, the same way as `catch_up`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub all_orchestrator_efforts: Option<bool>,
+    /// The Handover heading color strength setting (0 to 100), the same way as `catch_up`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub marked_heading_strength: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fork_info: Option<ChatForkInfo>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
