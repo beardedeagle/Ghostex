@@ -248,6 +248,13 @@ impl AgentsWorkspaceTabSleepScope {
     }
 }
 
+/// A row of the voice panel's speed menu: `voiceAgentSpeed` in hundredths (120 is 1.2×).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Action)]
+#[action(namespace = ghostex_gpui, no_json)]
+pub(crate) struct SetVoiceAgentSpeed {
+    pub(crate) hundredths: u16,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Action)]
 #[action(namespace = ghostex_gpui, no_json)]
 pub(crate) struct OpenBrowserPaneInExternalBrowser {

@@ -1017,6 +1017,11 @@ impl Render for GhostexGpuiApp {
                     this.open_browser_pane_in_external_browser(BrowserPaneId(action.pane_id), cx);
                 },
             ))
+            .on_action(
+                cx.listener(|this, action: &SetVoiceAgentSpeed, _window, cx| {
+                    this.set_voice_agent_speed(f32::from(action.hundredths) / 100.0, cx);
+                }),
+            )
             .on_action(cx.listener(
                 |this, action: &SetBrowserDeviceView, _window, cx| {
                     this.set_browser_device_view_for_pane(

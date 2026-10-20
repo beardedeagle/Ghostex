@@ -2560,9 +2560,10 @@ bar to put it anywhere in the window (it stays there until you quit Ghostex),
 and scroll it to read back the conversation. Click the voice name ("Grok ·
 Eve") to pick another voice: Grok switches right away when it can, and GPT
 Realtime keeps a call's voice once it has spoken, so the new voice starts with
-your next conversation (the panel says which). The speed buttons under the
-captions (1×, 1.2×, 1.4×, 1.6×, 1.8×, 2×) make it talk faster without
-changing its pitch, at once, even mid-sentence. It hangs up by itself after 5
+your next conversation (the panel says which). The small speed button right of
+the voice name ("1×") opens a menu of speeds (1×, 1.2×, 1.4×, 1.6×, 1.8×, 2×)
+that make it talk faster without changing its pitch, at once, even
+mid-sentence. It hangs up by itself after 5
 minutes with nobody talking.
 
 It remembers your last conversation as a short summary, kept on your computer

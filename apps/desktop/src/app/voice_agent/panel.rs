@@ -14,12 +14,13 @@ use gpui::{
     StatefulInteractiveElement as _, Styled as _, WeakEntity, Window, WindowBackgroundAppearance,
     WindowBounds, WindowKind, WindowOptions, canvas, div, point, px, rgba, size,
 };
-use gpui_component::{h_flex, v_flex};
+use gpui_component::{ElementExt as _, h_flex, v_flex};
 
 use super::conversation::{
     VOICE_AGENT_SPEEDS, VoicePhase, VoiceProblem, VoiceRole, VoiceRow, provider_name, voice_name,
 };
 use super::memory::{VoiceMemory, VoiceMemoryState};
+use crate::app::context_menu::GpuiContextMenu;
 use crate::app::helpers::*;
 #[cfg(not(target_os = "windows"))]
 use crate::app::native_chat::child_window::move_child_window;
@@ -41,7 +42,6 @@ const PANEL_EDGE: f32 = 6.0;
 const DRAG_THRESHOLD: f32 = 3.0;
 /// Within this distance of the transcript's end, new lines keep it scrolled to the end.
 const FOLLOW_SLACK: f32 = 24.0;
-const SPEED_LABELS: [&str; 6] = ["1×", "1.2×", "1.4×", "1.6×", "1.8×", "2×"];
 const PANEL_RADIUS: f32 = 12.0;
 /// How long the main window's size must hold before the panel is placed again.
 const REPOSITION_DELAY: std::time::Duration = std::time::Duration::from_millis(160);
@@ -137,6 +137,14 @@ pub(crate) struct VoicePanelWindow {
     snapshot: PanelSnapshot,
     scroll: ScrollHandle,
     drag: Option<PanelDrag>,
+    /// Where the speed button last painted, for its menu.
+    speed_trigger: std::rc::Rc<std::cell::Cell<Option<Bounds<Pixels>>>>,
+}
+
+/// "1×", "1.2×", … "2×".
+fn speed_label(speed: f32) -> String {
+    let text = format!("{speed:.1}");
+    format!("{}×", text.strip_suffix(".0").unwrap_or(&text))
 }
 
 /// The panel's frame in the main window's content coordinates, for a window of `main` size, at
@@ -258,6 +266,7 @@ impl GhostexGpuiApp {
                         snapshot,
                         scroll,
                         drag: None,
+                        speed_trigger: Default::default(),
                     }
                 })
             })
@@ -287,6 +296,38 @@ impl GhostexGpuiApp {
                 this.place_voice_agent_panel(cx);
             });
         }));
+    }
+
+    /// Opens (or closes) the speed menu under the panel's speed button, `trigger` in the panel's
+    /// coordinates. The menu is hosted over the main window, like every app menu, at the same spot
+    /// on screen.
+    fn toggle_voice_agent_speed_menu(
+        &mut self,
+        trigger: Bounds<Pixels>,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        let Some(main) = self.main_window_handle else {
+            return;
+        };
+        let frame = panel_frame(self.main_window_bounds.size, self.voice_agent.panel_place);
+        let trigger = Bounds::new(frame.origin + trigger.origin, trigger.size);
+        let current = self.voice_agent.speed;
+        let mut menu = GpuiContextMenu::new();
+        for speed in VOICE_AGENT_SPEEDS {
+            menu = menu.menu_with_check(
+                speed_label(speed),
+                (speed - current).abs() < 0.01,
+                Box::new(SetVoiceAgentSpeed {
+                    hundredths: (speed * 100.0).round() as u16,
+                }),
+            );
+        }
+        let app = cx.entity();
+        cx.defer(move |cx| {
+            let _ = main.update(cx, |_, window, cx| {
+                menu.toggle_below_for_app(app, trigger, window, cx);
+            });
+        });
     }
 
     /// Moves the open panel to its place for the main window's current size.
@@ -442,8 +483,12 @@ enum PanelAction {
     OpenSettings,
     ToggleVoicePicker,
     PickVoice(String),
-    Speed(f32),
-    DragBy { delta: Point<Pixels>, first: bool },
+    /// The speed button at these bounds, in the panel's coordinates.
+    ToggleSpeedMenu(Bounds<Pixels>),
+    DragBy {
+        delta: Point<Pixels>,
+        first: bool,
+    },
     ContinueMemory,
     StartFresh,
     ForgetMemory,
@@ -470,7 +515,9 @@ impl VoicePanelWindow {
             let _ = app.update(cx, |app, cx| match action {
                 PanelAction::ToggleVoicePicker => app.toggle_voice_agent_voice_picker(cx),
                 PanelAction::PickVoice(voice) => app.pick_voice_agent_voice(voice, cx),
-                PanelAction::Speed(speed) => app.set_voice_agent_speed(speed, cx),
+                PanelAction::ToggleSpeedMenu(trigger) => {
+                    app.toggle_voice_agent_speed_menu(trigger, cx)
+                }
                 PanelAction::DragBy { delta, first } => {
                     app.drag_voice_agent_panel(delta, first, cx)
                 }
@@ -655,6 +702,64 @@ impl VoicePanelWindow {
                     .child(label),
             )
             .child(self.voice_button(snapshot, colors, cx))
+            .when(
+                matches!(snapshot.phase, VoicePhase::Starting | VoicePhase::Live),
+                |this| this.child(self.speed_button(snapshot, colors, cx)),
+            )
+            .into_any_element()
+    }
+
+    /// The current speed ("1.2×"), right of the voice picker: opens the speed menu.
+    ///
+    /// CDXC:VoiceMode 2026-10-20 DECISION: User: "Move the voice speed control from the bottom bar into the top-right picker. Add a smaller button to its right that opens a speed menu when clicked, so users can pick a different speed without the bottom bar." The menu is the app's shared dropdown (`GpuiContextMenu`, keyboard and Escape included) listing 1× to 2× with the current one ticked. Supersedes the row of speed buttons above the panel's bottom bar (the phone keeps its speed buttons for now).
+    fn speed_button(
+        &self,
+        snapshot: &PanelSnapshot,
+        colors: &PanelColors,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let muted = colors.muted;
+        let hover = colors.ink.opacity(0.08);
+        let trigger = self.speed_trigger.clone();
+        let open_menu = move |this: &mut Self, cx: &mut Context<Self>| {
+            if let Some(bounds) = this.speed_trigger.get() {
+                this.run(PanelAction::ToggleSpeedMenu(bounds), cx);
+            }
+        };
+        h_flex()
+            .id("voice-panel-speed")
+            .role(gpui::Role::Button)
+            .aria_label(SharedString::from(format!(
+                "Speaking speed {}. Change the speed",
+                speed_label(snapshot.speed)
+            )))
+            .flex_shrink_0()
+            .h(px(20.0))
+            .px(px(5.0))
+            .gap(px(3.0))
+            .items_center()
+            .rounded(px(5.0))
+            .text_size(px(10.5))
+            .text_color(muted)
+            .cursor_default()
+            .hover(move |this| this.bg(hover))
+            .on_prepaint(move |bounds, _, _| trigger.set(Some(bounds)))
+            .on_mouse_down(
+                MouseButton::Left,
+                cx.listener(move |this, _: &MouseDownEvent, window, cx| {
+                    window.prevent_default();
+                    cx.stop_propagation();
+                    open_menu(this, cx);
+                }),
+            )
+            .on_a11y_action(gpui::AccessibleAction::Click, {
+                let panel = cx.entity().downgrade();
+                move |_, _, cx| {
+                    let _ = panel.update(cx, |this, cx| open_menu(this, cx));
+                }
+            })
+            .child(speed_label(snapshot.speed))
+            .child(titlebar_svg_icon(ICON_CHEVRON, 9.0, muted))
             .into_any_element()
     }
 
@@ -801,36 +906,6 @@ impl VoicePanelWindow {
             .p(px(6.0))
             .gap(px(1.0))
             .children(rows)
-            .into_any_element()
-    }
-
-    /// The speed buttons, 1x to 2x (`voiceAgentSpeed`).
-    fn speed_row(&self, snapshot: &PanelSnapshot, cx: &mut Context<Self>) -> AnyElement {
-        let palette = ModalPalette::resolve(snapshot.light, None);
-        let items: Vec<ModalSegmentedItem> = SPEED_LABELS
-            .iter()
-            .map(|label| ModalSegmentedItem { icon: None, label })
-            .collect();
-        let selected = VOICE_AGENT_SPEEDS
-            .iter()
-            .position(|speed| (speed - snapshot.speed).abs() < 0.01)
-            .unwrap_or(0);
-        div()
-            .flex_shrink_0()
-            .px(px(10.0))
-            .pb(px(8.0))
-            .child(modal_segmented_control(
-                &palette,
-                "voice-panel-speed",
-                &items,
-                selected,
-                |this: &mut Self, index, _, cx| {
-                    if let Some(speed) = VOICE_AGENT_SPEEDS.get(index) {
-                        this.run(PanelAction::Speed(*speed), cx);
-                    }
-                },
-                cx,
-            ))
             .into_any_element()
     }
 
@@ -1365,10 +1440,6 @@ impl Render for VoicePanelWindow {
             .font_family(crate::ui_fonts::UI_FONT)
             .child(self.header(snapshot, &colors, cx))
             .child(self.body(snapshot, &colors, cx))
-            .when(
-                matches!(snapshot.phase, VoicePhase::Starting | VoicePhase::Live),
-                |this| this.child(self.speed_row(snapshot, cx)),
-            )
             .child(self.footer(snapshot, &colors, cx))
             .when(self.drag.is_some(), |this| {
                 this.child(self.drag_listener(cx))
