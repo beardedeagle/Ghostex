@@ -83,7 +83,9 @@ pub(crate) fn machine_tab_summary(
             if session.activity.as_str() == "working" {
                 summary.working_count += 1;
             }
-            if session.activity.as_str() == "attention" || session.pending_question_count > 0 {
+            if session.pending_question_count > 0 {
+                summary.question_count += 1;
+            } else if session.activity.as_str() == "attention" {
                 summary.attention_count += 1;
             }
             if session.background_work_detected_at.is_some()

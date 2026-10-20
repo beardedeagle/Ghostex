@@ -132,6 +132,13 @@ impl GhostexGpuiApp {
             .map(gpui::Hsla::from)
             .unwrap_or(appearance.foreground);
         let (selected_background, selected_outline) = space_tile_selected_colors(appearance);
+        // The tile's own fill behind its status dots, for their rings (a selected tile is `selected_background`, the one holding the active session `appearance.selected`).
+        let dot_group = format!("native-space-dots-{id}");
+        let dot_backdrop = super::status::DotBackdrop::new(
+            appearance,
+            if space.selected { Some(selected_background) } else if space.contains_active_session { Some(appearance.selected) } else { None },
+            dot_group.clone(),
+        );
         let dragged = SidebarDrag {
             kind: "space",
             id: id.clone(),
@@ -160,8 +167,10 @@ impl GhostexGpuiApp {
             }),
         };
         let drop_position = self.native_sidebar_drop_position("targetSpaceId", &id);
-        let has_status =
-            space.working_count > 0 || space.attention_count > 0 || space.background_work_count > 0;
+        let has_status = space.working_count > 0
+            || space.attention_count > 0
+            || space.background_work_count > 0
+            || space.question_count > 0;
         let icon = gpui::svg()
             .path(path)
             .size(px(16.0 * scale))
@@ -174,7 +183,7 @@ impl GhostexGpuiApp {
         */
         let owner = super::menus::MenuOwner::default();
         let space_owner = owner.clone();
-        v_flex().id(format!("native-sidebar-space-{id}")).on_prepaint(super::menus::record_menu_owner(&owner)).role(gpui::Role::Button).aria_label(format!("Space {name}")).aria_selected(space.selected).relative().size(px(28.0 * scale)).flex_shrink_0().items_center().justify_center().rounded(px(6.0 * scale)).border_1().border_color(appearance.foreground.opacity(0.08)).cursor_pointer()
+        v_flex().id(format!("native-sidebar-space-{id}")).group(dot_group).on_prepaint(super::menus::record_menu_owner(&owner)).role(gpui::Role::Button).aria_label(format!("Space {name}")).aria_selected(space.selected).relative().size(px(28.0 * scale)).flex_shrink_0().items_center().justify_center().rounded(px(6.0 * scale)).border_1().border_color(appearance.foreground.opacity(0.08)).cursor_pointer()
             .when(self.native_sidebar.is_dragging("space", &id), |row| row.opacity(0.3))
             .when(space.contains_active_session && !space.selected, |row| row.bg(appearance.selected).border_color(appearance.selected_outline))
             .when(space.selected, |row| row.bg(selected_background).border_color(selected_outline).when(appearance.light && !appearance.glass, |row| row.shadow_sm()))
@@ -183,7 +192,7 @@ impl GhostexGpuiApp {
             .children(drop_position.map(|position| super::space_drag::insertion_line(position, scale)))
             // CDXC:Spaces 2026-09-22 DECISION: User: remove the numbers for now and match the dots exactly to the session card status dots. The 2026-09-25 overlap layout lives on `status_dot_stack`.
             .when(has_status, |row| row.child(h_flex().absolute().top(px(20.5 * scale)).left_0().w_full().justify_center().h(px(11.0 * scale))
-                .child(super::status::status_dot_stack(space.working_count, space.attention_count, space.background_work_count, scale))))
+                .child(super::status::status_dot_stack(space.working_count, space.attention_count, space.background_work_count, space.question_count, scale, dot_backdrop))))
             .when(self.native_sidebar.pointer_inside && self.native_sidebar.menu.is_none() && !cx.has_active_drag(), |row| row.managed_discrete_tooltip_with_placement(tooltip_span.placement(), appearance.tooltip_delay, move |window, cx| super::tooltips::sidebar_free_width_tooltip(name.to_string(), tooltip_span, scale, window, cx)))
             .when(id != "other", |row| row.sidebar_drag_source(dragged, cx))
             .sidebar_drop_target("space", drag_id, None, cx)

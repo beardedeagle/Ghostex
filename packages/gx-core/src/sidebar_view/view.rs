@@ -75,6 +75,8 @@ pub struct MachineSummary {
     pub attention_count: usize,
     /// Rows drawn with the grey dot: idle, with a background shell or monitor still running.
     pub background_work_count: usize,
+    /// Rows with an unanswered question card (the pink dot); they are not counted as attention.
+    pub question_count: usize,
 }
 
 /// One machine tab: what the host said about it, plus the counts its badge draws.
@@ -88,6 +90,7 @@ pub struct MachineTabView {
     pub working_count: usize,
     pub attention_count: usize,
     pub background_work_count: usize,
+    pub question_count: usize,
 }
 
 /// The machine a drawn group belongs to; absent for this computer's groups.
@@ -513,6 +516,7 @@ pub struct SpaceView {
     pub working_count: usize,
     pub attention_count: usize,
     pub background_work_count: usize,
+    pub question_count: usize,
 }
 
 /// A collection (a colored folder of projects).

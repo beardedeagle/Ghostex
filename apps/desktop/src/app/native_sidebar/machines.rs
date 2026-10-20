@@ -28,6 +28,7 @@ impl GhostexGpuiApp {
                 let menu_owner = owner.clone();
                 let workspace_menu = (id != "local").then(|| self.gx_store_machine_workspace_menu(&id)).flatten();
                 let selected = snapshot.selected_machine_id == id;
+                let dot_group = format!("native-machine-dots-{id}");
                 let busy = ghostex_gx_core::machine_state_is_busy(&machine.state);
                 let failed = id != "local" && ghostex_gx_core::machine_state_is_failure(&machine.state);
                 // CDXC:RemoteMachines 2026-10-16 DECISION: the machine's Ghostex update shows on its tab (an arrow, a spinner while it installs) and as the tab menu's first item (remote_conn/app_update.rs).
@@ -41,7 +42,7 @@ impl GhostexGpuiApp {
                 });
                 let icon = gpui::svg().path(if id == "local" { "titlebar/device-desktop.svg" } else if busy { "titlebar/loader2.svg" } else { "titlebar/cloud.svg" }).size(px(14.0 * scale)).text_color(if failed { rgb(0xff9494).into() } else { appearance.muted });
                 let glyph = if busy { icon.with_throttled_animation(format!("native-machine-busy-{id}"), std::time::Duration::from_millis(900), |icon, progress| icon.with_transformation(gpui::Transformation::rotate(gpui::percentage(progress)))).into_any_element() } else { icon.into_any_element() };
-                h_flex().id(format!("native-sidebar-machine-{id}")).role(gpui::Role::Tab).aria_label(machine.label.clone()).aria_selected(selected).flex_1().min_w_0().h_full().px(px(6.0 * scale)).justify_center().gap(px(4.0 * scale)).text_size(px(12.0 * scale))
+                h_flex().id(format!("native-sidebar-machine-{id}")).group(dot_group.clone()).role(gpui::Role::Tab).aria_label(machine.label.clone()).aria_selected(selected).flex_1().min_w_0().h_full().px(px(6.0 * scale)).justify_center().gap(px(4.0 * scale)).text_size(px(12.0 * scale))
                     .on_prepaint(super::menus::record_menu_owner(&owner))
                     .when(index > 0, |row| row.border_l_1().border_color(appearance.foreground.opacity(0.12)))
                     .when(selected, |row| row.bg(appearance.selected)).hover(|row| row.bg(appearance.hover))
@@ -53,7 +54,7 @@ impl GhostexGpuiApp {
                     CDXC:Sidebar 2026-09-25 DECISION:
                     User: stop showing the status on the machine we're on and show it on the other machine tabs as dots, not numbers, exactly like the Spaces. The selected tab's sessions are already listed below it.
                     */
-                    .when(!selected && (machine.working_count > 0 || machine.attention_count > 0 || machine.background_work_count > 0), |row| row.child(super::status::status_dot_stack(machine.working_count, machine.attention_count, machine.background_work_count, scale)))
+                    .when(!selected && (machine.working_count > 0 || machine.attention_count > 0 || machine.background_work_count > 0 || machine.question_count > 0), |row| row.child(super::status::status_dot_stack(machine.working_count, machine.attention_count, machine.background_work_count, machine.question_count, scale, super::status::DotBackdrop::new(appearance, None, dot_group.clone()))))
                     .when(self.native_sidebar.pointer_inside && self.native_sidebar.menu.is_none() && !cx.has_active_drag(), |row| row.tooltip_show_delay(appearance.tooltip_delay).tooltip(move |window, cx| titlebar_tooltip(tooltip.clone(), window, cx)))
                     .on_click(cx.listener(move |app, _, _, cx| { cx.stop_propagation(); app.dispatch_native_sidebar_ui(json!({"type": "selectMachine", "machineId": id}), cx); }))
                     .when(machine.id != "local", |row| row.on_mouse_down(MouseButton::Right, move |event, window, cx| {

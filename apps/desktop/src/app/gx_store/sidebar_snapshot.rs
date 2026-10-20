@@ -376,6 +376,7 @@ pub(super) fn snapshot_from_view(
                 working_count: machine.working_count,
                 attention_count: machine.attention_count,
                 background_work_count: machine.background_work_count,
+                question_count: machine.question_count,
                 id: machine.id.clone(),
                 label: machine.label.clone(),
                 state: machine.state.clone(),
@@ -400,6 +401,7 @@ pub(super) fn snapshot_from_view(
                     working_count: space.working_count,
                     attention_count: space.attention_count,
                     background_work_count: space.background_work_count,
+                    question_count: space.question_count,
                 },
             )
             .collect(),

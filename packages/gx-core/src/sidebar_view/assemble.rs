@@ -205,6 +205,7 @@ pub(crate) fn assemble(input: AssembleInput<'_>) -> SidebarView {
             let mut working_count = 0;
             let mut attention_count = 0;
             let mut background_work_count = 0;
+            let mut question_count = 0;
             for group_id in group_ids
                 .iter()
                 .filter(|group_id| shows_group(&view, group_id))
@@ -219,8 +220,9 @@ pub(crate) fn assemble(input: AssembleInput<'_>) -> SidebarView {
                     if session.row.activity == "working" {
                         working_count += 1;
                     }
-                    if session.row.activity == "attention" || session.row.pending_question_count > 0
-                    {
+                    if session.row.pending_question_count > 0 {
+                        question_count += 1;
+                    } else if session.row.activity == "attention" {
                         attention_count += 1;
                     }
                     if session.row.shows_background_work() {
@@ -234,6 +236,7 @@ pub(crate) fn assemble(input: AssembleInput<'_>) -> SidebarView {
             row.working_count = working_count;
             row.attention_count = attention_count;
             row.background_work_count = background_work_count;
+            row.question_count = question_count;
         }
         spaces = rows;
     }
@@ -357,7 +360,9 @@ pub(crate) fn assemble(input: AssembleInput<'_>) -> SidebarView {
             if session.row.activity == "working" {
                 machine_summary.working_count += 1;
             }
-            if session.row.activity == "attention" || session.row.pending_question_count > 0 {
+            if session.row.pending_question_count > 0 {
+                machine_summary.question_count += 1;
+            } else if session.row.activity == "attention" {
                 machine_summary.attention_count += 1;
             }
             if session.row.shows_background_work() {
@@ -389,6 +394,7 @@ pub(crate) fn assemble(input: AssembleInput<'_>) -> SidebarView {
                 working_count: counts.working_count,
                 attention_count: counts.attention_count,
                 background_work_count: counts.background_work_count,
+                question_count: counts.question_count,
             }
         })
         .collect();
