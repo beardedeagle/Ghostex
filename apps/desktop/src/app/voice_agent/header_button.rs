@@ -1,6 +1,7 @@
 //! The work area header's Voice button.
 //!
-//! CDXC:VoiceMode 2026-10-20 DECISION: User: "the one in the chat box just pastes whatever i say into the chat box, while the one above is more general and for discussing". The header carries a global Voice button that starts and ends a spoken conversation with the manager voice agent, which keeps going while the user moves between projects and chats. It sits with the ⋯ menu, so a narrow column never scrolls it out of reach.
+//! CDXC:VoiceMode 2026-10-20 DECISION: User: "the one in the chat box just pastes whatever i say into the chat box, while the one above is more general and for discussing". The header carries a global Voice button that starts and ends a spoken conversation with the manager voice agent, which keeps going while the user moves between projects and chats.
+//! CDXC:VoiceMode 2026-10-20 DECISION: User, pointing at the empty space left of Start: "please move this button" … "here" ("i asked for this but it wasn't done!"). The Voice button sits immediately left of the Start split button, first of the header's buttons, with their 4px gap. Supersedes its place beside the ⋯ menu. On a narrow column the header's buttons scroll sideways from their start and nothing folds, so being first keeps the Voice button in view the longest: Commit and Open scroll out of reach before it does.
 
 use gpui::prelude::FluentBuilder as _;
 use gpui::{InteractiveElement as _, IntoElement, MouseButton, Styled as _, px, rgba};
@@ -63,6 +64,6 @@ impl GhostexGpuiApp {
         .managed_tooltip_with_placement(ManagedTooltipPlacement::Auto, move |window, cx| {
             titlebar_tooltip(tooltip.clone(), window, cx)
         })
-        .mr(px(2.0))
+        .ml(px(4.0))
     }
 }
