@@ -470,17 +470,29 @@ impl ChatOptionMenu {
         self.opening = true;
         // Under window glass the menu's window blurs what is behind it, rounded to the card.
         let glass = crate::app::helpers::window_glass_active();
-        let model_card = rows
-            .first()
-            .is_some_and(|row| row["modelMenu"].is_object() || row["modelMenuFlyout"].is_object());
         let corner_radius = crate::app::window::popup_frame::popup_card_radius(
-            px(if model_card {
-                super::model_menu::CARD_RADIUS
-            } else {
-                metrics.radius
-            } * scale),
+            px(
+                if rows.first().is_some_and(|row| row["modelMenu"].is_object()) {
+                    super::model_menu::CARD_RADIUS
+                } else {
+                    metrics.radius
+                } * scale,
+            ),
             glass,
         );
+        // The model picker's side list draws the picker's card radius in a window rounded to the
+        // menus' own radius, as it always has outside Windows.
+        let card_radius = if rows
+            .first()
+            .is_some_and(|row| row["modelMenuFlyout"].is_object())
+        {
+            crate::app::window::popup_frame::popup_card_radius(
+                px(super::model_menu::CARD_RADIUS * scale),
+                glass,
+            )
+        } else {
+            corner_radius
+        };
         let display_id = self.owner.display_for(bounds, cx);
         cx.defer(move |cx| {
             let result = cx.open_window(
@@ -666,7 +678,7 @@ impl ChatOptionMenu {
                                 accounts_customize,
                                 select_bounds: Rc::new(Cell::new(Bounds::default())),
                                 model_menu,
-                                card_radius: corner_radius,
+                                card_radius,
                                 was_active: window.is_window_active(),
                                 _activation: activation,
                                 _press: press,
