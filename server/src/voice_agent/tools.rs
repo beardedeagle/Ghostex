@@ -120,8 +120,8 @@ pub(super) fn definitions() -> Value {
                                 "options": {"type": "array", "items": {"type": "integer"}, "description": "Chosen option numbers (several only when the question allows it)."},
                                 "text": {"type": "string", "description": "A free answer instead of the options, when the question allows one."},
                                 "question": {"type": "string", "description": "For a question in the chat: its ref from get_pending_prompt (like Q335)."},
-                                "note": {"type": "string", "description": "For a question in the chat: a note sent with the chosen options."},
                                 "choice": {"type": "string", "description": "For a question in the chat: the chosen option by its label, number or letter, or \"recommended\" for the recommended one (instead of options)."},
+                                "note": {"type": "string", "description": "For a question in the chat: a note sent with the chosen options."},
                                 "skip": {"type": "boolean", "description": "For a question in the chat: send it as skipped."}
                             }
                         }
