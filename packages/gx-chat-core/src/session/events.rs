@@ -142,6 +142,9 @@ fn route(state: &mut ChatState, event: &Event, context: &ChatContext) -> Vec<Eff
             if let Some(send_on_pick) = settings.send_on_pick {
                 state.core.send_on_pick_enabled = send_on_pick;
             }
+            if let Some(all_efforts) = settings.all_orchestrator_efforts {
+                state.core.all_orchestrator_efforts_enabled = all_efforts;
+            }
             state.core.request_publish();
             Vec::new()
         }
@@ -231,6 +234,9 @@ pub fn boot_read(
         }
         if let Some(send_on_pick) = settings.send_on_pick {
             state.core.send_on_pick_enabled = send_on_pick;
+        }
+        if let Some(all_efforts) = settings.all_orchestrator_efforts {
+            state.core.all_orchestrator_efforts_enabled = all_efforts;
         }
     }
     let config = state.session.boot_config.clone().unwrap_or_default();

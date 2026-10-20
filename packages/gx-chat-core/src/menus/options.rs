@@ -130,8 +130,18 @@ pub(crate) fn is_orchestrator(state: &ChatState) -> bool {
     crate::extras::coordinator_threads::is_coordinator(state.session.coordinator_threads.as_ref())
 }
 
-/// Keeps only the orchestrator levels (`orchestrator_efforts`) in an effort descriptor's choices.
-pub(crate) fn limit_to_orchestrator_efforts(descriptors: &mut [OptionDescriptor]) {
+/// True in an orchestrator's chat while Show all effort levels (`orchestratorAllEfforts`) is off,
+/// the only case its effort pickers are narrowed.
+pub(crate) fn limits_orchestrator_efforts(state: &ChatState) -> bool {
+    is_orchestrator(state) && !state.core.all_orchestrator_efforts_enabled
+}
+
+/// Keeps only the orchestrator levels (`orchestrator_efforts`) in an effort descriptor's choices,
+/// plus `current`, the level the session is on.
+pub(crate) fn limit_to_orchestrator_efforts(
+    descriptors: &mut [OptionDescriptor],
+    current: Option<&str>,
+) {
     for descriptor in descriptors
         .iter_mut()
         .filter(|descriptor| descriptor.id == "effort")
@@ -140,7 +150,8 @@ pub(crate) fn limit_to_orchestrator_efforts(descriptors: &mut [OptionDescriptor]
             continue;
         };
         let values: Vec<&str> = choices.iter().map(|choice| choice.value.as_str()).collect();
-        let offered = crate::menus::orchestrator_effort::orchestrator_efforts(&values);
+        let offered =
+            crate::menus::orchestrator_effort::orchestrator_efforts(&values, false, current);
         choices.retain(|choice| offered.contains(&choice.value));
     }
 }
@@ -158,8 +169,9 @@ pub fn compute_native_chat_options(state: &ChatState, _context: &ChatContext) ->
         }
         None => Vec::new(),
     };
-    if is_orchestrator(state) {
-        limit_to_orchestrator_efforts(&mut option_descriptors);
+    if limits_orchestrator_efforts(state) {
+        let current = values.get("effort").map(|entry| entry.value.clone());
+        limit_to_orchestrator_efforts(&mut option_descriptors, current.as_deref());
     }
     // A model pill that hands the change to the terminal has no picker behind it, so a Hermes chat
     // keeps its `/model` hint until gxserver has read the profile's lineup (Hermes writes the

@@ -496,7 +496,10 @@ fn settings_moved(world: &World, key: &str) -> Option<Event> {
             .is_some_and(|enabled| enabled != state.core.previous_question_enabled)
         || settings
             .send_on_pick
-            .is_some_and(|enabled| enabled != state.core.send_on_pick_enabled))
+            .is_some_and(|enabled| enabled != state.core.send_on_pick_enabled)
+        || settings
+            .all_orchestrator_efforts
+            .is_some_and(|enabled| enabled != state.core.all_orchestrator_efforts_enabled))
     .then(|| Event::SettingsChanged(Box::new(settings)))
 }
 

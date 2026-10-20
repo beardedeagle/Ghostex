@@ -49,8 +49,8 @@ pub struct ModelMenuContext {
     /// A draft has no conversation yet, so another agent's model switches the draft instead of
     /// handing off.
     pub draft: bool,
-    /// An orchestrator's chat: every row offers only the orchestrator effort levels
-    /// (`orchestrator_efforts`).
+    /// An orchestrator's chat while Show all effort levels is off: every row offers only the
+    /// orchestrator effort levels (`orchestrator_efforts`), plus the level the session is on.
     pub orchestrator: bool,
     /// The value `modelMenuContext` itself is published as.
     ///
@@ -162,7 +162,11 @@ fn model_menu_row_efforts(
     };
     let choices: Vec<(String, String)> = if context.orchestrator {
         let values: Vec<&str> = choices.iter().map(|(value, _)| value.as_str()).collect();
-        let offered = crate::menus::orchestrator_effort::orchestrator_efforts(&values);
+        let offered = crate::menus::orchestrator_effort::orchestrator_efforts(
+            &values,
+            false,
+            context.effort_value.as_deref(),
+        );
         choices
             .into_iter()
             .filter(|(value, _)| offered.contains(value))

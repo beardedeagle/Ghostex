@@ -586,6 +586,15 @@ pub(crate) async fn handle_read_session_chat_http(
             "chatSendOnPick"
         )),
     );
+    // Show all effort levels rides every read too, so an orchestrator's pickers on the phone follow
+    // the computer's value (CDXC:Coordinators 2026-10-20 in packages/gx-chat-core/src/menus/orchestrator_effort.rs).
+    result.insert(
+        "allOrchestratorEfforts".to_string(),
+        json!(crate::session_chat_catch_up::chat_setting_enabled(
+            &state.paths,
+            "orchestratorAllEfforts"
+        )),
+    );
     if let Some(session_agent_id) = session_agent_id.as_deref() {
         result.insert("sessionAgentId".to_string(), json!(session_agent_id));
     }

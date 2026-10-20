@@ -1166,6 +1166,21 @@
       "agentWritable": true
     },
     {
+      "key": "orchestratorAllEfforts",
+      "title": "Show all effort levels",
+      "subtitle": "Lists every effort level in the orchestrator effort pickers. Anything below High isn't recommended for orchestrators.",
+      "tab": "settings",
+      "tabTitle": "General",
+      "group": "chat",
+      "groupTitle": "Chat",
+      "section": "chat",
+      "sectionTitle": "Chat",
+      "type": "boolean",
+      "default": false,
+      "advanced": true,
+      "agentWritable": true
+    },
+    {
       "key": "orchestratorPlaybook",
       "title": "Orchestrator playbook",
       "subtitle": "How every orchestrator works: the playbook it follows. Edit it for all projects here, or for one project and its worktrees in Settings > Projects. Orchestrators, existing ones too, follow the edited playbook from their next guide read, and a switch turns an edited playbook off without losing it.",

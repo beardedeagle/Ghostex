@@ -437,6 +437,9 @@ pub struct ReadSessionChatResult {
     /// Whether the Send when you pick an answer setting is on, the same way as `catch_up`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub send_on_pick: Option<bool>,
+    /// Whether the Show all effort levels setting is on, the same way as `catch_up`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub all_orchestrator_efforts: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fork_info: Option<ChatForkInfo>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

@@ -120,6 +120,7 @@ pub const ADVANCED_MAIN_SETTING_KEYS: &[&str] = &[
     "fasterRendering",
     "markedHandoversEmoji",
     "orchestratorPlainReplies",
+    "orchestratorAllEfforts",
 ];
 
 /// CDXC:MarkedHandovers 2026-10-17 DECISION:
@@ -372,6 +373,7 @@ pub const MAIN_SETTINGS_SCROLL_TARGET_SETTING_KEYS: &[(&str, &[&str])] = &[
             "markedHandoversEmoji",
             "markedHandoversStyle",
             "orchestratorPlainReplies",
+            "orchestratorAllEfforts",
             "orchestratorPlaybook",
         ],
     ),
@@ -710,6 +712,7 @@ pub const MAIN_SETTINGS_SECTION_SETTING_KEYS: &[(&str, &[&str])] = &[
             "markedHandoversEmoji",
             "markedHandoversStyle",
             "orchestratorPlainReplies",
+            "orchestratorAllEfforts",
             "orchestratorPlaybook",
         ],
     ),

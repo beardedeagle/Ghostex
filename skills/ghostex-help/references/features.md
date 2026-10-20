@@ -2264,8 +2264,10 @@ version of the Projects features in Cursor and Claude Code.
   still changes it; left blank, it is named once from its first conversation).
   A project can have several orchestrators, one per stream of work. In an
   orchestrator's chat the effort picker offers the same High and XHigh only.
-  From a terminal: `ghostex orchestrator create [--agent <id>] [--goal <text>]
-  [--task <first request>]`.
+  To pick from every level the agent has, turn on **Show all effort levels**
+  (an advanced setting in Settings > General > Chat); anything below High
+  isn't recommended for an orchestrator. From a terminal: `ghostex orchestrator
+  create [--agent <id>] [--goal <text>] [--task <first request>]`.
 - **Turn a session into an orchestrator**: right-click a session of one of
   those agents in the sidebar, open **Advanced** and choose **Make
   Orchestrator** (optionally with a goal); on the phone it is in the session's

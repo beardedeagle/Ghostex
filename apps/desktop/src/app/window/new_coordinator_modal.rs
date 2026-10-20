@@ -93,6 +93,9 @@ pub(crate) struct NewCoordinatorModalConfig {
     /// `None` until the host has read it; the row is left out while it is unknown.
     pub(crate) playbook: Option<OrchestratorPlaybookInfo>,
     pub(crate) palette: ModalPalette,
+    /// Show all effort levels (`orchestratorAllEfforts`): the Effort menu lists every level the
+    /// model has instead of the orchestrator levels.
+    pub(crate) all_efforts: bool,
 }
 
 pub(crate) struct GpuiNewCoordinatorModalWindow {
@@ -103,6 +106,7 @@ pub(crate) struct GpuiNewCoordinatorModalWindow {
     selected_agent: usize,
     model_index: usize,
     effort: Option<String>,
+    all_efforts: bool,
     agent_select: ModalSelect,
     model_select: ModalSelect,
     effort_select: ModalSelect,
@@ -163,6 +167,7 @@ impl GpuiNewCoordinatorModalWindow {
             selected_agent,
             model_index: 0,
             effort: None,
+            all_efforts: config.all_efforts,
             agent_select: ModalSelect::new(),
             model_select: ModalSelect::new(),
             effort_select: ModalSelect::new(),
@@ -188,7 +193,7 @@ impl GpuiNewCoordinatorModalWindow {
     }
 
     /// The model's efforts an orchestrator is offered: High and XHigh, or the two highest below
-    /// Max.
+    /// Max, or all of them while Show all effort levels is on.
     fn efforts(&self) -> Vec<(String, String)> {
         let Some(model) = self.model() else {
             return Vec::new();
@@ -198,7 +203,7 @@ impl GpuiNewCoordinatorModalWindow {
             .iter()
             .map(|(value, _)| value.as_str())
             .collect();
-        let offered = orchestrator_efforts(&values);
+        let offered = orchestrator_efforts(&values, self.all_efforts, None);
         model
             .efforts
             .iter()
@@ -232,6 +237,7 @@ impl GpuiNewCoordinatorModalWindow {
             .filter(|effort| efforts.iter().any(|(value, _)| value == *effort))
             .cloned();
         let values: Vec<&str> = efforts.iter().map(|(value, _)| value.as_str()).collect();
+        // The recommended level (XHigh) even while every level is listed.
         self.effort = keep.or_else(|| default_orchestrator_effort(&values));
     }
 
@@ -267,7 +273,7 @@ impl GpuiNewCoordinatorModalWindow {
         cx.notify();
     }
 
-    fn toggle_effort_menu(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn toggle_effort_menu(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let efforts = self.efforts();
         if efforts.is_empty() {
             return;

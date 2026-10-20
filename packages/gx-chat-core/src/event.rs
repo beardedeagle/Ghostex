@@ -238,6 +238,9 @@ pub struct ChatSettings {
     /// The Send when you pick an answer setting (`chatSendOnPick`), the same way.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub send_on_pick: Option<bool>,
+    /// The Show all effort levels setting (`orchestratorAllEfforts`), the same way.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub all_orchestrator_efforts: Option<bool>,
 }
 
 /// A size or position only the renderer can know, folded back into the document.

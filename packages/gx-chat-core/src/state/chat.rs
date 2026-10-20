@@ -59,6 +59,9 @@ pub struct CoreState {
     /// The Send when you pick an answer setting (`chatSendOnPick`), from the chat settings or the
     /// latest read; off by default.
     pub send_on_pick_enabled: bool,
+    /// The Show all effort levels setting (`orchestratorAllEfforts`), from the chat settings or the
+    /// latest read; off by default, which narrows an orchestrator's effort pickers.
+    pub all_orchestrator_efforts_enabled: bool,
     /// The session's display title, or `None` when it has none.
     pub title: Option<String>,
     /// Every deadline the core is waiting on. Any family may arm one by key; the host only ever

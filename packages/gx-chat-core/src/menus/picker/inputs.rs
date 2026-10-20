@@ -153,7 +153,7 @@ fn model_menu_context(state: &ChatState, options: &NativeChatOptions) -> Option<
         disabled: !options.can_pick_model,
         session_key: options.session_key.clone(),
         draft,
-        orchestrator: crate::menus::options::is_orchestrator(state),
+        orchestrator: crate::menus::options::limits_orchestrator_efforts(state),
         raw: Value::Object(raw),
     })
 }

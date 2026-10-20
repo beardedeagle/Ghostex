@@ -113,6 +113,7 @@ fn chat_section(
     rows.extend(page.toggle(g, s, "markedHandovers", "Marked handovers in every session", "Orchestrators and their threads start each part of the message they hand back with a marker such as ❓ Needs you, ✅ Done, ⚠️ Read this, 🧪 Untested or 🛑 Blocked, so a quick skim shows what needs you. Turn this on to have every other agent session do the same. Applies to sessions started or resumed after you change it.", false, cx));
     rows.extend(page.marked_sections_style_row(g, s, window, cx));
     rows.extend(page.toggle(g, s, "orchestratorPlainReplies", "Orchestrators answer without markers", "Orchestrators answer normally, without marking the sections of their handovers. Their threads still mark the reports they send to the orchestrator. Applies to orchestrators started or resumed after you change it.", false, cx));
+    rows.extend(page.toggle(g, s, "orchestratorAllEfforts", "Show all effort levels", "Lists every effort level in the orchestrator effort pickers. Anything below High isn't recommended for orchestrators.", false, cx));
     rows.extend(orchestrator_playbook_row(page, g, s, cx));
     settings_section(&g.p, "Chat", None, None, rows)
         .map(|section| PageBlock::section("chat", section))

@@ -1,4 +1,6 @@
-use ghostex_gx_chat_core::menus::orchestrator_effort::orchestrator_efforts;
+use ghostex_gx_chat_core::menus::orchestrator_effort::{
+    default_orchestrator_effort, orchestrator_efforts,
+};
 use serde_json::{json, Value};
 
 use super::{playbook, sleep_threads, threads};
@@ -316,8 +318,11 @@ fn promote(parsed: &ParsedArgs) -> CliResult<()> {
 fn options(parsed: &ParsedArgs) -> CliResult<()> {
     let flags = server_flags(&parsed.flags);
     let hud = call_gxserver_rpc("/api/readSidebarHud", &json!({}), &flags)?;
-    crate::agent_model_catalog::adopt_cached_copy(&crate::paths::get_gxserver_paths(None));
+    let paths = crate::paths::get_gxserver_paths(None);
+    crate::agent_model_catalog::adopt_cached_copy(&paths);
     let catalog = crate::agent_model_catalog::current();
+    let all_efforts =
+        crate::session_chat_catch_up::chat_setting_enabled(&paths, "orchestratorAllEfforts");
     let effort_label = |effort: &str| {
         catalog
             .pointer(&format!("/effortLabels/{effort}"))
@@ -357,7 +362,7 @@ fn options(parsed: &ParsedArgs) -> CliResult<()> {
                         .iter()
                         .filter_map(Value::as_str)
                         .collect();
-                    let offered = orchestrator_efforts(&levels);
+                    let offered = orchestrator_efforts(&levels, all_efforts, None);
                     let efforts: Vec<Value> = offered
                         .iter()
                         .map(|effort| json!({ "value": effort, "label": effort_label(effort) }))
@@ -367,7 +372,7 @@ fn options(parsed: &ParsedArgs) -> CliResult<()> {
                         "label": model["label"],
                         "default": model.get("default").and_then(Value::as_bool) == Some(true),
                         "efforts": efforts,
-                        "defaultEffort": offered.last(),
+                        "defaultEffort": default_orchestrator_effort(&levels),
                     })
                 })
                 .collect();

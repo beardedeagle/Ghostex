@@ -2,7 +2,8 @@
 //! selected, Opus 5.5 at XHigh), `codex`, `cursor` (an agent whose launch takes no model),
 //! `antigravity` (no XHigh: Medium and High), `none` (no agent an orchestrator can run on),
 //! `project-playbook` (the project has its own edited playbook), `playbook-off` (edited copies,
-//! both off).
+//! both off), `effort-menu` (the Effort menu open), `all-efforts` (Show all effort levels on, the
+//! Effort menu open on every level of the model).
 use super::new_coordinator_modal::*;
 use gpui::{App, AppContext as _};
 use std::rc::Rc;
@@ -142,11 +143,21 @@ pub(super) fn open(demo: &super::DemoEnv, cx: &mut App) {
             &demo.state,
         ))),
         palette: demo.palette,
+        all_efforts: demo.state == "all-efforts",
     };
+    let open_effort_menu = matches!(demo.state.as_str(), "effort-menu" | "all-efforts");
     let _ = super::open_modal_window(
         NEW_COORDINATOR_MODAL_WIDTH,
         NEW_COORDINATOR_MODAL_INITIAL_HEIGHT,
-        move |window, cx| cx.new(|cx| GpuiNewCoordinatorModalWindow::new(config, host, window, cx)),
+        move |window, cx| {
+            cx.new(|cx| {
+                let mut modal = GpuiNewCoordinatorModalWindow::new(config, host, window, cx);
+                if open_effort_menu {
+                    modal.toggle_effort_menu(window, cx);
+                }
+                modal
+            })
+        },
         cx,
     );
 }

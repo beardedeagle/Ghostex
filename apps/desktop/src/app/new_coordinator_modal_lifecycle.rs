@@ -42,6 +42,11 @@ impl GhostexGpuiApp {
             selected_agent: 0,
             playbook: None,
             palette: self.gpui_native_modal_palette(),
+            all_efforts: crate::shared_settings::shared_sidebar_settings_snapshot()
+                .object()
+                .get("orchestratorAllEfforts")
+                .and_then(serde_json::Value::as_bool)
+                == Some(true),
         };
         let save_target = instructions_target.clone();
         let host = self.native_app_modal_host(cx, move |app, command, cx| {
