@@ -15,7 +15,7 @@ use crate::transcript::side_question::fold_side_questions;
 use crate::transcript::tool_fold::fold_tool_messages;
 use crate::transcript::turns::{
     completed_work_render_items, final_assistant_message_ids, summary_mode_turns,
-    CompletedWorkTurn, RenderItem, SummaryModeTurn,
+    wakes_settled_agent, CompletedWorkTurn, RenderItem, SummaryModeTurn,
 };
 
 pub fn normalize_chat_transcript(messages: &[ChatMessage]) -> Vec<ChatMessage> {
@@ -27,9 +27,15 @@ pub fn normalize_chat_transcript(messages: &[ChatMessage]) -> Vec<ChatMessage> {
     fold_model_effort_pairs(&drop_hidden_messages(&with_images))
 }
 
+/// A row that woke the agent after its reply opens a new turn, so it is not transparent: the tool
+/// calls the agent then makes belong to that turn, not to the reply before it.
 pub fn fold_chat_transcript(messages: &[ChatMessage]) -> Vec<ChatMessage> {
+    let wakes: Vec<&str> = (0..messages.len())
+        .filter(|at| wakes_settled_agent(messages, *at))
+        .map(|at| messages[at].id.as_str())
+        .collect();
     fold_tool_messages(messages, &|message| {
-        suppressed_turn_label(message).is_some()
+        suppressed_turn_label(message).is_some() && !wakes.contains(&message.id.as_str())
     })
 }
 

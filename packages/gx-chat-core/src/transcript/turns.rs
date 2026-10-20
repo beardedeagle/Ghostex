@@ -14,8 +14,9 @@ use crate::transcript::foreign::STREAMING_ID;
 use crate::transcript::jsstr::js_trim;
 use crate::transcript::noise::{
     is_command_output_turn, is_command_turn, is_hidden_message, is_setting_status, is_turn_seam,
-    suppressed_turn_label,
+    suppressed_turn_label, INTERRUPTED_LABEL,
 };
+use crate::transcript::side_question::SIDE_QUESTION_LABEL;
 
 /// One finished user turn: the prompt, the work under it, and the reply that settled it.
 #[derive(Clone, Debug, PartialEq)]
@@ -193,17 +194,48 @@ pub fn partition_completed_work(messages: &[ChatMessage]) -> (Vec<ChatMessage>, 
     (visible_artifacts, collapsed_work)
 }
 
-/// Where the response the agent is CURRENTLY producing begins: the last user row that is a genuine
-/// prompt the agent has accepted for delivery.
+/// A harness row that woke the agent after it had finished replying: a background task or watcher
+/// notification, a message from another session, and the like, landing after the agent's last row
+/// was a reply rather than a tool call. The reply before it ended a turn of its own, and the row
+/// starts a new one.
 ///
-/// A harness-injected turn (task notification, local command output) and a prompt the agent CLI is
-/// still holding in its queue both land as user rows WHILE the agent is mid-response; none of them
-/// starts a new response, so none of them may settle the one in flight. Falls back to 0 when no
-/// such prompt exists (stitched scroll-back that opens mid-conversation).
-fn active_response_start_index(messages: &[ChatMessage]) -> usize {
-    messages
+/// CDXC:SessionChat 2026-10-20 DECISION:
+/// User: "we're collapsing the agent message i want to actually read (last agent message of a turn) whenever a new message from the agent due to a watcher (just says something like "Linear watcher: nothing new") [...] instead if we get multiple agent final messages in a row but without a user message or messages from another agent etc. then we need to show the multiple agent last turn replies". Every turn the agent finishes is a turn with its own final reply, whether a prompt or a wake-up started it: each reply stays in view as a reply (flush, with its actions), with only its own work folded above it, and a short watcher reply after it never turns it back into commentary. A notification that lands while the agent is still mid-response (its last row is a tool call) is not a wake-up and ends nothing. Supersedes the rule that only a prompt, never a harness row, ended a turn's reply (`final_assistant_message_ids`).
+pub fn wakes_settled_agent(messages: &[ChatMessage], index: usize) -> bool {
+    let message = &messages[index];
+    if message.role != ChatRole::User || is_command_turn(message) || is_command_output_turn(message)
+    {
+        return false;
+    }
+    match suppressed_turn_label(message).as_deref() {
+        None | Some(INTERRUPTED_LABEL) | Some(SIDE_QUESTION_LABEL) => return false,
+        Some(_) => {}
+    }
+    messages[..index]
         .iter()
-        .rposition(is_accepted_user_prompt)
+        .rev()
+        .find(|row| suppressed_turn_label(row).is_none())
+        .is_some_and(|row| {
+            has_agent_response_content(row)
+                && matches!(
+                    row.blocks.last(),
+                    Some(ChatBlock::Text { .. } | ChatBlock::ImageRef { .. })
+                )
+        })
+}
+
+/// Where the response the agent is CURRENTLY producing begins: the last user row that is a genuine
+/// prompt the agent has accepted for delivery, or a harness row that woke it after it had finished
+/// (`wakes_settled_agent`).
+///
+/// A harness-injected turn (task notification, local command output) landing WHILE the agent is
+/// mid-response and a prompt the agent CLI is still holding in its queue both arrive as user rows;
+/// neither starts a new response, so neither may settle the one in flight. Falls back to 0 when no
+/// such row exists (stitched scroll-back that opens mid-conversation).
+fn active_response_start_index(messages: &[ChatMessage]) -> usize {
+    (0..messages.len())
+        .rev()
+        .find(|at| is_accepted_user_prompt(&messages[*at]) || wakes_settled_agent(messages, *at))
         .unwrap_or(0)
 }
 
@@ -221,13 +253,21 @@ pub fn final_assistant_message_ids(messages: &[ChatMessage], is_working: bool) -
 
     for (index, message) in messages.iter().enumerate() {
         // A harness-injected turn (a background-task notification, local command output, a message
-        // from another session) is authored by the terminal, not by the reader: the agent is still
-        // mid-response on both sides of it. Ending the turn there put a copy affordance under
-        // commentary that the agent then kept building on.
+        // from another session) landing mid-response is authored by the terminal, not by the
+        // reader: the agent is still mid-response on both sides of it. Ending the turn there put a
+        // copy affordance under commentary that the agent then kept building on. One that woke the
+        // agent after it had finished does end the reply before it (`wakes_settled_agent`).
         if suppressed_turn_label(message).is_some() && !is_command_turn(message) {
             // An interrupted response has no final reply: its commentary folds into "Worked for" and the marker closes the turn, instead of the marker drawing above text the agent wrote before it was stopped.
             if suppressed_turn_label(message).as_deref() == Some("Interrupted") {
                 final_assistant_id = None;
+            } else if wakes_settled_agent(messages, index) {
+                // A wake-up after a finished reply: that reply ended its own turn.
+                if let Some(id) = final_assistant_id.take() {
+                    if !ids.contains(&id) {
+                        ids.push(id);
+                    }
+                }
             }
             continue;
         }
