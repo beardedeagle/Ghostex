@@ -87,6 +87,29 @@ pub const HOTKEY_DEFINITIONS: &[HotkeyDefinition] = &[
         retired_default_keys: &[],
         action: J::Obj(&[("id", J::Str("toggleChatFilesLinks")), ("kind", J::Str("focusedChatAction"))]),
     },
+    // CDXC:VoiceMode 2026-10-20 DECISION:
+    // User picked "Add both as proposed": Toggle Voice Agent starts the voice agent call or ends the one running, from anywhere in the window (Option+Ctrl+V on Mac; Ctrl+Alt+Shift+V on Windows and Linux, where Ctrl+Shift+V is terminal paste), and Dictate starts recording in the chat box of the chat session you are in and, pressed again, stops and transcribes, like its microphone (Option+Ctrl+D; Ctrl+Alt+Shift+D). Both show in their button's tooltip, the shape the other chat box keys use.
+    // SEE-ALSO: apps/desktop/src/app/hotkeys.rs (`gpui_platform_hotkey_for_action`, `GPUI_DEFAULT_GHOSTEX_HOTKEYS`), apps/desktop/src/app/focused_chat_hotkeys.rs, apps/desktop/src/app/voice_agent/header_button.rs.
+    HotkeyDefinition {
+        id: "toggleVoiceAgent",
+        title: "Toggle Voice Agent",
+        description: "Start a spoken conversation with the voice agent, or end the one that is running.",
+        default_key: "ctrl+alt+v",
+        windows_linux_default_key: Some("cmd+alt+shift+v"),
+        alternate_default_keys: &[],
+        retired_default_keys: &[],
+        action: J::Obj(&[("id", J::Str("toggleVoiceAgent")), ("kind", J::Str("toggleVoiceAgent"))]),
+    },
+    HotkeyDefinition {
+        id: "toggleDictation",
+        title: "Dictate",
+        description: "Start dictating into the chat box of the chat session you are in; press again to stop and type what you said.",
+        default_key: "ctrl+alt+d",
+        windows_linux_default_key: Some("cmd+alt+shift+d"),
+        alternate_default_keys: &[],
+        retired_default_keys: &[],
+        action: J::Obj(&[("id", J::Str("toggleDictation")), ("kind", J::Str("focusedChatAction"))]),
+    },
     // CDXC:Hotkeys 2026-09-25 DECISION:
     // User: Cmd+Shift+O starts a new session and Cmd+N shows the agent picker, Cmd+T always opens a new browser tab, and Fork Session is Cmd+Ctrl+Shift+F (Ctrl+Alt+Shift+F on Windows and Linux), matching the ChatGPT and Codex apps. New Terminal stays on Cmd+Shift+T. This supersedes the 2026-09-24 layout (Cmd+T new chat, swapped by the default interface, picker on Cmd+Option+T).
     // The same day the user took more ChatGPT/Codex keys: Cmd+/ opens Hotkeys (was Cmd+.), Cmd+Shift+Backspace closes the focused session (Cmd+W stays), Cmd+J opens the Commands panel on Mac only (F12 keeps working everywhere; no Ctrl+J on Windows and Linux), Rename is Cmd+R on Mac and Ctrl+Shift+R on Windows and Linux because Ctrl+R belongs to the terminal, Reload Session has no default, Cmd+Shift+A also sleeps the focused session (Option+Shift+S stays), Cmd+Option+Shift+O opens Quick Access on recent projects, and in chat Cmd+Shift+; copies the last code block and Cmd+Shift+C (Mac only) copies the last reply.

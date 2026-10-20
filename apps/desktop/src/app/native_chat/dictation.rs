@@ -213,6 +213,20 @@ impl NativeChatView {
         cx.notify();
     }
 
+    /// The Dictate hotkey: what pressing the microphone does. Answers false where the chat box
+    /// draws no microphone, so the chord keeps its ordinary meaning.
+    pub(crate) fn toggle_dictation_from_hotkey(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> bool {
+        if !self.composer_control_available("dictate") {
+            return false;
+        }
+        self.toggle_dictation(window, cx);
+        true
+    }
+
     /// Escape: cancels a recording or a transcription (the recording is kept). Answers whether
     /// there was one.
     pub(super) fn cancel_dictation(&mut self, cx: &mut Context<Self>) -> bool {

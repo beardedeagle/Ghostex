@@ -216,6 +216,7 @@ impl NativeChatView {
                     "sessionNote" => Some("sessionNote"),
                     "attachPath" => Some("attachFileOrFolder"),
                     "maximizeComposer" => Some("toggleChatComposerMaximized"),
+                    "dictate" => Some("toggleDictation"),
                     _ => None,
                 };
                 gpui_component::tooltip::Tooltip::new(label)

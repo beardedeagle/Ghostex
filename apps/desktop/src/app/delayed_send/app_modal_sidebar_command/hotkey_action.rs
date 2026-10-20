@@ -167,6 +167,11 @@ impl GhostexGpuiApp {
                     self.toggle_view_panel(window, cx);
                     return;
                 }
+                // Toggle Voice Agent does what the header's Voice button does.
+                if action_id == "toggleVoiceAgent" {
+                    self.toggle_voice_agent_conversation(cx);
+                    return;
+                }
                 if action_id == "expandViewPanel" {
                     self.toggle_view_panel_maximized(cx);
                     return;

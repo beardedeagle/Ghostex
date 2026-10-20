@@ -152,6 +152,7 @@ pub(crate) fn gpui_focused_chat_hotkey_action_id(action_id: &str) -> bool {
             | "toggleChatSummaryMode"
             | "toggleChatComposerMaximized"
             | "toggleChatFilesLinks"
+            | "toggleDictation"
     )
 }
 
@@ -176,6 +177,9 @@ pub(crate) fn gpui_platform_hotkey_for_action<'a>(action_id: &str, key: &'a str)
             // Ctrl+Alt+L locks the screen on several Linux desktops.
             "toggleChatComposerMaximized" => Some(("ctrl+alt+m", "cmd+alt+shift+m")),
             "toggleChatFilesLinks" => Some(("ctrl+alt+l", "cmd+alt+shift+l")),
+            // Ctrl+Shift+V is the terminal's paste on Windows and Linux.
+            "toggleVoiceAgent" => Some(("ctrl+alt+v", "cmd+alt+shift+v")),
+            "toggleDictation" => Some(("ctrl+alt+d", "cmd+alt+shift+d")),
             "popOutPane" => Some(("ctrl+shift+o", "cmd+alt+o")),
             // CDXC:Navigation 2026-08-19: same Mac-Control substitution
             // as the Jump to Project entries below, mirroring the
@@ -393,6 +397,8 @@ pub(crate) const GPUI_DEFAULT_GHOSTEX_HOTKEYS: &[(&str, &str)] = &[
     ("toggleChatSummaryMode", "ctrl+alt+s"),
     ("toggleChatComposerMaximized", "ctrl+alt+m"),
     ("toggleChatFilesLinks", "ctrl+alt+l"),
+    ("toggleVoiceAgent", "ctrl+alt+v"),
+    ("toggleDictation", "ctrl+alt+d"),
     ("forkSession", "cmd+ctrl+shift+f"),
     ("reloadSession", ""),
     ("sleepFocusedSession", "cmd+shift+a"),
@@ -765,7 +771,7 @@ pub(crate) fn gpui_keyboard_owner_allows_hotkey(
     // The view panel toggle is window chrome, so it must win from every responder like the New Thread picker. It was only listed for the owners a view leaves behind while it is open, so Cmd+Option+B closed the panel but could not open it again once the keyboard sat with a responder outside those lists: the router passed the chord on to that responder and GPUI never saw it.
     if matches!(
         action_id,
-        "toggleViewPanel" | "expandViewPanel" | "expandViewPanelFully"
+        "toggleViewPanel" | "expandViewPanel" | "expandViewPanelFully" | "toggleVoiceAgent"
     ) {
         return true;
     }

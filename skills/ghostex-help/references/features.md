@@ -957,7 +957,8 @@ Use the paperclip to attach images, files, or folders. On Linux, choose
 the terminal's attachment action offers the same choices.
 Dictate is the microphone button in the chat box (left of the Terminal View
 button) and on the terminal bar, on a Mac, Windows and Linux: press it, talk, and press it
-again to stop. What you said goes into the chat box (or is typed into that
+again to stop. In the chat session you are in, Option+Ctrl+D (Ctrl+Alt+Shift+D on
+Windows and Linux) does the same as the chat box's microphone. What you said goes into the chat box (or is typed into that
 session's terminal) and is never sent by itself. Dictate records first and
 transcribes second: your voice is saved as a recording while you talk, and only
 after you stop is it turned into text with xAI's speech-to-text, so it needs an
@@ -2537,7 +2538,8 @@ Setting: `botAutomationsHidden` (on by default, which keeps the feed hidden).
 
 Talk to your agents out loud. On a Mac, Windows or Linux, the headset button in
 the work area header (beside the ⋯ menu) starts a spoken conversation with Ghostex's voice
-agent, and pressing it again hangs up. Ask what your sessions are doing or
+agent, and pressing it again hangs up; Option+Ctrl+V (Ctrl+Alt+Shift+V on Windows
+and Linux) does the same from anywhere in the window. Ask what your sessions are doing or
 which ones are waiting on you, have it read you the last messages of a session,
 tell it to send a prompt to a session (it sends right away and says what it
 sent, but for anything risky or destructive, like deleting files or removing a

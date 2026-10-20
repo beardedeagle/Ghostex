@@ -28,11 +28,14 @@ impl GhostexGpuiApp {
         } else {
             None
         };
-        let tooltip: gpui::SharedString = if active {
-            "End the voice conversation".into()
-        } else {
-            "Talk to the voice agent".into()
-        };
+        let tooltip: gpui::SharedString = titlebar_tooltip_label(
+            if active {
+                "End the voice conversation"
+            } else {
+                "Talk to the voice agent"
+            },
+            "toggleVoiceAgent",
+        );
         header_panel_toggle_button(
             "ghostex-gpui-workarea-header-voice",
             ICON_HEADSET,
