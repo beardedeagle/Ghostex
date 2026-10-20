@@ -524,9 +524,7 @@ impl NativeChatView {
     /// Whether the toolbar draws the microphone this frame (`toolbar.rs` `render_toolbar`'s rule);
     /// otherwise its last painted bounds are stale.
     fn dictation_button_shown(&self) -> bool {
-        !self.composer_animation.shown_collapsed()
-            && !self.composer_control_overflowed("dictate")
-            && self.composer_control_available("dictate")
+        !self.composer_animation.shown_collapsed() && self.composer_control_available("dictate")
     }
 
     /// Type a finished dictation into the draft, a space apart from the text before it.

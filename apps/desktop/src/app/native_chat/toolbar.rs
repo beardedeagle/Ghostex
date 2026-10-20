@@ -5,7 +5,10 @@ use serde_json::{Value, json};
 /// CDXC:SessionChat 2026-10-20 DECISION:
 /// User: "please remove the summary mode button from the composer (it's already there under view mode) also please remove the stash prompt button and instead move it under the ... more actions button as the 2nd from the bottom there". Summary mode lives only in More actions > View, Stash prompt is a More actions row (actions.rs, `stash_menu_row`); supersedes the 2026-09-11 decision that put Summary mode on this row.
 /// This order is also the order controls fold into More actions. Files and links left this row for More actions on 2026-10-15 (actions.rs, `files_links_row`).
-pub(super) const COMPOSER_CONTROLS: [(&str, &str, &str, &str); 5] = [
+///
+/// CDXC:SessionChat 2026-10-20 DECISION:
+/// User: "Please make the dictation button always show up here. At the bottom right next to the send button." Dictate is not in this list: `render_toolbar` draws it right before Send and it never folds into More actions. The phone does the same (apps/mobile/app/src/chat/native/composer/menus.ts).
+pub(super) const COMPOSER_CONTROLS: [(&str, &str, &str, &str); 4] = [
     ("note", "sessionNote", "Session note", "titlebar/note.svg"),
     (
         "attach",
@@ -19,7 +22,6 @@ pub(super) const COMPOSER_CONTROLS: [(&str, &str, &str, &str); 5] = [
         "Maximize",
         "titlebar/maximize.svg",
     ),
-    ("dictate", "dictate", "Dictate", "titlebar/microphone.svg"),
     (
         "terminal",
         "terminalView",
@@ -133,7 +135,6 @@ impl NativeChatView {
             }
             let icon = match id {
                 "maximize" if self.maximized_window.is_some() => "titlebar/minimize.svg",
-                "dictate" if self.dictating(cx) => "titlebar/player-stop.svg",
                 _ => icon,
             };
             // The Terminal View control also carries the agent CLI's readiness tint and screen preview.
@@ -142,6 +143,15 @@ impl NativeChatView {
             } else {
                 self.host_button(action, icon, p, cx)
             });
+        }
+        if !self.composer_animation.shown_collapsed() && self.composer_control_available("dictate")
+        {
+            let icon = if self.dictating(cx) {
+                "titlebar/player-stop.svg"
+            } else {
+                "titlebar/microphone.svg"
+            };
+            toolbar = toolbar.child(self.host_button("dictate", icon, p, cx));
         }
         toolbar
             .child(self.render_send_control(p, cx))
@@ -166,8 +176,9 @@ impl NativeChatView {
             .filter(|(id, _, _, _)| self.composer_control_available(id))
             .map(|(id, _, _, _)| json!({"id":id,"width":28.0*scale}))
             .collect();
-        // More actions, each drawn control and Send, with the gaps between them.
-        let actions_width = (28.0 + controls.len() as f32 * (28.0 + 6.0) + 6.0 + 24.0) * scale;
+        // More actions, each drawn control, Dictate (never folded) and Send, with the gaps between them.
+        let buttons = 1 + controls.len() + usize::from(self.composer_control_available("dictate"));
+        let actions_width = (buttons as f32 * (28.0 + 6.0) + 24.0) * scale;
         let chat = cx.weak_entity();
         gpui::canvas(
             move |bounds, window, cx| {

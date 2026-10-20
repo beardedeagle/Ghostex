@@ -955,8 +955,8 @@ skills (the phone says to install them there on the computer).
 Use the paperclip to attach images, files, or folders. On Linux, choose
 **Images or files…** or **Folders…** before selecting items in the system picker;
 the terminal's attachment action offers the same choices.
-Dictate is the microphone button in the chat box (left of the Terminal View
-button) and on the terminal bar, on a Mac, Windows and Linux: press it, talk, and press it
+Dictate is the microphone button in the chat box (always shown, right next to
+Send) and on the terminal bar, on a Mac, Windows and Linux: press it, talk, and press it
 again to stop. In the chat session you are in, Option+Ctrl+D (Ctrl+Alt+Shift+D on
 Windows and Linux) does the same as the chat box's microphone. What you said goes into the chat box (or is typed into that
 session's terminal) and is never sent by itself. Dictate records first and
@@ -973,8 +973,8 @@ kept: rest the pointer on the microphone (or right-click it) and choose
 Transcribe previous to type the newest recording that has no text yet into the
 chat box. On the terminal bar, press the microphone again while it transcribes
 to cancel, and right-click it for Transcribe previous. Every recording is listed
-in Settings > Voice agent > Dictation history. On an Android phone, Dictate is in the chat box's toolbar or, when
-the toolbar is full, in its More actions menu (Stop dictating there ends it); it
+in Settings > Voice agent > Dictation history. On an Android phone, Dictate is the microphone right next to Send in
+the chat box, which stays there even when other buttons move into More actions; it
 uses the key on the computer the chat lives on, keeps the recording on the phone
 until that computer has it, shows Recording, Transcribing and Transcribe again
 in a row above the chat box, and a long press on the microphone
@@ -1558,10 +1558,11 @@ The Maximize button's tooltip shows the Maximize Chat Box shortcut (Option+Ctrl+
 on macOS, Ctrl+Alt+Shift+M on Windows and Linux), which maximizes the chat box of
 the chat you are in, or restores it.
 As space gets tighter, toolbar buttons move into More actions one at a time:
-Session note, Attach, Maximize, Dictate, then Terminal View.
+Session note, Attach, Maximize, then Terminal View. The microphone never moves:
+it always stays right next to Send.
 If the context ring still does not fit beside the model, it moves into Model
 settings at the top of More actions; the model pill shortens instead of moving.
-Controls return as space opens up; More actions and Send or Stop stay visible.
+Controls return as space opens up; More actions, Dictate and Send or Stop stay visible.
 On the phone, More actions > Stash prompt with an empty chat box opens
 Saved prompts for this project: tap one to put it in the chat box, or delete it
 with its trash button. Tags and editing stay on the computer.
