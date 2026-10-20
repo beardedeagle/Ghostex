@@ -498,7 +498,7 @@ impl GhostexGpuiApp {
                         .as_ref()
                         .map(command_terminal_runtime_session_id_from_remote_reference)
                 })
-                .or({
+                .or_else(|| {
                     #[cfg(target_os = "windows")]
                     if matches!(
                         windows_terminal_backend::resolve_current(),
