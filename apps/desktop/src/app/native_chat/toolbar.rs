@@ -96,7 +96,7 @@ impl NativeChatView {
     pub(super) fn composer_control_available(&self, id: &str) -> bool {
         // Dictation is the platform's own (`dictation.rs`), so the core does not gate it.
         if id == "dictate" {
-            return super::dictation::DICTATION;
+            return super::dictation::dictation_drawn();
         }
         let actions = &self.snapshot["composerActions"];
         actions.is_null() || actions[id] != false

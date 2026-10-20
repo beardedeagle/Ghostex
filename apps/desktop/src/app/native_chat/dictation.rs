@@ -1,26 +1,30 @@
 //! The composer's Dictate control: the microphone records to a file first and the recording is
 //! transcribed after Stop (`voice_agent::Dictate`, gxserver's `/api/transcribeDictation`); the text
-//! is typed into the draft. While it records or transcribes, a row above the box shows it with an
-//! ✕ that cancels (Escape cancels too); a failed transcription stays in that row with Transcribe
-//! again. Hovering the microphone when a recording has no text yet offers Transcribe previous.
+//! is typed into the draft. While it records or transcribes, a small pill centred over the
+//! microphone shows it with an ✕ that cancels (Escape cancels too); a failed transcription stays in
+//! that pill with Transcribe again. Hovering the microphone when a recording has no text yet offers
+//! Transcribe previous.
+//!
+//! CDXC:VoiceMode 2026-10-20 DECISION: User: "I want dictating and recording and all of this to show up just as a small pop-up right above the dictating button, basically. And escape cancels shouldn't be shown like this. It should be just an X button that appears there. When I hover, it says escape cancels [...] I imagine it to be like a pill above the dictating button that is centered above it. I don't like seeing like this UI appear above the whole composer." Every Dictate state (recording with its clock, Transcribing, a failure with Transcribe again) is one capsule centred on the microphone, with an ✕ whose tooltip says Escape cancels. Supersedes the full-width row above the chat box with its "Esc cancels" text (earlier on 2026-10-20). The phone's `DictationBar.tsx` still draws the row until the user confirms the phone part.
 //!
 //! CDXC:SessionChat 2026-10-08 DECISION: User asked for voice input in the chat box, to the left of the Terminal View button, on the desktop and the phone (GPUI Kit's speech input, #3333, on the desktop). Pressing the microphone starts listening and pressing it again stops; the recognized text is typed into the draft and never sent by itself.
 //! CDXC:SessionChat 2026-10-08 SEE-ALSO: `apps/mobile/app/src/chat/native/composer/useDictation.ts` is the phone's control; the toolbar order is `toolbar.rs` `COMPOSER_CONTROLS` and the phone's `menus.ts`.
 //! CDXC:VoiceMode 2026-10-20 SEE-ALSO: Escape, the Transcribing ✕, keeping cancelled recordings and Transcribe previous are the user's decision in `apps/desktop/src/app/voice_agent/dictation.rs`.
 
-use super::appearance::{ChatAppearance, ChatFilledButton as _};
+use super::appearance::ChatAppearance;
 use super::cursor::ChatCursor as _;
 use super::state::{NativeChatEvent, NativeChatView};
 use crate::app::voice_agent::{Dictate, DictateEvent, DictatePhase};
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
-    AnyElement, App, AppContext as _, Context, Entity, EntityInputHandler as _,
-    InteractiveElement as _, IntoElement, ParentElement as _, StatefulInteractiveElement as _,
-    Styled as _, Subscription, Task, Window, div, px,
+    AnyElement, App, AppContext as _, Bounds, Context, Entity, EntityInputHandler as _,
+    FontFeatures, InteractiveElement as _, IntoElement, ParentElement as _, Pixels,
+    StatefulInteractiveElement as _, Styled as _, Subscription, Task, Window, canvas, div, px,
 };
 use gpui_component::speech::{SpeechError, SpeechState};
 use serde_json::json;
 use std::time::Duration;
+use std::{cell::Cell, rc::Rc};
 
 /// The one switch for both Dictate buttons, the chat box's and the terminal bar's.
 ///
@@ -37,6 +41,22 @@ pub(super) const DICTATION: bool = DICTATION_ENABLED
         target_os = "windows",
         target_os = "linux"
     ));
+
+/// Whether the chat box draws the Dictate button. The web build draws it only under its
+/// `?dictatePreview=` switch, which shows the pill's states without a microphone.
+pub(super) fn dictation_drawn() -> bool {
+    #[cfg(target_family = "wasm")]
+    {
+        crate::app::voice_agent::dictation_preview()
+    }
+    #[cfg(not(target_family = "wasm"))]
+    {
+        DICTATION
+    }
+}
+
+/// The pill's height, unscaled: a 16px line, 4px above and below, a 1px edge.
+const PILL_HEIGHT: f32 = 26.0;
 
 /// How long the pointer rests on the microphone before Transcribe previous is offered.
 const HOVER_DELAY: Duration = Duration::from_millis(350);
@@ -100,6 +120,9 @@ pub(crate) struct DictationControl {
     _subscription: Subscription,
     /// The pointer is on the microphone; the hover menu opens after [`HOVER_DELAY`].
     hover: Option<Task<()>>,
+    /// The pill's row and the pill itself at their last paint, which centre it on the microphone.
+    pill_row: Rc<Cell<Bounds<Pixels>>>,
+    pill: Rc<Cell<Bounds<Pixels>>>,
 }
 
 pub(crate) type Dictation = Option<DictationControl>;
@@ -114,8 +137,8 @@ impl NativeChatView {
             cx.subscribe_in(&dictate, window, |this, _, event, window, cx| match event {
                 DictateEvent::Text(text) => this.insert_dictation(text, window, cx),
                 DictateEvent::Failure { title, message } => {
-                    // A failed transcription shows in the row above the box with Transcribe
-                    // again; only what no row shows becomes a toast.
+                    // A failed transcription shows in the pill over the microphone with Transcribe
+                    // again; only what the pill does not show becomes a toast.
                     let in_row = this.dictation.as_ref().is_some_and(|control| {
                         matches!(
                             control.dictate.read(cx).phase(),
@@ -133,14 +156,10 @@ impl NativeChatView {
             dictate: dictate.clone(),
             _subscription: subscription,
             hover: None,
+            pill_row: Default::default(),
+            pill: Default::default(),
         });
         dictate
-    }
-
-    fn dictate_phase(&self, cx: &App) -> Option<DictatePhase> {
-        self.dictation
-            .as_ref()
-            .map(|control| control.dictate.read(cx).phase().clone())
     }
 
     /// Whether the microphone is recording (the Stop glyph).
@@ -236,7 +255,7 @@ impl NativeChatView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if !DICTATION {
+        if !dictation_drawn() {
             return;
         }
         let dictate = self.dictate(window, cx);
@@ -277,92 +296,59 @@ impl NativeChatView {
         }
     }
 
-    /// The row above the box while Dictate records, transcribes or failed.
-    pub(super) fn render_dictation_row(
+    /// Dictate's pill: a capsule centred over the microphone while it records, transcribes or
+    /// failed, in a row of its own right above the chat box (so it covers nothing and moves none of
+    /// the box's text or buttons).
+    pub(super) fn render_dictation_pill(
         &self,
         p: &ChatAppearance,
         cx: &mut Context<Self>,
     ) -> Option<AnyElement> {
-        let phase = self.dictate_phase(cx)?;
+        let control = self.dictation.as_ref()?;
+        let phase = control.dictate.read(cx).phase().clone();
         let s = p.scale;
-        let (dot, label, detail, failed) = match &phase {
+        let failure = match &phase {
             DictatePhase::Idle => return None,
-            DictatePhase::Starting => (false, "Starting the microphone…".to_string(), None, false),
-            DictatePhase::Recording => {
-                let elapsed = self
-                    .dictation
-                    .as_ref()
-                    .map(|control| control.dictate.read(cx).elapsed())
-                    .unwrap_or_default();
-                (
-                    true,
-                    format!(
-                        "Recording {}",
-                        crate::app::voice_agent::dictation_clock(elapsed)
-                    ),
-                    Some("Esc cancels".to_string()),
-                    false,
-                )
+            DictatePhase::Failed { message, .. } => {
+                Some(format!("{message} Your recording is kept."))
             }
-            DictatePhase::Transcribing => (false, "Transcribing…".to_string(), None, false),
-            DictatePhase::Failed { message, .. } => (
-                false,
-                "Transcription failed.".to_string(),
-                Some(format!("{message} Your recording is kept.")),
-                true,
-            ),
+            _ => None,
         };
-        let button = |id: &'static str, text: &'static str, cx: &mut Context<Self>| {
-            div()
-                .id(id)
-                .role(gpui::Role::Button)
-                .aria_label(text)
-                .chat_cursor_pointer()
-                .flex_shrink_0()
-                .px(px(8.0 * s))
-                .py(px(3.0 * s))
-                .rounded(px(6.0 * s))
-                .border_1()
-                .chat_filled(p.neutral_button_fills(), true)
-                .text_color(p.primary)
-                .child(text)
-                .on_click(cx.listener(move |this, _, _, cx| {
-                    let Some(control) = this.dictation.as_ref() else {
-                        return;
-                    };
-                    let dictate = control.dictate.clone();
-                    match id {
-                        "dictation-retry" => dictate.update(cx, |dictate, cx| dictate.retry(cx)),
-                        _ => dictate.update(cx, |dictate, cx| dictate.cancel(cx)),
-                    }
-                    cx.notify();
-                }))
+        let failed = failure.is_some();
+        let label = match &phase {
+            DictatePhase::Starting => "Starting…".to_string(),
+            DictatePhase::Recording => {
+                crate::app::voice_agent::dictation_clock(control.dictate.read(cx).elapsed())
+            }
+            DictatePhase::Transcribing => "Transcribing".to_string(),
+            _ => "Transcription failed".to_string(),
         };
+        let recording = matches!(phase, DictatePhase::Recording);
         let close = div()
             .id("dictation-cancel")
             .role(gpui::Role::Button)
             .aria_label(if failed { "Dismiss" } else { "Cancel" })
             .chat_cursor_pointer()
             .flex_shrink_0()
-            .size(px(20.0 * s))
+            .size(px(18.0 * s))
             .flex()
             .items_center()
             .justify_center()
             .rounded_full()
-            .hover(|style| style.bg(p.border))
+            .hover(|style| style.bg(p.foreground.opacity(0.08)))
             .tooltip(move |window, cx| {
                 gpui_component::tooltip::Tooltip::new(if failed {
                     "Dismiss (the recording is kept)"
                 } else {
-                    "Cancel (the recording is kept)"
+                    "Escape cancels"
                 })
                 .build(window, cx)
             })
             .child(
                 gpui::svg()
                     .path("titlebar/x.svg")
-                    .size(px(13.0 * s))
-                    .text_color(p.muted),
+                    .size(px(11.0 * s))
+                    .text_color(p.card_muted),
             )
             .on_click(cx.listener(|this, _, _, cx| {
                 if let Some(control) = this.dictation.as_ref() {
@@ -371,44 +357,128 @@ impl NativeChatView {
                 }
                 cx.notify();
             }));
+        let retry = div()
+            .id("dictation-retry")
+            .role(gpui::Role::Button)
+            .aria_label("Transcribe again")
+            .chat_cursor_pointer()
+            .flex_shrink_0()
+            .px(px(8.0 * s))
+            .h(px(18.0 * s))
+            .flex()
+            .items_center()
+            .rounded_full()
+            .bg(p.foreground.opacity(0.08))
+            .hover(|style| style.bg(p.foreground.opacity(0.14)))
+            .text_color(p.foreground)
+            .child("Transcribe again")
+            .on_click(cx.listener(|this, _, _, cx| {
+                if let Some(control) = this.dictation.as_ref() {
+                    let dictate = control.dictate.clone();
+                    dictate.update(cx, |dictate, cx| dictate.retry(cx));
+                }
+                cx.notify();
+            }));
+        let label = div()
+            .id("dictation-label")
+            .flex()
+            .items_center()
+            .gap(px(6.0 * s))
+            .when(recording, |this| {
+                this.child(
+                    div()
+                        .flex_shrink_0()
+                        .size(px(7.0 * s))
+                        .rounded_full()
+                        .bg(gpui::rgb(0xef4444)),
+                )
+            })
+            .child(
+                div()
+                    .when(recording, |this| {
+                        this.font_features(FontFeatures(vec![("tnum".into(), 1)].into()))
+                    })
+                    .text_color(if failed {
+                        gpui::rgb(0xef9999).into()
+                    } else {
+                        p.foreground
+                    })
+                    .child(label),
+            )
+            // Why it failed is the label's tooltip, so the pill stays one short line.
+            .when_some(failure, |this, failure| {
+                this.tooltip(move |window, cx| {
+                    gpui_component::tooltip::Tooltip::new(failure.clone()).build(window, cx)
+                })
+            });
+        let measured_pill = control.pill.clone();
+        let pill = div()
+            .id("dictation-pill")
+            .role(gpui::Role::Status)
+            .absolute()
+            .top_0()
+            .h(px(PILL_HEIGHT * s))
+            .flex()
+            .items_center()
+            .gap(px(6.0 * s))
+            .pl(px(if recording { 9.0 } else { 11.0 } * s))
+            .pr(px(4.0 * s))
+            .border_1()
+            .border_color(p.input_border)
+            .rounded_full()
+            .bg(p.card_panel)
+            .text_size(px(12.0 * s))
+            .line_height(px(16.0 * s))
+            .whitespace_nowrap()
+            .child(label)
+            .when(failed, |this| this.child(retry))
+            .child(close)
+            .child(
+                canvas(
+                    move |bounds, window, _| {
+                        if measured_pill.get().size != bounds.size {
+                            measured_pill.set(bounds);
+                            window.refresh();
+                        }
+                    },
+                    |_, _, _, _| {},
+                )
+                .absolute()
+                .inset(px(-1.0)),
+            );
+        // Centred on the microphone, kept inside the row; flush right before the first paint or
+        // while the microphone is folded into More actions.
+        let row = control.pill_row.get();
+        let width = control.pill.get().size.width;
+        let microphone = self.composer_button_bounds.dictate.get();
+        let room = (row.size.width - width).max(px(0.0));
+        let left = if microphone.size.width > px(0.0) && row.size.width > px(0.0) {
+            (microphone.center().x - row.left() - width / 2.0).clamp(px(0.0), room)
+        } else {
+            room
+        };
+        let measured_row = control.pill_row.clone();
         Some(
             div()
-                .flex()
-                .items_center()
-                .gap(px(8.0 * s))
-                .when(dot, |row| {
-                    row.child(
-                        div()
-                            .flex_shrink_0()
-                            .size(px(8.0 * s))
-                            .rounded_full()
-                            .bg(gpui::rgb(0xef4444)),
-                    )
-                })
+                .id("dictation-pill-row")
+                .relative()
+                .w_full()
+                .h(px(PILL_HEIGHT * s))
+                .flex_shrink_0()
                 .child(
-                    div()
-                        .flex_1()
-                        .min_w_0()
-                        .flex()
-                        .flex_wrap()
-                        .gap_x(px(6.0 * s))
-                        .child(
-                            div()
-                                .text_color(if failed {
-                                    gpui::rgb(0xef9999).into()
-                                } else {
-                                    p.primary
-                                })
-                                .child(label),
-                        )
-                        .when_some(detail, |row, detail| {
-                            row.child(div().text_color(p.muted).child(detail))
-                        }),
+                    canvas(
+                        move |bounds, window, _| {
+                            if measured_row.get() != bounds {
+                                measured_row.set(bounds);
+                                window.refresh();
+                            }
+                        },
+                        |_, _, _, _| {},
+                    )
+                    .absolute()
+                    .inset_0(),
                 )
-                .when(failed, |row| {
-                    row.child(button("dictation-retry", "Transcribe again", cx))
-                })
-                .child(close)
+                .child(pill.left(left))
                 .into_any_element(),
         )
     }

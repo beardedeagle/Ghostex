@@ -963,10 +963,11 @@ transcribes second: your voice is saved as a recording while you talk, and only
 after you stop is it turned into text with xAI's speech-to-text, so it needs an
 xAI API key in Settings > Voice agent (the key stays on this computer). A
 problem with xAI or the connection never loses what you said: when the
-transcription fails, the chat box says why, in xAI's own words when it gives
-any, and offers Transcribe again. While the
-chat box records, a row above it shows the time and Esc cancels; after you stop
-it shows Transcribing with an ✕ that cancels. A cancelled recording is still
+transcription fails, the chat box says so and offers Transcribe again (hover
+"Transcription failed" to read why, in xAI's own words when it gives any). In
+the chat box, a small pill right above the microphone shows what Dictate is
+doing: the recording time while you talk, then Transcribing. Its ✕ cancels, and
+so does Esc. A cancelled recording is still
 kept: rest the pointer on the microphone (or right-click it) and choose
 Transcribe previous to type the newest recording that has no text yet into the
 chat box. On the terminal bar, press the microphone again while it transcribes
@@ -975,8 +976,8 @@ in Settings > Voice agent > Dictation history. Dictate is not shown on Windows
 or Linux yet. On an Android phone, Dictate is in the chat box's toolbar or, when
 the toolbar is full, in its More actions menu (Stop dictating there ends it); it
 uses the key on the computer the chat lives on, keeps the recording on the phone
-until that computer has it, shows the same Recording, Transcribing and
-Transcribe again row above the chat box, and a long press on the microphone
+until that computer has it, shows Recording, Transcribing and Transcribe again
+in a row above the chat box, and a long press on the microphone
 offers Transcribe previous.
 A long code block shows its first lines and scrolls inside the block; the arrows
 button in the block's header shows the whole block, and again collapses it.

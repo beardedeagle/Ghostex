@@ -387,9 +387,6 @@ impl NativeChatView {
                     .into_any_element(),
             );
         }
-        if let Some(row) = self.render_dictation_row(p, cx) {
-            waiting.push(row);
-        }
         if let Some(notice) = self.render_notice(p, window, cx) {
             waiting.push(notice.into_any_element());
         }
@@ -612,6 +609,10 @@ impl NativeChatView {
             .when(!maximized, |this| this.child(content_measure));
         if !maximized && let Some(run_location) = self.render_run_location(p, cx) {
             waiting.push(run_location.into_any_element());
+        }
+        // Dictate's pill sits right above the box, centred on the microphone (dictation.rs).
+        if let Some(pill) = self.render_dictation_pill(p, cx) {
+            waiting.push(pill);
         }
         let card_above_box = card_above_box && waiting.is_empty();
         footer = footer.children(waiting);
