@@ -496,14 +496,20 @@ impl Conversation {
                 label,
                 outcome,
             } => {
-                self.to_client(json!({
+                let mut finished = json!({
                     "type": "tool",
                     "phase": "finished",
                     "callId": call_id,
                     "name": name,
                     "label": label,
                     "ok": outcome.ok,
-                }));
+                });
+                if outcome.ok {
+                    if let Some(session) = super::show::shown_session(&name, &outcome.output) {
+                        finished["session"] = session;
+                    }
+                }
+                self.to_client(finished);
                 if name == "recall_last_conversation" && outcome.ok {
                     self.memory_recalled();
                 }

@@ -28,6 +28,34 @@ pub(super) const FOLLOWING_TOOLS: &[&str] = &[
     "start_agent",
 ];
 
+/// The session a successful tool call showed, for the client's tool event: `{projectId,
+/// sessionId, title}`. Named whether or not the desktop switched, since a client the call runs on
+/// (the phone's "Open <session>" chip) shows it on its own.
+///
+/// CDXC:VoiceMode 2026-10-20 DECISION:
+/// User, on what showing a session means on the phone: "Show an 'Open <session>' chip on the voice screen" (the latest session the agent showed, replacing the previous one, gone when the call ends; tapping it opens that session's chat and the call keeps running; the phone never navigates on its own). And a call from the phone still switches the desktop: "Yes, unless someone is typing there", which is what `follow` does for every client, since the desktop answers the focus whoever holds the call.
+pub(super) fn shown_session(name: &str, output: &Value) -> Option<Value> {
+    if name != "show_session" && !FOLLOWING_TOOLS.contains(&name) {
+        return None;
+    }
+    let reference = output
+        .pointer("/session/ref")
+        .or_else(|| output.get("ref"))
+        .and_then(Value::as_str)?;
+    let (project_id, session_id) = reference.split_once(':')?;
+    // A new agent's result has no title yet: name it by its agent and project.
+    let title = output
+        .pointer("/session/title")
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .or_else(|| {
+            let agent = output.get("agent").and_then(Value::as_str)?;
+            let project = output.get("project").and_then(Value::as_str)?;
+            Some(format!("{agent} in {project}"))
+        })?;
+    Some(json!({"projectId": project_id, "sessionId": session_id, "title": title}))
+}
+
 /// `show_session`: the user asked to see it, so it switches even while they type.
 pub(super) async fn show_session(
     state: &Arc<AppState>,

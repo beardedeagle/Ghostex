@@ -2618,7 +2618,10 @@ microphone in Windows Settings > Privacy & security > Microphone.
 On an Android phone, the headset button in the top bar (on the session list
 and inside a session) starts the same conversation with the voice agent on the
 computer you are looking at. The key stays on that computer; the phone never
-stores one. The conversation keeps going while you move around the app, switch
+stores one. When the agent shows a session, the voice screen offers an
+"Open <session>" button that opens its chat while the conversation keeps
+going, and the computer's window switches to it too unless someone is typing
+there. The conversation keeps going while you move around the app, switch
 apps or lock the phone, with a "Voice mode on" notification that has Mute and
 Hang up, and it reconnects by itself after a short network drop. It talks
 through the phone's speaker, or a Bluetooth headset or car hands-free link
