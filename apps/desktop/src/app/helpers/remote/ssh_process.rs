@@ -70,6 +70,8 @@ pub(crate) fn gpui_remote_ssh_terminal_environment(
         })
         .collect();
     #[cfg(windows)]
+    let mut environment = environment;
+    #[cfg(windows)]
     environment.push((
         "GHOSTEX_REMOTE_SSH_CLIENT".to_string(),
         "windows".to_string(),

@@ -96,6 +96,27 @@ impl GhostexGpuiApp {
         )
     }
 
+    /// How far the sliding panel is across its own width (0 = fully out, 1 = hidden), and whether
+    /// a closing slide is still playing and so keeps the panel drawn.
+    #[cfg(not(target_os = "macos"))]
+    pub(crate) fn native_docs_slide_offset(&self) -> (f32, bool) {
+        let Some(slide) = self.native_docs.slide else {
+            return (0.0, false);
+        };
+        let duration = Self::native_docs_slide_duration().as_secs_f32();
+        let progress = if duration <= 0.0 {
+            1.0
+        } else {
+            (slide.started.elapsed().as_secs_f32() / duration).min(1.0)
+        };
+        let eased = crate::app::panel_motion::panel_motion_eased(progress);
+        if slide.opening {
+            (1.0 - eased, false)
+        } else {
+            (eased, progress < 1.0)
+        }
+    }
+
     pub(crate) fn native_docs_slide_running(&self) -> bool {
         self.native_docs
             .slide

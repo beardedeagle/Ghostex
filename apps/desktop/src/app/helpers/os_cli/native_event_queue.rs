@@ -259,25 +259,25 @@ pub(crate) fn gpui_completion_sound_path(file_name: &str) -> Option<PathBuf> {
     if !gpui_is_bundled_sound_file_name(file_name) {
         return None;
     }
-    if let Ok(executable) = env::current_exe()
-        && let Some(bundle_root) = find_app_bundle_root(&executable)
-    {
-        for directory in [
-            bundle_root.join("Contents/Resources/Web/sounds"),
-            bundle_root.join("Contents/Resources/sidebar/sounds"),
-        ] {
-            let candidate = directory.join(file_name);
+    if let Ok(executable) = env::current_exe() {
+        if let Some(bundle_root) = find_app_bundle_root(&executable) {
+            for directory in [
+                bundle_root.join("Contents/Resources/Web/sounds"),
+                bundle_root.join("Contents/Resources/sidebar/sounds"),
+            ] {
+                let candidate = directory.join(file_name);
+                if gpui_is_file(&candidate) {
+                    return Some(candidate);
+                }
+            }
+        }
+        // The Linux and Windows apps are flat folders (build-linux-app.sh, build-windows-app.ps1, build-windows-app-wsl.sh) that stage the sounds in resources/sounds beside the executable.
+        #[cfg(any(target_os = "linux", target_os = "windows"))]
+        if let Some(exe_dir) = executable.parent() {
+            let candidate = exe_dir.join("resources/sounds").join(file_name);
             if gpui_is_file(&candidate) {
                 return Some(candidate);
             }
-        }
-    }
-    // The Linux and Windows apps are flat folders (build-linux-app.sh, build-windows-app.ps1, build-windows-app-wsl.sh) that stage the sounds in resources/sounds beside the executable.
-    #[cfg(any(target_os = "linux", target_os = "windows"))]
-    if let Some(exe_dir) = executable.parent() {
-        let candidate = exe_dir.join("resources/sounds").join(file_name);
-        if gpui_is_file(&candidate) {
-            return Some(candidate);
         }
     }
 

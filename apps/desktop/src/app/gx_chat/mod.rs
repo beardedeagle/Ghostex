@@ -67,5 +67,8 @@ mod world;
 
 pub(crate) use identity::LOCAL_MACHINE_ID;
 pub(crate) use transport::current_model_catalog;
+/// The phone's host (packages/gpui-mobile) compiles this file and turns the touch composer on.
+#[allow(unused_imports)]
+pub(crate) use worker::set_touch_composer;
 pub(crate) use worker::{ChatHostHandle, set_endpoint};
 pub(crate) use world::ChatHostOutput;
