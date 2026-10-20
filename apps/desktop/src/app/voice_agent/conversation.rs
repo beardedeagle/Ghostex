@@ -2,7 +2,7 @@
 //! the echo-cancelled microphone streaming into it, the agent's audio playing back, and the state,
 //! captions and tool lines the voice panel draws.
 
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
 
 use futures::StreamExt as _;
@@ -12,6 +12,7 @@ use serde_json::{Value, json};
 
 use super::audio::{AudioStartError, VoiceAudio};
 use super::endpoint::local_voice_endpoint;
+use super::memory::{VoiceMemory, VoiceMemoryState};
 use super::panel::VoicePanelWindow;
 use crate::*;
 
@@ -26,6 +27,9 @@ const HANG_UP_GRACE: std::time::Duration = std::time::Duration::from_secs(3);
 const MAX_ROWS: usize = 60;
 /// A device change restarts the audio at most this many times per conversation.
 pub(super) const MAX_AUDIO_RESTARTS: u32 = 5;
+/// The speeds the panel's buttons and Settings › Voice agent offer (`voiceAgentSpeed`).
+pub(crate) const VOICE_AGENT_SPEEDS: [f32; 6] = [1.0, 1.2, 1.4, 1.6, 1.8, 2.0];
+const SPEED_SETTING: &str = "voiceAgentSpeed";
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) enum VoicePhase {
@@ -104,8 +108,29 @@ pub(crate) struct VoiceAgent {
     pub(crate) rows: Vec<VoiceRow>,
     pub(crate) muted: bool,
     pub(crate) problem: Option<VoiceProblem>,
-    /// "Grok · Eve", once `ready` named them.
-    pub(crate) voice_label: Option<String>,
+    /// `xai` or `openai`, once `ready` named it.
+    pub(crate) provider: Option<String>,
+    /// The voice the agent speaks with now, and the provider's voices (from `ready`).
+    pub(crate) voice: Option<String>,
+    pub(crate) voice_options: Vec<String>,
+    /// A voice sent to gxserver and not answered yet.
+    voice_requested: Option<String>,
+    /// A picked voice this conversation could not switch to: it speaks from the next one.
+    pub(crate) next_voice: Option<String>,
+    /// The panel shows the voice list instead of the transcript.
+    pub(crate) voice_picker_open: bool,
+    /// How fast the agent's audio plays (`voiceAgentSpeed`).
+    pub(crate) speed: f32,
+    /// Where the user dragged the panel: its gap to the window's trailing edge and its top, kept
+    /// for the rest of the app's run.
+    pub(crate) panel_place: Option<gpui::Point<Pixels>>,
+    /// Where the panel was when the current drag started, in the main window's content.
+    pub(crate) panel_drag_from: Option<gpui::Point<Pixels>>,
+    /// The remembered last conversation gxserver named in `ready`, and what the panel shows of it.
+    pub(crate) memory: Option<VoiceMemory>,
+    pub(crate) memory_state: VoiceMemoryState,
+    /// The "Remembering" line shows the whole summary.
+    pub(crate) memory_details_open: bool,
     link: Option<VoiceLink>,
     /// Bumped per conversation, so a late message of an earlier one is ignored.
     generation: u64,
@@ -139,6 +164,8 @@ struct LinkShared {
     /// Microphone audio flows only after `ready`.
     streaming: AtomicBool,
     muted: AtomicBool,
+    /// The playback speed as `f32` bits, for audio that (re)starts.
+    rate: AtomicU32,
     playback: Mutex<Playback>,
     sender: futures::channel::mpsc::UnboundedSender<VoiceMessage>,
 }
@@ -180,7 +207,17 @@ impl GhostexGpuiApp {
         agent.rows.clear();
         agent.problem = None;
         agent.tool_label = None;
-        agent.voice_label = None;
+        agent.provider = None;
+        agent.voice = None;
+        agent.voice_options.clear();
+        agent.voice_requested = None;
+        agent.next_voice = None;
+        agent.voice_picker_open = false;
+        agent.memory = None;
+        agent.memory_state = VoiceMemoryState::Hidden;
+        agent.memory_details_open = false;
+        agent.speed =
+            voice_agent_speed_setting(shared_settings::shared_sidebar_settings_snapshot().object());
         agent.muted = false;
         agent.state = "connecting".to_string();
         agent.hang_up_timer = None;
@@ -199,6 +236,7 @@ impl GhostexGpuiApp {
         let shared = Arc::new(LinkShared {
             streaming: AtomicBool::new(false),
             muted: AtomicBool::new(false),
+            rate: AtomicU32::new(self.voice_agent.speed.to_bits()),
             playback: Mutex::new(Playback::default()),
             sender,
         });
@@ -268,6 +306,17 @@ impl GhostexGpuiApp {
             stop_playback(&link.shared);
         }
         cx.notify();
+    }
+
+    /// Sends a control frame on the live conversation's socket; false when none is live.
+    pub(super) fn send_voice_agent_frame(&self, frame: &Value) -> bool {
+        match &self.voice_agent.link {
+            Some(link) if self.voice_agent.phase == VoicePhase::Live => {
+                link.socket.send_json(frame);
+                true
+            }
+            _ => false,
+        }
     }
 
     /// Lets go of the socket and the audio, without telling gxserver.
@@ -356,13 +405,27 @@ impl GhostexGpuiApp {
                 if self.voice_agent.phase == VoicePhase::Starting {
                     self.voice_agent.phase = VoicePhase::Live;
                 }
-                self.voice_agent.voice_label = Some(voice_label(
-                    event["provider"].as_str().unwrap_or_default(),
-                    event["voice"].as_str().unwrap_or_default(),
-                ));
+                self.voice_agent.provider = Some(text("provider"));
+                self.voice_agent.voice = Some(text("voice"));
+                self.voice_agent.voice_options = event["voiceOptions"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|voice| voice.as_str().map(str::to_string))
+                    .collect();
+                self.apply_voice_agent_memory_ready(event);
                 if let Some(link) = &self.voice_agent.link {
                     link.shared.streaming.store(true, Ordering::SeqCst);
+                    link.socket.send_json(&json!({
+                        "type": "playbackRate",
+                        "rate": self.voice_agent.speed,
+                    }));
                 }
+                // A voice picked while connecting.
+                self.apply_voice_agent_settings(
+                    shared_settings::shared_sidebar_settings_snapshot().object(),
+                    cx,
+                );
             }
             "caption" => {
                 let role = if event["role"].as_str() == Some("user") {
@@ -373,6 +436,9 @@ impl GhostexGpuiApp {
                 let item_id = text("itemId");
                 let caption = text("text");
                 let cut = event["cut"].as_bool().unwrap_or(false);
+                if role == VoiceRole::User && !caption.trim().is_empty() {
+                    self.voice_agent_memory_user_spoke();
+                }
                 let position = self.voice_agent.rows.iter().rposition(
                     |row| matches!(row, VoiceRow::Caption { item_id: id, .. } if *id == item_id),
                 );
@@ -408,6 +474,32 @@ impl GhostexGpuiApp {
                     }
                 }
             }
+            "voice" => {
+                let voice = text("voice");
+                let agent = &mut self.voice_agent;
+                if agent.voice_requested.as_deref() == Some(voice.as_str()) {
+                    agent.voice_requested = None;
+                }
+                if event["applied"].as_str() == Some("now") {
+                    agent.voice = Some(voice);
+                    agent.next_voice = None;
+                } else if agent.next_voice.as_deref() != Some(voice.as_str()) {
+                    agent.next_voice = Some(voice.clone());
+                    let provider = provider_name(agent.provider.as_deref().unwrap_or_default());
+                    let name = voice_name(&voice);
+                    let text = if event["reason"].as_str() == Some("providerLocksVoice") {
+                        format!(
+                            "{provider} keeps a call's voice once it has spoken, so {name} speaks from your next conversation."
+                        )
+                    } else {
+                        format!(
+                            "{provider} didn't switch voices mid-call, so {name} speaks from your next conversation."
+                        )
+                    };
+                    self.push_voice_agent_row(VoiceRow::Announcement { text });
+                }
+            }
+            "memory" => self.apply_voice_agent_memory_event(event),
             "interrupted" => {
                 if let Some(link) = &self.voice_agent.link
                     && let Some(played_ms) = event["playedMs"].as_u64()
@@ -488,6 +580,89 @@ impl GhostexGpuiApp {
         self.voice_agent.phase = VoicePhase::Idle;
         self.voice_agent.problem = None;
         self.sync_voice_agent_panel(cx);
+    }
+
+    /// The panel's speed buttons: saves `voiceAgentSpeed`, which the settings hook applies.
+    pub(crate) fn set_voice_agent_speed(&mut self, speed: f32, cx: &mut gpui::Context<Self>) {
+        self.save_voice_agent_setting(SPEED_SETTING, json!(speed_setting_value(speed)), cx);
+    }
+
+    /// The panel's voice list: saves the voice for the conversation's provider, which the
+    /// settings hook applies.
+    pub(crate) fn pick_voice_agent_voice(&mut self, voice: String, cx: &mut gpui::Context<Self>) {
+        self.voice_agent.voice_picker_open = false;
+        let key = voice_setting_key(self.voice_agent.provider.as_deref().unwrap_or_default());
+        self.save_voice_agent_setting(key, json!(voice), cx);
+        self.sync_voice_agent_panel(cx);
+    }
+
+    pub(crate) fn toggle_voice_agent_voice_picker(&mut self, cx: &mut gpui::Context<Self>) {
+        let agent = &mut self.voice_agent;
+        agent.voice_picker_open = !agent.voice_picker_open && !agent.voice_options.is_empty();
+        self.sync_voice_agent_panel(cx);
+    }
+
+    fn save_voice_agent_setting(&mut self, key: &str, value: Value, cx: &mut gpui::Context<Self>) {
+        self.handle_gpui_app_modal_update_settings_patch_message(
+            &json!({ "patch": { key: value }, "source": "voicePanel" }),
+            cx,
+        );
+    }
+
+    /// Brings the open conversation in line with the saved speed and voice, after any settings
+    /// save (the panel's buttons, Settings › Voice agent, `ghostex settings set`).
+    ///
+    /// CDXC:VoiceMode 2026-10-20 WHY: the speed is applied on this computer (the audio is stretched with its pitch kept, `native/macos/GpuiVoiceAudio.m`), at once and mid-sentence, for both providers; gxserver only learns the rate (`playbackRate`) so its playback clock stays right. A voice is sent to gxserver, which switches when the provider allows and otherwise answers that it speaks from the next conversation.
+    pub(crate) fn apply_voice_agent_settings(
+        &mut self,
+        settings: &serde_json::Map<String, Value>,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        let speed = voice_agent_speed_setting(settings);
+        let agent = &mut self.voice_agent;
+        let Some(link) = agent.link.as_ref() else {
+            agent.speed = speed;
+            return;
+        };
+        let mut changed = false;
+        if speed != agent.speed {
+            agent.speed = speed;
+            link.shared.rate.store(speed.to_bits(), Ordering::SeqCst);
+            if let Ok(playback) = link.shared.playback.lock()
+                && let Some(audio) = &playback.audio
+            {
+                audio.set_rate(speed);
+            }
+            if agent.phase == VoicePhase::Live {
+                link.socket
+                    .send_json(&json!({ "type": "playbackRate", "rate": speed }));
+            }
+            changed = true;
+        }
+        if agent.phase == VoicePhase::Live
+            && let Some(provider) = agent.provider.as_deref()
+            && let Some(voice) = settings
+                .get(voice_setting_key(provider))
+                .and_then(Value::as_str)
+                .map(str::to_ascii_lowercase)
+            && agent.voice_options.contains(&voice)
+        {
+            if agent.voice.as_deref() == Some(voice.as_str()) {
+                if agent.next_voice.take().is_some() {
+                    changed = true;
+                }
+            } else if agent.voice_requested.as_deref() != Some(voice.as_str())
+                && agent.next_voice.as_deref() != Some(voice.as_str())
+            {
+                link.socket
+                    .send_json(&json!({ "type": "voice", "voice": voice }));
+                agent.voice_requested = Some(voice);
+                changed = true;
+            }
+        }
+        if changed {
+            self.sync_voice_agent_panel(cx);
+        }
     }
 
     /// Settings › Voice agent, from the panel's "Open Settings".
@@ -592,6 +767,7 @@ fn start_audio(socket: Arc<VoiceSocket>, shared: Arc<LinkShared>) {
             );
             let message = match started {
                 Ok(audio) => {
+                    audio.set_rate(f32::from_bits(shared.rate.load(Ordering::SeqCst)));
                     if let Ok(mut playback) = shared.playback.lock()
                         && !playback.closed
                     {
@@ -605,17 +781,50 @@ fn start_audio(socket: Arc<VoiceSocket>, shared: Arc<LinkShared>) {
         });
 }
 
-/// "Grok · Eve" / "GPT Realtime · Marin".
-fn voice_label(provider: &str, voice: &str) -> String {
-    let provider = match provider {
+/// "Grok" / "GPT Realtime", for "Grok · Eve".
+pub(crate) fn provider_name(provider: &str) -> &'static str {
+    match provider {
         "openai" => "GPT Realtime",
         _ => "Grok",
-    };
+    }
+}
+
+/// "eve" → "Eve".
+pub(crate) fn voice_name(voice: &str) -> String {
     let mut chars = voice.chars();
     match chars.next() {
-        Some(first) => format!("{provider} · {}{}", first.to_uppercase(), chars.as_str()),
-        None => provider.to_string(),
+        Some(first) => format!("{}{}", first.to_uppercase(), chars.as_str()),
+        None => String::new(),
     }
+}
+
+fn voice_setting_key(provider: &str) -> &'static str {
+    match provider {
+        "openai" => "voiceAgentOpenaiVoice",
+        _ => "voiceAgentXaiVoice",
+    }
+}
+
+/// `voiceAgentSpeed` as one of the offered speeds (1 when unset or unknown).
+pub(crate) fn voice_agent_speed_setting(settings: &serde_json::Map<String, Value>) -> f32 {
+    let saved = match settings.get(SPEED_SETTING) {
+        Some(Value::String(text)) => text.trim().parse::<f32>().ok(),
+        Some(Value::Number(number)) => number.as_f64().map(|speed| speed as f32),
+        _ => None,
+    };
+    saved
+        .and_then(|saved| {
+            VOICE_AGENT_SPEEDS
+                .into_iter()
+                .find(|speed| (speed - saved).abs() < 0.01)
+        })
+        .unwrap_or(1.0)
+}
+
+/// The setting's stored value for a speed: "1", "1.2", … "2".
+fn speed_setting_value(speed: f32) -> String {
+    let text = format!("{speed:.1}");
+    text.strip_suffix(".0").map(str::to_string).unwrap_or(text)
 }
 
 /// gxserver's sentence for an error frame (a missing key's names the selected provider), with the

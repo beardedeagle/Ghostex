@@ -206,8 +206,10 @@ pub fn write_notes(state: &mut ChatState, id: &str, text: &str) -> Vec<Effect> {
     save(state, id)
 }
 
-/// The answers as the agent receives them, keyed like the page kit's.
-fn answers(form: &QuestionForm, drafts: &[QuestionDraft], notes: &str) -> Value {
+/// The answers as the agent receives them, keyed like the page kit's. gxserver's voice agent
+/// builds its answers with this too (server/src/voice_agent/question_forms.rs), so they match a
+/// form sent from the chat.
+pub fn answers(form: &QuestionForm, drafts: &[QuestionDraft], notes: &str) -> Value {
     let mut out = Map::new();
     for (asked, draft) in form.questions.iter().zip(drafts) {
         let note = draft.other.trim();

@@ -14,6 +14,7 @@ use serde_json::{json, Value};
 use tokio::sync::mpsc;
 use tokio_tungstenite::tungstenite::Message as WsMessage;
 
+use super::memory;
 use super::prompt;
 use super::provider::{Provider, ProviderSocket, BYTES_PER_MS};
 use super::registry;
@@ -37,6 +38,11 @@ const TICK: Duration = Duration::from_millis(100);
 /// How long gxserver waits for the provider's transcript of a cut reply before it sends its own
 /// estimate.
 const CUT_CAPTION_WAIT: Duration = Duration::from_millis(1_200);
+/// How long gxserver waits for the provider to accept a voice change before it keeps the voice
+/// for the next conversation.
+const VOICE_CHANGE_WAIT: Duration = Duration::from_secs(5);
+/// The client playback rates gxserver accepts (the desktop offers 1x to 2x).
+const PLAYBACK_RATE_RANGE: std::ops::RangeInclusive<f64> = 0.5..=3.0;
 
 pub(super) enum ClientFrame {
     Json(Value),
@@ -70,6 +76,14 @@ pub(super) enum Input {
         played_ms: u64,
     },
     End,
+    /// The user picked another voice for the current provider.
+    Voice(String),
+    /// How fast the attached client plays the agent's audio (1.0 is as the provider sent it).
+    PlaybackRate(f64),
+    /// Hand the remembered last conversation to the agent (Continue).
+    ContinueMemory,
+    /// The user forgot the remembered conversation.
+    MemoryForgotten,
     Announce(Vec<Announcement>),
     ToolDone {
         call_id: String,
@@ -92,6 +106,13 @@ struct ItemAudio {
 struct CutPending {
     item_id: String,
     estimate: String,
+    deadline: Instant,
+}
+
+/// A voice change sent to the provider and not answered yet.
+struct VoiceChange {
+    voice: String,
+    event_id: String,
     deadline: Instant,
 }
 
@@ -129,6 +150,15 @@ pub(super) struct Conversation {
     state: Arc<AppState>,
     provider: Provider,
     voice: String,
+    /// The `session.update` the conversation was configured with, resent with another voice.
+    session_update: Value,
+    voice_change: Option<VoiceChange>,
+    voice_changes: u64,
+    /// The provider has sent agent audio (OpenAI's voice is fixed from then on).
+    audio_sent: bool,
+    /// CDXC:VoiceMode 2026-10-20 WHY:
+    /// The speed buttons stretch the agent's audio on the client (pitch kept), so a reply plays in less time than the provider's audio lasts. gxserver's playback clock (when the reply ends, how much was heard at an interruption, when a tool follow-up may start) runs at this rate; `playedMs` and `audio_end_ms` stay in the provider's audio time.
+    playback_rate: f64,
     sink: SplitSink<ProviderSocket, WsMessage>,
     stream: SplitStream<ProviderSocket>,
     rx: mpsc::UnboundedReceiver<Input>,
@@ -159,6 +189,8 @@ pub(super) struct Conversation {
     memory: Arc<tools::ToolMemory>,
     /// The reply in progress was asked for by an announcement, not by the user.
     announcing: bool,
+    /// What was said and done, for the summary made when the call ends.
+    call_log: memory::CallLog,
 }
 
 enum Ended {
@@ -171,17 +203,24 @@ impl Conversation {
         state: Arc<AppState>,
         provider: Provider,
         voice: String,
+        session_update: Value,
         socket: ProviderSocket,
         tx: mpsc::UnboundedSender<Input>,
         rx: mpsc::UnboundedReceiver<Input>,
     ) -> Self {
         let (sink, stream) = socket.split();
         let now = Instant::now();
+        let call_log = memory::CallLog::new(&state.paths, &id, provider);
         Self {
             id,
             state,
             provider,
             voice,
+            session_update,
+            voice_change: None,
+            voice_changes: 0,
+            audio_sent: false,
+            playback_rate: 1.0,
             sink,
             stream,
             rx,
@@ -209,6 +248,7 @@ impl Conversation {
             typed_turns: 0,
             memory: Arc::new(tools::ToolMemory::default()),
             announcing: false,
+            call_log,
         }
     }
 
@@ -257,6 +297,7 @@ impl Conversation {
             let _ = out.send(ClientFrame::Close);
         }
         let _ = self.sink.send(WsMessage::Close(None)).await;
+        memory::call_ended(self.state.clone(), std::mem::take(&mut self.call_log));
     }
 
     /// Sends a JSON frame to the attached client; captions and announcements are kept for a
@@ -269,6 +310,7 @@ impl Conversation {
         let keep = matches!(kind, "caption" | "announcement" | "tool")
             && (kind != "caption" || frame.get("final").and_then(Value::as_bool) == Some(true));
         if keep {
+            self.call_log.record(&frame);
             self.replay.push_back(frame.clone());
             while self.replay.len() > REPLAY_LIMIT {
                 self.replay.pop_front();
@@ -331,7 +373,10 @@ impl Conversation {
                     "conversationId": self.id,
                     "provider": self.provider.id(),
                     "voice": self.voice,
+                    "voiceOptions": self.provider.voices(),
                     "resumed": resumed,
+                    "memory": memory::client_view(&self.state.paths),
+                    "memoryContinued": self.call_log.continued(),
                     "idleHangupMs": IDLE_HANGUP.as_millis() as u64,
                     "audio": {"encoding": "pcm16", "sampleRate": super::provider::SAMPLE_RATE, "channels": 1},
                 })));
@@ -345,6 +390,8 @@ impl Conversation {
                 ));
                 self.client = Some((attach_id, out));
                 self.detached_since = None;
+                // Each client reports its own playback rate after `ready`.
+                self.playback_rate = 1.0;
                 registry::set_attached(&self.id, true);
             }
             Input::Detach { attach_id } => {
@@ -408,6 +455,23 @@ impl Conversation {
                     self.truncate(item_id, played_ms.min(total)).await?;
                 }
             }
+            Input::Voice(voice) => self.change_voice(voice).await?,
+            Input::PlaybackRate(rate) => {
+                let rate = rate.clamp(*PLAYBACK_RATE_RANGE.start(), *PLAYBACK_RATE_RANGE.end());
+                let now = Instant::now();
+                if self.playback_end > now {
+                    // What is still queued now plays at the new rate.
+                    let left = self.playback_end.duration_since(now).as_secs_f64();
+                    self.playback_end =
+                        now + Duration::from_secs_f64(left * self.playback_rate / rate);
+                }
+                self.playback_rate = rate;
+            }
+            Input::ContinueMemory => self.continue_memory().await?,
+            Input::MemoryForgotten => {
+                self.call_log.set_continued(false);
+                self.to_client(json!({"type": "memory", "state": "forgotten"}));
+            }
             Input::End => {
                 return Err(Ended::Reason(
                     "user",
@@ -440,6 +504,9 @@ impl Conversation {
                     "label": label,
                     "ok": outcome.ok,
                 }));
+                if name == "recall_last_conversation" && outcome.ok {
+                    self.memory_recalled();
+                }
                 self.provider_send(json!({
                     "type": "conversation.item.create",
                     "item": {"type": "function_call_output", "call_id": call_id, "output": outcome.output.to_string()},
@@ -475,7 +542,9 @@ impl Conversation {
         let now = Instant::now();
         if self.playback_end > now {
             if let Some(item) = &self.item {
-                let unplayed = self.playback_end.duration_since(now).as_millis() as u64;
+                let unplayed = (self.playback_end.duration_since(now).as_secs_f64()
+                    * 1000.0
+                    * self.playback_rate) as u64;
                 let estimate = item.audio_ms.saturating_sub(unplayed);
                 let item_id = item.item_id.clone();
                 if notify || self.client.is_some() {
@@ -537,6 +606,16 @@ impl Conversation {
             .is_some_and(|cut| cut.deadline <= now)
         {
             self.send_cut_caption(None);
+        }
+        if self
+            .voice_change
+            .as_ref()
+            .is_some_and(|change| change.deadline <= now)
+        {
+            let change = self.voice_change.take();
+            if let Some(change) = change {
+                self.voice_answer(&change.voice, "nextConversation", "noAnswer");
+            }
         }
         if let Some((item_id, estimate, deadline)) = self.truncate_pending.clone() {
             if deadline <= now {
@@ -663,8 +742,10 @@ impl Conversation {
                 if let Some(item) = &mut self.item {
                     item.audio_ms += ms;
                 }
+                self.audio_sent = true;
                 if self.client.is_some() {
-                    self.playback_end = self.playback_end.max(now) + Duration::from_millis(ms);
+                    self.playback_end = self.playback_end.max(now)
+                        + Duration::from_secs_f64(ms as f64 / 1000.0 / self.playback_rate);
                     if let Some((_, out)) = &self.client {
                         let _ = out.send(ClientFrame::Audio(Bytes::from(audio)));
                     }
@@ -705,6 +786,25 @@ impl Conversation {
                     return Ok(());
                 }
                 self.to_client(json!({"type": "caption", "role": "agent", "itemId": item_id, "text": text.trim(), "final": true}));
+            }
+            "session.updated" => {
+                if let Some(change) = self.voice_change.take() {
+                    // xAI's `session.updated` does not echo the voice; only a different one refuses.
+                    match self.provider.session_voice(&event) {
+                        Some(voice) if voice != change.voice => {
+                            super::warn(
+                                &self.state,
+                                "voiceAgent.voiceChangeIgnored",
+                                json!({"provider": self.provider.id(), "voice": change.voice, "sessionVoice": voice}),
+                            );
+                            self.voice_answer(&change.voice, "nextConversation", "refused");
+                        }
+                        _ => {
+                            self.voice = change.voice.clone();
+                            self.voice_answer(&change.voice, "now", "");
+                        }
+                    }
+                }
             }
             "conversation.item.truncated" => {
                 if self
@@ -770,6 +870,22 @@ impl Conversation {
                     .get("code")
                     .and_then(Value::as_str)
                     .unwrap_or_default();
+                let event_id = error
+                    .get("event_id")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default();
+                if let Some(change) = self
+                    .voice_change
+                    .take_if(|change| !event_id.is_empty() && change.event_id == event_id)
+                {
+                    super::warn(
+                        &self.state,
+                        "voiceAgent.voiceChangeRefused",
+                        json!({"provider": self.provider.id(), "voice": change.voice, "code": code, "message": error.get("message")}),
+                    );
+                    self.voice_answer(&change.voice, "nextConversation", "refused");
+                    return Ok(());
+                }
                 // Cancelling a reply that just finished is harmless.
                 if code != "response_cancel_not_active"
                     && code != "conversation_already_has_active_response"
@@ -790,6 +906,96 @@ impl Conversation {
             _ => {}
         }
         Ok(())
+    }
+
+    /// Continue: adds the remembered conversation as a `[Ghostex memory]` message (the way
+    /// announcements go in) and asks for a reply, which recaps it in a sentence.
+    async fn continue_memory(&mut self) -> Result<(), Ended> {
+        let Some(remembered) = memory::read(&self.state.paths) else {
+            self.to_client(json!({"type": "memory", "state": "none"}));
+            return Ok(());
+        };
+        if !self.call_log.continued() {
+            self.call_log.set_continued(true);
+            self.last_talk = Instant::now();
+            if self.response_active {
+                self.provider_send(json!({"type": "response.cancel"}))
+                    .await?;
+            }
+            self.stop_playback(false).await?;
+            self.provider_send(json!({
+                "type": "conversation.item.create",
+                "item": {"type": "message", "role": "user", "content": [{"type": "input_text", "text": memory::continue_message(&remembered)}]},
+            }))
+            .await?;
+            self.create_response_now().await?;
+        }
+        self.to_client(
+            json!({"type": "memory", "state": "continued", "memory": remembered.to_client()}),
+        );
+        Ok(())
+    }
+
+    /// The agent fetched the remembered conversation itself ("pick up where we left off"): the
+    /// clients show it as continued, and this call's summary carries it forward.
+    fn memory_recalled(&mut self) {
+        let Some(remembered) = memory::read(&self.state.paths) else {
+            return;
+        };
+        self.call_log.set_continued(true);
+        self.to_client(
+            json!({"type": "memory", "state": "continued", "memory": remembered.to_client()}),
+        );
+    }
+
+    /// Switches the conversation to `voice` when the provider can, else keeps it for the next
+    /// conversation (the client saved it as the setting). Answers with a `voice` frame.
+    async fn change_voice(&mut self, voice: String) -> Result<(), Ended> {
+        let voice = voice.trim().to_ascii_lowercase();
+        if !self.provider.voices().contains(&voice.as_str()) {
+            self.to_client(json!({"type": "error", "code": "badRequest", "message": format!("{voice} is not a {} voice.", self.provider.label()), "fatal": false}));
+            return Ok(());
+        }
+        if voice == self.voice {
+            self.voice_change = None;
+            self.voice_answer(&voice, "now", "");
+            return Ok(());
+        }
+        if self.provider.voice_locked_after_audio() && self.audio_sent {
+            self.voice_answer(&voice, "nextConversation", "providerLocksVoice");
+            return Ok(());
+        }
+        self.voice_changes += 1;
+        let event_id = format!("ghostex-voice-{}", self.voice_changes);
+        let update = self
+            .provider
+            .with_voice(&self.session_update, &voice, &event_id);
+        self.provider_send(update).await?;
+        self.voice_change = Some(VoiceChange {
+            voice,
+            event_id,
+            deadline: Instant::now() + VOICE_CHANGE_WAIT,
+        });
+        Ok(())
+    }
+
+    /// `applied` is `now` (the next words use `voice`) or `nextConversation` (this conversation
+    /// keeps `current`); `reason` says why not now.
+    fn voice_answer(&mut self, voice: &str, applied: &str, reason: &str) {
+        if applied == "now" {
+            self.session_update = self.provider.with_voice(&self.session_update, voice, "");
+            if let Some(session) = self.session_update.as_object_mut() {
+                session.remove("event_id");
+            }
+        }
+        let current = self.voice.clone();
+        self.to_client(json!({
+            "type": "voice",
+            "voice": voice,
+            "current": current,
+            "applied": applied,
+            "reason": reason,
+        }));
     }
 
     fn start_tool(&mut self, call_id: String, name: String, arguments: String) {

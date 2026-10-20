@@ -283,7 +283,7 @@ pub fn settle(state: &mut ChatState, event: &Event, context: &ChatContext) -> Ve
         _ => {}
     }
     effects.extend(request_catalogs(state));
-    effects.extend(crate::composer::draft_sync::settle(state));
+    effects.extend(crate::composer::draft_sync::settle(state, context));
     effects.extend(crate::composer::files_links::advance_jump(state, context));
     // The two latches `NativeComposerChrome.projection` sets on the way to its answer. They live
     // here because `document()` holds `&ChatState` and could only set them on a clone.

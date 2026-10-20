@@ -197,6 +197,16 @@ async fn run_conversation_socket(
                         played_ms: value.get("playedMs").and_then(Value::as_u64).unwrap_or(0),
                     },
                     "end" => Input::End,
+                    "continueMemory" => Input::ContinueMemory,
+                    "forgetMemory" => {
+                        super::memory::forget(&state);
+                        continue;
+                    }
+                    "voice" => Input::Voice(field("voice")),
+                    "playbackRate" => match value.get("rate").and_then(Value::as_f64) {
+                        Some(rate) if rate.is_finite() => Input::PlaybackRate(rate),
+                        _ => continue,
+                    },
                     _ => continue,
                 }
             }
@@ -257,6 +267,16 @@ async fn start_conversation(
                 ),
             )
             .await;
+            return None;
+        }
+        Err(ConnectError::Refused(message)) => {
+            super::warn_error(
+                state,
+                "voiceAgent.providerRefused",
+                &message,
+                json!({"provider": provider.id()}),
+            );
+            fail(socket, "providerRefused", &message).await;
             return None;
         }
         Err(ConnectError::Unavailable(message)) => {
@@ -345,8 +365,16 @@ async fn start_conversation(
     let (tx, rx) = mpsc::unbounded_channel();
     registry::insert(&id, tx.clone(), provider);
     announcements::ensure_running(state);
-    let conversation =
-        Conversation::new(id, state.clone(), provider, voice, upstream, tx.clone(), rx);
+    let conversation = Conversation::new(
+        id,
+        state.clone(),
+        provider,
+        voice,
+        update,
+        upstream,
+        tx.clone(),
+        rx,
+    );
     tokio::spawn(conversation.run());
     Some(tx)
 }

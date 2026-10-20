@@ -79,6 +79,7 @@ mod ffi {
             count: usize,
         );
         pub(super) fn GhostexVoiceAudioFlush(handle: *mut c_void) -> i64;
+        pub(super) fn GhostexVoiceAudioSetRate(handle: *mut c_void, rate: f32);
         pub(super) fn GhostexVoiceAudioStop(handle: *mut c_void);
     }
 }
@@ -212,8 +213,18 @@ impl VoiceAudio {
         let _ = pcm;
     }
 
+    /// Plays the agent's audio `rate` times as fast, pitch kept (the panel's speed buttons).
+    pub(crate) fn set_rate(&self, rate: f32) {
+        #[cfg(target_os = "macos")]
+        unsafe {
+            ffi::GhostexVoiceAudioSetRate(self.handle as *mut std::ffi::c_void, rate)
+        };
+        #[cfg(not(target_os = "macos"))]
+        let _ = rate;
+    }
+
     /// Stops the agent's audio at once and drops what was queued. Answers how many samples were
-    /// dropped.
+    /// dropped, in the provider's samples whatever the playback rate.
     pub(crate) fn flush(&self) -> u64 {
         #[cfg(target_os = "macos")]
         return unsafe { ffi::GhostexVoiceAudioFlush(self.handle as *mut std::ffi::c_void) }.max(0)

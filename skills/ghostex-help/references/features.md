@@ -958,12 +958,26 @@ the terminal's attachment action offers the same choices.
 Dictate, on a Mac, is the microphone button in the chat box (left of the
 Terminal View button) and on the terminal bar: press it, talk, and press it
 again to stop. What you said goes into the chat box (or is typed into that
-session's terminal) and is never sent by itself. It turns speech into text with
-xAI's speech-to-text, so it needs an xAI API key in Settings > Voice agent; the
-key stays on this computer. Dictate is not shown on Windows or Linux yet. On an
-Android phone, Dictate is in the chat box's toolbar or, when the toolbar is
-full, in its More actions menu (Stop dictating there ends it); it uses the
-key on the computer the chat lives on.
+session's terminal) and is never sent by itself. Dictate records first and
+transcribes second: your voice is saved as a recording while you talk, and only
+after you stop is it turned into text with xAI's speech-to-text, so it needs an
+xAI API key in Settings > Voice agent (the key stays on this computer). A
+problem with xAI or the connection never loses what you said: when the
+transcription fails, the chat box says why, in xAI's own words when it gives
+any, and offers Transcribe again. While the
+chat box records, a row above it shows the time and Esc cancels; after you stop
+it shows Transcribing with an ✕ that cancels. A cancelled recording is still
+kept: rest the pointer on the microphone (or right-click it) and choose
+Transcribe previous to type the newest recording that has no text yet into the
+chat box. On the terminal bar, press the microphone again while it transcribes
+to cancel, and right-click it for Transcribe previous. Every recording is listed
+in Settings > Voice agent > Dictation history. Dictate is not shown on Windows
+or Linux yet. On an Android phone, Dictate is in the chat box's toolbar or, when
+the toolbar is full, in its More actions menu (Stop dictating there ends it); it
+uses the key on the computer the chat lives on, keeps the recording on the phone
+until that computer has it, shows the same Recording, Transcribing and
+Transcribe again row above the chat box, and a long press on the microphone
+offers Transcribe previous.
 A long code block shows its first lines and scrolls inside the block; the arrows
 button in the block's header shows the whole block, and again collapses it.
 A long message you sent (more than 20 lines or 2,000 characters, such as a
@@ -2526,21 +2540,57 @@ which ones are waiting on you, have it read you the last messages of a session,
 tell it to send a prompt to a session (it sends right away and says what it
 sent, but for anything risky or destructive, like deleting files or removing a
 project, it reads the prompt back and sends only after you say yes), answer a question card or approve or deny a permission prompt, or start
-a new agent in a project you name. Name sessions and projects the way you
+a new agent in a project you name. Say "draft it" or "let me check it first"
+and it puts the message in that session's chat box without sending it: edit it
+and press Enter yourself, or say "send it" and it sends the draft as it is now,
+your edits included (if you already had unsent text there, it asks whether to
+add to it or replace it). To send an agent a screenshot, copy the image to the
+clipboard on your computer and ask the voice agent to include it: it tells the
+agent to read the image from the clipboard (this works only for agents on that
+computer, not on a remote machine). Name sessions and projects the way you
 would say them ("the sidebar one"); it asks when two match. While the
 conversation is open it tells you when a session finishes its turn or starts
 waiting on a question or an approval. The conversation keeps going while you
 switch projects and chats. A small panel under the header shows what it is
 doing, live captions of both sides and the tools it runs, with Mute, Stop
-talking and Hang up; talking over it also stops it. It hangs up by itself after
-5 minutes with nobody talking.
+talking and Hang up; talking over it also stops it. Drag the panel by its top
+bar to put it anywhere in the window (it stays there until you quit Ghostex),
+and scroll it to read back the conversation. Click the voice name ("Grok ·
+Eve") to pick another voice: Grok switches right away when it can, and GPT
+Realtime keeps a call's voice once it has spoken, so the new voice starts with
+your next conversation (the panel says which). The speed buttons under the
+captions (1×, 1.2×, 1.4×, 1.6×, 1.8×, 2×) make it talk faster without
+changing its pitch, at once, even mid-sentence. It hangs up by itself after 5
+minutes with nobody talking.
+
+It remembers your last conversation as a short summary, kept on your computer
+until the next conversation replaces it. When you start a new conversation, the
+panel shows a "Last conversation" card: press Continue and the agent says in a
+sentence where things stood and carries on from there, or press Start fresh (or
+just start talking) to begin a new topic. You can also say "pick up where we
+left off" at any time. Once it continues, the panel shows "Remembering last
+conversation"; click it to read the whole summary. Forget on the card, or the
+Forget button in Settings > Voice agent > Memory, deletes the summary for the
+desktop and the phone. The summary is written by a small text model of the same
+provider, with the same key, right after a conversation ends.
 
 It needs an API key: pick xAI Grok Voice (the default) or OpenAI GPT Realtime
 in Settings > Voice agent, pick a voice, and paste the provider's key there
 (xAI keys come from console.x.ai, OpenAI keys from platform.openai.com). The
 key is checked with the provider before it is saved, kept encrypted on this
 computer and never shown again. The provider bills your account while a
-conversation is open. Ghostex cancels the agent's own voice from the speakers,
+conversation is open. When the provider refuses a conversation (for example
+xAI answering "payment required" because an X subscription's included usage
+is used up for the moment), the panel shows the provider's own reason.
+
+Settings > Voice agent > Dictation history lists every recording you made with
+Dictate, on the computer or the phone, newest first and grouped by day, with
+its text, "This transcription was dismissed" with Recover for one you
+cancelled, or why it failed with Try again. Hover a row to Play it, Download
+the audio, Copy its text, Transcribe it (the text is copied to your clipboard
+too) or Delete it; the search field finds dictations by their words.
+Recordings stay on this computer until you delete them, about 0.3 MB for each
+minute of speech. Ghostex cancels the agent's own voice from the speakers,
 so it works without headphones. Not available on Windows or Linux yet.
 
 On an Android phone, the headset button in the top bar (on the session list
@@ -2551,8 +2601,12 @@ apps or lock the phone, with a "Voice mode on" notification that has Mute and
 Hang up, and it reconnects by itself after a short network drop. It talks
 through the phone's speaker, or a Bluetooth headset or car hands-free link
 when one is connected, and pauses while a call or a navigation prompt plays.
+The phone's voice screen has the same voice picker (tap the voice name under
+the computer's name) and speed buttons; both save the computer's settings, so
+the desktop and the phone talk with the same voice at the same speed. It shows
+the same "Last conversation" card with Continue, Start fresh and Forget.
 
-Settings: `voiceAgentProvider`, `voiceAgentXaiVoice`, `voiceAgentOpenaiVoice`.
+Settings: `voiceAgentProvider`, `voiceAgentXaiVoice`, `voiceAgentOpenaiVoice`, `voiceAgentSpeed`; the Memory row (`voiceAgentMemory`) forgets the remembered conversation.
 
 ## Remote machines, web, and mobile
 
@@ -2760,12 +2814,15 @@ Pi, OMP and Amp sessions ring the same way: a finished turn marks the session
 done (for Pi and OMP after any automatic retry or queued follow-up), stopping it
 with Esc or a provider error does not, and a question or confirmation a Pi or OMP
 extension asks marks the session as waiting for you.
-When an agent ends its turn by asking you questions in chat (a question form or
-a question page), the session shows the pink question dot in the sidebar, the
-phone's session list and `ghostex sessions` ("answer requested"), and you get one
-notification for that turn, labelled Needs input with how many questions wait.
-The dot stays while you look at the session and goes away once you answer, send
-the session anything else, or the agent starts a new turn.
+While an agent has questions in its chat that you have not answered (question
+forms and question pages, from any turn), the session shows the pink question dot
+in the sidebar, the phone's session list and `ghostex sessions` ("answer
+requested"), also while the agent keeps working. A turn that asks new questions
+sends one notification, labelled Needs input with how many it asked. The dot stays
+while you look at the session and goes away once every question is answered (from
+the form, the page, or Voice mode), or the agent withdraws or asks them again.
+Voice mode can read these questions to you and answer them by their tag ("answer
+Q335 with the first option").
 Every copy shows a small "Copied!" bubble at the pointer for a moment, whether
 it came from a terminal, a chat message, a copy button, or a menu. Copy Sound is
 off by default. Enable it under Settings > Notifications > Sounds to also hear a

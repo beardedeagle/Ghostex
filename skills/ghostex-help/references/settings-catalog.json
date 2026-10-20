@@ -11536,6 +11536,55 @@
       "agentWritable": true
     },
     {
+      "key": "voiceAgentSpeed",
+      "title": "Speaking speed",
+      "subtitle": "How fast the voice agent talks, from normal speed to twice as fast. The voice keeps its pitch, and the speed buttons in the voice panel change it too, even mid-sentence.",
+      "tab": "voiceAgent",
+      "tabTitle": "Voice agent",
+      "section": "provider",
+      "sectionTitle": "Voice agent",
+      "type": "enum",
+      "default": "1",
+      "options": [
+        {
+          "label": "1×",
+          "value": "1"
+        },
+        {
+          "label": "1.2×",
+          "value": "1.2"
+        },
+        {
+          "label": "1.4×",
+          "value": "1.4"
+        },
+        {
+          "label": "1.6×",
+          "value": "1.6"
+        },
+        {
+          "label": "1.8×",
+          "value": "1.8"
+        },
+        {
+          "label": "2×",
+          "value": "2"
+        }
+      ],
+      "agentWritable": true
+    },
+    {
+      "key": "voiceAgentMemory",
+      "title": "Last conversation",
+      "subtitle": "A short summary of your last voice conversation, kept on this computer until the next conversation replaces it. Press Continue in the voice panel, or say \"pick up where we left off\", to carry on from it. Forget deletes it.",
+      "tab": "voiceAgent",
+      "tabTitle": "Voice agent",
+      "section": "memory",
+      "sectionTitle": "Memory",
+      "type": "ui",
+      "agentWritable": false
+    },
+    {
       "key": "voiceAgentXaiKey",
       "title": "xAI API key",
       "subtitle": "Your xAI API key for Grok Voice and for the chat box's dictation microphone. Kept encrypted on this computer; your phone uses it through this computer and never stores it.",
@@ -11554,6 +11603,17 @@
       "tabTitle": "Voice agent",
       "section": "keys",
       "sectionTitle": "API keys",
+      "type": "ui",
+      "agentWritable": false
+    },
+    {
+      "key": "voiceAgentDictationHistory",
+      "title": "Dictation history",
+      "subtitle": "Every recording you made with the Dictate microphone, newest first, with its text. Play, download or delete a recording, copy its text, recover one you cancelled, or transcribe one that failed (the text is copied to your clipboard too). Recordings stay on this computer until you delete them.",
+      "tab": "voiceAgent",
+      "tabTitle": "Voice agent",
+      "section": "dictations",
+      "sectionTitle": "Dictation history",
       "type": "ui",
       "agentWritable": false
     },

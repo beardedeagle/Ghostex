@@ -46,7 +46,14 @@ pub struct DraftSyncState {
     pub offered_at: Option<String>,
     /// The last edit, waiting for the pause, with the draft version it was typed under.
     pub pending_push: Option<(String, Value)>,
+    /// The synced draft's content the rule last ran for, so a voice draft that replaces it can tell
+    /// that the composer holds nothing gxserver does not already keep in Recovered.
+    pub last_synced_content: Option<String>,
 }
+
+/// The `originClientId` gxserver's voice agent saves its drafts under
+/// (`server/src/voice_agent/tools.rs`, `VOICE_DRAFT_CLIENT_ID`).
+pub const VOICE_DRAFT_CLIENT_ID: &str = "gxserver-voice-agent";
 
 /// `editDraft`: the edit's identity becomes the local version the offer compares against, and the
 /// push waits for typing to pause.
@@ -99,9 +106,9 @@ pub fn answered(state: &mut ChatState) {
 
 /// Family d's settle for the two rules: the push after a pause, and the offer of a new synced
 /// draft.
-pub fn settle(state: &mut ChatState) -> Vec<Effect> {
-    let effects = push_after_pause(state);
-    offer_synced_draft(state);
+pub fn settle(state: &mut ChatState, context: &ChatContext) -> Vec<Effect> {
+    let mut effects = push_after_pause(state);
+    effects.extend(offer_synced_draft(state, context));
     effects
 }
 
@@ -139,16 +146,18 @@ fn already_synced(state: &ChatState, version: &Value) -> bool {
 
 /// The React composer's effect on `[draftClientId, syncedDraft]`, from the boot read on: another
 /// client's newer, non-empty draft that differs from what is typed here is offered, never written
-/// over the field; anything else withdraws this rule's offer and counts as handled.
-fn offer_synced_draft(state: &mut ChatState) {
+/// over the field; anything else withdraws this rule's offer and counts as handled. Two voice
+/// rules run first: this composer's draft sent from elsewhere clears it, and a voice draft that
+/// loses nothing typed here goes straight into the field.
+fn offer_synced_draft(state: &mut ChatState, context: &ChatContext) -> Vec<Effect> {
     // Before the boot read the client id and the local draft identity are unknown, so every draft
     // would look foreign. The revision is left unseen, so the rule runs once the read lands.
     if !state.composer.boot_read {
-        return;
+        return Vec::new();
     }
     let revision = state.session.synced_draft_revision;
     if state.composer.draft_sync.seen_revision == revision {
-        return;
+        return Vec::new();
     }
     state.composer.draft_sync.seen_revision = revision;
     let Some(incoming) = state
@@ -157,12 +166,23 @@ fn offer_synced_draft(state: &mut ChatState) {
         .as_ref()
         .and_then(|draft| serde_json::from_value::<SyncedDraft>(draft.clone()).ok())
     else {
-        return;
+        return Vec::new();
     };
     // `if (pendingDraftTransfersRef.current > 0) return;`: a send or handoff is moving this
     // composer's text right now, so the field is not what the comparison below should read.
     if state.composer.submitting.is_some() {
-        return;
+        return Vec::new();
+    }
+    let previous_content = state
+        .composer
+        .draft_sync
+        .last_synced_content
+        .replace(incoming.content.clone());
+    if let Some(effects) = clear_sent_elsewhere(state, context, &incoming) {
+        return effects;
+    }
+    if let Some(effects) = adopt_voice_draft(state, context, &incoming, previous_content) {
+        return effects;
     }
     let offer = should_offer_draft(
         Some(&incoming),
@@ -181,8 +201,14 @@ fn offer_synced_draft(state: &mut ChatState) {
             extra: Default::default(),
         });
         state.composer.draft_sync.offered_at = Some(incoming.updated_at);
-        return;
+        return Vec::new();
     }
+    withdraw_and_handle(state, &incoming);
+    Vec::new()
+}
+
+/// Withdraws this rule's offer and counts `incoming` as handled.
+fn withdraw_and_handle(state: &mut ChatState, incoming: &SyncedDraft) {
     if state.composer.draft_sync.offered_at.take().is_some() {
         state.composer.incoming_draft = None;
     }
@@ -190,6 +216,114 @@ fn offer_synced_draft(state: &mut ChatState) {
         &incoming.updated_at,
         state.composer.draft_sync.last_handled_at.as_deref(),
     ) {
-        state.composer.draft_sync.last_handled_at = Some(incoming.updated_at);
+        state.composer.draft_sync.last_handled_at = Some(incoming.updated_at.clone());
     }
+}
+
+/// The revision this composer shows was sent by another client (the voice agent's "send it", or
+/// a phone sending a draft typed here): gxserver's receipt covers it, so the field is cleared the
+/// way a handoff that took this exact revision clears it. A later revision typed here stays.
+///
+/// CDXC:VoiceMode 2026-10-20 WHY:
+/// No rule cleared a composer whose draft another client sent, so after the voice agent sent a draft the composer kept showing it, and Enter would have sent it a second time under a fresh identity (`unconsumed_version`).
+fn clear_sent_elsewhere(
+    state: &mut ChatState,
+    context: &ChatContext,
+    incoming: &SyncedDraft,
+) -> Option<Vec<Effect>> {
+    let local = state.composer.version.clone()?;
+    let sent =
+        incoming.consumed_drafts.iter().flatten().any(|receipt| {
+            receipt.draft_id == local.draft_id && receipt.revision >= local.revision
+        });
+    if !sent || state.composer.text.trim().is_empty() {
+        return None;
+    }
+    withdraw_and_handle(state, incoming);
+    let record = crate::composer::storage::StoredDraftRecord {
+        text: state.composer.text.clone(),
+        updated_at: Some(context.now_millis() as f64),
+        version: Some(local.clone()),
+        submitted: true,
+        parked: false,
+    };
+    state.composer.text = String::new();
+    state.composer.stored_draft = Some(record.clone());
+    Some(vec![
+        Effect::WriteStorage {
+            key: crate::composer::storage::draft_key(&state.identity.session_key),
+            value: Some(crate::composer::storage::encode_stored_draft(&record)),
+            durable: false,
+        },
+        Effect::HostAction {
+            action: "draftSubmitted".to_string(),
+            params: Box::new(json!({"method": "handoff", "version": local})),
+        },
+    ])
+}
+
+/// A draft the voice agent wrote goes into the field, under its identity, when that loses nothing
+/// typed here: the field is empty, the draft starts with what it holds (the agent added to it), or
+/// it holds exactly the draft gxserver had before (the user told the agent to replace it, and
+/// gxserver keeps the old text in Recovered). Anything else falls through to the offer bar.
+///
+/// CDXC:VoiceMode 2026-10-20 WHY:
+/// The user asked for voice drafts that "sit there unsent so the user can review it" (the DECISION on `draft_prompt` in server/src/voice_agent/tools.rs). Behind "Another saved draft is available" the draft would not be sitting in the chat box, so a voice draft goes into every composer that shows the chat whenever no typed text is lost.
+/// SEE-ALSO: server/src/voice_agent/tools.rs (`draft_prompt`, `send_draft`); the hosts' `draftReceived` arms (apps/desktop/src/app/native_chat/state.rs, apps/mobile/app/src/chat/rust/composer.ts).
+fn adopt_voice_draft(
+    state: &mut ChatState,
+    context: &ChatContext,
+    incoming: &SyncedDraft,
+    previous_content: Option<String>,
+) -> Option<Vec<Effect>> {
+    if incoming.origin_client_id != VOICE_DRAFT_CLIENT_ID || incoming.parked == Some(true) {
+        return None;
+    }
+    let version = incoming.version.clone()?;
+    let consumed = incoming.consumed_drafts.iter().flatten().any(|receipt| {
+        receipt.draft_id == version.draft_id && receipt.revision >= version.revision
+    });
+    let current = state.composer.text.clone();
+    if consumed
+        || incoming.content.trim().is_empty()
+        || incoming.content == current
+        || !is_newer_draft_stamp(
+            &incoming.updated_at,
+            state.composer.draft_sync.last_handled_at.as_deref(),
+        )
+    {
+        return None;
+    }
+    let loses_nothing = current.trim().is_empty()
+        || incoming.content.starts_with(&current)
+        || previous_content.as_deref() == Some(current.as_str());
+    if !loses_nothing {
+        return None;
+    }
+    withdraw_and_handle(state, incoming);
+    let record = crate::composer::storage::StoredDraftRecord {
+        text: incoming.content.clone(),
+        updated_at: Some(context.now_millis() as f64),
+        version: Some(version.clone()),
+        submitted: false,
+        parked: false,
+    };
+    state.composer.text = incoming.content.clone();
+    state.composer.version = Some(version.clone());
+    state.composer.stored_draft = Some(record.clone());
+    Some(vec![
+        Effect::WriteStorage {
+            key: crate::composer::storage::draft_key(&state.identity.session_key),
+            value: Some(crate::composer::storage::encode_stored_draft(&record)),
+            durable: false,
+        },
+        Effect::HostAction {
+            action: "draftReceived".to_string(),
+            params: Box::new(json!({
+                "content": incoming.content,
+                "version": version,
+                "previous": current,
+            })),
+        },
+    ])
 }

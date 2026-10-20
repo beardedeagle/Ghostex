@@ -6,13 +6,15 @@ use crate::rows::{row, section, Page, Section};
 ///
 /// CDXC:VoiceMode 2026-10-20 DECISION:
 /// User: the voice agent is built into the app, not an extension, so it is a plain Settings page and not a built-in extension card with an on/off switch.
+/// CDXC:VoiceMode 2026-10-20 DECISION:
+/// User: "on the voice mode screen, the user should be able to click on Eve to change the voice, and click buttons to change the voice agent's speed, with options 1, 1.2, 1.4, 1.6, 1.8, and 2." `voiceAgentSpeed` (default 1) is that speed; the voice panel's buttons and this row save the same setting.
 /// CDXC:VoiceMode 2026-10-20 SEE-ALSO:
 /// gxserver reads `voiceAgentProvider` and the two voice keys (server/src/voice_agent/keys.rs, which seals the API keys in its vault), and answers `/api/readVoiceAgent` and `/api/setVoiceAgentKey`; the key rows are UI rows with no stored value. Client contract: docs/2026-10-20/voice-mode/voice-agent-client-contract.md.
 pub(crate) fn page() -> Page {
     Page {
         id: "voiceAgent",
         title: "Voice agent",
-        sections: vec![provider(), keys()],
+        sections: vec![provider(), memory(), keys(), dictations()],
     }
 }
 
@@ -36,6 +38,21 @@ pub(crate) fn provider() -> Section {
                 opt("Ballad", "ballad"), opt("Coral", "coral"), opt("Echo", "echo"), opt("Sage", "sage"),
                 opt("Shimmer", "shimmer"), opt("Verse", "verse"),
             ]),
+            row("voiceAgentSpeed", "Speaking speed", "How fast the voice agent talks, from normal speed to twice as fast. The voice keeps its pitch, and the speed buttons in the voice panel change it too, even mid-sentence.").options(&[
+                opt("1×", "1"), opt("1.2×", "1.2"), opt("1.4×", "1.4"), opt("1.6×", "1.6"), opt("1.8×", "1.8"), opt("2×", "2"),
+            ]),
+        ],
+    )
+}
+
+/// CDXC:VoiceMode 2026-10-20 SEE-ALSO:
+/// The remembered last conversation is kept by gxserver (server/src/voice_agent/memory.rs); this UI row shows it and forgets it through `/api/forgetVoiceAgentMemory`, like the voice panel's Forget.
+pub(crate) fn memory() -> Section {
+    section(
+        "memory",
+        "Memory",
+        vec![
+            row("voiceAgentMemory", "Last conversation", "A short summary of your last voice conversation, kept on this computer until the next conversation replaces it. Press Continue in the voice panel, or say \"pick up where we left off\", to carry on from it. Forget deletes it."),
         ],
     )
 }
@@ -47,6 +64,18 @@ pub(crate) fn keys() -> Section {
         vec![
             row("voiceAgentXaiKey", "xAI API key", "Your xAI API key for Grok Voice and for the chat box's dictation microphone. Kept encrypted on this computer; your phone uses it through this computer and never stores it."),
             row("voiceAgentOpenaiKey", "OpenAI API key", "Your OpenAI API key for GPT Realtime. Kept encrypted on this computer and never shown again after you save it."),
+        ],
+    )
+}
+
+/// CDXC:VoiceMode 2026-10-20 SEE-ALSO:
+/// Dictate's recordings are kept by gxserver (server/src/voice_agent/recordings.rs); this UI row is the page's Dictation history section (`/api/listDictations`), with no stored value.
+pub(crate) fn dictations() -> Section {
+    section(
+        "dictations",
+        "Dictation history",
+        vec![
+            row("voiceAgentDictationHistory", "Dictation history", "Every recording you made with the Dictate microphone, newest first, with its text. Play, download or delete a recording, copy its text, recover one you cancelled, or transcribe one that failed (the text is copied to your clipboard too). Recordings stay on this computer until you delete them."),
         ],
     )
 }

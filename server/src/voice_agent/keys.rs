@@ -18,6 +18,9 @@ use crate::vault;
 pub(super) const PROVIDER_SETTING: &str = "voiceAgentProvider";
 const XAI_VOICE_SETTING: &str = "voiceAgentXaiVoice";
 const OPENAI_VOICE_SETTING: &str = "voiceAgentOpenaiVoice";
+pub(super) const SPEED_SETTING: &str = "voiceAgentSpeed";
+/// The speaking speeds clients offer (`voiceAgentSpeed`); clients play the audio this much faster.
+pub(super) const SPEEDS: [f64; 6] = [1.0, 1.2, 1.4, 1.6, 1.8, 2.0];
 
 /// The shared settings file, read fresh (Settings writes it while gxserver runs).
 pub(super) fn read_settings(paths: &GxserverPaths) -> Value {
@@ -53,6 +56,31 @@ pub(super) fn selected_voice(paths: &GxserverPaths, provider: Provider) -> Strin
         })
         .map(str::to_ascii_lowercase)
         .unwrap_or_else(|| provider.default_voice().to_string())
+}
+
+/// `voiceAgentSpeed` as one of [`SPEEDS`] (1 when unset or unknown).
+pub(super) fn selected_speed(paths: &GxserverPaths) -> f64 {
+    let settings = read_settings(paths);
+    let saved = match settings.get(SPEED_SETTING) {
+        Some(Value::String(text)) => text.trim().parse::<f64>().ok(),
+        Some(Value::Number(number)) => number.as_f64(),
+        _ => None,
+    };
+    saved
+        .and_then(|saved| {
+            SPEEDS
+                .into_iter()
+                .find(|speed| (speed - saved).abs() < 0.01)
+        })
+        .unwrap_or(1.0)
+}
+
+/// The setting key of `provider`'s voice.
+pub(super) fn voice_setting(provider: Provider) -> &'static str {
+    match provider {
+        Provider::Xai => XAI_VOICE_SETTING,
+        Provider::OpenAi => OPENAI_VOICE_SETTING,
+    }
 }
 
 fn sealed_path(paths: &GxserverPaths, provider: Provider) -> PathBuf {

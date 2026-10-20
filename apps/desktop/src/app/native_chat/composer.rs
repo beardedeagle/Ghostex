@@ -244,6 +244,19 @@ impl NativeChatView {
                     )
                 },
             )
+            // Resting on the microphone offers Transcribe previous; right-click always opens its menu.
+            .when(action == "dictate", |this| {
+                this.on_hover(cx.listener(|this, hovered: &bool, window, cx| {
+                    this.hover_dictation(*hovered, window, cx);
+                }))
+                .on_mouse_down(
+                    gpui::MouseButton::Right,
+                    cx.listener(|this, event: &gpui::MouseDownEvent, window, cx| {
+                        this.show_dictation_menu(event.position, window, cx);
+                        cx.stop_propagation();
+                    }),
+                )
+            })
             .when(action == "stashPrompt", |this| {
                 this.on_mouse_down(
                     gpui::MouseButton::Right,
@@ -373,6 +386,9 @@ impl NativeChatView {
                     .child(super::suggestions::stack_marker(&stack_top))
                     .into_any_element(),
             );
+        }
+        if let Some(row) = self.render_dictation_row(p, cx) {
+            waiting.push(row);
         }
         if let Some(notice) = self.render_notice(p, window, cx) {
             waiting.push(notice.into_any_element());

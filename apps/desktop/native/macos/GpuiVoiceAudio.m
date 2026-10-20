@@ -11,6 +11,7 @@
 
 #import <AVFoundation/AVFoundation.h>
 #import <Foundation/Foundation.h>
+#include <math.h>
 #include <stdatomic.h>
 #include <stdint.h>
 #include <string.h>
@@ -37,6 +38,7 @@ static const double GhostexVoiceSampleRate = 24000.0;
 @interface GhostexVoiceAudio : NSObject
 @property(nonatomic, strong) AVAudioEngine *engine;
 @property(nonatomic, strong) AVAudioPlayerNode *player;
+@property(nonatomic, strong) AVAudioUnitTimePitch *timePitch;
 @property(nonatomic, strong) AVAudioFormat *playbackFormat;
 @property(nonatomic, strong) id configurationObserver;
 @end
@@ -210,9 +212,20 @@ int32_t GhostexVoiceAudioStart(int32_t voiceProcessing, int32_t playback,
                                            sampleRate:GhostexVoiceSampleRate
                                              channels:1
                                           interleaved:NO];
+      /* CDXC:VoiceMode 2026-10-20 WHY: the speed buttons go up to 2x, past what either provider
+         generates (xAI 0.7-1.5, OpenAI 0.25-1.5 and only between turns), so the agent's audio is
+         sped up here with its pitch kept, which also changes it mid-reply. The player still counts
+         the provider's samples, so the played position reported at an interruption stays in the
+         provider's audio time. Bypassed at 1x. */
+      AVAudioUnitTimePitch *timePitch = [AVAudioUnitTimePitch new];
+      timePitch.rate = 1.0f;
+      timePitch.bypass = YES;
       [engine attachNode:player];
-      [engine connect:player to:engine.mainMixerNode format:playbackFormat];
+      [engine attachNode:timePitch];
+      [engine connect:player to:timePitch format:playbackFormat];
+      [engine connect:timePitch to:engine.mainMixerNode format:playbackFormat];
       audio.player = player;
+      audio.timePitch = timePitch;
       audio.playbackFormat = playbackFormat;
     }
     [engine prepare];
@@ -281,6 +294,24 @@ void GhostexVoiceAudioEnqueue(void *handle, const int16_t *samples, size_t count
   }
 }
 
+/* Plays the agent's audio `rate` times as fast (1 is as sent), keeping its pitch. */
+void GhostexVoiceAudioSetRate(void *handle, float rate) {
+  if (handle == NULL || !(rate > 0.0f)) {
+    return;
+  }
+  @autoreleasepool {
+    GhostexVoiceAudio *audio = (__bridge GhostexVoiceAudio *)handle;
+    @synchronized(audio) {
+      AVAudioUnitTimePitch *timePitch = audio.timePitch;
+      if (timePitch == nil) {
+        return;
+      }
+      timePitch.rate = rate;
+      timePitch.bypass = fabsf(rate - 1.0f) < 0.001f;
+    }
+  }
+}
+
 /* Stops playback at once and drops everything queued. Returns how many samples were dropped. */
 int64_t GhostexVoiceAudioFlush(void *handle) {
   if (handle == NULL) {
@@ -322,6 +353,7 @@ void GhostexVoiceAudioStop(void *handle) {
       }
       [audio.engine stop];
       audio.player = nil;
+      audio.timePitch = nil;
       audio.engine = nil;
     }
   }

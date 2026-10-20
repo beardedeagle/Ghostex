@@ -58,6 +58,8 @@ pub(super) struct SessionInfo {
     /// The attention event of the turn the agent's Stop hook last finished (a new id per turn);
     /// `None` while the session is not in a finished-turn attention or its agent has no hooks.
     pub(super) turn_event: Option<String>,
+    /// Its agent has a chat (a transcript Ghostex reads); without one it is only a terminal.
+    pub(super) has_chat: bool,
 }
 
 impl SessionInfo {
@@ -155,6 +157,20 @@ pub(super) fn list_sessions(state: &AppState) -> Result<Vec<SessionInfo>, String
             );
             let (state, waiting) = match thread {
                 ThreadState::Working => (VoiceState::Working, None),
+                // A finished turn that left questions in its chat waits on the user too
+                // (server/src/session_chat_open_questions.rs).
+                ThreadState::Finished
+                    if crate::session_chat_open_questions::open_question_count(session) > 0 =>
+                {
+                    let count = crate::session_chat_open_questions::open_question_count(session);
+                    (
+                        VoiceState::WaitingOnQuestion,
+                        Some(match count {
+                            1 => "It has 1 open question in its chat.".to_string(),
+                            count => format!("It has {count} open questions in its chat."),
+                        }),
+                    )
+                }
                 ThreadState::Finished => (VoiceState::Finished, None),
                 ThreadState::Sleeping => (VoiceState::Sleeping, None),
                 ThreadState::Waiting => {
@@ -185,6 +201,8 @@ pub(super) fn list_sessions(state: &AppState) -> Result<Vec<SessionInfo>, String
                 waiting,
                 last_active_at: text(session, "lastActiveAt"),
                 turn_event: turn_event(session),
+                has_chat: crate::session_chat_follower::session_chat_agent_for_session(session)
+                    .is_some(),
             })
         })
         .collect();

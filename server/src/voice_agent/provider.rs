@@ -144,13 +144,82 @@ impl Provider {
     }
 }
 
+impl Provider {
+    /// The conversation's `session.update` again with another voice, for a voice change mid-call.
+    /// The whole configuration is resent rather than only the voice, so a provider that replaces
+    /// the session on update (xAI does not say whether it merges) keeps its tools and prompt.
+    pub(super) fn with_voice(self, session_update: &Value, voice: &str, event_id: &str) -> Value {
+        let mut update = session_update.clone();
+        update["event_id"] = json!(event_id);
+        match self {
+            Self::Xai => update["session"]["voice"] = json!(voice),
+            Self::OpenAi => update["session"]["audio"]["output"]["voice"] = json!(voice),
+        }
+        update
+    }
+
+    /// The voice a `session.updated` event says the session now speaks with.
+    pub(super) fn session_voice(self, event: &Value) -> Option<String> {
+        let pointer = match self {
+            Self::Xai => "/session/voice",
+            Self::OpenAi => "/session/audio/output/voice",
+        };
+        event
+            .pointer(pointer)
+            .and_then(Value::as_str)
+            .map(str::to_ascii_lowercase)
+    }
+
+    /// CDXC:VoiceMode 2026-10-20 WHY:
+    /// OpenAI documents that the voice "cannot be changed during the session once the model has responded with audio at least once" (`session.audio.output.voice`), so a voice picked after the first reply is kept for the next conversation instead of being sent and refused. xAI documents no such limit, so gxserver asks Grok and reports what it answered.
+    pub(super) fn voice_locked_after_audio(self) -> bool {
+        matches!(self, Self::OpenAi)
+    }
+}
+
 /// Why a provider socket could not be opened.
 pub(super) enum ConnectError {
     BadKey,
     Unavailable(String),
+    /// The provider answered with an error status; the sentence to show, with the provider's own
+    /// explanation when it sent one.
+    Refused(String),
 }
 
-async fn open(url: &str, key: &str) -> Result<ProviderSocket, ConnectError> {
+/// The provider's own explanation in an error answer's body: `error.message`, `error`, `message`
+/// or `detail` of a JSON body, else short plain text.
+fn error_body_text(body: Option<&[u8]>) -> Option<String> {
+    let text = String::from_utf8_lossy(body?).trim().to_string();
+    if text.is_empty() {
+        return None;
+    }
+    let explained = match serde_json::from_str::<Value>(&text) {
+        Ok(json) => ["/error/message", "/error", "/message", "/detail"]
+            .iter()
+            .find_map(|pointer| json.pointer(pointer).and_then(Value::as_str))
+            .map(|text| text.trim().to_string())?,
+        Err(_) if text.starts_with('<') => return None,
+        Err(_) => text,
+    };
+    let explained: String = explained.chars().take(300).collect();
+    (!explained.is_empty()).then_some(explained)
+}
+
+/// CDXC:VoiceMode 2026-10-20 WHY:
+/// An xAI account on The X Subscription draws API usage from the plan's included pool, and xAI answered HTTP 402 for a few minutes and then served again (live, 2026-10-20). The panel says what the provider said; without a body it never claims the account is out of credit.
+pub(super) fn refused_sentence(label: &str, status: u16, body: Option<&[u8]>) -> String {
+    match (status, error_body_text(body)) {
+        (402, Some(detail)) => format!("{label} didn't accept this request: {detail}"),
+        (402, None) if label == "xAI" => "xAI didn't accept this request right now (payment required). If you use Grok through your X subscription, its included usage may be used up for the moment; check grok.com/dashboard.".to_string(),
+        (402, None) => format!("{label} didn't accept this request right now (payment required). Check your {label} billing."),
+        (429, Some(detail)) => format!("{label} is limiting requests right now: {detail}"),
+        (429, None) => format!("{label} is limiting requests right now. Try again in a moment."),
+        (status, Some(detail)) => format!("{label} answered HTTP {status}: {detail}"),
+        (status, None) => format!("{label} answered HTTP {status}."),
+    }
+}
+
+async fn open(url: &str, key: &str, label: &str) -> Result<ProviderSocket, ConnectError> {
     let mut request = url
         .into_client_request()
         .map_err(|error| ConnectError::Unavailable(error.to_string()))?;
@@ -166,8 +235,10 @@ async fn open(url: &str, key: &str) -> Result<ProviderSocket, ConnectError> {
         Ok(Err(tokio_tungstenite::tungstenite::Error::Http(response))) => {
             match response.status().as_u16() {
                 401 | 403 => Err(ConnectError::BadKey),
-                status => Err(ConnectError::Unavailable(format!(
-                    "The provider answered HTTP {status}."
+                status => Err(ConnectError::Refused(refused_sentence(
+                    label,
+                    status,
+                    response.body().as_deref(),
                 ))),
             }
         }
@@ -179,7 +250,7 @@ pub(super) async fn connect_realtime(
     provider: Provider,
     key: &str,
 ) -> Result<ProviderSocket, ConnectError> {
-    open(provider.realtime_url(), key).await
+    open(provider.realtime_url(), key, provider.label()).await
 }
 
 /// xAI's streaming speech-to-text: raw PCM in binary frames, `transcript.partial` events back.
@@ -193,5 +264,5 @@ pub(super) async fn connect_dictation(
     if let Some(language) = language {
         url.push_str(&format!("&language={language}"));
     }
-    open(&url, key).await
+    open(&url, key, Provider::Xai.label()).await
 }

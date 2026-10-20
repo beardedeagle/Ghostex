@@ -4,8 +4,11 @@
 //! it) and never shown again; the page only learns whether each provider has one
 //! (`/api/readVoiceAgent`).
 //!
+//! The Memory row shows the remembered last voice conversation and forgets it
+//! (`/api/forgetVoiceAgentMemory`).
+//!
 //! CDXC:VoiceMode 2026-10-20 DECISION: User: the API keys live on the computer, kept by gxserver; Settings › Voice agent is a plain Settings page, not an extension card.
-//! SEE-ALSO: server/src/voice_agent/http.rs, server/src/voice_agent/keys.rs.
+//! SEE-ALSO: server/src/voice_agent/http.rs, server/src/voice_agent/keys.rs, server/src/voice_agent/memory.rs.
 use super::super::super::native_modal_kit::*;
 use super::super::catalog::{SettingOption, settings_catalog};
 use super::super::fields::{
@@ -35,8 +38,11 @@ const SAVE_TIMEOUT: Duration = Duration::from_secs(30);
 const PROVIDER: &str = "voiceAgentProvider";
 const XAI_VOICE: &str = "voiceAgentXaiVoice";
 const OPENAI_VOICE: &str = "voiceAgentOpenaiVoice";
+const SPEED: &str = "voiceAgentSpeed";
 const XAI_KEY: &str = "voiceAgentXaiKey";
 const OPENAI_KEY: &str = "voiceAgentOpenaiKey";
+const MEMORY: &str = "voiceAgentMemory";
+const DICTATION_HISTORY: &str = "voiceAgentDictationHistory";
 
 pub(crate) fn voice_agent_tab_view(
     store: &Entity<SettingsStore>,
@@ -92,6 +98,13 @@ pub(crate) struct VoiceAgentTab {
     xai: KeyField,
     openai: KeyField,
     read_error: Option<String>,
+    /// The remembered last conversation (`memory` of `/api/readVoiceAgent`); `None` until read.
+    memory: Option<serde_json::Value>,
+    memory_pending: bool,
+    memory_busy: bool,
+    memory_error: Option<String>,
+    /// Dictation history, the last section (`voice_agent_history.rs`).
+    history: Entity<super::voice_agent_history::DictationHistory>,
 }
 
 impl SettingsPage for VoiceAgentTab {
@@ -118,12 +131,21 @@ impl VoiceAgentTab {
                 busy: false,
                 note: None,
             };
+        let history = {
+            let store = store.clone();
+            cx.new(|cx| super::voice_agent_history::DictationHistory::new(store, window, cx))
+        };
         let mut tab = Self {
+            history,
             store,
             fields: FieldStates::default(),
             xai: key_field("Paste your xAI API key", window, cx),
             openai: key_field("Paste your OpenAI API key", window, cx),
             read_error: None,
+            memory: None,
+            memory_pending: false,
+            memory_busy: false,
+            memory_error: None,
         };
         tab.read_status(cx);
         tab
@@ -152,6 +174,9 @@ impl VoiceAgentTab {
                             page.xai.configured = status["keys"]["xai"]["configured"].as_bool();
                             page.openai.configured =
                                 status["keys"]["openai"]["configured"].as_bool();
+                            page.memory = Some(status["memory"].clone());
+                            page.memory_pending =
+                                status["memorySummaryPending"].as_bool().unwrap_or(false);
                         }
                         Err(error) => page.read_error = Some(error),
                     }
@@ -218,6 +243,98 @@ impl VoiceAgentTab {
             cx,
         );
         cx.notify();
+    }
+
+    fn forget_memory(&mut self, cx: &mut Context<Self>) {
+        self.memory_busy = true;
+        self.memory_error = None;
+        let page = cx.entity().downgrade();
+        store_gxserver_rpc(
+            &self.store,
+            "/api/forgetVoiceAgentMemory",
+            json!({}),
+            READ_TIMEOUT,
+            move |result, cx| {
+                let _ = page.update(cx, |page, cx| {
+                    page.memory_busy = false;
+                    match result {
+                        Ok(_) => {
+                            page.memory = Some(serde_json::Value::Null);
+                            page.memory_pending = false;
+                        }
+                        Err(error) => page.memory_error = Some(error),
+                    }
+                    cx.notify();
+                });
+            },
+            cx,
+        );
+        cx.notify();
+    }
+
+    fn memory_row(
+        &mut self,
+        p: &super::super::palette::SettingsPalette,
+        cx: &mut Context<Self>,
+    ) -> Option<AnyElement> {
+        let (title, subtitle, _) = Self::catalog_row(MEMORY)?;
+        let remembered = self.memory.as_ref().filter(|memory| memory.is_object());
+        let status: String = match (&self.memory_error, remembered) {
+            (Some(error), _) => error.clone(),
+            (None, Some(memory)) => {
+                let when = memory["endedAt"]
+                    .as_str()
+                    .and_then(|at| chrono::DateTime::parse_from_rfc3339(at).ok())
+                    .map(|at| {
+                        at.with_timezone(&chrono::Local)
+                            .format("%-d %b, %H:%M")
+                            .to_string()
+                    })
+                    .unwrap_or_default();
+                format!("{when}: {}", memory["gist"].as_str().unwrap_or_default())
+            }
+            (None, None) if self.memory_pending => {
+                "Saving a summary of the last conversation…".to_string()
+            }
+            (None, None) if self.memory.is_some() => "Nothing remembered yet.".to_string(),
+            (None, None) => String::new(),
+        };
+        let can_forget = remembered.is_some() || self.memory_pending;
+        let failed = self.memory_error.is_some();
+        let control = h_flex()
+            .w_full()
+            .gap(px(8.0))
+            .items_center()
+            .child(
+                div()
+                    .flex_1()
+                    .min_w_0()
+                    .text_size(px(12.5))
+                    .text_color(hsla(if failed { p.destructive } else { p.muted }))
+                    .child(status),
+            )
+            .when(can_forget, |this| {
+                this.child(settings_button(
+                    p,
+                    SharedString::from(format!("{MEMORY}-forget")),
+                    "Forget",
+                    None,
+                    ButtonVariant::Outline,
+                    self.memory_busy,
+                    None,
+                    move |page: &mut Self, _window, cx| page.forget_memory(cx),
+                    cx,
+                ))
+            })
+            .into_any_element();
+        Some(setting_row(
+            p,
+            MEMORY,
+            RowSpec::new(title).description(subtitle).wide(),
+            None,
+            control,
+            cx,
+        ))
     }
 
     fn catalog_row(key: &str) -> Option<(String, String, Vec<SettingOption>)> {
@@ -368,7 +485,7 @@ impl Render for VoiceAgentTab {
         };
         let provider = values.string(PROVIDER);
         let mut provider_rows = Vec::new();
-        for key in [PROVIDER, XAI_VOICE, OPENAI_VOICE] {
+        for key in [PROVIDER, XAI_VOICE, OPENAI_VOICE, SPEED] {
             // Only the chosen provider's voice is offered.
             let shown = match key {
                 XAI_VOICE => provider != "openai",
@@ -381,6 +498,12 @@ impl Render for VoiceAgentTab {
             {
                 provider_rows.push(row);
             }
+        }
+        let mut memory_rows = Vec::new();
+        if search.row_visible("memory", MEMORY)
+            && let Some(row) = self.memory_row(&p, cx)
+        {
+            memory_rows.push(row);
         }
         let mut key_rows = Vec::new();
         for provider in [Provider::Xai, Provider::OpenAi] {
@@ -420,8 +543,30 @@ impl Render for VoiceAgentTab {
             block.margin_top += PAGE_TOP_PADDING;
             blocks.push(block);
         }
+        if let Some(section) = settings_section(&p, "Memory", None, None, memory_rows) {
+            let mut block = PageBlock::section("memory", section);
+            if blocks.is_empty() {
+                block.margin_top += PAGE_TOP_PADDING;
+            }
+            blocks.push(block);
+        }
         if let Some(section) = settings_section(&p, "API keys", None, None, key_rows) {
             let mut block = PageBlock::section("keys", section);
+            if blocks.is_empty() {
+                block.margin_top += PAGE_TOP_PADDING;
+            }
+            blocks.push(block);
+        }
+        if search.row_visible("dictations", DICTATION_HISTORY)
+            && let Some(section) = settings_section(
+                &p,
+                "Dictation history",
+                None,
+                None,
+                vec![self.history.clone().into_any_element()],
+            )
+        {
+            let mut block = PageBlock::section("dictations", section);
             if blocks.is_empty() {
                 block.margin_top += PAGE_TOP_PADDING;
             }

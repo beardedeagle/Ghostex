@@ -143,6 +143,7 @@ const TERMINAL_AGENT_BAR_STASHED_PROMPTS_ICON: &str = "titlebar/stack-push.svg";
 const TERMINAL_AGENT_BAR_CHAT_VIEW_ICON: &str = "titlebar/message-circle.svg";
 const TERMINAL_AGENT_BAR_DICTATE_ICON: &str = "titlebar/microphone.svg";
 const TERMINAL_AGENT_BAR_STOP_DICTATING_ICON: &str = "titlebar/player-stop.svg";
+const TERMINAL_AGENT_BAR_TRANSCRIBING_ICON: &str = "titlebar/loader2.svg";
 const TERMINAL_AGENT_BAR_EXPORT_TRANSCRIPT_ICON: &str = "titlebar/file-export.svg";
 const TERMINAL_AGENT_BAR_SWITCH_ACCOUNT_ICON: &str = "titlebar/user-circle.svg";
 const TERMINAL_AGENT_BAR_SKILLS_ICON: &str = "titlebar/sparkles.svg";
@@ -619,12 +620,19 @@ impl GhostexGpuiApp {
                     ));
                 }
             }
-            TerminalAgentBarAction::Dictate => {
-                if self.terminal_dictating(session_id) {
+            TerminalAgentBarAction::Dictate => match self.terminal_dictation_state(session_id) {
+                dictation::TerminalDictationState::Recording => {
                     state.icon_path = TERMINAL_AGENT_BAR_STOP_DICTATING_ICON;
                     state.label = "Stop dictating";
                 }
-            }
+                dictation::TerminalDictationState::Transcribing => {
+                    state.icon_path = TERMINAL_AGENT_BAR_TRANSCRIBING_ICON;
+                    state.label = "Transcribing… click to cancel (the recording is kept)";
+                }
+                dictation::TerminalDictationState::Idle => {
+                    state.label = "Dictate (right-click: Transcribe previous)";
+                }
+            },
             TerminalAgentBarAction::Maximize => {
                 let TerminalAgentBarSurface::AgentsPane(pane_id) = surface;
                 if self.agents_workspace.focus_mode_pane == Some(pane_id) {
@@ -1176,6 +1184,19 @@ impl GhostexGpuiApp {
                         }),
                     )
             })
+            .when(
+                action == TerminalAgentBarAction::Dictate && enabled,
+                |this| {
+                    this.on_mouse_down(
+                        MouseButton::Right,
+                        cx.listener(move |this, _event: &MouseDownEvent, window, cx| {
+                            window.prevent_default();
+                            cx.stop_propagation();
+                            this.transcribe_previous_terminal_dictation(session_id, window, cx);
+                        }),
+                    )
+                },
+            )
             .when_some(right_click_action, |this, right_click_action| {
                 this.on_mouse_down(
                     MouseButton::Right,

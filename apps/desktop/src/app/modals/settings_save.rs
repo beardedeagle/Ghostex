@@ -272,6 +272,7 @@ impl GhostexGpuiApp {
         self.reset_open_git_commit_prompt_agent(&sidebar_state_message, cx);
         self.refresh_open_gpui_app_modal_sidebar_state(sidebar_state_message, cx);
         self.sync_titlebar_account_privacy(cx);
+        self.apply_voice_agent_settings(settings_snapshot.object(), cx);
     }
 
     pub(crate) fn reload_live_gpui_engine_terminal_config(&mut self, cx: &mut gpui::Context<Self>) {

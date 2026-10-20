@@ -51,6 +51,7 @@ pub(super) struct ComposerButtonBounds {
     pub(super) more_actions: std::rc::Rc<std::cell::Cell<gpui::Bounds<gpui::Pixels>>>,
     pub(super) attach: std::rc::Rc<std::cell::Cell<gpui::Bounds<gpui::Pixels>>>,
     pub(super) send: std::rc::Rc<std::cell::Cell<gpui::Bounds<gpui::Pixels>>>,
+    pub(super) dictate: std::rc::Rc<std::cell::Cell<gpui::Bounds<gpui::Pixels>>>,
 }
 
 impl ComposerButtonBounds {
@@ -61,6 +62,7 @@ impl ComposerButtonBounds {
         match action {
             "moreActions" => Some(self.more_actions.clone()),
             "attachPath" => Some(self.attach.clone()),
+            "dictate" => Some(self.dictate.clone()),
             _ => None,
         }
     }
@@ -112,6 +114,8 @@ impl NativeChatView {
             "maximizeComposer" => self.toggle_maximized(window,cx),
             "summaryMode" => self.invoke(json!({"type":"toggleSummary"}),cx),
             "dictate" => self.toggle_dictation(window,cx),
+            "transcribePreviousDictation" => self.transcribe_previous_dictation(window,cx),
+            "dictationHistory" => self.open_dictation_history(cx),
             "attachPath" if cfg!(target_os = "linux") && self.chat_menu_toggled_shut(ATTACH_PATH_TRIGGER, cx) => {}
             "attachPath" if cfg!(target_os = "linux") => {
                 self.menu_side = Some(super::option_menu::MenuSide::Right);

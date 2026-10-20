@@ -1,6 +1,8 @@
-//! Grok dictation for the chat composer's microphone: the client's audio goes to xAI's streaming
-//! speech-to-text and the text comes back as it is recognized. Nothing is spoken and nothing is
-//! sent; the client puts the text into the draft.
+//! Streaming Grok dictation: the client's audio goes to xAI's streaming speech-to-text and the
+//! text comes back as it is recognized. Nothing is spoken and nothing is sent; the client puts the
+//! text into the draft. Dictate itself records first and transcribes the saved file since
+//! 2026-10-20 (`recordings.rs`, `transcribe.rs`); this socket stays for app versions released
+//! before that and for `ghostex voice --dictate`.
 //!
 //! CDXC:VoiceMode 2026-10-20 DECISION:
 //! User: "use grok bot's api for the dictation mic button"; the chat-box button "just pastes whatever i say into the chat box, while the one above is more general and for discussing". Dictation uses xAI speech-to-text with the xAI key kept on the computer and only fills the draft, never sends (the 2026-10-08 SessionChat decision stands).
@@ -41,6 +43,11 @@ pub(super) async fn run(state: &AppState, mut client: WebSocket, language: Optio
                 "xAI refused the API key. Check it in Settings > Voice agent.",
             )
             .await;
+            return;
+        }
+        Err(ConnectError::Refused(message)) => {
+            super::warn_error(state, "voiceAgent.dictationRefused", &message, json!({}));
+            socket::fail(&mut client, "providerRefused", &message).await;
             return;
         }
         Err(ConnectError::Unavailable(message)) => {

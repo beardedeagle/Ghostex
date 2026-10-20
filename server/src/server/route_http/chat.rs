@@ -40,6 +40,37 @@ pub(super) async fn route_chat_http(
             crate::voice_agent::handle_read_voice_agent_http(&state, endpoint.path, request_id)
                 .await
         }
+        "/api/forgetVoiceAgentMemory" => {
+            crate::voice_agent::handle_forget_voice_agent_memory_http(
+                &state,
+                endpoint.path,
+                request_id,
+            )
+            .await
+        }
+        "/api/setVoiceAgentSettings" => {
+            crate::voice_agent::handle_set_voice_agent_settings_http(
+                &state,
+                endpoint.path,
+                request_id,
+                &body_json,
+            )
+            .await
+        }
+        "/api/saveDictationRecording"
+        | "/api/transcribeDictation"
+        | "/api/dismissDictation"
+        | "/api/listDictations"
+        | "/api/readDictationAudio"
+        | "/api/deleteDictation" => {
+            crate::voice_agent::handle_dictation_recordings_http(
+                &state,
+                endpoint.path,
+                request_id,
+                &body_json,
+            )
+            .await
+        }
         "/api/setVoiceAgentKey" => {
             crate::voice_agent::handle_set_voice_agent_key_http(
                 &state,

@@ -24,7 +24,10 @@ const USAGE: &str = "Usage:
   ghostex voice --dictate speech.wav [--language en]
   Testing extras: --barge-in talk.wav (spoken over the agent's first reply), --report-playback
   (answer an interruption with how much audio a real-time player had played), --detach (leave
-  without hanging up and print the conversation id), --resume <conversationId> (reattach).
+  without hanging up and print the conversation id), --resume <conversationId> (reattach),
+  --voice <id> (a turn that switches the agent's voice; place it between --text turns),
+  --rate <1.0-2.0> (report a client playback rate, as the desktop's speed buttons do),
+  --continue (a turn that hands the remembered last conversation to the agent, as Continue does).
 
 Runs a voice-agent conversation (or, with --dictate, a Grok dictation) against this computer's
 gxserver and prints captions, tool calls and state changes. Each --text or --wav is one turn;
@@ -43,11 +46,14 @@ struct Options {
     report_playback: bool,
     detach: bool,
     resume: Option<String>,
+    rate: Option<f64>,
 }
 
 enum Turn {
     Text(String),
     Wav(String),
+    Voice(String),
+    Continue,
 }
 
 fn parse(args: &[String]) -> CliResult<Options> {
@@ -63,6 +69,7 @@ fn parse(args: &[String]) -> CliResult<Options> {
         report_playback: false,
         detach: false,
         resume: None,
+        rate: None,
     };
     let mut index = 0;
     let value = |index: usize, flag: &str| -> CliResult<String> {
@@ -75,6 +82,19 @@ fn parse(args: &[String]) -> CliResult<Options> {
         match flag {
             "--text" => options.turns.push(Turn::Text(value(index, flag)?)),
             "--wav" => options.turns.push(Turn::Wav(value(index, flag)?)),
+            "--voice" => options.turns.push(Turn::Voice(value(index, flag)?)),
+            "--continue" => {
+                options.turns.push(Turn::Continue);
+                index += 1;
+                continue;
+            }
+            "--rate" => {
+                options.rate = Some(
+                    value(index, flag)?
+                        .parse()
+                        .map_err(|_| CliError::Other("--rate needs a number.".into()))?,
+                )
+            }
             "--dictate" => options.dictate = Some(value(index, flag)?),
             "--provider" => options.provider = Some(value(index, flag)?),
             "--language" => options.language = Some(value(index, flag)?),
@@ -272,6 +292,10 @@ struct TurnWatch {
     /// `--report-playback`: answer `interrupted` with the `playback` frame a real client sends.
     report_playback: bool,
     playback_report: Option<(String, u64)>,
+    /// A `voice` answer arrived since the last `--voice` turn.
+    voice_answered: bool,
+    /// `--rate`: how fast the simulated player plays the agent's audio.
+    rate: f64,
 }
 
 impl TurnWatch {
@@ -308,11 +332,17 @@ fn handle_frame(message: Message, start: Instant, watch: &mut TurnWatch, audio: 
             match field("type").as_str() {
                 "ready" if field("mode") == "dictation" => println!("{at}  [ready] dictation"),
                 "ready" => println!(
-                    "{at}  [ready] conversation {} · {} · voice {} · resumed {}",
+                    "{at}  [ready] conversation {} · {} · voice {} · resumed {} · memory {}",
                     field("conversationId"),
                     field("provider"),
                     field("voice"),
-                    frame["resumed"]
+                    frame["resumed"],
+                    frame["memory"]["gist"]
+                ),
+                "memory" => println!(
+                    "{at}  [memory] {} {}",
+                    field("state"),
+                    frame.get("memory").map(Value::to_string).unwrap_or_default()
                 ),
                 "state" => {
                     watch.state = field("state");
@@ -351,13 +381,16 @@ fn handle_frame(message: Message, start: Instant, watch: &mut TurnWatch, audio: 
                 }
                 "announcement" => println!("{at}  [announcement] {}", field("text")),
                 "interrupted" => {
-                    // A real-time player has played the reply's audio since it started, up to what arrived.
+                    // A real-time player (at `--rate`) has played the reply's audio since it started,
+                    // up to what arrived.
+                    let rate = if watch.rate > 0.0 { watch.rate } else { 1.0 };
                     let played = watch
                         .audio_item
                         .as_ref()
                         .filter(|(id, _, _)| *id == field("itemId"))
                         .map(|(_, since, received)| {
-                            (since.elapsed().as_millis() as u64).min((*received / 48) as u64)
+                            ((since.elapsed().as_secs_f64() * 1000.0 * rate) as u64)
+                                .min((*received / 48) as u64)
                         });
                     match played {
                         Some(ms) if watch.report_playback => {
@@ -394,6 +427,19 @@ fn handle_frame(message: Message, start: Instant, watch: &mut TurnWatch, audio: 
                     field("text")
                 ),
                 "done" => println!("{at}  [dictation done] {}", field("text")),
+                "voice" => {
+                    watch.voice_answered = true;
+                    println!(
+                        "{at}  [voice] {} applied {} (speaking with {}{})",
+                        field("voice"),
+                        field("applied"),
+                        field("current"),
+                        match field("reason").as_str() {
+                            "" => String::new(),
+                            reason => format!("; {reason}"),
+                        }
+                    );
+                }
                 "audioStart" => watch.audio_item = Some((field("itemId"), Instant::now(), 0)),
                 "audioDone" | "notice" => {}
                 other => println!("{at}  [{other}] {text}"),
@@ -418,6 +464,7 @@ fn converse(socket: &mut WebSocket<TcpStream>, options: &Options) -> CliResult<(
     let start = Instant::now();
     let mut watch = TurnWatch {
         report_playback: options.report_playback,
+        rate: options.rate.unwrap_or(1.0),
         ..TurnWatch::default()
     };
     let mut audio: Vec<u8> = Vec::new();
@@ -434,6 +481,9 @@ fn converse(socket: &mut WebSocket<TcpStream>, options: &Options) -> CliResult<(
         return Err(CliError::Other(
             "The voice conversation did not start.".into(),
         ));
+    }
+    if let Some(rate) = options.rate {
+        send_json(socket, json!({"type": "playbackRate", "rate": rate}))?;
     }
     let mut barge: Option<(Vec<u8>, usize)> = match &options.barge_in {
         Some(path) => Some((read_wav(path)?, 0)),
@@ -485,6 +535,20 @@ fn converse(socket: &mut WebSocket<TcpStream>, options: &Options) -> CliResult<(
     for turn in &options.turns {
         watch.agent_spoke = false;
         watch.quiet_since = None;
+        if let Turn::Voice(voice) = turn {
+            println!("{}  (switching to the voice {voice})", elapsed(start));
+            watch.voice_answered = false;
+            send_json(socket, json!({"type": "voice", "voice": voice}))?;
+            let deadline = Instant::now() + Duration::from_secs(10);
+            pump(
+                socket,
+                &mut watch,
+                &mut audio,
+                &|watch: &TurnWatch| watch.voice_answered,
+                deadline,
+            )?;
+            continue;
+        }
         match turn {
             Turn::Text(text) => {
                 println!("{}  (typed) {text}", elapsed(start));
@@ -509,6 +573,11 @@ fn converse(socket: &mut WebSocket<TcpStream>, options: &Options) -> CliResult<(
                     next_chunk += Duration::from_millis(CHUNK_MS);
                 }
             }
+            Turn::Continue => {
+                println!("{}  (continue the last conversation)", elapsed(start));
+                send_json(socket, json!({"type": "continueMemory"}))?;
+            }
+            Turn::Voice(_) => {}
         }
         let deadline = Instant::now() + Duration::from_secs(options.turn_timeout);
         pump(

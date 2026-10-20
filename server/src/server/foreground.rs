@@ -348,6 +348,7 @@ pub async fn run_gxserver_foreground(
     crate::program_status::init_status_source(&paths, state.logger.clone(), &metadata.server_id);
     sync_zmx_title_observers_for_all_sessions(&state, "server-start");
     sync_session_chat_followers_for_all_sessions(&state, "server-start");
+    crate::voice_agent::recover_voice_agent_memory(&state);
     let agent_metadata_title_sync_task = spawn_agent_metadata_title_sync_task(&state);
     let portless_background_sync_task = spawn_portless_background_sync_task(&state);
     let session_lifecycle_sweep_task = spawn_session_lifecycle_sweep_task(&state);
@@ -358,6 +359,8 @@ pub async fn run_gxserver_foreground(
         crate::session_chat_fleet_status::spawn_fleet_status_task(&state);
     let session_chat_async_question_status_task =
         crate::session_chat_async_questions::spawn_async_question_status_task(&state);
+    let session_chat_open_questions_task =
+        crate::session_chat_open_questions::spawn_open_questions_task(&state);
     let freebuff_activity_task = crate::freebuff_activity::spawn_freebuff_activity_task(&state);
     let app_auto_update_task = crate::app_update::spawn_app_auto_update_task(&state);
     let zcode_turn_activity_task =
@@ -442,6 +445,7 @@ pub async fn run_gxserver_foreground(
     session_chat_follower_sync_task.abort();
     session_chat_fleet_status_task.abort();
     session_chat_async_question_status_task.abort();
+    session_chat_open_questions_task.abort();
     freebuff_activity_task.abort();
     app_auto_update_task.abort();
     zcode_turn_activity_task.abort();

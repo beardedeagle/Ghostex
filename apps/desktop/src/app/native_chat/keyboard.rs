@@ -507,6 +507,10 @@ impl NativeChatView {
             this.send(true, window, cx);
             cx.stop_propagation();
             window.prevent_default();
+        } else if key.key == "escape" && !key.modifiers.shift && this.cancel_dictation(cx) {
+            // Escape cancels Dictate's recording or transcription first (the recording is kept).
+            cx.stop_propagation();
+            window.prevent_default();
         } else if key.key == "escape" && !key.modifiers.shift {
             // Shift+Esc opens the Commands panel (openCommandsPanelSecondKey), never an interrupt.
             if this.maximized_window.is_some() {

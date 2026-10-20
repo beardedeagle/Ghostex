@@ -1,270 +1,516 @@
-//! Grok dictation for the chat box's and the terminal bar's Dictate: GPUI Kit's speech input with
-//! gxserver's `/api/voice?mode=dictation` as its recognizer and this app's audio engine as its
-//! microphone.
+//! Dictate for the chat box and the terminal bar: record first (`recorder.rs`, a WAV file this app
+//! keeps until gxserver has it), transcribe second (gxserver's `/api/transcribeDictation`, xAI
+//! speech-to-text with the key kept on this computer). The two steps are independent: whatever goes
+//! wrong while transcribing, the recording stays and Transcribe again or Transcribe previous sends
+//! it once more.
 //!
-//! CDXC:VoiceMode 2026-10-20 DECISION: User: "the one in the chat box just pastes whatever i say into the chat box, while the one above is more general and for discussing". Dictate turns speech into text with xAI speech-to-text through gxserver, with the xAI key kept on this computer, instead of the system speech recognizer; the words go into the draft (or the terminal) and are never sent (CDXC:SessionChat 2026-10-08 DECISION).
+//! CDXC:VoiceMode 2026-10-20 DECISION:
+//! User: "i want to be able to do escape to cancel the voice recording, and we need to show "Transcribing (X)" so user can click on x to cancel the recording but even if he cancels it we need to save so user can hover over the voice button and click "Transcribe previous"". Escape (in the chat box) cancels a recording; after Stop the chat box shows Transcribing with an ✕ that cancels; a cancelled recording is kept as dismissed and Transcribe previous transcribes the newest recording that has no text. A failure says why and offers Transcribe again. The words go into the draft (or the terminal) and are never sent (CDXC:SessionChat 2026-10-08 DECISION). Supersedes the 2026-10-20 streaming dictation through `/api/voice?mode=dictation`, which lost what was said whenever xAI refused or the connection dropped.
+//! CDXC:VoiceMode 2026-10-20 SEE-ALSO: server/src/voice_agent/recordings.rs (the store and the user's decision on keeping every recording), the phone's `src/chat/native/composer/useDictation.ts`.
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
-use anyhow::anyhow;
-use futures::StreamExt as _;
-use ghostex_gx_chat_client::voice::{VoiceInbound, VoiceSocket};
-use gpui::{App, Context, Subscription};
-use gpui_component::speech::{
-    AudioFormat, AudioInput, AudioSink, RecognitionSession, SpeechError, SpeechRecognizer,
-    SpeechSink, SpeechState,
-};
+use gpui::{Context, EventEmitter, Task};
 use serde_json::{Value, json};
 
-use super::audio::{AudioStartError, VoiceAudio};
-use super::conversation::MAX_AUDIO_RESTARTS;
-use super::endpoint::local_voice_endpoint;
+use super::recorder::{self, ActiveRecording, LocalRecording};
 
-/// gxserver's dictation audio: PCM16, mono, 24 kHz.
-const DICTATION_FORMAT: (u32, u16) = (24_000, 1);
-/// How long Stop waits for gxserver's last words before typing what it has. xAI flushes in about a
-/// second.
-const STOP_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(6);
+/// xAI usually answers within a few seconds; a long recording gets longer.
+const TRANSCRIBE_TIMEOUT: Duration = Duration::from_secs(180);
+const LIST_TIMEOUT: Duration = Duration::from_secs(10);
+/// How often the recording row's clock and the microphone health are looked at.
+const TICK: Duration = Duration::from_millis(250);
 
-/// A speech state that dictates through Grok: Dictate's microphone, Grok's words, and no system
-/// recognizer behind it.
-pub(crate) fn grok_dictation_speech_state(cx: &mut Context<SpeechState>) -> SpeechState {
-    SpeechState::new(cx)
-        .recognizer(GrokDictation)
-        .input(VoiceMicrophone)
-        .system_fallback(false)
-        .stop_timeout(STOP_TIMEOUT)
+/// Where a recording that has no text yet is.
+#[derive(Clone, Debug)]
+pub(crate) enum Kept {
+    /// gxserver has it (its id).
+    Server(String),
+    /// Only this app has it: gxserver could not be reached.
+    Local(LocalRecording),
 }
 
-/// gxserver's dictation stream as a GPUI Kit recognizer.
-struct GrokDictation;
-
-impl SpeechRecognizer for GrokDictation {
-    fn audio_format(&self) -> AudioFormat {
-        AudioFormat::new(DICTATION_FORMAT.0, DICTATION_FORMAT.1)
-    }
-
-    fn start(
-        &self,
-        sink: SpeechSink,
-        cx: &mut App,
-    ) -> Result<Box<dyn RecognitionSession>, SpeechError> {
-        let endpoint = local_voice_endpoint()
-            .ok_or_else(|| SpeechError::recognizer(anyhow!("Ghostex's service is not running")))?;
-        let (sender, mut receiver) = futures::channel::mpsc::unbounded::<VoiceInbound>();
-        let socket = VoiceSocket::open(
-            &endpoint,
-            &[("mode", "dictation"), ("client", "desktop")],
-            Arc::new(move |inbound| {
-                let _ = sender.unbounded_send(inbound);
-            }),
-        );
-        cx.spawn(async move |cx| {
-            let mut done = false;
-            while let Some(inbound) = receiver.next().await {
-                let sink = sink.clone();
-                let finished = cx.update(|cx| apply(&sink, inbound, &mut done, cx));
-                if finished {
-                    break;
-                }
-            }
-        })
-        .detach();
-        Ok(Box::new(GrokDictationSession {
-            socket,
-            ended: false,
-        }))
-    }
+#[derive(Clone, Debug)]
+pub(crate) enum DictatePhase {
+    Idle,
+    /// Waiting for the microphone (and, the first time, for macOS to ask for access).
+    Starting,
+    Recording,
+    /// Stopped: handing the file to gxserver, then waiting for xAI's text.
+    Transcribing,
+    /// The transcription failed; `message` says why. The recording is kept.
+    Failed {
+        kept: Kept,
+        message: String,
+    },
 }
 
-/// Hands one socket event to the speech state. Answers whether the session is over.
-fn apply(sink: &SpeechSink, inbound: VoiceInbound, done: &mut bool, cx: &mut App) -> bool {
-    match inbound {
-        VoiceInbound::Event(event) => {
-            let text = || event["text"].as_str().unwrap_or_default().to_string();
-            match event["type"].as_str() {
-                Some("ready") => sink.ready(cx),
-                // `text` is the whole dictation so far, so it replaces the hypothesis.
-                Some("transcript") => sink.hypothesis(text(), cx),
-                Some("done") => {
-                    *done = true;
-                    sink.hypothesis(text(), cx);
-                    sink.finish(cx);
-                    return true;
-                }
-                Some("error") if event["fatal"].as_bool() != Some(false) => {
-                    *done = true;
-                    sink.error(SpeechError::recognizer(anyhow!(error_sentence(&event))), cx);
-                    return true;
-                }
-                _ => {}
-            }
-            false
-        }
-        VoiceInbound::Audio(_) => false,
-        VoiceInbound::Closed(reason) => {
-            if !*done {
-                match reason {
-                    Some(message) => sink.error(SpeechError::recognizer(anyhow!(message)), cx),
-                    None => sink.finish(cx),
-                }
-            }
-            true
+pub(crate) enum DictateEvent {
+    /// The finished dictation, for the draft or the terminal.
+    Text(String),
+    /// Something the reader should hear about where no row shows it (the terminal bar's toast).
+    Failure { title: String, message: String },
+}
+
+/// One Dictate control's state. The chat box and the terminal bar each own one.
+pub(crate) struct Dictate {
+    phase: DictatePhase,
+    active: Option<ActiveRecording>,
+    /// Set when the reader cancels, so work already in flight does not type anything.
+    cancelled: Arc<AtomicBool>,
+    /// The recording the work in flight is transcribing, once gxserver has it, so a cancel can
+    /// dismiss it at once.
+    in_flight: Arc<Mutex<Option<String>>>,
+    work: Option<Task<()>>,
+    ticker: Option<Task<()>>,
+    elapsed: Duration,
+}
+
+impl EventEmitter<DictateEvent> for Dictate {}
+
+impl Dictate {
+    pub(crate) fn new() -> Self {
+        Self {
+            phase: DictatePhase::Idle,
+            active: None,
+            cancelled: Arc::new(AtomicBool::new(false)),
+            in_flight: Arc::new(Mutex::new(None)),
+            work: None,
+            ticker: None,
+            elapsed: Duration::ZERO,
         }
     }
-}
 
-/// gxserver's own sentence for an error frame (it names Settings > Voice agent for a missing key).
-fn error_sentence(event: &Value) -> String {
-    event["message"]
-        .as_str()
-        .map(str::trim)
-        .filter(|message| !message.is_empty())
-        .unwrap_or("Dictation stopped working")
-        .to_string()
-}
+    pub(crate) fn phase(&self) -> &DictatePhase {
+        &self.phase
+    }
 
-struct GrokDictationSession {
-    socket: VoiceSocket,
-    ended: bool,
-}
+    /// Recording or about to: what Escape cancels and the Stop glyph shows.
+    pub(crate) fn recording(&self) -> bool {
+        matches!(self.phase, DictatePhase::Starting | DictatePhase::Recording)
+    }
 
-impl RecognitionSession for GrokDictationSession {
-    fn push_audio(&mut self, samples: &[i16], _cx: &mut App) {
-        if self.ended {
+    pub(crate) fn transcribing(&self) -> bool {
+        matches!(self.phase, DictatePhase::Transcribing)
+    }
+
+    /// How long the current recording has run.
+    pub(crate) fn elapsed(&self) -> Duration {
+        self.elapsed
+    }
+
+    /// The microphone button: start, or stop and transcribe.
+    pub(crate) fn toggle(&mut self, cx: &mut Context<Self>) {
+        match self.phase {
+            DictatePhase::Idle | DictatePhase::Failed { .. } => self.start(cx),
+            DictatePhase::Recording => self.stop(cx),
+            DictatePhase::Starting | DictatePhase::Transcribing => {}
+        }
+    }
+
+    pub(crate) fn start(&mut self, cx: &mut Context<Self>) {
+        if self.recording() || self.transcribing() {
             return;
         }
-        let bytes = samples
-            .iter()
-            .flat_map(|sample| sample.to_le_bytes())
-            .collect();
-        self.socket.send_audio(bytes);
+        self.phase = DictatePhase::Starting;
+        self.elapsed = Duration::ZERO;
+        self.reset_run();
+        let cancelled = self.cancelled.clone();
+        self.work = Some(cx.spawn(async move |this, cx| {
+            let started = cx
+                .background_executor()
+                .spawn(async move { ActiveRecording::start() })
+                .await;
+            let _ = this.update(cx, |this, cx| match started {
+                Ok(active) if cancelled.load(Ordering::SeqCst) => {
+                    // Escape before the microphone opened: keep nothing that was never said.
+                    let recording = active.finish();
+                    keep_dismissed(recording, cx);
+                    this.phase = DictatePhase::Idle;
+                    cx.notify();
+                }
+                Ok(active) => {
+                    this.active = Some(active);
+                    this.phase = DictatePhase::Recording;
+                    this.start_ticker(cx);
+                    cx.notify();
+                }
+                Err(error) => {
+                    this.phase = DictatePhase::Idle;
+                    cx.emit(DictateEvent::Failure {
+                        title: "Dictation couldn't start".to_string(),
+                        message: error.message(),
+                    });
+                    cx.notify();
+                }
+            });
+        }));
+        // Recordings an earlier run could not hand over go now, off the path of this one.
+        cx.background_executor()
+            .spawn(async move {
+                recorder::send_unsent();
+                refresh_previous();
+            })
+            .detach();
+        cx.notify();
     }
 
-    fn finish(&mut self, _cx: &mut App) {
-        if !self.ended {
-            self.ended = true;
-            self.socket.send_json(&json!({ "type": "end" }));
-        }
-    }
-}
-
-impl Drop for GrokDictationSession {
-    fn drop(&mut self) {
-        // Dropped before Stop means cancelled: gxserver closes without typing anything.
-        if !self.ended {
-            self.socket.send_json(&json!({ "type": "cancel" }));
-        }
-    }
-}
-
-/// Dictate's microphone: this app's audio engine without echo cancellation or playback, already
-/// at 24 kHz mono PCM16.
-struct VoiceMicrophone;
-
-impl AudioInput for VoiceMicrophone {
-    fn start(
-        &self,
-        _format: AudioFormat,
-        sink: AudioSink,
-        cx: &mut App,
-    ) -> Result<Subscription, SpeechError> {
-        let (sender, mut receiver) =
-            futures::channel::mpsc::unbounded::<Result<Vec<i16>, AudioStartError>>();
-        let running: Arc<Mutex<Option<VoiceAudio>>> = Arc::new(Mutex::new(None));
-        let stopped = Arc::new(std::sync::atomic::AtomicBool::new(false));
-        {
-            let running = running.clone();
-            let stopped = stopped.clone();
-            let _ = std::thread::Builder::new()
-                .name("ghostex-dictation-microphone".into())
-                .spawn(move || {
-                    // Bluetooth earbuds switch to their headset profile once the microphone opens,
-                    // which stops the engine; it is started again, as a conversation does.
-                    let (restart, restart_requested) = std::sync::mpsc::channel::<()>();
-                    for _ in 0..=MAX_AUDIO_RESTARTS {
-                        let capture_sender = sender.clone();
-                        let restart = restart.clone();
-                        let started = VoiceAudio::start(
-                            false,
-                            false,
-                            Box::new(move |samples| {
-                                let _ = capture_sender.unbounded_send(Ok(samples.to_vec()));
-                            }),
-                            Box::new(move || {
-                                let _ = restart.send(());
-                            }),
-                        );
-                        match started {
-                            // Checked under the lock the stop takes, so a stop that came first
-                            // always finds the audio or has it dropped here.
-                            Ok(audio) => {
-                                let Ok(mut slot) = running.lock() else {
-                                    return;
-                                };
-                                if stopped.load(std::sync::atomic::Ordering::SeqCst) {
-                                    return;
-                                }
-                                *slot = Some(audio);
-                            }
-                            Err(error) => {
-                                let _ = sender.unbounded_send(Err(error));
-                                return;
-                            }
-                        }
-                        loop {
-                            match restart_requested
-                                .recv_timeout(std::time::Duration::from_millis(200))
-                            {
-                                Ok(()) => break,
-                                Err(std::sync::mpsc::RecvTimeoutError::Timeout)
-                                    if !stopped.load(std::sync::atomic::Ordering::SeqCst) => {}
-                                Err(_) => return,
-                            }
-                        }
-                        if let Ok(mut slot) = running.lock() {
-                            slot.take();
-                        }
-                        if stopped.load(std::sync::atomic::Ordering::SeqCst) {
-                            return;
-                        }
+    fn start_ticker(&mut self, cx: &mut Context<Self>) {
+        self.ticker = Some(cx.spawn(async move |this, cx| {
+            loop {
+                cx.background_executor().timer(TICK).await;
+                let alive = this.update(cx, |this, cx| {
+                    let Some(active) = this.active.as_ref() else {
+                        return false;
+                    };
+                    this.elapsed = active.elapsed();
+                    if let Some(error) = active.take_failure() {
+                        // The microphone went away: what was recorded so far is transcribed.
+                        cx.emit(DictateEvent::Failure {
+                            title: "The microphone stopped".to_string(),
+                            message: format!(
+                                "{} What was recorded so far is being transcribed.",
+                                error.message()
+                            ),
+                        });
+                        this.stop(cx);
+                        return false;
                     }
+                    cx.notify();
+                    true
                 });
-        }
-        let task = cx.spawn(async move |cx| {
-            while let Some(captured) = receiver.next().await {
-                let sink = sink.clone();
-                let ended = cx.update(|cx| match captured {
-                    Ok(samples) => {
-                        sink.push(samples, cx);
-                        false
-                    }
-                    Err(error) => {
-                        sink.error(
-                            match error {
-                                AudioStartError::PermissionDenied => SpeechError::PermissionDenied,
-                                AudioStartError::NoInput => SpeechError::NoInputDevice,
-                                AudioStartError::Unsupported => SpeechError::Unsupported,
-                                AudioStartError::Failed(message) => {
-                                    SpeechError::input(anyhow!(message))
-                                }
-                            },
-                            cx,
-                        );
-                        true
-                    }
-                });
-                if ended {
+                if !matches!(alive, Ok(true)) {
                     break;
                 }
             }
-        });
-        Ok(Subscription::new(move || {
-            stopped.store(true, std::sync::atomic::Ordering::SeqCst);
-            if let Ok(mut slot) = running.lock() {
-                slot.take();
-            }
-            drop(task);
-        }))
+        }));
     }
+
+    /// Stop recording and transcribe what was said.
+    pub(crate) fn stop(&mut self, cx: &mut Context<Self>) {
+        let Some(active) = self.active.take() else {
+            return;
+        };
+        self.ticker = None;
+        self.phase = DictatePhase::Transcribing;
+        let cancelled = self.cancelled.clone();
+        let in_flight = self.in_flight.clone();
+        self.work = Some(cx.spawn(async move |this, cx| {
+            let recording = cx
+                .background_executor()
+                .spawn(async move { active.finish() })
+                .await;
+            let outcome =
+                cx.background_executor()
+                    .spawn({
+                        let cancelled = cancelled.clone();
+                        async move {
+                            save_and_transcribe(Kept::Local(recording), &cancelled, &in_flight)
+                        }
+                    })
+                    .await;
+            let _ = this.update(cx, |this, cx| this.finish(outcome, &cancelled, cx));
+        }));
+        cx.notify();
+    }
+
+    /// Escape or ✕: a recording stops and is kept as dismissed; a transcription in flight is
+    /// dismissed; a failure row goes away (its recording stays for Transcribe previous).
+    pub(crate) fn cancel(&mut self, cx: &mut Context<Self>) {
+        match &self.phase {
+            DictatePhase::Idle => return,
+            DictatePhase::Starting => {
+                self.cancelled.store(true, Ordering::SeqCst);
+            }
+            DictatePhase::Recording => {
+                self.cancelled.store(true, Ordering::SeqCst);
+                self.ticker = None;
+                if let Some(active) = self.active.take() {
+                    cx.background_executor()
+                        .spawn(async move {
+                            let mut recording = active.finish();
+                            recording.dismiss();
+                            let _ = recorder::upload(&recording, None);
+                            refresh_previous();
+                        })
+                        .detach();
+                }
+            }
+            DictatePhase::Transcribing => {
+                // gxserver keeps it as dismissed even if xAI answers a moment later; work that
+                // has not reached gxserver yet sees the flag and dismisses it there itself.
+                self.cancelled.store(true, Ordering::SeqCst);
+                if let Some(id) = self.in_flight.lock().ok().and_then(|id| id.clone()) {
+                    cx.background_executor()
+                        .spawn(async move {
+                            let _ =
+                                recorder::rpc("dismissDictation", json!({"id": id}), LIST_TIMEOUT);
+                            refresh_previous();
+                        })
+                        .detach();
+                }
+                // It finishes on its own and types nothing.
+                if let Some(work) = self.work.take() {
+                    work.detach();
+                }
+            }
+            DictatePhase::Failed { .. } => {}
+        }
+        self.phase = DictatePhase::Idle;
+        cx.notify();
+    }
+
+    /// Transcribe again after a failure.
+    pub(crate) fn retry(&mut self, cx: &mut Context<Self>) {
+        let DictatePhase::Failed { kept, .. } = &self.phase else {
+            return;
+        };
+        let kept = kept.clone();
+        self.transcribe_kept(Some(kept), cx);
+    }
+
+    /// The newest recording that has no text yet (cancelled, dismissed or failed), typed in like
+    /// a dictation.
+    pub(crate) fn transcribe_previous(&mut self, cx: &mut Context<Self>) {
+        if self.recording() || self.transcribing() {
+            return;
+        }
+        self.transcribe_kept(None, cx);
+    }
+
+    fn transcribe_kept(&mut self, kept: Option<Kept>, cx: &mut Context<Self>) {
+        self.phase = DictatePhase::Transcribing;
+        self.reset_run();
+        let cancelled = self.cancelled.clone();
+        let in_flight = self.in_flight.clone();
+        self.work = Some(cx.spawn(async move |this, cx| {
+            let outcome = cx
+                .background_executor()
+                .spawn({
+                    let cancelled = cancelled.clone();
+                    async move {
+                        match kept {
+                            Some(kept) => save_and_transcribe(kept, &cancelled, &in_flight),
+                            None => transcribe_latest(&cancelled, &in_flight),
+                        }
+                    }
+                })
+                .await;
+            let _ = this.update(cx, |this, cx| this.finish(outcome, &cancelled, cx));
+        }));
+        cx.notify();
+    }
+
+    /// A fresh cancel flag and in-flight slot for the next run; a detached run keeps its own.
+    fn reset_run(&mut self) {
+        self.cancelled = Arc::new(AtomicBool::new(false));
+        self.in_flight = Arc::new(Mutex::new(None));
+    }
+
+    fn finish(&mut self, outcome: Outcome, cancelled: &AtomicBool, cx: &mut Context<Self>) {
+        if cancelled.load(Ordering::SeqCst) {
+            return;
+        }
+        self.work = None;
+        match outcome {
+            Outcome::Text(text) => {
+                self.phase = DictatePhase::Idle;
+                cx.emit(DictateEvent::Text(text));
+            }
+            Outcome::Nothing(message) => {
+                self.phase = DictatePhase::Idle;
+                cx.emit(DictateEvent::Failure {
+                    title: "Nothing to transcribe".to_string(),
+                    message,
+                });
+            }
+            Outcome::Error(message) => {
+                self.phase = DictatePhase::Idle;
+                cx.emit(DictateEvent::Failure {
+                    title: "Transcription failed".to_string(),
+                    message,
+                });
+            }
+            Outcome::Failed(kept, message) => {
+                // The phase first, so the chat box knows its row shows this.
+                self.phase = DictatePhase::Failed {
+                    kept,
+                    message: message.clone(),
+                };
+                cx.emit(DictateEvent::Failure {
+                    title: "Transcription failed".to_string(),
+                    message: format!("{message} Your recording is kept."),
+                });
+            }
+        }
+        cx.notify();
+    }
+}
+
+enum Outcome {
+    Text(String),
+    /// Nothing was waiting (Transcribe previous) or the recording had no words.
+    Nothing(String),
+    /// Transcribe previous could not reach gxserver; nothing changed.
+    Error(String),
+    Failed(Kept, String),
+}
+
+/// Hands a recording to gxserver if only this app has it, then transcribes it (blocking). When the
+/// reader cancelled meanwhile, gxserver keeps it as dismissed instead.
+fn save_and_transcribe(
+    kept: Kept,
+    cancelled: &AtomicBool,
+    in_flight: &Mutex<Option<String>>,
+) -> Outcome {
+    let id = match kept {
+        Kept::Server(id) => id,
+        Kept::Local(mut recording) => {
+            if cancelled.load(Ordering::SeqCst) {
+                recording.dismiss();
+            }
+            match recorder::upload(&recording, None) {
+                Ok(dictation) => match dictation["id"].as_str() {
+                    Some(id) => id.to_string(),
+                    None => recording.id.clone(),
+                },
+                Err(error) => {
+                    return Outcome::Failed(
+                        Kept::Local(recording),
+                        format!(
+                            "Ghostex's service couldn't take the recording ({}). It is kept on this computer; press Transcribe again.",
+                            error.trim_end_matches('.')
+                        ),
+                    );
+                }
+            }
+        }
+    };
+    if let Ok(mut slot) = in_flight.lock() {
+        *slot = Some(id.clone());
+    }
+    if cancelled.load(Ordering::SeqCst) {
+        let _ = recorder::rpc("dismissDictation", json!({"id": id}), LIST_TIMEOUT);
+        refresh_previous();
+        return Outcome::Nothing(String::new());
+    }
+    let answer = recorder::rpc("transcribeDictation", json!({"id": id}), TRANSCRIBE_TIMEOUT);
+    if cancelled.load(Ordering::SeqCst) {
+        let _ = recorder::rpc("dismissDictation", json!({"id": id}), LIST_TIMEOUT);
+    }
+    let outcome = outcome_of(answer, Kept::Server(id));
+    refresh_previous();
+    outcome
+}
+
+fn transcribe_latest(cancelled: &AtomicBool, in_flight: &Mutex<Option<String>>) -> Outcome {
+    recorder::send_unsent();
+    // Named before the call, so a cancel while xAI works can dismiss it.
+    if let Some((id, _, _)) = previous_recording()
+        && let Ok(mut slot) = in_flight.lock()
+    {
+        *slot = Some(id);
+    }
+    let answer = recorder::rpc(
+        "transcribeDictation",
+        json!({"latest": true}),
+        TRANSCRIBE_TIMEOUT,
+    );
+    if let (true, Ok(answer)) = (cancelled.load(Ordering::SeqCst), &answer)
+        && let Some(id) = answer["dictation"]["id"].as_str()
+    {
+        let _ = recorder::rpc("dismissDictation", json!({"id": id}), LIST_TIMEOUT);
+    }
+    let outcome = match &answer {
+        Ok(answer) => outcome_of(
+            Ok(answer.clone()),
+            Kept::Server(
+                answer["dictation"]["id"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .to_string(),
+            ),
+        ),
+        Err(message) if message.contains("no recording waiting") => {
+            Outcome::Nothing(message.clone())
+        }
+        Err(message) => Outcome::Error(message.clone()),
+    };
+    refresh_previous();
+    outcome
+}
+
+fn outcome_of(answer: Result<Value, String>, kept: Kept) -> Outcome {
+    let dictation = match answer {
+        Ok(answer) => answer["dictation"].clone(),
+        Err(message) => return Outcome::Failed(kept, message),
+    };
+    match dictation["status"].as_str() {
+        Some("transcribed") => {
+            let text = dictation["text"]
+                .as_str()
+                .unwrap_or_default()
+                .trim()
+                .to_string();
+            if text.is_empty() {
+                Outcome::Nothing(
+                    "No words were heard in the recording. It is kept in Settings > Voice agent > Dictation history."
+                        .to_string(),
+                )
+            } else {
+                Outcome::Text(text)
+            }
+        }
+        _ => Outcome::Failed(
+            kept,
+            dictation["error"]["message"]
+                .as_str()
+                .unwrap_or("The transcription failed.")
+                .to_string(),
+        ),
+    }
+}
+
+/// A recording cancelled before it really began: kept as dismissed like any other.
+fn keep_dismissed(mut recording: LocalRecording, cx: &mut Context<Dictate>) {
+    recording.dismiss();
+    cx.background_executor()
+        .spawn(async move {
+            let _ = recorder::upload(&recording, None);
+            refresh_previous();
+        })
+        .detach();
+}
+
+/// The newest recording without text, as the last refresh found it (for the microphone's hover
+/// menu): `(id, durationMs, createdAt)`.
+static PREVIOUS: Mutex<Option<(String, u64, i64)>> = Mutex::new(None);
+
+pub(crate) fn previous_recording() -> Option<(String, u64, i64)> {
+    PREVIOUS.lock().ok().and_then(|previous| previous.clone())
+}
+
+/// Asks gxserver which recording Transcribe previous would take (blocking).
+pub(crate) fn refresh_previous() {
+    let latest = recorder::rpc("listDictations", json!({"limit": 0}), LIST_TIMEOUT)
+        .ok()
+        .and_then(|answer| {
+            let latest = &answer["latestUntranscribed"];
+            Some((
+                latest["id"].as_str()?.to_string(),
+                latest["durationMs"].as_u64().unwrap_or(0),
+                latest["createdAt"].as_i64().unwrap_or(0),
+            ))
+        });
+    if let Ok(mut previous) = PREVIOUS.lock() {
+        *previous = latest;
+    }
+}
+
+/// `m:ss` for a recording's length.
+pub(crate) fn clock(duration: Duration) -> String {
+    let seconds = duration.as_secs();
+    format!("{}:{:02}", seconds / 60, seconds % 60)
 }

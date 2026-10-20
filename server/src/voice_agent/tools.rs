@@ -4,7 +4,7 @@
 //!
 //! CDXC:VoiceMode 2026-10-20 DECISION:
 //! User, supersedes the earlier "sends prompts right away without a spoken confirmation": "Please add this to the voice agent's startup instructions for all future voice sessions: before sending any prompt that could be risky or destructive (deleting files, removing projects, changing system settings, running commands with side effects), the voice agent must confirm with the user first and only send after they agree. Non-destructive prompts can still go out immediately." This is an instruction in `prompt.rs` only; `send_prompt` does not block in code.
-//! The voice agent can act on any session, not only the open chat; it says what it sent after a prompt goes out; it answers question cards and approves or denies permission prompts (saying what it approved); and it can start new agents in a project the user names. Each tool reuses the gxserver route the matching `ghostex` verb calls (sessions, read-session-chat, send-session-chat-message, answer-session-chat-prompt, create-agent).
+//! The voice agent can act on any session, not only the open chat; it says what it sent after a prompt goes out; it answers question cards and approves or denies permission prompts (saying what it approved); and it can start new agents in a project the user names. Each tool reuses the gxserver route the matching `ghostex` verb calls (sessions, read-session-chat, send-session-chat-message, set-session-chat-draft, send-text, send-enter, answer-session-chat-prompt, create-agent).
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -12,6 +12,7 @@ use std::time::Duration;
 use serde_json::{json, Map, Value};
 
 use super::loopback;
+use super::question_forms;
 use super::sessions::{self, Match, SessionInfo};
 use crate::server::AppState;
 
@@ -68,8 +69,32 @@ pub(super) fn definitions() -> Value {
         },
         {
             "type": "function",
+            "name": "draft_prompt",
+            "description": "Put a message in a session's chat box WITHOUT sending it, so the user can read and edit it and press Enter themselves, or ask you to send it. Use it when the user says draft, write it but don't send, or wants to check it first. A session that has only a terminal gets the text typed into its agent's input box, without Enter. If the chat already holds an unsent draft, it is kept and the tool asks you to call again with mode add or replace after asking the user.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "session": session,
+                    "text": {"type": "string", "description": "The message, written as the user's instruction to the agent."},
+                    "mode": {"type": "string", "enum": ["add", "replace"], "description": "Only after the tool said a draft is already there and the user chose: add puts the new text after it, replace swaps it (the old text stays in Recovered drafts)."}
+                },
+                "required": ["session", "text"]
+            }
+        },
+        {
+            "type": "function",
+            "name": "send_draft",
+            "description": "Send the unsent draft in a session's chat box exactly as it is now, including the user's own edits. Call it when the user says send it or send the draft. Never retype a draft with send_prompt.",
+            "parameters": {
+                "type": "object",
+                "properties": {"session": session},
+                "required": ["session"]
+            }
+        },
+        {
+            "type": "function",
             "name": "get_pending_prompt",
-            "description": "Get the question or permission prompt a session is waiting on, with numbered options.",
+            "description": "Get what a session is waiting on: a question or permission prompt with numbered options, and the open questions in its chat (question forms and question pages), each question with a ref (its tag, like Q335), its numbered options and the recommended one.",
             "parameters": {
                 "type": "object",
                 "properties": {"session": session},
@@ -79,7 +104,7 @@ pub(super) fn definitions() -> Value {
         {
             "type": "function",
             "name": "answer_prompt",
-            "description": "Answer the question or permission prompt a session is waiting on, using option numbers from get_pending_prompt. For a permission prompt, pick the approve or deny option the user chose.",
+            "description": "Answer the question or permission prompt a session is waiting on, using option numbers from get_pending_prompt. For a permission prompt, pick the approve or deny option the user chose. For the open questions in its chat (questionForms from get_pending_prompt), give one answers entry per question with its ref (\"answer Q335 with the first option\" is {\"question\": \"Q335\", \"options\": [1]}); every form or page you answer is sent at once, its questions you leave out as skipped, and the forms you do not touch stay open.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -87,16 +112,20 @@ pub(super) fn definitions() -> Value {
                     "option": {"type": "integer", "description": "The chosen option number (for a single question or a permission prompt)."},
                     "answers": {
                         "type": "array",
-                        "description": "For a card with several questions: one entry per question, in order.",
+                        "description": "For a card with several questions: one entry per question, in order. For questions in the chat: one entry per question you answer, each with its ref in question.",
                         "items": {
                             "type": "object",
                             "properties": {
                                 "options": {"type": "array", "items": {"type": "integer"}, "description": "Chosen option numbers (several only when the question allows it)."},
-                                "text": {"type": "string", "description": "A free answer instead of the options, when the question allows one."}
+                                "text": {"type": "string", "description": "A free answer instead of the options, when the question allows one."},
+                                "question": {"type": "string", "description": "For a question in the chat: its ref from get_pending_prompt (like Q335)."},
+                                "note": {"type": "string", "description": "For a question in the chat: a note sent with the chosen options."},
+                                "skip": {"type": "boolean", "description": "For a question in the chat: send it as skipped."}
                             }
                         }
                     },
-                    "text": {"type": "string", "description": "A free answer for a single question that allows one."}
+                    "text": {"type": "string", "description": "A free answer for a single question that allows one."},
+                    "notes": {"type": "string", "description": "For questions in the chat: notes for anything else, sent with a form of two or more questions."}
                 },
                 "required": ["session"]
             }
@@ -126,6 +155,12 @@ pub(super) fn definitions() -> Value {
                 },
                 "required": ["project"]
             }
+        },
+        {
+            "type": "function",
+            "name": "recall_last_conversation",
+            "description": "Get your notes from your previous voice conversation with the user. Call it when the user asks to pick up or continue where you left off, or asks what you talked about last time.",
+            "parameters": {"type": "object", "properties": {}}
         }
     ])
 }
@@ -155,11 +190,14 @@ pub(super) fn label(name: &str, args: &Value) -> String {
         ("list_sessions", _) => "Checking your sessions".to_string(),
         ("read_session", Some(target)) => format!("Reading {target}"),
         ("send_prompt", Some(target)) => format!("Sending to {target}"),
+        ("draft_prompt", Some(target)) => format!("Drafting in {target}"),
+        ("send_draft", Some(target)) => format!("Sending the draft in {target}"),
         ("get_pending_prompt", Some(target)) => format!("Checking what {target} asks"),
         ("answer_prompt", Some(target)) => format!("Answering {target}"),
         ("list_projects", _) => "Checking your projects".to_string(),
         ("list_agent_types", _) => "Checking your agents".to_string(),
         ("start_agent", Some(target)) => format!("Starting an agent in {target}"),
+        ("recall_last_conversation", _) => "Remembering your last conversation".to_string(),
         (name, _) => name.replace('_', " "),
     }
 }
@@ -191,6 +229,12 @@ fn arg_text(args: &Value, key: &str) -> String {
 #[derive(Default)]
 pub(super) struct ToolMemory {
     names: std::sync::Mutex<std::collections::HashMap<String, String>>,
+    /// Terminal-only sessions this conversation typed a draft into, which `send_draft` may press
+    /// Enter in.
+    terminal_drafts: std::sync::Mutex<std::collections::HashSet<String>>,
+    /// The unsent draft `draft_prompt` last told the model about, per session: `replace` swaps
+    /// only that exact text, so the user heard what they are replacing.
+    shown_drafts: std::sync::Mutex<std::collections::HashMap<String, String>>,
 }
 
 impl ToolMemory {
@@ -208,6 +252,30 @@ impl ToolMemory {
             names.insert(Self::key(&session.title), session.reference());
         }
     }
+
+    fn note_terminal_draft(&self, session: &SessionInfo) {
+        if let Ok(mut drafts) = self.terminal_drafts.lock() {
+            drafts.insert(session.reference());
+        }
+    }
+
+    fn take_terminal_draft(&self, session: &SessionInfo) -> bool {
+        self.terminal_drafts
+            .lock()
+            .is_ok_and(|mut drafts| drafts.remove(&session.reference()))
+    }
+
+    fn note_shown_draft(&self, session: &SessionInfo, content: &str) {
+        if let Ok(mut drafts) = self.shown_drafts.lock() {
+            drafts.insert(session.reference(), content.to_string());
+        }
+    }
+
+    fn was_shown(&self, session: &SessionInfo, content: &str) -> bool {
+        self.shown_drafts.lock().is_ok_and(|drafts| {
+            drafts.get(&session.reference()).map(String::as_str) == Some(content)
+        })
+    }
 }
 
 pub(super) async fn run(
@@ -220,11 +288,14 @@ pub(super) async fn run(
         "list_sessions" => list_sessions(state, args).await,
         "read_session" => read_session(state, memory, args).await,
         "send_prompt" => send_prompt(state, memory, args).await,
+        "draft_prompt" => draft_prompt(state, memory, args).await,
+        "send_draft" => send_draft(state, memory, args).await,
         "get_pending_prompt" => get_pending_prompt(state, memory, args).await,
         "answer_prompt" => answer_prompt(state, memory, args).await,
         "list_projects" => list_projects(state).await,
         "list_agent_types" => list_agent_types(state).await,
         "start_agent" => return start_agent(state, args).await,
+        "recall_last_conversation" => super::memory::recall(&state.paths),
         other => Err(format!("There is no tool called {other}.")),
     };
     match result {
@@ -413,6 +484,168 @@ async fn send_prompt(
     Ok(json!({"ok": true, "sent": true, "session": session.brief(), "text": text}))
 }
 
+/// The `originClientId` voice drafts are saved under. The chat core writes a draft from this
+/// client straight into the composer when that loses nothing typed there
+/// (`VOICE_DRAFT_CLIENT_ID` in packages/gx-chat-core/src/composer/draft_sync.rs).
+const VOICE_DRAFT_CLIENT_ID: &str = "gxserver-voice-agent";
+
+/// The session's chat draft as gxserver holds it (every client's composer syncs to it).
+async fn read_draft(
+    state: &Arc<AppState>,
+    session: &SessionInfo,
+) -> Result<Option<crate::session_chat_queue::SessionChatDraft>, String> {
+    let state = state.clone();
+    let (project, session) = (session.project_id.clone(), session.session_id.clone());
+    tokio::task::spawn_blocking(move || {
+        let db = crate::storage::open_gxserver_database(&state.paths)
+            .map_err(|error| error.to_string())?;
+        crate::session_chat_draft_versions::read(&db, &project, &session)
+            .map_err(|error| error.message)
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+/// The unsent text of a draft, unless the terminal owns it (moved there when the user switched).
+fn unsent(
+    draft: Option<&crate::session_chat_queue::SessionChatDraft>,
+) -> Option<&crate::session_chat_queue::SessionChatDraft> {
+    draft.filter(|draft| !draft.parked && !draft.content.trim().is_empty())
+}
+
+/// CDXC:VoiceMode 2026-10-20 DECISION:
+/// User: "give the voice agent the ability to draft a message into a session's chat without sending it. The draft should sit there unsent so the user can review it, then either press enter themselves or tell the voice agent to send it." The draft is gxserver's synced chat draft for that session, so it shows in the composer of every client that opens the chat (desktop, web, phone), and `send_draft` sends gxserver's copy, which carries the user's edits once their typing pauses. An unsent draft already there is never overwritten silently: the tool refuses until the user chose add or replace, and replace leaves the old text in Recovered drafts. A session without a chat gets the text typed into its agent's input box without Enter, and `send_draft` presses Enter there.
+async fn draft_prompt(
+    state: &Arc<AppState>,
+    memory: &ToolMemory,
+    args: &Value,
+) -> Result<Value, String> {
+    let text = arg_text(args, "text");
+    if text.is_empty() {
+        return Err("The draft is empty.".to_string());
+    }
+    let session = resolve_session(state, memory, args).await?;
+    if !session.has_chat {
+        loopback::call(
+            state,
+            "/api/sendSessionText",
+            json!({"projectId": session.project_id, "sessionId": session.session_id, "text": text}),
+            Duration::from_secs(20),
+        )
+        .await?;
+        memory.note_terminal_draft(&session);
+        return Ok(json!({
+            "ok": true,
+            "drafted": true,
+            "where": "typed into the agent's input box in its terminal, not sent",
+            "session": session.brief(),
+            "text": text,
+        }));
+    }
+    let existing = read_draft(state, &session).await?;
+    let mode = arg_text(args, "mode").to_lowercase();
+    let fresh = || json!({"draftId": format!("voice-{}", uuid::Uuid::new_v4()), "revision": 1});
+    let (content, version) = match unsent(existing.as_ref()) {
+        None => (text.clone(), fresh()),
+        Some(draft) if mode == "add" => {
+            let separator = if draft.content.ends_with("\n\n") {
+                ""
+            } else if draft.content.ends_with('\n') {
+                "\n"
+            } else {
+                "\n\n"
+            };
+            // The same identity one revision on, so sending it retires the user's draft too.
+            let version = draft.version.as_ref().map_or_else(
+                fresh,
+                |version| json!({"draftId": version.draft_id, "revision": version.revision + 1}),
+            );
+            (format!("{}{separator}{text}", draft.content), version)
+        }
+        Some(draft) if mode == "replace" && memory.was_shown(&session, &draft.content) => {
+            (text.clone(), fresh())
+        }
+        Some(draft) => {
+            memory.note_shown_draft(&session, &draft.content);
+            return Err(format!(
+                "That chat already has an unsent draft, which was kept: \"{}\". Ask the user whether to add the new text after it or replace it, then call draft_prompt again with mode add or replace.",
+                short(draft.content.trim(), 400)
+            ));
+        }
+    };
+    let saved = loopback::call(
+        state,
+        "/api/setSessionChatDraft",
+        json!({
+            "projectId": session.project_id,
+            "sessionId": session.session_id,
+            "clientId": VOICE_DRAFT_CLIENT_ID,
+            "content": content,
+            "draftVersion": version,
+        }),
+        Duration::from_secs(20),
+    )
+    .await?;
+    if saved.pointer("/draft/content").and_then(Value::as_str) != Some(content.as_str()) {
+        return Err("The chat's draft changed while I was writing it. Try again.".to_string());
+    }
+    Ok(json!({
+        "ok": true,
+        "drafted": true,
+        "where": "in the session's chat box, not sent",
+        "session": session.brief(),
+        "draft": content,
+    }))
+}
+
+async fn send_draft(
+    state: &Arc<AppState>,
+    memory: &ToolMemory,
+    args: &Value,
+) -> Result<Value, String> {
+    let session = resolve_session(state, memory, args).await?;
+    if !session.has_chat {
+        if !memory.take_terminal_draft(&session) {
+            return Err("I have not drafted anything into that session's terminal in this conversation, so there is nothing of mine to send.".to_string());
+        }
+        loopback::call(
+            state,
+            "/api/sendSessionEnter",
+            json!({"projectId": session.project_id, "sessionId": session.session_id}),
+            Duration::from_secs(20),
+        )
+        .await?;
+        return Ok(json!({
+            "ok": true,
+            "sent": true,
+            "session": session.brief(),
+            "note": "Pressed Enter in the agent's input box, which sent what it held, the user's edits included.",
+        }));
+    }
+    let existing = read_draft(state, &session).await?;
+    let Some(draft) = unsent(existing.as_ref()) else {
+        return Err("That chat has no unsent draft; it may have been sent already.".to_string());
+    };
+    let mut params = json!({
+        "projectId": session.project_id,
+        "sessionId": session.session_id,
+        "text": draft.content,
+        "sendRequestId": uuid::Uuid::new_v4().to_string(),
+    });
+    // Sending under the draft's own revision retires it, which clears it from every composer.
+    if let Some(version) = &draft.version {
+        params["draftVersion"] = json!(version);
+    }
+    loopback::call(
+        state,
+        "/api/sendSessionChatMessage",
+        params,
+        Duration::from_secs(45),
+    )
+    .await?;
+    Ok(json!({"ok": true, "sent": true, "session": session.brief(), "text": draft.content}))
+}
+
 /// One option the user can pick, and the exact answer the chat would send for it.
 struct PromptOption {
     label: String,
@@ -556,7 +789,14 @@ async fn get_pending_prompt(
 ) -> Result<Value, String> {
     let session = resolve_session(state, memory, args).await?;
     let chat = read_chat(state, &session, 20).await?;
-    Ok(match pending_prompt(&chat) {
+    // The open questions in its chat (question forms and pages) ride every answer.
+    let forms = question_forms::listing(state, &session).await;
+    let mut result = match pending_prompt(&chat) {
+        PendingPrompt::None if !forms.is_empty() => json!({
+            "ok": true,
+            "session": session.to_tool_value(),
+            "kind": "questionForms",
+        }),
         PendingPrompt::None => json!({
             "ok": true,
             "session": session.to_tool_value(),
@@ -591,7 +831,11 @@ async fn get_pending_prompt(
             "detail": detail.map(|detail| short(&detail, 400)),
             "options": options.iter().enumerate().map(|(n, option)| json!({"number": n + 1, "label": short(&option.label, 200)})).collect::<Vec<_>>(),
         }),
-    })
+    };
+    if !forms.is_empty() {
+        result["questionForms"] = json!(forms);
+    }
+    Ok(result)
 }
 
 fn option_numbers(value: Option<&Value>) -> Vec<usize> {
@@ -611,6 +855,10 @@ async fn answer_prompt(
     args: &Value,
 ) -> Result<Value, String> {
     let session = resolve_session(state, memory, args).await?;
+    // Answers that name questions by ref are for the question forms and pages in its chat.
+    if question_forms::names_questions(args) {
+        return question_forms::answer(state, &session, args).await;
+    }
     let chat = read_chat(state, &session, 20).await?;
     let single_option = args
         .get("option")
@@ -619,9 +867,7 @@ async fn answer_prompt(
         .map(|n| n as usize - 1);
     let free_text = arg_text(args, "text");
     let (answer, said) = match pending_prompt(&chat) {
-        PendingPrompt::None => {
-            return Err("Nothing is waiting for an answer in that session any more.".to_string())
-        }
+        PendingPrompt::None => return question_forms::answer(state, &session, args).await,
         PendingPrompt::Questions(questions) => {
             let mut selections: Vec<Value> = Vec::new();
             let mut said: Vec<String> = Vec::new();
