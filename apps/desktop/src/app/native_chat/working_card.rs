@@ -7,6 +7,7 @@
 
 use super::{
     appearance::ChatAppearance,
+    cursor::ChatCursor as _,
     state::NativeChatView,
     transcript::text,
     working_spark::{css_ease_in_out, spark},
@@ -71,7 +72,12 @@ impl NativeChatView {
         self.list.item_count() > 0 && (self.snapshot["workingCard"]["visible"] == true || armed)
     }
 
-    /// The card for the top of the composer's stack.
+    /// The card for the top of the composer's stack. While the scroll-to-bottom pill shows, a click
+    /// anywhere on the card jumps to the bottom like the pill does; the pills and timers on it keep
+    /// their own clicks (each stops its click here).
+    ///
+    /// CDXC:SessionChat 2026-10-20 DECISION:
+    /// User: "i want clicking anywhere on the bar that's above the composer to scroll to the bottom (when the scroll to bottom button is shown) so i dont need to click specifically on that button". With the pill hidden (already at the bottom) the card does nothing on click. The phone taps the same card (apps/mobile/app/src/chat/native/cards/WorkingCard.tsx).
     ///
     /// CDXC:SessionChat 2026-10-18 WHY:
     /// The card is a row of the composer's stack, not a transcript row: a row lives in the cached transcript view (transcript_host.rs), and the card's spark animates for as long as the agent works, so every frame of it would lay out every visible row again, the cost that view exists to avoid. Outside the list, the transcript's visible area ends above it and nothing ever scrolls under it. It stays in that row in a short conversation too; lifting it under the last message left the gap above the composer the user asked about (the removed working_lane.rs, which must not come back).
@@ -105,6 +111,10 @@ impl NativeChatView {
             .bg(p.card_panel)
             .overflow_hidden()
             .text_color(p.card_muted)
+            .when(left_bottom, |card| {
+                card.chat_cursor_pointer()
+                    .on_click(cx.listener(|chat, _, _, cx| chat.jump_to_bottom(cx)))
+            })
             .child(header)
             .child(
                 // An absolute child with no insets sits inside the 1px border; one border width

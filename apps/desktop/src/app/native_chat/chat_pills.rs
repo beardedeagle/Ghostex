@@ -333,6 +333,7 @@ impl NativeChatView {
                 )
             })
             .on_click(cx.listener(move |this, _, window, cx| {
+                cx.stop_propagation();
                 let anchor = this.working_card.menu_anchor(bounds.get());
                 this.toggle_pill_menu(&id, anchor, window, cx)
             }))
