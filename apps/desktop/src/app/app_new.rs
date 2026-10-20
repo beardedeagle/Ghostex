@@ -331,8 +331,6 @@ impl GhostexGpuiApp {
                 session_chat_draft_capture_in_flight: HashSet::new(),
                 pending_session_chat_received_drafts: HashMap::new(),
                 pending_session_chat_image_saves: HashMap::new(),
-                session_chat_queued_counts: HashMap::new(),
-                session_chat_queued_count_refresh_in_flight: false,
                 local_workspace_lifecycle_requests: HashMap::new(),
                 next_local_workspace_lifecycle_request_id: 1,
                 sidebar_command_pane_sessions_snapshot: String::new(),
@@ -637,7 +635,6 @@ impl GhostexGpuiApp {
             this.start_sidebar_hover_reveal_polling(window, cx);
             this.start_command_action_status_polling(cx);
             this.start_command_pane_auto_minimize_polling(window, cx);
-            this.start_session_chat_queued_count_polling(cx);
             this.start_prompt_editor_daemon_polling(cx);
             this.start_gpui_remote_gxserver_watchdog(cx);
             this.sync_gx_store_transport(cx);

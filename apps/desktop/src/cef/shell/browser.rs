@@ -507,33 +507,6 @@ impl CefBrowser {
     }
 
     #[cfg(target_os = "macos")]
-    pub(crate) fn update_sidebar_hover_reveal(
-        &self,
-        root: *mut c_void,
-        enabled: bool,
-        width: f64,
-        titlebar_height: f64,
-        background_color: u32,
-        companion_hidden: bool,
-        requested: bool,
-        keep_under_pointer: bool,
-    ) -> (bool, bool) {
-        self.native_view().map_or((false, false), |view| {
-            platform::update_sidebar_hover_reveal(
-                view,
-                root,
-                enabled,
-                width,
-                titlebar_height,
-                background_color,
-                companion_hidden,
-                requested,
-                keep_under_pointer,
-            )
-        })
-    }
-
-    #[cfg(target_os = "macos")]
     pub(crate) fn reparent_native_view(&self, parent: *mut c_void, from: *mut c_void) {
         if self
             .native_view()

@@ -9,20 +9,10 @@ use gpui::App;
 use gpui::AppContext as _;
 use gpui::Entity;
 use gpui::Focusable as _;
-use gpui::InteractiveElement as _;
-use gpui::MouseButton;
-use gpui::MouseDownEvent;
-use gpui::MouseUpEvent;
-use gpui::ParentElement as _;
-use gpui::Styled as _;
 use gpui::Window;
-use gpui::div;
-use gpui::px;
-use gpui_component::h_flex;
 use gpui_component::input::InputEvent;
 use gpui_component::input::InputState;
 
-use crate::app::consts::*;
 use crate::app::helpers::*;
 use crate::app::model::*;
 use crate::*;
@@ -454,102 +444,6 @@ impl GhostexGpuiApp {
             #[cfg(target_os = "macos")]
             self.end_programmatic_focus();
         }
-    }
-
-    /*
-    CDXC:SessionChat 2026-08-21:
-    The terminal view's "Queued: N" control is the leading item of the pane's
-    own tab bar — existing chrome, a normal sibling frame, drawn beside the tab
-    strip rather than over anything.
-
-    It deliberately does NOT float over the terminal the way the web host's does:
-    GPUI cannot paint above a mounted Ghostty/CEF body, and solving that with a
-    transparent overlay or hit-test routing is exactly what this repo's native
-    layout discipline forbids. A chrome ROW between the tab bar and the body (the
-    search bar's slot) was the other candidate and was rejected: it would resize
-    the Ghostty surface — reflowing the user's scrollback — every time a queue
-    filled or drained. The tab bar has a fixed height, so appearing and
-    disappearing here cannot touch terminal geometry at all.
-    */
-    pub(crate) fn render_agents_terminal_queued_prompts_chip(
-        &self,
-        leaf: &WorkspaceLeaf,
-        cx: &mut gpui::Context<Self>,
-    ) -> Option<AnyElement> {
-        let session_id = leaf.tab_group.active_session_id()?;
-        // Chat owns this pane's body when it is on and renders the queue rows
-        // itself, so the terminal chip has nothing to add.
-        if self.agents_chat_mode_sessions.contains(&session_id) {
-            return None;
-        }
-        let counts = self
-            .session_chat_queued_counts
-            .get(&session_id)
-            .copied()
-            .unwrap_or_default();
-        if counts.total == 0 {
-            return None;
-        }
-        let count = counts.total;
-        /*
-        CDXC:SessionChat 2026-08-21-b:
-        A `failed` row holds the whole queue until the user retries or deletes
-        it, so the chip's dot turns the sidebar's error red instead of the
-        waiting yellow. Only the dot's colour changes — every box property below
-        is identical either way, so the chip cannot resize the tab bar and
-        therefore cannot touch the Ghostty surface's geometry.
-        */
-        let dot_color = if counts.failed > 0 {
-            terminal_queued_prompts_failed_dot_color()
-        } else {
-            terminal_queued_prompts_dot_color()
-        };
-        let element_id_suffix = format!("agents-{}-{}", leaf.pane_id.0, session_id.0);
-        Some(
-            h_flex()
-                .id(format!(
-                    "ghostex-gpui-terminal-queued-prompts-{element_id_suffix}"
-                ))
-                .flex_shrink_0()
-                .items_center()
-                .gap(px(5.0))
-                .ml(px(6.0))
-                .mr(px(2.0))
-                .h(px(TERMINAL_QUEUED_PROMPTS_CHIP_HEIGHT))
-                .px(px(7.0))
-                .rounded(px(4.0))
-                .border_1()
-                .border_color(terminal_queued_prompts_border_color())
-                .bg(terminal_queued_prompts_background_color())
-                .text_size(px(11.0))
-                .text_color(terminal_queued_prompts_text_color())
-                .cursor_default()
-                .hover(|this| this.bg(terminal_queued_prompts_hover_color()))
-                .on_mouse_down(
-                    MouseButton::Left,
-                    cx.listener(|_this, _event: &MouseDownEvent, window, cx| {
-                        window.prevent_default();
-                        cx.stop_propagation();
-                    }),
-                )
-                .on_mouse_up(
-                    MouseButton::Left,
-                    cx.listener(move |this, _event: &MouseUpEvent, window, cx| {
-                        window.prevent_default();
-                        cx.stop_propagation();
-                        this.handoff_agents_session_chat_mode(session_id, cx);
-                    }),
-                )
-                .child(
-                    div()
-                        .flex_shrink_0()
-                        .size(px(6.0))
-                        .rounded_full()
-                        .bg(dot_color),
-                )
-                .child(div().child(format!("Queued: {count}")))
-                .into_any_element(),
-        )
     }
 
     pub(crate) fn render_agents_terminal_search_bar(

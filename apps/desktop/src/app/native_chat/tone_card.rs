@@ -128,6 +128,9 @@ pub(super) struct ToneBodyMotion<'a> {
 impl NativeChatView {
     /// The tone card. `header` wraps the header row when the card's header is pressable (it gets
     /// the row back and returns it with its id, hover and click attached).
+    ///
+    /// CDXC:SessionChat 2026-09-23 DECISION:
+    /// User: "when i hover over this kind of card, you're making the only middle part change color, I want all of it to change color", and the same for "all very similar components in the chat view". A status card's pressable header reaches out to the card's own edges, so its hover lights the whole card while the card is folded to that header, and the card's full width above its body when it is open, never a band inside the padding.
     pub(super) fn tone_card(
         &self,
         parts: ToneCardParts,

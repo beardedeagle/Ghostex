@@ -8,7 +8,7 @@ use std::sync::{Arc, atomic::Ordering};
 
 use gpui::{
     AnyElement, Hsla, Image, InteractiveElement as _, IntoElement, ParentElement as _, Styled as _,
-    div, px, rgb, rgba,
+    div, px, rgb,
 };
 
 use crate::app::helpers::*;
@@ -253,35 +253,6 @@ pub(crate) fn terminal_search_bar_background_color() -> Hsla {
 
 pub(crate) fn terminal_search_bar_border_color() -> Hsla {
     chrome_color(0x252525, 0xd4d4d4).into()
-}
-
-/// The same yellow the sidebar's queued-prompt badge uses, so one queue never
-/// looks like two different things in two places.
-pub(crate) fn terminal_queued_prompts_dot_color() -> Hsla {
-    rgb(0xf6c945).into()
-}
-
-/// The sidebar's error red (`.session-status-dot-anchored[data-lifecycle-state
-/// ="error"]`), which the queued-prompt badge also switches to when a row has
-/// failed, so a stalled queue reads the same in the sidebar and in the pane.
-pub(crate) fn terminal_queued_prompts_failed_dot_color() -> Hsla {
-    rgb(0xff6b6b).into()
-}
-
-pub(crate) fn terminal_queued_prompts_text_color() -> Hsla {
-    rgba(0xffffffe0).into()
-}
-
-pub(crate) fn terminal_queued_prompts_background_color() -> Hsla {
-    rgb(0x1b1b1b).into()
-}
-
-pub(crate) fn terminal_queued_prompts_hover_color() -> Hsla {
-    rgb(0x2a2a2a).into()
-}
-
-pub(crate) fn terminal_queued_prompts_border_color() -> Hsla {
-    rgb(0x323232).into()
 }
 
 pub(crate) fn terminal_search_bar_text_color() -> Hsla {

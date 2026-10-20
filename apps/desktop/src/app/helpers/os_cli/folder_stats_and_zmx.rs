@@ -87,33 +87,6 @@ pub(crate) fn gpui_ghostex_folder_stats_message() -> serde_json::Value {
     })
 }
 
-/// Every queue row held for this session, plus how many of them are `failed`.
-/// A `failed` row waits on the user rather than on the agent, but it still
-/// counts: a queue stalled behind one has stopped dead, and hiding it would make
-/// that look identical to no queue. This mirrors the sidebar badge's
-/// `queuedPromptCount` / `queuedPromptFailedCount` exactly — one count, one
-/// meaning, on every surface.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(crate) struct GpuiSessionChatQueuedCounts {
-    pub(crate) total: usize,
-    pub(crate) failed: usize,
-}
-
-pub(crate) fn gpui_session_chat_queued_counts_from_result(
-    value: &serde_json::Value,
-) -> GpuiSessionChatQueuedCounts {
-    let Some(rows) = value.get("queue").and_then(serde_json::Value::as_array) else {
-        return GpuiSessionChatQueuedCounts::default();
-    };
-    GpuiSessionChatQueuedCounts {
-        total: rows.len(),
-        failed: rows
-            .iter()
-            .filter(|row| row.get("state").and_then(serde_json::Value::as_str) == Some("failed"))
-            .count(),
-    }
-}
-
 pub(crate) fn gpui_spawn_zmx_refresh_if_stale_process(
     session_name: Option<String>,
     grid_size: Option<(u16, u16)>,

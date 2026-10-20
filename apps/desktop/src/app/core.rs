@@ -555,10 +555,6 @@ pub struct GhostexGpuiApp {
         (TerminalSessionId, String),
         crate::app::session_chat_image_save::GpuiPendingSessionChatImageSave,
     >,
-    /// Queued Ghostex prompts per on-screen terminal-view session, the input to
-    /// the pane's "Queued: N" chrome row. Absent means zero.
-    pub(crate) session_chat_queued_counts: HashMap<TerminalSessionId, GpuiSessionChatQueuedCounts>,
-    pub(crate) session_chat_queued_count_refresh_in_flight: bool,
     pub(crate) local_workspace_lifecycle_requests: HashMap<u64, GpuiLocalWorkspaceLifecycleRequest>,
     pub(crate) next_local_workspace_lifecycle_request_id: u64,
     /*

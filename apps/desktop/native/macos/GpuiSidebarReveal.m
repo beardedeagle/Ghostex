@@ -32,7 +32,6 @@ void GhostexGpuiShowChildWindowAboveParent(NSWindow *child, NSWindow *parent);
 @property(nonatomic) NSTimeInterval outsideSince;
 @property(nonatomic) BOOL attached;
 @property(nonatomic) BOOL companion;
-@property(nonatomic) BOOL companionTriggerLatched;
 @property(nonatomic) NSTimeInterval requestedRevealDeadline;
 @property(nonatomic) NSRect targetFrame;
 @property(nonatomic) double revealProgress;
@@ -184,155 +183,6 @@ static double GhostexGpuiRevealEaseOut(double t) {
 
 static const void *GhostexGpuiSidebarRevealKey = &GhostexGpuiSidebarRevealKey;
 
-bool GhostexGpuiSidebarRevealUpdate(void *sidebarPtr, void *rootPtr,
-                                  bool enabled, double width, double titlebarHeight,
-                                  uint32_t backgroundColor,
-                                  bool companionHidden, bool requested, bool keepUnderPointer,
-                                  bool *expandCompanion) {
-  *expandCompanion = false;
-  NSView *sidebar = (__bridge NSView *)sidebarPtr;
-  NSView *root = (__bridge NSView *)rootPtr;
-  if (!sidebar || !root) return false;
-  GhostexGpuiSidebarReveal *state = objc_getAssociatedObject(sidebar, GhostexGpuiSidebarRevealKey);
-  if (state.attached && state.revealTarget == 0 && state.revealProgress == 0 && !state.animationTimer) {
-    [state hide];
-  }
-  if (!enabled) {
-    [state hide];
-    return false;
-  }
-  NSWindow *parent = root.window;
-  if (!parent || !parent.visible || parent.miniaturized || !NSApp.active) {
-    [state hide];
-    return false;
-  }
-  NSWindow *keyWindow = NSApp.keyWindow;
-  NSWindow *keyRoot = keyWindow;
-  while (keyRoot.parentWindow) keyRoot = keyRoot.parentWindow;
-  if (keyRoot != parent) {
-    [state hide];
-    return false;
-  }
-  NSRect body = root.bounds;
-  body.size.height = MAX(0, body.size.height - titlebarHeight);
-  if (root.flipped) body.origin.y += titlebarHeight;
-  body = [parent convertRectToScreen:[root convertRect:body toView:nil]];
-  NSPoint pointer = NSEvent.mouseLocation;
-  NSRect edge = body;
-  edge.size.width = MIN(10, body.size.width);
-  BOOL overEdge = NSPointInRect(pointer, edge);
-  if (!overEdge) state.companionTriggerLatched = NO;
-  if (!state && !overEdge && !requested && !keepUnderPointer) return false;
-  if (!state) {
-    state = [GhostexGpuiSidebarReveal new];
-    state.sidebar = sidebar;
-    state.root = root;
-    state.slideDuration = 0.22;
-    state.panel = [[GhostexGpuiSidebarRevealPanel alloc]
-        initWithContentRect:NSZeroRect
-                  styleMask:NSWindowStyleMaskBorderless | NSWindowStyleMaskNonactivatingPanel
-                    backing:NSBackingStoreBuffered defer:NO];
-    state.panel.releasedWhenClosed = NO;
-    state.panel.hasShadow = YES;
-    state.panel.hidesOnDeactivate = YES;
-    state.panel.becomesKeyOnlyIfNeeded = YES;
-    state.panel.acceptsMouseMovedEvents = YES;
-    state.panel.collectionBehavior = NSWindowCollectionBehaviorFullScreenAuxiliary;
-    state.panel.contentView.autoresizesSubviews = NO;
-    state.panel.contentView.wantsLayer = YES;
-    state.panel.contentView.layer.masksToBounds = YES;
-    objc_setAssociatedObject(sidebar, GhostexGpuiSidebarRevealKey, state, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-  }
-  // CDXC:Theming 2026-09-15 WHY:
-  // Chromium can leave the panel backing exposed while the sidebar slides or is reparented, so use the live sidebar color before showing it, including after a theme change.
-  NSColor *sidebarBackground = [NSColor
-      colorWithSRGBRed:((backgroundColor >> 16) & 0xff) / 255.0
-                green:((backgroundColor >> 8) & 0xff) / 255.0
-                 blue:(backgroundColor & 0xff) / 255.0
-                alpha:1];
-  if (![state.panel.backgroundColor isEqual:sidebarBackground]) {
-    state.panel.backgroundColor = sidebarBackground;
-  }
-  if (requested) {
-    state.companionTriggerLatched = NO;
-    state.requestedRevealDeadline = NSProcessInfo.processInfo.systemUptime + 5;
-    state.outsideSince = 0;
-  }
-  if (!state.attached && state.companionTriggerLatched) return false;
-  if (!requested && !keepUnderPointer && !state.attached && overEdge && companionHidden &&
-      pointer.y < NSMidY(body)) {
-    if (NSEvent.pressedMouseButtons == 0) {
-      state.companionTriggerLatched = YES;
-      *expandCompanion = true;
-    }
-    return false;
-  }
-  NSRect panelFrame = body;
-  panelFrame.size.width = MIN(width, body.size.width);
-  state.targetFrame = panelFrame;
-  if (!state.attached) {
-    // CDXC:Sidebar 2026-09-12 DECISION:
-    // User: a project or view switch that hides the docked sidebar must not pull it out from under the pointer.
-    // While the pointer is over the sidebar's slot it stays as the floating panel at full width, with no slide, and leaves through the ordinary pointer-leave dismissal below.
-    BOOL sticky = keepUnderPointer && NSPointInRect(pointer, panelFrame);
-    if (!requested && !sticky && (!overEdge || NSEvent.pressedMouseButtons != 0)) return false;
-    state.originalSuperview = sidebar.superview;
-    state.originalFrame = sidebar.frame;
-    [sidebar removeFromSuperview];
-    [state.panel.contentView addSubview:sidebar];
-    [parent addChildWindow:state.panel ordered:NSWindowAbove];
-    state.attached = YES;
-    if (sticky) {
-      state.requestedRevealDeadline = 0;
-      state.outsideSince = 0;
-      state.revealTarget = 1;
-      state.revealProgress = 1;
-      [state layoutReveal];
-      GhostexGpuiShowChildWindowAboveParent(state.panel, parent);
-      GhostexGpuiCEFRefreshSidebarPointerInside();
-    } else {
-      [state animateIn];
-    }
-  } else {
-    [state layoutReveal];
-  }
-  if (state.requestedRevealDeadline > 0) {
-    if (NSPointInRect(pointer, state.panel.frame)) {
-      state.requestedRevealDeadline = 0;
-    } else if (NSProcessInfo.processInfo.systemUptime < state.requestedRevealDeadline) {
-      [state animateTo:1];
-      return true;
-    } else {
-      state.requestedRevealDeadline = 0;
-      [state animateTo:0];
-      return state.attached;
-    }
-  }
-  BOOL inside = NSPointInRect(pointer, state.revealTarget == 0 ? state.panel.frame : panelFrame);
-  // Native menus and dialogs launched from the sidebar own their input in
-  // separate child windows. Keep the sidebar while those controls are used.
-  for (NSWindow *child in parent.childWindows) {
-    if (child != state.panel && child.visible && NSPointInRect(pointer, child.frame)) {
-      inside = YES;
-    }
-  }
-  if (inside || NSEvent.pressedMouseButtons != 0) {
-    state.outsideSince = 0;
-    [state animateTo:1];
-  } else {
-    NSTimeInterval now = NSDate.timeIntervalSinceReferenceDate;
-    if (state.outsideSince == 0) state.outsideSince = now;
-    if (now - state.outsideSince >= 0.2) {
-      [state animateTo:0];
-    }
-  }
-  if (state.revealTarget == 0 && state.revealProgress == 0 && !state.animationTimer) {
-    [state hide];
-    return false;
-  }
-  return true;
-}
-
 // The sidebar's editable-focus bridge is the only reason this passive
 // panel should become key. Normal session/project clicks keep typing in the workspace.
 void GhostexGpuiSidebarRevealFocusEditable(void *sidebarPtr) {
@@ -481,6 +331,9 @@ int GhostexGpuiNativeSidebarRevealRequest(void *rootPtr, double width, double ti
   NSRect slot = body;
   slot.origin.x += inset;
   slot.size.width = MIN(width, body.size.width - inset);
+  // CDXC:Sidebar 2026-09-12 DECISION:
+  // User: a project or view switch that hides the docked sidebar must not pull it out from under the pointer.
+  // While the pointer is over the sidebar's slot it stays as the floating panel at full width, with no slide, and leaves through the ordinary pointer-leave dismissal in GhostexGpuiNativeRevealUpdate.
   if (requested || (keepUnderPointer && NSPointInRect(pointer, slot))) return 1;
   if (!edgeHovered || NSEvent.pressedMouseButtons != 0) return 0;
   return 1;

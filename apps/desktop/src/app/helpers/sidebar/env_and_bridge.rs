@@ -13,15 +13,6 @@ use gpui::{Hsla, rgb};
 use crate::app::helpers::*;
 use crate::*;
 
-pub(crate) fn sidebar_cef_prepaint_background_color() -> u32 {
-    /*
-    CEF owns the sidebar's native child view right up to the sibling divider.
-    Use the resolved sidebar base for Chromium's prepaint/background pixel so
-    its AppKit edge cannot expose the old fixed #0e0e0e color.
-    */
-    0xff00_0000 | GPUI_TITLEBAR_BACKGROUND_RGB.load(Ordering::Relaxed) as u32
-}
-
 /// CDXC:Sidebar 2026-09-16 DECISION:
 /// User: resize drag-area backgrounds are #F3F4F6 in light mode, superseding the earlier #C9C9C9 choice and the white sidebar grab handle requested on 2026-09-13.
 pub(crate) fn sidebar_divider_background_color() -> Hsla {

@@ -26,18 +26,6 @@ unsafe extern "C" {
         parent: *mut c_void,
         from: *mut c_void,
     ) -> bool;
-    fn GhostexGpuiSidebarRevealUpdate(
-        sidebar: *mut c_void,
-        root: *mut c_void,
-        enabled: bool,
-        width: c_double,
-        titlebar_height: c_double,
-        background_color: u32,
-        companion_hidden: bool,
-        requested: bool,
-        keep_under_pointer: bool,
-        expand_companion: *mut bool,
-    ) -> bool;
     fn GhostexGpuiSidebarRevealDispose(sidebar: *mut c_void);
     fn GhostexGpuiCEFPrepareApplication();
     fn GhostexGpuiCEFSystemUsesDarkPageAppearance() -> bool;
@@ -78,7 +66,6 @@ unsafe extern "C" {
         responder: *mut c_void,
     ) -> bool;
     fn GhostexGpuiCEFNativeViewOwnsFirstResponder(native_view: *mut c_void) -> bool;
-    fn GhostexGpuiCEFSetSidebarPointerTrackingView(native_view: *mut c_void);
     fn GhostexGpuiCEFReportSidebarPointerOutside();
     fn GhostexGpuiCEFRefreshSidebarPointerInside();
 }
@@ -89,35 +76,6 @@ pub(super) fn reparent_pane_native_view(
     from: *mut c_void,
 ) -> bool {
     unsafe { GhostexGpuiReparentPaneNativeView(view, parent, from) }
-}
-
-pub(super) fn update_sidebar_hover_reveal(
-    sidebar: *mut c_void,
-    root: *mut c_void,
-    enabled: bool,
-    width: f64,
-    titlebar_height: f64,
-    background_color: u32,
-    companion_hidden: bool,
-    requested: bool,
-    keep_under_pointer: bool,
-) -> (bool, bool) {
-    let mut expand_companion = false;
-    let revealed = unsafe {
-        GhostexGpuiSidebarRevealUpdate(
-            sidebar,
-            root,
-            enabled,
-            width,
-            titlebar_height,
-            background_color,
-            companion_hidden,
-            requested,
-            keep_under_pointer,
-            &mut expand_companion,
-        )
-    };
-    (revealed, expand_companion)
 }
 
 pub(super) fn dispose_sidebar_hover_reveal(sidebar: *mut c_void) {
@@ -378,10 +336,6 @@ pub(super) fn focus_gpui_root_view(native_view: *mut c_void) {
     unsafe {
         GhostexGpuiCEFFocusGpuiRootView(native_view);
     }
-}
-
-pub(super) fn set_sidebar_pointer_tracking_view(native_view: *mut c_void) {
-    unsafe { GhostexGpuiCEFSetSidebarPointerTrackingView(native_view) }
 }
 
 pub(super) fn report_sidebar_pointer_outside() {

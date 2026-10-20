@@ -2,7 +2,6 @@
 // move, no logic changes; items made pub(crate) so main.rs and sibling
 // modules can still reach them). See docs/2026-08-22/repo-restructure/SPLITS.md C1.
 
-use crate::app::render::workarea_header::workarea_header_bottom_y;
 use crate::*;
 
 #[path = "cef_surface_site_prompt.rs"]
@@ -262,13 +261,6 @@ impl CefSurface {
         self.browser.focus();
     }
 
-    /// The surface's CEF child view, for the AppKit pointer observer that turns
-    /// pointer crossings of the sidebar frame into page-side hover state.
-    #[cfg(target_os = "macos")]
-    pub(crate) fn native_view_for_sidebar_pointer_tracking(&self) -> Option<*mut std::ffi::c_void> {
-        self.browser.native_view()
-    }
-
     #[cfg(target_os = "macos")]
     pub(crate) fn native_view_contains_responder(&self, responder: *mut std::ffi::c_void) -> bool {
         self.browser
@@ -362,30 +354,6 @@ impl CefSurface {
         from: *mut std::ffi::c_void,
     ) {
         self.browser.reparent_native_view(parent, from);
-    }
-
-    #[cfg(target_os = "macos")]
-    pub(crate) fn update_sidebar_hover_reveal(
-        &mut self,
-        root: *mut std::ffi::c_void,
-        collapsed: bool,
-        width: f32,
-        companion_hidden: bool,
-        requested: bool,
-        keep_under_pointer: bool,
-    ) -> bool {
-        let (revealed, expand_companion) = self.browser.update_sidebar_hover_reveal(
-            root,
-            collapsed,
-            width as f64,
-            workarea_header_bottom_y() as f64,
-            sidebar_cef_prepaint_background_color(),
-            companion_hidden,
-            requested,
-            keep_under_pointer,
-        );
-        self.set_visible(!collapsed || revealed);
-        expand_companion
     }
 
     pub(crate) fn order_front(&mut self) {

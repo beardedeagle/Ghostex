@@ -18,18 +18,6 @@ pub(crate) static GPUI_APP_QUIT_IN_PROGRESS: AtomicBool = AtomicBool::new(false)
 /// an SSH tunnel) on top of that.
 pub(crate) const GPUI_SESSION_CHAT_DRAFT_TRANSFER_TIMEOUT: Duration = Duration::from_secs(30);
 
-/*
-CDXC:SessionChat 2026-08-21:
-The terminal view's "Queued: N" chip needs the queue size for the handful of
-sessions actually on screen in terminal mode. gxserver publishes the same count
-as `queuedPromptCount` on its presentation snapshot, which the Rust store
-already receives (gx_store/sidebar_snapshot.rs); when the terminal view reads
-that field from the store this read should be deleted rather than kept beside it. Until then the
-poll stays deliberately narrow: Agents mode only, visible panes only, the active
-tab only, chat-capable sessions only — never a per-session sweep of the project.
-*/
-pub(crate) const GPUI_SESSION_CHAT_QUEUE_COUNT_POLL_INTERVAL: Duration = Duration::from_secs(3);
-
 pub(crate) const GPUI_SESSION_CHAT_QUEUE_COUNT_TIMEOUT: Duration = Duration::from_secs(10);
 
 #[cfg(target_os = "linux")]
@@ -605,10 +593,6 @@ pub(crate) const TITLEBAR_UPDATE_PROGRESS_RING_RADIUS: f32 = 5.5;
 pub(crate) const TITLEBAR_UPDATE_PROGRESS_RING_STROKE: f32 = 2.0;
 
 pub(crate) const FIND_BAR_HEIGHT: f32 = 35.0;
-
-/// Height of the tab bar's "Queued: N" chip. Shorter than the tab bar itself so
-/// the chip reads as an inset control and never drives the bar's own height.
-pub(crate) const TERMINAL_QUEUED_PROMPTS_CHIP_HEIGHT: f32 = 20.0;
 
 pub(crate) const FIND_BAR_NAV_BUTTON_WIDTH: f32 = 42.0;
 
