@@ -1,14 +1,11 @@
-import type { SessionChatDraftVersion } from "./session-chat-queue";
-import type {
-  GxserverProjectId,
-  GxserverSessionId,
-} from "./gxserver-protocol-core";
+import type { SessionChatDraftVersion } from './session-chat-queue';
+import type { GxserverProjectId, GxserverSessionId } from './gxserver-protocol-core';
 import type {
   GxserverAgentStartupTextDisposition,
   GxserverAgentResumePlan,
   GxserverStartSessionProviderResult,
-} from "./gxserver-protocol-session-runtime";
-import type { GxserverSessionDomainState } from "./gxserver-protocol-domain";
+} from './gxserver-protocol-session-runtime';
+import type { GxserverSessionDomainState } from './gxserver-protocol-domain';
 
 /*
 CDXC:Worktrees 2026-07-29:
@@ -157,7 +154,7 @@ and answers `unknown` for every other agent, and for any capture it could not
 read. Nothing may treat `unknown` as "not ready" — the daemon itself fails open
 on it, and a client that did otherwise would block sends the daemon allows.
 */
-export type GxserverSessionComposerState = "ready" | "notReady" | "unknown";
+export type GxserverSessionComposerState = 'ready' | 'notReady' | 'unknown';
 
 export interface GxserverReadSessionTerminalTailParams {
   projectId: GxserverProjectId;
@@ -263,8 +260,8 @@ export interface GxserverSessionLifecycleParams {
  */
 export interface GxserverSessionChatDraftListEntry {
   parked?: boolean;
-  deliveredDrafts?: import("./session-chat-queue").SessionChatDeliveredDraft[];
-  recoveryDrafts?: import("./session-chat-queue").SessionChatRecoveryDraft[];
+  deliveredDrafts?: import('./session-chat-queue').SessionChatDeliveredDraft[];
+  recoveryDrafts?: import('./session-chat-queue').SessionChatRecoveryDraft[];
   version?: SessionChatDraftVersion;
   consumedDrafts?: SessionChatDraftVersion[];
   originClientId?: string;
@@ -276,7 +273,7 @@ export interface GxserverSessionChatDraftListEntry {
 
 export interface GxserverListSessionChatDraftsResult {
   drafts: GxserverSessionChatDraftListEntry[];
-  recoveryDrafts?: import("./session-chat-queue").SessionChatRecoveryDraft[];
+  recoveryDrafts?: import('./session-chat-queue').SessionChatRecoveryDraft[];
 }
 
 /*
@@ -290,7 +287,7 @@ Automatic sleeps can additionally be declined by a live keep-awake lease (see
 declined when the target is no longer running, because stopped history must not
 be promoted into the active sleeping lifecycle.
 */
-export type GxserverSleepTrigger = "automatic" | "user";
+export type GxserverSleepTrigger = 'automatic' | 'user';
 
 export interface GxserverSleepSessionParams extends GxserverSessionLifecycleParams {
   sleepTrigger?: GxserverSleepTrigger;
@@ -307,12 +304,7 @@ export interface GxserverSleepSessionResult {
   targeted sleeping or stopped history. In every case the session was not
   touched, so a client must not optimistically mark the row sleeping.
   */
-  declined?:
-    | "backgroundWork"
-    | "keptAwake"
-    | "neverActive"
-    | "notRunning"
-    | "pendingQuestion";
+  declined?: 'backgroundWork' | 'keptAwake' | 'neverActive' | 'notRunning' | 'pendingQuestion';
   kill?: Record<string, unknown>;
   session: GxserverSessionDomainState;
 }
@@ -361,7 +353,7 @@ export interface GxserverHoldSessionsAwakeResult {
   }[];
 }
 
-export type GxserverSessionTransitionAction = "close" | "sleep";
+export type GxserverSessionTransitionAction = 'close' | 'sleep';
 export interface GxserverSessionTransitionParams extends GxserverSessionLifecycleParams {
   /*
   CDXC:StateSync 2026-06-02-13:01:
@@ -372,7 +364,7 @@ export interface GxserverSessionTransitionParams extends GxserverSessionLifecycl
 
 export interface GxserverSessionTransitionResult {
   action: GxserverSessionTransitionAction;
-  declined?: "notRunning";
+  declined?: 'notRunning';
   session: GxserverSessionDomainState;
   transition: Record<string, unknown> & {
     session: GxserverSessionDomainState;

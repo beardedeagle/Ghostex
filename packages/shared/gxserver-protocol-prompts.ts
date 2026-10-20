@@ -1,4 +1,4 @@
-import type { GxserverSessionChatDraftListEntry } from "./gxserver-protocol-sessions";
+import type { GxserverSessionChatDraftListEntry } from './gxserver-protocol-sessions';
 
 /*
 CDXC:ServerDaemon 2026-06-24-13:30:
@@ -101,8 +101,8 @@ export interface GxserverListStashedPromptsParams {
 
 export interface GxserverListStashedPromptsResult {
   drafts?: GxserverSessionChatDraftListEntry[];
-  deliveredDrafts?: import("./session-chat-queue").SessionChatDeliveredDraft[];
-  recoveryDrafts?: import("./session-chat-queue").SessionChatRecoveryDraft[];
+  deliveredDrafts?: import('./session-chat-queue').SessionChatDeliveredDraft[];
+  recoveryDrafts?: import('./session-chat-queue').SessionChatRecoveryDraft[];
   prompts: readonly GxserverStashedPrompt[];
   /** The tag catalogue, so the modal paints its rail and its rows together. */
   tags?: readonly GxserverStashedPromptTag[];
@@ -126,9 +126,9 @@ export interface GxserverStashedPromptTag {
 }
 
 /** The tagId of the seeded builtin Favorites tag. */
-export const GXSERVER_FAVORITE_PROMPT_TAG_ID = "favorite";
+export const GXSERVER_FAVORITE_PROMPT_TAG_ID = 'favorite';
 /** The tagId automatically assigned whenever a prompt is stashed. */
-export const GXSERVER_STASHED_PROMPT_TAG_ID = "stashed";
+export const GXSERVER_STASHED_PROMPT_TAG_ID = 'stashed';
 
 export interface GxserverListStashedPromptTagsResult {
   tags: readonly GxserverStashedPromptTag[];

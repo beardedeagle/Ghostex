@@ -89,10 +89,7 @@ impl NativeChatView {
                 },
             )
         } else if dismissed {
-            (
-                AskTone::Quiet,
-                "Dismissed without answering".to_string(),
-            )
+            (AskTone::Quiet, "Dismissed without answering".to_string())
         } else {
             (
                 AskTone::Quiet,

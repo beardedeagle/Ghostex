@@ -185,7 +185,10 @@ impl NativeChatView {
             .flex_shrink_0()
             .gap(px(10.0 * s))
             .px(px(card.padding_x * s))
-            .child(card.tile("titlebar/chat-card-clock.svg", p).child(card.check_badge(p)))
+            .child(
+                card.tile("titlebar/chat-card-clock.svg", p)
+                    .child(card.check_badge(p)),
+            )
             .child(
                 card.title(div().flex_shrink_0(), p)
                     .text_color(p.foreground)

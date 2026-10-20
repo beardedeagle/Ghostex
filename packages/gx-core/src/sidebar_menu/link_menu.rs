@@ -76,7 +76,12 @@ pub(crate) fn link_submenu(id: &str, row: &SessionRow, group: &MenuGroup<'_>) ->
         ));
     } else {
         children.push(pick("Linear issue…", "hash", "linearIssue", &linear_issues));
-        children.push(pick("Linear project…", "box", "linearProject", &linear_project));
+        children.push(pick(
+            "Linear project…",
+            "box",
+            "linearProject",
+            &linear_project,
+        ));
     }
 
     // Unlink writes "explicitly none" for that kind, so the branch cannot bring it back.

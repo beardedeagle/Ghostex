@@ -41,7 +41,10 @@ fn extract(lines: &[&str], item: &str, file: &Path) -> String {
     if let Some((owner, method)) = item.split_once("::") {
         let indented: Vec<&str> = lines
             .iter()
-            .map(|line| line.strip_prefix("    ").unwrap_or(if line.is_empty() { "" } else { "\u{1}" }))
+            .map(|line| {
+                line.strip_prefix("    ")
+                    .unwrap_or(if line.is_empty() { "" } else { "\u{1}" })
+            })
             .collect();
         let body = extract(&indented, method, file);
         return format!("impl {owner} {{\n{body}}}\n");
@@ -80,14 +83,12 @@ fn extract(lines: &[&str], item: &str, file: &Path) -> String {
     loop {
         let line = lines[end];
         let single_line = end == start && (line.ends_with(';') || line.ends_with('}'));
-        let is_value = ["const ", "static ", "type "]
-            .iter()
-            .any(|head| {
-                lines[start]
-                    .trim_start_matches("pub(crate) ")
-                    .trim_start_matches("pub ")
-                    .starts_with(head)
-            });
+        let is_value = ["const ", "static ", "type "].iter().any(|head| {
+            lines[start]
+                .trim_start_matches("pub(crate) ")
+                .trim_start_matches("pub ")
+                .starts_with(head)
+        });
         let closes = end > start
             && (line.starts_with('}')
                 || line == "];"

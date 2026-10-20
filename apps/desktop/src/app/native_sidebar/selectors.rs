@@ -136,7 +136,13 @@ impl GhostexGpuiApp {
         let dot_group = format!("native-space-dots-{id}");
         let dot_backdrop = super::status::DotBackdrop::new(
             appearance,
-            if space.selected { Some(selected_background) } else if space.contains_active_session { Some(appearance.selected) } else { None },
+            if space.selected {
+                Some(selected_background)
+            } else if space.contains_active_session {
+                Some(appearance.selected)
+            } else {
+                None
+            },
             dot_group.clone(),
         );
         let dragged = SidebarDrag {

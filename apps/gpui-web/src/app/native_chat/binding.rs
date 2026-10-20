@@ -24,20 +24,25 @@ impl GhostexGpuiApp {
             shell_session_id,
             app: Some(cx.weak_entity()),
             parent_native_view: std::ptr::null_mut(),
-            client_id: format!("gpui-web-{}", crate::app::helpers::gpui_random_uuid_string().unwrap_or_default()),
+            client_id: format!(
+                "gpui-web-{}",
+                crate::app::helpers::gpui_random_uuid_string().unwrap_or_default()
+            ),
             remote: None,
             initial_snapshot: None,
             initial_presentation: self.initial_web_chat_presentation(session),
         };
         let view = cx.new(|cx| NativeChatView::new(config, cx));
         let key = session.clone();
-        let subscription = cx.subscribe(&view, move |this, _view, event: &NativeChatEvent, cx| {
-            match event {
-                NativeChatEvent::Broker(message) => this.web_relay_chat_broker(&key, message),
-                NativeChatEvent::Host(message) => this.web_chat_host_action(&key, message, cx),
-                NativeChatEvent::ComposerFocused | NativeChatEvent::DraftState(_) => {}
-            }
-        });
+        let subscription =
+            cx.subscribe(
+                &view,
+                move |this, _view, event: &NativeChatEvent, cx| match event {
+                    NativeChatEvent::Broker(message) => this.web_relay_chat_broker(&key, message),
+                    NativeChatEvent::Host(message) => this.web_chat_host_action(&key, message, cx),
+                    NativeChatEvent::ComposerFocused | NativeChatEvent::DraftState(_) => {}
+                },
+            );
         view.update(cx, |view, _| view.subscriptions.push(subscription));
         self.native_chats
             .insert(session.clone(), (shell_session_id, view.clone()));

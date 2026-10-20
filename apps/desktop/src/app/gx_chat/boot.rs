@@ -114,7 +114,9 @@ pub(super) fn chat_settings() -> ChatSettings {
         catch_up: object.get("chatCatchMeUp").and_then(Value::as_bool),
         previous_question: object.get("chatPreviousQuestion").and_then(Value::as_bool),
         send_on_pick: object.get("chatSendOnPick").and_then(Value::as_bool),
-        all_orchestrator_efforts: object.get("orchestratorAllEfforts").and_then(Value::as_bool),
+        all_orchestrator_efforts: object
+            .get("orchestratorAllEfforts")
+            .and_then(Value::as_bool),
     }
 }
 

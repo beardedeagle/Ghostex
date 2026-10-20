@@ -1,10 +1,10 @@
 use super::model::NativeSidebarSnapshot;
 use crate::GhostexGpuiApp;
+use crate::fold_motion::bezier;
 use gpui::{
     Bounds, MouseButton, MouseDownEvent, MouseMoveEvent, Pixels, Point, ScrollDelta,
     ScrollWheelEvent, TouchPhase, Window,
 };
-use crate::fold_motion::bezier;
 use std::sync::Arc;
 use web_time::Instant;
 

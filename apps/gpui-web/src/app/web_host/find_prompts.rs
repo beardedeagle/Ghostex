@@ -5,7 +5,7 @@ use serde_json::Value;
 
 use crate::GhostexGpuiApp;
 use crate::app::consts::{
-    APP_MODAL_HOST_SETTINGS_WINDOW_WIDTH, APP_MODAL_HOST_SETTINGS_WINDOW_HEIGHT,
+    APP_MODAL_HOST_SETTINGS_WINDOW_HEIGHT, APP_MODAL_HOST_SETTINGS_WINDOW_WIDTH,
 };
 use crate::app::model::GpuiAppModalKind;
 use crate::app::window::find_prompts::palette::find_prompts_font_family;

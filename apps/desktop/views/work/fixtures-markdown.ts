@@ -39,7 +39,7 @@ showToast("Link copied");
 Prices in the copy stay as typed: $5 and $10.`;
 
 export const MARKDOWN_COMMENT =
-  "Looks good. Two notes:\n\n1. Keep the **existing** menu order\n2. Use `aria-live` for the toast\n\nRef: https://developer.mozilla.org/docs/Web/API/Clipboard";
+  'Looks good. Two notes:\n\n1. Keep the **existing** menu order\n2. Use `aria-live` for the toast\n\nRef: https://developer.mozilla.org/docs/Web/API/Clipboard';
 
 export const MARKDOWN_PR_BODY = `## Summary
 

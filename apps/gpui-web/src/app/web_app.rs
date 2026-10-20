@@ -38,7 +38,8 @@ pub(crate) struct GhostexGpuiApp {
     /// The session the work area shows.
     pub(crate) open_session: Option<ghostex_gx_core::SessionKey>,
     /// The keep-awake lease on the open session (`gx_store/terminal_lifecycle/shown_sessions.rs`).
-    pub(crate) shown_sessions: crate::app::gx_store::terminal_lifecycle::shown_sessions::WebShownSessions,
+    pub(crate) shown_sessions:
+        crate::app::gx_store::terminal_lifecycle::shown_sessions::WebShownSessions,
     /// Every chat opened in this page, with the shell id its view was given.
     pub(crate) terminals:
         HashMap<ghostex_gx_core::SessionKey, Entity<crate::terminal_element::TerminalView>>,

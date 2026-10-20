@@ -1,9 +1,5 @@
-import type { DelayedSendAgentReference } from "./delayed-send";
-import type {
-  GxserverProjectId,
-  GxserverSessionId,
-  GxserverZmxSessionName,
-} from "./gxserver-protocol-core";
+import type { DelayedSendAgentReference } from './delayed-send';
+import type { GxserverProjectId, GxserverSessionId, GxserverZmxSessionName } from './gxserver-protocol-core';
 import type {
   GxserverSessionKind,
   GxserverSessionSurface,
@@ -11,9 +7,9 @@ import type {
   GxserverSessionTagFilter,
   GxserverDomainLifecycleState,
   GxserverProjectDomainState,
-} from "./gxserver-protocol-domain";
-import type { GxserverSwitchableSessionAgent } from "./gxserver-protocol-sessions";
-import type { GxserverPortlessPresentation } from "./gxserver-protocol-health";
+} from './gxserver-protocol-domain';
+import type { GxserverSwitchableSessionAgent } from './gxserver-protocol-sessions';
+import type { GxserverPortlessPresentation } from './gxserver-protocol-health';
 
 /**
  * CDXC:Drafts 2026-08-28:
@@ -22,12 +18,7 @@ import type { GxserverPortlessPresentation } from "./gxserver-protocol-health";
  * so a client can tell "the user's unsent text" apart from a real session title.
  */
 export type GxserverSessionTitleSource =
-  | "browser-auto"
-  | "draft"
-  | "generated"
-  | "placeholder"
-  | "terminal-auto"
-  | "user";
+  'browser-auto' | 'draft' | 'generated' | 'placeholder' | 'terminal-auto' | 'user';
 
 export interface GxserverSessionTitleProjection {
   displayTitle?: string;
@@ -44,14 +35,12 @@ export interface GxserverSessionTitleProjection {
 export type GxserverPresentationRevision = number & {
   readonly __gxserverPresentationRevision: unique symbol;
 };
-export type GxserverPresentationSessionActivity =
-  "attention" | "idle" | "working";
+export type GxserverPresentationSessionActivity = 'attention' | 'idle' | 'working';
 /*
 CDXC:SessionStatus 2026-06-07-00:30:
 zmx title observation health is presentation metadata for working-status detection. Publish only coarse watcher states and timestamps so clients can avoid treating unavailable detection as idle without exposing terminal titles, commands, paths, or user content.
 */
-export type GxserverTitleObservationStatus =
-  "active" | "failed" | "retrying" | "starting";
+export type GxserverTitleObservationStatus = 'active' | 'failed' | 'retrying' | 'starting';
 
 export interface GxserverTitleObservationState {
   failureCount?: number;
@@ -84,8 +73,7 @@ export interface GxserverPresentationSessionActions {
 CDXC:StateSync 2026-06-15-17:32:
 Presentation clients need provider liveness as a first-class field because domain lifecycle and native pane lifecycle are separate resources. A row can remain visible while its zmx provider is missing or persistence is disabled, and clients must not infer provider existence from `running` alone.
 */
-export type GxserverPresentationProviderSessionState =
-  "exists" | "missing" | "persistence-disabled" | "unknown";
+export type GxserverPresentationProviderSessionState = 'exists' | 'missing' | 'persistence-disabled' | 'unknown';
 
 export interface GxserverPresentationProject {
   createdAt: string;
@@ -142,7 +130,7 @@ export interface GxserverPresentationProject {
   /** Work mode is on and a Linear key is set for this project; present only when true. */
   workLinear?: true;
   /** The primary tracker of the project's workspace (server/src/work_mode/tracker.rs); present only with work mode on. */
-  workTracker?: "linear" | "github";
+  workTracker?: 'linear' | 'github';
   /** The workspace this project belongs to (server/src/workspaces/); absent = the default workspace. */
   workspaceId?: string;
   /** The project shows in every workspace (the Ghostex config folder's project, home of the Help chats); present only when true. */
@@ -169,7 +157,7 @@ export interface GxserverPresentationProject {
   isFavorite: boolean;
   isPinned: boolean;
   path?: string;
-  pathState?: "available" | "missing" | "notDirectory" | "unavailable";
+  pathState?: 'available' | 'missing' | 'notDirectory' | 'unavailable';
   projectId: GxserverProjectId;
   sortKey: string;
   title: string;
@@ -185,7 +173,7 @@ export interface GxserverPresentationGroup {
   title: string;
 }
 
-export type GxserverPresentationSettledOverride = "active" | "settled";
+export type GxserverPresentationSettledOverride = 'active' | 'settled';
 
 /**
  * CDXC:Git 2026-07-29:
@@ -194,8 +182,7 @@ export type GxserverPresentationSettledOverride = "active" | "settled";
  * a different (deliberately quiet) hue: a draft is work in progress, not a
  * review waiting on anyone.
  */
-export type GxserverPresentationSessionPrState =
-  "closed" | "draft" | "merged" | "open";
+export type GxserverPresentationSessionPrState = 'closed' | 'draft' | 'merged' | 'open';
 
 /*
 CDXC:Git 2026-07-29:
@@ -274,7 +261,7 @@ export interface GxserverPresentationSessionWork {
     number: number;
     state: GxserverPresentationSessionPrState;
     url?: string;
-    checks?: "passing" | "failing" | "pending";
+    checks?: 'passing' | 'failing' | 'pending';
   };
   linearIssues?: Array<{
     /** `SPX-1245`. */
@@ -285,7 +272,7 @@ export interface GxserverPresentationSessionWork {
     stateName?: string;
     url?: string;
   }>;
-  githubIssues?: Array<{ number: number; title?: string; state?: "open" | "closed"; url?: string }>;
+  githubIssues?: Array<{ number: number; title?: string; state?: 'open' | 'closed'; url?: string }>;
   /** A Linear project is a release the team works on, never a repo. */
   linearProject?: { name: string; url?: string };
   /** A GitHub Project (Projects v2), instead of `linearProject` when the workspace's primary tracker is GitHub. */
@@ -312,8 +299,8 @@ export interface GxserverPresentationAgentbox {
 export interface GxserverProgramStatusRecord {
   /** `a/b/c` path; empty for the root record. */
   id: string;
-  state: "idle" | "working" | "done" | "blocked" | "error";
-  kind?: "permission" | "question" | "auth";
+  state: 'idle' | 'working' | 'done' | 'blocked' | 'error';
+  kind?: 'permission' | 'question' | 'auth';
   progress?: number;
   app?: string;
   title?: string;
@@ -326,8 +313,8 @@ export interface GxserverProgramStatusRecord {
 export interface GxserverProgramStatus {
   /** The records drive `activity` under the Session status setting. */
   governs: boolean;
-  state: "idle" | "working" | "done" | "blocked" | "error";
-  kind?: "permission" | "question" | "auth";
+  state: 'idle' | 'working' | 'done' | 'blocked' | 'error';
+  kind?: 'permission' | 'question' | 'auth';
   progress?: number;
   app?: string;
   message?: string;
@@ -493,7 +480,7 @@ export interface GxserverPresentationSession {
    * nothing to switch to and on daemons that predate the feature.
    */
   switchableAgents?: readonly GxserverSwitchableSessionAgent[];
-  sessionPersistenceProvider?: "tmux" | "zmx" | "zellij";
+  sessionPersistenceProvider?: 'tmux' | 'zmx' | 'zellij';
   sessionTag?: GxserverSessionTag;
   sendWhenAllProjectSessionsStopActive?: boolean;
   sendWhenAgentStopsActive?: boolean;
@@ -608,11 +595,11 @@ export interface GxserverSidebarSpacesState {
 export interface GxserverSidebarWorkspace {
   claudeAccountId?: string;
   color: string;
-  kind: "work" | "personal";
+  kind: 'work' | 'personal';
   letter: string;
   name: string;
   /** The primary tracker picked on this computer (server/src/work_mode/tracker.rs); absent = never picked. */
-  tracker?: "linear" | "github";
+  tracker?: 'linear' | 'github';
   workspaceId: string;
 }
 
@@ -738,37 +725,37 @@ export type GxserverPresentationDelta =
   | {
       domainProject?: GxserverProjectDomainState;
       project: GxserverPresentationProject;
-      type: "projectAdded" | "projectUpdated";
+      type: 'projectAdded' | 'projectUpdated';
     }
   | {
       projectId: GxserverProjectId;
-      type: "projectRemoved";
+      type: 'projectRemoved';
     }
   | {
       group: GxserverPresentationGroup;
-      type: "groupAdded" | "groupUpdated" | "groupOrderChanged";
+      type: 'groupAdded' | 'groupUpdated' | 'groupOrderChanged';
     }
   | {
       groupId: string;
       projectId: GxserverProjectId;
-      type: "groupRemoved";
+      type: 'groupRemoved';
     }
   | {
       session: GxserverPresentationSession;
       type:
-        | "sessionAdded"
-        | "sessionUpdated"
-        | "sessionMoved"
-        | "sessionTitleChanged"
-        | "sessionActivityChanged"
-        | "sessionLifecycleChanged"
-        | "sessionSurfaceChanged"
-        | "sessionPresentationChanged";
+        | 'sessionAdded'
+        | 'sessionUpdated'
+        | 'sessionMoved'
+        | 'sessionTitleChanged'
+        | 'sessionActivityChanged'
+        | 'sessionLifecycleChanged'
+        | 'sessionSurfaceChanged'
+        | 'sessionPresentationChanged';
     }
   | {
       projectId: GxserverProjectId;
       sessionId: GxserverSessionId;
-      type: "sessionRemoved";
+      type: 'sessionRemoved';
     };
 
 export interface GxserverPresentationDeltaEvent {
@@ -779,7 +766,7 @@ export interface GxserverPresentationDeltaEvent {
 export interface GxserverPresentationSubscribeMessage {
   clientId?: string;
   lastRevision?: GxserverPresentationRevision;
-  type: "subscribePresentation";
+  type: 'subscribePresentation';
 }
 
 export interface GxserverPresentationSearchParams {
@@ -820,8 +807,7 @@ export interface GxserverPresentationSearchResult {
   lastActiveAt?: string;
   lifecycleState: GxserverDomainLifecycleState;
   match?: {
-    field:
-      "agent" | "command" | "cwd" | "id" | "project" | "timestamp" | "title";
+    field: 'agent' | 'command' | 'cwd' | 'id' | 'project' | 'timestamp' | 'title';
     snippet?: string;
   };
   projectId: GxserverProjectId;
@@ -833,7 +819,7 @@ export interface GxserverPresentationSearchResult {
    * Previous Sessions search results must carry the same identity and provider metadata needed to render and restore stopped agent rows without rehydrating native sidebar history. Keep raw prompt/user text out of list/search responses; restore-specific command construction stays behind readAgentResumePlan for the selected session.
    */
   sessionPersistenceName?: string;
-  sessionPersistenceProvider?: "tmux" | "zmx" | "zellij";
+  sessionPersistenceProvider?: 'tmux' | 'zmx' | 'zellij';
   sessionTag?: GxserverSessionTag;
   sidebarOrder?: number;
   subtitle?: string;

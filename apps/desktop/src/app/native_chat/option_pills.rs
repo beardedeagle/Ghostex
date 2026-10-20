@@ -267,8 +267,8 @@ impl NativeChatView {
         };
         let measure = |kind: &str| {
             let label = values[if kind == "model" { "model" } else { "options" }]
-            .as_str()
-            .unwrap_or_default();
+                .as_str()
+                .unwrap_or_default();
             let pill = &values["modelMenu"]["pill"];
             let label = pill["label"]
                 .as_str()

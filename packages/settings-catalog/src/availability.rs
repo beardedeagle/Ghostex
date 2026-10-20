@@ -27,21 +27,13 @@ const ROWS: &[RowAvailability] = &[
     RowAvailability {
         key: "windowGlassBlurRadius",
         only_on: &[],
-        hidden_while: Some((
-            Platform::Windows,
-            "windowGlassSource",
-            "desktopAndWindows",
-        )),
+        hidden_while: Some((Platform::Windows, "windowGlassSource", "desktopAndWindows")),
     },
     // Settings > Terminal's Background blur is the same `windowGlassBlurRadius` slider.
     RowAvailability {
         key: "terminalBackgroundBlur",
         only_on: &[],
-        hidden_while: Some((
-            Platform::Windows,
-            "windowGlassSource",
-            "desktopAndWindows",
-        )),
+        hidden_while: Some((Platform::Windows, "windowGlassSource", "desktopAndWindows")),
     },
     RowAvailability {
         key: "windowGlassWindowsBlur",
@@ -67,7 +59,8 @@ const ROWS: &[RowAvailability] = &[
 ];
 
 /// A default that differs from `DEFAULT_GHOSTEX_SETTINGS` on one platform.
-const PLATFORM_DEFAULTS: &[(Platform, &str, J)] = &[(Platform::Windows, "windowGlass", J::Str("opaque"))];
+const PLATFORM_DEFAULTS: &[(Platform, &str, J)] =
+    &[(Platform::Windows, "windowGlass", J::Str("opaque"))];
 
 /// The platform as a customer writes it.
 pub fn platform_name(platform: Platform) -> &'static str {

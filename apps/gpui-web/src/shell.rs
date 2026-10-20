@@ -17,14 +17,18 @@ const WEB_DISABLED_REASON: &str = "Not available in the browser yet";
 impl GhostexGpuiApp {
     fn open_session_titles(&self) -> Option<(String, String)> {
         let key = self.open_session.as_ref()?;
-        self.gx_store.sidebar_view().groups.iter().find_map(|group| {
-            group
-                .core
-                .sessions
-                .iter()
-                .find(|session| session.row.key.as_ref() == Some(key))
-                .map(|session| (group.core.title.clone(), session.row.display_title.clone()))
-        })
+        self.gx_store
+            .sidebar_view()
+            .groups
+            .iter()
+            .find_map(|group| {
+                group
+                    .core
+                    .sessions
+                    .iter()
+                    .find(|session| session.row.key.as_ref() == Some(key))
+                    .map(|session| (group.core.title.clone(), session.row.display_title.clone()))
+            })
     }
 
     /// A header button the browser build has no behaviour for yet: drawn, dimmed, and explained on hover.
@@ -90,23 +94,60 @@ impl GhostexGpuiApp {
                         .gap(px(6.0))
                         .text_size(px(12.5))
                         .overflow_hidden()
-                        .child(div().flex_none().text_color(text.opacity(0.6)).child(SharedString::from(project)))
+                        .child(
+                            div()
+                                .flex_none()
+                                .text_color(text.opacity(0.6))
+                                .child(SharedString::from(project)),
+                        )
                         .child(div().flex_none().text_color(text.opacity(0.35)).child("/"))
-                        .child(div().min_w_0().truncate().text_color(text).child(SharedString::from(session))),
+                        .child(
+                            div()
+                                .min_w_0()
+                                .truncate()
+                                .text_color(text)
+                                .child(SharedString::from(session)),
+                        ),
                 )
             })
             .child(div().flex_1())
             // Start and Open follow the Actions and Open In extensions, as the desktop header does.
-            .when(Self::web_built_in_enabled(ghostex_settings_catalog::built_in_extensions::ACTIONS), |header| {
-                header.child(Self::render_disabled_header_button("web-header-start", TITLEBAR_ICON_PLAYER_PLAY, Some("Start")))
-            })
-            .when(Self::web_built_in_enabled(ghostex_settings_catalog::built_in_extensions::OPEN_IN), |header| {
-                header.child(Self::render_disabled_header_button("web-header-open", TITLEBAR_ICON_FOLDER_OPEN, Some("Open")))
-            })
+            .when(
+                Self::web_built_in_enabled(ghostex_settings_catalog::built_in_extensions::ACTIONS),
+                |header| {
+                    header.child(Self::render_disabled_header_button(
+                        "web-header-start",
+                        TITLEBAR_ICON_PLAYER_PLAY,
+                        Some("Start"),
+                    ))
+                },
+            )
+            .when(
+                Self::web_built_in_enabled(ghostex_settings_catalog::built_in_extensions::OPEN_IN),
+                |header| {
+                    header.child(Self::render_disabled_header_button(
+                        "web-header-open",
+                        TITLEBAR_ICON_FOLDER_OPEN,
+                        Some("Open"),
+                    ))
+                },
+            )
             .child(self.render_web_git_button(cx))
-            .child(Self::render_disabled_header_button("web-header-more", TITLEBAR_ICON_DOTS, None))
-            .child(Self::render_disabled_header_button("web-header-panel-bottom", TITLEBAR_ICON_PANEL_BOTTOM, None))
-            .child(Self::render_disabled_header_button("web-header-panel-right", TITLEBAR_ICON_PANEL_RIGHT, None))
+            .child(Self::render_disabled_header_button(
+                "web-header-more",
+                TITLEBAR_ICON_DOTS,
+                None,
+            ))
+            .child(Self::render_disabled_header_button(
+                "web-header-panel-bottom",
+                TITLEBAR_ICON_PANEL_BOTTOM,
+                None,
+            ))
+            .child(Self::render_disabled_header_button(
+                "web-header-panel-right",
+                TITLEBAR_ICON_PANEL_RIGHT,
+                None,
+            ))
             .into_any_element()
     }
 
@@ -128,9 +169,12 @@ impl GhostexGpuiApp {
             .child(titlebar_svg_icon(TITLEBAR_ICON_GIT_COMMIT, 15.0, text))
             .child("Commit")
             .child(
-                gpui::canvas(move |element_bounds, _, _| recorded.set(Some(element_bounds)), |_, _, _, _| {})
-                    .absolute()
-                    .size_full(),
+                gpui::canvas(
+                    move |element_bounds, _, _| recorded.set(Some(element_bounds)),
+                    |_, _, _, _| {},
+                )
+                .absolute()
+                .size_full(),
             )
             .on_click(cx.listener(move |app, _, window, cx| app.web_toggle_git_menu(window, cx)))
             .into_any_element()
@@ -158,12 +202,18 @@ impl Render for GhostexGpuiApp {
         let sidebar = (!self.sidebar_collapsed).then(|| self.render_native_sidebar(window, cx));
         let status = self.gx_store.status.clone();
         let open = self.open_session.clone();
-        let shows_terminal = open.as_ref().is_some_and(|session| self.web_shows_terminal(session));
+        let shows_terminal = open
+            .as_ref()
+            .is_some_and(|session| self.web_shows_terminal(session));
         let surface: Option<AnyElement> = open.as_ref().and_then(|session| {
             if shows_terminal {
-                self.terminals.get(session).map(|view| view.clone().into_any_element())
+                self.terminals
+                    .get(session)
+                    .map(|view| view.clone().into_any_element())
             } else {
-                self.native_chats.get(session).map(|(_, view)| view.clone().into_any_element())
+                self.native_chats
+                    .get(session)
+                    .map(|(_, view)| view.clone().into_any_element())
             }
         });
         // CDXC:Workarea 2026-10-09 DECISION: User: "top border here should have 1px blue line when the session here has \"attention\" status". The work area's top edge turns the sidebar dot's blue while the open session's row has it; the 1px edge is always there, transparent otherwise, so the line never moves the header.
@@ -175,21 +225,35 @@ impl Render for GhostexGpuiApp {
                 .is_some_and(|session| session.activity.as_str() == "attention")
         });
         let header = self.render_workarea_header(cx);
-        let terminal_bar = (shows_terminal && surface.is_some())
-            .then(|| self.render_terminal_action_bar(cx));
+        let terminal_bar =
+            (shows_terminal && surface.is_some()).then(|| self.render_terminal_action_bar(cx));
         div()
             .id("ghostex-web-shell")
             .size_full()
             .relative()
             .flex()
             .bg(titlebar_background())
-            .on_action(cx.listener(|app, action: &NativeSidebarAction, window, cx| {
-                app.handle_native_sidebar_action(action, window, cx)
-            }))
+            .on_action(
+                cx.listener(|app, action: &NativeSidebarAction, window, cx| {
+                    app.handle_native_sidebar_action(action, window, cx)
+                }),
+            )
             .when_some(sidebar, |shell, sidebar| {
                 shell
-                    .child(div().h_full().w(px(self.sidebar_width)).flex_none().child(sidebar))
-                    .child(div().h_full().w(px(1.0)).flex_none().bg(titlebar_popup_menu_border_color()))
+                    .child(
+                        div()
+                            .h_full()
+                            .w(px(self.sidebar_width))
+                            .flex_none()
+                            .child(sidebar),
+                    )
+                    .child(
+                        div()
+                            .h_full()
+                            .w(px(1.0))
+                            .flex_none()
+                            .bg(titlebar_popup_menu_border_color()),
+                    )
             })
             .child(
                 div()
@@ -199,7 +263,11 @@ impl Render for GhostexGpuiApp {
                     .flex()
                     .flex_col()
                     .border_t_1()
-                    .border_color(if attention { rgb(0x95d7f6).into() } else { gpui::transparent_black() })
+                    .border_color(if attention {
+                        rgb(0x95d7f6).into()
+                    } else {
+                        gpui::transparent_black()
+                    })
                     .child(header)
                     .child(match surface {
                         Some(surface) => div().flex_1().min_h_0().overflow_hidden().child(surface),

@@ -1,7 +1,7 @@
-import type { GxserverSessionLifecycleParams } from "./gxserver-protocol-sessions";
-import type { GxserverAgentActivityState } from "./gxserver-protocol-session-runtime";
-import type { GxserverSessionTitleProjection } from "./gxserver-protocol-presentation";
-import type { GxserverSessionDomainState } from "./gxserver-protocol-domain";
+import type { GxserverSessionLifecycleParams } from './gxserver-protocol-sessions';
+import type { GxserverAgentActivityState } from './gxserver-protocol-session-runtime';
+import type { GxserverSessionTitleProjection } from './gxserver-protocol-presentation';
+import type { GxserverSessionDomainState } from './gxserver-protocol-domain';
 
 export interface GxserverAgentSettings {
   agentAcceptAllEnabled: boolean;
@@ -18,8 +18,7 @@ export interface GxserverUpdateAgentSettingsParams {
   defaultPromptAgentId?: string;
 }
 
-export type GxserverAgentSkillSourceKind =
-  "global" | "pluginCache" | "repository";
+export type GxserverAgentSkillSourceKind = 'global' | 'pluginCache' | 'repository';
 
 export interface GxserverAgentSkillLocation {
   directoryPath: string;
@@ -45,7 +44,7 @@ export interface GxserverReadAgentSkillStatusResult {
   homeDir: string;
   roots: readonly GxserverAgentSkillDiscoveryRoot[];
   skills: readonly GxserverAgentSkillStatusRow[];
-  type: "agentSkillStatus";
+  type: 'agentSkillStatus';
 }
 
 export interface GxserverAgentSkillDiscoveryRoot {
@@ -66,8 +65,7 @@ export interface GxserverInstallAgentSkillsResult extends GxserverReadAgentSkill
   stdout: string;
 }
 
-export type GxserverAgentHookStatus =
-  "cliMissing" | "installed" | "missing" | "updateRequired";
+export type GxserverAgentHookStatus = 'cliMissing' | 'installed' | 'missing' | 'updateRequired';
 
 export interface GxserverAgentHookStatusRow {
   agentId: string;
@@ -90,7 +88,7 @@ export interface GxserverReadAgentHookStatusResult {
   generatedAt: string;
   hookStateDirectory: string;
   notifyHookPath: string;
-  type: "agentHookStatus";
+  type: 'agentHookStatus';
 }
 
 export interface GxserverInstallAgentHooksParams {
@@ -112,7 +110,7 @@ export interface GxserverIngestAgentHookEventParams extends GxserverSessionLifec
   eventName?: string;
   firstUserMessage?: string;
   rawEventName?: string;
-  status?: GxserverAgentActivityState["activity"];
+  status?: GxserverAgentActivityState['activity'];
   statusUpdatedAt?: string;
   title?: string;
 }
@@ -121,7 +119,7 @@ export interface GxserverIngestAgentHookEventResult {
   activity?: GxserverAgentActivityState;
   changed: boolean;
   enteredAttention: boolean;
-  previousActivity?: GxserverAgentActivityState["activity"];
+  previousActivity?: GxserverAgentActivityState['activity'];
   projection: GxserverSessionTitleProjection;
   reason: string;
   session: GxserverSessionDomainState;

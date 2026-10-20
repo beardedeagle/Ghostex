@@ -1,37 +1,33 @@
-import type { SessionChatSource } from "./session-chat-agents";
+import type { SessionChatSource } from './session-chat-agents';
 
-export type SessionChatRole =
-  "user" | "assistant" | "reasoning" | "tool" | "system";
+export type SessionChatRole = 'user' | 'assistant' | 'reasoning' | 'tool' | 'system';
 
 export interface SessionChatTextBlock {
-  type: "text";
+  type: 'text';
   text: string;
 }
 
 export interface SessionChatToolCallBlock {
-  type: "tool-call";
+  type: 'tool-call';
   name: string;
   input: unknown;
 }
 
 export interface SessionChatToolResultBlock {
-  type: "tool-result";
+  type: 'tool-result';
   output: string;
   isError?: boolean;
 }
 
 export interface SessionChatImageRefBlock {
-  type: "image-ref";
+  type: 'image-ref';
   path?: string;
   url?: string;
   alt?: string;
 }
 
 export type SessionChatBlock =
-  | SessionChatTextBlock
-  | SessionChatToolCallBlock
-  | SessionChatToolResultBlock
-  | SessionChatImageRefBlock;
+  SessionChatTextBlock | SessionChatToolCallBlock | SessionChatToolResultBlock | SessionChatImageRefBlock;
 
 export interface SessionChatAsyncQuestion {
   title: string;
@@ -83,7 +79,7 @@ export interface SessionChatMessage {
   /** Client presentation of an accepted send waiting for the terminal, separate from the agent CLI queue. */
   startupDelivery?: {
     promptId: string;
-    state: "queued" | "sending" | "failed";
+    state: 'queued' | 'sending' | 'failed';
     errorMessage?: string;
   };
 }
@@ -106,8 +102,7 @@ export interface SessionChatHistoryReadParams {
   preserveNewest?: boolean;
 }
 
-export type SessionChatTurnLifecycleState =
-  "working" | "completed" | "interrupted";
+export type SessionChatTurnLifecycleState = 'working' | 'completed' | 'interrupted';
 
 export interface SessionChatTurnLifecycle {
   state: SessionChatTurnLifecycleState;
@@ -115,14 +110,7 @@ export interface SessionChatTurnLifecycle {
   timestamp: number | null;
 }
 
-export type SessionChatStatus =
-  | "loading"
-  | "ready"
-  | "working"
-  | "empty"
-  | "starting"
-  | "error"
-  | "unsupported";
+export type SessionChatStatus = 'loading' | 'ready' | 'working' | 'empty' | 'starting' | 'error' | 'unsupported';
 
 export interface SessionChatQuestionOption {
   label: string;
@@ -155,7 +143,7 @@ export interface SessionChatQuestion {
 
 export type SessionChatInteractivePrompt =
   | {
-      kind: "question";
+      kind: 'question';
       questions: SessionChatQuestion[];
       /**
        * The hook's tool_use_id of the asking call, when the hook payload
@@ -165,7 +153,7 @@ export type SessionChatInteractivePrompt =
        */
       toolUseId?: string;
     }
-  | { kind: "approval"; tool: string; summary?: string; toolUseId?: string };
+  | { kind: 'approval'; tool: string; summary?: string; toolUseId?: string };
 
 /** One answer per question, by 0-based option indices plus optional free text. */
 export interface SessionChatQuestionSelection {
@@ -195,5 +183,5 @@ export interface SessionChatDetectedChoice {
    * `launch` is the flags the agent command was started with, sent only until
    * the agent reports through its transcript or statusline.
    */
-  source?: "terminal" | "transcript" | "statusline" | "launch";
+  source?: 'terminal' | 'transcript' | 'statusline' | 'launch';
 }

@@ -27,7 +27,9 @@ const PREFERENCE_KEYS: [&str; 2] = [
 /// Imports the Docs page's state from the browser `profile` once. Returns whether it ran.
 pub fn import_docs_browser_state(connection: &Connection, profile: &Path) -> Result<bool> {
     let done: Option<String> = connection
-        .query_row("SELECT value FROM metadata WHERE key=?1", [MARKER], |row| row.get(0))
+        .query_row("SELECT value FROM metadata WHERE key=?1", [MARKER], |row| {
+            row.get(0)
+        })
         .optional()?;
     if done.is_some() {
         return Ok(false);
@@ -44,10 +46,16 @@ pub fn import_docs_browser_state(connection: &Connection, profile: &Path) -> Res
                 ..
             } = row
             {
-                if deleted || origin != "file://" || !PREFERENCE_KEYS.contains(&script_key.text.as_str()) {
+                if deleted
+                    || origin != "file://"
+                    || !PREFERENCE_KEYS.contains(&script_key.text.as_str())
+                {
                     continue;
                 }
-                ensure!(!script_key.lossy && !value.lossy, "A Docs preference could not be decoded exactly");
+                ensure!(
+                    !script_key.lossy && !value.lossy,
+                    "A Docs preference could not be decoded exactly"
+                );
                 preferences.push((script_key.text, value.text));
             }
         }
@@ -70,8 +78,11 @@ pub fn import_docs_browser_state(connection: &Connection, profile: &Path) -> Res
             let RecordValue::V8(value) = row.value else {
                 continue;
             };
-            let value = to_json(value).with_context(|| format!("Could not read Docs record {key}"))?;
-            if value["store"].as_str().is_some_and(|store| RECORD_STORES.contains(&store))
+            let value =
+                to_json(value).with_context(|| format!("Could not read Docs record {key}"))?;
+            if value["store"]
+                .as_str()
+                .is_some_and(|store| RECORD_STORES.contains(&store))
                 && value["key"].as_str() == Some(key.as_str())
                 && value["raw"].is_string()
             {
@@ -89,11 +100,15 @@ pub fn import_docs_browser_state(connection: &Connection, profile: &Path) -> Res
     for row in records {
         let key = row["key"].as_str().unwrap_or_default();
         let previous: Option<String> = transaction
-            .query_row("SELECT value FROM records WHERE key=?1", [key], |record| record.get(0))
+            .query_row("SELECT value FROM records WHERE key=?1", [key], |record| {
+                record.get(0)
+            })
             .optional()?;
         if let Some(previous) = previous {
             let previous: Value = serde_json::from_str(&previous)?;
-            if previous["updatedAt"].as_f64().unwrap_or(0.0) > row["updatedAt"].as_f64().unwrap_or(0.0) {
+            if previous["updatedAt"].as_f64().unwrap_or(0.0)
+                > row["updatedAt"].as_f64().unwrap_or(0.0)
+            {
                 continue;
             }
         }

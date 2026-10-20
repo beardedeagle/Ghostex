@@ -44,12 +44,12 @@ pub(crate) use prelude::*;
 
 mod assets;
 mod cef;
-mod ghostty_kit;
-#[allow(dead_code)]
-mod ghostty_vt;
 /// The web build has the sidebar's folds but not the Settings rail, which uses the rest.
 #[allow(dead_code)]
 mod fold_motion;
+mod ghostty_kit;
+#[allow(dead_code)]
+mod ghostty_vt;
 mod hotkey_label;
 /// The desktop's notification feed reads a bridge the browser build does not have; the bell stays hidden, so its state is always empty.
 #[allow(dead_code)]
@@ -148,7 +148,12 @@ pub fn run() -> Result<(), JsValue> {
                 .find_map(|pair| pair.strip_prefix("settings=").map(str::to_string))
         })
         .and_then(|encoded| js_sys::decode_uri_component(&encoded).ok())
-        .and_then(|decoded| serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(&String::from(decoded)).ok())
+        .and_then(|decoded| {
+            serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(&String::from(
+                decoded,
+            ))
+            .ok()
+        })
     {
         shared_settings::install(settings);
     }

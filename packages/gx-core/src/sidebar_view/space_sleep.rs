@@ -22,7 +22,7 @@ use super::inputs::SidebarInputs;
 use super::machine_spaces::section_spaces_enabled;
 use super::model::SidebarViewModel;
 use super::reveal::{machine_key, unfiltered};
-use super::spaces::{OTHER_SPACE_ID, SpaceSelection, SpacesState, selection_shows_project};
+use super::spaces::{selection_shows_project, SpaceSelection, SpacesState, OTHER_SPACE_ID};
 
 /// What one of the Space menu's three sleeps acts on.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]

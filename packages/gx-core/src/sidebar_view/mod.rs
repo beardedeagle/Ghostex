@@ -10,24 +10,24 @@
 
 pub(crate) mod agents;
 mod armed_actions;
-mod close_after_done;
-mod daemon_wait;
-mod drop_landing;
 mod assemble;
+mod close_after_done;
 pub(crate) mod close_successor;
 pub(crate) mod collections;
+mod daemon_wait;
+mod drop_landing;
 mod groups;
 mod inputs;
 mod machine_connection;
-mod machine_switch;
 pub(crate) mod machine_spaces;
+mod machine_switch;
 mod machines;
 pub(crate) mod membership;
 mod model;
 pub(crate) mod ordering;
 mod program_status;
-pub(crate) mod projects;
 mod project_drop_landing;
+pub(crate) mod projects;
 mod reveal;
 pub(crate) mod rows;
 mod sections;
@@ -55,37 +55,38 @@ pub use close_successor::{
 pub use collections::{Collection, CollectionsState};
 pub use daemon_wait::{DAEMON_RETRY_INTERVAL_MS, SESSIONS_LOADING_DETAIL, SESSIONS_LOADING_TITLE};
 pub use drop_landing::{DropLanding, DropWrites, TreeDropTarget};
-pub use project_drop_landing::{ProjectDropLanding, ProjectDropRow};
 pub use inputs::{
     BrowserTabInput, CloseAfterDoneInput, DelayedSendInput, MachineTabInput, ProjectDiffStats,
     SectionCollapse, SectionId, SessionSortMode, SidebarCollapseState, SidebarHiddenItems,
     SidebarHostInputs, SidebarInputs, SidebarMode, SidebarSettings, SidebarUiState,
-    UnavailableState, GROUP_WORKING_SESSIONS_SETTING_KEY, LOCAL_MACHINE_ID, MACHINE_STATE_CONNECTED,
-    MAX_RECENT_SPACE_SESSION_IDS,
+    UnavailableState, GROUP_WORKING_SESSIONS_SETTING_KEY, LOCAL_MACHINE_ID,
+    MACHINE_STATE_CONNECTED, MAX_RECENT_SPACE_SESSION_IDS,
 };
 pub use machine_connection::{machine_state_copy, machine_state_is_busy, machine_state_is_failure};
+pub use machine_switch::{
+    machine_switch_memory, plan_machine_switch_restore, MACHINE_SESSION_MEMORY_SPACE_ID,
+};
 pub use model::{SidebarUpdateWork, SidebarViewModel};
 pub use ordering::session_is_snoozed;
+pub use project_drop_landing::{ProjectDropLanding, ProjectDropRow};
 pub use reveal::{reveal_plan, space_for_focused_row, FocusedRowSpace, SidebarRevealPlan};
 pub use session_slot::{rendered_session_ids, session_slot_plan, SessionSlotPlan};
 pub use slot_hotkey::{project_slot_plan, ProjectSlotPlan};
 pub use space_landing::space_landing_project_ids;
 pub use space_sleep::{plan_space_sleep, SpaceSleepPlan, SpaceSleepPlans, SpaceSleepScope};
-pub use machine_switch::{
-    machine_switch_memory, plan_machine_switch_restore, MACHINE_SESSION_MEMORY_SPACE_ID,
-};
 pub use space_switch::{
     plan_space_switch_restore, plan_workspace_switch_restore, SpaceSwitchFocus,
 };
 pub use spaces::{Space, SpacesState, OTHER_SPACE_ID};
 pub use tags::{TagListItem, TagListItemKind, TagPresentation, UNTAGGED_TAG_FILTER};
+pub use view::{
+    rename_shake_key, CollectionView, CoordinatorBadge, CoordinatorBadgeTone, DelayedSendView,
+    EmptyState, GroupCore, GroupSummary, GroupView, LabelDeadline, MachineNotice, MachineSummary,
+    MachineTabView, OrderItem, OrderKind, ProjectContextView, RemoteMachineView, RowNesting,
+    SectionView, SessionMenuFacts, SessionRow, SessionTiming, SessionView, SidebarView, SpaceView,
+    ThreadTally, WorktreeView, RENAME_SHAKE_FRESH_MS,
+};
 pub use work::{SessionWork, WorkGithubIssue, WorkLinearIssue, WorkLinearProject, WorkPullRequest};
 pub use workspaces::{
     project_workspace_id, window_machine_tabs, window_spaces, window_workspace, WindowWorkspace,
-};
-pub use view::{
-    CollectionView, CoordinatorBadge, CoordinatorBadgeTone, DelayedSendView, RowNesting, ThreadTally, EmptyState, GroupCore, GroupSummary, GroupView, LabelDeadline,
-    MachineNotice, MachineSummary, MachineTabView, OrderItem, OrderKind, ProjectContextView, RemoteMachineView,
-    SectionView, SessionMenuFacts, SessionRow, SessionTiming, SessionView, SidebarView, SpaceView,
-    WorktreeView, rename_shake_key, RENAME_SHAKE_FRESH_MS,
 };

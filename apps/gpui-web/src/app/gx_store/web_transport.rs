@@ -32,7 +32,11 @@ pub(crate) enum StreamEvent {
 fn js_error(error: JsValue) -> String {
     error
         .as_string()
-        .or_else(|| js_sys::JSON::stringify(&error).ok().and_then(|s| s.as_string()))
+        .or_else(|| {
+            js_sys::JSON::stringify(&error)
+                .ok()
+                .and_then(|s| s.as_string())
+        })
         .unwrap_or_else(|| "unknown JavaScript error".to_string())
 }
 
@@ -42,7 +46,9 @@ async fn post_envelope(url: &str, token: Option<&str>, body: &Value) -> Result<V
     init.set_body(&JsValue::from_str(&body.to_string()));
     let request = Request::new_with_str_and_init(url, &init).map_err(js_error)?;
     let headers = request.headers();
-    headers.set("content-type", "application/json").map_err(js_error)?;
+    headers
+        .set("content-type", "application/json")
+        .map_err(js_error)?;
     headers
         .set("x-gxserver-protocol-version", &PROTOCOL_VERSION.to_string())
         .map_err(js_error)?;
@@ -82,7 +88,10 @@ async fn post_json(url: &str, token: Option<&str>, body: &Value) -> Result<Value
 pub(crate) async fn bootstrap() -> Result<GxserverEndpoint, String> {
     let result = post_json("/api/webBootstrap", None, &json!({})).await?;
     let endpoint = GxserverEndpoint {
-        base_url: result["baseUrl"].as_str().ok_or("bootstrap has no baseUrl")?.to_string(),
+        base_url: result["baseUrl"]
+            .as_str()
+            .ok_or("bootstrap has no baseUrl")?
+            .to_string(),
         auth_token: result["authToken"]
             .as_str()
             .ok_or("bootstrap has no authToken")?
@@ -93,7 +102,11 @@ pub(crate) async fn bootstrap() -> Result<GxserverEndpoint, String> {
 }
 
 /// One gxserver RPC: `POST {base}{path}` with the `{params, protocolVersion}` envelope.
-pub(crate) async fn rpc(endpoint: &GxserverEndpoint, path: &str, params: Value) -> Result<Value, String> {
+pub(crate) async fn rpc(
+    endpoint: &GxserverEndpoint,
+    path: &str,
+    params: Value,
+) -> Result<Value, String> {
     post_json(
         &format!("{}{path}", endpoint.base_url),
         Some(&endpoint.auth_token),
@@ -103,14 +116,24 @@ pub(crate) async fn rpc(endpoint: &GxserverEndpoint, path: &str, params: Value) 
 }
 
 /// One gxserver RPC for callers that need the daemon's error CODE as well as its message (the chat composer branches on `composerNotReady` and `sendCancelled`).
-pub(crate) async fn rpc_envelope(endpoint: &GxserverEndpoint, path: &str, params: Value) -> Result<Value, Value> {
+pub(crate) async fn rpc_envelope(
+    endpoint: &GxserverEndpoint,
+    path: &str,
+    params: Value,
+) -> Result<Value, Value> {
     let fail = |message: String| json!({"message": message, "endpoint": path});
     let body = json!({"params": params, "protocolVersion": PROTOCOL_VERSION});
-    let mut envelope = post_envelope(&format!("{}{path}", endpoint.base_url), Some(&endpoint.auth_token), &body)
-        .await
-        .map_err(fail)?;
+    let mut envelope = post_envelope(
+        &format!("{}{path}", endpoint.base_url),
+        Some(&endpoint.auth_token),
+        &body,
+    )
+    .await
+    .map_err(fail)?;
     if envelope["ok"] != true {
-        return Err(json!({"code": envelope["error"], "message": envelope["message"], "endpoint": path}));
+        return Err(
+            json!({"code": envelope["error"], "message": envelope["message"], "endpoint": path}),
+        );
     }
     Ok(envelope["result"].take())
 }

@@ -243,7 +243,9 @@ describe('active WSL2 code-server consumer contract', () => {
     const launcher = repoFile('tooling/xtask/src/start/mod.rs');
     const windows = repoFile('tooling/xtask/src/start/windows.rs');
 
-    expect(launcher).toMatch(/if self\.is_wsl \{\s*"build-windows-app-wsl\.sh"\s*\} else \{\s*"build-windows-app\.ps1"/);
+    expect(launcher).toMatch(
+      /if self\.is_wsl \{\s*"build-windows-app-wsl\.sh"\s*\} else \{\s*"build-windows-app\.ps1"/
+    );
     expect(windows).toContain('"tooling/release-gpui/code-server-component-identity.mjs"');
     expect(windows).toContain('".dependencies/code-server"');
     expect(windows).toContain('&format!("linux-{arch}")');

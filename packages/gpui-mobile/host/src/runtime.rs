@@ -52,9 +52,10 @@ pub fn start(config: HostConfig) -> bool {
         config.bool("flingGuard").unwrap_or(false),
     );
     // The chat's icons and artwork load through the app's asset source.
-    gpui_mobile::android::host::start_with_assets(ghostex_gpui_mobile_chat::asset_source(), move |cx| {
-        launch(cx, config, receiver)
-    });
+    gpui_mobile::android::host::start_with_assets(
+        ghostex_gpui_mobile_chat::asset_source(),
+        move |cx| launch(cx, config, receiver),
+    );
     true
 }
 

@@ -1,7 +1,7 @@
 use gpui::prelude::FluentBuilder;
 use gpui::{
-    AnyElement, Hsla, InteractiveElement, IntoElement, ParentElement, SharedString, Styled, div, px,
-    rgb,
+    AnyElement, Hsla, InteractiveElement, IntoElement, ParentElement, SharedString, Styled, div,
+    px, rgb,
 };
 
 use super::appearance::SidebarAppearance;

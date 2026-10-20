@@ -111,11 +111,9 @@ fn run_wakes() {
 fn new_host() -> Host {
     let mut world = World::default();
     // A socket event arrives on its own turn of the page, never inside one of the host's.
-    world
-        .transport
-        .install(ChatStreams::new(Rc::new(|inbound| {
-            submit(Some(HostCommand::Inbound(inbound)));
-        })));
+    world.transport.install(ChatStreams::new(Rc::new(|inbound| {
+        submit(Some(HostCommand::Inbound(inbound)));
+    })));
     Host { world, armed: None }
 }
 

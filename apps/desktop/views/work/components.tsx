@@ -7,15 +7,10 @@ import {
   IconGitPullRequestClosed,
   IconGitPullRequestDraft,
   IconLoader2,
-} from "@tabler/icons-react";
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { initials, personHue } from "./format";
-import type {
-  WorkChecksState,
-  WorkItem,
-  WorkItemPullRequest,
-  WorkStatusGroup,
-} from "./types";
+} from '@tabler/icons-react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { initials, personHue } from './format';
+import type { WorkChecksState, WorkItem, WorkItemPullRequest, WorkStatusGroup } from './types';
 
 /**
  * The page's small building blocks, in the shadcn shapes the app's native views use (Button,
@@ -24,21 +19,21 @@ import type {
  */
 
 export function cx(...names: (string | false | null | undefined)[]): string {
-  return names.filter(Boolean).join(" ");
+  return names.filter(Boolean).join(' ');
 }
 
 export function Button({
   children,
-  variant = "outline",
-  size = "md",
+  variant = 'outline',
+  size = 'md',
   className,
   disabled,
   title,
   onClick,
 }: {
   children: ReactNode;
-  variant?: "outline" | "primary" | "ghost";
-  size?: "sm" | "md" | "icon";
+  variant?: 'outline' | 'primary' | 'ghost';
+  size?: 'sm' | 'md' | 'icon';
   className?: string;
   disabled?: boolean;
   title?: string;
@@ -46,8 +41,8 @@ export function Button({
 }) {
   return (
     <button
-      type="button"
-      className={cx("w-btn", `w-btn--${variant}`, `w-btn--${size}`, className)}
+      type='button'
+      className={cx('w-btn', `w-btn--${variant}`, `w-btn--${size}`, className)}
       disabled={disabled}
       title={title}
       onClick={onClick}
@@ -70,9 +65,9 @@ export function Toggle({
 }) {
   return (
     <button
-      type="button"
+      type='button'
       aria-pressed={pressed}
-      className={cx("w-toggle", pressed && "is-on", className)}
+      className={cx('w-toggle', pressed && 'is-on', className)}
       onClick={() => onPressedChange(!pressed)}
     >
       {children}
@@ -96,12 +91,12 @@ export function Card({
   className?: string;
 }) {
   return (
-    <section className={cx("w-card", className)}>
-      <header className="w-card-head">
+    <section className={cx('w-card', className)}>
+      <header className='w-card-head'>
         {icon}
-        <span className="w-card-title">{title}</span>
-        {sub ? <span className="w-card-sub">{sub}</span> : null}
-        <span className="w-spacer" />
+        <span className='w-card-title'>{title}</span>
+        {sub ? <span className='w-card-sub'>{sub}</span> : null}
+        <span className='w-spacer' />
         {action}
       </header>
       {children}
@@ -119,12 +114,12 @@ export interface MenuOption<T extends string> {
 export function Dropdown({
   trigger,
   children,
-  align = "start",
+  align = 'start',
   className,
 }: {
   trigger: (open: boolean, toggle: () => void) => ReactNode;
   children: (close: () => void) => ReactNode;
-  align?: "start" | "end";
+  align?: 'start' | 'end';
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -148,27 +143,27 @@ export function Dropdown({
       if (!root.current?.contains(event.target as Node)) setOpen(false);
     };
     const onKey = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
+      if (event.key !== 'Escape') return;
       setOpen(false);
       // Back to the trigger, so the keyboard carries on from where the menu opened.
-      root.current?.querySelector<HTMLButtonElement>("button")?.focus();
+      root.current?.querySelector<HTMLButtonElement>('button')?.focus();
     };
-    window.addEventListener("pointerdown", onPointer);
-    window.addEventListener("keydown", onKey);
+    window.addEventListener('pointerdown', onPointer);
+    window.addEventListener('keydown', onKey);
     return () => {
-      window.removeEventListener("pointerdown", onPointer);
-      window.removeEventListener("keydown", onKey);
+      window.removeEventListener('pointerdown', onPointer);
+      window.removeEventListener('keydown', onKey);
     };
   }, [open]);
   return (
-    <div className={cx("w-dropdown", className)} ref={root}>
+    <div className={cx('w-dropdown', className)} ref={root}>
       {trigger(open, () => setOpen((value) => !value))}
       {open ? (
         <div
           ref={menu}
-          className={cx("w-menu", align === "end" && "w-menu--end")}
+          className={cx('w-menu', align === 'end' && 'w-menu--end')}
           style={shift ? { transform: `translateX(-${shift}px)` } : undefined}
-          role="menu"
+          role='menu'
         >
           {children(() => setOpen(false))}
         </div>
@@ -187,35 +182,18 @@ export function MenuItem({
   onSelect: () => void;
 }) {
   return (
-    <button
-      type="button"
-      role="menuitemradio"
-      aria-checked={checked}
-      className="w-menu-item"
-      onClick={onSelect}
-    >
-      <span className="w-menu-check">{checked ? "✓" : ""}</span>
+    <button type='button' role='menuitemradio' aria-checked={checked} className='w-menu-item' onClick={onSelect}>
+      <span className='w-menu-check'>{checked ? '✓' : ''}</span>
       {children}
     </button>
   );
 }
 
-export function Avatar({
-  name,
-  url,
-  size = 16,
-}: {
-  name?: string | null;
-  url?: string | null;
-  size?: number;
-}) {
-  if (url)
-    return (
-      <img className="w-avatar" src={url} alt="" width={size} height={size} />
-    );
+export function Avatar({ name, url, size = 16 }: { name?: string | null; url?: string | null; size?: number }) {
+  if (url) return <img className='w-avatar' src={url} alt='' width={size} height={size} />;
   return (
     <span
-      className="w-avatar"
+      className='w-avatar'
       style={{
         width: size,
         height: size,
@@ -230,109 +208,55 @@ export function Avatar({
 }
 
 /** Linear's workflow ring for a ticket, and a GitHub glyph for an issue or a PR. */
-export function StatusGlyph({
-  item,
-}: {
-  item: Pick<WorkItem, "kind" | "status" | "pullRequest">;
-}) {
-  if (item.kind === "pullRequest")
-    return <PullRequestIcon state={item.pullRequest?.state ?? "open"} />;
-  if (item.kind === "githubIssue") {
-    return (
-      <IconCircleDot
-        size={15}
-        className={item.status.group === "closed" ? "c-merged" : "c-open"}
-      />
-    );
+export function StatusGlyph({ item }: { item: Pick<WorkItem, 'kind' | 'status' | 'pullRequest'> }) {
+  if (item.kind === 'pullRequest') return <PullRequestIcon state={item.pullRequest?.state ?? 'open'} />;
+  if (item.kind === 'githubIssue') {
+    return <IconCircleDot size={15} className={item.status.group === 'closed' ? 'c-merged' : 'c-open'} />;
   }
   return <LinearGlyph group={item.status.group} />;
 }
 
 export function LinearGlyph({ group }: { group: WorkStatusGroup }) {
-  return <span className={cx("w-glyph", `is-${group}`)} aria-label={group} />;
+  return <span className={cx('w-glyph', `is-${group}`)} aria-label={group} />;
 }
 
-export function PullRequestIcon({
-  state,
-  size = 15,
-}: {
-  state: WorkItemPullRequest["state"];
-  size?: number;
-}) {
+export function PullRequestIcon({ state, size = 15 }: { state: WorkItemPullRequest['state']; size?: number }) {
   switch (state) {
-    case "draft":
-      return <IconGitPullRequestDraft size={size} className="c-draft" />;
-    case "merged":
-      return <IconGitMerge size={size} className="c-merged" />;
-    case "closed":
-      return <IconGitPullRequestClosed size={size} className="c-closed" />;
+    case 'draft':
+      return <IconGitPullRequestDraft size={size} className='c-draft' />;
+    case 'merged':
+      return <IconGitMerge size={size} className='c-merged' />;
+    case 'closed':
+      return <IconGitPullRequestClosed size={size} className='c-closed' />;
     default:
-      return <IconGitPullRequest size={size} className="c-open" />;
+      return <IconGitPullRequest size={size} className='c-open' />;
   }
 }
 
-export function ChecksIcon({
-  checks,
-  size = 13,
-}: {
-  checks?: WorkChecksState;
-  size?: number;
-}) {
-  if (checks === "passing")
-    return (
-      <IconCircleCheck
-        size={size}
-        className="c-open"
-        aria-label="checks passing"
-      />
-    );
-  if (checks === "failing")
-    return (
-      <IconCircleX
-        size={size}
-        className="c-closed"
-        aria-label="checks failing"
-      />
-    );
-  if (checks === "pending")
-    return (
-      <IconLoader2
-        size={size}
-        className="c-pending"
-        aria-label="checks running"
-      />
-    );
+export function ChecksIcon({ checks, size = 13 }: { checks?: WorkChecksState; size?: number }) {
+  if (checks === 'passing') return <IconCircleCheck size={size} className='c-open' aria-label='checks passing' />;
+  if (checks === 'failing') return <IconCircleX size={size} className='c-closed' aria-label='checks failing' />;
+  if (checks === 'pending') return <IconLoader2 size={size} className='c-pending' aria-label='checks running' />;
   return null;
 }
 
 /** `#6538` with its state and checks, as on a session card. `title: null` leaves the tooltip to a wrapping link. */
-export function PullRequestChip({
-  pullRequest,
-  title,
-}: {
-  pullRequest: WorkItemPullRequest;
-  title?: string | null;
-}) {
+export function PullRequestChip({ pullRequest, title }: { pullRequest: WorkItemPullRequest; title?: string | null }) {
   return (
     <span
-      className="w-chip"
-      title={
-        title === null
-          ? undefined
-          : (title ?? `PR #${pullRequest.number} · ${pullRequest.state}`)
-      }
+      className='w-chip'
+      title={title === null ? undefined : (title ?? `PR #${pullRequest.number} · ${pullRequest.state}`)}
     >
-      <PullRequestIcon state={pullRequest.state} size={13} />#
-      {pullRequest.number}
+      <PullRequestIcon state={pullRequest.state} size={13} />#{pullRequest.number}
       <ChecksIcon checks={pullRequest.checks} />
     </span>
   );
 }
 
 export function Spinner({ size = 14 }: { size?: number }) {
-  return <IconLoader2 size={size} className="w-spin" aria-label="Loading" />;
+  return <IconLoader2 size={size} className='w-spin' aria-label='Loading' />;
 }
 
 export function LiveDot({ title }: { title?: string }) {
-  return <span className="w-live-dot" title={title} />;
+  return <span className='w-live-dot' title={title} />;
 }

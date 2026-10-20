@@ -8,7 +8,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::de::{Rows, null_as_default};
+use crate::de::{null_as_default, Rows};
 use crate::side_state::{
     CustomSessionTagsState, SidebarProjectCollectionsState, SidebarSpacesState,
     SidebarWorkspacesState, WorkspaceSessionGroupsState,

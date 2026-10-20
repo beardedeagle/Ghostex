@@ -155,4 +155,3 @@ pub(crate) fn route(machine_id: &str, text: &str, followers: &Followers) -> Opti
         frame,
     })
 }
-

@@ -3,13 +3,13 @@ import type {
   GxserverSessionChatReplacedEvent,
   GxserverSessionChatSnapshotEvent,
   GxserverSessionChatStateEvent,
-} from "./session-chat";
+} from './session-chat';
 import type {
   GxserverProtocolVersion,
   GxserverServerId,
   GxserverEndpointPath,
   GxserverRendererCommand,
-} from "./gxserver-protocol-core";
+} from './gxserver-protocol-core';
 import type {
   GxserverPresentationRevision,
   GxserverSidebarProjectCollectionsState,
@@ -19,30 +19,30 @@ import type {
   GxserverCustomSessionTagsState,
   GxserverPresentationSnapshot,
   GxserverPresentationDelta,
-} from "./gxserver-protocol-presentation";
+} from './gxserver-protocol-presentation';
 
 export type GxserverEvent =
   | {
       protocolVersion: GxserverProtocolVersion;
       serverId: GxserverServerId;
-      type: "eventStreamReady";
+      type: 'eventStreamReady';
     }
   | {
       protocolVersion: GxserverProtocolVersion;
       serverId: GxserverServerId;
-      type: "serverStarted";
+      type: 'serverStarted';
     }
   | {
       protocolVersion: GxserverProtocolVersion;
       serverId: GxserverServerId;
-      type: "serverStopping";
+      type: 'serverStopping';
     }
   | {
       path: GxserverEndpointPath;
       protocolVersion: GxserverProtocolVersion;
       requestId: string;
       serverId: GxserverServerId;
-      type: "apiRequestHandled";
+      type: 'apiRequestHandled';
     }
   | {
       clientId?: string;
@@ -50,7 +50,7 @@ export type GxserverEvent =
       revision: GxserverPresentationRevision;
       serverId: GxserverServerId;
       snapshot: GxserverPresentationSnapshot;
-      type: "presentationSnapshot";
+      type: 'presentationSnapshot';
     }
   /*
    * CDXC:StateSync 2026-09-01:
@@ -66,55 +66,55 @@ export type GxserverEvent =
       protocolVersion: GxserverProtocolVersion;
       revision: GxserverPresentationRevision;
       serverId: GxserverServerId;
-      type: "presentationSnapshotCurrent";
+      type: 'presentationSnapshotCurrent';
     }
   | {
       delta: GxserverPresentationDelta;
       protocolVersion: GxserverProtocolVersion;
       revision: GxserverPresentationRevision;
       serverId: GxserverServerId;
-      type: "presentationDelta";
+      type: 'presentationDelta';
     }
   | {
       command: GxserverRendererCommand;
       protocolVersion: GxserverProtocolVersion;
       serverId: GxserverServerId;
-      type: "rendererCommand";
+      type: 'rendererCommand';
     }
   | {
       protocolVersion: GxserverProtocolVersion;
       revision: GxserverPresentationRevision;
       serverId: GxserverServerId;
       sidebarProjectCollections: GxserverSidebarProjectCollectionsState;
-      type: "sidebarProjectCollectionsChanged";
+      type: 'sidebarProjectCollectionsChanged';
     }
   | {
       protocolVersion: GxserverProtocolVersion;
       revision: GxserverPresentationRevision;
       serverId: GxserverServerId;
       sidebarSpaces: GxserverSidebarSpacesState;
-      type: "sidebarSpacesChanged";
+      type: 'sidebarSpacesChanged';
     }
   | {
       protocolVersion: GxserverProtocolVersion;
       revision: GxserverPresentationRevision;
       serverId: GxserverServerId;
       sidebarWorkspaces: GxserverSidebarWorkspacesState;
-      type: "sidebarWorkspacesChanged";
+      type: 'sidebarWorkspacesChanged';
     }
   | {
       customSessionTags: GxserverCustomSessionTagsState;
       protocolVersion: GxserverProtocolVersion;
       revision: GxserverPresentationRevision;
       serverId: GxserverServerId;
-      type: "customSessionTagsChanged";
+      type: 'customSessionTagsChanged';
     }
   | {
       groups: GxserverWorkspaceSessionGroupsState;
       protocolVersion: GxserverProtocolVersion;
       revision: GxserverPresentationRevision;
       serverId: GxserverServerId;
-      type: "workspaceGroupsChanged";
+      type: 'workspaceGroupsChanged';
     }
   /*
    * CDXC:AgentLauncher 2026-08-07:
@@ -128,7 +128,7 @@ export type GxserverEvent =
       protocolVersion: GxserverProtocolVersion;
       revision: GxserverPresentationRevision;
       serverId: GxserverServerId;
-      type: "globalSidebarCommandsChanged";
+      type: 'globalSidebarCommandsChanged';
     }
   /*
    * CDXC:Notifications 2026-09-11:
@@ -139,7 +139,7 @@ export type GxserverEvent =
   | {
       protocolVersion: GxserverProtocolVersion;
       serverId: GxserverServerId;
-      type: "notificationFeedChanged";
+      type: 'notificationFeedChanged';
     }
   /*
    * Announces that a workspace's connectors changed (a sign-in, an app,
@@ -149,7 +149,7 @@ export type GxserverEvent =
   | {
       protocolVersion: GxserverProtocolVersion;
       serverId: GxserverServerId;
-      type: "connectorsChanged";
+      type: 'connectorsChanged';
       workspaceId?: string;
     }
   /*
@@ -163,7 +163,7 @@ export type GxserverEvent =
       catalog: unknown;
       protocolVersion: GxserverProtocolVersion;
       serverId: GxserverServerId;
-      type: "agentModelCatalogChanged";
+      type: 'agentModelCatalogChanged';
     }
   | GxserverSessionChatSnapshotEvent
   | GxserverSessionChatAppendedEvent

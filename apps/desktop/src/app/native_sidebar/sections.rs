@@ -43,7 +43,12 @@ impl GhostexGpuiApp {
                 )
             })
             .when(summarize && section.attention_count > 0, |row| {
-                row.child(div().size(px(super::status::STATUS_DOT_SIZE * scale)).rounded_full().bg(rgb(0x95d7f6)))
+                row.child(
+                    div()
+                        .size(px(super::status::STATUS_DOT_SIZE * scale))
+                        .rounded_full()
+                        .bg(rgb(0x95d7f6)),
+                )
             })
             .when(
                 summarize && section.working_count == 0 && section.background_work_count > 0,
@@ -57,7 +62,12 @@ impl GhostexGpuiApp {
                 },
             )
             .when(summarize && section.question_count > 0, |row| {
-                row.child(div().size(px(super::status::STATUS_DOT_SIZE * scale)).rounded_full().bg(rgb(0xf472b6)))
+                row.child(
+                    div()
+                        .size(px(super::status::STATUS_DOT_SIZE * scale))
+                        .rounded_full()
+                        .bg(rgb(0xf472b6)),
+                )
             })
             .when(
                 section.collapsed && section.contains_active_session,

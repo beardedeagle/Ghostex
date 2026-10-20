@@ -43,11 +43,11 @@ pub(crate) mod web;
 
 pub(crate) use agents_hub::*;
 pub(crate) use browser::*;
-pub(crate) use ids::*;
-pub(crate) use project::*;
-pub(crate) use web::*;
 pub(crate) use chrome_palette::*;
 pub(crate) use clipboard_read::*;
+pub(crate) use ids::*;
 pub(crate) use indicator_animation::*;
+pub(crate) use project::*;
 pub(crate) use sidebar::*;
 pub(crate) use titlebar::*;
+pub(crate) use web::*;

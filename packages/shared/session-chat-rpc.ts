@@ -1,16 +1,13 @@
-import type { AccountSwitchProgress } from "./agent-accounts";
-import type { SessionChatDraftVersion } from "./session-chat-queue";
-import type {
-  SessionChatDraft,
-  SessionChatQueuedPrompt,
-} from "./session-chat-queue";
+import type { AccountSwitchProgress } from './agent-accounts';
+import type { SessionChatDraftVersion } from './session-chat-queue';
+import type { SessionChatDraft, SessionChatQueuedPrompt } from './session-chat-queue';
 import type {
   SessionChatMessage,
   SessionChatTurnLifecycle,
   SessionChatStatus,
   SessionChatInteractivePrompt,
   SessionChatQuestionSelection,
-} from "./session-chat-transcript";
+} from './session-chat-transcript';
 import type {
   SessionChatDetectedOptions,
   SessionChatConversationLock,
@@ -20,8 +17,8 @@ import type {
   SessionChatAppCommand,
   SessionChatAgentFleet,
   SessionChatAgentTasks,
-} from "./session-chat-agent-state";
-import type { SessionChatPendingModelSelection } from "./session-chat-agents";
+} from './session-chat-agent-state';
+import type { SessionChatPendingModelSelection } from './session-chat-agents';
 
 // ---------------------------------------------------------------------------
 // /api/readSessionChat
@@ -51,7 +48,7 @@ export interface GxserverReadSessionChatParams {
  * scroll-back crosses from one fork ancestor into the next. Mirrors
  * `FORK_BOUNDARY_MESSAGE_ID_PREFIX` in server/src/session_chat_fork_stitch.rs.
  */
-export const SESSION_CHAT_FORK_BOUNDARY_ID_PREFIX = "fork-boundary:";
+export const SESSION_CHAT_FORK_BOUNDARY_ID_PREFIX = 'fork-boundary:';
 
 /** Latest model and effort reported by this child's own transcript. */
 export interface SessionChatSubagentInfo {
@@ -197,8 +194,7 @@ export interface SessionChatAvailableAgent {
   baseAgentId: string;
 }
 
-export type SessionChatSkillSourceKind =
-  "global" | "pluginCache" | "repository";
+export type SessionChatSkillSourceKind = 'global' | 'pluginCache' | 'repository';
 
 export interface SessionChatSkill {
   /** Display/mention name, matching the skill folder shown by Agents Hub. */
@@ -243,8 +239,7 @@ export interface GxserverReadSessionChatFilesResult {
  * expressible as text. `shift-tab` is Claude Code's permission-mode cycle;
  * shifted arrows adjust Codex reasoning effort.
  */
-export type SessionChatSendKey =
-  "enter" | "shift-tab" | "shift-up" | "shift-down";
+export type SessionChatSendKey = 'enter' | 'shift-tab' | 'shift-up' | 'shift-down';
 
 export interface GxserverSendSessionChatMessageParams {
   draftVersion?: SessionChatDraftVersion;
@@ -350,16 +345,16 @@ export interface GxserverAnswerSessionChatPromptParams {
   /** See `GxserverSendSessionChatMessageParams.sendRequestId`. */
   sendRequestId?: string;
   kind:
-    | "question"
-    | "approval"
-    | "terminalChoice"
-    | "terminalDialog"
-    | "terminalKey"
-    | "asyncQuestion"
-    | "dismissAsyncQuestion"
-    | "recoverCodexConversation"
-    | "trustAndRemember"
-    | "restartAgent";
+    | 'question'
+    | 'approval'
+    | 'terminalChoice'
+    | 'terminalDialog'
+    | 'terminalKey'
+    | 'asyncQuestion'
+    | 'dismissAsyncQuestion'
+    | 'recoverCodexConversation'
+    | 'trustAndRemember'
+    | 'restartAgent';
   conversationLock?: SessionChatConversationLock;
   questionId?: string;
   dialogId?: string;
@@ -431,7 +426,7 @@ export interface GxserverHandoffSessionChatDraftResult {
 // ---------------------------------------------------------------------------
 
 export interface GxserverSubscribeSessionChatMessage {
-  type: "subscribeSessionChat";
+  type: 'subscribeSessionChat';
   projectId: string;
   sessionId: string;
   /**
@@ -445,7 +440,7 @@ export interface GxserverSubscribeSessionChatMessage {
 }
 
 export interface GxserverUnsubscribeSessionChatMessage {
-  type: "unsubscribeSessionChat";
+  type: 'unsubscribeSessionChat';
   projectId: string;
   sessionId: string;
 }

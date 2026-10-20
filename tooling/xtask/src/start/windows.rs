@@ -819,7 +819,10 @@ impl Start {
         .map(|dir| {
             format!(
                 "{}{}",
-                dir.join(".retired-native").display().to_string().to_lowercase(),
+                dir.join(".retired-native")
+                    .display()
+                    .to_string()
+                    .to_lowercase(),
                 std::path::MAIN_SEPARATOR
             )
         })

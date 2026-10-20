@@ -1,14 +1,14 @@
-import { IconCloud, IconDeviceDesktop } from "@tabler/icons-react";
-import { CloudSessionButtons } from "./cloud-sessions";
-import { LiveDot } from "./components";
-import { relativeTime } from "./format";
-import type { TeamSession } from "./types";
+import { IconCloud, IconDeviceDesktop } from '@tabler/icons-react';
+import { CloudSessionButtons } from './cloud-sessions';
+import { LiveDot } from './components';
+import { relativeTime } from './format';
+import type { TeamSession } from './types';
 
-const STATUS_TEXT: Record<TeamSession["status"], string> = {
-  starting: "Starting",
-  running: "Running",
-  failed: "Failed",
-  cancelled: "Cancelled",
+const STATUS_TEXT: Record<TeamSession['status'], string> = {
+  starting: 'Starting',
+  running: 'Running',
+  failed: 'Failed',
+  cancelled: 'Cancelled',
 };
 
 /**
@@ -34,52 +34,38 @@ export function TeamSessionRows({
   return (
     <>
       {sessions.map((session) => {
-        const who = session.isMe ? "You" : (session.memberName ?? "A teammate");
+        const who = session.isMe ? 'You' : (session.memberName ?? 'A teammate');
         const where = session.isMe
-          ? "another computer"
+          ? 'another computer'
           : session.memberName
             ? `${session.memberName}’s computer`
-            : "a teammate’s computer";
-        const live =
-          session.status === "running" || session.status === "starting";
+            : 'a teammate’s computer';
+        const live = session.status === 'running' || session.status === 'starting';
         return (
-          <div
-            key={session.id}
-            className={`w-convo team-session team-session-${session.runPlace}`}
-          >
-            <span className="w-convo-icon">
-              {session.runPlace === "cloud" ? (
-                <IconCloud size={13} />
-              ) : (
-                <IconDeviceDesktop size={13} />
-              )}
+          <div key={session.id} className={`w-convo team-session team-session-${session.runPlace}`}>
+            <span className='w-convo-icon'>
+              {session.runPlace === 'cloud' ? <IconCloud size={13} /> : <IconDeviceDesktop size={13} />}
             </span>
-            <div className="w-convo-main">
-              <div className="w-convo-who">
+            <div className='w-convo-main'>
+              <div className='w-convo-who'>
                 {who}
-                <span className="w-faint">
-                  {session.runPlace === "cloud"
-                    ? "Claude in the cloud"
-                    : `on ${where}`}
-                </span>
+                <span className='w-faint'>{session.runPlace === 'cloud' ? 'Claude in the cloud' : `on ${where}`}</span>
               </div>
-              <div className="w-convo-sub">
+              <div className='w-convo-sub'>
                 {STATUS_TEXT[session.status]}
                 {session.branch ? (
                   <>
-                    {" · "}
-                    <span className="w-mono">{session.branch}</span>
+                    {' · '}
+                    <span className='w-mono'>{session.branch}</span>
                   </>
                 ) : null}
                 {` · ${relativeTime(new Date(session.updatedAt).toISOString(), now)}`}
-                {session.status === "failed" && session.error
-                  ? ` · ${session.error}`
-                  : ""}
+                {session.status === 'failed' && session.error ? ` · ${session.error}` : ''}
               </div>
             </div>
-            <div className="w-convo-right">
+            <div className='w-convo-right'>
               {live ? <LiveDot /> : null}
-              {session.runPlace === "cloud" && session.sessionUrl ? (
+              {session.runPlace === 'cloud' && session.sessionUrl ? (
                 <CloudSessionButtons
                   sessionUrl={session.sessionUrl}
                   onOpenUrl={onOpenUrl}

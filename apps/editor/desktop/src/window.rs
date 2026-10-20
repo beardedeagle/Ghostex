@@ -218,8 +218,8 @@ fn hide_windows_titlebar_icon(window: &Window) -> Result<(), String> {
     use tao::platform::windows::WindowExtWindows;
     use windows_sys::Win32::Foundation::{GetLastError, SetLastError};
     use windows_sys::Win32::UI::WindowsAndMessaging::{
-        GWL_EXSTYLE, GetWindowLongPtrW, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE,
-        SWP_NOSIZE, SWP_NOZORDER, SetWindowLongPtrW, SetWindowPos, WS_EX_DLGMODALFRAME,
+        GWL_EXSTYLE, GetWindowLongPtrW, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
+        SWP_NOZORDER, SetWindowLongPtrW, SetWindowPos, WS_EX_DLGMODALFRAME,
     };
 
     // SAFETY: this newly created HWND belongs to the current UI thread and remains alive throughout.

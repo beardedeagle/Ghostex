@@ -12,9 +12,9 @@ pub(crate) mod app_modal_kind;
 pub(crate) mod sidebar_bridge_messages {
     include!(concat!(env!("OUT_DIR"), "/sidebar_bridge_messages.rs"));
 }
-pub(crate) use sidebar_bridge_messages::*;
 /// The desktop keeps this key type in `model/local_workspace_attach.rs`; the page lifts it with the id checks (`helpers::ids`).
 pub(crate) use crate::app::helpers::GpuiLocalWorkspaceSessionKey;
+pub(crate) use sidebar_bridge_messages::*;
 
 /// `model/local_workspace_attach.rs`'s conversion (a trait impl, which `build.rs` cannot lift by name).
 impl From<&GpuiSidebarWorkspaceTerminalFocusMessage> for GpuiLocalWorkspaceSessionKey {

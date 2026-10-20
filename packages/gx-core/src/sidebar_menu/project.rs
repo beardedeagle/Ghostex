@@ -7,7 +7,7 @@ use crate::sidebar_view::collections::CollectionsState;
 use crate::sidebar_view::spaces::SpacesState;
 use crate::sidebar_view::view::SessionView;
 
-use super::commands::{MenuCommand, message};
+use super::commands::{message, MenuCommand};
 use super::group::MenuGroup;
 use super::host::MenuOpenTarget;
 use super::item::MenuItem;

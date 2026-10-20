@@ -4,67 +4,62 @@ import type {
   GxserverSessionId,
   GxserverGlobalSessionRef,
   GxserverZmxSessionName,
-} from "./gxserver-protocol-core";
-import type { GxserverPresentationSettledOverride } from "./gxserver-protocol-presentation";
+} from './gxserver-protocol-core';
+import type { GxserverPresentationSettledOverride } from './gxserver-protocol-presentation';
 import type {
   GxserverAttachSessionMetadataResult,
   GxserverProviderKillResult,
-} from "./gxserver-protocol-session-runtime";
+} from './gxserver-protocol-session-runtime';
 
 export type GxserverSharedStateArea =
-  | "projects"
-  | "sessions"
-  | "zmxLifecycle"
-  | "sleepWakePolicy"
-  | "agentStatus"
-  | "remoteControl"
-  | "pinnedFavorite"
-  | "customAgentsCommands"
-  | "launchRuntimeSettings"
-  | "previousSessionHistory"
-  | "worktreeGitActions"
-  | "beadsProjectBoard";
+  | 'projects'
+  | 'sessions'
+  | 'zmxLifecycle'
+  | 'sleepWakePolicy'
+  | 'agentStatus'
+  | 'remoteControl'
+  | 'pinnedFavorite'
+  | 'customAgentsCommands'
+  | 'launchRuntimeSettings'
+  | 'previousSessionHistory'
+  | 'worktreeGitActions'
+  | 'beadsProjectBoard';
 
 export type GxserverClientLocalStateArea =
-  | "sidebarGroups"
-  | "splitTabLayout"
-  | "visibleSessionCount"
-  | "browserEditorCodeServerPanes"
-  | "cefBrowserProfiles"
-  | "popOutWindows"
-  | "visualSettings";
+  | 'sidebarGroups'
+  | 'splitTabLayout'
+  | 'visibleSessionCount'
+  | 'browserEditorCodeServerPanes'
+  | 'cefBrowserProfiles'
+  | 'popOutWindows'
+  | 'visualSettings';
 
-export type GxserverMixedStateArea =
-  "notificationRules" | "commandDefinitions" | "projectIcons" | "theme";
+export type GxserverMixedStateArea = 'notificationRules' | 'commandDefinitions' | 'projectIcons' | 'theme';
 
-export type GxserverSessionKind = "terminal" | "agent";
-export type GxserverSessionSurface = "workspace" | "commands";
+export type GxserverSessionKind = 'terminal' | 'agent';
+export type GxserverSessionSurface = 'workspace' | 'commands';
 export type GxserverSessionTag =
-  | "favorite"
-  | "high-priority"
-  | "research"
-  | "todo"
-  | "in-progress"
-  | "testing"
-  | "blocked"
-  | "low-priority"
-  | "on-hold"
-  | "done"
-  | "bug"
-  | "feature"
-  | "design"
+  | 'favorite'
+  | 'high-priority'
+  | 'research'
+  | 'todo'
+  | 'in-progress'
+  | 'testing'
+  | 'blocked'
+  | 'low-priority'
+  | 'on-hold'
+  | 'done'
+  | 'bug'
+  | 'feature'
+  | 'design'
   /** A user-defined tag from the daemon's custom tag catalog (`/api/readCustomSessionTags`). */
   | `custom-${string}`;
-export type GxserverSessionTagFilter = GxserverSessionTag | "untagged";
-export type GxserverDomainLifecycleState =
-  "running" | "sleeping" | "stopped" | "missing" | "unknown";
-export type GxserverProviderLifecycleState = "exists" | "missing" | "unknown";
+export type GxserverSessionTagFilter = GxserverSessionTag | 'untagged';
+export type GxserverDomainLifecycleState = 'running' | 'sleeping' | 'stopped' | 'missing' | 'unknown';
+export type GxserverProviderLifecycleState = 'exists' | 'missing' | 'unknown';
 export type GxserverStartupTextDisposition =
-  | "discardExistingProvider"
-  | "discardUnknownProvider"
-  | "none"
-  | "queueAfterTerminalReady";
-export type GxserverRestoreBlockReason = "missingCwd";
+  'discardExistingProvider' | 'discardUnknownProvider' | 'none' | 'queueAfterTerminalReady';
+export type GxserverRestoreBlockReason = 'missingCwd';
 
 export interface GxserverProjectDomainState {
   attentionRules: Record<string, unknown>;
@@ -101,9 +96,9 @@ export interface GxserverProjectDomainState {
   CDXC:Projects 2026-06-30-21:23:
   Active project visibility is gxserver-owned so mobile, CLI, GPUI, and macOS omit Remote Attach carrier projects and other hidden containers through the shared daemon contract instead of each client filtering macOS sidebar details.
   */
-  systemKind?: "remoteAttachCarrier";
+  systemKind?: 'remoteAttachCarrier';
   updatedAt: string;
-  visibility?: "visible" | "hidden";
+  visibility?: 'visible' | 'hidden';
   worktree?: Record<string, unknown>;
 }
 
@@ -141,7 +136,7 @@ export interface GxserverReadSidebarHudParams {
 }
 
 export interface GxserverSidebarHudAgentButton {
-  acceptAllMode?: "inherit" | "enabled" | "disabled";
+  acceptAllMode?: 'inherit' | 'enabled' | 'disabled';
   agentId: string;
   command?: string;
   icon?: string;
@@ -150,7 +145,7 @@ export interface GxserverSidebarHudAgentButton {
 }
 
 export interface GxserverSidebarHudCommandButton {
-  actionType: "browser" | "terminal";
+  actionType: 'browser' | 'terminal';
   closeTerminalOnExit: boolean;
   command?: string;
   commandId: string;
@@ -164,7 +159,7 @@ export interface GxserverSidebarHudCommandButton {
 }
 
 export interface GxserverSidebarHudCommandLink {
-  target: "integrated" | "external";
+  target: 'integrated' | 'external';
   url: string;
 }
 
@@ -176,9 +171,7 @@ export interface GxserverSidebarHudResponse {
    * Keyed by project id with worktrees already resolved to their parent's
    * Actions, mirroring the active-project `commands` resolution per project.
    */
-  commandsByProject?: Readonly<
-    Record<string, readonly GxserverSidebarHudCommandButton[]>
-  >;
+  commandsByProject?: Readonly<Record<string, readonly GxserverSidebarHudCommandButton[]>>;
   commands: readonly GxserverSidebarHudCommandButton[];
   /**
    * CDXC:AgentLauncher 2026-08-01:
@@ -204,29 +197,29 @@ export type GxserverSidebarHudSettingsMutationParams = {
 
 type GxserverSidebarHudSettingsMutationIntent =
   | {
-      acceptAllMode?: "inherit" | "enabled" | "disabled";
+      acceptAllMode?: 'inherit' | 'enabled' | 'disabled';
       activeProjectId?: string;
       agentId?: string;
       command: string;
       icon?: string;
       name: string;
-      operation: "save";
-      target: "agent";
+      operation: 'save';
+      target: 'agent';
     }
   | {
       activeProjectId?: string;
       agentId: string;
-      operation: "delete";
-      target: "agent";
+      operation: 'delete';
+      target: 'agent';
     }
   | {
       activeProjectId?: string;
       agentIds: readonly string[];
-      operation: "order";
-      target: "agent";
+      operation: 'order';
+      target: 'agent';
     }
   | {
-      actionType: "browser" | "terminal";
+      actionType: 'browser' | 'terminal';
       activeProjectId?: string;
       closeTerminalOnExit?: boolean;
       command?: string;
@@ -234,7 +227,7 @@ type GxserverSidebarHudSettingsMutationIntent =
       icon?: string;
       links?: readonly GxserverSidebarHudCommandLink[];
       name: string;
-      operation: "save";
+      operation: 'save';
       playCompletionSound?: boolean;
       showOnProjectRow?: boolean;
       /**
@@ -244,20 +237,20 @@ type GxserverSidebarHudSettingsMutationIntent =
        * the payload shape. gxserver validates both through one path, which is
        * what keeps the two lists from drifting into different action shapes.
        */
-      target: "command" | "globalCommand";
+      target: 'command' | 'globalCommand';
       url?: string;
     }
   | {
       activeProjectId?: string;
       commandId: string;
-      operation: "delete";
-      target: "command" | "globalCommand";
+      operation: 'delete';
+      target: 'command' | 'globalCommand';
     }
   | {
       activeProjectId?: string;
       commandIds: readonly string[];
-      operation: "order";
-      target: "command" | "globalCommand";
+      operation: 'order';
+      target: 'command' | 'globalCommand';
     };
 
 export interface GxserverSidebarHudSettingsMutationResult {
@@ -266,15 +259,14 @@ export interface GxserverSidebarHudSettingsMutationResult {
   projects: readonly GxserverProjectDomainState[];
 }
 
-export type GxserverConnectionTransport =
-  "local" | "tailscale" | "direct" | "ssh" | "tailcat";
+export type GxserverConnectionTransport = 'local' | 'tailscale' | 'direct' | 'ssh' | 'tailcat';
 export type GxserverConnectionProfileId = string & {
   readonly __gxserverConnectionProfileId: unique symbol;
 };
 
 export interface GxserverCredentialSecretRef {
   account: string;
-  service: "ghostex.gxserver";
+  service: 'ghostex.gxserver';
 }
 
 export interface GxserverConnectionProfile {
@@ -310,10 +302,10 @@ export interface GxserverRouteRef {
 }
 
 export interface GxserverRemoteProjectListMetadata {
-  icon: "cloud";
+  icon: 'cloud';
   profileId: string;
   serverId: GxserverServerId;
-  transport: Exclude<GxserverConnectionTransport, "local">;
+  transport: Exclude<GxserverConnectionTransport, 'local'>;
 }
 
 export interface GxserverSshForwardPlan {
@@ -329,9 +321,9 @@ export interface GxserverSshForwardPlan {
 export interface GxserverRemoteAttachMetadata {
   attachCommand: string;
   profileId: string;
-  provider: "zmx";
+  provider: 'zmx';
   serverId?: GxserverServerId;
-  transport: "ssh";
+  transport: 'ssh';
   zmxName: GxserverZmxSessionName;
 }
 
@@ -408,10 +400,9 @@ export interface GxserverCreateProjectParams {
   worktree?: Record<string, unknown>;
 }
 
-export type GxserverUpdateProjectParams =
-  Partial<GxserverCreateProjectParams> & {
-    projectId: GxserverProjectId;
-  };
+export type GxserverUpdateProjectParams = Partial<GxserverCreateProjectParams> & {
+  projectId: GxserverProjectId;
+};
 
 export interface GxserverCreateSessionParams {
   agentId?: string;
@@ -441,7 +432,7 @@ export interface GxserverCreateSessionParams {
   projectId?: GxserverProjectId;
   projectName?: string;
   projectPath?: string;
-  providerState?: Partial<GxserverSessionDomainState["providerState"]>;
+  providerState?: Partial<GxserverSessionDomainState['providerState']>;
   /**
    * CDXC:RemoteMachines 2026-06-24-17:19:
    * Remote agent starts can ask gxserver to reject unknown custom/default agent ids instead of creating an inert row with no launch command. This lets clients avoid sending renderer-owned command text while still failing honestly when remote project metadata cannot resolve the selected agent.
@@ -457,9 +448,7 @@ export interface GxserverCreateSessionParams {
   worktree?: Record<string, unknown>;
 }
 
-export type GxserverUpdateSessionParams = Partial<
-  Omit<GxserverCreateSessionParams, "projectId">
-> & {
+export type GxserverUpdateSessionParams = Partial<Omit<GxserverCreateSessionParams, 'projectId'>> & {
   projectId: GxserverProjectId;
   sessionId: GxserverSessionId;
 };

@@ -28,7 +28,6 @@ describe('session shortcut labels', () => {
     expect(getSessionShortcutLabel(5, 'mac')).toBe('⌘⌥6');
     expect(getSessionShortcutLabel(8, 'default')).toBe('Ctrl+Alt+9');
   });
-
 });
 
 describe('session surface titles', () => {

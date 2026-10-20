@@ -19,13 +19,13 @@ mod gx_store_lifted {
 pub(crate) mod git;
 pub(crate) mod host;
 mod hud;
-mod rpc;
-mod rpc_types;
-mod runtime_facts;
 mod primary_launcher;
 mod project_docs;
 mod quick_access_data;
 mod quick_access_files;
+mod rpc;
+mod rpc_types;
+mod runtime_facts;
 /// The desktop's readers of the HUD's agent and Saved Action lists for the menus (`sidebar_menus.rs`).
 #[allow(dead_code)]
 mod menu_host_lifted {
@@ -42,7 +42,9 @@ mod menu_host_lifted {
         commands(value)
     }
 
-    pub(crate) fn header_commands_by_project(value: &Value) -> BTreeMap<String, Vec<HeaderCommand>> {
+    pub(crate) fn header_commands_by_project(
+        value: &Value,
+    ) -> BTreeMap<String, Vec<HeaderCommand>> {
         commands_by_project(value)
     }
 }
@@ -59,17 +61,17 @@ mod sidebar_list;
 mod sidebar_modals;
 mod sidebar_open;
 mod sidebar_reload;
+mod sidebar_snapshot;
 mod sidebar_snooze;
 mod sidebar_state_actions;
 mod sidebar_ui_storage;
-mod sidebar_snapshot;
 pub(crate) mod terminal_lifecycle;
 mod web_commands;
+pub(crate) mod web_transport;
 mod work_links;
 mod work_mode;
-mod workspaces;
 mod workspace_groups;
-pub(crate) mod web_transport;
+mod workspaces;
 
 pub(crate) use host::GxStoreHost;
 #[allow(unused_imports)]

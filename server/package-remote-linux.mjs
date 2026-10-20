@@ -1,28 +1,16 @@
 #!/usr/bin/env node
-import { createHash } from "node:crypto";
-import {
-  access,
-  chmod,
-  cp,
-  mkdir,
-  mkdtemp,
-  readFile,
-  readdir,
-  realpath,
-  rm,
-  stat,
-  writeFile,
-} from "node:fs/promises";
-import os from "node:os";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { promisify } from "node:util";
-import { execFile, spawn } from "node:child_process";
+import { createHash } from 'node:crypto';
+import { access, chmod, cp, mkdir, mkdtemp, readFile, readdir, realpath, rm, stat, writeFile } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { promisify } from 'node:util';
+import { execFile, spawn } from 'node:child_process';
 
 const execFileAsync = promisify(execFile);
 const scriptPath = fileURLToPath(import.meta.url);
 const gxserverRoot = path.dirname(scriptPath);
-const repoRoot = path.resolve(gxserverRoot, "..");
+const repoRoot = path.resolve(gxserverRoot, '..');
 
 /*
  * CDXC:RemotePairing 2026-07-13:
@@ -33,13 +21,13 @@ const repoRoot = path.resolve(gxserverRoot, "..");
 const archConfigs = {
   x64: {
     elfMachine: 0x3e,
-    rustTarget: "x86_64-unknown-linux-musl",
-    zigTarget: "x86_64-linux-musl",
+    rustTarget: 'x86_64-unknown-linux-musl',
+    zigTarget: 'x86_64-linux-musl',
   },
   arm64: {
     elfMachine: 0xb7,
-    rustTarget: "aarch64-unknown-linux-musl",
-    zigTarget: "aarch64-linux-musl",
+    rustTarget: 'aarch64-unknown-linux-musl',
+    zigTarget: 'aarch64-linux-musl',
   },
 };
 
@@ -75,10 +63,10 @@ async function main() {
   }
 
   const requestedArch = normalizeArch(options.arch || process.arch);
-  const arches = requestedArch === "all" ? ["x64", "arm64"] : [requestedArch];
+  const arches = requestedArch === 'all' ? ['x64', 'arm64'] : [requestedArch];
   if (arches.length > 1 && options.out) {
     throw new Error(
-      "--out can only be used with one --arch value. Use --out-root or omit --out when building all Linux arches.",
+      '--out can only be used with one --arch value. Use --out-root or omit --out when building all Linux arches.'
     );
   }
 
@@ -94,13 +82,11 @@ async function main() {
 async function buildLinuxPackageForArch({ arch, options }) {
   const archConfig = archConfigs[arch];
   if (!archConfig) {
-    throw new Error(
-      `Unsupported Linux package arch: ${options.arch || process.arch}`,
-    );
+    throw new Error(`Unsupported Linux package arch: ${options.arch || process.arch}`);
   }
-  if (process.platform !== "linux" && !options.allowCross) {
+  if (process.platform !== 'linux' && !options.allowCross) {
     throw new Error(
-      "Remote gxserver Linux packages must be built on Ubuntu/Linux CI, or pass --allow-cross after configuring Rust, Zig, and C toolchains for Linux.",
+      'Remote gxserver Linux packages must be built on Ubuntu/Linux CI, or pass --allow-cross after configuring Rust, Zig, and C toolchains for Linux.'
     );
   }
 
@@ -108,51 +94,37 @@ async function buildLinuxPackageForArch({ arch, options }) {
     repoRoot,
     options.out ||
       (options.outRoot
-        ? path.join(options.outRoot, arch, "package")
-        : path.join("build", "remote-gxserver-linux", arch, "package")),
+        ? path.join(options.outRoot, arch, 'package')
+        : path.join('build', 'remote-gxserver-linux', arch, 'package'))
   );
   await assertSafeOutputDir(outputDir);
 
-  const workRoot = await mkdtemp(
-    path.join(os.tmpdir(), `ghostex-remote-gxserver-${arch}-`),
-  );
+  const workRoot = await mkdtemp(path.join(os.tmpdir(), `ghostex-remote-gxserver-${arch}-`));
   try {
     const zmxZigBin = await resolveZigBinary({
       candidates: [
         options.zmxZigBin,
         process.env.ZMX_ZIG,
         process.env.ZIG,
-        path.join(
-          os.homedir(),
-          "apps",
-          `zig-${zigHostArch()}-linux-0.16.0`,
-          "zig",
-        ),
-        "zig",
+        path.join(os.homedir(), 'apps', `zig-${zigHostArch()}-linux-0.16.0`, 'zig'),
+        'zig',
       ],
-      label: "Zig 0.16.x for zmx",
+      label: 'Zig 0.16.x for zmx',
       versionMatches: (version) => /^0\.16\./u.test(version),
     });
     const config = {
       ...archConfig,
       arch,
-      packageVersion:
-        options.packageVersion || (await gxserverPackageVersion()),
+      packageVersion: options.packageVersion || (await gxserverPackageVersion()),
       rustTarget: options.rustTarget || archConfig.rustTarget,
       sourceDirty: await gitSourceDirty(repoRoot),
-      sourceRevision: await gitOutput(
-        repoRoot,
-        ["rev-parse", "HEAD"],
-        "unknown",
-      ),
-      zmxRoot: path.resolve(repoRoot, options.zmxRoot || ".dependencies/zmx"),
-      zmxSourceDirty: await gitSourceDirty(
-        path.resolve(repoRoot, options.zmxRoot || ".dependencies/zmx"),
-      ),
+      sourceRevision: await gitOutput(repoRoot, ['rev-parse', 'HEAD'], 'unknown'),
+      zmxRoot: path.resolve(repoRoot, options.zmxRoot || '.dependencies/zmx'),
+      zmxSourceDirty: await gitSourceDirty(path.resolve(repoRoot, options.zmxRoot || '.dependencies/zmx')),
       zmxSourceRevision: await gitOutput(
-        path.resolve(repoRoot, options.zmxRoot || ".dependencies/zmx"),
-        ["rev-parse", "HEAD"],
-        "unknown",
+        path.resolve(repoRoot, options.zmxRoot || '.dependencies/zmx'),
+        ['rev-parse', 'HEAD'],
+        'unknown'
       ),
       zmxZigBin,
       zigTarget: options.zigTarget || archConfig.zigTarget,
@@ -183,9 +155,7 @@ async function buildLinuxPackageForArch({ arch, options }) {
      * cannot accept a package built from stale zmx sources.
      */
     await buildPackage({ config, outputDir, workRoot });
-    console.log(
-      `Remote gxserver Linux ${arch} package written to ${outputDir}`,
-    );
+    console.log(`Remote gxserver Linux ${arch} package written to ${outputDir}`);
   } finally {
     await rm(workRoot, { force: true, recursive: true });
   }
@@ -195,22 +165,20 @@ function parseArgs(args) {
   const options = {};
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
-    if (arg === "--help" || arg === "-h") {
+    if (arg === '--help' || arg === '-h') {
       options.help = true;
       continue;
     }
-    if (arg === "--allow-cross") {
+    if (arg === '--allow-cross') {
       options.allowCross = true;
       continue;
     }
-    if (!arg.startsWith("--")) {
+    if (!arg.startsWith('--')) {
       throw new Error(`Unexpected argument: ${arg}`);
     }
-    const key = arg
-      .slice(2)
-      .replace(/-([a-z])/gu, (_, letter) => letter.toUpperCase());
+    const key = arg.slice(2).replace(/-([a-z])/gu, (_, letter) => letter.toUpperCase());
     const value = args[index + 1];
-    if (!value || value.startsWith("--")) {
+    if (!value || value.startsWith('--')) {
       throw new Error(`Missing value for ${arg}`);
     }
     options[key] = value;
@@ -220,28 +188,24 @@ function parseArgs(args) {
 }
 
 function normalizeArch(value) {
-  const normalized = String(value || "")
+  const normalized = String(value || '')
     .trim()
     .toLowerCase();
-  if (
-    normalized === "x64" ||
-    normalized === "amd64" ||
-    normalized === "x86_64"
-  ) {
-    return "x64";
+  if (normalized === 'x64' || normalized === 'amd64' || normalized === 'x86_64') {
+    return 'x64';
   }
-  if (normalized === "arm64" || normalized === "aarch64") {
-    return "arm64";
+  if (normalized === 'arm64' || normalized === 'aarch64') {
+    return 'arm64';
   }
-  if (normalized === "all" || normalized === "both") {
-    return "all";
+  if (normalized === 'all' || normalized === 'both') {
+    return 'all';
   }
   return normalized;
 }
 
 async function buildPackage({ config, outputDir, workRoot }) {
-  const stageDir = path.join(workRoot, "stage");
-  const binsDir = path.join(stageDir, "bin");
+  const stageDir = path.join(workRoot, 'stage');
+  const binsDir = path.join(stageDir, 'bin');
   await rm(stageDir, { force: true, recursive: true });
   await mkdir(binsDir, { recursive: true });
 
@@ -254,16 +218,16 @@ async function buildPackage({ config, outputDir, workRoot }) {
    * toolchain is 0.16.x — the same pin the vendored ghostty uses.
    */
   const zmxBin = await buildZigTool({
-    binName: "zmx",
+    binName: 'zmx',
     root: config.zmxRoot,
     target: config.zigTarget,
     workRoot,
     zigBin: config.zmxZigBin,
   });
 
-  await copyExecutable(gxserverBin, path.join(binsDir, "gxserver"), "gxserver");
-  await copyExecutable(ghostexBin, path.join(binsDir, "ghostex"), "ghostex");
-  await copyExecutable(zmxBin, path.join(binsDir, "zmx"), "zmx");
+  await copyExecutable(gxserverBin, path.join(binsDir, 'gxserver'), 'gxserver');
+  await copyExecutable(ghostexBin, path.join(binsDir, 'ghostex'), 'ghostex');
+  await copyExecutable(zmxBin, path.join(binsDir, 'zmx'), 'zmx');
 
   /*
    * CDXC:AgentSkills 2026-09-11 WHY:
@@ -308,130 +272,87 @@ Resolution matches the desktop scripts: an explicit env wins, otherwise the root
 package.json is the source of truth.
 */
 async function resolveMarketingVersion() {
-  const explicit = (process.env.GHOSTEX_GPUI_MARKETING_VERSION || "").trim();
+  const explicit = (process.env.GHOSTEX_GPUI_MARKETING_VERSION || '').trim();
   if (explicit) {
     return explicit;
   }
-  const manifest = JSON.parse(
-    await readFile(path.join(repoRoot, "package.json"), "utf8"),
-  );
+  const manifest = JSON.parse(await readFile(path.join(repoRoot, 'package.json'), 'utf8'));
   if (!manifest.version) {
-    throw new Error(
-      "Could not read the marketing version from the root package.json.",
-    );
+    throw new Error('Could not read the marketing version from the root package.json.');
   }
   return manifest.version;
 }
 
 async function buildGxserver(config) {
-  await run("cargo", ["build", "--release", "--target", config.rustTarget], {
+  await run('cargo', ['build', '--release', '--target', config.rustTarget], {
     cwd: gxserverRoot,
     env: { GHOSTEX_GPUI_MARKETING_VERSION: await resolveMarketingVersion() },
   });
-  const releaseDir = path.join(
-    cargoTargetRoot(gxserverRoot),
-    config.rustTarget,
-    "release",
-  );
+  const releaseDir = path.join(cargoTargetRoot(gxserverRoot), config.rustTarget, 'release');
   return {
-    ghostexBin: path.join(releaseDir, "ghostex"),
-    gxserverBin: path.join(releaseDir, "gxserver"),
+    ghostexBin: path.join(releaseDir, 'ghostex'),
+    gxserverBin: path.join(releaseDir, 'gxserver'),
   };
 }
 
 function cargoTargetRoot(defaultRoot) {
   const configured = process.env.CARGO_TARGET_DIR?.trim();
-  return configured
-    ? path.resolve(repoRoot, configured)
-    : path.join(defaultRoot, "target");
+  return configured ? path.resolve(repoRoot, configured) : path.join(defaultRoot, 'target');
 }
 
 async function buildZigTool({ binName, root, target, workRoot, zigBin }) {
   await assertDirectory(root, `${binName} root`);
   const prefix = path.join(workRoot, binName);
-  await run(
-    zigBin || "zig",
-    [
-      "build",
-      "-Doptimize=ReleaseSafe",
-      `-Dtarget=${target}`,
-      "--prefix",
-      prefix,
-    ],
-    {
-      cwd: root,
-    },
-  );
-  return path.join(prefix, "bin", binName);
+  await run(zigBin || 'zig', ['build', '-Doptimize=ReleaseSafe', `-Dtarget=${target}`, '--prefix', prefix], {
+    cwd: root,
+  });
+  return path.join(prefix, 'bin', binName);
 }
 
-const BUNDLED_SKILL_COPY_EXCLUDED_NAMES = new Set([
-  ".git",
-  "node_modules",
-  ".DS_Store",
-]);
+const BUNDLED_SKILL_COPY_EXCLUDED_NAMES = new Set(['.git', 'node_modules', '.DS_Store']);
 
 /* Every folder under skills/ with a SKILL.md is a bundled skill; the catalog is
  * the same one gxserver downloads from GitHub main at runtime. */
 async function stageBundledSkills(stageDir) {
-  const sourceRoot = path.join(repoRoot, "skills");
-  await assertDirectory(sourceRoot, "bundled skills");
+  const sourceRoot = path.join(repoRoot, 'skills');
+  await assertDirectory(sourceRoot, 'bundled skills');
   const skillNames = [];
   for (const entry of await readdir(sourceRoot, { withFileTypes: true })) {
-    if (
-      !entry.isDirectory() ||
-      BUNDLED_SKILL_COPY_EXCLUDED_NAMES.has(entry.name)
-    ) {
+    if (!entry.isDirectory() || BUNDLED_SKILL_COPY_EXCLUDED_NAMES.has(entry.name)) {
       continue;
     }
     try {
-      await access(path.join(sourceRoot, entry.name, "SKILL.md"));
+      await access(path.join(sourceRoot, entry.name, 'SKILL.md'));
     } catch {
       continue;
     }
     skillNames.push(entry.name);
   }
-  if (!skillNames.includes("ghostex-cli")) {
-    throw new Error(
-      `Bundled skills under ${sourceRoot} do not include ghostex-cli.`,
-    );
+  if (!skillNames.includes('ghostex-cli')) {
+    throw new Error(`Bundled skills under ${sourceRoot} do not include ghostex-cli.`);
   }
   skillNames.sort();
   for (const skillName of skillNames) {
-    await cp(
-      path.join(sourceRoot, skillName),
-      path.join(stageDir, "skills", skillName),
-      {
-        dereference: true,
-        filter: (source) =>
-          !BUNDLED_SKILL_COPY_EXCLUDED_NAMES.has(path.basename(source)),
-        recursive: true,
-      },
-    );
+    await cp(path.join(sourceRoot, skillName), path.join(stageDir, 'skills', skillName), {
+      dereference: true,
+      filter: (source) => !BUNDLED_SKILL_COPY_EXCLUDED_NAMES.has(path.basename(source)),
+      recursive: true,
+    });
   }
 }
 
 async function validateLinuxPackage(packageDir, config) {
-  const requiredFiles = [
-    "bin/gxserver",
-    "bin/ghostex",
-    "bin/zmx",
-    "skills/ghostex-cli/SKILL.md",
-  ];
+  const requiredFiles = ['bin/gxserver', 'bin/ghostex', 'bin/zmx', 'skills/ghostex-cli/SKILL.md'];
   for (const relativePath of requiredFiles) {
     await assertFile(path.join(packageDir, relativePath), relativePath);
   }
-  for (const relativePath of ["bin/gxserver", "bin/ghostex", "bin/zmx"]) {
+  for (const relativePath of ['bin/gxserver', 'bin/ghostex', 'bin/zmx']) {
     const fullPath = path.join(packageDir, relativePath);
     if (!(await isElf(fullPath))) {
-      throw new Error(
-        `Linux remote package expected an ELF binary at ${relativePath}.`,
-      );
+      throw new Error(`Linux remote package expected an ELF binary at ${relativePath}.`);
     }
     if ((await elfMachine(fullPath)) !== config.elfMachine) {
-      throw new Error(
-        `Linux remote package expected ${config.arch} ELF architecture at ${relativePath}.`,
-      );
+      throw new Error(`Linux remote package expected ${config.arch} ELF architecture at ${relativePath}.`);
     }
     await chmod(fullPath, 0o755);
   }
@@ -443,35 +364,33 @@ async function validateLinuxPackage(packageDir, config) {
    * of letting an older zmx parse the flag as a session name and make Android
    * terminals exit successfully immediately after attach.
    */
-  const zmxPath = path.join(packageDir, "bin", "zmx");
+  const zmxPath = path.join(packageDir, 'bin', 'zmx');
   const zmxBytes = await readFile(zmxPath);
-  if (!zmxBytes.includes(Buffer.from("--require-existing"))) {
-    throw new Error(
-      "Linux remote package zmx does not support the required --require-existing attach contract.",
-    );
+  if (!zmxBytes.includes(Buffer.from('--require-existing'))) {
+    throw new Error('Linux remote package zmx does not support the required --require-existing attach contract.');
   }
 }
 
 async function writeBuildIdentity(packageDir, version, config = {}) {
-  const hash = createHash("sha256");
+  const hash = createHash('sha256');
   await hashDirectory(packageDir, packageDir, hash);
-  const fingerprint = `sha256:${hash.digest("hex")}`;
+  const fingerprint = `sha256:${hash.digest('hex')}`;
   await writeFile(
-    path.join(packageDir, "build-identity.json"),
+    path.join(packageDir, 'build-identity.json'),
     `${JSON.stringify(
       {
         buildIdentity: `gxserver:${version}:${fingerprint}`,
         fingerprint,
         packageVersion: version,
         sourceDirty: Boolean(config.sourceDirty),
-        sourceRevision: config.sourceRevision || "unknown",
+        sourceRevision: config.sourceRevision || 'unknown',
         zmxSourceDirty: Boolean(config.zmxSourceDirty),
-        zmxSourceRevision: config.zmxSourceRevision || "unknown",
+        zmxSourceRevision: config.zmxSourceRevision || 'unknown',
       },
       null,
-      2,
+      2
     )}\n`,
-    "utf8",
+    'utf8'
   );
 }
 
@@ -480,11 +399,8 @@ async function hashDirectory(root, dir, hash) {
   entries.sort((left, right) => left.name.localeCompare(right.name));
   for (const entry of entries) {
     const entryPath = path.join(dir, entry.name);
-    const relativePath = path
-      .relative(root, entryPath)
-      .split(path.sep)
-      .join("/");
-    if (relativePath === "build-identity.json") {
+    const relativePath = path.relative(root, entryPath).split(path.sep).join('/');
+    if (relativePath === 'build-identity.json') {
       continue;
     }
     if (entry.isDirectory()) {
@@ -495,28 +411,24 @@ async function hashDirectory(root, dir, hash) {
       continue;
     }
     hash.update(relativePath);
-    hash.update("\0");
+    hash.update('\0');
     hash.update(await readFile(entryPath));
-    hash.update("\0");
+    hash.update('\0');
   }
 }
 
 async function gxserverPackageVersion() {
-  const { stdout } = await execFileAsync(
-    "cargo",
-    ["metadata", "--format-version", "1", "--no-deps"],
-    { cwd: gxserverRoot },
-  );
+  const { stdout } = await execFileAsync('cargo', ['metadata', '--format-version', '1', '--no-deps'], {
+    cwd: gxserverRoot,
+  });
   const metadata = JSON.parse(stdout);
   const rootPackageId = metadata.root_package_id || metadata.resolve?.root;
   const rootPackage =
     metadata.packages.find((pkg) => pkg.id === rootPackageId) ||
-    metadata.packages.find((pkg) => pkg.name === "gxserver") ||
+    metadata.packages.find((pkg) => pkg.name === 'gxserver') ||
     metadata.packages[0];
   if (!rootPackage?.version) {
-    throw new Error(
-      "Could not read gxserver-rs package version from Cargo metadata.",
-    );
+    throw new Error('Could not read gxserver-rs package version from Cargo metadata.');
   }
   return rootPackage.version;
 }
@@ -525,36 +437,27 @@ async function resolveZigBinary({ candidates, label, versionMatches }) {
   const tried = [];
   for (const candidate of [...new Set(candidates.filter(Boolean))]) {
     try {
-      const { stdout } = await execFileAsync(candidate, ["version"]);
+      const { stdout } = await execFileAsync(candidate, ['version']);
       const version = stdout.trim();
-      tried.push(`${candidate} (${version || "unknown"})`);
+      tried.push(`${candidate} (${version || 'unknown'})`);
       if (versionMatches(version)) return candidate;
     } catch {
       tried.push(`${candidate} (unavailable)`);
     }
   }
-  throw new Error(`Could not find ${label}. Tried: ${tried.join(", ")}`);
+  throw new Error(`Could not find ${label}. Tried: ${tried.join(', ')}`);
 }
 
 function zigHostArch() {
-  return process.arch === "arm64" ? "aarch64" : "x86_64";
+  return process.arch === 'arm64' ? 'aarch64' : 'x86_64';
 }
 
 async function assertSafeOutputDir(outputDir) {
   const resolvedRepo = await realpath(repoRoot);
-  const resolvedParent = await realpath(path.dirname(outputDir)).catch(() =>
-    path.dirname(outputDir),
-  );
-  const unsafe = new Set([
-    path.parse(outputDir).root,
-    os.homedir(),
-    resolvedRepo,
-    path.dirname(resolvedRepo),
-  ]);
+  const resolvedParent = await realpath(path.dirname(outputDir)).catch(() => path.dirname(outputDir));
+  const unsafe = new Set([path.parse(outputDir).root, os.homedir(), resolvedRepo, path.dirname(resolvedRepo)]);
   if (unsafe.has(outputDir) || unsafe.has(resolvedParent)) {
-    throw new Error(
-      `Refusing to use unsafe package output directory: ${outputDir}`,
-    );
+    throw new Error(`Refusing to use unsafe package output directory: ${outputDir}`);
   }
 }
 
@@ -590,13 +493,7 @@ async function fileExists(candidate) {
 
 async function isElf(candidate) {
   const data = await readFile(candidate).catch(() => Buffer.alloc(0));
-  return (
-    data.length >= 4 &&
-    data[0] === 0x7f &&
-    data[1] === 0x45 &&
-    data[2] === 0x4c &&
-    data[3] === 0x46
-  );
+  return data.length >= 4 && data[0] === 0x7f && data[1] === 0x45 && data[2] === 0x4c && data[3] === 0x46;
 }
 
 async function elfMachine(candidate) {
@@ -615,7 +512,7 @@ async function elfMachine(candidate) {
 
 async function gitOutput(cwd, args, fallback) {
   try {
-    const { stdout } = await execFileAsync("git", args, { cwd });
+    const { stdout } = await execFileAsync('git', args, { cwd });
     return stdout.trim() || fallback;
   } catch {
     return fallback;
@@ -624,11 +521,7 @@ async function gitOutput(cwd, args, fallback) {
 
 async function gitSourceDirty(cwd) {
   try {
-    const { stdout } = await execFileAsync(
-      "git",
-      ["status", "--porcelain", "--untracked-files=all"],
-      { cwd },
-    );
+    const { stdout } = await execFileAsync('git', ['status', '--porcelain', '--untracked-files=all'], { cwd });
     return stdout.trim().length > 0;
   } catch {
     return true;
@@ -636,15 +529,15 @@ async function gitSourceDirty(cwd) {
 }
 
 async function run(command, args, options = {}) {
-  console.log(`$ ${command} ${args.join(" ")}`);
+  console.log(`$ ${command} ${args.join(' ')}`);
   await new Promise((resolve, reject) => {
     const child = spawn(command, args, {
       cwd: options.cwd,
       env: { ...process.env, ...(options.env || {}) },
-      stdio: "inherit",
+      stdio: 'inherit',
     });
-    child.on("error", reject);
-    child.on("exit", (code, signal) => {
+    child.on('error', reject);
+    child.on('exit', (code, signal) => {
       if (code === 0) {
         resolve();
         return;

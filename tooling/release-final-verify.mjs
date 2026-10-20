@@ -209,9 +209,7 @@ function shellQuote(value) {
 */
 async function githubRelease(tag) {
   const release = JSON.parse(
-    await capture(
-      `env -u GH_TOKEN -u GITHUB_TOKEN gh api ${shellQuote(`repos/${githubRepo}/releases/tags/${tag}`)}`
-    )
+    await capture(`env -u GH_TOKEN -u GITHUB_TOKEN gh api ${shellQuote(`repos/${githubRepo}/releases/tags/${tag}`)}`)
   );
   return { assets: release.assets ?? [], body: release.body ?? '', url: release.html_url };
 }
@@ -716,7 +714,9 @@ async function verify(cleanupPaths) {
       return SKIPPED;
     }
     if (officialCaskPending) {
-      return { warn: `${officialCaskPending}; brew info/fetch would still serve the previous version, so they were not run` };
+      return {
+        warn: `${officialCaskPending}; brew info/fetch would still serve the previous version, so they were not run`,
+      };
     }
     if (!dmgDigest) {
       throw new Error('GitHub reported no DMG digest to validate the cask sha256 against.');
@@ -732,7 +732,9 @@ async function verify(cleanupPaths) {
       );
     }
     if (cask.sha256 !== dmgDigest) {
-      throw new Error(`brew's cask API carries sha256 ${cask.sha256} for ghostex ${version}; the GitHub digest is ${dmgDigest}.`);
+      throw new Error(
+        `brew's cask API carries sha256 ${cask.sha256} for ghostex ${version}; the GitHub digest is ${dmgDigest}.`
+      );
     }
     if (options.skipBrewFetch || dmgPath) {
       return `brew info validated ghostex ${version}, ${dmgPath ? 'supplied DMG reused' : 'fetch skipped'}`;

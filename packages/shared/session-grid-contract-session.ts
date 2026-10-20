@@ -217,7 +217,8 @@ const DEFAULT_SESSION_AGENT_TITLE_NAMES = new Map<string, string>([
 ]);
 const DEFAULT_SESSION_SEARCH_PLACEHOLDER_TITLES = createDefaultSessionSearchPlaceholderTitles();
 const ELLIPSIZED_PATH_TITLE_PATTERN = /^(?:…|\.\.\.)[\\/]/u;
-const WINDOWS_DEFAULT_POWERSHELL_TITLE_PATTERN = /^(?:Administrator:\s*)?[a-z]:[\\/].*[\\/](?:powershell|pwsh)\.exe(?:\s+\.)?$/iu;
+const WINDOWS_DEFAULT_POWERSHELL_TITLE_PATTERN =
+  /^(?:Administrator:\s*)?[a-z]:[\\/].*[\\/](?:powershell|pwsh)\.exe(?:\s+\.)?$/iu;
 const AGENT_STATUS_WORD_TITLE_PATTERN =
   /^(?:[\s.:[\](){}!|/\\_-]*)(?:done|error|idle|thinking|working)(?:[\s.:[\](){}!|/\\_-]*)$/iu;
 const GHOST_PLACEHOLDER_SESSION_TITLE_PATTERN = /^👻(?:\s+Terminal Session)?$/u;

@@ -51,7 +51,8 @@ export const RELEASE_BUILD_SCRIPTS = Object.freeze([
     //     release-gpui-linux.yml -> tooling/release-gpui/linux-stage.sh -> apps/desktop/scripts/build-linux-app.sh
     //     release-gpui-windows.yml -> tooling/release-gpui/windows.ps1 -> apps/desktop/scripts/build-windows-app.ps1
     caller: 'release-gpui-{macos,linux,windows} -> apps/desktop/scripts/build-*-app',
-    command: 'bunx tailwindcss -i packages/core-ui/styles/shadcn.css -o packages/core-ui/styles/shadcn.generated.css --minify',
+    command:
+      'bunx tailwindcss -i packages/core-ui/styles/shadcn.css -o packages/core-ui/styles/shadcn.generated.css --minify',
     timeoutMs: 5 * 60 * 1000,
     trackedOutputs: ['packages/core-ui/styles/shadcn.generated.css'],
   },

@@ -91,7 +91,11 @@ pub(crate) fn sidebar_glass_tint() -> gpui::Hsla {
     gpui::transparent_black()
 }
 
-pub(crate) fn sync_overlay_window_glass(_window: &gpui::Window, _main_origin: gpui::Point<gpui::Pixels>) {}
+pub(crate) fn sync_overlay_window_glass(
+    _window: &gpui::Window,
+    _main_origin: gpui::Point<gpui::Pixels>,
+) {
+}
 
 /// The sidebar's opaque fill, which is what the desktop draws with glass off.
 pub(crate) fn sidebar_chrome_fill(_glass: bool, angle: f32) -> gpui::Background {

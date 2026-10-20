@@ -11,7 +11,7 @@ import {
   type SetStateAction,
 } from 'react';
 
-const clientStorage = storageScope(["interactions"]);
+const clientStorage = storageScope(['interactions']);
 
 export interface SessionChatScrollSnapshot {
   top: number;

@@ -342,7 +342,10 @@ fn handle_frame(message: Message, start: Instant, watch: &mut TurnWatch, audio: 
                 "memory" => println!(
                     "{at}  [memory] {} {}",
                     field("state"),
-                    frame.get("memory").map(Value::to_string).unwrap_or_default()
+                    frame
+                        .get("memory")
+                        .map(Value::to_string)
+                        .unwrap_or_default()
                 ),
                 "state" => {
                     watch.state = field("state");

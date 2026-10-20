@@ -1,11 +1,8 @@
-import {
-  normalizeContentThemeSetting,
-  type ContentThemeSetting,
-} from "./appearance";
+import { normalizeContentThemeSetting, type ContentThemeSetting } from './appearance';
 
 export interface SessionChatSelectionOptions {
   mode?: string;
-  fastMode?: "on" | "off";
+  fastMode?: 'on' | 'off';
 }
 
 export interface SessionChatPendingModelSelection {
@@ -13,7 +10,7 @@ export interface SessionChatPendingModelSelection {
   model: string;
   effort: string;
   /** `failed` is terminal: the row survives only to carry `errorMessage` to the chat. */
-  state: "queued" | "applying" | "failed";
+  state: 'queued' | 'applying' | 'failed';
   options?: SessionChatSelectionOptions;
   /** Omitted means `'default'`: an older client's choice still changes the agent's saved default. */
   scope?: SessionChatModelSelectionScope;
@@ -27,82 +24,71 @@ export interface SessionChatPendingModelSelection {
  * SEE-ALSO: server/src/session_chat_codex_picker.rs drives both scopes; server/src/session_chat_model_selection.rs
  * carries this through the durable queue.
  */
-export type SessionChatModelSelectionScope = "session" | "default";
+export type SessionChatModelSelectionScope = 'session' | 'default';
 
 export const SESSION_CHAT_SUPPORTED_AGENTS = new Set([
-  "antigravity",
-  "antigravity-cli",
-  "agy",
-  "claude",
-  "openclaude",
-  "codex",
-  "copilot",
-  "cursor",
-  "empryo",
-  "grok",
-  "grok-build",
-  "hermes",
-  "hermes-agent",
-  "pi",
-  "omp",
-  "zcode",
-  "freebuff",
+  'antigravity',
+  'antigravity-cli',
+  'agy',
+  'claude',
+  'openclaude',
+  'codex',
+  'copilot',
+  'cursor',
+  'empryo',
+  'grok',
+  'grok-build',
+  'hermes',
+  'hermes-agent',
+  'pi',
+  'omp',
+  'zcode',
+  'freebuff',
 ]);
 
 export type SessionChatTranscriptAgent =
-  | "antigravity"
-  | "claude"
-  | "codex"
-  | "copilot"
-  | "cursor"
-  | "empryo"
-  | "grok"
-  | "hermes"
-  | "pi"
-  | "zcode"
-  | "freebuff";
+  | 'antigravity'
+  | 'claude'
+  | 'codex'
+  | 'copilot'
+  | 'cursor'
+  | 'empryo'
+  | 'grok'
+  | 'hermes'
+  | 'pi'
+  | 'zcode'
+  | 'freebuff';
 
 export function resolveSessionChatTranscriptAgent(
   agentId: string | null | undefined,
-  agentIcon?: string | null,
+  agentIcon?: string | null
 ): SessionChatTranscriptAgent | null {
   const candidates = [agentId, agentIcon];
   for (const candidate of candidates) {
     const normalized = candidate?.trim().toLowerCase();
     if (
-      normalized === "antigravity" ||
-      normalized === "antigravity-cli" ||
-      normalized === "antigravity cli" ||
-      normalized === "agy"
+      normalized === 'antigravity' ||
+      normalized === 'antigravity-cli' ||
+      normalized === 'antigravity cli' ||
+      normalized === 'agy'
     ) {
-      return "antigravity";
+      return 'antigravity';
     }
-    if (normalized === "claude" || normalized === "openclaude") return "claude";
-    if (normalized === "codex") return "codex";
-    if (normalized === "copilot" || normalized === "github copilot")
-      return "copilot";
-    if (
-      normalized === "cursor" ||
-      normalized === "cursor-agent" ||
-      normalized === "cursor cli"
-    )
-      return "cursor";
-    if (normalized === "empryo") return "empryo";
-    if (normalized === "grok" || normalized === "grok-build") return "grok";
-    if (
-      normalized === "hermes" ||
-      normalized === "hermes-agent" ||
-      normalized === "hermes agent"
-    )
-      return "hermes";
-    if (normalized === "pi" || normalized === "omp") return "pi";
-    if (normalized === "zcode" || normalized === "zcode-cli") return "zcode";
-    if (normalized === "freebuff") return "freebuff";
+    if (normalized === 'claude' || normalized === 'openclaude') return 'claude';
+    if (normalized === 'codex') return 'codex';
+    if (normalized === 'copilot' || normalized === 'github copilot') return 'copilot';
+    if (normalized === 'cursor' || normalized === 'cursor-agent' || normalized === 'cursor cli') return 'cursor';
+    if (normalized === 'empryo') return 'empryo';
+    if (normalized === 'grok' || normalized === 'grok-build') return 'grok';
+    if (normalized === 'hermes' || normalized === 'hermes-agent' || normalized === 'hermes agent') return 'hermes';
+    if (normalized === 'pi' || normalized === 'omp') return 'pi';
+    if (normalized === 'zcode' || normalized === 'zcode-cli') return 'zcode';
+    if (normalized === 'freebuff') return 'freebuff';
   }
   return null;
 }
 
-export type SessionChatDisplayAgent = SessionChatTranscriptAgent | "omp";
+export type SessionChatDisplayAgent = SessionChatTranscriptAgent | 'omp';
 
 /**
  * Resolve the agent identity shown by chat UI without conflating it with the
@@ -111,12 +97,12 @@ export type SessionChatDisplayAgent = SessionChatTranscriptAgent | "omp";
  */
 export function resolveSessionChatDisplayAgent(
   agentId: string | null | undefined,
-  agentIcon?: string | null,
+  agentIcon?: string | null
 ): SessionChatDisplayAgent | null {
   const candidates = [agentId, agentIcon];
   for (const candidate of candidates) {
-    if (candidate?.trim().toLowerCase() === "omp") {
-      return "omp";
+    if (candidate?.trim().toLowerCase() === 'omp') {
+      return 'omp';
     }
   }
   return resolveSessionChatTranscriptAgent(agentId, agentIcon);
@@ -128,26 +114,22 @@ export function resolveSessionChatDisplayAgent(
  * brand artwork (`hermes` → `hermes-agent`, `grok` → `grok-build`); the rest
  * match their sidebar id as-is.
  */
-export function sessionChatAgentIconId(
-  agentLabel: string | null | undefined,
-): string | null {
+export function sessionChatAgentIconId(agentLabel: string | null | undefined): string | null {
   const display = resolveSessionChatDisplayAgent(agentLabel);
-  if (display === "antigravity") return "antigravity-cli";
-  if (display === "hermes") return "hermes-agent";
-  if (display === "grok") return "grok-build";
+  if (display === 'antigravity') return 'antigravity-cli';
+  if (display === 'hermes') return 'hermes-agent';
+  if (display === 'grok') return 'grok-build';
   return display;
 }
 
-export type SessionChatSource = "transcript" | "hook" | "client";
+export type SessionChatSource = 'transcript' | 'hook' | 'client';
 
 /** Visual palette for the shared chat surface, independent of app chrome. */
-export type SessionChatTheme = "light" | "dark";
+export type SessionChatTheme = 'light' | 'dark';
 
 export type SessionChatThemeSetting = ContentThemeSetting;
 
-export function normalizeSessionChatTheme(
-  value: unknown,
-): SessionChatThemeSetting {
+export function normalizeSessionChatTheme(value: unknown): SessionChatThemeSetting {
   return normalizeContentThemeSetting(value);
 }
 

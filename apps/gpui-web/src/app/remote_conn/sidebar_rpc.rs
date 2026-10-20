@@ -68,7 +68,10 @@ pub(crate) struct RemoteAppUpdateBadge {
 }
 
 impl GhostexGpuiApp {
-    pub(crate) fn remote_app_update_tab_badge(&self, _machine_id: &str) -> Option<RemoteAppUpdateBadge> {
+    pub(crate) fn remote_app_update_tab_badge(
+        &self,
+        _machine_id: &str,
+    ) -> Option<RemoteAppUpdateBadge> {
         None
     }
 }

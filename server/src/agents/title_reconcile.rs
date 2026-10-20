@@ -565,16 +565,15 @@ pub(crate) fn read_agent_metadata_title(
         }
         // A fork's summary starts as a copy of its parent's, so the inherited name waits behind
         // the provisional `Fork: ` title (CDXC:SessionFork) the way Codex's does.
-        AgentMetadataTitleSource::GrokSummary { summary_path } => read_grok_summary_title(
-            &summary_path,
-        )
-        .filter(|metadata| {
-            let initial_title = provisional_fork_title(session);
-            let inherited_title = initial_title
-                .as_deref()
-                .and_then(|title| title.strip_prefix("Fork: "));
-            !inherited_title.is_some_and(|title| titles_match(title, &metadata.title))
-        }),
+        AgentMetadataTitleSource::GrokSummary { summary_path } => {
+            read_grok_summary_title(&summary_path).filter(|metadata| {
+                let initial_title = provisional_fork_title(session);
+                let inherited_title = initial_title
+                    .as_deref()
+                    .and_then(|title| title.strip_prefix("Fork: "));
+                !inherited_title.is_some_and(|title| titles_match(title, &metadata.title))
+            })
+        }
     }
 }
 

@@ -13,9 +13,9 @@ mod cef;
 #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
 mod cef_component_window;
 mod component_store;
+mod fold_motion;
 mod ghostty_kit;
 mod ghostty_vt;
-mod fold_motion;
 mod hotkey_label;
 #[cfg(target_os = "linux")]
 mod linux_updater;

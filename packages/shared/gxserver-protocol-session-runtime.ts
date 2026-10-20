@@ -1,19 +1,12 @@
-import type {
-  GxserverProjectId,
-  GxserverSessionId,
-  GxserverZmxSessionName,
-} from "./gxserver-protocol-core";
-import type { GxserverSessionLifecycleParams } from "./gxserver-protocol-sessions";
-import type {
-  GxserverSessionTitleSource,
-  GxserverSessionTitleProjection,
-} from "./gxserver-protocol-presentation";
+import type { GxserverProjectId, GxserverSessionId, GxserverZmxSessionName } from './gxserver-protocol-core';
+import type { GxserverSessionLifecycleParams } from './gxserver-protocol-sessions';
+import type { GxserverSessionTitleSource, GxserverSessionTitleProjection } from './gxserver-protocol-presentation';
 import type {
   GxserverProviderLifecycleState,
   GxserverStartupTextDisposition,
   GxserverRestoreBlockReason,
   GxserverSessionDomainState,
-} from "./gxserver-protocol-domain";
+} from './gxserver-protocol-domain';
 
 /**
  * CDXC:SessionChat 2026-09-02:
@@ -52,7 +45,7 @@ export interface GxserverRewindSessionChatResult {
  * aborts on any mismatch. With `defer`, Codex and Claude choices enter the durable queue and return before delivery.
  */
 export interface GxserverSelectSessionChatModelParams {
-  options?: import("./session-chat").SessionChatSelectionOptions;
+  options?: import('./session-chat').SessionChatSelectionOptions;
   projectId: GxserverProjectId;
   sessionId: GxserverSessionId;
   /** Store the choice durably, attempt immediately, and retry when the terminal can accept it (Codex and Claude). */
@@ -65,17 +58,17 @@ export interface GxserverSelectSessionChatModelParams {
    * `'session'` applies the choice to this session alone and leaves the agent's saved default untouched;
    * `'default'` (the default when omitted) keeps the original behaviour. Only Claude can honour `'session'`.
    */
-  scope?: import("./session-chat").SessionChatModelSelectionScope;
+  scope?: import('./session-chat').SessionChatModelSelectionScope;
 }
 
 export interface GxserverSelectSessionChatModelResult {
   ok: true;
   queued?: boolean;
-  pendingModelSelection?: import("./session-chat").SessionChatPendingModelSelection;
+  pendingModelSelection?: import('./session-chat').SessionChatPendingModelSelection;
   model: string;
   effort: string;
   /** Echoed so a client can tell a scope-aware daemon from one that ignored the field. */
-  scope?: import("./session-chat").SessionChatModelSelectionScope;
+  scope?: import('./session-chat').SessionChatModelSelectionScope;
 }
 
 export interface GxserverTerminalTitleEventParams extends GxserverSessionLifecycleParams {
@@ -83,7 +76,7 @@ export interface GxserverTerminalTitleEventParams extends GxserverSessionLifecyc
   previousTerminalTitle?: string;
   protectStoredTitleFromAutomation?: boolean;
   rawTitle?: string;
-  sessionPersistenceProvider?: "off" | "tmux" | "zellij" | "zmx";
+  sessionPersistenceProvider?: 'off' | 'tmux' | 'zellij' | 'zmx';
 }
 
 export interface GxserverTerminalTitleEventResult {
@@ -91,7 +84,7 @@ export interface GxserverTerminalTitleEventResult {
   activity: GxserverAgentActivityState;
   changed: boolean;
   enteredAttention: boolean;
-  previousActivity: GxserverAgentActivityState["activity"];
+  previousActivity: GxserverAgentActivityState['activity'];
   projection: GxserverSessionTitleProjection;
   reason: string;
   session: GxserverSessionDomainState;
@@ -99,7 +92,7 @@ export interface GxserverTerminalTitleEventResult {
 }
 
 export type GxserverFirstPromptTitleGenerationAgent =
-  "codex" | "cursor" | "claude" | "grok" | "pi" | "antigravity" | "custom";
+  'codex' | 'cursor' | 'claude' | 'grok' | 'pi' | 'antigravity' | 'custom';
 
 export interface GxserverSessionStateEventParams extends GxserverSessionLifecycleParams {
   agentName?: string;
@@ -125,7 +118,7 @@ export interface GxserverSessionRenameRequestParams extends GxserverSessionLifec
   agentSessionId?: string;
   agentSessionPath?: string;
   title: string;
-  titleSource?: Extract<GxserverSessionTitleSource, "generated" | "user">;
+  titleSource?: Extract<GxserverSessionTitleSource, 'generated' | 'user'>;
 }
 
 export interface GxserverSessionRenameRequestResult {
@@ -138,12 +131,11 @@ export interface GxserverSessionRenameRequestResult {
 }
 
 export interface GxserverAttachSessionMetadataParams extends GxserverSessionLifecycleParams {
-  promptEditor?: "code-server" | "monaco";
+  promptEditor?: 'code-server' | 'monaco';
   startupText?: string;
 }
 
-export type GxserverAgentStartupTextDisposition =
-  "none" | "queueAfterTerminalReady";
+export type GxserverAgentStartupTextDisposition = 'none' | 'queueAfterTerminalReady';
 
 export interface GxserverAgentLaunchPlanParams {
   agentId: string;
@@ -156,7 +148,7 @@ export interface GxserverAgentLaunchPlan {
   command: string;
   delayedSend?: {
     deadlineAt: string;
-    disposition: "scheduled";
+    disposition: 'scheduled';
   };
   firstUserMessage?: string;
   startupText: string;
@@ -179,28 +171,20 @@ export interface GxserverAgentResumePlan {
 }
 
 export type GxserverAgentActivityEvent =
-  | "acknowledge"
-  | "agentDetected"
-  | "bell"
-  | "escape"
-  | "launch"
-  | "resume"
-  | "terminalError"
-  | "terminalExited"
-  | "title"
-  | "wake";
+  | 'acknowledge'
+  | 'agentDetected'
+  | 'bell'
+  | 'escape'
+  | 'launch'
+  | 'resume'
+  | 'terminalError'
+  | 'terminalExited'
+  | 'title'
+  | 'wake';
 
 export interface GxserverAgentActivityState {
-  activity: "attention" | "idle" | "working";
-  agentName?:
-    | "antigravity"
-    | "claude"
-    | "codex"
-    | "copilot"
-    | "cursor"
-    | "gemini"
-    | "opencode"
-    | "pi";
+  activity: 'attention' | 'idle' | 'working';
+  agentName?: 'antigravity' | 'claude' | 'codex' | 'copilot' | 'cursor' | 'gemini' | 'opencode' | 'pi';
   attentionEventId?: string;
   attentionSuppressedUntil?: string;
   hasSeenWorking?: boolean;
@@ -210,12 +194,12 @@ export interface GxserverAgentActivityState {
   lastTitle?: string;
   lastTitleChangeAt?: string;
   suppressedUntil?: string;
-  workingSource?: "explicit" | "title";
+  workingSource?: 'explicit' | 'title';
   workingStartedAt?: string;
 }
 
 export interface GxserverAgentActivityInput {
-  activity?: GxserverAgentActivityState["activity"];
+  activity?: GxserverAgentActivityState['activity'];
   agentId?: string;
   event?: GxserverAgentActivityEvent;
   nowIso?: string;
@@ -226,7 +210,7 @@ export interface GxserverAgentActivityInput {
 }
 
 export interface GxserverUpdateAgentActivityParams extends GxserverSessionLifecycleParams {
-  activity?: GxserverAgentActivityState["activity"];
+  activity?: GxserverAgentActivityState['activity'];
   agentName?: string;
   event?: GxserverAgentActivityEvent;
   nowMs?: number;
@@ -237,7 +221,7 @@ export interface GxserverUpdateAgentActivityParams extends GxserverSessionLifecy
 export interface GxserverUpdateAgentActivityResult {
   activity: GxserverAgentActivityState;
   enteredAttention: boolean;
-  previousActivity: GxserverAgentActivityState["activity"];
+  previousActivity: GxserverAgentActivityState['activity'];
   session: GxserverSessionDomainState;
 }
 
@@ -257,7 +241,7 @@ export interface GxserverAttachSessionMetadataResult {
   attachCommand?: string;
   cwd?: string;
   persistenceSessionCreated?: boolean;
-  provider: "zmx";
+  provider: 'zmx';
   providerState: GxserverProviderProbeResult;
   restoreBlocked?: GxserverSessionRestoreBlocked;
   session: GxserverSessionDomainState;
@@ -266,51 +250,46 @@ export interface GxserverAttachSessionMetadataResult {
   zmxName: GxserverZmxSessionName;
 }
 
-export type GxserverTerminalWsErrorCode =
-  "unauthorized" | "protocolMismatch" | "notFound" | "providerNotRunning";
+export type GxserverTerminalWsErrorCode = 'unauthorized' | 'protocolMismatch' | 'notFound' | 'providerNotRunning';
 
 export interface GxserverTerminalWsReadyMessage {
   cols: number;
   rows: number;
-  type: "ready";
+  type: 'ready';
   zmxName: GxserverZmxSessionName;
 }
 
 export interface GxserverTerminalWsExitMessage {
   code: number | null;
-  type: "exit";
+  type: 'exit';
 }
 
 export interface GxserverTerminalWsErrorMessage {
   code: GxserverTerminalWsErrorCode;
   message: string;
-  type: "error";
+  type: 'error';
 }
 
 export interface GxserverTerminalWsResizeMessage {
   cols: number;
   rows: number;
-  type: "resize";
+  type: 'resize';
 }
 
-export type GxserverTerminalWsClientControlMessage =
-  GxserverTerminalWsResizeMessage;
+export type GxserverTerminalWsClientControlMessage = GxserverTerminalWsResizeMessage;
 export type GxserverTerminalWsServerControlMessage =
-  | GxserverTerminalWsReadyMessage
-  | GxserverTerminalWsExitMessage
-  | GxserverTerminalWsErrorMessage;
+  GxserverTerminalWsReadyMessage | GxserverTerminalWsExitMessage | GxserverTerminalWsErrorMessage;
 export type GxserverTerminalWsControlMessage =
-  | GxserverTerminalWsClientControlMessage
-  | GxserverTerminalWsServerControlMessage;
+  GxserverTerminalWsClientControlMessage | GxserverTerminalWsServerControlMessage;
 
 export interface GxserverStartSessionProviderParams extends GxserverSessionLifecycleParams {
-  promptEditor?: "code-server" | "monaco";
+  promptEditor?: 'code-server' | 'monaco';
   startupText?: string;
 }
 
 export interface GxserverStartSessionProviderResult {
   exitCode?: number;
-  provider: "zmx";
+  provider: 'zmx';
   providerState: GxserverProviderProbeResult;
   session: GxserverSessionDomainState;
   started: boolean;
@@ -319,7 +298,7 @@ export interface GxserverStartSessionProviderResult {
 }
 
 export interface GxserverSessionProviderProbeResponse {
-  provider: "zmx";
+  provider: 'zmx';
   providerState: GxserverProviderProbeResult;
   session: GxserverSessionDomainState;
 }

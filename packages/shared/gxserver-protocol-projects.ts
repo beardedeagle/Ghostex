@@ -1,11 +1,11 @@
-import type { GxserverProjectDomainState } from "./gxserver-protocol-domain";
+import type { GxserverProjectDomainState } from './gxserver-protocol-domain';
 import type {
   GxserverServerId,
   GxserverProjectId,
   GxserverSessionId,
   GxserverLogLevel,
   GxserverLogOrder,
-} from "./gxserver-protocol-core";
+} from './gxserver-protocol-core';
 
 export interface GxserverProjectDirectoryBrowseParams {
   cwd?: string;
@@ -25,7 +25,7 @@ export interface GxserverProjectDirectoryBrowseResult {
   parentPath: string;
   inspection?: {
     path: string;
-    kind: "directory" | "file" | "missing";
+    kind: 'directory' | 'file' | 'missing';
     projectPath?: string;
     projectId?: string;
     gitRoot?: string;
@@ -59,23 +59,20 @@ export interface GxserverAddProjectPathParams {
   createIfMissing?: boolean;
   name?: string;
   path: string;
-  systemKind?: GxserverProjectDomainState["systemKind"];
-  visibility?: GxserverProjectDomainState["visibility"];
+  systemKind?: GxserverProjectDomainState['systemKind'];
+  visibility?: GxserverProjectDomainState['visibility'];
 }
 
-export type GxserverSourceControlProviderKind =
-  "azure-devops" | "bitbucket" | "github" | "gitlab";
+export type GxserverSourceControlProviderKind = 'azure-devops' | 'bitbucket' | 'github' | 'gitlab';
 
 /**
  * `unsupported` means gxserver itself has no implementation for the provider
  * (Bitbucket / Azure DevOps today), as opposed to `missing`, which means the
  * provider's CLI is simply not installed on that machine.
  */
-export type GxserverSourceControlDiscoveryStatus =
-  "available" | "missing" | "unsupported";
+export type GxserverSourceControlDiscoveryStatus = 'available' | 'missing' | 'unsupported';
 
-export type GxserverSourceControlAuthStatus =
-  "authenticated" | "unauthenticated" | "unknown";
+export type GxserverSourceControlAuthStatus = 'authenticated' | 'unauthenticated' | 'unknown';
 
 export interface GxserverSourceControlProviderAuth {
   account?: string;
@@ -183,84 +180,77 @@ export interface GxserverQueryLogsResult {
   totalMatched: number;
   totalMatchedIsExact?: boolean;
   truncated?: boolean;
-  truncatedReason?: "fileWindowExceeded";
+  truncatedReason?: 'fileWindowExceeded';
 }
 
 export type GxserverGitAction =
-  | "branch"
-  | "addAll"
-  | "checkout"
-  | "checkoutNewBranch"
-  | "commit"
-  | "countFileLines"
-  | "deleteLocalBranch"
-  | "deleteRemoteBranch"
-  | "diff"
-  | "diffCached"
-  | "diffCachedFiles"
-  | "diffCachedStatFiles"
-  | "diffCachedNoExt"
-  | "diffCachedStat"
-  | "diffNoExt"
-  | "diffNoIndexAgainstNull"
-  | "diffNumstat"
-  | "getOriginRemoteUrl"
-  | "isInsideWorkTree"
-  | "isUntrackedFile"
-  | "list"
-  | "listBranches"
-  | "listRemotes"
-  | "listUntracked"
-  | "merge"
-  | "pullFastForward"
-  | "push"
-  | "pushSetUpstreamCurrent"
-  | "pushSetUpstream"
-  | "remoteBranchExists"
-  | "status"
-  | "statusPorcelain"
-  | "statusPorcelainZ"
-  | "upstreamCounts"
-  | "verifyRef";
+  | 'branch'
+  | 'addAll'
+  | 'checkout'
+  | 'checkoutNewBranch'
+  | 'commit'
+  | 'countFileLines'
+  | 'deleteLocalBranch'
+  | 'deleteRemoteBranch'
+  | 'diff'
+  | 'diffCached'
+  | 'diffCachedFiles'
+  | 'diffCachedStatFiles'
+  | 'diffCachedNoExt'
+  | 'diffCachedStat'
+  | 'diffNoExt'
+  | 'diffNoIndexAgainstNull'
+  | 'diffNumstat'
+  | 'getOriginRemoteUrl'
+  | 'isInsideWorkTree'
+  | 'isUntrackedFile'
+  | 'list'
+  | 'listBranches'
+  | 'listRemotes'
+  | 'listUntracked'
+  | 'merge'
+  | 'pullFastForward'
+  | 'push'
+  | 'pushSetUpstreamCurrent'
+  | 'pushSetUpstream'
+  | 'remoteBranchExists'
+  | 'status'
+  | 'statusPorcelain'
+  | 'statusPorcelainZ'
+  | 'upstreamCounts'
+  | 'verifyRef';
 export type GxserverWorktreeAction =
-  | "create"
-  | "ensureBeadsHooks"
-  | "list"
-  | "pathExists"
-  | "prune"
-  | "remove"
-  | "switch";
+  'create' | 'ensureBeadsHooks' | 'list' | 'pathExists' | 'prune' | 'remove' | 'switch';
 export type GxserverBeadsAction =
-  | "addLabel"
-  | "board"
-  | "close"
-  | "comment"
-  | "configGet"
-  | "configGetIssuePrefix"
-  | "configSet"
-  | "create"
-  | "delete"
-  | "depAdd"
-  | "depRemove"
-  | "list"
-  | "listAllLabels"
-  | "renamePrefix"
-  | "removeLabel"
-  | "search"
-  | "setLabels"
-  | "show"
-  | "status"
-  | "storageExists"
-  | "update"
-  | "updateDescription"
-  | "updateEstimate"
-  | "updatePriority"
-  | "updateStatus"
-  | "updateTitle";
-export type GxserverBeadsStatus =
-  "backlog" | "closed" | "in_progress" | "open" | "review" | "test";
-export type GxserverGitHubAction = "prCreateFill" | "prView" | "version";
-export type GxserverProjectSetupAction = "worktreeSetupCommand";
+  | 'addLabel'
+  | 'board'
+  | 'close'
+  | 'comment'
+  | 'configGet'
+  | 'configGetIssuePrefix'
+  | 'configSet'
+  | 'create'
+  | 'delete'
+  | 'depAdd'
+  | 'depRemove'
+  | 'list'
+  | 'listAllLabels'
+  | 'renamePrefix'
+  | 'removeLabel'
+  | 'search'
+  | 'setLabels'
+  | 'show'
+  | 'status'
+  | 'storageExists'
+  | 'update'
+  | 'updateDescription'
+  | 'updateEstimate'
+  | 'updatePriority'
+  | 'updateStatus'
+  | 'updateTitle';
+export type GxserverBeadsStatus = 'backlog' | 'closed' | 'in_progress' | 'open' | 'review' | 'test';
+export type GxserverGitHubAction = 'prCreateFill' | 'prView' | 'version';
+export type GxserverProjectSetupAction = 'worktreeSetupCommand';
 
 export interface GxserverProjectOperationScope {
   projectId?: GxserverProjectId;
@@ -298,7 +288,7 @@ export interface GxserverGenerateCommitMessageResult {
   subject: string;
 }
 
-export type GxserverPullRequestState = "open" | "closed" | "merged";
+export type GxserverPullRequestState = 'open' | 'closed' | 'merged';
 
 export interface GxserverPullRequestSummary {
   number?: number;
@@ -319,8 +309,7 @@ export interface GxserverCreatePullRequestResult {
   created: boolean;
   ok: boolean;
   pr?: GxserverPullRequestSummary;
-  reason?:
-    "createFailed" | "githubCliUnavailable" | "invalidResult" | "viewFailed";
+  reason?: 'createFailed' | 'githubCliUnavailable' | 'invalidResult' | 'viewFailed';
 }
 
 export interface GxserverRunWorktreeActionParams extends GxserverProjectOperationScope {
@@ -379,7 +368,7 @@ export interface GxserverMergeWorktreeIntoMainParams {
 
 export interface GxserverMergeWorktreeIntoMainResult {
   parentProjectId: GxserverProjectId;
-  status: "conflicts" | "merged";
+  status: 'conflicts' | 'merged';
 }
 
 export interface GxserverCheckoutProjectNewBranchParams {
@@ -409,11 +398,11 @@ export interface GxserverDeleteWorktreeProjectParams {
 }
 
 export type GxserverDeleteWorktreeProjectWarningKind =
-  | "localBranchDeleteFailed"
-  | "localBranchNotResolved"
-  | "pruneFailed"
-  | "remoteBranchDeleteFailed"
-  | "remoteBranchNotResolved";
+  | 'localBranchDeleteFailed'
+  | 'localBranchNotResolved'
+  | 'pruneFailed'
+  | 'remoteBranchDeleteFailed'
+  | 'remoteBranchNotResolved';
 
 export interface GxserverDeleteWorktreeProjectWarning {
   kind: GxserverDeleteWorktreeProjectWarningKind;
@@ -512,7 +501,7 @@ export interface GxserverRepositoryClonePreviewResult {
    */
   destinationBlocked: boolean;
   destinationExists: boolean;
-  destinationExistsKind?: "directory" | "file" | "other";
+  destinationExistsKind?: 'directory' | 'file' | 'other';
   destinationFolderName: string;
   destinationIsEmpty?: boolean;
   destinationPath: string;
@@ -522,8 +511,7 @@ export interface GxserverRepositoryClonePreviewResult {
   warning?: string;
 }
 
-export type GxserverRepositoryCloneJobState =
-  "running" | "completed" | "failed" | "canceled";
+export type GxserverRepositoryCloneJobState = 'running' | 'completed' | 'failed' | 'canceled';
 
 export interface GxserverRepositoryCloneJobStatus {
   completedAt?: string;
@@ -555,18 +543,14 @@ export interface GxserverTypedCommand {
 }
 
 export type GxserverTypedOperationFailureCode =
-  | "aborted"
-  | "stderrLimitExceeded"
-  | "stdinFailed"
-  | "stdoutLimitExceeded"
-  | "timeout";
+  'aborted' | 'stderrLimitExceeded' | 'stdinFailed' | 'stdoutLimitExceeded' | 'timeout';
 
 export interface GxserverTypedOperationFailure {
   capturedBytes?: number;
   code: GxserverTypedOperationFailureCode;
   limitBytes?: number;
   message: string;
-  stream?: "stderr" | "stdout";
+  stream?: 'stderr' | 'stdout';
   timeoutMs?: number;
 }
 

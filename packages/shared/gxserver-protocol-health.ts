@@ -1,5 +1,5 @@
-import type { EasyConnectCode, TailscaleCode } from "./ghostex-remote-pairing";
-import { GXSERVER_LOCAL_API_PORT } from "./gxserver-protocol-core";
+import type { EasyConnectCode, TailscaleCode } from './ghostex-remote-pairing';
+import { GXSERVER_LOCAL_API_PORT } from './gxserver-protocol-core';
 import type {
   GxserverProduct,
   GxserverProtocolVersion,
@@ -10,7 +10,7 @@ import type {
   GxserverMinimalHealthResponse,
   GxserverListenerConfig,
   GxserverMigrationStatus,
-} from "./gxserver-protocol-core";
+} from './gxserver-protocol-core';
 
 /*
 CDXC:Portless 2026-06-23-00:25:
@@ -28,35 +28,28 @@ changes, admin results, Disable, retry, and explicit service removal. Payloads
 must stay enum/boolean/protocol only so setup recovery never carries paths,
 commands, process output, URLs, tokens, environment values, or Portless files.
 */
-export type GxserverPortlessProtocol = "https" | "http";
-export type GxserverPortlessSetupOwnership =
-  "unknown" | "missing" | "ghostex" | "standalone";
-export type GxserverPortlessSetupStatus =
-  "unknown" | "needed" | "active" | "failed" | "disabled" | "postponed";
-export type GxserverPortlessRuntimeStatus =
-  "unknown" | "inactive" | "active" | "failed";
-export type GxserverPortlessPayloadSourceStatus =
-  "current" | "missing" | "unavailable";
-export type GxserverPortlessAdminAction =
-  "install" | "reconfigure" | "retry" | "remove";
-export type GxserverPortlessActionUnavailableReason =
-  "nativeAdminBridgeRequired" | "notRecommended";
-export type GxserverPortlessRoutePreviewStatus =
-  "current" | "disabled" | "unavailable";
-export type GxserverPortlessRoutePreviewKind = "primary" | "additional";
-export type GxserverPortlessAssignedDomainKind = "project" | "worktree";
+export type GxserverPortlessProtocol = 'https' | 'http';
+export type GxserverPortlessSetupOwnership = 'unknown' | 'missing' | 'ghostex' | 'standalone';
+export type GxserverPortlessSetupStatus = 'unknown' | 'needed' | 'active' | 'failed' | 'disabled' | 'postponed';
+export type GxserverPortlessRuntimeStatus = 'unknown' | 'inactive' | 'active' | 'failed';
+export type GxserverPortlessPayloadSourceStatus = 'current' | 'missing' | 'unavailable';
+export type GxserverPortlessAdminAction = 'install' | 'reconfigure' | 'retry' | 'remove';
+export type GxserverPortlessActionUnavailableReason = 'nativeAdminBridgeRequired' | 'notRecommended';
+export type GxserverPortlessRoutePreviewStatus = 'current' | 'disabled' | 'unavailable';
+export type GxserverPortlessRoutePreviewKind = 'primary' | 'additional';
+export type GxserverPortlessAssignedDomainKind = 'project' | 'worktree';
 export type GxserverPortlessStateUpdateParams =
   | {
       enabled: boolean;
-      kind: "setEnabled";
+      kind: 'setEnabled';
     }
   | {
-      kind: "setProtocol";
+      kind: 'setProtocol';
       protocol: GxserverPortlessProtocol;
     }
   | {
       action: GxserverPortlessAdminAction;
-      kind: "recordAdminResult";
+      kind: 'recordAdminResult';
       ok: boolean;
       protocol?: GxserverPortlessProtocol;
     };
@@ -138,9 +131,9 @@ export interface GxserverTailcatStatusResult {
 }
 
 export type GxserverTailcatStateUpdate =
-  | { kind: "setEnabled"; enabled: boolean }
-  | { kind: "setPorts"; ports: readonly number[] }
-  | { kind: "setAllowedClientKeys"; allowedClientKeys: readonly string[] };
+  | { kind: 'setEnabled'; enabled: boolean }
+  | { kind: 'setPorts'; ports: readonly number[] }
+  | { kind: 'setAllowedClientKeys'; allowedClientKeys: readonly string[] };
 
 /*
 CDXC:RemotePairing 2026-09-03:
@@ -149,7 +142,7 @@ the pairing codes shown in Settings → Remote. The structured pairing payloads
 come from `/api/remotePairingCode`, never from the raw sidecar token, so the
 QR can carry the user, ports, and the one-time pairing secret.
 */
-export type GxserverRemoteAccessPlatform = "macos" | "windows" | "linux";
+export type GxserverRemoteAccessPlatform = 'macos' | 'windows' | 'linux';
 
 export interface GxserverRemoteSshAccessStatus {
   enabled: boolean;
@@ -182,7 +175,7 @@ export interface GxserverRemoteAccessStatus {
   tailscale: GxserverRemoteTailscaleStatus;
 }
 
-export type GxserverEnableSshAccessOutcome = "enabled" | "cancelled" | "failed";
+export type GxserverEnableSshAccessOutcome = 'enabled' | 'cancelled' | 'failed';
 
 export interface GxserverEnableSshAccessResult {
   outcome: GxserverEnableSshAccessOutcome;
@@ -259,16 +252,14 @@ export interface GxserverServerHealthResponse extends GxserverMinimalHealthRespo
   tools: readonly GxserverToolCapabilityStatus[];
 }
 
-export type GxserverToolName = "zmx" | "bd";
-export type GxserverToolAvailability =
-  "available" | "missing" | "notExecutable" | "unsupported";
-export type GxserverToolResolutionSource =
-  "devSubmodule" | "appResource" | "gxserverBundle";
+export type GxserverToolName = 'zmx' | 'bd';
+export type GxserverToolAvailability = 'available' | 'missing' | 'notExecutable' | 'unsupported';
+export type GxserverToolResolutionSource = 'devSubmodule' | 'appResource' | 'gxserverBundle';
 
 export interface GxserverToolCapabilityStatus {
   availability: GxserverToolAvailability;
   candidatePaths?: readonly string[];
-  capability: "zmxLifecycle" | "beadsProjectBoard" | "deferred";
+  capability: 'zmxLifecycle' | 'beadsProjectBoard' | 'deferred';
   executablePath?: string;
   guidance?: string;
   message: string;

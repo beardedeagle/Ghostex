@@ -1,5 +1,5 @@
-import type { SessionChatDetectedChoice } from "./session-chat-transcript";
-import type { SessionChatTerminalDialog } from "./session-chat-events";
+import type { SessionChatDetectedChoice } from './session-chat-transcript';
+import type { SessionChatTerminalDialog } from './session-chat-events';
 
 /**
  * CDXC:AgentScreenDetection 2026-09-03 WHY: how full Claude's context window is, from
@@ -185,12 +185,7 @@ export interface SessionChatTerminalNoticeAction {
    * prompt on them itself, whichever agent asks. `restartAgent` sleeps and
    * wakes a session whose agent exited to the shell.
    */
-  kind:
-    | "switchToTerminal"
-    | "sendKeys"
-    | "recoverCodexConversation"
-    | "trustAndRemember"
-    | "restartAgent";
+  kind: 'switchToTerminal' | 'sendKeys' | 'recoverCodexConversation' | 'trustAndRemember' | 'restartAgent';
   /** Raw bytes for `sendKeys`, written verbatim through answerSessionChatPrompt. */
   send?: string;
 }
@@ -239,14 +234,14 @@ export interface SessionChatTerminalNotice {
    * render an unknown kind generically; title/detail/severity are self-sufficient.
    */
   kind: string;
-  severity: "error" | "warning" | "info";
+  severity: 'error' | 'warning' | 'info';
   /** Short human line, e.g. "Codex login expired". */
   title: string;
   /** One or two sentences of guidance, including quoted terminal evidence. */
   detail?: string;
   /** SGR-stripped last visible lines (trimmed, capped ~2000 chars). */
   screenTail?: string;
-  source: "screen" | "watchdog";
+  source: 'screen' | 'watchdog';
   /**
    * ISO-8601 millis; also the key a client's local dismissal remembers.
    * gxserver keeps it stable while the same notice is re-detected, including
@@ -399,7 +394,7 @@ export interface SessionChatSubAgent {
   /** Exact provider child identity; names need not be unique. */
   id?: string;
   /** Idle Claude children may remain in the terminal roster between turns. */
-  status?: "working" | "idle";
+  status?: 'working' | 'idle';
   /** Current turn start, in Unix milliseconds; changes when a child resumes. */
   startedAt?: number;
   /** Agent type as the CLI names it (`general-purpose`). */
@@ -447,8 +442,7 @@ shows. Carried by read results and by snapshot/replaced/state frames with
 finished turn leaves its list behind, and that is exactly when the user reads
 it to see what is left.
 */
-export type SessionChatAgentTaskStatus =
-  "pending" | "in_progress" | "completed";
+export type SessionChatAgentTaskStatus = 'pending' | 'in_progress' | 'completed';
 
 export interface SessionChatAgentTask {
   /** The CLI's own task number, also its file name. */

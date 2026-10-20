@@ -11,16 +11,16 @@ CLI commands that still require visible macOS UI, AppKit, CEF, or sidebar-local 
 CDXC:ServerApi 2026-06-22-16:17:
 Local starts now rely only on server and no longer keep the deleted gxserver/ TypeScript source tree. Keep the TypeScript protocol contract in packages/shared/ so native web builds and Rust daemon packaging consume an app-owned contract without reaching into gxserver/.
 */
-export * from "./gxserver-protocol-core";
-export * from "./gxserver-protocol-health";
-export * from "./gxserver-protocol-agents";
-export * from "./gxserver-protocol-prompts";
-export * from "./gxserver-protocol-projects";
-export * from "./gxserver-protocol-domain";
-export * from "./gxserver-protocol-sessions";
-export * from "./gxserver-protocol-presentation";
-export * from "./gxserver-protocol-session-runtime";
-export * from "./gxserver-protocol-events";
+export * from './gxserver-protocol-core';
+export * from './gxserver-protocol-health';
+export * from './gxserver-protocol-agents';
+export * from './gxserver-protocol-prompts';
+export * from './gxserver-protocol-projects';
+export * from './gxserver-protocol-domain';
+export * from './gxserver-protocol-sessions';
+export * from './gxserver-protocol-presentation';
+export * from './gxserver-protocol-session-runtime';
+export * from './gxserver-protocol-events';
 
 // Session Chat wire types live in ./session-chat (canonical) and are
 // re-exported here so protocol consumers keep a single import surface.
@@ -60,4 +60,4 @@ export type {
   SessionChatDraft,
   SessionChatQueuedPrompt,
   SessionChatQueuedPromptState,
-} from "./session-chat";
+} from './session-chat';

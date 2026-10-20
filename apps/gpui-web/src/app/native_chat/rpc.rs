@@ -15,12 +15,14 @@ pub(super) async fn request(
     let params = params.clone();
     wasm_bindgen_futures::spawn_local(async move {
         let result = match crate::app::gx_store::web_transport::current_endpoint() {
-            Some(target) => crate::app::gx_store::web_transport::rpc_envelope(&target, &path, params).await,
+            Some(target) => {
+                crate::app::gx_store::web_transport::rpc_envelope(&target, &path, params).await
+            }
             None => Err(json!({"message": "Ghostex is not connected yet.", "endpoint": path})),
         };
         let _ = sender.send(result);
     });
-    receiver
-        .await
-        .unwrap_or_else(|_| Err(json!({"message": "The request was dropped.", "endpoint": endpoint})))
+    receiver.await.unwrap_or_else(|_| {
+        Err(json!({"message": "The request was dropped.", "endpoint": endpoint}))
+    })
 }

@@ -47,7 +47,6 @@
   </a>
 </p>
 
-
 Ghostex is built for developers who keep many agents alive at once. A chat view for every agent, a native Rust/GPUI shell, embedded Chromium panes, and a mobile app share one workspace, and every session survives restarts.
 
 ## Features
@@ -121,7 +120,6 @@ Ghostex is built for developers who keep many agents alive at once. A chat view 
 <p align="center">When an agent needs your decisions, it asks them as a form right in the chat: every question at once, choices you click, a note box for each, and one Send. It works the same on desktop, web, and&nbsp;your&nbsp;phone.</p>
 
 <p align="center"><img src="media/readme/gx-questions.png" alt="A question form in the chat with clickable choices, Recommended badges and a Send answers button" width="70%" /></p>
-
 
 ### Also in the box
 

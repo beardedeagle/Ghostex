@@ -1,14 +1,11 @@
-import type { AccountSwitchProgress } from "./agent-accounts";
-import type {
-  SessionChatDraft,
-  SessionChatQueuedPrompt,
-} from "./session-chat-queue";
+import type { AccountSwitchProgress } from './agent-accounts';
+import type { SessionChatDraft, SessionChatQueuedPrompt } from './session-chat-queue';
 import type {
   SessionChatMessage,
   SessionChatTurnLifecycle,
   SessionChatStatus,
   SessionChatInteractivePrompt,
-} from "./session-chat-transcript";
+} from './session-chat-transcript';
 import type {
   SessionChatDetectedOptions,
   SessionChatTerminalNotice,
@@ -17,9 +14,9 @@ import type {
   SessionChatAppCommand,
   SessionChatAgentFleet,
   SessionChatAgentTasks,
-} from "./session-chat-agent-state";
-import type { SessionChatPendingModelSelection } from "./session-chat-agents";
-import type { SessionChatAvailableAgent } from "./session-chat-rpc";
+} from './session-chat-agent-state';
+import type { SessionChatPendingModelSelection } from './session-chat-agents';
+import type { SessionChatAvailableAgent } from './session-chat-rpc';
 
 interface SessionChatFrameBase {
   /** Provider family on authoritative snapshots and replacements. */
@@ -45,7 +42,7 @@ export interface GxserverSessionChatSnapshotEvent extends SessionChatFrameBase {
   asyncQuestionsSince?: number | null;
   /** Server-confirmed answers/skips, including answers still queued inside Codex. Omitted means unchanged. */
   retiredAsyncQuestionIds?: string[];
-  type: "sessionChatSnapshot";
+  type: 'sessionChatSnapshot';
   messages: SessionChatMessage[];
   lifecycle?: SessionChatTurnLifecycle;
   hasMore: boolean;
@@ -115,7 +112,7 @@ export interface GxserverSessionChatSnapshotEvent extends SessionChatFrameBase {
 }
 
 export interface GxserverSessionChatAppendedEvent extends SessionChatFrameBase {
-  type: "sessionChatAppended";
+  type: 'sessionChatAppended';
   messages: SessionChatMessage[];
   lifecycle?: SessionChatTurnLifecycle;
   /**
@@ -133,7 +130,7 @@ export interface GxserverSessionChatReplacedEvent extends SessionChatFrameBase {
   asyncQuestionsSince?: number | null;
   /** Server-confirmed answers/skips, including answers still queued inside Codex. Omitted means unchanged. */
   retiredAsyncQuestionIds?: string[];
-  type: "sessionChatReplaced";
+  type: 'sessionChatReplaced';
   messages: SessionChatMessage[];
   lifecycle?: SessionChatTurnLifecycle;
   hasMore: boolean;
@@ -199,7 +196,7 @@ export interface GxserverSessionChatStateEvent extends SessionChatFrameBase {
   asyncQuestionsSince?: number | null;
   /** Server-confirmed answers/skips, including answers still queued inside Codex. Omitted means unchanged. */
   retiredAsyncQuestionIds?: string[];
-  type: "sessionChatState";
+  type: 'sessionChatState';
   status: SessionChatStatus;
   lifecycle?: SessionChatTurnLifecycle;
   prompt?: SessionChatInteractivePrompt;
@@ -261,14 +258,12 @@ export type GxserverSessionChatEvent =
   | GxserverSessionChatReplacedEvent
   | GxserverSessionChatStateEvent;
 
-export function isSessionChatEventType(
-  type: string,
-): type is GxserverSessionChatEvent["type"] {
+export function isSessionChatEventType(type: string): type is GxserverSessionChatEvent['type'] {
   return (
-    type === "sessionChatSnapshot" ||
-    type === "sessionChatAppended" ||
-    type === "sessionChatReplaced" ||
-    type === "sessionChatState"
+    type === 'sessionChatSnapshot' ||
+    type === 'sessionChatAppended' ||
+    type === 'sessionChatReplaced' ||
+    type === 'sessionChatState'
   );
 }
 
@@ -282,7 +277,7 @@ CDXC:PromptSearch 2026-08-20:
 body on exactly the same terms as chat: the terminal parks rather than closing,
 and only one surface can own the pane at a time.
 */
-export type SessionSurfaceMode = "terminal" | "chat";
+export type SessionSurfaceMode = 'terminal' | 'chat';
 
 export interface SessionChatTerminalDialog {
   id: string;
@@ -295,7 +290,7 @@ export interface SessionChatTerminalDialog {
     description: string | null;
     selected: boolean;
   }[];
-  input: "search" | "text" | "key" | null;
+  input: 'search' | 'text' | 'key' | null;
   inputValue: string;
   actions: string[];
 }

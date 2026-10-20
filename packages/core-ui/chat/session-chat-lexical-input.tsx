@@ -1,10 +1,7 @@
-import {
-  readSessionChatCursor,
-  saveSessionChatCursor,
-} from "./session-chat-interaction-state";
-import { useAppScrollbars } from "@/packages/components/ui/app-scrollbars";
-import { shortcutKeyFromKeyboardEvent } from "@/packages/shared/keyboard-shortcut-key";
-import { useLayoutEffect, useRef, useState } from "react";
+import { readSessionChatCursor, saveSessionChatCursor } from './session-chat-interaction-state';
+import { useAppScrollbars } from '@/packages/components/ui/app-scrollbars';
+import { shortcutKeyFromKeyboardEvent } from '@/packages/shared/keyboard-shortcut-key';
+import { useLayoutEffect, useRef, useState } from 'react';
 import {
   $createRangeSelectionFromDom,
   $getRoot,
@@ -18,24 +15,18 @@ import {
   SKIP_DOM_SELECTION_TAG,
   UNDO_COMMAND,
   type LexicalEditor,
-} from "lexical";
-import { createEmptyHistoryState, registerHistory } from "@lexical/history";
-import { registerPlainText } from "@lexical/plain-text";
-import type { SessionChatTheme } from "@/packages/shared/session-chat";
-import { Tooltip, TooltipContent } from "../app-tooltip";
-import { playCopySound } from "../copy-sound";
-import type {
-  SessionChatComposerInputApi,
-  SessionChatComposerKeyEvent,
-} from "./session-chat-input-api";
-import { sessionChatCaretMovement } from "./session-chat-caret-navigation";
-import { revealSessionChatComposerCaret } from "./session-chat-composer-scroll";
-import {
-  sessionChatBreaksKillSequence,
-  sessionChatEditingShortcut,
-} from "./session-chat-edit-shortcuts";
-import { createSessionChatTerminalEditing } from "./session-chat-terminal-editing";
-import { SESSION_CHAT_REFERENCE_REVEAL_MARKER } from "./session-chat-reference-pills";
+} from 'lexical';
+import { createEmptyHistoryState, registerHistory } from '@lexical/history';
+import { registerPlainText } from '@lexical/plain-text';
+import type { SessionChatTheme } from '@/packages/shared/session-chat';
+import { Tooltip, TooltipContent } from '../app-tooltip';
+import { playCopySound } from '../copy-sound';
+import type { SessionChatComposerInputApi, SessionChatComposerKeyEvent } from './session-chat-input-api';
+import { sessionChatCaretMovement } from './session-chat-caret-navigation';
+import { revealSessionChatComposerCaret } from './session-chat-composer-scroll';
+import { sessionChatBreaksKillSequence, sessionChatEditingShortcut } from './session-chat-edit-shortcuts';
+import { createSessionChatTerminalEditing } from './session-chat-terminal-editing';
+import { SESSION_CHAT_REFERENCE_REVEAL_MARKER } from './session-chat-reference-pills';
 import {
   $composerLeaves,
   $readComposerSelection,
@@ -44,18 +35,12 @@ import {
   $setComposerText,
   SessionChatReferenceNode,
   type ComposerSelection,
-} from "./session-chat-lexical/model";
-import {
-  COMPOSER_EDITOR_COMMANDS,
-  type ComposerEditorControls,
-} from "./session-chat-lexical/commands";
-import {
-  ComposerEditorPanelView,
-  type ComposerEditorPanel,
-} from "./session-chat-lexical/panels";
-import "./session-chat-lexical/input.css";
+} from './session-chat-lexical/model';
+import { COMPOSER_EDITOR_COMMANDS, type ComposerEditorControls } from './session-chat-lexical/commands';
+import { ComposerEditorPanelView, type ComposerEditorPanel } from './session-chat-lexical/panels';
+import './session-chat-lexical/input.css';
 
-const EXTERNAL_VALUE_TAG = "ghostex-composer-value";
+const EXTERNAL_VALUE_TAG = 'ghostex-composer-value';
 
 /**
  * CDXC:SessionChat 2026-09-07 WHY:
@@ -65,18 +50,18 @@ function composerKey(event: KeyboardEvent): string {
   return (
     (
       {
-        8: "Backspace",
-        9: "Tab",
-        13: "Enter",
-        27: "Escape",
-        35: "End",
-        36: "Home",
-        37: "ArrowLeft",
-        38: "ArrowUp",
-        39: "ArrowRight",
-        40: "ArrowDown",
-        46: "Delete",
-        112: "F1",
+        8: 'Backspace',
+        9: 'Tab',
+        13: 'Enter',
+        27: 'Escape',
+        35: 'End',
+        36: 'Home',
+        37: 'ArrowLeft',
+        38: 'ArrowUp',
+        39: 'ArrowRight',
+        40: 'ArrowDown',
+        46: 'Delete',
+        112: 'F1',
       } as Record<number, string>
     )[event.keyCode] ?? event.key
   );
@@ -94,7 +79,7 @@ export function SessionChatLexicalInput({
   collapsed = false,
   registerApi,
   theme,
-  ariaLabel = "Message",
+  ariaLabel = 'Message',
   ariaDescribedBy,
   readOnly = false,
 }: {
@@ -121,9 +106,7 @@ export function SessionChatLexicalInput({
   const editorRef = useRef<LexicalEditor | null>(null);
   const readOnlyRef = useRef(readOnly);
   readOnlyRef.current = readOnly;
-  const [initialCursor] = useState(() =>
-    readSessionChatCursor(sessionKey, initialValue),
-  );
+  const [initialCursor] = useState(() => readSessionChatCursor(sessionKey, initialValue));
   const initialAnchor = initialCursor?.anchor ?? initialValue.length;
   const initialFocus = initialCursor?.focus ?? initialValue.length;
   const selectionRef = useRef<ComposerSelection>({
@@ -132,7 +115,7 @@ export function SessionChatLexicalInput({
     start: Math.min(initialAnchor, initialFocus),
     end: Math.max(initialAnchor, initialFocus),
   });
-  const valueRef = useRef(initialValue.replace(/\r\n?/g, "\n"));
+  const valueRef = useRef(initialValue.replace(/\r\n?/g, '\n'));
   const [panel, setPanel] = useState<ComposerEditorPanel | null>(null);
   const panelRef = useRef(panel);
   panelRef.current = panel;
@@ -163,7 +146,7 @@ export function SessionChatLexicalInput({
     if (!root || !container) return;
     const editor = createEditor({
       editable: !readOnlyRef.current,
-      namespace: "ghostex-chat-composer",
+      namespace: 'ghostex-chat-composer',
       nodes: [SessionChatReferenceNode],
       onError: (error) => {
         throw error;
@@ -174,12 +157,9 @@ export function SessionChatLexicalInput({
     editor.update(
       () => {
         $setComposerText(valueRef.current);
-        $setComposerSelection(
-          selectionRef.current.anchor,
-          selectionRef.current.focus,
-        );
+        $setComposerSelection(selectionRef.current.anchor, selectionRef.current.focus);
       },
-      { discrete: true, tag: SKIP_DOM_SELECTION_TAG },
+      { discrete: true, tag: SKIP_DOM_SELECTION_TAG }
     );
     const unregisterPlainText = registerPlainText(editor);
     const history = createEmptyHistoryState();
@@ -200,7 +180,7 @@ export function SessionChatLexicalInput({
       if (disposed) return;
       const shouldReveal = revealSelection;
       revealSelection = false;
-      root.dataset.empty = valueRef.current === "" ? "true" : "false";
+      root.dataset.empty = valueRef.current === '' ? 'true' : 'false';
       // CDXC:SessionChat 2026-09-15 WHY: Chromium keeps the scroll-fade-y top animation frozen at its last value once the editor stops overflowing (maximizing a scrolled composer, deleting lines), so the first line stays faded with nothing to scroll. input.css removes the animation while this is false; the same guard lived in the retired React chat's other scrolling strips.
       root.dataset.overflowing = String(root.scrollHeight > root.clientHeight);
       const current = readSelection();
@@ -208,24 +188,17 @@ export function SessionChatLexicalInput({
         for (const { node, start, end } of $composerLeaves()) {
           if (node instanceof SessionChatReferenceNode) {
             const pill = editor.getElementByKey(node.getKey());
-            if (pill)
-              pill.dataset.selected = String(
-                current.start < end && current.end > start,
-              );
+            if (pill) pill.dataset.selected = String(current.start < end && current.end > start);
           }
         }
       });
       const caret = caretRef.current;
       if (!caret) return;
-      caret.style.display = "none";
+      caret.style.display = 'none';
       // The saved caret is visual-only: the input and the pane keep their normal input ownership.
       let rect: DOMRect | undefined;
       const domSelection = document.getSelection();
-      if (
-        domSelection?.rangeCount &&
-        domSelection.focusNode &&
-        root.contains(domSelection.focusNode)
-      ) {
+      if (domSelection?.rangeCount && domSelection.focusNode && root.contains(domSelection.focusNode)) {
         const range = document.createRange();
         range.setStart(domSelection.focusNode, domSelection.focusOffset);
         range.collapse(true);
@@ -239,26 +212,13 @@ export function SessionChatLexicalInput({
             if (!element) continue;
             if (node instanceof SessionChatReferenceNode) {
               const box = element.getBoundingClientRect();
-              rect = new DOMRect(
-                current.focus === start ? box.left : box.right,
-                box.top,
-                0,
-                box.height,
-              );
+              rect = new DOMRect(current.focus === start ? box.left : box.right, box.top, 0, box.height);
             } else if (element.firstChild instanceof Text) {
               const range = document.createRange();
-              range.setStart(
-                element.firstChild,
-                Math.min(current.focus - start, element.firstChild.length),
-              );
+              range.setStart(element.firstChild, Math.min(current.focus - start, element.firstChild.length));
               range.collapse(true);
-              rect = [...range.getClientRects()].find(
-                (value) => value.height > 0,
-              );
-            } else if (
-              element instanceof HTMLBRElement &&
-              current.focus === start
-            ) {
+              rect = [...range.getClientRects()].find((value) => value.height > 0);
+            } else if (element instanceof HTMLBRElement && current.focus === start) {
               const box = element.getBoundingClientRect();
               if (box.height > 0) rect = box;
             }
@@ -269,8 +229,7 @@ export function SessionChatLexicalInput({
       const box = root.getBoundingClientRect();
       if (!rect && current.focus === valueRef.current.length) {
         const lastLine = root.lastElementChild?.lastElementChild;
-        if (lastLine instanceof HTMLBRElement)
-          rect = lastLine.getBoundingClientRect();
+        if (lastLine instanceof HTMLBRElement) rect = lastLine.getBoundingClientRect();
       }
       if (rect && shouldReveal && document.activeElement === root) {
         rect = revealSessionChatComposerCaret(root, rect);
@@ -306,9 +265,7 @@ export function SessionChatLexicalInput({
       focus();
       editor.update(() => $setComposerSelection(anchor, head), {
         discrete: true,
-        ...(document.activeElement !== root
-          ? { tag: SKIP_DOM_SELECTION_TAG }
-          : {}),
+        ...(document.activeElement !== root ? { tag: SKIP_DOM_SELECTION_TAG } : {}),
       });
       readSelection();
       scheduleSelectionReveal();
@@ -318,13 +275,10 @@ export function SessionChatLexicalInput({
       focus();
       editor.update(
         () => {
-          $setComposerSelection(
-            selectionRef.current.anchor,
-            selectionRef.current.focus,
-          );
+          $setComposerSelection(selectionRef.current.anchor, selectionRef.current.focus);
           $replaceComposerSelection(text);
         },
-        { discrete: true, tag: HISTORY_PUSH_TAG },
+        { discrete: true, tag: HISTORY_PUSH_TAG }
       );
       return true;
     };
@@ -332,8 +286,7 @@ export function SessionChatLexicalInput({
 
     const controls: ComposerEditorControls = {
       focus,
-      getValue: () =>
-        editor.getEditorState().read(() => $getRoot().getTextContent()),
+      getValue: () => editor.getEditorState().read(() => $getRoot().getTextContent()),
       getSelection: () => {
         const { start, end } = readSelection();
         return { start, end };
@@ -349,27 +302,23 @@ export function SessionChatLexicalInput({
       insertSavedPrompt: insertText,
       applyValue: (next, caret) => {
         terminalEditing.breakSequence();
-        const normalized = next.replace(/\r\n?/g, "\n");
+        const normalized = next.replace(/\r\n?/g, '\n');
         const changed = controls.getValue() !== normalized;
         editor.update(
           () => {
             if (changed) $setComposerText(normalized);
-            $setComposerSelection(
-              Math.max(0, Math.min(caret, normalized.length)),
-            );
+            $setComposerSelection(Math.max(0, Math.min(caret, normalized.length)));
           },
           {
             discrete: true,
             tag: [
               EXTERNAL_VALUE_TAG,
               HISTORY_PUSH_TAG,
-              ...(document.activeElement !== root
-                ? [SKIP_DOM_SELECTION_TAG]
-                : []),
+              ...(document.activeElement !== root ? [SKIP_DOM_SELECTION_TAG] : []),
             ],
-          },
+          }
         );
-        if (changed && normalized === "") {
+        if (changed && normalized === '') {
           editor.dispatchCommand(CLEAR_HISTORY_COMMAND, undefined);
           history.current = { editor, editorState: editor.getEditorState() };
         }
@@ -386,27 +335,20 @@ export function SessionChatLexicalInput({
         if (panelRef.current) return;
         focus();
         if (terminalEditing.run(command)) return;
-        if (command === "undo" || command === "redo") {
-          editor.dispatchCommand(
-            command === "undo" ? UNDO_COMMAND : REDO_COMMAND,
-            undefined,
-          );
+        if (command === 'undo' || command === 'redo') {
+          editor.dispatchCommand(command === 'undo' ? UNDO_COMMAND : REDO_COMMAND, undefined);
           return;
         }
         editor.update(
           () => {
-            $setComposerSelection(
-              selectionRef.current.anchor,
-              selectionRef.current.focus,
-            );
+            $setComposerSelection(selectionRef.current.anchor, selectionRef.current.focus);
             const selection = $getSelection();
             if (!$isRangeSelection(selection)) return;
             if (!selection.isCollapsed()) selection.removeText();
-            else if (command.startsWith("deleteWord"))
-              selection.deleteWord(command.endsWith("Left"));
-            else selection.deleteLine(command.endsWith("Left"));
+            else if (command.startsWith('deleteWord')) selection.deleteWord(command.endsWith('Left'));
+            else selection.deleteLine(command.endsWith('Left'));
           },
-          { discrete: true, tag: HISTORY_PUSH_TAG },
+          { discrete: true, tag: HISTORY_PUSH_TAG }
         );
       },
       navigateCaret: ({ direction, select, unit }) => {
@@ -414,39 +356,25 @@ export function SessionChatLexicalInput({
         terminalEditing.breakSequence();
         focus();
         const current = readSelection();
-        const backward = direction === "left" || direction === "up";
+        const backward = direction === 'left' || direction === 'up';
         let target: number | undefined;
-        if (unit === "document")
-          target = backward ? 0 : controls.getValue().length;
-        else if (unit === "paragraph") {
+        if (unit === 'document') target = backward ? 0 : controls.getValue().length;
+        else if (unit === 'paragraph') {
           const text = controls.getValue();
-          const boundaries = [
-            0,
-            ...[...text.matchAll(/\n[\t ]*\n/g)].map(
-              (match) => match.index! + 1,
-            ),
-            text.length,
-          ];
+          const boundaries = [0, ...[...text.matchAll(/\n[\t ]*\n/g)].map((match) => match.index! + 1), text.length];
           target = backward
-            ? (boundaries.filter((offset) => offset < current.focus).at(-1) ??
-              0)
-            : (boundaries.find((offset) => offset > current.focus) ??
-              text.length);
-        } else if (
-          unit === "character" &&
-          (direction === "left" || direction === "right")
-        ) {
-          if (!select && current.start !== current.end)
-            target = backward ? current.start : current.end;
+            ? (boundaries.filter((offset) => offset < current.focus).at(-1) ?? 0)
+            : (boundaries.find((offset) => offset > current.focus) ?? text.length);
+        } else if (unit === 'character' && (direction === 'left' || direction === 'right')) {
+          if (!select && current.start !== current.end) target = backward ? current.start : current.end;
           else
             editor.getEditorState().read(() => {
               const reference = $composerLeaves().find(
                 ({ node, start, end }) =>
                   node instanceof SessionChatReferenceNode &&
-                  (backward ? end === current.focus : start === current.focus),
+                  (backward ? end === current.focus : start === current.focus)
               );
-              if (reference)
-                target = backward ? reference.start : reference.end;
+              if (reference) target = backward ? reference.start : reference.end;
             });
         }
         if (target !== undefined) {
@@ -456,22 +384,22 @@ export function SessionChatLexicalInput({
         const domSelection = document.getSelection();
         if (!domSelection) return;
         domSelection.modify(
-          select ? "extend" : "move",
-          backward ? "backward" : "forward",
+          select ? 'extend' : 'move',
+          backward ? 'backward' : 'forward',
           {
-            character: "character",
-            word: "word",
-            line: "line",
-            lineBoundary: "lineboundary",
-            paragraph: "paragraphboundary",
-            document: "documentboundary",
-          }[unit],
+            character: 'character',
+            word: 'word',
+            line: 'line',
+            lineBoundary: 'lineboundary',
+            paragraph: 'paragraphboundary',
+            document: 'documentboundary',
+          }[unit]
         );
         editor.update(
           () => {
             $setSelection($createRangeSelectionFromDom(domSelection, editor));
           },
-          { discrete: true },
+          { discrete: true }
         );
         readSelection();
         scheduleSelectionReveal();
@@ -484,29 +412,24 @@ export function SessionChatLexicalInput({
       insertText,
     });
     controlsRef.current = controls;
-    const unregisterUpdates = editor.registerUpdateListener(
-      ({ editorState, tags }) => {
-        editorState.read(() => {
-          const value = $getRoot().getTextContent();
-          selectionRef.current = $readComposerSelection(selectionRef.current);
-          const changed = value !== valueRef.current;
-          valueRef.current = value;
-          if (changed) for (const listener of valueListeners) listener();
-          if (changed && !tags.has(SKIP_DOM_SELECTION_TAG))
-            scheduleSelectionReveal();
-          if (changed && !tags.has(EXTERNAL_VALUE_TAG))
-            callbacksRef.current.onChange(value, selectionRef.current.focus);
-          callbacksRef.current.onCaretChange(selectionRef.current.focus);
-        });
-        setReferenceTooltip(null);
-        scheduleVisuals();
-      },
-    );
+    const unregisterUpdates = editor.registerUpdateListener(({ editorState, tags }) => {
+      editorState.read(() => {
+        const value = $getRoot().getTextContent();
+        selectionRef.current = $readComposerSelection(selectionRef.current);
+        const changed = value !== valueRef.current;
+        valueRef.current = value;
+        if (changed) for (const listener of valueListeners) listener();
+        if (changed && !tags.has(SKIP_DOM_SELECTION_TAG)) scheduleSelectionReveal();
+        if (changed && !tags.has(EXTERNAL_VALUE_TAG)) callbacksRef.current.onChange(value, selectionRef.current.focus);
+        callbacksRef.current.onCaretChange(selectionRef.current.focus);
+      });
+      setReferenceTooltip(null);
+      scheduleVisuals();
+    });
 
     const handleKeyDown = (event: KeyboardEvent): void => {
       if (readOnlyRef.current) return;
-      if (event.isComposing || event.keyCode === 229 || editor.isComposing())
-        return;
+      if (event.isComposing || event.keyCode === 229 || editor.isComposing()) return;
       const key = composerKey(event);
       const shortcutKey = shortcutKeyFromKeyboardEvent(event);
       const mac = /Mac|iPhone|iPad/.test(navigator.platform);
@@ -526,19 +449,13 @@ export function SessionChatLexicalInput({
           event.stopPropagation();
         },
       };
-      if (sessionChatBreaksKillSequence(adapted))
-        terminalEditing.breakSequence();
+      if (sessionChatBreaksKillSequence(adapted)) terminalEditing.breakSequence();
       let nextPanel: ComposerEditorPanel | undefined;
-      if (key === "F1" || (primary && event.shiftKey && shortcutKey === "p"))
-        nextPanel = "commands";
-      else if (primary && shortcutKey === "f" && !event.altKey)
-        nextPanel = "find";
-      else if (
-        (primary && event.altKey && shortcutKey === "f") ||
-        (!mac && primary && shortcutKey === "h")
-      )
-        nextPanel = "replace";
-      else if (event.ctrlKey && shortcutKey === "g") nextPanel = "line";
+      if (key === 'F1' || (primary && event.shiftKey && shortcutKey === 'p')) nextPanel = 'commands';
+      else if (primary && shortcutKey === 'f' && !event.altKey) nextPanel = 'find';
+      else if ((primary && event.altKey && shortcutKey === 'f') || (!mac && primary && shortcutKey === 'h'))
+        nextPanel = 'replace';
+      else if (event.ctrlKey && shortcutKey === 'g') nextPanel = 'line';
       if (nextPanel) {
         event.preventDefault();
         event.stopPropagation();
@@ -548,57 +465,39 @@ export function SessionChatLexicalInput({
       }
       callbacksRef.current.onKeyDown(adapted);
       if (event.defaultPrevented) return;
-      if (
-        event.altKey &&
-        !event.metaKey &&
-        !event.ctrlKey &&
-        shortcutKey === "z"
-      ) {
+      if (event.altKey && !event.metaKey && !event.ctrlKey && shortcutKey === 'z') {
         event.preventDefault();
         event.stopPropagation();
         setWrap((value) => !value);
         return;
       }
-      if (key === "Tab" && !event.metaKey && !event.ctrlKey && !event.altKey) {
+      if (key === 'Tab' && !event.metaKey && !event.ctrlKey && !event.altKey) {
         event.preventDefault();
         event.stopPropagation();
-        if (event.shiftKey)
-          COMPOSER_EDITOR_COMMANDS.find((item) => item.id === "outdent")?.run(
-            controls,
-          );
-        else controls.insertText("    ");
+        if (event.shiftKey) COMPOSER_EDITOR_COMMANDS.find((item) => item.id === 'outdent')?.run(controls);
+        else controls.insertText('    ');
         return;
       }
-      if (key === "Enter") {
+      if (key === 'Enter') {
         event.preventDefault();
         event.stopPropagation();
-        controls.insertText("\n");
+        controls.insertText('\n');
         return;
       }
       const editing = sessionChatEditingShortcut(adapted);
-      if (editing && !["copy", "cut", "paste"].includes(editing)) {
+      if (editing && !['copy', 'cut', 'paste'].includes(editing)) {
         event.preventDefault();
         event.stopPropagation();
-        if (editing === "selectAll") controls.selectAll();
-        else
-          controls.editText(
-            editing as Parameters<SessionChatComposerInputApi["editText"]>[0],
-          );
+        if (editing === 'selectAll') controls.selectAll();
+        else controls.editText(editing as Parameters<SessionChatComposerInputApi['editText']>[0]);
         return;
       }
       const movement = sessionChatCaretMovement(adapted);
-      if (
-        event.altKey &&
-        !event.ctrlKey &&
-        !event.metaKey &&
-        (key === "ArrowUp" || key === "ArrowDown")
-      ) {
+      if (event.altKey && !event.ctrlKey && !event.metaKey && (key === 'ArrowUp' || key === 'ArrowDown')) {
         event.preventDefault();
         event.stopPropagation();
-        const command = `${event.shiftKey ? "copy" : "move"}Lines${key === "ArrowUp" ? "Up" : "Down"}`;
-        COMPOSER_EDITOR_COMMANDS.find((item) => item.id === command)?.run(
-          controls,
-        );
+        const command = `${event.shiftKey ? 'copy' : 'move'}Lines${key === 'ArrowUp' ? 'Up' : 'Down'}`;
+        COMPOSER_EDITOR_COMMANDS.find((item) => item.id === command)?.run(controls);
         return;
       }
       if (movement) {
@@ -607,41 +506,32 @@ export function SessionChatLexicalInput({
         controls.navigateCaret(movement);
         return;
       }
-      if (key === "Home" || key === "End") {
+      if (key === 'Home' || key === 'End') {
         // Native chat binds the same document movement and Shift selection in native_chat/keyboard.rs.
         event.preventDefault();
         event.stopPropagation();
         controls.navigateCaret({
-          direction:
-            key === "Home"
-              ? primary
-                ? "up"
-                : "left"
-              : primary
-                ? "down"
-                : "right",
+          direction: key === 'Home' ? (primary ? 'up' : 'left') : primary ? 'down' : 'right',
           select: event.shiftKey,
-          unit: primary ? "document" : "lineBoundary",
+          unit: primary ? 'document' : 'lineBoundary',
         });
       }
       const command =
         primary && !event.altKey
-          ? shortcutKey === "]"
-            ? "indent"
-            : shortcutKey === "["
-              ? "outdent"
-              : shortcutKey === "l"
-                ? "expandLineSelection"
-                : event.shiftKey && shortcutKey === "k"
-                  ? "deleteLines"
+          ? shortcutKey === ']'
+            ? 'indent'
+            : shortcutKey === '['
+              ? 'outdent'
+              : shortcutKey === 'l'
+                ? 'expandLineSelection'
+                : event.shiftKey && shortcutKey === 'k'
+                  ? 'deleteLines'
                   : undefined
           : undefined;
       if (command) {
         event.preventDefault();
         event.stopPropagation();
-        COMPOSER_EDITOR_COMMANDS.find((item) => item.id === command)?.run(
-          controls,
-        );
+        COMPOSER_EDITOR_COMMANDS.find((item) => item.id === command)?.run(controls);
       }
     };
 
@@ -650,27 +540,24 @@ export function SessionChatLexicalInput({
      * User: play the copy sound when copying text from the chat composer, with the Copy Sound setting controlling it.
      */
     const clipboard = (event: ClipboardEvent): void => {
-      if (readOnlyRef.current && event.type !== "copy") {
+      if (readOnlyRef.current && event.type !== 'copy') {
         event.preventDefault();
         event.stopPropagation();
         return;
       }
       terminalEditing.breakSequence();
       if (!event.clipboardData) return;
-      if (event.type === "paste") {
+      if (event.type === 'paste') {
         const handled = callbacksRef.current.onPasteData(event.clipboardData);
-        const text = event.clipboardData.getData("text/plain");
-        if (!handled && text !== "") insertText(text);
+        const text = event.clipboardData.getData('text/plain');
+        if (!handled && text !== '') insertText(text);
       } else {
         const { start, end } = controls.getSelection();
         if (start !== end) {
-          event.clipboardData.setData(
-            "text/plain",
-            controls.getValue().slice(start, end),
-          );
+          event.clipboardData.setData('text/plain', controls.getValue().slice(start, end));
           playCopySound();
         }
-        if (event.type === "cut" && start !== end) insertText("");
+        if (event.type === 'cut' && start !== end) insertText('');
       }
       event.preventDefault();
       event.stopPropagation();
@@ -678,17 +565,13 @@ export function SessionChatLexicalInput({
     const doubleClick = (event: MouseEvent): void => {
       if (readOnlyRef.current) return;
       if (event.detail !== 2 || !(event.target instanceof Element)) return;
-      const pill = event.target.closest<HTMLElement>(
-        "[data-ghostex-reference-key]",
-      );
+      const pill = event.target.closest<HTMLElement>('[data-ghostex-reference-key]');
       if (!pill || !root.contains(pill)) return;
       event.preventDefault();
       event.stopPropagation();
       let reference: { source: string; start: number; end: number } | undefined;
       editor.getEditorState().read(() => {
-        const found = $composerLeaves().find(
-          ({ node }) => node.getKey() === pill.dataset.ghostexReferenceKey,
-        );
+        const found = $composerLeaves().find(({ node }) => node.getKey() === pill.dataset.ghostexReferenceKey);
         if (found)
           reference = {
             source: found.node.getTextContent(),
@@ -698,45 +581,39 @@ export function SessionChatLexicalInput({
       });
       if (!reference) return;
       const { source, start, end } = reference;
-      const labelEnd = source.indexOf("](");
+      const labelEnd = source.indexOf('](');
       if (labelEnd < 0) return;
       setSelection(start, end);
-      insertText(
-        `${source.slice(0, labelEnd)}${SESSION_CHAT_REFERENCE_REVEAL_MARKER}${source.slice(labelEnd)}`,
-      );
+      insertText(`${source.slice(0, labelEnd)}${SESSION_CHAT_REFERENCE_REVEAL_MARKER}${source.slice(labelEnd)}`);
       setSelection(start + labelEnd + 1);
     };
     const handleScroll = (): void => {
       scheduleVisuals();
-      root.dataset.scrolling = "true";
+      root.dataset.scrolling = 'true';
       window.clearTimeout(scrollbarFadeTimeout);
       scrollbarFadeTimeout = window.setTimeout(() => {
         delete root.dataset.scrolling;
       }, 900);
     };
-    root.addEventListener("keydown", handleKeyDown, true);
-    root.addEventListener("input", scheduleSelectionReveal);
-    root.addEventListener("paste", clipboard, true);
-    root.addEventListener("copy", clipboard, true);
-    root.addEventListener("cut", clipboard, true);
-    root.addEventListener("mousedown", doubleClick, true);
-    root.addEventListener("pointerdown", terminalEditing.breakSequence);
-    root.addEventListener("scroll", handleScroll);
-    root.addEventListener("blur", scheduleVisuals);
+    root.addEventListener('keydown', handleKeyDown, true);
+    root.addEventListener('input', scheduleSelectionReveal);
+    root.addEventListener('paste', clipboard, true);
+    root.addEventListener('copy', clipboard, true);
+    root.addEventListener('cut', clipboard, true);
+    root.addEventListener('mousedown', doubleClick, true);
+    root.addEventListener('pointerdown', terminalEditing.breakSequence);
+    root.addEventListener('scroll', handleScroll);
+    root.addEventListener('blur', scheduleVisuals);
     const resize = new ResizeObserver(scheduleVisuals);
     resize.observe(root);
-    window.addEventListener(
-      "ghostex-session-chat-font-family-changed",
-      scheduleVisuals,
-    );
-    const saveCursor = () =>
-      saveSessionChatCursor(sessionKey, valueRef.current, readSelection());
-    window.addEventListener("pagehide", saveCursor);
+    window.addEventListener('ghostex-session-chat-font-family-changed', scheduleVisuals);
+    const saveCursor = () => saveSessionChatCursor(sessionKey, valueRef.current, readSelection());
+    window.addEventListener('pagehide', saveCursor);
     callbacksRef.current.registerApi(controls);
     scheduleVisuals();
     return () => {
       saveCursor();
-      window.removeEventListener("pagehide", saveCursor);
+      window.removeEventListener('pagehide', saveCursor);
       disposed = true;
       cancelAnimationFrame(visualFrame);
       window.clearTimeout(scrollbarFadeTimeout);
@@ -745,20 +622,17 @@ export function SessionChatLexicalInput({
       unregisterUpdates();
       unregisterHistory();
       unregisterPlainText();
-      root.removeEventListener("keydown", handleKeyDown, true);
-      root.removeEventListener("input", scheduleSelectionReveal);
-      root.removeEventListener("paste", clipboard, true);
-      root.removeEventListener("copy", clipboard, true);
-      root.removeEventListener("cut", clipboard, true);
-      root.removeEventListener("mousedown", doubleClick, true);
-      root.removeEventListener("pointerdown", terminalEditing.breakSequence);
-      root.removeEventListener("scroll", handleScroll);
-      root.removeEventListener("blur", scheduleVisuals);
+      root.removeEventListener('keydown', handleKeyDown, true);
+      root.removeEventListener('input', scheduleSelectionReveal);
+      root.removeEventListener('paste', clipboard, true);
+      root.removeEventListener('copy', clipboard, true);
+      root.removeEventListener('cut', clipboard, true);
+      root.removeEventListener('mousedown', doubleClick, true);
+      root.removeEventListener('pointerdown', terminalEditing.breakSequence);
+      root.removeEventListener('scroll', handleScroll);
+      root.removeEventListener('blur', scheduleVisuals);
       resize.disconnect();
-      window.removeEventListener(
-        "ghostex-session-chat-font-family-changed",
-        scheduleVisuals,
-      );
+      window.removeEventListener('ghostex-session-chat-font-family-changed', scheduleVisuals);
       editor.setRootElement(null);
       editorRef.current = null;
       controlsRef.current = null;
@@ -781,19 +655,17 @@ export function SessionChatLexicalInput({
   return (
     <div
       ref={containerRef}
-      className="ghostex-chat-composer-lexical w-full min-w-0 flex-1"
+      className='ghostex-chat-composer-lexical w-full min-w-0 flex-1'
       data-collapsed={collapsed}
       data-fill-height={fillHeight}
       data-word-wrap={wrap && !collapsed}
       data-editor-theme={theme}
       data-editor-panel-open={panel !== null}
-      data-session-chat-typing-redirect-ignore="true"
+      data-session-chat-typing-redirect-ignore='true'
       onPointerLeave={() => setReferenceTooltip(null)}
       onPointerOver={(event) => {
         const pill =
-          event.target instanceof Element
-            ? event.target.closest<HTMLElement>("[data-ghostex-reference-path]")
-            : null;
+          event.target instanceof Element ? event.target.closest<HTMLElement>('[data-ghostex-reference-path]') : null;
         if (pill?.dataset.ghostexReferencePath)
           setReferenceTooltip({
             anchor: pill,
@@ -802,10 +674,7 @@ export function SessionChatLexicalInput({
       }}
       onPointerOut={(event) => {
         const next = event.relatedTarget;
-        if (
-          referenceTooltip &&
-          (!(next instanceof Node) || !referenceTooltip.anchor.contains(next))
-        )
+        if (referenceTooltip && (!(next instanceof Node) || !referenceTooltip.anchor.contains(next)))
           setReferenceTooltip(null);
       }}
     >
@@ -824,29 +693,25 @@ export function SessionChatLexicalInput({
       ) : null}
       <div
         ref={rootRef}
-        className="ghostex-chat-composer-lexical-content scroll-fade-y"
-        role="textbox"
+        className='ghostex-chat-composer-lexical-content scroll-fade-y'
+        role='textbox'
         aria-label={ariaLabel}
         aria-describedby={ariaDescribedBy}
         aria-readonly={readOnly || undefined}
-        aria-multiline="true"
+        aria-multiline='true'
         aria-placeholder={placeholder}
         contentEditable={!readOnly}
         spellCheck={false}
-        autoCapitalize="off"
-        autoCorrect="off"
+        autoCapitalize='off'
+        autoCorrect='off'
         data-placeholder={placeholder}
-        data-empty={initialValue === ""}
+        data-empty={initialValue === ''}
         suppressContentEditableWarning
       />
-      <div
-        ref={caretRef}
-        className="ghostex-chat-composer-saved-caret"
-        aria-hidden="true"
-      />
+      <div ref={caretRef} className='ghostex-chat-composer-saved-caret' aria-hidden='true' />
       {referenceTooltip ? (
         <Tooltip open>
-          <TooltipContent anchor={referenceTooltip.anchor} side="top">
+          <TooltipContent anchor={referenceTooltip.anchor} side='top'>
             {referenceTooltip.content}
           </TooltipContent>
         </Tooltip>

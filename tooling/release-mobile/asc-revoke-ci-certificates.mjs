@@ -13,23 +13,23 @@
  * Env: GHOSTEX_ASC_KEY_PATH, GHOSTEX_ASC_KEY_ID, GHOSTEX_ASC_ISSUER_ID (the workflow's key step).
  */
 
-import { X509Certificate } from "node:crypto";
-import { readFileSync } from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { parseArgs } from "node:util";
+import { X509Certificate } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { parseArgs } from 'node:util';
 
-import { ascClientFromEnv } from "./asc-api.mjs";
+import { ascClientFromEnv } from './asc-api.mjs';
 
-const DEVELOPMENT_TYPES = new Set(["DEVELOPMENT", "IOS_DEVELOPMENT"]);
+const DEVELOPMENT_TYPES = new Set(['DEVELOPMENT', 'IOS_DEVELOPMENT']);
 /** The parenthesised value is the ID of the API key that made the certificate. */
 const CI_COMMON_NAME = /^Apple Development: Created via API \([A-Z0-9]{10}\)$/;
 
 /** The subject's attributes, e.g. { CN: '…', OU: '…' }. A repeated attribute makes the subject unreadable. */
 function subjectFields(x509) {
   const fields = {};
-  for (const line of x509.subject.split("\n")) {
-    const at = line.indexOf("=");
+  for (const line of x509.subject.split('\n')) {
+    const at = line.indexOf('=');
     if (at <= 0) return null;
     const key = line.slice(0, at);
     if (key in fields) return null;
@@ -47,28 +47,25 @@ export function classifyCertificate(resource, teamId) {
   if (!DEVELOPMENT_TYPES.has(attributes.certificateType)) {
     return {
       ci: false,
-      reason: `type ${attributes.certificateType ?? "unknown"}`,
+      reason: `type ${attributes.certificateType ?? 'unknown'}`,
     };
   }
-  if (!attributes.certificateContent)
-    return { ci: false, reason: "no certificate content" };
+  if (!attributes.certificateContent) return { ci: false, reason: 'no certificate content' };
   let x509;
   try {
-    x509 = new X509Certificate(
-      Buffer.from(attributes.certificateContent, "base64"),
-    );
+    x509 = new X509Certificate(Buffer.from(attributes.certificateContent, 'base64'));
   } catch (error) {
     return { ci: false, reason: `unreadable certificate (${error.message})` };
   }
   const fields = subjectFields(x509);
-  if (!fields) return { ci: false, x509, reason: "unreadable subject" };
-  const subject = `CN "${fields.CN ?? ""}" OU "${fields.OU ?? ""}"`;
-  if (!CI_COMMON_NAME.test(fields.CN ?? "")) {
+  if (!fields) return { ci: false, x509, reason: 'unreadable subject' };
+  const subject = `CN "${fields.CN ?? ''}" OU "${fields.OU ?? ''}"`;
+  if (!CI_COMMON_NAME.test(fields.CN ?? '')) {
     return {
       ci: false,
       x509,
       subject,
-      reason: "CN is not a Created via API one",
+      reason: 'CN is not a Created via API one',
     };
   }
   if (fields.OU !== teamId) {
@@ -84,10 +81,9 @@ function readKeptCertificate(pemPath) {
 }
 
 async function listDevelopmentCertificates(client) {
-  const fields =
-    "name,certificateType,serialNumber,expirationDate,certificateContent";
+  const fields = 'name,certificateType,serialNumber,expirationDate,certificateContent';
   const { data } = await client.list(
-    `/v1/certificates?filter[certificateType]=${[...DEVELOPMENT_TYPES].join(",")}&fields[certificates]=${fields}&limit=200`,
+    `/v1/certificates?filter[certificateType]=${[...DEVELOPMENT_TYPES].join(',')}&fields[certificates]=${fields}&limit=200`
   );
   return data;
 }
@@ -97,76 +93,56 @@ async function main(argv) {
     args: argv,
     allowPositionals: true,
     options: {
-      "keep-cert": { type: "string" },
-      "dry-run": { type: "boolean" },
+      'keep-cert': { type: 'string' },
+      'dry-run': { type: 'boolean' },
     },
   });
   const teamId = positionals[0];
-  const dryRun = values["dry-run"] === true;
-  if (!/^[A-Z0-9]{10}$/.test(teamId ?? "") || !values["keep-cert"])
-    throw new Error(
-      `usage: asc-revoke-ci-certificates.mjs <teamId> --keep-cert <reused certificate PEM> [--dry-run]`,
-    );
-  const kept = readKeptCertificate(values["keep-cert"]);
+  const dryRun = values['dry-run'] === true;
+  if (!/^[A-Z0-9]{10}$/.test(teamId ?? '') || !values['keep-cert'])
+    throw new Error(`usage: asc-revoke-ci-certificates.mjs <teamId> --keep-cert <reused certificate PEM> [--dry-run]`);
+  const kept = readKeptCertificate(values['keep-cert']);
   const client = ascClientFromEnv();
   const certificates = await listDevelopmentCertificates(client);
   const verdicts = certificates.map((resource) => ({
     resource,
     verdict: classifyCertificate(resource, teamId),
   }));
-  if (
-    !verdicts.some(
-      ({ verdict }) => verdict.x509?.fingerprint256 === kept.fingerprint,
-    )
-  )
+  if (!verdicts.some(({ verdict }) => verdict.x509?.fingerprint256 === kept.fingerprint))
     throw new Error(
-      `the reused signing certificate (SHA-256 ${kept.fingerprint}) is not among the ${certificates.length} development certificate(s); nothing was revoked. Renew it with tooling/release-mobile/ios-signing-certificate.sh.`,
+      `the reused signing certificate (SHA-256 ${kept.fingerprint}) is not among the ${certificates.length} development certificate(s); nothing was revoked. Renew it with tooling/release-mobile/ios-signing-certificate.sh.`
     );
-  console.log(
-    `Reused signing certificate: SHA-256 ${kept.fingerprint}, expires ${kept.expires.toISOString()}`,
-  );
+  console.log(`Reused signing certificate: SHA-256 ${kept.fingerprint}, expires ${kept.expires.toISOString()}`);
   let revoked = 0;
   for (const { resource, verdict } of verdicts) {
     const { attributes = {} } = resource;
-    const label = `${resource.id} "${attributes.name ?? ""}" serial ${attributes.serialNumber ?? "?"} expires ${attributes.expirationDate ?? "?"}`;
+    const label = `${resource.id} "${attributes.name ?? ''}" serial ${attributes.serialNumber ?? '?'} expires ${attributes.expirationDate ?? '?'}`;
     if (!verdict.ci) {
-      console.log(
-        `kept ${label}${verdict.subject ? ` ${verdict.subject}` : ""}: ${verdict.reason}`,
-      );
+      console.log(`kept ${label}${verdict.subject ? ` ${verdict.subject}` : ''}: ${verdict.reason}`);
       continue;
     }
     if (verdict.x509.fingerprint256 === kept.fingerprint) {
-      console.log(
-        `kept ${label} ${verdict.subject}: the reused signing certificate`,
-      );
+      console.log(`kept ${label} ${verdict.subject}: the reused signing certificate`);
       continue;
     }
     if (!(new Date(verdict.x509.validTo) < kept.expires)) {
-      console.log(
-        `kept ${label} ${verdict.subject}: not older than the reused signing certificate`,
-      );
+      console.log(`kept ${label} ${verdict.subject}: not older than the reused signing certificate`);
       continue;
     }
     if (dryRun) {
       console.log(`would revoke ${label} ${verdict.subject}`);
       continue;
     }
-    await client.request(
-      "DELETE",
-      `/v1/certificates/${encodeURIComponent(resource.id)}`,
-    );
+    await client.request('DELETE', `/v1/certificates/${encodeURIComponent(resource.id)}`);
     revoked += 1;
     console.log(`revoked ${label} ${verdict.subject}`);
   }
   console.log(
-    `${dryRun ? "Dry run: " : ""}${revoked} CI development certificate(s) revoked, ${certificates.length} development certificate(s) seen.`,
+    `${dryRun ? 'Dry run: ' : ''}${revoked} CI development certificate(s) revoked, ${certificates.length} development certificate(s) seen.`
   );
 }
 
-if (
-  process.argv[1] &&
-  path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
-) {
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   main(process.argv.slice(2)).catch((error) => {
     console.error(error.message);
     process.exit(1);

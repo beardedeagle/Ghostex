@@ -4,24 +4,15 @@
  * what the desktop's bridge adds (apps/desktop/src/app/work_view/bridge.rs).
  */
 
-export type WorkItemKind = "linearIssue" | "githubIssue" | "pullRequest";
+export type WorkItemKind = 'linearIssue' | 'githubIssue' | 'pullRequest';
 
 /** Linear tickets & projects, or GitHub issues & projects. */
-export type WorkTracker = "linear" | "github";
+export type WorkTracker = 'linear' | 'github';
 
 export type WorkStatusGroup =
-  | "backlog"
-  | "todo"
-  | "progress"
-  | "review"
-  | "done"
-  | "canceled"
-  | "draft"
-  | "open"
-  | "merged"
-  | "closed";
+  'backlog' | 'todo' | 'progress' | 'review' | 'done' | 'canceled' | 'draft' | 'open' | 'merged' | 'closed';
 
-export type WorkChecksState = "passing" | "failing" | "pending";
+export type WorkChecksState = 'passing' | 'failing' | 'pending';
 
 export interface WorkItemStatus {
   group: WorkStatusGroup;
@@ -42,7 +33,7 @@ export interface WorkItemLink {
 export interface WorkItemPullRequest {
   number: number;
   url?: string;
-  state: "open" | "draft" | "merged" | "closed";
+  state: 'open' | 'draft' | 'merged' | 'closed';
   checks?: WorkChecksState;
   reviewDecision?: string;
   title?: string;
@@ -101,7 +92,7 @@ export interface WorkList {
   tracker?: WorkTracker;
   /** Whether `gh` may read GitHub Projects, the command that lets it, and whether its notice was closed. */
   githubProjects?: {
-    access: "granted" | "missingScope" | "unknown";
+    access: 'granted' | 'missingScope' | 'unknown';
     command: string;
     noticeDismissed: boolean;
   };
@@ -165,7 +156,7 @@ export interface GithubIssueDetails {
   commentCount: number;
 }
 
-export type WorkCheckStatus = "passed" | "failed" | "pending" | "skipped";
+export type WorkCheckStatus = 'passed' | 'failed' | 'pending' | 'skipped';
 
 export interface WorkCheck {
   name: string;
@@ -179,7 +170,7 @@ export interface PullRequestDetails {
   number: number;
   title?: string;
   url: string;
-  state: "open" | "draft" | "merged" | "closed";
+  state: 'open' | 'draft' | 'merged' | 'closed';
   body?: string;
   author?: string | null;
   headBranch?: string | null;
@@ -202,13 +193,12 @@ export interface PullRequestDetails {
 }
 
 export interface WorkMedia {
-  kind: "loom" | "youtube" | "video";
+  kind: 'loom' | 'youtube' | 'video';
   url: string;
   embedUrl: string;
 }
 
-export type TeamFlowStepStatus =
-  "done" | "current" | "pending" | "failed" | "unknown";
+export type TeamFlowStepStatus = 'done' | 'current' | 'pending' | 'failed' | 'unknown';
 
 export interface TeamFlowStepState {
   id: string;
@@ -243,7 +233,7 @@ export interface SlackMessage {
 }
 
 /** `working`: the ticket's one working thread; `watchOnly`: a watch-only (validation) channel. */
-export type SlackThreadRole = "working" | "source" | "watchOnly";
+export type SlackThreadRole = 'working' | 'source' | 'watchOnly';
 
 export interface SlackThread {
   id: string;
@@ -265,8 +255,8 @@ export interface TeamSession {
   id: string;
   memberName?: string | null;
   isMe: boolean;
-  runPlace: "cloud" | "local";
-  status: "starting" | "running" | "failed" | "cancelled";
+  runPlace: 'cloud' | 'local';
+  status: 'starting' | 'running' | 'failed' | 'cancelled';
   projectId?: string | null;
   sessionId?: string | null;
   sessionUrl?: string | null;

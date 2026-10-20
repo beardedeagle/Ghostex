@@ -1,6 +1,6 @@
-import { IconCheck, IconQuestionMark, IconX } from "@tabler/icons-react";
-import { cx } from "./components";
-import type { TeamFlowStepState } from "./types";
+import { IconCheck, IconQuestionMark, IconX } from '@tabler/icons-react';
+import { cx } from './components';
+import type { TeamFlowStepState } from './types';
 
 /**
  * The ticket's place in the team's flow. A step whose data Ghostex does not have (the video OK,
@@ -17,32 +17,27 @@ export function TeamFlowTracker({
 }) {
   if (steps.length === 0) return null;
   return (
-    <ol className="w-flow team-flow-tracker" aria-label="Team flow">
+    <ol className='w-flow team-flow-tracker' aria-label='Team flow'>
       {steps.map((step, index) => (
         <li
           key={step.id}
-          className={cx(
-            "w-flow-step",
-            `is-${step.status}`,
-            `step-${step.id}`,
-            step.url && "has-link",
-          )}
-          title={`${step.label}: ${stepStatusText(step)}${step.url ? " · click to open" : ""}`}
-          onClick={step.url ? () => onOpenUrl(step.url ?? "") : undefined}
+          className={cx('w-flow-step', `is-${step.status}`, `step-${step.id}`, step.url && 'has-link')}
+          title={`${step.label}: ${stepStatusText(step)}${step.url ? ' · click to open' : ''}`}
+          onClick={step.url ? () => onOpenUrl(step.url ?? '') : undefined}
         >
-          <span className="w-flow-node">
-            {step.status === "done" ? (
+          <span className='w-flow-node'>
+            {step.status === 'done' ? (
               <IconCheck size={11} stroke={3} />
-            ) : step.status === "failed" ? (
+            ) : step.status === 'failed' ? (
               <IconX size={11} stroke={3} />
-            ) : step.status === "unknown" ? (
+            ) : step.status === 'unknown' ? (
               <IconQuestionMark size={10} stroke={2.5} />
             ) : (
-              <span className="w-flow-index">{index + 1}</span>
+              <span className='w-flow-index'>{index + 1}</span>
             )}
           </span>
-          <span className="w-flow-label">{step.label}</span>
-          <span className="w-flow-sub">{step.detail}</span>
+          <span className='w-flow-label'>{step.label}</span>
+          <span className='w-flow-sub'>{step.detail}</span>
         </li>
       ))}
     </ol>
@@ -51,17 +46,17 @@ export function TeamFlowTracker({
 
 function stepStatusText(step: TeamFlowStepState): string {
   switch (step.status) {
-    case "done":
-      return `done${step.detail ? ` (${step.detail})` : ""}`;
-    case "current":
-      return `next${step.detail ? ` (${step.detail})` : ""}`;
-    case "failed":
-      return `needs attention${step.detail ? ` (${step.detail})` : ""}`;
-    case "unknown":
+    case 'done':
+      return `done${step.detail ? ` (${step.detail})` : ''}`;
+    case 'current':
+      return `next${step.detail ? ` (${step.detail})` : ''}`;
+    case 'failed':
+      return `needs attention${step.detail ? ` (${step.detail})` : ''}`;
+    case 'unknown':
       return step.optional
-        ? `optional${step.detail ? ` (${step.detail})` : ""}`
-        : "unknown: Ghostex cannot see this step yet";
+        ? `optional${step.detail ? ` (${step.detail})` : ''}`
+        : 'unknown: Ghostex cannot see this step yet';
     default:
-      return step.detail || "not yet";
+      return step.detail || 'not yet';
   }
 }

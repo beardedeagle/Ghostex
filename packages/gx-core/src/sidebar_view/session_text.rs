@@ -4,7 +4,7 @@
 
 use super::agents::tooltip_strip_labels;
 use super::inputs::CloseAfterDoneInput;
-use super::tags::{TagCatalog, tag_label};
+use super::tags::{tag_label, TagCatalog};
 use super::text::{
     is_js_line_terminator, js_trim, js_trim_start, normalized_non_empty, parse_iso_ms, utf16_len,
     utf16_prefix, utf16_suffix,

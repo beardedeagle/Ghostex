@@ -69,13 +69,15 @@ fn read_card(text: &str) -> Option<GrokPermissionCard> {
         .take(SCAN_LINES)
         .collect();
     window.reverse();
-    let hint = window.iter().rposition(|line| {
-        line.contains("Ctrl+o:always-approve") && line.contains(":select")
-    })?;
+    let hint = window
+        .iter()
+        .rposition(|line| line.contains("Ctrl+o:always-approve") && line.contains(":select"))?;
     if window.len() - hint > TAIL_LINES {
         return None;
     }
-    let last_row = (0..hint).rev().find(|&index| parse_row(&window[index]).is_some())?;
+    let last_row = (0..hint)
+        .rev()
+        .find(|&index| parse_row(&window[index]).is_some())?;
     let mut first_row = last_row;
     while first_row > 0 && parse_row(&window[first_row - 1]).is_some() {
         first_row -= 1;
