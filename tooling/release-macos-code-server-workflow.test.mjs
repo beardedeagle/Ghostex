@@ -311,7 +311,7 @@ describe('active WSL2 code-server consumer contract', () => {
     const componentStore = ['store.rs', 'code_server_archive.rs']
       .map((file) => repoFile(`apps/desktop/src/component_store/${file}`))
       .join('\n');
-    const sourceServer = repoFile('apps/desktop/src/app/helpers/source_server/code_server.rs');
+    const sourceServer = repoFile('apps/desktop/src/app/helpers/remote/source_code_server.rs');
     const windowsConsumer = repoFile('apps/desktop/src/windows_terminal_backend/platform/packaged_install.rs');
     const verifyIndex = windowsConsumer.indexOf('crate::component_store::verify_code_server_archive(');
     const extractIndex = windowsConsumer.indexOf('tar -xzf - -C', verifyIndex);
