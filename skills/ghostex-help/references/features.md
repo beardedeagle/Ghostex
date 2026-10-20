@@ -955,8 +955,8 @@ skills (the phone says to install them there on the computer).
 Use the paperclip to attach images, files, or folders. On Linux, choose
 **Images or files…** or **Folders…** before selecting items in the system picker;
 the terminal's attachment action offers the same choices.
-Dictate, on a Mac, is the microphone button in the chat box (left of the
-Terminal View button) and on the terminal bar: press it, talk, and press it
+Dictate is the microphone button in the chat box (left of the Terminal View
+button) and on the terminal bar, on a Mac, Windows and Linux: press it, talk, and press it
 again to stop. What you said goes into the chat box (or is typed into that
 session's terminal) and is never sent by itself. Dictate records first and
 transcribes second: your voice is saved as a recording while you talk, and only
@@ -972,8 +972,7 @@ kept: rest the pointer on the microphone (or right-click it) and choose
 Transcribe previous to type the newest recording that has no text yet into the
 chat box. On the terminal bar, press the microphone again while it transcribes
 to cancel, and right-click it for Transcribe previous. Every recording is listed
-in Settings > Voice agent > Dictation history. Dictate is not shown on Windows
-or Linux yet. On an Android phone, Dictate is in the chat box's toolbar or, when
+in Settings > Voice agent > Dictation history. On an Android phone, Dictate is in the chat box's toolbar or, when
 the toolbar is full, in its More actions menu (Stop dictating there ends it); it
 uses the key on the computer the chat lives on, keeps the recording on the phone
 until that computer has it, shows Recording, Transcribing and Transcribe again
@@ -2536,8 +2535,8 @@ Setting: `botAutomationsHidden` (on by default, which keeps the feed hidden).
 
 ## Voice agent
 
-Talk to your agents out loud. On a Mac, the headset button in the work area
-header (beside the ⋯ menu) starts a spoken conversation with Ghostex's voice
+Talk to your agents out loud. On a Mac, Windows or Linux, the headset button in
+the work area header (beside the ⋯ menu) starts a spoken conversation with Ghostex's voice
 agent, and pressing it again hangs up. Ask what your sessions are doing or
 which ones are waiting on you, have it read you the last messages of a session,
 tell it to send a prompt to a session (it sends right away and says what it
@@ -2593,8 +2592,15 @@ cancelled, or why it failed with Try again. Hover a row to Play it, Download
 the audio, Copy its text, Transcribe it (the text is copied to your clipboard
 too) or Delete it; the search field finds dictations by their words.
 Recordings stay on this computer until you delete them, about 0.3 MB for each
-minute of speech. Ghostex cancels the agent's own voice from the speakers,
-so it works without headphones. Not available on Windows or Linux yet.
+minute of speech.
+
+Ghostex cancels the agent's own voice from the speakers, so it works without
+headphones, on a Mac, Windows and Linux alike. It uses the computer's default
+microphone and speakers; when you plug in a headset or pick another default
+device in the sound settings, it switches to it. If Ghostex can't use the
+microphone, allow it: on a Mac under Microphone in System Settings > Privacy &
+Security, on Windows with Microphone access and Let desktop apps access your
+microphone in Windows Settings > Privacy & security > Microphone.
 
 On an Android phone, the headset button in the top bar (on the session list
 and inside a session) starts the same conversation with the voice agent on the

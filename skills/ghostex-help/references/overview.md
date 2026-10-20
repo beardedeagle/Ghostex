@@ -21,7 +21,7 @@ hotkeys Every shortcut and its default binding
   name and current session title as one breadcrumb. On the right are the
   **Start**, **Open** and **Commit** buttons (Quick Actions, Open In and Git
   actions, each with a caret for its menu; Start and Open show only while the
-  Actions and Open In extensions are on, and Actions is off by default), on a Mac the
+  Actions and Open In extensions are on, and Actions is off by default), the
   **Voice** (headset) button that starts and ends a spoken conversation with the voice
   agent, a **⋯** menu holding Ask Ghostex,
   Tips & Tricks, Resources, Dev servers, Extensions and Customize, and the command terminal
