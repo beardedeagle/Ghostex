@@ -1,5 +1,8 @@
 //! What the voice agent knows about sessions and projects: every open session with a spoken-style
 //! state, and matching the names the user says ("the sidebar one") to sessions and projects.
+//!
+//! CDXC:VoiceMode 2026-10-20 DECISION:
+//! User: "Add the capability for the voice assistant to see sub-threads under Main Coordinator. They should be marked as sub-threads in the session list so it's clear they're not top-level sessions. The voice assistant should be able to read from them when the user asks, but by default it should only read Main Coordinator unless the user specifically requests a sub-thread." Every orchestrator's open threads (the sessions the sidebar draws under it, resolved ones included) are listed right after it, each marked with its orchestrator's title; a name that matches a top-level session and a thread alike means the top-level one. Reading only the orchestrator by default is an instruction in prompt.rs.
 
 use std::sync::Arc;
 
@@ -60,6 +63,18 @@ pub(super) struct SessionInfo {
     pub(super) turn_event: Option<String>,
     /// Its agent has a chat (a transcript Ghostex reads); without one it is only a terminal.
     pub(super) has_chat: bool,
+    /// The orchestrator this session is a thread of, when that orchestrator is open too.
+    pub(super) thread_of: Option<ThreadParent>,
+    /// How many open threads it has, when it is an orchestrator.
+    pub(super) threads: Option<usize>,
+}
+
+#[derive(Clone, Debug)]
+pub(super) struct ThreadParent {
+    pub(super) reference: String,
+    pub(super) title: String,
+    /// Its orchestrator marked it done; it stays listed while its session is open.
+    pub(super) resolved: bool,
 }
 
 impl SessionInfo {
@@ -82,6 +97,17 @@ impl SessionInfo {
         });
         if let Some(waiting) = &self.waiting {
             value["waitingOn"] = json!(waiting);
+        }
+        if let Some(parent) = &self.thread_of {
+            value["subThreadOf"] = json!(parent.title);
+            value["orchestratorRef"] = json!(parent.reference);
+            if parent.resolved {
+                value["threadDone"] = json!(true);
+            }
+        }
+        if let Some(threads) = self.threads {
+            value["orchestrator"] = json!(true);
+            value["subThreads"] = json!(threads);
         }
         value
     }
@@ -132,11 +158,25 @@ fn agent_label(agent: &str) -> String {
 /// Every open (running or sleeping) session, waiting ones first. Blocking: run it off the runtime.
 pub(super) fn list_sessions(state: &AppState) -> Result<Vec<SessionInfo>, String> {
     let db = open_gxserver_database(&state.paths).map_err(|error| error.to_string())?;
-    let repository = DomainRepository::new(&db, state.metadata.server_id.as_str());
+    list_sessions_in(&db, state.metadata.server_id.as_str())
+}
+
+fn list_sessions_in(
+    db: &rusqlite::Connection,
+    server_id: &str,
+) -> Result<Vec<SessionInfo>, String> {
+    let repository = DomainRepository::new(db, server_id);
     let projects: Vec<ProjectInfo> = project_rows(&repository)?;
     let sessions = repository
         .list_sessions_excluding_stopped(None)
         .map_err(|error| error.message)?;
+    let thread_links = crate::coordinators::list_threads(db).map_err(|error| error.message)?;
+    let orchestrators: std::collections::HashSet<String> =
+        crate::coordinators::list_coordinators(db)
+            .map_err(|error| error.message)?
+            .iter()
+            .map(|record| format!("{}:{}", record.project_id, record.session_id))
+            .collect();
     let now = crate::presentation::now_iso();
     let mut rows: Vec<SessionInfo> = sessions
         .iter()
@@ -203,6 +243,8 @@ pub(super) fn list_sessions(state: &AppState) -> Result<Vec<SessionInfo>, String
                 turn_event: turn_event(session),
                 has_chat: crate::session_chat_follower::session_chat_agent_for_session(session)
                     .is_some(),
+                thread_of: None,
+                threads: None,
             })
         })
         .collect();
@@ -212,7 +254,62 @@ pub(super) fn list_sessions(state: &AppState) -> Result<Vec<SessionInfo>, String
             .cmp(&b.state.order())
             .then_with(|| b.last_active_at.cmp(&a.last_active_at))
     });
-    Ok(rows)
+    Ok(nest_threads(rows, &thread_links, &orchestrators))
+}
+
+/// Marks each open thread of an open orchestrator and moves it right after that orchestrator,
+/// keeping the waiting-first order among the threads. A thread whose orchestrator is not open
+/// stays a top-level session, as in the sidebar.
+fn nest_threads(
+    rows: Vec<SessionInfo>,
+    links: &[crate::coordinators::ThreadRecord],
+    orchestrators: &std::collections::HashSet<String>,
+) -> Vec<SessionInfo> {
+    let titles: std::collections::HashMap<String, String> = rows
+        .iter()
+        .map(|row| (row.reference(), row.title.clone()))
+        .collect();
+    let (mut threads, top): (Vec<SessionInfo>, Vec<SessionInfo>) = rows
+        .into_iter()
+        .map(|mut row| {
+            let reference = row.reference();
+            row.thread_of = links
+                .iter()
+                .find(|link| format!("{}:{}", link.project_id, link.session_id) == reference)
+                .and_then(|link| {
+                    let parent = format!(
+                        "{}:{}",
+                        link.coordinator_project_id, link.coordinator_session_id
+                    );
+                    let title = titles.get(&parent)?.clone();
+                    (parent != reference).then(|| ThreadParent {
+                        reference: parent,
+                        title,
+                        resolved: link.is_resolved(),
+                    })
+                });
+            row
+        })
+        .partition(|row| row.thread_of.is_some());
+    let mut nested = Vec::with_capacity(top.len() + threads.len());
+    for mut row in top {
+        let reference = row.reference();
+        let mine: Vec<SessionInfo> = {
+            let (mine, rest): (Vec<_>, Vec<_>) = threads.into_iter().partition(|thread| {
+                thread.thread_of.as_ref().map(|parent| &parent.reference) == Some(&reference)
+            });
+            threads = rest;
+            mine
+        };
+        if orchestrators.contains(&reference) {
+            row.threads = Some(mine.len());
+        }
+        nested.push(row);
+        nested.extend(mine);
+    }
+    // Threads of an orchestrator that is itself a thread (rare) come last, still marked.
+    nested.extend(threads);
+    nested
 }
 
 fn turn_event(session: &Value) -> Option<String> {
@@ -354,7 +451,7 @@ pub(super) fn match_session(sessions: &[SessionInfo], query: &str) -> Match<Sess
     }) {
         return Match::One(found.clone());
     }
-    pick(
+    match pick(
         sessions
             .iter()
             .map(|session| {
@@ -362,7 +459,24 @@ pub(super) fn match_session(sessions: &[SessionInfo], query: &str) -> Match<Sess
                 (score(trimmed, &session.title, &context), session.clone())
             })
             .collect(),
-    )
+    ) {
+        // A name that fits top-level sessions and threads alike means a top-level one: the user
+        // names a thread clearly when they want it.
+        Match::Ambiguous(candidates)
+            if candidates.iter().any(|session| session.thread_of.is_none()) =>
+        {
+            let mut top: Vec<SessionInfo> = candidates
+                .into_iter()
+                .filter(|session| session.thread_of.is_none())
+                .collect();
+            if top.len() == 1 {
+                Match::One(top.remove(0))
+            } else {
+                Match::Ambiguous(top)
+            }
+        }
+        other => other,
+    }
 }
 
 pub(super) fn match_project(projects: &[ProjectInfo], query: &str) -> Match<ProjectInfo> {

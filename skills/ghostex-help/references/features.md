@@ -2559,7 +2559,10 @@ it talks about (reading its messages, a question it asks, a draft) is shown in
 the app: the sidebar selects it and the work area opens it, switching project
 or Space when needed, but not while you are typing, so it never pulls you away
 mid-sentence. Say "show me the sidebar one" to switch to a session yourself,
-even while typing. While the
+even while typing. It sees an orchestrator's threads as part of that
+orchestrator: asked what is going on, it reads the orchestrator (like Main
+Coordinator) and reads a thread only when you ask for it ("what's the Windows
+popup thread doing"). While the
 conversation is open it tells you when a session finishes its turn or starts
 waiting on a question or an approval. The conversation keeps going while you
 switch projects and chats. A small panel under the header shows what it is
