@@ -2524,7 +2524,8 @@ header (beside the ⋯ menu) starts a spoken conversation with Ghostex's voice
 agent, and pressing it again hangs up. Ask what your sessions are doing or
 which ones are waiting on you, have it read you the last messages of a session,
 tell it to send a prompt to a session (it sends right away and says what it
-sent), answer a question card or approve or deny a permission prompt, or start
+sent, but for anything risky or destructive, like deleting files or removing a
+project, it reads the prompt back and sends only after you say yes), answer a question card or approve or deny a permission prompt, or start
 a new agent in a project you name. Name sessions and projects the way you
 would say them ("the sidebar one"); it asks when two match. While the
 conversation is open it tells you when a session finishes its turn or starts

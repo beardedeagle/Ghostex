@@ -3,7 +3,8 @@
 //! what went wrong instead of the conversation stopping.
 //!
 //! CDXC:VoiceMode 2026-10-20 DECISION:
-//! User: the voice agent can act on any session, not only the open chat; it sends prompts right away without a spoken confirmation and then says what it sent; it answers question cards and approves or denies permission prompts (saying what it approved); and it can start new agents in a project the user names. Each tool reuses the gxserver route the matching `ghostex` verb calls (sessions, read-session-chat, send-session-chat-message, answer-session-chat-prompt, create-agent).
+//! User, supersedes the earlier "sends prompts right away without a spoken confirmation": "Please add this to the voice agent's startup instructions for all future voice sessions: before sending any prompt that could be risky or destructive (deleting files, removing projects, changing system settings, running commands with side effects), the voice agent must confirm with the user first and only send after they agree. Non-destructive prompts can still go out immediately." This is an instruction in `prompt.rs` only; `send_prompt` does not block in code.
+//! The voice agent can act on any session, not only the open chat; it says what it sent after a prompt goes out; it answers question cards and approves or denies permission prompts (saying what it approved); and it can start new agents in a project the user names. Each tool reuses the gxserver route the matching `ghostex` verb calls (sessions, read-session-chat, send-session-chat-message, answer-session-chat-prompt, create-agent).
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -55,7 +56,7 @@ pub(super) fn definitions() -> Value {
         {
             "type": "function",
             "name": "send_prompt",
-            "description": "Send a prompt to a session's agent right away, as if the user typed it in that chat. A busy agent gets it at its next turn.",
+            "description": "Send a prompt to a session's agent, as if the user typed it in that chat. Call it right away for ordinary prompts; for a risky or destructive one, call it only after the user agreed out loud. A busy agent gets it at its next turn.",
             "parameters": {
                 "type": "object",
                 "properties": {
