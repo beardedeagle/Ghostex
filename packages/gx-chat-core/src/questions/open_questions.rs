@@ -34,12 +34,18 @@ pub struct OpenQuestions {
 
 /// One jump to a question: scroll to `item` once per `revision`, then highlight `target` (the
 /// form's id or the page's id).
+///
+/// CDXC:SessionChat 2026-10-20 WHY:
+/// Where a jump lands, on every renderer: a reply that fits on screen is shown whole; a taller one has its end at the bottom of the transcript, unless that leaves the question above the top, and then the question's top sits `questionJumpMargin` (`scroll-bottom.json`) below the transcript's top. The question is the form question asking `question` when the form shows it, else the whole form or page card. The renderers measure the card inside the row after the row is drawn, so long unmeasured rows above it do not matter. Supersedes always aligning a tall reply's end, which left a form near the top of a long reply above the screen (user: "because im being scrolled to the bottom of the message and its sometimes loing").
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OpenQuestionJump {
     pub revision: u64,
     pub item: usize,
     pub target: String,
+    /// The tag a Q-tag link named, so the jump lands on that question inside the form; `null` for
+    /// the pill's jumps, which land on the card.
+    pub question: Option<String>,
 }
 
 /// What the pill remembers between clicks.
@@ -141,7 +147,7 @@ pub fn previous(state: &mut ChatState, context: &ChatContext) -> Vec<Effect> {
     let at = open
         .iter()
         .position(|asker| Some(asker.id.as_str()) == last);
-    jump_to(state, context, &open[step(open.len(), at)])
+    jump_to(state, context, &open[step(open.len(), at)], None)
 }
 
 /// Which of `count` unanswered questions (oldest first) the pill goes to, given where the last
@@ -162,10 +168,21 @@ pub fn jump_to_tag(state: &mut ChatState, context: &ChatContext, tag: &str) -> V
             message: format!("{tag} isn't asked in the loaded part of this chat."),
         }];
     };
-    jump_to(state, context, &asker)
+    // The form's own spelling of the tag, which its drawn question carries.
+    let question = asker
+        .tags
+        .iter()
+        .find(|known| known.eq_ignore_ascii_case(tag))
+        .cloned();
+    jump_to(state, context, &asker, question)
 }
 
-fn jump_to(state: &mut ChatState, context: &ChatContext, asker: &Asker) -> Vec<Effect> {
+fn jump_to(
+    state: &mut ChatState,
+    context: &ChatContext,
+    asker: &Asker,
+    question: Option<String>,
+) -> Vec<Effect> {
     let rows = crate::transcript::rows(state, context);
     let Some(item) = crate::composer::files_links::row_of(&rows, &asker.message_id, None) else {
         return Vec::new();
@@ -182,6 +199,7 @@ fn jump_to(state: &mut ChatState, context: &ChatContext, asker: &Asker) -> Vec<E
             revision,
             item,
             target: asker.id.clone(),
+            question,
         }),
     };
     state.core.request_publish();

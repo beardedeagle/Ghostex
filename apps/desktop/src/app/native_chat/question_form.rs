@@ -494,6 +494,7 @@ impl NativeChatView {
             .gap(px(8.0 * s))
             .w_full()
             .min_w_0()
+            .children(self.question_marker(id, &tag))
             .when(index > 0, |column| {
                 column
                     .mt(px(16.0 * s))

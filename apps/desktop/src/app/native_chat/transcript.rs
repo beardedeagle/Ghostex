@@ -167,10 +167,12 @@ impl NativeChatView {
         if self.disclosure_motion.borrow().running() {
             window.request_animation_frame();
         }
+        let question_marker = main.then(|| self.question_row_marker(index)).flatten();
         div()
             .w_full()
             .flex()
             .justify_center()
+            .children(question_marker)
             // The header is window chrome and does not zoom with the chat, so its height is unscaled.
             .when(index == 0, |this| {
                 let header = if main && self.under_workarea_header {

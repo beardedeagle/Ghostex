@@ -26,6 +26,7 @@ struct ScrollBottom {
     question_tone: ErrorTone,
     pill_gap: f32,
     question_flash_ms: u64,
+    question_jump_margin: f32,
     question_ping: QuestionPingSpec,
 }
 
@@ -73,6 +74,11 @@ pub(super) fn font_size() -> f32 {
 /// How long a jump's highlight stays on the question it landed on.
 pub(super) fn question_flash_ms() -> u64 {
     SPEC.question_flash_ms
+}
+
+/// How far below the transcript's top a jump puts the question it lands on.
+pub(super) fn question_jump_margin() -> f32 {
+    SPEC.question_jump_margin
 }
 
 /// How long one ping of the question pill's dot lasts, and how often it repeats.
