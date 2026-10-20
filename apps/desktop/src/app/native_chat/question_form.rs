@@ -11,12 +11,11 @@ use std::collections::HashSet;
 use std::rc::Rc;
 
 use super::ask_card::{
-    AskBodyMotion, AskOption, CHECKLIST_GLYPH, QuestionBadge, ask_color, keycap, question_ask_head,
+    AskBodyMotion, AskOption, CHECKLIST_GLYPH, QuestionBadge, ask_color, question_ask_head,
     single_line_ask_head, single_line_press_head,
 };
 use super::cards::SINGLE_LINE_CARD;
 use super::{appearance::ChatAppearance, state::NativeChatView, transcript::text};
-use crate::app::native_chat::cursor::ChatCursor as _;
 use gpui::Focusable as _;
 use gpui::prelude::FluentBuilder as _;
 use gpui::{

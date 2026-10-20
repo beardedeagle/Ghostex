@@ -1,7 +1,9 @@
 use std::path::Path;
 
+#[cfg(not(windows))]
+use super::config::command_agent;
 use super::config::{
-    command_agent, HookDefinition, AMP_PLUGIN_MARKER, NOTIFY_HOOK_MARKER, NOTIFY_HOOK_VERSION,
+    HookDefinition, AMP_PLUGIN_MARKER, NOTIFY_HOOK_MARKER, NOTIFY_HOOK_VERSION,
     OMP_EXTENSION_MARKER, PI_EXTENSION_MARKER,
 };
 use super::probing::path_string;

@@ -619,12 +619,12 @@ fn create_owned_host_view_for_plan<SlotId, F>(
         TerminalHostNativeViewCreateRequest,
     ) -> Result<OwnedTerminalHostNativeView, TerminalHostNativeViewCreateError>,
 {
-    if let Some(existing) = owned_host_views.get(&plan.slot_id) {
-        if existing.matches_exact_plan(plan) {
-            let real_view = existing.real_native_view_handle();
-            lifecycle.mark_ready_with_real_native_view(plan, real_view);
-            return;
-        }
+    if let Some(existing) = owned_host_views.get(&plan.slot_id)
+        && existing.matches_exact_plan(plan)
+    {
+        let real_view = existing.real_native_view_handle();
+        lifecycle.mark_ready_with_real_native_view(plan, real_view);
+        return;
     }
 
     if owned_host_views
@@ -662,10 +662,10 @@ fn refresh_owned_host_view_plan<SlotId>(
 ) where
     SlotId: TerminalSurfaceMountSlotKey,
 {
-    if let Some(owned) = owned_host_views.get_mut(&plan.slot_id) {
-        if owned.matches_plan_identity(plan) {
-            owned.plan = plan;
-        }
+    if let Some(owned) = owned_host_views.get_mut(&plan.slot_id)
+        && owned.matches_plan_identity(plan)
+    {
+        owned.plan = plan;
     }
 }
 

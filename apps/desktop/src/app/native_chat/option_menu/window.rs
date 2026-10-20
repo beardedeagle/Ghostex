@@ -696,7 +696,7 @@ impl ChatOptionMenu {
             let settle = menu.clone();
             cx.spawn(async move |cx| {
                 cx.background_executor().timer(SETTLE_KEY_AFTER).await;
-                let _ = cx.update(|cx| settle.update(cx, |menu, cx| menu.settle_key(cx)));
+                cx.update(|cx| settle.update(cx, |menu, cx| menu.settle_key(cx)));
             })
             .detach();
             menu.update(cx, |menu, cx| {

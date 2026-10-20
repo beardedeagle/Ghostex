@@ -164,7 +164,7 @@ fn find_pi_family_chat_transcript(session_id: &str) -> Option<PathBuf> {
     for agent_dir in [pi_agent_dir, omp_agent_dir] {
         collect_pi_family_transcript_candidates(&agent_dir, session_id, &mut candidates);
     }
-    candidates.sort_by(|left, right| right.1.cmp(&left.1));
+    candidates.sort_by_key(|candidate| std::cmp::Reverse(candidate.1));
     candidates.into_iter().next().map(|(path, _)| path)
 }
 
@@ -262,7 +262,7 @@ fn find_claude_transcript_by_embedded_session_id(session_id: &str) -> Option<Pat
             }
         }
     }
-    candidates.sort_by(|left, right| right.1.cmp(&left.1));
+    candidates.sort_by_key(|candidate| std::cmp::Reverse(candidate.1));
     for (path, _) in candidates
         .into_iter()
         .take(CLAUDE_EMBEDDED_ID_SCAN_FILE_LIMIT)

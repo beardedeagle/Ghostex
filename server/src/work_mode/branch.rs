@@ -90,7 +90,7 @@ fn strip_ticket_prefix(segment: &str) -> Option<&str> {
 /// (`SPX-1245`). Only real team keys count, so `fix-utf-8-paste` names nothing.
 pub(crate) fn linear_identifiers_in_branch(branch: &str, team_keys: &[String]) -> Vec<String> {
     let mut found = Vec::new();
-    for token in branch.split(|c: char| c == '/' || c == '_' || c == '.') {
+    for token in branch.split(['/', '_', '.']) {
         let parts: Vec<&str> = token.split('-').collect();
         for window in parts.windows(2) {
             let (key, number) = (window[0], window[1]);

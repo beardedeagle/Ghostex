@@ -1160,9 +1160,11 @@ fn check_reveal(
     let after = SidebarViewModel::build_from_scratch(core, &revealed, now_ms);
     let drawn = after.group(&plan.group_id).is_some_and(|group| {
         !group.core.collapsed
-            && group.core.sections.iter().any(|section| {
-                !section.collapsed && section.session_ids.iter().any(|drawn| *drawn == session_id)
-            })
+            && group
+                .core
+                .sections
+                .iter()
+                .any(|section| !section.collapsed && section.session_ids.contains(&session_id))
     });
     if !drawn {
         ui.reveal_failures += 1;

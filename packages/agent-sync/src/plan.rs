@@ -625,7 +625,7 @@ pub fn build_plan(home: &Path, report: &SyncReport, options: &PlanOptions) -> Sy
     let mut summary = PlanSummary::default();
     let groups: Vec<PlanGroup> = PlanGroupKind::ALL
         .iter()
-        .zip(builder.groups.into_iter())
+        .zip(builder.groups)
         .map(|(kind, ops)| {
             let mut change_count = 0;
             for op in &ops {

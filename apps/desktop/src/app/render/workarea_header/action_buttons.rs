@@ -442,7 +442,8 @@ impl GhostexGpuiApp {
                 )
             })
             .child(self.render_titlebar_extension_popup_panel(window, cx));
-        let controls = h_flex()
+
+        h_flex()
             .flex_shrink(1.0)
             .min_w_0()
             .max_w_full()
@@ -461,7 +462,6 @@ impl GhostexGpuiApp {
                     .overflow_x_scroll()
                     .child(buttons),
             )
-            .child(pinned);
-        controls
+            .child(pinned)
     }
 }

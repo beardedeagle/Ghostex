@@ -692,13 +692,13 @@ pub async fn run_session_chat_follower(
             && reconcile_ticks > 1
             && startup_option_reconcile_ticks
                 < crate::session_chat_options::SESSION_CHAT_OPTION_STARTUP_RECONCILE_TICKS
-            && published_options.as_ref().map_or(true, |options| {
+            && published_options.as_ref().is_none_or(|options| {
                 // CDXC:AgentScreenDetection 2026-09-08 WHY:
                 // A restored Codex can show Ultra while its last turn still records High; transcript-only values must not end the startup footer probes before the live setting is read.
                 [&options.selection.model, &options.selection.effort]
                     .into_iter()
                     .any(|choice| {
-                        choice.as_ref().map_or(true, |choice| {
+                        choice.as_ref().is_none_or(|choice| {
                             matches!(
                                 choice.source,
                                 SessionChatOptionEvidence::Transcript
@@ -778,7 +778,7 @@ pub async fn run_session_chat_follower(
             || activity_command_probe_due
             || statusline_changed
             || screen_changed
-            || reconcile_ticks % probe_interval_ticks == 0;
+            || reconcile_ticks.is_multiple_of(probe_interval_ticks);
         if published_state_valid
             && config.options_reader.is_some()
             && (startup_probe_due || periodic_probe_due)

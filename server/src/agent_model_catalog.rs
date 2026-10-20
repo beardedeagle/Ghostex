@@ -225,8 +225,7 @@ fn refresh_lineups(paths: GxserverPaths, event_hub: GxserverEventHub, server_id:
             if Instant::now() < due[index] {
                 continue;
             }
-            let entry = crate::agent_model_lineups::read_lineup(agent)
-                .filter(|entry| is_valid_agent(entry));
+            let entry = crate::agent_model_lineups::read_lineup(agent).filter(is_valid_agent);
             due[index] = Instant::now()
                 + if entry.is_some() {
                     LINEUP_TTL

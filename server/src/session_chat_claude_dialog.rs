@@ -137,7 +137,7 @@ fn option_rows(remainder: &[String]) -> (Vec<TerminalDialogRow>, RangeInclusive<
         .iter()
         .rposition(|line| line.trim_start().starts_with('❯'))
     else {
-        return (Vec::new(), 1..=0);
+        return (Vec::new(), RangeInclusive::new(1, 0));
     };
     let after_pointer = remainder[selected].trim_start().trim_start_matches('❯');
     let label_column =

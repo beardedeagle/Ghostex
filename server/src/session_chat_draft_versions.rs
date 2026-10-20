@@ -208,9 +208,9 @@ pub fn save(
         *consumed >= version.revision || *revision > version.revision
     });
     if !obsolete
-        && !current
+        && current
             .as_ref()
-            .is_some_and(|(revision, _, _)| *revision == version.revision)
+            .is_none_or(|(revision, _, _)| *revision != version.revision)
     {
         let now = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
         transaction.execute(

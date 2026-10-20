@@ -288,13 +288,12 @@ impl GpuiNewCoordinatorModalWindow {
     }
 
     fn disarm_playbook_reset(&mut self, generation: Option<u64>, cx: &mut Context<Self>) {
-        if let Some(editor) = self.editor.as_mut() {
-            if editor.reset_armed
-                && generation.is_none_or(|armed_at| armed_at == editor.reset_generation)
-            {
-                editor.reset_armed = false;
-                cx.notify();
-            }
+        if let Some(editor) = self.editor.as_mut()
+            && editor.reset_armed
+            && generation.is_none_or(|armed_at| armed_at == editor.reset_generation)
+        {
+            editor.reset_armed = false;
+            cx.notify();
         }
     }
 

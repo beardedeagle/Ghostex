@@ -1,10 +1,9 @@
 use super::rpc::{CliError, CliResult};
 use crate::accounts::helpers;
 use serde_json::Value;
-use std::{
-    path::Path,
-    process::{Command, Stdio},
-};
+#[cfg(target_os = "macos")]
+use std::process::Stdio;
+use std::{path::Path, process::Command};
 
 const HELP: &str = "Usage: ghostex account-login claude [--account NUMBER] [--email EMAIL] [--json]\n\nSign in with a separate Claude profile and save it with cswap.\nWithout --account, saves the account you choose in the browser; --email pre-fills it and requires that account.\nWith --account, reconnects only that saved account.";
 

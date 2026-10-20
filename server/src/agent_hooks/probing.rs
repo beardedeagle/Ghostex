@@ -10,12 +10,15 @@ use std::{
 use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
 use serde_json::{Map, Value};
 
+#[cfg(not(windows))]
+use crate::platform::shell::command_shell;
 use crate::{
     domain::DomainStateError,
-    platform::shell::{command_shell, command_shell_for_path, login_shell_candidates},
+    platform::shell::{command_shell_for_path, login_shell_candidates},
 };
 
 use super::config::{GXSERVER_AGENT_HOOK_COLOR_DISABLING_ENVIRONMENT_KEYS, SHELL_PATH_SENTINEL};
+#[cfg(not(windows))]
 use super::plugin_sources::shell_quote;
 use super::probe_cache::{
     cached_resolve_command_path, login_shell_path_entries, refresh_resolved_command_path,
@@ -186,6 +189,7 @@ pub(super) fn resolve_command_path(command: &str, home_dir: &Path) -> Option<Str
 }
 
 /// Stdout of a one-line CLI script run the way `resolve_command_path` finds CLIs, so a probe reaches the same binary a session would launch.
+#[cfg(not(windows))]
 pub(crate) fn cli_script_stdout(
     script: &str,
     home_dir: &Path,
@@ -355,9 +359,9 @@ fn is_executable(path: &Path) -> bool {
     {
         use std::os::unix::fs::PermissionsExt;
 
-        return fs::metadata(path)
+        fs::metadata(path)
             .map(|metadata| metadata.permissions().mode() & 0o111 != 0)
-            .unwrap_or(false);
+            .unwrap_or(false)
     }
     #[cfg(not(unix))]
     {

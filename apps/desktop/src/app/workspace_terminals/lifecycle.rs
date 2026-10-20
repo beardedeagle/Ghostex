@@ -556,14 +556,12 @@ impl GhostexGpuiApp {
         if let Some(runtime_session_id) = self
             .agents_terminal_runtime_sessions
             .runtime_session_id_for_shell_session(slot_id.session_id)
-        {
-            if self
+            && self
                 .agents_gpui_engine_terminals
                 .get(&slot_id.session_id)
                 .is_some_and(|record| record.runtime_session_id == runtime_session_id)
-            {
-                return true;
-            }
+        {
+            return true;
         }
 
         #[cfg(target_os = "macos")]

@@ -273,15 +273,14 @@ pub(crate) fn project_beads_bridge_response_from_gxserver(
 }
 
 pub(crate) fn project_beads_gxserver_error_message(body: &str, status_code: Option<u16>) -> String {
-    if let Ok(value) = serde_json::from_str::<serde_json::Value>(body) {
-        if let Some(message) = value
+    if let Ok(value) = serde_json::from_str::<serde_json::Value>(body)
+        && let Some(message) = value
             .get("error")
             .and_then(|error| error.get("message"))
             .and_then(serde_json::Value::as_str)
             .or_else(|| value.get("message").and_then(serde_json::Value::as_str))
-        {
-            return message.to_string();
-        }
+    {
+        return message.to_string();
     }
     match status_code {
         Some(status_code) => format!("gxserver Beads request failed with HTTP {status_code}."),

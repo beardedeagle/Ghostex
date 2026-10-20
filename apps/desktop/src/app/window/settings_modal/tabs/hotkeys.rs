@@ -326,16 +326,16 @@ impl Render for HotkeysTab {
             }
             any_visible = true;
             let mut rows: Vec<AnyElement> = Vec::new();
-            if section_id == "projects" {
-                if should_show_setting(result, "expandCollapsedProjectsOnJump", true) {
-                    rows.push(self.toggle(
+            if section_id == "projects"
+                && should_show_setting(result, "expandCollapsedProjectsOnJump", true)
+            {
+                rows.push(self.toggle(
                         "expandCollapsedProjectsOnJump",
                         "Expand Collapsed Projects on Jump",
                         "Reveal a collapsed project row before focusing it from Jump to Project hotkeys.",
                         false,
                         cx,
                     ));
-                }
             }
             for id in section_ids.get(section_id).into_iter().flatten() {
                 let Some(definition) = self

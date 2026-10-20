@@ -149,15 +149,14 @@ pub(crate) fn terminal_title_ingest_params(
         .agent_name
         .clone()
         .or_else(|| session.agent_id.clone());
-    if session
+    if (session
         .agent_name
         .as_deref()
         .is_some_and(|name| !name.is_empty())
-        || session.agent_id.as_deref().is_some_and(|id| !id.is_empty())
+        || session.agent_id.as_deref().is_some_and(|id| !id.is_empty()))
+        && let Some(agent_name) = agent_name
     {
-        if let Some(agent_name) = agent_name {
-            params.insert("agentName".into(), Value::String(agent_name));
-        }
+        params.insert("agentName".into(), Value::String(agent_name));
     }
     params.insert(
         "projectId".into(),

@@ -117,10 +117,10 @@ impl GhostexGpuiApp {
                     }),
                 );
                 message.insert("name".to_string(), serde_json::json!(name));
-                if context.mode == SpaceEditorMode::Edit {
-                    if let Some(space_id) = &context.space_id {
-                        message.insert("spaceId".to_string(), serde_json::json!(space_id));
-                    }
+                if context.mode == SpaceEditorMode::Edit
+                    && let Some(space_id) = &context.space_id
+                {
+                    message.insert("spaceId".to_string(), serde_json::json!(space_id));
                 }
                 self.forward_gpui_sidebar_space_editor_result_to_sidebar(&message, cx);
             }

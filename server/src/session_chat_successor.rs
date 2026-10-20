@@ -413,7 +413,7 @@ fn collect_successor_candidates(
         }
         prefiltered.push((path, stem, modified_ms));
     }
-    prefiltered.sort_by(|left, right| right.2.cmp(&left.2));
+    prefiltered.sort_by_key(|entry| std::cmp::Reverse(entry.2));
     prefiltered.truncate(SUCCESSOR_CANDIDATE_LIMIT);
 
     let mut qualified: Vec<SessionChatSuccessorTranscript> = Vec::new();
@@ -507,7 +507,7 @@ pub fn find_claude_successor_transcript(
         if candidates.is_empty() {
             break;
         }
-        candidates.sort_by(|left, right| right.last_substantive_ms.cmp(&left.last_substantive_ms));
+        candidates.sort_by_key(|candidate| std::cmp::Reverse(candidate.last_substantive_ms));
         if candidates.len() > 1
             && candidates[0].last_substantive_ms == candidates[1].last_substantive_ms
         {
@@ -772,7 +772,7 @@ fn collect_codex_successor_candidates(
             prefiltered.push((path, session_id, modified_ms));
         }
     }
-    prefiltered.sort_by(|left, right| right.2.cmp(&left.2));
+    prefiltered.sort_by_key(|entry| std::cmp::Reverse(entry.2));
     prefiltered.truncate(SUCCESSOR_CANDIDATE_LIMIT);
 
     let mut qualified: Vec<SessionChatSuccessorTranscript> = Vec::new();
@@ -870,7 +870,7 @@ pub fn find_codex_successor_transcript(
         if candidates.is_empty() {
             break;
         }
-        candidates.sort_by(|left, right| right.last_substantive_ms.cmp(&left.last_substantive_ms));
+        candidates.sort_by_key(|candidate| std::cmp::Reverse(candidate.last_substantive_ms));
         if candidates.len() > 1
             && candidates[0].last_substantive_ms == candidates[1].last_substantive_ms
         {

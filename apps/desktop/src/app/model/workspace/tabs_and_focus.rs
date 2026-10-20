@@ -32,7 +32,7 @@ impl WorkspaceModel {
             .iter()
             .rev()
             .copied()
-            .find(|pane_id| self.find_leaf(*pane_id).is_some_and(|leaf| accept(leaf)))
+            .find(|pane_id| self.find_leaf(*pane_id).is_some_and(&accept))
     }
 
     pub(crate) fn prune_pane_focus_history(&mut self) {

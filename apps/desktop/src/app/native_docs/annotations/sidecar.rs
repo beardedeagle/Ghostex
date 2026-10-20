@@ -39,21 +39,6 @@ impl DocsAnnotationsByPath {
         Self::default()
     }
 
-    pub(crate) fn is_empty(&self) -> bool {
-        self.entries.is_empty()
-    }
-
-    /// Number of paths with notes.
-    pub(crate) fn len(&self) -> usize {
-        self.entries.len()
-    }
-
-    pub(crate) fn iter(&self) -> impl Iterator<Item = (&str, &[DocsAnnotation])> {
-        self.entries
-            .iter()
-            .map(|(path, annotations)| (path.as_str(), annotations.as_slice()))
-    }
-
     pub(crate) fn paths(&self) -> impl Iterator<Item = &str> {
         self.entries.iter().map(|(path, _)| path.as_str())
     }

@@ -452,7 +452,7 @@ pub fn effective_working_started_at(value: Option<&Value>, now_ms_value: i64) ->
     let effective =
         effective_agent_activity_state(normalize_agent_activity_state(value, "idle"), now_ms_value);
     (effective.activity == "working")
-        .then(|| effective.working_started_at)
+        .then_some(effective.working_started_at)
         .flatten()
 }
 

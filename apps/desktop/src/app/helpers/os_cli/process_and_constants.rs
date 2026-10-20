@@ -364,7 +364,7 @@ pub(crate) fn gpui_local_gxserver_api_port() -> u16 {
         .ok()
         .and_then(|value| value.trim().parse::<u16>().ok())
         .filter(|port| *port != 0)
-        .unwrap_or_else(|| {
+        .unwrap_or({
             #[cfg(windows)]
             if crate::windows_terminal_backend::current_preference()
                 == crate::windows_terminal_backend::WindowsTerminalBackendPreference::PowerShell

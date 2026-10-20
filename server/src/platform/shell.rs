@@ -262,7 +262,7 @@ fn shell_kind_for_path(path: &str) -> PlatformShellKind {
     }
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(all(unix, not(target_os = "macos")))]
 fn is_supported_shell(path: &str) -> bool {
     matches!(
         Path::new(path)

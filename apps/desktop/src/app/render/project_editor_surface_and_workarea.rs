@@ -414,12 +414,12 @@ impl GhostexGpuiApp {
             && actions.is_empty()
             && mode.placeholder_is_unavailable_notice()
             && message == mode.placeholder_message()
-            && !self
+            && self
                 .gx_store
                 .core
                 .presentation()
                 .machine(&ghostex_gx_core::MachineId::Local)
-                .is_some_and(|machine| machine.loaded().is_some())
+                .is_none_or(|machine| machine.loaded().is_none())
         {
             title = Some(ghostex_gx_core::SESSIONS_LOADING_TITLE.to_string());
             message = ghostex_gx_core::SESSIONS_LOADING_DETAIL.to_string();

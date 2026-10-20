@@ -79,9 +79,9 @@ impl AgentsTab {
                 && status.as_ref().is_none_or(|status| {
                     status.error_message.is_some()
                         || install_ids.iter().any(|hook| {
-                            !status
+                            status
                                 .item(hook)
-                                .is_some_and(|item| item.status == "installed")
+                                .is_none_or(|item| item.status != "installed")
                         })
                 });
             let menu_open = self.hooks_menu_open && !loading && removable;

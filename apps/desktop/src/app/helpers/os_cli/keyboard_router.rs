@@ -325,7 +325,7 @@ pub(crate) fn route_gpui_native_keyboard_event(
                     let repeats = gpui_command_palette_tab_cycle_hotkey_action(&action_id)
                         .is_some()
                         || gpui_sidebar_session_walk_hotkey_reverse(&action_id).is_some();
-                    let dispatch = repeats.then(|| GpuiNativeKeyboardDispatch::GhostexHotkey {
+                    let dispatch = repeats.then_some(GpuiNativeKeyboardDispatch::GhostexHotkey {
                         action_id,
                         owner,
                         held: true,

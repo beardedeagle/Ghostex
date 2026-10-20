@@ -1,29 +1,15 @@
 // C1 wave-1 extraction: stateless helper functions moved verbatim out of
 // main.rs (pure move, no logic changes). See docs/2026-08-22/repo-restructure/SPLITS.md C1.
 
-use std::{
-    fmt, fs,
-    io::{Read, Write},
-    path::PathBuf,
-    sync::Arc,
-    time::Duration,
-};
+use std::{fmt, fs, io::Read, path::PathBuf, sync::Arc, time::Duration};
 
 // RefCell backs cross-platform runtime state (window frame persistence), not
 // just the macOS-only shims that first introduced the import.
 
-#[cfg(target_os = "windows")]
-use windows_sys::Win32::Security::Cryptography::{
-    BCRYPT_USE_SYSTEM_PREFERRED_RNG, BCryptGenRandom,
-};
-
 use anyhow::Result;
-use futures::StreamExt as _;
-use gpui::http_client::HttpRequestExt as _;
 use gpui::{
-    AnyElement, App, AppContext as _, Asset, FontWeight, Hsla, Image, ImageCacheError, ImageFormat,
-    IntoElement, ParentElement as _, RenderImage, Styled as _, StyledImage as _, Window, div, img,
-    prelude::FluentBuilder as _, px, svg,
+    AnyElement, App, Asset, FontWeight, Hsla, Image, ImageCacheError, ImageFormat, IntoElement,
+    ParentElement as _, RenderImage, Styled as _, StyledImage as _, Window, div, img, px, svg,
 };
 
 use crate::app::helpers::*;
@@ -186,7 +172,6 @@ impl Asset for BrowserFaviconHttpImageAsset {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum BrowserFaviconFetchError {
-    InvalidRequest,
     Network,
     BadStatus(u16),
     BodyRead,
@@ -200,7 +185,6 @@ pub(crate) enum BrowserFaviconFetchError {
 impl fmt::Display for BrowserFaviconFetchError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::InvalidRequest => f.write_str("browser favicon request was invalid"),
             Self::Network => f.write_str("browser favicon fetch failed"),
             Self::BadStatus(status) => write!(f, "browser favicon returned HTTP status {status}"),
             Self::BodyRead => f.write_str("browser favicon body could not be read"),
@@ -860,7 +844,7 @@ pub(crate) fn browser_find_count_label(find: &GpuiBrowserFindState) -> String {
         return String::new();
     }
     if find.match_count <= 0 {
-        return find.final_update.then_some("N/A").unwrap_or("").to_string();
+        return if find.final_update { "N/A" } else { "" }.to_string();
     }
     format!(
         "{}/{}",

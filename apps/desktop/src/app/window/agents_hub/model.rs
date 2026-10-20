@@ -244,8 +244,7 @@ pub(crate) fn agent_profile_badge(profile_path: &str) -> Option<String> {
     }
     let folder = normalized
         .split('/')
-        .filter(|part| !part.is_empty())
-        .last()?
+        .rfind(|part| !part.is_empty())?
         .to_lowercase();
     folder
         .chars()

@@ -289,7 +289,7 @@ fn run_steps(target: Target, steps: Vec<String>, cx: &mut App) {
             let Some((window, view)) = current else {
                 return;
             };
-            let _ = cx.update(|cx| {
+            cx.update(|cx| {
                 let _ = window.update(cx, |_root, window, cx| {
                     view.update(cx, |modal, cx| modal.preview_step(&step, window, cx));
                 });
@@ -297,7 +297,7 @@ fn run_steps(target: Target, steps: Vec<String>, cx: &mut App) {
             cx.background_executor()
                 .timer(Duration::from_millis(150))
                 .await;
-            let _ = cx.update(|cx| {
+            cx.update(|cx| {
                 eprintln!("after {step:?}: {}", view.read(cx).preview_summary());
             });
         }
@@ -362,7 +362,7 @@ pub(super) fn open(demo: &super::DemoEnv, cx: &mut App) {
                 cx.background_executor().timer(delay).await;
                 let current = target.borrow().clone();
                 if let Some((window, view)) = current {
-                    let _ = cx.update(|cx| {
+                    cx.update(|cx| {
                         let _ = window.update(cx, |_root, window, cx| {
                             view.update(cx, |modal, cx| {
                                 modal.receive_response(request_id, answer, window, cx)

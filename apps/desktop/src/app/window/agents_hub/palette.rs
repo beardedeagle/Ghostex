@@ -33,8 +33,6 @@ pub(crate) struct HubPalette {
     pub(crate) focus_border: Rgba,
     /// `--settings-hairline`: button and segmented-control borders.
     pub(crate) hairline: Rgba,
-    /// `--settings-raised-hover`: the quiet primary button's hover fill.
-    pub(crate) settings_raised_hover: Rgba,
     pub(crate) ok: Rgba,
     pub(crate) warn: Rgba,
     pub(crate) err: Rgba,
@@ -140,13 +138,6 @@ impl HubPalette {
                 css_mix(foreground, 0.58, hairline)
             },
             hairline,
-            settings_raised_hover: if glass {
-                modal.raised_hover
-            } else if light {
-                rgb(0xe5e5e5)
-            } else {
-                rgb(0x1d1d1d)
-            },
             ok: if light { rgb(0x047857) } else { rgb(0x6ee7a0) },
             warn: if light { rgb(0xb45309) } else { rgb(0xfcd68a) },
             err: if light { rgb(0xb91c1c) } else { rgb(0xfda4a4) },

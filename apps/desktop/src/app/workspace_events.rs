@@ -808,7 +808,6 @@ impl GhostexGpuiApp {
         #[cfg(not(target_os = "windows"))]
         {
             let _ = (message, cx);
-            return;
         }
         #[cfg(target_os = "windows")]
         {
@@ -910,7 +909,6 @@ impl GhostexGpuiApp {
         #[cfg(not(target_os = "windows"))]
         {
             let _ = message;
-            return;
         }
         #[cfg(target_os = "windows")]
         {

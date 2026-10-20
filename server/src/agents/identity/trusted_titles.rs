@@ -61,10 +61,7 @@ pub(crate) fn select_trusted_title_for_identity(
                     agent_session_id: read_text_from_map(&runtime_settings, "agentSessionId"),
                     agent_session_path: read_text_from_map(&runtime_settings, "agentSessionPath"),
                 };
-                let Some(match_strength) = identities_match_strength(identity, &candidate_identity)
-                else {
-                    return None;
-                };
+                let match_strength = identities_match_strength(identity, &candidate_identity)?;
                 let title = trusted_resume_title(session)?;
                 Some(TrustedTitleCandidate {
                     reason: format!(
@@ -135,9 +132,7 @@ pub(crate) fn create_history_title_candidate(
                 hidden_record.and_then(|item| read_text_from_record(item, "agentSessionPath"))
             }),
     };
-    let Some(match_strength) = identities_match_strength(identity, &candidate_identity) else {
-        return None;
-    };
+    let match_strength = identities_match_strength(identity, &candidate_identity)?;
     let same_conversation = match_strength == IdentityMatchStrength::ConversationId;
 
     let updated_at = read_text_from_record(record, "lastInteractionAt")

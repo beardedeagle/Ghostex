@@ -537,11 +537,11 @@ impl GhostexGpuiApp {
             cx.notify();
             return;
         };
-        if let Some(tab_id) = self.browser_tabs.active_tab_id_for_pane(pane_id) {
-            if self.browser_tabs.set_tab_profile(tab_id, profile_id) {
-                self.remove_browser_surface(tab_id, cx);
-                self.sync_active_browser_tab_to_surface(window, cx);
-            }
+        if let Some(tab_id) = self.browser_tabs.active_tab_id_for_pane(pane_id)
+            && self.browser_tabs.set_tab_profile(tab_id, profile_id)
+        {
+            self.remove_browser_surface(tab_id, cx);
+            self.sync_active_browser_tab_to_surface(window, cx);
         }
         self.persist_shell_layout_state();
         window.push_notification(

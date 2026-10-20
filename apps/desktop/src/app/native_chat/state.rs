@@ -1,5 +1,5 @@
 use super::runtime_worker::{ChatRuntimeOutput, ChatRuntimeWorker};
-use crate::app::{helpers::*, model::*};
+use crate::app::model::*;
 use futures::StreamExt as _;
 use gpui::{AppContext as _, Context, Entity, EventEmitter, Focusable as _, Subscription, Window};
 use gpui_component::input::{InputEvent, InputState, TextareaState};
@@ -547,28 +547,26 @@ impl NativeChatView {
                     this.notify_composer(cx);
                 }
             }));
-            self.input_subscription = Some(cx.subscribe_in(
-                &input,
-                window,
-                |this, input, event: &InputEvent, _, cx| match event {
-                    InputEvent::Change => {
-                        let draft = input.read(cx).value().to_string();
-                        if draft == this.draft {
-                            return;
+            self.input_subscription =
+                Some(
+                    cx.subscribe_in(&input, window, |this, input, event: &InputEvent, _, cx| {
+                        if let InputEvent::Change = event {
+                            let draft = input.read(cx).value().to_string();
+                            if draft == this.draft {
+                                return;
+                            }
+                            this.invoke(json!({"type":"composerExpand","editor":true}), cx);
+                            if this.composer_focused {
+                                this.short_pane_composer_open = true;
+                            }
+                            this.draft = draft;
+                            this.draft_revision += 1;
+                            this.persist_draft(cx);
+                            cx.emit(NativeChatEvent::DraftState(this.draft.is_empty()));
+                            this.notify_composer(cx);
                         }
-                        this.invoke(json!({"type":"composerExpand","editor":true}), cx);
-                        if this.composer_focused {
-                            this.short_pane_composer_open = true;
-                        }
-                        this.draft = draft;
-                        this.draft_revision += 1;
-                        this.persist_draft(cx);
-                        cx.emit(NativeChatEvent::DraftState(this.draft.is_empty()));
-                        this.notify_composer(cx);
-                    }
-                    _ => {}
-                },
-            ));
+                    }),
+                );
             // CDXC:SessionChat 2026-09-27 WHY:
             // The field's own `InputEvent::Focus` and `Blur` come from focus listeners it registers on the window it was created in, and one chat view is drawn in the main window or in the floating sessions panel's window. Focusing the composer in the other window emitted nothing, so the chat never counted its composer as focused and the `$`, `@` and `/` list stayed shut while the keyboard still moved through it. The listeners are therefore bound to the window the chat is drawn in, and a new window starts from its own focus state. GPUI switches a new focus listener on only after a deferred tick, so a chat that creates its field and focuses it in the same frame (Cmd+Shift+O, a new agent) lost the edge about half the time; the field's observer above reconciles the flag with the real focus on every change, so the first `$` typed still opens the list. GPUI also hands its focus listeners an empty focus path while their window is not the key window, so the window losing key status (as it did for a moment each time the list's own window opened) reached the chat as a blur and shut the list it had just opened; a blur while the field still holds its window's focus is not a blur of the composer. And GPUI calls the observer in the window that last read the chat while drawing, which is the list's own window once it is open, so asking that window about the field's focus answered "not focused" and shut the list after one frame (the flicker); the observer only judges focus in the field's own window.
             let focus = input.read(cx).focus_handle(cx);

@@ -20,7 +20,9 @@ use super::types::*;
 
 pub(crate) const PORTLESS_ROUTES_FILE: &str = "routes.json";
 pub(crate) const PORTLESS_ROUTES_LOCK: &str = "routes.lock";
+#[cfg(unix)]
 const PORTLESS_FILE_MODE: u32 = 0o644;
+#[cfg(unix)]
 const PORTLESS_DIR_MODE: u32 = 0o755;
 const PORTLESS_LOCK_TIMEOUT: Duration = Duration::from_secs(5);
 const PORTLESS_LOCK_RETRY_DELAY: Duration = Duration::from_millis(10);

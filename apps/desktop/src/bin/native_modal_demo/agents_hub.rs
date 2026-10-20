@@ -204,7 +204,7 @@ fn later(cx: &mut App, answer: impl FnOnce(&mut App) + 'static) {
         cx.background_executor()
             .timer(Duration::from_millis(30))
             .await;
-        let _ = cx.update(answer);
+        cx.update(answer);
     })
     .detach();
 }
@@ -349,7 +349,7 @@ pub(super) fn open(demo: &super::DemoEnv, cx: &mut App) {
                 let result = SyncApplyResult::from_json(apply_result(&scope));
                 cx.spawn(async move |cx| {
                     cx.background_executor().timer(Duration::from_secs(1)).await;
-                    let _ = cx.update(|cx| {
+                    cx.update(|cx| {
                         if let Some(result) = result {
                             deliver(&slot, cx, |modal, _window, cx| {
                                 modal.receive_sync_apply_result(result, cx)
@@ -383,7 +383,7 @@ pub(super) fn open(demo: &super::DemoEnv, cx: &mut App) {
         cx.background_executor()
             .timer(Duration::from_millis(300))
             .await;
-        let _ = cx.update(|cx| apply_preview_state(&preview_slot, &state, cx));
+        cx.update(|cx| apply_preview_state(&preview_slot, &state, cx));
     })
     .detach();
 }

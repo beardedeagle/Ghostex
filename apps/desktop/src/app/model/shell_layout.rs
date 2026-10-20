@@ -348,15 +348,15 @@ impl GpuiShellLayoutState {
                     .collect::<HashMap<_, _>>()
             })
             .unwrap_or_default();
-        if let Some(project_id) = browser_tabs_project_id.as_ref() {
-            if let Some(parked_tabs) = parked_browser_tabs_by_project.remove(project_id) {
-                // Repair state written by the first project-scoping pass: a
-                // temporary projectless tab was incorrectly claimed as live
-                // while the real project tabs remained parked under the same
-                // owner id. The parked owner model is the project model that
-                // existed before the projectless transition, so restore it.
-                browser_tabs = parked_tabs;
-            }
+        if let Some(project_id) = browser_tabs_project_id.as_ref()
+            && let Some(parked_tabs) = parked_browser_tabs_by_project.remove(project_id)
+        {
+            // Repair state written by the first project-scoping pass: a
+            // temporary projectless tab was incorrectly claimed as live
+            // while the real project tabs remained parked under the same
+            // owner id. The parked owner model is the project model that
+            // existed before the projectless transition, so restore it.
+            browser_tabs = parked_tabs;
         }
         let shell_focus = valid_shell_focus_or_default_with_browser_tabs(
             shell_focus_from_shell_state(object.get("shellFocus")?)?,

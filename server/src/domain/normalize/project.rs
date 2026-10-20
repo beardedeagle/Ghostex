@@ -241,7 +241,6 @@ fn normalize_optional_project_enum_text(
     match value {
         None | Some(Value::Null) => Ok(None),
         Some(Value::String(value)) => Ok(value
-            .trim()
             .split_whitespace()
             .collect::<Vec<_>>()
             .join(" ")

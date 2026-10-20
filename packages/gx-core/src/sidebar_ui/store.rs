@@ -342,7 +342,7 @@ fn toggle(set: &mut std::collections::BTreeSet<String>, key: String) {
 }
 
 fn insert_unique(list: &mut Vec<String>, value: String) -> bool {
-    if list.iter().any(|held| *held == value) {
+    if list.contains(&value) {
         return false;
     }
     list.push(value);

@@ -65,7 +65,7 @@ impl GhostexGpuiApp {
             _ => {}
         }
         if self.titlebar_popup_menu_open(GpuiTitlebarPopupKind::Tips)
-            && let Some(handle) = self.titlebar_popup_window.clone()
+            && let Some(handle) = self.titlebar_popup_window
         {
             let payload = payload.clone();
             let _ = handle.update(cx, |popup, window, cx| {

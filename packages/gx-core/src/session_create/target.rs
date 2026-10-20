@@ -100,8 +100,7 @@ pub fn project_name_from_path(path: &str) -> String {
     };
     normalized
         .split('/')
-        .filter(|segment| !segment.is_empty())
-        .next_back()
+        .rfind(|segment| !segment.is_empty())
         .map(str::to_string)
         .unwrap_or_else(|| "Project".to_string())
 }

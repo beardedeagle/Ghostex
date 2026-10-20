@@ -14,16 +14,16 @@ impl GhostexGpuiApp {
         session_id: &str,
         cx: &mut gpui::Context<Self>,
     ) {
-        if let Some(shell_session_id) = self.gpui_titlebar_resource_shell_session_id(session_id) {
-            if let Some(pane_id) = self.agents_workspace.pane_id_for_session(shell_session_id) {
-                self.sleep_agents_tabs_for_scope(
-                    pane_id,
-                    shell_session_id,
-                    AgentsWorkspaceTabSleepScope::Sleep,
-                    cx,
-                );
-                return;
-            }
+        if let Some(shell_session_id) = self.gpui_titlebar_resource_shell_session_id(session_id)
+            && let Some(pane_id) = self.agents_workspace.pane_id_for_session(shell_session_id)
+        {
+            self.sleep_agents_tabs_for_scope(
+                pane_id,
+                shell_session_id,
+                AgentsWorkspaceTabSleepScope::Sleep,
+                cx,
+            );
+            return;
         }
         if let Some(key) = gpui_combined_presentation_session_key(session_id) {
             let _ =

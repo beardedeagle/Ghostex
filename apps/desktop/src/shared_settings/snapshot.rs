@@ -230,17 +230,6 @@ impl SharedSidebarSettingsSnapshot {
             .and_then(json_value_to_f32)
     }
 
-    /// The Collapse animation speed slider: sidebar disclosures and the floating sidebar's slide
-    /// (`app/floating_reveal`) both run for this long, clamped to the slider's own range.
-    pub fn sidebar_collapse_animation_duration_ms(&self) -> f32 {
-        read_finite_number_field(
-            &self.object,
-            "sidebarCollapseAnimationDurationMs",
-            DEFAULT_SIDEBAR_COLLAPSE_ANIMATION_DURATION_MS,
-        )
-        .clamp(0.0, MAX_SIDEBAR_COLLAPSE_ANIMATION_DURATION_MS) as f32
-    }
-
     /// `None` when the keep-alive slider is at 0, which restores release-on-switch.
     pub fn project_switch_keep_alive(&self) -> Option<std::time::Duration> {
         let minutes = self

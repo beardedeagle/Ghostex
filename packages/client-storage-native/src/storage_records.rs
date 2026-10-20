@@ -153,11 +153,11 @@ fn usage_after_write(
     next_bytes: i64,
     revision: i64,
 ) -> Vec<RecordStoreUsage> {
-    if let Some(previous_store) = previous_store {
-        if let Some(entry) = scan.iter_mut().find(|entry| entry.store == previous_store) {
-            entry.bytes -= previous_bytes;
-            entry.entries -= 1;
-        }
+    if let Some(previous_store) = previous_store
+        && let Some(entry) = scan.iter_mut().find(|entry| entry.store == previous_store)
+    {
+        entry.bytes -= previous_bytes;
+        entry.entries -= 1;
     }
     match scan.iter_mut().find(|entry| entry.store == store_id) {
         Some(entry) => {

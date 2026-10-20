@@ -311,7 +311,7 @@ fn nested_hook_timeouts_are_current(data: &Value, agent: &str, command: &str) ->
 /// `{ matcher, hooks: [...] }` group shape.
 fn hook_entries_contain(entries: &[Value], predicate: &dyn Fn(&Value) -> bool) -> bool {
     entries.iter().any(|entry| match entry.get("hooks") {
-        Some(Value::Array(hooks)) => hooks.iter().any(|hook| predicate(hook)),
+        Some(Value::Array(hooks)) => hooks.iter().any(predicate),
         _ => predicate(entry),
     })
 }

@@ -25,7 +25,6 @@ pub(crate) fn gpui_bundled_agent_skill_name(skill_id: &str) -> Option<&'static s
         "agentsOrchestration" => Some("ghostex-agents"),
         "manageBeads" => Some("ghostex-manage-beads"),
         "generateTitle" => Some("ghostex-auto-rename-session"),
-        "manageBeads" => Some("ghostex-manage-beads"),
         "moveCodexSession" => Some("ghostex-move-codex-session"),
         "visuals" => Some("ghostex-visuals"),
         _ => None,
@@ -60,10 +59,10 @@ pub(crate) const MANAGE_IGNORED_DIRECTORY_NAMES: &[&str] = &[
 ];
 
 pub(crate) fn gpui_cef_html_entry_url(env_var: &str, entry_file_name: &str) -> Result<String> {
-    if let Ok(value) = env::var(env_var) {
-        if !value.trim().is_empty() {
-            return Ok(value);
-        }
+    if let Ok(value) = env::var(env_var)
+        && !value.trim().is_empty()
+    {
+        return Ok(value);
     }
 
     let executable = env::current_exe().context("failed to resolve current executable")?;
@@ -161,20 +160,20 @@ pub(crate) fn apply_gpui_terminal_runtime_action_events(
             }
             GhosttyRuntimeActionEvent::SearchTotal { total } => {
                 let state = osc_states.entry(runtime_session_id).or_default();
-                if let Some(search) = &mut state.search {
-                    if search.total != total {
-                        search.total = total;
-                        runtime_state_changed = true;
-                    }
+                if let Some(search) = &mut state.search
+                    && search.total != total
+                {
+                    search.total = total;
+                    runtime_state_changed = true;
                 }
             }
             GhosttyRuntimeActionEvent::SearchSelected { selected } => {
                 let state = osc_states.entry(runtime_session_id).or_default();
-                if let Some(search) = &mut state.search {
-                    if search.selected != selected {
-                        search.selected = selected;
-                        runtime_state_changed = true;
-                    }
+                if let Some(search) = &mut state.search
+                    && search.selected != selected
+                {
+                    search.selected = selected;
+                    runtime_state_changed = true;
                 }
             }
         }

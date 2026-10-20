@@ -448,19 +448,17 @@ impl NativeChatView {
             && !key.modifiers.platform
             && this.draft.trim().is_empty()
             && this.snapshot["queue"]["capabilities"]["canEdit"] == true
-        {
-            if let Some(prompt) = this.snapshot["queue"]["prompts"]
+            && let Some(prompt) = this.snapshot["queue"]["prompts"]
                 .as_array()
                 .and_then(|prompts| prompts.iter().rev().find(|prompt| prompt["busy"] != true))
-            {
-                this.invoke(
-                    json!({"type":"removeQueue","promptId":prompt["id"],"edit":true}),
-                    cx,
-                );
-                cx.stop_propagation();
-                window.prevent_default();
-                return;
-            }
+        {
+            this.invoke(
+                json!({"type":"removeQueue","promptId":prompt["id"],"edit":true}),
+                cx,
+            );
+            cx.stop_propagation();
+            window.prevent_default();
+            return;
         }
         // Claude Code's own key for its queue: Up in an empty composer takes the newest message the
         // agent queued back into it (CDXC:SessionChat 2026-10-11 in

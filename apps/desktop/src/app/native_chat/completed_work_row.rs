@@ -70,7 +70,7 @@ impl NativeChatView {
             for message in item["work"].as_array().into_iter().flatten() {
                 rows.push(self.message_row(message, p, window, cx));
             }
-            (!rows.is_empty()).then(|| rows)
+            (!rows.is_empty()).then_some(rows)
         } else if expanded || motion.is_some() {
             // React hung the whole log off the rail the "Worked for" heading opened
             // (`SessionChatExpansion`), so the turn's work reads as one indented block.

@@ -340,10 +340,10 @@ pub(crate) fn project_editor_auto_sleep_duration(
 }
 
 pub(crate) fn native_chrome_settings_path() -> PathBuf {
-    if let Ok(override_path) = env::var("ghostex_SETTINGS_PATH") {
-        if !override_path.trim().is_empty() {
-            return PathBuf::from(override_path);
-        }
+    if let Ok(override_path) = env::var("ghostex_SETTINGS_PATH")
+        && !override_path.trim().is_empty()
+    {
+        return PathBuf::from(override_path);
     }
 
     let Some(home) = env::var_os("HOME") else {

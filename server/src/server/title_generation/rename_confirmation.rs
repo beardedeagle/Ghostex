@@ -51,7 +51,7 @@ pub(crate) fn schedule_session_rename_confirmation(
                 crate::agents::read_agent_metadata_title(&state.paths.home_dir, &session)
                     .is_some_and(|metadata| crate::agents::titles_match(pending, metadata.title()))
             });
-            if metadata_matches || tick % SESSION_RENAME_FULL_RECONCILE_EVERY == 0 {
+            if metadata_matches || tick.is_multiple_of(SESSION_RENAME_FULL_RECONCILE_EVERY) {
                 let changed = reconcile_agent_metadata_title_for_session(
                     &repository,
                     &project_id,

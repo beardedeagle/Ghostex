@@ -74,7 +74,7 @@ pub(super) fn spark(p: &ChatAppearance, reduced_motion: bool) -> AnyElement {
                             .text_color(
                                 gpui::Hsla::from(rgb(0xa0beff)).opacity(0.22 * pulse * opacity),
                             )
-                            .with_transformation(transform.clone()),
+                            .with_transformation(transform),
                     )
                     .child(
                         svg()
@@ -87,7 +87,7 @@ pub(super) fn spark(p: &ChatAppearance, reduced_motion: bool) -> AnyElement {
                                 gpui::Hsla::from(rgb(0xffffff))
                                     .opacity((0.15 + 0.3 * pulse) * opacity),
                             )
-                            .with_transformation(transform.clone()),
+                            .with_transformation(transform),
                     )
                     .child(
                         svg()

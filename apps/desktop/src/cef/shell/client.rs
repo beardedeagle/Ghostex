@@ -310,12 +310,11 @@ wrap_load_handler! {
                     Some(message) => message,
                     None => return,
                 };
-            if let Some(arguments) = message.argument_list() {
-                if let Some(base_url) = self.manage_docs_resource_base_url.as_deref() {
+            if let Some(arguments) = message.argument_list()
+                && let Some(base_url) = self.manage_docs_resource_base_url.as_deref() {
                     arguments.set_size(1);
                     arguments.set_string(0, Some(&CefString::from(base_url)));
                 }
-            }
             frame.send_process_message(ProcessId::RENDERER, Some(&mut message));
         }
     }

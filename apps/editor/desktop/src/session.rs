@@ -49,13 +49,13 @@ document.dispatchEvent(new KeyboardEvent("keydown", {
     }
 
     pub(crate) fn save_session_draft_without_closing(&self, request_id: &str) {
-        if let Some(session) = self.sessions.get(request_id) {
-            if let Err(error) = write_draft_atomically(&session.file_path, &session.latest_draft) {
-                eprintln!(
-                    "ghostex-editor: save failed for {}: {error}",
-                    session.file_path.display()
-                );
-            }
+        if let Some(session) = self.sessions.get(request_id)
+            && let Err(error) = write_draft_atomically(&session.file_path, &session.latest_draft)
+        {
+            eprintln!(
+                "ghostex-editor: save failed for {}: {error}",
+                session.file_path.display()
+            );
         }
     }
 

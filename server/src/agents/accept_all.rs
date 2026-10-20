@@ -43,7 +43,7 @@ pub(crate) fn enforce_required_agent_permission_flag(command: &str, agent_id: &s
             index += 1;
             continue;
         }
-        if paired_alternatives.iter().any(|flag| token == *flag) {
+        if paired_alternatives.contains(&token) {
             index += if tokens.get(index + 1).is_some() {
                 2
             } else {

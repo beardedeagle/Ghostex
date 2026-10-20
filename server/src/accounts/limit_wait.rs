@@ -89,7 +89,7 @@ pub(super) fn describe(
             let windows = full(reading(&a.id)?);
             let free_at = windows
                 .iter()
-                .map(|w| resets(w))
+                .map(&resets)
                 .collect::<Option<Vec<_>>>()?
                 .into_iter()
                 .max()?;

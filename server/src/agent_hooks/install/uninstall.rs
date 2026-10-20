@@ -44,14 +44,16 @@ pub(crate) fn uninstall_agent_hook(
             for config_path in config_paths {
                 // CDXC:AgentHooks 2026-09-02: state keys are positional, so
                 // they must be read before the hooks leave the file.
-                let codex_trust_keys = (definition.agent_id == "codex")
-                    .then(|| {
+                let codex_trust_keys = if definition.agent_id == "codex" {
+                    {
                         ghostex_codex_hook_trust_entries(&config_path, hook_paths, &command)
                             .into_iter()
                             .map(|entry| entry.key)
                             .collect::<Vec<_>>()
-                    })
-                    .unwrap_or_default();
+                    }
+                } else {
+                    Default::default()
+                };
                 // CDXC:AgentHooks 2026-09-24 WHY: Cursor's statusLine lives in
                 // its own file and leaves with the hooks, restoring the user's.
                 if definition.agent_id == "cursor" {

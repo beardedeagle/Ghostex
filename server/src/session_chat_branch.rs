@@ -388,10 +388,9 @@ impl ActiveBranchScan {
             }
         }
         prompt_parents.retain(|parent_id| {
-            !self
-                .row_offset
+            self.row_offset
                 .get(parent_id)
-                .is_some_and(|offset| *offset >= before_offset)
+                .is_none_or(|offset| *offset < before_offset)
         });
         let cutoff = self
             .cutoff

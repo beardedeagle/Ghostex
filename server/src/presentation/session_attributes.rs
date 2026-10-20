@@ -388,7 +388,7 @@ pub(crate) fn session_matches_tag_filters(session: &Value, tags: &[&str]) -> boo
     }
     match effective_session_tag_for_filter(session) {
         Some(tag) => tags.iter().any(|expected| *expected == tag),
-        None => tags.iter().any(|expected| *expected == "untagged"),
+        None => tags.contains(&"untagged"),
     }
 }
 

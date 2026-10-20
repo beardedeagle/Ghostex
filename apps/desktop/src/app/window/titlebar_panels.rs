@@ -54,19 +54,10 @@ pub(crate) struct GpuiTitlebarPopupState {
     pub(crate) trigger_bounds: Bounds<Pixels>,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub(crate) struct GpuiTitlebarPopupAnchorState {
     pub(crate) bounds: Bounds<Pixels>,
     pub(crate) trigger_bounds_captured: bool,
-}
-
-impl Default for GpuiTitlebarPopupAnchorState {
-    fn default() -> Self {
-        Self {
-            bounds: Bounds::default(),
-            trigger_bounds_captured: false,
-        }
-    }
 }
 
 #[derive(Clone)]
@@ -256,7 +247,7 @@ impl Render for GpuiTitlebarPopupWindow {
             .on_action(cx.listener(
                 |this, action: &OpenBrowserPaneInExternalBrowser, _window, cx| {
                     this.update_main_window(cx, |_, window, cx| {
-                        window.dispatch_action(Box::new(action.clone()), cx);
+                        window.dispatch_action(Box::new(*action), cx);
                     });
                 },
             ))
@@ -270,7 +261,7 @@ impl Render for GpuiTitlebarPopupWindow {
             .on_action(
                 cx.listener(|this, action: &SetBrowserPageAppearance, _window, cx| {
                     this.update_main_window(cx, |_, window, cx| {
-                        window.dispatch_action(Box::new(action.clone()), cx);
+                        window.dispatch_action(Box::new(*action), cx);
                     });
                 }),
             )

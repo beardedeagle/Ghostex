@@ -16,6 +16,7 @@
 //!    claims that collection rather than the project. The collection is dropped from the drawn
 //!    list while its projects are still drawn, so a plan that read the collection from there would
 //!    answer the Space question on the wrong branch and move the section for no reason.
+//!
 //! It also covers `project_slot_plan` (cmd+1..9), because the fixture it needs is exactly this
 //! one: several local projects drawn in a known order, one of them collapsed. Building a tenth
 //! presentation for six assertions would have been the more expensive answer.

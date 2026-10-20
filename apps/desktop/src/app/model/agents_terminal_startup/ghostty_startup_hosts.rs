@@ -298,14 +298,15 @@ pub(crate) fn agents_terminal_startup_surface_metadata_snapshots(
     */
     startup_surface_owners
         .iter()
-        .filter_map(|(startup_body_slot_id, surface)| {
-            (surface.startup_body_slot_id() == *startup_body_slot_id).then(|| {
-                (
-                    surface.runtime_session_id(),
-                    *startup_body_slot_id,
-                    surface.metadata_snapshot(),
-                )
-            })
+        .filter(|&(startup_body_slot_id, surface)| {
+            surface.startup_body_slot_id() == *startup_body_slot_id
+        })
+        .map(|(startup_body_slot_id, surface)| {
+            (
+                surface.runtime_session_id(),
+                *startup_body_slot_id,
+                surface.metadata_snapshot(),
+            )
         })
         .collect()
 }

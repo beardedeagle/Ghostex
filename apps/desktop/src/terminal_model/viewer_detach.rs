@@ -59,10 +59,10 @@ impl ViewerDetachState {
             self.nonce = None;
             self.acknowledged = false;
         } else if let Some(nonce) = osc.strip_prefix(b"1337;ZMX_DETACH_ACK=") {
-            if !self
+            if self
                 .nonce
                 .as_ref()
-                .is_some_and(|expected| expected.as_bytes() == nonce)
+                .is_none_or(|expected| expected.as_bytes() != nonce)
             {
                 return false;
             }

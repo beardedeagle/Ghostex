@@ -220,7 +220,7 @@ impl SettingsValues {
     /// A string setting constrained to its options (the normalizers' fallback to the default).
     pub(crate) fn choice(&self, key: &str, allowed: &[String]) -> String {
         let value = self.string(key);
-        if allowed.iter().any(|option| *option == value) {
+        if allowed.contains(&value) {
             return value;
         }
         settings_catalog()

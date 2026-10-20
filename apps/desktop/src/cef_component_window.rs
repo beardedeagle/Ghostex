@@ -256,7 +256,7 @@ impl GhostexGpuiApp {
         version: String,
         cx: &mut gpui::Context<Self>,
     ) {
-        if let Some(handle) = self.cef_component_window.clone() {
+        if let Some(handle) = self.cef_component_window {
             if handle
                 .update(cx, |view, window, cx| {
                     view.version.clone_from(&version);
@@ -340,7 +340,7 @@ impl GhostexGpuiApp {
                     if this.cef_component_install_generation != generation {
                         return;
                     }
-                    if let Some(handle) = this.cef_component_window.clone() {
+                    if let Some(handle) = this.cef_component_window {
                         let _ = handle.update(cx, |view, window, cx| {
                             view.set_state(CefComponentWindowState::Installing(progress), cx);
                             window.refresh();
@@ -369,7 +369,7 @@ impl GhostexGpuiApp {
                         this.initialize_cef(cx);
                     }
                     Err(message) => {
-                        if let Some(handle) = this.cef_component_window.clone() {
+                        if let Some(handle) = this.cef_component_window {
                             let _ = handle.update(cx, |view, window, cx| {
                                 view.set_state(
                                     CefComponentWindowState::Failed(message.clone()),

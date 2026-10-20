@@ -147,10 +147,10 @@ impl GhostexGpuiApp {
         if !self.project_workarea_runtime_cef_surface_should_be_visible(slot_key) {
             return None;
         }
-        if let Some(owned_surface) = self.project_workarea_runtime_cef_surfaces.get(&slot_key) {
-            if owned_surface.matches_runtime_url(&runtime_url) {
-                return Some(owned_surface.surface.clone());
-            }
+        if let Some(owned_surface) = self.project_workarea_runtime_cef_surfaces.get(&slot_key)
+            && owned_surface.matches_runtime_url(&runtime_url)
+        {
+            return Some(owned_surface.surface.clone());
         }
         if let Some(stale_surface) = self.project_workarea_runtime_cef_surfaces.remove(&slot_key) {
             stale_surface
@@ -176,28 +176,24 @@ impl GhostexGpuiApp {
                 return None;
             }
         }
-        if let ProjectWorkareaCefSurfaceSlotKey::Extension(id) = slot_key {
-            if !website_view
-                && gpui_custom_view(id).is_some_and(|v| v.definition.get("source").is_some())
-            {
-                if let Some(remote) = self
-                    .latest_sidebar_project_snapshot
-                    .as_ref()
-                    .and_then(|s| s.active_project_id.as_ref())
-                    .and_then(|p| gpui_remote_project_reference_from_project_id(&p.0))
-                {
-                    profile = format!("{profile}-{}", remote.remote_machine_id);
-                    let tunnel =
-                        self.ensure_remote_browser_tunnel(&remote.remote_machine_id, false, cx)?;
-                    if !self.prepare_remote_browser_context(
-                        &remote.remote_machine_id,
-                        &profile,
-                        tunnel.port,
-                        cx,
-                    ) {
-                        return None;
-                    }
-                }
+        if let ProjectWorkareaCefSurfaceSlotKey::Extension(id) = slot_key
+            && !website_view
+            && gpui_custom_view(id).is_some_and(|v| v.definition.get("source").is_some())
+            && let Some(remote) = self
+                .latest_sidebar_project_snapshot
+                .as_ref()
+                .and_then(|s| s.active_project_id.as_ref())
+                .and_then(|p| gpui_remote_project_reference_from_project_id(&p.0))
+        {
+            profile = format!("{profile}-{}", remote.remote_machine_id);
+            let tunnel = self.ensure_remote_browser_tunnel(&remote.remote_machine_id, false, cx)?;
+            if !self.prepare_remote_browser_context(
+                &remote.remote_machine_id,
+                &profile,
+                tunnel.port,
+                cx,
+            ) {
+                return None;
             }
         }
         let themed_page = matches!(

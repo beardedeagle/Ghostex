@@ -212,14 +212,14 @@ pub(crate) fn insert_command_leaf_at_same_axis_split(
         (false, false) => (existing_first, existing_second, new_node),
     };
 
-    split.first = Box::new(first);
-    split.second = Box::new(CommandPaneNode::Split(CommandPaneSplit {
+    *split.first = first;
+    *split.second = CommandPaneNode::Split(CommandPaneSplit {
         id: split_id,
         axis,
         ratio: 0.5,
         first: Box::new(second_first),
         second: Box::new(second_second),
-    }));
+    });
 }
 
 pub(crate) fn command_insert_target_axis_chain_uses_native_default_ratios(

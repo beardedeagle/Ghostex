@@ -51,10 +51,9 @@ pub(crate) fn project_beads_bridge_result_for_request(
         .filter(|value| !value.is_empty());
     if let (Some(request_project_id), Some(active_project_id)) =
         (request_project_id.as_ref(), context.project_id.as_ref())
+        && request_project_id != active_project_id
     {
-        if request_project_id != active_project_id {
-            return Err("Project board request was not sent by this active project.".to_string());
-        }
+        return Err("Project board request was not sent by this active project.".to_string());
     }
     if let Some(project_id) = request_project_id.or_else(|| context.project_id.clone()) {
         params.insert(
@@ -324,7 +323,6 @@ pub(crate) fn gpui_project_beads_prompt_generation_command(
         .map(|value| value.trim().to_lowercase())
         .unwrap_or_default();
     let command = agent_command
-        .as_deref()
         .map(str::trim)
         .filter(|value| !value.is_empty());
     if normalized_agent_id.is_empty() {
@@ -398,7 +396,7 @@ fn gpui_project_beads_permission_command(command: &str, agent_id: &str) -> Strin
             index += 1;
             continue;
         }
-        if paired_alternatives.iter().any(|flag| token == *flag) {
+        if paired_alternatives.contains(&token) {
             index += if source_tokens.get(index + 1).is_some() {
                 2
             } else {
@@ -460,10 +458,7 @@ pub(crate) fn gpui_project_beads_sanitize_generated_title(line: &str) -> String 
         .trim()
         .trim_matches(|character| matches!(character, '"' | '\'' | '`'));
     let collapsed = stripped.split_whitespace().collect::<Vec<_>>().join(" ");
-    collapsed
-        .trim_end_matches(|character| matches!(character, '.' | '…'))
-        .trim()
-        .to_string()
+    collapsed.trim_end_matches(['.', '…']).trim().to_string()
 }
 
 pub(crate) fn gpui_normalized_project_path_for_comparison(path: &str) -> String {

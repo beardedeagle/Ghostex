@@ -68,7 +68,7 @@ fn send_mcp_message(message: &Value) {
     let body = serde_json::to_string(message).unwrap_or_else(|_| "null".to_string());
     let stdout = std::io::stdout();
     let mut stdout = stdout.lock();
-    let _ = write!(stdout, "Content-Length: {}\r\n\r\n", body.as_bytes().len());
+    let _ = write!(stdout, "Content-Length: {}\r\n\r\n", body.len());
     let _ = stdout.write_all(body.as_bytes());
     let _ = stdout.flush();
 }
@@ -92,7 +92,7 @@ pub(super) fn extract_mcp_messages(buffer: &mut Vec<u8>) -> Vec<Value> {
         }
         let body = String::from_utf8_lossy(&buffer[body_start..body_start + length]).to_string();
         buffer.drain(..body_start + length);
-        if let Some(message) = serde_json::from_str::<Value>(&body).ok() {
+        if let Ok(message) = serde_json::from_str::<Value>(&body) {
             messages.push(message);
         }
     }

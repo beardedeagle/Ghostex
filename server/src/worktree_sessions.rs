@@ -18,7 +18,7 @@ operation command builders, and the ordinary session-creation machinery.
 
 use std::io::Read;
 use std::path::Path;
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 use std::time::{Duration, Instant};
 
 use rand::Rng;
@@ -742,6 +742,7 @@ pub fn rename_worktree_branch(worktree_path: &str, from_branch: &str, to_branch:
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::process::Command;
 
     #[test]
     fn temp_branch_names_are_eight_lowercase_hex_characters() {

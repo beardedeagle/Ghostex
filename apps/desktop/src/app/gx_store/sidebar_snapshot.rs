@@ -455,10 +455,10 @@ fn more_menu(
         input.show_hidden,
         input.selected_tag_filters.to_vec(),
     );
-    if let Some(cached) = &cache.more_menu {
-        if cached.identity == identity {
-            return cached.menu.clone();
-        }
+    if let Some(cached) = &cache.more_menu
+        && cached.identity == identity
+    {
+        return cached.menu.clone();
     }
     let menu = menu_to_json(&menus.more_menu());
     cache.phases.more_menu_built = true;
@@ -671,18 +671,17 @@ fn collection_menu(
                 .contains(&collection.storage_id)
         }),
     );
-    if let Some(cached) = cache.collections.get(&collection.collection_id) {
-        if cached.identity == identity
-            && cached.cores.len() == cores.len()
-            && cached
-                .cores
-                .iter()
-                .zip(&cores)
-                .all(|(held, core)| Arc::ptr_eq(held, core))
-        {
-            cache.phases.collections_reused += 1;
-            return cached.menu.clone();
-        }
+    if let Some(cached) = cache.collections.get(&collection.collection_id)
+        && cached.identity == identity
+        && cached.cores.len() == cores.len()
+        && cached
+            .cores
+            .iter()
+            .zip(&cores)
+            .all(|(held, core)| Arc::ptr_eq(held, core))
+    {
+        cache.phases.collections_reused += 1;
+        return cached.menu.clone();
     }
     cache.phases.collections_built += 1;
     let menu = Arc::new(menu_to_json(&menus.collection_menu(collection)));
@@ -716,18 +715,18 @@ fn session_element(
         .timing
         .snoozed_until_ms
         .is_some_and(|wake_at| wake_at > now_ms as i64);
-    if let Some(cached) = cache.rows.get(&row.sidebar_session_id) {
-        if cached.matches(
+    if let Some(cached) = cache.rows.get(&row.sidebar_session_id)
+        && cached.matches(
             row,
             session,
             focus,
             is_snoozed,
             &timer_label,
             &last_interaction_label,
-        ) {
-            cache.phases.rows_reused += 1;
-            return cached.element.clone();
-        }
+        )
+    {
+        cache.phases.rows_reused += 1;
+        return cached.element.clone();
     }
     cache.phases.rows_built += 1;
     let element = Arc::new(build_session(

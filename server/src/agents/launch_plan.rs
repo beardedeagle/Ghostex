@@ -395,10 +395,10 @@ pub(crate) fn create_agent_session_params_for_project(
         Custom-agent defaults previously used configured names such as "Claude 71 Session", which the first-prompt auto-title gates mistook for user-chosen titles.
         Stamp every launcher default as a placeholder so auto-naming depends on its source rather than a list of display names.
         */
-        if !runtime_settings
+        if runtime_settings
             .get("titleSource")
             .and_then(Value::as_str)
-            .is_some_and(|value| !value.trim().is_empty())
+            .is_none_or(|value| value.trim().is_empty())
         {
             runtime_settings.insert(
                 "titleSource".to_string(),

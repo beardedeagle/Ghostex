@@ -223,8 +223,7 @@ fn apply(kind: FrostedHostKind, cx: &mut App) {
                         // After the move above, which also runs from a task, so a reused window
                         // never shows at its last spot first.
                         cx.spawn(async move |cx| {
-                            let _ =
-                                cx.update(|cx| set_visible(handle.into(), Some(target), true, cx));
+                            cx.update(|cx| set_visible(handle.into(), Some(target), true, cx));
                         })
                         .detach();
                     }

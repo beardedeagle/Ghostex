@@ -187,6 +187,7 @@ fn statusline_script_token(script: &Path) -> String {
 }
 
 /// The Claude `statusLine.command` Ghostex writes.
+#[cfg(test)]
 pub(crate) fn statusline_command(hook_paths: &HookPaths, wrapped: Option<&str>) -> String {
     agent_statusline_command(&hook_paths.statusline_hook_path, wrapped)
 }
@@ -541,7 +542,7 @@ pub fn read_statusline_payload_file(path: &Path) -> Option<ClaudeStatuslinePaylo
         .and_then(Value::as_str)
         .unwrap_or_default()
         .to_string();
-    let modified = fs::metadata(&path).and_then(|meta| meta.modified()).ok();
+    let modified = fs::metadata(path).and_then(|meta| meta.modified()).ok();
     Some(ClaudeStatuslinePayload {
         payload,
         updated_at,
@@ -693,13 +694,13 @@ fn store_and_render_statusline(
         StatuslineAgent::Claude => payload
             .get("session_id")
             .and_then(Value::as_str)
-            .and_then(|session_id| statusline_payload_path(&hook_state_dir, agent, session_id)),
+            .and_then(|session_id| statusline_payload_path(hook_state_dir, agent, session_id)),
         StatuslineAgent::Cursor => {
             std::env::var("GHOSTEX_GLOBAL_SESSION_REF")
                 .ok()
                 .and_then(|reference| {
                     let (project_id, session_id) = parse_global_session_ref(&reference);
-                    cursor_statusline_payload_path(&hook_state_dir, &project_id?, &session_id?)
+                    cursor_statusline_payload_path(hook_state_dir, &project_id?, &session_id?)
                 })
         }
     };

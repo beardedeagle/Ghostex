@@ -71,10 +71,10 @@ impl CommandPaneModel {
         CDXC:CommandPane 2026-06-25-21:21:
         Native command-panel New Terminal carries the clicked titlebar session as the insertion target, while keyboard creation uses the command panel's focused responder. Resolve the command group explicitly at the creation boundary so clicked plus/double-click chrome inserts into that group without depending on a prior focus side effect.
         */
-        if let Some(group_id) = target_group_id {
-            if !self.focus_group(group_id) {
-                return None;
-            }
+        if let Some(group_id) = target_group_id
+            && !self.focus_group(group_id)
+        {
+            return None;
         }
 
         let session_id = self.add_session_to_focused_group();

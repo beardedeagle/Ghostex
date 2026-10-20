@@ -639,9 +639,9 @@ async fn adopt_branch(
         crate::zmx::invalidate_zmx_process_identity_cache();
         return Ok(());
     }
-    return Err(agent_busy(
+    Err(agent_busy(
         "Codex rewound, but Ghostex could not synchronize its conversation identity.",
-    ));
+    ))
 }
 
 struct RewoundConversation {

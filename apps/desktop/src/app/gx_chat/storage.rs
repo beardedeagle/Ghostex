@@ -348,10 +348,10 @@ pub(super) fn write(
 ) -> Result<(), &'static str> {
     let store = store(&key.store).ok_or("unregistered")?;
     let name = full_key(key).ok_or("unregistered")?;
-    if let (Backend::Local, Some(raw)) = (store.backend, value) {
-        if storage_bytes(&name, raw) > 64 * KIB {
-            return Err("entry");
-        }
+    if let (Backend::Local, Some(raw)) = (store.backend, value)
+        && storage_bytes(&name, raw) > 64 * KIB
+    {
+        return Err("entry");
     }
     storage_backend::write(store.id, store.backend, &name, value, now_ms)
 }

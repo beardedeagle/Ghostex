@@ -121,7 +121,7 @@ pub fn collection_menu(input: &CollectionMenuInput<'_>) -> Vec<MenuItem> {
         "Full Reload Sessions",
         "refresh",
         &agents,
-        |session_id| message::full_reload_session(session_id),
+        message::full_reload_session,
     ));
     menu.push(MenuItem::separator());
     menu.push(MenuItem {

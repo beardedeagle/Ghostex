@@ -431,10 +431,10 @@ impl super::model::NativeSidebarSnapshot {
     pub(crate) fn work_mode_project_ids(&self) -> Vec<String> {
         let mut ids: Vec<String> = Vec::new();
         for group in &self.groups {
-            if let Some(project_id) = group.work_mode_project_id() {
-                if !ids.iter().any(|id| id == project_id) {
-                    ids.push(project_id.to_string());
-                }
+            if let Some(project_id) = group.work_mode_project_id()
+                && !ids.iter().any(|id| id == project_id)
+            {
+                ids.push(project_id.to_string());
             }
         }
         ids

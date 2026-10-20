@@ -384,11 +384,11 @@ fn attach_suggestion_window(window: &mut gpui::Window, parent: *mut std::ffi::c_
             parent: *mut std::ffi::c_void,
         );
     }
-    if let Ok(handle) = HasWindowHandle::window_handle(window) {
-        if let RawWindowHandle::AppKit(handle) = handle.as_raw() {
-            unsafe {
-                GhostexGpuiAttachComposerSuggestionsWindow(handle.ns_view.as_ptr(), parent);
-            }
+    if let Ok(handle) = HasWindowHandle::window_handle(window)
+        && let RawWindowHandle::AppKit(handle) = handle.as_raw()
+    {
+        unsafe {
+            GhostexGpuiAttachComposerSuggestionsWindow(handle.ns_view.as_ptr(), parent);
         }
     }
 }

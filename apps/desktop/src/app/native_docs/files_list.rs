@@ -230,7 +230,7 @@ impl GhostexGpuiApp {
         let peek = self.native_docs.transient == Some(DocsTransient::Peek);
         // CDXC:Docs 2026-09-16 DECISION:
         // User: show the pin icon only when the list can actually be pinned. A narrow pane cannot dock the list, so a peek there offers the close control instead of a pin that appears to do nothing.
-        let edge = (!layout.forced).then(|| {
+        let edge = (!layout.forced).then_some({
             if layout.docked {
                 (
                     "files-view/t-layout-sidebar-right-collapse-2.svg",

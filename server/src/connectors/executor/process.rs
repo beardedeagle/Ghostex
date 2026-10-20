@@ -208,6 +208,8 @@ fn stop_leftover(data_dir: &Path) {
     else {
         return;
     };
+    #[cfg(not(unix))]
+    let _ = pid;
     #[cfg(unix)]
     if is_our_executor(pid) {
         let pid = pid as libc::pid_t;

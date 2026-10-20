@@ -129,7 +129,7 @@ impl GhostexGpuiApp {
             });
         }
 
-        if let Some(handle) = self.app_modal_window.clone() {
+        if let Some(handle) = self.app_modal_window {
             let modal_message =
                 cef::sidebar_bridge_manifest::extension_bridge_context_changed_message(
                     self.extension_context_payload(

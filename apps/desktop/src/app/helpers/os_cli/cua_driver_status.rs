@@ -95,11 +95,11 @@ pub(crate) fn gpui_cua_driver_update_status(
             .get("update_available")
             .and_then(serde_json::Value::as_bool)
             .map(|available| available && current_version != latest_version);
-        return GpuiCuaDriverUpdateStatus {
+        GpuiCuaDriverUpdateStatus {
             current_version,
             latest_version,
             update_available,
-        };
+        }
     }
 
     #[cfg(not(target_os = "macos"))]

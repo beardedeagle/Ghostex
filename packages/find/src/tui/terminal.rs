@@ -1,3 +1,4 @@
+#[cfg(unix)]
 use super::*;
 
 // ---------------------------------------------------------------------------
@@ -39,7 +40,7 @@ pub(super) mod term {
     pub fn install_signal_handlers() {
         unsafe {
             for sig in [libc::SIGINT, libc::SIGTERM, libc::SIGHUP, libc::SIGQUIT] {
-                libc::signal(sig, on_signal as libc::sighandler_t);
+                libc::signal(sig, on_signal as *const () as libc::sighandler_t);
             }
         }
     }
@@ -93,7 +94,6 @@ pub(super) mod term {
 
 #[cfg(not(unix))]
 pub(super) mod term {
-    pub fn restore() {}
     pub fn install_signal_handlers() {}
     pub fn enter_raw() -> Result<(), String> {
         Err("the zehn picker requires a POSIX terminal".to_string())

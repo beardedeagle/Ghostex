@@ -43,7 +43,7 @@ pub(crate) fn watch(host: SettingsModalHost, job_ids: Vec<String>, cx: &mut App)
 fn poll(host: SettingsModalHost, job_ids: Vec<String>, started: Instant, cx: &mut App) {
     cx.spawn(async move |cx| {
         cx.background_executor().timer(WATCH_POLL).await;
-        let _ = cx.update(|cx| {
+        cx.update(|cx| {
             if !watching(&job_ids) {
                 return;
             }

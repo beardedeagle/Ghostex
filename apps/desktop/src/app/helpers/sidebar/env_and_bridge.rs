@@ -58,33 +58,6 @@ pub(crate) fn gpui_percent_decoded_id_part(value: &str) -> Option<String> {
     .then_some(decoded)
 }
 
-#[cfg(target_os = "macos")]
-pub(crate) fn gpui_sidebar_native_pointer_inside_script(inside: bool) -> String {
-    format!(
-        "(function(){{if(document.body){{document.body.dataset.nativePointerInside={};}}}})(); undefined;",
-        if inside { "'true'" } else { "'false'" }
-    )
-}
-
-/*
-CDXC:Sidebar 2026-08-02:
-Dismissal needs page code — the open menus live in a module-scoped registry
-inside the sidebar bundle — so it goes through the sidebar's own bridge. If the
-bridge is not installed the page cannot have an open menu either, so there is
-nothing to queue.
-*/
-#[cfg(target_os = "macos")]
-pub(crate) const GPUI_SIDEBAR_DISMISS_CONTEXT_MENUS_SCRIPT: &str = "(function(){const bridge=window.ghostexGpui;if(bridge&&typeof bridge.dismissSidebarContextMenus==='function'){bridge.dismissSidebarContextMenus();}})(); undefined;";
-
-/*
-CDXC:Sidebar 2026-08-20:
-Pointer-leave tooltip dismissal, the event-driven half of the same contract.
-The sidebar deliberately has no `data-native-pointer-inside` tooltip CSS rule:
-a persistent flag would also block the next hover from opening a tooltip.
-*/
-#[cfg(target_os = "macos")]
-pub(crate) const GPUI_SIDEBAR_DISMISS_TOOLTIPS_SCRIPT: &str = "(function(){const bridge=window.ghostexGpui;if(bridge&&typeof bridge.dismissSidebarTooltips==='function'){bridge.dismissSidebarTooltips();}})(); undefined;";
-
 pub(crate) fn gpui_action_completion_sound_from_settings() -> &'static str {
     let settings = shared_settings::shared_sidebar_settings_snapshot();
     gpui_normalize_completion_sound(

@@ -142,7 +142,7 @@ pub(crate) fn gpui_command_action_execution_text(command: &str, run_id: &str) ->
     let working_stamp = gpui_command_action_status_stamp_text("working", run_id, "0");
     let idle_stamp = gpui_command_action_status_stamp_text("idle", run_id, "$__ghostex_exit");
     gpui_with_atuin_ignored_shell_history_prefix(
-        vec![
+        [
             "__ghostex_command_pane_action() {",
             command,
             "}",

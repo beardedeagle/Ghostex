@@ -98,10 +98,10 @@ impl GhosttySurfaceCloseToken {
         self.surface.store(surface, Ordering::SeqCst);
         // Runtime action callbacks identify surfaces by pointer (not userdata),
         // so keep a surface-pointer index alongside the userdata registry.
-        if !surface.is_null() {
-            if let Ok(mut surfaces) = ghostty_surface_action_token_registry().lock() {
-                surfaces.insert(surface as usize, self.userdata_key());
-            }
+        if !surface.is_null()
+            && let Ok(mut surfaces) = ghostty_surface_action_token_registry().lock()
+        {
+            surfaces.insert(surface as usize, self.userdata_key());
         }
     }
 

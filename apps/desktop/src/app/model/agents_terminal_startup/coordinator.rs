@@ -29,6 +29,7 @@ Ghostty startup surface metadata is now a real runtime-only readiness input, but
 CDXC:Terminal 2026-06-23-04:38:
 Startup-owned Ghostty metadata is also the real runtime failure input. A process-exited snapshot may produce only the existing Failed result for the exact current runtime/session/startup-slot intent while the shell tab is still the visible selected Mounting body and the startup surface owner identity still matches; cleanup must drop the startup Ghostty surface before the hidden host and must not create Running maps, fallback success, logs, raw process details, paths, commands, env, or terminal content.
 */
+#[derive(Default)]
 pub(crate) struct AgentsTerminalStartupCoordinator {
     pub(crate) pending_startups_by_runtime_session:
         HashMap<AgentsTerminalRuntimeSessionId, AgentsTerminalStartupRecord>,
@@ -38,17 +39,6 @@ pub(crate) struct AgentsTerminalStartupCoordinator {
         HashMap<AgentsTerminalRuntimeSessionId, AgentsTerminalStartupCompletionIntent>,
     pub(crate) startup_readiness_signal_preparations_by_runtime_session:
         HashMap<AgentsTerminalRuntimeSessionId, AgentsTerminalStartupReadinessSignalPreparation>,
-}
-
-impl Default for AgentsTerminalStartupCoordinator {
-    fn default() -> Self {
-        Self {
-            pending_startups_by_runtime_session: HashMap::new(),
-            startup_launch_plans_by_runtime_session: HashMap::new(),
-            startup_completion_intents_by_runtime_session: HashMap::new(),
-            startup_readiness_signal_preparations_by_runtime_session: HashMap::new(),
-        }
-    }
 }
 
 impl AgentsTerminalStartupCoordinator {

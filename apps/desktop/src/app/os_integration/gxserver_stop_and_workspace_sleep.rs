@@ -17,7 +17,6 @@ use std::time::Duration;
 // RefCell backs cross-platform runtime state (window frame persistence), not
 // just the macOS-only shims that first introduced the import.
 
-use crate::app::consts::*;
 use crate::app::helpers::*;
 use crate::*;
 

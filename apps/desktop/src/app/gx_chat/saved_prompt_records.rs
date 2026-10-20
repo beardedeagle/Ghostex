@@ -332,9 +332,7 @@ fn recover_draft(
             revision: version.revision,
         });
     if let Some(stored_version) = stored_version.as_ref().filter(|version| consumes(version)) {
-        let incoming_consumed = incoming_version
-            .as_ref()
-            .is_some_and(|version| consumes(version));
+        let incoming_consumed = incoming_version.as_ref().is_some_and(&consumes);
         if let Some(version) = incoming_version
             .as_ref()
             .filter(|_| !incoming_consumed && !content.is_empty())
@@ -357,32 +355,27 @@ fn recover_draft(
     }
     if let (Some(stored), Some(stored_version), Some(version)) =
         (stored, stored_version.as_ref(), incoming_version.as_ref())
+        && version.draft_id == stored_version.draft_id
     {
-        if version.draft_id == stored_version.draft_id {
-            if version.revision == stored_version.revision && stored.parked != parked {
-                return Some(StoredDraftRecord {
-                    parked,
-                    ..stored.clone()
-                });
-            }
-            return (version.revision > stored_version.revision).then(|| StoredDraftRecord {
-                text: content.to_string(),
-                updated_at: Some(incoming_at as f64),
-                version: Some(as_core(version)),
-                submitted: false,
+        if version.revision == stored_version.revision && stored.parked != parked {
+            return Some(StoredDraftRecord {
                 parked,
+                ..stored.clone()
             });
         }
+        return (version.revision > stored_version.revision).then(|| StoredDraftRecord {
+            text: content.to_string(),
+            updated_at: Some(incoming_at as f64),
+            version: Some(as_core(version)),
+            submitted: false,
+            parked,
+        });
     }
     // Another draft's retirement says nothing about this client's unsent text.
     if stored_version.is_some() && stored.is_some_and(|entry| !entry.text.is_empty()) {
         return None;
     }
-    if content.is_empty()
-        || incoming_version
-            .as_ref()
-            .is_some_and(|version| consumes(version))
-    {
+    if content.is_empty() || incoming_version.as_ref().is_some_and(consumes) {
         return None;
     }
     if let Some(stored) = stored {

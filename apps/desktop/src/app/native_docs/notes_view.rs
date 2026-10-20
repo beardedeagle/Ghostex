@@ -71,18 +71,6 @@ fn sent_label(delivery: &str) -> &'static str {
     }
 }
 
-/// A markdown wrap the formatting toolbar applies, removed again when the selection already has it.
-fn wrap_selection(selected: &str, before: &str, after: &str) -> String {
-    if selected.len() >= before.len() + after.len()
-        && selected.starts_with(before)
-        && selected.ends_with(after)
-    {
-        selected[before.len()..selected.len() - after.len()].to_string()
-    } else {
-        format!("{before}{selected}{after}")
-    }
-}
-
 impl GhostexGpuiApp {
     /// The note buttons in a Markdown document's header, left to right: Annotations list, Add
     /// global comment, Send, Copy feedback and Clear.

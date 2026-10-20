@@ -233,11 +233,10 @@ impl WorkspacesTab {
             .and_then(|state| state.get_mut("workspaces"))
             .and_then(|workspaces| workspaces.get_mut(workspace_id))
             .and_then(Value::as_object_mut)
+            && let Some(patch) = patch.as_object()
         {
-            if let Some(patch) = patch.as_object() {
-                for (key, value) in patch {
-                    workspace.insert(key.clone(), value.clone());
-                }
+            for (key, value) in patch {
+                workspace.insert(key.clone(), value.clone());
             }
         }
         cx.notify();

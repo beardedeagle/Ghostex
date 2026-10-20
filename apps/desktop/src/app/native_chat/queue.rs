@@ -154,7 +154,7 @@ impl NativeChatView {
             let failed = prompt["state"] == "failed";
             let preview = text(prompt, "preview");
             let drag = QueuedPromptDrag {
-                session: session.clone(),
+                session,
                 prompt: id.clone(),
                 preview: preview.clone(),
                 appearance: p.clone(),
@@ -210,7 +210,7 @@ impl NativeChatView {
                     ));
                 }
             }
-            let source_session = session.clone();
+            let source_session = session;
             let failed_color = gpui::Hsla::from(gpui::rgb(0xef9999));
             let line = div()
                 .flex()

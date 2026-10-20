@@ -155,7 +155,7 @@ pub(crate) fn remote_workspace_session_mappings_to_shell_state_json(
             );
             (workspace_project_id == Some(scoped_project_id.as_str())
                 && workspace.has_session(*shell_session_id))
-            .then(|| {
+            .then_some({
                 (
                     shell_session_id.0,
                     key.remote_machine_id.as_str(),

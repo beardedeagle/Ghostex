@@ -596,7 +596,7 @@ impl Start {
                     .push((entry_path, modified));
             }
             for mut caches in by_crate.into_values() {
-                caches.sort_by(|left, right| right.1.cmp(&left.1));
+                caches.sort_by_key(|(_, modified)| std::cmp::Reverse(*modified));
                 stale.extend(
                     caches
                         .into_iter()

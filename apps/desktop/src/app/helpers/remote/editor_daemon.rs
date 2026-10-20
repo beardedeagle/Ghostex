@@ -208,13 +208,13 @@ pub(crate) fn gpui_ghostex_editor_daemon_front(originating_session_id: Option<&s
             request["originatingSessionId"] =
                 serde_json::Value::String(originating_session_id.to_string());
         }
-        return gpui_ghostex_editor_daemon_request(&request).is_some_and(|response| {
+        gpui_ghostex_editor_daemon_request(&request).is_some_and(|response| {
             response.get("type").and_then(serde_json::Value::as_str) == Some("fronted")
                 && response
                     .get("frontedCount")
                     .and_then(serde_json::Value::as_u64)
                     .is_some_and(|count| count > 0)
-        });
+        })
     }
     #[cfg(not(any(unix, windows)))]
     {

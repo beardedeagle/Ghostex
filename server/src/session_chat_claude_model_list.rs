@@ -131,7 +131,7 @@ impl ClaudeModelList {
 pub(super) fn screen_lines_spaced(screen: &str) -> Vec<String> {
     screen
         .split('\n')
-        .map(|line| crate::session_chat_options::strip_ansi_sgr(line))
+        .map(crate::session_chat_options::strip_ansi_sgr)
         .collect()
 }
 

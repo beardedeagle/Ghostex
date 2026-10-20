@@ -21,14 +21,8 @@ use std::{
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt as _;
 
-#[cfg(target_os = "windows")]
-use windows_sys::Win32::Security::Cryptography::{
-    BCRYPT_USE_SYSTEM_PREFERRED_RNG, BCryptGenRandom,
-};
-
 use anyhow::Result;
-use futures::{StreamExt as _, channel::mpsc};
-use gpui::{AppContext as _, Asset, ParentElement as _, prelude::FluentBuilder as _};
+use futures::channel::mpsc;
 
 use crate::app::helpers::*;
 use crate::*;

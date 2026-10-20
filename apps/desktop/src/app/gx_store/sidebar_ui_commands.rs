@@ -210,11 +210,7 @@ impl GhostexGpuiApp {
         let state = self.gx_store.sidebar_ui.state();
         let storage_id = format!("{}:{}", state.section_key(), collection_id);
         let drawn = self.sidebar_drawn_collection(collection_id).is_some();
-        let hidden = state
-            .hidden_items
-            .collection_keys
-            .iter()
-            .any(|key| *key == storage_id);
+        let hidden = state.hidden_items.collection_keys.contains(&storage_id);
         (drawn || hidden).then_some(storage_id)
     }
 

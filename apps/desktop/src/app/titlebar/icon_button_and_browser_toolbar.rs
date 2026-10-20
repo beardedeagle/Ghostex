@@ -62,9 +62,11 @@ impl GhostexGpuiApp {
                     .unwrap_or_else(|| "Remote computer".into())
             });
         let feedback_tool_unavailable = browser_feedback_tool_unavailable_url(&address_value);
-        let feedback_tooltip = feedback_tool_unavailable
-            .then_some(BROWSER_FEEDBACK_TOOL_UNAVAILABLE_TOOLTIP)
-            .unwrap_or(BROWSER_FEEDBACK_TOOL_AGENTATION_LABEL);
+        let feedback_tooltip = if feedback_tool_unavailable {
+            BROWSER_FEEDBACK_TOOL_UNAVAILABLE_TOOLTIP
+        } else {
+            BROWSER_FEEDBACK_TOOL_AGENTATION_LABEL
+        };
         let (is_loading, runtime_can_go_back, runtime_can_go_forward) = self
             .browser_tabs
             .active_tab_for_pane(pane_id)

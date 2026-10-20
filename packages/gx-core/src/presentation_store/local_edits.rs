@@ -124,7 +124,7 @@ impl PresentationStore {
             session.sidebar_order = Some(sidebar_order);
             session.sort_key = sort_key_with_sidebar_order(session, sidebar_order);
             changed = true;
-            if !touched_groups.iter().any(|id| *id == session.group_id) {
+            if !touched_groups.contains(&session.group_id) {
                 touched_groups.push(session.group_id.clone());
             }
         }

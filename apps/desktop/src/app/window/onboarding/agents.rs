@@ -203,7 +203,7 @@ impl GpuiOnboardingWindow {
             return;
         }
         let configured = self.settings.default_prompt_agent_id.clone();
-        if now.iter().any(|agent_id| *agent_id == configured) {
+        if now.contains(&configured) {
             return;
         }
         let configured_known_missing =

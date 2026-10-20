@@ -235,20 +235,19 @@ impl SidebarList {
     /// list carries are formatted in the same place, so they cost a settings read only when the
     /// file's content hash really moved.
     fn settings(&mut self) -> SidebarSettings {
-        if let Some((_, settings)) = &self.settings {
-            if self
+        if let Some((_, settings)) = &self.settings
+            && self
                 .settings_read_at
                 .is_some_and(|read_at| read_at.elapsed() < SETTINGS_MAX_AGE)
-            {
-                return settings.clone();
-            }
+        {
+            return settings.clone();
         }
         let saved = crate::shared_settings::shared_sidebar_settings_snapshot();
         self.settings_read_at = Some(Instant::now());
-        if let Some((hash, settings)) = &self.settings {
-            if *hash == saved.content_hash() {
-                return settings.clone();
-            }
+        if let Some((hash, settings)) = &self.settings
+            && *hash == saved.content_hash()
+        {
+            return settings.clone();
         }
         let settings = SidebarSettings::from_settings_json(
             &Value::Object(saved.object().clone()),
@@ -309,20 +308,20 @@ impl SidebarList {
             && self.changes.is_empty()
             && self.last_focus.as_ref() == Some(focus)
             && self.last_inputs.settings == *settings
-            && !self
+            && self
                 .model
                 .next_deadline_ms()
-                .is_some_and(|deadline| now_ms >= deadline)
+                .is_none_or(|deadline| now_ms < deadline)
     }
 
     /// Whether the per-update CPU clock is worth two syscalls right now: only while the diagnostic
     /// scenario that would record it is on. The verdict is reused for a second, because asking
     /// takes the settings lock this is partly trying to measure around.
     fn measuring(&self) -> bool {
-        if let Some((taken_at, measuring)) = self.measuring.get() {
-            if taken_at.elapsed() < SETTINGS_MAX_AGE {
-                return measuring;
-            }
+        if let Some((taken_at, measuring)) = self.measuring.get()
+            && taken_at.elapsed() < SETTINGS_MAX_AGE
+        {
+            return measuring;
         }
         let measuring = super::diagnostics::routine_logging_enabled();
         self.measuring.set(Some((Instant::now(), measuring)));

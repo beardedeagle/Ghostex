@@ -295,7 +295,7 @@ fn open_export_transcript(demo: &DemoEnv, cx: &mut App) {
                 cx.background_executor().timer(Duration::from_secs(1)).await;
                 let target = slot.borrow().clone();
                 if let Some((window, view)) = target {
-                    let _ = cx.update(|cx| deliver_export_result(window, view, !fail, cx));
+                    cx.update(|cx| deliver_export_result(window, view, !fail, cx));
                 }
             })
             .detach();

@@ -143,7 +143,7 @@ fn strip_omp_decorations(raw: &str) -> (Option<String>, String) {
     const NOTE_OPEN: &str = " (note: ";
     if text.ends_with(')') {
         if let Some(at) = text.find(NOTE_OPEN) {
-            if at + NOTE_OPEN.len() <= text.len() - 1 {
+            if at + NOTE_OPEN.len() < text.len() {
                 note = Some(text[at + NOTE_OPEN.len()..text.len() - 1].to_string());
                 text.truncate(at);
             }

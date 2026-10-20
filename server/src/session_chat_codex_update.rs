@@ -206,7 +206,7 @@ impl PendingUpdate {
             };
             let home = state.paths.agent_config_home_dir().to_path_buf();
             let PendingUpdate {
-                plan: mut plan,
+                mut plan,
                 latest,
                 command: prompt_command,
             } = self;

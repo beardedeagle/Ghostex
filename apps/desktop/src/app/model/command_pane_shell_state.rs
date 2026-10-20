@@ -838,9 +838,7 @@ pub(crate) fn command_startup_activity_restore_intents_from_shell_state(
                 return None;
             }
             let session_id = CommandSessionId(json_u64_field(object, "id")?);
-            if command_pane.session(session_id).is_none() {
-                return None;
-            }
+            command_pane.session(session_id)?;
             Some(GpuiCommandStartupActivityRestoreIntent {
                 session_id,
                 activity,

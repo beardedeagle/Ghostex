@@ -293,10 +293,10 @@ impl GhostexGpuiApp {
                 }
             }
             self.agents_terminal_ghostty_surface_config_requests = config_requests;
-            for slot_id in invalid_launch_payload_slot_ids.iter().copied() {
-                self.agents_terminal_ghostty_surfaces.remove(&slot_id);
+            for slot_id in invalid_launch_payload_slot_ids.iter() {
+                self.agents_terminal_ghostty_surfaces.remove(slot_id);
                 terminal_native_view::set_app_owned_terminal_host_native_view_visible(
-                    self.agents_terminal_host_native_views.get(&slot_id),
+                    self.agents_terminal_host_native_views.get(slot_id),
                     false,
                 );
             }
@@ -696,20 +696,20 @@ impl GhostexGpuiApp {
             }
 
             let surface_mounted = self.agents_terminal_ghostty_surfaces.contains_key(&slot_id);
-            if surface_mounted {
-                if let (Some(host_view), Some(surface)) = (
+            if surface_mounted
+                && let (Some(host_view), Some(surface)) = (
                     self.agents_terminal_host_native_views.get(&slot_id),
                     self.agents_terminal_ghostty_surfaces.get(&slot_id),
-                ) {
-                    /*
-                    CDXC:Terminal 2026-06-24-20:58:
-                    The AppKit key bridge is registered only after the exact Running Agents host view and Ghostty surface both exist. The registry carries only process-local pointers and function slots for synchronous key forwarding; it must not store typed text, terminal content, commands, paths, titles, logs, or shell state.
-                    */
-                    terminal_ghostty_surface::register_native_key_target(
-                        host_view.native_view_handle(),
-                        surface,
-                    );
-                }
+                )
+            {
+                /*
+                CDXC:Terminal 2026-06-24-20:58:
+                The AppKit key bridge is registered only after the exact Running Agents host view and Ghostty surface both exist. The registry carries only process-local pointers and function slots for synchronous key forwarding; it must not store typed text, terminal content, commands, paths, titles, logs, or shell state.
+                */
+                terminal_ghostty_surface::register_native_key_target(
+                    host_view.native_view_handle(),
+                    surface,
+                );
             }
             terminal_native_view::set_app_owned_terminal_host_native_view_visible(
                 self.agents_terminal_host_native_views.get(&slot_id),
@@ -719,13 +719,13 @@ impl GhostexGpuiApp {
 
         self.sync_agents_terminal_ghostty_surface_focus();
 
-        if let Some(app) = self.agents_terminal_ghostty_app.as_ref() {
-            if !self.agents_terminal_ghostty_surfaces.is_empty() {
-                app.tick_if_woken();
-                app.tick();
-                self.drain_agents_terminal_runtime_clipboard_requests(cx);
-            };
-        }
+        if let Some(app) = self.agents_terminal_ghostty_app.as_ref()
+            && !self.agents_terminal_ghostty_surfaces.is_empty()
+        {
+            app.tick_if_woken();
+            app.tick();
+            self.drain_agents_terminal_runtime_clipboard_requests(cx);
+        };
     }
 
     #[cfg(target_os = "macos")]

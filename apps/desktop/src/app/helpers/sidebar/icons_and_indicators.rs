@@ -123,8 +123,7 @@ pub(crate) fn gpui_sidebar_command_icon_asset_path(icon: Option<&str>) -> gpui::
 
 pub(crate) fn gpui_sidebar_command_icon(candidate: &str) -> Option<&str> {
     GPUI_SIDEBAR_COMMAND_ICON_IDS
-        .iter()
-        .any(|icon| *icon == candidate)
+        .contains(&candidate)
         .then_some(candidate)
 }
 

@@ -329,7 +329,7 @@ impl SessionChatOptionDetector {
             let model_missing = detected
                 .options
                 .as_ref()
-                .map_or(true, |options| options.selection.model.is_none());
+                .is_none_or(|options| options.selection.model.is_none());
             let mut model_grace_started = None;
             if detected.attempted
                 && model_missing

@@ -73,14 +73,13 @@ impl BrowserTabModel {
         {
             self.focused_pane = first_leaf_id;
         }
-        if closing_active || !self.has_tab(self.active_tab) {
-            if let Some(active_tab) = self
+        if (closing_active || !self.has_tab(self.active_tab))
+            && let Some(active_tab) = self
                 .find_leaf(self.focused_pane)
                 .and_then(|leaf| leaf.tab_group.active_tab_id())
                 .or_else(|| first_browser_tab_id(&self.root))
-            {
-                self.active_tab = active_tab;
-            }
+        {
+            self.active_tab = active_tab;
         }
         true
     }

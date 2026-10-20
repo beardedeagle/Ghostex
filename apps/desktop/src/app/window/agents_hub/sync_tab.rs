@@ -273,7 +273,7 @@ impl GpuiAgentsHubModalWindow {
             .collect();
         let mut groups: Vec<AgentGroup> = group_agents(&installed, &report.agents)
             .into_iter()
-            .filter(|group| group.members().any(|agent| matches(agent)))
+            .filter(|group| group.members().any(&matches))
             .filter(|group| {
                 if !needle.is_empty() || filter == SyncFilter::All {
                     return true;

@@ -4,8 +4,8 @@ use super::{appearance::ChatAppearance, state::NativeChatView};
 use gpui::StatefulInteractiveElement as _;
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
-    Context, Focusable as _, InteractiveElement as _, IntoElement, ParentElement as _, Render,
-    Styled as _, Window, div, px,
+    Context, InteractiveElement as _, IntoElement, ParentElement as _, Render, Styled as _, Window,
+    div, px,
 };
 use serde_json::json;
 

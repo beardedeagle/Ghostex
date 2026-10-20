@@ -301,7 +301,7 @@ impl PickerDriver<'_> {
             return picker_timeout("applied effort");
         }
         let ladder = self
-            .wait_for("Empryo effort panel", |screen| empryo_effort_ladder(screen))
+            .wait_for("Empryo effort panel", empryo_effort_ladder)
             .await;
         if self
             .capture()

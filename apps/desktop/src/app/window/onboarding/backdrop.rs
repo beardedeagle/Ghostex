@@ -390,7 +390,7 @@ pub(crate) fn render_veil(time: f32, saturation: f32) -> BackdropPixels {
         for column in 0..width {
             let mut u = (((column as f32 + 0.5) / width as f32) * 2.0 - 1.0) * VEIL_ASPECT;
             let mut v = uv_y;
-            u = u * 0.75;
+            u *= 0.75;
             v = v * 0.35 - 0.8;
             let du = (v * 6.283 + time * 0.5).sin() * warp * 0.05;
             let dv = (u * 6.283 + time * 0.5).cos() * warp * 0.05;

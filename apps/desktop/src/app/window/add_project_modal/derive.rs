@@ -237,10 +237,10 @@ impl GpuiAddProjectModalWindow {
         target: Option<&AddProjectMachineOption>,
         current_machine_id: Option<&str>,
     ) -> String {
-        if let Some(explicit) = normalize_pasted_project_path(path) {
-            if !is_explicit_relative_project_path(&explicit) {
-                return explicit;
-            }
+        if let Some(explicit) = normalize_pasted_project_path(path)
+            && !is_explicit_relative_project_path(&explicit)
+        {
+            return explicit;
         }
         let base = match (target, &self.active_project_cwd) {
             (Some(target), Some(cwd)) if Some(target.machine_id.as_str()) == current_machine_id => {

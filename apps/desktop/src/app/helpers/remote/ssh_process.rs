@@ -56,7 +56,7 @@ pub(crate) fn gpui_remote_background_command(executable: &str) -> Command {
 pub(crate) fn gpui_remote_ssh_terminal_environment(
     askpass: Option<&GpuiRemoteAskpassScript>,
 ) -> Vec<(String, String)> {
-    let mut environment: Vec<_> = gpui_remote_ssh_askpass_environment(askpass)
+    let environment: Vec<_> = gpui_remote_ssh_askpass_environment(askpass)
         .unwrap_or_default()
         .into_iter()
         .filter(|(key, _)| {

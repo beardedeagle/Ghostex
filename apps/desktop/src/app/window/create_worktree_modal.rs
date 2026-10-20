@@ -495,16 +495,16 @@ impl GpuiCreateWorktreeModalWindow {
             CreateWorktreePicker::Branch => Some(&self.branch_filter),
             CreateWorktreePicker::Agent => None,
         };
-        if let Some(filter_state) = filter_state {
-            if !filter.is_empty() {
-                filter_state.update(cx, |state, cx| {
-                    state.set_value(filter.to_string(), window, cx)
-                });
-                match picker {
-                    CreateWorktreePicker::Existing => self.existing_select.highlight = Some(0),
-                    CreateWorktreePicker::Branch => self.branch_select.highlight = Some(0),
-                    CreateWorktreePicker::Agent => {}
-                }
+        if let Some(filter_state) = filter_state
+            && !filter.is_empty()
+        {
+            filter_state.update(cx, |state, cx| {
+                state.set_value(filter.to_string(), window, cx)
+            });
+            match picker {
+                CreateWorktreePicker::Existing => self.existing_select.highlight = Some(0),
+                CreateWorktreePicker::Branch => self.branch_select.highlight = Some(0),
+                CreateWorktreePicker::Agent => {}
             }
         }
         cx.notify();
@@ -848,35 +848,35 @@ impl GpuiCreateWorktreeModalWindow {
 
     fn on_key_down(&mut self, event: &KeyDownEvent, window: &mut Window, cx: &mut Context<Self>) {
         let key = event.keystroke.key.as_str();
-        if matches!(key, "up" | "down" | "enter" | "escape") {
-            if let Some(menu) = self.open_menu() {
-                let count = match menu {
-                    OpenMenu::Existing => self.visible_existing_rows(cx).0.len(),
-                    OpenMenu::Branch => self.visible_branch_rows(cx).0.len(),
-                    OpenMenu::Agent => self.command_agents().len(),
-                };
-                let select = match menu {
-                    OpenMenu::Existing => &mut self.existing_select,
-                    OpenMenu::Branch => &mut self.branch_select,
-                    OpenMenu::Agent => &mut self.agent_select,
-                };
-                match select.handle_key(key, count) {
-                    ModalSelectKey::Consumed => {
-                        if !select.open {
-                            self.focus_handle.focus(window, cx);
-                        }
-                        cx.notify();
+        if matches!(key, "up" | "down" | "enter" | "escape")
+            && let Some(menu) = self.open_menu()
+        {
+            let count = match menu {
+                OpenMenu::Existing => self.visible_existing_rows(cx).0.len(),
+                OpenMenu::Branch => self.visible_branch_rows(cx).0.len(),
+                OpenMenu::Agent => self.command_agents().len(),
+            };
+            let select = match menu {
+                OpenMenu::Existing => &mut self.existing_select,
+                OpenMenu::Branch => &mut self.branch_select,
+                OpenMenu::Agent => &mut self.agent_select,
+            };
+            match select.handle_key(key, count) {
+                ModalSelectKey::Consumed => {
+                    if !select.open {
+                        self.focus_handle.focus(window, cx);
                     }
-                    ModalSelectKey::Choose(index) => match menu {
-                        OpenMenu::Existing => self.choose_existing(index, window, cx),
-                        OpenMenu::Branch => self.choose_branch(index, window, cx),
-                        OpenMenu::Agent => self.choose_agent(index, window, cx),
-                    },
-                    ModalSelectKey::Ignored => {}
+                    cx.notify();
                 }
-                cx.stop_propagation();
-                return;
+                ModalSelectKey::Choose(index) => match menu {
+                    OpenMenu::Existing => self.choose_existing(index, window, cx),
+                    OpenMenu::Branch => self.choose_branch(index, window, cx),
+                    OpenMenu::Agent => self.choose_agent(index, window, cx),
+                },
+                ModalSelectKey::Ignored => {}
             }
+            cx.stop_propagation();
+            return;
         }
         match key {
             "escape" => self.cancel(window, cx),

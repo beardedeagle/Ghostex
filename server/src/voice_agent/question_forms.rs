@@ -331,7 +331,7 @@ fn resolve_pick(question: &Question, said: &str) -> Option<Vec<usize>> {
         return Some(vec![index]);
     }
     let bare = normalized(&text.replace("(recommended)", ""));
-    let unique = |matches: Vec<usize>| (matches.len() == 1).then(|| matches);
+    let unique = |matches: Vec<usize>| (matches.len() == 1).then_some(matches);
     // The label with its detail or a badge after it ("Add both as proposed: ⌃⌥V …").
     let mut longer: Vec<(usize, usize)> = question
         .choices

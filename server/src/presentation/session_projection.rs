@@ -145,7 +145,7 @@ pub(crate) fn project_presentation_git_config(project: &Value) -> Option<Value> 
     if let Some(primary_action) = source
         .get("primaryAction")
         .and_then(Value::as_str)
-        .filter(|value| is_presentation_git_action(*value))
+        .filter(|value| is_presentation_git_action(value))
     {
         output.insert(
             "primaryAction".to_string(),

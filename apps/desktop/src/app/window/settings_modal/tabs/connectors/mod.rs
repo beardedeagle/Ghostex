@@ -191,32 +191,28 @@ impl Render for ConnectorsTab {
                     section.to_string()
                 }
             };
-            if section_shown("composio") {
-                if let Some(section) = self.composio_section(&p, &workspace, title("Composio"), cx)
-                {
-                    blocks.push(PageBlock::section(format!("{id}-composio"), section));
-                }
+            if section_shown("composio")
+                && let Some(section) = self.composio_section(&p, &workspace, title("Composio"), cx)
+            {
+                blocks.push(PageBlock::section(format!("{id}-composio"), section));
             }
-            if section_shown("executor") {
-                if let Some(section) =
+            if section_shown("executor")
+                && let Some(section) =
                     self.executor_section(&p, &workspace, title("Executor"), window, cx)
-                {
-                    blocks.push(PageBlock::section(format!("{id}-executor"), section));
-                }
+            {
+                blocks.push(PageBlock::section(format!("{id}-executor"), section));
             }
-            if section_shown("rules") {
-                if let Some(section) =
+            if section_shown("rules")
+                && let Some(section) =
                     self.rules_section(&p, &workspace, title("When agents change something"), cx)
-                {
-                    blocks.push(PageBlock::section(format!("{id}-rules"), section));
-                }
+            {
+                blocks.push(PageBlock::section(format!("{id}-rules"), section));
             }
-            if section_shown("cli") {
-                if let Some(section) =
+            if section_shown("cli")
+                && let Some(section) =
                     self.cli_section(&p, &workspace, title("Command-line sign-ins"), cx)
-                {
-                    blocks.push(PageBlock::section(format!("{id}-cli"), section));
-                }
+            {
+                blocks.push(PageBlock::section(format!("{id}-cli"), section));
             }
         }
         settings_page(&self.store, SettingsTabId::Connectors, &p, blocks, cx)

@@ -1,3 +1,4 @@
+#[cfg(unix)]
 use std::{
     fs,
     io::{Read, Write},
@@ -132,9 +133,6 @@ pub(crate) fn zmx_session_daemon_socket_present(session_name: &str) -> Option<bo
 pub(crate) fn remove_zmx_session_socket(session_name: &str) {
     let _ = fs::remove_file(zmx_session_socket_path(session_name));
 }
-
-#[cfg(not(unix))]
-pub(crate) fn remove_zmx_session_socket(_session_name: &str) {}
 
 /// The session's ACTIVE screen, read straight off the daemon's IPC socket. zmx
 /// answers `Capture` through Ghostty's `TerminalFormatter`, which serializes

@@ -46,7 +46,7 @@ pub(super) fn antigravity_input_region(lines: &[String]) -> Option<Range<usize>>
 /// then its command and state.
 fn is_antigravity_active_item(line: &str) -> bool {
     let mut chars = line.trim_start().chars();
-    if !chars.next().is_some_and(|glyph| !glyph.is_ascii()) {
+    if chars.next().is_none_or(|glyph| glyph.is_ascii()) {
         return false;
     }
     let Some(rest) = chars.as_str().strip_prefix(" [") else {
@@ -920,17 +920,17 @@ fn clear_codex_composer_particles(lines: &mut [StyledLine]) {
     let start = (0..start)
         .rev()
         .find(|&i| {
-            !lines[i]
+            lines[i]
                 .chars
                 .first()
-                .is_some_and(|(_, style)| style.background_rgb == Some(background))
+                .is_none_or(|(_, style)| style.background_rgb != Some(background))
         })
         .map_or(0, |i| i + 1);
     for line in &mut lines[start..] {
-        if !line
+        if line
             .chars
             .first()
-            .is_some_and(|(_, style)| style.background_rgb == Some(background))
+            .is_none_or(|(_, style)| style.background_rgb != Some(background))
         {
             break;
         }
@@ -980,10 +980,10 @@ fn codex_input_region(lines: &[StyledLine]) -> Option<Range<usize>> {
         // The composer owns one bottom padding row, even with no statusline or a multiline footer.
         let end = (start + 1..lines.len())
             .find(|&i| {
-                !lines[i]
+                lines[i]
                     .chars
                     .first()
-                    .is_some_and(|(_, style)| style.background_rgb == Some(background))
+                    .is_none_or(|(_, style)| style.background_rgb != Some(background))
             })
             .unwrap_or(lines.len());
         end.checked_sub(1).filter(|&foot| foot > start)?

@@ -193,8 +193,7 @@ fn envelope_attribute<'a>(attributes: &'a str, name: &str) -> &'a str {
 pub fn agent_display_name(sender: &str) -> String {
     sender
         .split('/')
-        .filter(|segment| !segment.is_empty())
-        .next_back()
+        .rfind(|segment| !segment.is_empty())
         .unwrap_or(sender)
         .to_string()
 }

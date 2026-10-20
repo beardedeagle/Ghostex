@@ -133,10 +133,11 @@ fn read_grok_session_chat_skills(paths: &GxserverPaths, project_path: Option<&Pa
         .join(".grok")
         .join("bin")
         .join(format!("grok{}", std::env::consts::EXE_SUFFIX));
-    let grok_command = installed_grok
-        .is_file()
-        .then_some(installed_grok)
-        .unwrap_or_else(|| PathBuf::from("grok"));
+    let grok_command = if installed_grok.is_file() {
+        installed_grok
+    } else {
+        PathBuf::from("grok")
+    };
     let inspected = run_grok_skill_inspect(&grok_command, working_directory);
 
     let mut seen_skill_paths = HashSet::new();

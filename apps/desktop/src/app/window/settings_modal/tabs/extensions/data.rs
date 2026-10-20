@@ -317,15 +317,10 @@ impl ExtensionFilter {
         if self.source != SourceFilter::All && self.source != subject.source {
             return false;
         }
-        if self.type_ != "all" && !subject.types.iter().any(|kind| *kind == self.type_) {
+        if self.type_ != "all" && !subject.types.contains(&self.type_) {
             return false;
         }
-        if self.category != "all"
-            && !subject
-                .categories
-                .iter()
-                .any(|category| *category == self.category)
-        {
+        if self.category != "all" && !subject.categories.contains(&self.category) {
             return false;
         }
         let query = self.query.trim().to_lowercase();

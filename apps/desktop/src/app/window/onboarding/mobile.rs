@@ -786,7 +786,7 @@ impl GpuiOnboardingWindow {
     fn phone_scanline(&self, s: S, now: Instant, mounted: Instant) -> AnyElement {
         let cycles = now.saturating_duration_since(mounted).as_secs_f32() / 1.1;
         let phase = cycles.fract();
-        let forward = (cycles as u32) % 2 == 0;
+        let forward = (cycles as u32).is_multiple_of(2);
         let f = Ease::EaseInOut.apply(if forward { phase } else { 1.0 - phase });
         let lerp = |a: (f32, f32), b: (f32, f32)| (a.0 + (b.0 - a.0) * f, a.1 + (b.1 - a.1) * f);
         let left = lerp(PHONE_SCAN_TOP.0, PHONE_SCAN_BOTTOM.0);

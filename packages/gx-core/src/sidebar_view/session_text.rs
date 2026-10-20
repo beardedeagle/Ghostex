@@ -550,8 +550,8 @@ pub(crate) fn next_label_deadline(
     let elapsed = (now - at).max(0);
     let step = match elapsed {
         ..60_000 => 1_000,
-        ..3_600_000 => 60_000,
-        ..86_400_000 => 3_600_000,
+        60_000..3_600_000 => 60_000,
+        3_600_000..86_400_000 => 3_600_000,
         _ => 86_400_000,
     };
     let deadline = at + (elapsed / step + 1) * step;

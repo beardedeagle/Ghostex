@@ -671,10 +671,6 @@ function normalizeSidebarSessionTagListItem(candidate: unknown): SidebarSessionT
   return undefined;
 }
 
-function cloneSidebarSessionTagListItems(items: readonly SidebarSessionTagListItem[]): SidebarSessionTagListItem[] {
-  return items.map(cloneSidebarSessionTagListItem);
-}
-
 function cloneSidebarSessionTagListItem(item: SidebarSessionTagListItem): SidebarSessionTagListItem {
   if (item.type === 'tag') {
     return { enabled: item.enabled, id: item.id, tag: item.tag, type: 'tag', visible: item.visible };

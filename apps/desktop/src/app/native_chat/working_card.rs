@@ -89,7 +89,6 @@ impl NativeChatView {
         if !self.working_card_shown() {
             return None;
         }
-        let s = p.scale;
         let card = self.snapshot["workingCard"].clone();
         let left_bottom = super::scroll_bottom::transcript_left_bottom(&self.list);
         let header = self.working_card_header(&card, left_bottom, p, cx);

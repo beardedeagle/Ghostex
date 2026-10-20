@@ -279,10 +279,10 @@ fn custom_ghostty_theme_source(name: &str) -> Option<String> {
         paths.push(parent.join("themes").join(name));
     }
     paths.push(xdg.join("ghostty/themes").join(name));
-    if let Ok(config) = crate::shared_settings::selected_ghostty_config_path() {
-        if let Some(parent) = config.parent() {
-            paths.push(parent.join("themes").join(name));
-        }
+    if let Ok(config) = crate::shared_settings::selected_ghostty_config_path()
+        && let Some(parent) = config.parent()
+    {
+        paths.push(parent.join("themes").join(name));
     }
     paths
         .into_iter()

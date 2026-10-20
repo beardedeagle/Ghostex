@@ -1,5 +1,7 @@
+#[cfg(not(windows))]
 use crate::platform::shell::{command_shell, user_login_shell_exec_command, user_login_shell_path};
 
+#[cfg(not(windows))]
 use super::*;
 
 pub(crate) struct ZmxAttachCommandInput {
@@ -376,6 +378,7 @@ pub(crate) fn build_zmx_shell_provider_command(input: ZmxShellProviderCommandInp
 }
 
 #[allow(clippy::too_many_arguments)]
+#[cfg(not(windows))]
 fn format_zmx_provider_run_script(
     session_name: &str,
     cwd: &str,
@@ -483,6 +486,7 @@ printf '%s\n' "$zmx_sessions" | grep -F -x -- "$zmx_session" >/dev/null 2>&1
 }
 
 /// The setup every zmx provider's shell runs before the session's shell or agent: the prompt-editor wrapper, then the `codex` wrapper (`codex_wrapper.rs`).
+#[cfg(not(windows))]
 fn zmx_provider_session_setup_shell_command(prompt_editor: Option<&str>) -> String {
     let prompt_editor_setup = zmx_provider_prompt_editor_setup_shell_command(prompt_editor);
     let codex_wrapper_setup =
@@ -494,6 +498,7 @@ fn zmx_provider_session_setup_shell_command(prompt_editor: Option<&str>) -> Stri
     }
 }
 
+#[cfg(not(windows))]
 fn zmx_provider_prompt_editor_setup_shell_command(prompt_editor: Option<&str>) -> String {
     /*
     CDXC:PromptEditor 2026-06-30-03:11:
@@ -558,6 +563,7 @@ export VISUAL="$ghostex_prompt_editor_wrapper"
 /// CDXC:PromptEditor 2026-09-24 WHY:
 /// Chat sends reach the agent through its external editor (Ctrl+G), and the `$EDITOR` wrapper can only answer that handshake by running `ghostex prompt-editor`. The wrapper used to find the CLI through `GHOSTEX_CLI_EXECUTABLE`, which nothing had exported since the Swift host was retired, then through `ghostex` on PATH, then fell back to `vi`; on a computer without the CLI on PATH every chat send opened `vi`, the handshake never completed, and the agent stayed wedged in the editor. Every session is now pinned to the `ghostex` binary shipped beside this gxserver (the same pairing the Windows provider uses), and the wrapper fails with a message instead of opening an editor that cannot answer. The machine's own VISUAL/EDITOR still runs when the user chose it, through `ghostex prompt-editor`'s inherit backend.
 /// SEE-ALSO: `scripts_windows.rs` `start` pins the Windows CLI the same way; `gpui_auto_install_ghostex_cli_wrappers` in apps/desktop keeps `ghostex` on PATH for sessions started before the pin.
+#[cfg(not(windows))]
 fn session_ghostex_cli_executable() -> Option<String> {
     let gxserver = std::env::current_exe().ok()?;
     let gxserver = std::fs::canonicalize(&gxserver).unwrap_or(gxserver);
@@ -566,6 +572,7 @@ fn session_ghostex_cli_executable() -> Option<String> {
         .then(|| cli.to_string_lossy().into_owned())
 }
 
+#[cfg(not(windows))]
 fn zmx_prompt_editor_attach_args(prompt_editor: Option<&str>) -> &'static str {
     match prompt_editor {
         Some("monaco") => "--prompt-editor=monaco",
@@ -574,10 +581,12 @@ fn zmx_prompt_editor_attach_args(prompt_editor: Option<&str>) -> &'static str {
     }
 }
 
+#[cfg(not(windows))]
 fn zmx_session_identity_reset_shell_command() -> String {
     format!("unset {}", session_identity_environment_keys().join(" "))
 }
 
+#[cfg(not(windows))]
 fn persistence_notice_shell_command(session_name: &str) -> String {
     format!(
         "printf '%s\\n' {}",
@@ -587,6 +596,7 @@ fn persistence_notice_shell_command(session_name: &str) -> String {
     )
 }
 
+#[cfg(not(windows))]
 fn session_title_shell_command(title: Option<&str>) -> String {
     let Some(title) = title.map(str::trim).filter(|title| !title.is_empty()) else {
         return String::new();
@@ -594,6 +604,7 @@ fn session_title_shell_command(title: Option<&str>) -> String {
     format!("printf '%s\\n' {}", shell_quote(title))
 }
 
+#[cfg(not(windows))]
 fn with_atuin_ignored_shell_history_prefix(text: &str) -> String {
     let trimmed_right = text.trim_end();
     if trimmed_right.trim().is_empty() {
@@ -606,6 +617,7 @@ fn with_atuin_ignored_shell_history_prefix(text: &str) -> String {
     }
 }
 
+#[cfg(not(windows))]
 pub(crate) fn shell_quote(value: &str) -> String {
     format!("'{}'", value.replace('\'', "'\\''"))
 }

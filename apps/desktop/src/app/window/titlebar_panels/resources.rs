@@ -746,10 +746,9 @@ impl GpuiTitlebarReadingPanel {
                         if let GpuiTitlebarReadingPanelState::Resources {
                             pending_actions, ..
                         } = &this.state
+                            && pending_actions.contains_key(&key)
                         {
-                            if pending_actions.contains_key(&key) {
-                                return;
-                            }
+                            return;
                         }
                         let closed = this
                             .main_app

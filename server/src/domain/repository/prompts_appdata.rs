@@ -110,7 +110,7 @@ impl<'a> DomainRepository<'a> {
             match (project_id.as_deref(), session_id.as_deref()) {
                 (Some(project), Some(session)) => {
                     let version = crate::session_chat_draft_handoffs::returned_version(
-                        self.db, project, session, &content,
+                        self.db, project, session, content,
                     )?;
                     let transaction = rusqlite::Transaction::new_unchecked(
                         self.db,
@@ -121,7 +121,7 @@ impl<'a> DomainRepository<'a> {
                         &transaction,
                         project,
                         session,
-                        &content,
+                        content,
                         &version,
                     )?;
                     transaction.commit().map_err(sql_error)?;

@@ -357,13 +357,13 @@ pub(crate) fn gpui_os_integration_status_payload() -> serde_json::Value {
             )],
         );
     }
-    if let Some(handler) = gpui_macos_default_url_scheme_handler("ghostex") {
-        if let Some(object) = payload.as_object_mut() {
-            object.insert(
-                "terminalLinkDefaultBundleId".to_string(),
-                serde_json::Value::String(handler),
-            );
-        }
+    if let Some(handler) = gpui_macos_default_url_scheme_handler("ghostex")
+        && let Some(object) = payload.as_object_mut()
+    {
+        object.insert(
+            "terminalLinkDefaultBundleId".to_string(),
+            serde_json::Value::String(handler),
+        );
     }
     payload
 }

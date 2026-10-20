@@ -60,7 +60,8 @@ impl GhostexGpuiApp {
         let appearance_settings_changed = changed && {
             let previous_settings =
                 serde_json::from_str::<serde_json::Value>(&previous_settings_json).ok();
-            let appearance_settings_changed = [
+
+            [
                 "sidebarTheme",
                 "darkThemePreset",
                 "lightThemePreset",
@@ -80,8 +81,7 @@ impl GhostexGpuiApp {
             .any(|key| {
                 previous_settings.as_ref().and_then(|value| value.get(*key))
                     != settings.object().get(*key)
-            });
-            appearance_settings_changed
+            })
         };
         if appearance_settings_changed {
             self.refresh_gpui_shared_settings_consumers_after_save(&settings, cx);

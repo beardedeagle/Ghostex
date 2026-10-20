@@ -81,7 +81,7 @@ impl GhostexGpuiApp {
         };
         let stack_height = px(gpui_app_toast_stack_height(&self.app_toasts));
         let toasts = self.app_toasts.clone();
-        if let Some(handle) = self.app_toast_window.clone() {
+        if let Some(handle) = self.app_toast_window {
             if self.app_toast_window_height == stack_height {
                 let update_result = handle.update(cx, |toast_window_entity, toast_window, cx| {
                     toast_window_entity.set_toasts(toasts.clone(), cx);

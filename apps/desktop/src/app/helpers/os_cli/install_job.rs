@@ -116,30 +116,30 @@ impl GpuiInstallJob {
     }
 
     fn append(&self, chunk: &str) {
-        if let Ok(mut job) = self.state.lock() {
-            if let Some(job) = job.as_mut() {
-                job.output.push_str(chunk);
-                if job.output.len() > OUTPUT_LIMIT {
-                    let mut start = job.output.len() - OUTPUT_LIMIT;
-                    while !job.output.is_char_boundary(start) {
-                        start += 1;
-                    }
-                    job.output.drain(..start);
+        if let Ok(mut job) = self.state.lock()
+            && let Some(job) = job.as_mut()
+        {
+            job.output.push_str(chunk);
+            if job.output.len() > OUTPUT_LIMIT {
+                let mut start = job.output.len() - OUTPUT_LIMIT;
+                while !job.output.is_char_boundary(start) {
+                    start += 1;
                 }
+                job.output.drain(..start);
             }
         }
     }
 
     pub(crate) fn finish(&self, result: &Result<(), String>) {
-        if let Ok(mut job) = self.state.lock() {
-            if let Some(job) = job.as_mut() {
-                job.status = if result.is_ok() {
-                    "succeeded"
-                } else {
-                    "failed"
-                };
-                job.error = result.as_ref().err().cloned();
-            }
+        if let Ok(mut job) = self.state.lock()
+            && let Some(job) = job.as_mut()
+        {
+            job.status = if result.is_ok() {
+                "succeeded"
+            } else {
+                "failed"
+            };
+            job.error = result.as_ref().err().cloned();
         }
     }
 

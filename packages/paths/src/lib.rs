@@ -8,6 +8,7 @@ use std::{
 pub mod portable;
 pub mod powershell;
 
+#[cfg(not(target_os = "windows"))]
 const PRODUCT_DIR_UNIX: &str = "ghostex";
 #[cfg(target_os = "windows")]
 const PRODUCT_DIR_NATIVE: &str = "Ghostex";
@@ -975,6 +976,7 @@ fn user_home_dir() -> PathBuf {
         .unwrap_or_else(|| PathBuf::from("."))
 }
 
+#[cfg(not(target_os = "windows"))]
 fn xdg_base(variable: &str, home_dir: &Path, fallback: &str) -> PathBuf {
     nonempty_env_path(variable).unwrap_or_else(|| home_dir.join(fallback))
 }

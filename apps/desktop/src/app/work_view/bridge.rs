@@ -303,18 +303,17 @@ impl GhostexGpuiApp {
                 })
                 .await;
             let _ = this.update(cx, |this, cx| {
-                if let Ok(answer) = &result {
-                    if let (Some(project_id), Some(session_id)) =
+                if let Ok(answer) = &result
+                    && let (Some(project_id), Some(session_id)) =
                         (text(answer, "projectId"), text(answer, "sessionId"))
-                    {
-                        this.gx_store_focus_created_session(
-                            &project_id,
-                            &session_id,
-                            true,
-                            Some("chat"),
-                            cx,
-                        );
-                    }
+                {
+                    this.gx_store_focus_created_session(
+                        &project_id,
+                        &session_id,
+                        true,
+                        Some("chat"),
+                        cx,
+                    );
                 }
                 this.answer_work_view_request(&request_id, result, cx);
             });

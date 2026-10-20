@@ -141,8 +141,7 @@ pub(crate) fn notice_row(id: &str, turn: Option<&str>, at: i64, text: &str) -> V
 pub(crate) fn anchor_at(calls: &[(String, i64)], at: i64) -> Option<String> {
     calls
         .iter()
-        .filter(|(_, started)| *started <= at)
-        .next_back()
+        .rfind(|(_, started)| *started <= at)
         .map(|(id, _)| id.clone())
 }
 

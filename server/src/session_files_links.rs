@@ -197,7 +197,7 @@ async fn read_files_links(state: &AppState, body: &Value) -> Result<Value, Domai
                 }),
             ));
         }
-        sessions.sort_by(|a, b| b.0.cmp(&a.0));
+        sessions.sort_by_key(|session| std::cmp::Reverse(session.0));
         sessions
             .into_iter()
             .map(|(_, session)| session)

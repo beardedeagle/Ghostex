@@ -460,7 +460,7 @@ pub fn is_session_chat_option_command_text(agent: Option<&str>, text: &str) -> b
     if session_chat_option_agent(agent).is_none() {
         return false;
     }
-    let Some(first) = text.trim_start().split_whitespace().next() else {
+    let Some(first) = text.split_whitespace().next() else {
         return false;
     };
     matches!(first, "/model" | "/effort" | "/fast" | "/plan")
@@ -488,7 +488,7 @@ Automatic compaction announces itself to nobody, so it is still discovered by
 the working-tier probe; that is the case this cannot help with.
 */
 pub fn is_session_chat_activity_command_text(agent: Option<&str>, text: &str) -> bool {
-    let Some(first) = text.trim_start().split_whitespace().next() else {
+    let Some(first) = text.split_whitespace().next() else {
         return false;
     };
     match session_chat_option_agent(agent) {

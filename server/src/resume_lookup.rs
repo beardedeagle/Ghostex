@@ -691,7 +691,7 @@ pub(crate) fn parse_cursor_meta_value(raw: &str) -> Option<Value> {
 }
 
 fn decode_hex(value: &str) -> Option<Vec<u8>> {
-    if value.len() % 2 != 0 {
+    if !value.len().is_multiple_of(2) {
         return None;
     }
     let mut bytes = Vec::with_capacity(value.len() / 2);

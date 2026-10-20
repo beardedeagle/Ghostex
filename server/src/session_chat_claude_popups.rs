@@ -54,8 +54,8 @@ const CLAUDE_ESCAPE_SAFE_POPUPS: &[ClaudePopup] = &[
         rows: &["Got it, thanks!"],
         above_composer: false,
     },
-    /// CDXC:SessionChat 2026-09-30 WHY:
-    /// Claude Code 2.1.284 opens "Teach auto mode about your environment?" in auto mode after repeated denials and keeps its input box painted underneath, so the send saw a composer, pasted into the offer and failed with "The terminal did not accept the pasted message". Its Escape handler is `onCancel: () => choose("later")`, the same as "Not now" (a 7-day snooze, no settings change).
+    // CDXC:SessionChat 2026-09-30 WHY:
+    // Claude Code 2.1.284 opens "Teach auto mode about your environment?" in auto mode after repeated denials and keeps its input box painted underneath, so the send saw a composer, pasted into the offer and failed with "The terminal did not accept the pasted message". Its Escape handler is `onCancel: () => choose("later")`, the same as "Not now" (a 7-day snooze, no settings change).
     ClaudePopup {
         name: "auto mode setup offer",
         title: |line| line == "Teach auto mode about your environment?",

@@ -90,15 +90,14 @@ pub(crate) fn gpui_automation_rpc_automation_state(
 }
 
 pub(crate) fn gpui_automation_gxserver_error_message(body: &str, status_code: u16) -> String {
-    if let Ok(value) = serde_json::from_str::<serde_json::Value>(body) {
-        if let Some(message) = value
+    if let Ok(value) = serde_json::from_str::<serde_json::Value>(body)
+        && let Some(message) = value
             .get("error")
             .and_then(|error| error.get("message"))
             .and_then(serde_json::Value::as_str)
             .or_else(|| value.get("message").and_then(serde_json::Value::as_str))
-        {
-            return message.to_string();
-        }
+    {
+        return message.to_string();
     }
     format!("gxserver automation request failed with HTTP {status_code}.")
 }

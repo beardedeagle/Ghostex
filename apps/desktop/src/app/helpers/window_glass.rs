@@ -503,10 +503,10 @@ pub(crate) fn set_detached_board_glass_window(window: gpui::WindowId, glass: boo
     }
     if !glass {
         // The closed window's last glass record would otherwise stay in the map for good.
-        if let Ok(mut applied) = APPLIED_WINDOW_GLASS.lock() {
-            if let Some(applied) = applied.as_mut() {
-                applied.remove(&id);
-            }
+        if let Ok(mut applied) = APPLIED_WINDOW_GLASS.lock()
+            && let Some(applied) = applied.as_mut()
+        {
+            applied.remove(&id);
         }
     }
 }

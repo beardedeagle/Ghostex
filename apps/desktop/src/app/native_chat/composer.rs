@@ -408,19 +408,17 @@ impl NativeChatView {
             waiting.push(card.into_any_element());
         }
         self.sync_files_links_menu(window, cx);
-        if maximized {
-            if let Some(suggestions) = self.inline_suggestions(window, cx) {
-                let height =
-                    super::suggestions::suggestion_panel_height(&self.snapshot["suggestions"], s);
-                waiting.push(
-                    div()
-                        .h(height)
-                        .max_h(gpui::relative(0.4))
-                        .flex_shrink_0()
-                        .child(suggestions)
-                        .into_any_element(),
-                );
-            }
+        if maximized && let Some(suggestions) = self.inline_suggestions(window, cx) {
+            let height =
+                super::suggestions::suggestion_panel_height(&self.snapshot["suggestions"], s);
+            waiting.push(
+                div()
+                    .h(height)
+                    .max_h(gpui::relative(0.4))
+                    .flex_shrink_0()
+                    .child(suggestions)
+                    .into_any_element(),
+            );
         }
         let model = text(&self.snapshot["optionLabels"], "model");
         let effort = text(&self.snapshot["optionLabels"], "options");

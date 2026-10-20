@@ -49,7 +49,7 @@ pub(crate) fn codex_status_line_names_model(config_path: &Path) -> bool {
     let Ok(document) = text.parse::<DocumentMut>() else {
         return true;
     };
-    status_line_array(&document).map_or(true, array_names_model)
+    status_line_array(&document).is_none_or(array_names_model)
 }
 
 /// Appends `model-with-reasoning` to an explicit `tui.status_line` that lacks

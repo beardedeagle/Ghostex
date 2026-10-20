@@ -112,13 +112,15 @@ fn claude_question_tab_for_heading(
             .take(HEADING_MATCH_CHARS)
             .eq(heading.chars().take(HEADING_MATCH_CHARS))
     };
-    let candidates: Vec<usize> = (!heading.is_empty())
-        .then(|| {
+    let candidates: Vec<usize> = if !heading.is_empty() {
+        {
             (0..texts.len())
                 .filter(|index| starts_like_heading(&texts[*index]))
                 .collect()
-        })
-        .unwrap_or_default();
+        }
+    } else {
+        Default::default()
+    };
     if let [only] = candidates.as_slice() {
         return Some(*only);
     }

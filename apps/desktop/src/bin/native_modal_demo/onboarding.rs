@@ -205,7 +205,7 @@ fn with_view(
 fn later(cx: &mut App, delay: Duration, run: impl FnOnce(&mut App) + 'static) {
     cx.spawn(async move |cx| {
         cx.background_executor().timer(delay).await;
-        let _ = cx.update(run);
+        cx.update(run);
     })
     .detach();
 }

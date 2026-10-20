@@ -358,10 +358,10 @@ impl GhostexGpuiApp {
                 }
             }
             self.command_terminal_ghostty_surface_config_requests = config_requests;
-            for slot_id in invalid_launch_payload_slot_ids.iter().copied() {
-                self.command_terminal_ghostty_surfaces.remove(&slot_id);
+            for slot_id in invalid_launch_payload_slot_ids.iter() {
+                self.command_terminal_ghostty_surfaces.remove(slot_id);
                 terminal_native_view::set_app_owned_terminal_host_native_view_visible(
-                    self.command_terminal_host_native_views.get(&slot_id),
+                    self.command_terminal_host_native_views.get(slot_id),
                     false,
                 );
             }

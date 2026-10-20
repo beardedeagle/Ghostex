@@ -121,7 +121,7 @@ pub(crate) fn gpui_remote_sidebar_git_config_payload(
         );
     }
     if let Some(primary_action) = json_string_field(source, "primaryAction")
-        .filter(|value| gpui_remote_sidebar_git_action_allowed(*value))
+        .filter(|value| gpui_remote_sidebar_git_action_allowed(value))
     {
         output.insert(
             "primaryAction".to_string(),

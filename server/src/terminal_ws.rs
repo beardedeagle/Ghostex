@@ -1,6 +1,7 @@
+#[cfg(not(windows))]
+use std::env;
 use std::{
     collections::HashMap,
-    env,
     io::{Read, Write},
 };
 

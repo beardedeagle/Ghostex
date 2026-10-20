@@ -97,7 +97,7 @@ pub(super) fn merge_hermes_hook_block(
     }
 
     // Bottom-up so the earlier indexes stay valid across insertions.
-    matched_events.sort_by(|left, right| right.1.cmp(&left.1));
+    matched_events.sort_by_key(|entry| std::cmp::Reverse(entry.1));
     for (timeout, event_index) in matched_events {
         if let Some(colon) = lines[event_index].find(':') {
             lines[event_index].truncate(colon + 1);

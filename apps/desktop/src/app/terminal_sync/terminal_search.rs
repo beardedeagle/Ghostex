@@ -440,20 +440,19 @@ impl GhostexGpuiApp {
                 input.update(cx, |input, cx| input.set_value(needle, window, cx));
             }
         }
-        if let Some(runtime_session_id) = self.terminal_search_focus_pending.take() {
-            if let Some(input) = self
+        if let Some(runtime_session_id) = self.terminal_search_focus_pending.take()
+            && let Some(input) = self
                 .terminal_search_inputs
                 .get(&runtime_session_id)
                 .cloned()
-            {
-                #[cfg(target_os = "macos")]
-                self.begin_programmatic_focus();
-                #[cfg(any(target_os = "macos", target_os = "windows"))]
-                cef::focus_gpui_root_view(self.parent_ns_view);
-                input.update(cx, |input, cx| input.focus(window, cx));
-                #[cfg(target_os = "macos")]
-                self.end_programmatic_focus();
-            }
+        {
+            #[cfg(target_os = "macos")]
+            self.begin_programmatic_focus();
+            #[cfg(any(target_os = "macos", target_os = "windows"))]
+            cef::focus_gpui_root_view(self.parent_ns_view);
+            input.update(cx, |input, cx| input.focus(window, cx));
+            #[cfg(target_os = "macos")]
+            self.end_programmatic_focus();
         }
     }
 
@@ -586,7 +585,7 @@ impl GhostexGpuiApp {
         #[cfg(target_os = "macos")]
         {
             let surface = self.agents_terminal_ghostty_surfaces.get(&slot_id)?;
-            return (surface.mount_slot_id() == slot_id).then(|| surface.runtime_session_id());
+            (surface.mount_slot_id() == slot_id).then(|| surface.runtime_session_id())
         }
         #[cfg(not(target_os = "macos"))]
         None
@@ -626,7 +625,7 @@ impl GhostexGpuiApp {
         #[cfg(target_os = "macos")]
         {
             let surface = self.command_terminal_ghostty_surfaces.get(&slot_id)?;
-            return (surface.mount_slot_id() == slot_id).then(|| surface.runtime_session_id());
+            (surface.mount_slot_id() == slot_id).then(|| surface.runtime_session_id())
         }
         #[cfg(not(target_os = "macos"))]
         None

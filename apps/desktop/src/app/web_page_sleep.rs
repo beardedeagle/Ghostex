@@ -32,7 +32,7 @@ impl SpaceKeptWebPages {
 /// fresh answer is asked now and looked at again on the next pass.
 fn web_page_is_due(surface: &Entity<CefSurface>, limit: Duration, cx: &gpui::App) -> bool {
     let surface = surface.read(cx);
-    if !surface.hidden_for().is_some_and(|hidden| hidden >= limit) {
+    if surface.hidden_for().is_none_or(|hidden| hidden < limit) {
         return false;
     }
     match surface.page_keep_awake() {

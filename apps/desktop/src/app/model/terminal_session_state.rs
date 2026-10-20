@@ -124,17 +124,12 @@ impl TerminalSessionPresentationState {
 CDXC:SessionStatus 2026-06-22-16:27:
 Agents running-tab dots must use semantic placeholder state from the macOS sidebar vocabulary instead of arbitrary session-id colors. Persist only the safe shell metadata: idle/working/attention activity plus a Delayed Send boolean; never persist deadlines, labels, command text, paths, stdout/stderr, terminal content, tokens, or user-owned titles.
 */
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub(crate) enum AgentTerminalActivity {
+    #[default]
     Idle,
     Working,
     Attention,
-}
-
-impl Default for AgentTerminalActivity {
-    fn default() -> Self {
-        Self::Idle
-    }
 }
 
 impl AgentTerminalActivity {

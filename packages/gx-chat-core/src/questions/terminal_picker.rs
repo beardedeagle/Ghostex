@@ -73,7 +73,7 @@ pub fn picker_presentation(dialog: &TerminalDialog) -> Option<Value> {
         "searchFocused": picker.get("searchFocused").and_then(Value::as_bool).unwrap_or(false),
         "placeholder": "Type to search conversations",
         "position": picker.get("position").and_then(Value::as_str),
-        "message": picker.get("message").and_then(Value::as_str).or(empty.then(|| {
+        "message": picker.get("message").and_then(Value::as_str).or(empty.then_some({
             if query.is_empty() {
                 "No conversations to resume here."
             } else {

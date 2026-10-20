@@ -185,7 +185,7 @@ impl NativeChatView {
         self.composer_reference_task = Some(cx.spawn(async move |this, cx| {
             cx.background_executor().timer(Duration::from_millis(500)).await;
             let _ = this.update(cx, |this, cx| {
-                if this.composer_reference_click != click || !this.async_answer_input.as_ref().is_some_and(|(active, _)| active == &key) || !this.async_answer_echo.references.contains(&reference) { return; }
+                if this.composer_reference_click != click || this.async_answer_input.as_ref().is_none_or(|(active, _)| active != &key) || !this.async_answer_echo.references.contains(&reference) { return; }
                 this.composer_reference_task = None;
                 if reference.kind == "image" {
                     let references: Vec<_> = this.async_answer_echo.references.iter().filter(|reference| reference.kind == "image").collect();

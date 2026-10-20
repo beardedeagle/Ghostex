@@ -131,7 +131,7 @@ impl GpuiVisualPageModalWindow {
                 // Run on the next turn: this is called from inside CEF's message pump.
                 foreground
                     .spawn(async move {
-                        let _ = async_cx.update(|cx| {
+                        async_cx.update(|cx| {
                             crate::app::visual_page_thumbnails::picture_opened_page(
                                 surface, &page, remote, viewport, cx,
                             )
@@ -217,7 +217,7 @@ impl GpuiVisualPageModalWindow {
 
 impl Render for GpuiVisualPageModalWindow {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let p = self.palette.clone();
+        let p = self.palette;
         let header = h_flex()
             .flex_shrink_0()
             .h(px(HEADER_HEIGHT))

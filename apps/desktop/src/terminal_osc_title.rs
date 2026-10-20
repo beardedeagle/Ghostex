@@ -224,15 +224,15 @@ fn normalize_antigravity_title(title: &str) -> Option<String> {
 fn normalize_pi_title(title: &str) -> Option<String> {
     let rest = title.trim().strip_prefix('π')?;
     let rest = rest.trim_start();
-    if let Some(status_marker) = rest.chars().next() {
-        if status_marker == '>' || ('\u{2800}'..='\u{28ff}').contains(&status_marker) {
-            let title = rest[status_marker.len_utf8()..].trim();
-            return Some(if title.is_empty() {
-                "π".to_string()
-            } else {
-                title.to_string()
-            });
-        }
+    if let Some(status_marker) = rest.chars().next()
+        && (status_marker == '>' || ('\u{2800}'..='\u{28ff}').contains(&status_marker))
+    {
+        let title = rest[status_marker.len_utf8()..].trim();
+        return Some(if title.is_empty() {
+            "π".to_string()
+        } else {
+            title.to_string()
+        });
     }
     let rest = rest.strip_prefix('-')?.trim_start();
     if rest.is_empty() {

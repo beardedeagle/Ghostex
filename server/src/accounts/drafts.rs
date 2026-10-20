@@ -8,10 +8,10 @@ use serde_json::{json, Map, Value};
 /// Claude and Codex publish a conversation ID before receiving a prompt. Account changes must rebuild a draft's fresh launch even when that ID exists, or deleting its old plan leaves a sleeping draft with no agent command to reopen.
 pub(crate) fn needs_fresh_launch(session: &Value) -> bool {
     agents::session_is_draft(session)
-        || !session
+        || session
             .pointer("/runtimeSettings/agentSessionId")
             .and_then(Value::as_str)
-            .is_some_and(|id| !id.trim().is_empty())
+            .is_none_or(|id| id.trim().is_empty())
 }
 
 pub(crate) fn rebuild_launch(

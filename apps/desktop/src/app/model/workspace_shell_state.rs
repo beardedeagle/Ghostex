@@ -294,7 +294,7 @@ fn shell_state_writer(slot: u32) -> &'static ShellStateWriter {
         .get_or_init(Default::default)
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
-    *writers.entry(slot).or_insert_with(|| {
+    writers.entry(slot).or_insert_with(|| {
         let writer: &'static ShellStateWriter = Box::leak(Box::new(ShellStateWriter {
             path: crate::app::workspace_windows::workspace_window_state_path(
                 gpui_workspace_shell_state_path(),

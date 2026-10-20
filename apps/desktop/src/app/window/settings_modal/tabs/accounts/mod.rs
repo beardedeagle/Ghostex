@@ -242,8 +242,7 @@ impl AccountsTab {
                         .cloned();
                     let complete = jobs
                         .iter()
-                        .filter(|job| job["status"] == "complete")
-                        .next_back()
+                        .rfind(|job| job["status"] == "complete")
                         .cloned();
                     if let Some(complete) = complete
                         && let Some(account_id) =

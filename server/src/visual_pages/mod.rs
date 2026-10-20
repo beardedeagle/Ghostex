@@ -21,7 +21,7 @@ pub(crate) use publish::{
     handle_publish_visual_page_http, PUBLISH_VISUAL_PAGE_BODY_LIMIT_BYTES,
     PUBLISH_VISUAL_PAGE_ENDPOINT,
 };
-pub(crate) use questions::{page_answered, page_questions, PageQuestion};
+pub(crate) use questions::{page_answered, page_questions};
 pub(crate) use serve::{serve, VISUAL_PAGE_ROUTE_PREFIX};
 pub(crate) use store::VISUAL_PAGE_MAX_BYTES;
 pub(crate) use thumbnail::{

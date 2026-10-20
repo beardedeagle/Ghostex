@@ -59,10 +59,10 @@ impl GhostexGpuiApp {
         }
         let previous = rendered.insert(session_id, snapshot.clone());
         // Bound diagnostic memory even when shell session counters keep growing.
-        if rendered.len() > 64 {
-            if let Some(old_id) = rendered.keys().copied().find(|id| *id != session_id) {
-                rendered.remove(&old_id);
-            }
+        if rendered.len() > 64
+            && let Some(old_id) = rendered.keys().copied().find(|id| *id != session_id)
+        {
+            rendered.remove(&old_id);
         }
         let regression = !has_view
             && !switching

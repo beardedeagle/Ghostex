@@ -170,6 +170,7 @@ fn pane_on_terminal(_terminal_id: &str) -> Option<String> {
 }
 
 /// Hermes's terminal id for a tty path (`terminal_breadcrumbs.get_terminal_id`).
+#[cfg(not(windows))]
 fn hermes_terminal_id(tty_path: &str) -> String {
     let trimmed = tty_path.trim().trim_matches('/');
     let sanitized: String = trimmed

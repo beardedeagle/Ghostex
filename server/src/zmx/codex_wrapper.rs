@@ -14,6 +14,7 @@ const NON_TUI_SUBCOMMANDS: &str = "exec e review login logout mcp mcp-server plu
 /// Codex options that take their value as the next argument (`codex --help`, 0.163).
 const VALUE_OPTIONS: &str = "-c --config --enable --disable --remote-auth-token-env -i --image -m --model --local-provider -p --profile -s --sandbox -C --cd --add-dir -a --ask-for-approval";
 
+#[cfg(not(windows))]
 fn posix_wrapper() -> String {
     format!(
         r#"#!/bin/sh
@@ -75,6 +76,7 @@ pub(crate) fn codex_wrapper_enabled() -> bool {
 }
 
 /// POSIX shell lines for a zmx provider's setup: write the wrapper into `<state>/session-bin` (atomically, since other sessions may be running it) and put that folder first on PATH. The provider's own shell writes it, the same way it writes the prompt-editor wrapper, so it lands on the filesystem the session runs on (WSL, a remote Linux host). Empty when the installed Codex predates `--no-daemon`, the same gate as Ghostex's own Codex launches.
+#[cfg(not(windows))]
 pub(crate) fn zmx_provider_codex_wrapper_setup_shell_command() -> String {
     if !codex_wrapper_enabled() {
         return String::new();

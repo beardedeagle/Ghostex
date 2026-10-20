@@ -687,16 +687,11 @@ fn normalize_project_view_options(value: &Map<String, Value>) -> Map<String, Val
     let Some(raw) = value.get("source").and_then(Value::as_object) else {
         return options;
     };
-    let kind = match raw.get("kind").and_then(Value::as_str) {
-        Some(kind @ ("dev-server" | "report")) => kind,
-        _ => "website",
-    };
-    let destination = match raw.get("destination").and_then(Value::as_str) {
-        Some(destination @ ("project" | "github-issues" | "github-actions" | "github-pulls")) => {
-            destination
-        }
-        _ => "fixed",
-    };
+    let kind = raw.get("kind").and_then(Value::as_str).unwrap_or("website");
+    let destination = raw
+        .get("destination")
+        .and_then(Value::as_str)
+        .unwrap_or("fixed");
     let discovery = if raw.get("discovery").and_then(Value::as_str) == Some("storybook") {
         "storybook"
     } else {
@@ -724,10 +719,10 @@ fn normalize_project_view_options(value: &Map<String, Value>) -> Map<String, Val
             "timeoutSeconds": timeout,
         }),
     );
-    let availability = match value.get("availability").and_then(Value::as_str) {
-        Some(availability @ ("selected" | "all" | "spaces")) => availability,
-        _ => "matching",
-    };
+    let availability = value
+        .get("availability")
+        .and_then(Value::as_str)
+        .unwrap_or("matching");
     options.insert("availability".into(), json!(availability));
     let mut project_ids: Vec<String> = Vec::new();
     for id in value

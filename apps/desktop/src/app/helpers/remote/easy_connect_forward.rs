@@ -223,10 +223,10 @@ pub(crate) fn gpui_remote_machine_config_with_easy_connect_forward(
 }
 
 fn gpui_bind_easy_connect_listener(preferred_port: Option<u16>) -> Result<TcpListener, String> {
-    if let Some(port) = preferred_port {
-        if let Ok(listener) = TcpListener::bind((GPUI_EASY_CONNECT_FORWARD_HOST, port)) {
-            return Ok(listener);
-        }
+    if let Some(port) = preferred_port
+        && let Ok(listener) = TcpListener::bind((GPUI_EASY_CONNECT_FORWARD_HOST, port))
+    {
+        return Ok(listener);
     }
     TcpListener::bind((GPUI_EASY_CONNECT_FORWARD_HOST, 0))
         .map_err(|error| format!("Could not bind the Easy Connect forwarder on loopback: {error}"))
@@ -244,10 +244,10 @@ pub(crate) fn gpui_resolve_easy_connect_binary() -> Option<PathBuf> {
 
 fn easy_connect_binary_candidates() -> Vec<PathBuf> {
     let mut candidates = Vec::new();
-    if let Some(value) = env::var_os("GHOSTEX_TAILCAT_BIN") {
-        if !value.is_empty() {
-            candidates.push(PathBuf::from(value));
-        }
+    if let Some(value) = env::var_os("GHOSTEX_TAILCAT_BIN")
+        && !value.is_empty()
+    {
+        candidates.push(PathBuf::from(value));
     }
     if let Some(path) = env::var_os("PATH") {
         candidates.extend(

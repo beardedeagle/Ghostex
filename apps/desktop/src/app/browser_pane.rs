@@ -16,7 +16,6 @@ use gpui::AppContext as _;
 use gpui::Entity;
 use gpui::Focusable as _;
 use gpui::Window;
-use gpui::rgb;
 use gpui_component::input::InputEvent;
 use gpui_component::input::InputState;
 

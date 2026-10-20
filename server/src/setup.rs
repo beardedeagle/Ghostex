@@ -1,3 +1,4 @@
+#[cfg(unix)]
 use std::{
     env, fs,
     path::{Path, PathBuf},
@@ -6,8 +7,11 @@ use std::{
     time::Duration,
 };
 
-use anyhow::{anyhow, Context, Result};
+#[cfg(unix)]
+use anyhow::Context;
+use anyhow::{anyhow, Result};
 
+#[cfg(unix)]
 use crate::config::read_selected_local_api_port;
 
 /*
@@ -21,6 +25,7 @@ tar plus a shell to bootstrap. The listener stop shells out to ss/lsof exactly
 like the old script so setup does not gain new privileges or dependencies.
 */
 
+#[cfg(unix)]
 const REMOTE_TOOL_NAMES: [&str; 3] = ["gxserver", "ghostex", "zmx"];
 
 pub fn run_setup(args: Vec<String>) -> Result<()> {
@@ -38,6 +43,7 @@ pub fn run_setup(args: Vec<String>) -> Result<()> {
     }
 }
 
+#[cfg(unix)]
 #[derive(Debug)]
 struct SetupOptions {
     install_root: PathBuf,
@@ -52,6 +58,7 @@ struct SetupOptions {
     analytics_role_is_remote: bool,
 }
 
+#[cfg(unix)]
 fn parse_setup_args(args: &[String]) -> Result<SetupOptions> {
     let mut install_root: Option<PathBuf> = None;
     let mut release_dir: Option<PathBuf> = None;
@@ -116,6 +123,7 @@ fn parse_setup_args(args: &[String]) -> Result<SetupOptions> {
     })
 }
 
+#[cfg(unix)]
 fn default_install_root() -> Result<PathBuf> {
     Ok(ghostex_paths::GhostexPaths::resolve().gxserver_data_dir())
 }
@@ -283,6 +291,7 @@ fn is_executable_file(path: &Path) -> bool {
     }
 }
 
+#[cfg(unix)]
 fn local_bin_dir() -> Option<PathBuf> {
     env::var_os("HOME").map(|home| PathBuf::from(home).join(".local").join("bin"))
 }
@@ -294,6 +303,7 @@ process still listening on the gxserver port that verifiably is a gxserver.
 Every step tolerates missing tools (ss, lsof, ps) exactly like the shell
 script this replaces.
 */
+#[cfg(unix)]
 fn stop_existing_gxserver(package_link: &Path) {
     let old_gxserver = package_link.join("bin").join("gxserver");
     #[cfg(unix)]
@@ -319,6 +329,7 @@ fn stop_existing_gxserver(package_link: &Path) {
     }
 }
 
+#[cfg(unix)]
 fn listener_pids(port: u16) -> Vec<u32> {
     let mut pids = Vec::new();
     if let Ok(output) = Command::new("ss").args(["-ltnp"]).output() {
@@ -357,6 +368,7 @@ fn listener_pids(port: u16) -> Vec<u32> {
     pids
 }
 
+#[cfg(unix)]
 fn is_gxserver_pid(pid: u32, package_link: &Path) -> bool {
     if pid == 0 {
         return false;
@@ -388,6 +400,7 @@ fn is_gxserver_pid(pid: u32, package_link: &Path) -> bool {
     false
 }
 
+#[cfg(unix)]
 fn executable_path_looks_like_packaged_gxserver(command: &str, package_link: &Path) -> bool {
     let package_executable = package_link.join("bin/gxserver");
     if command.contains(package_executable.to_string_lossy().as_ref()) {
@@ -408,6 +421,7 @@ fn executable_path_looks_like_packaged_gxserver(command: &str, package_link: &Pa
     false
 }
 
+#[cfg(unix)]
 fn command_looks_like_gxserver(command: &str, package_link: &Path) -> bool {
     // Require the executable name after a current or legacy package root so
     // an editor command that merely mentions a gxserver config file cannot match.
@@ -417,6 +431,7 @@ fn command_looks_like_gxserver(command: &str, package_link: &Path) -> bool {
     command.contains("gxserver --foreground")
 }
 
+#[cfg(unix)]
 fn terminate_pid(pid: u32, force: bool) {
     #[cfg(unix)]
     {
@@ -431,6 +446,7 @@ fn terminate_pid(pid: u32, force: bool) {
     }
 }
 
+#[cfg(unix)]
 fn wait_for_pid_exit(pid: u32) -> bool {
     for _ in 0..30 {
         if !is_pid_alive(pid) {
@@ -441,6 +457,7 @@ fn wait_for_pid_exit(pid: u32) -> bool {
     !is_pid_alive(pid)
 }
 
+#[cfg(unix)]
 fn is_pid_alive(pid: u32) -> bool {
     #[cfg(unix)]
     {
@@ -453,7 +470,7 @@ fn is_pid_alive(pid: u32) -> bool {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod tests {
     use super::*;
 

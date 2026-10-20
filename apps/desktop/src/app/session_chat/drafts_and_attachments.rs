@@ -192,11 +192,11 @@ impl GhostexGpuiApp {
         if !self.agents_chat_mode_sessions.contains(&session_id) {
             return;
         }
-        if let Some(view) = self.native_chat_views.get(&session_id).cloned() {
-            if !view.read(cx).draft.is_empty() {
-                self.pending_session_chat_draft_handoffs.insert(session_id);
-                view.update(cx, |view, cx| view.invoke(serde_json::json!({"type":"handoff","text":view.draft,"draftVersion":{"draftId":view.draft_id,"revision":view.draft_revision}}), cx));
-            }
+        if let Some(view) = self.native_chat_views.get(&session_id).cloned()
+            && !view.read(cx).draft.is_empty()
+        {
+            self.pending_session_chat_draft_handoffs.insert(session_id);
+            view.update(cx, |view, cx| view.invoke(serde_json::json!({"type":"handoff","text":view.draft,"draftVersion":{"draftId":view.draft_id,"revision":view.draft_revision}}), cx));
         }
         self.toggle_agents_session_chat_mode(session_id, cx);
     }

@@ -188,13 +188,13 @@ impl AgentsTab {
             name_input.update(cx, |input, cx| input.set_value(value, window, cx));
         }
         let command = self.editor_command(cx);
-        if command.trim().is_empty() || previous.is_some_and(|previous| previous.command == command)
+        if (command.trim().is_empty()
+            || previous.is_some_and(|previous| previous.command == command))
+            && let Some(state) = self.fields.textareas.get(COMMAND_ID)
         {
-            if let Some(state) = self.fields.textareas.get(COMMAND_ID) {
-                let input = state.input.clone();
-                let value = next_default.command.clone();
-                input.update(cx, |input, cx| input.set_value(value, window, cx));
-            }
+            let input = state.input.clone();
+            let value = next_default.command.clone();
+            input.update(cx, |input, cx| input.set_value(value, window, cx));
         }
         cx.notify();
     }

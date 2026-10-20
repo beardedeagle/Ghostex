@@ -1,6 +1,7 @@
 mod codex_wrapper;
 pub mod endpoint;
 pub mod env;
+#[cfg(not(windows))]
 mod fish_startup;
 mod grok_startup;
 pub mod launch;
@@ -22,6 +23,7 @@ pub mod session_glue;
 mod tests;
 pub mod types;
 pub mod wire_cycle;
+#[cfg(not(windows))]
 mod zsh_startup;
 
 pub use endpoint::*;

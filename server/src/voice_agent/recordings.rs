@@ -186,7 +186,7 @@ pub(super) fn list(paths: &GxserverPaths) -> Vec<Recording> {
         .filter_map(|path| fs::read_to_string(path).ok())
         .filter_map(|text| serde_json::from_str::<Recording>(&text).ok())
         .collect();
-    recordings.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+    recordings.sort_by_key(|recording| std::cmp::Reverse(recording.created_at));
     recordings
 }
 

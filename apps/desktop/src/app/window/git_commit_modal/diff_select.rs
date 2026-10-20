@@ -75,7 +75,7 @@ fn encode(generation: u8, point: DiffPoint) -> TextSelectionContentKey {
 
 fn decode(key: TextSelectionContentKey, generation: u8) -> Option<DiffPoint> {
     let value = key.value();
-    ((value >> GENERATION_SHIFT) as u8 == generation).then(|| DiffPoint {
+    ((value >> GENERATION_SHIFT) as u8 == generation).then_some(DiffPoint {
         cell: DiffCell {
             row: ((value >> ROW_SHIFT) & ROW_MASK) as usize,
             side: ((value >> OFFSET_BITS) & 1) as u8,
@@ -683,7 +683,7 @@ impl Element for DiffSurfaceHost {
         let content = *content;
         let mask = Some(ContentMask { bounds });
         // `box-shadow: inset 0 1px 0 rgb(255 255 255 / 4%)` sits under the rows, inside the border.
-        window.with_content_mask(mask.clone(), |window| {
+        window.with_content_mask(mask, |window| {
             let inset = self.inset;
             window.paint_quad(gpui::fill(
                 Bounds::new(

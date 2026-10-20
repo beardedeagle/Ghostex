@@ -216,10 +216,9 @@ impl GxStoreHost {
             .presentation()
             .loaded(&machine)
             .filter(|loaded| !loaded.last_seen)
+            && let Some(held) = self.remote.held_revision(machine_id)
         {
-            if let Some(held) = self.remote.held_revision(machine_id) {
-                held.store(loaded.revision, Ordering::Release);
-            }
+            held.store(loaded.revision, Ordering::Release);
         }
         if output.changes.machines_reloaded.contains(&machine) {
             self.remote.counters.reloads += 1;

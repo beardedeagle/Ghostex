@@ -613,8 +613,7 @@ fn permission_prompt_run_kind(
     let heading = first_row_line
         .checked_sub(1)
         .map(|line| strip_box_border(&window[line]))?;
-    is_permission_prompt_heading(&heading)
-        .then_some(SessionChatTerminalPickerKind::PermissionPrompt)
+    is_permission_prompt_heading(heading).then_some(SessionChatTerminalPickerKind::PermissionPrompt)
 }
 
 /// CDXC:AgentScreenDetection 2026-09-26 WHY: a file write or edit asks "Do you want to create approve.txt?" or "Do you want to make this edit to notes.md?" over the same Yes / "Yes, allow all edits during this session" / No rows, so matching only "Do you want to proceed?" left those prompts with the hook card's Allow and Deny alone and no way to pick the session-wide row from chat. Any "Do you want to …?" heading counts; the Yes and No rows are still required.

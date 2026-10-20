@@ -163,7 +163,7 @@ impl GhostexGpuiApp {
                 self.handle_gpui_pick_repository_folder_message(cx);
             }
             "completeFirstLaunchSetup" => {
-                let is_first_launch_setup = self.app_modal_window.clone().is_some_and(|handle| {
+                let is_first_launch_setup = self.app_modal_window.is_some_and(|handle| {
                     handle
                         .update(cx, |host, _window, _cx| {
                             host.current_modal == GpuiAppModalKind::Onboarding
@@ -241,7 +241,7 @@ impl GhostexGpuiApp {
             string wholesale.
             */
             "logError" => {
-                let current_modal_id = self.app_modal_window.clone().and_then(|handle| {
+                let current_modal_id = self.app_modal_window.and_then(|handle| {
                     handle
                         .update(cx, |host, _window, _cx| host.current_modal.modal_id())
                         .ok()
@@ -497,12 +497,12 @@ impl GhostexGpuiApp {
         if self.app_modal_window.is_none() && self.close_native_app_modal_from_bridge(cx) {
             return;
         }
-        let closing_modal_id = self.app_modal_window.clone().and_then(|handle| {
+        let closing_modal_id = self.app_modal_window.and_then(|handle| {
             handle
                 .update(cx, |host, _window, _cx| host.current_modal.modal_id())
                 .ok()
         });
-        if closing_modal_id.as_deref() == Some("onboarding") {
+        if closing_modal_id == Some("onboarding") {
             return;
         }
         support_logs::append(

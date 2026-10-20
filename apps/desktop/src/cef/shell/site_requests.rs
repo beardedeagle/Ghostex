@@ -184,16 +184,14 @@ pub fn forget_local_network_access_answer(profile: &str, origin: &str) -> bool {
         &LOCAL_NETWORK_ACCESS_CONTENT_TYPES,
         ContentSettingValues::DEFAULT,
     );
-    if forgotten {
-        if let Ok(context) = cef_request_context_for_profile(profile) {
-            let origin = CefString::from(origin);
-            context.set_website_setting(
-                Some(&origin),
-                Some(&origin),
-                ContentSettingTypes::PERMISSION_AUTOBLOCKER_DATA,
-                None,
-            );
-        }
+    if forgotten && let Ok(context) = cef_request_context_for_profile(profile) {
+        let origin = CefString::from(origin);
+        context.set_website_setting(
+            Some(&origin),
+            Some(&origin),
+            ContentSettingTypes::PERMISSION_AUTOBLOCKER_DATA,
+            None,
+        );
     }
     forgotten
 }

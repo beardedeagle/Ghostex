@@ -4,7 +4,6 @@
 // command construction. See docs/2026-08-22/repo-restructure/SPLITS.md C1.
 
 use crate::app::helpers::*;
-use crate::*;
 
 pub(crate) fn gpui_remote_shell_command_arg(value: &str) -> String {
     if value

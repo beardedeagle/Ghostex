@@ -67,12 +67,12 @@ impl GhostexGpuiApp {
             return cache.generation;
         }
         cache.read_at = Some(Instant::now());
-        if let Ok((primary, keep_awake)) = super::sidebar_ui_storage::read_menu_host_state() {
-            if cache.primary_agent_id != primary || cache.keep_awake_minutes != keep_awake {
-                cache.primary_agent_id = primary;
-                cache.keep_awake_minutes = keep_awake;
-                cache.generation += 1;
-            }
+        if let Ok((primary, keep_awake)) = super::sidebar_ui_storage::read_menu_host_state()
+            && (cache.primary_agent_id != primary || cache.keep_awake_minutes != keep_awake)
+        {
+            cache.primary_agent_id = primary;
+            cache.keep_awake_minutes = keep_awake;
+            cache.generation += 1;
         }
         let open_targets = open_targets();
         if cache.open_targets != open_targets {

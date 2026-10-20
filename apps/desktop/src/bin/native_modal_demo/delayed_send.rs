@@ -67,7 +67,7 @@ pub(super) fn open(demo: &super::DemoEnv, cx: &mut App) {
                 let Some((window, view)) = target else {
                     return;
                 };
-                let _ = cx.update(|cx| {
+                cx.update(|cx| {
                     let _ = window.update(cx, |_root, window, cx| {
                         view.update(cx, |modal, cx| {
                             let (sessions, error) = match state.as_str() {

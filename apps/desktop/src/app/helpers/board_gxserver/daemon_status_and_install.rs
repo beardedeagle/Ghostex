@@ -64,12 +64,11 @@ pub(crate) fn gpui_on_demand_gxserver_archive(
         if matches!(
             event.phase,
             component_store::ComponentStoreProgressPhase::Downloading
-        ) {
-            if let Some(progress_tx) = progress_tx {
-                let _ = progress_tx.unbounded_send(GpuiRemoteGxserverConnectProgress {
-                    state: GpuiRemoteGxserverConnectState::DownloadingRemoteServerPackage,
-                });
-            }
+        ) && let Some(progress_tx) = progress_tx
+        {
+            let _ = progress_tx.unbounded_send(GpuiRemoteGxserverConnectProgress {
+                state: GpuiRemoteGxserverConnectState::DownloadingRemoteServerPackage,
+            });
         }
         support_logs::append(
             support_logs::GpuiSupportLog::RemoteGxserverInstall,

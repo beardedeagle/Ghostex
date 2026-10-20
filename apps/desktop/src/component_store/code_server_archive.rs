@@ -348,7 +348,7 @@ pub(crate) fn verify_code_server_archive(
     let mut saw_root_directory = false;
     let mut readiness_found = false;
     for entry in entries {
-        let mut entry = entry.map_err(|error| format!("Invalid code-server archive: {error}"))?;
+        let entry = entry.map_err(|error| format!("Invalid code-server archive: {error}"))?;
         let entry_type = entry.header().entry_type().as_byte();
         let path = normalized_code_server_tar_path(
             entry

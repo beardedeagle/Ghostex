@@ -78,7 +78,7 @@ pub fn more_menu(input: &MoreMenuInput<'_>) -> Vec<MenuItem> {
                 ..MenuItem::default()
             }
             .with_tag_presentation(tag_presentation(Some(&tag), input.catalog).as_ref())
-            .with_checked(ui.selected_tag_filters.iter().any(|filter| *filter == tag))
+            .with_checked(ui.selected_tag_filters.contains(&tag))
             .with_disabled(!item.enabled),
         );
     }

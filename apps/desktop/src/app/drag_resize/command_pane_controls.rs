@@ -134,22 +134,22 @@ impl GhostexGpuiApp {
                 }
                 self.command_pane.toggle_pinned();
                 let is_expanded_after = self.command_pane.is_expanded();
-                if !was_expanded && is_expanded_after {
-                    if let Some((group_id, session_id, true)) =
+                if !was_expanded
+                    && is_expanded_after
+                    && let Some((group_id, session_id, true)) =
                         self.command_pane.ensure_session_for_open()
-                    {
-                        self.start_command_terminal_gxserver_attach_for_slot(
-                            CommandTerminalBodyMountSlotId {
-                                group_id,
-                                session_id,
-                            },
-                            COMMAND_PANE_DEFAULT_SESSION_TITLE.to_string(),
-                            None,
-                            None,
-                            None,
-                            cx,
-                        );
-                    }
+                {
+                    self.start_command_terminal_gxserver_attach_for_slot(
+                        CommandTerminalBodyMountSlotId {
+                            group_id,
+                            session_id,
+                        },
+                        COMMAND_PANE_DEFAULT_SESSION_TITLE.to_string(),
+                        None,
+                        None,
+                        None,
+                        cx,
+                    );
                 }
                 if command_pane_control_action_focuses_command_pane(
                     CommandPaneControlAction::TogglePinned,

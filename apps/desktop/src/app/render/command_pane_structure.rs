@@ -344,7 +344,7 @@ impl GhostexGpuiApp {
 
         v_flex()
             .on_children_prepainted(move |child_bounds, _window, cx| {
-                let _ = view.update(cx, |this, _cx| {
+                view.update(cx, |this, _cx| {
                     this.record_command_pane_layout_bounds(&child_bounds);
                 });
             })
@@ -659,7 +659,7 @@ impl GhostexGpuiApp {
                 let view = cx.entity().clone();
                 h_flex()
                     .on_children_prepainted(move |child_bounds, _window, cx| {
-                        let _ = view.update(cx, |this, _cx| {
+                        view.update(cx, |this, _cx| {
                             this.record_command_split_layout_metrics(split_id, axis, &child_bounds);
                         });
                     })
@@ -677,7 +677,7 @@ impl GhostexGpuiApp {
                 let view = cx.entity().clone();
                 v_flex()
                     .on_children_prepainted(move |child_bounds, _window, cx| {
-                        let _ = view.update(cx, |this, _cx| {
+                        view.update(cx, |this, _cx| {
                             this.record_command_split_layout_metrics(split_id, axis, &child_bounds);
                         });
                     })

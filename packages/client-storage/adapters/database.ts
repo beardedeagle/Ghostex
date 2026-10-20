@@ -1,11 +1,9 @@
 import { applyDatabaseMutations } from './database-transaction';
 import { recordStorageEvent } from '../diagnostics';
-import { definitionForKey, definitions, storageCatalog, type StoreId } from '../catalog';
-import { admission, storageBytes, STORAGE_BUDGETS } from '../budgets';
+import { storageCatalog, type StoreId } from '../catalog';
 import { ClientStorageError, type StorageChange, type StorageRecord } from '../types';
 
 export type Mutation = { key: string; store: StoreId; raw: string | null; onlyIfAbsent?: boolean };
-type Usage = { bytes: number; entries: number };
 let opening: Promise<IDBDatabase> | undefined;
 const factoryKey = Symbol.for('ghostex.client-storage.database-adapter');
 const globals = globalThis as typeof globalThis & { [factoryKey]?: { open?: IDBFactory['open']; guarded: boolean } };
@@ -34,7 +32,6 @@ export function installDatabaseGuard(): void {
   };
 }
 const DATABASE = 'ghostex-client-storage';
-const empty = (): Usage => ({ bytes: 0, entries: 0 });
 function request<T>(value: IDBRequest<T>): Promise<T> {
   return new Promise((resolve, reject) => {
     value.onsuccess = () => resolve(value.result);

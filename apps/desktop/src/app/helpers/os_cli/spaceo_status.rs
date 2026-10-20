@@ -154,12 +154,11 @@ fn gpui_spaceo_version(path: &Path) -> Option<String> {
 
 /// The tag GitHub's latest-release page redirects to, the way SpaceO's own installer finds it.
 fn gpui_spaceo_latest_version(fresh: bool) -> Option<String> {
-    if !fresh {
-        if let Some((checked_at, version)) = LATEST_VERSION.lock().ok()?.clone() {
-            if checked_at.elapsed() < LATEST_VERSION_TTL {
-                return Some(version);
-            }
-        }
+    if !fresh
+        && let Some((checked_at, version)) = LATEST_VERSION.lock().ok()?.clone()
+        && checked_at.elapsed() < LATEST_VERSION_TTL
+    {
+        return Some(version);
     }
     let output = gpui_run_command_with_captured_output_timeout(
         Path::new("/usr/bin/curl"),

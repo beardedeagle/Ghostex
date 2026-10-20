@@ -424,6 +424,7 @@ fn signal_portless_snapshot_child(child: &mut std::process::Child, force: bool) 
     }
     #[cfg(not(unix))]
     {
+        let _ = force;
         let _ = child.kill();
     }
 }

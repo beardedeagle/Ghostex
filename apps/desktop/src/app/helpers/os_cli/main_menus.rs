@@ -147,7 +147,7 @@ pub(crate) fn register_ghostex_gpui_main_menu_actions(
             .spawn(async { gpui_stop_all_ghostex_background_services() });
         cx.spawn(async move |cx| {
             teardown.await;
-            let _ = cx.update(|cx| cx.quit());
+            cx.update(|cx| cx.quit());
         })
         .detach();
     });

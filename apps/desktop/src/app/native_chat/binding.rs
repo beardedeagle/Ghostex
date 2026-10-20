@@ -10,14 +10,13 @@ impl GhostexGpuiApp {
         cx: &mut gpui::Context<Self>,
     ) -> Option<Entity<NativeChatView>> {
         let existing = self.native_chat_views.get(&session_id).cloned();
-        if let Some(view) = &existing {
-            if !view.read(cx).config.session_id.is_empty()
+        if let Some(view) = &existing
+            && (!view.read(cx).config.session_id.is_empty()
                 || self
                     .workspace_terminal_key_for_shell_session(session_id)
-                    .is_none()
-            {
-                return Some(view.clone());
-            }
+                    .is_none())
+        {
+            return Some(view.clone());
         }
         let key = self.workspace_terminal_key_for_shell_session(session_id)?;
         let sidebar_session_id = match &key {
@@ -113,10 +112,10 @@ impl GhostexGpuiApp {
                         let message = message.clone();
                         cx.spawn(async move |this, cx| {
                             let _ = this.update_in(cx, |this, window, cx| {
-                                if !this
+                                if this
                                     .agents_chat_page_states
                                     .get(&session_id)
-                                    .is_some_and(|state| state.generation == generation)
+                                    .is_none_or(|state| state.generation != generation)
                                 {
                                     return;
                                 }

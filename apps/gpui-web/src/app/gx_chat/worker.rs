@@ -69,10 +69,8 @@ fn submit(command: Option<HostCommand>) {
         arm_timer(host);
         true
     });
-    if !ran {
-        if let Some(command) = command {
-            QUEUED.with(|queued| queued.borrow_mut().push_back(command));
-        }
+    if !ran && let Some(command) = command {
+        QUEUED.with(|queued| queued.borrow_mut().push_back(command));
     }
 }
 

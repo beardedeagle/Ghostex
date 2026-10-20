@@ -247,14 +247,13 @@ fn dev_server_framework(arguments: &str) -> Option<&'static str> {
 fn dev_server_project_name(directory: &Path) -> Option<String> {
     if let Ok(file) = fs::File::open(directory.join("package.json")) {
         use std::io::Read as _;
-        if let Ok(value) = serde_json::from_reader::<_, serde_json::Value>(file.take(64 * 1024)) {
-            if let Some(name) = value
+        if let Ok(value) = serde_json::from_reader::<_, serde_json::Value>(file.take(64 * 1024))
+            && let Some(name) = value
                 .get("name")
                 .and_then(serde_json::Value::as_str)
                 .filter(|name| !name.trim().is_empty())
-            {
-                return Some(name.to_string());
-            }
+        {
+            return Some(name.to_string());
         }
     }
     if let Ok(file) = fs::File::open(directory.join("Cargo.toml")) {
@@ -266,19 +265,16 @@ fn dev_server_project_name(directory: &Path) -> Option<String> {
             if line.starts_with('[') {
                 package = line == "[package]";
             }
-            if package {
-                if let Some(("name", value)) = line
+            if package
+                && let Some(("name", value)) = line
                     .split_once('=')
                     .map(|(key, value)| (key.trim(), value.trim()))
-                {
-                    if let Some(name) = value
-                        .strip_prefix('"')
-                        .and_then(|value| value.split('"').next())
-                        .filter(|name| !name.is_empty())
-                    {
-                        return Some(name.into());
-                    }
-                }
+                && let Some(name) = value
+                    .strip_prefix('"')
+                    .and_then(|value| value.split('"').next())
+                    .filter(|name| !name.is_empty())
+            {
+                return Some(name.into());
             }
         }
     }

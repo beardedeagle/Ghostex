@@ -168,7 +168,7 @@ pub(crate) fn show_copied_indicator(cx: &mut App) {
             cx.background_executor()
                 .timer(HOLD + FADE + Duration::from_millis(50))
                 .await;
-            let _ = cx.update(|cx| {
+            cx.update(|cx| {
                 let indicator = cx.global_mut::<CopiedIndicator>();
                 if indicator.generation != generation {
                     return;

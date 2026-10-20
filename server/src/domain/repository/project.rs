@@ -206,7 +206,7 @@ impl<'a> DomainRepository<'a> {
             .get("path")
             .and_then(Value::as_str)
             .map(str::trim)
-            .map_or(false, |path| !path.is_empty());
+            .is_some_and(|path| !path.is_empty());
         if !has_path {
             return Err(DomainStateError::bad_request(
                 "Project must have a stored path before it can be parked as recent.",

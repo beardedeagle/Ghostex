@@ -312,8 +312,7 @@ pub(super) fn normalize_cli_session_activity(value: Option<&Value>) -> String {
     let normalized = js_string(value)
         .trim()
         .to_lowercase()
-        .replace('_', "-")
-        .replace(' ', "-");
+        .replace(['_', ' '], "-");
     if normalized == "attention"
         || normalized == "needs-attention"
         || normalized == "attention-required"

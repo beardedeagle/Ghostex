@@ -55,9 +55,9 @@ impl NativeChatView {
     /// CDXC:SessionChat 2026-10-09 DECISION: User: the dot before the agent's last message shifted the whole message right, so "the card for the html mockup" was narrower than the chat box; remove the dot for the agent's final reply. Commentary between tool calls keeps its dot, and an answer with tool calls keeps its chevron.
     pub(super) fn is_flush_reply(&self, message: &Value) -> bool {
         message["role"] == "assistant"
-            && !message["tools"]
+            && message["tools"]
                 .as_array()
-                .is_some_and(|tools| !tools.is_empty())
+                .is_none_or(|tools| tools.is_empty())
             && self.snapshot["finalIds"]
                 .as_array()
                 .is_some_and(|ids| ids.iter().any(|id| id == &message["id"]))

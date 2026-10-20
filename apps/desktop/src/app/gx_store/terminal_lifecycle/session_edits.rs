@@ -133,16 +133,15 @@ impl GhostexGpuiApp {
                     return;
                 }
                 // CDXC:RemoteMachines 2026-08-12: the remote gxserver owns that session's provider, so it submits the provider-specific slash command itself.
-                let _ = self
-                    .start_gpui_remote_sidebar_rpc(
-                        &machine_id,
-                        "/api/requestSessionRename",
-                        Some(Value::Object(params)),
-                        Duration::from_millis(REMOTE_FIRE_AND_FORGET_TIMEOUT_MS),
-                        GpuiRemoteSidebarRpcMode::FireAndForget,
-                        cx,
-                    )
-                    .detach();
+                self.start_gpui_remote_sidebar_rpc(
+                    &machine_id,
+                    "/api/requestSessionRename",
+                    Some(Value::Object(params)),
+                    Duration::from_millis(REMOTE_FIRE_AND_FORGET_TIMEOUT_MS),
+                    GpuiRemoteSidebarRpcMode::FireAndForget,
+                    cx,
+                )
+                .detach();
             }
             MachineId::Local => {
                 cx.spawn(async move |this, cx| {

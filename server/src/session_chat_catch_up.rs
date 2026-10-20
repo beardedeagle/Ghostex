@@ -518,7 +518,7 @@ async fn run_agent(
         .lines()
         .map(str::trim)
         .filter(|line| !line.is_empty())
-        .last()
+        .next_back()
         .map(|line| line.chars().take(200).collect::<String>())
         .unwrap_or_else(|| format!("exit code {:?}", output.status.code()));
     Err(failure(

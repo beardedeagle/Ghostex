@@ -409,15 +409,14 @@ fn scan_skill_entries(home: &Path, spec: &AgentSpec, source: &SourceInfo) -> Opt
     let display_dir = fsx::display_path(dir, home);
     let metadata = fs::symlink_metadata(dir).ok();
     let Some(metadata) = metadata else {
-        return Some(SkillsReport {
+        return Some(with_counts(SkillsReport {
             dir: display_dir,
             dir_state: SkillDirState::Missing,
             dir_link_target: None,
             entries: missing_entries(home, dir, source, spec.universal),
             backups: Vec::new(),
             counts: SkillCounts::default(),
-        })
-        .map(with_counts);
+        }));
     };
     let usable_source: Vec<&SourceSkill> = source.skills.iter().filter(|s| !s.broken).collect();
     if metadata.file_type().is_symlink() {

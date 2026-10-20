@@ -571,7 +571,7 @@ fn group_digits(count: u64) -> String {
     let digits = count.to_string();
     let mut out = String::new();
     for (ix, c) in digits.chars().enumerate() {
-        if ix > 0 && (digits.len() - ix) % 3 == 0 {
+        if ix > 0 && (digits.len() - ix).is_multiple_of(3) {
             out.push(',');
         }
         out.push(c);

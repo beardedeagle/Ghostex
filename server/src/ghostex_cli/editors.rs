@@ -909,7 +909,7 @@ impl EditorDaemonClient {
         predicate: &dyn Fn(&Value) -> bool,
         timeout_ms: u64,
     ) -> Result<Value, EditorError> {
-        if let Some(index) = self.pending.iter().position(|message| predicate(message)) {
+        if let Some(index) = self.pending.iter().position(predicate) {
             return Ok(self.pending.remove(index));
         }
         if self.closed {
@@ -934,8 +934,7 @@ impl EditorDaemonClient {
                 Ok(read_bytes) => {
                     self.buffer.extend_from_slice(&chunk[..read_bytes]);
                     self.drain_buffered_lines();
-                    if let Some(index) = self.pending.iter().position(|message| predicate(message))
-                    {
+                    if let Some(index) = self.pending.iter().position(predicate) {
                         return Ok(self.pending.remove(index));
                     }
                 }
@@ -952,7 +951,7 @@ impl EditorDaemonClient {
                 }
             }
             if self.closed {
-                if let Some(index) = self.pending.iter().position(|message| predicate(message)) {
+                if let Some(index) = self.pending.iter().position(predicate) {
                     return Ok(self.pending.remove(index));
                 }
                 return Err(self
@@ -1290,9 +1289,7 @@ fn ghostex_cli_repo_root_from_cli_dir(cli_dir: &Path) -> Option<PathBuf> {
         if file_exists(&current.join(marker)) {
             return Some(current);
         }
-        let Some(parent) = current.parent().map(Path::to_path_buf) else {
-            return None;
-        };
+        let parent = current.parent().map(Path::to_path_buf)?;
         if parent == current {
             return None;
         }

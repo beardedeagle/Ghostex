@@ -522,7 +522,7 @@ pub(super) fn match_project(projects: &[ProjectInfo], query: &str) -> Match<Proj
 /// The clear winner, or the close candidates when two score alike.
 fn pick<T: Clone>(mut scored: Vec<(u32, T)>) -> Match<T> {
     scored.retain(|(points, _)| *points > 0);
-    scored.sort_by(|a, b| b.0.cmp(&a.0));
+    scored.sort_by_key(|entry| std::cmp::Reverse(entry.0));
     match scored.as_slice() {
         [] => Match::None,
         [(_, only)] => Match::One(only.clone()),

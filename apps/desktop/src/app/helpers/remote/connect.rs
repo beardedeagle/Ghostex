@@ -442,17 +442,17 @@ pub(crate) fn gpui_probe_remote_execution_target(
             "stderrPresent": !posix_probe.stderr.trim().is_empty(),
         }),
     );
-    if posix_probe.exit_code == 0 && gpui_remote_install_target_probe_is_marked(&posix_probe.stdout)
+    if posix_probe.exit_code == 0
+        && gpui_remote_install_target_probe_is_marked(&posix_probe.stdout)
+        && let Some(target) = gpui_extract_remote_install_target(posix_probe.stdout.as_str())
     {
-        if let Some(target) = gpui_extract_remote_install_target(posix_probe.stdout.as_str()) {
-            if matches!(target.normalized_os().as_str(), "darwin" | "linux") {
-                return Ok(GpuiRemoteExecutionTarget::PosixHost);
-            }
-            return Err(GpuiRemoteExecutionTargetProbeError::Unsupported(format!(
-                "Remote platform {} is unsupported. Ghostex remote setup supports macOS, Linux, and Windows with PowerShell or WSL2.",
-                target.display_label()
-            )));
+        if matches!(target.normalized_os().as_str(), "darwin" | "linux") {
+            return Ok(GpuiRemoteExecutionTarget::PosixHost);
         }
+        return Err(GpuiRemoteExecutionTargetProbeError::Unsupported(format!(
+            "Remote platform {} is unsupported. Ghostex remote setup supports macOS, Linux, and Windows with PowerShell or WSL2.",
+            target.display_label()
+        )));
     }
     if gpui_remote_process_failure_is_ssh_transport(&posix_probe) {
         return Err(GpuiRemoteExecutionTargetProbeError::Ssh(posix_probe));
@@ -540,8 +540,8 @@ pub(crate) fn gpui_probe_remote_execution_target(
     );
     if wsl_probe.exit_code != 0
         || !gpui_remote_install_target_probe_is_marked(&wsl_probe.stdout)
-        || !gpui_extract_remote_install_target(wsl_probe.stdout.as_str())
-            .is_some_and(|target| target.normalized_os() == "linux")
+        || gpui_extract_remote_install_target(wsl_probe.stdout.as_str())
+            .is_none_or(|target| target.normalized_os() != "linux")
     {
         if gpui_remote_process_failure_is_ssh_transport(&wsl_probe) {
             return Err(GpuiRemoteExecutionTargetProbeError::Ssh(wsl_probe));
@@ -677,10 +677,10 @@ pub(crate) fn gpui_first_remote_gxserver_token_like_run(value: &str) -> Option<S
             }
             continue;
         }
-        if let Some(start) = run_start.take() {
-            if index - start >= 32 {
-                return Some(value[start..index].to_string());
-            }
+        if let Some(start) = run_start.take()
+            && index - start >= 32
+        {
+            return Some(value[start..index].to_string());
         }
     }
     let start = run_start?;

@@ -255,7 +255,7 @@ pub(crate) fn gpui_status_icon_data_url_allowed(value: &str) -> bool {
 }
 
 pub(crate) fn gpui_status_icon_base64_payload_allowed(payload: &str) -> bool {
-    if payload.is_empty() || payload.len() % 4 != 0 {
+    if payload.is_empty() || !payload.len().is_multiple_of(4) {
         return false;
     }
     let padding_index = payload.find('=').unwrap_or(payload.len());
@@ -303,21 +303,20 @@ pub(crate) fn gpui_status_indicator_aggregate_activation_session_id(
     if candidates.is_empty() {
         return None;
     }
-    if let Some(focused_session_id) = focused_session_id {
-        if candidates.len() > 1 {
-            if let Some(index) = candidates.iter().position(|session| {
-                gpui_status_indicator_session_matches_focus(
-                    session.session_id.as_str(),
-                    focused_session_id,
-                )
-            }) {
-                return Some(
-                    candidates[(index + 1) % candidates.len()]
-                        .session_id
-                        .clone(),
-                );
-            }
-        }
+    if let Some(focused_session_id) = focused_session_id
+        && candidates.len() > 1
+        && let Some(index) = candidates.iter().position(|session| {
+            gpui_status_indicator_session_matches_focus(
+                session.session_id.as_str(),
+                focused_session_id,
+            )
+        })
+    {
+        return Some(
+            candidates[(index + 1) % candidates.len()]
+                .session_id
+                .clone(),
+        );
     }
     Some(candidates[0].session_id.clone())
 }

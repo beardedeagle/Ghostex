@@ -153,7 +153,7 @@ fn records_message(
         && message.source == SessionChatSource::Transcript
         && message
             .timestamp
-            .map_or(true, |timestamp| timestamp >= earliest)
+            .is_none_or(|timestamp| timestamp >= earliest)
         && holds_message(
             &message
                 .blocks

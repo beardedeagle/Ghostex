@@ -105,7 +105,7 @@ async fn wait_for_retry(
     retry_requests: &mut mpsc::UnboundedReceiver<()>,
     attempt: u32,
 ) {
-    while let Ok(Some(())) = retry_requests.try_next() {}
+    while retry_requests.try_recv().is_ok() {}
     let delay = (1_000 * u64::from(attempt.max(1))).min(ghostex_gx_core::DAEMON_RETRY_INTERVAL_MS);
     let timer = cx
         .background_executor()

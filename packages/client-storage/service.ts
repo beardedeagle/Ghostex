@@ -18,7 +18,6 @@ import {
 } from './adapters/browser';
 import {
   commitDatabase,
-  readDatabase,
   readDatabaseSnapshot,
   transactionDatabase,
   type Mutation,

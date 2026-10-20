@@ -414,12 +414,11 @@ wrap_keyboard_handler! {
             } else {
                 (0x48, control)
             };
-            if event.windows_key_code == history_key && modifiers == history_modifier {
-                if let Some(handler) = &self.page_metadata_handler {
+            if event.windows_key_code == history_key && modifiers == history_modifier
+                && let Some(handler) = &self.page_metadata_handler {
                     handler(BrowserPageMetadataEvent::HistoryRequested);
                     return 1;
                 }
-            }
             let primary = if cfg!(target_os = "macos") {
                 command
             } else {
@@ -430,20 +429,17 @@ wrap_keyboard_handler! {
             if cfg!(not(target_os = "macos"))
                 && event.windows_key_code == 0x46
                 && modifiers == primary
-            {
-                if let Some(handler) = &self.page_metadata_handler {
+                && let Some(handler) = &self.page_metadata_handler {
                     handler(BrowserPageMetadataEvent::FindRequested);
                     return 1;
                 }
-            }
             let reload_chord = (event.windows_key_code == 0x74 && modifiers == 0)
                 || (event.windows_key_code == 0x52 && modifiers == primary);
-            if reload_chord && self.page_metadata_handler.is_some() {
-                if let Some(browser) = browser.as_deref() {
+            if reload_chord && self.page_metadata_handler.is_some()
+                && let Some(browser) = browser.as_deref() {
                     browser.reload();
                     return 1;
                 }
-            }
             #[cfg(target_os = "windows")]
             if event.type_ == KeyEventType::RAWKEYDOWN
                 && self.zoom_enabled

@@ -218,8 +218,7 @@ fn normalize_repository_path(repository_path: &str) -> String {
 fn repository_name_from_path(path: &str) -> String {
     let repository_name = path
         .split('/')
-        .filter(|segment| !segment.is_empty())
-        .next_back()
+        .rfind(|segment| !segment.is_empty())
         .unwrap_or("repository");
     repository_name
         .strip_suffix(".git")

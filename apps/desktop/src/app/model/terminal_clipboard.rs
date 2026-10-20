@@ -23,14 +23,14 @@ pub(crate) fn terminal_clipboard_paste_text(
     paste_previewable_images_enabled: bool,
     factory_droid_image_padding: bool,
 ) -> Option<String> {
-    if paste_previewable_images_enabled {
-        if let Some(markdown) = terminal_clipboard_previewable_image_markdown_text(item) {
-            return Some(if factory_droid_image_padding {
-                format!("  {markdown}")
-            } else {
-                markdown
-            });
-        }
+    if paste_previewable_images_enabled
+        && let Some(markdown) = terminal_clipboard_previewable_image_markdown_text(item)
+    {
+        return Some(if factory_droid_image_padding {
+            format!("  {markdown}")
+        } else {
+            markdown
+        });
     }
 
     terminal_clipboard_explicit_string_entries_text(item)

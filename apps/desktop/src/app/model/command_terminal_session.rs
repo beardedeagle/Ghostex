@@ -18,17 +18,12 @@ Command-tab status chrome is a trailing native slot, not a leading title prefix:
 CDXC:SessionSleep 2026-06-25-14:27:
 Command-pane Sleep is a renderer lifecycle flag, not tab deletion. Persist only the sleeping boolean with safe command metadata so tabs remain in their command group while mounted command terminal body slots are withheld until explicit wake.
 */
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub(crate) enum CommandTerminalActivity {
+    #[default]
     Idle,
     Working,
     Attention,
-}
-
-impl Default for CommandTerminalActivity {
-    fn default() -> Self {
-        Self::Idle
-    }
 }
 
 impl CommandTerminalActivity {

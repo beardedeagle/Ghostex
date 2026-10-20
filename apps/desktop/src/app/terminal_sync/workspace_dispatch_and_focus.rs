@@ -584,20 +584,20 @@ impl GhostexGpuiApp {
             let surface_mounted = self
                 .command_terminal_ghostty_surfaces
                 .contains_key(&slot_id);
-            if surface_mounted {
-                if let (Some(host_view), Some(surface)) = (
+            if surface_mounted
+                && let (Some(host_view), Some(surface)) = (
                     self.command_terminal_host_native_views.get(&slot_id),
                     self.command_terminal_ghostty_surfaces.get(&slot_id),
-                ) {
-                    /*
-                    CDXC:Terminal 2026-06-24-20:58:
-                    Command-pane terminals use the same exact host-view key bridge as Agents terminals, but registration is scoped to command mount slots and their own Ghostty app/surface map so command keys cannot fall through to Agents surfaces or shell placeholders.
-                    */
-                    terminal_ghostty_surface::register_native_key_target(
-                        host_view.native_view_handle(),
-                        surface,
-                    );
-                }
+                )
+            {
+                /*
+                CDXC:Terminal 2026-06-24-20:58:
+                Command-pane terminals use the same exact host-view key bridge as Agents terminals, but registration is scoped to command mount slots and their own Ghostty app/surface map so command keys cannot fall through to Agents surfaces or shell placeholders.
+                */
+                terminal_ghostty_surface::register_native_key_target(
+                    host_view.native_view_handle(),
+                    surface,
+                );
             }
             terminal_native_view::set_app_owned_terminal_host_native_view_visible(
                 self.command_terminal_host_native_views.get(&slot_id),
@@ -607,12 +607,12 @@ impl GhostexGpuiApp {
 
         self.sync_command_terminal_ghostty_surface_focus();
 
-        if let Some(app) = self.command_terminal_ghostty_app.as_ref() {
-            if !self.command_terminal_ghostty_surfaces.is_empty() {
-                app.tick_if_woken();
-                app.tick();
-                self.drain_command_terminal_runtime_clipboard_requests(cx);
-            };
-        }
+        if let Some(app) = self.command_terminal_ghostty_app.as_ref()
+            && !self.command_terminal_ghostty_surfaces.is_empty()
+        {
+            app.tick_if_woken();
+            app.tick();
+            self.drain_command_terminal_runtime_clipboard_requests(cx);
+        };
     }
 }

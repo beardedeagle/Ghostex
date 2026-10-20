@@ -68,10 +68,6 @@ impl TerminalChild {
         Ok(owner)
     }
 
-    pub(crate) fn pid(&self) -> Option<u32> {
-        self.pid
-    }
-
     pub(crate) fn exit_status(&self) -> Option<TerminalExit> {
         self.exit.get().copied()
     }

@@ -497,7 +497,7 @@ impl Totals {
 
 fn open(flags: OpenFlags) -> Result<Connection, &'static str> {
     let connection = Connection::open_with_flags(
-        &client_storage_path(),
+        client_storage_path(),
         flags | OpenFlags::SQLITE_OPEN_NO_MUTEX,
     )
     .map_err(|_| "open")?;

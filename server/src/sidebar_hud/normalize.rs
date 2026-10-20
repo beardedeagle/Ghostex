@@ -495,8 +495,7 @@ pub(super) fn strict_sidebar_agent_icon(candidate: &str) -> Option<&str> {
 
 pub(super) fn sidebar_command_icon(candidate: &str) -> Option<&str> {
     SIDEBAR_COMMAND_ICON_IDS
-        .iter()
-        .any(|icon| *icon == candidate)
+        .contains(&candidate)
         .then_some(candidate)
 }
 

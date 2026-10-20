@@ -475,7 +475,7 @@ pub(crate) fn gpui_gxserver_required_tools_available(health: &serde_json::Value)
     // machine without Beads report "gxserver toolchain unavailable" and then
     // restart a perfectly healthy daemon on every later launch. Project board
     // surfaces already carry their own install guidance for that case.
-    let required_tools = vec!["zmx"];
+    let required_tools = ["zmx"];
     #[cfg(target_os = "windows")]
     if matches!(
         windows_terminal_backend::resolve_current(),
@@ -1147,10 +1147,10 @@ pub(crate) fn gpui_gxserver_startup_failure_report(probes: &[String]) -> String 
             Duration::from_secs(1),
             256,
         );
-        if let Ok(version) = version {
-            if version.success {
-                report.push_str(&format!("\n\nmacOS version: {}", version.stdout.trim()));
-            }
+        if let Ok(version) = version
+            && version.success
+        {
+            report.push_str(&format!("\n\nmacOS version: {}", version.stdout.trim()));
         }
         let uid = gpui_run_command_with_captured_output_timeout(
             Path::new("/usr/bin/id"),
@@ -1158,56 +1158,56 @@ pub(crate) fn gpui_gxserver_startup_failure_report(probes: &[String]) -> String 
             Duration::from_secs(1),
             64,
         );
-        if let Ok(uid) = uid {
-            if uid.success && uid.stdout.trim().parse::<u32>().is_ok() {
-                let target = format!(
-                    "gui/{}/{}",
-                    uid.stdout.trim(),
-                    gpui_gxserver_launch_agent_label()
-                );
-                report.push_str("\n\nlaunchd job at failure:\n");
-                match gpui_run_command_with_captured_output_timeout(
-                    Path::new("/bin/launchctl"),
-                    &["print", &target],
-                    Duration::from_secs(2),
-                    32 * 1024,
-                ) {
-                    Ok(job) if job.success => {
-                        for line in job.stdout.lines() {
-                            let Some((key, value)) = line.trim().split_once(" = ") else {
-                                continue;
-                            };
-                            if [
-                                "state",
-                                "pid",
-                                "runs",
-                                "last exit code",
-                                "last terminating signal",
-                                "program",
-                                "job state",
-                            ]
-                            .contains(&key)
-                            {
-                                report.push_str(&format!("{key}: {value}\n"));
-                            }
+        if let Ok(uid) = uid
+            && uid.success
+            && uid.stdout.trim().parse::<u32>().is_ok()
+        {
+            let target = format!(
+                "gui/{}/{}",
+                uid.stdout.trim(),
+                gpui_gxserver_launch_agent_label()
+            );
+            report.push_str("\n\nlaunchd job at failure:\n");
+            match gpui_run_command_with_captured_output_timeout(
+                Path::new("/bin/launchctl"),
+                &["print", &target],
+                Duration::from_secs(2),
+                32 * 1024,
+            ) {
+                Ok(job) if job.success => {
+                    for line in job.stdout.lines() {
+                        let Some((key, value)) = line.trim().split_once(" = ") else {
+                            continue;
+                        };
+                        if [
+                            "state",
+                            "pid",
+                            "runs",
+                            "last exit code",
+                            "last terminating signal",
+                            "program",
+                            "job state",
+                        ]
+                        .contains(&key)
+                        {
+                            report.push_str(&format!("{key}: {value}\n"));
                         }
                     }
-                    Ok(_) => report
-                        .push_str("launchctl print failed or timed out; job may not be loaded.\n"),
-                    Err(error) => {
-                        report.push_str(&format!("launchctl inspection failed: {error}\n"))
-                    }
                 }
+                Ok(_) => {
+                    report.push_str("launchctl print failed or timed out; job may not be loaded.\n")
+                }
+                Err(error) => report.push_str(&format!("launchctl inspection failed: {error}\n")),
             }
         }
     }
     if let Ok(token) = read_gpui_gxserver_auth_token() {
         report = report.replace(&token, "[redacted token]");
     }
-    if let Ok(home) = env::var("HOME") {
-        if !home.is_empty() {
-            report = report.replace(&home, "$HOME");
-        }
+    if let Ok(home) = env::var("HOME")
+        && !home.is_empty()
+    {
+        report = report.replace(&home, "$HOME");
     }
     report
         .lines()

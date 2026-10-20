@@ -160,7 +160,7 @@ fn row_detail(tool: &Value) -> String {
                         && !(line.ends_with('%')
                             && line[..line.len() - 1].chars().all(|c| c.is_ascii_digit()))
                 })
-                .last()
+                .next_back()
         });
         return match progress {
             Some(progress) => format!("{running} {name}… {progress}"),
@@ -173,10 +173,10 @@ fn row_detail(tool: &Value) -> String {
             None => description.to_string(),
         };
     }
-    if id(tool) == "systemTools" {
-        if let Some(detail) = text(tool, "detail") {
-            return detail.to_string();
-        }
+    if id(tool) == "systemTools"
+        && let Some(detail) = text(tool, "detail")
+    {
+        return detail.to_string();
     }
     let owner = if text(tool, "source") == Some("ghostex") {
         "installed by Ghostex"

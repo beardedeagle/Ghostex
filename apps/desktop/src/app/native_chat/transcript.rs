@@ -93,9 +93,9 @@ impl NativeChatView {
             // it holds for that turn without closing the reply fold that replaces it
             // (gx-chat-core `summary_mode_turns`).
             let id = if item["final"].is_object() {
-                format!("summary:{}", text(&item, "id"))
+                format!("summary:{}", text(item, "id"))
             } else {
-                format!("active-work:{}", text(&item, "id"))
+                format!("active-work:{}", text(item, "id"))
             };
             let expanded =
                 self.is_expanded(&id, item["latestReply"] == true || item["workOpen"] == true);

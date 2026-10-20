@@ -541,7 +541,7 @@ impl Render for GpuiPluginsModalWindow {
 impl GhostexGpuiApp {
     #[allow(dead_code)] // no caller: the Plugins action opens the Settings -> Plugins CEF page instead of this native window
     pub(super) fn open_gpui_plugins_modal_window(&mut self, cx: &mut gpui::Context<Self>) {
-        if let Some(handle) = self.plugins_modal_window.clone() {
+        if let Some(handle) = self.plugins_modal_window {
             if handle
                 .update(cx, |plugins, window, cx| {
                     plugins.refresh(cx);
@@ -585,7 +585,7 @@ impl GhostexGpuiApp {
     }
 
     pub(super) fn refresh_gpui_plugins_modal(&mut self, cx: &mut gpui::Context<Self>) {
-        if let Some(handle) = self.plugins_modal_window.clone() {
+        if let Some(handle) = self.plugins_modal_window {
             cx.defer(move |cx| {
                 let _ = handle.update(cx, |plugins, window, cx| {
                     plugins.refresh(cx);
@@ -741,18 +741,18 @@ fn code_server_row(
     let mut managed_component = false;
     let mut managed_installed = false;
 
-    if let Some(store) = store {
-        if let Some(component) = store.component(CODE_SERVER_COMPONENT) {
-            managed_component = true;
-            version = component.component_version.clone();
-            match source_code_server_query_local_component(store) {
-                Ok(component) => {
-                    installed = component.installed;
-                    managed_installed = component.installed;
-                    size_bytes = component.size_bytes;
-                }
-                Err(error) => set_first_warning(warning, error),
+    if let Some(store) = store
+        && let Some(component) = store.component(CODE_SERVER_COMPONENT)
+    {
+        managed_component = true;
+        version = component.component_version.clone();
+        match source_code_server_query_local_component(store) {
+            Ok(component) => {
+                installed = component.installed;
+                managed_installed = component.installed;
+                size_bytes = component.size_bytes;
             }
+            Err(error) => set_first_warning(warning, error),
         }
     }
 

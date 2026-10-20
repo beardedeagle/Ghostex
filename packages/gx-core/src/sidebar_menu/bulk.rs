@@ -51,13 +51,13 @@ pub fn bulk_menu(input: &BulkMenuInput<'_>) -> Option<Vec<MenuItem>> {
     menu.extend(rows(
         "Sleep Selected",
         "moon",
-        &keep(input.selected, |row| can_sleep(row)),
+        &keep(input.selected, can_sleep),
         |session_id| message::set_session_sleeping(session_id, true),
     ));
     menu.extend(rows(
         "Wake Selected",
         "player-play",
-        &keep(input.selected, |row| can_wake(row)),
+        &keep(input.selected, can_wake),
         |session_id| message::set_session_sleeping(session_id, false),
     ));
     if !tags.is_empty() {

@@ -334,15 +334,15 @@ impl GhostexGpuiApp {
                     .map(|entry| (entry.handle, entry.app.clone()))
                     .collect()
             });
-        let target = windows.into_iter().find(|(_, app)| {
+
+        windows.into_iter().find(|(_, app)| {
             app.upgrade().is_some_and(|app| {
                 app.read(cx)
                     .gx_store_resolved_window_workspace_id()
                     .as_deref()
                     == Some(workspace_id)
             })
-        });
-        target
+        })
     }
 
     /// A new window on `workspace_id`, cascaded from this one.

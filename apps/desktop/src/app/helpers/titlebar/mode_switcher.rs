@@ -150,36 +150,6 @@ pub(crate) fn titlebar_mode_view_tab_hidden_settings_key(
     }
 }
 
-/*
-CDXC:Extensions 2026-08-23:
-Toasts and menus name a workarea the way Settings → Customize does, which is
-not always the way the enum does: `Source` is "Code" and `Manage` is "Files"
-everywhere the user can read it (it read "Docs" until CDXC:Docs 2026-09-27).
-*/
-pub(crate) fn gpui_titlebar_mode_plugin_display_name(mode: TitlebarMode) -> &'static str {
-    match mode {
-        TitlebarMode::Agents => "Agents",
-        TitlebarMode::Source => "Code",
-        TitlebarMode::Browser => "Browser",
-        TitlebarMode::Kanban => "Kanban",
-        TitlebarMode::Automate => "Automate",
-        TitlebarMode::Manage => "Files",
-        TitlebarMode::Terminal => "Terminal",
-        TitlebarMode::BotFeed => "Automations",
-        TitlebarMode::Work => "Work",
-        TitlebarMode::Extension(id) => id.as_str(),
-    }
-}
-
-/// What the copied target *is*, for a disabled-workarea toast: Browser is the
-/// only workarea reached by a web link, every other one is reached by a path.
-pub(crate) fn gpui_disabled_project_workarea_copy_noun(mode: TitlebarMode) -> &'static str {
-    match mode {
-        TitlebarMode::Browser => "Link",
-        _ => "Path",
-    }
-}
-
 /// The Official switch a view needs on as well as its own, the Rust side of a descriptor's
 /// `requiresExtension` (packages/shared/ghostex-official-extensions.ts (deleted 2026-10-01)).
 fn titlebar_mode_required_hidden_settings_key(mode: TitlebarMode) -> Option<&'static str> {

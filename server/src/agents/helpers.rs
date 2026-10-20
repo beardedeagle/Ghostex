@@ -262,34 +262,37 @@ pub(crate) fn wrap_restored_terminal_resume_command(
         }
         return script;
     }
-    let mut lines = vec![
-        format!("printf '%s\\n' {}", quote_shell_arg("Restoring session...")),
-        format!("printf '> %s\\n\\n' {}", quote_shell_arg(display_command)),
-        "__ghostex_restore_resume_status=0".to_string(),
-        "__ghostex_restore_resume_primary() {".to_string(),
-        command.to_string(),
-        "}".to_string(),
-        "__ghostex_restore_resume_primary || __ghostex_restore_resume_status=$?".to_string(),
-        "unset -f __ghostex_restore_resume_primary".to_string(),
-    ];
-    if let Some(fallback_command) = fallback_command.filter(|fallback| *fallback != command) {
-        lines.extend([
-            "if [ \"$__ghostex_restore_resume_status\" -ne 0 ] && [ \"$__ghostex_restore_resume_status\" -lt 128 ]; then".to_string(),
-            format!(
-                "  printf '%s\\n' {}",
-                quote_shell_arg("Exact resume failed; trying saved fallback resume command.")
-            ),
-            "  __ghostex_restore_resume_status=0".to_string(),
-            "  __ghostex_restore_resume_fallback() {".to_string(),
-            fallback_command.to_string(),
-            "  }".to_string(),
-            "  __ghostex_restore_resume_fallback || __ghostex_restore_resume_status=$?".to_string(),
-            "  unset -f __ghostex_restore_resume_fallback".to_string(),
-            "fi".to_string(),
-        ]);
+    #[cfg(not(windows))]
+    {
+        let mut lines = vec![
+            format!("printf '%s\\n' {}", quote_shell_arg("Restoring session...")),
+            format!("printf '> %s\\n\\n' {}", quote_shell_arg(display_command)),
+            "__ghostex_restore_resume_status=0".to_string(),
+            "__ghostex_restore_resume_primary() {".to_string(),
+            command.to_string(),
+            "}".to_string(),
+            "__ghostex_restore_resume_primary || __ghostex_restore_resume_status=$?".to_string(),
+            "unset -f __ghostex_restore_resume_primary".to_string(),
+        ];
+        if let Some(fallback_command) = fallback_command.filter(|fallback| *fallback != command) {
+            lines.extend([
+                "if [ \"$__ghostex_restore_resume_status\" -ne 0 ] && [ \"$__ghostex_restore_resume_status\" -lt 128 ]; then".to_string(),
+                format!(
+                    "  printf '%s\\n' {}",
+                    quote_shell_arg("Exact resume failed; trying saved fallback resume command.")
+                ),
+                "  __ghostex_restore_resume_status=0".to_string(),
+                "  __ghostex_restore_resume_fallback() {".to_string(),
+                fallback_command.to_string(),
+                "  }".to_string(),
+                "  __ghostex_restore_resume_fallback || __ghostex_restore_resume_status=$?".to_string(),
+                "  unset -f __ghostex_restore_resume_fallback".to_string(),
+                "fi".to_string(),
+            ]);
+        }
+        lines.push("unset __ghostex_restore_resume_status".to_string());
+        lines.join("\n")
     }
-    lines.push("unset __ghostex_restore_resume_status".to_string());
-    lines.join("\n")
 }
 
 pub(crate) fn as_atuin_ignored_shell_input(command: &str) -> String {

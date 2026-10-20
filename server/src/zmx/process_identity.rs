@@ -80,6 +80,7 @@ pub(crate) fn parse_process_rows(ps_output: &str) -> Vec<ProcessRow> {
 /// IPC. `zmx list` reports the same PID but pays a per-session probe that a
 /// pre-wire-break daemon cannot complete, which is exactly the case this exists
 /// for.
+#[cfg(not(windows))]
 pub(crate) fn find_zmx_daemon_process_id(ps_output: &str, session_name: &str) -> Option<i64> {
     parse_process_rows(ps_output).into_iter().find_map(|row| {
         let mut arguments = row.command.split_whitespace();

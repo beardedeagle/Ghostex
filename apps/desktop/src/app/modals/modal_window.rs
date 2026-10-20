@@ -200,7 +200,7 @@ impl GhostexGpuiApp {
                                             if this.app_modal_open_attempt_id != open_attempt_id {
                                                 return;
                                             }
-                                            let Some(handle) = this.app_modal_window.clone() else {
+                                            let Some(handle) = this.app_modal_window else {
                                                 return;
                                             };
                                             let _ = handle.update(cx, |host, _modal_window, cx| {
@@ -233,7 +233,6 @@ impl GhostexGpuiApp {
                                             }
                                             let is_current_modal = this
                                                 .app_modal_window
-                                                .clone()
                                                 .and_then(|handle| {
                                                     handle
                                                         .update(cx, |host, _modal_window, _cx| {
@@ -300,7 +299,7 @@ impl GhostexGpuiApp {
             let _ = this.update(cx, |this, cx| {
                 this.titlebar_tips_sidebar_agent_ids = Some(sidebar_agent_ids.clone());
                 if this.titlebar_popup_menu_open(GpuiTitlebarPopupKind::Tips)
-                    && let Some(handle) = this.titlebar_popup_window.clone()
+                    && let Some(handle) = this.titlebar_popup_window
                 {
                     let _ = handle.update(cx, |popup, window, cx| {
                         popup.update_tips_sidebar_agent_ids(sidebar_agent_ids, cx);
@@ -414,7 +413,7 @@ impl GhostexGpuiApp {
             self.shell_focus,
             &self.command_pane,
         );
-        if let Some(handle) = self.app_modal_window.clone() {
+        if let Some(handle) = self.app_modal_window {
             // The window loads one extension's page, so only the same extension reuses it.
             let same_modal = handle
                 .update(cx, |host, _modal_window, _cx| {

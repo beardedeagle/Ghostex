@@ -17,25 +17,21 @@ impl GhostexGpuiApp {
         for pane_id in workspace_pane_ids {
             self.workspace_tab_scroll_handles
                 .entry(pane_id)
-                .or_insert_with(ScrollHandle::new);
+                .or_default();
         }
 
         let browser_pane_ids = self.browser_tabs.rendered_leaf_order();
         self.browser_tab_scroll_handles
             .retain(|pane_id, _| browser_pane_ids.contains(pane_id));
         for pane_id in browser_pane_ids {
-            self.browser_tab_scroll_handles
-                .entry(pane_id)
-                .or_insert_with(ScrollHandle::new);
+            self.browser_tab_scroll_handles.entry(pane_id).or_default();
         }
 
         let command_group_ids = self.command_pane.group_order();
         self.command_tab_scroll_handles
             .retain(|group_id, _| command_group_ids.contains(group_id));
         for group_id in command_group_ids {
-            self.command_tab_scroll_handles
-                .entry(group_id)
-                .or_insert_with(ScrollHandle::new);
+            self.command_tab_scroll_handles.entry(group_id).or_default();
         }
     }
 

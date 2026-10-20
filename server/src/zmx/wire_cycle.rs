@@ -280,7 +280,7 @@ pub(crate) fn cycle_wire_incompatible_zmx_session_daemons(
         // A closed session keeps its terminal state; only a session that can be
         // woken becomes sleeping.
         let target_lifecycle =
-            if string_field(&session, "lifecycleState").as_deref() == Some("stopped") {
+            if string_field(session, "lifecycleState").as_deref() == Some("stopped") {
                 "stopped"
             } else {
                 "sleeping"

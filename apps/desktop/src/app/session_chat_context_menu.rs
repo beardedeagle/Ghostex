@@ -67,13 +67,11 @@ impl GhostexGpuiApp {
             Some(PathBuf::from(trimmed))
         } else if trimmed == "~" {
             Some(home_dir())
-        } else if let Some(relative) = trimmed
-            .strip_prefix("~/")
-            .or_else(|| trimmed.strip_prefix("~\\"))
-        {
-            Some(home_dir().join(relative))
         } else {
-            None
+            trimmed
+                .strip_prefix("~/")
+                .or_else(|| trimmed.strip_prefix("~\\"))
+                .map(|relative| home_dir().join(relative))
         };
 
         let mut candidates = Vec::with_capacity(2);

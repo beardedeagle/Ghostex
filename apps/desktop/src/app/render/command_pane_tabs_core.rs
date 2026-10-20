@@ -58,7 +58,7 @@ impl GhostexGpuiApp {
 
         let group = v_flex()
             .on_children_prepainted(move |child_bounds, _window, cx| {
-                let _ = view.update(cx, |this, cx| {
+                view.update(cx, |this, cx| {
                     this.record_command_group_layout_bounds(group_id, &child_bounds);
                     let visible = child_bounds
                         .last()
@@ -687,7 +687,7 @@ impl GhostexGpuiApp {
             )
             .when_some(tab_index, |this, tab_index| {
                 this.on_drag(dragged_tab, move |dragged, _offset, _window, cx| {
-                    let _ = view.update(cx, |this, cx| {
+                    view.update(cx, |this, cx| {
                         this.begin_command_tab_drag(cx);
                     });
                     cx.new(|_| CommandTabDragPreview {

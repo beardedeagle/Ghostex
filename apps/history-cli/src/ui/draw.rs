@@ -355,33 +355,31 @@ impl App {
     }
 
     fn toolbar_line(&self, _width: u16) -> Line<'static> {
-        let mut spans = Vec::new();
-        spans.push(Span::styled(
-            "Filter: ",
-            Style::default().fg(Color::DarkGray),
-        ));
-        spans.push(toolbar_value(
-            "Cwd",
-            self.filter_mode == FilterMode::Cwd,
-            self.toolbar_focus == ToolbarControl::Filter,
-        ));
-        spans.push(toolbar_value(
-            "All",
-            self.filter_mode == FilterMode::All,
-            self.toolbar_focus == ToolbarControl::Filter,
-        ));
-        spans.push(Span::raw("   "));
-        spans.push(Span::styled("Sort: ", Style::default().fg(Color::DarkGray)));
-        spans.push(toolbar_value(
-            "Updated",
-            self.sort_key == SortKey::Updated,
-            self.toolbar_focus == ToolbarControl::Sort,
-        ));
-        spans.push(toolbar_value(
-            "Created",
-            self.sort_key == SortKey::Created,
-            self.toolbar_focus == ToolbarControl::Sort,
-        ));
+        let spans = vec![
+            Span::styled("Filter: ", Style::default().fg(Color::DarkGray)),
+            toolbar_value(
+                "Cwd",
+                self.filter_mode == FilterMode::Cwd,
+                self.toolbar_focus == ToolbarControl::Filter,
+            ),
+            toolbar_value(
+                "All",
+                self.filter_mode == FilterMode::All,
+                self.toolbar_focus == ToolbarControl::Filter,
+            ),
+            Span::raw("   "),
+            Span::styled("Sort: ", Style::default().fg(Color::DarkGray)),
+            toolbar_value(
+                "Updated",
+                self.sort_key == SortKey::Updated,
+                self.toolbar_focus == ToolbarControl::Sort,
+            ),
+            toolbar_value(
+                "Created",
+                self.sort_key == SortKey::Created,
+                self.toolbar_focus == ToolbarControl::Sort,
+            ),
+        ];
         Line::from(spans)
     }
 

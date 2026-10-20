@@ -1,9 +1,5 @@
 use super::{appearance::ChatAppearance, state::NativeChatView};
-use gpui::prelude::FluentBuilder as _;
-use gpui::{
-    AnyElement, Context, InteractiveElement as _, IntoElement, ParentElement as _, Styled as _,
-    Window, div, px,
-};
+use gpui::{AnyElement, Context, IntoElement, ParentElement as _, Styled as _, Window, div, px};
 use serde_json::{Value, json};
 
 /// CDXC:SessionChat 2026-10-20 DECISION:

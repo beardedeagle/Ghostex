@@ -228,7 +228,7 @@ impl GhostexGpuiApp {
                     .as_deref()
                     .and_then(gpui_remote_project_reference_from_project_id),
             )
-            .filter(|(_, reference)| reference.remote_machine_id.to_string() == machine_id)
+            .filter(|(_, reference)| reference.remote_machine_id == machine_id)
             .map(|(session_id, reference)| SessionKey {
                 machine: ghostex_gx_core::MachineId::Remote(machine_id.clone()),
                 project_id: reference.project_id,
@@ -245,16 +245,15 @@ impl GhostexGpuiApp {
             if let Some(replacement) = replacement {
                 self.gx_store_open_remote_tab(&replacement, cx);
             }
-            let _ = self
-                .start_gpui_remote_sidebar_rpc(
-                    &machine_id,
-                    "/api/killSession",
-                    Some(params),
-                    timeout,
-                    GpuiRemoteSidebarRpcMode::Awaited,
-                    cx,
-                )
-                .detach();
+            self.start_gpui_remote_sidebar_rpc(
+                &machine_id,
+                "/api/killSession",
+                Some(params),
+                timeout,
+                GpuiRemoteSidebarRpcMode::Awaited,
+                cx,
+            )
+            .detach();
             return;
         }
         let path = if request.action == "wake" {
@@ -274,10 +273,11 @@ impl GhostexGpuiApp {
         cx.spawn(async move |this, cx| {
             let ok = task.await.is_ok();
             let _ = this.update(cx, |this, cx| {
-                if ok && sleeping {
-                    if let Some(replacement) = replacement {
-                        this.gx_store_open_remote_tab(&replacement, cx);
-                    }
+                if ok
+                    && sleeping
+                    && let Some(replacement) = replacement
+                {
+                    this.gx_store_open_remote_tab(&replacement, cx);
                 }
                 this.gx_store_finish_tab_lifecycle(request.request_id, ok, cx);
             });

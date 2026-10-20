@@ -156,60 +156,6 @@ impl BrowserTabModel {
         Some(tab_id)
     }
 
-    pub(crate) fn add_address_placeholder_tab(
-        &mut self,
-        profile_id: BrowserProfileId,
-    ) -> BrowserTabId {
-        /*
-        CDXC:FocusMode 2026-06-22-12:51:
-        Browser new-tab commands, including Cmd+N and the clicked pane control, must insert the address-only placeholder immediately after the focused pane's active tab so creation stays adjacent to the user's current Browser work instead of appending to a long tab group.
-
-        CDXC:Browser 2026-06-23-11:14:
-        New address-only Browser tabs inherit the currently selected generated Browser profile at creation time. Later profile selection changes affect future tabs/surfaces only and must not mutate existing tab profile ownership.
-        */
-        let tab_id = BrowserTabId(self.next_tab_id);
-        self.next_tab_id += 1;
-        self.tabs.push(BrowserTab {
-            remote_machine_id: None,
-            id: tab_id,
-            profile_id,
-            title: "New Tab".to_string(),
-            runtime_page_title: None,
-            runtime_favicon_url: None,
-            runtime_favicon_image: None,
-            runtime_favicon_fetch: None,
-            runtime_is_loading: false,
-            runtime_can_go_back: false,
-            runtime_can_go_forward: false,
-            url: String::new(),
-            state: BrowserTabState::AddressOnly,
-            navigation_history: BrowserNavigationHistory::empty(),
-            device_view: BrowserDeviceView::default(),
-        });
-        self.active_tab = tab_id;
-        let tab = BrowserPaneTab { tab_id };
-        if let Some(leaf) = self.find_leaf_mut(self.focused_pane) {
-            let insertion_index = leaf
-                .tab_group
-                .active_tab_index()
-                .map(|index| index + 1)
-                .unwrap_or(leaf.tab_group.tabs.len());
-            leaf.tab_group.insert_tab_at(tab, insertion_index);
-            leaf.tab_group.active_tab = tab_id;
-        } else {
-            let pane_id = self.allocate_pane_id();
-            self.root = BrowserNode::Leaf(BrowserLeaf {
-                pane_id,
-                tab_group: BrowserTabGroup {
-                    tabs: vec![tab],
-                    active_tab: tab_id,
-                },
-            });
-            self.focused_pane = pane_id;
-        }
-        tab_id
-    }
-
     pub(crate) fn find_renderer_open_reuse_tab(
         &self,
         url: &str,

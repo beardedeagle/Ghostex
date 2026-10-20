@@ -312,11 +312,9 @@ pub(crate) fn enqueue(
     crate::session_chat_model_selection_alert::clear_model_selection_failure(
         state, project, session_id,
     );
-    let pending = read_pending(&db, &project, &session_id);
+    let pending = read_pending(&db, project, session_id);
     crate::session_chat_queue_runtime::broadcast_session_chat_queue_state(
-        state,
-        &project,
-        &session_id,
+        state, project, session_id,
     );
     SELECTION_REQUESTED.notify_one();
     Ok(

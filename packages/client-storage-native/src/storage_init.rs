@@ -79,10 +79,10 @@ fn migrate_preferences(connection: &mut Connection, now_ms: i64) -> Result<usize
         })?;
         for row in rows {
             let (key, raw) = row?;
-            if let Some(definition) = definition_for_key(&key) {
-                if definition.backend == CatalogBackend::Records {
-                    candidates.push((definition, key, raw));
-                }
+            if let Some(definition) = definition_for_key(&key)
+                && definition.backend == CatalogBackend::Records
+            {
+                candidates.push((definition, key, raw));
             }
         }
     }
@@ -297,10 +297,11 @@ fn check_schema_versions(connection: &Connection) -> Result<()> {
     let mut unsupported = Vec::new();
     for row in rows {
         let (store, version) = row?;
-        if let Some(definition) = catalog_store(&store) {
-            if version != definition.version && !unsupported.contains(&store) {
-                unsupported.push(store);
-            }
+        if let Some(definition) = catalog_store(&store)
+            && version != definition.version
+            && !unsupported.contains(&store)
+        {
+            unsupported.push(store);
         }
     }
     if !unsupported.is_empty() {

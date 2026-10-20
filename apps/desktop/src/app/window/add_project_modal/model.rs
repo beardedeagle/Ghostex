@@ -299,10 +299,10 @@ pub(crate) fn read_add_project_clone_preview(
     value: &Value,
 ) -> Result<AddProjectClonePreview, String> {
     let preview = result_object(value, "preview")?;
-    if let Some(kind) = preview.get("destinationExistsKind") {
-        if !matches!(kind.as_str(), Some("directory" | "file" | "other")) {
-            return Err("The machine returned an unexpected clone destination.".to_string());
-        }
+    if let Some(kind) = preview.get("destinationExistsKind")
+        && !matches!(kind.as_str(), Some("directory" | "file" | "other"))
+    {
+        return Err("The machine returned an unexpected clone destination.".to_string());
     }
     required(preview, "cloneUrl")?;
     required(preview, "destinationFolderName")?;

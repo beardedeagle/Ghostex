@@ -174,13 +174,12 @@ impl GhostexGpuiApp {
                 operation,
                 GpuiAddProjectDialogOperation::Add | GpuiAddProjectDialogOperation::StartClone
             )
-        {
-            if let (Some(workspace_id), Some(params)) = (
+            && let (Some(workspace_id), Some(params)) = (
                 self.gx_store_window_non_default_workspace_id(),
                 params.as_object_mut(),
-            ) {
-                params.insert("workspaceId".to_string(), serde_json::json!(workspace_id));
-            }
+            )
+        {
+            params.insert("workspaceId".to_string(), serde_json::json!(workspace_id));
         }
         let Some(endpoint) = operation.endpoint() else {
             return;
@@ -286,14 +285,12 @@ impl GhostexGpuiApp {
                         this.refresh_gpui_remote_gxserver_presentation_in_background(
                             &remote_machine_id,
                         );
-                        if clone_answer_lost {
-                            if let Some(job_id) = clone_watch_job_id {
-                                this.watch_gpui_remote_add_project_clone_job(
-                                    remote_machine_id,
-                                    job_id,
-                                    cx,
-                                );
-                            }
+                        if clone_answer_lost && let Some(job_id) = clone_watch_job_id {
+                            this.watch_gpui_remote_add_project_clone_job(
+                                remote_machine_id,
+                                job_id,
+                                cx,
+                            );
                         }
                     }
                     None => {}

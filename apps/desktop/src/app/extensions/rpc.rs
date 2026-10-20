@@ -308,12 +308,11 @@ impl GhostexGpuiApp {
             .params
             .get("args")
             .and_then(serde_json::Value::as_array)
-            .map(|args| {
+            .and_then(|args| {
                 args.iter()
                     .map(|arg| arg.as_str().map(str::to_string))
                     .collect::<Option<Vec<_>>>()
             })
-            .flatten()
         else {
             responder(error_response(
                 &request.request_id,

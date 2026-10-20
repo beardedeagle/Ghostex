@@ -145,10 +145,11 @@ pub fn append(log: GpuiSupportLog, event: &str, details: serde_json::Value) {
     if !important && !debug_ui_controls_enabled() {
         return;
     }
-    if let Some(scenario) = log.scenario() {
-        if !important && !scenario_enabled(scenario) {
-            return;
-        }
+    if let Some(scenario) = log.scenario()
+        && !important
+        && !scenario_enabled(scenario)
+    {
+        return;
     }
     append_unconditionally(log, event, details);
 }

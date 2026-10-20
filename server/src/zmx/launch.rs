@@ -1,7 +1,10 @@
+#[cfg(target_os = "macos")]
 use std::{
     fs,
-    io::{Read, Write},
     path::{Path, PathBuf},
+};
+use std::{
+    io::{Read, Write},
     process::{Command, Stdio},
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -11,7 +14,9 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::{paths::get_gxserver_paths, platform::shell::command_shell};
+#[cfg(target_os = "macos")]
+use crate::paths::get_gxserver_paths;
+use crate::platform::shell::command_shell;
 
 use super::*;
 
@@ -547,6 +552,9 @@ fn run_zsh_script_blocking(
         use std::os::windows::process::CommandExt;
         process.creation_flags(crate::platform::process::CREATE_NO_WINDOW | native_flags);
     }
+    #[cfg(not(windows))]
+    let environment = build_gxserver_zmx_child_environment();
+    #[cfg(windows)]
     let mut environment = build_gxserver_zmx_child_environment();
     #[cfg(windows)]
     environment.extend(native_environment);

@@ -292,25 +292,18 @@ pub(crate) fn probe_browser_site(
                 .unwrap_or_else(|| document_url.join("/favicon.ico").expect("root URL"));
             if remote_browser_loopback_url(&icon_url)
                 && icon_url.port_or_known_default() == Some(port.port)
+                && let Ok(icon) = fetch_browser_page(icon_url.as_str(), proxy_port)
+                && (200..300).contains(&icon.status)
+                && icon.body.len() <= BROWSER_FAVICON_IMAGE_MAX_BYTES
+                && let Ok(format) =
+                    browser_favicon_http_image_format(Some(&icon.content_type), &icon.body)
             {
-                if let Ok(icon) = fetch_browser_page(icon_url.as_str(), proxy_port) {
-                    if (200..300).contains(&icon.status)
-                        && icon.body.len() <= BROWSER_FAVICON_IMAGE_MAX_BYTES
-                    {
-                        if let Ok(format) =
-                            browser_favicon_http_image_format(Some(&icon.content_type), &icon.body)
-                        {
-                            if browser_favicon_validate_encoded_dimensions(format, &icon.body)
-                                .is_err()
-                            {
-                                break;
-                            }
-                            site.favicon = Some(BrowserFaviconImage {
-                                image: Arc::new(Image::from_bytes(format, icon.body)),
-                            });
-                        }
-                    }
+                if browser_favicon_validate_encoded_dimensions(format, &icon.body).is_err() {
+                    break;
                 }
+                site.favicon = Some(BrowserFaviconImage {
+                    image: Arc::new(Image::from_bytes(format, icon.body)),
+                });
             }
         }
         break;

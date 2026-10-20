@@ -347,10 +347,10 @@ impl GpuiWorkLinkPickerModalWindow {
             index.and_then(|index| self.visible_rows().get(index).map(|row| row.value.clone()));
         let values: Vec<String> = if self.config.kind.multi_select() {
             let mut values = self.ticked.clone();
-            if let Some(picked) = picked {
-                if !values.contains(&picked) {
-                    values.push(picked);
-                }
+            if let Some(picked) = picked
+                && !values.contains(&picked)
+            {
+                values.push(picked);
             }
             values
         } else {

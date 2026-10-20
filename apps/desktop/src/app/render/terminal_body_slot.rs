@@ -485,7 +485,7 @@ impl GhostexGpuiApp {
                         canvas(
                             move |bounds, window, cx| {
                                 let scale_factor = window.scale_factor();
-                                let _ = bounds_view.update(cx, |this, cx| {
+                                bounds_view.update(cx, |this, cx| {
                                     this.record_agents_terminal_mount_slot_bounds(
                                         slot_id,
                                         bounds,
@@ -496,7 +496,7 @@ impl GhostexGpuiApp {
                             },
                             move |bounds, _, window, cx| {
                                 let input_view = input_handler_view.clone();
-                                let _ = input_handler_view.update(cx, |this, cx| {
+                                input_handler_view.update(cx, |this, cx| {
                                     this.register_agents_terminal_text_input_handler(
                                         slot_id, bounds, input_view, window, cx,
                                     );
@@ -517,7 +517,7 @@ impl GhostexGpuiApp {
                         canvas(
                             move |bounds, window, cx| {
                                 let scale_factor = window.scale_factor();
-                                let _ = view.update(cx, |this, cx| {
+                                view.update(cx, |this, cx| {
                                     this.record_agents_terminal_startup_body_slot_bounds(
                                         slot_id,
                                         bounds,
@@ -542,7 +542,7 @@ impl GhostexGpuiApp {
                         canvas(
                             move |bounds, window, cx| {
                                 let scale_factor = window.scale_factor();
-                                let _ = view.update(cx, |this, cx| {
+                                view.update(cx, |this, cx| {
                                     this.record_agents_terminal_parked_owner_body_slot_bounds(
                                         slot_id,
                                         bounds,

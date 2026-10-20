@@ -78,7 +78,11 @@ pub fn civil(epoch_ms: i64, utc_offset_minutes: i32) -> Civil {
 }
 
 fn clock_time(at: Civil) -> String {
-    let hour = if at.hour % 12 == 0 { 12 } else { at.hour % 12 };
+    let hour = if at.hour.is_multiple_of(12) {
+        12
+    } else {
+        at.hour % 12
+    };
     let meridiem = if at.hour < 12 { "AM" } else { "PM" };
     format!("{hour}:{:02} {meridiem}", at.minute)
 }

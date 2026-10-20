@@ -723,7 +723,7 @@ fn link_file_references(markdown: &str, bare_paths: bool) -> String {
         &mut edits,
     );
     // Applied from the back so an earlier edit's offsets stay valid.
-    edits.sort_by(|left, right| right.start.cmp(&left.start));
+    edits.sort_by_key(|edit| std::cmp::Reverse(edit.start));
     let mut result = markdown.to_string();
     for edit in edits {
         if edit.start > result.len() || edit.end > result.len() {

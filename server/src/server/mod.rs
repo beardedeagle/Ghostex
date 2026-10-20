@@ -13,11 +13,12 @@ use axum::{
 use futures_util::{SinkExt, StreamExt};
 use serde_json::{json, Map, Value};
 use sha2::{Digest, Sha256};
+#[cfg(test)]
+use std::process::Command as StdCommand;
 use std::{
     collections::{HashMap, HashSet},
     fs,
     path::{Path, PathBuf},
-    process::Command as StdCommand,
     sync::{Arc, Mutex},
     time::{Duration, Instant},
 };

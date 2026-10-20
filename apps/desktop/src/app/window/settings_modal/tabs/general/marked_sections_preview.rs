@@ -195,7 +195,7 @@ impl GeneralTab {
                         .border_color(chat.border)
                         .bg(chat_background)
                         .p(px(16.0))
-                        .child(preview_reply(style, &chat, &text)),
+                        .child(preview_reply(style, &chat, text)),
                 )
                 .into_any_element()
         };

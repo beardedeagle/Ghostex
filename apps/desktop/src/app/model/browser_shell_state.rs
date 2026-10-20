@@ -386,7 +386,7 @@ pub(crate) fn browser_tab_from_shell_state(
     */
     let cached_title = if state == BrowserTabState::Loaded {
         json_string_field(object, "cachedTitle")
-            .and_then(|title| sanitize_browser_tab_cached_title(&title))
+            .and_then(|title| sanitize_browser_tab_cached_title(title))
     } else {
         None
     };

@@ -150,7 +150,7 @@ fn dispatch_keys(slot: &Slot, keys: &'static [&'static str], cx: &mut App) {
             // Through the untyped handle: the typed one leases `Root`, which the
             // dispatched event re-enters while it re-renders the window.
             let any_window: AnyWindowHandle = window.into();
-            let _ = cx.update(|cx| {
+            cx.update(|cx| {
                 let _ = any_window.update(cx, |_root, window, cx| {
                     let keystroke = Keystroke::parse(key).expect("a valid demo keystroke");
                     window.dispatch_keystroke(keystroke, cx);
@@ -244,7 +244,7 @@ pub(super) fn open(demo: &super::DemoEnv, cx: &mut App) {
             let state = state.clone();
             cx.spawn(async move |cx| {
                 cx.background_executor().timer(Duration::from_secs(1)).await;
-                let _ = cx.update(|cx| {
+                cx.update(|cx| {
                     deliver_worktrees(&slot, &request_id, &state, cx);
                     apply_preview_state(&slot, &state, cx);
                 });
@@ -258,7 +258,7 @@ pub(super) fn open(demo: &super::DemoEnv, cx: &mut App) {
                 cx.background_executor()
                     .timer(Duration::from_millis(300))
                     .await;
-                let _ = cx.update(|cx| deliver_images(&slot, cx));
+                cx.update(|cx| deliver_images(&slot, cx));
             })
             .detach();
         }

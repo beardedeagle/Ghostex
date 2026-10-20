@@ -960,11 +960,14 @@ impl TerminalModel {
     /// Scroll the scrollback viewport (primary screen only; no-op without
     /// scrollback). Take a fresh snapshot afterwards to render the change.
     pub fn scroll_viewport(&mut self, behavior: VtScrollViewport) {
-        self.terminal
+        if let Some(terminal) = self
+            .terminal
             .lock()
             .expect("terminal lock poisoned")
             .as_mut()
-            .map(|terminal| terminal.scroll_viewport(behavior));
+        {
+            terminal.scroll_viewport(behavior)
+        }
     }
 
     /// Current OSC 0/2 title, if the running program set one.

@@ -6,6 +6,7 @@
 
 use super::{jobs::Log, tools::Status};
 
+#[cfg(windows)]
 const DOWNLOAD_PAGE: &str =
     "https://learn.microsoft.com/powershell/scripting/install/installing-powershell-on-windows";
 

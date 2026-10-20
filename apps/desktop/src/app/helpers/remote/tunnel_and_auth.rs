@@ -8,7 +8,7 @@ use std::{
     collections::HashSet,
     io::{Read, Write},
     net::TcpStream,
-    process::{Command, Stdio},
+    process::Stdio,
     thread,
     time::{Instant, SystemTime, UNIX_EPOCH},
 };

@@ -104,7 +104,7 @@ pub(super) fn scan_window(text: &str) -> Vec<String> {
 
 /// Trimmed segments of one statusline, split on `|` and `·`.
 pub(super) fn line_segments(line: &str) -> Vec<String> {
-    line.split(|ch| ch == '|' || ch == '\u{00b7}')
+    line.split(['|', '\u{00b7}'])
         .map(|segment| segment.trim().to_string())
         .collect()
 }

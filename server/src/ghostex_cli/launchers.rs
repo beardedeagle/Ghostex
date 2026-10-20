@@ -279,9 +279,7 @@ pub fn find_ghostex_source_root(start_path: Option<&Path>) -> Option<PathBuf> {
         if file_exists_sync(&current.join("scripts").join("ghostex-cli.mjs")) {
             return Some(current);
         }
-        let Some(parent) = current.parent().map(Path::to_path_buf) else {
-            return None;
-        };
+        let parent = current.parent().map(Path::to_path_buf)?;
         if parent == current {
             return None;
         }
@@ -683,7 +681,7 @@ fn activate_or_launch_linux_desktop() -> CliResult<()> {
 pub fn resolve_ghostex_desktop_launch() -> CliResult<Launch> {
     #[cfg(target_os = "macos")]
     {
-        return Ok(resolve_macos_desktop_launch(&current_cli_executable()));
+        Ok(resolve_macos_desktop_launch(&current_cli_executable()))
     }
     #[cfg(target_os = "windows")]
     {

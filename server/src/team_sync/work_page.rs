@@ -144,10 +144,10 @@ pub(crate) fn refresh_team_ticket_summaries(
                 .iter()
                 .filter(|ticket| {
                     force
-                        || !cache
+                        || cache
                             .summaries
                             .get(&(workspace_id.clone(), (*ticket).clone()))
-                            .is_some_and(|cached| cached.fetched_at.elapsed() < SUMMARY_TTL)
+                            .is_none_or(|cached| cached.fetched_at.elapsed() >= SUMMARY_TTL)
                 })
                 .cloned()
                 .collect()

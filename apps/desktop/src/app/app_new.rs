@@ -384,7 +384,6 @@ impl GhostexGpuiApp {
                 command_terminal_mount_slot_bounds: HashMap::new(),
                 zmx_persistence_resize_refresh_generation: 0,
                 zmx_persistence_last_focused_terminal_slot: None,
-                cef_sidebar_creation_retried: false,
                 cef_context_initialization_waiting: false,
                 cef_runtime_requested: false,
                 app_modal_open_deferred_for_cef: None,

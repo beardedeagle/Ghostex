@@ -20,13 +20,6 @@ pub(crate) fn executable(home: &Path, name: &str) -> Option<PathBuf> {
     crate::platform::live_path::find(name, &install_dirs(home))
 }
 
-/// Where the account helpers and the tools that install them (brew, uv, cargo) are looked for, in order.
-pub(crate) fn search_dirs(home: &Path) -> Vec<PathBuf> {
-    let mut dirs = crate::platform::live_path::directories();
-    dirs.extend(install_dirs(home));
-    dirs
-}
-
 /// The helpers' own install directories, searched after the live PATH.
 fn install_dirs(home: &Path) -> Vec<PathBuf> {
     let mut dirs = vec![home.join(".local/bin"), home.join(".cargo/bin")];

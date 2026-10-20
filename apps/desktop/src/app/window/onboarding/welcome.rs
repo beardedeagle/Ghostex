@@ -565,7 +565,7 @@ impl GpuiOnboardingWindow {
             },
             &LEAD_LOG,
             &cycle,
-            frame < 3 || frame >= 6,
+            !(3..6).contains(&frame),
             mounted,
             now,
         )];

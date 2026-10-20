@@ -180,9 +180,9 @@ fn take_last_chat_send(
     if let Ok(mut sends) = last_sends().lock() {
         let key = store_key(project_id, session_id);
         if expected.is_some_and(|expected| {
-            !sends
+            sends
                 .get(&key)
-                .is_some_and(|send| send.started_at == expected.started_at)
+                .is_none_or(|send| send.started_at != expected.started_at)
         }) {
             return false;
         }
@@ -482,9 +482,9 @@ fn transcript_row_for_send(
             && !recorded.is_empty()
             && !sent.is_empty()
             && (recorded.starts_with(&sent) || sent.starts_with(&recorded))
-            && message.timestamp.map_or(true, |timestamp| {
-                timestamp >= send.sent_at_ms - RETURNED_PROMPT_ROW_SLACK_MS
-            })
+            && message
+                .timestamp
+                .is_none_or(|timestamp| timestamp >= send.sent_at_ms - RETURNED_PROMPT_ROW_SLACK_MS)
     };
     if let Some(index) = messages.iter().rposition(matches_send) {
         let message = &messages[index];

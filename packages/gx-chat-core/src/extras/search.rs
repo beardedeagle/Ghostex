@@ -100,9 +100,7 @@ pub fn project(search: &SearchState) -> Value {
     // Which occurrence of its row's Markdown the selected one is, so a renderer that highlights
     // the words can mark that one: the Markdown matches before it that share its row. A match in a
     // one-line label (a tool row, a thinking headline) is named by that label's key instead.
-    let active_in_row = active
-        .filter(|found| found.label.is_none())
-        .map(|found| earlier(found));
+    let active_in_row = active.filter(|found| found.label.is_none()).map(earlier);
     let active_label = active
         .and_then(|found| {
             found

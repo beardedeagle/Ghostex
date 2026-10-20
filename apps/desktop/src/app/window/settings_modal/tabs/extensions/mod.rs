@@ -544,10 +544,10 @@ impl Render for ExtensionsTab {
                 move |tab, _, cx| store.update(cx, |store, cx| store.set_active_tab(tab, cx)),
             )));
         }
-        if should_show_section(&search.section("viewOrder"), true) {
-            if let Some(section) = self.render_views_section(&p, cx) {
-                blocks.push(PageBlock::section("viewOrder", section));
-            }
+        if should_show_section(&search.section("viewOrder"), true)
+            && let Some(section) = self.render_views_section(&p, cx)
+        {
+            blocks.push(PageBlock::section("viewOrder", section));
         }
         let counts = self.extension_counts(cx);
         if counts.any_section {

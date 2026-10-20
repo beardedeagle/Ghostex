@@ -2,7 +2,7 @@ use std::{
     env, fs,
     io::{Read, Write},
     net::{TcpStream, ToSocketAddrs},
-    path::{Path, PathBuf},
+    path::Path,
     time::{Duration, Instant},
 };
 
@@ -21,7 +21,7 @@ use super::event_mapping::{
 use super::hook_store::write_hook_store;
 use super::probing::{
     decode_base64_text, expand_home_path, insert_json_string, io_error, normalize_prompt_text,
-    now_iso, parse_global_session_ref, read_file_text, temp_path_for,
+    now_iso, parse_global_session_ref, temp_path_for,
 };
 
 /*

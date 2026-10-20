@@ -84,11 +84,11 @@ impl GhostexGpuiApp {
         cx: &mut gpui::Context<Self>,
     ) {
         if self.native_sidebar.pending_scroll_offset.is_some()
-            || !self
+            || self
                 .native_sidebar
                 .pending_reveal
                 .as_ref()
-                .is_some_and(|request| request.session_id == session_id)
+                .is_none_or(|request| request.session_id != session_id)
         {
             return;
         }

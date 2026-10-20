@@ -65,7 +65,7 @@ pub(crate) fn load_work_projects(
         else {
             continue;
         };
-        if wanted.is_some_and(|wanted| !wanted.iter().any(|id| *id == project_id)) {
+        if wanted.is_some_and(|wanted| !wanted.contains(&project_id)) {
             continue;
         }
         let path = project

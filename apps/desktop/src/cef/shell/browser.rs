@@ -960,13 +960,11 @@ pub(crate) fn refresh_system_page_appearance_for_native_view(native_view: *mut c
     if !native_view.is_null()
         && SYSTEM_APP_PAGE_APPEARANCE_CEF_NATIVE_VIEWS
             .with(|views| views.borrow().contains(&(native_view as usize)))
-    {
-        if let Some(browser) = CEF_BROWSERS_BY_NATIVE_VIEW
+        && let Some(browser) = CEF_BROWSERS_BY_NATIVE_VIEW
             .with(|browsers| browsers.borrow().get(&(native_view as usize)).cloned())
-        {
-            apply_page_color_scheme(&browser, BrowserPageAppearance::System);
-            return 1;
-        }
+    {
+        apply_page_color_scheme(&browser, BrowserPageAppearance::System);
+        return 1;
     }
     if native_view.is_null()
         || !SYSTEM_PAGE_APPEARANCE_CEF_NATIVE_VIEWS

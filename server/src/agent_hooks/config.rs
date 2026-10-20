@@ -178,6 +178,7 @@ impl HookPaths {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn new(home_dir: PathBuf) -> Self {
         Self {
             hook_state_directory: home_dir.join(".ghostexterm"),

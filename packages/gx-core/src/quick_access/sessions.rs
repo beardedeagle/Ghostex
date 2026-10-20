@@ -618,8 +618,7 @@ fn closed_project_label(session: &Value) -> String {
         return String::new();
     }
     path.split(['/', '\\'])
-        .filter(|part| !part.is_empty())
-        .next_back()
+        .rfind(|part| !part.is_empty())
         .unwrap_or(path)
         .to_string()
 }

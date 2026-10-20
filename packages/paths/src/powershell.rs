@@ -75,7 +75,7 @@ fn install_folders(base: &Path, preview: bool) -> Vec<PathBuf> {
             (is_preview == preview).then(|| (major, entry.path()))
         })
         .collect();
-    found.sort_by(|left, right| right.0.cmp(&left.0));
+    found.sort_by_key(|(major, _)| std::cmp::Reverse(*major));
     let mut folders: Vec<PathBuf> = found.into_iter().map(|(_, path)| path).collect();
     // A folder the scan could not list (permissions) still gets the well-known name.
     let fallback = root.join(if preview { "7-preview" } else { "7" });

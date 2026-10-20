@@ -811,7 +811,7 @@ impl GpuiOnboardingWindow {
     fn render_workspace_menu(&self, s: S, now: Instant, cx: &mut Context<Self>) -> AnyElement {
         {
             let t = entrance(self.workspace_menu_opened, now, 140);
-            return abs(
+            abs(
                 s,
                 1617.0 - 196.0,
                 159.0 - 4.0 * (1.0 - t),
@@ -869,7 +869,7 @@ impl GpuiOnboardingWindow {
                         )
                     }),
             )
-            .into_any_element();
+            .into_any_element()
         }
     }
 }

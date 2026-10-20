@@ -142,10 +142,10 @@ impl GpuiDeleteWorktreeModalWindow {
 
     fn note(&self) -> String {
         let mut deletes: Vec<String> = Vec::new();
-        if self.local_checked() {
-            if let Some(name) = self.local_branch_name() {
-                deletes.push(format!("local branch {name}"));
-            }
+        if self.local_checked()
+            && let Some(name) = self.local_branch_name()
+        {
+            deletes.push(format!("local branch {name}"));
         }
         if self.remote_checked() && self.draft.remote_branch_name.is_some() {
             deletes.push(format!("remote branch {}", self.remote_branch_label()));

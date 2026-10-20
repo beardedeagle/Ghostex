@@ -167,17 +167,16 @@ fn unescape_shell_characters(value: &str) -> String {
     let mut out = String::with_capacity(value.len());
     let mut characters = value.chars().peekable();
     while let Some(character) = characters.next() {
-        if character == '\\' {
-            if let Some(&next) = characters.peek() {
-                if matches!(
-                    next,
-                    ' ' | '\t' | '(' | ')' | '\'' | '"' | '[' | ']' | '&' | '#' | ';' | '$' | '`'
-                ) {
-                    out.push(next);
-                    characters.next();
-                    continue;
-                }
-            }
+        if character == '\\'
+            && let Some(&next) = characters.peek()
+            && matches!(
+                next,
+                ' ' | '\t' | '(' | ')' | '\'' | '"' | '[' | ']' | '&' | '#' | ';' | '$' | '`'
+            )
+        {
+            out.push(next);
+            characters.next();
+            continue;
         }
         out.push(character);
     }
@@ -521,10 +520,10 @@ pub(crate) fn parse_add_project_clone_input(
                 .query_pairs()
                 .find(|(key, _)| key == "version")
                 .map(|(_, value)| value.into_owned());
-            if branch_name.is_empty() {
-                if let Some(version) = version.filter(|version| version.starts_with("GB")) {
-                    branch_name = version[2..].to_string();
-                }
+            if branch_name.is_empty()
+                && let Some(version) = version.filter(|version| version.starts_with("GB"))
+            {
+                branch_name = version[2..].to_string();
             }
         }
         AddProjectSourceId::Url => {
@@ -533,12 +532,11 @@ pub(crate) fn parse_add_project_clone_input(
             }
         }
     }
-    if source != AddProjectSourceId::AzureDevops {
-        if let Some(last) = repository_parts.last_mut() {
-            if !last.to_lowercase().ends_with(".git") {
-                last.push_str(".git");
-            }
-        }
+    if source != AddProjectSourceId::AzureDevops
+        && let Some(last) = repository_parts.last_mut()
+        && !last.to_lowercase().ends_with(".git")
+    {
+        last.push_str(".git");
     }
     let joined = repository_parts.join("/");
     url.set_path(&format!("/{joined}"));

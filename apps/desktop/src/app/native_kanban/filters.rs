@@ -81,7 +81,7 @@ impl KanbanViewPreferences {
     /// The tag filter as it applies to the loaded board: a stored tag no ticket carries reads as
     /// "all" without being overwritten (`resolveBoardTagFilter`).
     pub(crate) fn active_tag<'a>(&'a self, tags: &[String]) -> &'a str {
-        if self.tag != "all" && tags.iter().any(|tag| *tag == self.tag) {
+        if self.tag != "all" && tags.contains(&self.tag) {
             &self.tag
         } else {
             "all"

@@ -73,11 +73,12 @@ impl GhostexGpuiApp {
                 user_spaces.len()
             })
             .collect();
-        if let Some(selected) = user_spaces.iter().find(|space| space.selected) {
-            if !visible.iter().any(|space| space.id == selected.id) && overflow {
-                visible.pop();
-                visible.push(selected);
-            }
+        if let Some(selected) = user_spaces.iter().find(|space| space.selected)
+            && !visible.iter().any(|space| space.id == selected.id)
+            && overflow
+        {
+            visible.pop();
+            visible.push(selected);
         }
         let visible_ids: Vec<String> = visible.iter().map(|space| space.id.clone()).collect();
         let light = appearance.light;

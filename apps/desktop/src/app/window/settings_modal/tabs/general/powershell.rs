@@ -54,8 +54,7 @@ fn progress_line(job: &Value) -> Option<String> {
             .lines()
             .flat_map(|line| line.split('\r'))
             .map(|line| line.trim().trim_matches(['-', '\\', '|', '/']).trim())
-            .filter(|line| !line.is_empty() && line.chars().any(char::is_alphanumeric))
-            .last()
+            .rfind(|line| !line.is_empty() && line.chars().any(char::is_alphanumeric))
             .map(str::to_string)
     })
 }

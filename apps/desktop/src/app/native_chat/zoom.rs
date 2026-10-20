@@ -169,7 +169,7 @@ impl NativeChatView {
         cx.refresh_windows();
         let save = cx.spawn(async move |this, cx| {
             cx.background_executor().timer(ZOOM_SAVE_DEBOUNCE).await;
-            let _ = cx.update(|cx| {
+            cx.update(|cx| {
                 // Saved through the host's Settings patch, which updates the shared settings
                 // snapshot in the same effect cycle, so no frame paints the old value between.
                 if let Some(percent) = PENDING_ZOOM_PERCENT.with(Cell::take) {

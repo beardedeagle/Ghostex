@@ -460,7 +460,7 @@ impl GpuiNewThreadPickerWindow {
             .map(|agent| agent.agent_id.clone());
         self.agents = agents;
         self.agents_loaded = true;
-        if let Some(scope_agent_id) = self.scope.and_then(|_| selected_agent_id.as_deref()) {
+        if let Some(scope_agent_id) = self.scope.and(selected_agent_id.as_deref()) {
             self.scope = self
                 .agents
                 .iter()
@@ -819,22 +819,21 @@ impl GpuiNewThreadPickerWindow {
     /// Tab: open the highlighted Claude or Codex agent's account list.
     fn on_tab(&mut self, _: &IndentInline, window: &mut Window, cx: &mut Context<Self>) {
         cx.stop_propagation();
-        if self.scope.is_none() {
-            if let Some(PickerRow::Agent(index)) = self.selected_row() {
-                self.enter_scope(index, window, cx);
-            }
+        if self.scope.is_none()
+            && let Some(PickerRow::Agent(index)) = self.selected_row()
+        {
+            self.enter_scope(index, window, cx);
         }
     }
 
     fn on_move_right(&mut self, _: &MoveRight, window: &mut Window, cx: &mut Context<Self>) {
-        if self.scope.is_none() {
-            if let Some(PickerRow::Agent(index)) = self.selected_row() {
-                if self.agents[index].provider().is_some() {
-                    cx.stop_propagation();
-                    self.enter_scope(index, window, cx);
-                    return;
-                }
-            }
+        if self.scope.is_none()
+            && let Some(PickerRow::Agent(index)) = self.selected_row()
+            && self.agents[index].provider().is_some()
+        {
+            cx.stop_propagation();
+            self.enter_scope(index, window, cx);
+            return;
         }
         cx.propagate();
     }
@@ -1304,10 +1303,10 @@ impl GpuiNewThreadPickerWindow {
                 if self.accounts.is_none() && self.accounts_error.is_none() {
                     children.push(self.render_hint_text(READING_ACCOUNTS));
                 }
-                if let Some(error) = &self.accounts_error {
-                    if self.accounts.is_none() {
-                        children.push(self.render_hint_text(error.clone()));
-                    }
+                if let Some(error) = &self.accounts_error
+                    && self.accounts.is_none()
+                {
+                    children.push(self.render_hint_text(error.clone()));
                 }
                 for (position, row) in rows.iter().enumerate() {
                     let selected = position == self.selected;

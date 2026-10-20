@@ -320,13 +320,13 @@ impl GhostexGpuiApp {
             None => None,
         };
         // A clone on this computer lands in this window's workspace (`place_added_project`).
-        if target.is_none() {
-            if let (Some(workspace_id), Some(object)) = (
+        if target.is_none()
+            && let (Some(workspace_id), Some(object)) = (
                 self.gx_store_window_non_default_workspace_id(),
                 params.as_object_mut(),
-            ) {
-                object.insert("workspaceId".to_string(), serde_json::json!(workspace_id));
-            }
+            )
+        {
+            object.insert("workspaceId".to_string(), serde_json::json!(workspace_id));
         }
         let running_description = if remote_machine_id.is_some() {
             "The remote clone is running."

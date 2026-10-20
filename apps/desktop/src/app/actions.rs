@@ -199,15 +199,6 @@ pub(crate) enum AgentsWorkspaceTabCloseScope {
 }
 
 impl AgentsWorkspaceTabCloseScope {
-    pub(crate) fn action_value(self) -> u8 {
-        match self {
-            Self::Close => 0,
-            Self::CloseLeft => 1,
-            Self::CloseOthers => 2,
-            Self::CloseRight => 3,
-        }
-    }
-
     pub(crate) fn from_action_value(value: u8) -> Option<Self> {
         match value {
             0 => Some(Self::Close),
@@ -228,15 +219,6 @@ pub(crate) enum AgentsWorkspaceTabSleepScope {
 }
 
 impl AgentsWorkspaceTabSleepScope {
-    pub(crate) fn action_value(self) -> u8 {
-        match self {
-            Self::Sleep => 0,
-            Self::SleepLeft => 1,
-            Self::SleepOthers => 2,
-            Self::SleepRight => 3,
-        }
-    }
-
     pub(crate) fn from_action_value(value: u8) -> Option<Self> {
         match value {
             0 => Some(Self::Sleep),

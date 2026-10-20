@@ -87,7 +87,7 @@ pub(crate) fn render_table_tools(
                     .on_mouse_down(MouseButton::Left, move |_, window, cx| {
                         window.prevent_default();
                         cx.stop_propagation();
-                        live.update(cx, |editor, cx| action(editor, cx));
+                        live.update(cx, action);
                     })
             })
             .when(!enabled, |this| this.opacity(0.45))

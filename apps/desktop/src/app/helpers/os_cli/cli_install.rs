@@ -410,10 +410,9 @@ pub(crate) fn gpui_cli_install_dirs(
         for candidate in gpui_cli_command_path_candidates(command, path_entries, common_dirs) {
             if gpui_path_exists_or_is_symlink(&candidate)
                 && gpui_is_ghostex_owned_command_path(command, &candidate, cli_dir)
+                && let Some(parent) = candidate.parent()
             {
-                if let Some(parent) = candidate.parent() {
-                    owned_dirs.push(parent.to_path_buf());
-                }
+                owned_dirs.push(parent.to_path_buf());
             }
         }
     }
@@ -561,10 +560,9 @@ pub(crate) fn gpui_package_managed_cli_decision(
     if let GpuiCliEntryState::Symlink {
         resolved: Some(resolved),
     } = state
+        && gpui_is_package_cli_link_target(command, resolved)
     {
-        if gpui_is_package_cli_link_target(command, resolved) {
-            return GpuiPackageManagedCli::Keep;
-        }
+        return GpuiPackageManagedCli::Keep;
     }
     let Some(target) = cask_link_target else {
         return GpuiPackageManagedCli::NotManaged;

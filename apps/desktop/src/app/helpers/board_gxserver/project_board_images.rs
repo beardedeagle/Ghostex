@@ -88,12 +88,11 @@ pub(crate) fn project_board_clipboard_image_path(
         }
     }
     for entry in &item.entries {
-        if let ClipboardEntry::String(clipboard_string) = entry {
-            if let Some(path) = project_board_image_path_from_reference(clipboard_string.text()) {
-                if is_project_board_image_file_path(&path) {
-                    return Ok(project_board_display_image_path_for_existing_path(&path));
-                }
-            }
+        if let ClipboardEntry::String(clipboard_string) = entry
+            && let Some(path) = project_board_image_path_from_reference(clipboard_string.text())
+            && is_project_board_image_file_path(&path)
+        {
+            return Ok(project_board_display_image_path_for_existing_path(&path));
         }
     }
     for entry in &item.entries {

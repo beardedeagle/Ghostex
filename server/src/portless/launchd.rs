@@ -1,9 +1,7 @@
 use std::collections::{BTreeMap, HashSet};
-use std::fs;
-use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 
-use anyhow::{bail, Context, Result};
+use anyhow::{bail, Result};
 
 use crate::paths::GxserverPaths;
 use crate::platform::resources;
@@ -12,6 +10,7 @@ use super::sync::*;
 use super::types::*;
 
 pub(crate) const PORTLESS_SERVICE_LABEL: &str = "sh.portless.proxy";
+#[cfg(target_os = "macos")]
 const PORTLESS_SERVICE_PLIST_PATH: &str = "/Library/LaunchDaemons/sh.portless.proxy.plist";
 const PORTLESS_SERVICE_TLD: &str = "localhost";
 
@@ -51,6 +50,9 @@ pub(crate) fn inspect_portless_service_from_plist_text(
 
 #[cfg(target_os = "macos")]
 fn read_installed_portless_service_plist() -> Result<Option<String>> {
+    use anyhow::Context;
+    use std::{fs, io::ErrorKind};
+
     match fs::read_to_string(PORTLESS_SERVICE_PLIST_PATH) {
         Ok(plist) => Ok(Some(plist)),
         Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),

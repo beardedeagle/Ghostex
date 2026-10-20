@@ -221,7 +221,7 @@ pub(crate) fn gpui_remote_sidebar_git_preferences_update_payload(
     let confirm_commit = json_bool_field(source, "confirmCommit")?;
     let generate_commit_body = json_bool_field(source, "generateCommitBody")?;
     let primary_action = json_string_field(source, "primaryAction")
-        .filter(|value| gpui_remote_sidebar_git_action_allowed(*value))?;
+        .filter(|value| gpui_remote_sidebar_git_action_allowed(value))?;
     Some(serde_json::json!({
         "confirmCommit": confirm_commit,
         "generateCommitBody": generate_commit_body,

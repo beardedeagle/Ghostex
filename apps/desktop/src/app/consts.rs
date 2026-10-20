@@ -509,8 +509,6 @@ pub(crate) const TITLEBAR_ICON_LAYOUT_SIDEBAR_LEFT_EXPAND: &str =
 
 pub(crate) const TITLEBAR_ICON_LAYOUT_BOARD_SPLIT: &str = "titlebar/layout-board-split.svg";
 
-pub(crate) const TITLEBAR_ICON_LAYOUT_SINGLE_PANE: &str = "titlebar/layout-single-pane.svg";
-
 pub(crate) const TITLEBAR_ICON_LAYOUT_COLUMNS: &str = "titlebar/layout-columns.svg";
 
 pub(crate) const TITLEBAR_ICON_PANEL_BOTTOM: &str = "titlebar/panel-bottom.svg";

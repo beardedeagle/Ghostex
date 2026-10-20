@@ -116,6 +116,7 @@ impl ForkFollowUp {
 ///   because the remote leg of `forkSession` has neither.
 /// - A row the store does not hold: the TypeScript returns before the call for exactly this,
 ///   because a fork of a row that is not in the presentation has no source.
+///
 /// A row inside a USER-MADE session group is NOT refused any more. The reason it was, that the
 /// fork is also written into the workspace session groups document and that document had a second
 /// writer, stopped holding when the store became its owner: the edit goes through the same

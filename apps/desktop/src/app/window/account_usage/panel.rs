@@ -103,10 +103,10 @@ impl AccountUsagePanel {
         if self.claiming.is_none() {
             self.claimed.clear();
         }
-        if let Some(key) = &self.confirming {
-            if !credit_keys(&self.account).iter().any(|(k, _)| k == key) {
-                self.confirming = None;
-            }
+        if let Some(key) = &self.confirming
+            && !credit_keys(&self.account).iter().any(|(k, _)| k == key)
+        {
+            self.confirming = None;
         }
         cx.notify();
     }
@@ -196,11 +196,11 @@ impl AccountUsagePanel {
         message: String,
         cx: &mut gpui::Context<Self>,
     ) {
-        if let Some(key) = self.claiming.take() {
-            if matches!(outcome, "success" | "noCredit") {
-                self.request_ids.remove(&key);
-                self.claimed.insert(key);
-            }
+        if let Some(key) = self.claiming.take()
+            && matches!(outcome, "success" | "noCredit")
+        {
+            self.request_ids.remove(&key);
+            self.claimed.insert(key);
         }
         let message = if message.is_empty() {
             "Couldn't use the reset. Please try again.".to_string()

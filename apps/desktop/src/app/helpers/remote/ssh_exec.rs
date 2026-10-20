@@ -7,7 +7,6 @@
 use std::{
     env, fs,
     path::Path,
-    process::Command,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 

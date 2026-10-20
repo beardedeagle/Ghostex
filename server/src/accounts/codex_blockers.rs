@@ -4,7 +4,9 @@ use crate::{
     server::AppState,
 };
 use serde_json::{json, Value};
-use std::collections::{HashMap, HashSet};
+#[cfg(unix)]
+use std::collections::HashMap;
+use std::collections::HashSet;
 
 /// CDXC:AgentProviders 2026-09-28 SEE-ALSO:
 /// xswap's refusal "Codex is running (PID …)" (codex-swap src/platform/codex_blockers.rs) is the contract; xswap 0.3.3 and older said "Codex is still running (PID …)".

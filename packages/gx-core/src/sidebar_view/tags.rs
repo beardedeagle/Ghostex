@@ -481,12 +481,14 @@ pub(crate) fn enabled_visible_tag_sections(
     let mut visible: Vec<String> = Vec::new();
     let mut visible_custom: Vec<String> = Vec::new();
     for item in normalize_tag_list_items(settings_items, Some(catalog)) {
-        if item.kind == TagListItemKind::Tag && item.enabled && item.visible {
-            if !visible.iter().any(|seen| *seen == item.id) {
-                visible.push(item.id.clone());
-                if is_custom_tag_id(&item.id) {
-                    visible_custom.push(item.id);
-                }
+        if item.kind == TagListItemKind::Tag
+            && item.enabled
+            && item.visible
+            && !visible.contains(&item.id)
+        {
+            visible.push(item.id.clone());
+            if is_custom_tag_id(&item.id) {
+                visible_custom.push(item.id);
             }
         }
     }

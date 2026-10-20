@@ -1,4 +1,3 @@
-use crate::app::helpers::web_bridge_types::SidebarGxserverBootstrap;
 use std::collections::HashMap;
 use std::collections::HashSet;
 
@@ -701,10 +700,9 @@ impl GhostexGpuiApp {
         }
         #[cfg(target_os = "macos")]
         {
-            return self
-                .agents_terminal_ghostty_surfaces
+            self.agents_terminal_ghostty_surfaces
                 .keys()
-                .any(|slot_id| slot_id.session_id == session_id);
+                .any(|slot_id| slot_id.session_id == session_id)
         }
         #[cfg(not(target_os = "macos"))]
         {
@@ -807,26 +805,6 @@ impl GhostexGpuiApp {
                 self.request_session_chat_draft_transfer(shell_session_id, cx);
             }
         }
-    }
-
-    pub(crate) fn agents_session_chat_gxserver_bootstrap(
-        &self,
-        session_id: TerminalSessionId,
-    ) -> Option<SidebarGxserverBootstrap> {
-        if self.agents_chat_local_key_for_session(session_id).is_some() {
-            return self.sidebar_gxserver_bootstrap.clone();
-        }
-        let key = self.agents_chat_remote_key_for_session(session_id)?;
-        let target = self.gpui_remote_gxserver_request_target(key.remote_machine_id.as_str())?;
-        Some(SidebarGxserverBootstrap {
-            base_url: format!("http://127.0.0.1:{}", target.local_port),
-            auth_token: target.token,
-            protocol_version: GPUI_GXSERVER_PROTOCOL_VERSION as i32,
-            client_id: format!("{GPUI_SIDEBAR_GXSERVER_CLIENT_ID}-chat-{}", session_id.0),
-            initial_active_project_id: Some(key.project_id),
-            focused_session_id: Some(key.session_id.clone()),
-            visible_session_ids: vec![key.session_id],
-        })
     }
 
     /// Reconcile the per-session Chat surfaces that can occupy a workspace pane.
@@ -938,10 +916,10 @@ impl GhostexGpuiApp {
         self.session_chat_composer_ready_sessions
             .remove(&session_id);
         self.session_chat_composer_empty_reports.remove(&session_id);
-        if let Some(state) = self.agents_chat_page_states.remove(&session_id) {
-            if let Some(key) = state.account_key.as_ref() {
-                self.forget_session_chat_presentation(key);
-            }
+        if let Some(state) = self.agents_chat_page_states.remove(&session_id)
+            && let Some(key) = state.account_key.as_ref()
+        {
+            self.forget_session_chat_presentation(key);
         }
         self.drop_pending_keyboard_handoff_for_session(session_id);
         self.pending_session_chat_composer_insert

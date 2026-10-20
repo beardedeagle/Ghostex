@@ -83,7 +83,7 @@ impl GhostexGpuiApp {
         }
         h_flex()
             .on_children_prepainted(move |child_bounds, _window, cx| {
-                let _ = metrics_view.update(cx, |this, _cx| {
+                metrics_view.update(cx, |this, _cx| {
                     this.record_workarea_split_layout_metrics(&child_bounds);
                 });
             })
@@ -164,7 +164,7 @@ impl GhostexGpuiApp {
                                 let Some(mode) = mode else {
                                     return;
                                 };
-                                let _ = surface_view.update(cx, |this, _cx| {
+                                surface_view.update(cx, |this, _cx| {
                                     this.record_project_editor_surface_layout_bounds(
                                         mode,
                                         &child_bounds,
@@ -329,7 +329,7 @@ impl GhostexGpuiApp {
                         let Some(mode) = mode else {
                             return;
                         };
-                        let _ = surface_view.update(cx, |this, _cx| {
+                        surface_view.update(cx, |this, _cx| {
                             this.record_project_editor_surface_layout_bounds(mode, &child_bounds);
                         });
                     })

@@ -223,7 +223,7 @@ fn protected_resource_metadata(
         path_aware.set_path(&format!("/.well-known/oauth-protected-resource{path}"));
         match discovery_get(path_aware.as_str()) {
             Err(error)
-                if path != ""
+                if !path.is_empty()
                     && error
                         .status()
                         .is_some_and(|status| (400..500).contains(&status)) =>

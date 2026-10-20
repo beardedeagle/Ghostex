@@ -217,7 +217,7 @@ impl GhostexGpuiApp {
                             this.note_agentbox_status_answer(status, cx);
                         });
                     }
-                    let _ = cx.update(|cx| reply(result, cx));
+                    cx.update(|cx| reply(result, cx));
                 })
                 .detach();
             }
@@ -230,7 +230,7 @@ impl GhostexGpuiApp {
                     let result = background
                         .spawn(async move { settings_modal_http_get(&url) })
                         .await;
-                    let _ = cx.update(|cx| reply(result, cx));
+                    cx.update(|cx| reply(result, cx));
                 })
                 .detach();
             }

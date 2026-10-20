@@ -29,17 +29,16 @@ pub(super) fn hydrate_ghostty_theme_selections(object: &mut Map<String, Value>) 
     if let Some(dark) = dark.filter(|name| !name.is_empty()) {
         object.insert("terminalGhosttyTheme".into(), Value::String(dark.into()));
     }
-    if !object
+    if object
         .get("terminalGhosttyLightTheme")
         .and_then(Value::as_str)
-        .is_some_and(|name| !name.is_empty())
+        .is_none_or(|name| name.is_empty())
+        && let Some(light) = light.filter(|name| !name.is_empty())
     {
-        if let Some(light) = light.filter(|name| !name.is_empty()) {
-            object.insert(
-                "terminalGhosttyLightTheme".into(),
-                Value::String(light.into()),
-            );
-        }
+        object.insert(
+            "terminalGhosttyLightTheme".into(),
+            Value::String(light.into()),
+        );
     }
 }
 

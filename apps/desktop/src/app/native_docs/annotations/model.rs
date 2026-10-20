@@ -22,7 +22,6 @@ pub(crate) const DOCS_ANNOTATION_PREVIEW_MAX_LEN: usize = 150;
 
 pub(crate) const DOCS_COMMENT_ANNOTATION_COLOR: &str = "#e2b340";
 pub(crate) const DOCS_REDLINE_ANNOTATION_COLOR: &str = "#fda4af";
-pub(crate) const DOCS_REMOVE_TOOLBAR_COLOR: &str = "#f87171";
 
 pub(crate) const DOCS_ANNOTATION_ID_PREFIX: &str = "manage-annotation-";
 pub(crate) const DOCS_ANNOTATION_IMAGE_ID_PREFIX: &str = "manage-annotation-image-";
@@ -36,13 +35,6 @@ pub(crate) enum DocsAnnotationType {
 }
 
 impl DocsAnnotationType {
-    pub(crate) fn as_str(self) -> &'static str {
-        match self {
-            Self::Comment => "comment",
-            Self::Redline => "redline",
-        }
-    }
-
     pub(crate) fn parse(value: &str) -> Option<Self> {
         match value {
             "comment" => Some(Self::Comment),
@@ -60,13 +52,6 @@ pub(crate) enum DocsAnnotationScope {
 }
 
 impl DocsAnnotationScope {
-    pub(crate) fn as_str(self) -> &'static str {
-        match self {
-            Self::Global => "global",
-            Self::Selection => "selection",
-        }
-    }
-
     /// A note with a quote is anchored to that text; one without is about the whole document.
     pub(crate) fn for_quote(quote: &str) -> Self {
         if quote.is_empty() {
@@ -112,14 +97,6 @@ pub(crate) const DOCS_QUICK_LABELS: [DocsQuickLabel; 3] = [
 ];
 
 impl DocsQuickLabelId {
-    pub(crate) fn as_str(self) -> &'static str {
-        match self {
-            Self::Clarify => "clarify",
-            Self::NeedsTests => "needs-tests",
-            Self::LooksGood => "looks-good",
-        }
-    }
-
     pub(crate) fn parse(value: &str) -> Option<Self> {
         match value {
             "clarify" => Some(Self::Clarify),
@@ -344,11 +321,6 @@ pub(crate) fn mark_annotations_sent(
 /// `manage-annotation-<ms>-<hex>`, the page's id shape.
 pub(crate) fn annotation_id(now_ms: i64, random_hex: &str) -> String {
     format!("{DOCS_ANNOTATION_ID_PREFIX}{now_ms}-{random_hex}")
-}
-
-/// `manage-annotation-image-<ms>-<hex>`, the page's attachment id shape.
-pub(crate) fn annotation_image_id(now_ms: i64, random_hex: &str) -> String {
-    format!("{DOCS_ANNOTATION_IMAGE_ID_PREFIX}{now_ms}-{random_hex}")
 }
 
 /// Thirteen random lowercase hex digits, the length `Math.random().toString(16).slice(2)` usually has.

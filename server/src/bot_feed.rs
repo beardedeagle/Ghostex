@@ -261,7 +261,7 @@ fn is_silence(answer: &str) -> bool {
         return true;
     }
     let mut lines = answer.lines().filter(|line| !line.trim().is_empty());
-    let (first, last) = (lines.next(), lines.last());
+    let (first, last) = (lines.next(), lines.next_back());
     [Some(answer), first, last]
         .into_iter()
         .flatten()

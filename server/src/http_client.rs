@@ -168,7 +168,7 @@ fn fetch_local_json_with_body(
         request.push_str(&format!("Content-Length: {}\r\n", body.len()));
     }
     request.push_str("\r\n");
-    request.push_str(&body);
+    request.push_str(body);
     let unanswered = |error: &std::io::Error| {
         matches!(
             error.kind(),

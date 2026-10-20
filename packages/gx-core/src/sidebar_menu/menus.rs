@@ -361,8 +361,7 @@ impl<'a> SidebarMenus<'a> {
                 .ui
                 .hidden_items
                 .collection_keys
-                .iter()
-                .any(|key| *key == collection.storage_id),
+                .contains(&collection.storage_id),
             tag_list_items: &self.inputs.settings.tag_list_items,
             catalog: &self.catalog,
             spaces: self.spaces.as_ref(),

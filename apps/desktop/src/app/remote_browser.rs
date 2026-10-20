@@ -246,7 +246,7 @@ impl GhostexGpuiApp {
             for _ in 0..200 {
                 cx.background_executor().timer(Duration::from_millis(25)).await;
                 let done = this.update_in(cx, |app, window, cx| {
-                    if !app.remote_browser.tunnels.get(&machine_id).is_some_and(|tunnel| tunnel.port == port) {
+                    if app.remote_browser.tunnels.get(&machine_id).is_none_or(|tunnel| tunnel.port != port) {
                         app.remote_browser.context_pending.remove(&profile); return true;
                     }
                     match cef::prepare_remote_browser_context(&profile, port) {
@@ -340,10 +340,10 @@ impl GhostexGpuiApp {
         retry: bool,
         cx: &mut gpui::Context<Self>,
     ) -> Option<Arc<RemoteBrowserTunnel>> {
-        if let Some(tunnel) = self.remote_browser.tunnels.get(machine_id) {
-            if tunnel.is_alive() {
-                return Some(tunnel.clone());
-            }
+        if let Some(tunnel) = self.remote_browser.tunnels.get(machine_id)
+            && tunnel.is_alive()
+        {
+            return Some(tunnel.clone());
         }
         if self.remote_browser.tunnels.contains_key(machine_id) {
             self.stop_remote_browser_tunnel(machine_id);

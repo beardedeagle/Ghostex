@@ -170,7 +170,7 @@ impl GhostexGpuiApp {
                 }),
             )
             .on_drag(dragged_tab, move |dragged, _offset, _window, cx| {
-                let _ = view.update(cx, |this, cx| {
+                view.update(cx, |this, cx| {
                     this.begin_browser_tab_drag(cx);
                 });
                 cx.new(|_| BrowserTabDragPreview {

@@ -659,7 +659,7 @@ impl RewindInFlightGuard {
             .get_or_init(|| Mutex::new(Vec::new()))
             .lock()
             .ok()?;
-        if in_flight.iter().any(|entry| *entry == key) {
+        if in_flight.contains(&key) {
             return None;
         }
         in_flight.push(key.clone());
@@ -773,9 +773,7 @@ impl RewindDriver<'_> {
             }
             if let Some(screen) = self.capture().await {
                 let lines = screen_lines(&screen);
-                if let Some(value) =
-                    rewind_stage_region(&lines, subtitle).and_then(|region| read(region))
-                {
+                if let Some(value) = rewind_stage_region(&lines, subtitle).and_then(&read) {
                     if value != *previous {
                         if moved.as_ref() == Some(&value) {
                             return Ok((value, true));

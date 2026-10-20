@@ -91,7 +91,7 @@ pub(crate) fn gpui_remote_attach_terminal_plan_from_result(
     result: &serde_json::Value,
     interactive_attach: bool,
 ) -> Result<GpuiRemoteAttachTerminalPlan, String> {
-    gpui_validate_remote_attach_metadata(&result)?;
+    gpui_validate_remote_attach_metadata(result)?;
     let attach = result
         .get("attach")
         .and_then(serde_json::Value::as_object)

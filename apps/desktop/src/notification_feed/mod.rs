@@ -439,7 +439,7 @@ impl GhostexGpuiApp {
         self.notification_feed_state = state.clone();
         self.deliver_reset_expiry_banners(&state, cx);
         if self.titlebar_popup_menu_open(GpuiTitlebarPopupKind::Notifications)
-            && let Some(handle) = self.titlebar_popup_window.clone()
+            && let Some(handle) = self.titlebar_popup_window
         {
             let _ = handle.update(cx, |popup, window, cx| {
                 popup.update_notifications_feed(state, cx);

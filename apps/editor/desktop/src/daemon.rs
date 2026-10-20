@@ -246,10 +246,10 @@ pub(crate) fn remove_stale_socket(path: &Option<PathBuf>) {
     let Some(path) = path else {
         return;
     };
-    if let Ok(metadata) = fs::symlink_metadata(path) {
-        if metadata.file_type().is_socket() {
-            let _ = fs::remove_file(path);
-        }
+    if let Ok(metadata) = fs::symlink_metadata(path)
+        && metadata.file_type().is_socket()
+    {
+        let _ = fs::remove_file(path);
     }
 }
 
@@ -257,10 +257,10 @@ pub(crate) fn remove_stale_socket(path: &Option<PathBuf>) {
 pub(crate) fn remove_stale_socket(_path: &Option<PathBuf>) {}
 
 fn resolve_web_root() -> Result<PathBuf, String> {
-    if let Ok(value) = env::var("GHOSTEX_EDITOR_WEB_ROOT") {
-        if !value.is_empty() {
-            return Ok(PathBuf::from(value));
-        }
+    if let Ok(value) = env::var("GHOSTEX_EDITOR_WEB_ROOT")
+        && !value.is_empty()
+    {
+        return Ok(PathBuf::from(value));
     }
     let executable = env::current_exe()
         .map_err(|error| format!("unable to resolve current executable: {error}"))?;

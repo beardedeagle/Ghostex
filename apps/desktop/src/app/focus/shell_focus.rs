@@ -496,17 +496,16 @@ impl GhostexGpuiApp {
         {
             return Some(FirstResponderCefSurface::TitlebarExtensionPopup);
         }
-        if let Some(handle) = self.app_modal_window.clone() {
-            if handle
+        if let Some(handle) = self.app_modal_window
+            && handle
                 .update(cx, |host, _window, cx| {
                     host.surface.as_ref().is_some_and(|surface| {
                         surface.read(cx).native_view_contains_responder(responder)
                     })
                 })
                 .unwrap_or(false)
-            {
-                return Some(FirstResponderCefSurface::AppModal);
-            }
+        {
+            return Some(FirstResponderCefSurface::AppModal);
         }
         None
     }

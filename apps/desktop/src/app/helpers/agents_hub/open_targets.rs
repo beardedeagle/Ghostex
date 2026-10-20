@@ -463,7 +463,7 @@ pub(crate) fn gpui_launch_open_target(
                 .as_deref()
                 .filter(|command| !command.trim().is_empty())
             {
-                return gpui_spawn_open_target_command(command, *base_args, &[], project_path);
+                return gpui_spawn_open_target_command(command, base_args, &[], project_path);
             }
             if let Some(app_name) = resolved_app_name
                 .as_deref()
@@ -472,7 +472,7 @@ pub(crate) fn gpui_launch_open_target(
                 return gpui_spawn_open_target_app_name(app_name, project_path);
             }
             if let Some(command) = *default_command {
-                return gpui_spawn_open_target_command(command, *base_args, &[], project_path);
+                return gpui_spawn_open_target_command(command, base_args, &[], project_path);
             }
             Err("Could not launch the selected Open In target.".to_string())
         }

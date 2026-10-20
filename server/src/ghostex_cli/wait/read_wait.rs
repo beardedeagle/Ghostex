@@ -110,12 +110,11 @@ pub(super) fn find_wait_for_text_match<'a>(
     regex: &js_regex::Regex,
 ) -> Option<&'a str> {
     let lines: Vec<&str> = text.split('\n').collect();
-    for line in lines.iter().rev() {
-        if regex.test(line) {
-            return Some(line);
-        }
-    }
-    None
+    lines
+        .iter()
+        .rev()
+        .find(|&line| regex.test(line))
+        .map(|v| v as _)
 }
 
 pub fn wait_for_text_command(args: &[String]) -> CliResult<()> {

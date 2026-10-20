@@ -294,7 +294,7 @@ pub(crate) fn gpui_which_command(command: &str) -> Option<PathBuf> {
         names
     };
     #[cfg(not(windows))]
-    let candidates = vec![command.to_string()];
+    let candidates = [command.to_string()];
     env::var_os("PATH")
         .into_iter()
         .flat_map(|path_value| env::split_paths(&path_value).collect::<Vec<_>>())

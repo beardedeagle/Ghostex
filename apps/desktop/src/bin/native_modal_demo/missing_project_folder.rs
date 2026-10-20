@@ -18,7 +18,7 @@ pub(super) fn open(demo: &super::DemoEnv, cx: &mut App) {
             eprintln!("pickReplacementProjectFolder (window stays open; simulated close in 2s)");
             cx.spawn(async move |cx| {
                 cx.background_executor().timer(Duration::from_secs(2)).await;
-                let _ = cx.update(|cx| cx.quit());
+                cx.update(|cx| cx.quit());
             })
             .detach();
         }

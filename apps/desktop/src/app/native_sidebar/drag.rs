@@ -113,17 +113,18 @@ impl GhostexGpuiApp {
         let position = if after { "after" } else { "before" };
         // A session aimed at another section of its project moves there (section_move.rs); a
         // section heading takes nothing else.
-        if source.kind == "session" && matches!(target_kind, "section" | "session") {
-            if let Some(command) = self.native_sidebar_section_move_command(
+        if source.kind == "session"
+            && matches!(target_kind, "section" | "session")
+            && let Some(command) = self.native_sidebar_section_move_command(
                 &source.id,
                 target_kind,
                 target_id,
                 group_id,
                 position,
-            ) {
-                self.set_native_sidebar_session_drop(Some(command), cx);
-                return;
-            }
+            )
+        {
+            self.set_native_sidebar_session_drop(Some(command), cx);
+            return;
         }
         // A project or collection over the rows under a project's header aims at the slot next to
         // that project (gx-core `project_body_drop_command`).
@@ -216,10 +217,10 @@ impl GhostexGpuiApp {
         command: Value,
         land: impl FnOnce(&mut Self, Value) -> Option<Value>,
     ) -> Option<Value> {
-        if let Some((target, resolved)) = &self.native_sidebar.drop_memo {
-            if *target == command {
-                return resolved.clone();
-            }
+        if let Some((target, resolved)) = &self.native_sidebar.drop_memo
+            && *target == command
+        {
+            return resolved.clone();
         }
         let resolved = land(self, command.clone());
         self.native_sidebar.drop_memo = Some((command, resolved.clone()));

@@ -174,20 +174,18 @@ impl GhostexGpuiApp {
                                                 |snapshot| snapshot.rename_request.clone(),
                                             )
                                         })
-                                    {
-                                        if app.native_sidebar.handled_rename
+                                        && app.native_sidebar.handled_rename
                                             != Some(request.request_id)
-                                        {
-                                            app.native_sidebar.handled_rename =
-                                                Some(request.request_id);
-                                            cx.defer_in(window, move |app, window, cx| {
-                                                app.begin_native_collection_rename(
-                                                    &request.collection_id,
-                                                    window,
-                                                    cx,
-                                                )
-                                            });
-                                        }
+                                    {
+                                        app.native_sidebar.handled_rename =
+                                            Some(request.request_id);
+                                        cx.defer_in(window, move |app, window, cx| {
+                                            app.begin_native_collection_rename(
+                                                &request.collection_id,
+                                                window,
+                                                cx,
+                                            )
+                                        });
                                     }
                                 })
                             })

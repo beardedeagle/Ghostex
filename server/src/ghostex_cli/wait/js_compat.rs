@@ -571,7 +571,7 @@ pub(super) mod js_regex {
         pos: usize,
         cont: &mut dyn FnMut(usize) -> bool,
     ) -> bool {
-        let can_more = max.map_or(true, |limit| count < limit);
+        let can_more = max.is_none_or(|limit| count < limit);
         if lazy {
             if count >= min && cont(pos) {
                 return true;

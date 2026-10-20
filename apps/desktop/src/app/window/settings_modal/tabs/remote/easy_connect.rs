@@ -499,7 +499,7 @@ fn computer_panel(
         .pairing
         .as_ref()
         .and_then(|pairing| pairing.easy_connect.clone());
-    let user = code.as_ref().map(|code| format!("{}", code.user));
+    let user = code.as_ref().map(|code| code.user.to_string());
     let step_three: Vec<(&str, Emph)> = match &user {
         Some(user) => vec![
             ("Confirm this computer’s SSH username (", Emph::Plain),

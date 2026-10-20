@@ -131,7 +131,7 @@ pub fn plan_added_project_placement(
     let is_family = |candidate: &String| {
         section
             .project_of_group(candidate)
-            .is_some_and(|project| family.iter().any(|member| *member == project))
+            .is_some_and(|project| family.contains(&project))
     };
     let next: Vec<String> = current
         .iter()

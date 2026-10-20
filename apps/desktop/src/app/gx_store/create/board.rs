@@ -144,10 +144,7 @@ impl GhostexGpuiApp {
         };
         self.gx_store.create.counters.board_requests += 1;
         if request.action == "showToast" {
-            let level = match request.toast_level.as_deref() {
-                Some(level @ ("error" | "info" | "success" | "warning")) => level,
-                _ => "error",
-            };
+            let level = request.toast_level.as_deref().unwrap_or("error");
             let title = request
                 .toast_title
                 .clone()

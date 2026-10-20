@@ -116,9 +116,7 @@ impl SessionChatSendProbe {
         agent_session_path: Option<&str>,
         text: &str,
     ) -> Option<Self> {
-        if session_chat_option_agent(agent).is_none() {
-            return None;
-        }
+        session_chat_option_agent(agent)?;
         if text.trim().is_empty() {
             return None;
         }

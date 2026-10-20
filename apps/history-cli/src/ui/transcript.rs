@@ -173,7 +173,8 @@ pub(super) fn ensure_block_visible(
         .iter()
         .enumerate()
         .skip(block_index + 1)
-        .find_map(|(_, start)| Some(*start))
+        .map(|(_, start)| *start)
+        .next()
         .unwrap_or(layout.lines.len())
         .saturating_sub(1);
     let height = height.max(1);

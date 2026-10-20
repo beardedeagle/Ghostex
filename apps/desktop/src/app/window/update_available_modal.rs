@@ -124,10 +124,10 @@ fn list_line(line: &str) -> Option<(usize, Option<String>, &str)> {
         return Some((indent / 2, None, text.trim()));
     }
     let digits: String = rest.chars().take_while(char::is_ascii_digit).collect();
-    if !digits.is_empty() {
-        if let Some(text) = rest[digits.len()..].strip_prefix(". ") {
-            return Some((indent / 2, Some(format!("{digits}.")), text.trim()));
-        }
+    if !digits.is_empty()
+        && let Some(text) = rest[digits.len()..].strip_prefix(". ")
+    {
+        return Some((indent / 2, Some(format!("{digits}.")), text.trim()));
     }
     None
 }
@@ -161,38 +161,36 @@ fn parse_inlines(text: &str) -> Vec<Inline> {
         }
     };
     while !rest.is_empty() {
-        if let Some(after) = rest.strip_prefix('`') {
-            if let Some(end) = after.find('`') {
-                flush(&mut plain, &mut inlines);
-                inlines.push(Inline::Code(after[..end].to_string()));
-                rest = &after[end + 1..];
-                continue;
-            }
+        if let Some(after) = rest.strip_prefix('`')
+            && let Some(end) = after.find('`')
+        {
+            flush(&mut plain, &mut inlines);
+            inlines.push(Inline::Code(after[..end].to_string()));
+            rest = &after[end + 1..];
+            continue;
         }
-        if let Some(after) = rest.strip_prefix("**") {
-            if let Some(end) = after.find("**") {
-                flush(&mut plain, &mut inlines);
-                inlines.push(Inline::Bold(after[..end].to_string()));
-                rest = &after[end + 2..];
-                continue;
-            }
+        if let Some(after) = rest.strip_prefix("**")
+            && let Some(end) = after.find("**")
+        {
+            flush(&mut plain, &mut inlines);
+            inlines.push(Inline::Bold(after[..end].to_string()));
+            rest = &after[end + 2..];
+            continue;
         }
-        if let Some(after) = rest.strip_prefix("![") {
-            if let Some(close) = after.find("](") {
-                if let Some(end) = after[close..].find(')') {
-                    rest = &after[close + end + 1..];
-                    continue;
-                }
-            }
+        if let Some(after) = rest.strip_prefix("![")
+            && let Some(close) = after.find("](")
+            && let Some(end) = after[close..].find(')')
+        {
+            rest = &after[close + end + 1..];
+            continue;
         }
-        if let Some(after) = rest.strip_prefix('[') {
-            if let Some(close) = after.find("](") {
-                if let Some(end) = after[close..].find(')') {
-                    plain.push_str(&after[..close]);
-                    rest = &after[close + end + 1..];
-                    continue;
-                }
-            }
+        if let Some(after) = rest.strip_prefix('[')
+            && let Some(close) = after.find("](")
+            && let Some(end) = after[close..].find(')')
+        {
+            plain.push_str(&after[..close]);
+            rest = &after[close + end + 1..];
+            continue;
         }
         let mut chars = rest.chars();
         let ch = chars.next().expect("non-empty rest");

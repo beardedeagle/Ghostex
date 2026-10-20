@@ -213,8 +213,10 @@ pub(crate) fn build_project_meta(
     project_order: &[String],
     parked_project_ids: &BTreeSet<String>,
 ) -> ProjectMeta {
-    let mut meta = ProjectMeta::default();
-    meta.hidden_project_ids = parked_project_ids.clone();
+    let mut meta = ProjectMeta {
+        hidden_project_ids: parked_project_ids.clone(),
+        ..ProjectMeta::default()
+    };
     let Some(loaded) = machine.loaded() else {
         return meta;
     };

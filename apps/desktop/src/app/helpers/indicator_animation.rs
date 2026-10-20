@@ -33,7 +33,7 @@ thread_local! {
     /// Views whose coming render was asked for by an indicator frame and by nothing else.
     static ANIMATION_ONLY_RENDERS: RefCell<HashSet<EntityId>> = RefCell::new(HashSet::new());
     /// Windows with a shared-timer frame scheduled, when it is due, and the views it will notify.
-    static TIMER_FRAMES_PENDING: RefCell<Vec<(WindowId, Instant, HashSet<EntityId>)>> = RefCell::new(Vec::new());
+    static TIMER_FRAMES_PENDING: RefCell<Vec<(WindowId, Instant, HashSet<EntityId>)>> = const { RefCell::new(Vec::new()) };
 }
 
 /// Lets the view being rendered keep what it draws cached on its indicator frames; call it from

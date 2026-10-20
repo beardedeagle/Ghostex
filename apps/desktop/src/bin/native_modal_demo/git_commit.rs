@@ -291,7 +291,7 @@ fn run_pointer_steps(window: AnyWindowHandle, steps: Vec<String>, cx: &mut App) 
             .timer(Duration::from_millis(600))
             .await;
         for step in steps {
-            let _ = cx.update(|cx| {
+            cx.update(|cx| {
                 let _ = window.update(cx, |_root, window, cx| pointer_step(&step, window, cx));
             });
             cx.background_executor()
@@ -391,7 +391,7 @@ fn dispatch_keys(slot: &Slot, keys: &'static [&'static str], cx: &mut App) {
                 return;
             };
             let any_window: AnyWindowHandle = window.into();
-            let _ = cx.update(|cx| {
+            cx.update(|cx| {
                 let _ = any_window.update(cx, |_root, window, cx| {
                     let keystroke = Keystroke::parse(key).expect("a valid demo keystroke");
                     window.dispatch_keystroke(keystroke, cx);
@@ -445,7 +445,7 @@ pub(super) fn open(demo: &super::DemoEnv, cx: &mut App) {
                 cx.background_executor()
                     .timer(Duration::from_millis(500))
                     .await;
-                let _ = cx.update(|cx| {
+                cx.update(|cx| {
                     deliver_diff(&slot, file_path, &base, cx);
                     if first {
                         apply_state(&slot, &state, cx);

@@ -73,7 +73,7 @@ pub(crate) fn zcode_session_rename(
     own session record, like a non-agent rename.
     */
     let title: String = title.trim().chars().take(ZCODE_TITLE_MAX_CHARS).collect();
-    let mut runtime_settings = object_field(&session, "runtimeSettings");
+    let mut runtime_settings = object_field(session, "runtimeSettings");
     runtime_settings.insert(
         "titleSource".to_string(),
         json!(read_text(params, "titleSource").unwrap_or_else(|| "user".to_string())),

@@ -294,13 +294,13 @@ pub(crate) fn manage_append_docs_tree_entries(
             "path": relative_path,
             "size": if is_directory { None } else { Some(metadata.len()) },
         }));
-        if is_directory && child.file_type().is_ok_and(|kind| kind.is_symlink()) {
-            if let Some(entry) = entries
+        if is_directory
+            && child.file_type().is_ok_and(|kind| kind.is_symlink())
+            && let Some(entry) = entries
                 .last_mut()
                 .and_then(serde_json::Value::as_object_mut)
-            {
-                entry.insert("childrenLoaded".to_string(), serde_json::Value::Bool(true));
-            }
+        {
+            entry.insert("childrenLoaded".to_string(), serde_json::Value::Bool(true));
         }
         if is_directory
             && !child
@@ -464,13 +464,13 @@ pub(crate) fn manage_append_project_file_entries(
             "path": relative_path,
             "size": if is_directory { None } else { Some(metadata.len()) },
         }));
-        if is_directory && child.file_type().is_ok_and(|kind| kind.is_symlink()) {
-            if let Some(entry) = entries
+        if is_directory
+            && child.file_type().is_ok_and(|kind| kind.is_symlink())
+            && let Some(entry) = entries
                 .last_mut()
                 .and_then(serde_json::Value::as_object_mut)
-            {
-                entry.insert("childrenLoaded".to_string(), serde_json::Value::Bool(true));
-            }
+        {
+            entry.insert("childrenLoaded".to_string(), serde_json::Value::Bool(true));
         }
         if is_directory
             && !child

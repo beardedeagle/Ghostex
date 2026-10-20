@@ -346,12 +346,12 @@ fn disarm_reset<V: HasOrchestratorPlaybook>(
     generation: Option<u64>,
     cx: &mut Context<V>,
 ) {
-    if let Some(sheet) = page.orchestrator_playbook().sheet.as_mut() {
-        if sheet.reset_armed && generation.is_none_or(|armed_at| armed_at == sheet.reset_generation)
-        {
-            sheet.reset_armed = false;
-            cx.notify();
-        }
+    if let Some(sheet) = page.orchestrator_playbook().sheet.as_mut()
+        && sheet.reset_armed
+        && generation.is_none_or(|armed_at| armed_at == sheet.reset_generation)
+    {
+        sheet.reset_armed = false;
+        cx.notify();
     }
 }
 

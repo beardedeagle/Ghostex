@@ -158,18 +158,18 @@ impl SpacesState {
                 continue;
             };
             let space = Space {
-                color: sanitize_space_color(&candidate.color, sanitized.order.len()),
-                icon: bounded_text(&candidate.icon, MAX_ICON_CHARS)
+                color: sanitize_space_color(candidate.color, sanitized.order.len()),
+                icon: bounded_text(candidate.icon, MAX_ICON_CHARS)
                     .unwrap_or_else(|| DEFAULT_SPACE_ICON.to_string()),
                 member_collection_ids: sanitize_member_ids(
-                    &candidate.member_collection_ids,
+                    candidate.member_collection_ids,
                     &mut assigned_collections,
                 ),
                 member_project_ids: sanitize_member_ids(
-                    &candidate.member_project_ids,
+                    candidate.member_project_ids,
                     &mut assigned_projects,
                 ),
-                name: bounded_text(&candidate.name, MAX_NAME_CHARS)
+                name: bounded_text(candidate.name, MAX_NAME_CHARS)
                     .unwrap_or_else(|| space_id.clone()),
                 space_id: space_id.clone(),
                 workspace_id: candidate

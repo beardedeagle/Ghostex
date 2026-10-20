@@ -5,7 +5,7 @@ use crate::*;
 use std::{
     io::{Read, Write},
     net::{TcpListener, TcpStream},
-    process::{Child, Command, Stdio},
+    process::{Child, Stdio},
     sync::Mutex,
     time::{Duration, Instant},
 };

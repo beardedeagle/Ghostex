@@ -215,19 +215,9 @@ pub fn reveal_plan(
             .get(found.section)
             .then_some(found.section),
         show_hidden: !inputs.ui.show_hidden
-            && (inputs
-                .ui
-                .hidden_items
-                .group_ids
-                .iter()
-                .any(|id| *id == found.group_id)
+            && (inputs.ui.hidden_items.group_ids.contains(&found.group_id)
                 || collection_storage_id.is_some_and(|storage_id| {
-                    inputs
-                        .ui
-                        .hidden_items
-                        .collection_keys
-                        .iter()
-                        .any(|key| *key == storage_id)
+                    inputs.ui.hidden_items.collection_keys.contains(&storage_id)
                 })),
         // `applyNativeSidebarReveal` asks the row itself, not why it was missing: a ticked filter
         // the row does not match is lifted whether or not something else also kept it out.

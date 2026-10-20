@@ -244,14 +244,6 @@ impl FocusState {
         self.group.set(Some(group));
     }
 
-    /// The key of the focused control this frame, if its focus is visible.
-    pub(crate) fn visible_key(&self) -> Option<SharedString> {
-        self.visible
-            .get()
-            .then(|| self.focused.borrow().clone())
-            .flatten()
-    }
-
     pub(crate) fn is_visible(&self, key: &str) -> bool {
         self.visible.get() && self.focused.borrow().as_deref() == Some(key)
     }
@@ -432,19 +424,6 @@ impl GpuiOnboardingWindow {
             run(self, window, cx);
         }
         accepts
-    }
-
-    /// A panel change: the next Tab starts at the new panel's content.
-    pub(crate) fn reset_focus_for_panel(
-        &self,
-        window: Option<&mut Window>,
-        cx: &mut Context<Self>,
-    ) {
-        *self.focus.focused.borrow_mut() = None;
-        self.focus.anchor.set(TabAnchor::PanelStart);
-        if let Some(window) = window {
-            window.focus(&self.focus_handle, cx);
-        }
     }
 }
 

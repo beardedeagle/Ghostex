@@ -191,7 +191,7 @@ impl EditorView {
         self.view.zoom = zoom;
         self.compute_layout(self.layout.viewport);
         let moved = self.layout.to_window(under);
-        self.view.pan = self.view.pan + (anchor - moved);
+        self.view.pan += anchor - moved;
         self.compute_layout(self.layout.viewport);
         cx.notify();
     }
@@ -213,7 +213,7 @@ impl EditorView {
                 if event.modifiers.platform || event.modifiers.control {
                     self.zoom_at(event.position, (f32::from(delta.y) / 200.0).exp(), cx);
                 } else {
-                    self.view.pan = self.view.pan + delta;
+                    self.view.pan += delta;
                     cx.notify();
                 }
             }

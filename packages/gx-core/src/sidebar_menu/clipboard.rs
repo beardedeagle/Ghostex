@@ -76,12 +76,10 @@ pub(crate) fn session_details_text(row: &SessionRow, group: &DetailsGroup<'_>) -
 
 /// `pickFirstNonEmpty`: the first value with non-whitespace in it, trimmed, else `Session`.
 fn first_non_empty(values: &[Option<&str>]) -> String {
-    for value in values {
-        if let Some(value) = value {
-            let trimmed = js_trim(value);
-            if !trimmed.is_empty() {
-                return trimmed.to_string();
-            }
+    for value in values.iter().flatten() {
+        let trimmed = js_trim(value);
+        if !trimmed.is_empty() {
+            return trimmed.to_string();
         }
     }
     "Session".to_string()

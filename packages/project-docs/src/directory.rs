@@ -129,6 +129,12 @@ pub fn invalidate() {
 
 /// Invalidating both sides of a mutation also drops scans that raced its write.
 pub struct MutationGuard;
+impl Default for MutationGuard {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MutationGuard {
     pub fn new() -> Self {
         invalidate();

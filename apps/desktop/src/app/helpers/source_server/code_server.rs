@@ -490,12 +490,12 @@ pub(crate) fn source_code_server_bundled_node_candidates(repo_root: &Path) -> Ve
     append(repo_root.join("lib/node"));
     #[cfg(target_os = "macos")]
     {
-        if let Ok(executable) = env::current_exe() {
-            if let Some(bundle_root) = find_app_bundle_root(&executable) {
-                let resources_dir = bundle_root.join("Contents/Resources");
-                append(resources_dir.join("Web/code-server/lib/node"));
-                append(resources_dir.join("code-server/lib/node"));
-            }
+        if let Ok(executable) = env::current_exe()
+            && let Some(bundle_root) = find_app_bundle_root(&executable)
+        {
+            let resources_dir = bundle_root.join("Contents/Resources");
+            append(resources_dir.join("Web/code-server/lib/node"));
+            append(resources_dir.join("code-server/lib/node"));
         }
         if let Ok(cwd) = env::current_dir() {
             append(cwd.join("apps/desktop/runtime/macos/Web/code-server/lib/node"));

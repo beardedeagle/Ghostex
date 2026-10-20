@@ -32,16 +32,6 @@ pub(crate) enum GpuiSidebarCommandRunState {
     Success,
 }
 
-impl GpuiSidebarCommandRunState {
-    pub(crate) fn as_str(self) -> &'static str {
-        match self {
-            GpuiSidebarCommandRunState::Error => "error",
-            GpuiSidebarCommandRunState::Running => "running",
-            GpuiSidebarCommandRunState::Success => "success",
-        }
-    }
-}
-
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(crate) struct GpuiSidebarCommandRunFeedbackState {
     pub(crate) active_run_ids: Vec<String>,

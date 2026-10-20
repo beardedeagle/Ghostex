@@ -270,16 +270,17 @@ impl GpuiExportTranscriptModalWindow {
                     can_reveal,
                     path,
                 };
-                if handoff_requested && self.effective_mode() == ExportTranscriptMode::Handoff {
-                    if let Some(agent) = self.effective_agent() {
-                        let agent_id = agent.agent_id.clone();
-                        self.close_window_and_send(
-                            ExportTranscriptModalCommand::StartConversation { agent_id },
-                            window,
-                            cx,
-                        );
-                        return;
-                    }
+                if handoff_requested
+                    && self.effective_mode() == ExportTranscriptMode::Handoff
+                    && let Some(agent) = self.effective_agent()
+                {
+                    let agent_id = agent.agent_id.clone();
+                    self.close_window_and_send(
+                        ExportTranscriptModalCommand::StartConversation { agent_id },
+                        window,
+                        cx,
+                    );
+                    return;
                 }
             }
             _ => {
