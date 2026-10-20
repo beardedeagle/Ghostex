@@ -610,10 +610,6 @@ impl NativeChatView {
         if !maximized && let Some(run_location) = self.render_run_location(p, cx) {
             waiting.push(run_location.into_any_element());
         }
-        // Dictate's pill sits right above the box, centred on the microphone (dictation.rs).
-        if let Some(pill) = self.render_dictation_pill(p, cx) {
-            waiting.push(pill);
-        }
         let card_above_box = card_above_box && waiting.is_empty();
         footer = footer.children(waiting);
         // CDXC:SessionChat 2026-09-18 WHY: React's inline composer had a zero-height notification section before its field, contributing one grid gap even while idle. Reserve that same gap here, after any cards or note.
@@ -642,7 +638,10 @@ impl NativeChatView {
                 .when_some(frame.height.filter(|_| !maximized), |this, height| {
                     this.h(px(height)).overflow_hidden()
                 })
-                .child(content),
+                .child(content)
+                // Dictate's pill floats just above the microphone, over the text field
+                // (dictation.rs), drawn last so it is on top.
+                .children(self.render_dictation_pill(p, cx)),
         );
         if self.status_line_reserved() {
             footer = footer.child(self.render_context_status(p, cx));

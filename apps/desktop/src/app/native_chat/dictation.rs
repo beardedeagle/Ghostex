@@ -1,11 +1,11 @@
 //! The composer's Dictate control: the microphone records to a file first and the recording is
 //! transcribed after Stop (`voice_agent::Dictate`, gxserver's `/api/transcribeDictation`); the text
-//! is typed into the draft. While it records or transcribes, a small pill centred over the
+//! is typed into the draft. While it records or transcribes, a small pill just above the
 //! microphone shows it with an ✕ that cancels (Escape cancels too); a failed transcription stays in
 //! that pill with Transcribe again. Hovering the microphone when a recording has no text yet offers
 //! Transcribe previous.
 //!
-//! CDXC:VoiceMode 2026-10-20 DECISION: User: "I want dictating and recording and all of this to show up just as a small pop-up right above the dictating button, basically. And escape cancels shouldn't be shown like this. It should be just an X button that appears there. When I hover, it says escape cancels [...] I imagine it to be like a pill above the dictating button that is centered above it. I don't like seeing like this UI appear above the whole composer." Every Dictate state (recording with its clock, Transcribing, a failure with Transcribe again) is one capsule centred on the microphone, with an ✕ whose tooltip says Escape cancels. Supersedes the full-width row above the chat box with its "Esc cancels" text (earlier on 2026-10-20). The phone's `DictationBar.tsx` still draws the row until the user confirms the phone part.
+//! CDXC:VoiceMode 2026-10-20 DECISION: User: "I want dictating and recording and all of this to show up just as a small pop-up right above the dictating button, basically. And escape cancels shouldn't be shown like this. It should be just an X button that appears there. When I hover, it says escape cancels [...] I imagine it to be like a pill above the dictating button that is centered above it." Then, seeing it in a row of its own above the chat box: "um no the pills are wrong spot please move them right above the button with small gap above it". Every Dictate state (recording with its clock, Transcribing, a failure with Transcribe again) is one capsule centred on the microphone, 6px above it, floating over the bottom of the text field: the user's explicit OK for that overlap (AGENTS.md "Native layout and hit-testing discipline"). The pill is a visible element that takes clicks only on itself; the rest of the text field stays usable. Its ✕'s tooltip says Escape cancels. Supersedes the full-width row with "Esc cancels" and the row-above-the-box spot (both earlier on 2026-10-20). The phone's `DictationBar.tsx` still draws the row until the user confirms the phone part.
 //!
 //! CDXC:SessionChat 2026-10-08 DECISION: User asked for voice input in the chat box, to the left of the Terminal View button, on the desktop and the phone (GPUI Kit's speech input, #3333, on the desktop). Pressing the microphone starts listening and pressing it again stops; the recognized text is typed into the draft and never sent by itself.
 //! CDXC:SessionChat 2026-10-08 SEE-ALSO: `apps/mobile/app/src/chat/native/composer/useDictation.ts` is the phone's control; the toolbar order is `toolbar.rs` `COMPOSER_CONTROLS` and the phone's `menus.ts`.
@@ -57,6 +57,42 @@ pub(super) fn dictation_drawn() -> bool {
 
 /// The pill's height, unscaled: a 16px line, 4px above and below, a 1px edge.
 const PILL_HEIGHT: f32 = 26.0;
+/// Space between the pill's bottom edge and the microphone's top edge, unscaled.
+const PILL_GAP: f32 = 6.0;
+
+/// Where the pill sits inside the chat box, from the box's and the microphone's last paint.
+struct Placement {
+    /// The box's border box (`composer_bounds`, its top may reach up over stacked panels).
+    card: Rc<Cell<Bounds<Pixels>>>,
+    microphone: Rc<Cell<Bounds<Pixels>>>,
+    pill: Rc<Cell<Bounds<Pixels>>>,
+    microphone_shown: bool,
+    scale: f32,
+}
+
+impl Placement {
+    /// `(left, bottom)` inside the box's padding box: centred on the microphone and
+    /// [`PILL_GAP`] above it, kept inside the box when it is too wide to centre. Flush right
+    /// above the toolbar before the first paint, or while the microphone is folded into More
+    /// actions.
+    fn spot(&self) -> (Pixels, Pixels) {
+        let card = self.card.get();
+        let microphone = self.microphone.get();
+        let width = self.pill.get().size.width;
+        // Absolute children are placed in the padding box, one border width inside the card.
+        let inner_left = card.left() + px(1.0);
+        let inner_bottom = card.bottom() - px(1.0);
+        let room = (card.size.width - px(2.0) - width).max(px(0.0));
+        let gap = px(PILL_GAP * self.scale);
+        if self.microphone_shown && microphone.size.width > px(0.0) && card.size.width > px(0.0) {
+            let left = (microphone.center().x - inner_left - width / 2.0).clamp(px(0.0), room);
+            let bottom = (inner_bottom - microphone.top() + gap).max(px(0.0));
+            (left, bottom)
+        } else {
+            (room, px(40.0 * self.scale))
+        }
+    }
+}
 
 /// How long the pointer rests on the microphone before Transcribe previous is offered.
 const HOVER_DELAY: Duration = Duration::from_millis(350);
@@ -120,9 +156,9 @@ pub(crate) struct DictationControl {
     _subscription: Subscription,
     /// The pointer is on the microphone; the hover menu opens after [`HOVER_DELAY`].
     hover: Option<Task<()>>,
-    /// The pill's row and the pill itself at their last paint, which centre it on the microphone.
-    pill_row: Rc<Cell<Bounds<Pixels>>>,
+    /// The pill at its last paint, and the spot it was last placed at (`Placement`).
     pill: Rc<Cell<Bounds<Pixels>>>,
+    placed: Rc<Cell<(Pixels, Pixels)>>,
 }
 
 pub(crate) type Dictation = Option<DictationControl>;
@@ -156,8 +192,8 @@ impl NativeChatView {
             dictate: dictate.clone(),
             _subscription: subscription,
             hover: None,
-            pill_row: Default::default(),
             pill: Default::default(),
+            placed: Rc::new(Cell::new((px(0.0), px(0.0)))),
         });
         dictate
     }
@@ -297,8 +333,8 @@ impl NativeChatView {
     }
 
     /// Dictate's pill: a capsule centred over the microphone while it records, transcribes or
-    /// failed, in a row of its own right above the chat box (so it covers nothing and moves none of
-    /// the box's text or buttons).
+    /// failed, floating [`PILL_GAP`] above the button over the bottom of the chat box's text field
+    /// (an absolute child of the box, drawn after its content). It takes clicks only on itself.
     pub(super) fn render_dictation_pill(
         &self,
         p: &ChatAppearance,
@@ -411,12 +447,25 @@ impl NativeChatView {
                     gpui_component::tooltip::Tooltip::new(failure.clone()).build(window, cx)
                 })
             });
+        let microphone_shown = self.dictation_button_shown();
+        let placement = Placement {
+            card: self.composer_bounds.clone(),
+            microphone: self.composer_button_bounds.dictate.clone(),
+            pill: control.pill.clone(),
+            microphone_shown,
+            scale: s,
+        };
+        let (left, bottom) = placement.spot();
+        control.placed.set((left, bottom));
+        let placed = control.placed.clone();
         let measured_pill = control.pill.clone();
         let pill = div()
             .id("dictation-pill")
             .role(gpui::Role::Status)
             .absolute()
-            .top_0()
+            .left(left)
+            .bottom(bottom)
+            .occlude()
             .h(px(PILL_HEIGHT * s))
             .flex()
             .items_center()
@@ -434,10 +483,12 @@ impl NativeChatView {
             .when(failed, |this| this.child(retry))
             .child(close)
             .child(
+                // The pill's border box; once the box and the microphone have painted this frame,
+                // a spot that moved (a resize, a growing draft, a wider label) is drawn again.
                 canvas(
                     move |bounds, window, _| {
-                        if measured_pill.get().size != bounds.size {
-                            measured_pill.set(bounds);
+                        measured_pill.set(bounds);
+                        if placement.spot() != placed.get() {
                             window.refresh();
                         }
                     },
@@ -446,41 +497,15 @@ impl NativeChatView {
                 .absolute()
                 .inset(px(-1.0)),
             );
-        // Centred on the microphone, kept inside the row; flush right before the first paint or
-        // while the microphone is folded into More actions.
-        let row = control.pill_row.get();
-        let width = control.pill.get().size.width;
-        let microphone = self.composer_button_bounds.dictate.get();
-        let room = (row.size.width - width).max(px(0.0));
-        let left = if microphone.size.width > px(0.0) && row.size.width > px(0.0) {
-            (microphone.center().x - row.left() - width / 2.0).clamp(px(0.0), room)
-        } else {
-            room
-        };
-        let measured_row = control.pill_row.clone();
-        Some(
-            div()
-                .id("dictation-pill-row")
-                .relative()
-                .w_full()
-                .h(px(PILL_HEIGHT * s))
-                .flex_shrink_0()
-                .child(
-                    canvas(
-                        move |bounds, window, _| {
-                            if measured_row.get() != bounds {
-                                measured_row.set(bounds);
-                                window.refresh();
-                            }
-                        },
-                        |_, _, _, _| {},
-                    )
-                    .absolute()
-                    .inset_0(),
-                )
-                .child(pill.left(left))
-                .into_any_element(),
-        )
+        Some(pill.into_any_element())
+    }
+
+    /// Whether the toolbar draws the microphone this frame (`toolbar.rs` `render_toolbar`'s rule);
+    /// otherwise its last painted bounds are stale.
+    fn dictation_button_shown(&self) -> bool {
+        !self.composer_animation.shown_collapsed()
+            && !self.composer_control_overflowed("dictate")
+            && self.composer_control_available("dictate")
     }
 
     /// Type a finished dictation into the draft, a space apart from the text before it.
