@@ -247,7 +247,7 @@ impl GhostexGpuiApp {
         let toast_id = new_toast_id("worktree");
         self.git_toast(
             GitToastLevel::Info,
-            "Renaming worktree",
+            "Renaming worktree…",
             ToastOptions::persistent(&toast_id).with_description(scope.title.clone()),
             cx,
         );

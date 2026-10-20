@@ -60,11 +60,11 @@ pub fn prompt_description(action: GitReviewAction) -> &'static str {
 /// `resolveGpuiSidebarGitStartedTitle`.
 pub fn started_title(action: GitReviewAction, has_commit: bool) -> &'static str {
     match action {
-        GitReviewAction::Pr if has_commit => "Committing, pushing, and creating PR",
-        GitReviewAction::Pr => "Pushing and creating PR",
-        GitReviewAction::Push if has_commit => "Committing and pushing",
-        GitReviewAction::Push => "Pushing",
-        GitReviewAction::Commit => "Committing",
+        GitReviewAction::Pr if has_commit => "Committing, pushing, and creating PR…",
+        GitReviewAction::Pr => "Pushing and creating PR…",
+        GitReviewAction::Push if has_commit => "Committing and pushing…",
+        GitReviewAction::Push => "Pushing…",
+        GitReviewAction::Commit => "Committing…",
     }
 }
 

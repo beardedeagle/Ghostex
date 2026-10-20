@@ -172,8 +172,8 @@ impl GhostexGpuiApp {
         self.git_toast(
             GitToastLevel::Info,
             match remote {
-                true => "Merging remote worktree",
-                false => "Merging worktree into main",
+                true => "Merging remote worktree…",
+                false => "Merging worktree into main…",
             },
             ToastOptions::persistent(&toast_id),
             cx,

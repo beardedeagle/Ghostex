@@ -145,6 +145,14 @@ pub(crate) struct GpuiAppToast {
     pub(crate) epoch: u64,
 }
 
+impl GpuiAppToast {
+    /// CDXC:AppModal 2026-10-20 DECISION:
+    /// User: "make the blue dot here animate to show that it's working and add ... after commiting. do this for all similar ones please". A toast posted while work runs (an Info toast that stays until its result replaces it: Committing…, Pushing…, Creating worktree…, Loading sessions…) pulses its dot like the chat's working agents, and its title ends with "…" where the title is written. Finished, failed and plain info toasts keep a still dot and no ellipsis.
+    pub(crate) fn in_progress(&self) -> bool {
+        self.level == GpuiAppToastLevel::Info && (self.persistent || self.loading)
+    }
+}
+
 pub(crate) fn gpui_app_toast_comparable_text(value: &str) -> String {
     let collapsed = value.split_whitespace().collect::<Vec<_>>().join(" ");
     collapsed
@@ -486,27 +494,30 @@ impl Render for GpuiAppToastWindow {
                     (glass && cfg!(target_os = "windows")).then(|| card_frames.clone());
                 let truncate_description_from_start =
                     toast.id == GPUI_SESSION_CHAT_FILE_OPENING_TOAST_ID;
-                let indicator = if toast.loading && toast.id != GPUI_GXSERVER_DAEMON_TOAST_ID {
-                    canvas(
-                        move |_bounds, _window, _cx| {},
-                        move |bounds, _state: (), window, _cx| {
-                            window.request_animation_frame();
-                            paint_agent_gui_loading_spinner(bounds, window);
+                let dot = div()
+                    .flex_shrink_0()
+                    .mt(px((GPUI_APP_TOAST_TITLE_LINE_HEIGHT - 8.0) / 2.0))
+                    .w(px(8.0))
+                    .h(px(8.0))
+                    .rounded(px(4.0))
+                    .bg(toast.level.indicator_color());
+                let indicator = if toast.in_progress() {
+                    // The chat agent fleet's working pulse (native_chat/agent_fleet.rs).
+                    dot.with_throttled_animation(
+                        gpui::ElementId::Name(format!("app-toast-working-{toast_id}").into()),
+                        std::time::Duration::from_millis(1600),
+                        |dot, phase| {
+                            let progress = if phase < 0.5 {
+                                phase * 2.0
+                            } else {
+                                (1.0 - phase) * 2.0
+                            };
+                            dot.opacity(1.0 - 0.65 * progress)
                         },
                     )
-                    .flex_shrink_0()
-                    .mt(px((GPUI_APP_TOAST_TITLE_LINE_HEIGHT - 14.0) / 2.0))
-                    .size(px(14.0))
                     .into_any_element()
                 } else {
-                    div()
-                        .flex_shrink_0()
-                        .mt(px((GPUI_APP_TOAST_TITLE_LINE_HEIGHT - 8.0) / 2.0))
-                        .w(px(8.0))
-                        .h(px(8.0))
-                        .rounded(px(4.0))
-                        .bg(toast.level.indicator_color())
-                        .into_any_element()
+                    dot.into_any_element()
                 };
                 div()
                     .id(format!("ghostex-gpui-app-toast-wrapper-{toast_id}"))

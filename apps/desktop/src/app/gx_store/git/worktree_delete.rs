@@ -190,8 +190,8 @@ impl GhostexGpuiApp {
         self.git_toast(
             GitToastLevel::Info,
             match remote {
-                true => "Deleting remote worktree",
-                false => "Deleting worktree",
+                true => "Deleting remote worktree…",
+                false => "Deleting worktree…",
             },
             started,
             cx,
@@ -278,8 +278,8 @@ impl GhostexGpuiApp {
         self.git_toast(
             GitToastLevel::Info,
             match remote {
-                true => "Removing remote worktree",
-                false => "Removing worktree",
+                true => "Removing remote worktree…",
+                false => "Removing worktree…",
             },
             ToastOptions::persistent(&toast_id),
             cx,

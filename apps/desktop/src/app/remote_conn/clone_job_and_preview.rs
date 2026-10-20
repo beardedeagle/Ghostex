@@ -390,7 +390,7 @@ impl GhostexGpuiApp {
                     );
                     this.dispatch_gpui_repository_clone_toast(
                         "info",
-                        "Cloning repository",
+                        "Cloning repository…",
                         running_description,
                         Some(toast_id),
                         true,

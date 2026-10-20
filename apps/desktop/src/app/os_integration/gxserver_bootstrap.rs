@@ -214,7 +214,7 @@ impl GhostexGpuiApp {
                     let _ = this.update(cx, |this, cx| {
                         this.show_gpui_gxserver_bootstrap_toast(
                             "info",
-                            "Restarting gxserver",
+                            "Restarting gxserver…",
                             "The running gxserver does not match the tools bundled with this Ghostex build.",
                             true,
                             cx,
@@ -229,7 +229,7 @@ impl GhostexGpuiApp {
                     let _ = this.update(cx, |this, cx| {
                         this.show_gpui_gxserver_bootstrap_toast(
                             "info",
-                            "Updating gxserver",
+                            "Updating gxserver…",
                             "The running gxserver belongs to a different Ghostex build. Ghostex is restarting it before loading migrated storage.",
                             true,
                             cx,
@@ -245,7 +245,7 @@ impl GhostexGpuiApp {
                         let _ = this.update(cx, |this, cx| {
                             this.show_gpui_gxserver_bootstrap_toast(
                                 "info",
-                                "Updating WSL gxserver",
+                                "Updating WSL gxserver…",
                                 "The running WSL gxserver belongs to an older Ghostex build. Ghostex is activating the bundled runtime and restarting it.",
                                 true,
                                 cx,
@@ -320,7 +320,7 @@ impl GhostexGpuiApp {
                 let _ = this.update(cx, |this, cx| {
                     this.show_gpui_gxserver_bootstrap_toast(
                         "info",
-                        "Loading sessions",
+                        "Loading sessions…",
                         "Starting gxserver and loading projects.",
                         true,
                         cx,

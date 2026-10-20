@@ -76,9 +76,9 @@ impl GhostexGpuiApp {
         self.git_toast(
             GitToastLevel::Info,
             if open {
-                "Opening worktree"
+                "Opening worktree…"
             } else {
-                "Creating worktree"
+                "Creating worktree…"
             },
             ToastOptions::persistent(&toast_id),
             cx,

@@ -354,7 +354,15 @@ async fn start_worktree_work(
     context: &BoardContext,
 ) -> BoardResult<LinkedSession> {
     let toast_id = worktree_toast_id();
-    toast(this, cx, "info", "Creating worktree", None, &toast_id, true);
+    toast(
+        this,
+        cx,
+        "info",
+        "Creating worktree…",
+        None,
+        &toast_id,
+        true,
+    );
     let created = async {
         let response = gx_rpc_with_timeout(
             None,

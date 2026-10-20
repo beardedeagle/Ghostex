@@ -142,7 +142,7 @@ pub fn plan_git_action_after_read(
         } else {
             GitActionStep::Mutation {
                 mutation: GitMutation::Sync,
-                started: "Syncing remote",
+                started: "Syncing remote…",
                 finished: "Remote sync complete",
             }
         }),
@@ -194,7 +194,7 @@ pub fn plan_git_action_after_read(
         } else {
             GitActionStep::Mutation {
                 mutation: GitMutation::Push,
-                started: "Pushing",
+                started: "Pushing…",
                 finished: if remote {
                     "Remote push complete"
                 } else {
