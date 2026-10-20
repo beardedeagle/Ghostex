@@ -246,7 +246,12 @@ impl NativeChatView {
             )
             // Resting on the microphone offers Transcribe previous; right-click always opens its menu.
             .when(action == "dictate", |this| {
-                this.on_hover(cx.listener(|this, hovered: &bool, window, cx| {
+                // The press must not move focus to the chat surface: the chat box keeps its caret
+                // where the dictated text will land (dictation.rs).
+                this.on_mouse_down(gpui::MouseButton::Left, |_, window, _| {
+                    window.prevent_default()
+                })
+                .on_hover(cx.listener(|this, hovered: &bool, window, cx| {
                     this.hover_dictation(*hovered, window, cx);
                 }))
                 .on_mouse_down(

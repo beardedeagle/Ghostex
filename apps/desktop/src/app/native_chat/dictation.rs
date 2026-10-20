@@ -6,6 +6,7 @@
 //! Transcribe previous.
 //!
 //! CDXC:VoiceMode 2026-10-20 DECISION: User: "I want dictating and recording and all of this to show up just as a small pop-up right above the dictating button, basically. And escape cancels shouldn't be shown like this. It should be just an X button that appears there. When I hover, it says escape cancels [...] I imagine it to be like a pill above the dictating button that is centered above it." Then, seeing it in a row of its own above the chat box: "um no the pills are wrong spot please move them right above the button with small gap above it". Every Dictate state (recording with its clock, Transcribing, a failure with Transcribe again) is one capsule centred on the microphone, 6px above it, floating over the bottom of the text field: the user's explicit OK for that overlap (AGENTS.md "Native layout and hit-testing discipline"). The pill is a visible element that takes clicks only on itself; the rest of the text field stays usable. Its ✕'s tooltip says Escape cancels. Supersedes the full-width row with "Esc cancels" and the row-above-the-box spot (both earlier on 2026-10-20). The phone's `DictationBar.tsx` still draws the row until the user confirms the phone part.
+//! CDXC:VoiceMode 2026-10-20 DECISION: User: "When I'm transcribing, my caret basically isn't shown anymore unless I click on the chat again. please stop doing this. It should keep my caret shown in the chat so I know where the transcription that I'm doing is going to end up." Pressing the microphone or anything on the pill never takes focus from the chat box (the chat surface tracks focus for any press nothing claims, which blurred the field); the dictated text lands at the caret, which then sits right after it.
 //!
 //! CDXC:SessionChat 2026-10-08 DECISION: User asked for voice input in the chat box, to the left of the Terminal View button, on the desktop and the phone (GPUI Kit's speech input, #3333, on the desktop). Pressing the microphone starts listening and pressing it again stops; the recognized text is typed into the draft and never sent by itself.
 //! CDXC:SessionChat 2026-10-08 SEE-ALSO: `apps/mobile/app/src/chat/native/composer/useDictation.ts` is the phone's control; the toolbar order is `toolbar.rs` `COMPOSER_CONTROLS` and the phone's `menus.ts`.
@@ -466,6 +467,12 @@ impl NativeChatView {
             .left(left)
             .bottom(bottom)
             .occlude()
+            // A press on the pill (its ✕, Transcribe again, or the pill itself) must not move focus
+            // to the chat surface, which tracks focus for presses nothing claimed: the chat box
+            // keeps its caret where the dictated text will land.
+            .on_mouse_down(gpui::MouseButton::Left, |_, window, _| {
+                window.prevent_default()
+            })
             .h(px(PILL_HEIGHT * s))
             .flex()
             .items_center()

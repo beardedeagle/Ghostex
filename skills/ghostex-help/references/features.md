@@ -1546,21 +1546,22 @@ reply the agent gave to that prompt, including the ones it wrote after a
 background task finished. While the agent is still working, that turn's work
 shows open under Active work, with the running command visible; close it with a
 click, and it folds into the reply once the turn finishes.
-Summary mode has its own button between More actions and Session note when the
-chat toolbar has room, and is always under More actions > View.
-The button highlights when Summary mode is on; its tooltip shows the Toggle Summary
-Mode shortcut (Option+Ctrl+S on macOS, Ctrl+Alt+Shift+S on Windows and Linux), which
-switches it from anywhere in that chat and can be changed in Settings > Hotkeys.
+Turn Summary mode on or off under More actions > View, where its row shows the
+Toggle Summary Mode shortcut (Option+Ctrl+S on macOS, Ctrl+Alt+Shift+S on Windows
+and Linux), which switches it from anywhere in that chat and can be changed in
+Settings > Hotkeys.
+Stash prompt is in More actions, second from the bottom: it stashes what is in
+the chat box, or, with an empty chat box, opens your stashed prompts; the row
+shows how many are stashed.
 The Maximize button's tooltip shows the Maximize Chat Box shortcut (Option+Ctrl+M
 on macOS, Ctrl+Alt+Shift+M on Windows and Linux), which maximizes the chat box of
 the chat you are in, or restores it.
 As space gets tighter, toolbar buttons move into More actions one at a time:
-Summary mode (under View), Session note, Stash prompt, Attach, Maximize, then
-Terminal View.
+Session note, Attach, Maximize, Dictate, then Terminal View.
 If the context ring still does not fit beside the model, it moves into Model
 settings at the top of More actions; the model pill shortens instead of moving.
 Controls return as space opens up; More actions and Send or Stop stay visible.
-On the phone, Stash prompt with an empty chat box (or a long press on it) opens
+On the phone, More actions > Stash prompt with an empty chat box opens
 Saved prompts for this project: tap one to put it in the chat box, or delete it
 with its trash button. Tags and editing stay on the computer.
 Click the model pill or the context meter to open it; hovering does not open either control.

@@ -6,23 +6,11 @@ use gpui::{
 };
 use serde_json::{Value, json};
 
-/// CDXC:SessionChat 2026-09-11 DECISION:
-/// User: show Summary mode between More actions and Session note when there is room; keep it in More actions in the compact toolbar.
+/// CDXC:SessionChat 2026-10-20 DECISION:
+/// User: "please remove the summary mode button from the composer (it's already there under view mode) also please remove the stash prompt button and instead move it under the ... more actions button as the 2nd from the bottom there". Summary mode lives only in More actions > View, Stash prompt is a More actions row (actions.rs, `stash_menu_row`); supersedes the 2026-09-11 decision that put Summary mode on this row.
 /// This order is also the order controls fold into More actions. Files and links left this row for More actions on 2026-10-15 (actions.rs, `files_links_row`).
-pub(super) const COMPOSER_CONTROLS: [(&str, &str, &str, &str); 7] = [
-    (
-        "summary",
-        "summaryMode",
-        "Summary mode",
-        "titlebar/list-details.svg",
-    ),
+pub(super) const COMPOSER_CONTROLS: [(&str, &str, &str, &str); 5] = [
     ("note", "sessionNote", "Session note", "titlebar/note.svg"),
-    (
-        "stash",
-        "stashPrompt",
-        "Stash prompt",
-        "titlebar/stack-push.svg",
-    ),
     (
         "attach",
         "attachPath",
@@ -112,7 +100,6 @@ impl NativeChatView {
         match action {
             "moreActions" => self.show_actions(position,window,cx),
             "maximizeComposer" => self.toggle_maximized(window,cx),
-            "summaryMode" => self.invoke(json!({"type":"toggleSummary"}),cx),
             "dictate" => self.toggle_dictation(window,cx),
             "transcribePreviousDictation" => self.transcribe_previous_dictation(window,cx),
             "dictationHistory" => self.open_dictation_history(cx),
@@ -150,8 +137,6 @@ impl NativeChatView {
             }
             let icon = match id {
                 "maximize" if self.maximized_window.is_some() => "titlebar/minimize.svg",
-                // The Summary glyph swaps with the mode, the way the More actions row does.
-                "summary" if self.snapshot["summaryMode"] == true => "titlebar/list-check.svg",
                 "dictate" if self.dictating(cx) => "titlebar/player-stop.svg",
                 _ => icon,
             };
@@ -185,12 +170,14 @@ impl NativeChatView {
             .filter(|(id, _, _, _)| self.composer_control_available(id))
             .map(|(id, _, _, _)| json!({"id":id,"width":28.0*scale}))
             .collect();
+        // More actions, each drawn control and Send, with the gaps between them.
+        let actions_width = (28.0 + controls.len() as f32 * (28.0 + 6.0) + 6.0 + 24.0) * scale;
         let chat = cx.weak_entity();
         gpui::canvas(
             move |bounds, window, cx| {
                 let measurements = json!({
                     "available":bounds.size.width.as_f32(), "options":options_width,
-                    "actions":262.0*scale, "footerGap":8.0*scale, "actionGap":6.0*scale,
+                    "actions":actions_width, "footerGap":8.0*scale, "actionGap":6.0*scale,
                     "clearance":16.0*scale, "hasOverflowOptions":has_overflow_options,
                     "controls":controls.clone(),
                 });

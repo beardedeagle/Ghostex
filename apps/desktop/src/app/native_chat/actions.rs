@@ -68,7 +68,7 @@ impl NativeChatView {
     }
 
     /// CDXC:SessionChat 2026-09-27 DECISION:
-    /// User: combine Simple, Verbose and Summary modes in the More actions menu. One View row opens a submenu with the three modes as independent checks, and its detail names the modes that are on. Summary is listed even while its toolbar button shows. The phone's View row holds the same three modes (apps/mobile/app/src/chat/native/composer/menus.ts).
+    /// User: combine Simple, Verbose and Summary modes in the More actions menu. One View row opens a submenu with the three modes as independent checks, and its detail names the modes that are on. Since 2026-10-20 this is the only Summary control (toolbar.rs `COMPOSER_CONTROLS`). The phone's View row holds the same three modes (apps/mobile/app/src/chat/native/composer/menus.ts).
     fn view_modes_row(&self, appearance: &super::appearance::ChatAppearance) -> Value {
         let summary = self
             .composer_control_available("summary")
@@ -117,6 +117,20 @@ impl NativeChatView {
                 "hotkeyAction":"toggleChatFilesLinks",
                 "checked":self.snapshot["filesLinks"]["open"] == true,
                 "command":{"type":"composerHost","action":"filesLinks"},
+            })
+        })
+    }
+
+    /// Stash prompt, a More actions row since its toolbar button went (toolbar.rs, CDXC:SessionChat 2026-10-20): it stashes the draft, or opens the stashed prompts when the chat box is empty. The stash count the button's badge showed is its subtitle, since the hotkey takes the detail slot.
+    fn stash_menu_row(&self) -> Option<Value> {
+        self.composer_control_available("stash").then(|| {
+            let stashed = self.snapshot["composerChrome"]["stashBadge"]
+                .as_str()
+                .map(|count| format!("{count} stashed"));
+            json!({
+                "label":"Stash prompt","iconPath":"titlebar/stack-push.svg",
+                "hotkeyAction":"stashPrompt","description":stashed,
+                "command":{"type":"composerHost","action":"stashPrompt"},
             })
         })
     }
@@ -201,10 +215,7 @@ impl NativeChatView {
         }
         for (id, action, label, icon) in super::toolbar::COMPOSER_CONTROLS {
             // An overflowed control folds into this menu only when the host gave it a handler.
-            if id != "summary"
-                && self.composer_control_overflowed(id)
-                && self.composer_control_available(id)
-            {
+            if self.composer_control_overflowed(id) && self.composer_control_available(id) {
                 let (label, icon) = if id == "maximize" && self.maximized_window.is_some() {
                     ("Exit maximize", "titlebar/minimize.svg")
                 } else {
@@ -271,6 +282,10 @@ impl NativeChatView {
         }
         // Second from the bottom (gx-chat-core `composer/ghostex_skills.rs`).
         rows.insert(rows.len().saturating_sub(1), self.skills_row());
+        // Stash prompt goes second from the bottom, below Skills.
+        if let Some(stash) = self.stash_menu_row() {
+            rows.insert(rows.len().saturating_sub(1), stash);
+        }
         // Lined up with the More actions button, not the point it was clicked at.
         self.menu_side = Some(super::option_menu::MenuSide::Right);
         let trigger = super::toolbar::button_trigger(
