@@ -166,6 +166,33 @@ impl NativeChatView {
                 .as_array()
                 .is_some_and(|ids| ids.iter().any(|id| id == page_id))
         });
+        // Its questions a later block withdrew, some or all (`withdrawnPages`, the core's
+        // open_questions.rs): the card says so where an answered page says Answered.
+        let withdrawn = page_id
+            .as_deref()
+            .filter(|_| !answered)
+            .map(|page_id| &self.snapshot["withdrawnPages"][page_id])
+            .filter(|entry| entry.is_object())
+            .map(|entry| {
+                let tags: Vec<&str> = entry["tags"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .filter_map(Value::as_str)
+                    .collect();
+                let total = entry["total"].as_u64().unwrap_or(0) as usize;
+                if tags.len() >= total {
+                    (
+                        "Withdrawn".to_string(),
+                        "Withdrawn, no answer needed".to_string(),
+                    )
+                } else {
+                    (
+                        format!("{} of {total} withdrawn", tags.len()),
+                        format!("{}: withdrawn, no answer needed", tags.join(", ")),
+                    )
+                }
+            });
         let picture = page_id
             .as_deref()
             .and_then(|page_id| self.page_thumbnail(page_id, answered, cx));
@@ -351,6 +378,29 @@ impl NativeChatView {
                             .child(detail),
                     ),
             )
+            .when_some(withdrawn, |this, (label, hint)| {
+                let hint = SharedString::from(hint);
+                this.child(
+                    div()
+                        .id(SharedString::from(format!("page-withdrawn:{key}")))
+                        .flex()
+                        .items_center()
+                        .flex_shrink_0()
+                        .px(px(8.0 * s))
+                        .py(px(2.0 * s))
+                        .rounded_full()
+                        .bg(p.muted.opacity(0.14))
+                        .text_size(px(11.0 * s))
+                        .font_weight(FontWeight::SEMIBOLD)
+                        .text_color(p.muted)
+                        .role(gpui::Role::Status)
+                        .aria_label(hint.clone())
+                        .tooltip(move |window, cx| {
+                            gpui_component::tooltip::Tooltip::new(hint.clone()).build(window, cx)
+                        })
+                        .child(label),
+                )
+            })
             .when(answered, |this| {
                 let good = super::page_answers::answered_color(p);
                 this.child(

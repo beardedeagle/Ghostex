@@ -71,12 +71,22 @@ pub fn document(state: &ChatState, context: &ChatContext, into: &mut Document) {
     let view = &state.transcript_view;
     into.summary_mode = view.summary_mode;
     into.verbose_override = view.verbose_override;
-    (into.final_ids, into.answered_pages) = if view.items.is_empty() {
+    let askers;
+    (into.final_ids, into.answered_pages, askers) = if view.items.is_empty() {
         let projection = presentation::build(state, context);
-        (projection.final_ids, projection.answered_pages)
+        (
+            projection.final_ids,
+            projection.answered_pages,
+            projection.askers,
+        )
     } else {
-        (view.final_ids.clone(), view.answered_pages.clone())
+        (
+            view.final_ids.clone(),
+            view.answered_pages.clone(),
+            view.askers.clone(),
+        )
     };
+    into.withdrawn_pages = crate::transcript::open_questions::withdrawn_pages(&askers);
     into.deferred_work = view.deferred_work.clone();
     into.api_error_card = crate::transcript::api_errors::api_error_card(state, context);
     /*

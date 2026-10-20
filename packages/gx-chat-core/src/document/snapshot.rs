@@ -82,6 +82,10 @@ pub struct Document {
     pub final_ids: Vec<String>,
     /// The published pages (`ghostex show`) whose answers arrived, so their cards read Answered.
     pub answered_pages: Vec<String>,
+    /// The question pages not answered whose questions were withdrawn, some or all, by page id,
+    /// so their cards say so (`transcript::open_questions::withdrawn_pages`).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub withdrawn_pages: BTreeMap<String, crate::transcript::open_questions::WithdrawnPage>,
     /// Per completed-work row: the read is in flight, or it failed and offers a retry.
     pub deferred_work: BTreeMap<String, DeferredWorkRow>,
 

@@ -262,6 +262,48 @@ pub fn mark_skipped(
     }
 }
 
+/// A question page some or all of whose questions were withdrawn before it was answered: the tags
+/// withdrawn, and how many tags it asked.
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WithdrawnPage {
+    pub tags: Vec<String>,
+    pub total: usize,
+}
+
+/// The question pages whose cards say what was withdrawn, by page id: a page not answered whose
+/// tags a later block withdrew, or that a later form or page asked again (the same grey state the
+/// Q-tag pills take, `tag_state`).
+///
+/// CDXC:SessionChat 2026-10-20 DECISION: User, of a page card whose questions were all withdrawn: "You show "withdrawn, no answer needed" here but not here ... do u think we can show it in Image #2 also?". The card carries a grey Withdrawn pill where an answered page's Answered pill sits, saying "Withdrawn, no answer needed"; when only some of its questions were withdrawn the pill says how many ("2 of 4 withdrawn"), so the reader knows the rest still wait. An answered page keeps its Answered pill. Drawn by apps/desktop/src/app/native_chat/page_card.rs and the phone's PageCard.tsx.
+pub fn withdrawn_pages(askers: &[Asker]) -> std::collections::BTreeMap<String, WithdrawnPage> {
+    askers
+        .iter()
+        .filter(|asker| asker.kind == AskerKind::Page && !asker.answered && !asker.tags.is_empty())
+        .filter_map(|asker| {
+            let tags: Vec<String> = if asker.obsolete {
+                asker.tags.clone()
+            } else {
+                asker
+                    .tags
+                    .iter()
+                    .filter(|tag| asker.withdrawn.iter().any(|known| same_tag(known, tag)))
+                    .cloned()
+                    .collect()
+            };
+            (!tags.is_empty()).then(|| {
+                (
+                    asker.id.clone(),
+                    WithdrawnPage {
+                        tags,
+                        total: asker.tags.len(),
+                    },
+                )
+            })
+        })
+        .collect()
+}
+
 /// The state of the question a tag names: answered (or skipped) once the latest form or page that
 /// asked it has its answers, withdrawn once a later block withdrew it there, open otherwise.
 pub fn tag_state(askers: &[Asker], tag: &str) -> Option<TagState> {
