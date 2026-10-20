@@ -259,7 +259,6 @@ for (const arch of ['x64', 'arm64']) {
   if (byPlatform.has(windowsPlatform)) {
     const portable = artifactPath(windowsPlatform, `ghostex-${version}-windows-${arch}-portable.zip`);
     const velopackPayloadRoot = 'current';
-    validateZipEntrySha(portable, `${velopackPayloadRoot}/resources/wsl/${linuxName}`, linuxSha);
     const componentManifest = validateOnDemandManifestV2(
       JSON.parse(readZipEntryText(portable, `${velopackPayloadRoot}/resources/on-demand-resources.json`))
     );
@@ -267,6 +266,9 @@ for (const arch of ['x64', 'arm64']) {
       if (!componentManifest.components[componentName]?.platforms?.[`windows-${arch}`]) {
         throw new Error(`${path.basename(portable)} manifest v2 is missing ${componentName} for windows-${arch}`);
       }
+    }
+    if (componentManifest.assets[linuxPlatform]?.sha256 !== linuxSha) {
+      throw new Error(`${path.basename(portable)} manifest v2 ${linuxPlatform} sha256 does not match ${linuxName}`);
     }
   }
 }

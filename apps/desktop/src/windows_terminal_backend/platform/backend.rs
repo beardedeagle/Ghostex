@@ -282,8 +282,17 @@ pub(in crate::windows_terminal_backend) fn prepare_gxserver(
         .is_some_and(|actual| actual.trim() == expected)
     });
     if update_required || !installed || !installed_package_matches {
+        if package.needs_download() {
+            progress(WindowsWslSetupPhase::Downloading);
+        }
+        let archive_path = package.archive_path()?;
         progress(WindowsWslSetupPhase::Installing);
-        install_packaged_gxserver(distribution, &gxserver_install_root, &package)?;
+        install_packaged_gxserver(
+            distribution,
+            &gxserver_install_root,
+            &archive_path,
+            package.sha256.as_deref(),
+        )?;
     }
 
     if let Ok(mut state) = state().lock() {

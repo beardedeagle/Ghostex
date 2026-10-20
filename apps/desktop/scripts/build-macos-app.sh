@@ -1377,6 +1377,10 @@ done
 mkdir -p "$WEB_DIR/portless"
 stage_tree_if_changed "$WEB_BIN_SOURCE_DIR" "$WEB_DIR/bin"
 stage_tree_if_changed "$GXSERVER_SOURCE_DIR" "$WEB_DIR/gxserver"
+# CDXC:Release 2026-10-20 WHY: the gxserver package's `ghostex` and `zmx` are the same builds as CLI/ghostex and Web/bin/zmx (only their signature timestamps differed), so they are relative links into the bundle, saving about 14.6 MB. CLI/ghostex must stay the real file: the CLI canonicalizes its own path to find CLI/skills. The remote Mac install archives this package with `tar -h` so the links arrive as files.
+# SEE-ALSO: gpui_upload_install_bundled_remote_gxserver_and_read_token_inner in apps/desktop/src/app/helpers/remote/install.rs, current_cli_executable in server/src/ghostex_cli/launchers.rs.
+ln -sfh ../../../CLI/ghostex "$WEB_DIR/gxserver/bin/ghostex"
+ln -sfh ../../bin/zmx "$WEB_DIR/gxserver/bin/zmx"
 if [[ "$GHOSTEX_ON_DEMAND_ASSETS" == "1" ]]; then
 	rm -rf "$WEB_DIR/code-server"
 	rm -f "$WEB_DIR/local-start-code-server-root"

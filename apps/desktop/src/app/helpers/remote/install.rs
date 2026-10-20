@@ -444,7 +444,9 @@ pub(crate) fn gpui_upload_install_bundled_remote_gxserver_and_read_token_inner(
 ) -> GpuiRemoteProcessResult {
     let mut tar_environment: HashMap<String, String> = env::vars().collect();
     tar_environment.insert("COPYFILE_DISABLE".to_string(), "1".to_string());
+    // `-h` stores the macOS package's linked `bin/ghostex` and `bin/zmx` as files (see build-macos-app.sh).
     let tar_arguments = vec![
+        "-h".to_string(),
         "-czf".to_string(),
         gpui_path_string(archive_path),
         "-C".to_string(),

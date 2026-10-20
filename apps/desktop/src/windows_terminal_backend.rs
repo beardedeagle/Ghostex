@@ -31,6 +31,7 @@ pub(crate) enum WindowsWslReadiness {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum WindowsWslSetupPhase {
     Checking,
+    Downloading,
     Installing,
     Starting,
     Connecting,

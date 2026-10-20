@@ -167,8 +167,8 @@ pub(crate) fn gpui_bundled_remote_gxserver_package_dir(
     None
 }
 
-/// CDXC:RemoteMachines 2026-10-06 WHY:
-/// The Windows app unpacks no Linux package and its sealed download manifest lists no gxserver asset, so every Linux remote (a Debian dev server, for one) failed with "Machine unsupported". It does ship the static (musl) Linux gxserver package its WSL backend installs, `resources/wsl/gxserver-linux-<arch>.tar.gz`, which has the layout and `gxserver setup` a macOS app's upload has, so remote installs and updates upload that archive as is.
+/// CDXC:RemoteMachines 2026-10-20 WHY:
+/// The Windows app unpacks no Linux package. Dev builds bundle the static (musl) Linux gxserver package their WSL backend installs, `resources/wsl/gxserver-linux-<arch>.tar.gz`, which has the layout and `gxserver setup` a macOS app's upload has, so remote installs and updates upload that archive as is. Release builds no longer bundle it (supersedes the 2026-10-06 note): their sealed manifest lists the same archive, and installs fall through to `gpui_on_demand_gxserver_archive`, as on macOS.
 pub(crate) fn gpui_bundled_remote_gxserver_archive(
     target: &GpuiRemoteInstallTarget,
 ) -> Option<PathBuf> {

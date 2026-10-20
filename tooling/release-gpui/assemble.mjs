@@ -382,17 +382,12 @@ for (const arch of ['x64', 'arm64']) {
   if (byPlatform.has(windowsPlatform)) {
     const portable = artifactPath(windowsPlatform, `ghostex-${version}-windows-${arch}-portable.zip`);
     const velopackPayloadRoot = 'current';
-    validateZipEntrySha(portable, `${velopackPayloadRoot}/resources/wsl/${linuxName}`, linuxSha);
-    const sidecarEntry = `${velopackPayloadRoot}/resources/wsl/${linuxName}.sha256`;
-    const sidecar = readZipEntryText(portable, sidecarEntry);
-    if (sidecar !== `${linuxSha}\n`) {
-      throw new Error(`${path.basename(portable)} has an invalid ${sidecarEntry}`);
-    }
     const entries = zipEntries(portable);
     const forbidden = entries.find(
       (entry) =>
         entry === 'libcef.dll' ||
         entry.endsWith('/libcef.dll') ||
+        entry.startsWith(`${velopackPayloadRoot}/resources/wsl/gxserver-`) ||
         (entry.startsWith(`${velopackPayloadRoot}/resources/wsl/code-server-`) &&
           (entry.endsWith(`-linux-${arch}.tar.gz`) || entry.endsWith(`-linux-${arch}.tar.gz.sha256`)))
     );
@@ -407,6 +402,10 @@ for (const arch of ['x64', 'arm64']) {
       if (!asset) {
         throw new Error(`${path.basename(portable)} manifest v2 is missing ${componentName} for windows-${arch}`);
       }
+    }
+    // The WSL gxserver is downloaded on demand: the sealed entry must name this release's Linux archive.
+    if (componentManifest.assets[linuxPlatform]?.sha256 !== linuxSha) {
+      throw new Error(`${path.basename(portable)} manifest v2 ${linuxPlatform} sha256 does not match ${linuxName}`);
     }
   }
 }

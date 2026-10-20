@@ -334,7 +334,18 @@ $WslArchive = $env:GHOSTEX_WINDOWS_WSL_GXSERVER_ARCHIVE
 $WslCodeServerArchive = $env:GHOSTEX_WINDOWS_WSL_CODE_SERVER_ARCHIVE
 $RequireWslArchive = $env:GHOSTEX_WINDOWS_REQUIRE_WSL_RUNTIME -ne "0"
 $RequireSourceArchive = $OnDemandComponents
-if ($WslArchive -and (Test-Path $WslArchive)) {
+$WslOnDemandAssets = @()
+# CDXC:Release 2026-10-20 WHY: release builds list the WSL gxserver archive in the sealed on-demand manifest instead of bundling it (27 MB): it is the same gxserver-linux-<arch>.tar.gz every release already attaches, and the app downloads it on the first WSL setup or update. Dev builds keep bundling the archive they rebuild from source, which is never uploaded.
+# SEE-ALSO: resolve_packaged_gxserver in apps/desktop/src/windows_terminal_backend/platform/packaged_install.rs, tooling/release-gpui/windows.ps1, tooling/release-gpui/assemble.mjs.
+if ($OnDemandComponents -and $WslArchive -and (Test-Path $WslArchive)) {
+    $WslOnDemandAssets = @([ordered]@{
+        bytes = (Get-Item -LiteralPath $WslArchive).Length
+        key = "gxserver-linux-$ReleaseArch"
+        name = "gxserver-linux-$ReleaseArch.tar.gz"
+        sha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $WslArchive).Hash.ToLowerInvariant()
+    })
+}
+elseif ($WslArchive -and (Test-Path $WslArchive)) {
     $WslResources = Join-Path $AppDir "resources/wsl"
     New-Item -ItemType Directory -Force -Path $WslResources | Out-Null
     $StagedWslArchive = Join-Path $WslResources "gxserver-linux-$ReleaseArch.tar.gz"
@@ -413,7 +424,7 @@ elseif ($RequireSourceArchive) {
 
 if ($OnDemandComponents -or ($WslCodeServerArchive -and (Test-Path $WslCodeServerArchive))) {
     $OnDemandBuildManifest = Join-Path $ComponentRoot "windows-$ReleaseArch-assets.json"
-    $OnDemandBuildPayload = [ordered]@{ assets = @(); version = $ReleaseVersion } |
+    $OnDemandBuildPayload = [ordered]@{ assets = $WslOnDemandAssets; version = $ReleaseVersion } |
         ConvertTo-Json -Depth 4
     [IO.File]::WriteAllText(
         $OnDemandBuildManifest,

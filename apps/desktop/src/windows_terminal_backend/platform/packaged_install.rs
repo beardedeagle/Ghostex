@@ -8,10 +8,46 @@ use std::{
 
 use super::*;
 
+/// CDXC:Release 2026-10-20 WHY: release builds no longer carry `resources/wsl/gxserver-linux-<arch>.tar.gz` (27 MB); the sealed on-demand manifest lists it as a release asset, the same file macOS downloads for Linux remotes. Its sha256 comes from the manifest, so an installed runtime that already matches needs no network; only a first install or an update downloads it. Dev builds still bundle the archive, which they rebuild from source and never upload.
+/// SEE-ALSO: apps/desktop/scripts/build-windows-app.ps1, tooling/release-gpui/windows.ps1, gpui_on_demand_gxserver_archive in apps/desktop/src/app/helpers/board_gxserver/daemon_status_and_install.rs.
 pub(super) struct PackagedGxserver {
-    archive_path: PathBuf,
+    source: PackagedGxserverSource,
     pub(super) sha256: Option<String>,
 }
+
+enum PackagedGxserverSource {
+    Bundled(PathBuf),
+    OnDemand(crate::component_store::OnDemandManifest),
+}
+
+impl PackagedGxserver {
+    pub(super) fn needs_download(&self) -> bool {
+        matches!(self.source, PackagedGxserverSource::OnDemand(_))
+    }
+
+    /// The archive to install: the bundled file, or the release asset downloaded (once per version) into the on-demand cache.
+    pub(super) fn archive_path(&self) -> Result<PathBuf, String> {
+        match &self.source {
+            PackagedGxserverSource::Bundled(path) => Ok(path.clone()),
+            PackagedGxserverSource::OnDemand(manifest) => {
+                crate::component_store::ComponentStore::from_manifest(manifest.clone())
+                    .and_then(|store| {
+                        store.download_release_asset(WSL_GXSERVER_ASSET_KEY, &mut |_| {})
+                    })
+                    .map_err(|error| {
+                        format!(
+                            "Could not download the Ghostex terminal engine for WSL2. Check your internet connection and try again. ({error})"
+                        )
+                    })
+            }
+        }
+    }
+}
+
+#[cfg(target_arch = "x86_64")]
+const WSL_GXSERVER_ASSET_KEY: &str = "gxserver-linux-x64";
+#[cfg(target_arch = "aarch64")]
+const WSL_GXSERVER_ASSET_KEY: &str = "gxserver-linux-arm64";
 
 struct PackagedSourceRuntime {
     archive_path: PathBuf,
@@ -21,9 +57,10 @@ struct PackagedSourceRuntime {
 pub(super) fn install_packaged_gxserver(
     distribution: &str,
     install_root: &str,
-    package: &PackagedGxserver,
+    archive_path: &Path,
+    archive_sha256: Option<&str>,
 ) -> Result<(), String> {
-    let mut archive = fs::File::open(&package.archive_path)
+    let mut archive = fs::File::open(archive_path)
         .map_err(|_| "The packaged WSL gxserver runtime could not be read.".to_string())?;
     let script = "set -eu; install_root=\"$1\"; archive_sha256=\"$2\"; release_dir=\"$install_root/releases/windows-app-$(date +%s)-$$\"; mkdir -p \"$release_dir\"; tar -xzf - -C \"$release_dir\"; test -x \"$release_dir/bin/gxserver\"; \"$release_dir/bin/gxserver\" setup --install-root \"$install_root\" --release-dir \"$release_dir\" >/dev/null; if [ -n \"$archive_sha256\" ]; then printf '%s\\n' \"$archive_sha256\" >\"$install_root/windows-app-runtime.sha256\"; else rm -f \"$install_root/windows-app-runtime.sha256\"; fi";
     let mut child = hidden_command("wsl.exe")
@@ -36,7 +73,7 @@ pub(super) fn install_packaged_gxserver(
             script,
             "ghostex-wsl-installer",
             install_root,
-            package.sha256.as_deref().unwrap_or(""),
+            archive_sha256.unwrap_or(""),
         ])
         .stdin(Stdio::piped())
         .stdout(Stdio::null())
@@ -268,24 +305,29 @@ pub(super) fn resolve_packaged_gxserver() -> Option<PackagedGxserver> {
         if path.is_absolute() && path.is_file() {
             let sha256 = packaged_archive_identity(&path);
             return Some(PackagedGxserver {
-                archive_path: path,
+                source: PackagedGxserverSource::Bundled(path),
                 sha256,
             });
         }
         return None;
     }
-    #[cfg(target_arch = "x86_64")]
-    const ARCHIVE_NAME: &str = "gxserver-linux-x64.tar.gz";
-    #[cfg(target_arch = "aarch64")]
-    const ARCHIVE_NAME: &str = "gxserver-linux-arm64.tar.gz";
     let executable_dir = env::current_exe().ok()?.parent()?.to_path_buf();
     let archive_path = executable_dir
         .join("resources")
         .join("wsl")
-        .join(ARCHIVE_NAME);
-    archive_path.is_file().then(|| PackagedGxserver {
-        sha256: packaged_archive_identity(&archive_path),
-        archive_path,
+        .join(format!("{WSL_GXSERVER_ASSET_KEY}.tar.gz"));
+    if archive_path.is_file() {
+        return Some(PackagedGxserver {
+            sha256: packaged_archive_identity(&archive_path),
+            source: PackagedGxserverSource::Bundled(archive_path),
+        });
+    }
+    let manifest_path = crate::app::helpers::on_demand_component_manifest_path()?;
+    let manifest = crate::component_store::OnDemandManifest::load(&manifest_path).ok()?;
+    let sha256 = manifest.assets.get(WSL_GXSERVER_ASSET_KEY)?.sha256.clone();
+    Some(PackagedGxserver {
+        source: PackagedGxserverSource::OnDemand(manifest),
+        sha256: Some(sha256),
     })
 }
 

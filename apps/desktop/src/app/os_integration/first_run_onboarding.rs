@@ -388,7 +388,10 @@ impl GhostexGpuiApp {
             GpuiWindowsFirstRunSetupState::SettingUp(phase) => {
                 let (detail, progress) = match phase {
                     windows_terminal_backend::WindowsWslSetupPhase::Checking => {
-                        ("Checking the bundled terminal engine…", 0.28)
+                        ("Checking the terminal engine…", 0.28)
+                    }
+                    windows_terminal_backend::WindowsWslSetupPhase::Downloading => {
+                        ("Downloading the Ghostex terminal engine…", 0.4)
                     }
                     windows_terminal_backend::WindowsWslSetupPhase::Installing => {
                         ("Installing the Ghostex terminal engine in WSL2…", 0.52)

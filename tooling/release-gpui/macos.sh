@@ -380,8 +380,9 @@ phase_dmg() {
 	# "Resource busy" minutes after the app was signed and validated. 7.13.0 lost a
 	# 30-minute build to exactly that, and the retry produced the DMG. Bounded, and
 	# the partial image is removed first so a retry never reads a stale file.
+	# CDXC:Release 2026-10-20 WHY: ULMO (LZMA) instead of the default UDZO (zlib): repacking the 10.28.0 app took the DMG from 110.6 MB to 76.4 MB. ULMO opens on macOS 10.15 and later, well under the app's 13.0 minimum, and Sparkle updates mount the same DMG.
 	for attempt in 1 2 3; do
-		if hdiutil create -volname Ghostex -srcfolder "$STAGE" -format UDZO "$DMG"; then
+		if hdiutil create -volname Ghostex -srcfolder "$STAGE" -format ULMO "$DMG"; then
 			break
 		fi
 		if [[ "$attempt" == 3 ]]; then
