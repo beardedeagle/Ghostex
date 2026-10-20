@@ -489,6 +489,34 @@ const CLAUDE_AGENT_ENVELOPES: [(&str, &str); 2] = [
 /// A message another Claude session sent renders as chat's message-from-another-agent card. When it reaches an idle session Claude writes a meta user row: a one-line preamble ("Another Claude session sent a message:"), the `<cross-session-message>` envelope, then trust instructions meant for the model. The meta filter dropped the whole row, so chat never showed the message. Only the envelope is kept, the same text a mid-turn delivery's `queued_command` carries, so both deliveries render alike. Anything longer than one line before the envelope (a compaction summary quoting one) is not a delivery.
 /// A background agent's `<agent-message>` arrives the same way and is kept the same way (2026-09-30).
 /// SEE-ALSO: packages/gx-chat-core/src/transcript/agent_message.rs parses the envelope into the card.
+/// Claude's scheduled wake-up (a `/loop` ScheduleWakeup or a CronCreate job firing) as the harness row the chat folds: `<scheduled-wakeup>` around the prompt the timer runs.
+///
+/// CDXC:SessionChat 2026-10-20 WHY:
+/// Claude writes a fired timer as a `scheduled_task_fire` system row and an `isMeta` user row (`turnOrigin: "scheduled"`) holding its prompt. Both were dropped, so nothing in the chat marked the wake-up: the reply the agent then wrote landed in the same turn as the reply before the timer, which folded that earlier reply (often the long report the reader wanted) away as work, in gxserver's collapsed history and in the chat core alike. Kept as a harness user row, it ends the earlier turn the way a task notification does (`wakes_settled_agent` in gx-chat-core's `turns.rs`).
+/// SEE-ALSO: packages/gx-chat-core/src/transcript/noise.rs (`collapsed_tag_label`)
+fn claude_scheduled_wakeup(
+    record: &Map<String, Value>,
+    blocks: &[SessionChatBlock],
+) -> Option<String> {
+    if record.get("turnOrigin").and_then(Value::as_str) != Some("scheduled")
+        && record.get("scheduledTaskId").is_none()
+    {
+        return None;
+    }
+    let prompt = blocks
+        .iter()
+        .filter_map(|block| match block {
+            SessionChatBlock::Text { text } => Some(text.as_str()),
+            _ => None,
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    Some(format!(
+        "<scheduled-wakeup>{}</scheduled-wakeup>",
+        prompt.trim()
+    ))
+}
+
 fn claude_cross_session_envelope(blocks: &[SessionChatBlock]) -> Option<String> {
     let text = blocks
         .iter()
@@ -544,10 +572,10 @@ pub fn decode_claude_transcript_line(line: &str, fallback_id: &str) -> Option<Se
     */
     if role == "system"
         && record.get("subtype").and_then(Value::as_str) == Some("informational")
-        && matches!(
+        && (matches!(
             record.get("level").and_then(Value::as_str),
             Some("warning" | "error")
-        )
+        ) || claude_idle_compaction_notice(&record))
     {
         let content = extract_string(record.get("content"))?;
         return Some(SessionChatMessage {
@@ -609,8 +637,13 @@ pub fn decode_claude_transcript_line(line: &str, fallback_id: &str) -> Option<Se
         && record.get("isMeta") == Some(&Value::Bool(true)))
     .then(|| claude_cross_session_envelope(&decoded_blocks))
     .flatten();
+    let scheduled_wakeup = (role == "user" && record.get("isMeta") == Some(&Value::Bool(true)))
+        .then(|| claude_scheduled_wakeup(&record, &decoded_blocks))
+        .flatten();
     let blocks: Vec<SessionChatBlock> = if let Some(envelope) = cross_session_envelope {
         vec![text_block(envelope)]
+    } else if let Some(wakeup) = scheduled_wakeup {
+        vec![text_block(wakeup)]
     } else if is_injected_user_turn {
         decoded_blocks
             .into_iter()
@@ -683,6 +716,7 @@ const KNOWN_HARNESS_TAG_NAMES: &[&str] = &[
     "local-command-stdout",
     "mcp-polling-update",
     "mcp-resource-update",
+    "scheduled-wakeup",
     "system-reminder",
     "task-notification",
     "teammate-message",
@@ -747,6 +781,16 @@ pub(crate) fn is_known_harness_injected_user_turn_text(text: &str) -> bool {
     HARNESS_INJECTED_TURN_PREFIXES
         .iter()
         .any(|prefix| normalized.starts_with(prefix))
+}
+
+/// CDXC:SessionChat 2026-10-20 WHY:
+/// Claude compacts an idle session before its prompt cache expires and prints "Compacted while idle, before the prompt cache expired" on screen, recording it only as a `notice` informational row. With no transcript row the chat kept the screen's line as a live preview, drawn inside the finished turn's fold above its reply. Kept as a system row, it retires that preview, and the chat core draws it as the compaction status after the reply (`is_context_compaction_record`).
+fn claude_idle_compaction_notice(record: &Map<String, Value>) -> bool {
+    record.get("level").and_then(Value::as_str) == Some("notice")
+        && record
+            .get("content")
+            .and_then(Value::as_str)
+            .is_some_and(|content| content.trim_start().starts_with("Compacted while idle"))
 }
 
 pub fn is_noise_message(message: &SessionChatMessage) -> bool {

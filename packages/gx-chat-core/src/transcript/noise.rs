@@ -53,6 +53,8 @@ fn collapsed_tag_label(tag: &str) -> Option<&'static str> {
         "local-command-caveat" | "local-command-stderr" | "local-command-stdout" => {
             "Local command output"
         }
+        // gxserver's row for a fired `/loop` or cron timer (`claude_scheduled_wakeup`).
+        "scheduled-wakeup" => "Scheduled wake-up",
         "task-notification" => "Task notification",
         "teammate-message" => "Message from another session",
         "user-memory-input" => "Memory note",
@@ -712,10 +714,13 @@ fn harness_injected_turn_label(text: &str) -> Option<String> {
         .map(|(_, label)| (*label).to_string())
 }
 
+/// Also Claude's idle compaction notice ("Compacted while idle, before the prompt cache expired"),
+/// which gxserver keeps as a system row (`claude_idle_compaction_notice`).
 fn is_context_compaction_record(message: &ChatMessage, text: &str) -> bool {
     message.role == ChatRole::System
         && message.source == ChatSource::Transcript
-        && js_trim(text) == CONTEXT_COMPACTED_LABEL
+        && (js_trim(text) == CONTEXT_COMPACTED_LABEL
+            || js_trim(text).starts_with("Compacted while idle"))
 }
 
 /// Whether the agent's transcript recorded a finished compaction here: Claude's `/compact` output,
