@@ -99,7 +99,9 @@ impl NativeChatView {
             .flex_col()
             .border_1()
             .border_color(p.input_border)
-            .rounded(px(12.0 * s))
+            // A capsule, like the pills it carries (the 2026-10-18 DECISION in the core's
+            // extras/working_card.rs).
+            .rounded_full()
             .bg(p.card_panel)
             .overflow_hidden()
             .text_color(p.card_muted)
