@@ -96,32 +96,9 @@ pub fn orchestrator_first_message(family: &str, first_request: &str) -> String {
     }
 }
 
-/// The agent families a new orchestrator can run on, in the order `ghostex orchestrator create`
-/// prefers them when no agent is named.
-///
-/// CDXC:Coordinators 2026-10-20 WHY:
-/// An orchestrator must read a skill, run the `ghostex` CLI and take Ghostex's chat sends (the user's messages and its threads' reports). These are the chat agents that load skills from a folder Ghostex can install into; OpenCode 2 joined once its chat landed (sends go through its server API, it reads `~/.agents/skills` itself). Left out: Empryo (no skill folder Ghostex knows of; its older orchestrators keep the `/agent` profile), Hermes (its replies and queued sends never reach the chat, agent flow tests 2026-10-17), Freebuff (no skill folder), and agents without a chat (Command Code, Gemini and the rest: no transcript reader and no input-box reading, so the first message and every report would be typed blind and the Threads panel has no chat to live in). Supersedes the 2026-10-17 WHY that left OpenCode out for having no chat.
-pub const COORDINATOR_AGENT_FAMILIES: [&str; 10] = [
-    "claude",
-    "codex",
-    "zcode",
-    "cursor",
-    "grok",
-    "copilot",
-    "antigravity",
-    "pi",
-    "omp",
-    "opencode",
-];
-
-/// What gxserver answers when an orchestrator is asked to run on another agent.
-pub const COORDINATOR_AGENT_FAMILIES_TEXT: &str =
-    "Claude, Codex, ZCode, Cursor, Grok, Copilot, Antigravity, Pi, OMP or OpenCode";
-
-/// True for the agent families a new orchestrator can run on.
-pub fn coordinator_agent_family_supported(family: &str) -> bool {
-    COORDINATOR_AGENT_FAMILIES.contains(&family)
-}
+pub use ghostex_gx_chat_core::protocol::{
+    coordinator_agent_families_text, coordinator_agent_family_supported, COORDINATOR_AGENT_FAMILIES,
+};
 
 /// The effort `ghostex orchestrator create` starts an orchestrator on when none is named, for the
 /// families whose launch takes one: xhigh where the agent has it, else its highest level.

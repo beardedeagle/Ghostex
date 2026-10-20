@@ -624,7 +624,7 @@ fn full_menu(
             ..MenuItem::default()
         });
     }
-    // CDXC:Coordinators 2026-10-04 SEE-ALSO: promote_session_to_coordinator in server/src/coordinators/promote.rs (the user's decision that Make Coordinator lives here and never disturbs the running session); gxserver refuses the same sessions this row is hidden on. The phone's session menu (apps/mobile/app/src/screens/sessions-screen/sidebar-menus.ts) offers it too.
+    // CDXC:Coordinators 2026-10-04 SEE-ALSO: promote_session_to_coordinator in server/src/coordinators/promote.rs (the user's decision that Make Coordinator lives here and never disturbs the running session); gxserver refuses the same sessions this row is hidden on, by the same agent list (`COORDINATOR_AGENT_FAMILIES` in gx-protocol). The phone's session menu (apps/mobile/app/src/screens/sessions-screen/sidebar-menus.ts) offers it too.
     if !caps.is_browser_session
         && !group.is_stale
         && !group.is_remote
@@ -632,12 +632,12 @@ fn full_menu(
         && !row.is_draft
         && !row.is_coordinator
         && row.coordinator_parent.is_none()
-        && matches!(
-            row.agent_icon
-                .as_deref()
-                .or(row.menu_facts.agent_name.as_deref()),
-            Some("claude" | "codex" | "zcode" | "empryo")
-        )
+        && row
+            .agent_icon
+            .as_deref()
+            .or(row.menu_facts.agent_name.as_deref())
+            .map(|agent| crate::default_agent_id_for_icon(Some(agent)).unwrap_or(agent))
+            .is_some_and(ghostex_gx_protocol::coordinator_agent_family_supported)
     {
         advanced.push(MenuItem::row(
             "Make Orchestrator",

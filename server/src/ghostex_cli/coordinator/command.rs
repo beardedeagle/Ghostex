@@ -162,7 +162,7 @@ fn create(parsed: &ParsedArgs) -> CliResult<()> {
         None => default_coordinator_agent(&agent_rows).ok_or_else(|| {
             CliError::Other(format!(
                 "No {} agent is configured. Pass --agent <agent-id> from ghostex agents types.",
-                crate::coordinators::COORDINATOR_AGENT_FAMILIES_TEXT
+                crate::coordinators::coordinator_agent_families_text()
             ))
         })?,
     };

@@ -20,27 +20,19 @@ use crate::app::remote_conn::sidebar_rpc::{
 };
 use crate::app::window::{NewCoordinatorAgent, NewCoordinatorModel};
 use ghostex_gx_chat_core::composer::skill_invocation::orchestrator_skill_line;
+use ghostex_gx_chat_core::protocol::COORDINATOR_AGENT_FAMILIES;
 
-/// The agent families a coordinator can run on (gxserver `COORDINATOR_AGENT_FAMILIES`).
+/// The agent families a coordinator can run on (`COORDINATOR_AGENT_FAMILIES` in gx-protocol,
+/// which gxserver checks too).
 fn coordinator_family(agent: &Value) -> Option<&'static str> {
     let icon = agent.get("icon").and_then(Value::as_str);
     let id = agent.get("agentId").and_then(Value::as_str);
     let family = default_agent_id_for_icon(icon)
         .or_else(|| default_agent_id_for_icon(id))
         .or(id)?;
-    match family {
-        "claude" => Some("claude"),
-        "codex" => Some("codex"),
-        "zcode" => Some("zcode"),
-        "cursor" => Some("cursor"),
-        "grok" => Some("grok"),
-        "copilot" => Some("copilot"),
-        "antigravity" => Some("antigravity"),
-        "pi" => Some("pi"),
-        "omp" => Some("omp"),
-        "opencode" => Some("opencode"),
-        _ => None,
-    }
+    COORDINATOR_AGENT_FAMILIES
+        .into_iter()
+        .find(|supported| *supported == family)
 }
 
 /// The model lineup a coordinator on this family can pick from: the newest catalog this computer

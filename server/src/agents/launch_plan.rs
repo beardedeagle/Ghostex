@@ -618,7 +618,7 @@ fn refuse_unsupported_coordinator_agent(
         .ok_or_else(|| {
             DomainStateError::bad_request(format!(
                 "An orchestrator runs on {}. Pick one of those agents.",
-                crate::coordinators::COORDINATOR_AGENT_FAMILIES_TEXT
+                crate::coordinators::coordinator_agent_families_text()
             ))
         })
 }

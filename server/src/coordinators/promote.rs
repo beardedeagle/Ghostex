@@ -10,7 +10,7 @@ use super::records::{
     COORDINATOR_GOAL_MAX_CHARS,
 };
 use super::role::{
-    coordinator_agent_family_supported, orchestrator_skill_line, COORDINATOR_AGENT_FAMILIES_TEXT,
+    coordinator_agent_families_text, coordinator_agent_family_supported, orchestrator_skill_line,
 };
 use crate::domain::{DomainRepository, DomainStateError};
 
@@ -76,7 +76,8 @@ pub fn promote_session_to_coordinator(
         .filter(|family| coordinator_agent_family_supported(family))
         .ok_or_else(|| {
             DomainStateError::bad_request(format!(
-                "An orchestrator runs on {COORDINATOR_AGENT_FAMILIES_TEXT}, and this session runs another agent. Start a New Orchestrator instead."
+                "An orchestrator runs on {}, and this session runs another agent. Start a New Orchestrator instead.",
+                coordinator_agent_families_text()
             ))
         })?;
 

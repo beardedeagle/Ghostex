@@ -18,6 +18,7 @@ mod open_enum;
 pub mod agentbox;
 pub mod chat;
 pub mod client_message;
+pub mod coordinator;
 pub mod de;
 pub mod delta;
 pub mod event;
@@ -29,6 +30,7 @@ pub mod tri;
 
 pub use chat::*;
 pub use client_message::*;
+pub use coordinator::*;
 pub use de::{Rows, SkippedRow};
 pub use delta::*;
 pub use event::*;
