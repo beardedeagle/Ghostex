@@ -110,7 +110,14 @@ pub fn project_header_actions(
         ));
         return pinned;
     }
-    let mut actions = Vec::new();
+    // CDXC:Sidebar 2026-10-20 DECISION:
+    // User: "add to the left of the 'select agent' combined button a button to start a terminal in that project ... i want it back at top level for each project header". New Terminal is a header button again, right before the agent split, and stays in the ⋯ menu too. This supersedes the 2026-10-08 decision below for that one button; the other moved buttons stay in the ⋯ menu.
+    let mut actions = vec![MenuItem::row(
+        "New Terminal",
+        "terminal-2",
+        MenuCommand::command(message::create_project_terminal(group_id)),
+    )
+    .with_hotkey("createSession")];
     let primary = host.primary_agent();
     let primary_icon = primary.and_then(|agent| agent.icon.as_deref());
     actions.push(MenuItem {
@@ -145,7 +152,7 @@ pub fn project_header_actions(
 /// The project header buttons that live in the project's ⋯ menu: Add Worktree or Create PR, History, New Browser Tab, Create Terminal and the pinned Actions.
 ///
 /// CDXC:Sidebar 2026-10-08 DECISION:
-/// User (for the phone, applied to the desktop header too): move most per-project buttons into the 3-dots menu, keeping only the agent picker and New agent. A header that shows six buttons on hover pushed the project name out of a 200px sidebar. A bot row keeps its own few buttons.
+/// User (for the phone, applied to the desktop header too): move most per-project buttons into the 3-dots menu, keeping only the agent picker and New agent (New Terminal came back to the header on 2026-10-20, see `project_header_actions`). A header that shows six buttons on hover pushed the project name out of a 200px sidebar. A bot row keeps its own few buttons.
 /// SEE-ALSO: `SidebarMenus::header_actions` puts the ⋯ button in front of the agent split; `project_menu` starts with these rows.
 pub fn project_header_menu_rows(
     group: &MenuGroup<'_>,

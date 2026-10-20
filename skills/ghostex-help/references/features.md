@@ -430,8 +430,8 @@ Related settings: `terminalViewWidthMode`, `webLinkOpenTarget`,
 ## Sidebar
 
 The sidebar lists projects and their sessions. Project headers carry the git
-branch and diff stats and, on hover, the agent launcher (New agent and the
-agent picker) and a ⋯ button. The ⋯ button, or a right-click on the project,
+branch and diff stats and, on hover, a New Terminal button, the agent launcher
+(New agent and the agent picker) and a ⋯ button. The ⋯ button, or a right-click on the project,
 opens the project menu: Add Worktree (or Create PR), History,
 New Browser Tab, Create Terminal, pinned Actions, Open Folder in the file
 manager and Add to Group.
