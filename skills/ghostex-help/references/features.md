@@ -2612,7 +2612,8 @@ Hang up, and it reconnects by itself after a short network drop. It talks
 through the phone's speaker, or a Bluetooth headset or car hands-free link
 when one is connected, and pauses while a call or a navigation prompt plays.
 The phone's voice screen has the same voice picker (tap the voice name under
-the computer's name) and speed buttons; both save the computer's settings, so
+the computer's name) and a small speed button beside it that opens the list of
+speeds; both save the computer's settings, so
 the desktop and the phone talk with the same voice at the same speed. It shows
 the same "Last conversation" card with Continue, Start fresh and Forget.
 
