@@ -45,6 +45,19 @@ pub(crate) fn gpui_terminal_file_link_path(link: &str) -> Option<PathBuf> {
     (!path.is_empty()).then(|| gpui_expand_terminal_link_path(path))
 }
 
+/// The `:line` or `:line:column` a terminal file link ends with (`src/main.rs:304:7`), the
+/// numbers `gpui_terminal_file_link_path_without_coordinates` strips off the path.
+pub(crate) fn gpui_terminal_file_link_coordinates(link: &str) -> (Option<u32>, Option<u32>) {
+    let path = gpui_terminal_file_link_path_without_coordinates(link);
+    let mut numbers = link[path.len()..]
+        .split(':')
+        .skip(1)
+        .map(|number| number.parse::<u32>().ok().filter(|number| *number > 0));
+    let line = numbers.next().flatten();
+    let column = line.and(numbers.next().flatten());
+    (line, column)
+}
+
 pub(crate) fn gpui_terminal_file_link_path_without_coordinates(path: &str) -> &str {
     let mut path = path;
     for _ in 0..2 {

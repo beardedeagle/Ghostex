@@ -643,10 +643,11 @@ impl GhostexGpuiApp {
                 || gpui_terminal_link_is_windows_drive_path(open_value))
         {
             let path = gpui_terminal_file_link_path_without_coordinates(open_value).to_string();
+            let (line, column) = gpui_terminal_file_link_coordinates(open_value);
             cx.spawn(async move |this, cx| {
                 let _ = this.update_in(cx, |this, window, cx| {
                     this.open_remote_session_chat_file_for_key(
-                        remote_key, &path, None, None, None, window, cx,
+                        remote_key, &path, line, column, None, window, cx,
                     );
                 });
             })
@@ -676,9 +677,10 @@ impl GhostexGpuiApp {
             return;
         }
         let file_path = file_path.to_string_lossy().to_string();
+        let (line, column) = gpui_terminal_file_link_coordinates(open_value);
         cx.spawn(async move |this, cx| {
             let _ = this.update_in(cx, |this, window, cx| {
-                this.open_session_chat_file(&file_path, None, None, window, cx);
+                this.open_session_chat_file(&file_path, line, column, window, cx);
             });
         })
         .detach();
