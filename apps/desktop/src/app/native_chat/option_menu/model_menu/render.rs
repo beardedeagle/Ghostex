@@ -1,7 +1,7 @@
 use super::super::window::ChatOptionMenuPanel;
 use super::style::{
-    BAR_HEIGHT, BUTTON_GAP, CARD_RADIUS, ERROR_HEIGHT, HINTS_HEIGHT, ITEM_RADIUS, LIST_HEIGHT,
-    Palette, ROW_GAP, TRAIT_ROW_HEIGHT, button_lines,
+    BAR_HEIGHT, BUTTON_GAP, ERROR_HEIGHT, HINTS_HEIGHT, ITEM_RADIUS, LIST_HEIGHT, Palette, ROW_GAP,
+    TRAIT_ROW_HEIGHT, button_lines,
 };
 use crate::app::native_chat::appearance::ChatAppearance;
 use gpui::prelude::FluentBuilder as _;
@@ -602,7 +602,7 @@ impl ChatOptionMenuPanel {
             .size_full()
             .flex()
             .flex_col()
-            .rounded(px(CARD_RADIUS * scale))
+            .rounded(self.card_radius)
             .border_1()
             .border_color(palette.border)
             .bg(palette.surface)

@@ -73,7 +73,8 @@ impl Render for SuggestionPanel {
         let card_border = if glass { p.border } else { p.input_border };
         let inline = px(spec.padding_inline_px * s);
         let gap = px(spec.row_gap_px * s);
-        let row_radius = px(spec.row_radius_px * s);
+        let card_radius = spec.card_radius(s, glass);
+        let row_radius = spec.row_radius(card_radius, s);
         let heading = data["heading"].as_str().unwrap_or_default().to_uppercase();
         let mut body = div()
             .id("suggestion-list")
@@ -240,7 +241,7 @@ impl Render for SuggestionPanel {
             );
         }
         let card = div()
-            .rounded(px(spec.radius_px * s))
+            .rounded(card_radius)
             .border(px(spec.border_px))
             .border_color(card_border)
             .bg(popover)
@@ -277,6 +278,7 @@ impl NativeChatView {
         let pane = self.bounds.get().origin;
         let s = p.scale;
         let spec = &*SPEC;
+        let glass = crate::app::helpers::window_glass_active_for(self.main_window);
         Some(
             div()
                 .absolute()
@@ -284,7 +286,7 @@ impl NativeChatView {
                 .top(card.top() - pane.y)
                 .w(card.size.width)
                 .h(card.size.height)
-                .rounded(px(spec.radius_px * s))
+                .rounded(spec.card_radius(s, glass))
                 .shadow(
                     spec.shadows
                         .iter()

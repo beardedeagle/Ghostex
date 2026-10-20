@@ -54,6 +54,22 @@ pub(super) static SPEC: LazyLock<SuggestionPopupSpec> = LazyLock::new(|| {
 });
 
 impl SuggestionPopupSpec {
+    /// The card's corner radius; `glass` is whether its window is blurred (`popup_card_radius`).
+    pub(super) fn card_radius(&self, scale: f32, glass: bool) -> Pixels {
+        crate::app::window::popup_frame::popup_card_radius(px(self.radius_px * scale), glass)
+    }
+
+    /// The outer corners of the list's first and last rows, which sit inside the card's padding
+    /// and border and so follow the card's corner when it is smaller than the spec's.
+    pub(super) fn row_radius(&self, card_radius: Pixels, scale: f32) -> Pixels {
+        let row = px(self.row_radius_px * scale);
+        if card_radius >= px(self.radius_px * scale) {
+            return row;
+        }
+        row.min(card_radius - px(self.list_padding_px * scale) - px(self.border_px))
+            .max(px(0.0))
+    }
+
     pub(super) fn heading_height(&self, scale: f32) -> Pixels {
         px((self.heading_padding_top_px
             + self.heading_line_height_px

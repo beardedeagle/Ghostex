@@ -452,7 +452,7 @@ impl Render for ChatOptionMenuPanel {
             .track_focus(&self.focus)
             .size_full()
             .min_h_0()
-            .rounded(px(m.radius * scale))
+            .rounded(self.card_radius)
             .border_1()
             .border_color(border)
             .bg(appearance.menu_surface())

@@ -179,7 +179,7 @@ impl NativeChatView {
         let parent = self.child_window_parent(cx);
         // Under window glass the popup's window blurs what is behind it, rounded to the card.
         let glass = crate::app::helpers::window_glass_active_for(Some(source));
-        let corner_radius = px(SPEC.radius_px * p.scale);
+        let corner_radius = SPEC.card_radius(p.scale, glass);
         self.suggestions.opening = true;
         cx.defer(move |cx| {
             let placement = visible
@@ -266,7 +266,11 @@ impl NativeChatView {
                     {
                         let chat = chat.clone();
                         move |window, cx| {
-                            window.set_background_corner_radius(corner_radius);
+                            crate::app::window::popup_frame::round_popup_window(
+                                window,
+                                corner_radius,
+                                glass,
+                            );
                             crate::app::helpers::apply_frosted_menu_blur(window);
                             attach_suggestion_window(window, parent);
                             let panel = cx.new(|cx| {

@@ -205,6 +205,65 @@ pub(crate) fn strip_gpui_popup_window_frame(window: &mut Window) {
     let _ = window;
 }
 
+/// The radius a popup window's own card is drawn with when it asked for `radius`, so the card's
+/// corner and its window's corner are one curve (see `round_popup_window`).
+pub(crate) fn popup_card_radius(radius: gpui::Pixels, blurred: bool) -> gpui::Pixels {
+    #[cfg(target_os = "windows")]
+    if blurred {
+        // The radii DWM gives `DWMWCP_ROUNDSMALL` and `DWMWCP_ROUND`, picked the way
+        // gpui_windows' `set_background_corner_radius` picks between them.
+        return gpui::px(if radius <= gpui::px(0.0) {
+            0.0
+        } else if radius < gpui::px(6.0) {
+            4.0
+        } else {
+            8.0
+        });
+    }
+    let _ = blurred;
+    radius
+}
+
+/// Rounds a popup window whose content draws its own rounded, bordered card: the chat composer's
+/// `/`, `$` and `@` list and the chat's menus. `blurred` is whether the window was opened with
+/// `WindowBackgroundAppearance::Blurred`; the card must be drawn at
+/// `popup_card_radius(radius, blurred)`.
+///
+/// CDXC:PlatformSupport 2026-10-20 WHY:
+/// Windows 11 DWM rounds every popup window itself, at a fixed 8px (4px small), and draws its own 1px border along that curve, while the card inside was drawn at the chat's radius (18px for the `/` list) with a border of its own, so each corner showed two curves that did not meet, with and without window glass. DWM's corner cannot take another radius, and the blur of a blurred window fills the window's rounded rectangle whatever its region (gpui_windows' frosted_backdrop.rs), so under glass the card takes DWM's radius; with glass off the window is transparent, so DWM leaves it square and the card's own corner is the only shape. DWM's border is dropped in both cases: the card draws the border. macOS and Linux round the window to the card's radius, unchanged.
+pub(crate) fn round_popup_window(window: &mut Window, radius: gpui::Pixels, blurred: bool) {
+    #[cfg(target_os = "windows")]
+    {
+        use raw_window_handle::{HasWindowHandle as _, RawWindowHandle};
+        use windows_sys::Win32::Graphics::Dwm::{DWMWA_BORDER_COLOR, DwmSetWindowAttribute};
+        /// `DWMWA_COLOR_NONE`: no border.
+        const NO_BORDER: u32 = 0xFFFF_FFFE;
+        // Zero asks DWM for `DWMWCP_DONOTROUND`.
+        window.set_background_corner_radius(if blurred { radius } else { gpui::px(0.0) });
+        let Ok(handle) = window.window_handle() else {
+            return;
+        };
+        let RawWindowHandle::Win32(handle) = handle.as_raw() else {
+            return;
+        };
+        let hwnd = handle.hwnd.get() as windows_sys::Win32::Foundation::HWND;
+        let border = NO_BORDER;
+        unsafe {
+            DwmSetWindowAttribute(
+                hwnd,
+                DWMWA_BORDER_COLOR as u32,
+                (&raw const border).cast(),
+                std::mem::size_of_val(&border) as u32,
+            );
+        }
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = blurred;
+        window.set_background_corner_radius(radius);
+    }
+}
+
 /// CDXC:AppModal 2026-09-25 DECISION:
 /// User: on Windows the modals shown without decoration (Add a project and the like) "blend with the bg of the app", so they need a border. macOS draws a rim and shadow around these borderless windows; a Windows PopUp gets neither, and the modal surface is tinted from the app chrome. Windows 11 DWM gives the modal window rounded corners, its shadow and a border in `border`, the same frame for the React and native modal hosts. Windows 10 ignores both attributes.
 pub(crate) fn frame_app_modal_window(window: &mut Window, border: gpui::Rgba) {

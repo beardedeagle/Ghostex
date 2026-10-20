@@ -103,6 +103,8 @@ pub(super) struct ChatOptionMenuPanel {
     pub(super) select_bounds: Rc<Cell<Bounds<Pixels>>>,
     /// The model picker's cursor, search field and open side list, when this panel is that picker.
     pub(super) model_menu: Option<super::model_menu::ModelMenuState>,
+    /// The card's corner radius, the one its window was rounded to (`popup_card_radius`).
+    pub(super) card_radius: Pixels,
     was_active: bool,
     _activation: Subscription,
     _press: Subscription,
@@ -468,12 +470,16 @@ impl ChatOptionMenu {
         self.opening = true;
         // Under window glass the menu's window blurs what is behind it, rounded to the card.
         let glass = crate::app::helpers::window_glass_active();
-        let corner_radius = px(
-            if rows.first().is_some_and(|row| row["modelMenu"].is_object()) {
+        let model_card = rows
+            .first()
+            .is_some_and(|row| row["modelMenu"].is_object() || row["modelMenuFlyout"].is_object());
+        let corner_radius = crate::app::window::popup_frame::popup_card_radius(
+            px(if model_card {
                 super::model_menu::CARD_RADIUS
             } else {
                 metrics.radius
-            } * scale,
+            } * scale),
+            glass,
         );
         let display_id = self.owner.display_for(bounds, cx);
         cx.defer(move |cx| {
@@ -503,7 +509,11 @@ impl ChatOptionMenu {
                 {
                     let menu = menu.clone();
                     move |window, cx| {
-                        window.set_background_corner_radius(corner_radius);
+                        crate::app::window::popup_frame::round_popup_window(
+                            window,
+                            corner_radius,
+                            glass,
+                        );
                         crate::app::helpers::apply_frosted_menu_blur(window);
                         crate::app::window::popup_frame::strip_gpui_popup_window_frame(window);
                         crate::app::window::attach_gpui_app_modal_window_to_main_window(
@@ -656,6 +666,7 @@ impl ChatOptionMenu {
                                 accounts_customize,
                                 select_bounds: Rc::new(Cell::new(Bounds::default())),
                                 model_menu,
+                                card_radius: corner_radius,
                                 was_active: window.is_window_active(),
                                 _activation: activation,
                                 _press: press,
