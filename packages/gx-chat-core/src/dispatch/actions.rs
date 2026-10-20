@@ -163,6 +163,7 @@ pub fn owner(kind: &ActionKind) -> Option<Family> {
         | ActionKind::SearchQuery
         | ActionKind::SearchNext
         | ActionKind::SearchPrevious
+        | ActionKind::SearchFolds
         | ActionKind::TerminalTailHover
         | ActionKind::TerminalTailToggle
         | ActionKind::OpenSubagent
@@ -283,6 +284,7 @@ fn clears_error(kind: &ActionKind) -> bool {
             | ActionKind::SearchQuery
             | ActionKind::SearchNext
             | ActionKind::SearchPrevious
+            | ActionKind::SearchFolds
             | ActionKind::TerminalTailHover
             | ActionKind::TerminalTailToggle
             | ActionKind::OpenSubagent
@@ -329,6 +331,7 @@ fn publishes_at_once(kind: &ActionKind) -> bool {
             | ActionKind::SearchQuery
             | ActionKind::SearchNext
             | ActionKind::SearchPrevious
+            | ActionKind::SearchFolds
             | ActionKind::TerminalTailHover
             | ActionKind::TerminalTailToggle
             | ActionKind::OpenSubagent

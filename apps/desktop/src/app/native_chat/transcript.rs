@@ -164,6 +164,7 @@ impl NativeChatView {
         };
         self.detail_rows.end_row();
         self.row_find = None;
+        self.row_label_find = None;
         if self.disclosure_motion.borrow().running() {
             window.request_animation_frame();
         }
@@ -195,11 +196,6 @@ impl NativeChatView {
                     .when_some(self.held_text_width, |this, width| {
                         this.flex_shrink_0().w(px(width)).max_w(px(width))
                     })
-                    // Transcript search tints the rows that matched; the selected one is stronger.
-                    .when_some(
-                        self.search_row_tint(index, &p).filter(|_| main),
-                        |this, tint| this.bg(tint).rounded(px(8.0 * s)),
-                    )
                     .child(content),
             )
             .into_any_element()
@@ -294,7 +290,7 @@ impl NativeChatView {
                             .text_color(p.primary),
                     ),
             )
-            .child(div().flex_1().min_w_0().child(label))
+            .child(div().flex_1().min_w_0().child(self.find_label(&id, label)))
             .on_click(cx.listener(move |this, _, _, cx| {
                 this.anchor_disclosure_toggle(&id, !expanded);
                 if expanded {

@@ -12,7 +12,7 @@ use serde_json::Value;
 
 use crate::extras::minimap_rail::MinimapMarkerRow;
 pub use crate::extras::subagent_target::SubagentTarget;
-use crate::extras::transcript_search::TranscriptMatch;
+use crate::extras::transcript_search::{SearchFolds, TranscriptMatch};
 
 /// What the panels, the minimap, search, the tail, the subagent viewer and the save sheet remember
 /// between frames.
@@ -113,6 +113,8 @@ pub struct SearchState {
     /// Bumped on every explicit move, so the renderer scrolls exactly once per move.
     pub revision: u64,
     pub matches: Vec<TranscriptMatch>,
+    /// Which folds the renderer has open, so only what the reader can see is searched.
+    pub folds: SearchFolds,
 }
 
 /// The terminal tail reader's two independent reads: the hover verdict and the expanded sheet.

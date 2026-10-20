@@ -84,6 +84,10 @@ pub fn handle_with_ids(
             search::move_by(&mut state.extras.search, -1);
             Vec::new()
         }
+        ActionKind::SearchFolds => {
+            search::set_folds(&mut state.extras.search, &action.params);
+            Vec::new()
+        }
 
         ActionKind::TerminalTailHover => {
             let request_id = next_request_id();

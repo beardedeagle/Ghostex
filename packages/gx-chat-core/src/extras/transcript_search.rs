@@ -2,9 +2,11 @@
 //! `packages/shared/session-chat-presentation/transcript-search.ts`.
 //!
 //! React searched the rendered DOM because it had one; the native chat has a list of projected
-//! items instead, so the same query runs over the text those items carry. It is case-insensitive,
-//! counts occurrences per row, and keeps the selected occurrence across a transcript refresh, as
-//! the React search did.
+//! items instead, so the same query runs over the text those items show with the renderer's folds
+//! as they are ([`visible_segments`]). It is case-insensitive, counts occurrences per row, and keeps
+//! the selected occurrence across a transcript refresh, as the React search did.
+
+use std::collections::BTreeSet;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -17,62 +19,308 @@ pub struct TranscriptMatch {
     pub item_index: usize,
     /// Identity that survives a transcript refresh: row id plus occurrence.
     pub key: String,
+    /// The one-line label the occurrence is in (a tool row's name or preview, a thinking
+    /// headline), by the renderer's key for it; `None` for the row's Markdown, which the
+    /// renderer's text views number in reading order.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
 }
 
-/// `sessionChatTranscriptItemText`: everything a reader can see in one transcript row, joined for
-/// matching.
-pub fn transcript_item_text(item: &Value) -> String {
-    let Some(record) = item.as_object() else {
-        return String::new();
-    };
-    let mut parts: Vec<String> = Vec::new();
-    if let Some(label) = record.get("label").and_then(Value::as_str) {
-        parts.push(label.to_string());
-    }
-    for key in ["message", "user", "final"] {
-        match record.get(key) {
-            // `if (record[key])` skips `null`, `undefined` and the empty string alike.
-            Some(value) if is_truthy(value) => parts.push(message_text(value)),
-            _ => {}
+/// The renderer's fold state, which decides what a reader can see.
+///
+/// The keys are the renderer's own (`work:<id>`, `tools:<id>`, `reasoning:<id>`, `tool-run:<id>`,
+/// `prompt:<id>`, …), the same on desktop (`native_chat/state.rs` `expanded` / `collapsed`) and the
+/// phone (`transcript/state.ts` `DisclosureStore`). A fold is open when the reader opened it, or
+/// when it opens by default and the reader did not close it.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct SearchFolds {
+    pub expanded: BTreeSet<String>,
+    pub collapsed: BTreeSet<String>,
+    /// Summarized mode: tool runs fold behind "N tool calls" and drop their command previews.
+    pub simple: bool,
+    /// Whether turns and tool calls open by default (verbose, or not summarized).
+    pub work_open: bool,
+}
+
+impl SearchFolds {
+    /// The `searchFolds` action's payload.
+    pub fn from_action(action: &serde_json::Map<String, Value>) -> Self {
+        let keys = |name: &str| -> BTreeSet<String> {
+            action
+                .get(name)
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+                .filter_map(Value::as_str)
+                .map(str::to_string)
+                .collect()
+        };
+        Self {
+            expanded: keys("expanded"),
+            collapsed: keys("collapsed"),
+            simple: action.get("simple") == Some(&Value::Bool(true)),
+            work_open: action.get("workOpen") == Some(&Value::Bool(true)),
         }
     }
-    for key in ["work", "artifacts"] {
-        if let Some(list) = record.get(key).and_then(Value::as_array) {
-            for message in list {
-                parts.push(message_text(message));
+
+    /// The renderers' `is_expanded(key, default)`.
+    fn open(&self, key: &str, default: bool) -> bool {
+        self.expanded.contains(key) || default && !self.collapsed.contains(key)
+    }
+}
+
+/// A run of text a reader can see in one row, in reading order.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Segment {
+    pub text: String,
+    /// The renderer's key for a one-line label; `None` for Markdown.
+    pub label: Option<String>,
+}
+
+/// CDXC:SessionChat 2026-10-20 DECISION:
+/// User: "please don't search inside the collapsed areas when i do cmd + f in the gpui chat view". Find searches only what the reader can see with the folds as they are: a closed "Worked for" turn, "Agent reply" or "Active work" fold, tool-call disclosure, "+N previous tool calls" run, thinking fold, folded card or a long prompt's hidden tail ("Show more") is skipped, and the count counts only what is left. A block capped to a scroll box (a long code block, a long thought) counts whole, since its text is on screen and scrolls to the match. Card chrome (labels, file paths, "Worked for") is not searched. The renderers walk the same keys and defaults (desktop `native_chat/transcript.rs`, `tool_run.rs`, `completed_work_row.rs`; phone `transcript/MessageRow.tsx`, `ToolRows.tsx`, `TranscriptItemRow.tsx`) and report their fold state with `searchFolds`.
+pub fn visible_segments(item: &Value, folds: &SearchFolds) -> Vec<Segment> {
+    let mut out = Vec::new();
+    match item.get("kind").and_then(Value::as_str) {
+        Some("summary") => {
+            let id = str_of(item, "id");
+            message_segments(&item["user"], folds, false, &mut out);
+            for message in array(item, "outcome") {
+                message_segments(message, folds, false, &mut out);
+            }
+            let has_final = item["final"].is_object();
+            if has_final || item["active"] == true {
+                let key = if has_final {
+                    format!("summary:{id}")
+                } else {
+                    format!("active-work:{id}")
+                };
+                let default = item["latestReply"] == true || item["workOpen"] == true;
+                if folds.open(&key, default) {
+                    if has_final {
+                        for reply in array(item, "earlierReplies") {
+                            message_segments(reply, folds, false, &mut out);
+                        }
+                        message_segments(&item["final"], folds, false, &mut out);
+                    } else {
+                        for message in array(item, "work") {
+                            message_segments(message, folds, false, &mut out);
+                        }
+                    }
+                }
             }
         }
+        Some("completed-work") => {
+            let id = str_of(item, "id");
+            if folds.open(&format!("work:{id}"), folds.work_open) {
+                for message in array(item, "work") {
+                    message_segments(message, folds, true, &mut out);
+                }
+            }
+            for message in array(item, "artifacts") {
+                message_segments(message, folds, false, &mut out);
+            }
+            if item["final"].is_object() {
+                message_segments(&item["final"], folds, false, &mut out);
+            }
+        }
+        _ => message_segments(&item["message"], folds, false, &mut out),
     }
-    join_truthy(parts)
+    out.retain(|segment| !segment.text.is_empty());
+    out
 }
 
-/// `sessionChatTranscriptMatches`: every occurrence of `query`, row by row, in transcript order.
-pub fn transcript_matches(items: &[Value], query: &str) -> Vec<TranscriptMatch> {
+/// `message_row`'s visible text. `in_work_fold` is a finished turn's opened log, where answered
+/// questions and sent messages stay plain tool rows.
+fn message_segments(
+    message: &Value,
+    folds: &SearchFolds,
+    in_work_fold: bool,
+    out: &mut Vec<Segment>,
+) {
+    if !message.is_object() {
+        return;
+    }
+    let id = str_of(message, "id");
+    let body = message_body(message);
+    let user = message["role"] == "user";
+    let markdown = |text: String| Segment { text, label: None };
+    if message["pageAnswers"].is_object() && message["pageAnswers"]["withText"] != true {
+        return;
+    }
+    if message["shellCommand"] == true {
+        let card = &message["shellCard"];
+        let default = card["openByDefault"] == true;
+        if card["hasBody"] == true && folds.open(&format!("shell:{id}"), default) {
+            out.push(markdown(str_of(card, "output")));
+        }
+        return;
+    }
+    if user && message["suppressed"].is_null() && !message["interAgentMessage"].is_object() {
+        let collapsed = str_of(message, "collapsedText");
+        if !collapsed.is_empty() && !folds.expanded.contains(&format!("prompt:{id}")) {
+            out.push(markdown(collapsed));
+        } else {
+            out.push(markdown(body));
+        }
+        return;
+    }
+    if message["suppressed"].is_object() {
+        // Status and inline rows are one-line cards; the rest fold their text away.
+        let kind = message["suppressed"]["kind"].as_str().unwrap_or_default();
+        if kind != "status" && kind != "inline" && folds.open(&format!("suppressed:{id}"), false) {
+            out.push(markdown(body));
+        }
+        return;
+    }
+    if message["apiError"].is_object() {
+        return;
+    }
+    if message["systemCard"].is_object() {
+        let visible = match message["systemCard"]["kind"].as_str().unwrap_or_default() {
+            "goal" => folds.open(&format!("goal:{id}"), false),
+            "command-output" => folds.open(&format!("command-output:{id}"), true),
+            _ => true,
+        };
+        if visible {
+            out.push(markdown(body));
+        }
+        return;
+    }
+    if message["interAgentMessage"].is_object() || message["sideQuestion"].is_object() {
+        out.push(markdown(body));
+        return;
+    }
+    let reasoning = message["role"] == "reasoning";
+    let has_tools = !array(message, "tools").is_empty();
+    let tools_default = folds.work_open || message["toolsOpen"] == true;
+    if body.is_empty() {
+        tool_segments(message, folds, in_work_fold, out);
+    } else if reasoning && has_tools {
+        // A reasoning headline owns the tools that followed it: the headline shows, the thought's
+        // tail and the tools open behind it.
+        let key = format!("reasoning:{id}");
+        out.push(Segment {
+            text: str_of(&message["reasoning"], "headline"),
+            label: Some(key.clone()),
+        });
+        if folds.open(&key, tools_default) {
+            out.push(markdown(str_of(&message["reasoning"], "body")));
+            tool_segments(message, folds, in_work_fold, out);
+        }
+    } else {
+        out.push(markdown(body));
+        if has_tools && !reasoning && folds.open(&format!("tools:{id}"), tools_default) {
+            tool_segments(message, folds, in_work_fold, out);
+        }
+    }
+}
+
+/// `tool_rows`: the rows a run shows with its folds as they are, each as its name and preview.
+fn tool_segments(message: &Value, folds: &SearchFolds, in_work_fold: bool, out: &mut Vec<Segment>) {
+    let tools = array(message, "tools");
+    if tools.is_empty() {
+        return;
+    }
+    let id = str_of(message, "id");
+    let show_all = message["toolsShowAllRows"] == true;
+    let cards_as_rows = show_all || in_work_fold;
+    let visible: Vec<usize> = (0..tools.len())
+        .filter(|index| {
+            cards_as_rows
+                || (tools[*index]["exchange"] != true && tools[*index]["sentMessage"] != true)
+        })
+        .collect();
+    let shown: Vec<usize> = if folds.simple && !show_all {
+        let awaiting = tools.iter().any(|tool| tool["awaitingApproval"] == true);
+        if folds.open(&format!("tools:{id}"), awaiting) {
+            visible
+        } else {
+            Vec::new()
+        }
+    } else {
+        let fold = &message["toolFold"];
+        let hidden = fold["hiddenCount"].as_u64().unwrap_or(0);
+        if show_all || hidden == 0 || folds.expanded.contains(&format!("tool-run:{id}")) {
+            visible
+        } else {
+            visible
+                .into_iter()
+                .filter(|index| fold["visible"][*index] == true)
+                .collect()
+        }
+    };
+    for index in shown {
+        let tool = &tools[index];
+        let described = !str_of(tool, "description").is_empty();
+        let name = match str_of(tool, "label") {
+            label if label.is_empty() => str_of(tool, "name"),
+            label => label,
+        };
+        out.push(Segment {
+            text: name,
+            label: Some(format!("tool:{id}:{index}")),
+        });
+        // A subagent row shows the agent instead of the preview.
+        if !str_of(&tool["subagent"], "name").is_empty() {
+            continue;
+        }
+        let argument = if folds.simple || described {
+            String::new()
+        } else {
+            str_of(tool, "preview")
+        };
+        let failure = str_of(tool, "failure");
+        out.push(Segment {
+            text: tool_preview_line(&argument, &failure),
+            label: Some(format!("tool-preview:{id}:{index}")),
+        });
+    }
+}
+
+/// A tool row's preview line: the argument, then what failed when it failed.
+pub fn tool_preview_line(argument: &str, failure: &str) -> String {
+    match (argument.is_empty(), failure.is_empty()) {
+        (_, true) => argument.to_string(),
+        (true, false) => failure.to_string(),
+        (false, false) => format!("{argument} \u{b7} {failure}"),
+    }
+}
+
+/// `sessionChatTranscriptMatches`: every occurrence of `query` the reader can see, row by row, in
+/// transcript order.
+pub fn transcript_matches(
+    items: &[Value],
+    query: &str,
+    folds: &SearchFolds,
+) -> Vec<TranscriptMatch> {
     let needle = js_trim(query).to_lowercase();
     if needle.is_empty() {
         return Vec::new();
     }
-    let needle_units = needle.encode_utf16().count();
+    let needle_utf16: Vec<u16> = needle.encode_utf16().collect();
     let mut matches = Vec::new();
     for (item_index, item) in items.iter().enumerate() {
-        let haystack = transcript_item_text(item).to_lowercase();
-        if haystack.is_empty() {
+        let segments = visible_segments(item, folds);
+        if segments.is_empty() {
             continue;
         }
         let id = item_id(item);
-        // The TypeScript walks the string by UTF-16 index, and a `key` only has to be stable, so
-        // the occurrence counter is what the two sides must agree on.
-        let units: Vec<u16> = haystack.encode_utf16().collect();
-        let needle_utf16: Vec<u16> = needle.encode_utf16().collect();
         let mut occurrence = 0usize;
-        let mut at = 0usize;
-        while let Some(found) = index_of(&units, &needle_utf16, at) {
-            matches.push(TranscriptMatch {
-                item_index,
-                key: format!("{id}#{occurrence}"),
-            });
-            occurrence += 1;
-            at = found + needle_units;
+        for segment in segments {
+            // The TypeScript walks the string by UTF-16 index, and a `key` only has to be stable,
+            // so the occurrence counter is what the two sides must agree on.
+            let units: Vec<u16> = segment.text.to_lowercase().encode_utf16().collect();
+            let mut at = 0usize;
+            while let Some(found) = index_of(&units, &needle_utf16, at) {
+                matches.push(TranscriptMatch {
+                    item_index,
+                    key: format!("{id}#{occurrence}"),
+                    label: segment.label.clone(),
+                });
+                occurrence += 1;
+                at = found + needle_utf16.len();
+            }
         }
     }
     matches
@@ -90,46 +338,29 @@ pub fn search_count_label(query: &str, total: usize, active_index: usize) -> Str
     }
 }
 
-/// `messageText`: the text, the suppressed label, each tool's name and preview, each file's path.
-fn message_text(message: &Value) -> String {
-    let Some(record) = message.as_object() else {
-        return String::new();
-    };
-    let mut parts: Vec<String> = Vec::new();
-    if let Some(text) = record.get("text").and_then(Value::as_str) {
-        parts.push(crate::transcript::marked_sections::without_section_marks(
-            text,
-        ));
-    }
-    if let Some(label) = record
-        .get("suppressed")
-        .and_then(|value| value.get("label"))
+/// A message's text as its Markdown shows it, without the marked-section marks.
+fn message_body(message: &Value) -> String {
+    message
+        .get("text")
         .and_then(Value::as_str)
-    {
-        parts.push(label.to_string());
-    }
-    if let Some(tools) = record.get("tools").and_then(Value::as_array) {
-        for tool in tools {
-            if let Some(name) = tool
-                .get("call")
-                .and_then(|call| call.get("name"))
-                .and_then(Value::as_str)
-            {
-                parts.push(name.to_string());
-            }
-            if let Some(preview) = tool.get("preview").and_then(Value::as_str) {
-                parts.push(preview.to_string());
-            }
-        }
-    }
-    if let Some(files) = record.get("files").and_then(Value::as_array) {
-        for file in files {
-            if let Some(path) = file.get("path").and_then(Value::as_str) {
-                parts.push(path.to_string());
-            }
-        }
-    }
-    join_truthy(parts)
+        .map(crate::transcript::marked_sections::without_section_marks)
+        .unwrap_or_default()
+}
+
+fn str_of(value: &Value, key: &str) -> String {
+    value
+        .get(key)
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string()
+}
+
+fn array<'a>(value: &'a Value, key: &str) -> &'a [Value] {
+    value
+        .get(key)
+        .and_then(Value::as_array)
+        .map(Vec::as_slice)
+        .unwrap_or(&[])
 }
 
 /// `itemId`: the row kind plus whichever id the row carries.
@@ -145,26 +376,6 @@ fn item_id(item: &Value) -> String {
         })
         .unwrap_or_default();
     format!("{kind}:{id}")
-}
-
-/// `.filter(Boolean).join('\n')`.
-fn join_truthy(parts: Vec<String>) -> String {
-    parts
-        .into_iter()
-        .filter(|part| !part.is_empty())
-        .collect::<Vec<_>>()
-        .join("\n")
-}
-
-/// JavaScript truthiness, for the three keys the row text reads conditionally.
-fn is_truthy(value: &Value) -> bool {
-    match value {
-        Value::Null => false,
-        Value::Bool(flag) => *flag,
-        Value::Number(number) => number.as_f64().is_some_and(|value| value != 0.0),
-        Value::String(text) => !text.is_empty(),
-        _ => true,
-    }
 }
 
 /// `String.prototype.indexOf` over UTF-16 code units, from `at`.

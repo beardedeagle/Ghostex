@@ -347,11 +347,15 @@ impl NativeChatView {
     /// The tool's name and its mono preview as ONE line of text, two font runs.
     ///
     /// CDXC:SessionChat 2026-10-07 WHY: drawn as two text elements side by side on a centred row, the JetBrains Mono preview sat a pixel below the prose name ("Shell echo …"), at every row position and whatever the font metrics said, because each element places and snaps its own baseline. Runs of one line share one baseline, so the name and the command line up on every platform; the en space stands in for the old 6px gap.
+    /// The name and the preview as one line of two runs; `name_marks` and `preview_marks` are the
+    /// find's highlights in each (search.rs, `label_highlights`).
     fn name_and_preview(
         name: String,
         preview: String,
         heading: gpui::Hsla,
         name_weight: gpui::FontWeight,
+        name_marks: &[(std::ops::Range<usize>, gpui::Hsla)],
+        preview_marks: &[(std::ops::Range<usize>, gpui::Hsla)],
         p: &ChatAppearance,
     ) -> StyledText {
         let gap = "\u{2002}";
@@ -376,7 +380,17 @@ impl NativeChatView {
                 p.muted,
             ),
         ];
-        StyledText::new(format!("{name}{gap}{preview}")).with_runs(runs)
+        let offset = name.len() + gap.len();
+        let marks: Vec<_> = name_marks
+            .iter()
+            .cloned()
+            .chain(
+                preview_marks
+                    .iter()
+                    .map(|(range, color)| (range.start + offset..range.end + offset, *color)),
+            )
+            .collect();
+        StyledText::new(format!("{name}{gap}{preview}")).with_runs(marked_runs(runs, &marks))
     }
 
     fn tool_row_list(
@@ -545,7 +559,11 @@ impl NativeChatView {
         // A subagent row shows the agent instead of the preview. The text takes the row's free
         // width and truncates, so the duration and the status sit at the right edge.
         let fills = subagent.is_empty();
+        let name_key = key.clone();
+        let preview_key = format!("tool-preview:{message_id}:{index}");
         trigger = if !preview.is_empty() && subagent.is_empty() {
+            let name_marks = self.label_highlights(&name_key, &name);
+            let preview_marks = self.label_highlights(&preview_key, &preview);
             trigger.child(
                 div()
                     .flex_1()
@@ -556,6 +574,8 @@ impl NativeChatView {
                         preview,
                         heading,
                         name_weight,
+                        &name_marks,
+                        &preview_marks,
                         p,
                     )),
             )
@@ -568,7 +588,7 @@ impl NativeChatView {
                     .font_weight(name_weight)
                     .when(described, |this| this.text_size(px(14.0 * s)))
                     .text_color(heading)
-                    .child(name),
+                    .child(self.find_label(&name_key, name)),
             )
         };
         if !duration.is_empty() {
@@ -791,4 +811,40 @@ fn verbatim_fence(text: &str) -> String {
     let fence = "`".repeat(longest.max(2) + 1);
     let newline = if text.ends_with('\n') { "" } else { "\n" };
     format!("{fence}\n{text}{newline}{fence}\n")
+}
+
+/// `runs` split at the find's highlights, each highlighted piece given its background.
+fn marked_runs(
+    runs: Vec<gpui::TextRun>,
+    marks: &[(std::ops::Range<usize>, gpui::Hsla)],
+) -> Vec<gpui::TextRun> {
+    if marks.is_empty() {
+        return runs;
+    }
+    let mut out = Vec::new();
+    let mut start = 0;
+    for run in runs {
+        let end = start + run.len;
+        let mut cuts = vec![start, end];
+        for (range, _) in marks {
+            for at in [range.start, range.end] {
+                if at > start && at < end {
+                    cuts.push(at);
+                }
+            }
+        }
+        cuts.sort_unstable();
+        cuts.dedup();
+        for pair in cuts.windows(2) {
+            let mut piece = run.clone();
+            piece.len = pair[1] - pair[0];
+            piece.background_color = marks
+                .iter()
+                .find(|(range, _)| range.start <= pair[0] && pair[1] <= range.end)
+                .map(|(_, color)| *color);
+            out.push(piece);
+        }
+        start = end;
+    }
+    out
 }

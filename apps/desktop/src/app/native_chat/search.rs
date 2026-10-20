@@ -4,12 +4,12 @@
 //! transcript list: no overlay, no hit-test routing. Matching, the selected
 //! occurrence and next/previous live in the core (`extras/search.rs` over
 //! `extras/transcript_search.rs` in gx-chat-core), so GPUI only draws the bar,
-//! scrolls the list to the selected row and tints the rows that matched.
+//! scrolls the list to the selected row and highlights the words that matched.
 //!
-//! Every occurrence of the query in a matching row's text is highlighted, the
-//! selected one more strongly, and the row is tinted too (every matching row
-//! faintly, the selected one more), which is what still marks a match in text
-//! the row does not show as Markdown (a tool name, a folded group).
+//! Every occurrence of the query the reader can see is highlighted, the selected
+//! one more strongly: in the row's Markdown by its text views, and in the one-line
+//! labels (a tool row's name and preview, a thinking headline) by `find_label`.
+//! What is searched follows the folds this view reports with `searchFolds`.
 
 use super::{appearance::ChatAppearance, state::NativeChatView, transcript::text};
 use crate::app::native_chat::cursor::ChatCursor as _;
@@ -21,6 +21,7 @@ use gpui::{
 };
 use gpui_component::input::{Input, InputEvent, InputState};
 use serde_json::json;
+use std::ops::Range;
 
 #[derive(Clone, Debug, PartialEq, gpui::Action)]
 #[action(namespace = ghostex_gpui, no_json)]
@@ -122,6 +123,7 @@ impl NativeChatView {
         self.search_input = None;
         self.search_subscription = None;
         self.search_scrolled_revision = -1;
+        self.search_folds_sent = None;
         self.focus_requested = true;
         self.invoke(json!({"type":"searchClose"}), cx);
     }
@@ -150,10 +152,11 @@ impl NativeChatView {
     /// highlight the query, numbering the occurrences across the row so the selected one (the
     /// core's `activeInRow`) is marked and scrolled into view once per navigation.
     ///
-    /// CDXC:SessionChat 2026-10-01 DECISION:
-    /// User: "Can we please highlight the word that was found in the message?" The tinted row alone did not show where the query was in a long reply. Every occurrence gets a background behind its letters, the selected one (n of the total) a stronger one, the way a browser's find does.
+    /// CDXC:SessionChat 2026-10-20 DECISION:
+    /// User: "Can we please highlight the word that was found in the message?" (2026-10-01) and "don't highlight the block that has found text". Every occurrence gets a background behind its letters, the selected one (n of the total) a stronger one, the way a browser's find does, and the message or block around it gets no background of its own. Supersedes the 2026-10-01 row tint.
     pub(super) fn begin_row_find(&mut self, index: usize, main: bool, p: &ChatAppearance) {
         self.row_find = None;
+        self.row_label_find = None;
         let search = &self.snapshot["transcriptSearch"];
         if !main || !search.is_object() {
             return;
@@ -170,10 +173,25 @@ impl NativeChatView {
             return;
         }
         let (background, active_background) = search_highlight_colors(p);
-        let active = (search["activeItem"].as_u64() == Some(row))
+        let active_row = search["activeItem"].as_u64() == Some(row);
+        let active = active_row
             .then(|| search["activeInRow"].as_u64())
             .flatten()
             .map(|occurrence| occurrence as usize);
+        let label = &search["activeLabel"];
+        self.row_label_find = Some(RowLabelFind {
+            needle: query.trim().to_lowercase(),
+            background,
+            active_background,
+            active: active_row
+                .then(|| {
+                    Some((
+                        label["key"].as_str()?.to_string(),
+                        label["occurrence"].as_u64()? as usize,
+                    ))
+                })
+                .flatten(),
+        });
         self.row_find = Some(
             gpui_component::text::TextFind::new(query, background, active_background)
                 .counter(Default::default())
@@ -182,20 +200,82 @@ impl NativeChatView {
         );
     }
 
-    pub(super) fn search_row_tint(&self, index: usize, p: &ChatAppearance) -> Option<gpui::Hsla> {
-        let search = &self.snapshot["transcriptSearch"];
-        if !search.is_object() {
-            return None;
+    /// `text` with the find's occurrences highlighted, when `key` is a label the core searches
+    /// (a tool row's name or preview, a thinking headline) in a row that holds a match.
+    pub(super) fn find_label(&self, key: &str, text: String) -> AnyElement {
+        let highlights = self.label_highlights(key, &text);
+        if highlights.is_empty() {
+            return text.into_any_element();
         }
-        let index = index as u64;
-        if search["activeItem"].as_u64() == Some(index) {
-            return Some(p.control_primary.opacity(0.16));
+        gpui::StyledText::new(text)
+            .with_highlights(highlights.into_iter().map(|(range, background)| {
+                (
+                    range,
+                    gpui::HighlightStyle {
+                        background_color: Some(background),
+                        ..Default::default()
+                    },
+                )
+            }))
+            .into_any_element()
+    }
+
+    /// The byte ranges of the find's occurrences in label `key`, each with its background.
+    pub(super) fn label_highlights(
+        &self,
+        key: &str,
+        text: &str,
+    ) -> Vec<(Range<usize>, gpui::Hsla)> {
+        let Some(find) = &self.row_label_find else {
+            return Vec::new();
+        };
+        if !SEARCHED_LABELS.iter().any(|prefix| key.starts_with(prefix)) {
+            return Vec::new();
         }
-        search["items"]
-            .as_array()?
-            .iter()
-            .any(|value| value.as_u64() == Some(index))
-            .then(|| p.control_primary.opacity(0.06))
+        let lower = text.to_lowercase();
+        // Lowercasing changed the length (a handful of scripts): offsets would not line up, so the
+        // label is left plain rather than marked in the wrong place.
+        if lower.len() != text.len() {
+            return Vec::new();
+        }
+        let active = find
+            .active
+            .as_ref()
+            .filter(|(active_key, _)| active_key == key)
+            .map(|(_, occurrence)| *occurrence);
+        lower
+            .match_indices(find.needle.as_str())
+            .enumerate()
+            .map(|(occurrence, (start, found))| {
+                let background = if Some(occurrence) == active {
+                    find.active_background
+                } else {
+                    find.background
+                };
+                (start..start + found.len(), background)
+            })
+            .collect()
+    }
+
+    /// Reports the folds this view has open while the find bar is open, so the core searches only
+    /// what the reader can see (gx-chat-core `transcript_search.rs`, `visible_segments`).
+    fn sync_search_folds(&mut self, p: &ChatAppearance, cx: &mut Context<Self>) {
+        let mut expanded: Vec<&String> = self.expanded.iter().collect();
+        let mut collapsed: Vec<&String> = self.collapsed.iter().collect();
+        expanded.sort();
+        collapsed.sort();
+        let folds = json!({
+            "type": "searchFolds",
+            "expanded": expanded,
+            "collapsed": collapsed,
+            "simple": p.simple,
+            "workOpen": p.work_open,
+        });
+        if self.search_folds_sent.as_ref() == Some(&folds) {
+            return;
+        }
+        self.search_folds_sent = Some(folds.clone());
+        self.invoke(folds, cx);
     }
 
     fn ensure_search_input(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -230,8 +310,10 @@ impl NativeChatView {
                 self.search_input = None;
                 self.search_subscription = None;
             }
+            self.search_folds_sent = None;
             return None;
         }
+        self.sync_search_folds(p, cx);
         self.ensure_search_input(window, cx);
         let s = p.scale;
         let label = text(&self.snapshot["transcriptSearch"], "label");
@@ -329,6 +411,19 @@ impl NativeChatView {
                 .into_any_element(),
         )
     }
+}
+
+/// The labels gx-chat-core's `visible_segments` searches, by the prefix of their key: a tool
+/// row's name, its preview line, and a reasoning row's headline.
+const SEARCHED_LABELS: [&str; 3] = ["tool:", "tool-preview:", "reasoning:"];
+
+/// The find for one row's labels: the query, the two backgrounds, and the selected occurrence
+/// when it is in one of this row's labels (the core's `activeLabel`).
+pub(super) struct RowLabelFind {
+    needle: String,
+    background: gpui::Hsla,
+    active_background: gpui::Hsla,
+    active: Option<(String, usize)>,
 }
 
 /// The find highlight behind each occurrence and the stronger one behind the selected occurrence:

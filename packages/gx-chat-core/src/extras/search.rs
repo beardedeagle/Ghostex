@@ -8,7 +8,7 @@
 
 use serde_json::{json, Value};
 
-use crate::extras::transcript_search::{search_count_label, transcript_matches};
+use crate::extras::transcript_search::{search_count_label, transcript_matches, SearchFolds};
 use crate::state::SearchState;
 
 /// `searchOpen`.
@@ -52,6 +52,12 @@ pub fn move_by(search: &mut SearchState, offset: i64) {
     search.revision += 1;
 }
 
+/// `searchFolds`: the renderer's open and closed folds and the two modes their defaults follow.
+/// Sent while the field is open, whenever one of them changes.
+pub fn set_folds(search: &mut SearchState, params: &serde_json::Map<String, Value>) {
+    search.folds = SearchFolds::from_action(params);
+}
+
 /// `project`: re-runs the query over the current rows and re-anchors the cursor.
 ///
 /// This is the mutating half of the TypeScript's `project`, which runs on every publish.
@@ -59,7 +65,7 @@ pub fn settle(search: &mut SearchState, items: &[Value]) {
     if !search.open {
         return;
     }
-    search.matches = transcript_matches(items, &search.query);
+    search.matches = transcript_matches(items, &search.query, &search.folds);
     let retained = search
         .active_key
         .as_ref()
@@ -83,15 +89,29 @@ pub fn project(search: &SearchState) -> Value {
         return Value::Null;
     }
     let active = search.matches.get(search.active_index);
-    // Which occurrence of its row the selected one is, so a renderer that highlights the words
-    // can mark that one: the matches before it that share its row.
-    let active_in_row = active.map(|found| {
+    let earlier = |found: &crate::extras::transcript_search::TranscriptMatch| {
         search.matches[..search.active_index]
             .iter()
-            .filter(|earlier| earlier.item_index == found.item_index)
+            .filter(|earlier| {
+                earlier.item_index == found.item_index && earlier.label == found.label
+            })
             .count()
-    });
-    // Row indices to tint, deduplicated and in transcript order.
+    };
+    // Which occurrence of its row's Markdown the selected one is, so a renderer that highlights
+    // the words can mark that one: the Markdown matches before it that share its row. A match in a
+    // one-line label (a tool row, a thinking headline) is named by that label's key instead.
+    let active_in_row = active
+        .filter(|found| found.label.is_none())
+        .map(|found| earlier(found));
+    let active_label = active
+        .and_then(|found| {
+            found
+                .label
+                .as_ref()
+                .map(|key| json!({ "key": key, "occurrence": earlier(found) }))
+        })
+        .unwrap_or(Value::Null);
+    // Row indices that hold a match, deduplicated and in transcript order.
     let mut rows: Vec<usize> = Vec::new();
     for found in &search.matches {
         if !rows.contains(&found.item_index) {
@@ -108,6 +128,7 @@ pub fn project(search: &SearchState) -> Value {
             None => Value::Null,
         },
         "activeInRow": active_in_row,
+        "activeLabel": active_label,
         "items": rows,
         "label": search_count_label(&search.query, search.matches.len(), search.active_index),
         "revision": search.revision,

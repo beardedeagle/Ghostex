@@ -87,6 +87,7 @@ action_kinds! {
     SearchQuery => "searchQuery",
     SearchNext => "searchNext",
     SearchPrevious => "searchPrevious",
+    SearchFolds => "searchFolds",
     TerminalTailHover => "terminalTailHover",
     TerminalTailToggle => "terminalTailToggle",
     OpenSubagent => "openSubagent",
