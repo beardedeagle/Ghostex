@@ -181,7 +181,14 @@ pub(crate) fn project_presentation_session(
     output.insert(
         "pendingQuestionCount".to_string(),
         Value::from(if lifecycle_state == "running" {
-            crate::session_chat_async_questions::pending_question_count(session)
+            // A turn's open ```questions forms and question pages count once it has ended
+            // (CDXC:SessionStatus 2026-10-20 in server/src/session_chat_open_questions.rs).
+            let open_questions = if activity == "working" {
+                0
+            } else {
+                crate::session_chat_open_questions::open_question_count(session)
+            };
+            crate::session_chat_async_questions::pending_question_count(session) + open_questions
         } else {
             0
         }),

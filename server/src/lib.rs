@@ -162,6 +162,7 @@ pub mod session_chat_notice;
 mod session_chat_notice_progress;
 pub mod session_chat_omp_blocking;
 pub(crate) mod session_chat_opencode;
+pub mod session_chat_open_questions;
 pub mod session_chat_options;
 pub mod session_chat_paths;
 pub mod session_chat_pi_blocking;

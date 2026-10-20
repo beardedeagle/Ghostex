@@ -133,6 +133,25 @@ pub(crate) fn mark_session_notifications_read(
         .map_err(sql_error)
 }
 
+/// Turns the session's unread turn-end row into a Needs input row with `body`, when its finished
+/// turn left questions waiting (`session_chat_open_questions.rs`). Returns how many rows changed.
+pub(crate) fn mark_unread_session_notification_needs_input(
+    db: &Connection,
+    session_id: &str,
+    body: &str,
+) -> DomainResult<usize> {
+    db.execute(
+        "UPDATE notification_feed SET kind = ?2, body = ?3 WHERE sessionId = ?1 AND readAt IS NULL AND kind IN (?4, ?2) AND NOT (kind = ?2 AND body = ?3)",
+        params![
+            session_id,
+            NOTIFICATION_FEED_KIND_NEEDS_INPUT,
+            body,
+            NOTIFICATION_FEED_KIND_FINISHED
+        ],
+    )
+    .map_err(sql_error)
+}
+
 /// Sessions of the unread rows, of one row when `id` is given; read before a mark-read so the caller knows which threads it read.
 pub(crate) fn unread_notification_session_ids(
     db: &Connection,

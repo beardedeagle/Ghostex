@@ -161,6 +161,7 @@ fn hand_back_to_detection(
         &output.result,
     );
     crate::session_chat_question_resend::observe_turn_end(state, &params, &output.result);
+    crate::session_chat_open_questions::observe_activity(state, &params, &output.result);
     let _ = schedule_presentation_session_delta(state, &db, &repository, project_id, session_id);
 }
 
@@ -323,6 +324,7 @@ pub(crate) fn apply_program_status(
             &output.result,
         );
         crate::session_chat_question_resend::observe_turn_end(state, &params, &output.result);
+        crate::session_chat_open_questions::observe_activity(state, &params, &output.result);
         if let Some(event_id) = output
             .result
             .pointer("/activity/attentionEventId")

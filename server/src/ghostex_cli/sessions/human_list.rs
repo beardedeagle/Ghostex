@@ -119,6 +119,7 @@ fn format_compact_session_line(session: &Value, project_label: Option<&str>) -> 
         js_string(session.get("agent")),
         format_compact_provider(session).unwrap_or_default(),
         js_string(session.get("status")),
+        format_pending_questions(session.get("pendingQuestionCount")),
         format_active_time(session.get("lastInteractionAt")),
     ]
     .iter()
@@ -129,6 +130,14 @@ fn format_compact_session_line(session: &Value, project_label: Option<&str>) -> 
         return headline;
     }
     format!("{headline}\n    {}", details.join(" · "))
+}
+
+/// The sidebar's pink question dot in words: questions the agent asked that wait for an answer.
+fn format_pending_questions(value: Option<&Value>) -> String {
+    match value.and_then(Value::as_u64).unwrap_or(0) {
+        0 => String::new(),
+        count => format!("answer requested ({count})"),
+    }
 }
 
 fn format_compact_provider(session: &Value) -> Option<String> {

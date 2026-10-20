@@ -78,7 +78,7 @@ fn text_of(message: &SessionChatMessage) -> String {
         .join("\n\n")
 }
 
-fn transcript_tail(session: &Value) -> Option<Vec<SessionChatMessage>> {
+pub(crate) fn transcript_tail(session: &Value) -> Option<Vec<SessionChatMessage>> {
     let agent = crate::session_chat::resolve_session_chat_transcript_agent(
         session_chat_agent_for_session(session).as_deref(),
     )?;

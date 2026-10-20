@@ -2759,6 +2759,12 @@ Pi, OMP and Amp sessions ring the same way: a finished turn marks the session
 done (for Pi and OMP after any automatic retry or queued follow-up), stopping it
 with Esc or a provider error does not, and a question or confirmation a Pi or OMP
 extension asks marks the session as waiting for you.
+When an agent ends its turn by asking you questions in chat (a question form or
+a question page), the session shows the pink question dot in the sidebar, the
+phone's session list and `ghostex sessions` ("answer requested"), and you get one
+notification for that turn, labelled Needs input with how many questions wait.
+The dot stays while you look at the session and goes away once you answer, send
+the session anything else, or the agent starts a new turn.
 Every copy shows a small "Copied!" bubble at the pointer for a moment, whether
 it came from a terminal, a chat message, a copy button, or a menu. Copy Sound is
 off by default. Enable it under Settings > Notifications > Sounds to also hear a
