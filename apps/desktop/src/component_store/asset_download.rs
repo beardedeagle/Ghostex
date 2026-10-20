@@ -66,12 +66,9 @@ pub(crate) fn component_store_root() -> Result<PathBuf, String> {
     keeps its components in its own data folder (ghostex_paths::portable), which
     Velopack's portable updates leave alone too.
     */
-    return env::var_os("LOCALAPPDATA")
-        .map(PathBuf::from)
-        .map(|root| root.join("GhostexData/components"))
-        .ok_or_else(|| {
-            "LOCALAPPDATA is unavailable; cannot locate the Ghostex component store".to_string()
-        });
+    return ghostex_paths::windows_component_store_dir().ok_or_else(|| {
+        "LOCALAPPDATA is unavailable; cannot locate the Ghostex component store".to_string()
+    });
     #[cfg(not(target_os = "windows"))]
     return Ok(ghostex_paths::GhostexPaths::resolve_and_migrate()
         .data_dir

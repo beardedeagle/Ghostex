@@ -1915,8 +1915,9 @@ restart dialog: choose **Restart now** to apply the change or **Later** to keep
 working until the next app restart. Projects and running sessions remain in their
 original environment. Native sessions stay alive when the app closes or gxserver
 restarts. The Code view uses the same environment: native Windows folders in
-PowerShell mode and Linux folders in WSL mode. The Windows app includes the native
-editor. Sessions and agents on Windows always run with standard user rights, even
+PowerShell mode and Linux folders in WSL mode. The matching editor downloads the
+first time you open the Code view. Sessions and agents on Windows always run with
+standard user rights, even
 when an administrator account connects over SSH, because Codex refuses to run as
 administrator. For a single command that needs administrator
 rights, turn on `sudo` in Windows Settings > System > For developers and run

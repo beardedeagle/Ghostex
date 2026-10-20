@@ -635,7 +635,11 @@ impl GhostexGpuiApp {
         let Some(store) = on_demand_component_store()? else {
             return Err("The sealed component manifest is unavailable.".to_string());
         };
-        let installed = store.query_current(name)?;
+        let installed = if name == SOURCE_CODE_SERVER_COMPONENT_NAME {
+            source_code_server_query_local_component(&store)?
+        } else {
+            store.query_current(name)?
+        };
         let removed = store.uninstall(name, &installed.version)?;
         if removed && name == SOURCE_CODE_SERVER_COMPONENT_NAME {
             self.ensure_source_code_server_runtime_for_current_context(cx);

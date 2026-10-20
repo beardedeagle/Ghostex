@@ -163,7 +163,11 @@ impl ComponentStore {
         require_identifier(name, "component name")?;
         require_identifier(version, "component version")?;
         require_identifier(platform, "component platform")?;
-        let path = self.root.join(name).join(version).join(platform);
+        let path = self
+            .root
+            .join(name)
+            .join(component_version_dir_name(name, version))
+            .join(platform);
         let expected_sha256 = self
             .manifest
             .components
@@ -173,7 +177,7 @@ impl ComponentStore {
             .map(|asset| asset.sha256.as_str());
         let installed = installed_marker_matches(&path, name, version, platform, expected_sha256)?;
         if installed && name == CODE_SERVER_COMPONENT_NAME && platform.starts_with("windows-") {
-            verify_installed_windows_code_server_component(&path, version, platform)?;
+            verify_installed_windows_code_server(&path, version, platform)?;
         }
         let size_bytes = if installed { directory_size(&path)? } else { 0 };
         Ok(InstalledComponent {
@@ -232,7 +236,10 @@ impl ComponentStore {
         let path = self
             .root
             .join(&component.name)
-            .join(&component.component_version)
+            .join(component_version_dir_name(
+                &component.name,
+                &component.component_version,
+            ))
             .join(&platform);
         let installed = installed_marker_matches(
             &path,
@@ -272,7 +279,9 @@ impl ComponentStore {
             )
         })?;
         let component_root = self.root.join(&component.name);
-        let version_root = component_root.join(&component.component_version);
+        let version_dir_name =
+            component_version_dir_name(&component.name, &component.component_version);
+        let version_root = component_root.join(&version_dir_name);
         emit(
             progress,
             component,
@@ -284,7 +293,7 @@ impl ComponentStore {
             self.query_for_platform(&component.name, &component.component_version, platform)?;
         if current.installed {
             prune_temporary_install_artifacts(&version_root);
-            prune_other_versions(&component_root, &component.component_version)?;
+            prune_other_versions(&component_root, &version_dir_name)?;
             emit(
                 progress,
                 component,
@@ -385,7 +394,7 @@ impl ComponentStore {
         unpack_tar_gz(&archive_path, &install_path)?;
         remove_macos_quarantine(&install_path)?;
         if component.name == CODE_SERVER_COMPONENT_NAME && platform.starts_with("windows-") {
-            verify_installed_windows_code_server_component(
+            verify_installed_windows_code_server(
                 &install_path,
                 &component.component_version,
                 platform,
@@ -422,7 +431,7 @@ impl ComponentStore {
             asset.size_bytes,
             ComponentStoreProgressPhase::Pruning,
         );
-        prune_other_versions(&component_root, &component.component_version)?;
+        prune_other_versions(&component_root, &version_dir_name)?;
         emit(
             progress,
             component,
@@ -436,7 +445,10 @@ impl ComponentStore {
     pub fn uninstall(&self, name: &str, version: &str) -> Result<bool, String> {
         require_identifier(name, "component name")?;
         require_identifier(version, "component version")?;
-        let version_path = self.root.join(name).join(version);
+        let version_path = self
+            .root
+            .join(name)
+            .join(component_version_dir_name(name, version));
         if !version_path.exists() {
             return Ok(false);
         }

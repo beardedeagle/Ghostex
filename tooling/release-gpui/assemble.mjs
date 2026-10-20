@@ -388,6 +388,7 @@ for (const arch of ['x64', 'arm64']) {
         entry === 'libcef.dll' ||
         entry.endsWith('/libcef.dll') ||
         entry.startsWith(`${velopackPayloadRoot}/resources/wsl/gxserver-`) ||
+        entry.startsWith(`${velopackPayloadRoot}/code-server/`) ||
         (entry.startsWith(`${velopackPayloadRoot}/resources/wsl/code-server-`) &&
           (entry.endsWith(`-linux-${arch}.tar.gz`) || entry.endsWith(`-linux-${arch}.tar.gz.sha256`)))
     );
@@ -402,6 +403,10 @@ for (const arch of ['x64', 'arm64']) {
       if (!asset) {
         throw new Error(`${path.basename(portable)} manifest v2 is missing ${componentName} for windows-${arch}`);
       }
+    }
+    // The native editor is downloaded on first use (build-windows-app.ps1).
+    if (!componentManifest.components['code-server'].platforms[`windows-native-${arch}`]) {
+      throw new Error(`${path.basename(portable)} manifest v2 is missing code-server for windows-native-${arch}`);
     }
     // The WSL gxserver is downloaded on demand: the sealed entry must name this release's Linux archive.
     if (componentManifest.assets[linuxPlatform]?.sha256 !== linuxSha) {

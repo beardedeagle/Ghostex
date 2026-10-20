@@ -267,6 +267,12 @@ for (const arch of ['x64', 'arm64']) {
         throw new Error(`${path.basename(portable)} manifest v2 is missing ${componentName} for windows-${arch}`);
       }
     }
+    if (!componentManifest.components['code-server'].platforms[`windows-native-${arch}`]) {
+      throw new Error(`${path.basename(portable)} manifest v2 is missing code-server for windows-native-${arch}`);
+    }
+    if (zipEntries(portable).some((entry) => entry.startsWith(`${velopackPayloadRoot}/code-server/`))) {
+      throw new Error(`${path.basename(portable)} still bundles the native editor`);
+    }
     if (componentManifest.assets[linuxPlatform]?.sha256 !== linuxSha) {
       throw new Error(`${path.basename(portable)} manifest v2 ${linuxPlatform} sha256 does not match ${linuxName}`);
     }

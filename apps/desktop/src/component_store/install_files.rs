@@ -198,6 +198,20 @@ pub(crate) fn prune_other_versions(
     Ok(())
 }
 
+/// CDXC:CodeEditor 2026-10-20 WHY: code-server component versions are 84 characters, and under `%LOCALAPPDATA%\GhostexData\components\code-server\<version>\windows-native-x64\` the native editor's deepest files reached about 295 characters, past the 260 Windows still enforces on PowerShell and DLL loads. On Windows its version folder is a 16-character digest of the version instead (about 225 then); other components and platforms keep the plain version.
+/// SEE-ALSO: the installed-editor scans in server/src/ghostex_cli/editors/prompt.rs and apps/desktop/src/app/helpers/remote/windows_code.rs, which match any folder name.
+pub(crate) fn component_version_dir_name(name: &str, version: &str) -> String {
+    if cfg!(windows) && name == CODE_SERVER_COMPONENT_NAME {
+        use sha2::{Digest as _, Sha256};
+        let digest = Sha256::digest(version.as_bytes());
+        return digest[..8]
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect();
+    }
+    version.to_string()
+}
+
 pub(crate) fn unique_suffix() -> u128 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)

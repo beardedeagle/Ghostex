@@ -620,7 +620,7 @@ impl GhostexGpuiApp {
                     let store = on_demand_component_store()?.ok_or_else(|| {
                         "The sealed code-server component manifest is unavailable.".to_string()
                     })?;
-                    let installed = store.query_current(CODE_SERVER_COMPONENT)?;
+                    let installed = source_code_server_query_local_component(&store)?;
                     store.uninstall(CODE_SERVER_COMPONENT, &installed.version)?;
                     Ok::<(), String>(())
                 })();
@@ -745,7 +745,7 @@ fn code_server_row(
         if let Some(component) = store.component(CODE_SERVER_COMPONENT) {
             managed_component = true;
             version = component.component_version.clone();
-            match store.query_current(CODE_SERVER_COMPONENT) {
+            match source_code_server_query_local_component(store) {
                 Ok(component) => {
                     installed = component.installed;
                     managed_installed = component.installed;

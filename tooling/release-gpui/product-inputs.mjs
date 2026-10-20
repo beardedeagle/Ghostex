@@ -632,7 +632,7 @@ export function componentPlatformRequirements(productId) {
   }
   if (productId === 'windows-x64' || productId === 'windows-arm64') {
     const arch = productId.slice('windows-'.length);
-    /* windows-<arch> is the WSL wrapper the app installs on demand; windows-native-<arch> is the bundled editor. */
+    /* windows-<arch> is the WSL editor and windows-native-<arch> the native editor; the app installs either on demand. */
     return {
       cef: [`windows-${arch}`],
       'code-server': [`linux-${arch}`, `windows-${arch}`, `windows-native-${arch}`],

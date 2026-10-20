@@ -69,6 +69,10 @@ function Invoke-CargoReleaseBuild([string[]]$CargoArguments) {
 $AppName = "Ghostex"
 $AppDir = Join-Path $GpuiDir "build/windows/$AppName"
 $OnDemandComponents = $env:GHOSTEX_ON_DEMAND_ASSETS -eq "1"
+# CDXC:Release 2026-10-20 DECISION: the user chose to ship the native Windows editor as a download-on-first-use component instead of inside the installer (about 727 MB unpacked). An on-demand build that has the verified published archive (GHOSTEX_WINDOWS_NATIVE_CODE_SERVER_ARCHIVE, from release-gpui-code-server-windows.yml) seals it as code-server windows-native-<arch>; a build without it (local starts, a standalone dispatch that compiled the editor) still bundles code-server/, since that archive was never published.
+# SEE-ALSO: source_code_server_local_component_platform in apps/desktop/src/app/helpers/source_server/code_server.rs, tooling/release-gpui/windows.ps1, tooling/release-gpui/assemble.mjs.
+$NativeCodeServerArchive = $env:GHOSTEX_WINDOWS_NATIVE_CODE_SERVER_ARCHIVE
+$NativeCodeOnDemand = $OnDemandComponents -and $NativeCodeServerArchive -and (Test-Path -LiteralPath $NativeCodeServerArchive)
 $ReleaseArch = if ($env:GHOSTEX_WINDOWS_ARCH) { $env:GHOSTEX_WINDOWS_ARCH } else { "x64" }
 $ReleaseVersion = if ($env:GHOSTEX_GPUI_MARKETING_VERSION) {
     $env:GHOSTEX_GPUI_MARKETING_VERSION
@@ -182,7 +186,9 @@ if ($BuildPhase -like "compile*") {
 # CDXC:Release 2026-09-16 WHY:
 # The release workflow hands the verified native editor component archive to the script through GHOSTEX_WINDOWS_NATIVE_CODE_SERVER_ARCHIVE.
 # Without it the script reuses the published component when the code-server tree is clean and builds from source otherwise, so local builds keep working without CI.
-& (Join-Path $ScriptDir "build-windows-code-server.ps1")
+if (-not $NativeCodeOnDemand) {
+    & (Join-Path $ScriptDir "build-windows-code-server.ps1")
+}
 
 # 3) Locate the extracted CEF distribution. cef-dll-sys may export either a
 # flat Windows payload or the upstream Release/ + Resources/ layout.
@@ -400,6 +406,19 @@ if ($WslCodeServerArchive -and (Test-Path $WslCodeServerArchive)) {
     & $GitBash (Join-Path $RepoRoot "tooling/release-gpui/create-deterministic-tar.sh") $ComponentStage $ComponentAsset --windows-component
     if ($LASTEXITCODE -ne 0) { throw "Could not create the deterministic Windows code-server component asset" }
     Remove-Item -Recurse -Force $ComponentStage
+    if ($NativeCodeOnDemand) {
+        # The sealer below reads every code-server-<version>-<platform>.tar.gz in the asset folder, so the native editor joins the same component entry.
+        $NativeArchiveName = "code-server-$ComponentVersion-windows-native-$ReleaseArch.tar.gz"
+        if ((Split-Path -Leaf $NativeCodeServerArchive) -ne $NativeArchiveName) {
+            throw "Native Windows editor archive identity mismatch: expected $NativeArchiveName"
+        }
+        & node (Join-Path $RepoRoot "tooling/release-gpui/verify-windows-native-code-server-archive.mjs") `
+            --archive $NativeCodeServerArchive `
+            --version $ComponentVersion `
+            --platform "windows-native-$ReleaseArch"
+        if ($LASTEXITCODE -ne 0) { throw "Native Windows editor archive verification failed" }
+        Copy-Item -LiteralPath $NativeCodeServerArchive, "$NativeCodeServerArchive.sha256" -Destination $ComponentAssetDir
+    }
     $ComponentAssetSha = (Get-FileHash -Algorithm SHA256 $ComponentAsset).Hash.ToLowerInvariant()
     [IO.File]::WriteAllText(
         "$ComponentAsset.sha256",
@@ -441,20 +460,22 @@ if ($OnDemandComponents -or ($WslCodeServerArchive -and (Test-Path $WslCodeServe
     if ($LASTEXITCODE -ne 0) { throw "Could not seal the Windows on-demand manifest" }
 }
 
-# Native Code is packaged beside the desktop runtime; the WSL editor remains a separate Linux component.
-$NativeCodeRoot = Join-Path $GpuiDir "build/native-code-server"
-if (!(Test-Path (Join-Path $NativeCodeRoot "lib/node.exe")) -or
-    !(Test-Path (Join-Path $NativeCodeRoot "lib/vscode/out/server-main.js"))) {
-    throw "The native Windows editor build did not produce the required staging payload."
+# A build without the published native editor archive packages the editor beside the desktop runtime; the WSL editor remains a separate Linux component.
+if (-not $NativeCodeOnDemand) {
+    $NativeCodeRoot = Join-Path $GpuiDir "build/native-code-server"
+    if (!(Test-Path (Join-Path $NativeCodeRoot "lib/node.exe")) -or
+        !(Test-Path (Join-Path $NativeCodeRoot "lib/vscode/out/server-main.js"))) {
+        throw "The native Windows editor build did not produce the required staging payload."
+    }
+    Copy-Item $NativeCodeRoot (Join-Path $AppDir "code-server") -Recurse -Force
+    # CDXC:Release 2026-09-16 WHY:
+    # The native editor payload is an immutable, version-free component reused across releases, so the app version and commit are stamped on the staged copy here, not at build time.
+    # A reused payload therefore reports the current release exactly like a freshly built one. The on-demand copy keeps code-server's own version, like the macOS and WSL editors.
+    $StagedPackagePath = Join-Path $AppDir "code-server/package.json"
+    $StagedPackage = Get-Content $StagedPackagePath -Raw | ConvertFrom-Json
+    $StagedPackage.version = $ReleaseVersion
+    # The wrapper reports the code-server revision it was built from; the gitlink resolves even when the submodule is not initialized.
+    $StagedPackage | Add-Member -NotePropertyName commit -NotePropertyValue ((& git -C $RepoRoot rev-parse "HEAD:.dependencies/code-server").Trim()) -Force
+    [IO.File]::WriteAllText($StagedPackagePath, ($StagedPackage | ConvertTo-Json -Depth 100), [Text.UTF8Encoding]::new($false))
 }
-Copy-Item $NativeCodeRoot (Join-Path $AppDir "code-server") -Recurse -Force
-# CDXC:Release 2026-09-16 WHY:
-# The native editor payload is an immutable, version-free component reused across releases, so the app version and commit are stamped on the staged copy here, not at build time.
-# A reused payload therefore reports the current release exactly like a freshly built one.
-$StagedPackagePath = Join-Path $AppDir "code-server/package.json"
-$StagedPackage = Get-Content $StagedPackagePath -Raw | ConvertFrom-Json
-$StagedPackage.version = $ReleaseVersion
-# The wrapper reports the code-server revision it was built from; the gitlink resolves even when the submodule is not initialized.
-$StagedPackage | Add-Member -NotePropertyName commit -NotePropertyValue ((& git -C $RepoRoot rev-parse "HEAD:.dependencies/code-server").Trim()) -Force
-[IO.File]::WriteAllText($StagedPackagePath, ($StagedPackage | ConvertTo-Json -Depth 100), [Text.UTF8Encoding]::new($false))
 Write-Host "Staged $AppDir"

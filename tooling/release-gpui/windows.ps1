@@ -159,6 +159,20 @@ if ($RunStage) {
     if (-not $CodeServerComponent.componentVersion -or $CodeServerComponent.downloadTag -ne "code-server-$($CodeServerComponent.componentVersion)" -or $CodeServerAsset.sha256 -cnotmatch '^[0-9a-f]{64}$') {
         throw "Windows staged app has an invalid code-server component entry"
     }
+    # The native editor is downloaded on first use, never bundled (see build-windows-app.ps1).
+    if ($env:GHOSTEX_WINDOWS_NATIVE_CODE_SERVER_ARCHIVE) {
+        if (Test-Path (Join-Path $AppDir "code-server")) {
+            throw "Windows staged app still bundles its native editor"
+        }
+        $NativeCodeServerAsset = $CodeServerComponent.platforms."windows-native-$Arch"
+        if (-not $NativeCodeServerAsset -or $NativeCodeServerAsset.sha256 -cnotmatch '^[0-9a-f]{64}$') {
+            throw "Windows staged app has no valid on-demand native editor entry"
+        }
+        $ActualNativeSha = (Get-FileHash -Algorithm SHA256 -LiteralPath $env:GHOSTEX_WINDOWS_NATIVE_CODE_SERVER_ARCHIVE).Hash.ToLowerInvariant()
+        if ($NativeCodeServerAsset.sha256 -cne $ActualNativeSha) {
+            throw "Windows sealed native editor sha256 does not match the verified windows-native-$Arch archive"
+        }
+    }
     # The WSL gxserver is a sealed on-demand asset, never a bundled file (see build-windows-app.ps1).
     if (Test-Path $WslArchive) {
         throw "Windows staged app still bundles its WSL gxserver runtime: $WslArchive"

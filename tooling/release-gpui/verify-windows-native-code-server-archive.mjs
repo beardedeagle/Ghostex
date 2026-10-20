@@ -15,13 +15,15 @@ import {
  * The native Windows editor payload (windows-native-<arch>) is the win32 REH
  * build staged by build-windows-code-server.ps1, not the Linux archive the
  * shared code-server-archive-contract.json describes: its Node is lib/node.exe,
- * it carries no POSIX executable bits, and it is bundled into the app instead
- * of being installed on demand. This sibling verifier shares the tar walker
- * and the sidecar parser with verify-code-server-archive.mjs but checks the
- * native layout, so the shared contract the Rust component store embeds stays
- * untouched.
+ * and it carries no POSIX executable bits. This sibling verifier shares the tar
+ * walker and the sidecar parser with verify-code-server-archive.mjs but checks
+ * the native layout, so the shared contract the Rust component store embeds
+ * stays untouched. Since 2026-10-20 release builds install it on first use
+ * instead of bundling it; the store re-checks the unpacked folder against these
+ * entries.
  * SEE-ALSO: apps/desktop/scripts/build-windows-code-server.ps1,
- * .github/workflows/release-gpui-code-server-windows.yml.
+ * .github/workflows/release-gpui-code-server-windows.yml,
+ * verify_installed_windows_code_server in apps/desktop/src/component_store/code_server_archive.rs.
  */
 export const WINDOWS_NATIVE_CODE_SERVER_FINGERPRINT_ENTRY = 'ghostex-build-fingerprint';
 

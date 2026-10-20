@@ -260,9 +260,27 @@ pub(super) fn select_prompt_editor_command_with(
     }
 }
 
-/// CDXC:PromptEditor 2026-10-07 WHY:
-/// The managed Windows CLI lives under Data/gxserver, separate from the installed app's native Code payload. Prefer the folder the app recorded (the install that last ran), then the per-user install the release installer and the local start both use (`%LOCALAPPDATA%\Ghostex\current`), then a Program Files install, matching the remote Code launcher. Supersedes the 2026-09-23 order, which tried Program Files before the per-user install.
-/// SEE-ALSO: apps/desktop/src/app/helpers/remote/windows_code.rs, ghostex_paths::GhostexPaths::windows_app_dir_file.
+/// The native editor the app installed on demand: `code-server\<version folder>\windows-native-<arch>` in the component store, complete once its install marker exists.
+#[cfg(windows)]
+fn installed_native_code_server() -> Option<PathBuf> {
+    let platform = if cfg!(target_arch = "aarch64") {
+        "windows-native-arm64"
+    } else {
+        "windows-native-x64"
+    };
+    let versions =
+        std::fs::read_dir(ghostex_paths::windows_component_store_dir()?.join("code-server"))
+            .ok()?;
+    versions
+        .flatten()
+        .filter(|entry| !entry.file_name().to_string_lossy().starts_with('.'))
+        .map(|entry| entry.path().join(platform))
+        .find(|path| path.join(".ghostex-component.json").is_file())
+}
+
+/// CDXC:PromptEditor 2026-10-20 WHY:
+/// The managed Windows CLI lives under Data/gxserver, apart from the native Code editor. Release builds install that editor on demand into the component store (`ghostex_paths::windows_component_store_dir`); development builds still carry it beside the app. Try the app folder the app recorded (the install that last ran), then the per-user install the release installer and the local start both use (`%LOCALAPPDATA%\Ghostex\current`), then a Program Files install, then the component store, matching the remote Code launcher. Supersedes the 2026-10-07 order, which had no component store.
+/// SEE-ALSO: apps/desktop/src/app/helpers/remote/windows_code.rs, ghostex_paths::GhostexPaths::windows_app_dir_file, component_version_dir_name in apps/desktop/src/component_store/install_files.rs.
 pub(super) fn code_server_prompt_editor_command(file_path: &str) -> Vec<String> {
     let code_root = rpc::ghostex_data_home().join("code-server");
     let package = code_root.join("package");
@@ -286,6 +304,7 @@ pub(super) fn code_server_prompt_editor_command(file_path: &str) -> Vec<String> 
                 .parent()
                 .map(|app| app.join("code-server"))
         }),
+        installed_native_code_server(),
         Some(package.clone()),
     ]
     .into_iter()

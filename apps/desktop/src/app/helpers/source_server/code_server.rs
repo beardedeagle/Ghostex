@@ -120,12 +120,44 @@ pub(crate) fn on_demand_component_store() -> Result<Option<component_store::Comp
     component_store::ComponentStore::from_manifest(manifest).map(Some)
 }
 
+/// CDXC:Release 2026-10-20 DECISION: the user chose to make the native Windows editor a download-on-first-use component instead of shipping it in the installer (about 727 MB unpacked). A Windows computer whose terminals run in PowerShell installs `windows-native-<arch>`; one running WSL keeps `windows-<arch>`, the WSL editor.
+/// SEE-ALSO: apps/desktop/scripts/build-windows-app.ps1 (seals it), tooling/release-gpui/windows.ps1 and assemble.mjs (refuse a bundled copy).
+pub(crate) fn source_code_server_local_component_platform() -> Option<String> {
+    #[cfg(windows)]
+    if windows_terminal_backend::current_preference()
+        == windows_terminal_backend::WindowsTerminalBackendPreference::PowerShell
+    {
+        let architecture = if cfg!(target_arch = "aarch64") {
+            "arm64"
+        } else {
+            "x64"
+        };
+        return Some(format!("windows-native-{architecture}"));
+    }
+    None
+}
+
+/// This computer's code-server component: the native editor or the WSL one on Windows (see
+/// `source_code_server_local_component_platform`), the current platform's elsewhere.
+pub(crate) fn source_code_server_query_local_component(
+    store: &component_store::ComponentStore,
+) -> Result<component_store::InstalledComponent, String> {
+    match source_code_server_local_component_platform() {
+        Some(platform) => {
+            store.query_current_for_platform(SOURCE_CODE_SERVER_COMPONENT_NAME, &platform)
+        }
+        None => store.query_current(SOURCE_CODE_SERVER_COMPONENT_NAME),
+    }
+}
+
 /// CDXC:CodeEditor 2026-09-23 WHY:
 /// Windows seals the Linux editor inside its WSL component archive; remote Linux uses that same verified archive so POSIX modes and links never pass through NTFS extraction.
 pub(crate) fn source_code_server_component_store_platform(
     target: &SourceCodeServerRuntimeTarget,
 ) -> Option<String> {
-    let platform = target.component_platform()?;
+    let Some(platform) = target.component_platform() else {
+        return source_code_server_local_component_platform();
+    };
     #[cfg(target_os = "windows")]
     if let Some(architecture) = platform.strip_prefix("linux-") {
         return Some(format!("windows-{architecture}"));
@@ -150,17 +182,12 @@ pub(crate) fn source_code_server_runtime_availability(
         return SourceCodeServerRuntimeAvailability::Available;
     }
     #[cfg(windows)]
-    if matches!(&target.endpoint, SourceCodeServerRuntimeEndpoint::Local)
-        && windows_terminal_backend::current_preference()
-            == windows_terminal_backend::WindowsTerminalBackendPreference::PowerShell
-    {
-        return if source_code_server_resolve_repo_root().is_ok() {
-            SourceCodeServerRuntimeAvailability::Available
-        } else {
-            SourceCodeServerRuntimeAvailability::Failed(
-                SourceCodeServerRuntimeFailure::NativeEditorMissing,
-            )
-        };
+    let native_local = matches!(&target.endpoint, SourceCodeServerRuntimeEndpoint::Local)
+        && source_code_server_local_component_platform().is_some();
+    // A development build carries the native editor beside the app.
+    #[cfg(windows)]
+    if native_local && source_code_server_resolve_repo_root().is_ok() {
+        return SourceCodeServerRuntimeAvailability::Available;
     }
     #[cfg(not(target_os = "windows"))]
     if target.component_platform().is_none() && source_code_server_resolve_repo_root().is_ok() {
@@ -169,6 +196,12 @@ pub(crate) fn source_code_server_runtime_availability(
     let store = match on_demand_component_store() {
         Ok(Some(store)) => store,
         Ok(None) => {
+            #[cfg(windows)]
+            if native_local {
+                return SourceCodeServerRuntimeAvailability::Failed(
+                    SourceCodeServerRuntimeFailure::NativeEditorMissing,
+                );
+            }
             return SourceCodeServerRuntimeAvailability::Failed(
                 SourceCodeServerRuntimeFailure::EditorMissing,
             );
@@ -204,7 +237,10 @@ pub(crate) fn source_code_server_install_component(
     let mut report_progress = |progress: component_store::ComponentStoreProgress| {
         let _ = progress_tx.unbounded_send(progress.phase);
     };
-    let component_platform = target.and_then(source_code_server_component_store_platform);
+    let component_platform = match target {
+        Some(target) => source_code_server_component_store_platform(target),
+        None => source_code_server_local_component_platform(),
+    };
     let installed = match component_platform.as_deref() {
         Some(platform) => store.install_for_platform(
             SOURCE_CODE_SERVER_COMPONENT_NAME,
@@ -231,7 +267,7 @@ pub(crate) fn source_code_server_install_component(
     }
     #[cfg(target_os = "windows")]
     {
-        component_store::verify_installed_windows_code_server_component(
+        component_store::verify_installed_windows_code_server(
             &installed.path,
             &installed.version,
             &installed.platform,
@@ -275,7 +311,7 @@ pub(crate) fn source_code_server_resolve_repo_root() -> Result<PathBuf, String> 
         }
     }
     if !configured_root_is_set && let Some(store) = on_demand_component_store()? {
-        let installed = store.query_current(SOURCE_CODE_SERVER_COMPONENT_NAME)?;
+        let installed = source_code_server_query_local_component(&store)?;
         if installed.installed
             && installed.path.join("out/node/entry.js").is_file()
             && source_code_server_validate_development_payload(&installed.path).is_ok()

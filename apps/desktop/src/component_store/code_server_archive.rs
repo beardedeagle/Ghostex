@@ -467,6 +467,39 @@ pub(crate) fn verify_code_server_archive(
     })
 }
 
+/// Checks an installed Windows code-server component: `windows-native-<arch>` is the unpacked
+/// native editor, `windows-<arch>` holds the WSL editor's verified Linux archive.
+pub(crate) fn verify_installed_windows_code_server(
+    component_path: &Path,
+    component_version: &str,
+    windows_platform: &str,
+) -> Result<(), String> {
+    if !windows_platform.starts_with("windows-native-") {
+        return verify_installed_windows_code_server_component(
+            component_path,
+            component_version,
+            windows_platform,
+        )
+        .map(|_| ());
+    }
+    // The archive's own required entries (verify-windows-native-code-server-archive.mjs).
+    for entry in [
+        "lib/node.exe",
+        "lib/vscode/out/server-main.js",
+        "lib/vscode/product.json",
+        "out/node/entry.js",
+        "out/node/routes/health.js",
+        "package.json",
+    ] {
+        if !component_path.join(entry).is_file() {
+            return Err(format!(
+                "The installed native Windows editor is missing {entry}"
+            ));
+        }
+    }
+    Ok(())
+}
+
 pub(crate) fn verify_installed_windows_code_server_component(
     component_path: &Path,
     component_version: &str,

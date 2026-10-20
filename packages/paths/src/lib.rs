@@ -36,6 +36,16 @@ pub fn uses_separate_profile() -> bool {
     nonempty_env_path("GHOSTEX_HOME").is_some() || portable::current().is_some()
 }
 
+/// The Windows on-demand component store (the web runtime, the Code editor): `GhostexData\components`
+/// beside `%LOCALAPPDATA%\Ghostex` (see `component_store_root` in
+/// apps/desktop/src/component_store/asset_download.rs for why), or a portable copy's own data folder.
+pub fn windows_component_store_dir() -> Option<PathBuf> {
+    if let Some(copy) = portable::current() {
+        return Some(copy.data_dir.join("components"));
+    }
+    nonempty_env_path("LOCALAPPDATA").map(|root| root.join("GhostexData/components"))
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct GhostexPaths {
     pub cache_dir: PathBuf,

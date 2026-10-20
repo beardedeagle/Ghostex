@@ -2,11 +2,8 @@ use crate::app::helpers::*;
 use crate::*;
 use std::path::Path;
 
-/// CDXC:CodeEditor 2026-09-23 WHY:
-/// Windows Ghostex ships its native editor beside the app. The downloadable
-/// windows-x64 component contains the WSL editor, so a PowerShell remote must
-/// use its installed native payload instead of uploading that Linux archive.
-/// Prefer the folder the app recorded in `$gxAppDir` (the install that last ran), then the per-user install the release installer and the local start both use (`%LOCALAPPDATA%\Ghostex\current`), then a Program Files install, including when the managed CLI lives separately under Data/gxserver.
+/// CDXC:CodeEditor 2026-10-20 WHY:
+/// A PowerShell remote runs the native editor its own Ghostex has; this computer never uploads one. Release builds download that editor on first use into the component store (`code-server\<version folder>\windows-native-<arch>`, see `source_code_server_local_component_platform`), development builds carry it beside the app. Try the folder the app recorded in `$gxAppDir` (the install that last ran), then the per-user install (`%LOCALAPPDATA%\Ghostex\current`), then Program Files, then the component store. When none has it the user opens the Code view on that computer once (`SOURCE_CODE_SERVER_REMOTE_EDITOR_MISSING_MESSAGE`). Supersedes the 2026-09-23 note that Windows ships the editor beside the app.
 pub(crate) fn gpui_remote_windows_code_setup() -> String {
     format!(
         r#"{}
@@ -16,8 +13,9 @@ if (!$gxPF) {{ $gxPF=$env:ProgramFiles }}
 $gxCodeCandidates=@()
 if ($gxAppDir) {{ $gxCodeCandidates+=Join-Path $gxAppDir 'code-server' }}
 $gxCodeCandidates+=@((Join-Path $env:LOCALAPPDATA 'Ghostex/current/code-server'), (Join-Path $gxPF 'Ghostex/code-server'), (Join-Path $gxApp 'code-server'), (Join-Path $gxData 'code-server/package'))
+$gxCodeCandidates+=@(Get-ChildItem -Path (Join-Path $env:LOCALAPPDATA 'GhostexData/components/code-server/*/windows-native-*') -Directory -ErrorAction SilentlyContinue | ForEach-Object {{ $_.FullName }})
 $gxCode=$gxCodeCandidates | Where-Object {{ (Test-Path -LiteralPath (Join-Path $_ 'lib/node.exe') -PathType Leaf) -and (Test-Path -LiteralPath (Join-Path $_ 'out/node/entry.js') -PathType Leaf) -and (Test-Path -LiteralPath (Join-Path $_ 'lib/vscode/out/server-main.js') -PathType Leaf) }} | Select-Object -First 1
-if (!$gxCode) {{ throw 'The Windows Ghostex installation is missing its native Code editor. Update Ghostex on that machine.' }}
+if (!$gxCode) {{ throw 'The Windows Ghostex installation is missing its native Code editor. Open the Code view on that computer once to install it.' }}
 "#,
         gpui_remote_windows_cli_setup()
     )
