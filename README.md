@@ -24,7 +24,7 @@
   </a>
 </p>
 <p align="center">
-  <a href="https://github.com/user-attachments/assets/fa41b75c-6a99-48fc-a7b2-5c04f109985c">
+  <a href="https://github.com/user-attachments/assets/74906504-c9b1-42e8-aa06-04f2f0439045">
     <picture>
       <img width="960" src="https://github.com/user-attachments/assets/74906504-c9b1-42e8-aa06-04f2f0439045" />
     </picture>
