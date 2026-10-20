@@ -180,6 +180,8 @@ pub struct SnapshotCell {
     pub combining: Option<Box<str>>,
     pub width: VtCellWide,
     pub fg: Option<Rgb>,
+    /// Palette index of `fg` when the cell set it by index (SGR 30-37, 90-97, 38;5).
+    pub fg_palette: Option<u8>,
     pub bg: Option<Rgb>,
     pub bold: bool,
     pub italic: bool,
@@ -1266,6 +1268,7 @@ impl TerminalModel {
                         combining,
                         width: cell.wide()?,
                         fg: cell.fg_color()?,
+                        fg_palette: ghostty_vt::style_color_palette_index(&style.fg_color),
                         bg: cell.bg_color()?,
                         bold: style.bold,
                         italic: style.italic,

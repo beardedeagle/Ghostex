@@ -305,6 +305,7 @@ impl GhostexGpuiApp {
         // config string on macOS.
         config.view.scroll_to_bottom_when_typing =
             shared_engine_settings.scroll_to_bottom_when_typing;
+        config.apply_bold_text_setting(&shared_engine_settings);
         config.view.background_image =
             terminal_gpui_engine::terminal_background_image_from_settings(&shared_engine_settings);
         config.view.background_alpha = terminal_default_background_alpha();

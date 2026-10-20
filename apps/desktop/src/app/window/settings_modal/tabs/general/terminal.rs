@@ -70,6 +70,7 @@ fn ghostty_preset(page: &mut GeneralTab, recommended: bool, cx: &mut Context<Gen
                 "terminalMouseScrollMultiplierDiscrete",
                 "terminalMouseScrollMultiplierPrecision",
                 "terminalScrollToBottomWhenTyping",
+                "terminalBoldUsesHeavierFont",
             ]
             .into_iter()
             .map(|key| (key, default(key)))
@@ -459,6 +460,15 @@ fn terminal_section(
         (100.0, 900.0, 50.0),
         false,
         window,
+        cx,
+    ));
+    rows.extend(page.toggle(
+        g,
+        s,
+        "terminalBoldUsesHeavierFont",
+        "Bold text uses a heavier font",
+        "Draw bold terminal text in a heavier weight. Turn off to keep bold text at your normal font weight, so it stands out by color only. A font-style-bold or font-variation-bold line in Ghostex's terminal config takes priority.",
+        false,
         cx,
     ));
     rows.extend(page.slider(

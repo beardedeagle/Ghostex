@@ -1772,6 +1772,21 @@
       "agentWritable": true
     },
     {
+      "key": "terminalBoldUsesHeavierFont",
+      "title": "Bold text uses a heavier font",
+      "subtitle": "Draw bold terminal text in a heavier weight. Turn off to keep bold text at your normal font weight, so it stands out by color only. A font-style-bold or font-variation-bold line in Ghostex's terminal config takes priority.",
+      "tab": "settings",
+      "tabTitle": "General",
+      "group": "terminal",
+      "groupTitle": "Terminal",
+      "section": "terminal",
+      "sectionTitle": "Terminal",
+      "type": "boolean",
+      "default": true,
+      "advanced": true,
+      "agentWritable": true
+    },
+    {
       "key": "terminalLineHeight",
       "title": "Line Height",
       "subtitle": "Adjust terminal row height.",

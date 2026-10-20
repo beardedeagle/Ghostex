@@ -171,6 +171,7 @@ pub struct SharedGpuiTerminalEngineSettings {
     pub scrollbar_visible: bool,
     pub scrollback_limit_bytes: u64,
     pub scroll_to_bottom_when_typing: bool,
+    pub bold_uses_heavier_font: bool,
     pub confirm_close_surface: SharedTerminalConfirmCloseSurface,
 }
 
@@ -360,4 +361,5 @@ pub fn reset_ghostty_visible_settings_to_defaults(object: &mut Map<String, Value
     insert_number(object, "terminalMouseScrollMultiplierDiscrete", 1.0);
     insert_number(object, "terminalMouseScrollMultiplierPrecision", 1.0);
     insert_bool(object, "terminalScrollToBottomWhenTyping", true);
+    insert_bool(object, "terminalBoldUsesHeavierFont", true);
 }

@@ -33,19 +33,20 @@ impl GhostexGpuiApp {
         )
         .inspect_err(|error| log::error!("terminal attach failed: {error}"))
         .ok()?;
-        let view = cx.new(|cx| {
-            TerminalView::from_model(
-                model,
-                events,
-                TerminalFontConfig {
-                    family: "JetBrainsMono Nerd Font".into(),
-                    size: px(13.0),
-                    ..TerminalFontConfig::default()
-                },
-                Box::new(|_, _, _, _| {}),
-                cx,
-            )
-        });
+        let mut font = TerminalFontConfig {
+            family: "JetBrainsMono Nerd Font".into(),
+            size: px(13.0),
+            ..TerminalFontConfig::default()
+        };
+        // The page has no Ghostty config, so only the Settings switch decides the bold weight.
+        let bold_uses_heavier_font = crate::shared_settings::shared_sidebar_settings_snapshot()
+            .object()
+            .get("terminalBoldUsesHeavierFont")
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(true);
+        font.resolve_bold_weight(None, bold_uses_heavier_font);
+        let view = cx
+            .new(|cx| TerminalView::from_model(model, events, font, Box::new(|_, _, _, _| {}), cx));
         /*
         CDXC:WebGpui 2026-09-28 WHY:
         Command-click on a terminal link opens it in a new browser tab. The desktop routes `OpenUrlRequested` through its own opener; the page never subscribed, so a link click did nothing, and in Codex's fullscreen view (which captures the mouse) the click used to reach Codex, which opened the URL on the computer running the session instead of the one holding the page.

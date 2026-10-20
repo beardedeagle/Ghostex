@@ -649,6 +649,7 @@ impl GhostexGpuiApp {
             gpui_terminal_theme_background(settings),
         );
         engine_config.view.scroll_to_bottom_when_typing = settings.scroll_to_bottom_when_typing;
+        engine_config.apply_bold_text_setting(settings);
         engine_config.view.background_image =
             terminal_gpui_engine::terminal_background_image_from_settings(settings);
         engine_config.view.background_alpha = terminal_default_background_alpha();

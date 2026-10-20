@@ -16,6 +16,12 @@ pub fn style_color_rgb(
     }
 }
 
+/// The palette index of a style colour, when it names one (`bold-color` maps
+/// bold 0-7 to 8-15 by index, not by the resolved RGB).
+pub fn style_color_palette_index(color: &ffi::GhosttyStyleColor) -> Option<u8> {
+    (color.tag == ffi::GHOSTTY_STYLE_COLOR_PALETTE).then(|| unsafe { color.value.palette })
+}
+
 /// Snapshot of a terminal viewport for rendering, with two-level dirty
 /// tracking (global + per-row).
 ///

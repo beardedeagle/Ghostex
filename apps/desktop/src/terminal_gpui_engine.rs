@@ -49,6 +49,9 @@ pub(crate) struct GpuiTerminalEngineConfig {
     pub(crate) scrollback_limit_bytes: u64,
     pub(crate) option_as_alt: VtOptionAsAlt,
     pub(crate) confirm_close_surface: SharedTerminalConfirmCloseSurface,
+    /// Bold weight an explicit `font-style-bold` / `font-variation-bold` in
+    /// the Ghostty config asks for; `None` leaves it to the Settings switch.
+    pub(crate) ghostty_bold_weight: Option<FontWeight>,
 }
 
 impl GpuiTerminalEngineConfig {
@@ -86,12 +89,19 @@ impl GpuiTerminalEngineConfig {
             scrollback_limit_bytes: settings.scrollback_limit_bytes,
             option_as_alt: VtOptionAsAlt::default(),
             confirm_close_surface: settings.confirm_close_surface,
+            ghostty_bold_weight: None,
         };
         config.apply_ghostty_theme(&settings.ghostty_theme);
         if let Some(background) = settings.terminal_background.override_rgb(false) {
             config.apply_terminal_background(background);
         }
         config
+    }
+
+    /// The app-owned Settings switch, applied after every config load.
+    pub(crate) fn apply_bold_text_setting(&mut self, settings: &SharedGpuiTerminalEngineSettings) {
+        self.font
+            .resolve_bold_weight(self.ghostty_bold_weight, settings.bold_uses_heavier_font);
     }
 
     pub(crate) fn apply_ghostty_theme(&mut self, name: &str) {

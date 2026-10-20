@@ -621,6 +621,7 @@ pub const DEFAULT_GHOSTEX_SETTINGS: &[(&str, J)] = &[
     ("terminalFontFamily", J::Str("JetBrains Mono")),
     ("terminalFontSize", J::Num(13.0)),
     ("terminalFontWeight", J::Num(300.0)),
+    ("terminalBoldUsesHeavierFont", J::Bool(true)),
     ("terminalColorScheme", J::Str("app")),
     ("terminalGhosttyLightTheme", J::Str("GitHub Light Default")),
     ("terminalGhosttyTheme", J::Str("GitHub Dark")),

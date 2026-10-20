@@ -1920,7 +1920,15 @@ actions row applies the recommended set, resets the defaults, opens the Ghostty
 app's config or Ghostex's terminal config, and has **Import from Ghostty**, which
 copies your Ghostty fonts (family and fallbacks, size, weight, bold and italic
 families, font features), line height, letter spacing and cursor style into
-Ghostex; it never imports the theme or colors. When you first updated to this
+Ghostex; it never imports the theme or colors. Bold text is drawn in a heavier
+font while **Bold text uses a heavier font** is on (the default); turn it off and
+bold text keeps your normal font weight, so it stands out by color only.
+Ghostty's own bold lines in Ghostex's terminal config work too, and the two
+weight lines take priority over that switch: `font-style-bold = false` keeps bold
+at the normal weight, `font-variation-bold = wght=500` picks the bold weight, and
+`bold-color = bright`
+draws bold text in the bright version of its color (`bold-color = #ffaa00` uses
+that color instead). When you first updated to this
 version, a terminal look Ghostex had been taking from your Ghostty config was
 copied into Ghostex's terminal config once, so nothing changed; the old "Ghostex
 managed terminal settings" section in Ghostty's config was left in place and you

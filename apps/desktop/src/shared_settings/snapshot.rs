@@ -433,6 +433,11 @@ impl SharedSidebarSettingsSnapshot {
                 "terminalScrollToBottomWhenTyping",
                 DEFAULT_TERMINAL_SCROLL_TO_BOTTOM_WHEN_TYPING,
             ),
+            bold_uses_heavier_font: read_bool_field(
+                &self.object,
+                "terminalBoldUsesHeavierFont",
+                DEFAULT_TERMINAL_BOLD_USES_HEAVIER_FONT,
+            ),
             confirm_close_surface: SharedTerminalConfirmCloseSurface::from_normalized(
                 &normalize_ghostty_confirm_close_surface(read_string_field(
                     &self.object,

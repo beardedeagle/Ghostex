@@ -114,6 +114,7 @@ How to use this file:
 - **Font Family** `terminalFontFamily` (text, default JetBrains Mono): Type a Ghostty font-family name.
 - **Font Size** `terminalFontSize` (number default 13): Set terminal text size.
 - **Font Weight** `terminalFontWeight` (number default 300) [advanced]: Set terminal text weight.
+- **Bold text uses a heavier font** `terminalBoldUsesHeavierFont` (boolean, default true) [advanced]: Draw bold terminal text in a heavier weight. Turn off to keep bold text at your normal font weight, so it stands out by color only. A font-style-bold or font-variation-bold line in Ghostex's terminal config takes priority.
 - **Line Height** `terminalLineHeight` (number default 1.2) [advanced]: Adjust terminal row height.
 - **Letter Spacing** `terminalLetterSpacing` (number default 0) [advanced]: Adjust spacing between glyphs.
 - **Terminal width mode** `terminalViewWidthMode` (one of full | match-chat | custom; default full) [advanced]: Use the full pane, match the chat transcript, or set an independent terminal width. Option labels: full = Full, match-chat = Match Chat, custom = Custom.

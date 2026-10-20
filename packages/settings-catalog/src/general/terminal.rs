@@ -29,6 +29,7 @@ pub(crate) fn terminal(platform: Platform) -> Section {
         row("terminalFontFamily", "Font Family", "Type a Ghostty font-family name."),
         row("terminalFontSize", "Font Size", "Set terminal text size."),
         row("terminalFontWeight", "Font Weight", "Set terminal text weight."),
+        row("terminalBoldUsesHeavierFont", "Bold text uses a heavier font", "Draw bold terminal text in a heavier weight. Turn off to keep bold text at your normal font weight, so it stands out by color only. A font-style-bold or font-variation-bold line in Ghostex's terminal config takes priority."),
         row("terminalLineHeight", "Line Height", "Adjust terminal row height."),
         row("terminalLetterSpacing", "Letter Spacing", "Adjust spacing between glyphs."),
         row("terminalViewWidthMode", "Terminal width mode", "Use the full pane, match the chat transcript, or set an independent terminal width.").options(TERMINAL_VIEW_WIDTH_MODE_OPTIONS),

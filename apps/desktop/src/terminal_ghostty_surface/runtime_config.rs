@@ -16,7 +16,7 @@ use crate::{
     ghostty_vt::VtOptionAsAlt,
     shared_settings::SharedTerminalConfirmCloseSurface,
     terminal_element::{
-        TerminalConfiguredColor, TerminalCursorShape, TerminalMetricAdjustment,
+        TerminalBoldColor, TerminalConfiguredColor, TerminalCursorShape, TerminalMetricAdjustment,
         TerminalMouseShiftCapture, TerminalViewSettings,
     },
     terminal_gpui_engine::{
@@ -202,6 +202,17 @@ fn parse_ghostty_terminal_engine_config(
         .next_back()
         .unwrap_or(400.0);
     let mut font = gpui_engine_terminal_font_config_from_parts(font_family, font_size, font_weight);
+    font.bold_color = optional_value("bold-color")
+        .map(|value| match value {
+            "bright" => Ok(TerminalBoldColor::Bright),
+            value => parse_rgb_value(value).map(TerminalBoldColor::Rgb),
+        })
+        .transpose()?;
+    let ghostty_bold_weight = parse_ghostty_bold_weight(
+        value("font-style-bold"),
+        canonical_config_values(formatted, "font-variation-bold"),
+        font_weight,
+    );
     font.cell_width_adjustment = parse_metric_adjustment(optional_value("adjust-cell-width"))?;
     font.cell_height_adjustment = parse_metric_adjustment(optional_value("adjust-cell-height"))?;
 
@@ -358,7 +369,51 @@ fn parse_ghostty_terminal_engine_config(
         },
         option_as_alt,
         confirm_close_surface,
+        ghostty_bold_weight,
     })
+}
+
+/// The bold weight Ghostty's own bold keys ask for, `None` when neither is
+/// set. `font-style-bold = false` draws bold with the regular face (and so the
+/// regular `font-variation`), a `wght` in `font-variation-bold` is the bold
+/// face's weight, and a named style maps to its standard weight. Ghostty uses a
+/// named style only with `font-family-bold`; Ghostex draws one family, so the
+/// name applies to it.
+#[cfg(target_os = "macos")]
+fn parse_ghostty_bold_weight(
+    font_style_bold: Option<&str>,
+    font_variation_bold: Vec<&str>,
+    regular_weight: f32,
+) -> Option<gpui::FontWeight> {
+    if font_style_bold == Some("false") {
+        return Some(gpui::FontWeight(regular_weight));
+    }
+    let variation = font_variation_bold
+        .into_iter()
+        .filter_map(|value| value.strip_prefix("wght="))
+        .filter_map(|value| value.parse::<f32>().ok())
+        .next_back();
+    if let Some(weight) = variation {
+        return Some(gpui::FontWeight(weight));
+    }
+    let name = font_style_bold?
+        .chars()
+        .filter(|character| character.is_ascii_alphanumeric())
+        .collect::<String>()
+        .to_ascii_lowercase();
+    let weight = match name.as_str() {
+        "thin" | "hairline" => 100.0,
+        "extralight" | "ultralight" => 200.0,
+        "light" => 300.0,
+        "regular" | "normal" | "book" | "roman" => 400.0,
+        "medium" => 500.0,
+        "semibold" | "demibold" => 600.0,
+        "bold" => 700.0,
+        "extrabold" | "ultrabold" => 800.0,
+        "black" | "heavy" => 900.0,
+        _ => return None,
+    };
+    Some(gpui::FontWeight(weight))
 }
 
 #[cfg(target_os = "macos")]

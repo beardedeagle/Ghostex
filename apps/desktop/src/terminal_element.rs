@@ -150,6 +150,11 @@ pub struct TerminalFontConfig {
     pub family: SharedString,
     pub size: Pixels,
     pub weight: FontWeight,
+    /// Weight bold cells (SGR 1) draw at, resolved once per config change
+    /// by [`TerminalFontConfig::resolve_bold_weight`].
+    pub bold_weight: FontWeight,
+    /// Ghostty's `bold-color`; `None` keeps bold cells in their own colour.
+    pub bold_color: Option<TerminalBoldColor>,
     pub cell_width_adjustment: TerminalMetricAdjustment,
     pub cell_height_adjustment: TerminalMetricAdjustment,
 }
@@ -160,10 +165,38 @@ impl Default for TerminalFontConfig {
             family: "JetBrains Mono".into(),
             size: px(13.),
             weight: FontWeight::LIGHT,
+            bold_weight: FontWeight::BOLD,
+            bold_color: None,
             cell_width_adjustment: TerminalMetricAdjustment::None,
             cell_height_adjustment: TerminalMetricAdjustment::None,
         }
     }
+}
+
+impl TerminalFontConfig {
+    /// CDXC:Terminal 2026-10-20 DECISION:
+    /// User: "fix this by adding a setting enabled by default" (GitHub issue #264, bold text always drew heavier and ignored Ghostty's bold keys). Settings > Terminal "Bold text uses a heavier font" (`terminalBoldUsesHeavierFont`, on) keeps the heavier bold; off draws bold cells at the regular weight so bold differs by colour only. An explicit `font-style-bold` or `font-variation-bold` in Ghostex's terminal config wins over the switch; `bold-color` is independent of it.
+    pub fn resolve_bold_weight(
+        &mut self,
+        ghostty_bold_weight: Option<FontWeight>,
+        heavier_font: bool,
+    ) {
+        self.bold_weight = ghostty_bold_weight.unwrap_or(if heavier_font {
+            FontWeight::BOLD
+        } else {
+            self.weight
+        });
+    }
+}
+
+/// Ghostty's `bold-color`, applied the way Ghostty's own renderer does
+/// (`Style.fg` in `.dependencies/ghostty/src/terminal/style.zig`): both forms
+/// draw a bold palette 0-7 foreground with its bright twin (8-15), and a
+/// colour also replaces the default foreground of bold text.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum TerminalBoldColor {
+    Bright,
+    Rgb(Rgb),
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -3874,7 +3907,7 @@ impl TerminalElement {
 fn base_font(config: &TerminalFontConfig, bold: bool, italic: bool) -> Font {
     let mut font = gpui::font(config.family.clone());
     font.weight = if bold {
-        FontWeight::BOLD
+        config.bold_weight
     } else {
         config.weight
     };
@@ -4066,8 +4099,21 @@ fn background_image_bounds(
 /// arrives un-applied from the snapshot and is swapped here; `faint` dims the
 /// foreground toward the effective background. Returns `(fg, Option<bg>)`
 /// where `None` bg means the element's default background quad shows through.
-fn resolve_cell_colors(cell: &SnapshotCell, frame: &TerminalSnapshot) -> (Rgb, Option<Rgb>) {
-    let mut fg = cell.fg.unwrap_or(frame.foreground);
+/// Bold cells take `bold-color` first, before inverse swaps them, as in Ghostty.
+fn resolve_cell_colors(
+    cell: &SnapshotCell,
+    frame: &TerminalSnapshot,
+    bold_color: Option<TerminalBoldColor>,
+) -> (Rgb, Option<Rgb>) {
+    let mut fg = match bold_color {
+        Some(bold_color) if cell.bold => match (cell.fg_palette, cell.fg, bold_color) {
+            (Some(index), _, _) if index < 8 => frame.palette[usize::from(index) + 8],
+            (None, None, TerminalBoldColor::Rgb(color)) => color,
+            (None, Some(rgb), TerminalBoldColor::Rgb(color)) if rgb == frame.foreground => color,
+            (_, fg, _) => fg.unwrap_or(frame.foreground),
+        },
+        _ => cell.fg.unwrap_or(frame.foreground),
+    };
     let mut bg = cell.bg;
     if cell.inverse {
         let inverted_bg = fg;
@@ -4252,7 +4298,7 @@ fn build_row_layout(
 
     for (col, cell) in row.cells.iter().enumerate() {
         let col = col as u16;
-        let (fg, bg) = resolve_cell_colors(cell, frame);
+        let (fg, bg) = resolve_cell_colors(cell, frame, config.bold_color);
 
         // Spacer cells carry the wide char's style: include their background
         // so wide-cell backgrounds cover both columns, but never their text.
