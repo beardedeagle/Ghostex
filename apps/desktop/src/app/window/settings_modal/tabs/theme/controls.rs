@@ -276,6 +276,11 @@ pub(super) fn appearance_card(
         p.hairline
     };
     let hover = p.foreground_alpha(0.35);
+    // GPUI's `overflow_hidden` clips to the rectangle, not the rounded corners, so the card's
+    // outermost windows round their own outer corners to the radius inside the border.
+    let border = if selected { 2.0 } else { 1.0 };
+    let inner_radius = MODAL_RADIUS_SECTION - border;
+    let count = windows.len();
     v_flex()
         .id(id)
         .flex_1()
@@ -296,7 +301,9 @@ pub(super) fn appearance_card(
                         .hover(move |this| this.border_color(hsla(hover)))
                 })
                 .border_color(hsla(edge))
-                .children(windows.into_iter().map(mini_window)),
+                .children(windows.into_iter().enumerate().map(|(index, colours)| {
+                    mini_window(colours, index == 0, index + 1 == count, inner_radius)
+                })),
         )
         .child(
             div()
@@ -311,7 +318,9 @@ pub(super) fn appearance_card(
 
 /// A Ghostex window drawn small: the sidebar with three cards, and the work area with a message,
 /// a few lines of text and the composer.
-fn mini_window(colours: (Rgb, Rgb, Rgb)) -> AnyElement {
+/// `first` and `last` say which outer edges of the card this window sits on; those corners take
+/// `radius`.
+fn mini_window(colours: (Rgb, Rgb, Rgb), first: bool, last: bool, radius: f32) -> AnyElement {
     let (sidebar, work, foreground) = colours;
     let ink = |alpha: f32| hsla(css_fade(foreground.gpui(), alpha));
     let line = move |width: f32, alpha: f32| {
@@ -342,6 +351,9 @@ fn mini_window(colours: (Rgb, Rgb, Rgb)) -> AnyElement {
                 .gap(px(5.0))
                 .p(px(8.0))
                 .bg(hsla(sidebar.gpui()))
+                .when(first, |this| {
+                    this.rounded_tl(px(radius)).rounded_bl(px(radius))
+                })
                 .child(
                     h_flex()
                         .gap(px(3.0))
@@ -362,6 +374,9 @@ fn mini_window(colours: (Rgb, Rgb, Rgb)) -> AnyElement {
                 .border_l_1()
                 .border_color(ink(0.08))
                 .bg(hsla(work.gpui()))
+                .when(last, |this| {
+                    this.rounded_tr(px(radius)).rounded_br(px(radius))
+                })
                 .child(
                     h_flex().w_full().justify_end().child(
                         div()
