@@ -104,7 +104,7 @@ pub(super) fn definitions() -> Value {
         {
             "type": "function",
             "name": "answer_prompt",
-            "description": "Answer the question or permission prompt a session is waiting on, using option numbers from get_pending_prompt. For a permission prompt, pick the approve or deny option the user chose. For the open questions in its chat (questionForms from get_pending_prompt), give one answers entry per question with its ref (\"answer Q335 with the first option\" is {\"question\": \"Q335\", \"options\": [1]}); every form or page you answer is sent at once, its questions you leave out as skipped, and the forms you do not touch stay open.",
+            "description": "Answer the question or permission prompt a session is waiting on, using option numbers from get_pending_prompt. For a permission prompt, pick the approve or deny option the user chose. For the open questions in its chat (questionForms from get_pending_prompt), give one answers entry per question with its ref and the pick in options as option numbers (\"answer Q335 with the first option\" is {\"question\": \"Q335\", \"options\": [1]}) or in choice as its label, letter or \"recommended\" ({\"question\": \"Q335\", \"choice\": \"recommended\"}); to skip one on purpose give {\"question\": \"Q335\", \"skip\": true}. Every form or page you answer is sent at once, its questions you leave out as skipped, and the forms you do not touch stay open. An entry with no usable pick is refused with its valid options and nothing is sent. The result's recorded says exactly what was sent (\"Q335: Add both as proposed\"): tell the user that.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -120,6 +120,7 @@ pub(super) fn definitions() -> Value {
                                 "text": {"type": "string", "description": "A free answer instead of the options, when the question allows one."},
                                 "question": {"type": "string", "description": "For a question in the chat: its ref from get_pending_prompt (like Q335)."},
                                 "note": {"type": "string", "description": "For a question in the chat: a note sent with the chosen options."},
+                                "choice": {"type": "string", "description": "For a question in the chat: the chosen option by its label, number or letter, or \"recommended\" for the recommended one (instead of options)."},
                                 "skip": {"type": "boolean", "description": "For a question in the chat: send it as skipped."}
                             }
                         }
