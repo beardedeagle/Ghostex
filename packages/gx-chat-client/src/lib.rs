@@ -25,6 +25,8 @@ mod wire;
 
 #[cfg(not(target_family = "wasm"))]
 mod native;
+#[cfg(not(target_family = "wasm"))]
+pub mod voice;
 #[cfg(target_family = "wasm")]
 mod web;
 

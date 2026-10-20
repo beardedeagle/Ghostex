@@ -1,5 +1,6 @@
-//! The composer's Dictate control: the system speech recognizer (GPUI Kit's speech input) turns
-//! what the reader says into text, typed into the draft when they stop.
+//! The composer's Dictate control: Grok dictation (gxserver's `/api/voice?mode=dictation`, through
+//! GPUI Kit's speech input with `voice_agent::grok_dictation_speech_state`) turns what the reader
+//! says into text, typed into the draft when they stop.
 //!
 //! CDXC:SessionChat 2026-10-08 DECISION: User asked for voice input in the chat box, to the left of the Terminal View button, on the desktop and the phone (GPUI Kit's speech input, #3333, on the desktop). Pressing the microphone starts listening and pressing it again stops; the recognized text is typed into the draft and never sent by itself.
 //! CDXC:SessionChat 2026-10-08 SEE-ALSO: `apps/mobile/app/src/chat/native/composer/useDictation.ts` is the phone's control; the toolbar order is `toolbar.rs` `COMPOSER_CONTROLS` and the phone's `menus.ts`.
@@ -11,20 +12,20 @@ use serde_json::json;
 
 /// The one switch for both Dictate buttons, the chat box's and the terminal bar's.
 ///
-/// CDXC:SessionChat 2026-10-09 DECISION: User: "if we can't fix this np release with mic button hidden on all os for now i'll test it later". On Windows the recognizer starts and the microphone hears speech, yet no words ever come back (no partial result, and no completion after stopping), so both Dictate buttons are hidden on every OS until dictation is fixed and tested. Set this to `true` to bring them back; the dictation code stays in place.
+/// CDXC:VoiceMode 2026-10-20 DECISION: User: Dictate comes back on macOS with Grok dictation (xAI speech-to-text through gxserver, with the key kept on this computer) instead of the system speech recognizer; Windows stays hidden. This supersedes the 2026-10-09 decision ("if we can't fix this np release with mic button hidden on all os for now i'll test it later"), which hid both Dictate buttons on every OS because the Windows system recognizer never returned words.
 /// CDXC:SessionChat 2026-10-09 SEE-ALSO: the phone's switch is `DICTATION_ENABLED` in `apps/mobile/app/src/chat/native/composer/useDictation.ts`.
-pub(crate) const DICTATION_ENABLED: bool = false;
+pub(crate) const DICTATION_ENABLED: bool = true;
 
-/// Whether this build can dictate. macOS and Windows have a system recognizer; Linux has none and
-/// the web build has no microphone, so the control is not drawn there.
-pub(super) const DICTATION: bool =
-    DICTATION_ENABLED && cfg!(any(target_os = "macos", target_os = "windows"));
+/// Whether this build can dictate: macOS only, where the app's own audio engine captures the
+/// microphone (`voice_agent/audio.rs`). Windows stays hidden by decision, Linux has no capture
+/// implementation, and the web build has no microphone, so the control is not drawn there.
+pub(super) const DICTATION: bool = DICTATION_ENABLED && cfg!(target_os = "macos");
 
 /// Where to allow the microphone when the system refused it.
 const MICROPHONE_ACCESS_HINT: &str = if cfg!(target_os = "windows") {
     "Ghostex can't use the microphone. Turn on Microphone access and Let desktop apps access your microphone in Windows Settings > Privacy & security > Microphone."
 } else {
-    "Ghostex can't use the microphone or speech recognition. Allow Ghostex under Microphone and under Speech Recognition in System Settings > Privacy & Security."
+    "Ghostex can't use the microphone. Allow Ghostex under Microphone in System Settings > Privacy & Security."
 };
 
 /// What to install when the system cannot recognize its language.
@@ -72,6 +73,15 @@ fn sentence(text: &str) -> String {
 /// A dictation session and the subscription that types its result into the draft.
 pub(crate) type Dictation = Option<(Entity<SpeechState>, Subscription)>;
 
+/// The system speech recognizer's dictation (GPUI Kit's `SystemRecognizer`), which Dictate used
+/// before Grok dictation.
+///
+/// CDXC:VoiceMode 2026-10-20 DECISION: User: "keep but mark the old code as unused". Unused since 2026-10-20: Dictate builds its speech state with `voice_agent::grok_dictation_speech_state`. Swap this back in at the two `cx.new` calls (here and `render/terminal_agent_action_bar/dictation.rs`) to return to the system recognizer.
+#[allow(dead_code)]
+pub(crate) fn system_recognizer_speech_state(cx: &mut Context<SpeechState>) -> SpeechState {
+    SpeechState::new(cx)
+}
+
 impl NativeChatView {
     /// Whether the microphone is listening (or finishing what it heard).
     pub(super) fn dictating(&self, cx: &App) -> bool {
@@ -83,7 +93,7 @@ impl NativeChatView {
     /// Start listening, or stop and type what was heard.
     pub(super) fn toggle_dictation(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.dictation.is_none() {
-            let speech = cx.new(SpeechState::new);
+            let speech = cx.new(crate::app::voice_agent::grok_dictation_speech_state);
             let subscription =
                 cx.subscribe_in(&speech, window, |this, _, event, window, cx| match event {
                     SpeechEvent::Final(text) => this.insert_dictation(text, window, cx),

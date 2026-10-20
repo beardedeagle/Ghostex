@@ -955,9 +955,15 @@ skills (the phone says to install them there on the computer).
 Use the paperclip to attach images, files, or folders. On Linux, choose
 **Images or files…** or **Folders…** before selecting items in the system picker;
 the terminal's attachment action offers the same choices.
-Dictation (a microphone button in the chat box and on the terminal bar) is turned
-off in this version on every platform while it is being fixed, so there is no
-microphone button yet.
+Dictate, on a Mac, is the microphone button in the chat box (left of the
+Terminal View button) and on the terminal bar: press it, talk, and press it
+again to stop. What you said goes into the chat box (or is typed into that
+session's terminal) and is never sent by itself. It turns speech into text with
+xAI's speech-to-text, so it needs an xAI API key in Settings > Voice agent; the
+key stays on this computer. Dictate is not shown on Windows or Linux yet. On an
+Android phone, Dictate is in the chat box's toolbar or, when the toolbar is
+full, in its More actions menu (Stop dictating there ends it); it uses the
+key on the computer the chat lives on.
 A long code block shows its first lines and scrolls inside the block; the arrows
 button in the block's header shows the whole block, and again collapses it.
 A long message you sent (more than 20 lines or 2,000 characters, such as a
@@ -2510,6 +2516,42 @@ what you have read. It is read-only and needs the Ghostex app, not the browser
 build.
 
 Setting: `botAutomationsHidden` (on by default, which keeps the feed hidden).
+
+## Voice agent
+
+Talk to your agents out loud. On a Mac, the headset button in the work area
+header (beside the ⋯ menu) starts a spoken conversation with Ghostex's voice
+agent, and pressing it again hangs up. Ask what your sessions are doing or
+which ones are waiting on you, have it read you the last messages of a session,
+tell it to send a prompt to a session (it sends right away and says what it
+sent), answer a question card or approve or deny a permission prompt, or start
+a new agent in a project you name. Name sessions and projects the way you
+would say them ("the sidebar one"); it asks when two match. While the
+conversation is open it tells you when a session finishes its turn or starts
+waiting on a question or an approval. The conversation keeps going while you
+switch projects and chats. A small panel under the header shows what it is
+doing, live captions of both sides and the tools it runs, with Mute, Stop
+talking and Hang up; talking over it also stops it. It hangs up by itself after
+5 minutes with nobody talking.
+
+It needs an API key: pick xAI Grok Voice (the default) or OpenAI GPT Realtime
+in Settings > Voice agent, pick a voice, and paste the provider's key there
+(xAI keys come from console.x.ai, OpenAI keys from platform.openai.com). The
+key is checked with the provider before it is saved, kept encrypted on this
+computer and never shown again. The provider bills your account while a
+conversation is open. Ghostex cancels the agent's own voice from the speakers,
+so it works without headphones. Not available on Windows or Linux yet.
+
+On an Android phone, the headset button in the top bar (on the session list
+and inside a session) starts the same conversation with the voice agent on the
+computer you are looking at. The key stays on that computer; the phone never
+stores one. The conversation keeps going while you move around the app, switch
+apps or lock the phone, with a "Voice mode on" notification that has Mute and
+Hang up, and it reconnects by itself after a short network drop. It talks
+through the phone's speaker, or a Bluetooth headset or car hands-free link
+when one is connected, and pauses while a call or a navigation prompt plays.
+
+Settings: `voiceAgentProvider`, `voiceAgentXaiVoice`, `voiceAgentOpenaiVoice`.
 
 ## Remote machines, web, and mobile
 

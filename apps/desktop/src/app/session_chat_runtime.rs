@@ -81,6 +81,9 @@ impl GhostexGpuiApp {
                 continue;
             }
             crate::app::gx_chat::set_endpoint(&machine_id, &endpoint.0, &endpoint.1);
+            if machine_id == crate::app::gx_chat::LOCAL_MACHINE_ID {
+                crate::app::voice_agent::set_local_voice_endpoint(&endpoint.0, &endpoint.1);
+            }
             self.session_chat_broker_endpoints
                 .insert(machine_id, endpoint);
         }

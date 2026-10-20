@@ -22,6 +22,7 @@ pub(crate) enum SettingsTabId {
     About,
     Workspaces,
     Connectors,
+    VoiceAgent,
 }
 
 impl SettingsTabId {
@@ -29,12 +30,13 @@ impl SettingsTabId {
     /// group's pages ([`Self::EXTENSIONS_GROUP`]), then About, pinned to the rail's bottom. Pages
     /// the shell filters (OS Integration, Connectors, Debugging, the built-in extensions' pages)
     /// leave the rail while they are off.
-    pub(crate) const RAIL_ORDER: [SettingsTabId; 17] = [
+    pub(crate) const RAIL_ORDER: [SettingsTabId; 18] = [
         SettingsTabId::General,
         SettingsTabId::Theme,
         SettingsTabId::Agents,
         SettingsTabId::Accounts,
         SettingsTabId::Integrations,
+        SettingsTabId::VoiceAgent,
         SettingsTabId::Remote,
         SettingsTabId::Projects,
         SettingsTabId::Hotkeys,
@@ -87,6 +89,7 @@ impl SettingsTabId {
             SettingsTabId::About => "about",
             SettingsTabId::Workspaces => "workspaces",
             SettingsTabId::Connectors => "connectors",
+            SettingsTabId::VoiceAgent => "voiceAgent",
         }
     }
 
@@ -114,6 +117,7 @@ impl SettingsTabId {
             SettingsTabId::About => "About",
             SettingsTabId::Workspaces => "Workspaces",
             SettingsTabId::Connectors => "Connectors",
+            SettingsTabId::VoiceAgent => "Voice agent",
         }
     }
 
@@ -137,6 +141,7 @@ impl SettingsTabId {
             SettingsTabId::About => "modals/settings/info-circle.svg",
             SettingsTabId::Workspaces => "modals/settings/briefcase.svg",
             SettingsTabId::Connectors => "modals/settings/plug-connected.svg",
+            SettingsTabId::VoiceAgent => "modals/settings/microphone.svg",
         }
     }
 }

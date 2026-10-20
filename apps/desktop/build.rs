@@ -909,6 +909,13 @@ fn main() {
         .file(gpui_open_with)
         .compile("ghostex_gpui_open_with");
 
+    // The voice conversation's and Grok dictation's microphone and speaker (app/voice_agent/audio.rs).
+    let gpui_voice_audio = manifest_dir.join("native/macos/GpuiVoiceAudio.m");
+    println!("cargo:rerun-if-changed={}", gpui_voice_audio.display());
+    gpui_macos_objc_build()
+        .file(gpui_voice_audio)
+        .compile("ghostex_gpui_voice_audio");
+
     // The first-run intro video's WKWebView (window/onboarding/intro_web_view.rs).
     let gpui_intro_video_web_view = manifest_dir.join("native/macos/GpuiIntroVideoWebView.m");
     println!(
@@ -967,4 +974,5 @@ fn main() {
     println!("cargo:rustc-link-lib=framework=UniformTypeIdentifiers");
     println!("cargo:rustc-link-lib=framework=UserNotifications");
     println!("cargo:rustc-link-lib=framework=WebKit");
+    println!("cargo:rustc-link-lib=framework=AVFoundation");
 }

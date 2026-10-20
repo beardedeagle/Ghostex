@@ -133,6 +133,7 @@ mod view_tab_actions;
 pub(crate) mod view_tab_menus;
 pub(crate) mod visual_page_modal_lifecycle;
 pub(crate) mod visual_page_thumbnails;
+pub(crate) mod voice_agent;
 pub(crate) mod web_page_sleep;
 pub(crate) mod web_runtime_install;
 pub(crate) mod web_runtime_prompt_modal_lifecycle;

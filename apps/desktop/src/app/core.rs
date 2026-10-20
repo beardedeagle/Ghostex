@@ -474,6 +474,8 @@ pub struct GhostexGpuiApp {
     /// The terminal bar's dictation, made the first time the reader presses its Dictate button.
     pub(crate) terminal_dictation:
         Option<crate::app::render::terminal_agent_action_bar::TerminalDictation>,
+    /// The manager voice agent's conversation and its panel (the header's Voice button).
+    pub(crate) voice_agent: crate::app::voice_agent::VoiceAgent,
     /// A Claude or Codex session's flyout rows while that flyout is open: the sidebar session id
     /// the accounts were asked for, and the rows gx-core's `sessionAccounts` page last published
     /// (`gx_store/sidebar_accounts.rs`), the same rows the sidebar row's Switch Account shows.

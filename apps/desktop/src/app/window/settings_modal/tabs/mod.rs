@@ -18,6 +18,7 @@ pub(crate) mod os_integration;
 pub(crate) mod projects;
 pub(crate) mod remote;
 pub(crate) mod theme;
+pub(crate) mod voice_agent;
 pub(crate) mod workspaces;
 
 use super::model::SettingsTabId;
@@ -51,6 +52,7 @@ pub(crate) fn settings_tab_view(
         SettingsTabId::Accounts => accounts::accounts_tab_view(store, window, cx),
         SettingsTabId::Workspaces => workspaces::workspaces_tab_view(store, cx),
         SettingsTabId::Connectors => connectors::connectors_tab_view(store, cx),
+        SettingsTabId::VoiceAgent => voice_agent::voice_agent_tab_view(store, window, cx),
         // TAB-ARMS: one arm per page.
     }
 }

@@ -425,6 +425,9 @@ impl GhostexGpuiApp {
             .items_center()
             .gap(px(WORKAREA_HEADER_PINNED_GAP))
             .ml(px(4.0))
+            .when(crate::app::voice_agent::VOICE_AGENT_AVAILABLE, |this| {
+                this.child(self.render_workarea_header_voice_button(cx))
+            })
             // Everything occasional lives behind the trailing ⋯ menu.
             .when(self.titlebar_more_menu_visible(), |this| {
                 this.child(self.render_titlebar_more_button(cx))

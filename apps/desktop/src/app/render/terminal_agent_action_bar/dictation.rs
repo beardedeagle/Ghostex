@@ -1,5 +1,5 @@
-// The terminal bar's Dictate button: the system speech recognizer turns what the reader says into
-// text, pasted into that session's terminal when they stop.
+// The terminal bar's Dictate button: Grok dictation (`voice_agent::grok_dictation_speech_state`)
+// turns what the reader says into text, pasted into that session's terminal when they stop.
 //
 // CDXC:SessionChat 2026-10-08 DECISION:
 // User: "show the mic in the terminal view bottom bar to the left of the chat view button". It is
@@ -13,10 +13,10 @@ use crate::*;
 use gpui::{AppContext as _, Entity, Subscription, Window};
 use gpui_component::speech::{SpeechEvent, SpeechState};
 
-/// Whether this build can dictate. macOS and Windows have a system recognizer; Linux has none, so
-/// the bar draws no Dictate button there. Off everywhere while `DICTATION_ENABLED` is.
-pub(super) const TERMINAL_DICTATION: bool = crate::app::native_chat::dictation::DICTATION_ENABLED
-    && cfg!(any(target_os = "macos", target_os = "windows"));
+/// Whether this build can dictate: macOS only, like the chat box's Dictate (CDXC:VoiceMode
+/// 2026-10-20 DECISION in `native_chat/dictation.rs`). Off everywhere while `DICTATION_ENABLED` is.
+pub(super) const TERMINAL_DICTATION: bool =
+    crate::app::native_chat::dictation::DICTATION_ENABLED && cfg!(target_os = "macos");
 
 /// The session the microphone is listening for, and the subscription that pastes its result.
 pub(crate) struct TerminalDictation {
@@ -50,7 +50,7 @@ impl GhostexGpuiApp {
             cx.notify();
             return;
         }
-        let speech = cx.new(SpeechState::new);
+        let speech = cx.new(crate::app::voice_agent::grok_dictation_speech_state);
         let subscription = cx.subscribe_in(&speech, window, move |this, _, event, _, cx| {
             let ended = matches!(
                 event,

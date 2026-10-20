@@ -47,6 +47,7 @@ pub(crate) mod sidebar_direct_focus {
 }
 pub(crate) mod terminal_host;
 pub(crate) mod titlebar;
+pub(crate) mod voice_agent;
 pub(crate) mod web_app;
 pub(crate) mod web_host;
 pub(crate) mod window;
