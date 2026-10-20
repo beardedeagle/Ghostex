@@ -635,8 +635,8 @@ impl NativeChatView {
 }
 
 impl NativeChatView {
-    /// "Skip all", beside the send button while the form is open: it skips every question not yet
-    /// answered and sends at once (the core's `skip_all`). It is a soft-fill button (see
+    /// "Skip all", beside the send button while the form is open: it skips every question, whatever
+    /// is picked, and sends at once (the core's `skip_all`). It is a soft-fill button (see
     /// `ask_soft_button`), and its shortcut shows in a quick tooltip rather than on the button.
     fn skip_all_button(
         &self,

@@ -1188,7 +1188,7 @@ option it recommends), every choice question has an Other / none of these
 choice, and you can leave any question blank or click a choice again to clear
 it. A question you leave blank is sent to the agent as skipped, so it moves on
 without asking again, and Skip all (or Ctrl+Shift+Enter, Cmd+Shift+Enter on
-macOS) sends right away with every question you haven't answered marked skipped. A
+macOS) sends right away with every question marked skipped, even ones you already picked. A
 form with more than one question also ends with an optional notes box
 for anything else you want the agent to know. Send (or Ctrl+Enter, Cmd+Enter
 on macOS, from anywhere in the form or page) delivers your answers to the agent as a message (when the agent is

@@ -184,10 +184,10 @@ fn asked_text(state: &ChatState, id: &str, question: usize) -> bool {
         .is_some_and(|asked| asked.text)
 }
 
-/// `formSkipAll {form}`: sends the form at once; every question not yet answered goes as
-/// `"skipped"` (see `send`), and the questions the reader answered keep their answers.
+/// `formSkipAll {form}`: sends the form at once with every question as `"skipped"` and no notes,
+/// whatever the reader picked or typed in it (see `send_answers`).
 pub fn skip_all(state: &mut ChatState, context: &ChatContext, id: &str) -> Vec<Effect> {
-    send(state, context, id)
+    send_answers(state, context, id, true)
 }
 
 /// `formNotes {form, text}`: the form's own notes box, under the last question.
@@ -263,18 +263,37 @@ pub fn answers(form: &QuestionForm, drafts: &[QuestionDraft], notes: &str) -> Va
 
 /// `formSend {form}`: the answers go to the agent as a chat message.
 pub fn send(state: &mut ChatState, context: &ChatContext, id: &str) -> Vec<Effect> {
+    send_answers(state, context, id, false)
+}
+
+/// Sends the form: the reader's answers, or with `skip_everything` (Skip all) every question as
+/// `"skipped"` and no notes, never a pick.
+fn send_answers(
+    state: &mut ChatState,
+    context: &ChatContext,
+    id: &str,
+    skip_everything: bool,
+) -> Vec<Effect> {
     if !open(state, id) {
         return Vec::new();
     }
     let Some(form) = form(state, id).cloned() else {
         return Vec::new();
     };
-    let (drafts, notes) = state
-        .questions
-        .forms
-        .get(id)
-        .map(|entry| (entry.drafts.clone(), entry.notes.clone()))
-        .unwrap_or_default();
+    let (drafts, notes) = if skip_everything {
+        let skipped = QuestionDraft {
+            skipped: true,
+            ..QuestionDraft::default()
+        };
+        (vec![skipped; form.questions.len()], String::new())
+    } else {
+        state
+            .questions
+            .forms
+            .get(id)
+            .map(|entry| (entry.drafts.clone(), entry.notes.clone()))
+            .unwrap_or_default()
+    };
     // A question left blank is sent as `"skipped"` (the SessionChat 2026-10-16 DECISION on `SKIPPED` in packages/gx-visual/src/questions.rs), so a form may be sent with any number of questions unanswered, none included (then it is Skip all).
     let mut drafts = drafts;
     drafts.resize(form.questions.len(), QuestionDraft::default());

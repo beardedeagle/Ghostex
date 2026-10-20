@@ -29,7 +29,8 @@
 //! the page is centred, so it lines up symmetrically with the column. A choice question
 //! (`multiple` for several picks) letters its choices, ends with "Other / none of these", and has
 //! a note box; a `type="text"` question is a text box. A question left blank when the answers are
-//! sent goes as `"skipped"`, and the kit adds a Skip all button that sends at once (see the
+//! sent goes as `"skipped"`, and the kit adds a Skip all button that sends every question as
+//! `"skipped"` at once (see the
 //! SessionChat 2026-10-16 DECISION on `SKIPPED` in packages/gx-visual/src/questions.rs). The kit adds the send button, posts the answers with `ghostex.submit`
 //! keyed by each question's `name` (its title when it has none), with a non-empty note as
 //! `"<key> (note)"`, and shows a sent page's answers locked when it is opened again. Until then it
@@ -242,19 +243,24 @@ function setup(root){
   var mac=/Mac|iPhone|iPad/.test(navigator.platform||"");
   /* The shortcuts show in a quick tooltip (CSS, data-tip), not on the buttons. */
   button.setAttribute("data-tip","Send answers · "+(mac?"⌘↵":"Ctrl+Enter"));
-  /* Skip all: sends at once; every question left blank goes as skipped, like Send answers. */
+  /* Skip all: sends at once with every question as skipped and no notes, whatever is picked or typed (see the SessionChat DECISION on SKIPPED in packages/gx-visual/src/questions.rs). */
   var skipAll=el("button","gx-skip-all");skipAll.type="button";skipAll.append(el("span",null,"Skip all"));skipAll.setAttribute("data-tip","Skip all · "+(mac?"⌘⇧↵":"Ctrl+Shift+Enter"));
   button.type="button";button.append(label);bar.append(status,skipAll,button);root.append(bar);
-  skipAll.addEventListener("click",function(){if(!button.disabled)button.click();});
+  skipAll.addEventListener("click",function(){
+    if(button.disabled)return;
+    var out={};questions.forEach(function(q){out[q.key]=SKIPPED;});
+    /* Once sent, the page shows what went: no picks and no notes. */
+    send(out,function(){restore({});root.querySelectorAll("textarea").forEach(function(t){t.value="";});});
+  });
   function lock(){questions.forEach(function(q){q.lock();});options.forEach(function(o){o.lock();});syncOptions();button.disabled=true;skipAll.remove();label.textContent="Sent";button.removeAttribute("data-tip");status.textContent="Sent to the agent.";}
   if(!window.ghostex){button.disabled=true;skipAll.remove();status.textContent="This Ghostex can't send answers from a page; type them in the chat.";return;}
   if(ghostex.answered){restore(ghostex.answers||{});lock();return;}
   var saved=ghostex.__draft&&ghostex.__draft("kit");if(saved&&typeof saved==="object"){restore(saved);syncOptions();}
-  button.addEventListener("click",function(){
-    var out=collect();
+  function send(out,sent){
     button.disabled=true;status.classList.remove("gx-error");status.textContent="Sending…";
-    ghostex.submit(out).then(lock,function(error){button.disabled=false;status.classList.add("gx-error");status.textContent=error&&error.message||"Your answers were not sent.";});
-  });
+    ghostex.submit(out).then(function(){if(sent)sent();lock();},function(error){button.disabled=false;status.classList.add("gx-error");status.textContent=error&&error.message||"Your answers were not sent.";});
+  }
+  button.addEventListener("click",function(){send(collect());});
   /* Ctrl+Enter (Cmd+Enter on macOS) presses the send button from anywhere on the page, a note box included; with Shift it presses Skip all. */
   document.addEventListener("keydown",function(e){if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)&&!e.isComposing&&!button.disabled){e.preventDefault();(e.shiftKey?skipAll:button).click();}});
 }
