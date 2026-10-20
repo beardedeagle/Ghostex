@@ -2684,9 +2684,10 @@ sessions, so any client can control agents on any machine.
   a program that hasn't turned on safe paste first asks "Paste potentially
   unsafe text?", as the desktop does.
   To read a project's docs on the phone, long-press the project and choose
-  Docs, or choose Docs from a session's ⋯ menu. It lists the project's Markdown
+  Files, or choose Files from a session's ⋯ menu. It lists the project's Markdown
   and HTML files from the same folders the desktop Files view shows, with search
-  and the most recently changed files on top. Files open in a reader on the
+  and the most recently changed files on top; very deep folders list down to
+  eight levels. Files open in a reader on the
   phone, and Reload picks up an agent's latest edit. HTML pages include the
   Agentation annotation tool (the pen button hides it); its copy button puts
   your notes on the phone's clipboard, ready to paste into a session.

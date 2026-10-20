@@ -3,13 +3,18 @@
 /// Match the desktop budget and fail explicitly at a limit so a partial tree cannot look complete.
 /// SEE-ALSO: apps/desktop/src/app/helpers/os_cli/process_and_constants.rs.
 pub(super) const FILE_LIST_MAX_ENTRIES: usize = 20_000;
+/// CDXC:Docs 2026-10-20 WHY:
+/// A project whose Docs folders nest deeper than this lost its whole listing on the phone ("Project Docs nests deeper than 8 folders"), README.md included.
+/// The full walk now stops descending at this depth and keeps everything above it; the progressive folder listing has no depth cap, so a folder opened by hand still lists its children.
+/// The entry cap below still fails loudly. SEE-ALSO: `MANAGE_FILE_LIST_MAX_DEPTH` in apps/desktop/src/app/helpers/os_cli/process_and_constants.rs.
 pub(super) const FILE_LIST_MAX_DEPTH: usize = 8;
 /*
 CDXC:Docs 2026-08-09:
 A mounted Docs directory is a notes tree with a bounded walk.
 A directory pointed at a home folder must
-fail loudly naming the cap instead of walking forever or returning a tree that
-silently stops.
+fail loudly naming the entry cap instead of walking forever or returning a tree
+that silently stops. The depth cap only stops descending (2026-10-20, see
+`FILE_LIST_MAX_DEPTH`).
 */
 pub(super) const DOCS_TREE_MAX_ENTRIES: usize = 20_000;
 pub(super) const DOCS_TREE_MAX_DEPTH: usize = 12;

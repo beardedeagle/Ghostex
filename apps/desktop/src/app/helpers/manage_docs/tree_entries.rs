@@ -115,8 +115,8 @@ Docs directory is walked to the bottom and files are narrowed to the extensions
 Docs renders.
 
 CDXC:Docs 2026-08-09: every failure lands on the mount node's label
-instead of on the listing — an unopenable directory, and the entry and depth caps
-alike. Losing the whole panel, including the project's own README.md, because a
+instead of on the listing: an unopenable directory, and the entry cap (the depth cap
+only stops descending). Losing the whole panel, including the project's own README.md, because a
 vault is too deep is the one thing this must not do, and a tree that silently
 stopped at 20,000 entries reads exactly like a vault that only has that many.
 */
@@ -236,9 +236,6 @@ pub(crate) fn manage_append_docs_tree_entries(
     scanned_directory_entries: &mut usize,
     recursive: bool,
 ) -> Result<(), String> {
-    if depth > MANAGE_DOCS_TREE_MAX_DEPTH {
-        return Err(manage_docs_tree_depth_cap_error());
-    }
     let mut children = manage_bounded_docs_children(
         directory,
         scanned_directory_entries,
@@ -312,7 +309,7 @@ pub(crate) fn manage_append_docs_tree_entries(
         }
     }
 
-    if !recursive {
+    if !recursive || depth >= MANAGE_DOCS_TREE_MAX_DEPTH {
         return Ok(());
     }
     for (directory, relative_path) in directories {
@@ -335,20 +332,10 @@ pub(crate) fn manage_docs_tree_entry_cap_error() -> String {
     )
 }
 
-pub(crate) fn manage_docs_tree_depth_cap_error() -> String {
-    format!(
-        "Docs directory nests deeper than {MANAGE_DOCS_TREE_MAX_DEPTH} folders. Point it at a smaller folder in Settings > Projects."
-    )
-}
-
 pub(crate) fn manage_docs_scan_cap_error() -> String {
     format!(
         "Project Docs exceeds the scan limit of {MANAGE_FILE_LIST_MAX_ENTRIES} files and folders."
     )
-}
-
-pub(crate) fn manage_docs_scan_depth_cap_error() -> String {
-    format!("Project Docs nests deeper than {MANAGE_FILE_LIST_MAX_DEPTH} folders.")
 }
 
 pub(crate) fn manage_append_project_root_artifact_file_entries(
@@ -410,9 +397,6 @@ pub(crate) fn manage_append_project_file_entries(
         MANAGE_FILE_LIST_MAX_ENTRIES,
         manage_docs_scan_cap_error,
     )?;
-    if depth > MANAGE_FILE_LIST_MAX_DEPTH && !children.is_empty() {
-        return Err(manage_docs_scan_depth_cap_error());
-    }
     children.sort_by(|left, right| {
         let left_is_dir = left
             .metadata()
@@ -482,7 +466,7 @@ pub(crate) fn manage_append_project_file_entries(
         }
     }
 
-    if !recursive {
+    if !recursive || depth >= MANAGE_FILE_LIST_MAX_DEPTH {
         return Ok(());
     }
     for (directory, relative_path) in directories {

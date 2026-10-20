@@ -76,8 +76,8 @@ and attachment folders are not documents.
 CDXC:Docs 2026-08-09:
 The mount is one top-level folder named after the directory, and every failure
 lands on that node's label instead of on the listing: an unopenable directory,
-and the entry and depth caps alike. Losing the whole panel — including the
-project's own README.md — because a vault is too deep is the one thing this
+and the entry cap (the depth cap only stops descending). Losing the whole panel, including the
+project's own README.md, because a vault is too deep is the one thing this
 must not do, and a tree that silently stopped at 20,000 entries reads exactly
 like a vault that only has that many, so the cap is named on the node.
 */
@@ -166,9 +166,6 @@ pub(super) fn append_docs_tree_entries(
     scanned_directory_entries: &mut usize,
     recursive: bool,
 ) -> Result<(), String> {
-    if depth > DOCS_TREE_MAX_DEPTH {
-        return Err(docs_tree_depth_cap_error());
-    }
     let mut children = bounded_directory_entries(
         directory,
         scanned_directory_entries,
@@ -228,7 +225,7 @@ pub(super) fn append_docs_tree_entries(
             directories.push((child.path(), relative_path));
         }
     }
-    if !recursive {
+    if !recursive || depth >= DOCS_TREE_MAX_DEPTH {
         return Ok(());
     }
     for (directory, relative_path) in directories {
@@ -249,19 +246,9 @@ pub(super) fn docs_scan_cap_error() -> String {
     format!("Project Docs exceeds the scan limit of {FILE_LIST_MAX_ENTRIES} files and folders.")
 }
 
-fn docs_scan_depth_cap_error() -> String {
-    format!("Project Docs nests deeper than {FILE_LIST_MAX_DEPTH} folders.")
-}
-
 fn docs_tree_entry_cap_error() -> String {
     format!(
         "Docs directory holds more than {DOCS_TREE_MAX_ENTRIES} files and folders. Point it at a smaller folder in Settings > Projects."
-    )
-}
-
-fn docs_tree_depth_cap_error() -> String {
-    format!(
-        "Docs directory nests deeper than {DOCS_TREE_MAX_DEPTH} folders. Point it at a smaller folder in Settings > Projects."
     )
 }
 
@@ -335,9 +322,6 @@ pub(super) fn append_file_entries(
         FILE_LIST_MAX_ENTRIES,
         docs_scan_cap_error,
     )?;
-    if depth > FILE_LIST_MAX_DEPTH && !children.is_empty() {
-        return Err(docs_scan_depth_cap_error());
-    }
     children.sort_by(|left, right| {
         let left_is_dir = left.metadata().is_ok_and(|metadata| metadata.is_dir());
         let right_is_dir = right.metadata().is_ok_and(|metadata| metadata.is_dir());
@@ -389,7 +373,7 @@ pub(super) fn append_file_entries(
             directories.push((child.path(), relative_path));
         }
     }
-    if !recursive {
+    if !recursive || depth >= FILE_LIST_MAX_DEPTH {
         return Ok(());
     }
     for (directory, relative_path) in directories {

@@ -291,12 +291,15 @@ pub(crate) fn file_url(path: &std::path::Path) -> anyhow::Result<String> {
 /// Project scans use the same entry budget as mounted Docs trees and report exhausted limits instead of returning partial listings.
 /// SEE-ALSO: server/src/project_docs/limits.rs.
 pub(crate) const MANAGE_FILE_LIST_MAX_ENTRIES: usize = 20_000;
+/// CDXC:Docs 2026-10-20 WHY:
+/// Past this depth the full walk stops descending instead of failing the whole listing; the progressive folder listing has no depth cap.
+/// SEE-ALSO: `FILE_LIST_MAX_DEPTH` in server/src/project_docs/limits.rs.
 pub(crate) const MANAGE_FILE_LIST_MAX_DEPTH: usize = 8;
 /*
 CDXC:Docs 2026-08-09:
 Mirrors `server/src/project_docs/limits.rs`: a mounted Docs directory is a notes
-tree with a bounded walk. Hitting a limit labels that mount with the cap instead of returning a tree that
-silently stopped.
+tree with a bounded walk. Hitting the entry cap labels that mount with the cap instead of returning a tree that
+silently stopped; the depth cap only stops descending (2026-10-20).
 */
 pub(crate) const MANAGE_DOCS_TREE_MAX_ENTRIES: usize = 20_000;
 pub(crate) const MANAGE_DOCS_TREE_MAX_DEPTH: usize = 12;
