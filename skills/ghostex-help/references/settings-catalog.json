@@ -73,6 +73,7 @@
       "sectionTitle": "Sidebar",
       "type": "boolean",
       "default": false,
+      "advanced": true,
       "agentWritable": true
     },
     {
@@ -89,6 +90,7 @@
       "default": 10,
       "min": 0,
       "max": 60,
+      "advanced": true,
       "agentWritable": true
     },
     {
@@ -217,6 +219,7 @@
           "value": "programStatus"
         }
       ],
+      "advanced": true,
       "agentWritable": true
     },
     {
@@ -261,6 +264,7 @@
       "sectionTitle": "Sidebar",
       "type": "boolean",
       "default": false,
+      "advanced": true,
       "agentWritable": true
     },
     {
@@ -278,6 +282,7 @@
       "min": 0,
       "max": 1000,
       "step": 100,
+      "advanced": true,
       "agentWritable": true
     },
     {
@@ -310,6 +315,7 @@
           "value": "fast"
         }
       ],
+      "advanced": true,
       "agentWritable": true
     },
     {
@@ -342,6 +348,7 @@
       "min": 0,
       "max": 2000,
       "step": 100,
+      "advanced": true,
       "agentWritable": true
     },
     {
@@ -414,6 +421,7 @@
       "sectionTitle": "Sidebar",
       "type": "boolean",
       "default": true,
+      "advanced": true,
       "agentWritable": true
     },
     {
@@ -450,6 +458,7 @@
           "value": "300"
         }
       ],
+      "advanced": true,
       "agentWritable": true
     },
     {
@@ -464,6 +473,7 @@
       "sectionTitle": "Sidebar",
       "type": "boolean",
       "default": false,
+      "advanced": true,
       "agentWritable": true
     },
     {
@@ -478,6 +488,7 @@
       "sectionTitle": "Sidebar",
       "type": "boolean",
       "default": false,
+      "advanced": true,
       "agentWritable": true
     },
     {
@@ -961,6 +972,7 @@
       "sectionTitle": "Chat",
       "type": "boolean",
       "default": false,
+      "advanced": true,
       "agentWritable": true
     },
     {
@@ -978,6 +990,7 @@
       "min": 50,
       "max": 100,
       "step": 5,
+      "advanced": true,
       "agentWritable": true
     },
     {
@@ -1006,6 +1019,7 @@
       "sectionTitle": "Chat",
       "type": "boolean",
       "default": false,
+      "advanced": true,
       "agentWritable": true
     },
     {
@@ -1020,6 +1034,7 @@
       "sectionTitle": "Chat",
       "type": "boolean",
       "default": false,
+      "advanced": true,
       "agentWritable": true
     },
     {
@@ -1034,6 +1049,7 @@
       "sectionTitle": "Chat",
       "type": "boolean",
       "default": true,
+      "advanced": true,
       "agentWritable": true
     },
     {
@@ -1210,6 +1226,7 @@
       "section": "chat",
       "sectionTitle": "Chat",
       "type": "ui",
+      "advanced": true,
       "agentWritable": false
     },
     {
@@ -1224,6 +1241,7 @@
       "sectionTitle": "Chat",
       "type": "boolean",
       "default": false,
+      "advanced": true,
       "agentWritable": true
     },
     {
@@ -1286,6 +1304,7 @@
           "value": "24678-24680"
         }
       ],
+      "advanced": true,
       "agentWritable": false
     },
     {
@@ -1683,6 +1702,7 @@
       "sectionTitle": "Terminal",
       "type": "number",
       "default": 100,
+      "advanced": true,
       "agentWritable": true
     },
     {
@@ -1696,6 +1716,7 @@
       "section": "terminal",
       "sectionTitle": "Terminal",
       "type": "ui",
+      "advanced": true,
       "agentWritable": false,
       "availability": "Not shown on Windows while Behind the glass is Desktop and windows."
     },
@@ -1926,6 +1947,7 @@
       "default": 0,
       "min": 0,
       "max": 64,
+      "advanced": true,
       "agentWritable": true
     },
     {
@@ -1942,6 +1964,7 @@
       "default": 0,
       "min": 0,
       "max": 64,
+      "advanced": true,
       "agentWritable": true
     },
     {
@@ -2082,6 +2105,7 @@
       "sectionTitle": "Terminal",
       "type": "boolean",
       "default": false,
+      "advanced": true,
       "agentWritable": true
     },
     {
@@ -3016,6 +3040,7 @@
       "sectionTitle": "Sounds",
       "type": "boolean",
       "default": true,
+      "advanced": true,
       "agentWritable": true
     },
     {
@@ -3178,6 +3203,7 @@
           "value": "flawless-victory"
         }
       ],
+      "advanced": true,
       "agentWritable": true
     },
     {
@@ -3192,6 +3218,7 @@
       "sectionTitle": "Sounds",
       "type": "boolean",
       "default": false,
+      "advanced": true,
       "agentWritable": true
     },
     {

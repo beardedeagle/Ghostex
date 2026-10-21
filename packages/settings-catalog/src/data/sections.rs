@@ -46,9 +46,11 @@ use crate::json::J;
 ///
 /// CDXC:Settings 2026-08-26:
 /// Sidebar presentation details and double-click card renaming are advanced
-/// preferences. Completion sounds, macOS attention notification,
-/// action-completion sound, Sidebar Tags, and the sidebar interface-size slider
-/// remain visible without Show Advanced.
+/// preferences. Completion sounds, macOS attention notification, Sidebar Tags,
+/// and the sidebar interface-size slider remain visible without Show Advanced.
+///
+/// CDXC:Settings 2026-10-21 DECISION:
+/// User (Q29): Show Advanced hides rows on General only. Q30-Q32 moved these behind it: following the active session's Space, keeping the previous project live, the session status source, the collapse and panel animations, the tooltip delay, Commands pane auto-minimize, the menu bar indicators, the tab strip's New buttons, custom transcript width, grey thinking, keeping the chat box expanded, Escape twice to interrupt, the orchestrator playbook, verbose mode, terminal padding, terminal background opacity and blur, custom shaders, ignored dev server ports, reset expiry notifications, and the action-completion and copy sounds (the action-completion sound supersedes the visible row above).
 pub const ADVANCED_MAIN_SETTING_KEYS: &[&str] = &[
     "closeEmptySessionsOnNew",
     "chatSendOnPick",
@@ -126,6 +128,33 @@ pub const ADVANCED_MAIN_SETTING_KEYS: &[&str] = &[
     "markedHandoversHeadingStrength",
     "orchestratorPlainReplies",
     "orchestratorAllEfforts",
+    "sidebarSpaceFollowActiveSession",
+    "projectSwitchKeepAliveMinutes",
+    "sessionStatusSource",
+    "sidebarCollapseAnimationDurationMs",
+    "panelAnimationSpeed",
+    "sidebarTooltipDelayMs",
+    "commandsPanelAutoMinimize",
+    "commandsPanelAutoMinimizeDelaySeconds",
+    "hideMenuBarSessionStatusIndicators",
+    "hideTabStripNewTerminalButton",
+    "hideTabStripNewBrowserButton",
+    "sessionChatCustomTranscriptWidthEnabled",
+    "sessionChatTranscriptWidthPercent",
+    "sessionChatMutedThinking",
+    "sessionChatKeepComposerExpanded",
+    "sessionChatConfirmEscapeInterrupt",
+    "orchestratorPlaybook",
+    "sessionChatVerboseMode",
+    "terminalPaneHorizontalPaddingPx",
+    "terminalPaneVerticalPaddingPx",
+    "terminalBackgroundOpacity",
+    "terminalBackgroundBlur",
+    "terminalShadersEnabled",
+    "terminalDevServerIgnoredPortRules",
+    "resetExpirySystemNotifications",
+    "actionCompletionSound",
+    "copySound",
 ];
 
 /// CDXC:MarkedHandovers 2026-10-17 DECISION:
