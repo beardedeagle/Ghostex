@@ -9,6 +9,7 @@
 //! gxserver does not know what a client shows, and the runtime's sweep skipped every session the user was looking at (CDXC:SessionSleep 2026-08-20). Clients now report the sessions they show as keep-awake leases (`/api/holdSessionsAwake`, the same presence input the phone already used), so a session is shown while any client holds it. The runtime's "a group with no focused or visible row keeps its first row awake" rule reads the leases as its focused and visible rows and the daemon's group order as the row order.
 //!
 //! SEE-ALSO: server/src/session_keep_awake.rs, server/src/server/session_auto_sleep_sweep.rs,
+//! server/src/coordinators/auto_sleep.rs (an orchestrator with an active thread stays awake),
 //! apps/desktop/src/app/gx_store/terminal_lifecycle/shown_sessions.rs (the desktop's report),
 //! server/src/zmx/endpoint.rs (the daemon's own automatic-sleep declines).
 
@@ -87,16 +88,82 @@ pub fn sessions_to_sleep(
     }
     let sessions = rows(snapshot, "sessions");
     let protected = protected_sessions(snapshot, held);
+    let threads = coordinator_thread_activity(sessions);
     sessions
         .iter()
         .filter_map(|session| {
             let key = session_ref(session)?;
+            let thread_activity = threads.get(&key);
+            if thread_activity.is_some_and(|activity| activity.has_active_thread) {
+                return None;
+            }
             (!protected.contains(&key) && !held(&key.0, &key.1))
                 .then_some(())
-                .filter(|_| should_sleep(session, settings, now_ms))
+                .filter(|_| {
+                    should_sleep(
+                        session,
+                        settings,
+                        now_ms,
+                        thread_activity.and_then(|activity| activity.last_thread_activity_ms),
+                    )
+                })
                 .map(|_| key)
         })
         .collect()
+}
+
+/// What an orchestrator's threads say about putting it to sleep.
+#[derive(Default)]
+struct CoordinatorThreadActivity {
+    /// One of its threads is working or waiting on a question or approval.
+    has_active_thread: bool,
+    /// The latest `lastActiveAt` among its threads: a thread's turn ending stamps it, so this is
+    /// when its last active thread stopped.
+    last_thread_activity_ms: Option<i64>,
+}
+
+/// Per orchestrator, from the `coordinatorProjectId`/`coordinatorSessionId`/`coordinatorThreadState`
+/// fields its threads carry in the snapshot.
+///
+/// CDXC:SessionSleep 2026-10-21 DECISION:
+/// User: "let's please not sleep main coordinator when there's threads under it that are active to avoid any issues due to this". An orchestrator waiting on a thread's report is idle by its own state, so Auto Sleep slept it and the report then had to resume it. While any of its threads is working, or waiting on a question or approval (their answer comes through the orchestrator), Auto Sleep and the daemon's automatic-sleep decline leave it awake; a thread that is finished, sleeping, closed or done does not. Once the last active thread stops, its idle clock counts from that moment or from its own last activity, whichever is later. A Sleep the user asks for still goes through.
+/// SEE-ALSO: server/src/coordinators/auto_sleep.rs (the daemon's decline over the thread records), server/src/coordinators/state.rs (`ThreadState`).
+fn coordinator_thread_activity(
+    sessions: &[Value],
+) -> std::collections::HashMap<SessionRef, CoordinatorThreadActivity> {
+    let mut activity = std::collections::HashMap::<SessionRef, CoordinatorThreadActivity>::new();
+    for session in sessions {
+        let text = |key: &str| session.get(key).and_then(Value::as_str);
+        let (Some(project_id), Some(session_id)) =
+            (text("coordinatorProjectId"), text("coordinatorSessionId"))
+        else {
+            continue;
+        };
+        let coordinator = (project_id.to_string(), session_id.to_string());
+        if session_ref(session).as_ref() == Some(&coordinator) {
+            continue;
+        }
+        let entry = activity.entry(coordinator).or_default();
+        if crate::coordinators::thread_state_keeps_coordinator_awake(
+            text("coordinatorThreadState").unwrap_or_default(),
+        ) {
+            entry.has_active_thread = true;
+        }
+        if let Some(last_active_ms) = timestamp_ms(text("lastActiveAt")) {
+            entry.last_thread_activity_ms = Some(
+                entry
+                    .last_thread_activity_ms
+                    .map_or(last_active_ms, |known| known.max(last_active_ms)),
+            );
+        }
+    }
+    activity
+}
+
+fn timestamp_ms(value: Option<&str>) -> Option<i64> {
+    value
+        .and_then(|value| DateTime::parse_from_rfc3339(value).ok())
+        .map(|time| time.timestamp_millis())
 }
 
 /// `collectGpuiAutoSleepProtectedProjectSessionKeys`, less what the leases already say: for each
@@ -125,7 +192,14 @@ fn protected_sessions(snapshot: &Value, held: &dyn Fn(&str, &str) -> bool) -> Ha
 }
 
 /// `shouldAutoSleepGpuiPresentationAgentSession`, less the protected-set test.
-pub fn should_sleep(session: &Value, settings: AutoSleepSettings, now_ms: i64) -> bool {
+/// `last_thread_activity_ms` is an orchestrator's latest thread activity, which its idle clock
+/// does not start before.
+pub fn should_sleep(
+    session: &Value,
+    settings: AutoSleepSettings,
+    now_ms: i64,
+    last_thread_activity_ms: Option<i64>,
+) -> bool {
     let text = |key: &str| session.get(key).and_then(Value::as_str);
     let non_empty = |key: &str| text(key).is_some_and(|value| !value.trim().is_empty());
     if text("lifecycleState") != Some("running") || text("activity") != Some("idle") {
@@ -189,13 +263,12 @@ pub fn should_sleep(session: &Value, settings: AutoSleepSettings, now_ms: i64) -
     {
         return false;
     }
-    let Some(last_activity_ms) = text("lastActiveAt")
-        .or_else(|| text("updatedAt"))
-        .and_then(|value| DateTime::parse_from_rfc3339(value).ok())
-        .map(|time| time.timestamp_millis())
+    let Some(own_activity_ms) = timestamp_ms(text("lastActiveAt").or_else(|| text("updatedAt")))
     else {
         return false;
     };
+    let last_activity_ms =
+        last_thread_activity_ms.map_or(own_activity_ms, |thread_ms| own_activity_ms.max(thread_ms));
     now_ms - last_activity_ms >= settings.idle_minutes * MINUTE_MS
 }
 

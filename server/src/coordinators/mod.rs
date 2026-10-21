@@ -1,6 +1,7 @@
 //! Coordinators: one agent session the user talks to, which starts, briefs and supervises thread
 //! sessions and reports back. The supervisor's clock is `server/coordinator_runtime.rs`.
 
+mod auto_sleep;
 mod brief;
 mod create;
 mod delivery;
@@ -17,6 +18,7 @@ mod sleep_threads;
 mod state;
 mod title;
 
+pub use auto_sleep::*;
 pub use brief::*;
 pub use create::*;
 pub use delivery::*;

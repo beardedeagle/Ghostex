@@ -612,6 +612,24 @@ pub fn dispatch_zmx_lifecycle_endpoint(
                         presentation_session: None,
                     });
                 }
+                /*
+                CDXC:SessionSleep 2026-10-21 DECISION:
+                User: "let's please not sleep main coordinator when there's threads under it that
+                are active". An orchestrator with a thread that is working or waiting on a question
+                or approval is declined here too, so every automatic sleep agrees with the sweep
+                (server/src/session_auto_sleep.rs); an explicit Sleep on the row still goes through.
+                */
+                if crate::coordinators::coordinator_has_active_thread(
+                    repository,
+                    &lifecycle.project_id,
+                    &lifecycle.session_id,
+                ) {
+                    return Ok(ZmxEndpointOutput {
+                        created_workspace_terminal: None,
+                        result: json!({ "declined": "activeThreads", "session": session }),
+                        presentation_session: None,
+                    });
+                }
             }
             let target_lifecycle = if endpoint_path == "/api/sleepSession" {
                 "sleeping"
