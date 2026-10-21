@@ -228,8 +228,8 @@ pub struct Document {
     pub rewind_enabled: bool,
     /// Which message ids have a saved prompt, so the rail can mark them. Family b.
     pub saved_prompts: Map<String, Value>,
-    /// How strongly marked sections' headings take their kind's colour, 0 to 99 percent
-    /// (`transcript/marked_sections.rs`); absent at full colour, the default. Family b.
+    /// How strongly marked sections' headings take their kind's colour, 0 to 100 percent
+    /// (`transcript/marked_sections.rs`); absent at 60%, the default. Family b.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub marked_heading_strength: Option<u8>,
 

@@ -438,18 +438,23 @@ pub fn mark_sections(markdown: String) -> String {
     out.join("\n")
 }
 
+/// The Handover heading color strength (percent) when nothing is saved; it matches the catalog default of `markedHandoversHeadingStrength`.
+pub const DEFAULT_HEADING_STRENGTH: u8 = 60;
+
 /// The Handover heading color strength the renderers draw: the setting clamped to 0 to 100 and
-/// snapped to its 10% steps, `None` at full colour.
+/// snapped to its 10% steps, `None` at the default, 60%.
 ///
 /// CDXC:MarkedHandovers 2026-10-20 DECISION:
-/// User: "i want an advanced setting to be able to set how strong the colors of these headings in the handover are" and "make current colors the max". Handover heading color strength (`markedHandoversHeadingStrength`, Settings > Chat, advanced) runs 0% to 100% in 10% steps, 100% by default: 100% draws exactly the palette below, lower blends each kind's colour (the label, the badge and the rule) toward the reply's normal text colour, and 0% leaves the label plain bold text. Nothing draws more vivid than the palette. The value rides the chat settings and the chat read, so the desktop, the web build and the phone draw the same strength.
+/// User: "i want an advanced setting to be able to set how strong the colors of these headings in the handover are" and "make current colors the max". Handover heading color strength (`markedHandoversHeadingStrength`, Settings > Chat, advanced) runs 0% to 100% in 10% steps: 100% draws exactly the palette below, lower blends each kind's colour (the label, the badge and the rule) toward the reply's normal text colour, and 0% leaves the label plain bold text. Nothing draws more vivid than the palette. The value rides the chat settings and the chat read, so the desktop, the web build and the phone draw the same strength.
+/// CDXC:MarkedHandovers 2026-10-22 DECISION:
+/// User: "make handover color strength 60 by default". The default is 60%, not full colour (it supersedes the 100% default above), so `None` now means 60% and 100% is `Some(100)`. Saved values are unchanged.
 /// SEE-ALSO: apps/desktop/src/app/native_chat/marked_look.rs (`blend_strength`), apps/mobile/app/src/chat/native/transcript/markdown/MarkedSections.tsx (`blendStrength`), server/src/session_chat_read.rs (`markedHeadingStrength` on every read).
 pub fn heading_strength(percent: f64) -> Option<u8> {
     if !percent.is_finite() {
         return None;
     }
     let snapped = ((percent.clamp(0.0, 100.0) / 10.0).round() * 10.0) as u8;
-    (snapped < 100).then_some(snapped)
+    (snapped != DEFAULT_HEADING_STRENGTH).then_some(snapped)
 }
 
 /// The reply's text without the section marks, for search: what a reader sees.

@@ -542,7 +542,8 @@ pub const DEFAULT_GHOSTEX_SETTINGS: &[(&str, J)] = &[
     // CDXC:MarkedHandovers 2026-10-11 DECISION: User: "add a toggle for emojis in the colorful handover please. and set it to off by default."
     ("markedHandoversEmoji", J::Bool(false)),
     // CDXC:MarkedHandovers 2026-10-20 DECISION: User: "i want an advanced setting to be able to set how strong the colors of these headings in the handover are" and "make current colors the max". 100% (the default) draws today's palette; lower blends each heading colour toward the normal text colour, 0% leaving plain bold text. Nothing goes more vivid than today.
-    ("markedHandoversHeadingStrength", J::Num(100.0)),
+    // CDXC:MarkedHandovers 2026-10-22 DECISION: User: "make handover color strength 60 by default". Supersedes the 100 default above; saved values keep what the user chose, and 100% is still the full palette.
+    ("markedHandoversHeadingStrength", J::Num(60.0)),
     // CDXC:Theming 2026-06-15-11:24:
     // Custom sidebar/titlebar colors are scoped to the sidebar and titlebar.
     // The default background matches Dark Gray chrome without changing modal or

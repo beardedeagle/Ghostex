@@ -1178,7 +1178,7 @@
       "section": "chat",
       "sectionTitle": "Chat",
       "type": "number",
-      "default": 100,
+      "default": 60,
       "min": 0,
       "max": 100,
       "step": 10,

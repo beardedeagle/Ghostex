@@ -603,7 +603,7 @@ pub(crate) async fn handle_read_session_chat_http(
             &state.paths,
             "markedHandoversHeadingStrength"
         )
-        .unwrap_or(100.0)),
+        .unwrap_or(60.0)),
     );
     if let Some(session_agent_id) = session_agent_id.as_deref() {
         result.insert("sessionAgentId".to_string(), json!(session_agent_id));

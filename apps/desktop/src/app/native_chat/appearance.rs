@@ -50,7 +50,7 @@ pub(crate) struct ChatAppearance {
     /// How marked sections in agents' replies are drawn.
     pub(crate) marked_sections: super::marked_sections::MarkerStyle,
     /// Handover heading color strength, 0 to 1, from the document's `markedHeadingStrength`
-    /// (absent: full colour).
+    /// (absent: 60%, the default).
     pub(crate) marked_heading_strength: f32,
 }
 
@@ -273,7 +273,7 @@ impl ChatAppearance {
             marked_sections: super::marked_sections::MarkerStyle::from_settings(settings),
             marked_heading_strength: state["markedHeadingStrength"]
                 .as_f64()
-                .map_or(1.0, |percent| (percent / 100.0).clamp(0.0, 1.0) as f32),
+                .map_or(0.6, |percent| (percent / 100.0).clamp(0.0, 1.0) as f32),
             transcript_width: enabled("sessionChatCustomTranscriptWidthEnabled").then(|| {
                 settings
                     .get("sessionChatTranscriptWidthPercent")
