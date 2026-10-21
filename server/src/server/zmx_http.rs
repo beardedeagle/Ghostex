@@ -520,6 +520,19 @@ pub(crate) async fn handle_renderer_command_http(
         }
     };
     let payload = with_renderer_session_target(payload);
+    // `ghostex close-after-done` reaches the app through here; an orchestrator is refused before
+    // the app is asked, so the CLI (and the phone, which runs it) gets the plain error.
+    if action == "toggleCloseAfterDone" && renderer_command_targets_orchestrator(state, &payload) {
+        return routed_json(
+            Some(endpoint_path),
+            StatusCode::BAD_REQUEST,
+            rpc_error(
+                "badRequest",
+                crate::close_after_done::ORCHESTRATOR_REFUSAL,
+                Some(request_id),
+            ),
+        );
+    }
     let timeout_ms = match normalize_renderer_command_timeout_ms(params.get("timeoutMs")) {
         Ok(timeout_ms) => timeout_ms,
         Err(message) => {
@@ -610,4 +623,42 @@ pub(crate) fn normalize_renderer_command_timeout_ms(value: Option<&Value>) -> Re
         return Err("Renderer command timeoutMs must be a positive number.".to_string());
     }
     Ok(raw.round().clamp(1_000.0, 60_000.0) as u64)
+}
+
+/// Whether a renderer command's session is one of this daemon's orchestrators, by its
+/// `sessionTarget` (or `projectId`/`sessionId`), or by a bare session id when no project is named.
+fn renderer_command_targets_orchestrator(state: &AppState, payload: &Map<String, Value>) -> bool {
+    let target = payload
+        .get("sessionTarget")
+        .and_then(Value::as_object)
+        .unwrap_or(payload);
+    let text = |key: &str| {
+        target
+            .get(key)
+            .or_else(|| payload.get(key))
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+    };
+    let Some(selector) = text("sessionId") else {
+        return false;
+    };
+    // A selector may also be a reply-to id (`S90:P3lv0:G4ldy`) or a sidebar id (`P3lv0:G4ldy`).
+    let mut parts = selector.rsplit(':');
+    let session_id = parts.next().unwrap_or(selector);
+    let project_id = text("projectId").or_else(|| parts.next());
+    let Ok(db) = open_gxserver_database(&state.paths) else {
+        return false;
+    };
+    match project_id {
+        Some(project_id) => crate::close_after_done::is_orchestrator(
+            &db,
+            &(project_id.to_string(), session_id.to_string()),
+        ),
+        None => crate::coordinators::list_coordinators(&db).is_ok_and(|coordinators| {
+            coordinators
+                .iter()
+                .any(|coordinator| coordinator.session_id == session_id)
+        }),
+    }
 }
