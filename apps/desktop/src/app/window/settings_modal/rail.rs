@@ -183,10 +183,10 @@ pub(crate) fn rail_pages(store: &SettingsStore) -> Vec<RailPage> {
                 && match tab {
                     SettingsTabId::OsIntegration => store.os_integration_visible(),
                     SettingsTabId::Connectors => store.connectors_visible(),
-                    // CDXC:Settings 2026-09-26 DECISION: Debugging leaves the rail while Show Advanced is off; a search still finds it.
-                    SettingsTabId::Debugging => show_advanced || searching,
                     _ => true,
                 }
+                // CDXC:Settings 2026-09-26 DECISION: Debugging leaves the rail while Show Advanced is off; a search still finds it. The open page stays listed (a deep link). Its siblings: SettingsTabId::SHOW_ADVANCED_PAGES.
+                && (!tab.needs_show_advanced() || show_advanced || searching || *tab == active_tab)
         })
         .filter_map(|tab| {
             let sections = match tab {

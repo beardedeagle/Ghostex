@@ -69,6 +69,21 @@ impl SettingsTabId {
         Self::EXTENSIONS_GROUP.contains(&self)
     }
 
+    /// CDXC:Settings 2026-10-21 DECISION:
+    /// User (Q36-Q38): Cloud Boxes, Open In, OS Integration and Workspaces join Debugging in leaving the rail while Show Advanced is off; none leaves it completely, and a search still finds them. Only the rail changes: each feature keeps its own switch, and a deep link still opens its page.
+    pub(crate) const SHOW_ADVANCED_PAGES: [SettingsTabId; 5] = [
+        SettingsTabId::CloudBoxes,
+        SettingsTabId::OpenTargets,
+        SettingsTabId::OsIntegration,
+        SettingsTabId::Workspaces,
+        SettingsTabId::Debugging,
+    ];
+
+    /// Whether the page leaves the rail while Show Advanced is off.
+    pub(crate) fn needs_show_advanced(self) -> bool {
+        Self::SHOW_ADVANCED_PAGES.contains(&self)
+    }
+
     /// The id the settings file and the open message use (`SettingsModalTab`).
     pub(crate) fn id(self) -> &'static str {
         match self {

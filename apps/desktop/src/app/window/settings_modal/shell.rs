@@ -99,10 +99,10 @@ impl GpuiSettingsModalWindow {
                         store.active_tab(),
                     )
                 };
-                // Turning Show Advanced off while Debugging is open leaves the page it just hid.
+                // Turning Show Advanced off while one of its pages is open leaves the page it just hid.
                 if shell.last_show_advanced
                     && !show_advanced
-                    && active == SettingsTabId::Debugging
+                    && active.needs_show_advanced()
                     && !searching
                 {
                     store.update(cx, |store, cx| {

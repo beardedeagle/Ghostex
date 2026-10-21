@@ -3189,7 +3189,11 @@ backend: `ghostex team deploy|join|invite|identity|status|ping|leave`. Slack:
   extensions, on by default, with switches in the Store's Features; their
   pages and cards still need Enable Experimental Features (Connectors, OS
   Integration) or Show Advanced (Debugging) as before (`connectorsHidden`,
-  `osIntegrationHidden`, `debuggingHidden`). The group starts collapsed and remembers whether you left
+  `osIntegrationHidden`, `debuggingHidden`). Workspaces, Cloud Boxes, Open In,
+  OS Integration and Debugging appear in the rail only while **Show Advanced**
+  is on (its switch is in the Settings sidebar); a Settings search still finds them, and a link to
+  one still opens it. Their features keep working while the page is out of the
+  rail. The group starts collapsed and remembers whether you left
   it open; a search opens it and lists only its pages that match, and opening
   one of its pages from elsewhere (a link, a menu, a turned-off message) opens
   it too. While it is collapsed over the page you are on, its header is
