@@ -865,6 +865,7 @@ pub fn build_scope(
             .collect()
     };
 
+    drop_hidden_rows(&mut items, &projection.hidden_rows);
     resolve_recipients(
         &mut items,
         scope.agent_fleet,
@@ -917,6 +918,43 @@ pub fn build_scope(
         backfill,
         minimap,
         worked_turn,
+    }
+}
+
+/// Takes the rows that keep their place in the turns but draw nothing out of the list.
+fn drop_hidden_rows(items: &mut Vec<TranscriptItem>, hidden: &[String]) {
+    if hidden.is_empty() {
+        return;
+    }
+    let shown = |row: &Value| {
+        !row.get("id")
+            .and_then(Value::as_str)
+            .is_some_and(|id| hidden.iter().any(|hidden| hidden == id))
+    };
+    items.retain(|item| match item {
+        TranscriptItem::Message { message } => shown(message),
+        _ => true,
+    });
+    for item in items.iter_mut() {
+        match item {
+            TranscriptItem::Summary {
+                work,
+                outcome,
+                earlier_replies,
+                ..
+            } => {
+                work.retain(shown);
+                outcome.retain(shown);
+                earlier_replies.retain(shown);
+            }
+            TranscriptItem::CompletedWork {
+                work, artifacts, ..
+            } => {
+                work.retain(shown);
+                artifacts.retain(shown);
+            }
+            _ => {}
+        }
     }
 }
 

@@ -80,6 +80,8 @@ pub struct TranscriptProjection {
     pub items: Vec<RenderItem>,
     pub final_ids: Vec<String>,
     pub summary_turns: Vec<SummaryModeTurn>,
+    /// Rows that keep their place in the turns but draw nothing (`hide_redone_forms`).
+    pub hidden_rows: Vec<String>,
 }
 
 /// The one pass every renderer starts from.
@@ -93,6 +95,7 @@ pub fn project_chat_transcript(
     live_side_question: Option<&str>,
 ) -> TranscriptProjection {
     let mut normalized = normalize_chat_transcript(messages);
+    let hidden_rows = crate::transcript::question_forms::hide_redone_forms(&mut normalized);
     if let Some(question) = live_side_question {
         crate::transcript::side_question::hide_live_side_question(&mut normalized, question);
     }
@@ -104,5 +107,6 @@ pub fn project_chat_transcript(
         final_ids,
         normalized,
         rendered,
+        hidden_rows,
     }
 }
