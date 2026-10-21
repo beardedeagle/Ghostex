@@ -4,7 +4,7 @@
 use super::claude_resets::ClaudeSlot;
 use std::{collections::HashMap, path::Path};
 
-/// `text` with `CLAUDE_CONFIG_DIR=<slot profile>` in front of each line that starts `cswap run <slot>` for a slot whose account is the signed-out default login, so cswap starts that slot's own profile instead.
+/// `text` with `CLAUDE_CONFIG_DIR=<slot profile>` in front of each `cswap run <slot>` command for a slot whose account is the signed-out default login, so cswap starts that slot's own profile instead. Commands are found wherever the shell runs one: at a line start, after `;`, `&&`, `||`, `|`, `(`, `$(`, `{`, `then`, `else` or `do` (a wake runs `"$(cswap run 2 -- agents --json)"; if …; then cswap run 2 -- attach …; else cswap run 2 -- --resume …; fi`, accounts/claude_background.rs). The quoted copy a restore banner prints is never in such a position.
 pub(crate) fn route_around_signed_out_default(text: &str) -> String {
     if cfg!(windows) || !text.contains("cswap") {
         return text.to_string();
@@ -13,41 +13,69 @@ pub(crate) fn route_around_signed_out_default(text: &str) -> String {
         return text.to_string();
     };
     let mut profiles: HashMap<String, Option<String>> = HashMap::new();
-    let mut routed = String::with_capacity(text.len());
-    for line in text.split_inclusive('\n') {
-        let indent = line.len() - line.trim_start().len();
-        let Some(slot) = cswap_run_slot(line, indent) else {
-            routed.push_str(line);
+    let mut inserts = Vec::new();
+    for (found, _) in text.match_indices("cswap") {
+        let start = text[..found]
+            .rfind(|ch: char| ch.is_whitespace() || "(;|&{`".contains(ch))
+            .map_or(0, |at| {
+                at + text[at..].chars().next().map_or(1, char::len_utf8)
+            });
+        if !in_command_position(&text[..start]) {
+            continue;
+        }
+        let Some(slot) = cswap_run_slot(text, start) else {
             continue;
         };
-        let profile = profiles
+        if let Some(profile) = profiles
             .entry(slot.clone())
-            .or_insert_with(|| signed_out_default_profile(&home, &slot));
-        match profile {
-            Some(profile) => {
-                routed.push_str(&line[..indent]);
-                routed.push_str("CLAUDE_CONFIG_DIR=");
-                routed.push_str(&crate::agents::quote_shell_arg(profile));
-                routed.push(' ');
-                routed.push_str(&line[indent..]);
-            }
-            None => routed.push_str(line),
+            .or_insert_with(|| signed_out_default_profile(&home, &slot))
+        {
+            inserts.push((
+                start,
+                format!(
+                    "CLAUDE_CONFIG_DIR={} ",
+                    crate::agents::quote_shell_arg(profile)
+                ),
+            ));
         }
+    }
+    inserts.dedup_by(|a, b| a.0 == b.0);
+    let mut routed = text.to_string();
+    for (at, prefix) in inserts.into_iter().rev() {
+        routed.insert_str(at, &prefix);
     }
     routed
 }
 
-/// The slot of a line whose first word runs cswap as `cswap run <slot>`.
-fn cswap_run_slot(line: &str, from: usize) -> Option<String> {
-    let (_, end, word) = crate::agents::command_word(line, from)?;
+/// Whether a word that follows `before` is where the shell expects a command name.
+fn in_command_position(before: &str) -> bool {
+    let before = before.trim_end_matches([' ', '\t']);
+    if before.is_empty() || before.ends_with(['\n', ';', '|', '&', '(', '{', '`']) {
+        return true;
+    }
+    let word_start = before
+        .rfind(|ch: char| ch.is_whitespace() || ";|&({`".contains(ch))
+        .map_or(0, |at| at + 1);
+    let word = &before[word_start..];
+    // A custom agent's own variables (`FOO=1 claude …`) stay in front of the cswap wrapper (launch.rs `with_account_command`).
+    let assignment = word.split_once('=').is_some_and(|(name, _)| {
+        !name.is_empty() && name.bytes().all(|b| b == b'_' || b.is_ascii_alphanumeric())
+    });
+    (assignment || matches!(word, "then" | "else" | "do"))
+        && in_command_position(&before[..word_start])
+}
+
+/// The slot of a command that starts at `from` and runs cswap as `cswap run <slot>`.
+fn cswap_run_slot(text: &str, from: usize) -> Option<String> {
+    let (_, end, word) = crate::agents::command_word(text, from)?;
     if Path::new(&word).file_name()?.to_str()? != "cswap" {
         return None;
     }
-    let (_, end, run) = crate::agents::command_word(line, end)?;
+    let (_, end, run) = crate::agents::command_word(text, end)?;
     if run != "run" {
         return None;
     }
-    let (_, _, slot) = crate::agents::command_word(line, end)?;
+    let (_, _, slot) = crate::agents::command_word(text, end)?;
     (!slot.is_empty() && slot.bytes().all(|byte| byte.is_ascii_digit())).then_some(slot)
 }
 
