@@ -186,7 +186,7 @@ pub(crate) fn popping_icon(
 
 /// The Ghostex logo (`<GhostexLogo size glow>`).
 pub(crate) fn ghostex_logo(s: S, logo_size: f32, glow: bool) -> AnyElement {
-    let image = img("onboarding/logo.png").size(s.px(logo_size)).flex_none();
+    let image = img("onboarding/logo.webp").size(s.px(logo_size)).flex_none();
     if glow {
         div()
             .size(s.px(logo_size))

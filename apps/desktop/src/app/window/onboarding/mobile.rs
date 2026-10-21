@@ -639,7 +639,7 @@ impl GpuiOnboardingWindow {
     ) -> Vec<AnyElement> {
         let (clip_x, clip_y, clip_w, clip_h) = PHONE_CLIP;
         let layer = |name: &str, opacity: f32| {
-            img(SharedString::from(format!("onboarding/phone/{name}.png")))
+            img(SharedString::from(format!("onboarding/phone/{name}.webp")))
                 .absolute()
                 .left(s.px(clip_x))
                 .top(s.px(clip_y))

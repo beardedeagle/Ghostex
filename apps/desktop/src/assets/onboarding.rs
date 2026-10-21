@@ -136,66 +136,66 @@ const AGENT_CURSOR: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="
 
 pub(crate) fn asset(key: &str) -> Option<Cow<'static, [u8]>> {
     match key {
-        "logo.png" => {
+        "logo.webp" => {
             return Some(Cow::Borrowed(include_bytes!(
-                "../../../../packages/core-ui/onboarding/assets/ghostex-logo.png"
+                "../../../../packages/core-ui/onboarding/assets/ghostex-logo.webp"
             )));
         }
         "cursor.svg" => return Some(Cow::Borrowed(AGENT_CURSOR.as_bytes())),
         // The Mobile panel's tilted phone, captured from the React story (window/onboarding/mobile.rs).
-        "phone/shell.png" => {
+        "phone/shell.webp" => {
             return Some(Cow::Borrowed(include_bytes!(
-                "../../assets/onboarding/phone/shell.png"
+                "../../assets/onboarding/phone/shell.webp"
             )));
         }
-        "phone/get.png" => {
+        "phone/get.webp" => {
             return Some(Cow::Borrowed(include_bytes!(
-                "../../assets/onboarding/phone/get.png"
+                "../../assets/onboarding/phone/get.webp"
             )));
         }
-        "phone/loading.png" => {
+        "phone/loading.webp" => {
             return Some(Cow::Borrowed(include_bytes!(
-                "../../assets/onboarding/phone/loading.png"
+                "../../assets/onboarding/phone/loading.webp"
             )));
         }
-        "phone/open.png" => {
+        "phone/open.webp" => {
             return Some(Cow::Borrowed(include_bytes!(
-                "../../assets/onboarding/phone/open.png"
+                "../../assets/onboarding/phone/open.webp"
             )));
         }
-        "phone/connect.png" => {
+        "phone/connect.webp" => {
             return Some(Cow::Borrowed(include_bytes!(
-                "../../assets/onboarding/phone/connect.png"
+                "../../assets/onboarding/phone/connect.webp"
             )));
         }
-        "phone/connect-tap.png" => {
+        "phone/connect-tap.webp" => {
             return Some(Cow::Borrowed(include_bytes!(
-                "../../assets/onboarding/phone/connect-tap.png"
+                "../../assets/onboarding/phone/connect-tap.webp"
             )));
         }
-        "phone/cam.png" => {
+        "phone/cam.webp" => {
             return Some(Cow::Borrowed(include_bytes!(
-                "../../assets/onboarding/phone/cam.png"
+                "../../assets/onboarding/phone/cam.webp"
             )));
         }
-        "phone/paired.png" => {
+        "phone/paired.webp" => {
             return Some(Cow::Borrowed(include_bytes!(
-                "../../assets/onboarding/phone/paired.png"
+                "../../assets/onboarding/phone/paired.webp"
             )));
         }
-        "phone/home-notify.png" => {
+        "phone/home-notify.webp" => {
             return Some(Cow::Borrowed(include_bytes!(
-                "../../assets/onboarding/phone/home-notify.png"
+                "../../assets/onboarding/phone/home-notify.webp"
             )));
         }
-        "phone/home-notify-nobanner.png" => {
+        "phone/home-notify-nobanner.webp" => {
             return Some(Cow::Borrowed(include_bytes!(
-                "../../assets/onboarding/phone/home-notify-nobanner.png"
+                "../../assets/onboarding/phone/home-notify-nobanner.webp"
             )));
         }
-        "phone/home-quiet.png" => {
+        "phone/home-quiet.webp" => {
             return Some(Cow::Borrowed(include_bytes!(
-                "../../assets/onboarding/phone/home-quiet.png"
+                "../../assets/onboarding/phone/home-quiet.webp"
             )));
         }
         // A frame of the intro video (10.2s), drawn under the intro page's player and in place of it
