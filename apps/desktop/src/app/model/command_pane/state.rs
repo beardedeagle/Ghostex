@@ -12,7 +12,6 @@ pub(crate) struct CommandPaneModel {
     pub(crate) focused_group: CommandPaneGroupId,
     pub(crate) focus_mode_group: Option<CommandPaneGroupId>,
     pub(crate) mode: CommandPaneMode,
-    pub(crate) last_expanded_mode: CommandPaneMode,
     pub(crate) height_ratio: f32,
     pub(crate) width_ratio: f32,
     pub(crate) resize_drag: Option<CommandPaneResizeDragState>,
@@ -41,7 +40,6 @@ impl CommandPaneModel {
             focused_group: CommandPaneGroupId(0),
             focus_mode_group: None,
             mode: CommandPaneMode::Collapsed,
-            last_expanded_mode: CommandPaneMode::Pinned,
             height_ratio: command_pane_default_height_ratio_for_default_height_px(
                 default_height_px,
                 content_height,
@@ -59,10 +57,7 @@ impl CommandPaneModel {
     }
 
     pub(crate) fn is_expanded(&self) -> bool {
-        matches!(
-            self.mode,
-            CommandPaneMode::Pinned | CommandPaneMode::Floating
-        )
+        self.mode == CommandPaneMode::Pinned
     }
 
     pub(crate) fn focused_group_active_session_id(

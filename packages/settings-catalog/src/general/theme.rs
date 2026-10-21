@@ -3,11 +3,6 @@ use crate::json::opt;
 use crate::json::Opt;
 use crate::rows::{row, section, Section};
 
-/// CDXC:Icons 2026-06-25-21:50: Make the App Icon section findable by Settings search.
-pub(crate) fn app_icon() -> Section {
-    section("appIcon", "App Icon", vec![])
-}
-
 pub(crate) fn theming() -> Section {
     section(
         "theming",

@@ -16,7 +16,7 @@
 //! write links (associate, Start work, jump, unlink).
 //!
 //! SEE-ALSO: packages/gx-core/src/session_create/board_links.rs and board_state.rs,
-//! apps/desktop/src/app/status_pet.rs (`dispatch_gpui_project_board_conversation_request`).
+//! apps/desktop/src/app/status_activation.rs (`dispatch_gpui_project_board_conversation_request`).
 
 use std::collections::HashMap;
 use std::time::Duration;
@@ -163,7 +163,7 @@ impl GhostexGpuiApp {
                 "jumpToConversation" => links::jump(&this, cx, &request, &context).await,
                 "unlinkConversation" => links::unlink(&request, &context).await,
                 // `getState`, and `appendDebugLog`, whose log line Rust wrote before the request
-                // arrived (status_pet.rs), answer with the state.
+                // arrived (status_activation.rs), answer with the state.
                 _ => Ok(()),
             };
             let answer = match result {

@@ -1,4 +1,4 @@
-//! App modal pickers and first-launch actions: app icons, background and glass images, first-launch project folder and session, worktree images.
+//! App modal pickers and first-launch actions: the app icon reset, background and glass images, first-launch project folder and session, worktree images.
 
 #[cfg(target_os = "windows")]
 use std::path::Path;
@@ -7,16 +7,6 @@ use crate::app::helpers::*;
 use crate::*;
 
 impl GhostexGpuiApp {
-    pub(crate) fn handle_gpui_list_app_icons_message(&mut self, cx: &mut gpui::Context<Self>) {
-        let source_id = app_icon::source_id_from_settings(
-            shared_settings::shared_sidebar_settings_snapshot().object(),
-        );
-        self.dispatch_open_gpui_app_modal_sidebar_state_payload(
-            app_icon::list_state(&source_id),
-            cx,
-        );
-    }
-
     pub(crate) fn handle_gpui_set_app_icon_message(
         &mut self,
         message: &serde_json::Value,
@@ -32,31 +22,6 @@ impl GhostexGpuiApp {
             app_icon::select_state(source_id, &current_source_id),
             cx,
         );
-    }
-
-    pub(crate) fn handle_gpui_pick_app_icon_file_message(&mut self, cx: &mut gpui::Context<Self>) {
-        let current_source_id = app_icon::source_id_from_settings(
-            shared_settings::shared_sidebar_settings_snapshot().object(),
-        );
-        let receiver = cx.prompt_for_paths(gpui::PathPromptOptions {
-            files: true,
-            directories: false,
-            multiple: false,
-            prompt: Some("Choose Icon".into()),
-        });
-        cx.spawn(async move |this, cx| {
-            let Ok(Ok(Some(paths))) = receiver.await else {
-                return;
-            };
-            let Some(path) = paths.into_iter().next() else {
-                return;
-            };
-            let state = app_icon::picked_file_state(&path, &current_source_id);
-            let _ = this.update(cx, |this, cx| {
-                this.dispatch_open_gpui_app_modal_sidebar_state_payload(state, cx);
-            });
-        })
-        .detach();
     }
 
     pub(crate) fn handle_gpui_pick_terminal_background_image_message(

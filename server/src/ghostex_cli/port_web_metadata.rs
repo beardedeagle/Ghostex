@@ -11,7 +11,7 @@ use base64::{engine::general_purpose::STANDARD, Engine};
 use serde_json::{json, Value};
 use url::Url;
 
-use crate::portless::listener_discovery::TcpListenerDetail;
+use crate::tcp_listeners::listener_discovery::TcpListenerDetail;
 
 /// CDXC:Browser 2026-09-12 WHY:
 /// Page discovery runs on the computer because its localhost addresses are not reachable from the phone.

@@ -106,51 +106,6 @@ pub(crate) fn gpui_workspace_power_events_callback_target()
 }
 
 #[cfg(target_os = "macos")]
-pub(crate) fn queue_gpui_workspace_terminal_escape_pressed(native_view: *mut std::ffi::c_void) {
-    let Some(target) = gpui_terminal_key_event_callback_target_for_native_view(native_view) else {
-        return;
-    };
-    let app = target.app.clone();
-    let mut async_app = target.async_app.clone();
-    let foreground = target.async_app.foreground_executor().clone();
-    let native_view = native_view as usize;
-    foreground
-        .spawn(async move {
-            let _ = app.update_in(&mut async_app, |this, _window, cx| {
-                this.dispatch_gpui_workspace_terminal_escape_pressed_for_native_view(
-                    native_view as *mut std::ffi::c_void,
-                    cx,
-                );
-            });
-        })
-        .detach();
-}
-
-#[cfg(target_os = "macos")]
-pub(crate) fn queue_gpui_terminal_prompt_editor_shortcut(
-    native_view: *mut std::ffi::c_void,
-) -> bool {
-    let Some(target) = gpui_terminal_key_event_callback_target_for_native_view(native_view) else {
-        return false;
-    };
-    let app = target.app.clone();
-    let mut async_app = target.async_app.clone();
-    let foreground = target.async_app.foreground_executor().clone();
-    let native_view = native_view as usize;
-    foreground
-        .spawn(async move {
-            let _ = app.update_in(&mut async_app, |this, _window, cx| {
-                this.handle_native_terminal_prompt_editor_shortcut(
-                    native_view as *mut std::ffi::c_void,
-                    cx,
-                );
-            });
-        })
-        .detach();
-    true
-}
-
-#[cfg(target_os = "macos")]
 pub(crate) fn queue_gpui_os_integration_urls(urls: Vec<String>) {
     let Some(target) = gpui_os_integration_callback_target() else {
         GPUI_PENDING_OS_INTEGRATION_URLS.with(|pending| pending.borrow_mut().extend(urls));

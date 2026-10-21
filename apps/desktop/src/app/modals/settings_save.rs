@@ -262,10 +262,6 @@ impl GhostexGpuiApp {
         self.coerce_active_mode_to_available_project_context(cx);
         self.prune_project_workarea_runtime_cef_surfaces_for_current_gates(cx);
         self.ensure_project_workarea_runtime_cef_surfaces_for_current_context(cx);
-        #[cfg(target_os = "macos")]
-        self.refresh_terminal_ghostty_surface_config_requests_from_shared_settings(
-            settings_snapshot,
-        );
         self.reload_live_gpui_engine_terminal_config(cx);
         let sidebar_state_message =
             self.gpui_app_modal_sidebar_state_message_from_settings_snapshot(settings_snapshot);
@@ -343,37 +339,6 @@ impl GhostexGpuiApp {
                 }
                 view.refresh_appearance(cx);
             });
-        }
-    }
-
-    #[cfg(target_os = "macos")]
-    pub(crate) fn refresh_terminal_ghostty_surface_config_requests_from_shared_settings(
-        &mut self,
-        settings_snapshot: &shared_settings::SharedSidebarSettingsSnapshot,
-    ) {
-        /*
-        CDXC:Terminal 2026-06-24-11:27:
-        `updateSettings` fan-out refreshes the GPUI-owned Ghostty request maps so subsequent Agents, command, and startup surface creations use the saved supported terminal settings. Existing live Ghostty surfaces are not reloaded here because this runtime path does not yet expose a safe config-reload/apply contract; do not fake reload by dropping running terminals or logging raw settings.
-        */
-        let terminal_config =
-            gpui_terminal_ghostty_surface_config_from_shared_settings(settings_snapshot);
-        for request in self
-            .agents_terminal_ghostty_surface_config_requests
-            .values_mut()
-        {
-            request.set_terminal_config(terminal_config);
-        }
-        for request in self
-            .command_terminal_ghostty_surface_config_requests
-            .values_mut()
-        {
-            request.set_terminal_config(terminal_config);
-        }
-        for request in self
-            .agents_terminal_startup_ghostty_surface_config_requests
-            .values_mut()
-        {
-            request.set_terminal_config(terminal_config);
         }
     }
 }

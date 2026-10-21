@@ -62,7 +62,7 @@ pub(crate) fn queue_gpui_accessibility_display_options_changed(should_reduce_mot
     foreground
         .spawn(async move {
             let _ = app.update_in(&mut async_app, |this, _window, cx| {
-                this.set_gpui_pet_overlay_reduce_motion_enabled(should_reduce_motion, cx);
+                this.set_gpui_reduce_motion_enabled(should_reduce_motion, cx);
                 cx.set_reduce_motion(should_reduce_motion);
                 // The same notification carries Reduce Transparency, which turns window glass off.
                 let settings = shared_settings::shared_sidebar_settings_snapshot();
@@ -71,9 +71,9 @@ pub(crate) fn queue_gpui_accessibility_display_options_changed(should_reduce_mot
                     this.refresh_workarea_page_themes(&settings, cx);
                     cx.notify();
                 }
-                // Every window draws its own pet and pages (app/workspace_windows/).
+                // Every window draws its own pages (app/workspace_windows/).
                 this.update_other_workspace_windows(cx, move |app, cx| {
-                    app.set_gpui_pet_overlay_reduce_motion_enabled(should_reduce_motion, cx);
+                    app.set_gpui_reduce_motion_enabled(should_reduce_motion, cx);
                     if glass_changed {
                         let settings = shared_settings::shared_sidebar_settings_snapshot();
                         app.refresh_workarea_page_themes(&settings, cx);

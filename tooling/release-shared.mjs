@@ -16,8 +16,8 @@ export class ReleaseError extends Error {
 
 /*
  CDXC:RemotePairing 2026-07-13:
- The Linux remote package no longer ships portless (macOS launchd-only), the
- npm-style package.json manifest, or dist/protocol exports; nothing on the
+ The Linux remote package no longer ships the npm-style package.json
+ manifest or dist/protocol exports; nothing on the
  remote host consumes them and version identity lives in build-identity.json.
  */
 const remoteGxserverLinuxRequiredPackageResources = ['bin/gxserver', 'bin/zmx', 'bin/ghostex', 'build-identity.json'];

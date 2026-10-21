@@ -149,16 +149,9 @@ pub(crate) struct CommandPaneActionRunRefresh {
     pub(crate) completions: Vec<CommandPaneActionRunCompletion>,
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub(crate) struct CommandTerminalProcessExitCleanup {
-    pub(crate) changed: bool,
-    pub(crate) completions: Vec<CommandPaneActionRunCompletion>,
-}
-
 #[derive(Clone, Copy)]
 pub(crate) enum CommandPaneControlAction {
     NewCommandPlaceholder,
-    TogglePinned,
     ToggleKeepOpen,
     ToggleExpanded,
 }
@@ -170,10 +163,7 @@ pub(crate) fn command_pane_control_action_selects_clicked_group_before_dispatch(
     CDXC:CommandPane 2026-06-25-22:01:
     Native command titlebar actions call through the clicked owner titlebar and focus that command session before dispatch. GPUI fixed command-panel controls must retarget the clicked command group for Pin/Unpin and Minimize instead of falling back to the previously focused group; New Terminal already carries explicit insertion targeting.
     */
-    matches!(
-        action,
-        CommandPaneControlAction::TogglePinned | CommandPaneControlAction::ToggleExpanded
-    )
+    matches!(action, CommandPaneControlAction::ToggleExpanded)
 }
 
 pub(crate) fn command_pane_focus_clicked_control_group(
@@ -207,7 +197,6 @@ pub(crate) fn command_pane_control_action_focuses_command_pane(
     match action {
         CommandPaneControlAction::ToggleKeepOpen => false,
         CommandPaneControlAction::NewCommandPlaceholder => true,
-        CommandPaneControlAction::TogglePinned => is_expanded_after,
         CommandPaneControlAction::ToggleExpanded => !was_expanded && is_expanded_after,
     }
 }

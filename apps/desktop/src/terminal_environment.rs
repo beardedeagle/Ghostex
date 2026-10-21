@@ -76,8 +76,8 @@ pub(crate) unsafe fn remove_color_disabling_from_current_process() {
     /*
     CDXC:Terminal 2026-07-04:
     GPUI can be launched from agent terminals that export NO_COLOR, but the app
-    is a color-capable host for gxserver, zmx, provider CLIs, GhosttyKit, and
-    the GPUI PTY terminal engine. Strip inherited color-disabling keys at
+    is a color-capable host for gxserver, zmx, provider CLIs, and the GPUI PTY
+    terminal engine. Strip inherited color-disabling keys at
     process start so later process-environment snapshots are color-capable.
     Keep positive FORCE_COLOR overrides and remove only disabling values.
     */
@@ -97,10 +97,10 @@ pub(crate) unsafe fn remove_color_disabling_from_current_process() {
 pub(crate) unsafe fn remove_session_identity_from_current_process() {
     /*
     CDXC:SessionIdentity 2026-07-04:
-    GPUI can itself be launched from a Ghostex pane. GhosttyKit snapshots the
-    host process environment when creating embedded surfaces, so remove stale
-    pane/session identity keys at startup and let explicit terminal launch
-    config add the current session state later.
+    GPUI can itself be launched from a Ghostex pane. Terminals the app spawns
+    inherit the host process environment, so remove stale pane/session
+    identity keys at startup and let explicit terminal launch config add the
+    current session state later.
     */
     for key in SESSION_IDENTITY_ENVIRONMENT_KEYS {
         unsafe { env::remove_var(key) };
@@ -112,8 +112,7 @@ pub(crate) fn color_capable_terminal_env_vars(
 ) -> Vec<(String, String)> {
     /*
     CDXC:Terminal 2026-07-04:
-    GPUI terminal launch payloads use the same color policy as the macOS
-    Ghostty boundary: remove NO_COLOR-style blockers, remove only disabling
+    GPUI terminal launch payloads remove NO_COLOR-style blockers, remove only disabling
     FORCE_COLOR values, preserve positive FORCE_COLOR overrides, and set the
     non-forcing CLICOLOR opt-in for interactive PTYs.
     */

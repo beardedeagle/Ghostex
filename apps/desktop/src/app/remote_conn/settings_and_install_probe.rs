@@ -91,11 +91,6 @@ impl GhostexGpuiApp {
             next_agent_settings,
             cx,
         );
-        self.sync_gpui_portless_settings_after_save(
-            &previous_settings_object,
-            write_result.snapshot.object(),
-            cx,
-        );
         self.sync_gpui_removed_remote_machine_passwords_after_settings_save(
             &previous_settings_object,
             write_result.snapshot.object(),

@@ -16,7 +16,7 @@ The launcher moved from `tooling/start-gpui.mjs` (bun) to `cargo xtask start` on
 `cargo xtask start` (`tooling/xtask/src/start/`) takes an flock on `build/ghostex-gpui-local-start.lock`, then runs, on macOS:
 
 1. `apps/desktop/scripts/build-macos-rust.sh` and `build-macos-sidebar.sh` in the background.
-2. `prepare-macos-runtime.sh` in the foreground: zmx (Zig), code-server staging, Portless, gxserver (cargo), into `apps/desktop/runtime/macos/Web`.
+2. `prepare-macos-runtime.sh` in the foreground: zmx (Zig), code-server staging, gxserver (cargo), into `apps/desktop/runtime/macos/Web`.
 3. `build-macos-app.sh` with the prebuilt Rust binaries: stages `apps/desktop/build/macos.noindex/Ghostex.app` and signs it with `codesign-gpui-app.sh`.
 4. Closes the installed app, keeps or stops gxserver, syncs the bundle to `/Applications/Ghostex.app` with rsync, checks the signature, and opens it.
 

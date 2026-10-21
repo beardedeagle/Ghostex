@@ -5,14 +5,10 @@ use std::{
 
 /*
 CDXC:PlatformSupport 2026-06-23-07:52:
-Ubuntu packaging must share the macOS gxserver resource contract instead of adding PATH fallbacks. Resolve bundled Node, Portless, and tool roots from package-relative layouts first, then keep development-only source candidates explicit for local validation.
+Ubuntu packaging must share the macOS gxserver resource contract instead of adding PATH fallbacks. Resolve bundled Node and tool roots from package-relative layouts first, then keep development-only source candidates explicit for local validation.
 */
 pub fn code_server_node_candidates() -> Vec<PathBuf> {
     resource_candidates("code-server/lib/node")
-}
-
-pub fn portless_cli_candidates() -> Vec<PathBuf> {
-    resource_candidates("portless/dist/cli.js")
 }
 
 pub fn source_web_resource(relative: &str) -> Option<PathBuf> {

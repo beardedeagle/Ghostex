@@ -170,9 +170,6 @@ impl GhostexGpuiApp {
             GpuiAppModalKind::MissingProjectFolder => {
                 self.open_gpui_missing_project_folder_modal(open_message, cx);
             }
-            GpuiAppModalKind::PortlessSetup => {
-                self.open_gpui_portless_setup_modal(open_message, cx);
-            }
             GpuiAppModalKind::RemoteGxserverInstall => {
                 self.open_gpui_remote_gxserver_install_native_modal(open_message, cx);
             }
@@ -371,7 +368,6 @@ impl GhostexGpuiApp {
         self.native_app_modal = None;
         self.sync_app_modal_over_chat(cx);
         self.restore_keyboard_focus_after_app_modal(cx);
-        self.resume_deferred_gpui_portless_setup_prompt(cx);
     }
 
     /// The app's `close` bridge message (`close_app_modal_from_bridge`, sent by the
@@ -389,7 +385,6 @@ impl GhostexGpuiApp {
         self.remove_native_app_modal_window(cx);
         self.app_modal_command_return_focus_target = return_focus_target;
         self.restore_keyboard_focus_after_app_modal(cx);
-        self.resume_deferred_gpui_portless_setup_prompt(cx);
         true
     }
 

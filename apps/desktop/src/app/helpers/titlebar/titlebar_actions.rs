@@ -63,12 +63,6 @@ impl GpuiTitlebarAction {
         }
     }
 
-    #[allow(dead_code)] // no caller: the native titlebar menus that used these labels were replaced by CEF panels
-    pub(crate) fn menu_label(&self) -> String {
-        self.action_title()
-            .unwrap_or_else(|| self.command_id.clone())
-    }
-
     pub(crate) fn titlebar_menu_name(&self) -> String {
         gpui_normalized_sidebar_command_title(Some(&self.name))
             .unwrap_or_else(|| self.command_id.clone())
@@ -101,20 +95,6 @@ impl GpuiTitlebarAction {
                     .map(gpui_sidebar_command_short_title)
             })
             .unwrap_or_else(|| self.command_id.clone())
-    }
-
-    #[allow(dead_code)] // no caller: the native titlebar menus that used these labels were replaced by CEF panels
-    pub(crate) fn action_title(&self) -> Option<String> {
-        gpui_normalized_sidebar_command_title(Some(&self.name)).or_else(|| {
-            match self.action_type {
-                GpuiTitlebarActionType::Browser => self.url.as_deref(),
-                GpuiTitlebarActionType::Terminal => self.command.as_deref(),
-            }
-            .and_then(|target| {
-                gpui_normalized_sidebar_command_title(Some(target))
-                    .map(gpui_sidebar_command_short_title)
-            })
-        })
     }
 }
 

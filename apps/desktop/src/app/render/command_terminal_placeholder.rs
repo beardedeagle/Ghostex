@@ -7,11 +7,7 @@ use gpui::InteractiveElement as _;
 use gpui::IntoElement;
 use gpui::MouseButton;
 use gpui::MouseDownEvent;
-use gpui::MouseMoveEvent;
-use gpui::MousePressureEvent;
-use gpui::MouseUpEvent;
 use gpui::ParentElement as _;
-use gpui::ScrollWheelEvent;
 use gpui::Styled as _;
 use gpui::canvas;
 use gpui::div;
@@ -148,19 +144,12 @@ impl GhostexGpuiApp {
             .when(!gpui_engine_owns_pointer_input, |this| {
                 this.on_mouse_down(
                     MouseButton::Left,
-                    cx.listener(move |this, event: &MouseDownEvent, window, cx| {
+                    cx.listener(move |this, _event: &MouseDownEvent, window, cx| {
                         window.prevent_default();
                         cx.stop_propagation();
                         if let Some(slot_id) = mount_slot_id {
                             this.focus_command_terminal_mount_slot(slot_id, window, cx);
                             this.refresh_zmx_persistence_command_terminal_if_stale(slot_id, cx);
-                            let _ = this.forward_command_terminal_mount_slot_mouse_button(
-                                slot_id,
-                                event.position,
-                                ghostty_kit::ffi::GHOSTTY_MOUSE_PRESS,
-                                event.button,
-                                event.modifiers,
-                            );
                         } else if active_session_is_sleeping {
                             this.wake_command_pane_session(group_id, active_session_id, cx);
                         } else {
@@ -239,131 +228,18 @@ impl GhostexGpuiApp {
                 let view = cx.entity().clone();
                 this.on_mouse_down(
                     MouseButton::Right,
-                    cx.listener(move |this, event: &MouseDownEvent, window, cx| {
+                    cx.listener(move |this, _event: &MouseDownEvent, window, cx| {
                         window.prevent_default();
                         cx.stop_propagation();
                         this.focus_command_terminal_mount_slot(slot_id, window, cx);
-                        let _ = this.forward_command_terminal_mount_slot_mouse_button(
-                            slot_id,
-                            event.position,
-                            ghostty_kit::ffi::GHOSTTY_MOUSE_PRESS,
-                            event.button,
-                            event.modifiers,
-                        );
                     }),
                 )
                 .on_mouse_down(
                     MouseButton::Middle,
-                    cx.listener(move |this, event: &MouseDownEvent, window, cx| {
+                    cx.listener(move |this, _event: &MouseDownEvent, window, cx| {
                         window.prevent_default();
                         cx.stop_propagation();
                         this.focus_command_terminal_mount_slot(slot_id, window, cx);
-                        let _ = this.forward_command_terminal_mount_slot_mouse_button(
-                            slot_id,
-                            event.position,
-                            ghostty_kit::ffi::GHOSTTY_MOUSE_PRESS,
-                            event.button,
-                            event.modifiers,
-                        );
-                    }),
-                )
-                .on_mouse_move(
-                    cx.listener(move |this, event: &MouseMoveEvent, _window, _cx| {
-                        let _ = this.forward_command_terminal_mount_slot_mouse_position(
-                            slot_id,
-                            event.position,
-                            event.modifiers,
-                        );
-                    }),
-                )
-                .on_mouse_up(
-                    MouseButton::Left,
-                    cx.listener(move |this, event: &MouseUpEvent, _window, _cx| {
-                        let _ = this.forward_command_terminal_mount_slot_mouse_button(
-                            slot_id,
-                            event.position,
-                            ghostty_kit::ffi::GHOSTTY_MOUSE_RELEASE,
-                            event.button,
-                            event.modifiers,
-                        );
-                    }),
-                )
-                .on_mouse_up(
-                    MouseButton::Right,
-                    cx.listener(move |this, event: &MouseUpEvent, _window, _cx| {
-                        let _ = this.forward_command_terminal_mount_slot_mouse_button(
-                            slot_id,
-                            event.position,
-                            ghostty_kit::ffi::GHOSTTY_MOUSE_RELEASE,
-                            event.button,
-                            event.modifiers,
-                        );
-                    }),
-                )
-                .on_mouse_up(
-                    MouseButton::Middle,
-                    cx.listener(move |this, event: &MouseUpEvent, _window, _cx| {
-                        let _ = this.forward_command_terminal_mount_slot_mouse_button(
-                            slot_id,
-                            event.position,
-                            ghostty_kit::ffi::GHOSTTY_MOUSE_RELEASE,
-                            event.button,
-                            event.modifiers,
-                        );
-                    }),
-                )
-                .on_mouse_up_out(
-                    MouseButton::Left,
-                    cx.listener(move |this, event: &MouseUpEvent, _window, _cx| {
-                        let _ = this.forward_command_terminal_mount_slot_mouse_release_outside(
-                            slot_id,
-                            event.button,
-                            event.modifiers,
-                        );
-                    }),
-                )
-                .on_mouse_up_out(
-                    MouseButton::Right,
-                    cx.listener(move |this, event: &MouseUpEvent, _window, _cx| {
-                        let _ = this.forward_command_terminal_mount_slot_mouse_release_outside(
-                            slot_id,
-                            event.button,
-                            event.modifiers,
-                        );
-                    }),
-                )
-                .on_mouse_up_out(
-                    MouseButton::Middle,
-                    cx.listener(move |this, event: &MouseUpEvent, _window, _cx| {
-                        let _ = this.forward_command_terminal_mount_slot_mouse_release_outside(
-                            slot_id,
-                            event.button,
-                            event.modifiers,
-                        );
-                    }),
-                )
-                .on_mouse_pressure(cx.listener(
-                    move |this, event: &MousePressureEvent, _window, _cx| {
-                        let _ = this.forward_command_terminal_mount_slot_mouse_pressure(
-                            slot_id,
-                            event.position,
-                            event.stage,
-                            event.pressure,
-                            event.modifiers,
-                        );
-                    },
-                ))
-                .on_scroll_wheel(
-                    cx.listener(move |this, event: &ScrollWheelEvent, window, cx| {
-                        if this.forward_command_terminal_mount_slot_mouse_scroll(
-                            slot_id,
-                            event.position,
-                            event.delta,
-                            event.modifiers,
-                        ) {
-                            window.prevent_default();
-                            cx.stop_propagation();
-                        }
                     }),
                 )
                 .child({
@@ -371,14 +247,10 @@ impl GhostexGpuiApp {
                     let input_handler_view = view.clone();
                     terminal_content_frame(
                         canvas(
-                            move |bounds, window, cx| {
-                                let scale_factor = window.scale_factor();
+                            move |bounds, _window, cx| {
                                 bounds_view.update(cx, |this, cx| {
                                     this.record_command_terminal_mount_slot_bounds(
-                                        slot_id,
-                                        bounds,
-                                        scale_factor,
-                                        cx,
+                                        slot_id, bounds, cx,
                                     );
                                 });
                             },

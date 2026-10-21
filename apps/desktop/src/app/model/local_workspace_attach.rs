@@ -75,7 +75,6 @@ pub(crate) enum GpuiLocalWorkspaceLifecycleMutationKind {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct GpuiLocalWorkspaceLifecycleRequest {
     pub(crate) action: GpuiLocalWorkspaceLifecycleAction,
-    pub(crate) confirmed_close_slot_id: Option<AgentsTerminalBodyMountSlotId>,
     pub(crate) mutation_kind: GpuiLocalWorkspaceLifecycleMutationKind,
     pub(crate) pane_id: WorkspacePaneId,
     pub(crate) replacement_shell_session_id: Option<TerminalSessionId>,

@@ -9,18 +9,6 @@ use std::time::{Duration, Instant};
 use crate::app::helpers::*;
 use crate::*;
 
-pub(crate) fn run_project_beads_bridge_request_for_context(
-    payload: &str,
-    context: Option<&ProjectBoardBridgeRuntimeContext>,
-) -> serde_json::Value {
-    let request = serde_json::from_str::<serde_json::Value>(payload).unwrap_or_default();
-    let request_id = manage_request_string(&request, "requestId").unwrap_or_default();
-    match project_beads_bridge_result_for_request(&request, context) {
-        Ok(response) => response,
-        Err(error) => project_beads_bridge_error_response(&request_id, &error),
-    }
-}
-
 pub(crate) fn project_beads_bridge_result_for_request(
     request: &serde_json::Value,
     context: Option<&ProjectBoardBridgeRuntimeContext>,

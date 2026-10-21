@@ -22,69 +22,10 @@ impl GhostexGpuiApp {
 
     pub(crate) fn set_preedit_on_terminal_text_target(
         &mut self,
-        target: FocusedTerminalTextMountTarget,
-        bytes: &[u8],
+        _target: FocusedTerminalTextMountTarget,
+        _bytes: &[u8],
     ) -> bool {
-        #[cfg(target_os = "macos")]
-        {
-            match target {
-                FocusedTerminalTextMountTarget::Agents(slot_id) => {
-                    self.set_preedit_bytes_on_agents_terminal_surface(slot_id, bytes)
-                }
-                FocusedTerminalTextMountTarget::Command(slot_id) => {
-                    self.set_preedit_bytes_on_command_terminal_surface(slot_id, bytes)
-                }
-            }
-        }
-
-        #[cfg(not(target_os = "macos"))]
-        {
-            let _ = (target, bytes);
-            false
-        }
-    }
-
-    #[cfg(target_os = "macos")]
-    pub(crate) fn set_preedit_bytes_on_agents_terminal_surface(
-        &mut self,
-        slot_id: AgentsTerminalBodyMountSlotId,
-        bytes: &[u8],
-    ) -> bool {
-        let Some(runtime_session_id) = self
-            .agents_terminal_runtime_sessions
-            .runtime_session_id_for_shell_session(slot_id.session_id)
-        else {
-            return false;
-        };
-        let Some(surface) = self.agents_terminal_ghostty_surfaces.get_mut(&slot_id) else {
-            return false;
-        };
-        if surface.mount_slot_id() != slot_id || surface.runtime_session_id() != runtime_session_id
-        {
-            return false;
-        }
-
-        surface.set_preedit_bytes(bytes);
-        true
-    }
-
-    #[cfg(target_os = "macos")]
-    pub(crate) fn set_preedit_bytes_on_command_terminal_surface(
-        &mut self,
-        slot_id: CommandTerminalBodyMountSlotId,
-        bytes: &[u8],
-    ) -> bool {
-        let runtime_session_id = command_terminal_runtime_session_id(slot_id);
-        let Some(surface) = self.command_terminal_ghostty_surfaces.get_mut(&slot_id) else {
-            return false;
-        };
-        if surface.mount_slot_id() != slot_id || surface.runtime_session_id() != runtime_session_id
-        {
-            return false;
-        }
-
-        surface.set_preedit_bytes(bytes);
-        true
+        false
     }
 
     pub(crate) fn clear_focused_terminal_preedit(&mut self) {
@@ -94,43 +35,9 @@ impl GhostexGpuiApp {
 
     pub(crate) fn bounds_for_focused_terminal_ime_point(
         &self,
-        element_bounds: Bounds<Pixels>,
+        _element_bounds: Bounds<Pixels>,
     ) -> Option<Bounds<Pixels>> {
-        /*
-        CDXC:Terminal 2026-06-23-10:45:
-        IME candidate-window bounds may use only the current exact Ghostty surface `ime_point` plus the mounted terminal body bounds supplied by GPUI's paint-time input handler. If the focused surface is missing or stale, return None instead of inventing title/path/content/cursor fallbacks.
-        */
-        #[cfg(target_os = "macos")]
-        {
-            match self.exact_focused_terminal_text_surface_target()? {
-                FocusedTerminalTextMountTarget::Agents(slot_id) => {
-                    if !self.agents_terminal_ghostty_surface_matches(slot_id) {
-                        return None;
-                    }
-                    let ime_point = self
-                        .agents_terminal_ghostty_surfaces
-                        .get(&slot_id)?
-                        .ime_point();
-                    terminal_ime_bounds_from_ghostty_point(element_bounds, ime_point)
-                }
-                FocusedTerminalTextMountTarget::Command(slot_id) => {
-                    if !self.command_terminal_ghostty_surface_matches(slot_id) {
-                        return None;
-                    }
-                    let ime_point = self
-                        .command_terminal_ghostty_surfaces
-                        .get(&slot_id)?
-                        .ime_point();
-                    terminal_ime_bounds_from_ghostty_point(element_bounds, ime_point)
-                }
-            }
-        }
-
-        #[cfg(not(target_os = "macos"))]
-        {
-            let _ = element_bounds;
-            None
-        }
+        None
     }
 
     pub(crate) fn send_text_to_focused_terminal_surface(
@@ -147,24 +54,7 @@ impl GhostexGpuiApp {
             return true;
         }
 
-        #[cfg(target_os = "macos")]
-        {
-            match focused_terminal_text_target(self.active_mode, self.shell_focus) {
-                Some(FocusedTerminalTextTarget::Command) => {
-                    self.send_text_bytes_to_focused_command_terminal_surface(text.as_bytes())
-                }
-                Some(FocusedTerminalTextTarget::Agents) => {
-                    self.send_text_bytes_to_focused_agents_terminal_surface(text.as_bytes())
-                }
-                None => false,
-            }
-        }
-
-        #[cfg(not(target_os = "macos"))]
-        {
-            let _ = text;
-            false
-        }
+        false
     }
 
     pub(crate) fn send_tab_key_to_gpui_engine_terminal(
@@ -233,75 +123,6 @@ impl GhostexGpuiApp {
         }
     }
 
-    #[cfg(target_os = "macos")]
-    pub(crate) fn send_text_bytes_to_focused_agents_terminal_surface(
-        &mut self,
-        bytes: &[u8],
-    ) -> bool {
-        let Some(slot_id) = focused_agents_terminal_surface_mount_slot(
-            self.active_mode,
-            self.shell_focus,
-            &self.agents_workspace,
-        ) else {
-            return false;
-        };
-        self.send_text_bytes_to_mounted_agents_terminal_surface(slot_id, bytes)
-    }
-
-    #[cfg(target_os = "macos")]
-    pub(crate) fn send_text_bytes_to_mounted_agents_terminal_surface(
-        &mut self,
-        slot_id: AgentsTerminalBodyMountSlotId,
-        bytes: &[u8],
-    ) -> bool {
-        if bytes.is_empty()
-            || !self
-                .agents_workspace
-                .is_current_terminal_body_mount_slot(slot_id)
-        {
-            return false;
-        }
-        let Some(runtime_session_id) = self
-            .agents_terminal_runtime_sessions
-            .runtime_session_id_for_shell_session(slot_id.session_id)
-        else {
-            return false;
-        };
-        let Some(surface) = self.agents_terminal_ghostty_surfaces.get_mut(&slot_id) else {
-            return false;
-        };
-        if surface.mount_slot_id() != slot_id || surface.runtime_session_id() != runtime_session_id
-        {
-            return false;
-        }
-
-        surface.send_text_bytes(bytes);
-        true
-    }
-
-    #[cfg(target_os = "macos")]
-    pub(crate) fn send_text_bytes_to_focused_command_terminal_surface(
-        &mut self,
-        bytes: &[u8],
-    ) -> bool {
-        let Some(slot_id) =
-            focused_command_terminal_surface_mount_slot(self.shell_focus, &self.command_pane)
-        else {
-            return false;
-        };
-        let runtime_session_id = command_terminal_runtime_session_id(slot_id);
-        let Some(surface) = self.command_terminal_ghostty_surfaces.get_mut(&slot_id) else {
-            return false;
-        };
-        if surface.mount_slot_id() != slot_id || surface.runtime_session_id() != runtime_session_id
-        {
-            return false;
-        }
-
-        surface.send_text_bytes(bytes);
-        true
-    }
-
     pub(crate) fn send_return_key_to_mounted_command_terminal_surface(
         &mut self,
         slot_id: CommandTerminalBodyMountSlotId,
@@ -320,43 +141,7 @@ impl GhostexGpuiApp {
             view.update(cx, |view, cx| view.send_return_key(cx));
             return true;
         }
-        #[cfg(target_os = "macos")]
-        {
-            if !self
-                .command_pane
-                .is_current_terminal_body_mount_slot(slot_id)
-            {
-                return false;
-            }
-            let runtime_session_id = command_terminal_runtime_session_id(slot_id);
-            let Some(surface) = self.command_terminal_ghostty_surfaces.get_mut(&slot_id) else {
-                return false;
-            };
-            if surface.mount_slot_id() != slot_id
-                || surface.runtime_session_id() != runtime_session_id
-            {
-                return false;
-            }
-            let Ok(return_text) = std::ffi::CString::new(COMMAND_PANE_DELAYED_SEND_RETURN_TEXT)
-            else {
-                return false;
-            };
-            surface.send_key(ghostty_kit::ffi::ghostty_input_key_s {
-                action: COMMAND_PANE_GHOSTTY_KEY_ACTION_PRESS,
-                mods: 0,
-                consumed_mods: 0,
-                keycode: COMMAND_PANE_DELAYED_SEND_RETURN_KEYCODE,
-                text: return_text.as_ptr(),
-                unshifted_codepoint: COMMAND_PANE_DELAYED_SEND_RETURN_UNSHIFTED_CODEPOINT,
-                composing: false,
-            })
-        }
-
-        #[cfg(not(target_os = "macos"))]
-        {
-            let _ = slot_id;
-            false
-        }
+        false
     }
 
     pub(crate) fn send_return_key_to_mounted_agents_terminal_surface(
@@ -377,81 +162,7 @@ impl GhostexGpuiApp {
             view.update(cx, |view, cx| view.send_return_key(cx));
             return true;
         }
-        #[cfg(target_os = "macos")]
-        {
-            if !self
-                .agents_workspace
-                .is_current_terminal_body_mount_slot(slot_id)
-            {
-                return false;
-            }
-            let Some(runtime_session_id) = self
-                .agents_terminal_runtime_sessions
-                .runtime_session_id_for_shell_session(slot_id.session_id)
-            else {
-                return false;
-            };
-            let Some(surface) = self.agents_terminal_ghostty_surfaces.get_mut(&slot_id) else {
-                return false;
-            };
-            if surface.mount_slot_id() != slot_id
-                || surface.runtime_session_id() != runtime_session_id
-            {
-                return false;
-            }
-            let Ok(return_text) = std::ffi::CString::new(GPUI_TERMINAL_RETURN_TEXT) else {
-                return false;
-            };
-            surface.send_key(ghostty_kit::ffi::ghostty_input_key_s {
-                action: COMMAND_PANE_GHOSTTY_KEY_ACTION_PRESS,
-                mods: 0,
-                consumed_mods: 0,
-                keycode: GPUI_TERMINAL_RETURN_KEYCODE,
-                text: return_text.as_ptr(),
-                unshifted_codepoint: GPUI_TERMINAL_RETURN_UNSHIFTED_CODEPOINT,
-                composing: false,
-            })
-        }
-
-        #[cfg(not(target_os = "macos"))]
-        {
-            let _ = slot_id;
-            false
-        }
-    }
-
-    #[cfg(target_os = "macos")]
-    pub(crate) fn send_return_key_to_parked_agents_terminal_surface(
-        &mut self,
-        runtime_session_id: AgentsTerminalRuntimeSessionId,
-    ) -> bool {
-        let Some(owner) = self
-            .agents_terminal_parked_runtime_owners
-            .get_mut(&runtime_session_id)
-        else {
-            return false;
-        };
-        if !owner.matches_identity(
-            runtime_session_id,
-            owner.shell_session_id,
-            owner.mount_slot_id,
-        ) {
-            return false;
-        }
-        let Ok(return_text) = std::ffi::CString::new(GPUI_TERMINAL_RETURN_TEXT) else {
-            return false;
-        };
-        owner
-            .surface_owner
-            .send_key(ghostty_kit::ffi::ghostty_input_key_s {
-                action: COMMAND_PANE_GHOSTTY_KEY_ACTION_PRESS,
-                mods: 0,
-                consumed_mods: 0,
-                keycode: GPUI_TERMINAL_RETURN_KEYCODE,
-                text: return_text.as_ptr(),
-                unshifted_codepoint: GPUI_TERMINAL_RETURN_UNSHIFTED_CODEPOINT,
-                composing: false,
-            })
+        false
     }
 
     pub(crate) fn send_gpui_command_action_script_to_mounted_terminal(
@@ -498,31 +209,7 @@ impl GhostexGpuiApp {
             return self.send_return_key_to_mounted_command_terminal_surface(slot_id, cx);
         }
 
-        #[cfg(target_os = "macos")]
-        {
-            let runtime_session_id = command_terminal_runtime_session_id(slot_id);
-            {
-                let Some(surface) = self.command_terminal_ghostty_surfaces.get_mut(&slot_id) else {
-                    return false;
-                };
-                if surface.mount_slot_id() != slot_id
-                    || surface.runtime_session_id() != runtime_session_id
-                {
-                    return false;
-                }
-                surface.send_text_bytes(source_command.as_bytes());
-            }
-            /*
-            CDXC:CommandPane 2026-06-27-07:54:
-            Mounted reused default Actions mirror native `writeTerminalScript`: stage the private wrapper in a temp script for the exact current command surface, send only the short source command as terminal text, and submit it through the real Return key path so reruns execute immediately without relying on carriage-return text or a deferred launch payload.
-            */
-            self.send_return_key_to_mounted_command_terminal_surface(slot_id, cx)
-        }
-
-        #[cfg(not(target_os = "macos"))]
-        {
-            false
-        }
+        false
     }
 
     pub(crate) fn gpui_command_action_mounted_reuse_surface_available(
@@ -531,7 +218,7 @@ impl GhostexGpuiApp {
     ) -> bool {
         /*
         CDXC:CommandPane 2026-06-27-07:54:
-        Default Action reuse may bypass launch payloads only when the selected reused tab already owns the exact current mounted command Ghostty surface. Missing, stale, sleeping, or unmounted reused tabs must use the exact-slot launch payload path instead of borrowing another terminal surface.
+        Default Action reuse may bypass launch payloads only when the selected reused tab already owns the exact current mounted command terminal. Missing, stale, sleeping, or unmounted reused tabs must use the exact-slot launch payload path instead of borrowing another terminal surface.
         */
         if !self
             .command_pane
@@ -539,26 +226,7 @@ impl GhostexGpuiApp {
         {
             return false;
         }
-        if self
-            .command_gpui_engine_terminals
+        self.command_gpui_engine_terminals
             .contains_key(&slot_id.session_id)
-        {
-            return true;
-        }
-        #[cfg(target_os = "macos")]
-        {
-            let runtime_session_id = command_terminal_runtime_session_id(slot_id);
-            self.command_terminal_ghostty_surfaces
-                .get(&slot_id)
-                .is_some_and(|surface| {
-                    surface.mount_slot_id() == slot_id
-                        && surface.runtime_session_id() == runtime_session_id
-                })
-        }
-
-        #[cfg(not(target_os = "macos"))]
-        {
-            false
-        }
     }
 }

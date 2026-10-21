@@ -719,8 +719,6 @@ fn main() {
     println!("cargo:rerun-if-changed=native/macos/GpuiNavigationGestures.m");
     println!("cargo:rerun-if-changed=native/macos/GpuiSidebarReveal.m");
     println!("cargo:rerun-if-changed=native/macos/GpuiDocsDrawer.m");
-    let gpui_terminal_appkit_adapter =
-        manifest_dir.join("native/macos/GpuiTerminalAppKitAdapter.m");
     let gpui_terminal_mouse_cursor = manifest_dir.join("native/macos/GpuiTerminalMouseCursor.m");
     let gpui_settings_notifications = manifest_dir.join("native/macos/GpuiSettingsNotifications.m");
     let gpui_ghostex_capture = manifest_dir.join("native/macos/GpuiGhostexCapture.m");
@@ -740,10 +738,6 @@ fn main() {
     );
 
     println!("cargo:rerun-if-changed={}", gpui_hooks.display());
-    println!(
-        "cargo:rerun-if-changed={}",
-        gpui_terminal_appkit_adapter.display()
-    );
     println!(
         "cargo:rerun-if-changed={}",
         gpui_terminal_mouse_cursor.display()
@@ -792,23 +786,11 @@ fn main() {
         .compile("ghostex_gpui_cef_appkit_hooks");
 
     /*
-    CDXC:Terminal 2026-06-22-20:58:
-    Compile the GPUI-local terminal AppKit adapter as a separate shim from CEF so real terminal host views can be positioned and shown or hidden through the owner path without fake views, logging, overlays, hit-test routing, or process behavior.
-
-    CDXC:Terminal 2026-06-22-22:42:
-    GhosttyKit link flags are now declared separately below because Rust owns the real focused one-pane surface lifecycle; keep this Objective-C shim limited to AppKit view frame and visibility operations.
-    */
-    gpui_macos_objc_build()
-        .file(gpui_terminal_appkit_adapter)
-        .compile("ghostex_gpui_terminal_appkit_adapter");
-
-    /*
     CDXC:Terminal 2026-07-12:
-    Compile hide-while-typing cursor concealment separately from the terminal
-    host-view adapter. The composited terminal element calls only this
-    function, and binaries without the app's Rust key/IME callback exports
-    (terminal-element-demo) must not inherit the adapter's link dependencies
-    through it.
+    Compile hide-while-typing cursor concealment as its own library. The
+    composited terminal element calls only this function, and binaries
+    without the app's Rust callback exports (terminal-element-demo) must be
+    able to link it alone.
     */
     gpui_macos_objc_build()
         .file(gpui_terminal_mouse_cursor)
@@ -849,8 +831,8 @@ fn main() {
         .compile("ghostex_gpui_app_icon");
 
     /*
-    CDXC:StatusPet 2026-06-26-07:31:
-    Compile the GPUI accessibility display-options shim separately because Pet Overlay Reduce Motion is a read-only macOS runtime source. It must not share renderer IPC, hidden views, logging, paths, settings JSON, or notification payloads with unrelated settings bridges.
+    CDXC:DesignSystem 2026-06-26-07:31:
+    Compile the GPUI accessibility display-options shim separately because Reduce Motion is a read-only macOS runtime source. It must not share renderer IPC, hidden views, logging, paths, settings JSON, or notification payloads with unrelated settings bridges.
     */
     gpui_macos_objc_build()
         .file(gpui_accessibility_display_options)

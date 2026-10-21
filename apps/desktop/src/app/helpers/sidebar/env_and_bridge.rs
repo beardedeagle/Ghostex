@@ -6,7 +6,7 @@
 // C1 wave-1 extraction: stateless helper functions moved verbatim out of
 // main.rs (pure move, no logic changes). See docs/2026-08-22/repo-restructure/SPLITS.md C1.
 
-use std::{sync::atomic::Ordering, time::Duration};
+use std::sync::atomic::Ordering;
 
 use gpui::{Hsla, rgb};
 
@@ -152,48 +152,4 @@ pub(crate) fn gpui_previous_session_reference_from_history_id(
         return None;
     }
     Some((project_id, session_id))
-}
-
-pub(crate) fn gpui_sidebar_portless_state_from_update_result(
-    result: &serde_json::Value,
-) -> Option<serde_json::Value> {
-    let status = result.get("status")?.as_object().cloned()?;
-    let presentation = result.get("presentation")?.as_object().cloned()?;
-    let health = serde_json::Value::Object(status.clone());
-    Some(serde_json::json!({
-        "health": health.clone(),
-        "nativeAdmin": {
-            "actions": gpui_portless_native_admin_actions(&health),
-            "available": gpui_portless_native_admin_available(),
-        },
-        "presentation": serde_json::Value::Object(presentation),
-    }))
-}
-
-pub(crate) fn gpui_sidebar_portless_state() -> Option<serde_json::Value> {
-    /*
-    CDXC:Portless 2026-06-24-14:28:
-    GPUI Settings hydration exposes privileged Portless admin actions only when this local macOS app bundle has the reviewed Web/code-server Node and Web/portless CLI runtime. Non-macOS, development binaries, incomplete bundles, and non-recommended actions stay unavailable rather than presenting fake setup capability.
-    */
-    let health = gpui_gxserver_server_health(Duration::from_millis(500)).ok()?;
-    let portless = health.get("portless")?.clone();
-    Some(serde_json::json!({
-        "health": portless.clone(),
-        "nativeAdmin": {
-            "actions": gpui_portless_native_admin_actions(&portless),
-            "available": gpui_portless_native_admin_available(),
-        },
-    }))
-}
-
-/// The setup-prompt gate needs `presentation.liveListenerCount`, which the
-/// short health probe does not carry; macOS reads it from the startup
-/// presentation snapshot (`createSidebarPortlessState`), so GPUI reads the
-/// daemon's presentation snapshot the same way.
-pub(crate) fn gpui_sidebar_portless_state_with_presentation() -> Option<serde_json::Value> {
-    let mut state = gpui_sidebar_portless_state()?;
-    let snapshot = gpui_read_gxserver_presentation_snapshot().ok()?;
-    let presentation = snapshot.get("portless")?.clone();
-    state["presentation"] = presentation;
-    Some(state)
 }

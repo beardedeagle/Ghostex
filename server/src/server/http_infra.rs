@@ -44,7 +44,6 @@ pub(crate) fn create_authenticated_health(state: &AppState) -> ServerHealthRespo
         listeners: state.config.listeners.clone(),
         migration: state.migration.clone(),
         pid: state.metadata.pid,
-        portless: read_portless_status_payload_for_paths(&state.paths),
         port: state.metadata.port,
         server_id: state.metadata.server_id.clone(),
         started_at: state.metadata.started_at.clone(),

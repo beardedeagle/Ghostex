@@ -23,12 +23,6 @@ pub(crate) struct AgentsTerminalStartupLaunchPlan {
     pub(crate) scale_factor: f32,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-pub(crate) struct AgentsTerminalStartupHostPreservationKey {
-    pub(crate) runtime_session_id: AgentsTerminalRuntimeSessionId,
-    pub(crate) startup_body_slot_id: AgentsTerminalStartupBodySlotId,
-}
-
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) struct AgentsTerminalStartupRecord {
     pub(crate) pane_id: WorkspacePaneId,
@@ -62,46 +56,6 @@ impl AgentsTerminalStartupCompletionIntent {
             shell_session_id: record.shell_session_id,
             startup_body_slot_id: record.startup_body_slot_id(),
         }
-    }
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub(crate) struct AgentsTerminalStartupReadinessSignalPreparation {
-    pub(crate) completion_intent: AgentsTerminalStartupCompletionIntent,
-    pub(crate) surface_metadata: terminal_ghostty_surface::GhosttySurfaceMetadataSnapshot,
-}
-
-impl AgentsTerminalStartupReadinessSignalPreparation {
-    pub(crate) fn new(
-        completion_intent: AgentsTerminalStartupCompletionIntent,
-        startup_body_slot_id: AgentsTerminalStartupBodySlotId,
-        surface_metadata: terminal_ghostty_surface::GhosttySurfaceMetadataSnapshot,
-    ) -> Option<Self> {
-        (completion_intent.startup_body_slot_id == startup_body_slot_id
-            && surface_metadata.indicates_ready_metadata())
-        .then_some(Self {
-            completion_intent,
-            surface_metadata,
-        })
-    }
-}
-
-#[cfg(target_os = "macos")]
-#[derive(Clone, Copy, PartialEq)]
-pub(crate) struct AgentsTerminalStartupReadinessHandoffPlan {
-    pub(crate) completion_intent: AgentsTerminalStartupCompletionIntent,
-    pub(crate) startup_launch_plan: AgentsTerminalStartupLaunchPlan,
-    pub(crate) mount_slot_id: AgentsTerminalBodyMountSlotId,
-}
-
-#[cfg(target_os = "macos")]
-impl AgentsTerminalStartupReadinessHandoffPlan {
-    pub(crate) fn runtime_session_id(self) -> AgentsTerminalRuntimeSessionId {
-        self.completion_intent.runtime_session_id
-    }
-
-    pub(crate) fn startup_body_slot_id(self) -> AgentsTerminalStartupBodySlotId {
-        self.completion_intent.startup_body_slot_id
     }
 }
 

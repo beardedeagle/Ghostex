@@ -276,10 +276,6 @@ pub(crate) struct SettingsStore {
     /// The scroll top restored for each page on its first frame, so it is applied once.
     restored_scroll: HashMap<SettingsTabId, bool>,
     closed: bool,
-    /// The app icon a `setAppIcon` asked for, persisted once its `appIconState` confirms it.
-    pending_app_icon_source: Option<String>,
-    /// Why the last app icon change failed (`appIconError`).
-    app_icon_error: Option<String>,
     /// The dialogs and forms the last visit left open (settings_modal/restore.rs).
     open_forms: OpenFormMemory,
     /// Whether the rail's Extensions group is open (`extensionsGroupOpen` in
@@ -327,8 +323,6 @@ impl SettingsStore {
             navigation_task: None,
             restored_scroll: HashMap::new(),
             closed: false,
-            pending_app_icon_source: None,
-            app_icon_error: None,
             open_forms,
             extensions_group_open: false,
         };
@@ -593,7 +587,7 @@ impl SettingsStore {
     /// The answers the React modal applied at the modal level (use-app-icon-settings.ts (deleted 2026-10-01)), whatever
     /// page is open: a picked terminal background image or glass picture or video lands in the
     /// draft like a typed path (a refused video's error stays in its payload for the Theme page),
-    /// and an `appIconState` confirms the icon a `setAppIcon` asked for, or reports why it failed.
+    /// and an `appIconState` confirms the icon a `setAppIcon` (Reset all settings) asked for.
     fn apply_host_answer(&mut self, kind: &str, payload: &Value, cx: &mut Context<Self>) {
         let light = payload.get("appearance").and_then(Value::as_str) == Some("light");
         let path = payload
@@ -614,30 +608,11 @@ impl SettingsStore {
             "windowGlassVideoFilePicked" if light => "windowGlassVideoLight",
             "windowGlassVideoFilePicked" => "windowGlassVideoDark",
             "appIconState" => {
-                if payload.get("ok").and_then(Value::as_bool) == Some(true) {
-                    self.app_icon_error = None;
-                    let confirmed = self.pending_app_icon_source.take().or_else(|| {
-                        payload
-                            .get("selectedId")
-                            .and_then(Value::as_str)
-                            .map(str::to_string)
-                    });
-                    if let Some(source) = confirmed
-                        && self.string("appIconSourceId") != source
-                    {
-                        self.update_setting("appIconSourceId", Value::String(source), cx);
-                    }
-                } else {
-                    self.pending_app_icon_source = None;
-                    self.app_icon_error = Some(
-                        payload
-                            .get("error")
-                            .and_then(Value::as_str)
-                            .map(str::trim)
-                            .filter(|error| !error.is_empty())
-                            .unwrap_or("Could not update the app icon.")
-                            .to_string(),
-                    );
+                if payload.get("ok").and_then(Value::as_bool) == Some(true)
+                    && let Some(source) = payload.get("selectedId").and_then(Value::as_str)
+                    && self.string("appIconSourceId") != source
+                {
+                    self.update_setting("appIconSourceId", Value::String(source.to_string()), cx);
                 }
                 return;
             }
@@ -646,25 +621,6 @@ impl SettingsStore {
         if let Some(path) = path {
             self.update_setting(key, Value::String(path), cx);
         }
-    }
-
-    /// `selectAppIcon(sourceId)`: asks for the icon; the setting is saved when the app confirms it.
-    pub(crate) fn select_app_icon(&mut self, source_id: String, cx: &mut Context<Self>) {
-        self.pending_app_icon_source = Some(source_id.clone());
-        self.app_icon_error = None;
-        self.post_message(json!({ "sourceId": source_id, "type": "setAppIcon" }), cx);
-        cx.notify();
-    }
-
-    /// `chooseAppIconFile`.
-    pub(crate) fn choose_app_icon_file(&mut self, cx: &mut Context<Self>) {
-        self.app_icon_error = None;
-        self.post_message(json!({ "type": "pickAppIconFile" }), cx);
-        cx.notify();
-    }
-
-    pub(crate) fn app_icon_error(&self) -> Option<&str> {
-        self.app_icon_error.as_deref()
     }
 
     pub(crate) fn host_payload(&self, kind: &str) -> Option<&Value> {

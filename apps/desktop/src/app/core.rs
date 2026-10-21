@@ -22,8 +22,6 @@ use std::time::Instant;
 // just the macOS-only shims that first introduced the import.
 use std::cell::Cell;
 
-use crate::terminal_surface_host::NativeTerminalSurfaceHost;
-use crate::terminal_surface_lifecycle::NativeTerminalSurfaceLifecycleState;
 use gpui::Bounds;
 use gpui::Entity;
 use gpui::EntityInputHandler;
@@ -223,19 +221,6 @@ pub struct GhostexGpuiApp {
     // open editor window (polled over its unix socket). Drives the titlebar
     // "Prompt Editor" bring-to-front affordance.
     pub(crate) prompt_editor_daemon_open: bool,
-    // Portless setup prompt suppression is memory-only for this app run
-    // (macOS `portlessSetupPromptSuppressedUntilRestart` /
-    // `activePortlessSetupPromptMode` parity).
-    pub(crate) portless_setup_prompt_suppressed_until_restart: bool,
-    pub(crate) active_portless_setup_prompt_mode: Option<GpuiPortlessSetupPromptMode>,
-    /*
-    CDXC:Portless 2026-08-18:
-    GPUI hosts a single app-modal window, so a Portless prompt resolved while
-    the user already has a modal open cannot be shown right away. Remember that
-    deferral instead of dropping the prompt for the rest of the run, and let
-    the next modal close re-run the check.
-    */
-    pub(crate) portless_setup_prompt_pending_modal_close: bool,
     /*
     CDXC:Onboarding 2026-08-18:
     First-run onboarding markers are now persisted only after their surface is
@@ -308,7 +293,6 @@ pub struct GhostexGpuiApp {
     CDXC:AddProject 2026-06-24-19:35:
     Remote repository clone progress is runtime-only GPUI bookkeeping keyed by the modal request id and remote gxserver job id. Store no repository URLs, remote paths, folder names, branch names, stdout/stderr, daemon bodies, SSH targets, tokens, or prompts; Rust uses this map only to poll/cancel the daemon-owned job through the live tunnel.
     */
-    pub(crate) remote_repository_clone_requests: HashMap<String, GpuiRemoteRepositoryCloneRequest>,
     /*
     CDXC:RemoteMachines 2026-08-06:
     Remote attach focus state maps the bounded saved-machine/project/session
@@ -559,7 +543,7 @@ pub struct GhostexGpuiApp {
     pub(crate) next_local_workspace_lifecycle_request_id: u64,
     /*
     CDXC:StatusPet 2026-06-26-04:38:
-    Status indicator and pet overlay bridge state is runtime-only GPUI presentation input from the sidebar CEF surface. Store only parsed bounded counts, booleans, size/pet ids, project/session ids, order, and short titles; do not persist it, log raw JSON, or use it as authority for filesystem, command, URL, token, terminal-content, or renderer side effects.
+    Status indicator bridge state is runtime-only GPUI presentation input from the sidebar CEF surface. Store only parsed bounded counts, booleans, size ids, project/session ids, order, and short titles; do not persist it, log raw JSON, or use it as authority for filesystem, command, URL, token, terminal-content, or renderer side effects.
 
     CDXC:StatusPet 2026-06-26-05:42:
     The compact GPUI menu-bar badge must be driven from this already parsed Rust status state, not from a renderer-owned menu-bar bridge.
@@ -577,7 +561,6 @@ pub struct GhostexGpuiApp {
     pub(crate) sidebar_session_status_indicators_snapshot_seen: bool,
     pub(crate) session_attention_notification_rate_limiter:
         GpuiSessionAttentionNotificationRateLimiter,
-    pub(crate) sidebar_pet_overlay: GpuiSidebarPetOverlayState,
     /// The last command-tab summary `refresh_sidebar_command_pane_sessions_if_changed` saw, so it
     /// reports only real changes.
     pub(crate) sidebar_command_pane_sessions_snapshot: String,
@@ -743,86 +726,14 @@ pub struct GhostexGpuiApp {
     pub(crate) composited_terminal_keyboard_owner: Option<(usize, GpuiEngineTerminalEventTarget)>,
     pub(crate) agents_terminal_startup_body_slot_geometries:
         HashMap<AgentsTerminalStartupBodySlotId, AgentsTerminalStartupBodyGeometry>,
-    pub(crate) agents_terminal_parked_owner_body_slot_geometries:
-        HashMap<AgentsTerminalBodyMountSlotId, AgentsTerminalParkedOwnerBodyGeometry>,
     pub(crate) agents_terminal_runtime_sessions: AgentsTerminalRuntimeSessionRegistry,
     pub(crate) agents_terminal_startup_coordinator: AgentsTerminalStartupCoordinator,
     pub(crate) agents_terminal_startup_launch_payload_source:
         AgentsTerminalStartupLaunchPayloadSource,
     pub(crate) agents_terminal_launch_payload_source: AgentsTerminalLaunchPayloadSource,
     pub(crate) command_terminal_launch_payload_source: CommandTerminalLaunchPayloadSource,
-    pub(crate) agents_terminal_surface_host: NativeTerminalSurfaceHost,
-    pub(crate) agents_terminal_surface_lifecycle: NativeTerminalSurfaceLifecycleState,
-    pub(crate) command_terminal_surface_host:
-        NativeTerminalSurfaceHost<CommandTerminalBodyMountSlotId>,
-    pub(crate) command_terminal_surface_lifecycle:
-        NativeTerminalSurfaceLifecycleState<CommandTerminalBodyMountSlotId>,
-    #[cfg(target_os = "macos")]
-    pub(crate) agents_terminal_ghostty_surfaces:
-        HashMap<AgentsTerminalBodyMountSlotId, terminal_ghostty_surface::GhosttySurfaceOwner>,
-    #[cfg(target_os = "macos")]
-    pub(crate) agents_terminal_parked_runtime_owners:
-        HashMap<AgentsTerminalRuntimeSessionId, AgentsTerminalParkedRuntimeOwner>,
-    #[cfg(target_os = "macos")]
-    pub(crate) command_terminal_ghostty_surfaces: HashMap<
-        CommandTerminalBodyMountSlotId,
-        terminal_ghostty_surface::GhosttySurfaceOwner<CommandTerminalBodyMountSlotId>,
-    >,
-    #[cfg(target_os = "macos")]
-    pub(crate) command_terminal_parked_runtime_owners:
-        HashMap<AgentsTerminalRuntimeSessionId, CommandTerminalParkedRuntimeOwner>,
-    #[cfg(target_os = "macos")]
-    pub(crate) agents_terminal_close_confirms: AgentsTerminalCloseConfirmState,
-    #[cfg(target_os = "macos")]
-    pub(crate) command_terminal_close_confirms: CommandTerminalCloseConfirmState,
     #[cfg(target_os = "macos")]
     pub(crate) terminal_close_confirm_dialog_key: Option<TerminalCloseConfirmDialogKey>,
-    #[cfg(target_os = "macos")]
-    pub(crate) agents_terminal_startup_ghostty_surfaces: HashMap<
-        AgentsTerminalStartupBodySlotId,
-        terminal_ghostty_surface::StartupGhosttySurfaceOwner,
-    >,
-    #[cfg(target_os = "macos")]
-    pub(crate) agents_terminal_ghostty_app: Option<terminal_ghostty_surface::GhosttyAppOwner>,
-    #[cfg(target_os = "macos")]
-    pub(crate) command_terminal_ghostty_app: Option<terminal_ghostty_surface::GhosttyAppOwner>,
-    #[cfg(target_os = "macos")]
-    pub(crate) agents_terminal_host_native_views: HashMap<
-        AgentsTerminalBodyMountSlotId,
-        terminal_native_view::AppOwnedTerminalHostNativeView,
-    >,
-    #[cfg(target_os = "macos")]
-    pub(crate) command_terminal_host_native_views: HashMap<
-        CommandTerminalBodyMountSlotId,
-        terminal_native_view::AppOwnedTerminalHostNativeView<CommandTerminalBodyMountSlotId>,
-    >,
-    #[cfg(target_os = "macos")]
-    pub(crate) agents_terminal_startup_host_native_views: HashMap<
-        AgentsTerminalStartupBodySlotId,
-        terminal_native_view::AppOwnedTerminalStartupHostNativeView,
-    >,
-    #[cfg(target_os = "macos")]
-    pub(crate) agents_terminal_appkit_focused_host:
-        Option<terminal_native_view::AppOwnedTerminalHostFocusIdentity>,
-    #[cfg(target_os = "macos")]
-    pub(crate) command_terminal_appkit_focused_host: Option<
-        terminal_native_view::AppOwnedTerminalHostFocusIdentity<CommandTerminalBodyMountSlotId>,
-    >,
-    #[cfg(target_os = "macos")]
-    pub(crate) agents_terminal_ghostty_surface_config_requests: HashMap<
-        AgentsTerminalBodyMountSlotId,
-        terminal_ghostty_surface::GhosttySurfaceConfigRequest,
-    >,
-    #[cfg(target_os = "macos")]
-    pub(crate) command_terminal_ghostty_surface_config_requests: HashMap<
-        CommandTerminalBodyMountSlotId,
-        terminal_ghostty_surface::GhosttySurfaceConfigRequest,
-    >,
-    #[cfg(target_os = "macos")]
-    pub(crate) agents_terminal_startup_ghostty_surface_config_requests: HashMap<
-        AgentsTerminalStartupBodySlotId,
-        terminal_ghostty_surface::GhosttySurfaceConfigRequest,
-    >,
     pub(crate) workspace_tab_scroll_handles: HashMap<WorkspacePaneId, ScrollHandle>,
     pub(crate) browser_tab_scroll_handles: HashMap<BrowserPaneId, ScrollHandle>,
     /// The view panel has exactly one tab strip, so it needs one handle rather than a map.
@@ -848,19 +759,8 @@ pub struct GhostexGpuiApp {
     pub(crate) command_resize_hovering: Option<CommandPaneResizeHoverTarget>,
     pub(crate) command_resize_hover_visible: Option<CommandPaneResizeHoverTarget>,
     pub(crate) command_resize_hover_epoch: u64,
-    /*
-    CDXC:StatusPet 2026-06-26-11:17:
-    Worker 53 keeps Pet Overlay interaction state inside the existing visible GPUI stack. The avatar's expanded/collapsed activity-card boolean is persisted with shell state to match native restart behavior, but the only stored pet UI data is this boolean; do not store activity titles, session/project ids, paths, settings JSON, commands, URLs, terminal output, tokens, detached panel origin, or drag state.
-
-    CDXC:StatusPet 2026-06-26-07:31:
-    GPUI Pet Overlay Reduce Motion is a runtime-only macOS accessibility display option. When enabled, keep the avatar on a stable semantic state frame and do not start the pet animation ticker; unsupported/non-macOS reads default to animated behavior without persisting or logging system settings.
-    */
-    pub(crate) gpui_pet_overlay_activities_visible: bool,
-    pub(crate) gpui_pet_overlay_avatar_hovered: bool,
-    pub(crate) gpui_pet_overlay_animation_state: GpuiPetOverlayAnimationState,
-    pub(crate) gpui_pet_overlay_animation_started_at: Instant,
-    pub(crate) gpui_pet_overlay_animation_ticker_active: bool,
-    pub(crate) gpui_pet_overlay_reduce_motion_enabled: bool,
+    /// macOS Reduce Motion, read at launch and updated from the accessibility display-options notification.
+    pub(crate) gpui_reduce_motion_enabled: bool,
     pub(crate) command_pane_side: GpuiCommandPaneSide,
     pub(crate) sidebar_width: f32,
     pub(crate) sidebar_collapsed: bool,
@@ -876,7 +776,6 @@ pub struct GhostexGpuiApp {
     pub(crate) app_modal_gxserver_hydrate: Option<GpuiAppModalGxserverHydrate>,
     pub(crate) app_modal_gxserver_hydrate_refreshing: bool,
     pub(crate) app_modal_command_return_focus_target: Option<CommandPaneAppModalReturnFocusTarget>,
-    pub(crate) plugins_modal_window: Option<WindowHandle<plugins_modal::GpuiPluginsModalWindow>>,
     pub(crate) plugin_settings_action_progress:
         HashMap<&'static str, component_store::ComponentStoreProgressPhase>,
     pub(crate) plugin_settings_action_errors: HashMap<&'static str, String>,
@@ -1049,8 +948,6 @@ impl Drop for GhostexGpuiApp {
         unregister_gpui_first_responder_callback_target(self.parent_ns_view);
         #[cfg(target_os = "macos")]
         unregister_gpui_keyboard_router_target(self.parent_ns_view);
-        #[cfg(target_os = "macos")]
-        unregister_gpui_terminal_key_event_callback_target(self.parent_ns_view);
         if lead {
             hide_gpui_menu_bar_status_item();
         }

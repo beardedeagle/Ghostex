@@ -350,7 +350,6 @@ pub async fn run_gxserver_foreground(
     sync_session_chat_followers_for_all_sessions(&state, "server-start");
     crate::voice_agent::recover_voice_agent_memory(&state);
     let agent_metadata_title_sync_task = spawn_agent_metadata_title_sync_task(&state);
-    let portless_background_sync_task = spawn_portless_background_sync_task(&state);
     let session_lifecycle_sweep_task = spawn_session_lifecycle_sweep_task(&state);
     let session_git_status_refresh_task = spawn_session_git_status_refresh_task(&state);
     let worktree_branch_rename_task = spawn_worktree_branch_rename_task(&state);
@@ -438,7 +437,6 @@ pub async fn run_gxserver_foreground(
     let mut shutdown_tail_steps: Vec<(&str, u128)> = Vec::new();
     let step_started = std::time::Instant::now();
     agent_metadata_title_sync_task.abort();
-    portless_background_sync_task.abort();
     session_lifecycle_sweep_task.abort();
     session_git_status_refresh_task.abort();
     worktree_branch_rename_task.abort();

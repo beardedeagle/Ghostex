@@ -15,7 +15,7 @@ impl GhostexGpuiApp {
         &self,
         slot_id: AgentsTerminalBodyMountSlotId,
     ) -> bool {
-        if self.agents_gpui_engine_close_confirms.contains(&slot_id)
+        self.agents_gpui_engine_close_confirms.contains(&slot_id)
             && self
                 .agents_gpui_engine_terminals
                 .contains_key(&slot_id.session_id)
@@ -25,17 +25,6 @@ impl GhostexGpuiApp {
             && self
                 .agents_workspace
                 .can_close_tab(slot_id.pane_id, slot_id.session_id)
-        {
-            return true;
-        }
-        self.agents_terminal_close_confirms
-            .exact_current_pending_slot(
-                &self.agents_workspace,
-                &self.agents_terminal_runtime_sessions,
-                &self.agents_terminal_ghostty_surfaces,
-                slot_id,
-            )
-            .is_some()
     }
 
     #[cfg(target_os = "macos")]
@@ -44,23 +33,13 @@ impl GhostexGpuiApp {
         &self,
         slot_id: CommandTerminalBodyMountSlotId,
     ) -> bool {
-        if self.command_gpui_engine_close_confirms.contains(&slot_id)
+        self.command_gpui_engine_close_confirms.contains(&slot_id)
             && self
                 .command_gpui_engine_terminals
                 .contains_key(&slot_id.session_id)
             && self
                 .command_pane
                 .is_current_terminal_body_mount_slot(slot_id)
-        {
-            return true;
-        }
-        self.command_terminal_close_confirms
-            .exact_current_pending_slot(
-                &self.command_pane,
-                &self.command_terminal_ghostty_surfaces,
-                slot_id,
-            )
-            .is_some()
     }
 
     #[cfg(target_os = "macos")]
@@ -242,80 +221,25 @@ impl GhostexGpuiApp {
     ) -> bool {
         /*
         CDXC:CommandPane 2026-06-23-20:04:
-        Confirming a pending Agents close validates the exact current pending slot, process-local runtime identity, mounted Ghostty owner, and `needs_confirm_quit` boolean before closing the shell tab through the existing workspace model path. This uses the real GhosttyKit close-confirm query, not a synthetic runtime callback or broad fallback close.
-
-        CDXC:CommandPane 2026-06-23-20:04:
         Direct user confirmation has the same shell side effects as the callback close path: reconcile process-local runtime ids after model removal, keep Agents focus on the surviving focused pane, scroll its active tab, and persist layout state without touching command/startup maps.
-
-        CDXC:Workarea 2026-06-26-07:25:
-        If the confirmed Agents tab is mapped to a gxserver workspace session, confirmation commits the local shell close immediately; the fixed sidebar lifecycle bridge then receives best-effort provider cleanup without gating tab removal.
         */
         if self
             .local_workspace_key_for_shell_session(slot_id.session_id)
             .is_some()
         {
-            let Some(pending) = self
-                .agents_terminal_close_confirms
-                .pending_by_slot
-                .get(&slot_id)
-                .copied()
-            else {
-                return false;
-            };
-            let Some(current) = pending_agents_terminal_close_confirm_for_slot(
-                &self.agents_workspace,
-                &self.agents_terminal_runtime_sessions,
-                &self.agents_terminal_ghostty_surfaces,
-                slot_id,
-            ) else {
-                self.agents_terminal_close_confirms
-                    .pending_by_slot
-                    .remove(&slot_id);
-                return false;
-            };
-            if pending != current {
-                self.agents_terminal_close_confirms
-                    .pending_by_slot
-                    .remove(&slot_id);
-                return false;
-            }
-            let replacement_key = self
-                .agents_workspace
-                .selected_session_after_direct_tab_close(slot_id.pane_id, slot_id.session_id)
-                .and_then(|replacement_session_id| {
-                    self.local_workspace_key_for_shell_session(replacement_session_id)
-                });
-            let skip_replacement_fallback = replacement_key.is_none();
-            let requested = self.request_local_workspace_terminal_lifecycle(
-                slot_id.pane_id,
-                slot_id.session_id,
-                GpuiLocalWorkspaceLifecycleAction::Close,
-                GpuiLocalWorkspaceLifecycleMutationKind::DirectClose,
-                replacement_key,
-                skip_replacement_fallback,
-                Some(slot_id),
-                cx,
-            );
-            return requested;
+            return false;
         }
-        let confirmed = if self.agents_gpui_engine_close_confirms.remove(&slot_id) {
-            self.agents_gpui_engine_terminals
-                .remove(&slot_id.session_id);
-            let closed = self
-                .agents_workspace
-                .close_tab(slot_id.pane_id, slot_id.session_id);
-            if closed {
-                self.forget_local_workspace_mappings_for_shell_session(slot_id.session_id, cx);
-            }
-            closed
-        } else {
-            self.agents_terminal_close_confirms.confirm(
-                &mut self.agents_workspace,
-                &self.agents_terminal_runtime_sessions,
-                &self.agents_terminal_ghostty_surfaces,
-                slot_id,
-            )
-        };
+        if !self.agents_gpui_engine_close_confirms.remove(&slot_id) {
+            return false;
+        }
+        self.agents_gpui_engine_terminals
+            .remove(&slot_id.session_id);
+        let confirmed = self
+            .agents_workspace
+            .close_tab(slot_id.pane_id, slot_id.session_id);
+        if confirmed {
+            self.forget_local_workspace_mappings_for_shell_session(slot_id.session_id, cx);
+        }
         if confirmed {
             self.agents_terminal_runtime_sessions
                 .reconcile_with_workspace(&self.agents_workspace);
@@ -335,15 +259,7 @@ impl GhostexGpuiApp {
         &mut self,
         slot_id: AgentsTerminalBodyMountSlotId,
     ) -> bool {
-        if self.agents_gpui_engine_close_confirms.remove(&slot_id) {
-            return true;
-        }
-        self.agents_terminal_close_confirms.cancel(
-            &self.agents_workspace,
-            &self.agents_terminal_runtime_sessions,
-            &mut self.agents_terminal_ghostty_surfaces,
-            slot_id,
-        )
+        self.agents_gpui_engine_close_confirms.remove(&slot_id)
     }
 
     #[cfg(target_os = "macos")]
@@ -355,9 +271,6 @@ impl GhostexGpuiApp {
     ) -> bool {
         /*
         CDXC:CommandPane 2026-06-23-20:04:
-        Confirming a pending command close stays command-local and validates the exact current slot, transient runtime identity, mounted Ghostty owner, and `needs_confirm_quit` boolean before removing the command session through `CommandPaneModel::close_session`. It must not route through Agents/startup state or synthesize a confirmed runtime callback.
-
-        CDXC:CommandPane 2026-06-23-20:04:
         Command confirmation mirrors the confirmed-callback shell side effects: if sessions remain, keep focus on the command pane and scroll the active command tab; if the pane empties, restore the previous non-command focus before persisting layout state.
 
         CDXC:CommandPane 2026-06-25-21:12:
@@ -366,18 +279,14 @@ impl GhostexGpuiApp {
         CDXC:CommandPane 2026-06-27-03:21:
         Direct confirmation can remove the final mounted command tab from the close-confirm surface. Clear command resize hover chrome only after that leaves the command pane empty, matching runtime confirmed-close and process-exit cleanup.
         */
-        let confirmed = if self.command_gpui_engine_close_confirms.remove(&slot_id) {
-            self.command_gpui_engine_terminals
-                .remove(&slot_id.session_id);
-            self.command_pane
-                .close_session(slot_id.group_id, slot_id.session_id)
-        } else {
-            self.command_terminal_close_confirms.confirm(
-                &mut self.command_pane,
-                &self.command_terminal_ghostty_surfaces,
-                slot_id,
-            )
-        };
+        if !self.command_gpui_engine_close_confirms.remove(&slot_id) {
+            return false;
+        }
+        self.command_gpui_engine_terminals
+            .remove(&slot_id.session_id);
+        let confirmed = self
+            .command_pane
+            .close_session(slot_id.group_id, slot_id.session_id);
         if confirmed {
             self.forget_command_gxserver_session_for_closed_tab(slot_id.session_id, cx);
             self.prune_gpui_command_delayed_send_timers_for_command_model();
@@ -403,13 +312,6 @@ impl GhostexGpuiApp {
         &mut self,
         slot_id: CommandTerminalBodyMountSlotId,
     ) -> bool {
-        if self.command_gpui_engine_close_confirms.remove(&slot_id) {
-            return true;
-        }
-        self.command_terminal_close_confirms.cancel(
-            &self.command_pane,
-            &mut self.command_terminal_ghostty_surfaces,
-            slot_id,
-        )
+        self.command_gpui_engine_close_confirms.remove(&slot_id)
     }
 }

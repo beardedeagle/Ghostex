@@ -484,8 +484,6 @@ impl GhostexGpuiApp {
             // only its inline add button, and the view tab strip's own controls above it.
             return div().into_any_element();
         }
-        let pin_tooltip = command_pane_panel_pin_label(self.command_pane.mode);
-        let pin_icon_path = command_pane_panel_pin_icon_path(self.command_pane.mode);
         let expand_icon_path =
             command_pane_panel_visibility_icon_path(self.command_pane.is_expanded());
         let visibility_tooltip = (expanded_chrome && self.command_pane_tab_hint_visible(group_id))
@@ -529,19 +527,6 @@ impl GhostexGpuiApp {
                         command_pane_tab_add_icon_path(),
                         None,
                         CommandPaneControlAction::NewCommandPlaceholder,
-                        group_id,
-                        cx,
-                    ))
-                },
-            )
-            .when(
-                command_pane_panel_mode_controls_visible(expanded_chrome),
-                |this| {
-                    this.child(self.render_command_pane_control_button(
-                        "pin",
-                        pin_icon_path,
-                        Some(pin_tooltip),
-                        CommandPaneControlAction::TogglePinned,
                         group_id,
                         cx,
                     ))

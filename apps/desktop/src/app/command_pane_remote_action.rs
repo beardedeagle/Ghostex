@@ -458,7 +458,7 @@ impl GhostexGpuiApp {
             initial_input: None,
             wait_after_command: false,
         };
-        if payload.to_ghostty_launch_payload().is_err() {
+        if payload.validate_launch_strings().is_err() {
             self.close_orphaned_remote_command_action_session(reference, cx);
             self.close_command_terminal_after_gxserver_attach_failure(
                 current_slot_id,

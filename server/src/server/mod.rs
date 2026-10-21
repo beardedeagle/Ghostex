@@ -64,13 +64,6 @@ use crate::{
     },
     paths::GxserverPaths,
     platform::shell::command_shell,
-    portless::{
-        apply_portless_state_update, log_portless_background_sync_failure,
-        log_portless_background_sync_outcome, log_portless_state_update_failure,
-        log_portless_state_update_success, read_portless_presentation_payload,
-        read_portless_status_payload, read_portless_status_payload_for_paths,
-        run_portless_background_sync_once, PortlessLogErrorCode, PortlessStateUpdate,
-    },
     presentation::{
         build_presentation_project_delta, build_presentation_session_delta,
         increment_presentation_revision, read_presentation_snapshot,

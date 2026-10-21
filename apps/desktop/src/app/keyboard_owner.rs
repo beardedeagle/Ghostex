@@ -130,12 +130,6 @@ impl GhostexGpuiApp {
         #[cfg(target_os = "macos")]
         {
             match self.first_responder_target {
-                FirstResponderTarget::TerminalSurface(FirstResponderTerminalSurface::Agents(
-                    session_id,
-                )) => return Some(KeyboardOwnerSession::Agents(session_id)),
-                FirstResponderTarget::TerminalSurface(FirstResponderTerminalSurface::Command(
-                    session_id,
-                )) => return Some(KeyboardOwnerSession::Command(session_id)),
                 FirstResponderTarget::GpuiWindow => {}
                 FirstResponderTarget::CefSurface(_)
                 | FirstResponderTarget::Other
@@ -243,7 +237,7 @@ impl GhostexGpuiApp {
                 self.agents_session_keyboard_owner(session_id, mount)
             }
             ShellFocusTarget::CommandPane => {
-                let Some(mount @ FocusedTerminalTextMountTarget::Command(slot_id)) =
+                let Some(FocusedTerminalTextMountTarget::Command(slot_id)) =
                     self.focused_terminal_text_mount_target()
                 else {
                     return ShellKeyboardOwner::Nothing;
@@ -262,11 +256,6 @@ impl GhostexGpuiApp {
                         session_id: None,
                     };
                 }
-                #[cfg(target_os = "macos")]
-                if self.command_terminal_ghostty_surface_matches(slot_id) {
-                    return ShellKeyboardOwner::NativeTerminal(mount);
-                }
-                let _ = mount;
                 ShellKeyboardOwner::TerminalMounting
             }
             ShellFocusTarget::BrowserPane(pane_id) => {
@@ -333,10 +322,10 @@ impl GhostexGpuiApp {
                 return ShellKeyboardOwner::Nothing;
             }
         }
-        let Some(mount) = mount else {
+        if mount.is_none() {
             // Running but not rendered in the focused pane (focus mode or an inactive tab): nothing to focus.
             return ShellKeyboardOwner::Nothing;
-        };
+        }
         if let Some(record) = self.agents_gpui_engine_terminals.get(&session_id) {
             return ShellKeyboardOwner::EngineTerminal {
                 target: GpuiEngineTerminalEventTarget::Agents(session_id),
@@ -344,19 +333,6 @@ impl GhostexGpuiApp {
                 session_id: Some(session_id),
             };
         }
-        #[cfg(target_os = "macos")]
-        {
-            let native_surface_matches = match mount {
-                FocusedTerminalTextMountTarget::Agents(slot_id) => {
-                    self.agents_terminal_ghostty_surface_matches(slot_id)
-                }
-                FocusedTerminalTextMountTarget::Command(_) => false,
-            };
-            if native_surface_matches {
-                return ShellKeyboardOwner::NativeTerminal(mount);
-            }
-        }
-        let _ = mount;
         ShellKeyboardOwner::TerminalMounting
     }
 
@@ -434,22 +410,6 @@ impl GhostexGpuiApp {
                 self.focus_gpui_engine_terminal_view(target, &view, window, cx);
                 if let Some(session_id) = session_id {
                     self.deliver_pending_session_terminal_composer_insert(session_id, cx);
-                }
-            }
-            #[cfg(target_os = "macos")]
-            ShellKeyboardOwner::NativeTerminal(mount) => {
-                self.pending_keyboard_handoff = None;
-                match mount {
-                    FocusedTerminalTextMountTarget::Agents(slot_id) => {
-                        self.sync_agents_terminal_ghostty_surface_focus_with_appkit_handoff(true);
-                        self.deliver_pending_session_terminal_composer_insert(
-                            slot_id.session_id,
-                            cx,
-                        );
-                    }
-                    FocusedTerminalTextMountTarget::Command(_) => {
-                        self.sync_command_terminal_ghostty_surface_focus_with_appkit_handoff(true);
-                    }
                 }
             }
             ShellKeyboardOwner::TerminalMounting => {

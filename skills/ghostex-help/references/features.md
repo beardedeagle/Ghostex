@@ -2867,7 +2867,6 @@ finishes, an attention state on the session card, system notifications
 (macOS banners, Windows toasts, and Linux desktop notifications; clicking one on
 macOS or Windows opens the session), menu bar badges with running and done counts (click one to jump to the
 session), terminal bell detection, and push notifications on the mobile app.
-The optional status pet in the sidebar mirrors session state.
 Claude progress updates do not trigger completion notifications while Claude
 reports background work still running. Completion notifications arrive when
 Claude finishes after that work completes; requests for your input or permission
@@ -2943,7 +2942,7 @@ Debugging page records each time detection and a program's report disagree.
 Related settings: `sessionStatusSource`, `completionSound`, `actionCompletionSound`, `copySound`,
 `showMacOSAttentionNotifications`, `resetExpirySystemNotifications`,
 `showNotificationOnTerminalBell`,
-`hideMenuBarSessionStatusIndicators`, `petOverlayEnabled`,
+`hideMenuBarSessionStatusIndicators`,
 `notificationsTitlebarButtonHidden`.
 
 ### Floating Capture (floating button, screenshots, quick prompts)

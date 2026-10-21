@@ -273,16 +273,6 @@ impl SharedSidebarSettingsSnapshot {
         )
     }
 
-    pub fn terminal_ghostty_surface_config(&self) -> SharedTerminalGhosttySurfaceConfig {
-        SharedTerminalGhosttySurfaceConfig {
-            font_size: normalize_terminal_font_size(
-                self.object
-                    .get("terminalFontSize")
-                    .and_then(json_number_value_to_f32),
-            ),
-        }
-    }
-
     pub fn gpui_terminal_engine_settings(&self) -> SharedGpuiTerminalEngineSettings {
         let font_weight = read_finite_number_field(
             &self.object,
@@ -300,12 +290,6 @@ impl SharedSidebarSettingsSnapshot {
             MAX_GHOSTTY_SCROLLBACK_LIMIT_MB,
         );
         SharedGpuiTerminalEngineSettings {
-            // CDXC:Terminal 2026-07-11: the composited
-            // libghostty-vt + TerminalElement pipeline is the single terminal
-            // renderer on every OS and in every lifecycle state. Keep the
-            // GhosttyKit implementation compiled on macOS for now, but do not
-            // expose a setting that can select it at runtime.
-            enabled: true,
             clipboard_trim_trailing_spaces: read_bool_field(
                 &self.object,
                 "terminalClipboardTrimTrailingSpaces",

@@ -76,7 +76,6 @@ export async function validateMacosAppBundle({
   ) {
     await validateBundledCodeServerRuntime({ arch, resourcesRoot, expectedNodePtyPrebuild });
   }
-  await validateBundledPortlessRuntime({ arch, resourcesRoot });
   await validateBundledResourceShape({ arch, onDemandManifest, releaseManifest, resourcesRoot });
 }
 
@@ -170,74 +169,6 @@ async function validateBundledCodeServerRuntime({ arch, resourcesRoot, expectedN
     path.join(codeServerRoot, 'lib', 'vscode', 'node_modules', 'node-pty', 'prebuilds'),
     expectedNodePtyPrebuild
   );
-}
-
-async function validateBundledPortlessRuntime({ arch, resourcesRoot }) {
-  const portlessRoot = path.join(resourcesRoot, 'portless');
-  const portlessCli = path.join(portlessRoot, 'dist', 'cli.js');
-
-  /*
-   CDXC:Portless 2026-06-22-22:30:
-   App validation requires the published Portless CLI payload at Web/portless/dist/cli.js. Portless is disabled today; if it returns, runtime resolution must use the installed code-server component rather than restoring Node to the base bundle. Reject Portless-local node shapes in every mode.
-   */
-  await assertRequiredPaths(arch, 'bundled Portless CLI payload', [portlessCli]);
-  assertNoBundledPortlessNodeRuntime({ arch, portlessRoot });
-}
-
-function assertNoBundledPortlessNodeRuntime({ arch, portlessRoot }) {
-  const duplicateNodeRuntimePath = findFirstPortlessNodeRuntimePath(portlessRoot);
-  if (duplicateNodeRuntimePath) {
-    throw new MacosAppBundleValidationError(
-      `${arch} app bundles duplicate Node runtime under Web/portless: ${duplicateNodeRuntimePath}. Portless must not add Node to the base bundle.`
-    );
-  }
-}
-
-function findFirstPortlessNodeRuntimePath(portlessRoot) {
-  const result = spawnSync(
-    '/usr/bin/find',
-    [
-      portlessRoot,
-      '(',
-      '-path',
-      path.join(portlessRoot, 'node'),
-      '-o',
-      '-path',
-      path.join(portlessRoot, 'bin', 'node'),
-      '-o',
-      '-path',
-      '*/node_modules/node/bin/node',
-      '-o',
-      '-path',
-      '*/node_modules/.bin/node',
-      '-o',
-      '-path',
-      '*/bin/node',
-      ')',
-      '-print',
-      '-quit',
-    ],
-    {
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'pipe'],
-    }
-  );
-  if (result.error) {
-    throw result.error;
-  }
-  if (result.status !== 0) {
-    const output = [result.stderr, result.stdout]
-      .join('\n')
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .slice(0, 3)
-      .join('\n');
-    throw new MacosAppBundleValidationError(
-      `Portless duplicate Node runtime scan failed.${output ? `\n${output}` : ''}`
-    );
-  }
-  return result.stdout.split(/\r?\n/).find(Boolean);
 }
 
 async function validateBundledGxserverRuntime({ arch, resourcesRoot }) {

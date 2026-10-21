@@ -103,17 +103,6 @@ impl SharedCommandPaneSide {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct SharedTerminalGhosttySurfaceConfig {
-    pub(crate) font_size: f32,
-}
-
-impl SharedTerminalGhosttySurfaceConfig {
-    pub fn font_size(self) -> f32 {
-        self.font_size
-    }
-}
-
 /// How closing a live terminal surface should be confirmed, mirroring the
 /// Ghostty `confirm-close-surface` values the shared Settings schema stores.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -137,17 +126,11 @@ impl SharedTerminalConfirmCloseSurface {
 }
 
 /*
-CDXC:Terminal 2026-07-04:
-The GPUI-composited terminal engine (libghostty-vt + TerminalElement) is the
-single terminal pipeline on every OS for Agents, command-pane,
-restored, and newly launched terminals. The macOS GhosttyKit implementation
-remains compiled for now but is not selected at runtime. The composited engine
-consumes the shared terminal typography/scrollback/close-confirm settings on
-every platform.
+CDXC:Terminal 2026-10-21 DECISION:
+User chose to remove the old GhosttyKit native-surface terminal (kept compiled since 2026-07-11 "for now") to shrink the app. The GPUI-composited engine (libghostty-vt + TerminalElement) is the only terminal pipeline on every OS for Agents, command-pane, restored, and newly launched terminals, and it consumes the shared terminal typography/scrollback/close-confirm settings on every platform. GhosttyKit stays linked on macOS only for config loading.
 */
 #[derive(Clone, Debug, PartialEq)]
 pub struct SharedGpuiTerminalEngineSettings {
-    pub enabled: bool,
     pub clipboard_trim_trailing_spaces: bool,
     pub copy_on_select: bool,
     pub selection_clipboard_enabled: bool,

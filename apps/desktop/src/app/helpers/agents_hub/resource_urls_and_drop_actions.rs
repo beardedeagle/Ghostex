@@ -5,7 +5,6 @@
 // and the command-to-Agents drop placement + terminal runtime action-event
 // helpers. See docs/2026-08-22/repo-restructure/SPLITS.md C1.
 
-use std::collections::HashMap;
 use std::env;
 use std::path::PathBuf;
 
@@ -105,78 +104,4 @@ pub(crate) fn gpui_cef_html_entry_url(env_var: &str, entry_file_name: &str) -> R
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum CommandToAgentsDropPlacement {
     PaneBody(WorkspaceDropZone),
-}
-
-pub(crate) fn apply_gpui_terminal_runtime_action_events(
-    osc_states: &mut HashMap<AgentsTerminalRuntimeSessionId, GpuiTerminalRuntimeOscState>,
-    runtime_session_id: AgentsTerminalRuntimeSessionId,
-    events: Vec<terminal_ghostty_surface::GhosttyRuntimeActionEvent>,
-) -> bool {
-    use terminal_ghostty_surface::GhosttyRuntimeActionEvent;
-
-    let mut runtime_state_changed = false;
-    for event in events {
-        match event {
-            GhosttyRuntimeActionEvent::OpenUrl { .. } => {}
-            GhosttyRuntimeActionEvent::RingBell => {
-                let state = osc_states.entry(runtime_session_id).or_default();
-                state.bell_count = state.bell_count.wrapping_add(1);
-                runtime_state_changed = true;
-            }
-            GhosttyRuntimeActionEvent::SetTitle { title } => {
-                osc_states.entry(runtime_session_id).or_default().title = Some(title);
-                runtime_state_changed = true;
-            }
-            GhosttyRuntimeActionEvent::Pwd { pwd } => {
-                osc_states.entry(runtime_session_id).or_default().pwd = Some(pwd);
-                runtime_state_changed = true;
-            }
-            GhosttyRuntimeActionEvent::MouseOverLink { url } => {
-                let state = osc_states.entry(runtime_session_id).or_default();
-                if state.hovered_link_url != url {
-                    state.hovered_link_url = url;
-                    runtime_state_changed = true;
-                }
-            }
-            GhosttyRuntimeActionEvent::StartSearch { needle } => {
-                let state = osc_states.entry(runtime_session_id).or_default();
-                match (&mut state.search, needle) {
-                    (Some(search), Some(needle)) => search.needle = needle,
-                    (Some(_), None) => {}
-                    (search @ None, needle) => {
-                        *search = Some(GpuiTerminalSearchState {
-                            needle: needle.unwrap_or_default(),
-                            ..GpuiTerminalSearchState::default()
-                        });
-                    }
-                }
-                runtime_state_changed = true;
-            }
-            GhosttyRuntimeActionEvent::EndSearch => {
-                let state = osc_states.entry(runtime_session_id).or_default();
-                if state.search.take().is_some() {
-                    runtime_state_changed = true;
-                }
-            }
-            GhosttyRuntimeActionEvent::SearchTotal { total } => {
-                let state = osc_states.entry(runtime_session_id).or_default();
-                if let Some(search) = &mut state.search
-                    && search.total != total
-                {
-                    search.total = total;
-                    runtime_state_changed = true;
-                }
-            }
-            GhosttyRuntimeActionEvent::SearchSelected { selected } => {
-                let state = osc_states.entry(runtime_session_id).or_default();
-                if let Some(search) = &mut state.search
-                    && search.selected != selected
-                {
-                    search.selected = selected;
-                    runtime_state_changed = true;
-                }
-            }
-        }
-    }
-    runtime_state_changed
 }

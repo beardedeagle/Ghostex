@@ -1,15 +1,15 @@
-//! The Quick Access Commands rows whose message had no owner: Wake/Sleep Pet, Quick Terminal,
+//! The Quick Access Commands rows whose message had no owner: Quick Terminal,
 //! All Automations, Open File/Folder Location and every "Open In: X".
 //!
 //! CDXC:AppModal 2026-09-25 WHY:
-//! These rows post `togglePetOverlay`, `createChat`, `openAutomationsPage`,
+//! These rows post `createChat`, `openAutomationsPage`,
 //! `openCurrentProjectInFinder` and `openCurrentProjectInTarget` as a modal-host `sidebarCommand`.
 //! `handle_gpui_app_modal_sidebar_command` had no arm for any of them and the app runtime never saw
 //! them, so these rows did nothing. The two the sidebar runtime answered (Quick Terminal and
 //! All Automations) now enter the sidebar's own command route, which is where the More menu's All
 //! Automations already goes, and the store answers them there (gx_store/create/claim.rs,
 //! gx_store/focus_perform.rs). Quick Browser Tab
-//! (`openBrowserChat`) is answered by the create family's own arm. The other three are Rust's: the pet toggles the same `petOverlayEnabled` setting its menu writes, Finder
+//! (`openBrowserChat`) is answered by the create family's own arm. The other two are Rust's: Finder
 //! is the native project path action, and "Open In" launches the chosen target on the active
 //! project without making it the titlebar's default.
 //!
@@ -24,9 +24,8 @@ use crate::app::helpers::*;
 use crate::*;
 
 /// The `sidebarCommand` types this file answers.
-pub(crate) const QUICK_ACCESS_COMMAND_ROW_TYPES: [&str; 6] = [
+pub(crate) const QUICK_ACCESS_COMMAND_ROW_TYPES: [&str; 5] = [
     ghostex_gx_core::APP_LIFECYCLE_MESSAGE_TYPE,
-    "togglePetOverlay",
     "createChat",
     "openAutomationsPage",
     "openCurrentProjectInFinder",
@@ -44,7 +43,6 @@ impl GhostexGpuiApp {
         cx: &mut gpui::Context<Self>,
     ) {
         match command_type {
-            "togglePetOverlay" => self.toggle_pet_overlay_from_quick_access(cx),
             // Never posted on the web build, which is not offered these rows.
             #[cfg(not(target_family = "wasm"))]
             ghostex_gx_core::APP_LIFECYCLE_MESSAGE_TYPE => {
@@ -64,23 +62,6 @@ impl GhostexGpuiApp {
                 }
             }
             _ => {}
-        }
-    }
-
-    /// The row reads "Sleep Pet" while the pet shows and "Wake Pet" while it does not.
-    fn toggle_pet_overlay_from_quick_access(&mut self, cx: &mut gpui::Context<Self>) {
-        let enabled = shared_settings::shared_sidebar_settings_snapshot()
-            .object()
-            .get("petOverlayEnabled")
-            .and_then(Value::as_bool)
-            == Some(true);
-        if enabled {
-            self.sleep_gpui_pet_overlay_from_context_menu(cx);
-        } else {
-            self.handle_gpui_app_modal_update_settings_patch_message(
-                &json!({ "patch": { "petOverlayEnabled": true } }),
-                cx,
-            );
         }
     }
 

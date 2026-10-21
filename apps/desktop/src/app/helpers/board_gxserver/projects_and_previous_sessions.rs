@@ -10,16 +10,6 @@ use std::time::Duration;
 use crate::app::helpers::*;
 use crate::*;
 
-#[allow(dead_code)] // no caller: gxserver project settings are consumed through the Rust store instead
-pub(crate) fn gpui_project_settings_projects_from_gxserver() -> Vec<serde_json::Value> {
-    /*
-    CDXC:Projects 2026-06-24-11:59:
-    Settings project rows in GPUI must come from real local gxserver project domain data, falling back only to the presentation snapshot when `/api/listProjects` is unavailable or lacks usable rows. Do not synthesize paths, names, worktree metadata, or Beads settings from UI labels, session titles, terminal cwd, or local filesystem guesses.
-    */
-    let domain_projects = gpui_gxserver_domain_projects(Duration::from_secs(2));
-    gpui_project_settings_projects_from_domain_projects_or_presentation(&domain_projects)
-}
-
 pub(crate) fn gpui_gxserver_domain_projects(timeout: Duration) -> Vec<serde_json::Value> {
     gpui_gxserver_domain_projects_result(timeout).unwrap_or_default()
 }

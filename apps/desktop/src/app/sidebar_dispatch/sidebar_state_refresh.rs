@@ -146,15 +146,6 @@ impl GhostexGpuiApp {
                 &completion.run_id,
                 completion.run_state(),
             );
-            if let Some(action) =
-                gpui_project_board_action_for_command_id(completion.command_id.as_str())
-            {
-                self.dispatch_gpui_project_board_command_completed(
-                    action,
-                    completion.exit_code,
-                    cx,
-                );
-            }
             if completion.should_play_completion_sound() {
                 let _ = gpui_play_completion_sound(gpui_action_completion_sound_from_settings());
             }

@@ -395,21 +395,6 @@ impl GhostexGpuiApp {
         }
     }
 
-    #[allow(dead_code)] // no caller: only the superseded native browser tab strip requested address-bar focus
-    pub(crate) fn request_browser_address_focus(
-        &mut self,
-        pane_id: BrowserPaneId,
-        window: &mut Window,
-        cx: &mut gpui::Context<Self>,
-    ) {
-        self.drop_pending_browser_keyboard_handoff();
-        self.pending_browser_address_focus = Some(pane_id);
-        self.browser_address_input_editing.remove(&pane_id);
-        let address_value = self.browser_tabs.address_value_for_pane(pane_id);
-        self.set_browser_address_input_value_unchecked(pane_id, address_value, window, cx);
-        self.drain_pending_browser_address_focus(window, cx);
-    }
-
     pub(crate) fn drain_pending_browser_address_focus(
         &mut self,
         window: &mut Window,

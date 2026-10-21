@@ -473,7 +473,7 @@ pub(crate) fn insert_gpui_local_workspace_attach_terminal_in_new_leaf(
         wait_after_command: false,
     };
     payload
-        .to_ghostty_launch_payload()
+        .validate_launch_strings()
         .map_err(|_| "GPUI could not prepare the session attach terminal command.")?;
 
     let created = match placement {
@@ -559,7 +559,7 @@ pub(crate) fn insert_gpui_local_workspace_attach_terminal(
         wait_after_command: false,
     };
     payload
-        .to_ghostty_launch_payload()
+        .validate_launch_strings()
         .map_err(|_| "GPUI could not prepare the session attach terminal command.")?;
 
     if let Some(session_id) = local_workspace_session_mappings.get(&key).copied() {
@@ -698,7 +698,7 @@ pub(crate) fn attach_gpui_surfaced_local_workspace_terminal(
         wait_after_command: false,
     };
     payload
-        .to_ghostty_launch_payload()
+        .validate_launch_strings()
         .map_err(|_| "GPUI could not prepare the surfaced session attach command.")?;
 
     session.title = title;

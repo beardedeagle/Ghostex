@@ -31,13 +31,11 @@ The core rule is that **GPUI owns layout boundaries**. CEF child views are posit
 
 - `gpui/src/main.rs` — main GPUI shell, models, render tree, actions, menus, focus, CEF surface ownership, terminal surface orchestration, settings/modal glue.
 - `gpui/src/cef/macos.rs` — cef-rs wrapper, CEF initialization, browser child view wrapper, process-message/V8 bridge installation, popup and metadata handlers.
-- `gpui/src/terminal_ghostty_surface.rs` — GhosttyKit/libghostty runtime owner wrappers and terminal input/clipboard/close/focus boundaries.
-- `gpui/src/terminal_native_view.rs` — App-owned terminal host `NSView` lifecycle and frame/visibility/focus execution.
-- `gpui/src/terminal_surface_host.rs` — pure reconciliation of visible terminal mount slots to attach/move/detach plans.
-- `gpui/src/terminal_surface_lifecycle.rs` — runtime state machine from host plans to native-view decisions.
+- `gpui/src/terminal_ghostty_surface/` — GhosttyKit config loading (fonts, colors, metrics) for the composited terminal on macOS.
+- `gpui/src/terminal_gpui_engine.rs` / `gpui/src/terminal_element.rs` — the libghostty-vt terminal engine and the GPUI element that draws it.
 - `gpui/src/ghostty_kit.rs` — GhosttyKit path helpers and C ABI declarations.
 - `gpui/src/shared_settings.rs` — focused GPUI shared settings service and supported settings parsing.
-- `gpui/native/macos/*.m` — Objective-C AppKit shims for CEF, terminal host views, notifications, and keychain.
+- `gpui/native/macos/*.m` — Objective-C AppKit shims for CEF, notifications, and keychain.
 - `gpui/sidebar/*.tsx` / `gpui/sidebar/*.ts` — CEF React entrypoints and TypeScript runtime/bridge adapters.
 - `gpui/vite.config.ts` — Vite build for self-contained CEF HTML entries.
 - `gpui/scripts/build-macos-app.sh` — macOS `.app` packager for the GPUI prototype.
@@ -169,12 +167,10 @@ The bridge is installed only for first-party CEF entries and only forwards bound
 Terminal mounting is a staged pipeline:
 
 1. GPUI renders a terminal body slot.
-2. A canvas probe records exact body bounds and current scale factor.
-3. `NativeTerminalSurfaceHost` computes attach/move/detach commands for current visible mount slots.
-4. `NativeTerminalSurfaceLifecycleState` decides whether a real native view is needed or can be reused.
-5. `terminal_native_view` creates/resizes/hides/shows the AppKit host `NSView`.
-6. `terminal_ghostty_surface` creates or updates a Ghostty surface using the host view and current config.
-7. Focus, mouse, scroll, key, clipboard, process-exit, and close-confirm state are synced through runtime-only maps.
+2. A canvas probe records exact body bounds, which drive the zmx refresh when a slot surfaces or resizes.
+3. The startup coordinator turns visible Mounting tabs into launch plans.
+4. `terminal_gpui_engine` spawns a libghostty-vt terminal for each plan and `terminal_element` draws it inside the slot.
+5. Focus, key, mouse, clipboard, process-exit, and close-confirm state live on the engine terminal records.
 
 This keeps terminal runtime identity separate from persisted shell layout identity.
 

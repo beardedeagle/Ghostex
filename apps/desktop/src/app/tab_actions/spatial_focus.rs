@@ -299,14 +299,10 @@ impl GhostexGpuiApp {
             .map(|focus_bounds| focus_bounds.bounds)
     }
 
-    pub(crate) fn prepare_focus_bounds_for_render(
-        &mut self,
-        scale_factor: f32,
-        cx: &mut gpui::Context<Self>,
-    ) {
+    pub(crate) fn prepare_focus_bounds_for_render(&mut self, cx: &mut gpui::Context<Self>) {
         /*
         CDXC:Terminal 2026-06-22-20:29:
-        Agents terminal mount-slot bounds are App-owned runtime geometry only. Clear them with the other per-render focus/layout bounds so future libghostty native views attach to the current body rectangle below the tab bar without persisting, logging, or retaining stale pane/session geometry.
+        Agents terminal mount-slot bounds are App-owned runtime geometry only. Clear them with the other per-render focus/layout bounds without persisting, logging, or retaining stale pane/session geometry.
 
         CDXC:Terminal 2026-06-22-21:27:
         This per-render bounds clear is a pre-layout measurement reset, not a terminal slot removal. Host sync must preserve the focused running Agents slot while awaiting the body canvas record, and only the runtime bounds map should be empty during that interval.
@@ -319,8 +315,6 @@ impl GhostexGpuiApp {
         self.project_editor_surface_layout_bounds = None;
         self.agents_terminal_mount_slot_bounds.clear();
         self.agents_terminal_startup_body_slot_geometries.clear();
-        self.agents_terminal_parked_owner_body_slot_geometries
-            .clear();
         // Prune (do not clear) the persistent zmx-refresh bounds maps: a slot
         // that stops being rendered loses its entry here, so its next body
         // record counts as a fresh surfacing and triggers the conditional
@@ -338,8 +332,8 @@ impl GhostexGpuiApp {
             self.command_terminal_zmx_refresh_recorded_bounds
                 .retain(|slot_id, _| rendered.contains(slot_id));
         }
-        self.sync_agents_terminal_surface_host(scale_factor, cx);
-        self.sync_command_terminal_surface_host(scale_factor, cx);
+        self.sync_agents_terminal_surface_host(cx);
+        self.sync_command_terminal_surface_host(cx);
         self.sync_gpui_engine_agents_chat_eligibility(cx);
     }
 }

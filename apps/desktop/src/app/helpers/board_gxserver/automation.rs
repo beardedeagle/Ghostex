@@ -34,46 +34,6 @@ pub(crate) fn gpui_automation_gxserver_endpoint_for_board_action(
     }
 }
 
-pub(crate) fn gpui_automation_board_ok_response(
-    request_id: &str,
-    automation_state: serde_json::Value,
-) -> serde_json::Value {
-    serde_json::json!({
-        "ok": true,
-        "payload": automation_state,
-        "requestId": request_id,
-    })
-}
-
-pub(crate) fn gpui_project_board_error_response(
-    request_id: &str,
-    error: &str,
-) -> serde_json::Value {
-    serde_json::json!({
-        "error": error,
-        "ok": false,
-        "requestId": request_id,
-    })
-}
-
-pub(crate) fn gpui_project_board_conversation_action_forwarded(action: &str) -> bool {
-    // The board conversation surface owned by the Rust store (gx_store/create/board.rs; the
-    // sidebar runtime until 2026-09-25): the same action set macOS `handleProjectBoardRequest`
-    // served in native-sidebar.tsx
-    // (minus the automation family, which Rust forwards to gxserver directly,
-    // and `projectEditorFocusOwnerChanged`, which stays Rust-answered).
-    matches!(
-        action,
-        "getState"
-            | "startWork"
-            | "associateFocusedSession"
-            | "jumpToConversation"
-            | "unlinkConversation"
-            | "showToast"
-            | "appendDebugLog"
-    )
-}
-
 pub(crate) fn gpui_automation_rpc_automation_state(
     endpoint: &str,
     params: &serde_json::Value,
@@ -204,20 +164,6 @@ pub(crate) fn gpui_automation_remove_worktree_from_payload(request: &serde_json:
                 .and_then(serde_json::Value::as_bool)
         })
         == Some(true)
-}
-
-pub(crate) fn run_gpui_project_board_automation_request(
-    request: &serde_json::Value,
-    context: Option<&ProjectBoardBridgeRuntimeContext>,
-) -> (serde_json::Value, Option<GpuiAutomationBoardNavigation>) {
-    let request_id = manage_request_string(request, "requestId").unwrap_or_default();
-    match gpui_project_board_automation_result(request, context) {
-        Ok((automation_state, navigation)) => (
-            gpui_automation_board_ok_response(&request_id, automation_state),
-            navigation,
-        ),
-        Err(error) => (gpui_project_board_error_response(&request_id, &error), None),
-    }
 }
 
 pub(crate) fn gpui_project_board_automation_result(

@@ -165,10 +165,7 @@ pub(crate) fn rail_pages(store: &SettingsStore) -> Vec<RailPage> {
         }
         match tab {
             SettingsTabId::General => !sections.is_empty() || title_matches(&query, "General"),
-            SettingsTabId::Theme => {
-                general.subsection_visible("theming", power_visible)
-                    || general.subsection_visible("appIcon", power_visible)
-            }
+            SettingsTabId::Theme => general.subsection_visible("theming", power_visible),
             SettingsTabId::Hotkeys => !sections.is_empty(),
             other => store.tab_search(other).has_matches(),
         }

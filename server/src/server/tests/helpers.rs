@@ -155,7 +155,6 @@ pub(super) fn test_health(build_identity: &str) -> ServerHealthResponse {
             state_imports: None,
         },
         pid: 123,
-        portless: crate::portless::unavailable_portless_status_payload(),
         port: config.listeners.local.port,
         server_id: "S7k".to_string(),
         started_at: "2026-05-30T10:00:00.000Z".to_string(),

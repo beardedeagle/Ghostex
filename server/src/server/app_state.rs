@@ -168,7 +168,6 @@ pub(super) const RENDERER_COMMAND_ACTIONS: &[&str] = &[
     "toggleSidebarCollapsed",
     "updateSettingsPatch",
 ];
-pub(super) const PORTLESS_BACKGROUND_SYNC_INTERVAL: Duration = Duration::from_secs(10);
 pub(super) const AGENT_METADATA_TITLE_SYNC_INTERVAL: Duration = Duration::from_secs(1);
 pub(super) const SESSION_CHAT_FOLLOWER_SYNC_INTERVAL: Duration = Duration::from_secs(10);
 pub(super) const SESSION_LIFECYCLE_SWEEP_INTERVAL: Duration =

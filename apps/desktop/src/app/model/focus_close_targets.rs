@@ -204,18 +204,3 @@ pub(crate) fn focused_command_pane_wake_target(
         .is_some_and(|session| session.is_sleeping)
         .then_some((group_id, session_id))
 }
-
-pub(crate) fn command_terminal_surface_focus_states_for_slots(
-    shell_focus: ShellFocusTarget,
-    command_pane: &CommandPaneModel,
-    mounted_slot_ids: &[CommandTerminalBodyMountSlotId],
-) -> Vec<(CommandTerminalBodyMountSlotId, bool)> {
-    let focused_slot_id = focused_command_terminal_surface_mount_slot(shell_focus, command_pane)
-        .filter(|slot_id| mounted_slot_ids.contains(slot_id));
-
-    mounted_slot_ids
-        .iter()
-        .copied()
-        .map(|slot_id| (slot_id, Some(slot_id) == focused_slot_id))
-        .collect()
-}

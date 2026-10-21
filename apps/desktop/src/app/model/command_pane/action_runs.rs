@@ -144,22 +144,6 @@ impl CommandPaneModel {
             })
     }
 
-    #[allow(dead_code)] // no caller: the live path clears action runs through clear_action_run_for_slot
-    pub(crate) fn clear_action_run_for_session(&mut self, session_id: CommandSessionId) -> bool {
-        let Some(session) = self.session_mut(session_id) else {
-            return false;
-        };
-        let changed = session.action_run_id.is_some()
-            || session.action_close_terminal_on_exit
-            || session.action_status_file_path.is_some()
-            || session.activity != CommandTerminalActivity::Idle;
-        session.activity = CommandTerminalActivity::Idle;
-        session.action_close_terminal_on_exit = false;
-        session.action_run_id = None;
-        session.action_status_file_path = None;
-        changed
-    }
-
     pub(crate) fn close_completed_action_run_tab(
         &mut self,
         completion: &CommandPaneActionRunCompletion,

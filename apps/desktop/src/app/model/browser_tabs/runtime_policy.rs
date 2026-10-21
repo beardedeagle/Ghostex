@@ -54,25 +54,6 @@ impl BrowserTabChromeStatus {
 CDXC:Browser 2026-06-22-17:13:
 Browser tab chrome is focus-invariant: pane focus may drive toolbar ownership and CEF surface sync, but tab-bar brightness derives only from a tab's shell state, runtime surface presence, and active membership inside its own Browser tab group. BrowserTabModel.focused_pane is intentionally excluded.
 */
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub(crate) struct BrowserTabChromeSignature {
-    pub(crate) state: BrowserTabState,
-    pub(crate) chrome_status: BrowserTabChromeStatus,
-    pub(crate) active_in_tab_group: bool,
-}
-
-pub(crate) fn browser_tab_chrome_signature(
-    tab_group: &BrowserTabGroup,
-    tab_id: BrowserTabId,
-    state: BrowserTabState,
-    has_cef_surface: bool,
-) -> BrowserTabChromeSignature {
-    BrowserTabChromeSignature {
-        state,
-        chrome_status: BrowserTabChromeStatus::from_state(state, has_cef_surface),
-        active_in_tab_group: tab_group.active_tab_id() == Some(tab_id),
-    }
-}
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) struct BrowserRuntimeLifecycleInput {

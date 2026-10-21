@@ -22,7 +22,6 @@ use gpui::{
     FontFeatures, InteractiveElement as _, IntoElement, ParentElement as _, Pixels,
     StatefulInteractiveElement as _, Styled as _, Subscription, Task, Window, canvas, div, px,
 };
-use gpui_component::speech::{SpeechError, SpeechState};
 use serde_json::json;
 use std::time::Duration;
 use std::{cell::Cell, rc::Rc};
@@ -110,45 +109,6 @@ pub(crate) fn dictation_toast(title: &str, message: &str) -> serde_json::Value {
         "description": message,
         "durationMs": 12_000,
     })
-}
-
-/// Where to allow the microphone when the system refused it (the system recognizer's wording).
-const MICROPHONE_ACCESS_HINT: &str = if cfg!(target_os = "windows") {
-    "Ghostex can't use the microphone. Turn on Microphone access and Let desktop apps access your microphone in Windows Settings > Privacy & security > Microphone."
-} else {
-    "Ghostex can't use the microphone. Allow Ghostex under Microphone in System Settings > Privacy & Security."
-};
-
-/// What to install when the system cannot recognize its language.
-const SPEECH_LANGUAGE_HINT: &str = if cfg!(target_os = "windows") {
-    "Windows has no speech recognition for your language. Add a speech language in Windows Settings > Time & language > Speech."
-} else {
-    "Your Mac can't recognize your language on the device. Check that Dictation is on in System Settings > Keyboard."
-};
-
-/// The system speech recognizer's failure toast. Unused with [`system_recognizer_speech_state`].
-#[allow(dead_code)]
-pub(crate) fn dictation_failure_toast(error: &SpeechError) -> serde_json::Value {
-    let description = match error {
-        SpeechError::PermissionDenied => MICROPHONE_ACCESS_HINT.to_owned(),
-        SpeechError::NoInputDevice => {
-            "No microphone was found. Connect one, or choose an input device in your sound settings."
-                .to_owned()
-        }
-        SpeechError::Unsupported => SPEECH_LANGUAGE_HINT.to_owned(),
-        SpeechError::Recognizer(error) => format!("{error:#}"),
-        SpeechError::Input(error) => format!("The microphone stopped working: {error:#}"),
-    };
-    dictation_toast("Dictation failed", &description)
-}
-
-/// The system speech recognizer's dictation (GPUI Kit's `SystemRecognizer`), which Dictate used
-/// before Grok dictation.
-///
-/// CDXC:VoiceMode 2026-10-20 DECISION: User: "keep but mark the old code as unused". Unused since 2026-10-20: Dictate records and transcribes through `voice_agent::Dictate`. Returning to the system recognizer means driving a `SpeechState` from this again at the two Dictate buttons (here and `render/terminal_agent_action_bar/dictation.rs`).
-#[allow(dead_code)]
-pub(crate) fn system_recognizer_speech_state(cx: &mut Context<SpeechState>) -> SpeechState {
-    SpeechState::new(cx)
 }
 
 /// The composer's Dictate state, made the first time the reader uses it.

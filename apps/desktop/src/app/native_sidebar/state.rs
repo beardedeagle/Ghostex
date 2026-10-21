@@ -104,7 +104,7 @@ impl GhostexGpuiApp {
         }
         self.native_sidebar
             .disclosures
-            .sync(&snapshot, self.gpui_pet_overlay_reduce_motion_enabled);
+            .sync(&snapshot, self.gpui_reduce_motion_enabled);
         if let Some(menu) = self.native_sidebar.menu.as_mut() {
             menu.refresh(&snapshot);
         }

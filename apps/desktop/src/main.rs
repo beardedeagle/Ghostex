@@ -33,13 +33,10 @@ mod terminal_environment;
 mod terminal_ghostty_surface;
 mod terminal_gpui_engine;
 mod terminal_model;
-mod terminal_native_view;
 mod terminal_osc_title;
 mod terminal_scrollbar_reveal;
 #[cfg(target_os = "macos")]
 mod terminal_shaders;
-mod terminal_surface_host;
-mod terminal_surface_lifecycle;
 mod terminal_wheel;
 mod ui_fonts;
 #[cfg(target_os = "windows")]
@@ -106,14 +103,12 @@ use gpui::KeyBinding;
 use gpui::KeyDownEvent;
 use gpui::Keystroke;
 use gpui::LayoutId;
-use gpui::Modifiers;
 use gpui::MouseButton;
 use gpui::MouseDownEvent;
 use gpui::MouseUpEvent;
 use gpui::ParentElement as _;
 use gpui::Pixels;
 use gpui::Point;
-use gpui::PressureStage;
 use gpui::Render;
 use gpui::ScrollDelta;
 use gpui::ScrollHandle;

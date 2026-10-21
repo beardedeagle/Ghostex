@@ -5,8 +5,6 @@ use crate::constants::{
     GXSERVER_LOCAL_API_HOST, GXSERVER_LOCAL_API_PORT, GXSERVER_PRODUCT, GXSERVER_PROTOCOL_VERSION,
     GXSERVER_REMOTE_API_HOST, GXSERVER_REMOTE_API_PORT,
 };
-use crate::portless::PortlessStatusPayload;
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ApiPermission {
     FullLocal,
@@ -181,7 +179,6 @@ pub struct ServerHealthResponse {
     pub listeners: ListenersConfig,
     pub migration: MigrationStatus,
     pub pid: u32,
-    pub portless: PortlessStatusPayload,
     pub port: u16,
     pub server_id: String,
     pub started_at: String,
@@ -947,7 +944,6 @@ pub fn endpoint_for(path: &str) -> Option<EndpointDescriptor> {
         | "/api/generateCommitMessage"
         | "/api/createPullRequest"
         | "/api/runGitShipWorkflow"
-        | "/api/updatePortlessState"
         /*
         CDXC:RemoteMachines 2026-10-16 WHY:
         Updating this computer's Ghostex is asked by a desktop or phone connected through the SSH or Easy Connect tunnel, which arrives on the local listener, so the remote listener never gets to restart the app.

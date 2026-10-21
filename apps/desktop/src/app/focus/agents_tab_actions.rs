@@ -112,7 +112,6 @@ impl GhostexGpuiApp {
                     GpuiLocalWorkspaceLifecycleMutationKind::DirectClose,
                     replacement_key.and_then(|key| key.as_local().cloned()),
                     skip_replacement_fallback,
-                    None,
                     cx,
                 );
             }
@@ -143,14 +142,6 @@ impl GhostexGpuiApp {
             cx.notify();
             return true;
         }
-        if self.request_close_agents_running_surface_if_mounted(AgentsTerminalBodyMountSlotId {
-            pane_id,
-            session_id,
-        }) {
-            cx.notify();
-            return true;
-        }
-
         if !self
             .agents_workspace
             .close_tab_from_direct_tab_close(pane_id, session_id)
@@ -210,7 +201,6 @@ impl GhostexGpuiApp {
                             GpuiLocalWorkspaceLifecycleMutationKind::ScopedClose,
                             None,
                             false,
-                            None,
                             cx,
                         ),
                     GpuiWorkspaceTerminalSessionKey::Remote(_) => self
@@ -236,13 +226,6 @@ impl GhostexGpuiApp {
                 },
                 cx,
             ) {
-                close_requested = true;
-                continue;
-            }
-            if self.request_close_agents_running_surface_if_mounted(AgentsTerminalBodyMountSlotId {
-                pane_id,
-                session_id: close_session_id,
-            }) {
                 close_requested = true;
                 continue;
             }
@@ -327,7 +310,6 @@ impl GhostexGpuiApp {
                                 .clone()
                                 .and_then(|key| key.as_local().cloned()),
                             skip_replacement_fallback,
-                            None,
                             cx,
                         ),
                     GpuiWorkspaceTerminalSessionKey::Remote(_) => self
@@ -411,95 +393,13 @@ impl GhostexGpuiApp {
         cx.notify();
     }
 
-    pub(crate) fn request_close_agents_running_surface_if_mounted(
-        &mut self,
-        slot_id: AgentsTerminalBodyMountSlotId,
-    ) -> bool {
-        /*
-        CDXC:Terminal 2026-06-23-04:49:
-        User close on a real mounted Running Agents terminal asks Ghostty to run its normal close path instead of deleting the shell tab first. This is idempotent per surface and falls back to existing placeholder close behavior only when no exact current Running Ghostty owner exists.
-
-        CDXC:Terminal 2026-06-26-23:59:
-        Callers must resolve mapped workspace sessions before this helper. The helper is the terminal-owned close path for unmapped/local-only mounted surfaces, not the store-owned close path for gxserver sessions (formerly SidebarApp's).
-        */
-        if !self
-            .agents_workspace
-            .is_current_terminal_body_mount_slot(slot_id)
-            || !self
-                .agents_workspace
-                .can_close_tab(slot_id.pane_id, slot_id.session_id)
-        {
-            return false;
-        }
-
-        #[cfg(target_os = "macos")]
-        {
-            if let Some(surface) = self.agents_terminal_ghostty_surfaces.get_mut(&slot_id) {
-                surface.request_close();
-                return true;
-            }
-        }
-
-        false
-    }
-
-    #[cfg(target_os = "macos")]
-    pub(crate) fn consume_confirmed_agents_terminal_ghostty_surface_closes(
-        &mut self,
-        cx: &mut gpui::Context<Self>,
-    ) -> bool {
-        let confirmed_slots = confirmed_agents_terminal_ghostty_surface_close_slots(
-            &self.agents_workspace,
-            &self.agents_terminal_runtime_sessions,
-            &self.agents_terminal_ghostty_surfaces,
-        );
-        let mut changed = false;
-        for slot_id in confirmed_slots {
-            let target_is_mapped = self
-                .local_workspace_key_for_shell_session(slot_id.session_id)
-                .is_some();
-            if target_is_mapped {
-                let replacement_key = self
-                    .agents_workspace
-                    .selected_session_after_direct_tab_close(slot_id.pane_id, slot_id.session_id)
-                    .and_then(|replacement_session_id| {
-                        self.local_workspace_key_for_shell_session(replacement_session_id)
-                    });
-                let skip_replacement_fallback = replacement_key.is_none();
-                let _ = self.request_local_workspace_terminal_lifecycle(
-                    slot_id.pane_id,
-                    slot_id.session_id,
-                    GpuiLocalWorkspaceLifecycleAction::Close,
-                    GpuiLocalWorkspaceLifecycleMutationKind::DirectClose,
-                    replacement_key,
-                    skip_replacement_fallback,
-                    Some(slot_id),
-                    cx,
-                );
-                continue;
-            }
-            if self
-                .agents_workspace
-                .close_tab(slot_id.pane_id, slot_id.session_id)
-            {
-                self.agents_terminal_close_confirms
-                    .pending_by_slot
-                    .remove(&slot_id);
-                self.forget_local_workspace_mappings_for_shell_session(slot_id.session_id, cx);
-                changed = true;
-            }
-        }
-        changed
-    }
-
     /*
     CDXC:Terminal 2026-07-04:
     GPUI-engine close requests decide confirmation at request time from live
     process/prompt state (mirroring ghostty `needsConfirmQuit`: exited never
     confirms; `confirm-close-surface = true` skips confirmation at a
     shell-integration prompt). A confirmation-needed request becomes a
-    pending entry for the same normal-layout banner the native path renders;
-    a no-confirm request returns false so the caller's existing direct
+    pending entry for the close-confirm dialog; a no-confirm request returns false so the caller's existing direct
     model-close path runs and the engine record is pruned by sync.
     */
     pub(crate) fn request_close_agents_gpui_engine_terminal(

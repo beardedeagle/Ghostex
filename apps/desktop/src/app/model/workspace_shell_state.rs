@@ -97,7 +97,6 @@ pub(crate) fn gpui_workspace_shell_state_json(app: &GhostexGpuiApp) -> serde_jso
         "previousNonCommandFocus": app
             .previous_non_command_focus
             .map(shell_focus_to_shell_state_json),
-        "petOverlayActivitiesVisible": app.gpui_pet_overlay_activities_visible,
         "sidebarUsageVisible": app.sidebar_usage_visible,
         "agentsWorkspace": workspace_model_to_shell_state_json(&app.agents_workspace),
         "agentsWorkspaceProjectId": app.agents_workspace_project_id,
@@ -178,7 +177,7 @@ pub(crate) fn persist_gpui_workspace_shell_state(app: &GhostexGpuiApp) {
     }
     /*
     CDXC:Telemetry 2026-06-23-13:18:
-    Phase 10 persistence re-audit keeps this as the only GPUI-owned workspace shell-state writer. It may write writer-owned layout/focus/tab/profile/lifecycle metadata, bounded canonical gxserver P/G identities, the validated bounded command Action selector used for restart reuse, safe Agents Delayed Send trigger/remaining-time checkpoints, complete sanitized Browser HTTP(S) URLs, plus the `petOverlayActivitiesVisible`, `sidebarUsageVisible` and `viewPanelPickerOpen` UI booleans only; pet activity payloads, pet titles, raw settings JSON, terminal content, command text, stdout/stderr, project paths, file paths, page titles, profile paths, cookies, URL credentials, raw payloads, unrelated private user content, and runtime surface data must stay out at the serializer boundary.
+    Phase 10 persistence re-audit keeps this as the only GPUI-owned workspace shell-state writer. It may write writer-owned layout/focus/tab/profile/lifecycle metadata, bounded canonical gxserver P/G identities, the validated bounded command Action selector used for restart reuse, safe Agents Delayed Send trigger/remaining-time checkpoints, complete sanitized Browser HTTP(S) URLs, plus the `sidebarUsageVisible` and `viewPanelPickerOpen` UI booleans only; raw settings JSON, terminal content, command text, stdout/stderr, project paths, file paths, page titles, profile paths, cookies, URL credentials, raw payloads, unrelated private user content, and runtime surface data must stay out at the serializer boundary.
     */
     let Ok(data) = serde_json::to_vec_pretty(&gpui_workspace_shell_state_json(app)) else {
         return;

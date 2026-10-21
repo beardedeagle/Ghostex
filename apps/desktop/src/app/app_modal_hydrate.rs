@@ -23,8 +23,7 @@ impl GhostexGpuiApp {
                 hydrate
             }
             None => {
-                let hydrate =
-                    gpui_fetch_app_modal_gxserver_hydrate(None, active_project_id.as_deref());
+                let hydrate = gpui_fetch_app_modal_gxserver_hydrate(active_project_id.as_deref());
                 self.app_modal_gxserver_hydrate = Some(hydrate.clone());
                 hydrate
             }
@@ -54,7 +53,7 @@ impl GhostexGpuiApp {
         cx.spawn(async move |this, cx| {
             let hydrate = background
                 .spawn(async move {
-                    gpui_fetch_app_modal_gxserver_hydrate(None, active_project_id.as_deref())
+                    gpui_fetch_app_modal_gxserver_hydrate(active_project_id.as_deref())
                 })
                 .await;
             let _ = this.update(cx, |this, _cx| {

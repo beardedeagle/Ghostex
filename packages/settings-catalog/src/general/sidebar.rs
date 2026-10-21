@@ -16,10 +16,6 @@ pub(crate) fn session_cards() -> Section {
     )
 }
 
-pub(crate) fn status_indicators() -> Section {
-    section("statusIndicators", "Status Indicators", vec![])
-}
-
 pub(crate) fn sidebar() -> Section {
     section(
         "sidebar",

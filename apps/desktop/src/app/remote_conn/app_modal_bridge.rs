@@ -102,14 +102,8 @@ impl GhostexGpuiApp {
             "updateSettingsPatch" => {
                 self.handle_gpui_app_modal_update_settings_patch_message(&message, cx);
             }
-            "listAppIcons" => {
-                self.handle_gpui_list_app_icons_message(cx);
-            }
             "setAppIcon" => {
                 self.handle_gpui_set_app_icon_message(&message, cx);
-            }
-            "pickAppIconFile" => {
-                self.handle_gpui_pick_app_icon_file_message(cx);
             }
             "pickTerminalBackgroundImageFile" => {
                 self.handle_gpui_pick_terminal_background_image_message(cx);
@@ -127,9 +121,6 @@ impl GhostexGpuiApp {
                 if let Some(command) = message.as_object() {
                     self.handle_gpui_first_launch_create_project_session_message(command, cx);
                 }
-            }
-            "revealAppIconsFolder" => {
-                app_icon::reveal_icons_directory();
             }
             "saveRemoteMachinePassword" => {
                 if let Some(command) = message.as_object() {
@@ -178,9 +169,7 @@ impl GhostexGpuiApp {
             }
             "close" => self.close_app_modal_from_bridge(cx),
             "toastDismissed" => {
-                if message.get("keepOpen").and_then(serde_json::Value::as_bool) == Some(true)
-                    || !self.remote_repository_clone_requests.is_empty()
-                {
+                if message.get("keepOpen").and_then(serde_json::Value::as_bool) == Some(true) {
                     return;
                 }
                 self.close_gpui_app_modal_window_and_restore_command_focus(cx);
@@ -487,13 +476,6 @@ impl GhostexGpuiApp {
     /// Rename and Note, which close the open dialog before they open theirs, run the SAME close
     /// rather than a second copy of it (gx_store/sidebar_modals.rs).
     pub(crate) fn close_app_modal_from_bridge(&mut self, cx: &mut gpui::Context<Self>) {
-        if !self.remote_repository_clone_requests.is_empty() {
-            /*
-            CDXC:AddProject 2026-06-24-19:35:
-            The shared Clone Repository modal clears its React dialog immediately after submit. While a GPUI remote clone is pending, keep the native app-modal host alive so the real daemon job can show cancel/final toasts; close the host only after the final toast dismisses instead of dropping visible progress.
-            */
-            return;
-        }
         if self.app_modal_window.is_none() && self.close_native_app_modal_from_bridge(cx) {
             return;
         }

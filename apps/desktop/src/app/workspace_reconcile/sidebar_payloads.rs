@@ -1,4 +1,4 @@
-//! Sidebar payloads the app receives: global actions, status indicators and attention notifications, the pet overlay, remote attach focus, project path and command actions.
+//! Sidebar payloads the app receives: global actions, status indicators and attention notifications, remote attach focus, project path and command actions.
 
 use std::time::Instant;
 
@@ -113,7 +113,7 @@ impl GhostexGpuiApp {
         }
         let row_id = session_id.clone();
         self.activate_session_in_its_window(&row_id, window, cx, move |app, cx| {
-            app.dispatch_gpui_status_pet_activation(session_id.as_str(), cx);
+            app.dispatch_gpui_status_activation(session_id.as_str(), cx);
         });
     }
 
@@ -143,29 +143,6 @@ impl GhostexGpuiApp {
         if self.is_lead_window() {
             apply_gpui_menu_bar_status_item(&self.sidebar_session_status_indicators);
         }
-    }
-
-    pub(crate) fn receive_sidebar_pet_overlay_state_payload(
-        &mut self,
-        payload: &str,
-        cx: &mut gpui::Context<Self>,
-    ) {
-        /*
-        CDXC:StatusPet 2026-06-26-04:38:
-        The pet overlay settings fan-out shares the status bridge privacy boundary: Rust stores only bounded enabled/pet-id/status/activity ids and titles for future GPUI-owned presentation, with no generic IPC, renderer paths, URLs, commands, terminal content, or menu-bar emulation.
-        */
-        let Ok(next_state) = gpui_sidebar_pet_overlay_state_from_json(payload) else {
-            return;
-        };
-        if self.sidebar_pet_overlay == next_state {
-            return;
-        }
-        self.sidebar_pet_overlay = next_state;
-        if !self.sidebar_pet_overlay.enabled {
-            self.gpui_pet_overlay_avatar_hovered = false;
-        }
-        self.refresh_gpui_pet_overlay_animation_state(cx);
-        cx.notify();
     }
 
     pub(crate) fn set_sidebar_gxserver_remote_attach_focus_state(

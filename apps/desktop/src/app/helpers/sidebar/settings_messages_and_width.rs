@@ -27,20 +27,9 @@ pub(crate) fn gpui_app_modal_sidebar_state_message(
 pub(crate) fn gpui_app_modal_sidebar_state_message_for_active_project_id(
     active_project_id: Option<&str>,
 ) -> serde_json::Value {
-    gpui_app_modal_sidebar_state_message_with_portless_state_for_active_project_id(
-        None,
-        active_project_id,
-    )
-}
-
-pub(crate) fn gpui_app_modal_sidebar_state_message_with_portless_state_for_active_project_id(
-    portless_state: Option<serde_json::Value>,
-    active_project_id: Option<&str>,
-) -> serde_json::Value {
     let settings_snapshot = shared_settings::shared_sidebar_settings_snapshot();
-    gpui_app_modal_sidebar_state_message_from_settings_snapshot_and_portless_state_for_active_project_id(
+    gpui_app_modal_sidebar_state_message_from_settings_snapshot_for_active_project_id(
         &settings_snapshot,
-        portless_state,
         active_project_id,
     )
 }
@@ -49,37 +38,23 @@ pub(crate) fn gpui_app_modal_sidebar_state_message_from_settings_snapshot(
     settings_snapshot: &shared_settings::SharedSidebarSettingsSnapshot,
     latest_snapshot: Option<&GpuiProjectSnapshot>,
 ) -> serde_json::Value {
-    gpui_app_modal_sidebar_state_message_from_settings_snapshot_and_portless_state(
+    gpui_app_modal_sidebar_state_message_from_settings_snapshot_for_active_project_id(
         settings_snapshot,
-        None,
-        latest_snapshot,
-    )
-}
-
-pub(crate) fn gpui_app_modal_sidebar_state_message_from_settings_snapshot_and_portless_state(
-    settings_snapshot: &shared_settings::SharedSidebarSettingsSnapshot,
-    portless_state_override: Option<serde_json::Value>,
-    latest_snapshot: Option<&GpuiProjectSnapshot>,
-) -> serde_json::Value {
-    gpui_app_modal_sidebar_state_message_from_settings_snapshot_and_portless_state_for_active_project_id(
-        settings_snapshot,
-        portless_state_override,
         gpui_active_project_id_from_snapshot(latest_snapshot),
     )
 }
 
-pub(crate) fn gpui_app_modal_sidebar_state_message_from_settings_snapshot_and_portless_state_for_active_project_id(
+fn gpui_app_modal_sidebar_state_message_from_settings_snapshot_for_active_project_id(
     settings_snapshot: &shared_settings::SharedSidebarSettingsSnapshot,
-    portless_state_override: Option<serde_json::Value>,
     active_project_id: Option<&str>,
 ) -> serde_json::Value {
     gpui_app_modal_sidebar_state_message_from_gxserver_hydrate(
         settings_snapshot,
-        &gpui_fetch_app_modal_gxserver_hydrate(portless_state_override, active_project_id),
+        &gpui_fetch_app_modal_gxserver_hydrate(active_project_id),
     )
 }
 
-/// The parts of the app-modal hydrate that come from gxserver. Settings themselves are local and are always read fresh when the message is assembled, so a held copy of this struct only ever lags on projects, agents, actions, Recent Projects, pinned prompts, session tags and Portless.
+/// The parts of the app-modal hydrate that come from gxserver. Settings themselves are local and are always read fresh when the message is assembled, so a held copy of this struct only ever lags on projects, agents, actions, Recent Projects, pinned prompts and session tags.
 #[derive(Clone, PartialEq)]
 pub(crate) struct GpuiAppModalGxserverHydrate {
     pub(crate) active_project_id: Option<String>,
@@ -90,11 +65,9 @@ pub(crate) struct GpuiAppModalGxserverHydrate {
     recent_projects: Vec<serde_json::Value>,
     pinned_prompts: Vec<serde_json::Value>,
     custom_session_tags: Option<serde_json::Value>,
-    portless_state: Option<serde_json::Value>,
 }
 
 pub(crate) fn gpui_fetch_app_modal_gxserver_hydrate(
-    portless_state_override: Option<serde_json::Value>,
     active_project_id: Option<&str>,
 ) -> GpuiAppModalGxserverHydrate {
     /*
@@ -102,10 +75,7 @@ pub(crate) fn gpui_fetch_app_modal_gxserver_hydrate(
     The GPUI Settings modal host hydrates from the shared settings service snapshot, not a second ad hoc file read. The payload remains intentionally minimal for current GPUI parity, but it carries the saved settings object and service revision for both open-time hydration and post-save `sidebarState` refreshes.
 
     CDXC:StatusPet 2026-06-24-11:40:
-    Settings hydration must no longer send empty launcher/action chrome. Mirror the shared SidebarApp agent and command button contract from real gxserver project metadata, include gxserver Portless health when a short localhost health read is available, and hydrate project settings rows only from real gxserver project/presentation metadata; do not invent project paths or custom buttons for the modal.
-
-    CDXC:Portless 2026-06-24-11:48:
-    After a Portless Settings RPC succeeds, prefer the canonical gxserver update result for `hud.portless` so status, setup state, and assigned-domain presentation refresh in the open Settings modal without a second daemon read. Generic hydration may still use the short health probe and keeps native admin unavailable in GPUI.
+    Settings hydration must no longer send empty launcher/action chrome. Mirror the shared SidebarApp agent and command button contract from real gxserver project metadata, and hydrate project settings rows only from real gxserver project/presentation metadata; do not invent project paths or custom buttons for the modal.
 
     CDXC:Projects 2026-06-24-12:27:
     The Rust app-modal hydrate reads Recent Projects from gxserver's
@@ -116,8 +86,8 @@ pub(crate) fn gpui_fetch_app_modal_gxserver_hydrate(
 
     CDXC:ServerDaemon 2026-06-24-13:30:
     Hydrate Pinned Prompts from gxserver app-user-data every time the app-modal
-    host opens or refreshes. Settings, Previous Sessions, Running Sessions, and
-    Portless data keep their existing stored-vs-transient behavior; this
+    host opens or refreshes. Settings, Previous Sessions, and Running Sessions
+    keep their existing stored-vs-transient behavior; this
     user-data modal field must not read or write the old GPUI-only
     product-state file.
 
@@ -127,9 +97,6 @@ pub(crate) fn gpui_fetch_app_modal_gxserver_hydrate(
     CDXC:AgentLauncher 2026-06-24-20:34:
     Agent/action HUD rows are read through gxserver's `/api/readSidebarHud` production projection. The app-modal host still reads project settings and Recent Projects from their existing gxserver contracts, but it no longer hand-normalizes custom agent/action metadata from `/api/listProjects`.
     */
-    let portless_state = GPUI_PORTLESS_APP_INTEGRATION_ENABLED
-        .then(|| portless_state_override.or_else(gpui_sidebar_portless_state))
-        .flatten();
     let domain_projects = gpui_gxserver_domain_projects(Duration::from_secs(2));
     let sidebar_hud =
         gpui_sidebar_hud_from_gxserver(Duration::from_secs(2), active_project_id).ok();
@@ -164,7 +131,6 @@ pub(crate) fn gpui_fetch_app_modal_gxserver_hydrate(
         recent_projects,
         pinned_prompts,
         custom_session_tags,
-        portless_state,
     }
 }
 
@@ -191,7 +157,6 @@ pub(crate) fn gpui_app_modal_sidebar_state_message_from_gxserver_hydrate(
         recent_projects,
         pinned_prompts,
         custom_session_tags,
-        portless_state,
         ..
     } = hydrate.clone();
 
@@ -252,9 +217,6 @@ pub(crate) fn gpui_app_modal_sidebar_state_message_from_gxserver_hydrate(
         "revision": settings_snapshot.revision(),
         "type": "hydrate",
     });
-    if let Some(portless_state) = portless_state {
-        message["hud"]["portless"] = portless_state;
-    }
     if let Some(custom_session_tags) = custom_session_tags {
         message["customSessionTags"] = custom_session_tags;
     }

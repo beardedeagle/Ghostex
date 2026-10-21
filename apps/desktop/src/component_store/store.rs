@@ -140,10 +140,6 @@ impl ComponentStore {
         Self { manifest, root }
     }
 
-    pub fn release_version(&self) -> &str {
-        &self.manifest.version
-    }
-
     pub fn component(&self, name: &str) -> Option<&ComponentDefinition> {
         self.manifest.components.get(name)
     }
@@ -552,55 +548,5 @@ impl ComponentStore {
             ComponentStoreProgressPhase::Ready,
         );
         Ok(destination)
-    }
-
-    pub fn query_release_asset_cache(
-        &self,
-        asset_key: &str,
-        payload: ReleaseAssetCachePayload,
-    ) -> Result<CachedReleaseAsset, String> {
-        let asset =
-            self.manifest.assets.get(asset_key).ok_or_else(|| {
-                format!("Sealed manifest does not define release asset {asset_key}")
-            })?;
-        let cache_dir = legacy_asset_cache_root()?.join(&self.manifest.version);
-        let path = match payload {
-            ReleaseAssetCachePayload::DownloadArchive => cache_dir.join(&asset.name),
-        };
-        let size_bytes = path
-            .metadata()
-            .ok()
-            .filter(|metadata| metadata.is_file())
-            .map(|metadata| metadata.len())
-            .unwrap_or(0);
-        let cached = match payload {
-            ReleaseAssetCachePayload::DownloadArchive => size_bytes == asset.bytes,
-        };
-        Ok(CachedReleaseAsset {
-            asset_key: asset_key.to_string(),
-            cached,
-            download_size_bytes: asset.bytes,
-            path,
-            size_bytes,
-            version: self.manifest.version.clone(),
-        })
-    }
-
-    pub fn remove_release_asset_cache(
-        &self,
-        asset_key: &str,
-        payload: ReleaseAssetCachePayload,
-    ) -> Result<bool, String> {
-        let cached = self.query_release_asset_cache(asset_key, payload)?;
-        if !cached.path.exists() {
-            return Ok(false);
-        }
-        fs::remove_file(&cached.path).map_err(|error| {
-            format!(
-                "Could not remove cached release asset {}: {error}",
-                cached.path.display()
-            )
-        })?;
-        Ok(true)
     }
 }

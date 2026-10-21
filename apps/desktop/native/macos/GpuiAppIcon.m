@@ -171,15 +171,4 @@ char *GhostexGpuiAppIconThumbnailDataUrl(const char *path) {
   return strdup(value.UTF8String ?: "");
 }
 
-void GhostexGpuiAppIconRevealDirectory(const char *path) {
-  if (!path || path[0] == '\0') {
-    return;
-  }
-  NSString *pathString = [NSString stringWithUTF8String:path];
-  if (pathString.length > 0) {
-    [NSWorkspace.sharedWorkspace openURL:[NSURL fileURLWithPath:pathString
-                                                    isDirectory:YES]];
-  }
-}
-
 void GhostexGpuiAppIconFreeCString(char *value) { free(value); }

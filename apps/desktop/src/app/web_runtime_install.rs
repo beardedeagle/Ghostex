@@ -260,11 +260,8 @@ impl GhostexGpuiApp {
     /// and the prompt dialog of a modal waiting for the runtime.
     pub(crate) fn refresh_web_runtime_views(&mut self, cx: &mut gpui::Context<Self>) {
         // The Plugins status measures the installed component on disk, so it is only rebuilt
-        // while something that shows it (Settings, the Plugins window) is open.
-        if self.app_modal_window.is_some()
-            || self.native_app_modal.is_some()
-            || self.plugins_modal_window.is_some()
-        {
+        // while something that shows it (Settings) is open.
+        if self.app_modal_window.is_some() || self.native_app_modal.is_some() {
             self.refresh_gpui_plugins_modal(cx);
         }
         self.refresh_web_runtime_modal_prompt(cx);

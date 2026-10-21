@@ -212,12 +212,6 @@ How to use this file:
 - **workspaceOpenTargetAvailability** `workspaceOpenTargetAvailability` (structured value; change it in Settings, not with `ghostex settings set`): App-managed state saved with the settings; not a user preference.
 - **workspaceOpenTargetHiddenIds** `workspaceOpenTargetHiddenIds` (structured value; change it in Settings, not with `ghostex settings set`): App-managed state saved with the settings; not a user preference.
 - **remoteMachines** `remoteMachines` (structured value; change it in Settings, not with `ghostex settings set`): App-managed state saved with the settings; not a user preference.
-### Status Indicators
-
-#### Status Indicators
-
-- **Pet overlay** `petOverlayEnabled` (boolean, default false): Show the draggable animated pet in the sidebar (also Wake Pet / Sleep Pet in Quick Access).
-- **Pet** `selectedPetId` (text, default boo): Which pet sprite the overlay shows.
 ## Theme (tab `theme`)
 
 ### Theme
@@ -508,10 +502,6 @@ How to use this file:
 - **Docs directory** `docsDirectory` (Settings UI row without a settings key; use `ghostex settings open`): Extra folder this project's Files view shows, in addition to its own docs.
 - **Work mode** `projectWorkMode` (Settings UI row without a settings key; use `ghostex settings open`): Turn work mode on or off for this project: Linear tickets, GitHub pull requests and the Work view.
 - **Project Linear API key** `projectLinearApiKey` (Settings UI row without a settings key; use `ghostex settings open`): A Linear key for this project only, used instead of its workspace's or the shared key.
-### Portless
-
-- **Portless** `portlessEnabled` (boolean, default false): Route project dev servers through named local addresses instead of raw ports.
-- **Portless protocol** `portlessProtocol` (one of https | http; default https): Protocol Portless addresses use. Option labels: https = HTTPS, http = HTTP.
 ## Remote (tab `remote`)
 
 ### Easy Connect

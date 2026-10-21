@@ -240,7 +240,6 @@ phase_stage_runtime() {
 			"$PREPARED_WEB/bin/zmx" \
 			"$PREPARED_WEB/on-demand-resources.json" \
 			"$PREPARED_WEB/gxserver/bin/gxserver" \
-			"$PREPARED_WEB/portless/dist/cli.js" \
 			"$REPO_ROOT/apps/desktop/runtime/macos/CLI/ghostex" \
 			"$REPO_ROOT/build/on-demand-components/components.json" \
 			"$REPO_ROOT/build/on-demand-assets/$VERSION/gxserver-linux-x64.tar.gz" \

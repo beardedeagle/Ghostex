@@ -10,7 +10,7 @@
 // main.rs (pure move; the only edit is the `pub(crate) ` visibility prefix the
 // cross-module split requires). See docs/2026-08-22/repo-restructure/SPLITS.md C1.
 //
-// Cluster: updater, first-run onboarding, gxserver bootstrap, OS shells, portless, keep-awake
+// Cluster: updater, first-run onboarding, gxserver bootstrap, OS shells, keep-awake
 
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
@@ -191,7 +191,6 @@ impl GhostexGpuiApp {
                         }
                         this.replay_sidebar_gxserver_bootstrap(cx);
                         this.refresh_titlebar_accounts(cx);
-                        this.start_gpui_portless_setup_prompt_check(cx);
                         this.start_gpui_first_run_onboarding(cx);
                         /*
                         CDXC:Telemetry 2026-08-26:
@@ -429,7 +428,6 @@ impl GhostexGpuiApp {
                             }
                             this.replay_sidebar_gxserver_bootstrap(cx);
                             this.refresh_titlebar_accounts(cx);
-                            this.start_gpui_portless_setup_prompt_check(cx);
                             /*
                             CDXC:Onboarding 2026-08-18:
                             A launch that had to respawn the daemon reaches

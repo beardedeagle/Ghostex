@@ -1,27 +1,5 @@
 use super::*;
 
-/*
-CDXC:Terminal 2026-06-27-02:27:
-Programmatic Return delivery is allowed only through exact mounted Ghostty surfaces that already passed their target-specific owner checks. Reuse the native macOS Return key tuple for command Delayed Send and mapped Agents rename commands instead of writing newline text or using the currently focused terminal as fallback.
-*/
-pub(crate) const GPUI_TERMINAL_RETURN_KEYCODE: u32 = 36;
-
-pub(crate) const GPUI_TERMINAL_KEYPAD_ENTER_KEYCODE: u32 = 76;
-
-pub(crate) const GPUI_TERMINAL_RETURN_TEXT: &str = "\r";
-
-pub(crate) const GPUI_TERMINAL_RETURN_UNSHIFTED_CODEPOINT: u32 = 13;
-
-pub(crate) const COMMAND_PANE_DELAYED_SEND_RETURN_KEYCODE: u32 = GPUI_TERMINAL_RETURN_KEYCODE;
-
-pub(crate) const COMMAND_PANE_DELAYED_SEND_RETURN_TEXT: &str = GPUI_TERMINAL_RETURN_TEXT;
-
-pub(crate) const COMMAND_PANE_DELAYED_SEND_RETURN_UNSHIFTED_CODEPOINT: u32 =
-    GPUI_TERMINAL_RETURN_UNSHIFTED_CODEPOINT;
-
-pub(crate) const COMMAND_PANE_GHOSTTY_KEY_ACTION_PRESS: ghostty_kit::ffi::ghostty_input_action_e =
-    1;
-
 pub(crate) const COMMAND_PANE_CLOSE_AFTER_DONE_DELAY: Duration = Duration::from_secs(3 * 60);
 
 /*
@@ -210,12 +188,6 @@ bias gxserver takes, because the draft's real line count is unknowable from
 here.
 */
 pub(crate) const WORKSPACE_RENAME_COMMAND_CLEAR_REPETITIONS: usize = 17;
-
-/// Ctrl+U — kill toward the start of the composer line.
-pub(crate) const AGENT_TUI_CLEAR_INPUT_LINE: &str = "\u{15}";
-
-/// Ctrl+K — kill toward the end of the composer line.
-pub(crate) const AGENT_TUI_CLEAR_INPUT_FORWARD: &str = "\u{b}";
 
 /*
 CDXC:Workarea 2026-06-29-00:02:

@@ -88,18 +88,6 @@ pub(crate) fn gpui_gxserver_rejection_message(body: &str) -> Option<String> {
         .filter(|message| !message.is_empty())
 }
 
-pub(crate) fn gpui_repository_clone_rpc_result(
-    target: Option<&GpuiRemoteGxserverRequestTarget>,
-    path: &str,
-    params: &serde_json::Value,
-    timeout: Duration,
-) -> Result<serde_json::Value, String> {
-    match target {
-        Some(target) => gpui_remote_gxserver_rpc_result(target, path, params, timeout),
-        None => gpui_gxserver_rpc_result(path, params, timeout),
-    }
-}
-
 pub(crate) fn gpui_command_pane_side_from_shared_settings(
     settings: &shared_settings::SharedSidebarSettingsSnapshot,
 ) -> GpuiCommandPaneSide {

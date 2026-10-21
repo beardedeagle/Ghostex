@@ -222,7 +222,7 @@ impl Render for GhostexGpuiApp {
             self.gx_store_report_shown_sessions(cx);
             self.gx_store_report_chat_grid_claims(cx);
         }
-        self.prepare_focus_bounds_for_render(window.scale_factor(), cx);
+        self.prepare_focus_bounds_for_render(cx);
         #[cfg(target_os = "macos")]
         self.sync_terminal_close_confirm_dialog(window, cx);
         self.sync_terminal_search_inputs(window, cx);
@@ -545,17 +545,6 @@ impl Render for GhostexGpuiApp {
                     this.stop_gpui_local_gxserver_from_titlebar(true, cx);
                 }),
             )
-            .on_action(cx.listener(
-                |this, _: &OpenGpuiPortlessSetupModalFromTitlebar, window, cx| {
-                    if GPUI_PORTLESS_APP_INTEGRATION_ENABLED {
-                        this.open_gpui_app_modal_from_titlebar(
-                            GpuiAppModalKind::PortlessSetup,
-                            window,
-                            cx,
-                        );
-                    }
-                },
-            ))
             .on_action(cx.listener(|this, _: &CloseFocusedSurface, window, cx| {
                 if this.propagate_source_workarea_cef_hotkey_passthrough(cx) {
                     return;
@@ -845,14 +834,6 @@ impl Render for GhostexGpuiApp {
             .on_action(
                 cx.listener(|this, _: &OpenGpuiPowerSettingsModal, window, cx| {
                     this.open_gpui_power_settings_modal_from_titlebar(window, cx);
-                }),
-            )
-            .on_action(cx.listener(|this, _: &SleepGpuiPetOverlay, _window, cx| {
-                this.sleep_gpui_pet_overlay_from_context_menu(cx);
-            }))
-            .on_action(
-                cx.listener(|this, _: &GoToGhostexFromGpuiPetOverlay, window, cx| {
-                    this.go_to_ghostex_from_gpui_pet_overlay(window, cx);
                 }),
             )
             .on_action(
@@ -1359,7 +1340,6 @@ impl Render for GhostexGpuiApp {
                         this
                     }),
             )
-            .child(self.render_gpui_status_pet_presentation(cx))
             // Last child, so a resize drag in progress sees each mouse move
             // before the panes it is dragged across do.
             .child(self.render_resize_drag_pointer_tracker(cx))

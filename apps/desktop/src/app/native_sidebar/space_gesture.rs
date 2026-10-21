@@ -337,7 +337,7 @@ impl GhostexGpuiApp {
         destination: Option<String>,
         cx: &mut gpui::Context<Self>,
     ) {
-        if self.gpui_pet_overlay_reduce_motion_enabled {
+        if self.gpui_reduce_motion_enabled {
             if let Some(space_id) = destination {
                 self.dispatch_native_sidebar_ui(
                     serde_json::json!({"type": "selectSpace", "spaceId": space_id}),

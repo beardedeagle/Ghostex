@@ -1,10 +1,10 @@
-//! Chat, Status Indicators, and the Tools group of General: Browser, Dev Servers, Editor and
+//! Chat and the Tools group of General: Browser, Dev Servers, Editor and
 //! File opening.
 use super::super::super::catalog::SettingOption;
-use super::super::super::catalog::{module, settings_catalog};
+use super::super::super::catalog::settings_catalog;
 use super::super::super::fields::{
-    RowSpec, SELECT_WIDTH, ignored_ports_field, pet_picker_field, reset_key, segmented_field,
-    setting_row, settings_section, settings_select_with_unavailable, text_field,
+    RowSpec, SELECT_WIDTH, ignored_ports_field, reset_key, segmented_field, setting_row,
+    settings_section, settings_select_with_unavailable, text_field,
 };
 use super::super::super::page::PageBlock;
 use super::super::orchestrator_playbook::{playbook_control, playbook_scope};
@@ -146,45 +146,6 @@ fn orchestrator_playbook_row(
         cx,
     );
     Some(setting_row(&g.p, KEY, spec, None, control, cx))
-}
-
-fn status_indicators_section(
-    page: &mut GeneralTab,
-    g: &GeneralCx,
-    window: &mut Window,
-    cx: &mut Context<GeneralTab>,
-) -> Option<PageBlock> {
-    if !settings_catalog().flag(module::PETS, "PET_CONTROLS_VISIBLE")
-        || !g.search.section_visible("statusIndicators")
-    {
-        return None;
-    }
-    let s = "statusIndicators";
-    let mut rows: Vec<AnyElement> = Vec::new();
-    rows.extend(page.toggle(
-        g,
-        s,
-        "petOverlayEnabled",
-        "Wake Pet",
-        "Show a draggable floating animated pet.",
-        false,
-        cx,
-    ));
-    if g.visible(s, "selectedPetId") {
-        let spec = g.spec("selectedPetId", "Pet", "Choose the pet sprite.");
-        let value = g.values.string("selectedPetId");
-        rows.push(pet_picker_field(
-            page,
-            &g.p,
-            spec,
-            Some(reset_key::<GeneralTab>("selectedPetId")),
-            &value,
-            window,
-            cx,
-        ));
-    }
-    settings_section(&g.p, "Status Indicators", None, None, rows)
-        .map(|section| PageBlock::section("statusIndicators", section))
 }
 
 fn browser_section(
@@ -519,7 +480,6 @@ pub(super) fn sections(
 ) -> Vec<PageBlock> {
     [
         chat_section(page, g, window, cx),
-        status_indicators_section(page, g, window, cx),
         browser_section(page, g, window, cx),
         dev_servers_section(page, g, window, cx),
         editor_section(page, g, cx),

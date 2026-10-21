@@ -31,7 +31,7 @@ pub(crate) struct GhostexGpuiApp {
     pub(crate) sidebar_width: f32,
     pub(crate) sidebar_collapsed: bool,
     pub(crate) sidebar_usage_visible: bool,
-    pub(crate) gpui_pet_overlay_reduce_motion_enabled: bool,
+    pub(crate) gpui_reduce_motion_enabled: bool,
     pub(crate) app_modal_window: Option<WindowHandle<GpuiAppModalHostWindow>>,
     /// Whether a focused session row is drawn unfocused because a browser tab owns focus; always false until the web build has browser tabs.
     pub(crate) snapshot_browser_focus: bool,
@@ -95,7 +95,7 @@ impl GhostexGpuiApp {
             sidebar_width: 300.0,
             sidebar_collapsed: false,
             sidebar_usage_visible: false,
-            gpui_pet_overlay_reduce_motion_enabled: false,
+            gpui_reduce_motion_enabled: false,
             app_modal_window: None,
             snapshot_browser_focus: false,
             open_session: None,

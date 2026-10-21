@@ -10,14 +10,6 @@ use std::{
 use super::*;
 use serde_json::{Map, Value};
 
-#[allow(dead_code)] // no caller: config-backed change detection is done per-setting today
-pub fn ghostty_terminal_config_backed_settings_changed(
-    previous_object: &Map<String, Value>,
-    next_object: &Map<String, Value>,
-) -> bool {
-    !ghostty_terminal_config_backed_setting_keys_changed(previous_object, next_object).is_empty()
-}
-
 pub fn ghostty_terminal_config_backed_setting_keys_changed(
     previous_object: &Map<String, Value>,
     next_object: &Map<String, Value>,

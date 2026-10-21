@@ -8,7 +8,6 @@ use crate::*;
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum CommandPaneMode {
     Pinned,
-    Floating,
     Collapsed,
 }
 
@@ -16,7 +15,8 @@ impl CommandPaneMode {
     pub(crate) fn from_slug(value: &str) -> Option<Self> {
         match value {
             "pinned" => Some(Self::Pinned),
-            "floating" => Some(Self::Floating),
+            // Floating command panes were removed on 2026-10-21; a saved floating pane opens pinned.
+            "floating" => Some(Self::Pinned),
             "collapsed" => Some(Self::Collapsed),
             _ => None,
         }
@@ -25,7 +25,6 @@ impl CommandPaneMode {
     pub(crate) fn element_slug(self) -> &'static str {
         match self {
             Self::Pinned => "pinned",
-            Self::Floating => "floating",
             Self::Collapsed => "collapsed",
         }
     }
@@ -39,7 +38,6 @@ pub(crate) enum CommandPaneNewCommandControlPlacement {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum CommandPaneBottomReservationChrome {
-    PlainChrome,
     CollapsedStrip,
 }
 
@@ -57,10 +55,6 @@ pub(crate) enum CommandPaneWorkspaceLayoutPlan {
     },
     PinnedRight {
         panel_width: f32,
-    },
-    Floating {
-        panel_height: f32,
-        bottom_reservation: CommandPaneWorkspaceBottomReservation,
     },
     Collapsed {
         bottom_reservation: CommandPaneWorkspaceBottomReservation,
@@ -226,33 +220,6 @@ pub(crate) fn command_pane_tab_add_icon_path() -> &'static str {
     COMMAND_ICON_PLUS
 }
 
-pub(crate) fn command_pane_panel_mode_controls_visible(expanded_chrome: bool) -> bool {
-    /*
-    CDXC:CommandPane 2026-06-25-12:05:
-    Hidden/collapsed command-panel chrome mirrors macOS expand-only panel actions, so Pin/Unpin is visible only in expanded command-pane titlebars. Keep New Terminal as inline tab-run chrome and Expand in the collapsed strip for existing GPUI collapsed-strip creation/open behavior, but do not expose panel mode mutation while hidden.
-    */
-    COMMAND_PANE_FLOATING_MODE_ENABLED && expanded_chrome
-}
-
-pub(crate) fn command_pane_mode_for_current_release(mode: CommandPaneMode) -> CommandPaneMode {
-    if COMMAND_PANE_FLOATING_MODE_ENABLED || mode != CommandPaneMode::Floating {
-        mode
-    } else {
-        CommandPaneMode::Pinned
-    }
-}
-
-pub(crate) fn command_pane_panel_pin_icon_path(mode: CommandPaneMode) -> &'static str {
-    /*
-    CDXC:CommandPane 2026-06-25-13:40:
-    macOS command-panel mode chrome uses pin and pin.slash symbols for Pin/Unpin Commands Panel. GPUI should not expose raw P/U fallback letters when SVG chrome is available.
-    */
-    match mode {
-        CommandPaneMode::Pinned => COMMAND_ICON_PIN_SLASH,
-        CommandPaneMode::Floating | CommandPaneMode::Collapsed => COMMAND_ICON_PIN,
-    }
-}
-
 pub(crate) fn command_pane_panel_visibility_icon_path(expanded: bool) -> &'static str {
     /*
     CDXC:CommandPane 2026-06-25-13:40:
@@ -268,13 +235,8 @@ pub(crate) fn command_pane_panel_visibility_icon_path(expanded: bool) -> &'stati
 pub(crate) fn command_pane_bottom_reservation_chrome(
     mode: CommandPaneMode,
 ) -> Option<CommandPaneBottomReservationChrome> {
-    /*
-    CDXC:CommandPane 2026-06-25-18:19:
-    Native floating command panels reserve `collapsedCommandsPanelHeight` as a plain black `CommandsPanelChromeView` while the expanded floating panel owns the actual tabs and controls. Render the interactive collapsed strip only for collapsed command-pane mode so floating mode does not duplicate command tabs below the panel.
-    */
     match mode {
         CommandPaneMode::Pinned => None,
-        CommandPaneMode::Floating => Some(CommandPaneBottomReservationChrome::PlainChrome),
         CommandPaneMode::Collapsed => Some(CommandPaneBottomReservationChrome::CollapsedStrip),
     }
 }
@@ -290,13 +252,13 @@ pub(crate) fn command_pane_workspace_layout_plan(
 ) -> CommandPaneWorkspaceLayoutPlan {
     /*
     CDXC:CommandPane 2026-06-27-08:32:
-    Native TerminalWorkspaceView lays command panels out from session presence and mode: pinned reserves the full command-panel height and pushes the workspace up, floating expanded overlays the panel while reserving only collapsedCommandsPanelHeight as plain bottom chrome, and collapsed renders only the interactive collapsed strip.
+    Native TerminalWorkspaceView lays command panels out from session presence and mode: pinned reserves the full command-panel height and pushes the workspace up, and collapsed renders only the interactive collapsed strip.
 
     CDXC:CommandPane 2026-06-27-15:00:
     The command-pane chrome belongs to live command sessions. Once the final command session closes, hide the entire bottom strip so the active workspace reclaims its full height; reopening a command pane still follows the existing session-creation path.
 
     CDXC:CommandPane 2026-08-16:
-    `commandsPanelSide: "right"` only changes the pinned placement: the expanded pane becomes a workspace column sized by `widthRatio`. Floating (release-disabled) and the collapsed footer strip keep their bottom layout so the pane is discoverable from the same place on both sides.
+    `commandsPanelSide: "right"` only changes the pinned placement: the expanded pane becomes a workspace column sized by `widthRatio`. The collapsed footer strip keeps its bottom layout so the pane is discoverable from the same place on both sides.
     */
     if !has_sessions {
         return CommandPaneWorkspaceLayoutPlan::Hidden;
@@ -318,11 +280,6 @@ pub(crate) fn command_pane_workspace_layout_plan(
     match mode {
         CommandPaneMode::Pinned => CommandPaneWorkspaceLayoutPlan::Pinned {
             panel_height: command_pane_height_for_ratio(height_ratio, content_height),
-        },
-        CommandPaneMode::Floating => CommandPaneWorkspaceLayoutPlan::Floating {
-            panel_height: command_pane_floating_height_for_ratio(height_ratio, content_height),
-            bottom_reservation: bottom_reservation
-                .expect("floating command panes reserve plain bottom chrome"),
         },
         CommandPaneMode::Collapsed => CommandPaneWorkspaceLayoutPlan::Collapsed {
             bottom_reservation: bottom_reservation
@@ -706,9 +663,6 @@ pub(crate) fn command_pane_fixed_panel_control_count(
     {
         count += 1;
     }
-    if command_pane_panel_mode_controls_visible(expanded_chrome) {
-        count += 1;
-    }
     if expanded_chrome && keep_open_visible {
         count += 1;
     }
@@ -740,17 +694,6 @@ pub(crate) fn command_pane_inline_tab_add_visible_for_chrome_width(
         >= COMMAND_PANE_MINIMUM_VISIBLE_TAB_VIEWPORT_WIDTH_WITH_DOUBLE_CLICK_TARGET
             + COMMAND_PANE_TAB_ADD_BUTTON_GAP
             + COMMAND_PANE_TAB_BAR_HEIGHT
-}
-
-pub(crate) fn command_pane_panel_pin_label(mode: CommandPaneMode) -> &'static str {
-    /*
-    CDXC:CommandPane 2026-06-25-12:19:
-    macOS command-panel chrome labels the mode toggle as Pin/Unpin Commands Panel, not Float/Pin Command Pane. Keep the label tied to the native action vocabulary while preserving the existing pinned/floating state mutation.
-    */
-    match mode {
-        CommandPaneMode::Pinned => "Unpin Commands Panel",
-        CommandPaneMode::Floating | CommandPaneMode::Collapsed => "Pin Commands Panel",
-    }
 }
 
 /*

@@ -318,30 +318,10 @@ impl GhostexGpuiApp {
         cx: &mut gpui::Context<Self>,
     ) -> AnyElement {
         match bottom_reservation.chrome {
-            CommandPaneBottomReservationChrome::PlainChrome => {
-                self.render_command_pane_floating_reserved_bottom_bar(bottom_reservation.height)
-            }
             CommandPaneBottomReservationChrome::CollapsedStrip => {
                 self.render_command_pane_strip(workspace_width, bottom_reservation.height, cx)
             }
         }
-    }
-
-    pub(crate) fn render_command_pane_floating_reserved_bottom_bar(
-        &self,
-        height: f32,
-    ) -> AnyElement {
-        /*
-        CDXC:CommandPane 2026-06-25-18:19:
-        Expanded floating command panels need the native reserved bottom footprint as plain command-panel chrome. Do not render tabs, plus, Expand, Pin/Unpin, or Minimize controls in this bottom reservation; those controls live in the floating panel itself.
-        */
-        div()
-            .id("ghostex-gpui-command-pane-floating-reserved-bottom-bar")
-            .flex_shrink_0()
-            .h(px(height))
-            .w_full()
-            .bg(glass_clear(command_pane_strip_color()))
-            .into_any_element()
     }
 
     pub(crate) fn render_command_pane_strip(

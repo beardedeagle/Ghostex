@@ -234,7 +234,7 @@ validate_cli_resources() {
 	fi
 }
 
-validate_portless_admin_runtime_resources() {
+validate_source_runtime_resources() {
 	local missing=0
 
 	if [[ "$GHOSTEX_ON_DEMAND_ASSETS" == "1" ]]; then
@@ -267,10 +267,6 @@ validate_portless_admin_runtime_resources() {
 				missing=1
 			fi
 		done
-	fi
-	if [[ ! -f "$WEB_SOURCE_DIR/portless/dist/cli.js" ]]; then
-		echo "Missing GPUI Portless CLI payload: $WEB_SOURCE_DIR/portless/dist/cli.js" >&2
-		missing=1
 	fi
 
 	if [[ "$missing" == "1" ]]; then
@@ -643,7 +639,6 @@ validate_remote_gxserver_linux_package() {
 	local package_label="$2"
 	local required_path file_output
 
-	# Portless is macOS launchd-only and is no longer staged in Linux packages.
 	for required_path in \
 		"bin/gxserver" \
 		"bin/zmx"; do
@@ -777,7 +772,7 @@ stage_remote_gxserver_linux_package_if_available() {
 		exit 1
 	fi
 	# CDXC:RemoteMachines 2026-06-24-20:08:
-	# GPUI remote gxserver install parity may stage only explicit prebuilt Linux packages into Contents/Resources/Web. Validate required gxserver/zmx/bd/Node/Portless/CLI resources and reject Mach-O or wrong-architecture payloads before copying, so runtime install never falls back to source checkout paths or uploads a host macOS package to Linux.
+	# GPUI remote gxserver install parity may stage only explicit prebuilt Linux packages into Contents/Resources/Web. Validate required gxserver/zmx/bd/Node/CLI resources and reject Mach-O or wrong-architecture payloads before copying, so runtime install never falls back to source checkout paths or uploads a host macOS package to Linux.
 	mkdir -p "$target_dir"
 	rsync -a --delete "$source_dir"/ "$target_dir"/
 }
@@ -1113,7 +1108,7 @@ stage_local_start_code_server() {
 
 	# CDXC:CodeEditor 2026-09-23 DECISION:
 	# User chose to keep code-server out of `cargo xtask start` bundles. Each code-server build is cloned once (APFS copy-on-write, near free) into a content-named folder under build/dev-components.noindex/, and the bundle records that folder in Web/local-start-code-server-root.
-	# A rebuild gets a new folder, so a running app keeps its own copy until it restarts. Only lib/node stays in the bundle, where Portless and the signed runtime paths expect it.
+	# A rebuild gets a new folder, so a running app keeps its own copy until it restarts. Only lib/node stays in the bundle, where the signed runtime paths expect it.
 	# SEE-ALSO: source_code_server_repo_root_candidates in apps/desktop/src/app/helpers/source_server/code_server.rs, code_server_store_root in tooling/xtask/src/start/mod.rs.
 	if [[ ! -f "$source_dir/out/node/entry.js" ]]; then
 		rm -f "$pointer_path"
@@ -1280,7 +1275,7 @@ GPUI_BUILD_VERSION="${GHOSTEX_GPUI_BUILD_VERSION:-$(derive_gpui_build_version "$
 
 validate_completion_sound_assets
 validate_cli_resources
-validate_portless_admin_runtime_resources
+validate_source_runtime_resources
 validate_local_gxserver_runtime_resources
 validate_build_toolchain_dependencies
 validate_ghosttykit_archive
@@ -1369,12 +1364,13 @@ for skill_name in "${bundled_cli_skill_assets[@]}"; do
 done
 
 # CDXC:CodeEditor 2026-06-24-23:17:
-# Stage the full native-reviewed Web/code-server runtime beside the GPUI app resources so Source opens from the packaged app exactly like macOS. Portless still reuses Web/code-server/lib/node and must not carry a second Node runtime.
+# Stage the full native-reviewed Web/code-server runtime beside the GPUI app resources so Source opens from the packaged app exactly like macOS.
 # CDXC:Build 2026-07-08-04:55:
 # GPUI local starts seal the freshly built app-owned gxserver package and shared
 # Web/bin tools into Contents/Resources/Web, matching the native start command's
 # daemon ownership instead of launching against the main Ghostex.app bundle.
-mkdir -p "$WEB_DIR/portless"
+# Bundles staged before Portless was removed (2026-10-21) still carry Web/portless.
+rm -rf "$WEB_DIR/portless"
 stage_tree_if_changed "$WEB_BIN_SOURCE_DIR" "$WEB_DIR/bin"
 stage_tree_if_changed "$GXSERVER_SOURCE_DIR" "$WEB_DIR/gxserver"
 # CDXC:Release 2026-10-20 WHY: the gxserver package's `ghostex` and `zmx` are the same builds as CLI/ghostex and Web/bin/zmx (only their signature timestamps differed), so they are relative links into the bundle, saving about 14.6 MB. CLI/ghostex must stay the real file: the CLI canonicalizes its own path to find CLI/skills. The remote Mac install archives this package with `tar -h` so the links arrive as files.
@@ -1390,8 +1386,6 @@ else
 	rm -f "$WEB_DIR/local-start-code-server-root"
 	stage_code_server_payload_if_changed
 fi
-rsync -a --delete "$WEB_SOURCE_DIR/portless/" "$WEB_DIR/portless/"
-chmod 755 "$WEB_DIR/portless/dist/cli.js"
 if [[ "$GHOSTEX_ON_DEMAND_ASSETS" == "1" ]]; then
 	stage_on_demand_remote_gxserver_manifest
 else

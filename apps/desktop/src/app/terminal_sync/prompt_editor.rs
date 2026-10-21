@@ -60,10 +60,6 @@ impl GhostexGpuiApp {
             view.update(cx, |view, cx| view.send_text_input("\u{7}", cx));
             return;
         }
-        #[cfg(target_os = "macos")]
-        if self.send_text_bytes_to_focused_agents_terminal_surface(b"\x07") {
-            return;
-        }
         let _ = gpui_remove_prompt_stash_request_marker(&key.project_id, &key.session_id);
     }
 
@@ -307,31 +303,6 @@ impl GhostexGpuiApp {
                 }
                 target
             }
-            #[cfg(target_os = "macos")]
-            RemotePromptEditorDeliveryTarget::NativeTerminal(target) => match target {
-                FocusedTerminalTextMountTarget::Agents(slot)
-                    if self.agents_terminal_ghostty_surface_matches(slot) =>
-                {
-                    GpuiEngineTerminalEventTarget::Agents(slot.session_id)
-                }
-                FocusedTerminalTextMountTarget::Command(slot)
-                    if self.command_terminal_ghostty_surface_matches(slot) =>
-                {
-                    GpuiEngineTerminalEventTarget::Command(slot.session_id)
-                }
-                _ => return None,
-            },
-            #[cfg(target_os = "macos")]
-            RemotePromptEditorDeliveryTarget::NativeView(view) => {
-                let responder = view as *mut std::ffi::c_void;
-                if let Some(id) = self.agents_terminal_session_id_containing_responder(responder) {
-                    GpuiEngineTerminalEventTarget::Agents(id)
-                } else {
-                    GpuiEngineTerminalEventTarget::Command(
-                        self.command_terminal_session_id_containing_responder(responder)?,
-                    )
-                }
-            }
         };
         let key = match target {
             GpuiEngineTerminalEventTarget::Agents(id) => {
@@ -489,10 +460,6 @@ impl GhostexGpuiApp {
         self.source_code_server_runtime
             .pending_remote_prompt_editor_request = None;
         match request.delivery_target {
-            #[cfg(target_os = "macos")]
-            RemotePromptEditorDeliveryTarget::NativeTerminal(target) => {
-                self.send_prompt_editor_shortcut_to_native_terminal_target(target)
-            }
             RemotePromptEditorDeliveryTarget::GpuiEngineTerminal {
                 target,
                 runtime_session_id,
@@ -503,12 +470,6 @@ impl GhostexGpuiApp {
                     cx,
                 );
                 true
-            }
-            #[cfg(target_os = "macos")]
-            RemotePromptEditorDeliveryTarget::NativeView(native_view) => {
-                terminal_ghostty_surface::send_native_prompt_editor_shortcut_for_view(
-                    native_view as *mut std::ffi::c_void,
-                )
             }
         }
     }

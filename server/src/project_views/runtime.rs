@@ -325,7 +325,7 @@ fn capture(pipe: Option<impl Read + Send + 'static>, instance: Arc<Instance>) {
 }
 #[cfg(unix)]
 fn listener_owned(port: u16, pid: u32) -> Result<bool> {
-    let listeners = crate::portless::listener_discovery::read_all_tcp_listeners()?;
+    let listeners = crate::tcp_listeners::listener_discovery::read_all_tcp_listeners()?;
     for listener in listeners.into_iter().filter(|l| l.port == port) {
         if let Some(owner) = listener.pid {
             if unsafe { libc::getpgid(owner as libc::pid_t) } == pid as libc::pid_t {

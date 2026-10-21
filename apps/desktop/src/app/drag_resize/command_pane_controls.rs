@@ -127,42 +127,6 @@ impl GhostexGpuiApp {
                 });
                 self.scroll_focused_command_active_tab();
             }
-            CommandPaneControlAction::TogglePinned => {
-                let was_expanded = self.command_pane.is_expanded();
-                if !was_expanded {
-                    self.prepare_hidden_command_pane_open_height_from_shared_settings(window);
-                }
-                self.command_pane.toggle_pinned();
-                let is_expanded_after = self.command_pane.is_expanded();
-                if !was_expanded
-                    && is_expanded_after
-                    && let Some((group_id, session_id, true)) =
-                        self.command_pane.ensure_session_for_open()
-                {
-                    self.start_command_terminal_gxserver_attach_for_slot(
-                        CommandTerminalBodyMountSlotId {
-                            group_id,
-                            session_id,
-                        },
-                        COMMAND_PANE_DEFAULT_SESSION_TITLE.to_string(),
-                        None,
-                        None,
-                        None,
-                        cx,
-                    );
-                }
-                if command_pane_control_action_focuses_command_pane(
-                    CommandPaneControlAction::TogglePinned,
-                    was_expanded,
-                    is_expanded_after,
-                ) {
-                    self.command_pane
-                        .acknowledge_attention_for_focused_session_activation();
-                    self.focus_command_pane(cx);
-                    self.request_focused_command_terminal_text_focus_handoff();
-                    self.scroll_focused_command_active_tab();
-                }
-            }
             CommandPaneControlAction::ToggleExpanded => {
                 let was_expanded = self.command_pane.is_expanded();
                 if !was_expanded {

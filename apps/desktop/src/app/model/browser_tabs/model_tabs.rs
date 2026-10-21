@@ -2,11 +2,6 @@ use super::*;
 use crate::*;
 
 impl BrowserTabModel {
-    #[allow(dead_code)] // no live caller: only the superseded native browser tab strip built a default tab model
-    pub(crate) fn shell_default() -> Self {
-        Self::shell_default_with_profile(BrowserProfileId::default_profile())
-    }
-
     pub(crate) fn shell_address_only_with_profile(profile_id: BrowserProfileId) -> Self {
         let mut model = Self::shell_default_with_profile(profile_id);
         let first_tab_id = model.active_tab;
@@ -253,28 +248,6 @@ impl BrowserTabModel {
         tab.runtime_is_loading = tab.state == BrowserTabState::Loaded;
         tab.runtime_can_go_back = false;
         tab.runtime_can_go_forward = false;
-        true
-    }
-
-    #[allow(dead_code)] // no live caller: reloads go through the CEF browser chrome
-    pub(crate) fn reload_loaded_tab_url(&mut self, tab_id: BrowserTabId, url: String) -> bool {
-        let Some(tab) = self.tabs.iter_mut().find(|tab| tab.id == tab_id) else {
-            return false;
-        };
-        if tab.state != BrowserTabState::Loaded {
-            return false;
-        }
-        tab.title = browser_tab_title_for_url(&url);
-        tab.runtime_page_title = None;
-        tab.runtime_favicon_url = None;
-        tab.runtime_favicon_image =
-            browser_favicon_cache_lookup(&url, tab.remote_machine_id.as_deref());
-        tab.runtime_favicon_fetch = None;
-        tab.runtime_is_loading = true;
-        tab.runtime_can_go_back = false;
-        tab.runtime_can_go_forward = false;
-        tab.navigation_history.record_address_change(&url);
-        tab.url = url;
         true
     }
 

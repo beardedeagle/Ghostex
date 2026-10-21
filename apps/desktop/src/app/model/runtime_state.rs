@@ -108,13 +108,6 @@ pub(crate) enum GpuiRemoteGxserverPresentationStreamMessage {
     Failed,
 }
 
-#[derive(Clone)]
-pub(crate) struct GpuiRemoteRepositoryCloneRequest {
-    pub(crate) job_id: String,
-    pub(crate) remote_machine_id: Option<String>,
-    pub(crate) toast_id: String,
-}
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum GpuiProjectContext {
     Project,
@@ -678,14 +671,10 @@ impl SourceCodeServerRuntimeTarget {
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum RemotePromptEditorDeliveryTarget {
-    #[cfg(target_os = "macos")]
-    NativeTerminal(FocusedTerminalTextMountTarget),
     GpuiEngineTerminal {
         target: GpuiEngineTerminalEventTarget,
         runtime_session_id: AgentsTerminalRuntimeSessionId,
     },
-    #[cfg(target_os = "macos")]
-    NativeView(usize),
 }
 
 #[derive(Clone, PartialEq, Eq)]

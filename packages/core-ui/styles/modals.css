@@ -3140,18 +3140,6 @@ html:has(body.app-modal-host-native-window-body) {
   top: 17px;
 }
 
-/*
- * CDXC:Portless 2026-06-23-13:42:
- * Portless setup uses the compact app-modal child-window surface rather than an
- * AppKit alert, with three explicit actions.
- *
- * CDXC:AppModal 2026-08-26:
- * All of that chrome — width, native fit-height shell, copy typography, and the
- * equal-width action row — now comes from the shared `.gx-app-modal` rules
- * below. `.portless-setup-modal-body` survives only as the fit-height scroll
- * hook at the bottom of this file.
- */
-
 /**
  * CDXC:AppModal 2026-08-26:
  * One source of truth for the Codex-style app-modal design language that
@@ -3904,12 +3892,6 @@ html:has(body.app-modal-host-native-window-body) {
 }
 
 .settings-projects-global-settings {
-  /*
-   * CDXC:Portless 2026-06-23-03:47:
-   * Settings -> Projects starts with app-wide Portless controls and read-only
-   * assigned-domain summaries before project-specific fields. Keep this as one
-   * full-width settings section, not nested inside the selected-project editor.
-   */
   display: grid;
   gap: 12px;
   padding: 14px;
@@ -3925,148 +3907,6 @@ html:has(body.app-modal-host-native-window-body) {
 .settings-projects-global-body {
   display: grid;
   gap: 10px;
-}
-
-.settings-portless-status-badge {
-  align-items: center;
-  background: color-mix(in srgb, var(--app-card-active) 58%, transparent);
-  border: 1px solid color-mix(in srgb, var(--app-border) 76%, transparent);
-  color: var(--app-muted);
-  display: inline-flex;
-  flex-shrink: 0;
-  font-size: var(--settings-text-badge);
-  font-weight: 700;
-  line-height: 1;
-  min-height: 24px;
-  padding: 0 8px;
-}
-
-.settings-portless-status-badge[data-status='active'] {
-  color: color-mix(in srgb, #6ee7b7 78%, var(--app-foreground) 22%);
-}
-
-.settings-portless-status-badge[data-status='failed'] {
-  color: color-mix(in srgb, #f87171 82%, var(--app-foreground) 18%);
-}
-
-.settings-portless-status-badge[data-status='needsSetup'] {
-  color: color-mix(in srgb, #facc15 82%, var(--app-foreground) 18%);
-}
-
-.settings-portless-control-row,
-.settings-portless-status-row {
-  align-items: center;
-  background: color-mix(in srgb, var(--app-card-active) 28%, transparent);
-  border: 1px solid color-mix(in srgb, var(--app-border) 76%, transparent);
-  display: flex;
-  gap: 12px;
-  justify-content: space-between;
-  min-height: 48px;
-  padding: 10px 12px;
-}
-
-.settings-portless-status-row {
-  justify-content: flex-start;
-}
-
-.settings-portless-status-row > svg {
-  color: color-mix(in srgb, var(--app-muted) 84%, var(--app-foreground) 16%);
-  flex: none;
-}
-
-.settings-portless-protocol-toggle {
-  flex: 0 0 172px;
-}
-
-.settings-portless-protocol-toggle [data-slot='segmented-control-item'] {
-  flex: 1;
-}
-
-.settings-portless-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  justify-content: flex-end;
-}
-
-.settings-portless-actions [data-slot='button'] {
-  gap: 6px;
-}
-
-.settings-portless-domains {
-  background: color-mix(in srgb, var(--app-card-active) 18%, transparent);
-  border: 1px solid color-mix(in srgb, var(--app-border) 70%, transparent);
-  display: grid;
-  gap: 10px;
-  padding: 12px;
-}
-
-.settings-portless-domain-list {
-  display: grid;
-  gap: 8px;
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.settings-portless-domain-group {
-  display: grid;
-  gap: 7px;
-}
-
-.settings-portless-domain-group-header {
-  align-items: center;
-  display: flex;
-  gap: 8px;
-  justify-content: space-between;
-}
-
-.settings-portless-domain-group-title {
-  color: var(--app-foreground);
-  font-size: var(--settings-text-detail);
-  font-weight: 700;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.settings-portless-domain-group-kind,
-.settings-portless-domain-meta {
-  color: var(--app-muted);
-  font-size: var(--settings-text-detail);
-  line-height: 1.35;
-}
-
-.settings-portless-domain-hosts {
-  display: grid;
-  gap: 6px;
-}
-
-.settings-portless-domain-host {
-  align-items: center;
-  display: grid;
-  gap: 8px;
-  grid-template-columns: minmax(0, 1fr) auto;
-}
-
-.settings-portless-domain-hostname {
-  background: color-mix(in srgb, var(--app-background) 44%, transparent);
-  border: 1px solid color-mix(in srgb, var(--app-border) 72%, transparent);
-  color: color-mix(in srgb, var(--app-foreground) 88%, var(--app-muted) 12%);
-  font-family: var(--settings-mono-font, 'SF Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace);
-  font-size: var(--settings-text-detail);
-  min-width: 0;
-  overflow: hidden;
-  padding: 5px 7px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.settings-portless-domain-empty {
-  color: var(--app-muted);
-  font-size: var(--settings-text-detail);
-  line-height: 1.45;
 }
 
 /*
@@ -5213,8 +5053,7 @@ and error text instead of the muted description tone.
 
 .app-modal-host-native-window-body[data-app-modal-fit-height='true'] .previous-sessions-modal-body,
 .app-modal-host-native-window-body[data-app-modal-fit-height='true'] .worktree-delete-modal-body,
-.app-modal-host-native-window-body[data-app-modal-fit-height='true'] .remote-gxserver-install-modal-body,
-.app-modal-host-native-window-body[data-app-modal-fit-height='true'] .portless-setup-modal-body {
+.app-modal-host-native-window-body[data-app-modal-fit-height='true'] .remote-gxserver-install-modal-body {
   max-height: min(420px, calc(100vh - 150px));
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -5239,11 +5078,6 @@ and error text instead of the muted description tone.
   :is(
     .projects-settings-selector-trigger,
     .projects-settings-selector-popover,
-    .settings-portless-control-row,
-    .settings-portless-domain-hostname,
-    .settings-portless-domains,
-    .settings-portless-status-badge,
-    .settings-portless-status-row,
     .settings-remote-command,
     .settings-remote-install,
     .settings-remote-off-block,

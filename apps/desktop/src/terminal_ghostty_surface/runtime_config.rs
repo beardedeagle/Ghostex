@@ -34,33 +34,43 @@ pub(crate) enum GhosttySurfaceRuntimeError {
     ConfigCreateReturnedNull,
     ConfigPathContainsInteriorNul,
     ConfigOptionInvalid,
-    AppCreateReturnedNull,
-    SurfaceCreateReturnedNull,
-    InvalidScaleFactor(f64),
-    InvalidBounds {
-        field: GhosttySurfaceBoundsField,
-        value: f64,
-    },
-    LaunchPayloadContainsInteriorNul {
-        field: GhosttySurfaceLaunchPayloadField,
-    },
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum GhosttySurfaceBoundsField {
-    Width,
-    Height,
+pub(crate) struct GhosttyConfigOwner {
+    pub(crate) config: NonNull<c_void>,
+    pub(crate) functions: GhosttyKitFunctionTable,
 }
 
-impl From<GhosttySurfaceConfigRequestError> for GhosttySurfaceRuntimeError {
-    fn from(error: GhosttySurfaceConfigRequestError) -> Self {
-        match error {
-            GhosttySurfaceConfigRequestError::InvalidScaleFactor(value) => {
-                Self::InvalidScaleFactor(value)
-            }
-            GhosttySurfaceConfigRequestError::LaunchPayloadContainsInteriorNul { field } => {
-                Self::LaunchPayloadContainsInteriorNul { field }
-            }
+impl GhosttyConfigOwner {
+    /// Ghostex's own terminal config, never Ghostty's default files: those are the Ghostty app's
+    /// config (`~/.config/ghostty`, `com.mitchellh.ghostty`), which Ghostex no longer reads.
+    pub(crate) fn load_ghostex_terminal_config_finalized_with_functions(
+        functions: GhosttyKitFunctionTable,
+    ) -> Result<Self, GhosttySurfaceRuntimeError> {
+        let path = crate::shared_settings::ghostex_terminal_config_path();
+        let path = CString::new(path.to_string_lossy().into_owned())
+            .map_err(|_| GhosttySurfaceRuntimeError::ConfigPathContainsInteriorNul)?;
+        let config = unsafe { (functions.config_new)() };
+        let config =
+            NonNull::new(config).ok_or(GhosttySurfaceRuntimeError::ConfigCreateReturnedNull)?;
+        let owner = Self { config, functions };
+        unsafe {
+            (functions.config_load_file)(owner.as_raw(), path.as_ptr());
+            (functions.config_load_recursive_files)(owner.as_raw());
+            (functions.config_finalize)(owner.as_raw());
+        }
+        Ok(owner)
+    }
+
+    pub(crate) fn as_raw(&self) -> ffi::ghostty_config_t {
+        self.config.as_ptr()
+    }
+}
+
+impl Drop for GhosttyConfigOwner {
+    fn drop(&mut self) {
+        unsafe {
+            (self.functions.config_free)(self.as_raw());
         }
     }
 }

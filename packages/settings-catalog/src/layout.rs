@@ -1,7 +1,5 @@
 //! How the General page groups its sections, and the rail that lists the groups.
 
-use crate::data::PET_CONTROLS_VISIBLE;
-
 /// A General rail group and the search sections it collects, in rendered order.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct GeneralGroup {
@@ -21,7 +19,7 @@ pub struct NavItem {
 /// rendered order. Single-section groups keep using that section's own search
 /// result (no separate group-title match).
 pub const GENERAL_GROUPS: &[GeneralGroup] = &[
-    group("appearance", "Theme", &["theming", "appIcon"]),
+    group("appearance", "Theme", &["theming"]),
     group("chat", "Chat", &["chat"]),
     group(
         "sidebar",
@@ -37,11 +35,6 @@ pub const GENERAL_GROUPS: &[GeneralGroup] = &[
         "tools",
         "Tools",
         &["browser", "terminalDevServers", "editor"],
-    ),
-    group(
-        "statusIndicators",
-        "Status Indicators",
-        &["statusIndicators"],
     ),
     group("notifications", "Notifications", &["sounds"]),
     group("system", "System", &["autoSleep", "power"]),
@@ -77,18 +70,15 @@ pub fn general_group(id: &str) -> Option<&'static GeneralGroup> {
 /// CDXC:Settings 2026-06-12-04:13:
 /// Ghostty terminal controls belong on the main Settings page so one search query can find app settings and terminal settings together.
 pub fn general_navigation() -> Vec<NavItem> {
-    let mut items = vec![nav("sidebar", "Sidebar"), nav("chat", "Chat")];
-    if PET_CONTROLS_VISIBLE {
-        items.push(nav("statusIndicators", "Status Indicators"));
-    }
-    items.extend([
+    vec![
+        nav("sidebar", "Sidebar"),
+        nav("chat", "Chat"),
         nav("tools", "Tools"),
         nav("terminal", "Terminal"),
         nav("system", "System"),
         nav("notifications", "Notifications"),
         nav("advanced", "Advanced"),
-    ]);
-    items
+    ]
 }
 
 const fn nav(id: &'static str, title: &'static str) -> NavItem {

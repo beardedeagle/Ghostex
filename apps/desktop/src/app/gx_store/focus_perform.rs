@@ -1,6 +1,6 @@
 //! Focusing a session or a group, performed by the store: a sidebar row click (after its
 //! in-process reaction), the session walk's steps into another project, a held key's landing
-//! row, a Space restore, Back and Forward, the status item and the pet, a menu bar session row, a
+//! row, a Space restore, Back and Forward, the status item, a menu bar session row, a
 //! Quick Access or palette jump, a notification, an App Shot and `ghostex focus`. A session or
 //! group of a project in another workspace opens in the window that shows that workspace
 //! (workspace_windows/session_routing.rs).

@@ -30,9 +30,3 @@ pub fn paste_previewable_images_description(platform: Platform) -> String {
         hotkey_label("ctrl+g", platform),
     )
 }
-
-/// CDXC:Theming 2026-09-23 DECISION:
-/// User: "fully hide the custom app icon feature". The App Icon picker, its search row, the Help catalog row and the
-/// `ghostex settings` entry are all off while this is false; the picker code and `appIconSourceId` stay, so an icon
-/// that was already chosen keeps working.
-pub const APP_ICON_CONTROLS_VISIBLE: bool = false;

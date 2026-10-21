@@ -112,41 +112,6 @@ impl WorkspaceModel {
             .collect()
     }
 
-    pub(crate) fn rendered_terminal_parked_owner_body_slots(
-        &self,
-    ) -> Vec<AgentsTerminalBodyMountSlotId> {
-        /*
-        CDXC:Terminal 2026-06-23-19:41:
-        Parked-owner reattach geometry is recorded only for visible selected Mounting Agents bodies that are not startup-eligible. This keeps sleeping wake and popped-out reattach out of startup maps while giving the runtime owner-transfer path the current body rectangle it needs before it can honestly move an exact parked owner back to Running.
-        */
-        let rendered_leaf_order = self.rendered_leaf_order();
-        rendered_leaf_order
-            .into_iter()
-            .filter_map(|pane_id| {
-                let leaf = self.find_leaf(pane_id)?;
-                let session_id = leaf.tab_group.active_session_id()?;
-                self.session(session_id)
-                    .is_some_and(|session| {
-                        session.presentation_state == TerminalSessionPresentationState::Mounting
-                            && !session.can_enter_startup_pipeline()
-                    })
-                    .then_some(AgentsTerminalBodyMountSlotId {
-                        pane_id: leaf.pane_id,
-                        session_id,
-                    })
-            })
-            .collect()
-    }
-
-    pub(crate) fn is_current_terminal_parked_owner_body_slot(
-        &self,
-        slot_id: AgentsTerminalBodyMountSlotId,
-    ) -> bool {
-        self.rendered_terminal_parked_owner_body_slots()
-            .into_iter()
-            .any(|current_slot_id| current_slot_id == slot_id)
-    }
-
     pub(crate) fn is_current_terminal_startup_body_slot(
         &self,
         slot_id: AgentsTerminalStartupBodySlotId,

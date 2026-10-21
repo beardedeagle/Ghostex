@@ -1,4 +1,4 @@
-//! Clicks outside the sidebar that land on a session or a group: the status item and the pet, a
+//! Clicks outside the sidebar that land on a session or a group: the status item, a
 //! menu bar session row, a Quick Access or command palette session row, a palette Action run, and
 //! a Back or Forward stop.
 //!
@@ -9,9 +9,9 @@
 //! `focusSession` or `runSidebarCommand`. The ids are shaped here and handed to the store's one
 //! focus and Action run (`focus_perform.rs`, `sidebar_command_run.rs`), the same ones a sidebar
 //! row click and a project row's Actions button end in. The bounded-id rules the callbacks
-//! enforced (StatusPet 2026-06-26) are enforced before this point by `status_pet.rs` and here.
+//! enforced (StatusPet 2026-06-26) are enforced before this point by `status_activation.rs` and here.
 //!
-//! SEE-ALSO: apps/desktop/src/app/status_pet.rs (the dispatchers),
+//! SEE-ALSO: apps/desktop/src/app/status_activation.rs (the dispatchers),
 //! apps/desktop/src/app/gx_store/focus_perform.rs.
 
 use ghostex_gx_core::{ProjectKey, SessionKey};

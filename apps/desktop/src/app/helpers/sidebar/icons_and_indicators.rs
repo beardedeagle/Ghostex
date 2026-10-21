@@ -6,81 +6,11 @@
 // C1 wave-1 extraction: stateless helper functions moved verbatim out of
 // main.rs (pure move, no logic changes). See docs/2026-08-22/repo-restructure/SPLITS.md C1.
 
-use std::collections::HashSet;
-
 // RefCell backs cross-platform runtime state (window frame persistence), not
 // just the macOS-only shims that first introduced the import.
 
 use crate::app::helpers::*;
 use crate::*;
-
-pub(crate) fn gpui_order_json_buttons(
-    buttons: Vec<(String, serde_json::Value)>,
-    stored_order: &[String],
-    id_key: &str,
-) -> serde_json::Value {
-    let mut ordered_buttons = Vec::new();
-    let mut used_ids = HashSet::new();
-    for item_id in stored_order {
-        if let Some((_, button)) = buttons.iter().find(|(button_id, _)| button_id == item_id) {
-            ordered_buttons.push(button.clone());
-            used_ids.insert(item_id.clone());
-        }
-    }
-    for (button_id, button) in buttons {
-        let actual_id = button
-            .get(id_key)
-            .and_then(serde_json::Value::as_str)
-            .unwrap_or(button_id.as_str());
-        if used_ids.insert(actual_id.to_string()) {
-            ordered_buttons.push(button);
-        }
-    }
-    serde_json::Value::Array(ordered_buttons)
-}
-
-pub(crate) fn gpui_json_array_field_is_nonempty(
-    object: &serde_json::Map<String, serde_json::Value>,
-    key: &str,
-) -> bool {
-    object
-        .get(key)
-        .and_then(serde_json::Value::as_array)
-        .map(|items| !items.is_empty())
-        .unwrap_or(false)
-}
-
-pub(crate) fn gpui_is_default_sidebar_agent_id(agent_id: &str) -> bool {
-    GPUI_DEFAULT_SIDEBAR_AGENTS
-        .iter()
-        .any(|agent| agent.agent_id == agent_id)
-}
-
-pub(crate) fn gpui_default_sidebar_agent_name(agent_id: &str, stored_name: &str) -> String {
-    let default_name = GPUI_DEFAULT_SIDEBAR_AGENTS
-        .iter()
-        .find(|agent| agent.agent_id == agent_id)
-        .map(|agent| agent.name);
-    let Some(default_name) = default_name else {
-        return stored_name.to_string();
-    };
-    let normalized = stored_name.trim().to_ascii_lowercase();
-    if (agent_id == "codex" && normalized == "codex cli")
-        || (agent_id == "claude" && normalized == "claude code")
-        || (agent_id == "cursor" && normalized == "cursor")
-        || (agent_id == "pi" && normalized == "pi")
-    {
-        default_name.to_string()
-    } else {
-        stored_name.to_string()
-    }
-}
-
-pub(crate) fn gpui_is_default_sidebar_command_id(command_id: &str) -> bool {
-    GPUI_DEFAULT_SIDEBAR_COMMANDS
-        .iter()
-        .any(|command| command.command_id == command_id)
-}
 
 pub(crate) fn gpui_strict_sidebar_agent_icon(candidate: &str) -> Option<&str> {
     if candidate == "browser" {

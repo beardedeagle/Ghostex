@@ -61,7 +61,6 @@ impl GhostexGpuiApp {
         mutation_kind: GpuiLocalWorkspaceLifecycleMutationKind,
         replacement_key: Option<GpuiLocalWorkspaceSessionKey>,
         skip_replacement_fallback: bool,
-        confirmed_close_slot_id: Option<AgentsTerminalBodyMountSlotId>,
         cx: &mut gpui::Context<Self>,
     ) -> bool {
         let Some(key) = self.local_workspace_key_for_shell_session(shell_session_id) else {
@@ -77,7 +76,6 @@ impl GhostexGpuiApp {
         */
         let request = GpuiLocalWorkspaceLifecycleRequest {
             action,
-            confirmed_close_slot_id,
             mutation_kind,
             pane_id,
             replacement_shell_session_id,
@@ -193,7 +191,6 @@ impl GhostexGpuiApp {
             .and_then(|key| self.remote_attach_sessions.get(key).copied());
         let request = GpuiLocalWorkspaceLifecycleRequest {
             action,
-            confirmed_close_slot_id: None,
             mutation_kind,
             pane_id,
             replacement_shell_session_id,
@@ -297,26 +294,11 @@ impl GhostexGpuiApp {
         request: GpuiLocalWorkspaceLifecycleRequest,
         cx: &mut gpui::Context<Self>,
     ) -> bool {
-        /*
-        CDXC:Workarea 2026-06-27-00:33:
-        Local-first Close invokes this reducer directly, while acknowledged Sleep/Wake invokes it from the daemon's answer. If a close request carries native confirmation state, clear that exact slot as part of the same committed local mutation.
-        */
-        // Close-confirm bookkeeping belongs to the macOS-only native Ghostty
-        // tab state; the GPUI engine path confirms closes in the terminal
-        // model instead, so other OSes have no pending map to clear.
-        #[cfg(target_os = "macos")]
-        let confirmed_close_slot_id = request.confirmed_close_slot_id;
         if !self
             .agents_workspace
             .session_belongs_to_pane(request.pane_id, request.shell_session_id)
         {
             self.forget_local_workspace_mappings_for_shell_session(request.shell_session_id, cx);
-            #[cfg(target_os = "macos")]
-            if let Some(slot_id) = confirmed_close_slot_id {
-                self.agents_terminal_close_confirms
-                    .pending_by_slot
-                    .remove(&slot_id);
-            }
             return false;
         }
 
@@ -396,12 +378,6 @@ impl GhostexGpuiApp {
                 .agents_workspace
                 .set_session_sleeping(request.shell_session_id, true),
         };
-        #[cfg(target_os = "macos")]
-        if let Some(slot_id) = confirmed_close_slot_id {
-            self.agents_terminal_close_confirms
-                .pending_by_slot
-                .remove(&slot_id);
-        }
         if !changed {
             return false;
         }
@@ -456,7 +432,6 @@ impl GhostexGpuiApp {
             mutation_kind,
             None,
             false,
-            None,
             cx,
         )
     }
@@ -472,14 +447,6 @@ impl GhostexGpuiApp {
             session_id: shell_session_id,
         };
         if self.local_workspace_terminal_has_attach_state(slot_id) {
-            return;
-        }
-        #[cfg(target_os = "macos")]
-        if self
-            .agents_terminal_parked_runtime_owners
-            .values()
-            .any(|owner| owner.shell_session_id == shell_session_id)
-        {
             return;
         }
         let Some(key) = self.local_workspace_key_for_shell_session(shell_session_id) else {
@@ -564,13 +531,6 @@ impl GhostexGpuiApp {
             return true;
         }
 
-        #[cfg(target_os = "macos")]
-        {
-            if self.agents_terminal_ghostty_surface_matches(slot_id) {
-                return true;
-            }
-        }
-
         false
     }
 
@@ -626,16 +586,6 @@ impl GhostexGpuiApp {
         };
         if self.local_workspace_terminal_has_attach_state(slot_id) {
             return false;
-        }
-        #[cfg(target_os = "macos")]
-        {
-            if self
-                .agents_terminal_parked_runtime_owners
-                .values()
-                .any(|owner| owner.shell_session_id == shell_session_id)
-            {
-                return false;
-            }
         }
         true
     }

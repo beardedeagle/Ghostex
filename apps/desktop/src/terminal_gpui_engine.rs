@@ -1,13 +1,10 @@
 /*
 CDXC:Terminal 2026-07-04:
 P1e integration glue for the GPUI-composited terminal engine (libghostty-vt +
-TerminalElement). This is the single terminal pipeline on every OS; the macOS
-GhosttyKit implementation remains compiled but is not selected at runtime.
-This module owns
+TerminalElement), the single terminal pipeline on every OS. This module owns
 only the engine-side helpers (font registration/mapping, spawn-config
 construction mirroring ghostty's macOS login-shell exec semantics, and the
-per-session runtime record). Pane wiring lives in main.rs next to the native
-paths it mirrors.
+per-session runtime record).
 */
 
 use std::path::{Path, PathBuf};
@@ -19,9 +16,10 @@ use crate::ghostty_vt::VtOptionAsAlt;
 use crate::shared_settings::{SharedGpuiTerminalEngineSettings, SharedTerminalConfirmCloseSurface};
 use crate::terminal_element::{
     TerminalBackgroundImage, TerminalBackgroundImageFit, TerminalConfiguredColor,
-    TerminalCursorShape, TerminalFontConfig, TerminalMetricAdjustment, TerminalView,
-    TerminalViewSettings,
+    TerminalFontConfig, TerminalView, TerminalViewSettings,
 };
+#[cfg(not(target_os = "macos"))]
+use crate::terminal_element::{TerminalCursorShape, TerminalMetricAdjustment};
 use crate::terminal_model::{Rgb, TerminalConfirmCloseBehavior, TerminalSpawnConfig};
 
 include!(concat!(env!("OUT_DIR"), "/embedded_ghostty_themes.rs"));
@@ -55,7 +53,8 @@ pub(crate) struct GpuiTerminalEngineConfig {
 }
 
 impl GpuiTerminalEngineConfig {
-    #[allow(dead_code)] // no caller: superseded by the shared-settings theme path used by the engine today
+    /// Linux and Windows build the engine config from Settings; macOS reads it through GhosttyKit instead.
+    #[cfg(not(target_os = "macos"))]
     pub(crate) fn from_shared(settings: &SharedGpuiTerminalEngineSettings) -> Self {
         let cursor_shape = match settings.cursor_style.as_str() {
             "block" => TerminalCursorShape::Block,

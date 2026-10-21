@@ -11,14 +11,12 @@ use crate::Platform;
 
 pub fn sections(platform: Platform) -> Vec<Section> {
     vec![
-        theme::app_icon(),
         tools::file_opening(),
         tools::browser(),
         tools::editor(),
         system::auto_sleep(),
         system::power(),
         sidebar::session_cards(),
-        sidebar::status_indicators(),
         sidebar::sidebar(),
         theme::theming(),
         chat::chat(),

@@ -408,16 +408,6 @@ impl GhostexGpuiApp {
             return FirstResponderTarget::None;
         }
 
-        if let Some(session_id) = self.agents_terminal_session_id_containing_responder(responder) {
-            return FirstResponderTarget::TerminalSurface(FirstResponderTerminalSurface::Agents(
-                session_id,
-            ));
-        }
-        if let Some(session_id) = self.command_terminal_session_id_containing_responder(responder) {
-            return FirstResponderTarget::TerminalSurface(FirstResponderTerminalSurface::Command(
-                session_id,
-            ));
-        }
         if let Some(surface) = self.cef_surface_containing_responder(responder, cx) {
             return FirstResponderTarget::CefSurface(surface);
         }
@@ -425,36 +415,6 @@ impl GhostexGpuiApp {
             return FirstResponderTarget::GpuiWindow;
         }
         FirstResponderTarget::Other
-    }
-
-    #[cfg(target_os = "macos")]
-    pub(crate) fn agents_terminal_session_id_containing_responder(
-        &self,
-        responder: *mut std::ffi::c_void,
-    ) -> Option<TerminalSessionId> {
-        self.agents_terminal_host_native_views
-            .iter()
-            .find_map(|(slot_id, host_view)| {
-                terminal_native_view::app_owned_terminal_host_contains_responder(
-                    host_view, responder,
-                )
-                .then_some(slot_id.session_id)
-            })
-    }
-
-    #[cfg(target_os = "macos")]
-    pub(crate) fn command_terminal_session_id_containing_responder(
-        &self,
-        responder: *mut std::ffi::c_void,
-    ) -> Option<CommandSessionId> {
-        self.command_terminal_host_native_views
-            .iter()
-            .find_map(|(slot_id, host_view)| {
-                terminal_native_view::app_owned_terminal_host_contains_responder(
-                    host_view, responder,
-                )
-                .then_some(slot_id.session_id)
-            })
     }
 
     #[cfg(target_os = "macos")]
@@ -541,18 +501,6 @@ impl GhostexGpuiApp {
         ) {
             self.previous_non_command_focus = Some(focus);
         }
-        #[cfg(target_os = "macos")]
-        self.begin_programmatic_focus();
-        #[cfg(target_os = "macos")]
-        {
-            self.sync_agents_terminal_ghostty_surface_focus_with_appkit_handoff(
-                force_terminal_appkit_focus_handoff,
-            );
-            self.sync_command_terminal_ghostty_surface_focus_with_appkit_handoff(
-                force_terminal_appkit_focus_handoff,
-            );
-            self.end_programmatic_focus();
-        }
         if self
             .pending_keyboard_handoff
             .is_some_and(|pending| pending.target != focus)
@@ -597,18 +545,14 @@ impl GhostexGpuiApp {
     }
 
     pub(crate) fn complete_sidebar_focus_border_handoff_if_target_focused(&mut self) {
-        let Some(target_session_id) = self
+        if self
             .sidebar_focus_border_handoff
             .and_then(|handoff| handoff.target_session_id)
-        else {
-            return;
-        };
-        if self.first_responder_target
-            == FirstResponderTarget::TerminalSurface(FirstResponderTerminalSurface::Agents(
-                target_session_id,
-            ))
-            || self.first_responder_target == FirstResponderTarget::GpuiWindow
+            .is_none()
         {
+            return;
+        }
+        if self.first_responder_target == FirstResponderTarget::GpuiWindow {
             self.cancel_sidebar_focus_border_handoff();
         }
     }
@@ -717,9 +661,6 @@ impl GhostexGpuiApp {
         }
         #[cfg(not(target_os = "windows"))]
         match self.first_responder_target {
-            FirstResponderTarget::TerminalSurface(FirstResponderTerminalSurface::Agents(
-                responder_session_id,
-            )) => responder_session_id == session_id,
             FirstResponderTarget::GpuiWindow => {
                 if active_session_is_in_chat_view {
                     return true;
@@ -741,8 +682,7 @@ impl GhostexGpuiApp {
                 self.terminal_text_focus_handle.is_focused(window)
                     && self.terminal_text_input_should_track_agents_slot(slot_id)
             }
-            FirstResponderTarget::TerminalSurface(FirstResponderTerminalSurface::Command(_))
-            | FirstResponderTarget::CefSurface(_)
+            FirstResponderTarget::CefSurface(_)
             | FirstResponderTarget::Other
             | FirstResponderTarget::None => false,
         }

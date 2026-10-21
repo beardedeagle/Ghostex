@@ -44,54 +44,6 @@ pub(crate) fn gpui_sidebar_hud_from_gxserver(
     })
 }
 
-#[allow(dead_code)] // no caller: gxserver project settings are persisted through the Rust store instead
-pub(crate) fn gpui_persist_sidebar_agents_to_gxserver_projects(
-    domain_projects: &[serde_json::Value],
-    agents: &[GpuiStoredSidebarAgent],
-    agent_order: &[String],
-) -> Result<(), String> {
-    let mut updated_any = false;
-    for project in domain_projects
-        .iter()
-        .filter_map(serde_json::Value::as_object)
-    {
-        let Some(project_id) = gpui_trimmed_json_string_field(project, "projectId") else {
-            continue;
-        };
-        let mut params = serde_json::Map::new();
-        params.insert(
-            "projectId".to_string(),
-            serde_json::Value::String(project_id.to_string()),
-        );
-        params.insert(
-            "customAgents".to_string(),
-            gpui_stored_sidebar_agents_value(agents),
-        );
-        params.insert(
-            "customAgentOrder".to_string(),
-            gpui_string_array_value(agent_order),
-        );
-        let result = gpui_gxserver_rpc_result(
-            "/api/updateProject",
-            &serde_json::Value::Object(params),
-            Duration::from_secs(10),
-        )?;
-        if result
-            .get("project")
-            .and_then(serde_json::Value::as_object)
-            .is_none()
-        {
-            return Err(GPUI_SIDEBAR_METADATA_GENERIC_ERROR.to_string());
-        }
-        updated_any = true;
-    }
-    if updated_any {
-        Ok(())
-    } else {
-        Err(GPUI_SIDEBAR_METADATA_GENERIC_ERROR.to_string())
-    }
-}
-
 pub(crate) fn gpui_read_gxserver_app_user_data(timeout: Duration) -> GpuiAppModalProductState {
     /*
     CDXC:ServerDaemon 2026-06-24-13:30:

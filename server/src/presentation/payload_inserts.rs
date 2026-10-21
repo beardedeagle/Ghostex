@@ -4,7 +4,6 @@ use rusqlite::Connection;
 use serde_json::{json, Value};
 
 use crate::domain::DomainStateError;
-use crate::portless::read_portless_presentation_payload;
 
 pub(crate) fn insert_workspace_groups_presentation_payload(
     snapshot: &mut Value,
@@ -541,14 +540,4 @@ pub(crate) fn auto_settle_window_value(days: f64) -> Value {
         return json!(days as i64);
     }
     json!(days)
-}
-
-pub(crate) fn insert_portless_presentation_payload(snapshot: &mut Value, db: &Connection) {
-    if let Some(snapshot) = snapshot.as_object_mut() {
-        snapshot.insert(
-            "portless".to_string(),
-            serde_json::to_value(read_portless_presentation_payload(db))
-                .expect("Portless presentation payload serializes"),
-        );
-    }
 }

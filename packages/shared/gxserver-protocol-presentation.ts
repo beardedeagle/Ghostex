@@ -9,7 +9,6 @@ import type {
   GxserverProjectDomainState,
 } from './gxserver-protocol-domain';
 import type { GxserverSwitchableSessionAgent } from './gxserver-protocol-sessions';
-import type { GxserverPortlessPresentation } from './gxserver-protocol-health';
 
 /**
  * CDXC:Drafts 2026-08-28:
@@ -710,7 +709,6 @@ export interface GxserverPresentationSnapshot {
   capabilities?: GxserverPresentationCapabilities;
   generatedAt: string;
   groups: readonly GxserverPresentationGroup[];
-  portless?: GxserverPortlessPresentation;
   projects: readonly GxserverPresentationProject[];
   revision: GxserverPresentationRevision;
   sessions: readonly GxserverPresentationSession[];

@@ -299,7 +299,6 @@ export type GxserverEndpointPath =
   | '/api/sendFeedback'
   | '/api/updateAuth'
   | '/api/updateListenerConfig'
-  | '/api/updatePortlessState'
   | '/api/appUpdateStatus'
   | '/api/appUpdateCheck'
   | '/api/appUpdateInstall'

@@ -94,7 +94,7 @@ impl GhostexGpuiApp {
             initial_input: plan.initial_input,
             wait_after_command: false,
         };
-        if payload.to_ghostty_launch_payload().is_err() {
+        if payload.validate_launch_strings().is_err() {
             gpui_close_command_terminal_gxserver_session(&plan.key);
             self.close_command_terminal_after_gxserver_attach_failure(
                 current_slot_id,
@@ -187,11 +187,6 @@ impl GhostexGpuiApp {
                     session_id: slot_id.session_id,
                 })
                 .unwrap_or(slot_id);
-        let project_board_action = self
-            .command_pane
-            .session(current_slot_id.session_id)
-            .and_then(|session| session.action_command_id.as_deref())
-            .and_then(gpui_project_board_action_for_command_id);
         self.command_gxserver_attach_pending
             .remove(&current_slot_id.session_id);
         let session_key = self
@@ -232,9 +227,6 @@ impl GhostexGpuiApp {
             self.refresh_sidebar_command_pane_sessions_if_changed(cx);
         }
         self.dispatch_gpui_app_modal_toast("warning", "Command terminal unavailable", message, cx);
-        if let Some(action) = project_board_action {
-            self.dispatch_gpui_project_board_command_completed(action, 1, cx);
-        }
         cx.notify();
         changed
     }
@@ -678,7 +670,7 @@ impl GhostexGpuiApp {
             initial_input: startup_text,
             wait_after_command: false,
         };
-        if payload.to_ghostty_launch_payload().is_err() {
+        if payload.validate_launch_strings().is_err() {
             self.close_command_terminal_after_gxserver_attach_failure(
                 current_slot_id,
                 "GPUI could not prepare the PowerShell command terminal.",

@@ -94,56 +94,6 @@ pub(crate) fn run_agent_metadata_title_sync_once(
     Ok(())
 }
 
-pub(crate) fn spawn_portless_background_sync_task(
-    state: &Arc<AppState>,
-) -> tokio::task::JoinHandle<()> {
-    /*
-    CDXC:Portless 2026-06-22-23:40:
-    Phase 9 route sync must run inside server without depending on Resources/sidebar polling, while staying lightweight for startup and shutdown. Run each sync pass off the async worker, retry on a conservative interval, and listen to gxserver's existing shutdown broadcast instead of adding a separate lifecycle channel.
-    */
-    let paths = state.paths.clone();
-    let logger = state.logger.clone();
-    let mut shutdown_rx = state.shutdown_tx.subscribe();
-    tokio::spawn(async move {
-        loop {
-            let sync_paths = paths.clone();
-            let sync_logger = logger.clone();
-            let sync_result = tokio::task::spawn_blocking(move || {
-                let started_at = Instant::now();
-                match run_portless_background_sync_once(&sync_paths) {
-                    Ok(outcome) => {
-                        log_portless_background_sync_outcome(
-                            &sync_logger,
-                            &outcome,
-                            started_at.elapsed().as_millis(),
-                        );
-                    }
-                    Err(_) => {
-                        log_portless_background_sync_failure(
-                            &sync_logger,
-                            PortlessLogErrorCode::BackgroundSyncFailed,
-                            started_at.elapsed().as_millis(),
-                        );
-                    }
-                }
-            })
-            .await;
-            if sync_result.is_err() {
-                log_portless_background_sync_failure(
-                    &logger,
-                    PortlessLogErrorCode::BackgroundSyncTaskJoinFailed,
-                    0,
-                );
-            }
-
-            tokio::select! {
-                _ = shutdown_rx.recv() => break,
-                _ = tokio::time::sleep(PORTLESS_BACKGROUND_SYNC_INTERVAL) => {}
-            }
-        }
-    })
-}
-
 /*
 CDXC:AgentScreenDetection 2026-08-24:
 Follower health used to be reconciled ONLY when a presentation session delta

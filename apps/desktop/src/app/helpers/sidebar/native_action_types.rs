@@ -1,6 +1,6 @@
 // C1 wave-1 deferred split: apps/desktop/src/app/helpers/sidebar.rs (~4.1k
 // lines) further divided into responsibility-scoped submodules (pure move,
-// no logic changes). This file holds native project-path action types, status-indicator types, and their JSON parsing (status indicators, global actions, pet overlay).
+// no logic changes). This file holds native project-path action types, status-indicator types, and their JSON parsing (status indicators, global actions).
 // See docs/2026-08-22/repo-restructure/SPLITS.md C1.
 
 // C1 wave-1 extraction: stateless helper functions moved verbatim out of
@@ -158,14 +158,6 @@ impl GpuiStatusIndicatorStatus {
             _ => None,
         }
     }
-
-    pub(crate) fn slug(self) -> &'static str {
-        match self {
-            Self::Attention => "attention",
-            Self::Working => "working",
-            Self::Available => "available",
-        }
-    }
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -205,14 +197,6 @@ pub(crate) struct GpuiSidebarSessionStatusIndicatorsState {
     pub(crate) working_count: u64,
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub(crate) struct GpuiSidebarPetOverlayState {
-    pub(crate) activities: Vec<GpuiPetOverlayActivityState>,
-    pub(crate) enabled: bool,
-    pub(crate) selected_pet_id: String,
-    pub(crate) status_items: Vec<GpuiPetOverlayStatusItemState>,
-}
-
 pub(crate) fn gpui_sidebar_session_status_indicators_from_json(
     text: &str,
 ) -> Result<GpuiSidebarSessionStatusIndicatorsState, ()> {
@@ -222,7 +206,7 @@ pub(crate) fn gpui_sidebar_session_status_indicators_from_json(
 
     CDXC:StatusPet 2026-06-27-20:11:
     The standalone GPUI floating session indicator was removed. The status
-    bridge still feeds the menu bar item, pet badges, and attention
+    bridge still feeds the menu bar item and attention
     notifications, but it no longer accepts floating visibility or size fields.
     */
     let value = serde_json::from_str::<serde_json::Value>(text).map_err(|_| ())?;
@@ -344,59 +328,5 @@ pub(crate) fn gpui_sidebar_global_action_from_value(
         command_id: gpui_status_id_field(object, "commandId")?,
         icon,
         name,
-    })
-}
-
-pub(crate) fn gpui_sidebar_pet_overlay_state_from_json(
-    text: &str,
-) -> Result<GpuiSidebarPetOverlayState, ()> {
-    /*
-    CDXC:StatusPet 2026-06-26-04:38:
-    Pet overlay parser accepts only the saved enabled flag, bounded selected pet id, status items, and explicit project/session activity ids from the fixed sidebar bridge. It must not accept renderer paths, URLs, generic activation payloads, command text, stdout/stderr, tokens, terminal content, or menu-bar status-item data.
-
-    CDXC:StatusPet 2026-06-26-05:30:
-    The selected pet id must match a bundled GPUI pet spritesheet. Reject unknown ids instead of silently substituting a default asset so broken pet settings or bridge regressions remain visible during validation.
-    */
-    let value = serde_json::from_str::<serde_json::Value>(text).map_err(|_| ())?;
-    let object = value.as_object().ok_or(())?;
-    reject_unexpected_gpui_status_keys(
-        object,
-        &[
-            "version",
-            "type",
-            "enabled",
-            "selectedPetId",
-            "statusItems",
-            "activities",
-        ],
-    )?;
-    if object.get("version").and_then(serde_json::Value::as_u64)
-        != Some(GPUI_SIDEBAR_PET_OVERLAY_STATE_MESSAGE_VERSION)
-        || object.get("type").and_then(serde_json::Value::as_str)
-            != Some(GPUI_SIDEBAR_PET_OVERLAY_STATE_MESSAGE_TYPE)
-    {
-        return Err(());
-    }
-    let status_items = object
-        .get("statusItems")
-        .and_then(serde_json::Value::as_array)
-        .filter(|items| items.len() <= 3)
-        .ok_or(())?
-        .iter()
-        .map(gpui_pet_overlay_status_item_from_value)
-        .collect::<Result<Vec<_>, _>>()?;
-    let activities = object
-        .get("activities")
-        .and_then(serde_json::Value::as_array)
-        .filter(|activities| activities.len() <= GPUI_STATUS_INDICATOR_MAX_ACTIVITIES)
-        .ok_or(())?
-        .iter()
-        .map(gpui_pet_overlay_activity_from_value)
-        .collect::<Result<Vec<_>, _>>()?;
-    Ok(GpuiSidebarPetOverlayState {
-        activities,
-        enabled: gpui_status_bool_field(object, "enabled")?,
-        selected_pet_id: gpui_pet_overlay_selected_pet_id_field(object, "selectedPetId")?,
-        status_items,
     })
 }

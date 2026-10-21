@@ -6,7 +6,6 @@ use ghostex_gx_protocol::{
     PresentationCapabilities, PresentationGroup, PresentationProject, PresentationSession,
     PresentationSnapshot, SessionKind, SessionSurface, Tri,
 };
-use serde_json::Value;
 
 use crate::overlay::ProjectSessionMap;
 
@@ -37,7 +36,6 @@ pub struct LoadedPresentation {
     pub generated_at: String,
     pub capabilities: Option<PresentationCapabilities>,
     pub auto_settle_after_days: Tri<f64>,
-    pub portless: Option<Value>,
     /// Ordered by `(sort_key, project_id)`.
     pub(super) projects: Vec<PresentationProject>,
     /// Ordered by `(sort_key, group_id)`; each group's `session_ids` is the display order.
@@ -109,7 +107,6 @@ impl LoadedPresentation {
             generated_at: snapshot.generated_at,
             capabilities: snapshot.capabilities,
             auto_settle_after_days: snapshot.auto_settle_after_days,
-            portless: snapshot.portless,
             projects: snapshot.projects.rows,
             groups: snapshot.groups.rows,
             sessions,

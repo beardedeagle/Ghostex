@@ -4,107 +4,11 @@ import type {
   GxserverProduct,
   GxserverProtocolVersion,
   GxserverServerId,
-  GxserverProjectId,
-  GxserverSessionId,
   GxserverLifecycleState,
   GxserverMinimalHealthResponse,
   GxserverListenerConfig,
   GxserverMigrationStatus,
 } from './gxserver-protocol-core';
-
-/*
-CDXC:Portless 2026-06-23-00:25:
-Phase 12 Portless contracts are metadata-only. Health and presentation may expose enums, counts, stable project/session ids, protocol, hostname, and port fields, while action availability remains explicit and local-Mac-only so remote gxserver payloads cannot advertise runnable privileged setup actions.
-
-CDXC:Portless 2026-06-23-04:02:
-Phase 14 adds read-only assigned domains to presentation metadata so Settings
-can show persisted project/worktree hostnames separately from live route
-previews. Keep the payload to stable ids and hostnames; names, paths, full
-URLs, command text, process output, and runtime variables stay out.
-
-CDXC:Portless 2026-06-23-04:28:
-Phase 16 adds one metadata-only gxserver state update RPC for Portless protocol
-changes, admin results, Disable, retry, and explicit service removal. Payloads
-must stay enum/boolean/protocol only so setup recovery never carries paths,
-commands, process output, URLs, tokens, environment values, or Portless files.
-*/
-export type GxserverPortlessProtocol = 'https' | 'http';
-export type GxserverPortlessSetupOwnership = 'unknown' | 'missing' | 'ghostex' | 'standalone';
-export type GxserverPortlessSetupStatus = 'unknown' | 'needed' | 'active' | 'failed' | 'disabled' | 'postponed';
-export type GxserverPortlessRuntimeStatus = 'unknown' | 'inactive' | 'active' | 'failed';
-export type GxserverPortlessPayloadSourceStatus = 'current' | 'missing' | 'unavailable';
-export type GxserverPortlessAdminAction = 'install' | 'reconfigure' | 'retry' | 'remove';
-export type GxserverPortlessActionUnavailableReason = 'nativeAdminBridgeRequired' | 'notRecommended';
-export type GxserverPortlessRoutePreviewStatus = 'current' | 'disabled' | 'unavailable';
-export type GxserverPortlessRoutePreviewKind = 'primary' | 'additional';
-export type GxserverPortlessAssignedDomainKind = 'project' | 'worktree';
-export type GxserverPortlessStateUpdateParams =
-  | {
-      enabled: boolean;
-      kind: 'setEnabled';
-    }
-  | {
-      kind: 'setProtocol';
-      protocol: GxserverPortlessProtocol;
-    }
-  | {
-      action: GxserverPortlessAdminAction;
-      kind: 'recordAdminResult';
-      ok: boolean;
-      protocol?: GxserverPortlessProtocol;
-    };
-
-export interface GxserverPortlessStateUpdateResult {
-  presentation: GxserverPortlessPresentation;
-  status: GxserverPortlessStatus;
-}
-
-export interface GxserverPortlessAdminActionAvailability {
-  available: boolean;
-  localMacOnly: true;
-  recommended: boolean;
-  unavailableReason?: GxserverPortlessActionUnavailableReason;
-}
-
-export type GxserverPortlessAdminActionSet = Record<
-  GxserverPortlessAdminAction,
-  GxserverPortlessAdminActionAvailability
->;
-
-export interface GxserverPortlessStatus {
-  actions: GxserverPortlessAdminActionSet;
-  enabled: boolean;
-  protocol: GxserverPortlessProtocol;
-  runtimeStatus: GxserverPortlessRuntimeStatus;
-  setupOwnership: GxserverPortlessSetupOwnership;
-  setupStatus: GxserverPortlessSetupStatus;
-  sourceStatus: GxserverPortlessPayloadSourceStatus;
-  updatedAt?: string;
-}
-
-export interface GxserverPortlessRoutePreview {
-  hostname: string;
-  kind: GxserverPortlessRoutePreviewKind;
-  port: number;
-  projectId: GxserverProjectId;
-  protocol: GxserverPortlessProtocol;
-  sessionId: GxserverSessionId;
-}
-
-export interface GxserverPortlessAssignedDomain {
-  hostname: string;
-  kind: GxserverPortlessAssignedDomainKind;
-  parentProjectId?: GxserverProjectId;
-  projectId: GxserverProjectId;
-}
-
-export interface GxserverPortlessPresentation {
-  assignedDomains: readonly GxserverPortlessAssignedDomain[];
-  liveListenerCount: number;
-  routePreviewStatus: GxserverPortlessRoutePreviewStatus;
-  routePreviews: readonly GxserverPortlessRoutePreview[];
-  status: GxserverPortlessStatus;
-}
 
 /**
  * tailcat is the control-plane-free remote-access sidecar gxserver supervises.
@@ -247,7 +151,6 @@ export interface GxserverServerHealthResponse extends GxserverMinimalHealthRespo
   };
   migration: GxserverMigrationStatus;
   pid: number;
-  portless?: GxserverPortlessStatus;
   port: typeof GXSERVER_LOCAL_API_PORT;
   serverId: GxserverServerId;
   startedAt: string;

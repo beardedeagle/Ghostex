@@ -1,6 +1,5 @@
 //! The desktop half of the status indicators: one neutral sidebar view per machine, kept up to date
-//! with the list's own changes, and the two payloads handed to the menu bar item and the pet
-//! whenever they move.
+//! with the list's own changes, and the payload handed to the menu bar item whenever it moves.
 //!
 //! CDXC:StatusPet 2026-09-25 WHY:
 //! The runtime rebuilt both payloads on every publish from its own projection and posted them on
@@ -13,7 +12,7 @@
 use std::collections::BTreeMap;
 
 use ghostex_gx_core::indicators::{
-    indicator_candidates, neutral_indicator_inputs, pet_overlay_payload, status_indicators_payload,
+    indicator_candidates, neutral_indicator_inputs, status_indicators_payload,
 };
 use ghostex_gx_core::{ChangeSummary, MachineId, SidebarInputs, SidebarViewModel};
 use serde_json::Value;
@@ -25,7 +24,6 @@ use crate::app::gx_store::host::now_ms;
 pub(crate) struct IndicatorsHost {
     models: BTreeMap<MachineId, SidebarViewModel>,
     posted_status: Option<String>,
-    posted_pet: Option<String>,
 }
 
 impl GhostexGpuiApp {
@@ -39,11 +37,6 @@ impl GhostexGpuiApp {
         let settings = self.gx_store_hud_settings_value();
         let hide_menu_bar =
             settings.get("hideMenuBarSessionStatusIndicators") == Some(&Value::Bool(true));
-        let pet_enabled = settings.get("petOverlayEnabled") == Some(&Value::Bool(true));
-        let pet_id = settings
-            .get("selectedPetId")
-            .and_then(Value::as_str)
-            .map(str::to_string);
         // This computer, then every saved remote machine the store holds rows for, live or last
         // seen, in the order Settings keeps them.
         let mut machines = vec![MachineId::Local];
@@ -72,18 +65,13 @@ impl GhostexGpuiApp {
             .collect();
         let candidates = indicator_candidates(&self.gx_store.core, &models);
         let status = status_indicators_payload(&candidates, hide_menu_bar).to_string();
-        let pet = pet_overlay_payload(&candidates, pet_enabled, pet_id.as_deref()).to_string();
         if self.gx_store.indicators.posted_status.as_deref() != Some(status.as_str()) {
             self.receive_sidebar_session_status_indicators_payload(&status, cx);
             self.gx_store.indicators.posted_status = Some(status);
         }
-        if self.gx_store.indicators.posted_pet.as_deref() != Some(pet.as_str()) {
-            self.receive_sidebar_pet_overlay_state_payload(&pet, cx);
-            self.gx_store.indicators.posted_pet = Some(pet);
-        }
     }
 
-    /// Settings moved without a list change (the menu bar visibility, the pet): rederive.
+    /// Settings moved without a list change (the menu bar visibility): rederive.
     pub(in crate::app::gx_store) fn gx_store_indicators_settings_changed(
         &mut self,
         cx: &mut gpui::Context<Self>,

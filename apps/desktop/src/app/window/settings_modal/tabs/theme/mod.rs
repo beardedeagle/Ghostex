@@ -1,7 +1,6 @@
 //! The Theme page (packages/core-ui/settings-modal/tabs/theme.tsx (deleted 2026-10-01) and theme-simple-controls.tsx (deleted 2026-10-01)):
-//! Colours, Transparency, Chat and terminal, App Icon (hidden while `APP_ICON_CONTROLS_VISIBLE` is
-//! off) and the links to related rows on General. Its rows are the General catalog's `theming`
-//! and `appIcon` sections, so the same search finds them.
+//! Colours, Transparency, Chat and terminal, and the links to related rows on General. Its rows
+//! are the General catalog's `theming` section, so the same search finds them.
 //!
 //! CDXC:Theming 2026-10-16 DECISION:
 //! User: "doesn't look so good … can we please make this look nicer? … don't copy everything", then picked direction A (Calm rows) of the mockups in docs/2026-10-16/theme-page. Supersedes the 2026-09-25 layout. The Theme page's rows carry an icon tile (this page only; other pages keep their rows). Appearance is three preview cards (System, Light, Dark). Each group is one card whose rare rows fold under a More row: Colours (Dark mode colour and Light mode colour as two rows of squares, Colourfulness; More: the sidebar and work area set apart, the active pane outline), Transparency (one Off / Dark only / Always control replacing Enable transparency and Use transparency, Strength, Blur, Behind the glass with its pictures or Live gallery; More: picture position, Live speed and brightness, play only when plugged in, the four tints, menu blur) and Chat and terminal (the two themes; More: the terminal palettes), then Related on General. The three-way choices keep the existing row control ("same as what we have now dont change this") and Blur stays as it was ("dont change this"). Custom colour is a "+" square after the squares that opens the Pick Color dialog right at it; no rows open under the colour row (2026-10-17, User: "very bad to have the same colors twice here why??? pls fix no need for these 2 rows that appear when i click on the + option in the colors pls"). The custom colour's depth has no control of its own: Colourfulness sets it (2026-10-17, the user's pick: "Remove it: Colourfulness alone sets how deep the custom colour is"). The squares are "smaller and simpler": 20px, one flat colour, today's ring drawn thinner. A search hit inside a group's More opens it.
@@ -16,9 +15,8 @@ use super::super::super::native_modal_kit::*;
 use super::super::catalog::{SettingOption, module, settings_catalog};
 use super::super::fields::{
     ButtonVariant, DropdownState, FieldStates, RowSpec, SettingsPage, SliderSaver,
-    app_icon_picker_field, open_tint_picker, reset_key, searchable_select_field, select_field,
-    setting_row, settings_button, settings_section, toggle_field, toggle_field_with,
-    trigger_tint_picker,
+    open_tint_picker, reset_key, searchable_select_field, select_field, setting_row,
+    settings_button, settings_section, toggle_field, toggle_field_with, trigger_tint_picker,
 };
 use super::super::model::SettingsTabId;
 use super::super::page::{PageBlock, settings_page};
@@ -127,8 +125,6 @@ pub(crate) struct ThemeTab {
     pub(super) posters: HashMap<String, Arc<gpui::Image>>,
     palette_dark_dropdown: DropdownState,
     palette_light_dropdown: DropdownState,
-    /// The App Icon list was requested for this open.
-    requested_app_icons: bool,
 }
 
 fn palette_dark_dropdown(page: &mut ThemeTab) -> &mut DropdownState {
@@ -192,7 +188,6 @@ impl ThemeTab {
             // : the palette lists stop at 320px.
             palette_dark_dropdown: DropdownState::with_max_height(320.0),
             palette_light_dropdown: DropdownState::with_max_height(320.0),
-            requested_app_icons: false,
         };
         page.apply_preview_state(window, cx);
         page
@@ -933,57 +928,6 @@ impl ThemeTab {
         .map(IntoElement::into_any_element)
     }
 
-    /// App Icon: shown only while `APP_ICON_CONTROLS_VISIBLE` is on.
-    ///
-    /// CDXC:Icons 2026-06-28 WHY:
-    /// The App Icon section is a custom-image control, not a bundled preset picker: one preview, one Select Image action, and an inline X on the custom preview to restore the default icon, with no separate reset or folder-reveal actions.
-    fn app_icon_section(&mut self, t: &ThemeCx, cx: &mut Context<Self>) -> Option<AnyElement> {
-        let p = t.p;
-        let state = self.store.read(cx).host_payload("appIconState").cloned();
-        let error = self.store.read(cx).app_icon_error().map(str::to_string);
-        let selected = state
-            .as_ref()
-            .and_then(|state| state.get("selectedId"))
-            .and_then(Value::as_str)
-            .unwrap_or_default()
-            .to_string();
-        let selected_name = state
-            .as_ref()
-            .and_then(|state| state.get("icons"))
-            .and_then(Value::as_array)
-            .and_then(|icons| {
-                icons
-                    .iter()
-                    .find(|icon| icon.get("id").and_then(Value::as_str) == Some(selected.as_str()))
-            })
-            .and_then(|icon| icon.get("name").and_then(Value::as_str))
-            .map(str::to_string);
-        let field = app_icon_picker_field(
-            &p,
-            RowSpec::new("App Icon"),
-            selected_name,
-            selected.is_empty(),
-            error,
-            |page: &mut Self, _window, cx| {
-                let store = page.store.clone();
-                store.update(cx, |store, cx| store.choose_app_icon_file(cx));
-            },
-            |page: &mut Self, _window, cx| {
-                let store = page.store.clone();
-                store.update(cx, |store, cx| store.select_app_icon(String::new(), cx));
-            },
-            cx,
-        );
-        settings_section(
-            &p,
-            "App Icon",
-            Some("Changes the Dock and app-switcher icon. The app file icon may also change when the operating system allows it.".into()),
-            None,
-            vec![field],
-        )
-        .map(IntoElement::into_any_element)
-    }
-
     /// Related settings on General: each Open searches General for the row.
     fn related_section(
         &mut self,
@@ -1036,7 +980,7 @@ impl ThemeTab {
 
 impl Render for ThemeTab {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let (t, matching, app_icon_visible) = {
+        let (t, matching) = {
             let store = self.store.read(cx);
             let hud = store.hud().cloned().unwrap_or_default();
             let native_picker =
@@ -1061,10 +1005,6 @@ impl Render for ThemeTab {
             let visible: Rc<dyn Fn(&str) -> bool> = Rc::new(move |key: &str| {
                 !searching || theming_keys.get(key).copied().unwrap_or(false)
             });
-            let app_icon_visible = settings_catalog()
-                .flag(module::SEARCH_CATALOG, "APP_ICON_CONTROLS_VISIBLE")
-                && native_picker
-                && store.theme_row_visible("appIcon", "appIconSourceId");
             let matching: Vec<SettingsTabId> = if searching {
                 rail_pages(store).into_iter().map(|page| page.tab).collect()
             } else {
@@ -1083,36 +1023,15 @@ impl Render for ThemeTab {
                     native_picker,
                 },
                 matching,
-                app_icon_visible,
             )
         };
-        // The App Icon list is requested once when the page opens (`listAppIcons`).
-        if app_icon_visible && !self.requested_app_icons {
-            self.requested_app_icons = true;
-            let store = self.store.clone();
-            cx.defer(move |cx| {
-                super::super::store::post_store_message(
-                    &store,
-                    json!({ "type": "listAppIcons" }),
-                    cx,
-                );
-            });
-        }
         let p = t.p;
         let mut blocks: Vec<PageBlock> = Vec::new();
         let colours = self.colours_section(&t, window, cx);
         let transparency = self.transparency_section(&t, window, cx);
         let chat_terminal = self.chat_terminal_section(&t, window, cx);
-        let app_icon = if app_icon_visible {
-            self.app_icon_section(&t, cx)
-        } else {
-            None
-        };
-        let anything = colours.is_some()
-            || transparency.is_some()
-            || chat_terminal.is_some()
-            || app_icon.is_some()
-            || !t.searching;
+        let anything =
+            colours.is_some() || transparency.is_some() || chat_terminal.is_some() || !t.searching;
         if !anything {
             let store = self.store.clone();
             blocks.push(PageBlock::plain(render_no_matches(
@@ -1125,7 +1044,6 @@ impl Render for ThemeTab {
         blocks.extend(colours.map(|section| PageBlock::section("theming", section)));
         blocks.extend(transparency.map(|section| PageBlock::section("transparency", section)));
         blocks.extend(chat_terminal.map(|section| PageBlock::section("chatTerminal", section)));
-        blocks.extend(app_icon.map(|section| PageBlock::section("appIcon", section)));
         if !t.searching {
             blocks.extend(
                 self.related_section(&p, cx)

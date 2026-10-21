@@ -35,18 +35,6 @@ pub(crate) fn browser_toolbar_disabled_icon_color() -> Hsla {
     chrome_color(0xcfcfcf, 0x404040).opacity(0.4).into()
 }
 
-pub(crate) fn browser_tab_bar_color() -> Hsla {
-    chrome_color(0x050608, 0xf4f4f5).opacity(0.96).into()
-}
-
-pub(crate) fn browser_tab_active_color() -> Hsla {
-    chrome_ink().opacity(0.13).into()
-}
-
-pub(crate) fn browser_tab_inactive_color() -> Hsla {
-    chrome_ink().opacity(0.06).into()
-}
-
 pub(crate) fn browser_tab_action_cluster_color() -> Hsla {
     chrome_color(0x0e0e0e, 0xfafafa).into()
 }
@@ -817,22 +805,6 @@ pub(crate) fn browser_tab_default_icon_element(size: f32) -> AnyElement {
         .size(px(size))
         .text_color(chrome_color(0xc7c7c7, 0x525252))
         .into_any_element()
-}
-
-pub(crate) fn browser_tab_close_color() -> Hsla {
-    chrome_color(0xcfcfcf, 0x404040).into()
-}
-
-pub(crate) fn browser_tab_close_background_color() -> Hsla {
-    chrome_color(0x0e0e0e, 0xfafafa).into()
-}
-
-pub(crate) fn browser_tab_close_hover_color() -> Hsla {
-    tab_bar_button_hover_color()
-}
-
-pub(crate) fn browser_tab_action_hover_color() -> Hsla {
-    tab_bar_button_hover_color()
 }
 
 pub(crate) fn browser_tab_action_icon_color() -> Hsla {

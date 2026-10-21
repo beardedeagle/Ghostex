@@ -120,38 +120,6 @@ pub(crate) const CEF_KEY_CONTEXT: &str = "GhostexGpuiCef";
 
 pub(crate) const TITLEBAR_DROPDOWN_KEY_CONTEXT: &str = "GhostexGpuiTitlebarDropdown";
 
-pub(crate) const GHOSTTY_MOUSE_ZERO_MODS: ghostty_kit::ffi::ghostty_input_mods_e = 0;
-
-pub(crate) const GHOSTTY_MOUSE_SHIFT_MOD: ghostty_kit::ffi::ghostty_input_mods_e = 1;
-
-pub(crate) const GHOSTTY_MOUSE_CTRL_MOD: ghostty_kit::ffi::ghostty_input_mods_e = 2;
-
-pub(crate) const GHOSTTY_MOUSE_ALT_MOD: ghostty_kit::ffi::ghostty_input_mods_e = 4;
-
-pub(crate) const GHOSTTY_MOUSE_SUPER_MOD: ghostty_kit::ffi::ghostty_input_mods_e = 8;
-
-pub(crate) const GHOSTTY_TERMINAL_OBSERVED_SHORTCUT_MODS: ghostty_kit::ffi::ghostty_input_mods_e =
-    GHOSTTY_MOUSE_SHIFT_MOD
-        | GHOSTTY_MOUSE_CTRL_MOD
-        | GHOSTTY_MOUSE_ALT_MOD
-        | GHOSTTY_MOUSE_SUPER_MOD;
-
-pub(crate) const GPUI_TERMINAL_ESCAPE_KEYCODE: u32 = 53;
-
-pub(crate) const GPUI_TERMINAL_GHOSTTY_KEY_ACTION_PRESS: ghostty_kit::ffi::ghostty_input_action_e =
-    1;
-
-pub(crate) const GPUI_TERMINAL_GHOSTTY_KEY_ACTION_REPEAT: ghostty_kit::ffi::ghostty_input_action_e =
-    2;
-
-pub(crate) const GHOSTTY_SCROLL_PRECISION_MOD: ghostty_kit::ffi::ghostty_input_scroll_mods_t = 1;
-
-pub(crate) const GHOSTTY_MOUSE_PRESSURE_STAGE_NONE: u32 = 0;
-
-pub(crate) const GHOSTTY_MOUSE_PRESSURE_STAGE_NORMAL: u32 = 1;
-
-pub(crate) const GHOSTTY_MOUSE_PRESSURE_STAGE_DEEP: u32 = 2;
-
 /// CDXC:AgentProviders 2026-09-09 DECISION:
 /// Account labels and adjacent usage numbers use the exact system monospace face shown inside the chat agent icon.
 /// CDXC:AgentProviders 2026-09-09 WHY:
@@ -354,42 +322,10 @@ pub(crate) const GPUI_SIDEBAR_PROJECT_BOARD_CONVERSATION_RESPONSE_MESSAGE_TYPE: 
 
 pub(crate) const GPUI_SIDEBAR_PROJECT_BOARD_CONVERSATION_PAYLOAD_MAX_CHARS: usize = 256 * 1024;
 
-pub(crate) const GPUI_PROJECT_BOARD_INITIALIZE_BEADS_ACTION: &str = "initializeBeads";
-
-pub(crate) const GPUI_PROJECT_BOARD_INITIALIZE_BEADS_COMMAND_ID: &str =
-    "ghostex.gpui.projectBoard.initializeBeads";
-
-pub(crate) const GPUI_PROJECT_BOARD_INSTALL_OR_UPDATE_BEADS_ACTION: &str = "installOrUpdateBeads";
-
-pub(crate) const GPUI_PROJECT_BOARD_INSTALL_OR_UPDATE_BEADS_COMMAND_ID: &str =
-    "ghostex.gpui.projectBoard.installOrUpdateBeads";
-
-pub(crate) const GPUI_PROJECT_BOARD_RUN_BEADS_MIGRATION_ACTION: &str = "runBeadsMigration";
-
-pub(crate) const GPUI_PROJECT_BOARD_MIGRATE_BEADS_COMMAND_ID: &str =
-    "ghostex.gpui.projectBoard.migrateBeads";
-
-pub(crate) const GPUI_PROJECT_BOARD_ADOPT_BEADS_COMMAND_ID: &str =
-    "ghostex.gpui.projectBoard.adoptBeads";
-
-pub(crate) const GPUI_PROJECT_BOARD_ADOPT_BEADS_FAST_FORWARD_COMMAND_ID: &str =
-    "ghostex.gpui.projectBoard.adoptBeadsFastForward";
-
-pub(crate) const GPUI_PROJECT_BOARD_RECONCILE_BEADS_FORK_COMMAND_ID: &str =
-    "ghostex.gpui.projectBoard.reconcileBeadsFork";
-
-pub(crate) const GPUI_PROJECT_BOARD_COMMAND_COMPLETED_EVENT: &str =
-    "ghostex-project-board-command-completed";
-
 pub(crate) const GPUI_SIDEBAR_SESSION_STATUS_INDICATORS_MESSAGE_VERSION: u64 = 1;
 
 pub(crate) const GPUI_SIDEBAR_SESSION_STATUS_INDICATORS_MESSAGE_TYPE: &str =
     "ghostex.gpui.sidebar.sessionStatusIndicators";
-
-pub(crate) const GPUI_SIDEBAR_PET_OVERLAY_STATE_MESSAGE_VERSION: u64 = 1;
-
-pub(crate) const GPUI_SIDEBAR_PET_OVERLAY_STATE_MESSAGE_TYPE: &str =
-    "ghostex.gpui.sidebar.petOverlayState";
 
 pub(crate) const GPUI_SIDEBAR_GLOBAL_ACTIONS_MESSAGE_VERSION: u64 = 1;
 
@@ -426,8 +362,6 @@ pub(crate) const GPUI_STATUS_INDICATOR_MAX_PROJECTS: usize = 32;
 
 pub(crate) const GPUI_STATUS_INDICATOR_MAX_SESSIONS_PER_PROJECT: usize = 16;
 
-pub(crate) const GPUI_STATUS_INDICATOR_MAX_ACTIVITIES: usize = 3;
-
 pub(crate) const GPUI_STATUS_INDICATOR_TITLE_MAX_CHARS: usize = 120;
 
 pub(crate) const GPUI_STATUS_INDICATOR_ICON_DATA_URL_MAX_CHARS: usize = 700_000;
@@ -440,29 +374,7 @@ pub(crate) const GPUI_SESSION_ATTENTION_NOTIFICATION_GLOBAL_WINDOW: Duration =
 
 pub(crate) const GPUI_SESSION_ATTENTION_NOTIFICATION_GLOBAL_LIMIT: usize = 8;
 
-pub(crate) const GPUI_STATUS_PET_STACK_RIGHT_INSET: f32 = 18.0;
-
-pub(crate) const GPUI_STATUS_PET_STACK_BOTTOM_INSET: f32 = 18.0;
-
-pub(crate) const GPUI_STATUS_PET_STACK_WIDTH: f32 = 320.0;
-
-pub(crate) const GPUI_PET_OVERLAY_ACTIVITY_CARD_WIDTH: f32 = 266.0;
-
-pub(crate) const GPUI_PET_OVERLAY_AVATAR_WIDTH: f32 = 84.0;
-
-pub(crate) const GPUI_PET_OVERLAY_AVATAR_HEIGHT: f32 = 91.0;
-
-pub(crate) const GPUI_PET_OVERLAY_SPRITESHEET_COLUMNS: f32 = 8.0;
-
-pub(crate) const GPUI_PET_OVERLAY_SPRITESHEET_ROWS: f32 = 9.0;
-
-pub(crate) const GPUI_PET_OVERLAY_STATUS_BADGE_HEIGHT: f32 = 24.0;
-
-pub(crate) const GPUI_PET_OVERLAY_ANIMATION_TICK: Duration = Duration::from_millis(100);
-
 pub(crate) const SIDEBAR_FOCUS_BORDER_HANDOFF_TIMEOUT: Duration = Duration::from_millis(350);
-
-pub(crate) const GPUI_PET_OVERLAY_IDLE_SPEED_MULTIPLIER: u64 = 6;
 
 pub(crate) const GPUI_REMOTE_MACHINE_ID_MAX_CHARS: usize = 80;
 
@@ -625,10 +537,6 @@ pub(crate) const BROWSER_TAB_BAR_HEIGHT: f32 = 28.0;
 
 pub(crate) const BROWSER_TAB_MAX_WIDTH: f32 = 175.0;
 
-pub(crate) const BROWSER_TAB_MIN_WIDTH: f32 = 170.0;
-
-pub(crate) const BROWSER_TAB_GAP: f32 = 2.0;
-
 pub(crate) const BROWSER_TAB_ICON_SIZE: f32 = 14.0;
 
 pub(crate) const BROWSER_FAVICON_HTTP_URL_MAX_CHARS: usize = 2048;
@@ -645,11 +553,7 @@ pub(crate) const BROWSER_FAVICON_IMAGE_MAX_PIXELS: u64 = 512 * 512;
 
 pub(crate) const BROWSER_FAVICON_IMAGE_MAX_FRAMES: usize = 16;
 
-pub(crate) const BROWSER_TAB_CLOSE_SIZE: f32 = 20.0;
-
 pub(crate) const BROWSER_TAB_ACTION_BUTTON_SIZE: f32 = 42.0;
-
-pub(crate) const BROWSER_TAB_ACTION_CLUSTER_WIDTH: f32 = 84.0;
 
 pub(crate) const BROWSER_HISTORY_MAX_ENTRIES: usize = 50;
 
@@ -759,7 +663,7 @@ pub(crate) const APP_MODAL_HOST_RENAME_SESSION_WINDOW_HEIGHT: f32 = 440.0;
  * each window is the dialog's own footprint plus a small margin instead of the
  * shared 1080x760 Settings frame that left short forms stranded in dead space.
  * Measured dialog footprints: Add Worktree 619, Clone Repository 633, Delete
- * Worktree 505 (CSS-capped at 560), Portless Setup 290, Remote Setup 311,
+ * Worktree 505 (CSS-capped at 560), Remote Setup 311,
  * Browser Access 544, Rename Session 431. Remote Project sizes to its
  * stylesheet width and scrolls.
  */
@@ -768,10 +672,6 @@ pub(crate) const APP_MODAL_HOST_WORKTREE_WINDOW_WIDTH: f32 = 640.0;
 pub(crate) const APP_MODAL_HOST_WORKTREE_WINDOW_HEIGHT: f32 = 640.0;
 
 pub(crate) const APP_MODAL_HOST_DELETE_WORKTREE_WINDOW_HEIGHT: f32 = 600.0;
-
-pub(crate) const APP_MODAL_HOST_PORTLESS_SETUP_WINDOW_WIDTH: f32 = 640.0;
-
-pub(crate) const APP_MODAL_HOST_PORTLESS_SETUP_WINDOW_HEIGHT: f32 = 340.0;
 
 pub(crate) const APP_MODAL_HOST_REMOTE_GXSERVER_INSTALL_WINDOW_WIDTH: f32 = 560.0;
 
@@ -891,8 +791,6 @@ pub(crate) const BROWSER_ICON_RELOAD: &str = "titlebar/reload.svg";
 
 pub(crate) const BROWSER_ICON_HOME: &str = "titlebar/home.svg";
 
-pub(crate) const BROWSER_ICON_STOP: &str = "titlebar/xmark.svg";
-
 pub(crate) const BROWSER_ICON_SEARCH: &str = "titlebar/search.svg";
 
 pub(crate) const BROWSER_ICON_HISTORY: &str = "titlebar/history.svg";
@@ -902,15 +800,6 @@ pub(crate) const COMMAND_ICON_PLUS: &str = "titlebar/plus.svg";
 pub(crate) const COMMAND_ICON_CLOCK: &str = "titlebar/clock.svg";
 
 pub(crate) const COMMAND_ICON_COMMAND: &str = "titlebar/command.svg";
-
-// Floating command panes are temporarily disabled because unpinning is not
-// reliable yet. Keep the floating layout and state transitions available so
-// they can be restored by flipping this flag once that behavior is revisited.
-pub(crate) const COMMAND_PANE_FLOATING_MODE_ENABLED: bool = false;
-
-pub(crate) const COMMAND_ICON_PIN: &str = "titlebar/pin.svg";
-
-pub(crate) const COMMAND_ICON_PIN_SLASH: &str = "titlebar/pin-slash.svg";
 
 pub(crate) const COMMAND_ICON_CHEVRON_UP: &str = "titlebar/chevron-up.svg";
 

@@ -33,6 +33,8 @@ pub(crate) fn source_id_from_settings(settings: &Map<String, Value>) -> String {
         .unwrap_or_default()
 }
 
+/// CDXC:Theming 2026-10-21 DECISION:
+/// User: "fully hide the custom app icon feature" (2026-09-23); on 2026-10-21 the user removed the hidden App Icon picker and its catalog section outright. `appIconSourceId` stays, so an icon that was already chosen keeps working, and Reset all settings still restores the bundled icon through `setAppIcon`.
 pub(crate) fn apply_persisted_source_id(source_id: &str) -> bool {
     let normalized = normalized_source_id(source_id).unwrap_or_default();
     if normalized.is_empty() {
@@ -43,10 +45,6 @@ pub(crate) fn apply_persisted_source_id(source_id: &str) -> bool {
         return apply_native_icon(None);
     }
     apply_native_icon(Some(&path))
-}
-
-pub(crate) fn list_state(source_id: &str) -> Value {
-    app_icon_state(source_id, true, None)
 }
 
 pub(crate) fn select_state(source_id: &str, current_source_id: &str) -> Value {
@@ -66,28 +64,6 @@ pub(crate) fn select_state(source_id: &str, current_source_id: &str) -> Value {
         return app_icon_state(current_source_id, false, Some("iconUnavailable"));
     }
     app_icon_state(&normalized, true, None)
-}
-
-pub(crate) fn picked_file_state(path: &Path, current_source_id: &str) -> Value {
-    if !is_valid_source_png(path) {
-        return app_icon_state(current_source_id, false, Some("invalidPick"));
-    }
-    let Ok(source_id) = copy_picked_icon(path) else {
-        return app_icon_state(current_source_id, false, Some("copyFailed"));
-    };
-    let destination = icons_directory().join(&source_id);
-    if !apply_native_icon(Some(&destination)) {
-        let _ = fs::remove_file(destination);
-        return app_icon_state(current_source_id, false, Some("iconUnavailable"));
-    }
-    app_icon_state(&source_id, true, None)
-}
-
-pub(crate) fn reveal_icons_directory() {
-    let directory = icons_directory();
-    if fs::create_dir_all(&directory).is_ok() {
-        reveal_native_directory(&directory);
-    }
 }
 
 fn app_icon_state(requested_source_id: &str, ok: bool, error: Option<&str>) -> Value {
@@ -213,49 +189,6 @@ fn is_valid_source_png(path: &Path) -> bool {
         && height <= APP_ICON_MAX_SOURCE_DIMENSION
 }
 
-fn copy_picked_icon(source: &Path) -> Result<String, ()> {
-    let directory = icons_directory();
-    fs::create_dir_all(&directory).map_err(|_| ())?;
-    let source_stem = source
-        .file_stem()
-        .and_then(|stem| stem.to_str())
-        .unwrap_or("app-icon");
-    let base_name = sanitized_file_stem(source_stem);
-    for suffix in 0..10_000_u32 {
-        let source_id = if suffix == 0 {
-            format!("{base_name}.png")
-        } else {
-            format!("{base_name}-{suffix}.png")
-        };
-        let destination = directory.join(&source_id);
-        if destination.exists() {
-            continue;
-        }
-        fs::copy(source, &destination).map_err(|_| ())?;
-        return Ok(source_id);
-    }
-    Err(())
-}
-
-fn sanitized_file_stem(value: &str) -> String {
-    let cleaned = value
-        .chars()
-        .map(|character| {
-            if character.is_ascii_alphanumeric() || matches!(character, '-' | '_') {
-                character
-            } else {
-                '-'
-            }
-        })
-        .collect::<String>();
-    let trimmed = cleaned.trim_matches('-');
-    if trimmed.is_empty() {
-        "app-icon".to_string()
-    } else {
-        trimmed.to_string()
-    }
-}
-
 fn display_name(source_id: &str) -> String {
     let base = source_id
         .strip_suffix(".png")
@@ -314,19 +247,6 @@ fn native_thumbnail_data_url(path: Option<&Path>) -> String {
 fn native_thumbnail_data_url(_path: Option<&Path>) -> String {
     String::new()
 }
-
-#[cfg(target_os = "macos")]
-fn reveal_native_directory(path: &Path) {
-    unsafe extern "C" {
-        fn GhostexGpuiAppIconRevealDirectory(path: *const std::ffi::c_char);
-    }
-    if let Some(path) = path_c_string(path) {
-        unsafe { GhostexGpuiAppIconRevealDirectory(path.as_ptr()) };
-    }
-}
-
-#[cfg(not(target_os = "macos"))]
-fn reveal_native_directory(_path: &Path) {}
 
 fn path_c_string(path: &Path) -> Option<CString> {
     CString::new(path.to_string_lossy().as_bytes()).ok()

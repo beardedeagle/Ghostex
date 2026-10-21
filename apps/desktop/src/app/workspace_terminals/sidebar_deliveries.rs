@@ -8,19 +8,6 @@ use crate::app::helpers::*;
 use crate::app::model::*;
 use crate::*;
 
-/// The measured clear burst as raw bytes, for the Ghostty-surface pipeline
-/// (the engine pipeline sends the same law as VT key events). Kills toward the
-/// start first, then toward the end, exactly like gxserver's
-/// `build_agent_tui_clear_input`.
-#[cfg(target_os = "macos")]
-fn workspace_terminal_clear_input_burst() -> String {
-    format!(
-        "{}{}",
-        AGENT_TUI_CLEAR_INPUT_LINE.repeat(WORKSPACE_RENAME_COMMAND_CLEAR_REPETITIONS),
-        AGENT_TUI_CLEAR_INPUT_FORWARD.repeat(WORKSPACE_RENAME_COMMAND_CLEAR_REPETITIONS)
-    )
-}
-
 impl GhostexGpuiApp {
     pub(crate) fn receive_sidebar_workspace_terminal_rename_command_payload(
         &mut self,
@@ -122,15 +109,6 @@ impl GhostexGpuiApp {
         let Some(target) = self.local_workspace_rename_command_target(key) else {
             return GpuiWorkspaceRenameCommandDelivery::TargetInvalid;
         };
-        /*
-        CDXC:SessionTitles 2026-07-29:
-        Agents terminals run one of two pipelines. The default GPUI engine
-        pipeline never registers a Ghostty surface, so a Ghostty-only owner
-        check classified every engine tab as unmounted and silently dropped
-        the rename. Accept the exact current slot's engine terminal view (the
-        same owner `send_return_key_to_mounted_agents_terminal_surface`
-        already uses) or the exact mounted Ghostty surface, and nothing else.
-        */
         let engine_terminal_view = self
             .agents_workspace
             .is_current_terminal_body_mount_slot(target.slot_id)
@@ -140,26 +118,19 @@ impl GhostexGpuiApp {
             })
             .flatten()
             .map(|record| record.view.clone());
-        if engine_terminal_view.is_none()
-            && !self.agents_terminal_ghostty_surface_matches(target.slot_id)
-        {
+        let Some(view) = engine_terminal_view else {
             return GpuiWorkspaceRenameCommandDelivery::SurfaceNotMounted;
-        }
+        };
         let terminal_input =
             gpui_workspace_terminal_rename_command_input(message.command, &message.title);
         /*
         CDXC:SessionTitles 2026-08-26:
         The composer may already hold user-typed draft text, and the rename is
-        written onto that same line, so BOTH pipelines open with the measured
+        written onto that same line, so the command opens with the measured
         clear burst (WORKSPACE_RENAME_COMMAND_CLEAR_REPETITIONS) as its own pty
-        write before the command text.
-
-        This replaces two different wrong behaviours. The engine pipeline sent a
-        single Ctrl+U, which kills one logical line: a two-line draft kept its
-        first line and the rename was submitted glued to it. The Ghostty-surface
-        pipeline sent no clear at all, so any draft simply got `/rename …`
-        appended. The burst is a separate write from the command text in both,
-        never concatenated with it.
+        write before the command text, never concatenated with it. A single
+        Ctrl+U kills only one logical line: a two-line draft kept its first line
+        and the rename was submitted glued to it.
 
         There is no Ctrl+Y restore any more, matching gxserver's title jobs: a
         yank returns only the LAST kill, so after a 2N-1 burst it can restore at
@@ -168,29 +139,15 @@ impl GhostexGpuiApp {
         send owns and clears this line; terminal -> chat view switching remains
         the loss-safe transfer path.
         */
-        let text_sent = if let Some(view) = engine_terminal_view {
-            view.update(cx, |view, cx| {
-                for _ in 0..WORKSPACE_RENAME_COMMAND_CLEAR_REPETITIONS {
-                    view.send_ctrl_letter_key(ghostty_vt::VtKey::U, 'u', cx);
-                }
-                for _ in 0..WORKSPACE_RENAME_COMMAND_CLEAR_REPETITIONS {
-                    view.send_ctrl_letter_key(ghostty_vt::VtKey::K, 'k', cx);
-                }
-                view.send_text_input(&terminal_input, cx);
-            });
-            true
-        } else {
-            self.send_text_bytes_to_mounted_agents_terminal_surface(
-                target.slot_id,
-                workspace_terminal_clear_input_burst().as_bytes(),
-            ) && self.send_text_bytes_to_mounted_agents_terminal_surface(
-                target.slot_id,
-                terminal_input.as_bytes(),
-            )
-        };
-        if !text_sent {
-            return GpuiWorkspaceRenameCommandDelivery::TargetInvalid;
-        }
+        view.update(cx, |view, cx| {
+            for _ in 0..WORKSPACE_RENAME_COMMAND_CLEAR_REPETITIONS {
+                view.send_ctrl_letter_key(ghostty_vt::VtKey::U, 'u', cx);
+            }
+            for _ in 0..WORKSPACE_RENAME_COMMAND_CLEAR_REPETITIONS {
+                view.send_ctrl_letter_key(ghostty_vt::VtKey::K, 'k', cx);
+            }
+            view.send_text_input(&terminal_input, cx);
+        });
         /*
         CDXC:SessionTitles 2026-07-29:
         macOS parity (AUTO_SUBMIT_STAGED_RENAME_DELAY_MS): agent CLIs treat

@@ -49,19 +49,3 @@ impl CommandPaneVisibleBodyOwner {
         })
     }
 }
-
-pub(crate) trait TerminalSurfaceMountSlotKey: Copy + Eq + std::hash::Hash {
-    fn terminal_surface_sort_key(self) -> (u8, u64, u64);
-}
-
-impl TerminalSurfaceMountSlotKey for AgentsTerminalBodyMountSlotId {
-    fn terminal_surface_sort_key(self) -> (u8, u64, u64) {
-        (0, self.pane_id.0, self.session_id.0)
-    }
-}
-
-impl TerminalSurfaceMountSlotKey for CommandTerminalBodyMountSlotId {
-    fn terminal_surface_sort_key(self) -> (u8, u64, u64) {
-        (1, self.group_id.0, self.session_id.0)
-    }
-}

@@ -216,28 +216,3 @@ pub(super) fn wait_for_status(
         std::thread::sleep(Duration::from_millis(100));
     }
 }
-
-/// runGhostexEditorProcess (pre-daemon direct spawn; unused since the
-/// resident daemon landed).
-pub(super) fn run_ghostex_editor_process(
-    command: &str,
-    args: &[String],
-    cwd: &Path,
-) -> CliResult<i32> {
-    let status = Command::new(command)
-        .args(args)
-        .current_dir(cwd)
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::inherit())
-        .status()
-        .map_err(|error| CliError::Other(error.to_string()))?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::process::ExitStatusExt;
-        if status.signal().is_some() {
-            return Ok(1);
-        }
-    }
-    Ok(status.code().unwrap_or(0))
-}

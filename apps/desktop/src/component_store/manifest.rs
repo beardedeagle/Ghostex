@@ -107,21 +107,6 @@ pub struct InstalledComponent {
     pub size_bytes: u64,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum ReleaseAssetCachePayload {
-    DownloadArchive,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct CachedReleaseAsset {
-    pub asset_key: String,
-    pub cached: bool,
-    pub download_size_bytes: u64,
-    pub path: PathBuf,
-    pub size_bytes: u64,
-    pub version: String,
-}
-
 impl OnDemandManifest {
     pub fn load(path: &Path) -> Result<Self, String> {
         let data = fs::read_to_string(path).map_err(|error| {

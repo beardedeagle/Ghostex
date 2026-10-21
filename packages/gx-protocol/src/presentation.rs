@@ -34,9 +34,6 @@ pub struct PresentationSnapshot {
     pub capabilities: Option<PresentationCapabilities>,
     #[serde(default, skip_serializing_if = "Tri::is_absent")]
     pub auto_settle_after_days: Tri<f64>,
-    /// Shape not surveyed; kept loose.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub portless: Option<Value>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub workspace_groups: Option<WorkspaceSessionGroupsState>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

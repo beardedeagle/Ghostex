@@ -592,7 +592,6 @@ impl GhostexGpuiApp {
         self.app_modal_open_attempt_id = self.app_modal_open_attempt_id.wrapping_add(1);
         self.sync_app_modal_over_chat(cx);
         self.restore_keyboard_focus_after_app_modal(cx);
-        self.resume_deferred_gpui_portless_setup_prompt(cx);
         if closed_modal == Some(GpuiAppModalKind::ExportTranscriptResult) {
             self.pending_export_transcript_reveal_path = None;
         }
@@ -651,13 +650,6 @@ impl GhostexGpuiApp {
             return;
         }
         self.restore_keyboard_focus_after_app_modal(cx);
-        /*
-        CDXC:Portless 2026-08-18:
-        A modal dismissed from React takes the window handle here instead of
-        reaching the native-close path, so the deferred Portless prompt has to
-        be resumed from this ownership boundary as well.
-        */
-        self.resume_deferred_gpui_portless_setup_prompt(cx);
     }
 
     /// Gives the keyboard back to the pane that had it once a modal window goes away. Every modal close path ends here: the React modal host, the native modals, Quick Access and the new-thread picker.

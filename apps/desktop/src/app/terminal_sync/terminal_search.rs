@@ -1,6 +1,6 @@
 // C1 wave-4 re-cluster: further split out of app/terminal_sync.rs (~5,603
 // lines, itself moved verbatim out of main.rs) into descriptively named
-// modules; pure move, no logic changes. Cluster: hover-link checks, GPUI-engine and native terminal search actions, and the queued-prompts chip plus per-surface search bar renderers.
+// modules; pure move, no logic changes. Cluster: hover-link checks, GPUI-engine terminal search actions, and the queued-prompts chip plus per-surface search bar renderers.
 
 use std::collections::HashMap;
 
@@ -18,32 +18,6 @@ use crate::app::model::*;
 use crate::*;
 
 impl GhostexGpuiApp {
-    #[cfg(target_os = "macos")]
-    pub(crate) fn agents_terminal_slot_hovers_link(
-        &self,
-        slot_id: AgentsTerminalBodyMountSlotId,
-    ) -> bool {
-        self.agents_terminal_ghostty_surfaces
-            .get(&slot_id)
-            .map(|surface| surface.runtime_session_id())
-            .and_then(|runtime_session_id| {
-                self.agents_terminal_runtime_osc_states
-                    .get(&runtime_session_id)
-            })
-            .is_some_and(|state| state.hovered_link_url.is_some())
-    }
-
-    // Hover state rides the native Ghostty surface map, which only exists on
-    // macOS; without native surfaces no slot can report a hovered link (the
-    // GPUI engine draws its own hover underline inside the element).
-    #[cfg(not(target_os = "macos"))]
-    pub(crate) fn agents_terminal_slot_hovers_link(
-        &self,
-        _slot_id: AgentsTerminalBodyMountSlotId,
-    ) -> bool {
-        false
-    }
-
     pub(crate) fn command_terminal_slot_hovers_link(
         &self,
         slot_id: CommandTerminalBodyMountSlotId,
@@ -53,13 +27,8 @@ impl GhostexGpuiApp {
             .is_some_and(|state| state.hovered_link_url.is_some())
     }
 
-    /// Cmd+F on a focused terminal surface triggers Ghostty's own
-    /// `start_search` keybind action, matching the macOS surface-level key
-    /// equivalent. The search bar itself opens when Ghostty answers with a
-    /// START_SEARCH runtime action.
-    /// Cmd+F on a focused GPUI-engine terminal opens the same search bar the
-    /// native path uses, driving the element's viewport find instead of
-    /// Ghostty binding actions.
+    /// Cmd+F on a focused GPUI-engine terminal opens the search bar, driving the element's
+    /// viewport find.
     pub(crate) fn start_search_in_focused_gpui_engine_terminal(
         &mut self,
         cx: &mut gpui::Context<Self>,
@@ -144,36 +113,6 @@ impl GhostexGpuiApp {
         })
     }
 
-    #[cfg(target_os = "macos")]
-    pub(crate) fn start_search_in_focused_terminal_surface(
-        &mut self,
-        cx: &mut gpui::Context<Self>,
-    ) -> bool {
-        if self.start_search_in_focused_gpui_engine_terminal(cx) {
-            return true;
-        }
-        let started = match focused_terminal_text_target(self.active_mode, self.shell_focus) {
-            Some(FocusedTerminalTextTarget::Agents) => focused_agents_terminal_surface_mount_slot(
-                self.active_mode,
-                self.shell_focus,
-                &self.agents_workspace,
-            )
-            .and_then(|slot_id| self.agents_terminal_ghostty_surfaces.get(&slot_id))
-            .is_some_and(|surface| surface.perform_binding_action("start_search")),
-            Some(FocusedTerminalTextTarget::Command) => {
-                focused_command_terminal_surface_mount_slot(self.shell_focus, &self.command_pane)
-                    .and_then(|slot_id| self.command_terminal_ghostty_surfaces.get(&slot_id))
-                    .is_some_and(|surface| surface.perform_binding_action("start_search"))
-            }
-            None => false,
-        };
-        if started {
-            cx.notify();
-        }
-        started
-    }
-
-    #[cfg(not(target_os = "macos"))]
     pub(crate) fn start_search_in_focused_terminal_surface(
         &mut self,
         cx: &mut gpui::Context<Self>,
@@ -181,38 +120,8 @@ impl GhostexGpuiApp {
         self.start_search_in_focused_gpui_engine_terminal(cx)
     }
 
-    #[cfg(target_os = "macos")]
-    pub(crate) fn perform_terminal_search_binding_action(
-        &mut self,
-        runtime_session_id: AgentsTerminalRuntimeSessionId,
-        action: &str,
-        cx: &mut gpui::Context<Self>,
-    ) -> bool {
-        if let Some(handled) =
-            self.perform_gpui_engine_terminal_search_action(runtime_session_id, action, cx)
-        {
-            return handled;
-        }
-        if let Some(surface) = self
-            .agents_terminal_ghostty_surfaces
-            .values()
-            .find(|surface| surface.runtime_session_id() == runtime_session_id)
-        {
-            return surface.perform_binding_action(action);
-        }
-        if let Some(surface) = self
-            .command_terminal_ghostty_surfaces
-            .values()
-            .find(|surface| surface.runtime_session_id() == runtime_session_id)
-        {
-            return surface.perform_binding_action(action);
-        }
-        false
-    }
-
     /// Off macOS every terminal is a GPUI-engine terminal, so the shared
     /// search-bar actions drive only the element's viewport find.
-    #[cfg(not(target_os = "macos"))]
     pub(crate) fn perform_terminal_search_binding_action(
         &mut self,
         runtime_session_id: AgentsTerminalRuntimeSessionId,
@@ -304,24 +213,11 @@ impl GhostexGpuiApp {
         cx.notify();
     }
 
-    /// The Agents mount slot whose terminal runs `runtime_session_id`: a
-    /// native Ghostty surface (macOS only) or a GPUI-engine terminal.
+    /// The Agents mount slot whose GPUI-engine terminal runs `runtime_session_id`.
     fn agents_terminal_search_owner_slot(
         &self,
         runtime_session_id: AgentsTerminalRuntimeSessionId,
     ) -> Option<AgentsTerminalBodyMountSlotId> {
-        #[cfg(target_os = "macos")]
-        {
-            if let Some(slot_id) =
-                self.agents_terminal_ghostty_surfaces
-                    .iter()
-                    .find_map(|(slot_id, surface)| {
-                        (surface.runtime_session_id() == runtime_session_id).then_some(*slot_id)
-                    })
-            {
-                return Some(slot_id);
-            }
-        }
         self.agents_gpui_engine_terminals
             .iter()
             .find(|(_, record)| record.runtime_session_id == runtime_session_id)
@@ -334,24 +230,11 @@ impl GhostexGpuiApp {
             })
     }
 
-    /// The command-pane mount slot whose terminal runs `runtime_session_id`:
-    /// a native Ghostty surface (macOS only) or a GPUI-engine terminal.
+    /// The command-pane mount slot whose GPUI-engine terminal runs `runtime_session_id`.
     fn command_terminal_search_owner_slot(
         &self,
         runtime_session_id: AgentsTerminalRuntimeSessionId,
     ) -> Option<CommandTerminalBodyMountSlotId> {
-        #[cfg(target_os = "macos")]
-        {
-            if let Some(slot_id) =
-                self.command_terminal_ghostty_surfaces
-                    .iter()
-                    .find_map(|(slot_id, surface)| {
-                        (surface.runtime_session_id() == runtime_session_id).then_some(*slot_id)
-                    })
-            {
-                return Some(slot_id);
-            }
-        }
         self.command_gpui_engine_terminals
             .iter()
             .find(|(_, record)| record.runtime_session_id == runtime_session_id)
@@ -473,16 +356,9 @@ impl GhostexGpuiApp {
         &self,
         slot_id: AgentsTerminalBodyMountSlotId,
     ) -> Option<AgentsTerminalRuntimeSessionId> {
-        if let Some(record) = self.agents_gpui_engine_terminals.get(&slot_id.session_id) {
-            return Some(record.runtime_session_id);
-        }
-        #[cfg(target_os = "macos")]
-        {
-            let surface = self.agents_terminal_ghostty_surfaces.get(&slot_id)?;
-            (surface.mount_slot_id() == slot_id).then(|| surface.runtime_session_id())
-        }
-        #[cfg(not(target_os = "macos"))]
-        None
+        self.agents_gpui_engine_terminals
+            .get(&slot_id.session_id)
+            .map(|record| record.runtime_session_id)
     }
 
     pub(crate) fn render_command_terminal_search_bar(
@@ -513,15 +389,8 @@ impl GhostexGpuiApp {
         &self,
         slot_id: CommandTerminalBodyMountSlotId,
     ) -> Option<AgentsTerminalRuntimeSessionId> {
-        if let Some(record) = self.command_gpui_engine_terminals.get(&slot_id.session_id) {
-            return Some(record.runtime_session_id);
-        }
-        #[cfg(target_os = "macos")]
-        {
-            let surface = self.command_terminal_ghostty_surfaces.get(&slot_id)?;
-            (surface.mount_slot_id() == slot_id).then(|| surface.runtime_session_id())
-        }
-        #[cfg(not(target_os = "macos"))]
-        None
+        self.command_gpui_engine_terminals
+            .get(&slot_id.session_id)
+            .map(|record| record.runtime_session_id)
     }
 }

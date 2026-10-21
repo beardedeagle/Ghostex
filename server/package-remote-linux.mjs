@@ -246,11 +246,9 @@ async function buildPackage({ config, outputDir, workRoot }) {
 
   /*
    * CDXC:RemotePairing 2026-07-13:
-   * The remote package used to ship portless, an npm-style package.json
-   * manifest, dist/protocol JS/type exports, and the Node ghostex CLI under
-   * CLI/. Portless is a macOS launchd-only feature the Linux daemon never
-   * starts, nothing on the remote host consumes the manifest or protocol
-   * exports (version identity lives in build-identity.json), and the public
+   * The remote package used to ship an npm-style package.json manifest,
+   * dist/protocol JS/type exports, and the Node ghostex CLI under CLI/.
+   * Nothing on the remote host consumes the manifest or protocol exports (version identity lives in build-identity.json), and the public
    * `ghostex`/`gx` CLI is now the native Rust bin/ghostex built from the
    * same gxserver crate, so none of them are staged anymore. `gx` is
    * created as a symlink by `gxserver setup` at install time.

@@ -171,7 +171,7 @@ impl GhostexGpuiApp {
 
         let settings =
             shared_settings::shared_sidebar_settings_snapshot().gpui_terminal_engine_settings();
-        if settings.enabled && !selection_settling {
+        if !selection_settling {
             for slot_id in self.agents_workspace.rendered_terminal_body_mount_slots() {
                 if self
                     .agents_gpui_engine_terminals

@@ -1,8 +1,0 @@
-.pet-avatar-root {
-  aspect-ratio: 192 / 208;
-  background-image: var(--pet-spritesheet-url);
-  background-repeat: no-repeat;
-  background-size: 800% 900%;
-  image-rendering: pixelated;
-  width: 7.04rem;
-}

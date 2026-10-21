@@ -19,8 +19,8 @@ GhostexGpuiRunAccessibilityDisplayOptionsOnMain(dispatch_block_t block) {
 
 static int32_t GhostexGpuiAccessibilityDisplayShouldReduceMotionOnMain(void) {
   /*
-   CDXC:StatusPet 2026-06-26-07:31:
-   GPUI Pet Overlay Reduce Motion follows macOS accessibility display options
+   CDXC:DesignSystem 2026-06-26-07:31:
+   GPUI Reduce Motion follows macOS accessibility display options
    from NSWorkspace at runtime. Return only a boolean-like primitive across FFI
    and do not persist or log settings payloads, paths, titles, commands, URLs,
    terminal content, tokens, or raw system preference data.
@@ -88,11 +88,11 @@ void GhostexGpuiInstallAccessibilityDisplayOptionsMonitor(void) {
         return;
       }
       /*
-       CDXC:StatusPet 2026-06-26-07:31:
+       CDXC:DesignSystem 2026-06-26-07:31:
        Runtime Reduce Motion changes must notify Rust from the NSWorkspace
        accessibility display-options notification instead of using an animation
        polling loop. The callback carries only the current boolean state so the
-       pet ticker can stop or restart without broad settings IPC or hidden UI.
+       app's animations follow it without broad settings IPC or hidden UI.
        */
       [[[NSWorkspace sharedWorkspace] notificationCenter]
           addObserver:[GhostexGpuiAccessibilityDisplayOptionsObserver

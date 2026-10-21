@@ -356,7 +356,6 @@ pub(crate) const MANAGE_ROOT_ARTIFACT_FILE_EXTENSIONS: &[&str] = &[
     "mkdn",
 ];
 pub(crate) const PROJECT_BOARD_CLIPBOARD_IMAGE_MAX_BYTES: usize = 12 * 1024 * 1024;
-pub(crate) const PROJECT_BOARD_IMAGE_PREVIEW_MAX_BYTES: usize = 12 * 1024 * 1024;
 pub(crate) const GPUI_GXSERVER_LOCAL_API_HOST: &str = "127.0.0.1";
 pub(crate) const GPUI_GXSERVER_LOCAL_API_PORT: u16 = 58_744;
 /// CDXC:ServerDaemon 2026-09-13 WHY:
@@ -380,10 +379,6 @@ pub(crate) fn gpui_local_gxserver_api_port() -> u16 {
 pub(crate) const GPUI_GXSERVER_PRODUCT: &str = "gxserver";
 pub(crate) const GPUI_GXSERVER_PROTOCOL_HEADER: &str = "x-gxserver-protocol-version";
 pub(crate) const GPUI_GXSERVER_PROTOCOL_VERSION: u64 = 1;
-// CDXC:Portless 2026-07-25: Keep the complete GPUI Portless
-// implementation available for later, while gating all current runtime and UI
-// exposure behind one intentionally disabled product switch.
-pub(crate) const GPUI_PORTLESS_APP_INTEGRATION_ENABLED: bool = false;
 pub(crate) const GPUI_SIDEBAR_GXSERVER_CLIENT_ID: &str = "ghostex-gpui-sidebar";
 pub(crate) const GPUI_REMOTE_GXSERVER_TOKEN_START_MARKER: &str = "__GHOSTEX_REMOTE_TOKEN_START__";
 pub(crate) const GPUI_REMOTE_GXSERVER_TOKEN_END_MARKER: &str = "__GHOSTEX_REMOTE_TOKEN_END__";
@@ -428,10 +423,6 @@ pub(crate) const GPUI_REMOTE_GXSERVER_PRESENTATION_HEALTH_INTERVAL: Duration =
     Duration::from_secs(15);
 pub(crate) const GPUI_REMOTE_GXSERVER_PRESENTATION_STREAM_RECONNECT_DELAY: Duration =
     Duration::from_millis(700);
-pub(crate) const GPUI_REMOTE_REPOSITORY_CLONE_POLL_INTERVAL: Duration = Duration::from_millis(700);
-pub(crate) const GPUI_REMOTE_REPOSITORY_CLONE_PREVIEW_TIMEOUT: Duration = Duration::from_secs(15);
-pub(crate) const GPUI_REMOTE_REPOSITORY_CLONE_START_TIMEOUT: Duration = Duration::from_secs(60);
-pub(crate) const GPUI_REMOTE_REPOSITORY_CLONE_JOB_TIMEOUT: Duration = Duration::from_secs(15);
 /*
  * CDXC:AddProject 2026-07-30:
  * Add-project timeouts. Registering a project right after a remote reconnect

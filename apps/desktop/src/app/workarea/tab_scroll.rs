@@ -35,13 +35,6 @@ impl GhostexGpuiApp {
         }
     }
 
-    pub(crate) fn browser_tab_scroll_handle(&self, pane_id: BrowserPaneId) -> ScrollHandle {
-        self.browser_tab_scroll_handles
-            .get(&pane_id)
-            .cloned()
-            .unwrap_or_else(ScrollHandle::new)
-    }
-
     pub(crate) fn command_tab_scroll_handle(&self, group_id: CommandPaneGroupId) -> ScrollHandle {
         self.command_tab_scroll_handles
             .get(&group_id)

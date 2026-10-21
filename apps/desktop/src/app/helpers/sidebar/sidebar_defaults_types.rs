@@ -14,25 +14,7 @@ use crate::app::helpers::*;
 #[derive(Clone, Copy)]
 pub(crate) struct GpuiDefaultSidebarAgent {
     pub(crate) agent_id: &'static str,
-    pub(crate) command: &'static str,
-    pub(crate) hidden_by_default: bool,
     pub(crate) icon: &'static str,
-    pub(crate) name: &'static str,
-}
-
-#[derive(Clone, Debug)]
-pub(crate) struct GpuiStoredSidebarAgent {
-    pub(crate) accept_all_mode: Option<String>,
-    pub(crate) agent_id: String,
-    pub(crate) command: String,
-    pub(crate) hidden: bool,
-    pub(crate) icon: Option<String>,
-    pub(crate) name: String,
-}
-
-#[derive(Clone, Copy)]
-pub(crate) struct GpuiDefaultSidebarCommand {
-    pub(crate) command_id: &'static str,
     pub(crate) name: &'static str,
 }
 
@@ -189,198 +171,129 @@ impl GpuiSidebarCommandMetadataWrite {
 pub(crate) const GPUI_DEFAULT_SIDEBAR_AGENTS: &[GpuiDefaultSidebarAgent] = &[
     GpuiDefaultSidebarAgent {
         agent_id: "codex",
-        command: "codex",
-        hidden_by_default: false,
         icon: "codex",
         name: "Codex",
     },
     GpuiDefaultSidebarAgent {
         agent_id: "claude",
-        command: "claude",
-        hidden_by_default: false,
         icon: "claude",
         name: "Claude",
     },
     GpuiDefaultSidebarAgent {
         agent_id: "cursor",
-        command: "cursor-agent",
-        hidden_by_default: false,
         icon: "cursor-cli",
         name: "Cursor CLI",
     },
     GpuiDefaultSidebarAgent {
         agent_id: "pi",
-        command: "pi",
-        hidden_by_default: false,
         icon: "pi",
         name: "Pi Agent",
     },
     GpuiDefaultSidebarAgent {
         agent_id: "opencode",
-        command: "opencode",
-        hidden_by_default: false,
         icon: "opencode",
         name: "OpenCode",
     },
     GpuiDefaultSidebarAgent {
         agent_id: "gemini",
-        command: "gemini",
-        hidden_by_default: false,
         icon: "gemini",
         name: "Gemini",
     },
     GpuiDefaultSidebarAgent {
         agent_id: "copilot",
-        command: "copilot",
-        hidden_by_default: false,
         icon: "copilot",
         name: "Copilot",
     },
     GpuiDefaultSidebarAgent {
         agent_id: "droid",
-        command: "droid",
-        hidden_by_default: false,
         icon: "factory-droid",
         name: "Factory Droid",
     },
     GpuiDefaultSidebarAgent {
         agent_id: "grok",
-        command: "grok",
-        hidden_by_default: false,
         icon: "grok-build",
         name: "Grok Build",
     },
     GpuiDefaultSidebarAgent {
         agent_id: "antigravity",
-        command: "agy",
-        hidden_by_default: false,
         icon: "antigravity-cli",
         name: "Antigravity CLI",
     },
     GpuiDefaultSidebarAgent {
         agent_id: "amp",
-        command: "amp",
-        hidden_by_default: false,
         icon: "amp-cli",
         name: "Amp CLI",
     },
     GpuiDefaultSidebarAgent {
         agent_id: "rovodev",
-        command: "acli rovodev run",
-        hidden_by_default: true,
         icon: "rovo-dev",
         name: "Rovo Dev",
     },
     GpuiDefaultSidebarAgent {
         agent_id: "hermes-agent",
-        command: "hermes",
-        hidden_by_default: true,
         icon: "hermes-agent",
         name: "Hermes Agent",
     },
     GpuiDefaultSidebarAgent {
         agent_id: "codebuddy",
-        command: "codebuddy",
-        hidden_by_default: true,
         icon: "codebuddy",
         name: "CodeBuddy",
     },
     GpuiDefaultSidebarAgent {
         agent_id: "qoder",
-        command: "qodercli",
-        hidden_by_default: true,
         icon: "qoder",
         name: "Qoder",
     },
     GpuiDefaultSidebarAgent {
         agent_id: "kiro",
-        command: "kiro-cli chat --agent ghostex",
-        hidden_by_default: true,
         icon: "kiro",
         name: "Kiro CLI",
     },
     GpuiDefaultSidebarAgent {
         agent_id: "omp",
-        command: "omp",
-        hidden_by_default: true,
         icon: "omp",
         name: "OMP",
     },
     GpuiDefaultSidebarAgent {
         agent_id: "kimi",
-        command: "kimi",
-        hidden_by_default: true,
         icon: "kimi",
         name: "Kimi Code",
     },
     GpuiDefaultSidebarAgent {
         agent_id: "openclaude",
-        command: "openclaude",
-        hidden_by_default: true,
         icon: "openclaude",
         name: "OpenClaude",
     },
     GpuiDefaultSidebarAgent {
         agent_id: "command-code",
-        command: "commandcode",
-        hidden_by_default: true,
         icon: "command-code",
         name: "Command Code",
     },
     GpuiDefaultSidebarAgent {
         agent_id: "devin",
-        command: "devin",
-        hidden_by_default: true,
         icon: "devin",
         name: "Devin",
     },
     GpuiDefaultSidebarAgent {
         agent_id: "mastra",
-        command: "mastracode",
-        hidden_by_default: false,
         icon: "mastra",
         name: "Mastra Code",
     },
     GpuiDefaultSidebarAgent {
         agent_id: "zcode",
-        command: "zcode",
-        hidden_by_default: false,
         icon: "zcode",
         name: "ZCode",
     },
     GpuiDefaultSidebarAgent {
         agent_id: "freebuff",
-        command: "freebuff",
-        hidden_by_default: false,
         icon: "freebuff",
         name: "Freebuff",
     },
     GpuiDefaultSidebarAgent {
         agent_id: "empryo",
-        command: "empryo",
         // CDXC:AgentProviders 2026-10-08 WHY: starts off like the server's list, so Empryo shows under More agents until turned on. SEE-ALSO: server/src/sidebar_hud/model.rs.
-        hidden_by_default: true,
         icon: "empryo",
         name: "Empryo",
-    },
-];
-
-pub(crate) const GPUI_DEFAULT_SIDEBAR_COMMANDS: &[GpuiDefaultSidebarCommand] = &[
-    GpuiDefaultSidebarCommand {
-        command_id: "dev",
-        name: "Dev",
-    },
-    GpuiDefaultSidebarCommand {
-        command_id: "build",
-        name: "Build",
-    },
-    GpuiDefaultSidebarCommand {
-        command_id: "test",
-        name: "Test",
-    },
-    GpuiDefaultSidebarCommand {
-        command_id: "setup",
-        name: "Setup",
     },
 ];
 

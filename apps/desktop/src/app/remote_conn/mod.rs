@@ -12,7 +12,6 @@ pub(crate) mod app_update;
 pub(crate) mod attach_request;
 pub(crate) mod attach_terminal;
 pub(crate) mod clone_job_and_preview;
-pub(crate) mod clone_lifecycle;
 pub(crate) mod dispatch_results;
 pub(crate) mod native_action;
 pub(crate) mod presentation_and_watchdog;

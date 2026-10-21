@@ -243,44 +243,6 @@ impl GhostexGpuiApp {
                     }
                 })
                 .into_any_element(),
-            CommandPaneWorkspaceLayoutPlan::Floating {
-                panel_height,
-                bottom_reservation,
-            } => v_flex()
-                .id("ghostex-gpui-workspace-with-command-floating")
-                .flex_1()
-                .min_w_0()
-                .min_h_0()
-                .overflow_hidden()
-                .child(
-                    div()
-                        .relative()
-                        .flex_1()
-                        .min_w_0()
-                        .min_h_0()
-                        .overflow_hidden()
-                        .child(self.render_main_workspace(window, cx))
-                        .child(self.render_command_pane_panel(
-                            GpuiCommandPaneSide::Bottom,
-                            panel_height,
-                            true,
-                            command_pane_panel_chrome_width(workspace_width, true),
-                            cx,
-                        ))
-                        .child(self.render_command_pane_resize_divider(
-                            Some((
-                                COMMAND_PANE_FLOATING_MARGIN + panel_height,
-                                COMMAND_PANE_FLOATING_MARGIN,
-                            )),
-                            cx,
-                        )),
-                )
-                .child(self.render_command_pane_bottom_reservation(
-                    bottom_reservation,
-                    workspace_width,
-                    cx,
-                ))
-                .into_any_element(),
             CommandPaneWorkspaceLayoutPlan::Collapsed { bottom_reservation } => v_flex()
                 .id("ghostex-gpui-workspace-with-command-collapsed")
                 .flex_1()

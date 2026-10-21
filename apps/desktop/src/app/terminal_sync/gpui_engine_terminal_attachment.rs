@@ -479,31 +479,6 @@ impl GhostexGpuiApp {
             cx.notify();
             return true;
         }
-        #[cfg(target_os = "macos")]
-        {
-            let inserted = if let Some(pane_id) = pane_id {
-                let slot_id = AgentsTerminalBodyMountSlotId {
-                    pane_id,
-                    session_id: shell_session_id,
-                };
-                if reveal {
-                    self.agents_terminal_ghostty_surface_matches(slot_id)
-                        && self
-                            .send_text_bytes_to_focused_agents_terminal_surface(prompt.as_bytes())
-                } else {
-                    self.send_text_bytes_to_mounted_agents_terminal_surface(
-                        slot_id,
-                        prompt.as_bytes(),
-                    )
-                }
-            } else {
-                false
-            };
-            if inserted {
-                cx.notify();
-                return true;
-            }
-        }
         false
     }
 
@@ -563,19 +538,6 @@ impl GhostexGpuiApp {
             view.update(cx, |view, cx| view.paste_text(content, cx));
             cx.notify();
             return true;
-        }
-        #[cfg(target_os = "macos")]
-        if let Some(pane_id) = pane_id {
-            let slot_id = AgentsTerminalBodyMountSlotId {
-                pane_id,
-                session_id: shell_session_id,
-            };
-            if self.agents_terminal_ghostty_surface_matches(slot_id)
-                && self.send_text_bytes_to_focused_agents_terminal_surface(content.as_bytes())
-            {
-                cx.notify();
-                return true;
-            }
         }
         false
     }
@@ -730,13 +692,5 @@ impl GhostexGpuiApp {
             .values()
             .chain(self.command_gpui_engine_terminals.values())
             .find(|record| record.runtime_session_id == runtime_session_id)
-    }
-
-    pub(crate) fn agents_terminal_native_views_may_be_visible(&self) -> bool {
-        /*
-        CDXC:Workarea 2026-07-03:
-        Workspace/Agents tab drags treat mounted Agents terminals like a mode switch away from Agents: Running host reconciliation, parked-owner reattach, and ready-startup handoff promotion all wait until the drag ends. This hides the native Ghostty child views for the whole drag so the GPUI drag ghost and pane-body drop-edge bands stay visible, while parked owners keep every runtime surface alive for hide/show-only restore on drop or cancel. Startup candidates, launch plans, and hidden startup hosts intentionally keep running during a drag; only promotion to a visible Running host is deferred.
-        */
-        self.agents_workspace_visible() && !self.workspace_tab_drag_active
     }
 }

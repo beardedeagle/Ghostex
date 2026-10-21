@@ -224,7 +224,6 @@ pub(crate) fn rollback_command_to_workspace_insert(
 
 pub(crate) struct CommandPaneTransferRollbackSnapshot {
     pub(crate) mode: CommandPaneMode,
-    pub(crate) last_expanded_mode: CommandPaneMode,
     pub(crate) focused_group: CommandPaneGroupId,
     pub(crate) focus_mode_group: Option<CommandPaneGroupId>,
     pub(crate) active_sessions: Vec<(CommandPaneGroupId, CommandSessionId)>,
@@ -235,7 +234,6 @@ pub(crate) fn command_pane_transfer_rollback_snapshot(
 ) -> CommandPaneTransferRollbackSnapshot {
     CommandPaneTransferRollbackSnapshot {
         mode: command_pane.mode,
-        last_expanded_mode: command_pane.last_expanded_mode,
         focused_group: command_pane.focused_group,
         focus_mode_group: command_pane.focus_mode_group,
         active_sessions: command_pane
@@ -278,7 +276,6 @@ pub(crate) fn rollback_workspace_to_command_insert(
         command_pane.focused_group = snapshot.focused_group;
     }
     command_pane.mode = snapshot.mode;
-    command_pane.last_expanded_mode = snapshot.last_expanded_mode;
     command_pane.focus_mode_group = snapshot.focus_mode_group;
     command_pane.clear_focus_mode_if_invalid();
 }

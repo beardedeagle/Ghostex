@@ -26,15 +26,12 @@ impl GhostexGpuiApp {
             "updateSettings"
             | "updateSettingsPatch"
             | "openExternalUrl"
-            | "listAppIcons"
             | "setAppIcon"
-            | "pickAppIconFile"
             | "pickTerminalBackgroundImageFile"
             | "pickWindowGlassImageFile"
             | "pickWindowGlassVideoFile"
             | "pickFirstLaunchProjectFolder"
             | "firstLaunchCreateProjectSession"
-            | "revealAppIconsFolder"
             | "openGhosttySettingsDocs"
             | "openAccessibilityPreferences"
             | "openScreenRecordingPreferences"
@@ -47,9 +44,6 @@ impl GhostexGpuiApp {
             | "openGhosttyConfigFile"
             | "openGhostexTerminalConfigFile"
             | "importGhosttyConfig"
-            | "runPortlessSettingsAdminAction"
-            | "runPortlessSetupPromptAdminAction"
-            | "setPortlessEnabled"
             | "saveSidebarAgent"
             | "deleteSidebarAgent"
             | "syncSidebarAgentOrder"
@@ -273,9 +267,6 @@ impl GhostexGpuiApp {
                         .detach();
                     }
                 }
-            }
-            "postponePortlessSetupPrompt" | "cancelPortlessSetupPrompt" => {
-                self.handle_gpui_app_modal_settings_command(command_type, command, cx);
             }
             command_type if gpui_app_modal_unsupported_settings_command_noop(command_type) => {}
             command_type if self.gx_store_run_app_modal_create_command(command_type, cx) => {}

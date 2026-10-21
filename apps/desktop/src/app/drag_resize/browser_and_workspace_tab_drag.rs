@@ -47,82 +47,6 @@ impl GhostexGpuiApp {
         cx.notify();
     }
 
-    pub(crate) fn set_browser_tab_hovered(
-        &mut self,
-        tab: BrowserHoverTab,
-        hovered: bool,
-        cx: &mut gpui::Context<Self>,
-    ) {
-        /*
-        CDXC:Browser 2026-07-08:
-        Browser tab close controls are hover-only chrome derived from runtime pointer state. Track the hovered Browser tab separately from BrowserTabModel so hover can reveal the real inline close button without changing tab selection, focus, persistence, drag/drop, or favicon status rendering.
-        */
-        if hovered {
-            if self.hovered_browser_tab != Some(tab) {
-                self.hovered_browser_tab = Some(tab);
-                cx.notify();
-            }
-            return;
-        }
-
-        if self.hovered_browser_tab == Some(tab) {
-            self.hovered_browser_tab = None;
-            cx.notify();
-        }
-    }
-
-    pub(crate) fn update_browser_tab_drag_feedback(
-        &mut self,
-        event: &gpui::DragMoveEvent<DraggedBrowserTab>,
-        pane_id: BrowserPaneId,
-        tab_index: usize,
-        cx: &mut gpui::Context<Self>,
-    ) {
-        self.begin_browser_tab_drag(cx);
-
-        let insertion_index =
-            workspace_tab_insertion_index(event.bounds, event.event.position, tab_index);
-        let feedback = BrowserDropFeedback {
-            pane_id,
-            target: BrowserTabDropTarget::TabStrip(insertion_index),
-        };
-
-        if event.drag(cx).source_pane_id != pane_id || !event.bounds.contains(&event.event.position)
-        {
-            if self.browser_tab_drop_feedback == Some(feedback) {
-                self.clear_browser_drop_feedback(cx);
-            }
-            return;
-        }
-
-        self.set_browser_tab_drop_feedback(Some(feedback), cx);
-    }
-
-    pub(crate) fn update_browser_tab_end_drag_feedback(
-        &mut self,
-        event: &gpui::DragMoveEvent<DraggedBrowserTab>,
-        pane_id: BrowserPaneId,
-        insertion_index: usize,
-        cx: &mut gpui::Context<Self>,
-    ) {
-        self.begin_browser_tab_drag(cx);
-
-        let feedback = BrowserDropFeedback {
-            pane_id,
-            target: BrowserTabDropTarget::TabStrip(insertion_index),
-        };
-
-        if event.drag(cx).source_pane_id != pane_id || !event.bounds.contains(&event.event.position)
-        {
-            if self.browser_tab_drop_feedback == Some(feedback) {
-                self.clear_browser_drop_feedback(cx);
-            }
-            return;
-        }
-
-        self.set_browser_tab_drop_feedback(Some(feedback), cx);
-    }
-
     pub(crate) fn update_browser_pane_drag_feedback(
         &mut self,
         event: &gpui::DragMoveEvent<DraggedBrowserTab>,
@@ -161,42 +85,6 @@ impl GhostexGpuiApp {
             }),
             cx,
         );
-    }
-
-    pub(crate) fn handle_browser_tab_strip_drop(
-        &mut self,
-        pane_id: BrowserPaneId,
-        default_insertion_index: usize,
-        dragged: &DraggedBrowserTab,
-        window: &mut Window,
-        cx: &mut gpui::Context<Self>,
-    ) {
-        window.prevent_default();
-        cx.stop_propagation();
-
-        let insertion_index = match self.browser_tab_drop_feedback {
-            Some(BrowserDropFeedback {
-                pane_id: feedback_pane_id,
-                target: BrowserTabDropTarget::TabStrip(insertion_index),
-            }) if feedback_pane_id == pane_id => insertion_index,
-            _ => default_insertion_index,
-        };
-        self.browser_tab_drag_active = false;
-        self.browser_tab_drop_feedback = None;
-
-        if dragged.source_pane_id == pane_id
-            && self
-                .browser_tabs
-                .reorder_tab_within_pane(pane_id, dragged.tab_id, insertion_index)
-        {
-            self.mark_project_editor_mode_awake(TitlebarMode::Browser, cx);
-            self.focus_shell_target(ShellFocusTarget::BrowserPane(pane_id), cx);
-            self.sync_active_browser_tab_to_surface(window, cx);
-            self.scroll_browser_pane_active_tab(pane_id);
-            self.persist_shell_layout_state();
-        }
-        self.update_active_mode_cef_child_visibility(cx);
-        cx.notify();
     }
 
     pub(crate) fn handle_browser_pane_body_drop(

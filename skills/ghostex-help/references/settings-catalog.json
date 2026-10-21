@@ -3605,34 +3605,6 @@
       "agentWritable": false
     },
     {
-      "key": "petOverlayEnabled",
-      "title": "Pet overlay",
-      "subtitle": "Show the draggable animated pet in the sidebar (also Wake Pet / Sleep Pet in Quick Access).",
-      "tab": "settings",
-      "tabTitle": "General",
-      "group": "statusIndicators",
-      "groupTitle": "Status Indicators",
-      "section": "statusIndicators",
-      "sectionTitle": "Status Indicators",
-      "type": "boolean",
-      "default": false,
-      "agentWritable": true
-    },
-    {
-      "key": "selectedPetId",
-      "title": "Pet",
-      "subtitle": "Which pet sprite the overlay shows.",
-      "tab": "settings",
-      "tabTitle": "General",
-      "group": "statusIndicators",
-      "groupTitle": "Status Indicators",
-      "section": "statusIndicators",
-      "sectionTitle": "Status Indicators",
-      "type": "string",
-      "default": "boo",
-      "agentWritable": true
-    },
-    {
       "key": "sidebarTheme",
       "title": "Appearance",
       "subtitle": "Follow the system appearance by default, or choose Light or Dark.",
@@ -10777,40 +10749,6 @@
       "sectionTitle": "Project settings",
       "type": "ui",
       "agentWritable": false
-    },
-    {
-      "key": "portlessEnabled",
-      "title": "Portless",
-      "subtitle": "Route project dev servers through named local addresses instead of raw ports.",
-      "tab": "projects",
-      "tabTitle": "Projects",
-      "section": "portless",
-      "sectionTitle": "Portless",
-      "type": "boolean",
-      "default": false,
-      "agentWritable": true
-    },
-    {
-      "key": "portlessProtocol",
-      "title": "Portless protocol",
-      "subtitle": "Protocol Portless addresses use.",
-      "tab": "projects",
-      "tabTitle": "Projects",
-      "section": "portless",
-      "sectionTitle": "Portless",
-      "type": "enum",
-      "default": "https",
-      "options": [
-        {
-          "label": "HTTPS",
-          "value": "https"
-        },
-        {
-          "label": "HTTP",
-          "value": "http"
-        }
-      ],
-      "agentWritable": true
     },
     {
       "key": "easyConnectEnabled",

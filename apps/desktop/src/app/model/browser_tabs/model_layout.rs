@@ -84,33 +84,6 @@ impl BrowserTabModel {
         true
     }
 
-    pub(crate) fn reorder_tab_within_pane(
-        &mut self,
-        pane_id: BrowserPaneId,
-        tab_id: BrowserTabId,
-        insertion_index: usize,
-    ) -> bool {
-        /*
-        CDXC:Browser 2026-06-22-07:41:
-        Browser tab-strip drops are same-strip reorder only for this slice. Reorder the existing BrowserTab records in place, preserve the active BrowserTabId, and leave runtime titles, current URLs, address-only state, and the tab-owned CEF surface map untouched so dragging a tab never reloads or recreates a page surface.
-
-        CDXC:Browser 2026-06-22-09:02:
-        Same-strip Browser reorders are scoped to the dragged tab's source Browser pane. The metadata registry and CEF map stay keyed by BrowserTabId, while only that pane's tab-id order changes and persists through sanitized shell state.
-        */
-        let Some(leaf) = self.find_leaf_mut(pane_id) else {
-            return false;
-        };
-        let active_tab = leaf.tab_group.active_tab;
-        let Some(tab) = leaf.tab_group.remove_tab(tab_id) else {
-            return false;
-        };
-        leaf.tab_group.insert_tab_at(tab, insertion_index);
-        leaf.tab_group.active_tab = active_tab;
-        self.focused_pane = pane_id;
-        self.active_tab = active_tab;
-        true
-    }
-
     pub(crate) fn group_tab_into_pane(
         &mut self,
         source_pane_id: BrowserPaneId,

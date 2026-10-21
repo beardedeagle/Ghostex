@@ -320,7 +320,7 @@ impl GhostexGpuiApp {
             initial_input: None,
             wait_after_command: false,
         };
-        if payload.to_ghostty_launch_payload().is_err() {
+        if payload.validate_launch_strings().is_err() {
             self.dispatch_gpui_app_modal_toast(
                 "warning",
                 "Remote attach unavailable",

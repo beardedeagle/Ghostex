@@ -61,7 +61,7 @@ pub(crate) fn gxserver_post_typed_operation_across_restart(
     Startup/open-time agent-policy hydration also uses this helper for `/api/readAgentSettings` so GPUI does not invent a second daemon client or bypass the same token, localhost, timeout, protocol-header, and response-sanitization boundary.
 
     CDXC:StatusPet 2026-06-24-11:40:
-    Settings status/action parity reuses this helper for hook status/install/uninstall and Portless state updates. Keep the helper transport-only: callers own endpoint allowlists, result validation, explicit UI error messages, and no persistent logging.
+    Settings status/action parity reuses this helper for hook status/install/uninstall. Keep the helper transport-only: callers own endpoint allowlists, result validation, explicit UI error messages, and no persistent logging.
     */
     if !path.starts_with("/api/") {
         return Err("Invalid gxserver API path.".to_string());
@@ -127,7 +127,7 @@ pub(crate) fn gxserver_get_typed_operation(
 ) -> Result<(u16, String), String> {
     /*
     CDXC:StatusPet 2026-06-24-11:40:
-    GPUI Settings reads gxserver health through the same localhost/token/protocol boundary as typed POST operations. Health reads must stay GET-only, short-timeout, response-unlogged, and limited to `/api/` paths so Portless HUD hydration does not introduce a second daemon client.
+    GPUI Settings reads gxserver health through the same localhost/token/protocol boundary as typed POST operations. Health reads must stay GET-only, short-timeout, response-unlogged, and limited to `/api/` paths so Settings health hydration does not introduce a second daemon client.
     */
     if !path.starts_with("/api/") {
         return Err("Invalid gxserver API path.".to_string());

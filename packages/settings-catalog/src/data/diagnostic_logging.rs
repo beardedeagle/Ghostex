@@ -61,7 +61,7 @@ pub const DIAGNOSTIC_LOGGING_SCENARIOS: J = J::Arr(&[
         ("label", J::Str("App and server lifecycle")),
     ]),
     J::Obj(&[
-        ("description", J::Str("gxserver API requests, typed operations, repository cloning, and Portless.")),
+        ("description", J::Str("gxserver API requests, typed operations, and repository cloning.")),
         ("id", J::Str("gxserver.requests")),
         ("label", J::Str("Server requests")),
     ]),

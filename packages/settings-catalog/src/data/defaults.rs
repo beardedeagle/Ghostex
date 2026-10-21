@@ -468,8 +468,6 @@ pub const DEFAULT_GHOSTEX_SETTINGS: &[(&str, J)] = &[
     // User: a banked reset that expires within 3 days, and again within 24 hours, also gets a system notification, which "can be switched off for the system" while the red bell row stays.
     ("resetExpirySystemNotifications", J::Bool(true)),
     ("hideMenuBarSessionStatusIndicators", J::Bool(false)),
-    ("petOverlayEnabled", J::Bool(false)),
-    ("selectedPetId", J::Str("boo")),
     // CDXC:Workarea 2026-05-23-00:50:
     // The session-id pane overlay preference is configurable, and the
     // native label itself must still render only for terminal panes that carry
@@ -660,12 +658,6 @@ pub const DEFAULT_GHOSTEX_SETTINGS: &[(&str, J)] = &[
     // Where a detected URL opens is no longer a Dev Servers choice; it follows webLinkOpenTarget with every other web link.
     ("terminalDevServerDetectionEnabled", J::Bool(true)),
     ("terminalDevServerIgnoredPortRules", J::Arr(&[])),
-    // CDXC:Portless 2026-07-25:
-    // Keep the Portless settings contract available for a later return, but new
-    // and legacy settings snapshots must not opt into an app integration that is
-    // currently hidden and disabled.
-    ("portlessEnabled", J::Bool(false)),
-    ("portlessProtocol", J::Str("https")),
     // CDXC:PromptEditor 2026-05-13-15:58
     // Ctrl+G rich prompt editing originally defaulted to the floating Monaco editor.
     //

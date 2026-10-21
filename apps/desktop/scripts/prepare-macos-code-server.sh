@@ -448,7 +448,7 @@ package_code_server_if_needed() {
 
 stage_shared_code_server_node_runtime() {
 	local target_node="$WEB_DIR/code-server/lib/node"
-	# CDXC:Build 2026-06-22-23:23: Optional Source panes must not remove the shared app-owned Node runtime. Native sidebar helpers and Portless still resolve Web/code-server/lib/node, so contributor builds without the code-server submodule stage only that executable and leave Source-specific files absent.
+	# CDXC:Build 2026-06-22-23:23: Optional Source panes must not remove the shared app-owned Node runtime. Native sidebar helpers still resolve Web/code-server/lib/node, so contributor builds without the code-server submodule stage only that executable and leave Source-specific files absent.
 	if [[ "$APP_CAPABILITY_SOURCE_EDITOR" != "true" ]]; then
 		rm -rf "$WEB_DIR/code-server"
 	fi

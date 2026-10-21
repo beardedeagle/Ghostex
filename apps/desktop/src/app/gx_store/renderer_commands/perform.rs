@@ -8,7 +8,7 @@
 //! Action runner, and `open` is the operating system's open-file request.
 //!
 //! SEE-ALSO: packages/gx-core/src/renderer_commands/ (validation and target resolution),
-//! apps/desktop/src/app/status_pet.rs (`dispatch_gpui_status_pet_activation`,
+//! apps/desktop/src/app/status_activation.rs (`dispatch_gpui_status_activation`,
 //! `dispatch_gpui_menu_bar_project_activation`; F3 moves both off the runtime).
 
 use std::path::PathBuf;
@@ -65,7 +65,7 @@ impl GhostexGpuiApp {
                         "shown": false,
                     }));
                 }
-                if !self.dispatch_gpui_status_pet_activation(&session.sidebar_session_id, cx) {
+                if !self.dispatch_gpui_status_activation(&session.sidebar_session_id, cx) {
                     return Err(RendererCommandError::BridgeUnavailable);
                 }
                 // A session in another Space, or hidden by a filter or a closed group, has no
@@ -86,7 +86,7 @@ impl GhostexGpuiApp {
             } => {
                 // Surfacing the session first is what the old runtime did before it posted the
                 // rename; the Rust delivery then focuses and waits for the terminal to mount.
-                if !self.dispatch_gpui_status_pet_activation(&session.sidebar_session_id, cx) {
+                if !self.dispatch_gpui_status_activation(&session.sidebar_session_id, cx) {
                     return Err(RendererCommandError::BridgeUnavailable);
                 }
                 let payload = json!({

@@ -77,10 +77,6 @@ mod permission_guide_demo;
 mod permission_guide_tag;
 #[path = "../app/window/popup_dismissal.rs"]
 mod popup_dismissal;
-#[path = "native_modal_demo/portless_setup.rs"]
-mod portless_setup_demo;
-#[path = "../app/window/portless_setup_modal.rs"]
-mod portless_setup_modal;
 #[path = "native_modal_demo/remote_gxserver_install.rs"]
 mod remote_gxserver_install_demo;
 #[path = "../app/window/remote_gxserver_install_modal.rs"]
@@ -356,7 +352,6 @@ fn main() {
                 "settings" => settings_demo::open(&demo, cx),
                 "create-worktree" => create_worktree_demo::open(&demo, cx),
                 "remote-gxserver-install" => remote_gxserver_install_demo::open(&demo, cx),
-                "portless-setup" => portless_setup_demo::open(&demo, cx),
                 "delete-worktree" => delete_worktree_demo::open(&demo, cx),
                 "rename-worktree" => rename_worktree_demo::open(&demo, cx),
                 "missing-project-folder" => missing_project_folder_demo::open(&demo, cx),

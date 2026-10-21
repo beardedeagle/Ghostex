@@ -122,11 +122,6 @@ impl QuickAccessData {
             .flat_map(|group| group.sessions.iter())
             .find(|session| session.session_id == session_id)
     }
-
-    /// `hud.settings.petOverlayEnabled === true`.
-    pub(crate) fn pet_overlay_enabled(&self) -> bool {
-        self.settings()["petOverlayEnabled"] == Value::Bool(true)
-    }
 }
 
 /// A local draft the Recovered view lists (`RecoveredSessionChatDraft`).

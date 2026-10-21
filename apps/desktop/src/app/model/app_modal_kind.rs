@@ -44,7 +44,6 @@ pub(crate) enum GpuiAppModalKind {
     MarkdownTable,
     /// An agent's published HTML page, floating over the chat (visual_page_modal_lifecycle.rs).
     VisualPage,
-    PortlessSetup,
     Extension(ExtensionId),
     UpdateAvailable,
     /// Name, agent, goal and first request of a new coordinator (new_coordinator_modal_lifecycle.rs).
@@ -100,7 +99,6 @@ impl GpuiAppModalKind {
             "mermaidDiagram" => Some(Self::MermaidDiagram),
             "markdownTable" => Some(Self::MarkdownTable),
             "visualPage" => Some(Self::VisualPage),
-            "portlessSetup" => Some(Self::PortlessSetup),
             value if value.starts_with("extension:") => {
                 ExtensionId::new(value.trim_start_matches("extension:")).map(Self::Extension)
             }
@@ -150,7 +148,6 @@ impl GpuiAppModalKind {
             Self::MermaidDiagram => "mermaidDiagram",
             Self::MarkdownTable => "markdownTable",
             Self::VisualPage => "visualPage",
-            Self::PortlessSetup => "portlessSetup",
             Self::Extension(id) => extension_modal_id(id),
             Self::UpdateAvailable => "updateAvailable",
             Self::NewCoordinator => "newCoordinator",
@@ -195,7 +192,6 @@ impl GpuiAppModalKind {
             Self::GitCommit => "Ghostex Commit Changes",
             Self::GitFileDiff => "Ghostex File Diff",
             Self::MermaidDiagram | Self::MarkdownTable | Self::VisualPage => "",
-            Self::PortlessSetup => "Ghostex Portless Setup",
             Self::Extension(_) => "Ghostex Extension",
             Self::UpdateAvailable => "Ghostex Update",
             Self::NewCoordinator => "Ghostex New Orchestrator",
@@ -356,10 +352,6 @@ impl GpuiAppModalKind {
                 px(APP_MODAL_HOST_SIDEBAR_SPACE_EDITOR_WINDOW_WIDTH),
                 px(APP_MODAL_HOST_SIDEBAR_SPACE_EDITOR_WINDOW_HEIGHT),
             ),
-            Self::PortlessSetup => size(
-                px(APP_MODAL_HOST_PORTLESS_SETUP_WINDOW_WIDTH),
-                px(APP_MODAL_HOST_PORTLESS_SETUP_WINDOW_HEIGHT),
-            ),
             Self::UpdateAvailable => size(
                 px(APP_MODAL_HOST_UPDATE_AVAILABLE_WINDOW_WIDTH),
                 px(APP_MODAL_HOST_UPDATE_AVAILABLE_WINDOW_HEIGHT),
@@ -477,7 +469,6 @@ impl GpuiAppModalKind {
                 | Self::RenameWorktree
                 | Self::GitCommit
                 | Self::GitFileDiff
-                | Self::PortlessSetup
         )
     }
 
@@ -556,7 +547,6 @@ impl GpuiAppModalKind {
             | Self::SidebarSpaceEditor
             | Self::GitCommit
             | Self::GitFileDiff
-            | Self::PortlessSetup
             | Self::ExportTranscriptResult
             | Self::MissingProjectFolder => serde_json::json!({
                 "modal": self.modal_id(),

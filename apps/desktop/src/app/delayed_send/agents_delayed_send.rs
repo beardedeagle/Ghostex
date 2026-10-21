@@ -23,9 +23,11 @@ impl GhostexGpuiApp {
             open_message["agentIcon"] = serde_json::json!(agent_icon);
         }
         open_message["supportsSendWhenAgentStops"] = serde_json::json!(true);
-        open_message["supportsCloseAfterDone"] = serde_json::json!(!self
-            .agents_sidebar_session_for_terminal(session_id)
-            .is_some_and(|session| session.is_orchestrator));
+        open_message["supportsCloseAfterDone"] = serde_json::json!(
+            !self
+                .agents_sidebar_session_for_terminal(session_id)
+                .is_some_and(|session| session.is_orchestrator)
+        );
         /*
         CDXC:DelayedSend 2026-09-21 WHY:
         The open message names the session by its shell id (`GW…`), which never matches the sidebar-state `sessionsById` keys the dialog would otherwise read, so an armed Close After Done opened as switched off and could not be turned off from the dialog. State it here from the same armed map the chat indicator draws from.
@@ -372,89 +374,6 @@ impl GhostexGpuiApp {
         restored
     }
 
-    #[allow(dead_code)] // no caller: Agents delayed send is scheduled through the command-pane delayed-send path
-    pub(crate) fn schedule_gpui_agents_delayed_send(
-        &mut self,
-        session_id: TerminalSessionId,
-        duration: Duration,
-        cx: &mut gpui::Context<Self>,
-    ) -> bool {
-        /*
-        CDXC:DelayedSend 2026-07-21:
-        Agents Delayed Send is a terminal-engine-neutral action. The old arm
-        gate looked only in the native Ghostty surface map, so every terminal
-        owned by the GPUI engine was rejected even though the fire path already
-        knew how to press Return in that engine. Resolve the exact live owner
-        shared by foreground and background terminals before arming; never
-        substitute the focused terminal or another session.
-        */
-        if self
-            .gpui_agents_delayed_send_mount_target(session_id)
-            .is_none()
-        {
-            return false;
-        }
-        self.agents_send_when_stopped_watchers.remove(&session_id);
-        self.agents_delayed_send_generation = self.agents_delayed_send_generation.wrapping_add(1);
-        let generation = self.agents_delayed_send_generation;
-        let deadline_at = SystemTime::now()
-            .checked_add(duration)
-            .unwrap_or_else(SystemTime::now);
-        self.agents_delayed_send_timers.insert(
-            session_id,
-            GpuiCommandDelayedSendTimer {
-                deadline_at,
-                generation,
-            },
-        );
-        self.spawn_gpui_agents_delayed_send_fire(session_id, generation, duration, cx);
-        self.ensure_gpui_agents_delayed_send_countdown_ticker(cx);
-        self.ensure_gpui_agents_delayed_send_persistence_ticker(cx);
-        self.sync_gpui_keep_awake_automation_from_current_settings(cx);
-        self.refresh_sidebar_agents_delayed_sends_if_changed(cx);
-        self.persist_shell_layout_state();
-        cx.notify();
-        true
-    }
-
-    #[allow(dead_code)] // no caller: Agents delayed send is scheduled through the command-pane delayed-send path
-    pub(crate) fn schedule_gpui_agents_send_when_stopped(
-        &mut self,
-        session_id: TerminalSessionId,
-        scope: GpuiAgentsSendWhenStoppedScope,
-        cx: &mut gpui::Context<Self>,
-    ) -> bool {
-        if self
-            .gpui_agents_delayed_send_mount_target(session_id)
-            .is_none()
-        {
-            return false;
-        }
-        let Some(is_working) =
-            self.gpui_agents_send_when_stopped_scope_is_working(session_id, &scope)
-        else {
-            return false;
-        };
-        self.agents_delayed_send_generation = self.agents_delayed_send_generation.wrapping_add(1);
-        let generation = self.agents_delayed_send_generation;
-        self.agents_delayed_send_timers.remove(&session_id);
-        self.agents_send_when_stopped_watchers.insert(
-            session_id,
-            GpuiAgentsSendWhenStoppedWatcher {
-                generation,
-                non_working_since: (!is_working).then(Instant::now),
-                scope,
-            },
-        );
-        self.spawn_gpui_agents_send_when_stopped_poll(session_id, generation, cx);
-        self.ensure_gpui_agents_delayed_send_persistence_ticker(cx);
-        self.sync_gpui_keep_awake_automation_from_current_settings(cx);
-        self.refresh_sidebar_agents_delayed_sends_if_changed(cx);
-        self.persist_shell_layout_state();
-        cx.notify();
-        true
-    }
-
     pub(crate) fn spawn_gpui_agents_delayed_send_fire(
         &self,
         session_id: TerminalSessionId,
@@ -756,30 +675,6 @@ impl GhostexGpuiApp {
             });
         }
 
-        #[cfg(target_os = "macos")]
-        if let Some(pane_id) = self.agents_workspace.pane_id_for_session(session_id) {
-            let slot_id = AgentsTerminalBodyMountSlotId {
-                pane_id,
-                session_id,
-            };
-            if self.agents_terminal_ghostty_surface_matches(slot_id) {
-                return Some(GpuiAgentsDelayedSendTarget::AgentsNative(slot_id));
-            }
-        }
-
-        #[cfg(target_os = "macos")]
-        if self
-            .agents_terminal_parked_runtime_owners
-            .get(&runtime_session_id)
-            .is_some_and(|owner| {
-                owner.matches_identity(runtime_session_id, session_id, owner.mount_slot_id)
-            })
-        {
-            return Some(GpuiAgentsDelayedSendTarget::AgentsParkedNative(
-                runtime_session_id,
-            ));
-        }
-
         None
     }
 
@@ -802,13 +697,6 @@ impl GhostexGpuiApp {
                 let view = record.view.clone();
                 view.update(cx, |view, cx| view.send_return_key(cx));
                 true
-            }
-            GpuiAgentsDelayedSendTarget::AgentsNative(slot_id) => {
-                self.send_return_key_to_mounted_agents_terminal_surface(slot_id, cx)
-            }
-            #[cfg(target_os = "macos")]
-            GpuiAgentsDelayedSendTarget::AgentsParkedNative(runtime_session_id) => {
-                self.send_return_key_to_parked_agents_terminal_surface(runtime_session_id)
             }
         }
     }

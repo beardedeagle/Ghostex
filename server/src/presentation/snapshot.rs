@@ -48,7 +48,6 @@ pub fn read_presentation_snapshot(
     insert_session_agent_note_presentation_payload(&mut snapshot, db);
     insert_stashed_prompt_counts_presentation_payload(&mut snapshot, db);
     insert_auto_settle_window_presentation_payload(&mut snapshot, auto_settle_after_days);
-    insert_portless_presentation_payload(&mut snapshot, db);
     insert_workspace_groups_presentation_payload(&mut snapshot, db)?;
     insert_sidebar_project_collections_presentation_payload(&mut snapshot, db)?;
     insert_sidebar_spaces_presentation_payload(&mut snapshot, db)?;

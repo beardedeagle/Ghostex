@@ -243,69 +243,6 @@ node_pty_prebuilds_match_arch() {
 
 source "$SCRIPT_DIR/prepare-macos-code-server.sh"
 
-portless_staged_cli_smoke_check() {
-	local target_dir="$1"
-	env NO_COLOR=1 PATH="$CODE_SERVER_NODE_DIR:$PATH" "$CODE_SERVER_NODE_BIN" "$target_dir/dist/cli.js" --help >/dev/null
-}
-
-package_portless_if_needed() {
-	local source_dir="$REPO_ROOT/node_modules/portless"
-	local source_cli="$source_dir/dist/cli.js"
-	local target_dir="$WEB_DIR/portless"
-	local package_digest package_version node_identity source_file
-	local -a fingerprint_args
-
-	if [[ ! -d "$source_dir" ]]; then
-		echo "Portless package is missing at $source_dir." >&2
-		echo "Run bun install before packaging Ghostex so node_modules/portless contains the pinned portless@0.14.0 package." >&2
-		exit 1
-	fi
-	if [[ ! -f "$source_cli" ]]; then
-		echo "Portless CLI is missing: $source_cli" >&2
-		echo "Run bun install or rebuild the installed portless@0.14.0 package before packaging Ghostex; dist/cli.js is required." >&2
-		exit 1
-	fi
-
-	package_version="$("$CODE_SERVER_NODE_BIN" -e "const fs=require('fs'); const pkg=JSON.parse(fs.readFileSync(process.argv[1], 'utf8')); process.stdout.write(String(pkg.version || ''));" "$source_dir/package.json")"
-	if [[ "$package_version" != "0.14.0" ]]; then
-		echo "Ghostex packaging expected portless@0.14.0 in node_modules/portless, found version $package_version." >&2
-		echo "Run bun install with the root lockfile before packaging Ghostex." >&2
-		exit 1
-	fi
-
-	node_identity="$("$CODE_SERVER_NODE_BIN" -p 'process.version + ":" + process.versions.modules')"
-	fingerprint_args=(
-		--value "portless-package-v1"
-		--value "arch=$GHOSTEX_MACOS_ARCH"
-		--value "node=$node_identity"
-		--value "version=$package_version"
-		--path "$SCRIPT_DIR/prepare-macos-runtime.sh"
-		--path "$REPO_ROOT/package.json"
-		--path "$REPO_ROOT/bun.lock"
-	)
-	while IFS= read -r source_file; do
-		fingerprint_args+=(--path "$source_file")
-	done < <(find "$source_dir" -type f -print | LC_ALL=C sort)
-	package_digest="$(fingerprint_inputs "${fingerprint_args[@]}")"
-
-	# CDXC:Portless 2026-06-22-22:26: Ghostex packages the published portless@0.14.0 CLI as Web/portless and runs it with the shared Web/code-server/lib/node runtime. Do not stage a second Node runtime; fail packaging if the installed package does not contain dist/cli.js.
-	if cache_matches "portless-package-$GHOSTEX_MACOS_ARCH" "$package_digest" "$target_dir/package.json" "$target_dir/dist/cli.js" &&
-		portless_staged_cli_smoke_check "$target_dir" >/dev/null 2>&1; then
-		echo "Portless package is current; skipping package rebuild."
-		return 0
-	fi
-
-	rm -rf "$target_dir"
-	mkdir -p "$target_dir"
-	rsync -a --delete "$source_dir/" "$target_dir/"
-	chmod 755 "$target_dir/dist/cli.js"
-	if ! portless_staged_cli_smoke_check "$target_dir"; then
-		echo "Staged Portless CLI failed to run with code-server Node: $CODE_SERVER_NODE_BIN" >&2
-		exit 1
-	fi
-	write_cache_stamp "portless-package-$GHOSTEX_MACOS_ARCH" "$package_digest"
-}
-
 # The macOS 26/27 SDK gates INFINITY/NAN behind clang's __need_infinity_nan protocol, which
 # Zig's bundled clang does not implement, so linking any exe with C++ objects (ghostty-vt pulls
 # in simdutf/highway) fails inside libc++'s clamp_to_integral.h. This is NOT a Zig 0.15 quirk:
@@ -827,7 +764,7 @@ stage_remote_gxserver_linux_package_if_configured() {
 		printf '%s\n' "$validation_output" >&2
 		exit 1
 	fi
-	# CDXC:RemoteMachines 2026-06-23-09:46: macOS app bundles may stage Linux remote gxserver packages only from explicit prebuilt directories. Validate required gxserver/zmx/Node/Portless/CLI resources and require Linux ELF payloads before copying to Web/gxserver-linux-* so the installer never uploads the host Darwin package to Ubuntu.
+	# CDXC:RemoteMachines 2026-06-23-09:46: macOS app bundles may stage Linux remote gxserver packages only from explicit prebuilt directories. Validate required gxserver/zmx/Node/CLI resources and require Linux ELF payloads before copying to Web/gxserver-linux-* so the installer never uploads the host Darwin package to Ubuntu.
 	#
 	# CDXC:RemoteMachines 2026-06-23-10:07: The Ubuntu package builder writes build/remote-gxserver-linux/<arch>/package by default. Auto-stage that deterministic output when it exists so release/local app packaging can include the already-built Linux package without requiring another env var or rebuilding it in the macOS app pass.
 	# CDXC:Build 2026-09-23 WHY: the two packages are 458MB; wiping the target first re-copied all of it on every start, while rsync alone copies only what changed.
@@ -1263,7 +1200,6 @@ if [[ -n "$CODE_SERVER_ROOT" ]]; then
 	APP_CAPABILITY_SOURCE_EDITOR=true
 fi
 stage_shared_code_server_node_runtime
-package_portless_if_needed
 package_gxserver_if_needed
 # CDXC:Cli 2026-05-10-03:28: Shells resolve the installed macOS
 # executable as a terminal command. Bundle the native CLI in app resources

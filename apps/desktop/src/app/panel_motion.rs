@@ -386,7 +386,6 @@ impl GhostexGpuiApp {
         use crate::app::model::{CommandPaneWorkspaceLayoutPlan as Plan, GpuiCommandPaneSide};
         let side = self.command_pane_side;
         let (open, extent, closed) = match self.command_pane_layout_plan(window) {
-            Plan::Floating { .. } => return (None, false, 0.0, 0.0),
             Plan::Pinned { panel_height } => {
                 (true, panel_height + WORKSPACE_SPLIT_HANDLE_THICKNESS, 0.0)
             }

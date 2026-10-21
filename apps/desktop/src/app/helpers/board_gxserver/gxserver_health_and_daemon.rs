@@ -46,22 +46,6 @@ fn gpui_gxserver_rpc_error_message(status_code: u16, body: &str) -> String {
         .unwrap_or_else(|| format!("gxserver request failed with HTTP {status_code}."))
 }
 
-pub(crate) fn gpui_update_portless_gxserver_state(
-    update: GpuiPortlessStateUpdate,
-) -> Result<serde_json::Value, String> {
-    /*
-    CDXC:Portless 2026-06-24-11:48:
-    Successful Portless state updates return canonical gxserver status and presentation metadata. Parse just enough of that response to refresh the shared app-modal `hud.portless` payload immediately, while transport/parser failures remain silent local `Result` values so unavailable gxserver cannot create fake success or roll back saved Settings.
-    */
-    let result = gpui_gxserver_rpc_result(
-        "/api/updatePortlessState",
-        &update.to_rpc_params(),
-        Duration::from_secs(10),
-    )?;
-    gpui_sidebar_portless_state_from_update_result(&result)
-        .ok_or_else(|| "gxserver returned invalid Portless state.".to_string())
-}
-
 pub(crate) fn gpui_gxserver_server_health(timeout: Duration) -> Result<serde_json::Value, String> {
     let (status_code, body) = gxserver_get_typed_operation("/api/health/server", timeout)?;
     if !(200..300).contains(&status_code) {

@@ -17,7 +17,7 @@ Live Windows verification (2026-09-25) covers sending messages, asynchronous que
 
 Chat sending, model picks and question answers were run against throwaway sessions on 2026-09-25, and so were row focus, New Terminal, New Agent, Rename, Sleep, Wake, Close, Delayed Send schedule and cancel, New Group and group Rename, the Git menu, Add Worktree and Quick Access (app runtime port, step 4).
 
-What a page cannot do, and answers with a toast or a disabled control instead of a fake: anything on a remote machine (its tunnel is an SSH port forward the desktop app owns, so the page draws only this computer's tab); the commit review, Settings, Configure Agents and every other dialog that exists only as a CEF page (Commit, Push and Create PR open the review, so they toast); Finder, Open In, a terminal app and a native folder or file picker (Add Project, a missing folder's Locate, worktree images); Handoff / Export (it writes a file); the pet, Keep Awake and the status item; Split Right and the pane workspace; Settings writes (gxserver has no settings endpoint, so the page composes with the defaults).
+What a page cannot do, and answers with a toast or a disabled control instead of a fake: anything on a remote machine (its tunnel is an SSH port forward the desktop app owns, so the page draws only this computer's tab); the commit review, Settings, Configure Agents and every other dialog that exists only as a CEF page (Commit, Push and Create PR open the review, so they toast); Finder, Open In, a terminal app and a native folder or file picker (Add Project, a missing folder's Locate, worktree images); Handoff / Export (it writes a file); Keep Awake and the status item; Split Right and the pane workspace; Settings writes (gxserver has no settings endpoint, so the page composes with the defaults).
 
 ## Run it
 
@@ -54,7 +54,7 @@ On Windows, run `cargo xtask web-build` from PowerShell with Zig 0.16, Rust 1.95
 | `src/app/gx_chat/` | The desktop's chat host, symlinked file by file, with three browser twins: `worker.rs` runs the host on the page's thread (one `setTimeout` for the core's timers, and each view woken in a later macrotask so a view and the host never call each other in one task), `storage_backend.rs` reads and writes the page's `packages/client-storage` (hydrated by `www/src/main.js` before the app starts and exposed as `globalThis.ghostexChatStorage`), and `platform.rs` is the page's clock and `crypto`. The chat socket is `packages/gx-chat-client`'s browser `WebSocket`, the token in its query string. |
 | `src/app/chat_host.rs` | What the app does for a chat view: its presentation cache and the host actions a shell performs. |
 | `src/terminal_model.rs` | The desktop model with its PTY half replaced by gxserver's `/api/terminal` WebSocket. |
-| `src/cef.rs`, `ghostty_kit.rs`, `support_logs.rs`, `shared_settings.rs`, `app/helpers/web.rs`, ... | Same-named stand-ins for native modules the shared files mention. |
+| `src/cef.rs`, `support_logs.rs`, `shared_settings.rs`, `app/helpers/web.rs`, ... | Same-named stand-ins for native modules the shared files mention. |
 | `component-assets/` | A stand-in `gpui-component-assets` that embeds the icon folder. Upstream's crate becomes an HTTP icon downloader on wasm, which changes its type and fails the first paint of every icon. |
 
 ## Accessibility tree (for driving and debugging)

@@ -30,7 +30,6 @@ pub enum DiagnosticLogScenario {
     AgentActivity,
     AgentDetection,
     ApiRequests,
-    Portless,
     RepositoryClone,
     ServerLifecycle,
     TerminalFocus,
@@ -49,7 +48,7 @@ impl DiagnosticLogScenario {
         match self {
             Self::SessionChatDrafts => "gpui.sessionChat.viewState",
             Self::AgentActivity | Self::AgentDetection => "gxserver.agentActivity",
-            Self::ApiRequests | Self::Portless | Self::RepositoryClone | Self::TypedOperations => {
+            Self::ApiRequests | Self::RepositoryClone | Self::TypedOperations => {
                 "gxserver.requests"
             }
             Self::ServerLifecycle => "native.host.lifecycle",

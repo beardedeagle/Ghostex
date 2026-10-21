@@ -19,7 +19,6 @@ pub struct GxserverPaths {
     pub logs_dir: PathBuf,
     pub log_file: PathBuf,
     pub migrations_dir: PathBuf,
-    pub portless_state_dir: PathBuf,
     pub root_dir: PathBuf,
     pub runtime_dir: PathBuf,
     pub runtime_metadata_file: PathBuf,
@@ -42,9 +41,6 @@ impl GxserverPaths {
 /*
 CDXC:ServerDaemon 2026-06-14-20:37:
 The Rust daemon must use the shared Ghostex XDG/GHOSTEX_HOME path contract: daemon state stays in the resolved state directory, while support-bundle-safe JSONL diagnostics stay in the resolved logs directory.
-
-CDXC:Portless 2026-06-22-23:05:
-Ghostex-managed Portless state belongs under Ghostex's resolved gxserver state directory, not ~/.portless. server owns this path so the native root service can read mirrored routes while the user daemon remains the only writer.
 */
 pub fn get_gxserver_paths(home_dir: Option<PathBuf>) -> GxserverPaths {
     let isolated_agent_home_dir = home_dir.clone().or_else(|| {
@@ -62,7 +58,6 @@ pub fn get_gxserver_paths(home_dir: Option<PathBuf>) -> GxserverPaths {
     let auth_dir = root_dir.join("auth");
     let logs_dir = storage.logs_dir.clone();
     let migrations_dir = root_dir.join("migrations");
-    let portless_state_dir = root_dir.join("portless");
     let runtime_dir = root_dir.join("runtime");
     // CDXC:RemotePairing 2026-09-01: the tailcat server key and its derived address
     // blob are daemon-owned state, so they live beside the other gxserver
@@ -88,7 +83,6 @@ pub fn get_gxserver_paths(home_dir: Option<PathBuf>) -> GxserverPaths {
         log_file: logs_dir.join("gxserver.jsonl"),
         logs_dir,
         migrations_dir,
-        portless_state_dir,
         runtime_metadata_file: runtime_dir.join("server.json"),
         runtime_dir,
         state_db_file: root_dir.join("state.db"),

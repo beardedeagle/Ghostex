@@ -132,44 +132,6 @@ pub(crate) fn gpui_keyboard_owner_uses_docs_editor_hotkeys(owner: GpuiKeyboardOw
 }
 
 #[cfg(target_os = "macos")]
-pub(crate) fn register_gpui_terminal_key_event_callback_target(
-    gpui_root_view: *mut std::ffi::c_void,
-    app: gpui::WeakEntity<GhostexGpuiApp>,
-    async_app: gpui::AsyncApp,
-) {
-    GPUI_TERMINAL_KEY_EVENT_CALLBACK_TARGETS.with(|targets| {
-        targets.borrow_mut().insert(
-            gpui_root_view as usize,
-            GpuiTerminalKeyEventCallbackTarget { app, async_app },
-        );
-    });
-}
-
-#[cfg(target_os = "macos")]
-pub(crate) fn unregister_gpui_terminal_key_event_callback_target(
-    gpui_root_view: *mut std::ffi::c_void,
-) {
-    GPUI_TERMINAL_KEY_EVENT_CALLBACK_TARGETS.with(|targets| {
-        targets.borrow_mut().remove(&(gpui_root_view as usize));
-    });
-}
-
-#[cfg(target_os = "macos")]
-pub(crate) fn gpui_terminal_key_event_callback_target_for_native_view(
-    native_view: *mut std::ffi::c_void,
-) -> Option<GpuiTerminalKeyEventCallbackTarget> {
-    if native_view.is_null() {
-        return None;
-    }
-    GPUI_TERMINAL_KEY_EVENT_CALLBACK_TARGETS.with(|targets| {
-        targets.borrow().iter().find_map(|(root_key, target)| {
-            cef::native_view_contains_responder(*root_key as *mut std::ffi::c_void, native_view)
-                .then(|| target.clone())
-        })
-    })
-}
-
-#[cfg(target_os = "macos")]
 pub(crate) fn gpui_first_responder_programmatic_depth(
     gpui_root_view: *mut std::ffi::c_void,
 ) -> u32 {

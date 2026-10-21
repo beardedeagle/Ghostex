@@ -1,5 +1,5 @@
-//! The menu bar status item and the pet overlay: which sessions count as working, waiting for the
-//! user or available, per project, and what the pet shows.
+//! The menu bar status item: which sessions count as working, waiting for the user or available,
+//! per project.
 //!
 //! The rules are the old app runtime's (apps/desktop/sidebar/gxserver-runtime/helpers/status-indicators.ts),
 //! over the same rows: every machine's sidebar groups (this computer's, then each saved remote
@@ -9,19 +9,19 @@
 //! group the drawn list leaves out.
 //!
 //! CDXC:StatusPet 2026-06-26-04:38:
-//! GPUI status indicators and the pet overlay consume the same saved shared Settings object as the
-//! sidebar. Publish only bounded counts, booleans, pet id, and sidebar-projected project/session
+//! GPUI status indicators consume the same saved shared Settings object as the
+//! sidebar. Publish only bounded counts, booleans, and sidebar-projected project/session
 //! ids/titles. Project icon parity may carry only an already-normalized image data URL for
 //! notification attachments.
 //!
 //! CDXC:StatusPet 2026-06-27-20:11:
 //! The standalone GPUI floating session indicator was removed. Keep producing status counts and
-//! projects for the menu bar and the pet badge, but do not include floating visibility or floating
+//! projects for the menu bar, but do not include floating visibility or floating
 //! size settings in the status payload.
 //!
 //! CDXC:StatusPet 2026-09-25 WHY:
 //! The app runtime port (family F2) moves the derivation here, fed from the store, so the status
-//! item and the pet no longer wait on the runtime's projection.
+//! item no longer waits on the runtime's projection.
 
 use serde_json::{Map, Value};
 
@@ -40,20 +40,6 @@ const TITLE_MAX_CHARS: usize = 120;
 
 pub const SESSION_STATUS_INDICATORS_MESSAGE_TYPE: &str =
     "ghostex.gpui.sidebar.sessionStatusIndicators";
-pub const PET_OVERLAY_STATE_MESSAGE_TYPE: &str = "ghostex.gpui.sidebar.petOverlayState";
-
-/// `PET_IDS` (packages/shared/pets.ts (deleted 2026-10-01)); the first is `DEFAULT_PET_ID`.
-const PET_IDS: [&str; 9] = [
-    "boo",
-    "codex",
-    "dewey",
-    "fireball",
-    "rocky",
-    "seedy",
-    "stacky",
-    "bsod",
-    "null-signal",
-];
 
 /// One row the status item may count.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -109,7 +95,7 @@ fn non_blank(value: Option<&str>) -> Option<&str> {
     value.map(str::trim).filter(|value| !value.is_empty())
 }
 
-/// `getGpuiPetOverlaySessionTitle`. The last resort is the session's number, its place in the
+/// The session's title for the status item. The last resort is the session's number, its place in the
 /// group before the display sort.
 fn session_title(row: &SessionRow, session_number: usize) -> String {
     let number = session_number.to_string();
@@ -341,95 +327,5 @@ pub fn status_indicators_payload(candidates: &[IndicatorCandidate], hide_menu_ba
     );
     payload.insert("version".into(), Value::from(1));
     payload.insert("workingCount".into(), Value::from(working));
-    Value::Object(payload)
-}
-
-/// `getGpuiIndicatorTimestamp`: 0 when there is none or it does not parse.
-fn timestamp(value: Option<&str>) -> i64 {
-    value
-        .and_then(crate::sidebar_view::text::parse_iso_ms)
-        .unwrap_or(0)
-}
-
-/// `createGpuiPetOverlayStatePayload`.
-pub fn pet_overlay_payload(
-    candidates: &[IndicatorCandidate],
-    enabled: bool,
-    selected_pet_id: Option<&str>,
-) -> Value {
-    let actionable: Vec<&IndicatorCandidate> = candidates
-        .iter()
-        .filter(|candidate| candidate.status == "attention" || candidate.status == "working")
-        .collect();
-    let shown: Vec<&IndicatorCandidate> = if actionable.is_empty() {
-        // `compareGpuiSessionStatusIndicatorCandidates`: newest interaction first, then order.
-        let mut all: Vec<&IndicatorCandidate> = candidates.iter().collect();
-        all.sort_by(|left, right| {
-            timestamp(right.last_interaction_at.as_deref())
-                .cmp(&timestamp(left.last_interaction_at.as_deref()))
-                .then(left.order.cmp(&right.order))
-        });
-        all.into_iter().take(2).collect()
-    } else {
-        // `compareGpuiPetOverlayActivityCandidates`: attention before working, then order.
-        let priority = |status: &str| match status {
-            "attention" => 2,
-            "working" => 1,
-            _ => 0,
-        };
-        let mut shown = actionable;
-        shown.sort_by(|left, right| {
-            priority(right.status)
-                .cmp(&priority(left.status))
-                .then(left.order.cmp(&right.order))
-        });
-        shown.into_iter().take(3).collect()
-    };
-    let (attention, available, working) = status_counts(candidates);
-    let mut status_items = Vec::new();
-    let item = |count: u64, status: &str| {
-        let mut item = Map::new();
-        item.insert("count".into(), Value::from(count));
-        item.insert("status".into(), Value::from(status));
-        Value::Object(item)
-    };
-    if attention > 0 || working > 0 {
-        if attention > 0 {
-            status_items.push(item(attention, "attention"));
-        }
-        if working > 0 {
-            status_items.push(item(working, "working"));
-        }
-    } else if available > 0 {
-        status_items.push(item(available, "available"));
-    }
-    let pet_id = selected_pet_id
-        .filter(|id| PET_IDS.contains(id))
-        .unwrap_or(PET_IDS[0]);
-    let mut payload = Map::new();
-    payload.insert(
-        "activities".into(),
-        Value::Array(
-            shown
-                .into_iter()
-                .map(|candidate| {
-                    let mut activity = Map::new();
-                    activity.insert("id".into(), Value::from(candidate.session_id.as_str()));
-                    activity.insert(
-                        "projectId".into(),
-                        Value::from(candidate.project_id.as_str()),
-                    );
-                    activity.insert("state".into(), Value::from(candidate.status));
-                    activity.insert("title".into(), Value::from(candidate.title.as_str()));
-                    Value::Object(activity)
-                })
-                .collect(),
-        ),
-    );
-    payload.insert("enabled".into(), Value::Bool(enabled));
-    payload.insert("selectedPetId".into(), Value::from(pet_id));
-    payload.insert("statusItems".into(), Value::Array(status_items));
-    payload.insert("type".into(), Value::from(PET_OVERLAY_STATE_MESSAGE_TYPE));
-    payload.insert("version".into(), Value::from(1));
     Value::Object(payload)
 }

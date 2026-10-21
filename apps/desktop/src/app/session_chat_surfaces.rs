@@ -558,16 +558,7 @@ impl GhostexGpuiApp {
         {
             return true;
         }
-        #[cfg(target_os = "macos")]
-        {
-            self.agents_terminal_ghostty_surfaces
-                .keys()
-                .any(|slot_id| slot_id.session_id == session_id)
-        }
-        #[cfg(not(target_os = "macos"))]
-        {
-            false
-        }
+        false
     }
 
     pub(crate) fn activate_preferred_agents_chat_launch_intent(

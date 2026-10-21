@@ -324,12 +324,4 @@ impl SharedGhosttyTerminalConfigValues {
             .map(|(_, line)| line)
             .collect()
     }
-
-    #[allow(dead_code)] // no caller: the managed ghostty config is written from the settings modal path instead
-    fn managed_config_lines(&self) -> Vec<String> {
-        self.managed_config_line_entries()
-            .into_iter()
-            .map(|(_, line)| line)
-            .collect()
-    }
 }

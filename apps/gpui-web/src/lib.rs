@@ -47,7 +47,6 @@ mod cef;
 /// The web build has the sidebar's folds but not the Settings rail, which uses the rest.
 #[allow(dead_code)]
 mod fold_motion;
-mod ghostty_kit;
 #[allow(dead_code)]
 mod ghostty_vt;
 mod hotkey_label;

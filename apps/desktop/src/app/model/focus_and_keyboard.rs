@@ -49,8 +49,6 @@ pub(crate) enum ShellKeyboardOwner {
         view: Entity<terminal_element::TerminalView>,
         session_id: Option<TerminalSessionId>,
     },
-    #[cfg(target_os = "macos")]
-    NativeTerminal(FocusedTerminalTextMountTarget),
     /// A running or mounting terminal whose surface does not exist yet; the handoff waits for it.
     TerminalMounting,
     ChatComposer(TerminalSessionId),
@@ -65,12 +63,6 @@ pub(crate) enum ShellKeyboardOwner {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum FirstResponderTerminalSurface {
-    Agents(TerminalSessionId),
-    Command(CommandSessionId),
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum FirstResponderCefSurface {
     Sidebar,
     BrowserTab(BrowserTabId),
@@ -81,7 +73,6 @@ pub(crate) enum FirstResponderCefSurface {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum FirstResponderTarget {
-    TerminalSurface(FirstResponderTerminalSurface),
     CefSurface(FirstResponderCefSurface),
     GpuiWindow,
     Other,

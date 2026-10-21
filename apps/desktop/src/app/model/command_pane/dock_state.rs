@@ -77,19 +77,13 @@ impl CommandPaneModel {
     }
 
     pub(crate) fn collapse(&mut self) {
-        if self.is_expanded() {
-            self.last_expanded_mode = self.mode;
-        }
         self.mode = CommandPaneMode::Collapsed;
         self.focus_mode_group = None;
         self.resize_drag = None;
     }
 
     pub(crate) fn expand(&mut self) {
-        self.mode = command_pane_mode_for_current_release(match self.last_expanded_mode {
-            CommandPaneMode::Pinned | CommandPaneMode::Floating => self.last_expanded_mode,
-            CommandPaneMode::Collapsed => CommandPaneMode::Pinned,
-        });
+        self.mode = CommandPaneMode::Pinned;
     }
 
     pub(crate) fn toggle_expanded(&mut self) {
@@ -97,27 +91,6 @@ impl CommandPaneModel {
             self.collapse();
         } else {
             self.expand();
-        }
-    }
-
-    pub(crate) fn toggle_pinned(&mut self) {
-        if !COMMAND_PANE_FLOATING_MODE_ENABLED {
-            self.mode = command_pane_mode_for_current_release(self.mode);
-            self.last_expanded_mode = CommandPaneMode::Pinned;
-            return;
-        }
-
-        self.mode = match self.mode {
-            CommandPaneMode::Pinned => CommandPaneMode::Floating,
-            CommandPaneMode::Floating => CommandPaneMode::Pinned,
-            CommandPaneMode::Collapsed => match self.last_expanded_mode {
-                CommandPaneMode::Pinned => CommandPaneMode::Floating,
-                CommandPaneMode::Floating | CommandPaneMode::Collapsed => CommandPaneMode::Pinned,
-            },
-        };
-
-        if self.is_expanded() {
-            self.last_expanded_mode = self.mode;
         }
     }
 

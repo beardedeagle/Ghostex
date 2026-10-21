@@ -187,25 +187,6 @@ impl WorkspaceModel {
         leaf.tab_group.cycle_active_session(reverse).is_some()
     }
 
-    #[allow(dead_code)] // no caller: tab closing goes through the id-addressed close paths
-    pub(crate) fn close_active_tab(&mut self) -> bool {
-        /*
-        CDXC:FocusRouting 2026-06-22-06:02:
-        Closing an Agents placeholder tab is shell state only in this slice. Remove the active tab from the focused tab group, select a neighbor when possible, and collapse an emptied split branch.
-
-        CDXC:Workarea 2026-06-26-05:23:
-        GPUI Agents close must match the macOS workspace: closing the last visible terminal is a real close that leaves an empty workspace pane instead of preserving a fake sleeping or final-root terminal.
-        */
-        let pane_id = self.focused_pane;
-        let Some(session_id) = self
-            .find_leaf(pane_id)
-            .and_then(|leaf| leaf.tab_group.active_session_id())
-        else {
-            return false;
-        };
-        self.close_tab(pane_id, session_id)
-    }
-
     pub(crate) fn close_tab(
         &mut self,
         pane_id: WorkspacePaneId,

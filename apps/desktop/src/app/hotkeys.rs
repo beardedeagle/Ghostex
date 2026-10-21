@@ -729,12 +729,8 @@ pub(crate) fn gpui_keyboard_owner_allows_hotkey(
         match owner {
             GpuiKeyboardOwner::CompositedTerminal(GpuiEngineTerminalEventTarget::Agents(
                 session,
-            ))
-            | GpuiKeyboardOwner::FirstResponder(FirstResponderTarget::TerminalSurface(
-                FirstResponderTerminalSurface::Agents(session),
             )) => return terminal_model_picker_session == Some(session),
-            GpuiKeyboardOwner::CompositedTerminal(_)
-            | GpuiKeyboardOwner::FirstResponder(FirstResponderTarget::TerminalSurface(_)) => {
+            GpuiKeyboardOwner::CompositedTerminal(_) => {
                 return false;
             }
             _ => {}
@@ -776,8 +772,7 @@ pub(crate) fn gpui_keyboard_owner_allows_hotkey(
         return true;
     }
     match owner {
-        GpuiKeyboardOwner::CompositedTerminal(_)
-        | GpuiKeyboardOwner::FirstResponder(FirstResponderTarget::TerminalSurface(_)) => true,
+        GpuiKeyboardOwner::CompositedTerminal(_) => true,
         GpuiKeyboardOwner::FirstResponder(FirstResponderTarget::CefSurface(
             FirstResponderCefSurface::ProjectWorkarea(ProjectWorkareaCefSurfaceSlotKey::Source),
         )) => gpui_source_workarea_allowed_configured_hotkey_action_id(action_id),

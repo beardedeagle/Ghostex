@@ -484,17 +484,9 @@ impl GeneralSearch {
     }
 
     /// `mainSubsectionVisible(sectionId, settingsSearch[sectionId])`. `power_visible` is
-    /// `showBetaFeatures`; the App Icon section never shows on this host.
+    /// `showBetaFeatures`.
     pub(crate) fn subsection_visible(&self, section: &str, power_visible: bool) -> bool {
         if section == "power" && !power_visible {
-            return false;
-        }
-        if section == "appIcon"
-            && !settings_catalog().flag(
-                super::catalog::module::SEARCH_CATALOG,
-                "APP_ICON_CONTROLS_VISIBLE",
-            )
-        {
             return false;
         }
         let catalog = settings_catalog();

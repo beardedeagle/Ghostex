@@ -4,6 +4,31 @@
 
 use crate::*;
 
+/// Launch strings reach the terminal process as C strings, where an interior NUL would truncate them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct LaunchPayloadContainsInteriorNul;
+
+fn check_launch_strings(
+    working_directory: Option<&str>,
+    command: Option<&str>,
+    env_vars: &[(String, String)],
+    initial_input: Option<&str>,
+) -> Result<(), LaunchPayloadContainsInteriorNul> {
+    let env_strings = env_vars
+        .iter()
+        .flat_map(|(key, value)| [key.as_str(), value.as_str()]);
+    let mut strings = working_directory
+        .into_iter()
+        .chain(command)
+        .chain(initial_input)
+        .chain(env_strings);
+    if strings.any(|value| value.as_bytes().contains(&0)) {
+        Err(LaunchPayloadContainsInteriorNul)
+    } else {
+        Ok(())
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) struct AgentsTerminalStartupLaunchPayloadSourceKey {
     pub(crate) runtime_session_id: AgentsTerminalRuntimeSessionId,
@@ -31,18 +56,12 @@ pub(crate) struct AgentsTerminalStartupExplicitLaunchPayload {
 }
 
 impl AgentsTerminalStartupExplicitLaunchPayload {
-    pub(crate) fn to_ghostty_launch_payload(
-        &self,
-    ) -> Result<
-        terminal_ghostty_surface::GhosttySurfaceLaunchPayload,
-        terminal_ghostty_surface::GhosttySurfaceConfigRequestError,
-    > {
-        terminal_ghostty_surface::GhosttySurfaceLaunchPayload::try_new(
-            self.working_directory.clone(),
-            self.command.clone(),
-            self.env_vars.clone(),
-            self.initial_input.clone(),
-            self.wait_after_command,
+    pub(crate) fn validate_launch_strings(&self) -> Result<(), LaunchPayloadContainsInteriorNul> {
+        check_launch_strings(
+            self.working_directory.as_deref(),
+            self.command.as_deref(),
+            &self.env_vars,
+            self.initial_input.as_deref(),
         )
     }
 }
@@ -75,33 +94,6 @@ impl AgentsTerminalStartupLaunchPayloadSource {
             },
             payload,
         );
-    }
-
-    #[allow(dead_code)] // no live caller: the app-owned terminal startup-host reconcile pipeline is not driven any more (agents terminals mount through the surface-host path)
-    pub(crate) fn payload_for_launch_plan(
-        &self,
-        plan: AgentsTerminalStartupLaunchPlan,
-    ) -> Result<
-        Option<terminal_ghostty_surface::GhosttySurfaceLaunchPayload>,
-        terminal_ghostty_surface::GhosttySurfaceConfigRequestError,
-    > {
-        /*
-        CDXC:Terminal 2026-06-23-04:00:
-        GPUI startup launch payloads may enter only through this exact runtime/session/startup-slot key and must be validated before a startup config request receives a Ghostty launch payload; terminal titles, status labels, project names, workspace paths, sidebar labels, delayed-send flags, and fallback project detection are never parsed into launch values.
-
-        CDXC:RemoteMachines 2026-06-24-19:06:
-        Remote attach is now a production explicit launch source, but the payload is inserted by Rust after resolving a saved remote machine and gxserver attach metadata. The source map remains process-local and must not persist or derive commands from renderer text, project/session titles, paths, tokens, stdout/stderr, or terminal content.
-        */
-        self.explicit_payloads_by_startup_key
-            .get(&AgentsTerminalStartupLaunchPayloadSourceKey::from_launch_plan(plan))
-            .map(AgentsTerminalStartupExplicitLaunchPayload::to_ghostty_launch_payload)
-            .transpose()
-    }
-
-    #[cfg(target_os = "macos")]
-    pub(crate) fn remove_payload_for_launch_plan(&mut self, plan: AgentsTerminalStartupLaunchPlan) {
-        self.explicit_payloads_by_startup_key
-            .remove(&AgentsTerminalStartupLaunchPayloadSourceKey::from_launch_plan(plan));
     }
 
     /// Raw payload read for the GPUI-engine startup path, which spawns its
@@ -151,18 +143,12 @@ pub(crate) struct AgentsTerminalExplicitLaunchPayload {
 }
 
 impl AgentsTerminalExplicitLaunchPayload {
-    pub(crate) fn to_ghostty_launch_payload(
-        &self,
-    ) -> Result<
-        terminal_ghostty_surface::GhosttySurfaceLaunchPayload,
-        terminal_ghostty_surface::GhosttySurfaceConfigRequestError,
-    > {
-        terminal_ghostty_surface::GhosttySurfaceLaunchPayload::try_new(
-            self.working_directory.clone(),
-            self.command.clone(),
-            self.env_vars.clone(),
-            self.initial_input.clone(),
-            self.wait_after_command,
+    pub(crate) fn validate_launch_strings(&self) -> Result<(), LaunchPayloadContainsInteriorNul> {
+        check_launch_strings(
+            self.working_directory.as_deref(),
+            self.command.as_deref(),
+            &self.env_vars,
+            self.initial_input.as_deref(),
         )
     }
 }
@@ -195,23 +181,6 @@ impl AgentsTerminalLaunchPayloadSource {
             },
             payload,
         );
-    }
-
-    pub(crate) fn take_payload_for_mount_slot(
-        &mut self,
-        runtime_session_id: AgentsTerminalRuntimeSessionId,
-        slot_id: AgentsTerminalBodyMountSlotId,
-    ) -> Result<
-        Option<terminal_ghostty_surface::GhosttySurfaceLaunchPayload>,
-        terminal_ghostty_surface::GhosttySurfaceConfigRequestError,
-    > {
-        self.explicit_payloads_by_agents_key
-            .remove(&AgentsTerminalLaunchPayloadSourceKey {
-                runtime_session_id,
-                body_mount_slot_id: slot_id,
-            })
-            .map(|payload| payload.to_ghostty_launch_payload())
-            .transpose()
     }
 
     pub(crate) fn has_payload_for_mount_slot(
@@ -282,18 +251,12 @@ pub(crate) struct CommandTerminalExplicitLaunchPayload {
 }
 
 impl CommandTerminalExplicitLaunchPayload {
-    pub(crate) fn to_ghostty_launch_payload(
-        &self,
-    ) -> Result<
-        terminal_ghostty_surface::GhosttySurfaceLaunchPayload,
-        terminal_ghostty_surface::GhosttySurfaceConfigRequestError,
-    > {
-        terminal_ghostty_surface::GhosttySurfaceLaunchPayload::try_new(
-            self.working_directory.clone(),
-            self.command.clone(),
-            self.env_vars.clone(),
-            self.initial_input.clone(),
-            self.wait_after_command,
+    pub(crate) fn validate_launch_strings(&self) -> Result<(), LaunchPayloadContainsInteriorNul> {
+        check_launch_strings(
+            self.working_directory.as_deref(),
+            self.command.as_deref(),
+            &self.env_vars,
+            self.initial_input.as_deref(),
         )
     }
 }
@@ -340,28 +303,6 @@ impl CommandTerminalLaunchPayloadSource {
             CommandTerminalLaunchPayloadSourceKey::from_mount_slot(slot_id),
             payload,
         );
-    }
-
-    pub(crate) fn take_payload_for_mount_slot(
-        &mut self,
-        slot_id: CommandTerminalBodyMountSlotId,
-    ) -> Result<
-        Option<terminal_ghostty_surface::GhosttySurfaceLaunchPayload>,
-        terminal_ghostty_surface::GhosttySurfaceConfigRequestError,
-    > {
-        /*
-        CDXC:Terminal 2026-06-27-04:59:
-        Command terminal launch data now has explicit current producers for titlebar/command-palette terminal Actions and plain command-terminal project cwd. Payloads remain exact-slot, one-shot, process-local startup inputs keyed by command runtime identity plus body slot; never parse or infer launch cwd, command, env, initial input, or wait policy from shell state, command titles, project names, display paths, logs, stdout/stderr, terminal content, delayed-send state, fallbacks, or helper detection.
-
-        CDXC:Terminal 2026-06-27-04:47:
-        Explicit command launch payloads are one-shot startup inputs. Remove the exact slot/runtime key before conversion so Action/plain command startup payloads cannot be reattached by a later remount; invalid payloads are also consumed and pruned without fallback.
-        */
-        self.explicit_payloads_by_command_key
-            .remove(&CommandTerminalLaunchPayloadSourceKey::from_mount_slot(
-                slot_id,
-            ))
-            .map(|payload| payload.to_ghostty_launch_payload())
-            .transpose()
     }
 
     /// One-shot drain of the raw payload for the GPUI-engine terminal path.
@@ -414,337 +355,5 @@ impl TerminalCloseConfirmDialogKey {
             Self::Agents(_) => TerminalCloseConfirmSurfaceFamily::Agents,
             Self::Command(_) => TerminalCloseConfirmSurfaceFamily::Command,
         }
-    }
-}
-
-#[cfg(target_os = "macos")]
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub(crate) struct PendingAgentsTerminalCloseConfirm {
-    pub(crate) slot_id: AgentsTerminalBodyMountSlotId,
-    pub(crate) runtime_session_id: AgentsTerminalRuntimeSessionId,
-}
-
-#[cfg(target_os = "macos")]
-#[derive(Default)]
-pub(crate) struct AgentsTerminalCloseConfirmState {
-    pub(crate) pending_by_slot:
-        HashMap<AgentsTerminalBodyMountSlotId, PendingAgentsTerminalCloseConfirm>,
-}
-
-#[cfg(target_os = "macos")]
-impl AgentsTerminalCloseConfirmState {
-    pub(crate) fn new() -> Self {
-        Self::default()
-    }
-
-    pub(crate) fn sync_from_confirmation_needed_callbacks(
-        &mut self,
-        workspace: &WorkspaceModel,
-        runtime_sessions: &AgentsTerminalRuntimeSessionRegistry,
-        running_surface_owners: &HashMap<
-            AgentsTerminalBodyMountSlotId,
-            terminal_ghostty_surface::GhosttySurfaceOwner,
-        >,
-    ) -> bool {
-        /*
-        CDXC:CommandPane 2026-06-23-05:39:
-        Mounted Running Agents close-confirm state is runtime-only and keyed by the exact current body mount slot plus process-local surface owner identity. Confirmation-needed callbacks move into this map once, while stale, inactive, mismatched, startup, command, shell JSON, launch payload, log, path, command text, stdout/stderr, tty, pid, token, and terminal content data stay out of the boundary. Final-root confirmations are allowed because macOS-style close can leave an empty workspace pane after the user confirms.
-        */
-        let mut changed = self.prune_stale(workspace, runtime_sessions, running_surface_owners);
-        for slot_id in workspace.rendered_terminal_body_mount_slots() {
-            let Some(pending) = pending_agents_terminal_close_confirm_for_slot(
-                workspace,
-                runtime_sessions,
-                running_surface_owners,
-                slot_id,
-            ) else {
-                continue;
-            };
-            let Some(surface) = running_surface_owners.get(&slot_id) else {
-                continue;
-            };
-            if surface.consume_confirmation_needed_close_requested()
-                && self.pending_by_slot.insert(slot_id, pending) != Some(pending)
-            {
-                changed = true;
-            }
-        }
-        changed
-    }
-
-    pub(crate) fn confirm(
-        &mut self,
-        workspace: &mut WorkspaceModel,
-        runtime_sessions: &AgentsTerminalRuntimeSessionRegistry,
-        running_surface_owners: &HashMap<
-            AgentsTerminalBodyMountSlotId,
-            terminal_ghostty_surface::GhosttySurfaceOwner,
-        >,
-        slot_id: AgentsTerminalBodyMountSlotId,
-    ) -> bool {
-        let Some(pending) = self.pending_by_slot.get(&slot_id).copied() else {
-            return false;
-        };
-        /*
-        CDXC:CommandPane 2026-06-23-20:04:
-        Confirming an Agents close now follows upstream Ghostty's source contract: after an exact pending/current/runtime/surface match and a true `needs_confirm_quit` query, remove only that shell tab through `WorkspaceModel::close_tab` and clear only the matching prompt. Do not request another close, synthesize callbacks, touch startup/command state, or use fallback broad removal.
-        */
-        let Some(current) = pending_agents_terminal_close_confirm_for_slot(
-            workspace,
-            runtime_sessions,
-            running_surface_owners,
-            slot_id,
-        ) else {
-            self.pending_by_slot.remove(&slot_id);
-            return false;
-        };
-        if pending != current {
-            self.pending_by_slot.remove(&slot_id);
-            return false;
-        }
-
-        if workspace.close_tab(slot_id.pane_id, slot_id.session_id) {
-            self.pending_by_slot.remove(&slot_id);
-            true
-        } else {
-            false
-        }
-    }
-
-    pub(crate) fn cancel(
-        &mut self,
-        workspace: &WorkspaceModel,
-        runtime_sessions: &AgentsTerminalRuntimeSessionRegistry,
-        running_surface_owners: &mut HashMap<
-            AgentsTerminalBodyMountSlotId,
-            terminal_ghostty_surface::GhosttySurfaceOwner,
-        >,
-        slot_id: AgentsTerminalBodyMountSlotId,
-    ) -> bool {
-        let Some(pending) = self.pending_by_slot.get(&slot_id).copied() else {
-            return false;
-        };
-        let current = pending_agents_terminal_close_confirm_for_slot(
-            workspace,
-            runtime_sessions,
-            running_surface_owners,
-            slot_id,
-        );
-        if current != Some(pending) {
-            self.pending_by_slot.remove(&slot_id);
-            return false;
-        }
-
-        let Some(surface) = running_surface_owners.get_mut(&slot_id) else {
-            self.pending_by_slot.remove(&slot_id);
-            return false;
-        };
-        if !surface.cancel_pending_close_request() {
-            return false;
-        }
-        self.pending_by_slot.remove(&slot_id);
-        true
-    }
-
-    pub(crate) fn prune_stale(
-        &mut self,
-        workspace: &WorkspaceModel,
-        runtime_sessions: &AgentsTerminalRuntimeSessionRegistry,
-        running_surface_owners: &HashMap<
-            AgentsTerminalBodyMountSlotId,
-            terminal_ghostty_surface::GhosttySurfaceOwner,
-        >,
-    ) -> bool {
-        let before = self.pending_by_slot.len();
-        self.pending_by_slot.retain(|slot_id, pending| {
-            pending_agents_terminal_close_confirm_for_slot(
-                workspace,
-                runtime_sessions,
-                running_surface_owners,
-                *slot_id,
-            ) == Some(*pending)
-        });
-        before != self.pending_by_slot.len()
-    }
-
-    pub(crate) fn exact_current_pending_slot(
-        &self,
-        workspace: &WorkspaceModel,
-        runtime_sessions: &AgentsTerminalRuntimeSessionRegistry,
-        running_surface_owners: &HashMap<
-            AgentsTerminalBodyMountSlotId,
-            terminal_ghostty_surface::GhosttySurfaceOwner,
-        >,
-        slot_id: AgentsTerminalBodyMountSlotId,
-    ) -> Option<AgentsTerminalBodyMountSlotId> {
-        let pending = self.pending_by_slot.get(&slot_id).copied()?;
-        let current = pending_agents_terminal_close_confirm_for_slot(
-            workspace,
-            runtime_sessions,
-            running_surface_owners,
-            slot_id,
-        )?;
-        (pending == current).then_some(slot_id)
-    }
-}
-
-#[cfg(target_os = "macos")]
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub(crate) struct PendingCommandTerminalCloseConfirm {
-    pub(crate) slot_id: CommandTerminalBodyMountSlotId,
-    pub(crate) runtime_session_id: AgentsTerminalRuntimeSessionId,
-}
-
-#[cfg(target_os = "macos")]
-#[derive(Default)]
-pub(crate) struct CommandTerminalCloseConfirmState {
-    pub(crate) pending_by_slot:
-        HashMap<CommandTerminalBodyMountSlotId, PendingCommandTerminalCloseConfirm>,
-}
-
-#[cfg(target_os = "macos")]
-impl CommandTerminalCloseConfirmState {
-    pub(crate) fn new() -> Self {
-        Self::default()
-    }
-
-    pub(crate) fn sync_from_confirmation_needed_callbacks(
-        &mut self,
-        command_pane: &CommandPaneModel,
-        command_surface_owners: &HashMap<
-            CommandTerminalBodyMountSlotId,
-            terminal_ghostty_surface::GhosttySurfaceOwner<CommandTerminalBodyMountSlotId>,
-        >,
-    ) -> bool {
-        /*
-        CDXC:CommandPane 2026-06-23-05:39:
-        Mounted command close-confirm state is command-pane-only runtime state keyed by the command body mount slot and its transient surface owner identity. It must never touch Agents workspace maps, Agents runtime sessions, startup maps, shell JSON, launch payloads, logs, command text, paths, env, stdout/stderr, tty, pid, tokens, or terminal content.
-        */
-        let mut changed = self.prune_stale(command_pane, command_surface_owners);
-        for slot_id in command_pane.rendered_terminal_body_mount_slots() {
-            let Some(pending) = pending_command_terminal_close_confirm_for_slot(
-                command_pane,
-                command_surface_owners,
-                slot_id,
-            ) else {
-                continue;
-            };
-            let Some(surface) = command_surface_owners.get(&slot_id) else {
-                continue;
-            };
-            if surface.consume_confirmation_needed_close_requested()
-                && self.pending_by_slot.insert(slot_id, pending) != Some(pending)
-            {
-                changed = true;
-            }
-        }
-        changed
-    }
-
-    pub(crate) fn confirm(
-        &mut self,
-        command_pane: &mut CommandPaneModel,
-        command_surface_owners: &HashMap<
-            CommandTerminalBodyMountSlotId,
-            terminal_ghostty_surface::GhosttySurfaceOwner<CommandTerminalBodyMountSlotId>,
-        >,
-        slot_id: CommandTerminalBodyMountSlotId,
-    ) -> bool {
-        let Some(pending) = self.pending_by_slot.get(&slot_id).copied() else {
-            return false;
-        };
-        /*
-        CDXC:CommandPane 2026-06-23-20:04:
-        Confirming a command close validates the exact pending command slot, transient runtime identity, mounted surface owner, and `needs_confirm_quit` boolean before closing through `CommandPaneModel::close_session`. The command prompt clear is local to that slot and never routes through Agents/startup state or runtime callback synthesis.
-        */
-        let Some(current) = pending_command_terminal_close_confirm_for_slot(
-            command_pane,
-            command_surface_owners,
-            slot_id,
-        ) else {
-            self.pending_by_slot.remove(&slot_id);
-            return false;
-        };
-        if pending != current {
-            self.pending_by_slot.remove(&slot_id);
-            return false;
-        }
-
-        if command_pane.close_session(slot_id.group_id, slot_id.session_id) {
-            self.pending_by_slot.remove(&slot_id);
-            true
-        } else {
-            false
-        }
-    }
-
-    pub(crate) fn cancel(
-        &mut self,
-        command_pane: &CommandPaneModel,
-        command_surface_owners: &mut HashMap<
-            CommandTerminalBodyMountSlotId,
-            terminal_ghostty_surface::GhosttySurfaceOwner<CommandTerminalBodyMountSlotId>,
-        >,
-        slot_id: CommandTerminalBodyMountSlotId,
-    ) -> bool {
-        let Some(pending) = self.pending_by_slot.get(&slot_id).copied() else {
-            return false;
-        };
-        let current = pending_command_terminal_close_confirm_for_slot(
-            command_pane,
-            command_surface_owners,
-            slot_id,
-        );
-        if current != Some(pending) {
-            self.pending_by_slot.remove(&slot_id);
-            return false;
-        }
-
-        let Some(surface) = command_surface_owners.get_mut(&slot_id) else {
-            self.pending_by_slot.remove(&slot_id);
-            return false;
-        };
-        if !surface.cancel_pending_close_request() {
-            return false;
-        }
-        self.pending_by_slot.remove(&slot_id);
-        true
-    }
-
-    pub(crate) fn prune_stale(
-        &mut self,
-        command_pane: &CommandPaneModel,
-        command_surface_owners: &HashMap<
-            CommandTerminalBodyMountSlotId,
-            terminal_ghostty_surface::GhosttySurfaceOwner<CommandTerminalBodyMountSlotId>,
-        >,
-    ) -> bool {
-        let before = self.pending_by_slot.len();
-        self.pending_by_slot.retain(|slot_id, pending| {
-            pending_command_terminal_close_confirm_for_slot(
-                command_pane,
-                command_surface_owners,
-                *slot_id,
-            ) == Some(*pending)
-        });
-        before != self.pending_by_slot.len()
-    }
-
-    pub(crate) fn exact_current_pending_slot(
-        &self,
-        command_pane: &CommandPaneModel,
-        command_surface_owners: &HashMap<
-            CommandTerminalBodyMountSlotId,
-            terminal_ghostty_surface::GhosttySurfaceOwner<CommandTerminalBodyMountSlotId>,
-        >,
-        slot_id: CommandTerminalBodyMountSlotId,
-    ) -> Option<CommandTerminalBodyMountSlotId> {
-        let pending = self.pending_by_slot.get(&slot_id).copied()?;
-        let current = pending_command_terminal_close_confirm_for_slot(
-            command_pane,
-            command_surface_owners,
-            slot_id,
-        )?;
-        (pending == current).then_some(slot_id)
     }
 }

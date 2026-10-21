@@ -24,10 +24,6 @@ use crate::json::J;
 /// CDXC:Settings 2026-06-16-09:20:
 /// Empty-sidebar double-click creation remains a low-frequency interaction preference and should hide behind Show Advanced. The menu-bar indicator is preset-owned and stays beside the sidebar preset controls.
 ///
-/// CDXC:StatusPet 2026-07-21:
-/// Wake Pet and the Pet picker are temporarily hidden from Settings while their
-/// implementation and persisted values remain available for a possible return.
-///
 /// CDXC:Settings 2026-06-28-07:41:
 /// Enable Experimental Features is the user-facing name for the persisted
 /// showBetaFeatures gate. Show Advanced is a persisted browsing-density
@@ -447,7 +443,6 @@ pub const MAIN_SETTINGS_SCROLL_TARGET_SETTING_KEYS: &[(&str, &[&str])] = &[
             "sidebarSessionTagListItems",
         ],
     ),
-    ("statusIndicators", &["petOverlayEnabled", "selectedPetId"]),
     (
         "terminal",
         &[
@@ -585,7 +580,6 @@ pub const MAIN_SETTINGS_SCROLL_TARGET_SETTING_KEYS: &[(&str, &[&str])] = &[
             "workspaceActivePaneBorderColor",
         ],
     ),
-    ("appIcon", &["appIconSourceId"]),
     ("sidebarTags", &["sidebarSessionTagListItems"]),
     (
         "sessionCards",
@@ -787,7 +781,6 @@ pub const MAIN_SETTINGS_SECTION_SETTING_KEYS: &[(&str, &[&str])] = &[
             "sidebarSessionTagListItems",
         ],
     ),
-    ("statusIndicators", &["petOverlayEnabled", "selectedPetId"]),
     (
         "terminal",
         &[
@@ -909,10 +902,10 @@ pub const MAIN_SETTINGS_SUBSECTION_NAVIGATION: J = J::Obj(&[
     ),
     (
         "appearance",
-        J::Arr(&[
-            J::Obj(&[("id", J::Str("theming")), ("title", J::Str("Theme"))]),
-            J::Obj(&[("id", J::Str("appIcon")), ("title", J::Str("App Icon"))]),
-        ]),
+        J::Arr(&[J::Obj(&[
+            ("id", J::Str("theming")),
+            ("title", J::Str("Theme")),
+        ])]),
     ),
     (
         "sidebar",
@@ -970,7 +963,6 @@ pub const MAIN_SETTINGS_SUBSECTION_PARENT_IDS: &[(&str, &str)] = &[
     ("sleepingSessions", "advanced"),
     ("beta", "advanced"),
     ("theming", "appearance"),
-    ("appIcon", "appearance"),
     ("sidebar", "sidebar"),
     ("sessionCards", "sidebar"),
     ("sidebarTags", "sidebar"),

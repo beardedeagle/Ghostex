@@ -6,8 +6,6 @@ use std::time::Duration;
 use std::time::Instant;
 use std::time::SystemTime;
 
-use crate::terminal_surface_host::NativeTerminalSurfaceHost;
-use crate::terminal_surface_lifecycle::NativeTerminalSurfaceLifecycleState;
 use gpui::Window;
 
 use crate::app::consts::*;
@@ -458,14 +456,10 @@ impl GhostexGpuiApp {
         self.agents_chat_mode_sessions = chat_mode_sessions;
         self.terminal_agent_bar_sessions.clear();
         self.agents_terminal_startup_coordinator = AgentsTerminalStartupCoordinator::new();
-        self.agents_terminal_surface_host = NativeTerminalSurfaceHost::new();
-        self.agents_terminal_surface_lifecycle = NativeTerminalSurfaceLifecycleState::new();
         self.agents_terminal_startup_launch_payload_source =
             AgentsTerminalStartupLaunchPayloadSource::new_empty();
         self.agents_terminal_launch_payload_source = AgentsTerminalLaunchPayloadSource::new_empty();
         self.agents_terminal_startup_body_slot_geometries.clear();
-        self.agents_terminal_parked_owner_body_slot_geometries
-            .clear();
         self.agents_terminal_mount_slot_bounds.clear();
         self.pending_terminal_paste_confirmation = None;
         self.terminal_paste_confirmation_dialog_open = false;
@@ -474,19 +468,6 @@ impl GhostexGpuiApp {
         self.terminal_search_inputs.clear();
         self.terminal_search_input_subscriptions.clear();
         self.terminal_search_focus_pending = None;
-        #[cfg(target_os = "macos")]
-        {
-            self.agents_terminal_ghostty_surfaces.clear();
-            self.agents_terminal_parked_runtime_owners.clear();
-            self.agents_terminal_close_confirms.pending_by_slot.clear();
-            self.agents_terminal_startup_ghostty_surfaces.clear();
-            self.agents_terminal_host_native_views.clear();
-            self.agents_terminal_startup_host_native_views.clear();
-            self.agents_terminal_ghostty_surface_config_requests.clear();
-            self.agents_terminal_startup_ghostty_surface_config_requests
-                .clear();
-            self.agents_terminal_appkit_focused_host = None;
-        }
         self.workspace_tab_scroll_handles.clear();
         self.workspace_leaf_layout_bounds.clear();
         self.workspace_split_layout_metrics.clear();
@@ -627,12 +608,6 @@ impl GhostexGpuiApp {
         self.command_gpui_engine_terminals.clear();
         self.command_gpui_terminal_viewer_recipes.clear();
         self.command_gpui_engine_close_confirms.clear();
-        #[cfg(target_os = "macos")]
-        {
-            self.command_terminal_ghostty_surfaces.clear();
-            self.command_terminal_parked_runtime_owners.clear();
-            self.command_terminal_close_confirms.pending_by_slot.clear();
-        }
         self.command_delayed_send_timers.clear();
         self.command_close_after_done_timers.clear();
         self.clear_command_resize_hover_state_if_command_pane_hidden();

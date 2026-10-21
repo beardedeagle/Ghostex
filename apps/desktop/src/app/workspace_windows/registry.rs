@@ -1,7 +1,7 @@
 //! The open workspace windows, oldest first, and the one of them that runs the app-wide work.
 //!
 //! CDXC:AppWindows 2026-10-01 WHY:
-//! The app object was written as the only one, so the work that must happen once per process stays with one lead window: the menu bar status item, notification banners and completion sounds, the updater, Keep Awake (a hold started from any window runs here, every window's More menu shows it, and it moves to the next lead), Ghostex Capture, the first-run and Portless prompts and the agent settings reconciliation. The first window leads; when the lead closes, the oldest remaining window takes the work over, and the app quits only when the last workspace window closes. A lead term, not a flag, marks the lead, so a closed lead whose app object is dropped late cannot unregister what its successor registered.
+//! The app object was written as the only one, so the work that must happen once per process stays with one lead window: the menu bar status item, notification banners and completion sounds, the updater, Keep Awake (a hold started from any window runs here, every window's More menu shows it, and it moves to the next lead), Ghostex Capture, the first-run prompts and the agent settings reconciliation. The first window leads; when the lead closes, the oldest remaining window takes the work over, and the app quits only when the last workspace window closes. A lead term, not a flag, marks the lead, so a closed lead whose app object is dropped late cannot unregister what its successor registered.
 
 use std::cell::{Cell, RefCell};
 
@@ -489,7 +489,6 @@ impl GhostexGpuiApp {
             self.app_modal_window.map(|handle| handle.window_id()),
             self.app_toast_window.map(|handle| handle.window_id()),
             self.titlebar_popup_window.map(|handle| handle.window_id()),
-            self.plugins_modal_window.map(|handle| handle.window_id()),
             self.new_thread_picker_window
                 .map(|handle| handle.window_id()),
             self.native_app_modal

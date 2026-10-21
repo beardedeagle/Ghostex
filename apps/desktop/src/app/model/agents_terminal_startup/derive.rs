@@ -59,50 +59,6 @@ pub(crate) fn derive_agents_terminal_startup_launch_plans(
         .collect()
 }
 
-pub(crate) fn derive_agents_terminal_startup_host_preservation_keys(
-    agents_workspace_visible: bool,
-    workspace: &WorkspaceModel,
-    runtime_sessions: &AgentsTerminalRuntimeSessionRegistry,
-    pending_startups: &HashMap<AgentsTerminalRuntimeSessionId, AgentsTerminalStartupRecord>,
-) -> Vec<AgentsTerminalStartupHostPreservationKey> {
-    if !agents_workspace_visible {
-        return Vec::new();
-    }
-
-    pending_startups
-        .iter()
-        .filter_map(|(runtime_session_id, record)| {
-            let runtime_session_id = *runtime_session_id;
-            let record = *record;
-
-            if runtime_sessions.runtime_session_id_for_shell_session(record.shell_session_id)
-                != Some(runtime_session_id)
-            {
-                return None;
-            }
-
-            if !workspace
-                .session(record.shell_session_id)
-                .is_some_and(|session| {
-                    session.presentation_state == TerminalSessionPresentationState::Mounting
-                })
-            {
-                return None;
-            }
-
-            let startup_body_slot_id = record.startup_body_slot_id();
-            if !workspace.is_current_terminal_startup_body_slot(startup_body_slot_id) {
-                return None;
-            }
-
-            Some(AgentsTerminalStartupHostPreservationKey {
-                runtime_session_id,
-                startup_body_slot_id,
-            })
-        })
-        .collect()
-}
-
 pub(crate) fn derive_agents_terminal_startup_completion_intents(
     agents_workspace_visible: bool,
     workspace: &WorkspaceModel,
@@ -191,4 +147,18 @@ pub(crate) fn record_agents_terminal_startup_body_slot_geometry(
     } else {
         startup_body_geometries.remove(&slot_id);
     }
+}
+
+/// Failed or stale startup completion retires the startup-only state of that exact completion
+/// intent: its body geometry and its explicit launch payload.
+pub(crate) fn prune_agents_terminal_startup_runtime_state_for_completion_intent(
+    startup_body_geometries: &mut HashMap<
+        AgentsTerminalStartupBodySlotId,
+        AgentsTerminalStartupBodyGeometry,
+    >,
+    startup_launch_payload_source: &mut AgentsTerminalStartupLaunchPayloadSource,
+    completion_intent: AgentsTerminalStartupCompletionIntent,
+) {
+    startup_body_geometries.remove(&completion_intent.startup_body_slot_id);
+    startup_launch_payload_source.remove_payload_for_completion_intent(completion_intent);
 }

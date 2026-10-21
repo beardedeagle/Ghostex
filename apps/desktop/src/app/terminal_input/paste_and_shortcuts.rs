@@ -50,8 +50,6 @@ impl GhostexGpuiApp {
     fn terminal_paste_target(&self) -> Option<TerminalPasteTarget> {
         let view = match self.shell_keyboard_owner() {
             ShellKeyboardOwner::EngineTerminal { view, .. } => Some(view.entity_id()),
-            #[cfg(target_os = "macos")]
-            ShellKeyboardOwner::NativeTerminal(_) => None,
             _ => return None,
         };
         Some(TerminalPasteTarget {
@@ -425,11 +423,6 @@ impl GhostexGpuiApp {
                 self.focused_gpui_engine_terminal_action_target()
             {
                 self.handle_gpui_engine_prompt_editor_shortcut(target, runtime_session_id, cx);
-            } else {
-                #[cfg(target_os = "macos")]
-                if let Some(target) = self.focused_native_terminal_prompt_editor_target() {
-                    self.handle_focused_native_terminal_prompt_editor_shortcut(target, cx);
-                }
             }
             return true;
         }
@@ -492,119 +485,6 @@ impl GhostexGpuiApp {
             _ => {}
         }
         true
-    }
-
-    #[cfg(target_os = "macos")]
-    pub(crate) fn focused_native_terminal_prompt_editor_target(
-        &self,
-    ) -> Option<FocusedTerminalTextMountTarget> {
-        let target = self.focused_terminal_text_mount_target()?;
-        match target {
-            FocusedTerminalTextMountTarget::Agents(slot_id)
-                if self.agents_terminal_ghostty_surface_matches(slot_id) =>
-            {
-                Some(target)
-            }
-            FocusedTerminalTextMountTarget::Command(slot_id)
-                if self.command_terminal_ghostty_surface_matches(slot_id) =>
-            {
-                Some(target)
-            }
-            _ => None,
-        }
-    }
-
-    #[cfg(target_os = "macos")]
-    pub(crate) fn handle_focused_native_terminal_prompt_editor_shortcut(
-        &mut self,
-        target: FocusedTerminalTextMountTarget,
-        cx: &mut gpui::Context<Self>,
-    ) {
-        let delivery_target = RemotePromptEditorDeliveryTarget::NativeTerminal(target);
-        if let Some((key, connection_generation)) =
-            self.remote_prompt_editor_context_for_delivery_target(delivery_target)
-        {
-            cx.spawn(async move |this, cx| {
-                let _ = this.update_in(cx, |this, window, cx| {
-                    this.queue_remote_prompt_editor_request(
-                        &key,
-                        connection_generation,
-                        delivery_target,
-                        window,
-                        cx,
-                    );
-                });
-            })
-            .detach();
-            return;
-        }
-        let originating_session_id = match target {
-            FocusedTerminalTextMountTarget::Agents(slot_id) => self
-                .local_workspace_session_mappings
-                .iter()
-                .find_map(|(key, mapped_session_id)| {
-                    (*mapped_session_id == slot_id.session_id)
-                        .then(|| format!("{}:{}", key.project_id, key.session_id))
-                }),
-            FocusedTerminalTextMountTarget::Command(slot_id) => self
-                .command_gxserver_session_mappings
-                .get(&slot_id.session_id)
-                .map(|key| format!("{}:{}", key.project_id, key.session_id)),
-        };
-        let Some(originating_session_id) = originating_session_id else {
-            let _ = self.send_prompt_editor_shortcut_to_native_terminal_target(target);
-            return;
-        };
-        cx.spawn(async move |this, cx| {
-            let fronted = cx
-                .background_executor()
-                .spawn(
-                    async move { gpui_ghostex_editor_daemon_front(Some(&originating_session_id)) },
-                )
-                .await;
-            let _ = this.update(cx, |this, cx| {
-                if fronted {
-                    if !this.prompt_editor_daemon_open {
-                        this.prompt_editor_daemon_open = true;
-                        cx.notify();
-                    }
-                } else {
-                    let _ = this.send_prompt_editor_shortcut_to_native_terminal_target(target);
-                }
-            });
-        })
-        .detach();
-    }
-
-    #[cfg(target_os = "macos")]
-    pub(crate) fn send_prompt_editor_shortcut_to_native_terminal_target(
-        &mut self,
-        target: FocusedTerminalTextMountTarget,
-    ) -> bool {
-        match target {
-            FocusedTerminalTextMountTarget::Agents(slot_id) => {
-                self.send_text_bytes_to_mounted_agents_terminal_surface(slot_id, b"\x07")
-            }
-            FocusedTerminalTextMountTarget::Command(slot_id) => {
-                if !self
-                    .command_pane
-                    .is_current_terminal_body_mount_slot(slot_id)
-                {
-                    return false;
-                }
-                let runtime_session_id = command_terminal_runtime_session_id(slot_id);
-                let Some(surface) = self.command_terminal_ghostty_surfaces.get_mut(&slot_id) else {
-                    return false;
-                };
-                if surface.mount_slot_id() != slot_id
-                    || surface.runtime_session_id() != runtime_session_id
-                {
-                    return false;
-                }
-                surface.send_text_bytes(b"\x07");
-                true
-            }
-        }
     }
 }
 

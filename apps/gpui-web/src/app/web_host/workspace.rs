@@ -138,7 +138,7 @@ impl GhostexGpuiApp {
     ) {
     }
 
-    /// The desktop's status item and pet read the same settings; the page has neither.
+    /// The desktop's status item reads the same settings; the page has none.
     pub(crate) fn gx_store_indicators_settings_changed(&mut self, _cx: &mut Context<Self>) {}
 }
 
@@ -240,15 +240,5 @@ impl GhostexGpuiApp {
     /// Open In needs a folder on this computer; the page has none.
     pub(crate) fn active_project_open_in_path(&self) -> Option<std::path::PathBuf> {
         None
-    }
-
-    /// The desktop's pet lives in its own window; the page has no pet.
-    pub(crate) fn sleep_gpui_pet_overlay_from_context_menu(&mut self, cx: &mut Context<Self>) {
-        self.dispatch_gpui_workspace_action_toast(
-            "info",
-            "Not available in the browser",
-            "The pet runs in the Ghostex app.",
-            cx,
-        );
     }
 }

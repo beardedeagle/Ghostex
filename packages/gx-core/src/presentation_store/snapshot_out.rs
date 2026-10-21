@@ -241,7 +241,6 @@ impl MachinePresentation {
             sessions: sessions.into(),
             capabilities: loaded.capabilities.clone(),
             auto_settle_after_days: loaded.auto_settle_after_days.clone(),
-            portless: loaded.portless.clone(),
             workspace_groups: self.side_state().workspace_groups.clone(),
             sidebar_project_collections: self.side_state().project_collections.clone(),
             sidebar_spaces: self.side_state().spaces.clone(),

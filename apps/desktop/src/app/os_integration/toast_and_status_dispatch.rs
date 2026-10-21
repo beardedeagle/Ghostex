@@ -10,7 +10,7 @@
 // main.rs (pure move; the only edit is the `pub(crate) ` visibility prefix the
 // cross-module split requires). See docs/2026-08-22/repo-restructure/SPLITS.md C1.
 //
-// Cluster: updater, first-run onboarding, gxserver bootstrap, OS shells, portless, keep-awake
+// Cluster: updater, first-run onboarding, gxserver bootstrap, OS shells, keep-awake
 
 use std::collections::HashSet;
 

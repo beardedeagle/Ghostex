@@ -2,8 +2,6 @@
 // lines, itself moved verbatim out of main.rs) into descriptively named
 // modules; pure move, no logic changes. Cluster: layout-bounds bookkeeping for terminal mount slots plus command terminal surface host sync.
 
-use std::collections::HashMap;
-use std::collections::HashSet;
 use std::sync::atomic::Ordering;
 
 use gpui::Bounds;
@@ -28,7 +26,6 @@ impl GhostexGpuiApp {
         &mut self,
         slot_id: AgentsTerminalBodyMountSlotId,
         bounds: Bounds<Pixels>,
-        scale_factor: f32,
         cx: &mut gpui::Context<Self>,
     ) {
         /*
@@ -61,7 +58,7 @@ impl GhostexGpuiApp {
             self.agents_terminal_zmx_refresh_recorded_bounds
                 .remove(&slot_id);
         }
-        self.sync_agents_terminal_surface_host(scale_factor, cx);
+        self.sync_agents_terminal_surface_host(cx);
         /*
         CDXC:Zmx 2026-07-06:
         A slot recording bounds for the first time was just surfaced (tab
@@ -101,36 +98,13 @@ impl GhostexGpuiApp {
             bounds,
             scale_factor,
         );
-        self.sync_agents_terminal_surface_host(scale_factor, cx);
-    }
-
-    pub(crate) fn record_agents_terminal_parked_owner_body_slot_bounds(
-        &mut self,
-        slot_id: AgentsTerminalBodyMountSlotId,
-        bounds: Bounds<Pixels>,
-        scale_factor: f32,
-        cx: &mut gpui::Context<Self>,
-    ) {
-        /*
-        CDXC:Terminal 2026-06-23-19:41:
-        Non-startup Mounting wake/reattach bodies may record only runtime geometry for exact parked-owner transfer. The record is accepted from the normal placeholder body, stays out of shell-state JSON/logs, does not create startup candidates or launch payloads, and cannot mark Running without an exact parked owner move.
-        */
-        record_agents_terminal_parked_owner_body_slot_geometry(
-            self.agents_workspace_visible(),
-            &self.agents_workspace,
-            &mut self.agents_terminal_parked_owner_body_slot_geometries,
-            slot_id,
-            bounds,
-            scale_factor,
-        );
-        self.sync_agents_terminal_surface_host(scale_factor, cx);
+        self.sync_agents_terminal_surface_host(cx);
     }
 
     pub(crate) fn record_command_terminal_mount_slot_bounds(
         &mut self,
         slot_id: CommandTerminalBodyMountSlotId,
         bounds: Bounds<Pixels>,
-        scale_factor: f32,
         cx: &mut gpui::Context<Self>,
     ) {
         /*
@@ -160,7 +134,7 @@ impl GhostexGpuiApp {
             self.command_terminal_zmx_refresh_recorded_bounds
                 .remove(&slot_id);
         }
-        self.sync_command_terminal_surface_host(scale_factor, cx);
+        self.sync_command_terminal_surface_host(cx);
         // See the Agents bounds hook: first-record = surfaced refresh, body
         // size change = trailing-edge resize debounce (CDXC:Zmx).
         if slot_is_current {
@@ -174,202 +148,12 @@ impl GhostexGpuiApp {
         }
     }
 
-    pub(crate) fn sync_command_terminal_surface_host(
-        &mut self,
-        scale_factor: f32,
-        cx: &mut gpui::Context<Self>,
-    ) {
+    pub(crate) fn sync_command_terminal_surface_host(&mut self, cx: &mut gpui::Context<Self>) {
         if GPUI_APP_QUIT_IN_PROGRESS.load(Ordering::Acquire) || self.workspace_window_closing {
             return;
         }
-        /*
-        CDXC:Terminal 2026-06-23-05:03:
-        Command terminal host sync is a command-pane-only runtime pipeline. It reconciles only expanded visible active command body slots plus exact body bounds, creates App-owned NSView/Ghostty surfaces through the shared terminal host stack with a source-only launch request boundary, and never touches Agents workspace maps, Agents runtime registries, startup launch payloads, shell-state JSON, logs, overlays, or hidden hit regions.
-
-        CDXC:Terminal 2026-06-23-05:18:
-        Command terminal native sync must be driven from render-start and body-canvas bounds records because Ghostty content scale and pixel size require the current window scale factor. Command model mutations should schedule render with `cx.notify()` and avoid eager sync calls with placeholder scale values or previous-frame body bounds.
-
-        CDXC:Terminal 2026-06-23-05:21:
-        Confirmed command Ghostty close callbacks are consumed before command host reconciliation computes current slots. Shell removal goes through the command model first, then the existing render/bounds-driven host cleanup drops stale command Ghostty surfaces and AppKit hosts without eager sync calls, Agents map mutation, startup map mutation, shell-state runtime fields, logs, overlays, or hit-test routing.
-
-        CDXC:Terminal 2026-06-23-05:30:
-        Command process-exited polling runs after confirmed-close callback consumption and before command host reconciliation. The command model removes exited sessions first, and stale command hosts/surfaces then detach through the existing render/bounds-driven cleanup path without requesting Ghostty close or forcing an eager placeholder-scale sync.
-
-        CDXC:CommandPane 2026-06-23-05:39:
-        Command close-confirm sync is separate from Agents runtime/startup sync. Confirmation-needed callbacks create only command pending state before confirmed-close consumption, and stale command pending entries prune through command model/surface ownership without mutating Agents maps.
-
-        CDXC:Terminal 2026-06-23-16:46:
-        Command config preparation may attach launch data only from `CommandTerminalLaunchPayloadSource` for the exact current command body mount slot and derived command runtime id. Invalid explicit payloads suppress/prune the request instead of falling back to command titles, shell status, delayed-send state, project/workspace data, paths, cwd, command args, env, initial input, wait policy, stdout/stderr, terminal content, or helper detection.
-
-        CDXC:Terminal 2026-06-27-04:47:
-        Config preparation owns the one-shot drain point for Action and plain command startup payloads. Consume the exact slot payload while building the Ghostty request so native-view remounts can recreate surfaces without replaying old command text or cwd payloads.
-
-        CDXC:CommandPane 2026-06-27-03:21:
-        Mounted command runtime close confirmation and process-exit cleanup can remove the final command tab without using direct tab-close handlers. After those model mutations, clear runtime resize hover chrome only if the command pane is now empty so stale panel cursors cannot survive hidden/collapsed command-panel state.
-
-        CDXC:Terminal 2026-06-27-07:42:
-        Command Sleep/Wake preserves runtime ownership by parking exact command host/surface owners before a sleep-driven detach and moving them back before the wake mount can create a replacement. Collapse, close, stale slots, invalid payloads, and mismatches keep the normal detach/drop path.
-        */
-        #[cfg(target_os = "macos")]
-        {
-            self.command_terminal_close_confirms
-                .sync_from_confirmation_needed_callbacks(
-                    &self.command_pane,
-                    &self.command_terminal_ghostty_surfaces,
-                );
-            let keyboard_owner_before = self.keyboard_owner_session();
-            let mut shell_state_changed = consume_confirmed_command_terminal_ghostty_surface_closes(
-                &mut self.command_pane,
-                &mut self.command_terminal_close_confirms,
-                &self.command_terminal_ghostty_surfaces,
-            );
-            let exit_cleanup = consume_exited_command_terminal_ghostty_surfaces(
-                &mut self.command_pane,
-                &self.command_terminal_ghostty_surfaces,
-            );
-            if exit_cleanup.changed {
-                shell_state_changed = true;
-                self.dispatch_gpui_command_action_completions(exit_cleanup.completions, cx);
-                self.command_terminal_close_confirms
-                    .prune_stale(&self.command_pane, &self.command_terminal_ghostty_surfaces);
-            }
-
-            if shell_state_changed {
-                self.prune_gpui_command_delayed_send_timers_for_command_model();
-                self.prune_gpui_command_close_after_done_timers_for_command_model();
-                self.clear_command_resize_hover_state_if_command_pane_hidden();
-                if self.command_pane.has_sessions() {
-                    self.follow_shell_focus_after_surface_removed(
-                        ShellFocusTarget::CommandPane,
-                        keyboard_owner_before,
-                        cx,
-                    );
-                    self.scroll_focused_command_active_tab();
-                } else {
-                    self.restore_non_command_focus_after_surface_removed(keyboard_owner_before, cx);
-                }
-                self.sync_gpui_keep_awake_automation_from_current_settings(cx);
-                self.persist_shell_layout_state();
-                self.refresh_sidebar_command_pane_sessions_if_changed(cx);
-            }
-        }
         self.sync_command_gpui_engine_terminals(cx);
-        let gpui_engine_enabled = shared_settings::shared_sidebar_settings_snapshot()
-            .gpui_terminal_engine_settings()
-            .enabled;
-        let current_slot_ids = if gpui_engine_enabled {
-            Vec::new()
-        } else {
-            self.command_pane
-                .rendered_terminal_body_mount_slots()
-                .into_iter()
-                .filter(|slot_id| {
-                    !self
-                        .command_gpui_engine_terminals
-                        .contains_key(&slot_id.session_id)
-                })
-                .collect::<Vec<_>>()
-        };
-        self.command_terminal_mount_slot_bounds
-            .retain(|slot_id, _| current_slot_ids.contains(slot_id));
-        /*
-        CDXC:Workarea 2026-07-03:
-        Workspace/Agents tab drags can drop into expanded command groups, so mounted command terminals hide-and-park for the whole drag exactly like a command-panel collapse. The reattach pass must pause with the same gate; otherwise the body canvas keeps recording bounds during the drag and parked command owners would reattach and detach every frame.
-        */
+        self.command_terminal_mount_slot_bounds.clear();
         self.sync_command_pane_view_dock_visibility();
-        let command_terminal_native_views_may_be_visible =
-            self.command_pane.any_dock_visible() && !self.workspace_tab_drag_active;
-        let commands = self
-            .command_terminal_surface_host
-            .sync_visible_command_slots(
-                command_terminal_native_views_may_be_visible,
-                &current_slot_ids,
-                &self.command_terminal_mount_slot_bounds,
-            );
-        let decisions = self
-            .command_terminal_surface_lifecycle
-            .reconcile_host_commands(&commands);
-        #[cfg(target_os = "macos")]
-        {
-            self.drop_command_terminal_ghostty_surface_before_host_detach(&commands);
-            if command_terminal_native_views_may_be_visible {
-                let reattach_plans = command_terminal_parked_owner_reattach_plans(
-                    &self.command_pane,
-                    &self.command_terminal_parked_runtime_owners,
-                    &self.command_terminal_mount_slot_bounds,
-                );
-                for reattach_plan in reattach_plans {
-                    transfer_command_terminal_parked_runtime_owner_reattach(
-                        &self.command_pane,
-                        &mut self.command_terminal_parked_runtime_owners,
-                        &mut self.command_terminal_mount_slot_bounds,
-                        &mut self.command_terminal_host_native_views,
-                        &mut self.command_terminal_ghostty_surfaces,
-                        &self.command_terminal_ghostty_surface_config_requests,
-                        reattach_plan,
-                    );
-                }
-            }
-            prune_command_terminal_parked_runtime_owners(
-                &self.command_pane,
-                &mut self.command_terminal_parked_runtime_owners,
-                &self.command_terminal_host_native_views,
-                &self.command_terminal_ghostty_surfaces,
-            );
-            let frame_operations =
-                terminal_native_view::reconcile_app_owned_terminal_host_native_view(
-                    &mut self.command_terminal_host_native_views,
-                    &mut self.command_terminal_surface_lifecycle,
-                    self.parent_ns_view,
-                    &commands,
-                    &decisions,
-                    terminal_native_view::TerminalHostNativeViewFactory::create,
-                );
-            terminal_native_view::execute_app_owned_terminal_host_frame_operations(
-                &self.command_terminal_host_native_views,
-                &frame_operations,
-            );
-            let terminal_config = current_gpui_terminal_ghostty_surface_config();
-            let mut invalid_launch_payload_slot_ids = HashSet::new();
-            let mut config_requests = HashMap::new();
-            for (slot_id, host_view) in self.command_terminal_host_native_views.iter() {
-                let Some(request) =
-                    terminal_native_view::ghostty_surface_config_request_for_app_owned_terminal_host_native_view(
-                        Some(host_view),
-                        f64::from(scale_factor),
-                    )
-                    .ok()
-                    .flatten()
-                else {
-                    continue;
-                };
-                let request = request.with_terminal_config(terminal_config);
-                match command_terminal_config_request_with_launch_payload_source(
-                    *slot_id,
-                    request,
-                    &mut self.command_terminal_launch_payload_source,
-                ) {
-                    Ok(request) => {
-                        config_requests.insert(*slot_id, request);
-                    }
-                    Err(_) => {
-                        invalid_launch_payload_slot_ids.insert(*slot_id);
-                    }
-                }
-            }
-            self.command_terminal_ghostty_surface_config_requests = config_requests;
-            for slot_id in invalid_launch_payload_slot_ids.iter() {
-                self.command_terminal_ghostty_surfaces.remove(slot_id);
-                terminal_native_view::set_app_owned_terminal_host_native_view_visible(
-                    self.command_terminal_host_native_views.get(slot_id),
-                    false,
-                );
-            }
-            self.command_terminal_host_native_views
-                .retain(|slot_id, _| !invalid_launch_payload_slot_ids.contains(slot_id));
-            self.sync_command_terminal_ghostty_surfaces(cx);
-        }
-        #[cfg(not(target_os = "macos"))]
-        let _ = (decisions, scale_factor);
     }
 }

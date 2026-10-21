@@ -286,32 +286,3 @@ pub(crate) fn gpui_terminal_attachment_markdown_text(
         .collect::<Vec<_>>()
         .join(" ")
 }
-
-pub(crate) fn terminal_runtime_clipboard_read_text(
-    read_standard_clipboard: impl FnOnce() -> Option<ClipboardItem>,
-    paste_previewable_images_enabled: bool,
-) -> Option<String> {
-    read_standard_clipboard().as_ref().and_then(|item| {
-        terminal_clipboard_paste_text(item, paste_previewable_images_enabled, false)
-    })
-}
-
-pub(crate) fn terminal_runtime_clipboard_write_standard_text(
-    text: String,
-    mut write_standard_clipboard: impl FnMut(ClipboardItem),
-) {
-    write_standard_clipboard(ClipboardItem::new_string(text));
-}
-
-pub(crate) fn terminal_runtime_clipboard_authorized_mounted_slot_ids<SlotId, Owner>(
-    snapshot_slot_ids: impl IntoIterator<Item = SlotId>,
-    owners_by_slot: &HashMap<SlotId, Owner>,
-) -> Vec<SlotId>
-where
-    SlotId: Copy + Eq + std::hash::Hash,
-{
-    snapshot_slot_ids
-        .into_iter()
-        .filter(|slot_id| owners_by_slot.contains_key(slot_id))
-        .collect()
-}

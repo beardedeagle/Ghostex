@@ -5,7 +5,6 @@ use crate::hotkeys::{default_hotkeys, hotkey_definitions};
 use crate::json::{Json, ToJson, J};
 use crate::platform_text::{
     copy_on_select_description, copy_on_select_options, paste_previewable_images_description,
-    APP_ICON_CONTROLS_VISIBLE,
 };
 use crate::Platform;
 
@@ -18,7 +17,6 @@ pub mod module {
     pub const HOTKEYS: &str = "hotkeys";
     pub const OFFICIAL_EXTENSIONS: &str = "official_extensions";
     pub const OPEN_TARGETS: &str = "open_targets";
-    pub const PETS: &str = "pets";
     pub const PROJECT_VIEWS: &str = "project_views";
     pub const SEARCH_CATALOG: &str = "search_catalog";
     pub const SESSION_CARD_HOVER_ACTIONS: &str = "session_card_hover_actions";
@@ -118,10 +116,6 @@ pub fn exports(module: &str, platform: Platform) -> Vec<(&'static str, Json)> {
                 CUSTOM_WORKSPACE_OPEN_TARGET_ID_PREFIX.to_json(),
             ),
         ],
-        module::PETS => vec![
-            ("PET_CONTROLS_VISIBLE", PET_CONTROLS_VISIBLE.to_json()),
-            ("PET_OPTIONS", PET_OPTIONS.to_json()),
-        ],
         module::PROJECT_VIEWS => vec![
             (
                 "BUILTIN_PROJECT_VIEW_TEMPLATES",
@@ -133,10 +127,6 @@ pub fn exports(module: &str, platform: Platform) -> Vec<(&'static str, Json)> {
             ),
         ],
         module::SEARCH_CATALOG => vec![
-            (
-                "APP_ICON_CONTROLS_VISIBLE",
-                APP_ICON_CONTROLS_VISIBLE.to_json(),
-            ),
             (
                 "COPY_ON_SELECT_DESCRIPTION",
                 copy_on_select_description(platform).to_json(),
@@ -594,7 +584,6 @@ pub const MODULES: &[&str] = &[
     module::HOTKEYS,
     module::OFFICIAL_EXTENSIONS,
     module::OPEN_TARGETS,
-    module::PETS,
     module::PROJECT_VIEWS,
     module::SEARCH_CATALOG,
     module::SESSION_CARD_HOVER_ACTIONS,

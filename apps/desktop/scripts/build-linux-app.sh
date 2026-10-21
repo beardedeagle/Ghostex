@@ -6,8 +6,8 @@
 # CDXC:PlatformSupport 2026-07-05: device-verified on Ubuntu 26.04 —
 # builds, stages, and the staged app launches with working CEF sidebar and
 # local gxserver. Deliberately not yet covered here (macOS-script parity
-# items to port as Linux support matures): CLI resources, portless admin
-# runtime, updater integration, signing,
+# items to port as Linux support matures): CLI resources, updater
+# integration, signing,
 # desktop-entry/icon install, and package formats (deb/rpm/AppImage/flatpak).
 # Source is an on-demand code-server component in relocatable packages. Dev
 # builds resolve a built repository checkout through the baked

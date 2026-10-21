@@ -37,7 +37,6 @@
     "convex": "^1.46.0",
     "fuse.js": "^7.3.0",
     "lexical": "0.41.0",
-    "portless": "0.14.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-native-enriched-markdown": "1.1.1",

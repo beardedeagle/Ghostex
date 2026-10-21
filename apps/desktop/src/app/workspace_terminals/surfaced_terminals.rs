@@ -55,11 +55,6 @@ impl GhostexGpuiApp {
                     self.agents_workspace
                         .is_current_terminal_startup_body_slot(*slot_id)
                 });
-            self.agents_terminal_parked_owner_body_slot_geometries
-                .retain(|slot_id, _| {
-                    self.agents_workspace
-                        .is_current_terminal_parked_owner_body_slot(*slot_id)
-                });
             /*
             CDXC:FocusRouting 2026-10-10 WHY:
             A session closed from its sidebar row, its menu or another client leaves the workspace here, and the terminal that held the keyboard goes with it. Nothing handed the keyboard on, so GPUI focus pointed at a dropped view and keys and hotkeys did nothing until the user clicked the window. The focused pane takes it, as it does when a tab's process exits (`follow_shell_focus_after_surface_removed`), and only when the removed tab was the keyboard owner.
@@ -498,7 +493,7 @@ impl GhostexGpuiApp {
             initial_input: None,
             wait_after_command: false,
         };
-        if payload.to_ghostty_launch_payload().is_err() {
+        if payload.validate_launch_strings().is_err() {
             return;
         }
         let runtime_session_id = self

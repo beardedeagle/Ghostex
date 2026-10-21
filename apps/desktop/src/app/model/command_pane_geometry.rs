@@ -344,15 +344,3 @@ pub(crate) fn command_pane_resize_drag_width_ratio(
     let leftward_delta = drag.start_position - current_x;
     command_pane_width_ratio((drag.start_extent + leftward_delta) / content_width)
 }
-
-pub(crate) fn command_pane_floating_height_for_ratio(ratio: f32, content_height: f32) -> f32 {
-    /*
-    CDXC:CommandPane 2026-06-25-18:07:
-    Native resolves floating command-panel height by first applying the normal command-panel ratio clamp, then capping the frame to workspace height minus the reserved collapsed strip and two floating margins. Match that cap so the floating panel keeps visible top/bottom breathing room instead of clipping like a pinned panel.
-    */
-    let requested_height = command_pane_height_for_ratio(ratio, content_height);
-    let available_height =
-        (content_height.max(1.0) - COMMAND_PANE_STRIP_HEIGHT - COMMAND_PANE_FLOATING_MARGIN * 2.0)
-            .max(0.0);
-    requested_height.min(available_height)
-}

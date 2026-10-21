@@ -7,14 +7,11 @@
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::rc::Rc;
-use std::time::Instant;
 
 // RefCell backs cross-platform runtime state (window frame persistence), not
 // just the macOS-only shims that first introduced the import.
 use std::cell::Cell;
 
-use crate::terminal_surface_host::NativeTerminalSurfaceHost;
-use crate::terminal_surface_lifecycle::NativeTerminalSurfaceLifecycleState;
 use anyhow::Result;
 use gpui::App;
 use gpui::AppContext as _;
@@ -127,10 +124,10 @@ impl GhostexGpuiApp {
             shell_layout_state.pending_command_gxserver_cleanup.clone();
         let browser_url = shell_layout_state.browser_tabs.active_address_value();
         let project_editor_auto_sleep_policy = ProjectEditorAutoSleepPolicySnapshot::read_current();
-        let gpui_pet_overlay_reduce_motion_enabled = gpui_macos_reduce_motion_enabled();
+        let gpui_reduce_motion_enabled = gpui_macos_reduce_motion_enabled();
         // GPUI's own flag is what `cx.reduce_motion()` answers (the panel slides, the composer), and
         // nothing else feeds it the system setting.
-        cx.set_reduce_motion(gpui_pet_overlay_reduce_motion_enabled);
+        cx.set_reduce_motion(gpui_reduce_motion_enabled);
         let app_modal_window_id = Rc::new(Cell::new(None));
         let app_modal_window_id_for_app = app_modal_window_id.clone();
         let startup_restore_wake_pending = shell_layout_state
@@ -237,9 +234,6 @@ impl GhostexGpuiApp {
                 #[cfg(target_os = "windows")]
                 windows_first_run_setup_state,
                 prompt_editor_daemon_open: false,
-                portless_setup_prompt_suppressed_until_restart: false,
-                active_portless_setup_prompt_mode: None,
-                portless_setup_prompt_pending_modal_close: false,
                 first_run_onboarding_started: false,
                 active_open_target_id: None,
                 active_action_command_id: None,
@@ -258,7 +252,6 @@ impl GhostexGpuiApp {
                 remote_gxserver_connect_generations: HashMap::new(),
                 remote_gxserver_watchdog_probe_in_flight: false,
                 remote_gxserver_presentation_stream_generation: 0,
-                remote_repository_clone_requests: HashMap::new(),
                 source_code_server_runtime: SourceCodeServerRuntimeOwner::new(),
                 pending_source_file_open: None,
                 pending_docs_file_open: None,
@@ -290,7 +283,6 @@ impl GhostexGpuiApp {
                 sidebar_session_status_indicators_snapshot_seen: false,
                 session_attention_notification_rate_limiter:
                     GpuiSessionAttentionNotificationRateLimiter::default(),
-                sidebar_pet_overlay: GpuiSidebarPetOverlayState::default(),
                 local_workspace_latest_focus_key: None,
                 local_workspace_session_mappings: shell_layout_state
                     .local_workspace_session_mappings,
@@ -393,7 +385,6 @@ impl GhostexGpuiApp {
                 pending_keyboard_handoff_returns_from_modal: false,
                 composited_terminal_keyboard_owner: None,
                 agents_terminal_startup_body_slot_geometries: HashMap::new(),
-                agents_terminal_parked_owner_body_slot_geometries: HashMap::new(),
                 agents_terminal_runtime_sessions: AgentsTerminalRuntimeSessionRegistry::new(),
                 agents_terminal_startup_coordinator: AgentsTerminalStartupCoordinator::new(),
                 agents_terminal_startup_launch_payload_source:
@@ -402,46 +393,8 @@ impl GhostexGpuiApp {
                 ),
                 command_terminal_launch_payload_source:
                     CommandTerminalLaunchPayloadSource::new_empty(),
-                agents_terminal_surface_host: NativeTerminalSurfaceHost::new(),
-                agents_terminal_surface_lifecycle: NativeTerminalSurfaceLifecycleState::new(),
-                command_terminal_surface_host: NativeTerminalSurfaceHost::new(),
-                command_terminal_surface_lifecycle: NativeTerminalSurfaceLifecycleState::new(),
-                #[cfg(target_os = "macos")]
-                agents_terminal_ghostty_surfaces: HashMap::new(),
-                #[cfg(target_os = "macos")]
-                agents_terminal_parked_runtime_owners: HashMap::new(),
-                #[cfg(target_os = "macos")]
-                command_terminal_ghostty_surfaces: HashMap::new(),
-                #[cfg(target_os = "macos")]
-                command_terminal_parked_runtime_owners: HashMap::new(),
-                #[cfg(target_os = "macos")]
-                agents_terminal_close_confirms: AgentsTerminalCloseConfirmState::new(),
-                #[cfg(target_os = "macos")]
-                command_terminal_close_confirms: CommandTerminalCloseConfirmState::new(),
                 #[cfg(target_os = "macos")]
                 terminal_close_confirm_dialog_key: None,
-                #[cfg(target_os = "macos")]
-                agents_terminal_startup_ghostty_surfaces: HashMap::new(),
-                #[cfg(target_os = "macos")]
-                agents_terminal_ghostty_app: None,
-                #[cfg(target_os = "macos")]
-                command_terminal_ghostty_app: None,
-                #[cfg(target_os = "macos")]
-                agents_terminal_host_native_views: HashMap::new(),
-                #[cfg(target_os = "macos")]
-                command_terminal_host_native_views: HashMap::new(),
-                #[cfg(target_os = "macos")]
-                agents_terminal_startup_host_native_views: HashMap::new(),
-                #[cfg(target_os = "macos")]
-                agents_terminal_appkit_focused_host: None,
-                #[cfg(target_os = "macos")]
-                command_terminal_appkit_focused_host: None,
-                #[cfg(target_os = "macos")]
-                agents_terminal_ghostty_surface_config_requests: HashMap::new(),
-                #[cfg(target_os = "macos")]
-                command_terminal_ghostty_surface_config_requests: HashMap::new(),
-                #[cfg(target_os = "macos")]
-                agents_terminal_startup_ghostty_surface_config_requests: HashMap::new(),
                 workspace_tab_scroll_handles: HashMap::new(),
                 browser_tab_scroll_handles: HashMap::new(),
                 view_tab_scroll_handle: ScrollHandle::new(),
@@ -466,14 +419,8 @@ impl GhostexGpuiApp {
                 command_resize_hovering: None,
                 command_resize_hover_visible: None,
                 command_resize_hover_epoch: 0,
-                gpui_pet_overlay_activities_visible: shell_layout_state
-                    .pet_overlay_activities_visible,
                 sidebar_usage_visible: shell_layout_state.sidebar_usage_visible,
-                gpui_pet_overlay_avatar_hovered: false,
-                gpui_pet_overlay_animation_state: GpuiPetOverlayAnimationState::Idle,
-                gpui_pet_overlay_animation_started_at: Instant::now(),
-                gpui_pet_overlay_animation_ticker_active: false,
-                gpui_pet_overlay_reduce_motion_enabled,
+                gpui_reduce_motion_enabled,
                 command_pane_side,
                 sidebar_width,
                 sidebar_collapsed: restored_sidebar_collapsed,
@@ -487,7 +434,6 @@ impl GhostexGpuiApp {
                 app_modal_gxserver_hydrate: None,
                 app_modal_gxserver_hydrate_refreshing: false,
                 app_modal_command_return_focus_target: None,
-                plugins_modal_window: None,
                 plugin_settings_action_progress: HashMap::new(),
                 plugin_settings_action_errors: HashMap::new(),
                 #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
@@ -590,12 +536,6 @@ impl GhostexGpuiApp {
             );
             #[cfg(target_os = "macos")]
             register_gpui_keyboard_router_target(
-                this.parent_ns_view,
-                cx.weak_entity(),
-                cx.to_async(),
-            );
-            #[cfg(target_os = "macos")]
-            register_gpui_terminal_key_event_callback_target(
                 this.parent_ns_view,
                 cx.weak_entity(),
                 cx.to_async(),

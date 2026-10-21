@@ -302,67 +302,9 @@ impl GhostexGpuiApp {
             && self.exact_focused_terminal_text_surface_target().is_some()
     }
 
-    #[cfg(target_os = "macos")]
-    pub(crate) fn exact_focused_terminal_text_surface_target(
-        &self,
-    ) -> Option<FocusedTerminalTextMountTarget> {
-        let target = self.focused_terminal_text_mount_target()?;
-        match target {
-            FocusedTerminalTextMountTarget::Agents(slot_id) => self
-                .agents_terminal_ghostty_surface_matches(slot_id)
-                .then_some(target),
-            FocusedTerminalTextMountTarget::Command(slot_id) => self
-                .command_terminal_ghostty_surface_matches(slot_id)
-                .then_some(target),
-        }
-    }
-
-    #[cfg(not(target_os = "macos"))]
     pub(crate) fn exact_focused_terminal_text_surface_target(
         &self,
     ) -> Option<FocusedTerminalTextMountTarget> {
         None
-    }
-
-    #[cfg(target_os = "macos")]
-    pub(crate) fn agents_terminal_ghostty_surface_matches(
-        &self,
-        slot_id: AgentsTerminalBodyMountSlotId,
-    ) -> bool {
-        if !self
-            .agents_workspace
-            .is_current_terminal_body_mount_slot(slot_id)
-        {
-            return false;
-        }
-        let Some(runtime_session_id) = self
-            .agents_terminal_runtime_sessions
-            .runtime_session_id_for_shell_session(slot_id.session_id)
-        else {
-            return false;
-        };
-        self.agents_terminal_ghostty_surfaces
-            .get(&slot_id)
-            .is_some_and(|surface| {
-                surface.mount_slot_id() == slot_id
-                    && surface.runtime_session_id() == runtime_session_id
-            })
-    }
-
-    #[cfg(target_os = "macos")]
-    pub(crate) fn command_terminal_ghostty_surface_matches(
-        &self,
-        slot_id: CommandTerminalBodyMountSlotId,
-    ) -> bool {
-        self.command_pane
-            .is_current_terminal_body_mount_slot(slot_id)
-            && self
-                .command_terminal_ghostty_surfaces
-                .get(&slot_id)
-                .is_some_and(|surface| {
-                    surface.mount_slot_id() == slot_id
-                        && surface.runtime_session_id()
-                            == command_terminal_runtime_session_id(slot_id)
-                })
     }
 }

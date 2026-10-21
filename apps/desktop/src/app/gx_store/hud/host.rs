@@ -164,7 +164,7 @@ impl GhostexGpuiApp {
     }
 
     /// Settings were saved or re-read: the HUD's `settings` block and everything drawn from it,
-    /// and the status item and pet, which read the same settings (gx_store/indicators/).
+    /// and the status item, which reads the same settings (gx_store/indicators/).
     ///
     /// CDXC:Sidebar 2026-10-05 WHY:
     /// The list reads the settings it depends on (Group working sessions, parking) through a one-second cache, and a save only rebuilt the list when the HUD itself

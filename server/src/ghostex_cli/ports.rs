@@ -8,15 +8,13 @@ use crate::ghostex_cli::{
     rpc::{CliError, CliResult},
     usage::ports_usage,
 };
-use crate::portless::listener_discovery::{read_all_tcp_listeners, TcpListenerDetail};
+use crate::tcp_listeners::listener_discovery::{read_all_tcp_listeners, TcpListenerDetail};
 
 /*
 CDXC:Resources 2026-09-02:
 The mobile Web preview picker runs `ghostex ports --json` over SSH and forwards
 the port the user taps, so this verb lists every listening TCP socket on the
-machine, not only the ones a Ghostex session started. It reads the same
-lsof/ss output Portless parses, so the two surfaces can never disagree about
-which ports exist.
+machine, not only the ones a Ghostex session started.
 */
 pub fn ports_command(args: &[String]) -> CliResult<()> {
     if args

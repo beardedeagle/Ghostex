@@ -98,7 +98,6 @@ impl GhostexGpuiApp {
         let profile_id = tab
             .map(|tab| tab.profile_id)
             .unwrap_or_else(BrowserProfileId::default_profile);
-        let runtime_favicon_url = tab.and_then(|tab| tab.runtime_favicon_url.as_deref());
         let runtime_favicon_image = tab.and_then(|tab| tab.runtime_favicon_image.clone());
         let runtime_favicon_fetch = tab.and_then(|tab| tab.runtime_favicon_fetch.clone());
         let dragged_tab = DraggedBrowserTab {
@@ -106,7 +105,6 @@ impl GhostexGpuiApp {
             tab_id,
             profile_id,
             title: title.clone(),
-            runtime_favicon_url: runtime_favicon_url.map(str::to_string),
             runtime_favicon_image: runtime_favicon_image.clone(),
             runtime_favicon_fetch: runtime_favicon_fetch.clone(),
             state,
@@ -176,7 +174,6 @@ impl GhostexGpuiApp {
                 cx.new(|_| BrowserTabDragPreview {
                     profile_id: dragged.profile_id,
                     title: dragged.title.clone(),
-                    runtime_favicon_url: dragged.runtime_favicon_url.clone(),
                     runtime_favicon_image: dragged.runtime_favicon_image.clone(),
                     runtime_favicon_fetch: dragged.runtime_favicon_fetch.clone(),
                     state: dragged.state,

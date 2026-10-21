@@ -157,10 +157,6 @@ pub(crate) enum PaletteCommand {
     },
     /// New Window, Check for Updates, Restart and the two Quits, where the host is the desktop app.
     AppLifecycle(&'static AppLifecycleAction),
-    Pet {
-        search_text: String,
-        title: &'static str,
-    },
     Project {
         command: Value,
         hotkey: String,
@@ -173,7 +169,6 @@ impl PaletteCommand {
         match self {
             Self::Hotkey { search_text, .. }
             | Self::OpenTarget { search_text, .. }
-            | Self::Pet { search_text, .. }
             | Self::Project { search_text, .. } => search_text,
             Self::AppModal { search_text, .. } | Self::SidebarMessage { search_text, .. } => {
                 search_text
@@ -193,7 +188,6 @@ impl PaletteCommand {
             Self::Project { command, .. } => {
                 format!("project:{}", text(&command["commandId"]))
             }
-            Self::Pet { .. } => "pet".to_string(),
         }
     }
 }
@@ -452,19 +446,6 @@ pub(crate) fn populations(data: &QuickAccessData) -> Populations {
                 .map(PaletteCommand::AppLifecycle),
         );
     }
-    let pet_enabled = data.pet_overlay_enabled();
-    let pet_title = if pet_enabled { "Sleep Pet" } else { "Wake Pet" };
-    built_in.push(PaletteCommand::Pet {
-        search_text: format!(
-            "{pet_title} pet overlay {}",
-            if pet_enabled {
-                "hide sleep"
-            } else {
-                "show wake"
-            }
-        ),
-        title: pet_title,
-    });
     let pane_actions = PANE_ACTION_COMMAND_IDS
         .iter()
         .filter(|id| !hidden.contains(*id))
@@ -556,16 +537,6 @@ fn command_row(command: &PaletteCommand, data: &QuickAccessData) -> QuickAccessR
         PaletteCommand::AppLifecycle(action) => (
             action.title.to_string(),
             action.icon.to_string(),
-            String::new(),
-        ),
-        PaletteCommand::Pet { title, .. } => (
-            (*title).to_string(),
-            if *title == "Sleep Pet" {
-                "moon"
-            } else {
-                "player-play"
-            }
-            .to_string(),
             String::new(),
         ),
     };
@@ -728,10 +699,6 @@ pub(crate) fn run_command_row(key: &str, data: &QuickAccessData) -> Vec<CommandR
         return Vec::new();
     };
     match command {
-        PaletteCommand::Pet { .. } => vec![
-            CommandRun::Close,
-            CommandRun::Post(json!({ "type": "togglePetOverlay" })),
-        ],
         PaletteCommand::AppModal { modal, .. } => {
             if *modal == "previousSessions" {
                 // `openQuickAccess('recentSessions')`.

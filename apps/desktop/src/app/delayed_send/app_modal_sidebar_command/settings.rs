@@ -1,4 +1,4 @@
-//! Settings page commands: settings writes, app icon and background pickers, first launch, Ghostty and macOS settings links, sound previews, Portless, sidebar agents and actions, and per-project settings metadata.
+//! Settings page commands: settings writes, app icon and background pickers, first launch, Ghostty and macOS settings links, sound previews, sidebar agents and actions, and per-project settings metadata.
 
 use crate::app::helpers::*;
 use crate::*;
@@ -28,17 +28,11 @@ impl GhostexGpuiApp {
                     &serde_json::Value::Object(command.clone()),
                 );
             }
-            "listAppIcons" => {
-                self.handle_gpui_list_app_icons_message(cx);
-            }
             "setAppIcon" => {
                 self.handle_gpui_set_app_icon_message(
                     &serde_json::Value::Object(command.clone()),
                     cx,
                 );
-            }
-            "pickAppIconFile" => {
-                self.handle_gpui_pick_app_icon_file_message(cx);
             }
             "pickTerminalBackgroundImageFile" => {
                 self.handle_gpui_pick_terminal_background_image_message(cx);
@@ -60,9 +54,6 @@ impl GhostexGpuiApp {
             }
             "firstLaunchCreateProjectSession" => {
                 self.handle_gpui_first_launch_create_project_session_message(command, cx);
-            }
-            "revealAppIconsFolder" => {
-                app_icon::reveal_icons_directory();
             }
             "openGhosttySettingsDocs" => {
                 self.open_gpui_trusted_url(
@@ -138,12 +129,6 @@ impl GhostexGpuiApp {
             }
             "importGhosttyConfig" => {
                 self.import_gpui_ghostty_config(cx);
-            }
-            "runPortlessSettingsAdminAction" | "runPortlessSetupPromptAdminAction" => {
-                self.handle_gpui_portless_admin_action_message(command, cx);
-            }
-            "setPortlessEnabled" => {
-                self.handle_gpui_set_portless_enabled_message(command, cx);
             }
             "saveSidebarAgent"
             | "deleteSidebarAgent"
@@ -250,10 +235,6 @@ impl GhostexGpuiApp {
                     },
                     cx,
                 );
-            }
-            "postponePortlessSetupPrompt" | "cancelPortlessSetupPrompt" => {
-                self.suppress_gpui_portless_setup_prompt_for_this_run();
-                self.refresh_open_gpui_app_modal_sidebar_state_in_background(cx);
             }
             _ => {}
         }

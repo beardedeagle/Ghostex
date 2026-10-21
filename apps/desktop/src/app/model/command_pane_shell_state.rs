@@ -164,7 +164,6 @@ pub(crate) fn command_pane_model_to_shell_state_json_with_optional_delayed_send_
             .map(|group_id| serde_json::json!(group_id.0))
             .unwrap_or(serde_json::Value::Null),
         "mode": model.mode.element_slug(),
-        "lastExpandedMode": model.last_expanded_mode.element_slug(),
         "nextGroupId": model.next_group_id,
         "nextSplitId": model.next_split_id,
         "nextSessionId": model.next_session_id,
@@ -228,7 +227,6 @@ pub(crate) fn command_pane_model_from_shell_state_with_default_height_px(
             focused_group: CommandPaneGroupId(0),
             focus_mode_group: None,
             mode: CommandPaneMode::Collapsed,
-            last_expanded_mode: CommandPaneMode::Pinned,
             height_ratio: command_pane_default_height_ratio_for_default_height_px(
                 default_height_px,
                 content_height,
@@ -311,17 +309,9 @@ pub(crate) fn command_pane_model_from_shell_state_with_default_height_px(
         return None;
     }
 
-    let mode = command_pane_mode_for_current_release(
-        json_string_field(object, "mode")
-            .and_then(CommandPaneMode::from_slug)
-            .unwrap_or(CommandPaneMode::Pinned),
-    );
-    let last_expanded_mode = command_pane_mode_for_current_release(
-        json_string_field(object, "lastExpandedMode")
-            .and_then(CommandPaneMode::from_slug)
-            .filter(|mode| !matches!(mode, CommandPaneMode::Collapsed))
-            .unwrap_or(CommandPaneMode::Pinned),
-    );
+    let mode = json_string_field(object, "mode")
+        .and_then(CommandPaneMode::from_slug)
+        .unwrap_or(CommandPaneMode::Pinned);
 
     let mut model = CommandPaneModel {
         terminal_sessions,
@@ -331,7 +321,6 @@ pub(crate) fn command_pane_model_from_shell_state_with_default_height_px(
         focused_group,
         focus_mode_group: None,
         mode,
-        last_expanded_mode,
         height_ratio: json_f32_field(object, "heightRatio")
             .map(command_pane_height_ratio)
             .unwrap_or_else(|| {
@@ -738,10 +727,6 @@ pub(crate) fn split_command_pane_shell_state_json_by_gxserver_project(
                 "focusModeGroupId": serde_json::Value::Null,
                 "mode": object
                     .get("mode")
-                    .cloned()
-                    .unwrap_or_else(|| serde_json::json!("pinned")),
-                "lastExpandedMode": object
-                    .get("lastExpandedMode")
                     .cloned()
                     .unwrap_or_else(|| serde_json::json!("pinned")),
                 "nextGroupId": next_group_id,
