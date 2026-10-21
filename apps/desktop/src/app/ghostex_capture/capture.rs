@@ -2,8 +2,8 @@
 //!
 //! CDXC:GhostexCapture 2026-09-30 DECISION:
 //! User: "after clicking take a screenshot we need to hide the whole ghostex capture ui". The
-//! button, the prompt box and any open editor are moved off screen before the pixels are read and
-//! come back once the capture ends; "current app" is the app the user was in before calling up
+//! button is moved off screen and the prompt box hidden (an open editor is committed first) before
+//! the pixels are read, and both come back once the capture ends; "current app" is the app the user was in before calling up
 //! Ghostex Capture, captured straight away with no picking step.
 
 use std::time::Duration;

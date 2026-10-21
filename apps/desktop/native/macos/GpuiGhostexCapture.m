@@ -143,6 +143,27 @@ void GhostexGpuiCaptureFocusWindow(void *native_view) {
   [window makeKeyAndOrderFront:nil];
 }
 
+/// Takes a window off screen for a capture; true when it had the keyboard.
+bool GhostexGpuiCaptureHideWindow(void *native_view) {
+  NSWindow *window = GhostexGpuiCaptureWindowOfView(native_view);
+  if (!window) {
+    return false;
+  }
+  bool was_key = window.isKeyWindow;
+  [window orderOut:nil];
+  return was_key;
+}
+
+/// Brings back a window `GhostexGpuiCaptureHideWindow` hid, with the keyboard when `focus`.
+void GhostexGpuiCaptureShowWindow(void *native_view, bool focus) {
+  NSWindow *window = GhostexGpuiCaptureWindowOfView(native_view);
+  if (focus) {
+    [window makeKeyAndOrderFront:nil];
+  } else {
+    [window orderFrontRegardless];
+  }
+}
+
 /// The pid of the app the user is in; 0 when there is none.
 int32_t GhostexGpuiCaptureFrontmostPid(void) {
   NSRunningApplication *app = NSWorkspace.sharedWorkspace.frontmostApplication;

@@ -44,6 +44,8 @@ unsafe extern "C" {
         height: f64,
     );
     fn GhostexGpuiCaptureFocusWindow(native_view: *mut std::ffi::c_void);
+    fn GhostexGpuiCaptureHideWindow(native_view: *mut std::ffi::c_void) -> bool;
+    fn GhostexGpuiCaptureShowWindow(native_view: *mut std::ffi::c_void, focus: bool);
     fn GhostexGpuiCaptureMakeResizable(
         native_view: *mut std::ffi::c_void,
         min_width: f64,
@@ -152,6 +154,29 @@ pub(crate) fn focus_window(native: NativeWindow) {
     let _ = native;
 }
 
+/// Hides a window for a capture, so no part of it can show in the picture. Returns whether it had
+/// the keyboard, for `show_window` to give it back.
+pub(crate) fn hide_window(native: NativeWindow) -> bool {
+    #[cfg(target_os = "macos")]
+    return unsafe { GhostexGpuiCaptureHideWindow(native as *mut std::ffi::c_void) };
+    #[cfg(target_os = "windows")]
+    return windows::hide(native);
+    #[cfg(target_os = "linux")]
+    return x11::hide(native);
+}
+
+/// Shows a window `hide_window` hid, giving it the keyboard when `focus`.
+pub(crate) fn show_window(native: NativeWindow, focus: bool) {
+    #[cfg(target_os = "macos")]
+    unsafe {
+        GhostexGpuiCaptureShowWindow(native as *mut std::ffi::c_void, focus)
+    };
+    #[cfg(target_os = "windows")]
+    windows::show(native, focus);
+    #[cfg(target_os = "linux")]
+    x11::show(native, focus);
+}
+
 /// The pointer in GPUI's global space, read from the OS.
 pub(crate) fn pointer(scale: f32) -> Option<Point<Pixels>> {
     #[cfg(target_os = "macos")]
@@ -205,8 +230,8 @@ mod windows {
     use windows_sys::Win32::System::Threading::GetCurrentProcessId;
     use windows_sys::Win32::UI::WindowsAndMessaging::{
         GWLP_HWNDPARENT, GetCursorPos, GetForegroundWindow, GetWindowThreadProcessId, HWND_TOPMOST,
-        SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW, SetForegroundWindow,
-        SetWindowLongPtrW, SetWindowPos,
+        SW_HIDE, SW_SHOWNOACTIVATE, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW,
+        SetForegroundWindow, SetWindowLongPtrW, SetWindowPos, ShowWindow,
     };
 
     use super::FrontmostApp;
@@ -249,6 +274,21 @@ mod windows {
 
     pub(super) fn focus(native: usize) {
         unsafe { SetForegroundWindow(native as HWND) };
+    }
+
+    pub(super) fn hide(native: usize) -> bool {
+        let hwnd = native as HWND;
+        let had_focus = unsafe { GetForegroundWindow() } == hwnd;
+        unsafe { ShowWindow(hwnd, SW_HIDE) };
+        had_focus
+    }
+
+    pub(super) fn show(native: usize, focus: bool) {
+        let hwnd = native as HWND;
+        unsafe { ShowWindow(hwnd, SW_SHOWNOACTIVATE) };
+        if focus {
+            unsafe { SetForegroundWindow(hwnd) };
+        }
     }
 
     pub(super) fn pointer(scale: f32) -> Option<Point<Pixels>> {
@@ -298,7 +338,7 @@ mod x11 {
     use gpui::{Bounds, Pixels, Point, point, px};
     use x11rb::connection::Connection;
     use x11rb::protocol::xproto::{
-        AtomEnum, ClientMessageEvent, ConfigureWindowAux, ConnectionExt, EventMask,
+        AtomEnum, ClientMessageEvent, ConfigureWindowAux, ConnectionExt, EventMask, InputFocus,
     };
     use x11rb::rust_connection::RustConnection;
 
@@ -360,6 +400,35 @@ mod x11 {
             .width(device(frame.size.width).max(1) as u32)
             .height(device(frame.size.height).max(1) as u32);
         let _ = connection.configure_window(native as u32, &aux);
+        let _ = connection.flush();
+    }
+
+    pub(super) fn hide(native: usize) -> bool {
+        let Some((connection, _)) = connection() else {
+            return false;
+        };
+        let had_focus = connection
+            .get_input_focus()
+            .ok()
+            .and_then(|cookie| cookie.reply().ok())
+            .is_some_and(|reply| reply.focus == native as u32);
+        let _ = connection.unmap_window(native as u32);
+        let _ = connection.flush();
+        had_focus
+    }
+
+    pub(super) fn show(native: usize, focus: bool) {
+        let Some((connection, _)) = connection() else {
+            return;
+        };
+        let _ = connection.map_window(native as u32);
+        if focus {
+            let _ = connection.set_input_focus(
+                InputFocus::PARENT,
+                native as u32,
+                x11rb::CURRENT_TIME,
+            );
+        }
         let _ = connection.flush();
     }
 

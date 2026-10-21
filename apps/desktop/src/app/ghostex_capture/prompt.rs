@@ -46,6 +46,8 @@ pub(crate) struct PromptWindow {
     pub(crate) native: Option<platform::NativeWindow>,
     pub(crate) scale: f32,
     pub(crate) frame: Bounds<gpui::Pixels>,
+    /// Whether the box had the keyboard when a capture hid it, so it gets it back.
+    pub(crate) had_keyboard: bool,
 }
 
 #[derive(Default)]
@@ -225,6 +227,7 @@ impl GhostexGpuiApp {
                     native,
                     scale,
                     frame,
+                    had_keyboard: false,
                 });
                 cx.notify();
             });
@@ -247,7 +250,7 @@ impl GhostexGpuiApp {
     }
 
     /// Takes in where the box is now: the user may have dragged it away from where it opened.
-    /// While a capture has it off screen, the spot it comes back to is already kept.
+    /// While a capture has it hidden, the spot it comes back to is already kept.
     fn sync_ghostex_capture_prompt_origin(&mut self, cx: &mut App) {
         if self.ghostex_capture.capturing {
             return;
@@ -307,8 +310,11 @@ impl GhostexGpuiApp {
         });
     }
 
-    /// Moves the box off screen for a capture. Called with `capturing` already set, so it reads
-    /// where the box is itself: that is where it comes back to.
+    /// Hides the box for a capture. Called with `capturing` already set, so it reads where the
+    /// box is itself: that is where it comes back to.
+    ///
+    /// CDXC:GhostexCapture 2026-10-22 DECISION:
+    /// User: "when the send to prompt box is shown then i try to capture we move it off screen (top left) but it's not all the way off screen, would be better to just hide it then bring it back". macOS keeps part of a titled window on screen whatever frame it is given, so a strip with the box's buttons showed at the screen's left edge and in the picture. The box is hidden instead and shown again where it was, with the keyboard if it had it.
     pub(super) fn hide_ghostex_capture_prompt_window(&mut self, cx: &mut App) {
         if let Some(origin) = self.ghostex_capture_prompt_live_origin(cx)
             && let Some(window) = self.ghostex_capture.prompt.window.as_mut()
@@ -316,19 +322,22 @@ impl GhostexGpuiApp {
             window.frame.origin = origin;
         }
         self.remember_ghostex_capture_prompt_position(cx);
-        if let Some(window) = self.ghostex_capture.prompt.window.as_ref()
+        if let Some(window) = self.ghostex_capture.prompt.window.as_mut()
             && let Some(native) = window.native
         {
-            let away = Bounds::new(point(px(-30000.0), px(-30000.0)), window.frame.size);
-            platform::set_window_frame(native, away, window.scale);
+            // A second capture started while hidden (Space in the area picker) keeps the first
+            // answer: the box is not key while hidden.
+            let had_keyboard = platform::hide_window(native);
+            window.had_keyboard |= had_keyboard;
         }
     }
 
     pub(super) fn show_ghostex_capture_prompt_window(&mut self) {
-        if let Some(window) = self.ghostex_capture.prompt.window.as_ref()
+        if let Some(window) = self.ghostex_capture.prompt.window.as_mut()
             && let Some(native) = window.native
         {
             platform::set_window_frame(native, window.frame, window.scale);
+            platform::show_window(native, std::mem::take(&mut window.had_keyboard));
         }
     }
 
