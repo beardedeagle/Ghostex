@@ -44,7 +44,7 @@ use crate::transcript::sent_message::{project_sent_messages, resolve_recipients}
 use crate::transcript::simple::{edit_label, tool_count_label};
 use crate::transcript::system_cards::classify_system_card;
 use crate::transcript::tool_fold::{pair_tool_blocks, split_blocks, ToolPair};
-use crate::transcript::tool_rows::tool_run_shows_all_rows;
+use crate::transcript::tool_rows::{list_tools_in_work_fold, tool_run_shows_all_rows};
 use crate::transcript::transcript::{
     completed_chat_work, project_chat_transcript, TranscriptProjection,
 };
@@ -725,6 +725,7 @@ pub fn build_scope(
                         .iter()
                         .map(|message| {
                             let mut row = builder.message_or_placeholder(message, eager);
+                            list_tools_in_work_fold(&mut row);
                             if turn.running_row.as_deref() == Some(message.id.as_str()) {
                                 if let Value::Object(fields) = &mut row {
                                     fields.insert("toolsOpen".to_string(), Value::Bool(true));
@@ -822,7 +823,11 @@ pub fn build_scope(
                     deferred: deferred_value,
                     work: collapsed_work
                         .iter()
-                        .map(|message| builder.message_or_placeholder(message, eager))
+                        .map(|message| {
+                            let mut row = builder.message_or_placeholder(message, eager);
+                            list_tools_in_work_fold(&mut row);
+                            row
+                        })
                         .collect(),
                     /* The turn's answered question cards, hoisted out of the fold. */
                     questions: work

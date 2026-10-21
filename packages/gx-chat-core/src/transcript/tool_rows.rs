@@ -93,6 +93,16 @@ pub fn tool_run_shows_all_rows(has_prose: bool) -> bool {
     has_prose
 }
 
+/// Marks a row drawn inside a turn's work fold ("Worked for 45s", summary mode's "Active work") so
+/// its tool run lists every call directly under the fold.
+///
+/// CDXC:SessionChat 2026-10-21 DECISION: User, opening "Worked for 45s" onto a collapsed "8 tool calls": "please remove this unnecessary middle one (8 tool calls) and just show me the list of tool calls there". The turn's fold already collapses its work, so a tool-only row inside it adds neither simple mode's "N tool calls" group nor the "+N previous tool calls" fold; each call keeps its own row, duration, status and details. The agent's own words between runs stay the headings their calls hang from (the commentary disclosure), which is what keeps one stretch of work apart from the next. The renderers read `toolsShowAllRows` (desktop `tool_run.rs`, phone `ToolRows.tsx`) and Find reads it too (`extras/transcript_search.rs`).
+pub fn list_tools_in_work_fold(row: &mut Value) {
+    if let Value::Object(fields) = row {
+        fields.insert("toolsShowAllRows".to_string(), Value::Bool(true));
+    }
+}
+
 pub const TOOL_FOLD_EXPANDED_LABEL: &str = "Show fewer tool calls";
 
 pub fn tool_fold_label(hidden_count: usize) -> String {
