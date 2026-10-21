@@ -2707,8 +2707,11 @@ sessions, so any client can control agents on any machine.
   Localhost links in chat, terminals, and browser
   actions open in Web Preview through the connected computer, including their
   path and query, instead of the phone's external browser.
-  To paste into a session's terminal on the phone, press and hold the terminal
-  and choose Paste (Copy is there too when text is selected). With a keyboard
+  To copy from a session's terminal on the phone, press and hold a word: it is
+  selected, and moving your finger before you let go selects more. Drag the
+  handles to adjust it, then choose Copy in the bar that appears (Select All
+  selects everything on screen). On iPhone and iPad, a double tap selects a word
+  too. To paste, press and hold the terminal and choose Paste. With a keyboard
   attached to an iPhone or iPad, Cmd+V pastes too. Pasting several lines into
   a program that hasn't turned on safe paste first asks "Paste potentially
   unsafe text?", as the desktop does.
