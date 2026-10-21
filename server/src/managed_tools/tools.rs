@@ -120,6 +120,8 @@ pub(crate) struct Status {
     pub download_url: Option<String>,
     /// Operations that make sense for this install (before blockers are applied).
     pub operations: Vec<&'static str>,
+    /// Ghostex's copy exists but a new terminal or agent session can't find it by name.
+    pub off_path: bool,
 }
 
 impl Status {
@@ -136,6 +138,7 @@ impl Status {
             detail: None,
             download_url: None,
             operations: Vec::new(),
+            off_path: false,
         }
     }
 
@@ -165,6 +168,26 @@ pub(crate) fn locate(binary: &str, home: &Path) -> Option<(PathBuf, Source)> {
         Source::System
     };
     Some((path, source))
+}
+
+/// Whether `binary` runs by bare name in a new terminal or agent session, the way the board skills call
+/// `bd`. Unlike `locate` it leaves out the folders only gxserver searches. An unreadable login PATH
+/// counts as reachable, the same as `path_setup::on_path`.
+pub(crate) fn reachable(binary: &str, home: &Path) -> bool {
+    #[cfg(windows)]
+    let directories = {
+        let _ = home;
+        crate::platform::live_path::new_program_directories()
+    };
+    #[cfg(not(windows))]
+    let directories: Vec<PathBuf> = {
+        let entries = crate::agent_hooks::probing::login_shell_path(home);
+        if entries.is_empty() {
+            return true;
+        }
+        entries.into_iter().map(PathBuf::from).collect()
+    };
+    crate::platform::live_path::find_in(binary, &directories).is_some()
 }
 
 /// `<program> --version`, reduced to its first dotted version number.

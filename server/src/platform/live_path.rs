@@ -26,6 +26,13 @@ pub(crate) fn directories() -> Vec<PathBuf> {
     unique
 }
 
+/// The registry's Machine then User `Path`: what a new terminal searches, without the folders only
+/// gxserver's own PATH has (such as the tool folders `managed_tools::paths::extend_process_path` appends).
+#[cfg(windows)]
+pub(crate) fn new_program_directories() -> Vec<PathBuf> {
+    windows::registry_path_directories()
+}
+
 /// `directories()` joined, for a child process that must find tools installed after gxserver started.
 pub(crate) fn value() -> OsString {
     std::env::join_paths(directories())

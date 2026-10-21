@@ -3361,7 +3361,12 @@ backend: `ghostex team deploy|join|invite|identity|status|ping|leave`. Slack:
   tooltip says exactly how. When you already have a tool (for example Node.js
   from nvm or Homebrew), Ghostex uses yours and shows it as installed by you;
   otherwise it downloads the official release, checks its checksum and keeps
-  it in its own tools folder, added to the end of your PATH. Homebrew asks for
+  it in its own tools folder, added to the end of your PATH. Beads (`bd`) and
+  the GitHub and GitLab CLIs are linked into `~/.local/bin` instead when that
+  folder is on your PATH (never over a `bd`, `gh` or `glab` of your own), so
+  terminals and agents that are already open find them at once. If a tool
+  Ghostex installed can't be found by name in a new terminal, its row is not
+  shown as installed and Install puts it back on your PATH. Homebrew asks for
   your Mac password once; Linux system tools ask for your password once, or
   open a terminal that asks for it where there is no password dialog (WSL).
   Tools Ghostex installed get Update (or a check mark to check again),

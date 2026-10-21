@@ -5,6 +5,7 @@ use std::path::Path;
 /// Whether a new terminal will find commands in `dir`. Windows reads the live registry PATH; elsewhere the
 /// login shell's PATH (sessions run a login shell). An unreadable login PATH counts as "on PATH" so Ghostex
 /// never edits a profile on a guess.
+/// CDXC:ManagedTools 2026-10-21 WHY: Windows reads only the registry, not gxserver's own PATH: gxserver appends Ghostex's tool folders to that at startup, so the old check always answered "on PATH" and a Settings install never added the tools folder to the user `Path` (bd "not recognized" in every terminal, issue #269).
 pub(crate) fn on_path(dir: &Path, home: &Path) -> bool {
     let same = |entry: &Path| {
         let key = |path: &Path| {
@@ -18,13 +19,18 @@ pub(crate) fn on_path(dir: &Path, home: &Path) -> bool {
         };
         key(entry) == key(dir)
     };
-    if cfg!(windows) {
-        return crate::platform::live_path::directories()
+    #[cfg(windows)]
+    {
+        let _ = home;
+        crate::platform::live_path::new_program_directories()
             .iter()
-            .any(|entry| same(entry));
+            .any(|entry| same(entry))
     }
-    let entries = crate::agent_hooks::probing::login_shell_path(home);
-    entries.is_empty() || entries.iter().any(|entry| same(Path::new(entry)))
+    #[cfg(not(windows))]
+    {
+        let entries = crate::agent_hooks::probing::login_shell_path(home);
+        entries.is_empty() || entries.iter().any(|entry| same(Path::new(entry)))
+    }
 }
 
 /// CDXC:AgentProviders 2026-09-28 WHY:

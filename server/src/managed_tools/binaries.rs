@@ -120,11 +120,24 @@ pub(crate) fn status(tool: ToolId, home: &Path) -> Status {
         return Status::unsupported(reason);
     }
     let mut status = Status::new(format!(
-        "Downloads {} from {}, checks it against the published checksum, puts it in Ghostex's tools folder and adds that folder to the end of your PATH. No password needed.",
+        "Downloads {} from {}, checks it against the published checksum and puts it in Ghostex's tools folder. Then it links {} into ~/.local/bin when that folder is on your PATH, or adds Ghostex's tools folder to the end of your PATH. No password needed.",
         tool.label(),
-        spec.source_name
+        spec.source_name,
+        spec.binary
     ));
     match tools::locate(spec.binary, home) {
+        Some((path, Source::Ghostex)) if !tools::reachable(spec.binary, home) => {
+            status.version = tools::version_of(&path, &["--version"]);
+            status.detail = Some(format!(
+                "Ghostex installed {} in {}, but new terminals and agents can't find it. Install again to put it on your PATH.",
+                spec.binary,
+                paths::bin_dir().display()
+            ));
+            status.executable = Some(path);
+            status.source = Some(Source::Ghostex);
+            status.off_path = true;
+            status.operations = vec!["install", "uninstall"];
+        }
         Some((path, source)) => {
             status.version = tools::version_of(&path, &["--version"]);
             status.executable = Some(path);
@@ -180,8 +193,54 @@ pub(crate) fn install(tool: ToolId, log: &Log) -> Result<(), String> {
     Ok(())
 }
 
-pub(crate) fn uninstall(tool: ToolId, log: &Log) -> Result<(), String> {
+/// CDXC:ManagedTools 2026-10-21 WHY: The board skills and the user's own terminal run `bd` by bare name, and a PATH line added to a shell profile reaches neither a terminal or agent that was already open nor a Linux terminal that skips the login profile, so Settings showed Beads installed while `bd` was "not found" (issue #269). Like the uv and Claude installers, Ghostex links the tool into ~/.local/bin when that folder is already on the user's PATH, which works at once everywhere; only when it isn't (or Windows, or the name there is taken by someone else's file, which is never replaced) does it add its tools folder to the end of PATH. Returns what changed, for the job output.
+pub(crate) fn expose(tool: ToolId, home: &Path) -> Option<String> {
+    #[cfg(unix)]
+    {
+        let file = paths::executable_name(spec(tool).binary);
+        let target = paths::bin_dir().join(&file);
+        let links = user_bin_dir(home);
+        if crate::agent_cli::path_setup::on_path(&links, home) {
+            let link = links.join(&file);
+            if std::fs::read_link(&link).is_ok_and(|current| current == target) {
+                return None;
+            }
+            if link.symlink_metadata().is_err()
+                && std::fs::create_dir_all(&links)
+                    .and_then(|()| std::os::unix::fs::symlink(&target, &link))
+                    .is_ok()
+            {
+                return Some(format!(
+                    "Linked {} into {} so terminals and agents find it.",
+                    file,
+                    links.display()
+                ));
+            }
+        }
+    }
+    match crate::agent_cli::path_setup::ensure_on_path_end(&paths::bin_dir(), home) {
+        Ok(message) => message,
+        Err(message) => Some(message),
+    }
+}
+
+#[cfg(unix)]
+fn user_bin_dir(home: &Path) -> std::path::PathBuf {
+    home.join(".local").join("bin")
+}
+
+pub(crate) fn uninstall(tool: ToolId, home: &Path, log: &Log) -> Result<(), String> {
     let target = paths::bin_dir().join(paths::executable_name(spec(tool).binary));
+    #[cfg(unix)]
+    {
+        let link = user_bin_dir(home).join(spec(tool).binary);
+        if std::fs::read_link(&link).is_ok_and(|current| current == target) {
+            std::fs::remove_file(&link)
+                .map_err(|error| format!("Could not remove {}: {error}", link.display()))?;
+        }
+    }
+    #[cfg(not(unix))]
+    let _ = home;
     if target.exists() {
         std::fs::remove_file(&target)
             .map_err(|error| format!("Could not remove {}: {error}", target.display()))?;

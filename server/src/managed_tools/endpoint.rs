@@ -82,7 +82,7 @@ pub(crate) fn state(tool: ToolId, home: &Path, fresh: bool) -> Value {
         "label": tool.label(),
         "description": tool.description(),
         "supported": status.supported.is_ok(),
-        "installed": status.executable.is_some(),
+        "installed": status.executable.is_some() && !status.off_path,
         "installPlan": status.plan,
         "needsPassword": status.needs_password,
         "actions": [],
@@ -183,9 +183,11 @@ fn run_operation(tool: ToolId, operation: &str, home: &Path, log: &Log) -> Resul
         (ToolId::Uv, false) => uv::uninstall(log)?,
         (ToolId::Beads | ToolId::Gh | ToolId::Glab, true) => {
             binaries::install(tool, log)?;
-            add_to_path(&paths::bin_dir(), home, log);
+            if let Some(message) = binaries::expose(tool, home) {
+                log.line(&message);
+            }
         }
-        (ToolId::Beads | ToolId::Gh | ToolId::Glab, false) => binaries::uninstall(tool, log)?,
+        (ToolId::Beads | ToolId::Gh | ToolId::Glab, false) => binaries::uninstall(tool, home, log)?,
         (ToolId::Homebrew, true) if operation == "update" => homebrew::update_homebrew(home, log)?,
         (ToolId::Homebrew, true) => {
             homebrew::install_homebrew(home, log)?;
