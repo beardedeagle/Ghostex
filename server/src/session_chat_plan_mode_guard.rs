@@ -17,7 +17,7 @@ use std::{
 use serde_json::{json, Map, Value};
 
 use crate::{
-    logging::{GxserverLogInput, LogLevel},
+    logging::{DiagnosticLogScenario, GxserverLogInput, LogLevel},
     server::AppState,
 };
 
@@ -47,21 +47,22 @@ fn first_sighting(tool_use_id: &str) -> bool {
     handled.insert(tool_use_id.to_string())
 }
 
-fn log(level: LogLevel, event: &str, details: Value) {
-    static LOGGER: OnceLock<crate::logging::GxserverLogger> = OnceLock::new();
-    let logger = LOGGER.get_or_init(|| {
-        crate::logging::GxserverLogger::new(crate::paths::get_gxserver_paths(None))
-    });
-    let _ = logger.log(GxserverLogInput {
+/// A change made is routine (the Agent activity diagnostic log); one that could not be made is a
+/// warning and always written.
+fn log(state: &AppState, level: LogLevel, event: &str, details: Value) {
+    let entry = GxserverLogInput {
         level,
         event: event.to_string(),
-        server_id: None,
+        server_id: Some(state.metadata.server_id.clone()),
         request_id: None,
         client: None,
         duration_ms: None,
         error: None,
         details: Some(details),
-    });
+    };
+    let _ = state
+        .logger
+        .log_routine(DiagnosticLogScenario::AgentActivity, entry);
 }
 
 /// Called with every agent hook gxserver ingests.
@@ -146,6 +147,7 @@ fn restore_mode(
     }
     let Some(before) = before else {
         log(
+            state,
             LogLevel::Warn,
             "sessionChatPlanModeRestoreSkipped",
             details(
@@ -163,16 +165,19 @@ fn restore_mode(
     params.insert("options".into(), json!({ "mode": before }));
     match crate::session_chat_model_selection::enqueue_unless_pending(state, &params) {
         Ok(answer) if answer.get("queued").and_then(Value::as_bool) == Some(true) => log(
+            state,
             LogLevel::Info,
             "sessionChatPlanModeRestoreQueued",
             details(json!({ "mode": before })),
         ),
         Ok(answer) => log(
+            state,
             LogLevel::Info,
             "sessionChatPlanModeRestoreSkipped",
             details(json!({ "mode": before, "reason": answer.get("skipped") })),
         ),
         Err(error) => log(
+            state,
             LogLevel::Warn,
             "sessionChatPlanModeRestoreSkipped",
             details(json!({ "mode": before, "reason": error.message })),
