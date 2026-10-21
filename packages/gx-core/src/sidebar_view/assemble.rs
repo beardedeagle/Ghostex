@@ -233,10 +233,14 @@ pub(crate) fn assemble(input: AssembleInput<'_>) -> SidebarView {
             // The Hermes button is the selected slot while Bots is showing.
             row.selected = !bots_mode && selection.space_id() == row.id;
             row.contains_active_session = active_space_id.as_deref() == Some(row.id.as_str());
-            row.working_count = working_count;
-            row.attention_count = attention_count;
-            row.background_work_count = background_work_count;
-            row.question_count = question_count;
+            // CDXC:Spaces 2026-10-21 DECISION:
+            // User: "if a space is active please don't show the dots under it's space button". The Space being shown has its sessions on screen, so only the other Spaces carry status counts.
+            if !row.selected {
+                row.working_count = working_count;
+                row.attention_count = attention_count;
+                row.background_work_count = background_work_count;
+                row.question_count = question_count;
+            }
         }
         spaces = rows;
     }
