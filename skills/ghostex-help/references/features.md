@@ -987,15 +987,14 @@ again. Copy still copies the whole message.
 Hover a message to show its actions and the time it was sent in a row below
 it: Copy message, Reply by Annotating, and Save to md under an agent's final
 reply; Rewind to here, Save prompt, and Copy message under your own messages.
-On the phone there is no hover. On Android, hold a message's words to select
-them (drag the handles to change the selection); the bar that appears offers
-Copy, Add to Chat, which quotes the selected words into the chat box, and More,
-which opens the message's menu with Copy and Add to Chat for the whole message
-and the same actions. A selection stays inside one paragraph, list item, table
-cell or code block, so use More > Copy for a whole message. Holding a message
-beside its words opens that menu straight away, and holding a link opens the
-link's own menu. On iPhone, hold a message to open its menu. Nothing shows
-under a message until you do.
+On the phone there is no hover. Hold a message's words to select them (drag
+the handles to change the selection); the menu that appears offers Copy, Add to
+Chat, which quotes the selected words into the chat box, and More, which opens
+the message's menu with Copy and Add to Chat for the whole message and the same
+actions. A selection stays inside one paragraph, list item, table cell or code
+block, so use More > Copy for a whole message. Holding a message beside its
+words opens that menu straight away, and holding a link opens the link's own
+menu. Nothing shows under a message until you do.
 Hover the time to see the full date. When the session you are in shows its
 chat, Cmd+Shift+; copies the last code block the agent wrote and Cmd+Shift+C
 copies the agent's last reply (Mac only; on Windows and Linux Ctrl+Shift+C stays
