@@ -116,6 +116,28 @@ pub(crate) fn hold_session_chat_grid(
     }))
 }
 
+/// The holder-id prefix the phone's chat leases carry (`resolveHolderId` in
+/// apps/mobile/app/src/terminal/chatGridClaim.ts), which leases only the one chat in the foreground.
+pub(crate) const PHONE_CHAT_HOLDER_PREFIX: &str = "mobile-chat-";
+
+/// The sessions a live lease from a holder whose id starts with `holder_prefix` shows right now.
+pub(crate) fn chats_shown_by(holder_prefix: &str) -> Vec<(String, String)> {
+    let now = now_ms();
+    let registry = registry()
+        .lock()
+        .expect("chat grid claim registry poisoned");
+    registry
+        .leases
+        .iter()
+        .filter(|(_, holders)| {
+            holders
+                .iter()
+                .any(|(holder, expires_at)| holder.starts_with(holder_prefix) && *expires_at > now)
+        })
+        .map(|(key, _)| key.clone())
+        .collect()
+}
+
 /// Brings the open claims in line with the leases now, and keeps a slow sweep running for
 /// expiries and daemons that restarted under a held claim.
 fn schedule_sync(state: &AppState) {

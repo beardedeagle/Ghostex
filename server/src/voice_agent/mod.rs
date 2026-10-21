@@ -17,12 +17,14 @@ mod question_forms;
 mod recordings;
 mod recordings_http;
 mod registry;
+mod screen;
 mod sessions;
 mod settings_http;
 mod show;
 mod socket;
 mod tools;
 mod transcribe;
+mod when;
 
 pub(crate) use http::{
     handle_forget_voice_agent_memory_http, handle_read_voice_agent_http,

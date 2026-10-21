@@ -154,6 +154,7 @@ pub(super) const RENDERER_COMMAND_ACTIONS: &[&str] = &[
     "openBrowserPane",
     "openPaths",
     "openSettings",
+    "readFocusedSession",
     "readResourcesSnapshot",
     "restartSession",
     /*

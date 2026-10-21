@@ -98,6 +98,9 @@ pub enum RendererVerb {
         command_id: String,
     },
     ReadResourcesSnapshot,
+    /// `readFocusedSession`: the session the window shows focused, and every one on screen (the
+    /// voice agent's "this session", server/src/voice_agent/screen.rs).
+    ReadFocusedSession,
     /// `ghostex settings set` / `reset`.
     UpdateSettingsPatch {
         patch: Map<String, Value>,
@@ -213,6 +216,7 @@ pub fn plan_renderer_command(
             run_command(payload, "id")
         }
         "readResourcesSnapshot" => Ok(RendererVerb::ReadResourcesSnapshot),
+        "readFocusedSession" => Ok(RendererVerb::ReadFocusedSession),
         "updateSettingsPatch" => settings_patch(payload),
         "openSettings" => {
             let tab = trimmed(payload, "tab").unwrap_or_else(|| "settings".to_string());

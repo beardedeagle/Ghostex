@@ -15,6 +15,7 @@ use super::loopback;
 use super::question_forms;
 use super::sessions::{self, Match, SessionInfo};
 use super::show;
+use super::{screen, when};
 use crate::server::AppState;
 
 /// Messages `read_session` returns by default and at most.
@@ -45,7 +46,7 @@ pub(super) fn definitions() -> Value {
         {
             "type": "function",
             "name": "read_session",
-            "description": "Read the last messages between the user and the agent in a session (no tool calls, no thinking), plus whether it is working and what it waits on.",
+            "description": "Read the last messages between the user and the agent in a session (no tool calls, no thinking), plus whether it is working and what it waits on. Each message has when, the time it was sent in words you can say as they are (\"5 minutes ago, at 3:40 PM\").",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -160,6 +161,12 @@ pub(super) fn definitions() -> Value {
         },
         {
             "type": "function",
+            "name": "get_active_session",
+            "description": "Which session the user is looking at: desktop is the session focused in the Ghostex app on the computer (desktopAlsoOnScreen lists other panes showing), phoneChat the chat open on their phone right now, when one is. Call it when the user says this session, this one, the one I'm looking at or the one on screen, then use its ref.",
+            "parameters": {"type": "object", "properties": {}}
+        },
+        {
+            "type": "function",
             "name": "show_session",
             "description": "Show a session in the Ghostex app: the sidebar selects it and the work area opens it, switching project when it is in another one. Call it when the user asks to see, show, open or go to a session; it switches even while they type. The other session tools already show the session they work with, unless the user is typing (their result then says shownInApp false).",
             "parameters": {
@@ -210,6 +217,7 @@ pub(super) fn label(name: &str, args: &Value) -> String {
         ("list_agent_types", _) => "Checking your agents".to_string(),
         ("start_agent", Some(target)) => format!("Starting an agent in {target}"),
         ("show_session", Some(target)) => format!("Showing {target}"),
+        ("get_active_session", _) => "Checking what's on screen".to_string(),
         ("recall_last_conversation", _) => "Remembering your last conversation".to_string(),
         (name, _) => name.replace('_', " "),
     }
@@ -321,6 +329,7 @@ async fn run_tool(
         "list_projects" => list_projects(state).await,
         "list_agent_types" => list_agent_types(state).await,
         "start_agent" => return start_agent(state, args).await,
+        "get_active_session" => screen::get_active_session(state).await,
         "show_session" => match resolve_session(state, memory, args).await {
             Ok(session) => show::show_session(state, &session).await,
             Err(error) => Err(error),
@@ -455,6 +464,41 @@ async fn read_chat(
     .await
 }
 
+/// The user's and the agent's messages of a chat, newest last, at most `count`, each with its
+/// text and when it was sent.
+fn spoken_messages(chat: &Value, count: usize, now: chrono::DateTime<chrono::Local>) -> Vec<Value> {
+    let mut messages: Vec<Value> = chat
+        .get("messages")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|message| {
+            let role = match crate::ghostex_cli::session_chat_transcript::effective_role(message) {
+                "user" => "user",
+                "assistant" => "agent",
+                _ => return None,
+            };
+            let text = spoken_text(message);
+            if text.is_empty() {
+                return None;
+            }
+            let mut entry = json!({"role": role, "text": text});
+            if let Some(spoken) = message
+                .get("timestamp")
+                .and_then(Value::as_i64)
+                .and_then(|timestamp| when::spoken(timestamp, now))
+            {
+                entry["when"] = json!(spoken);
+            }
+            Some(entry)
+        })
+        .collect();
+    if messages.len() > count {
+        messages.drain(..messages.len() - count);
+    }
+    messages
+}
+
 async fn read_session(
     state: &Arc<AppState>,
     memory: &ToolMemory,
@@ -468,24 +512,7 @@ async fn read_session(
         .unwrap_or(READ_DEFAULT);
     // Tool rows dominate a transcript, so read well past `count` rows to find enough messages.
     let chat = read_chat(state, &session, (count * 12).clamp(60, 240)).await?;
-    let mut messages: Vec<Value> = chat
-        .get("messages")
-        .and_then(Value::as_array)
-        .into_iter()
-        .flatten()
-        .filter_map(|message| {
-            let role = match crate::ghostex_cli::session_chat_transcript::effective_role(message) {
-                "user" => "user",
-                "assistant" => "agent",
-                _ => return None,
-            };
-            let text = spoken_text(message);
-            (!text.is_empty()).then(|| json!({"role": role, "text": text}))
-        })
-        .collect();
-    if messages.len() > count {
-        messages.drain(..messages.len() - count);
-    }
+    let messages = spoken_messages(&chat, count, chrono::Local::now());
     Ok(json!({
         "ok": true,
         "session": session.to_tool_value(),

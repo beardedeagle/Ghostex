@@ -75,6 +75,7 @@ export const GXSERVER_RENDERER_COMMAND_ACTIONS = [
   'openBrowserPane',
   'openPaths',
   'openSettings',
+  'readFocusedSession',
   'readResourcesSnapshot',
   'restartSession',
   'renameCommand',

@@ -2556,7 +2556,9 @@ add to it or replace it). To send an agent a screenshot, copy the image to the
 clipboard on your computer and ask the voice agent to include it: it tells the
 agent to read the image from the clipboard (this works only for agents on that
 computer, not on a remote machine). Name sessions and projects the way you
-would say them ("the sidebar one"); it asks when two match. Whatever session
+would say them ("the sidebar one"), or say "this one" for the session you are
+looking at; it asks when two match. When it reads messages it can tell you
+when they were sent ("he replied five minutes ago"). Whatever session
 it talks about (reading its messages, a question it asks, a draft) is shown in
 the app: the sidebar selects it and the work area opens it, switching project
 or Space when needed, but not while you are typing, so it never pulls you away

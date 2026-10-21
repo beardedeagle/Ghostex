@@ -115,6 +115,21 @@ impl GhostexGpuiApp {
             RendererVerb::ReadResourcesSnapshot => {
                 Ok(self.gpui_native_resources_snapshot_export(cx))
             }
+            RendererVerb::ReadFocusedSession => {
+                // This computer's sessions only: a remote machine's row means nothing to the
+                // gxserver that asks.
+                let focus = self.gx_store.core.focus();
+                let local = |key: &ghostex_gx_core::SessionKey| {
+                    key.machine.is_local().then(
+                        || json!({ "projectId": key.project_id, "sessionId": key.session_id }),
+                    )
+                };
+                Ok(json!({
+                    "focused": focus.focused_session.as_ref().and_then(local),
+                    "ok": true,
+                    "onScreen": focus.displayed_sessions.iter().filter_map(local).collect::<Vec<_>>(),
+                }))
+            }
             RendererVerb::UpdateSettingsPatch { patch, keys } => {
                 // CDXC:Settings 2026-09-09 DECISION:
                 // User: `ghostex settings set` writes through the running desktop app, never the
