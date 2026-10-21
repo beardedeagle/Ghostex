@@ -184,6 +184,8 @@ pub(crate) struct NativeSidebarCollection {
     pub(crate) attention_count: usize,
     #[serde(default)]
     pub(crate) background_work_count: usize,
+    #[serde(default)]
+    pub(crate) question_count: usize,
     pub(crate) menu: Arc<Value>,
 }
 

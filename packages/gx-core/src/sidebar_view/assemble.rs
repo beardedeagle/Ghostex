@@ -341,6 +341,7 @@ pub(crate) fn assemble(input: AssembleInput<'_>) -> SidebarView {
                     working_count: summary.working_count,
                     attention_count: summary.attention_count,
                     background_work_count: summary.background_work_count,
+                    question_count: summary.question_count,
                     awake_count: summary.awake_count,
                 });
                 order.push(OrderItem {

@@ -485,6 +485,7 @@ fn native_group(
             "workingCount": core.summary.working_count,
             "attentionCount": core.summary.attention_count,
             "backgroundWorkCount": core.summary.background_work_count,
+            "questionCount": core.summary.question_count,
             "awakeCount": core.summary.awake_count,
         }),
         collapsed: core.collapsed,
@@ -643,6 +644,7 @@ fn native_collection(
         working_count: collection.working_count,
         attention_count: collection.attention_count,
         background_work_count: collection.background_work_count,
+        question_count: collection.question_count,
         menu: collection_menu(collection, view, menus, cache),
     }
 }

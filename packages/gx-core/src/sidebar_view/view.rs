@@ -191,6 +191,8 @@ pub struct GroupSummary {
     pub working_count: usize,
     pub attention_count: usize,
     pub background_work_count: usize,
+    /// Rows with an unanswered question card (the pink dot); they are not counted as attention.
+    pub question_count: usize,
     pub awake_count: usize,
 }
 
@@ -533,6 +535,7 @@ pub struct CollectionView {
     pub working_count: usize,
     pub attention_count: usize,
     pub background_work_count: usize,
+    pub question_count: usize,
     pub awake_count: usize,
 }
 

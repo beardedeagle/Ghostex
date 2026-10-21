@@ -329,7 +329,9 @@ pub(crate) fn group_summary(sessions: &[SessionView]) -> GroupSummary {
         if row.activity == "working" {
             summary.working_count += 1;
         }
-        if row.activity == "attention" || row.pending_question_count > 0 {
+        if row.pending_question_count > 0 {
+            summary.question_count += 1;
+        } else if row.activity == "attention" {
             summary.attention_count += 1;
         }
         if row.shows_background_work() {
