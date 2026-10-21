@@ -356,7 +356,7 @@ const TERMINAL_AGENT_BAR_MENU_ROWS: &[Option<TerminalAgentBarAction>] = &[
 ];
 
 impl GhostexGpuiApp {
-    fn agents_sidebar_session_for_terminal(
+    pub(crate) fn agents_sidebar_session_for_terminal(
         &self,
         session_id: TerminalSessionId,
     ) -> Option<&GpuiSidebarWorkspaceTabSession> {
@@ -739,6 +739,9 @@ impl GhostexGpuiApp {
             .agents_sidebar_session_for_terminal(session_id)
             .map(|session| session.switchable_agents.clone())
             .unwrap_or_default();
+        let is_orchestrator = self
+            .agents_sidebar_session_for_terminal(session_id)
+            .is_some_and(|session| session.is_orchestrator);
         // The chat's menu rule: Claude and Codex sessions switch between saved accounts, every
         // other agent between the daemon's switchable-agent rows.
         let accounts_target = self.terminal_agent_bar_account_target(session_id);
@@ -782,6 +785,9 @@ impl GhostexGpuiApp {
             match row {
                 Some(action) => {
                     if *action == TerminalAgentBarAction::SwitchAccount && !has_switch_account {
+                        continue;
+                    }
+                    if *action == TerminalAgentBarAction::CloseAfterDone && is_orchestrator {
                         continue;
                     }
                     if let Some(heading) = terminal_agent_bar_menu_group_heading(*action) {

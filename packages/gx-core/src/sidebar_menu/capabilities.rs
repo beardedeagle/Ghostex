@@ -37,7 +37,10 @@ impl SessionCapabilities {
         // does not have) are both true here.
         let terminal_action = !is_browser;
         Self {
+            // CDXC:Sessions 2026-10-21 (server/src/close_after_done.rs `is_orchestrator`): an
+            // orchestrator never takes Close After Done, so its row offers none.
             can_close_after_done: terminal_action
+                && !row.is_coordinator
                 && (!is_remote_session || facts.can_toggle_close_after_done),
             can_delayed_send: terminal_action
                 && (!is_remote_session || facts.can_schedule_delayed_send),

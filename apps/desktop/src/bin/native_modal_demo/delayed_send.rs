@@ -39,6 +39,7 @@ pub(super) fn open(demo: &super::DemoEnv, cx: &mut App) {
     let config = DelayedSendModalConfig {
         agent_icon_path: (state != "noicon").then(|| "agent-icons/codex.svg".to_string()),
         close_after_done_active: state == "active",
+        supports_close_after_done: true,
         delayed_send_deadline_remaining_ms: (state == "active").then_some(95 * 60 * 1000),
         delayed_send_remaining_label: (state == "active").then(|| "1h 35m".to_string()),
         send_when_all_project_sessions_stop_active: false,

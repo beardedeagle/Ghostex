@@ -57,8 +57,11 @@ fn tick(state: &AppState) {
         else {
             continue;
         };
-        // A session that left the presentation (closed, removed) is no longer armed.
-        if delta.get("type").and_then(Value::as_str) == Some("sessionRemoved") {
+        // A session that left the presentation (closed, removed) is no longer armed, and neither
+        // is an orchestrator (CDXC:Sessions 2026-10-21 on `close_after_done::is_orchestrator`).
+        if delta.get("type").and_then(Value::as_str) == Some("sessionRemoved")
+            || close_after_done::is_orchestrator(&db, &key)
+        {
             let _ = close_after_done::disarm(&db, &key);
             let _ = schedule_presentation_session_delta(
                 state,

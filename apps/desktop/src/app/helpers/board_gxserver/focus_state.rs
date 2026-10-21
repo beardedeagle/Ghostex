@@ -355,6 +355,7 @@ pub(crate) fn gxserver_workspace_tab_session_from_value(
         has_session_note,
         stashed_prompt_count,
         switchable_agents,
+        is_orchestrator: json_string_field(object, "coordinatorRole") == Some("coordinator"),
         title,
     })
 }

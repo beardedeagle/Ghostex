@@ -95,6 +95,11 @@ impl GhostexGpuiApp {
                 "sendWhenAllProjectSessionsStopActive",
             ),
             send_when_agent_stops_active: flag("sendWhenAgentStopsActive"),
+            // Absent (a command pane tab, an older sender) offers the switch.
+            supports_close_after_done: message
+                .get("supportsCloseAfterDone")
+                .and_then(serde_json::Value::as_bool)
+                != Some(false),
             send_when_specific_agent_finishes: delayed_send_agent_reference(
                 message.get("sendWhenSpecificAgentFinishes"),
             ),

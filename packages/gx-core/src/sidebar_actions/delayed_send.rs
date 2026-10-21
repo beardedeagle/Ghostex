@@ -81,6 +81,9 @@ pub fn plan_delayed_send_action(view: &SidebarView, command: &Value) -> Option<S
     );
     flag("supportsSendWhenAgentStops", true);
     flag("supportsSendWhenAllProjectSessionsStop", true);
+    // CDXC:Sessions 2026-10-21 (server/src/close_after_done.rs `is_orchestrator`): an
+    // orchestrator's dialog has no Close After Done switch.
+    flag("supportsCloseAfterDone", !row.is_coordinator);
     Some(SidebarActionPlan::one(ActionEffect::OpenAppModal {
         payload: Value::Object(open),
     }))

@@ -102,6 +102,8 @@ pub(crate) struct DelayedSendModalConfig {
     /// The session's agent logo (`agent-icons/<file>.svg`), drawn as a 14px mask beside the session title.
     pub(crate) agent_icon_path: Option<String>,
     pub(crate) close_after_done_active: bool,
+    /// False for an orchestrator, which never takes Close After Done: its switch is hidden.
+    pub(crate) supports_close_after_done: bool,
     /// `Some` when the open message carried `delayedSendDeadlineAt`; the value is the
     /// remaining time at open, clamped at zero (`getRemainingMs`).
     pub(crate) delayed_send_deadline_remaining_ms: Option<u64>,
@@ -165,6 +167,7 @@ pub(crate) struct GpuiDelayedSendModalWindow {
     status_accent: Rgba,
     agent_icon_path: Option<String>,
     close_after_done_active: bool,
+    supports_close_after_done: bool,
     deadline_remaining_ms: Option<u64>,
     remaining_label: Option<String>,
     send_when_all_project_sessions_stop_active: bool,
@@ -245,6 +248,7 @@ impl GpuiDelayedSendModalWindow {
             }),
             agent_icon_path: config.agent_icon_path,
             close_after_done_active: config.close_after_done_active,
+            supports_close_after_done: config.supports_close_after_done,
             deadline_remaining_ms: config.delayed_send_deadline_remaining_ms,
             remaining_label: config
                 .delayed_send_remaining_label
@@ -1038,6 +1042,18 @@ impl GpuiDelayedSendModalWindow {
         let send_content = self
             .send_enter_enabled
             .then(|| self.render_send_enter_content(window, cx));
+        let close_after_done_card = self.supports_close_after_done.then(|| {
+            self.render_card(
+                "delayed-send-close-after-done-switch",
+                CLOSE_TITLE,
+                CLOSE_DESCRIPTION.to_string(),
+                p.muted,
+                self.close_after_done_enabled,
+                |this, _window, cx| this.toggle_close_after_done(cx),
+                None,
+                cx,
+            )
+        });
         v_flex()
             .w_full()
             .gap(px(12.0))
@@ -1058,16 +1074,7 @@ impl GpuiDelayedSendModalWindow {
                 send_content,
                 cx,
             ))
-            .child(self.render_card(
-                "delayed-send-close-after-done-switch",
-                CLOSE_TITLE,
-                CLOSE_DESCRIPTION.to_string(),
-                p.muted,
-                self.close_after_done_enabled,
-                |this, _window, cx| this.toggle_close_after_done(cx),
-                None,
-                cx,
-            ))
+            .children(close_after_done_card)
             .into_any_element()
     }
 

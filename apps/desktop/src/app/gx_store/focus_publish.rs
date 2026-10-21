@@ -506,9 +506,11 @@ fn workspace_tab_session(
         "attention" => AgentTerminalActivity::Attention,
         _ => AgentTerminalActivity::Idle,
     };
-    let switchable_agents = core
-        .presentation()
-        .session(&tab.key)
+    let presentation_session = core.presentation().session(&tab.key);
+    let is_orchestrator = presentation_session
+        .as_ref()
+        .is_some_and(|session| session.coordinator_role.as_deref() == Some("coordinator"));
+    let switchable_agents = presentation_session
         .and_then(|session| session.switchable_agents.clone())
         .and_then(|rows| rows.as_array().cloned())
         .unwrap_or_default()
@@ -530,6 +532,7 @@ fn workspace_tab_session(
         has_session_note: tab.has_session_note,
         stashed_prompt_count: tab.stashed_prompt_count.unwrap_or(0).min(200),
         switchable_agents,
+        is_orchestrator,
         title: tab.title.clone(),
     }
 }

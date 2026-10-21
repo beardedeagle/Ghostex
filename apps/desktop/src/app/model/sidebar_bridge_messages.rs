@@ -38,6 +38,9 @@ pub(crate) struct GpuiSidebarWorkspaceTabSession {
     /// Empty when there is no compatible account, which hides the terminal
     /// action bar's "Switch Account" row.
     pub(crate) switchable_agents: Vec<GpuiSwitchableSessionAgent>,
+    /// An orchestrator never takes Close After Done, so its action bar menu hides the row
+    /// (CDXC:Sessions 2026-10-21 in server/src/close_after_done.rs).
+    pub(crate) is_orchestrator: bool,
     pub(crate) title: String,
 }
 

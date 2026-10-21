@@ -150,6 +150,14 @@ pub fn document(state: &ChatState, context: &ChatContext, into: &mut Document) {
         .filter(|action| {
             action.id != "fork" || crate::composer::host_actions::session_supports_fork(state)
         })
+        // CDXC:Sessions 2026-10-21 (server/src/close_after_done.rs `is_orchestrator`): an
+        // orchestrator never takes Close After Done.
+        .filter(|action| {
+            action.id != "closeAfterDone"
+                || !crate::extras::coordinator_threads::is_coordinator(
+                    state.session.coordinator_threads.as_ref(),
+                )
+        })
         .collect();
     into.side_chat = crate::composer::side_chat::side_chat_prefix(state);
     into.ghostex_skills = crate::composer::ghostex_skills::ghostex_skills(state);

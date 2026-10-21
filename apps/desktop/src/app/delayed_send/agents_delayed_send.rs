@@ -23,6 +23,9 @@ impl GhostexGpuiApp {
             open_message["agentIcon"] = serde_json::json!(agent_icon);
         }
         open_message["supportsSendWhenAgentStops"] = serde_json::json!(true);
+        open_message["supportsCloseAfterDone"] = serde_json::json!(!self
+            .agents_sidebar_session_for_terminal(session_id)
+            .is_some_and(|session| session.is_orchestrator));
         /*
         CDXC:DelayedSend 2026-09-21 WHY:
         The open message names the session by its shell id (`GW…`), which never matches the sidebar-state `sessionsById` keys the dialog would otherwise read, so an armed Close After Done opened as switched off and could not be turned off from the dialog. State it here from the same armed map the chat indicator draws from.

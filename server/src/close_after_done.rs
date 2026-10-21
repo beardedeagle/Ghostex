@@ -128,6 +128,9 @@ pub fn toggle(
         .get("armed")
         .and_then(Value::as_bool)
         .unwrap_or(!armed.contains(&key));
+    if arm && is_orchestrator(db, &key) {
+        return Err(DomainStateError::bad_request(ORCHESTRATOR_REFUSAL));
+    }
     if arm {
         armed.insert(key.clone());
     } else {
@@ -136,6 +139,22 @@ pub fn toggle(
     }
     write_armed(db, &armed)?;
     Ok(json!({ "armed": arm, "projectId": project_id, "sessionId": session_id }))
+}
+
+/// Why an orchestrator cannot be armed, as the API, the CLI and the app's toast say it.
+pub const ORCHESTRATOR_REFUSAL: &str =
+    "Close After Done is not available for an orchestrator: it stays open to follow its threads.";
+
+/// Whether this session is an orchestrator, which never takes Close After Done.
+///
+/// CDXC:Sessions 2026-10-21 DECISION:
+/// User: "don't allow setting \"close after done\" on coordinator thread". An orchestrator cannot be armed for Close After Done (the API and `ghostex close-after-done` refuse it with a plain error, and the clock disarms one that was armed before this rule or before it became an orchestrator); every menu hides the row for it. Its threads keep the option.
+/// SEE-ALSO: packages/gx-core/src/sidebar_menu/capabilities.rs, packages/gx-chat-core/src/composer/host_actions.rs, apps/desktop/src/app/render/terminal_agent_action_bar.rs, apps/mobile/app/src/screens/sessions-screen/sidebar-menus.ts.
+pub fn is_orchestrator(db: &Connection, key: &SessionKey) -> bool {
+    crate::coordinators::read_coordinator(db, &key.0, &key.1)
+        .ok()
+        .flatten()
+        .is_some()
 }
 
 /// Forgets an armed session (it closed, or it is gone).
