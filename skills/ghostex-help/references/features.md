@@ -1019,6 +1019,13 @@ in its terminal, so sending one switches to Terminal View. Your next chat messag
 or switching back to Chat View on the computer, closes the side conversation first.
 Claude panels such as `/status` and `/usage` show as clickable tabs, tables and
 usage meters instead of terminal text.
+Claude Code's permission mode (Bypass permissions, Auto, Manual, Accept edits or
+Plan) is the Mode button beside the model pill. Claude can also put itself into
+Plan mode on its own, for example when a message asks it to plan something;
+Ghostex then switches the session straight back to the mode you had, so only you
+change it. Plan mode you pick yourself (the Mode button, `/plan`, or Shift+Tab in
+the terminal) stays on. From the CLI:
+`ghostex select-session-chat-model <session> --mode bypass|auto|manual|accept-edits|plan`.
 `/resume` works from the chat. In Claude Code and Codex chats it opens a Resume a
 conversation card listing the agent's own conversations: type to search, Up and
 Down move, Enter resumes the highlighted one, Escape cancels, or click a row (tap it
