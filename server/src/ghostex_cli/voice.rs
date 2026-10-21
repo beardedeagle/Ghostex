@@ -28,8 +28,9 @@ const USAGE: &str = "Usage:
   --voice <id> (a turn that switches the agent's voice; place it between --text turns),
   --rate <1.0-2.0> (report a client playback rate, as the desktop's speed buttons do),
   --continue (a turn that hands the remembered last conversation to the agent, as Continue does),
-  --mute / --unmute (turns that mute or unmute the microphone the way the apps do; with
-  voiceAgentMuteBilling=pushToTalk a muted Grok call switches to push-to-talk).
+  --mode pushToTalk|regular (the call mode for this call; push-to-talk sends each --wav as a held
+  Talk and no audio in between), --wait <seconds> (a quiet turn: nothing is said or sent).
+  Push-to-talk also prints [usage] with the seconds the provider has billed so far.
 
 Runs a voice-agent conversation (or, with --dictate, a Grok dictation) against this computer's
 gxserver and prints captions, tool calls and state changes. Each --text or --wav is one turn;
@@ -49,6 +50,7 @@ struct Options {
     detach: bool,
     resume: Option<String>,
     rate: Option<f64>,
+    push_to_talk: Option<bool>,
 }
 
 enum Turn {
@@ -56,7 +58,7 @@ enum Turn {
     Wav(String),
     Voice(String),
     Continue,
-    Mute(bool),
+    Wait(u64),
 }
 
 fn parse(args: &[String]) -> CliResult<Options> {
@@ -73,6 +75,7 @@ fn parse(args: &[String]) -> CliResult<Options> {
         detach: false,
         resume: None,
         rate: None,
+        push_to_talk: None,
     };
     let mut index = 0;
     let value = |index: usize, flag: &str| -> CliResult<String> {
@@ -86,11 +89,18 @@ fn parse(args: &[String]) -> CliResult<Options> {
             "--text" => options.turns.push(Turn::Text(value(index, flag)?)),
             "--wav" => options.turns.push(Turn::Wav(value(index, flag)?)),
             "--voice" => options.turns.push(Turn::Voice(value(index, flag)?)),
-            "--mute" | "--unmute" => {
-                options.turns.push(Turn::Mute(flag == "--mute"));
-                index += 1;
-                continue;
+            "--mode" => {
+                options.push_to_talk = match value(index, flag)?.as_str() {
+                    "pushToTalk" => Some(true),
+                    "regular" => Some(false),
+                    _ => return Err(CliError::Other("--mode is pushToTalk or regular.".into())),
+                }
             }
+            "--wait" => options.turns.push(Turn::Wait(
+                value(index, flag)?
+                    .parse()
+                    .map_err(|_| CliError::Other("--wait needs seconds.".into()))?,
+            )),
             "--continue" => {
                 options.turns.push(Turn::Continue);
                 index += 1;
@@ -171,6 +181,14 @@ fn connect(mode: &str, options: &Options) -> CliResult<WebSocket<TcpStream>> {
     let mut url = format!("ws://{host}/api/voice?protocolVersion=1&mode={mode}&client=cli");
     if let Some(provider) = &options.provider {
         url.push_str(&format!("&provider={provider}"));
+    }
+    if let Some(push_to_talk) = options.push_to_talk {
+        let mode = if push_to_talk {
+            "pushToTalk"
+        } else {
+            "regular"
+        };
+        url.push_str(&format!("&callMode={mode}"));
     }
     if let Some(language) = &options.language {
         url.push_str(&format!("&language={language}"));
@@ -302,10 +320,8 @@ struct TurnWatch {
     playback_report: Option<(String, u64)>,
     /// A `voice` answer arrived since the last `--voice` turn.
     voice_answered: bool,
-    /// A `billing` frame arrived since the last `--mute` / `--unmute` turn.
-    billing_answered: bool,
-    /// `--mute`: no microphone audio is sent until `--unmute`.
-    muted: bool,
+    /// Push-to-talk: no microphone audio is sent except during a held `--wav` turn.
+    push_to_talk: bool,
     /// `--rate`: how fast the simulated player plays the agent's audio.
     rate: f64,
 }
@@ -343,14 +359,19 @@ fn handle_frame(message: Message, start: Instant, watch: &mut TurnWatch, audio: 
             let at = elapsed(start);
             match field("type").as_str() {
                 "ready" if field("mode") == "dictation" => println!("{at}  [ready] dictation"),
-                "ready" => println!(
-                    "{at}  [ready] conversation {} · {} · voice {} · resumed {} · memory {}",
-                    field("conversationId"),
-                    field("provider"),
-                    field("voice"),
-                    frame["resumed"],
-                    frame["memory"]["gist"]
-                ),
+                "ready" => {
+                    // gxserver says which kind of call this is (the setting or `--mode`).
+                    watch.push_to_talk = field("callMode") == "pushToTalk";
+                    println!(
+                        "{at}  [ready] conversation {} · {} · voice {} · {} call · resumed {} · memory {}",
+                        field("conversationId"),
+                        field("provider"),
+                        field("voice"),
+                        field("callMode"),
+                        frame["resumed"],
+                        frame["memory"]["gist"]
+                    )
+                }
                 "memory" => println!(
                     "{at}  [memory] {} {}",
                     field("state"),
@@ -442,18 +463,10 @@ fn handle_frame(message: Message, start: Instant, watch: &mut TurnWatch, audio: 
                     field("text")
                 ),
                 "done" => println!("{at}  [dictation done] {}", field("text")),
-                "billing" => {
-                    watch.billing_answered = true;
-                    println!(
-                        "{at}  [billing] push-to-talk {}{}",
-                        frame["pushToTalk"],
-                        if frame["refused"] == true {
-                            " (refused)"
-                        } else {
-                            ""
-                        }
-                    );
-                }
+                "usage" => println!(
+                    "{at}  [usage] {} s billed so far",
+                    frame["billableAudioSeconds"]
+                ),
                 "voice" => {
                     watch.voice_answered = true;
                     println!(
@@ -548,8 +561,8 @@ fn converse(socket: &mut WebSocket<TcpStream>, options: &Options) -> CliResult<(
                             barge = None;
                         }
                     }
-                    // A muted microphone sends nothing, as the apps do.
-                    None if watch.muted => {}
+                    // Push-to-talk sends nothing while Talk is up, as the apps do.
+                    None if watch.push_to_talk => {}
                     None => send_audio(socket, &silence)?,
                 }
                 next_chunk += Duration::from_millis(CHUNK_MS);
@@ -564,22 +577,14 @@ fn converse(socket: &mut WebSocket<TcpStream>, options: &Options) -> CliResult<(
     for turn in &options.turns {
         watch.agent_spoke = false;
         watch.quiet_since = None;
-        if let Turn::Mute(muted) = turn {
-            println!(
-                "{}  ({})",
-                elapsed(start),
-                if *muted { "muting" } else { "unmuting" }
-            );
-            watch.billing_answered = false;
-            watch.muted = *muted;
-            send_json(socket, json!({"type": "mute", "muted": muted}))?;
-            // No answer comes when the setting keeps voice detection on while muted.
-            let deadline = Instant::now() + Duration::from_secs(6);
+        if let Turn::Wait(seconds) = turn {
+            println!("{}  (quiet for {seconds}s)", elapsed(start));
+            let deadline = Instant::now() + Duration::from_secs(*seconds);
             pump(
                 socket,
                 &mut watch,
                 &mut audio,
-                &|watch: &TurnWatch| watch.billing_answered,
+                &|_: &TurnWatch| false,
                 deadline,
             )?;
             continue;
@@ -610,6 +615,9 @@ fn converse(socket: &mut WebSocket<TcpStream>, options: &Options) -> CliResult<(
                     elapsed(start),
                     pcm.len() as f64 / (SAMPLE_RATE as f64 * 2.0)
                 );
+                if watch.push_to_talk {
+                    send_json(socket, json!({"type": "talkStart"}))?;
+                }
                 let mut next_chunk = Instant::now();
                 for chunk in pcm.chunks(CHUNK_BYTES) {
                     while Instant::now() < next_chunk {
@@ -621,12 +629,15 @@ fn converse(socket: &mut WebSocket<TcpStream>, options: &Options) -> CliResult<(
                     send_audio(socket, chunk)?;
                     next_chunk += Duration::from_millis(CHUNK_MS);
                 }
+                if watch.push_to_talk {
+                    send_json(socket, json!({"type": "talkEnd"}))?;
+                }
             }
             Turn::Continue => {
                 println!("{}  (continue the last conversation)", elapsed(start));
                 send_json(socket, json!({"type": "continueMemory"}))?;
             }
-            Turn::Voice(_) | Turn::Mute(_) => {}
+            Turn::Voice(_) | Turn::Wait(_) => {}
         }
         let deadline = Instant::now() + Duration::from_secs(options.turn_timeout);
         pump(

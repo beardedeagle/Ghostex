@@ -11609,22 +11609,22 @@
       "agentWritable": true
     },
     {
-      "key": "voiceAgentMuteBilling",
-      "title": "Billing while muted",
-      "subtitle": "What muting a Grok Voice call does. Billed while connected: Grok keeps listening all call, so muted and quiet time costs the same as talking. Push-to-talk while muted: muting stops Grok listening, so muted time isn't billed, and unmuting turns listening back on. GPT Realtime bills only the audio sent, so muting it is already free. The gear in the voice panel changes it too.",
+      "key": "voiceAgentCallMode",
+      "title": "Call mode",
+      "subtitle": "Regular calls listen hands-free; on Grok they're billed for the whole time the call is connected, quiet and muted time included (about $0.08 a minute). Push-to-talk calls listen only while you hold Talk; on Grok you pay only for the audio you send and the agent's replies. GPT Realtime bills only audio in both modes. A change applies to your next call; the gear in the voice panel changes it too.",
       "tab": "voiceAgent",
       "tabTitle": "Voice agent",
       "section": "provider",
       "sectionTitle": "Voice agent",
       "type": "enum",
-      "default": "connected",
+      "default": "regular",
       "options": [
         {
-          "label": "Billed while connected",
-          "value": "connected"
+          "label": "Regular",
+          "value": "regular"
         },
         {
-          "label": "Push-to-talk while muted",
+          "label": "Push-to-talk",
           "value": "pushToTalk"
         }
       ],

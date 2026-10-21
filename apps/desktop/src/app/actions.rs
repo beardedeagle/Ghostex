@@ -230,10 +230,10 @@ impl AgentsWorkspaceTabSleepScope {
     }
 }
 
-/// A row of the voice panel's gear menu: `voiceAgentMuteBilling` (`pushToTalk` or `connected`).
+/// A row of the voice panel's gear menu: `voiceAgentCallMode` (`pushToTalk` or `regular`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Action)]
 #[action(namespace = ghostex_gpui, no_json)]
-pub(crate) struct SetVoiceAgentMuteBilling {
+pub(crate) struct SetVoiceAgentCallMode {
     pub(crate) push_to_talk: bool,
 }
 

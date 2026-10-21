@@ -69,6 +69,12 @@ pub(crate) async fn handle_voice(
     let mode = query_value(&uri, "mode").unwrap_or_else(|| "conversation".to_string());
     let conversation_id = query_value(&uri, "conversationId").filter(|id| !id.trim().is_empty());
     let provider = query_value(&uri, "provider").and_then(|id| Provider::from_id(&id));
+    // `callMode=pushToTalk|regular` overrides `voiceAgentCallMode` for this call (`ghostex voice`).
+    let push_to_talk = query_value(&uri, "callMode").and_then(|mode| match mode.as_str() {
+        "pushToTalk" => Some(true),
+        "regular" => Some(false),
+        _ => None,
+    });
     let language = query_value(&uri, "language")
         .map(|language| language.trim().to_string())
         .filter(|language| {
@@ -82,7 +88,8 @@ pub(crate) async fn handle_voice(
         match mode.as_str() {
             "dictation" => dictation::run(&state, socket, language).await,
             "conversation" => {
-                run_conversation_socket(state, socket, conversation_id, provider).await
+                run_conversation_socket(state, socket, conversation_id, provider, push_to_talk)
+                    .await
             }
             _ => {
                 fail(
@@ -120,6 +127,7 @@ async fn run_conversation_socket(
     mut socket: WebSocket,
     conversation_id: Option<String>,
     provider: Option<Provider>,
+    push_to_talk: Option<bool>,
 ) {
     let (tx, resumed) = match conversation_id {
         Some(id) => match registry::sender(&id) {
@@ -134,7 +142,7 @@ async fn run_conversation_socket(
                 return;
             }
         },
-        None => match start_conversation(&state, &mut socket, provider).await {
+        None => match start_conversation(&state, &mut socket, provider, push_to_talk).await {
             Some(tx) => (tx, false),
             None => return,
         },
@@ -203,10 +211,8 @@ async fn run_conversation_socket(
                         continue;
                     }
                     "voice" => Input::Voice(field("voice")),
-                    "mute" => {
-                        Input::Mute(value.get("muted").and_then(Value::as_bool) == Some(true))
-                    }
-                    "settingsChanged" => Input::SettingsChanged,
+                    "talkStart" => Input::TalkStart,
+                    "talkEnd" => Input::TalkEnd,
                     "playbackRate" => match value.get("rate").and_then(Value::as_f64) {
                         Some(rate) if rate.is_finite() => Input::PlaybackRate(rate),
                         _ => continue,
@@ -231,8 +237,10 @@ async fn start_conversation(
     state: &Arc<AppState>,
     socket: &mut WebSocket,
     provider: Option<Provider>,
+    push_to_talk: Option<bool>,
 ) -> Option<mpsc::UnboundedSender<Input>> {
     let provider = provider.unwrap_or_else(|| keys::selected_provider(&state.paths));
+    let push_to_talk = push_to_talk.unwrap_or_else(|| keys::push_to_talk_calls(&state.paths));
     let key = match keys::read_key(&state.paths, provider) {
         Ok(Some(key)) => key,
         Ok(None) => {
@@ -305,6 +313,7 @@ async fn start_conversation(
         &prompt::instructions(),
         &tools::definitions(),
         &keyterms,
+        push_to_talk,
     );
     if upstream
         .send(WsMessage::Text(update.to_string().into()))
@@ -375,6 +384,7 @@ async fn start_conversation(
         provider,
         voice,
         update,
+        push_to_talk,
         upstream,
         tx.clone(),
         rx,

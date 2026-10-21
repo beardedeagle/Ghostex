@@ -526,7 +526,7 @@ pub const DEFAULT_GHOSTEX_SETTINGS: &[(&str, J)] = &[
     ("voiceAgentXaiVoice", J::Str("eve")),
     ("voiceAgentOpenaiVoice", J::Str("marin")),
     ("voiceAgentSpeed", J::Str("1")),
-    ("voiceAgentMuteBilling", J::Str("connected")),
+    ("voiceAgentCallMode", J::Str("regular")),
     // CDXC:SessionChat 2026-10-14 DECISION: User: "Disable this feature by default unless the user has it enabled in Settings, since I want to test it more." The chat's Previous question button shows only while this is on.
     ("chatPreviousQuestion", J::Bool(false)),
     // Whether someone flipped Previous question themselves (`USER_SET_COMPANIONS`).

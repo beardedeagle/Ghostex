@@ -1018,8 +1018,8 @@ impl Render for GhostexGpuiApp {
                 },
             ))
             .on_action(
-                cx.listener(|this, action: &SetVoiceAgentMuteBilling, _window, cx| {
-                    this.set_voice_agent_mute_billing(action.push_to_talk, cx);
+                cx.listener(|this, action: &SetVoiceAgentCallMode, _window, cx| {
+                    this.set_voice_agent_call_mode(action.push_to_talk, cx);
                 }),
             )
             .on_action(

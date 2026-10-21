@@ -112,8 +112,9 @@ struct PanelSnapshot {
     tool_label: Option<String>,
     rows: Vec<VoiceRow>,
     muted: bool,
-    /// The muted Grok call runs push-to-talk, so it is not billed.
-    billing_paused: bool,
+    /// A push-to-talk call, and whether Talk is held.
+    push_to_talk: bool,
+    talking: bool,
     problem: Option<VoiceProblem>,
     provider: Option<String>,
     voice: Option<String>,
@@ -122,7 +123,6 @@ struct PanelSnapshot {
     voice_options: Vec<(String, String)>,
     voice_picker_open: bool,
     speed: f32,
-    light: bool,
     memory: Option<VoiceMemory>,
     memory_state: VoiceMemoryState,
     memory_details_open: bool,
@@ -139,6 +139,8 @@ pub(crate) struct VoicePanelWindow {
     snapshot: PanelSnapshot,
     scroll: ScrollHandle,
     drag: Option<PanelDrag>,
+    /// Push-to-talk's Talk button is held down; releasing the mouse anywhere ends the turn.
+    holding_talk: bool,
     /// Where the speed button last painted, for its menu.
     speed_trigger: std::rc::Rc<std::cell::Cell<Option<Bounds<Pixels>>>>,
     /// Where the gear button last painted, for its menu.
@@ -270,6 +272,7 @@ impl GhostexGpuiApp {
                         snapshot,
                         scroll,
                         drag: None,
+                        holding_talk: false,
                         speed_trigger: Default::default(),
                         settings_trigger: Default::default(),
                     }
@@ -347,40 +350,31 @@ impl GhostexGpuiApp {
         };
         let frame = panel_frame(self.main_window_bounds.size, self.voice_agent.panel_place);
         let trigger = Bounds::new(frame.origin + trigger.origin, trigger.size);
-        let push_to_talk = self.voice_agent.push_to_talk_while_muted;
+        let push_to_talk = self.voice_agent.push_to_talk_setting;
+        let mode = |push_to_talk| Box::new(SetVoiceAgentCallMode { push_to_talk });
         let mut menu = GpuiContextMenu::new()
-            .menu_with_check(
-                "Billed while connected",
-                !push_to_talk,
-                Box::new(SetVoiceAgentMuteBilling {
-                    push_to_talk: false,
-                }),
-            )
+            .menu_with_check("Regular", !push_to_talk, mode(false))
             .menu_with_disabled(
-                "Grok listens all call; muted time is billed",
+                "Hands-free. Grok bills the whole call, about $0.08/min",
                 true,
-                Box::new(SetVoiceAgentMuteBilling {
-                    push_to_talk: false,
-                }),
+                mode(false),
             )
             .separator()
-            .menu_with_check(
-                "Push-to-talk while muted",
-                push_to_talk,
-                Box::new(SetVoiceAgentMuteBilling { push_to_talk: true }),
-            )
+            .menu_with_check("Push-to-talk", push_to_talk, mode(true))
             .menu_with_disabled(
-                "Muting stops listening, so it isn't billed",
+                "Hold Talk to speak. Grok bills only audio sent and heard",
                 true,
-                Box::new(SetVoiceAgentMuteBilling { push_to_talk: true }),
-            );
+                mode(true),
+            )
+            .separator();
         if self.voice_agent.provider.as_deref() == Some("openai") {
-            menu = menu.separator().menu_with_disabled(
-                "GPT Realtime: muting is already free",
+            menu = menu.menu_with_disabled(
+                "GPT Realtime bills only audio in both modes",
                 true,
-                Box::new(SetVoiceAgentMuteBilling { push_to_talk }),
+                mode(push_to_talk),
             );
         }
+        menu = menu.menu_with_disabled("Applies to your next call", true, mode(push_to_talk));
         let app = cx.entity();
         cx.defer(move |cx| {
             let _ = main.update(cx, |_, window, cx| {
@@ -450,7 +444,8 @@ impl GhostexGpuiApp {
             tool_label: agent.tool_label.clone(),
             rows: agent.rows.clone(),
             muted: agent.muted,
-            billing_paused: agent.billing_paused,
+            push_to_talk: agent.push_to_talk,
+            talking: agent.talking,
             problem: agent.problem.clone(),
             provider: agent.provider.clone(),
             voice: agent.voice.clone(),
@@ -461,7 +456,6 @@ impl GhostexGpuiApp {
             ),
             voice_picker_open: agent.voice_picker_open,
             speed: agent.speed,
-            light: chrome_uses_light_appearance(),
             memory: agent.memory.clone(),
             memory_state: agent.memory_state,
             memory_details_open: agent.memory_details_open,
@@ -545,6 +539,8 @@ enum PanelAction {
     PickVoice(String),
     /// The speed button at these bounds, in the panel's coordinates.
     ToggleSpeedMenu(Bounds<Pixels>),
+    /// Push-to-talk's Talk pressed (`true`) or released.
+    Talk(bool),
     /// The gear button at these bounds, in the panel's coordinates.
     ToggleSettingsMenu(Bounds<Pixels>),
     DragBy {
@@ -577,6 +573,7 @@ impl VoicePanelWindow {
             let _ = app.update(cx, |app, cx| match action {
                 PanelAction::ToggleVoicePicker => app.toggle_voice_agent_voice_picker(cx),
                 PanelAction::PickVoice(voice) => app.pick_voice_agent_voice(voice, cx),
+                PanelAction::Talk(down) => app.set_voice_agent_talking(down, cx),
                 PanelAction::ToggleSettingsMenu(trigger) => {
                     app.toggle_voice_agent_settings_menu(trigger, cx)
                 }
@@ -683,11 +680,10 @@ impl VoicePanelWindow {
             VoicePhase::Starting => ("Connecting…".to_string(), true),
             VoicePhase::Ending => ("Hanging up…".to_string(), true),
             VoicePhase::Ended => ("Voice agent stopped".to_string(), false),
+            VoicePhase::Live if snapshot.talking => ("Hearing you".to_string(), false),
             VoicePhase::Idle | VoicePhase::Live => match snapshot.state.as_str() {
-                "listening" if snapshot.muted && snapshot.billing_paused => {
-                    ("Muted, not billed".to_string(), false)
-                }
                 "listening" if snapshot.muted => ("Muted".to_string(), false),
+                "listening" if snapshot.push_to_talk => ("Hold Talk to speak".to_string(), false),
                 "listening" => ("Listening".to_string(), false),
                 "userSpeaking" => ("Hearing you".to_string(), false),
                 "thinking" => ("Thinking…".to_string(), true),
@@ -1046,6 +1042,76 @@ impl VoicePanelWindow {
                         }
                         let _ = panel.update(cx, |this, cx| {
                             if this.drag.take().is_some() {
+                                cx.notify();
+                            }
+                        });
+                    }
+                });
+            },
+        )
+        .absolute()
+        .size_full()
+        .into_any_element()
+    }
+
+    /// Push-to-talk's Talk: hold it to speak; pressing it while the agent talks cuts the reply.
+    fn talk_button(&self, snapshot: &PanelSnapshot, cx: &mut Context<Self>) -> AnyElement {
+        let talking = snapshot.talking;
+        let (fill, hover): (Hsla, Hsla) = if talking {
+            (rgba(0x38bdf8ff).into(), rgba(0x38bdf8ff).into())
+        } else {
+            (rgba(0x2563ebff).into(), rgba(0x3b82f6ff).into())
+        };
+        h_flex()
+            .id("voice-panel-talk")
+            .role(gpui::Role::Button)
+            .aria_label(SharedString::new_static("Hold to talk"))
+            .h(px(28.0))
+            .px(px(12.0))
+            .gap(px(6.0))
+            .items_center()
+            .rounded(px(8.0))
+            .bg(fill)
+            .text_color(gpui::white())
+            .text_size(px(12.5))
+            .font_weight(gpui::FontWeight::SEMIBOLD)
+            .cursor_default()
+            .hover(move |this| this.bg(hover))
+            .on_mouse_down(
+                MouseButton::Left,
+                cx.listener(|this, _: &MouseDownEvent, window, cx| {
+                    window.prevent_default();
+                    cx.stop_propagation();
+                    this.holding_talk = true;
+                    this.run(PanelAction::Talk(true), cx);
+                    cx.notify();
+                }),
+            )
+            .child(titlebar_svg_icon(ICON_MIC, 14.0, gpui::white()))
+            .child(if talking {
+                "Listening…"
+            } else {
+                "Hold to talk"
+            })
+            .into_any_element()
+    }
+
+    /// Ends a held Talk when the mouse is released anywhere, the button or not.
+    fn talk_release_listener(&self, cx: &mut Context<Self>) -> AnyElement {
+        let panel = cx.entity().downgrade();
+        canvas(
+            |_, _, _| {},
+            move |_, _, window, _| {
+                window.on_mouse_event({
+                    let panel = panel.clone();
+                    move |_: &MouseUpEvent, phase, _, cx| {
+                        if phase != DispatchPhase::Bubble {
+                            return;
+                        }
+                        let _ = panel.update(cx, |this, cx| {
+                            if this.holding_talk {
+                                this.holding_talk = false;
+                                this.run(PanelAction::Talk(false), cx);
                                 cx.notify();
                             }
                         });
@@ -1460,7 +1526,9 @@ impl VoicePanelWindow {
                     false,
                     cx,
                 ));
-                if snapshot.state == "speaking" {
+                if snapshot.push_to_talk && snapshot.phase == VoicePhase::Live {
+                    left.push(self.talk_button(snapshot, cx));
+                } else if snapshot.state == "speaking" {
                     left.push(self.button(
                         "voice-panel-stop-talking",
                         ICON_STOP,
@@ -1552,6 +1620,9 @@ impl Render for VoicePanelWindow {
             .child(self.header(snapshot, &colors, cx))
             .child(self.body(snapshot, &colors, cx))
             .child(self.footer(snapshot, &colors, cx))
+            .when(self.holding_talk, |this| {
+                this.child(self.talk_release_listener(cx))
+            })
             .when(self.drag.is_some(), |this| {
                 this.child(self.drag_listener(cx))
             })

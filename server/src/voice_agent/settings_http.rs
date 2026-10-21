@@ -1,6 +1,6 @@
 //! `/api/setVoiceAgentSettings`: the voice picker and speed buttons of a voice screen on another
 //! device (the phone) save the computer's `voiceAgentXaiVoice` / `voiceAgentOpenaiVoice`,
-//! `voiceAgentSpeed` and `voiceAgentMuteBilling`.
+//! `voiceAgentSpeed` and `voiceAgentCallMode`.
 //!
 //! CDXC:VoiceMode 2026-10-20 WHY:
 //! The voice and the speed are the computer's settings, shared by every client, so the phone saves them here instead of keeping its own. The write goes through the running desktop app's `updateSettingsPatch` (CDXC:Settings 2026-09-09: settings writes go through the app, never a direct file write); this endpoint only checks the values first, so a remote client can change these two settings and nothing else.
@@ -8,10 +8,8 @@
 use axum::http::StatusCode;
 use serde_json::{json, Map, Value};
 
-use super::conversation::Input;
 use super::keys;
 use super::provider::Provider;
-use super::registry;
 use crate::domain::read_domain_rpc_params;
 use crate::protocol::{rpc_error, rpc_success};
 use crate::server::{domain_error_response, routed_json, AppState, RoutedResponse};
@@ -27,8 +25,8 @@ fn bad_request(endpoint_path: String, request_id: String, message: String) -> Ro
 }
 
 /// `{provider?, voice?, speed?}`: `voice` is one of `provider`'s voices (the selected provider
-/// when omitted), `speed` one of 1, 1.2, 1.4, 1.6, 1.8, 2, `muteBilling` `connected` or
-/// `pushToTalk`. Answers the saved values.
+/// when omitted), `speed` one of 1, 1.2, 1.4, 1.6, 1.8, 2, `callMode` `regular` or
+/// `pushToTalk` (applies to the next call). Answers the saved values.
 pub(crate) async fn handle_set_voice_agent_settings_http(
     state: &AppState,
     endpoint_path: String,
@@ -84,24 +82,24 @@ pub(crate) async fn handle_set_voice_agent_settings_http(
         let text = text.strip_suffix(".0").unwrap_or(&text).to_string();
         patch.insert(keys::SPEED_SETTING.to_string(), json!(text));
     }
-    if let Some(mode) = params.get("muteBilling") {
+    if let Some(mode) = params.get("callMode") {
         let Some(mode) = mode
             .as_str()
-            .filter(|mode| matches!(*mode, "connected" | "pushToTalk"))
+            .filter(|mode| matches!(*mode, "regular" | "pushToTalk"))
         else {
             return bad_request(
                 endpoint_path,
                 request_id,
-                "muteBilling must be connected or pushToTalk.".to_string(),
+                "callMode must be regular or pushToTalk.".to_string(),
             );
         };
-        patch.insert(keys::MUTE_BILLING_SETTING.to_string(), json!(mode));
+        patch.insert(keys::CALL_MODE_SETTING.to_string(), json!(mode));
     }
     if patch.is_empty() {
         return bad_request(
             endpoint_path,
             request_id,
-            "Send a voice, a speed or a muteBilling.".to_string(),
+            "Send a voice, a speed or a callMode.".to_string(),
         );
     }
     let mut payload = Map::new();
@@ -116,22 +114,14 @@ pub(crate) async fn handle_set_voice_agent_settings_http(
         )
         .await
     {
-        Ok(_) => {
-            // A muted call switches to (or from) push-to-talk at once.
-            if patch.contains_key(keys::MUTE_BILLING_SETTING) {
-                for sender in registry::senders() {
-                    let _ = sender.send(Input::SettingsChanged);
-                }
-            }
-            routed_json(
-                Some(endpoint_path),
-                StatusCode::OK,
-                rpc_success(
-                    request_id,
-                    json!({"provider": provider.id(), "saved": Value::Object(patch)}),
-                ),
-            )
-        }
+        Ok(_) => routed_json(
+            Some(endpoint_path),
+            StatusCode::OK,
+            rpc_success(
+                request_id,
+                json!({"provider": provider.id(), "saved": Value::Object(patch)}),
+            ),
+        ),
         Err(error) => routed_json(
             Some(endpoint_path),
             StatusCode::SERVICE_UNAVAILABLE,
