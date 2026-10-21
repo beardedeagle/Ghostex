@@ -108,12 +108,17 @@ fn natural_width(rows: &[Value], appearance: &ChatAppearance, cx: &App) -> f32 {
                 .as_str()
                 .map(|text| text_width(text) + m.row_gap)
                 .unwrap_or(0.0);
+            let badge = if row["badge"].is_string() {
+                super::render::BADGE_SIZE + 6.0
+            } else {
+                0.0
+            };
             let accessory = if row.get("checked").is_some() || row["children"].is_array() {
                 m.icon + m.row_gap
             } else {
                 0.0
             };
-            m.row_x * 2.0 + icon + label.max(description) + detail + accessory
+            m.row_x * 2.0 + icon + (label + badge).max(description) + detail + accessory
         })
         .fold(0.0, f32::max);
     // Room for a trailing glyph's rounding, so the label never ellipsizes at its own width.

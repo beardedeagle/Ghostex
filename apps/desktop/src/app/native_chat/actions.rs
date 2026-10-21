@@ -121,15 +121,16 @@ impl NativeChatView {
         })
     }
 
-    /// Stash prompt, a More actions row since its toolbar button went (toolbar.rs, CDXC:SessionChat 2026-10-20): it stashes the draft, or opens the stashed prompts when the chat box is empty. The stash count the button's badge showed is its subtitle, since the hotkey takes the detail slot.
+    /// Stash prompt, a More actions row since its toolbar button went (toolbar.rs): it stashes the draft, or opens the stashed prompts when the chat box is empty. The stash count the button's badge showed is the row's `badge`, a filled circle after the label (option_menu/render.rs).
+    ///
+    /// CDXC:SessionChat 2026-10-22 DECISION:
+    /// User: "pls make stash prompt 1 line and have a circle with number inside it for the stashed prompts (show this circle after the 'Stash Prompt' text". The row is one line with the count in a circle right after its label, not a "1 stashed" subtitle, and no circle when nothing is stashed. The phone's More actions sheet draws the same `badge` (apps/mobile/app/src/chat/native/composer/menus.ts, MenuSheet.tsx). Supersedes the 2026-10-20 note that made the count the subtitle.
     fn stash_menu_row(&self) -> Option<Value> {
         self.composer_control_available("stash").then(|| {
-            let stashed = self.snapshot["composerChrome"]["stashBadge"]
-                .as_str()
-                .map(|count| format!("{count} stashed"));
             json!({
                 "label":"Stash prompt","iconPath":"titlebar/stack-push.svg",
-                "hotkeyAction":"stashPrompt","description":stashed,
+                "hotkeyAction":"stashPrompt",
+                "badge":self.snapshot["composerChrome"]["stashBadge"],
                 "command":{"type":"composerHost","action":"stashPrompt"},
             })
         })

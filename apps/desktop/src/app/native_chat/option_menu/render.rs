@@ -5,6 +5,9 @@ use gpui::{
     StatefulInteractiveElement as _, Styled as _, Window, div, px, svg,
 };
 
+/// The diameter of a row's count badge, unscaled.
+pub(super) const BADGE_SIZE: f32 = 14.0;
+
 impl ChatOptionMenuPanel {
     fn activate(
         &mut self,
@@ -308,6 +311,7 @@ impl Render for ChatOptionMenuPanel {
             }
             let label = row["label"].as_str().unwrap_or_default().to_owned();
             let description = row["description"].as_str().map(str::to_owned);
+            let badge = row["badge"].as_str().map(str::to_owned);
             if row["heading"] == true {
                 body = body.child(
                     div()
@@ -401,7 +405,34 @@ impl Render for ChatOptionMenuPanel {
                 div()
                     .flex_1()
                     .min_w_0()
-                    .child(div().text_ellipsis().child(label))
+                    .child(
+                        div()
+                            .flex()
+                            .items_center()
+                            .gap(px(6.0 * scale))
+                            .child(div().min_w_0().text_ellipsis().child(label))
+                            // A count after the label (Stash prompt): the chat's filled count badge.
+                            .when_some(badge, |this, badge| {
+                                this.child(
+                                    div()
+                                        .flex_shrink_0()
+                                        .size(px(BADGE_SIZE * scale))
+                                        .flex()
+                                        .items_center()
+                                        .justify_center()
+                                        .rounded_full()
+                                        .bg(foreground)
+                                        .text_color(gpui::rgb(if appearance.light {
+                                            0xfcfcfc
+                                        } else {
+                                            0x292929
+                                        }))
+                                        .text_size(px(10.0 * scale))
+                                        .line_height(px(10.0 * scale))
+                                        .child(badge),
+                                )
+                            }),
+                    )
                     .when_some(description, |this, description| {
                         this.child(
                             // One line, like React's menu rows: a long subtitle ends in an ellipsis
