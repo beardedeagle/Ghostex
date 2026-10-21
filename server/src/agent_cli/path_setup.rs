@@ -28,7 +28,7 @@ pub(crate) fn on_path(dir: &Path, home: &Path) -> bool {
     }
     #[cfg(not(windows))]
     {
-        let entries = crate::agent_hooks::probing::login_shell_path(home);
+        let entries = crate::agent_hooks::probing::login_shell_path_patient(home);
         entries.is_empty() || entries.iter().any(|entry| same(Path::new(entry)))
     }
 }

@@ -34,9 +34,17 @@ so installing hooks right after installing a CLI never sees a stale miss.
 */
 const COMMAND_PATH_CACHE_TTL: Duration = Duration::from_secs(60);
 
+/// The quick login-shell probe's limit: it runs before agent launches.
+const LOGIN_SHELL_PROBE_TIMEOUT: Duration = Duration::from_secs(2);
+
+/// CDXC:ManagedTools 2026-10-21 WHY: An interactive login shell with a heavy profile (oh-my-zsh, mise, nvm) can take 3 to 6 seconds to start, past the quick probe's 2 seconds. Its failure counts as "already on PATH", so a Settings install of bd added nothing to PATH and still showed green (issue #269). Decisions that change the user's setup (the tool installs, the PATH check behind their Installed state) wait this long instead; agent launches keep the quick probe. A success fills the shared cache for every caller.
+const PATIENT_LOGIN_SHELL_PROBE_TIMEOUT: Duration = Duration::from_secs(15);
+
 struct CachedLoginShellPathEntries {
     fetched_at: Instant,
     entries: Vec<String>,
+    /// The empty result came from the patient probe, so the patient probe waits out the TTL too.
+    patient: bool,
 }
 
 #[derive(PartialEq, Eq, Hash)]
@@ -68,17 +76,40 @@ pub(super) fn login_shell_path_entries(home_dir: &Path) -> Vec<String> {
             return entry.entries.clone();
         }
     }
-    let entries = probe_login_shell_path_entries(home_dir);
+    let entries = probe_login_shell_path_entries(home_dir, LOGIN_SHELL_PROBE_TIMEOUT);
+    store_login_shell_path_entries(home_dir, &entries, false);
+    entries
+}
+
+/// `login_shell_path_entries` with `PATIENT_LOGIN_SHELL_PROBE_TIMEOUT`. A quick probe's failure
+/// does not stop it; its own failure is held for `COMMAND_PATH_CACHE_TTL`.
+pub(super) fn login_shell_path_entries_patient(home_dir: &Path) -> Vec<String> {
+    let cache = LOGIN_SHELL_PATH_ENTRIES_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+    if let Ok(guard) = cache.lock() {
+        if let Some(entry) = guard.get(home_dir).filter(|entry| {
+            !entry.entries.is_empty()
+                || (entry.patient && entry.fetched_at.elapsed() < COMMAND_PATH_CACHE_TTL)
+        }) {
+            return entry.entries.clone();
+        }
+    }
+    let entries = probe_login_shell_path_entries(home_dir, PATIENT_LOGIN_SHELL_PROBE_TIMEOUT);
+    store_login_shell_path_entries(home_dir, &entries, true);
+    entries
+}
+
+fn store_login_shell_path_entries(home_dir: &Path, entries: &[String], patient: bool) {
+    let cache = LOGIN_SHELL_PATH_ENTRIES_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
     if let Ok(mut guard) = cache.lock() {
         guard.insert(
             home_dir.to_path_buf(),
             CachedLoginShellPathEntries {
                 fetched_at: Instant::now(),
-                entries: entries.clone(),
+                entries: entries.to_vec(),
+                patient,
             },
         );
     }
-    entries
 }
 
 /// Status-freshness resolution of a provider CLI, served from a 60 second

@@ -181,7 +181,7 @@ pub(crate) fn reachable(binary: &str, home: &Path) -> bool {
     };
     #[cfg(not(windows))]
     let directories: Vec<PathBuf> = {
-        let entries = crate::agent_hooks::probing::login_shell_path(home);
+        let entries = crate::agent_hooks::probing::login_shell_path_patient(home);
         if entries.is_empty() {
             return true;
         }

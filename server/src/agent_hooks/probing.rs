@@ -147,9 +147,11 @@ pub(crate) fn resolve_cli_command(command: &str, home_dir: &Path) -> Option<Stri
 }
 
 /// The PATH entries the user's login shell sets up, which is what a new session's shell starts with.
+/// Waits longer for a slow shell than the quick probe agent launches use, because it backs decisions
+/// that change the user's setup.
 #[cfg_attr(windows, allow(dead_code))]
-pub(crate) fn login_shell_path(home_dir: &Path) -> Vec<String> {
-    super::probe_cache::login_shell_path_entries(home_dir)
+pub(crate) fn login_shell_path_patient(home_dir: &Path) -> Vec<String> {
+    super::probe_cache::login_shell_path_entries_patient(home_dir)
 }
 
 pub(crate) fn refresh_cli_environment(home_dir: &Path) {
@@ -246,13 +248,13 @@ pub(crate) fn normalize_gxserver_process_path(
 /// Raw login-shell PATH probe. Every caller goes through
 /// `probe_cache::login_shell_path_entries`, which keeps the interactive shell
 /// spawn to once per process.
-pub(super) fn probe_login_shell_path_entries(home_dir: &Path) -> Vec<String> {
+pub(super) fn probe_login_shell_path_entries(home_dir: &Path, timeout: Duration) -> Vec<String> {
     for candidate in login_shell_candidates() {
         let candidate_path = PathBuf::from(&candidate);
         if !is_executable(&candidate_path) {
             continue;
         }
-        let entries = run_login_shell_path_probe(&candidate, home_dir);
+        let entries = run_login_shell_path_probe(&candidate, home_dir, timeout);
         if !entries.is_empty() {
             return entries;
         }
@@ -260,7 +262,7 @@ pub(super) fn probe_login_shell_path_entries(home_dir: &Path) -> Vec<String> {
     Vec::new()
 }
 
-fn run_login_shell_path_probe(shell_path: &str, home_dir: &Path) -> Vec<String> {
+fn run_login_shell_path_probe(shell_path: &str, home_dir: &Path, timeout: Duration) -> Vec<String> {
     let shell = command_shell_for_path(shell_path);
     let mut command = Command::new(&shell.executable);
     command.args(
@@ -272,8 +274,7 @@ fn run_login_shell_path_probe(shell_path: &str, home_dir: &Path) -> Vec<String> 
         "PATH",
         crate::managed_tools::paths::process_path_without_tools(),
     );
-    let Some(stdout) = run_command_stdout_with_timeout(command, Duration::from_millis(2_000))
-    else {
+    let Some(stdout) = run_command_stdout_with_timeout(command, timeout) else {
         return Vec::new();
     };
     stdout
