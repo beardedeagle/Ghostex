@@ -323,6 +323,51 @@ function enrichedMarkdownShims(): Plugin {
   };
 }
 
+const excalidrawDistFile = /[\\/]node_modules[\\/]@excalidraw[\\/]excalidraw[\\/]dist[\\/]/;
+const excalidrawProdIndex = /[\\/]node_modules[\\/]@excalidraw[\\/]excalidraw[\\/]dist[\\/]prod[\\/]index\.js$/;
+/** The "More tools" menu's "Generate" heading and its "Mermaid to Excalidraw" item in @excalidraw/excalidraw 0.18.1's minified build. */
+const excalidrawMermaidMenuEntries = [
+  /[\w$]+\("div",\{style:\{margin:"6px 0",fontSize:14,fontWeight:600\},children:"Generate"\}\),/g,
+  /[\w$]+\([\w$]+\.Item,\{onSelect:\(\)=>[\w$]+\.setOpenDialog\(\{name:"ttd",tab:"mermaid"\}\),icon:[\w$]+,"data-testid":"toolbar-embeddable",children:[\w$]+\("toolBar\.mermaidToExcalidraw"\)\}\),/g,
+];
+
+/**
+ * CDXC:Docs 2026-10-21 DECISION: The user chose to drop Excalidraw's unused locales and its Mermaid-to-Excalidraw tool to shrink the app (about 4 MB of docs-runtime chunks). The Files view never passes `langCode`, so every non-English locale resolves to one empty module; `@excalidraw/mermaid-to-excalidraw` (Mermaid, langium, cytoscape, dagre, KaTeX) resolves to a stub whose parse rejects, which Excalidraw's paste handler already catches and pastes the text as text. The menu item is cut from the minified source and `aiEnabled={false}` in excalidraw-editor.tsx removes the command-palette entries. The build fails if an Excalidraw upgrade changes the menu code, so the entry can never come back as a broken button.
+ */
+function trimExcalidrawBundle(build: esbuild.PluginBuild): void {
+  build.onResolve({ filter: /^\.\/locales\// }, (args) =>
+    excalidrawDistFile.test(args.importer)
+      ? { path: 'unused-locale', namespace: 'excalidraw-unused-locale' }
+      : undefined
+  );
+  build.onLoad({ filter: /.*/, namespace: 'excalidraw-unused-locale' }, () => ({
+    contents: 'export default {};',
+    loader: 'js',
+  }));
+  build.onResolve({ filter: /^@excalidraw\/mermaid-to-excalidraw$/ }, (args) => ({
+    path: args.path,
+    namespace: 'excalidraw-no-mermaid',
+  }));
+  build.onLoad({ filter: /.*/, namespace: 'excalidraw-no-mermaid' }, () => ({
+    contents:
+      'export async function parseMermaidToExcalidraw() { throw new Error("Mermaid to Excalidraw is not included in Ghostex."); }',
+    loader: 'js',
+  }));
+  build.onLoad({ filter: excalidrawProdIndex }, (args) => {
+    let contents = fs.readFileSync(args.path, 'utf8');
+    for (const entry of excalidrawMermaidMenuEntries) {
+      const matches = contents.match(entry)?.length ?? 0;
+      if (matches !== 1) {
+        throw new Error(
+          `Excalidraw's Mermaid menu code changed (${matches} matches for ${entry}); update trimExcalidrawBundle in apps/desktop/vite.config.ts.`
+        );
+      }
+      contents = contents.replace(entry, '');
+    }
+    return { contents, loader: 'js', resolveDir: path.dirname(args.path) };
+  });
+}
+
 /**
  * CDXC:Build 2026-09-26 WHY:
  * esbuild can load thousands of icon modules at once. Synchronous reads close each file before the next loader runs, avoiding Windows EMFILE errors from unbounded asynchronous opens.
@@ -340,6 +385,7 @@ function createCefSingleFileEsbuildPlugin(stagedImages: CefStagedImages): esbuil
         enrichedMarkdownImporter.test(args.importer) ? { path: 'katex', namespace: 'enriched-markdown-empty' } : undefined
       );
       build.onLoad({ filter: /.*/, namespace: 'enriched-markdown-empty' }, () => ({ contents: '', loader: 'js' }));
+      trimExcalidrawBundle(build);
       // The package's md4c parser loader is Emscripten CommonJS (`module.exports`) inside a `"type": "module"` folder, so esbuild loads it as ESM and the export never runs; give it the ES export its importer asks for.
       build.onLoad({ filter: /[\\/]react-native-enriched-markdown[\\/]lib[\\/]module[\\/]web[\\/]wasm[\\/]md4c\.js$/ }, (args) => ({
         contents: `${fs.readFileSync(args.path, 'utf8')}\nexport default createMd4cModule;\n`,

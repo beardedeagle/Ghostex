@@ -62,6 +62,7 @@ export function ManageExcalidrawEditor({
         </div>
       ) : null}
       <Excalidraw
+        aiEnabled={false}
         excalidrawAPI={(api) => {
           apiRef.current = api;
         }}
