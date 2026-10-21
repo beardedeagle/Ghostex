@@ -120,6 +120,12 @@ impl NativeChatView {
                 "collapsedLabel"
             },
         );
+        // The toggle sits right before the last call, open or closed, so what it reveals lands
+        // above it (gx-chat-core `tool_run_fold`, `toggleBefore`).
+        let before = fold["toggleBefore"].as_u64().unwrap_or(u64::MAX) as usize;
+        let split = |indices: &[usize]| -> (Vec<usize>, Vec<usize>) {
+            indices.iter().copied().partition(|index| *index < before)
+        };
         // While the group opens or closes, the rows it hides ease in above the ones it always
         // shows, on the rail the open group has; the rail itself is the one part that appears whole.
         if let Some(frame) = self.disclosure_frame(&run_key, run_expanded, cx) {
@@ -143,8 +149,10 @@ impl NativeChatView {
                         .into_any_element(),
                 ));
             }
-            body.extend(self.tool_row_list(&id, &tools, &kept, p, cx));
+            let (kept_above, kept_below) = split(&kept);
+            body.extend(self.tool_row_list(&id, &tools, &kept_above, p, cx));
             body.push(self.tool_fold_toggle(run_key.clone(), label, run_expanded, p, cx));
+            body.extend(self.tool_row_list(&id, &tools, &kept_below, p, cx));
             return vec![disclosure_body(
                 p,
                 DisclosureRail::Marker,
@@ -156,8 +164,10 @@ impl NativeChatView {
             )];
         }
         if run_expanded {
-            let mut body = self.tool_row_list(&id, &tools, &visible, p, cx);
+            let (above, below) = split(&visible);
+            let mut body = self.tool_row_list(&id, &tools, &above, p, cx);
             body.push(self.tool_fold_toggle(run_key.clone(), label, true, p, cx));
+            body.extend(self.tool_row_list(&id, &tools, &below, p, cx));
             return vec![disclosure_body(
                 p,
                 DisclosureRail::Marker,
@@ -172,8 +182,10 @@ impl NativeChatView {
             .into_iter()
             .filter(|index| fold["visible"][*index] == true)
             .collect();
-        let mut rows = self.tool_row_list(&id, &tools, &kept, p, cx);
+        let (above, below) = split(&kept);
+        let mut rows = self.tool_row_list(&id, &tools, &above, p, cx);
         rows.push(self.tool_fold_toggle(run_key, label, false, p, cx));
+        rows.extend(self.tool_row_list(&id, &tools, &below, p, cx));
         rows
     }
 

@@ -116,6 +116,8 @@ pub fn tool_fold_label(hidden_count: usize) -> String {
 /// An answered question is conversation, not work: its card never folds behind the toggle. The fold
 /// hides only the ordinary tool rows before the last pair. `exchanges[index]` is true for a pair
 /// that renders as a question exchange.
+///
+/// CDXC:SessionChat 2026-10-22 DECISION: User, seeing "+4 previous tool calls" drawn under the call it ran before: "please in this case show the 'previous tool calls' above the 'Confirm folder contents...' tool call. the previous tool calls thing should always be before the last tool call not below it". The toggle sits right before the last call (`toggleBefore`, that row's index), closed or open, so the calls it reveals appear above it in the order they ran and the last call stays below. The renderers place it there (desktop `tool_run.rs`, phone `ToolRows.tsx`).
 pub fn tool_run_fold(exchanges: &[bool]) -> Value {
     let visible: Vec<bool> = exchanges
         .iter()
@@ -126,6 +128,7 @@ pub fn tool_run_fold(exchanges: &[bool]) -> Value {
     json!({
         "visible": visible,
         "hiddenCount": hidden_count,
+        "toggleBefore": exchanges.len().saturating_sub(1),
         "collapsedLabel": tool_fold_label(hidden_count),
         "expandedLabel": TOOL_FOLD_EXPANDED_LABEL,
     })
