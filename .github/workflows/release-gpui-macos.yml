@@ -377,7 +377,7 @@ jobs:
             --names "${{ steps.code_server_darwin.outputs.artifact_name }}" \
             --producer-pattern '^(code_server_darwin_arm64)' \
             --timeout-minutes 45
-      - name: Stage macOS runtime (code-server, zmx, portless, gxserver package)
+      - name: Stage macOS runtime (code-server, zmx, gxserver package)
         env:
           GH_TOKEN: ${{ github.token }}
           SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
