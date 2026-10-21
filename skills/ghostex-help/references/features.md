@@ -1738,8 +1738,11 @@ subscription ended) saved but out of use: it shows dimmed with a Disabled tag,
 Ghostex never starts new sessions on it, switches to it at a limit or offers it
 in Switch Account menus, stops reading its usage and sign-in state (so it never
 asks you to reconnect it), and drops its usage from the sidebar. Sessions already
-on it keep running, and the account says how many still use it. Turn Enabled on
-to use it again. This is separate from "Subscription access disabled", which
+on it keep running, and the account says how many still use it. A sleeping or
+restored session on it moves to another account when it wakes (your account for
+new sessions when it works, otherwise the Auto-switch account with the most
+room) and carries on the same conversation; with no account to move to, the wake
+says the account is turned off. Turn Enabled on to use it again. This is separate from "Subscription access disabled", which
 Ghostex sets on its own when Claude refuses an account.
 Reconnect is one click: your browser opens on the provider's sign-in page with
 the account's email filled in, Settings shows "Waiting for you to sign in…" (a
@@ -1799,9 +1802,9 @@ computer, its chat shows a card naming the account with Switch account, Sign in 
 that account (it runs `ghostex account-login claude --account N` in the session's
 terminal and starts Claude again when the sign-in finishes) and Try again. A message
 you sent waits in the chat and goes out on its own once Claude is up. Waking a
-session on such an account moves it to an account that works first, unless the
-provider's rules say Do nothing at a limit or you stopped automatic recovery for
-that session.
+session on such an account (or on one Claude refused) moves it to an account
+that works first, on the same conversation, unless you stopped automatic
+recovery for that session; the session shows the switch like any other.
 When any agent's start command ends before the agent comes up (the command
 printed an error and the terminal is back at a shell prompt), its chat shows "The
 agent couldn't start" with the terminal's last lines, Try again and Open terminal,
