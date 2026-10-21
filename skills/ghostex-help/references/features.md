@@ -3659,6 +3659,17 @@ itself, so it works even when it cannot reach your computer. While a computer is
 connected, "Collect more data with an agent" is there too: Start Agent starts
 the agent on that computer and opens its chat on the phone.
 
+If the phone app closes unexpectedly, it saves a crash report on the phone
+(what went wrong, the app version, the phone model and the screen you were on);
+nothing is sent on its own. The next time you open the app, a card at the
+bottom says it closed unexpectedly, once per crash: Dismiss deletes the
+report, Send Report opens Send Bug / Feedback with it attached. Names of your
+computers, addresses, usernames, emails and keys are removed first; Show Report
+displays the cleaned text, and Review shows the exact issue before you send it.
+If you started the agent instead, it removes anything personal it still finds.
+A saved report you have not sent can also be attached later with Attach Crash
+Report in Send Bug / Feedback.
+
 ## Answering the common questions
 
 - "Make Claude control Codex": see Agents, actions, and orchestration.
