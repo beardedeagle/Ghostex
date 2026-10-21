@@ -192,7 +192,9 @@ fn message_segments(
         return;
     }
     let reasoning = message["role"] == "reasoning";
-    let has_tools = !array(message, "tools").is_empty();
+    // Inside a turn fold a row's text owns none of its calls: they follow it, always shown.
+    let flat = message["toolsFlat"] == true;
+    let has_tools = !flat && !array(message, "tools").is_empty();
     let tools_default = folds.work_open || message["toolsOpen"] == true;
     if body.is_empty() {
         tool_segments(message, folds, in_work_fold, out);
@@ -210,7 +212,7 @@ fn message_segments(
         }
     } else {
         out.push(markdown(body));
-        if has_tools && !reasoning && folds.open(&format!("tools:{id}"), tools_default) {
+        if flat || (has_tools && !reasoning && folds.open(&format!("tools:{id}"), tools_default)) {
             tool_segments(message, folds, in_work_fold, out);
         }
     }

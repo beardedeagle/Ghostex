@@ -438,9 +438,12 @@ impl NativeChatView {
         let mut tools_rendered = false;
         if !body.is_empty() {
             let reasoning = message["role"] == "reasoning";
-            let tools = message["tools"]
-                .as_array()
-                .is_some_and(|tools| !tools.is_empty());
+            // Inside a turn fold the text owns none of its calls: they follow it at the same
+            // level (gx-chat-core `list_tools_in_work_fold`).
+            let tools = message["toolsFlat"] != true
+                && message["tools"]
+                    .as_array()
+                    .is_some_and(|tools| !tools.is_empty());
             if reasoning && tools {
                 let key = format!("reasoning:{id}");
                 // A running summary turn's newest row opens its tools (gx-chat-core `summary_mode_turns`).

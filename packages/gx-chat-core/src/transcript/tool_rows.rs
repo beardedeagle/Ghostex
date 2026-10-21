@@ -93,13 +93,14 @@ pub fn tool_run_shows_all_rows(has_prose: bool) -> bool {
     has_prose
 }
 
-/// Marks a row drawn inside a turn's work fold ("Worked for 45s", summary mode's "Active work") so
-/// its tool run lists every call directly under the fold.
+/// Marks a row drawn inside a turn's work fold ("Worked for 45s", "Previous turn", summary mode's
+/// "Active work") so the fold reads as one flat, chronological list.
 ///
-/// CDXC:SessionChat 2026-10-21 DECISION: User, opening "Worked for 45s" onto a collapsed "8 tool calls": "please remove this unnecessary middle one (8 tool calls) and just show me the list of tool calls there". The turn's fold already collapses its work, so a tool-only row inside it adds neither simple mode's "N tool calls" group nor the "+N previous tool calls" fold; each call keeps its own row, duration, status and details. The agent's own words between runs stay the headings their calls hang from (the commentary disclosure), which is what keeps one stretch of work apart from the next. The renderers read `toolsShowAllRows` (desktop `tool_run.rs`, phone `ToolRows.tsx`) and Find reads it too (`extras/transcript_search.rs`).
+/// CDXC:SessionChat 2026-10-21 DECISION: User, opening "Worked for 45s" onto a collapsed "8 tool calls": "please remove this unnecessary middle one (8 tool calls) and just show me the list of tool calls there", then, seeing the agent's sentence between two runs fold the calls after it: "in this specific case those 2 last tool calls shouldn't be under that collapse area". Inside an opened turn fold nothing collapses a second time: a tool-only row adds neither simple mode's "N tool calls" group nor the "+N previous tool calls" fold (`toolsShowAllRows`), and the agent's in-between sentence or thought is plain text with its calls listed after it at the same level, no chevron (`toolsFlat`; a thought keeps its own thinking fold for its text only). Each call keeps its own row, duration, status and details. Outside turn folds the 2026-09-13 heading that owns its calls stays. The renderers read both keys (desktop `transcript.rs` and `tool_run.rs`, phone `MessageRow.tsx` and `ToolRows.tsx`), and Find does too (`extras/transcript_search.rs`).
 pub fn list_tools_in_work_fold(row: &mut Value) {
     if let Value::Object(fields) = row {
         fields.insert("toolsShowAllRows".to_string(), Value::Bool(true));
+        fields.insert("toolsFlat".to_string(), Value::Bool(true));
     }
 }
 
