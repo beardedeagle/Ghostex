@@ -4,17 +4,23 @@
 //! User: "I want to be able to prompt quickly into the app without having to switch back to
 //! ghostex": a floating prompt box where screenshots land as thumbnails, more text and more
 //! screenshots can be added (the capture buttons or the hotkeys), and Enter sends it to the project
-//! or session picked, a new session by default. The editor is a separate window that hands its
-//! picture here (layout B). Closing the box keeps the draft for next time.
+//! or session picked. The editor is a separate window that hands its picture here (layout B).
+//! Closing the box keeps the draft for next time.
+//!
+//! CDXC:GhostexCapture 2026-10-22 DECISION:
+//! User: "make it show the selection of where to send the prompt as a dropdown and make it default to the currently active session in the actual window that i last interacted with (last session that became active in the app)" (Q380 "Last active session", Q381 "Yes, same list"). Send to is a dropdown holding the same collapsed, filterable project list; a session picked in it stays the target for this box. Supersedes the 2026-09-30 "a new session by default" (the default is in `targets.rs`).
 
+use std::cell::Cell;
 use std::path::PathBuf;
+use std::rc::Rc;
 use std::sync::Arc;
 
 use gpui::prelude::*;
 use gpui::{
-    AnyElement, App, Bounds, Context, Entity, ImageSource, KeyDownEvent, RenderImage, SharedString,
-    Subscription, WeakEntity, Window, WindowBackgroundAppearance, WindowBounds, WindowHandle,
-    WindowKind, WindowOptions, div, img, point, px, rgb, rgba, size,
+    AnyElement, App, Bounds, Context, Entity, ImageSource, KeyDownEvent, MouseDownEvent,
+    RenderImage, SharedString, Subscription, WeakEntity, Window, WindowBackgroundAppearance,
+    WindowBounds, WindowHandle, WindowKind, WindowOptions, anchored, canvas, deferred, div, img,
+    point, px, rgb, rgba, size,
 };
 use gpui_component::input::{Input, InputEvent, InputState, Textarea, TextareaState};
 use image::RgbaImage;
@@ -31,6 +37,9 @@ const PROMPT_WIDTH: f32 = 520.0;
 const PROMPT_HEIGHT: f32 = 236.0;
 const PROMPT_THUMBS_HEIGHT: f32 = 66.0;
 const PICKER_HEIGHT: f32 = 300.0;
+/// Where the Send to dropdown hangs from when its trigger has not been laid out yet: the bottom of
+/// the box's header (10px padding, 26px header, 4px gap).
+const PICKER_TOP: f32 = 40.0;
 
 pub(crate) struct Attachment {
     pub(crate) number: u32,
@@ -77,19 +86,24 @@ fn thumbnail(image: &RgbaImage) -> Arc<RenderImage> {
 }
 
 impl GhostexGpuiApp {
-    fn ghostex_capture_prompt_height(&self) -> f32 {
-        let prompt = &self.ghostex_capture.prompt;
+    /// The box itself, without the Send to dropdown.
+    fn ghostex_capture_prompt_box_height(&self) -> f32 {
         PROMPT_HEIGHT
-            + if prompt.attachments.is_empty() {
+            + if self.ghostex_capture.prompt.attachments.is_empty() {
                 0.0
             } else {
                 PROMPT_THUMBS_HEIGHT
             }
-            + if prompt.picker_open {
-                PICKER_HEIGHT
-            } else {
-                0.0
-            }
+    }
+
+    /// The window: the box, and room below it for the open Send to dropdown to hang into.
+    fn ghostex_capture_prompt_height(&self) -> f32 {
+        let height = self.ghostex_capture_prompt_box_height();
+        if self.ghostex_capture.prompt.picker_open {
+            height.max(PICKER_TOP + PICKER_HEIGHT + 8.0)
+        } else {
+            height
+        }
     }
 
     /// Where the box opens: where it was last left, else the middle of the screen the pointer is
@@ -456,6 +470,8 @@ pub(crate) struct PromptView {
     picker_list: ListState,
     /// What Enter in the filter picks: the first match in the list as last drawn.
     picker_first: Option<Target>,
+    /// The Send to trigger as last laid out, in window coordinates: the dropdown hangs below it.
+    trigger_bounds: Rc<Cell<Option<Bounds<gpui::Pixels>>>>,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -513,6 +529,7 @@ impl PromptView {
             picker_filter,
             picker_list: ListState::default(),
             picker_first: None,
+            trigger_bounds: Rc::new(Cell::new(None)),
             _subscriptions: subscriptions,
         }
     }
@@ -705,14 +722,31 @@ impl PromptView {
             );
         }
         self.picker_first = first;
-        div()
-            .h(px(PICKER_HEIGHT - 8.0))
+        let trigger = self.trigger_bounds.get();
+        let position = trigger
+            .map(|bounds| point(px(10.0), bounds.bottom() + px(4.0)))
+            .unwrap_or_else(|| point(px(10.0), px(PICKER_TOP)));
+        let panel = div()
+            .id("ghostex-capture-target-menu")
+            .occlude()
+            .w(px(PROMPT_WIDTH - 20.0))
+            .h(px(PICKER_HEIGHT))
             .flex()
             .flex_col()
             .rounded(px(10.0))
             .bg(rgb(0x1b1b1b))
             .border_1()
             .border_color(rgb(0x3a3a3a))
+            .shadow_lg()
+            .on_mouse_down_out(
+                cx.listener(move |this, event: &MouseDownEvent, window, cx| {
+                    // A press on the trigger is the trigger's own toggle.
+                    if trigger.is_some_and(|bounds| bounds.contains(&event.position)) {
+                        return;
+                    }
+                    this.toggle_picker(window, cx);
+                }),
+            )
             .child(
                 div().flex_none().p(px(6.0)).child(
                     div()
@@ -744,8 +778,15 @@ impl PromptView {
                         ),
                 ),
             )
-            .child(list)
-            .into_any_element()
+            .child(list);
+        deferred(
+            anchored()
+                .position(position)
+                .snap_to_window_with_margin(px(4.0))
+                .child(panel),
+        )
+        .with_priority(1)
+        .into_any_element()
     }
 }
 
@@ -843,22 +884,57 @@ fn target_row(
         .into_any_element()
 }
 
-fn chip(id: &'static str, label: String) -> gpui::Stateful<gpui::Div> {
+/// The Send to dropdown's trigger: the chosen target and a chevron, outlined while open.
+fn dropdown_trigger(
+    label: String,
+    open: bool,
+    bounds: Rc<Cell<Option<Bounds<gpui::Pixels>>>>,
+) -> gpui::Stateful<gpui::Div> {
     div()
-        .id(id)
+        .id("ghostex-capture-target")
+        .relative()
+        .flex_shrink(1.0)
+        .min_w_0()
+        .max_w(px(340.0))
         .h(px(26.0))
-        .px(px(9.0))
+        .pl(px(9.0))
+        .pr(px(7.0))
         .flex()
         .items_center()
         .gap(px(6.0))
         .rounded(px(7.0))
         .bg(rgb(0x1d1d1d))
         .border_1()
-        .border_color(rgba(0xffffff14))
-        .text_size(px(12.0))
-        .text_color(rgb(0xe8e8e8))
+        .border_color(if open {
+            rgba(0xffffff40)
+        } else {
+            rgba(0xffffff14)
+        })
+        .hover(|style| style.bg(rgb(0x232323)))
         .cursor_pointer()
-        .child(SharedString::from(label))
+        .child(
+            canvas(move |frame, _, _| bounds.set(Some(frame)), |_, _, _, _| {})
+                .absolute()
+                .size_full(),
+        )
+        .child(
+            div()
+                .flex_1()
+                .min_w_0()
+                .overflow_hidden()
+                .whitespace_nowrap()
+                .text_ellipsis()
+                .text_size(px(12.0))
+                .text_color(rgb(0xe8e8e8))
+                .child(SharedString::from(label)),
+        )
+        .child(
+            gpui::svg()
+                .flex_none()
+                .path("titlebar/chevron-down.svg")
+                .size(px(12.0))
+                .text_color(rgb(0x9a9a9a)),
+        )
 }
 
 impl Render for PromptView {
@@ -873,7 +949,9 @@ impl Render for PromptView {
             .as_ref()
             .map(Target::label)
             .unwrap_or_else(|| "Pick a project".into());
-        let picker_projects = prompt.picker_open.then(|| app.ghostex_capture_targets());
+        let picker_open = prompt.picker_open;
+        let box_height = app.ghostex_capture_prompt_box_height();
+        let picker_projects = picker_open.then(|| app.ghostex_capture_targets());
         let current = prompt.target.clone();
         let sending = prompt.sending;
         let thumbs: Vec<(u32, Arc<RenderImage>)> = prompt
@@ -893,7 +971,7 @@ impl Render for PromptView {
                     .child("Send to"),
             )
             .child(
-                chip("ghostex-capture-target", format!("{target}  ▾"))
+                dropdown_trigger(target, picker_open, self.trigger_bounds.clone())
                     .on_click(cx.listener(|this, _, window, cx| this.toggle_picker(window, cx))),
             )
             .child(crate::app::render::window_drag_region::window_drag_region(
@@ -1066,7 +1144,9 @@ impl Render for PromptView {
             );
         let mut root = div()
             .id("ghostex-capture-prompt")
-            .size_full()
+            .w_full()
+            .h(px(box_height))
+            .flex_none()
             .flex()
             .flex_col()
             .gap(px(8.0))
@@ -1093,6 +1173,10 @@ impl Render for PromptView {
         if let Some(picker) = picker {
             root = root.child(picker);
         }
-        root.child(field).child(footer).into_any_element()
+        // The window is taller than the box while the dropdown is open; the rest stays clear.
+        div()
+            .size_full()
+            .child(root.child(field).child(footer))
+            .into_any_element()
     }
 }

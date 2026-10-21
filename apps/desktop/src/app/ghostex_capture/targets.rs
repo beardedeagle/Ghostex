@@ -3,9 +3,6 @@
 use crate::GhostexGpuiApp;
 use crate::app::gx_store::CaptureTargetProject;
 
-/// How long the project of the last prompt stays the default.
-const RECENT_TARGET_MS: u64 = 8 * 60 * 60 * 1000;
-
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum Target {
     /// A new session in a project (`workspace_project_id`).
@@ -50,36 +47,36 @@ impl GhostexGpuiApp {
         self.gx_store_capture_targets(now_ms())
     }
 
-    /// CDXC:GhostexCapture 2026-09-30 DECISION:
-    /// User: a new session is the default target, in the project the last Ghostex Capture prompt
-    /// went to, "but b if i didn't send prompts recently from capture": then the project of the
-    /// most recently active session.
+    /// CDXC:GhostexCapture 2026-10-22 DECISION:
+    /// User: "make it default to the currently active session in the actual window that i last interacted with (last session that became active in the app)" (Q380, "Last active session"). Supersedes the 2026-09-30 default of a new session in the project the last prompt went to. When the main window has no session focused, the most recently active session is the default.
     pub(super) fn ghostex_capture_default_target(&self) -> Option<Target> {
         let projects = self.ghostex_capture_targets();
-        let new_session = |project: &CaptureTargetProject| Target::NewSession {
-            project: project.workspace_project_id.clone(),
-            title: project.title.clone(),
+        let session = |project: &CaptureTargetProject, index: usize| {
+            let session = &project.sessions[index];
+            Target::Session {
+                session: session.sidebar_session_id.clone(),
+                title: session.title.clone(),
+                project_title: project.title.clone(),
+            }
         };
-        if let Some(last) = &self.ghostex_capture.saved.last_target
-            && now_ms().saturating_sub(last.at_ms) <= RECENT_TARGET_MS
-            && let Some(project) = projects
+        let sessions = || {
+            projects
                 .iter()
-                .find(|project| project.workspace_project_id == last.project_id)
-        {
-            return Some(new_session(project));
-        }
-        projects
-            .iter()
-            .filter_map(|project| {
-                project
-                    .sessions
-                    .iter()
-                    .map(|session| parse_ms(session.last_interaction_at.as_deref()))
-                    .max()
-                    .map(|latest| (latest, project))
+                .flat_map(|project| (0..project.sessions.len()).map(move |index| (project, index)))
+        };
+        sessions()
+            .find(|(project, index)| project.sessions[*index].focused)
+            .or_else(|| {
+                sessions().max_by_key(|(project, index)| {
+                    parse_ms(project.sessions[*index].last_interaction_at.as_deref())
+                })
             })
-            .max_by_key(|(latest, _)| *latest)
-            .map(|(_, project)| new_session(project))
-            .or_else(|| projects.first().map(new_session))
+            .map(|(project, index)| session(project, index))
+            .or_else(|| {
+                projects.first().map(|project| Target::NewSession {
+                    project: project.workspace_project_id.clone(),
+                    title: project.title.clone(),
+                })
+            })
     }
 }

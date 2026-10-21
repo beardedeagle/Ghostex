@@ -15,8 +15,7 @@ use ghostex_gx_core::{ProjectKey, SessionKey};
 use gpui::Context;
 use serde_json::{Value, json};
 
-use super::persistence::{self, SavedTarget};
-use super::targets::{Target, now_ms};
+use super::targets::Target;
 use crate::GhostexGpuiApp;
 use crate::app::gx_store::gx_rpc;
 use crate::app::model::GpuiRemoteGxserverRequestTarget;
@@ -299,16 +298,6 @@ impl GhostexGpuiApp {
                 app.ghostex_capture.prompt.sending = false;
                 match result {
                     Ok((session, note)) => {
-                        let project = ProjectKey {
-                            machine: session.machine.clone(),
-                            project_id: session.project_id.clone(),
-                        }
-                        .to_workspace_project_id();
-                        app.ghostex_capture.saved.last_target = Some(SavedTarget {
-                            project_id: project,
-                            at_ms: now_ms(),
-                        });
-                        persistence::save(&app.ghostex_capture.saved);
                         app.clear_ghostex_capture_draft_session(cx);
                         let prompt = &mut app.ghostex_capture.prompt;
                         prompt.draft.clear();

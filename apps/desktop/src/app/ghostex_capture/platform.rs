@@ -423,11 +423,8 @@ mod x11 {
         };
         let _ = connection.map_window(native as u32);
         if focus {
-            let _ = connection.set_input_focus(
-                InputFocus::PARENT,
-                native as u32,
-                x11rb::CURRENT_TIME,
-            );
+            let _ =
+                connection.set_input_focus(InputFocus::PARENT, native as u32, x11rb::CURRENT_TIME);
         }
         let _ = connection.flush();
     }

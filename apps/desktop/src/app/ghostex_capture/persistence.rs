@@ -18,14 +18,6 @@ pub(crate) struct SavedPlacement {
     pub(crate) dock: Option<DockEdge>,
 }
 
-/// The project the last prompt from Ghostex Capture went to.
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct SavedTarget {
-    pub(crate) project_id: String,
-    pub(crate) at_ms: u64,
-}
-
 /// The last area captured: the screen it was on and the box in points from that screen's corner.
 ///
 /// CDXC:GhostexCapture 2026-09-30 DECISION:
@@ -73,8 +65,6 @@ pub(crate) struct SavedCaptureState {
     pub(crate) display: Option<String>,
     #[serde(default)]
     pub(crate) placements: BTreeMap<String, SavedPlacement>,
-    #[serde(default)]
-    pub(crate) last_target: Option<SavedTarget>,
     /// The box of the last area capture, shown again on the next one.
     #[serde(default)]
     pub(crate) last_area: Option<SavedArea>,

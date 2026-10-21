@@ -17,6 +17,8 @@ pub(crate) struct CaptureTargetSession {
     pub(crate) question: bool,
     pub(crate) sleeping: bool,
     pub(crate) last_interaction_at: Option<String>,
+    /// The session focused in the main window, the one the sidebar marks active.
+    pub(crate) focused: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -87,9 +89,9 @@ impl GhostexGpuiApp {
                     sessions: core
                         .sessions
                         .iter()
-                        .map(|session| &session.row)
-                        .filter(|row| !row.is_browser && row.key.is_some())
-                        .map(|row| CaptureTargetSession {
+                        .filter(|session| !session.row.is_browser && session.row.key.is_some())
+                        .map(|session| (&session.row, session.is_focused))
+                        .map(|(row, focused)| CaptureTargetSession {
                             sidebar_session_id: row.sidebar_session_id.clone(),
                             title: if row.display_title.trim().is_empty() {
                                 row.alias.clone()
@@ -100,6 +102,7 @@ impl GhostexGpuiApp {
                             question: row.pending_question_count > 0,
                             sleeping: row.lifecycle_state == "sleeping",
                             last_interaction_at: row.last_interaction_at.clone(),
+                            focused,
                         })
                         .collect(),
                 });

@@ -2991,18 +2991,20 @@ prompt box as `[Image #N]`. Each original and edited picture is saved to
 ~/Documents/Screenshots on macOS and the Screenshots folder in Pictures on
 Windows and Linux.
 
-The prompt box sends to a new session in the project you last sent to (or the
-most recently active one), or to any project or running session you pick from
-its list, which follows the sidebar's order. It opens where you last left it, or
+The prompt box sends to the session you last had active in the Ghostex window
+(or the most recently active one), or to any project or running session you
+pick from its Send to dropdown, which follows the sidebar's order; your pick
+stays for that prompt. It opens where you last left it, or
 in the middle of the screen under the mouse, and stays there while you take
 screenshots. Add more screenshots with its Area, App and Screen icons or the
 hotkeys, and click a picture's thumbnail to edit it again, then press Enter.
-Its Send to list starts with every project collapsed: click a project to see
+The Send to dropdown opens with every project collapsed: click a project to see
 its sessions, or type to filter, and Enter picks the first match. A note under the button says where
 the prompt went, with Open. The Ghostex window also switches to that session, without
 coming in front of the app you are in; turn this off with "Switch to the session
-after sending" under Floating Capture in Settings > Integrations. Closing the prompt box without sending keeps it as
-a draft session in that project, visible in the sidebar; "Write Prompt"
+after sending" under Floating Capture in Settings > Integrations. Closing the prompt box without sending keeps the text for next time, and a
+prompt aimed at a new session is kept as a draft session in that project,
+visible in the sidebar; "Write Prompt"
 starts a new prompt, and the small continue button on it brings the draft
 back. On macOS, screenshots need Screen Recording
 permission for Ghostex. Linux support is X11 only.
