@@ -165,6 +165,8 @@ export interface GxserverRemoteTailscaleStatus {
   ip: string | null;
   /** Whether this node runs Tailscale SSH; null when Tailscale is not running. */
   sshEnabled: boolean | null;
+  /** What `tailscale status --json` printed when it could not report a status; absent when it answered. */
+  probeError?: string;
 }
 
 export interface GxserverRemoteAccessStatus {

@@ -23,6 +23,9 @@ pub struct TailscaleStatus {
     pub magic_dns_name: Option<String>,
     pub ip: Option<String>,
     pub ssh_enabled: Option<bool>,
+    /// What the `tailscale status --json` probe printed when it could not report a status (exit code and output), so a "not connected" report can be diagnosed from `/api/remoteAccessStatus`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub probe_error: Option<String>,
 }
 
 impl TailscaleStatus {
@@ -34,6 +37,7 @@ impl TailscaleStatus {
             magic_dns_name: None,
             ip: None,
             ssh_enabled: None,
+            probe_error: None,
         }
     }
 
@@ -41,6 +45,13 @@ impl TailscaleStatus {
         Self {
             installed: true,
             ..Self::not_installed()
+        }
+    }
+
+    fn probe_failed(error: String) -> Self {
+        Self {
+            probe_error: Some(error),
+            ..Self::installed_not_running()
         }
     }
 
@@ -53,23 +64,49 @@ impl TailscaleStatus {
     }
 }
 
+/// CDXC:RemotePairing 2026-10-21 WHY:
+/// The macOS Tailscale.app binary only behaves as a CLI when `TERM`, `SHLVL` or `TAILSCALE_BE_CLI` is set; otherwise it tries to start the GUI, prints "The Tailscale GUI failed to start ... (Tailscale.CLIError error 3.)" on stdout and exits 0. gxserver runs as a launchd daemon without a shell, so Macs without the `/usr/local/bin/tailscale` shell wrapper (which sets `SHLVL`) saw a connected Tailscale as "installed but not connected" (GitHub #268); `TAILSCALE_BE_CLI=1` is Tailscale's own switch for this, and the Homebrew, Linux and Windows CLIs run the same with or without it. Each installed CLI is asked in turn until one reports a running backend, because a Homebrew or standalone CLI earlier on PATH can talk to a different (stopped) daemon than the app the user signed in to.
 pub fn read_tailscale_status() -> TailscaleStatus {
-    let Some(binary) = resolve_tailscale_binary() else {
+    let binaries = installed_tailscale_binaries();
+    if binaries.is_empty() {
         return TailscaleStatus::not_installed();
-    };
-    let output = crate::platform::process::background_command(&binary)
+    }
+    let mut first_status = None;
+    let mut errors = Vec::new();
+    for binary in binaries {
+        match probe_tailscale_binary(&binary) {
+            Ok(status) if status.running => return status,
+            Ok(status) => {
+                first_status.get_or_insert(status);
+            }
+            Err(error) => errors.push(format!("{}: {error}", binary.display())),
+        }
+    }
+    first_status.unwrap_or_else(|| TailscaleStatus::probe_failed(errors.join("; ")))
+}
+
+fn probe_tailscale_binary(binary: &Path) -> Result<TailscaleStatus, String> {
+    let output = crate::platform::process::background_command(binary)
         .args(["status", "--json"])
+        .env("TAILSCALE_BE_CLI", "1")
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .output();
-    let Ok(output) = output else {
-        return TailscaleStatus::installed_not_running();
-    };
-    let Ok(status) = serde_json::from_slice::<Value>(&output.stdout) else {
-        return TailscaleStatus::installed_not_running();
-    };
-    tailscale_status_from_json(&status)
+        .stderr(Stdio::piped())
+        .output()
+        .map_err(|error| format!("could not run: {error}"))?;
+    match serde_json::from_slice::<Value>(&output.stdout) {
+        Ok(status) => Ok(tailscale_status_from_json(&status)),
+        Err(_) => {
+            let printed = [&output.stderr, &output.stdout]
+                .iter()
+                .map(|bytes| String::from_utf8_lossy(bytes).trim().to_string())
+                .filter(|text| !text.is_empty())
+                .collect::<Vec<_>>()
+                .join(" | ");
+            let printed: String = printed.chars().take(400).collect();
+            Err(format!("{}, printed: {printed}", output.status))
+        }
+    }
 }
 
 fn tailscale_status_from_json(status: &Value) -> TailscaleStatus {
@@ -117,13 +154,18 @@ fn tailscale_status_from_json(status: &Value) -> TailscaleStatus {
         magic_dns_name,
         ip,
         ssh_enabled: Some(ssh_enabled),
+        probe_error: None,
     }
 }
 
-pub fn resolve_tailscale_binary() -> Option<PathBuf> {
-    tailscale_binary_candidates()
-        .into_iter()
-        .find(|candidate| is_executable_file(candidate))
+fn installed_tailscale_binaries() -> Vec<PathBuf> {
+    let mut binaries: Vec<PathBuf> = Vec::new();
+    for candidate in tailscale_binary_candidates() {
+        if is_executable_file(&candidate) && !binaries.contains(&candidate) {
+            binaries.push(candidate);
+        }
+    }
+    binaries
 }
 
 fn tailscale_binary_candidates() -> Vec<PathBuf> {
