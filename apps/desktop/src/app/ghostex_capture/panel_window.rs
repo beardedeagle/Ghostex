@@ -209,7 +209,7 @@ impl GhostexGpuiApp {
                     ..Default::default()
                 },
                 move |window, cx| {
-                    window.set_background_corner_radius(px(14.0));
+                    crate::app::window::popup_frame::round_popup_window(window, px(14.0), false);
                     let focus = cx.focus_handle();
                     let filter = cx.new(|cx| {
                         InputState::new(window, cx).placeholder("Filter projects and sessions")
@@ -896,7 +896,6 @@ impl Render for CapturePanelView {
             .flex()
             .flex_col()
             .p(px(PANEL_PAD))
-            // The prompt box's radius: at 12 the window's own rounding cut the outline's corners.
             .rounded(px(14.0))
             .bg(rgb(0x161616))
             .border_1()

@@ -39,6 +39,30 @@ static void GhostexGpuiCaptureHideWindowButtons(NSWindow *window) {
   }
 }
 
+/// CDXC:GhostexCapture 2026-10-22 WHY:
+/// A titled window is clipped by macOS to its own corner, rounder than the panel and editor GPUI
+/// draws inside it, so the drawn 1px border vanished at every corner. Capture windows go
+/// borderless so the drawn card's corner is the only one. The shared
+/// `GhostexGpuiStripPopupWindowFrame` is not used: it drops the non-activating panel bit, and these
+/// windows take the keyboard over other apps without activating Ghostex.
+static void GhostexGpuiCaptureMakeBorderless(NSWindow *window) {
+  NSWindowStyleMask mask =
+      NSWindowStyleMaskBorderless |
+      (window.styleMask & (NSWindowStyleMaskNonactivatingPanel | NSWindowStyleMaskResizable));
+  if (window.styleMask == mask) {
+    return;
+  }
+  NSResponder *responder = window.firstResponder;
+  BOOL wasKey = window.isKeyWindow;
+  window.styleMask = mask;
+  if (responder != nil && window.firstResponder != responder) {
+    [window makeFirstResponder:responder];
+  }
+  if (wasKey && !window.isKeyWindow) {
+    [window makeKeyWindow];
+  }
+}
+
 /// Keeps a Ghostex Capture window visible over other apps, in every Space and over fullscreen
 /// apps. `keyable` windows (the panel, the editor, the prompt box, the capture overlay) take the
 /// keyboard without activating Ghostex; the button never does.
@@ -53,6 +77,7 @@ void GhostexGpuiCapturePrepareFloatingWindow(void *native_view, bool keyable) {
                               NSWindowCollectionBehaviorIgnoresCycle;
   window.hidesOnDeactivate = NO;
   window.hasShadow = NO;
+  GhostexGpuiCaptureMakeBorderless(window);
   GhostexGpuiCaptureHideWindowButtons(window);
   if ([window isKindOfClass:[NSPanel class]]) {
     ((NSPanel *)window).becomesKeyOnlyIfNeeded = !keyable;

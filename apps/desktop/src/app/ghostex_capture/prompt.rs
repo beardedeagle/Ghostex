@@ -184,7 +184,7 @@ impl GhostexGpuiApp {
                     ..Default::default()
                 },
                 move |window, cx| {
-                    window.set_background_corner_radius(px(14.0));
+                    crate::app::window::popup_frame::round_popup_window(window, px(14.0), false);
                     let view = cx.new(|cx| PromptView::new(owner, draft, window, cx));
                     view.update(cx, |view, cx| view.focus_input(window, cx));
                     *slot_in.borrow_mut() = Some(view.clone());
