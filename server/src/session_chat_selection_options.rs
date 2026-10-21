@@ -204,13 +204,15 @@ impl PickerDriver<'_> {
         fast_result.and(mode_result)
     }
 
+    /// CDXC:SessionChat 2026-10-21 WHY: Claude Code's Shift+Tab cycle leaves out the modes a session cannot use (2.1.301: manual → accept edits → plan → bypass when allowed → auto when the account, model and settings allow it → manual), so a mode the picker lists can be missing from the ring. Five presses and an `agentBusy` "remains queued" answer made the durable queue retry for ever, each retry rotating the user's mode one step further and never landing. The walk now stops on the first mode it has already seen, which is the one it started from, and refuses the pick as unsupported with the cycle it saw.
     async fn drive_mode_option(
         &self,
         plan: &CodexPickerPlan,
         agent: SessionChatOptionAgent,
     ) -> Result<(), DomainStateError> {
         if let Some(target) = plan.options.mode.as_deref() {
-            for _ in 0..5 {
+            let mut seen: Vec<String> = Vec::new();
+            for _ in 0..8 {
                 let screen = self.option_screen(agent).await?;
                 let current = current_mode(&screen, agent).ok_or_else(|| {
                     agent_busy("Waiting for the agent to report its current mode.")
@@ -218,6 +220,13 @@ impl PickerDriver<'_> {
                 if current == target {
                     return Ok(());
                 }
+                if seen.contains(&current) {
+                    return Err(unsupported_selection(format!(
+                        "The agent does not offer the {target} mode in this session; its mode cycle is {}.",
+                        seen.join(" → ")
+                    )));
+                }
+                seen.push(current.clone());
                 if agent == SessionChatOptionAgent::Codex && target == "plan" {
                     self.type_option_command(agent, "/plan").await?;
                 } else {
