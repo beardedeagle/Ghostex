@@ -600,15 +600,9 @@ pub struct TerminalView {
     /// client and keeps owning editing keys mid-composition, and places the
     /// caret inside the preedit overlay.
     marked_selection_utf16: Option<Range<usize>>,
-    /// Last reported cursor signature used to invalidate IME coordinates:
-    /// `(cursor_col_row, marked_text, marked_selection, terminal_bounds, metrics)`
-    last_reported_ime_cursor: Option<(
-        Option<(u16, u16)>,
-        Option<String>,
-        Option<Range<usize>>,
-        Bounds<Pixels>,
-        CellMetrics,
-    )>,
+    /// CDXC:Terminal 2026-10-21 WHY:
+    /// Linux IMEs (Fcitx5 over Wayland text-input and X11 XIM) only learn where the cursor is when GPUI pushes it, so the candidate window stayed where it was when PTY output moved the cursor. Prepaint compares the cursor cell, element bounds and cell metrics and asks GPUI to re-send the rectangle on a change; the preedit itself is covered by the input-handler callbacks, which invalidate on every edit.
+    last_reported_ime_cursor: Option<(Option<(u16, u16)>, Bounds<Pixels>, CellMetrics)>,
     /// CDXC:Terminal 2026-09-27 WHY:
     /// Windows dead keys need both the accent and the following text key to reach TranslateMessage; encoding the following key directly would leave Windows' dead-key state pending even after sending the composed character.
     pending_character_input: bool,
@@ -2839,14 +2833,8 @@ impl TerminalView {
         }
 
         if self.focused {
-            let cursor_signature = (
-                frame.cursor,
-                self.marked_text.clone(),
-                self.marked_selection_utf16.clone(),
-                bounds,
-                metrics,
-            );
-            if self.last_reported_ime_cursor.as_ref() != Some(&cursor_signature) {
+            let cursor_signature = (frame.cursor, bounds, metrics);
+            if self.last_reported_ime_cursor != Some(cursor_signature) {
                 self.last_reported_ime_cursor = Some(cursor_signature);
                 window.invalidate_character_coordinates();
             }
