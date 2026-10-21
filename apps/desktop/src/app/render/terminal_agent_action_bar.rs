@@ -604,7 +604,8 @@ impl GhostexGpuiApp {
                         )
                     } else {
                         format!(
-                            "{agent_name} isn't supported by Ghostex Chat View yet\nOnly Claude, Codex, Cursor, Antigravity, Pi, Omp, Grok, and Hermes are supported\nPlease request other agents on X or the Discord"
+                            "{agent_name} isn't supported by Ghostex Chat View yet\nOnly {} are supported\nPlease request other agents on X or the Discord",
+                            ghostex_gx_core::protocol::session_chat_agent_names_text()
                         )
                     });
                 } else if !self.agents_session_chat_eligible(session_id) {

@@ -428,18 +428,15 @@ the switch can only read a transcript it has a decoder for. `openclaude` and
 onto them rather than adding families of their own; `omp` is its own family
 despite sharing Pi's transcript format, because it paints different chrome.
 */
+/// Which agents count as chat-supported comes from the one chat agent table
+/// (`SESSION_CHAT_AGENTS` in gx-protocol); this only names the agent id each family is switched
+/// to by.
 pub(crate) fn chat_supported_base_agent_id(value: Option<&str>) -> Option<&'static str> {
-    match value?.trim().to_ascii_lowercase().as_str() {
-        "antigravity" | "antigravity-cli" => Some("antigravity"),
-        "claude" | "openclaude" => Some("claude"),
-        "codex" => Some("codex"),
-        "copilot" => Some("copilot"),
-        "cursor" | "cursor-cli" => Some("cursor"),
-        "grok" | "grok-build" => Some("grok"),
-        "hermes" | "hermes-agent" => Some("hermes-agent"),
-        "pi" => Some("pi"),
-        "omp" => Some("omp"),
-        _ => None,
+    let label = value?.trim().to_ascii_lowercase();
+    match ghostex_gx_chat_core::protocol::session_chat_transcript_family(&label)? {
+        "hermes" => Some("hermes-agent"),
+        "pi" if label == "omp" => Some("omp"),
+        family => Some(family),
     }
 }
 

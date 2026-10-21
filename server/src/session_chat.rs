@@ -292,26 +292,25 @@ pub enum SessionChatTranscriptAgent {
     Zcode,
 }
 
-/// `claude` and `openclaude` share the Claude transcript format.
+/// The transcript reader for an agent label, from the one chat agent table every client reads
+/// (`SESSION_CHAT_AGENTS` in gx-protocol): `claude` and `openclaude` share the Claude transcript
+/// format, `pi` and `omp` Pi's.
 pub fn resolve_session_chat_transcript_agent(
     agent: Option<&str>,
 ) -> Option<SessionChatTranscriptAgent> {
-    match agent?.trim().to_ascii_lowercase().as_str() {
-        "antigravity" | "agy" | "antigravity cli" | "antigravity-cli" => {
-            Some(SessionChatTranscriptAgent::Antigravity)
-        }
-        "claude" | "openclaude" => Some(SessionChatTranscriptAgent::Claude),
+    let label = agent?.trim().to_ascii_lowercase();
+    match ghostex_gx_chat_core::protocol::session_chat_transcript_family(&label)? {
+        "antigravity" => Some(SessionChatTranscriptAgent::Antigravity),
+        "claude" => Some(SessionChatTranscriptAgent::Claude),
         "codex" => Some(SessionChatTranscriptAgent::Codex),
-        "copilot" | "github copilot" | "github-copilot" => {
-            Some(SessionChatTranscriptAgent::Copilot)
-        }
-        "cursor" | "cursor-agent" | "cursor cli" => Some(SessionChatTranscriptAgent::Cursor),
+        "copilot" => Some(SessionChatTranscriptAgent::Copilot),
+        "cursor" => Some(SessionChatTranscriptAgent::Cursor),
         "empryo" => Some(SessionChatTranscriptAgent::Empryo),
-        "grok" | "grok-build" => Some(SessionChatTranscriptAgent::Grok),
-        "hermes" | "hermes agent" | "hermes-agent" => Some(SessionChatTranscriptAgent::Hermes),
+        "grok" => Some(SessionChatTranscriptAgent::Grok),
+        "hermes" => Some(SessionChatTranscriptAgent::Hermes),
         "opencode" => Some(SessionChatTranscriptAgent::OpenCode),
-        "pi" | "omp" => Some(SessionChatTranscriptAgent::Pi),
-        "zcode" | "zcode-cli" => Some(SessionChatTranscriptAgent::Zcode),
+        "pi" => Some(SessionChatTranscriptAgent::Pi),
+        "zcode" => Some(SessionChatTranscriptAgent::Zcode),
         "freebuff" => Some(SessionChatTranscriptAgent::Freebuff),
         _ => None,
     }

@@ -25,6 +25,7 @@ pub mod event;
 pub mod peek;
 pub mod presentation;
 pub mod rpc;
+pub mod session_chat_agents;
 pub mod side_state;
 pub mod tri;
 
@@ -37,6 +38,7 @@ pub use event::*;
 pub use peek::peek_event_type;
 pub use presentation::*;
 pub use rpc::*;
+pub use session_chat_agents::*;
 pub use side_state::*;
 pub use tri::Tri;
 

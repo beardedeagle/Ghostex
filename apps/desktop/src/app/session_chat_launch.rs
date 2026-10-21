@@ -171,24 +171,10 @@ impl GhostexGpuiApp {
             return;
         }
         let icon = gpui_workspace_attach_agent_icon(attach);
-        if !matches!(
-            icon,
-            Some(
-                "antigravity-cli"
-                    | "claude"
-                    | "openclaude"
-                    | "codex"
-                    | "copilot"
-                    | "cursor-cli"
-                    | "empryo"
-                    | "grok-build"
-                    | "hermes-agent"
-                    | "pi"
-                    | "omp"
-                    | "zcode"
-                    | "freebuff"
-            )
-        ) {
+        if icon
+            .and_then(crate::app::session_chat_surfaces::session_chat_agent_for_icon)
+            .is_none()
+        {
             return;
         }
         if self.chat_launch_intent_declined_by_default_view(&key, icon) {

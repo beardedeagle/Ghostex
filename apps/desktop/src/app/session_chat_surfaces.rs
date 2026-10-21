@@ -7,6 +7,19 @@ use crate::app::consts::*;
 use crate::app::helpers::*;
 use crate::app::model::*;
 use crate::*;
+
+/// The chat agent the desktop names a sidebar agent icon by, or `None` when Chat View cannot read
+/// that agent. Which agents chat reads comes from the one chat agent table (`SESSION_CHAT_AGENTS`
+/// in gx-protocol); Hermes and OMP keep their own ids here because the model picker and account
+/// flyout tell them apart from the Hermes and Pi transcript families.
+pub(crate) fn session_chat_agent_for_icon(icon: &'static str) -> Option<&'static str> {
+    let family = ghostex_gx_core::protocol::session_chat_transcript_family(icon)?;
+    Some(match icon {
+        "hermes-agent" | "omp" => icon,
+        _ => family,
+    })
+}
+
 impl GhostexGpuiApp {
     pub(crate) fn agents_session_chat_transcript_agent(
         &self,
@@ -18,22 +31,7 @@ impl GhostexGpuiApp {
         if session.agent_icon.is_some() && self.agents_session_chat_view_unavailable(session_id) {
             return None;
         }
-        match session.agent_icon {
-            Some("antigravity-cli") => Some("antigravity"),
-            Some("claude") => Some("claude"),
-            Some("openclaude") => Some("claude"),
-            Some("codex") => Some("codex"),
-            Some("copilot") => Some("copilot"),
-            Some("cursor-cli") => Some("cursor"),
-            Some("empryo") => Some("empryo"),
-            Some("grok-build") => Some("grok"),
-            Some("hermes-agent") => Some("hermes-agent"),
-            Some("pi") => Some("pi"),
-            Some("omp") => Some("omp"),
-            Some("zcode") => Some("zcode"),
-            Some("freebuff") => Some("freebuff"),
-            _ => None,
-        }
+        session_chat_agent_for_icon(session.agent_icon?)
     }
 
     /// Hands every session on Chat View that gx-core has since ruled out of it (a draft whose

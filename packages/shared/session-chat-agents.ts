@@ -26,6 +26,10 @@ export interface SessionChatPendingModelSelection {
  */
 export type SessionChatModelSelectionScope = 'session' | 'default';
 
+/**
+ * CDXC:SessionChat 2026-10-21 SEE-ALSO:
+ * A copy of `SESSION_CHAT_AGENTS` in packages/gx-protocol/src/session_chat_agents.rs, the table every Rust layer reads; the phone cannot link that crate, so `cargo xtask generate-mobile-chat-agents` turns this set into its list. Change both together.
+ */
 export const SESSION_CHAT_SUPPORTED_AGENTS = new Set([
   'antigravity',
   'antigravity-cli',
@@ -36,6 +40,7 @@ export const SESSION_CHAT_SUPPORTED_AGENTS = new Set([
   'copilot',
   'cursor',
   'empryo',
+  'opencode',
   'grok',
   'grok-build',
   'hermes',
@@ -55,6 +60,7 @@ export type SessionChatTranscriptAgent =
   | 'empryo'
   | 'grok'
   | 'hermes'
+  | 'opencode'
   | 'pi'
   | 'zcode'
   | 'freebuff';
@@ -76,11 +82,19 @@ export function resolveSessionChatTranscriptAgent(
     }
     if (normalized === 'claude' || normalized === 'openclaude') return 'claude';
     if (normalized === 'codex') return 'codex';
-    if (normalized === 'copilot' || normalized === 'github copilot') return 'copilot';
-    if (normalized === 'cursor' || normalized === 'cursor-agent' || normalized === 'cursor cli') return 'cursor';
+    if (normalized === 'copilot' || normalized === 'github copilot' || normalized === 'github-copilot')
+      return 'copilot';
+    if (
+      normalized === 'cursor' ||
+      normalized === 'cursor-agent' ||
+      normalized === 'cursor-cli' ||
+      normalized === 'cursor cli'
+    )
+      return 'cursor';
     if (normalized === 'empryo') return 'empryo';
     if (normalized === 'grok' || normalized === 'grok-build') return 'grok';
     if (normalized === 'hermes' || normalized === 'hermes-agent' || normalized === 'hermes agent') return 'hermes';
+    if (normalized === 'opencode') return 'opencode';
     if (normalized === 'pi' || normalized === 'omp') return 'pi';
     if (normalized === 'zcode' || normalized === 'zcode-cli') return 'zcode';
     if (normalized === 'freebuff') return 'freebuff';

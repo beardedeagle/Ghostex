@@ -4,36 +4,17 @@ pub(crate) use crate::sidebar_view::text::js_trim;
 
 /// `resolveSessionChatTranscriptAgent(agentId, agentIcon)`: which transcript family an agent
 /// belongs to, or `None` when it has none. Both candidates are tried in order, trimmed and
-/// lowercased.
-///
-/// SEE-ALSO: packages/shared/session-chat-agents.ts.
+/// lowercased, against the one chat agent table (`SESSION_CHAT_AGENTS` in gx-protocol).
 pub(crate) fn transcript_agent(
     agent_id: Option<&str>,
     agent_icon: Option<&str>,
 ) -> Option<&'static str> {
-    for candidate in [agent_id, agent_icon] {
-        let Some(candidate) = candidate else {
-            continue;
-        };
-        let normalized = js_trim(candidate).to_lowercase();
-        let resolved = match normalized.as_str() {
-            "antigravity" | "antigravity-cli" | "antigravity cli" | "agy" => Some("antigravity"),
-            "claude" | "openclaude" => Some("claude"),
-            "codex" => Some("codex"),
-            "cursor" | "cursor-agent" | "cursor cli" => Some("cursor"),
-            "empryo" => Some("empryo"),
-            "grok" | "grok-build" => Some("grok"),
-            "hermes" | "hermes-agent" | "hermes agent" => Some("hermes"),
-            "pi" | "omp" => Some("pi"),
-            "zcode" | "zcode-cli" => Some("zcode"),
-            "freebuff" => Some("freebuff"),
-            _ => None,
-        };
-        if resolved.is_some() {
-            return resolved;
-        }
-    }
-    None
+    [agent_id, agent_icon]
+        .into_iter()
+        .flatten()
+        .find_map(|candidate| {
+            ghostex_gx_protocol::session_chat_transcript_family(&js_trim(candidate).to_lowercase())
+        })
 }
 
 /// `formatIdentifier` from the Copy Details text: a known agent's proper name, else the id split

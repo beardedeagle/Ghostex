@@ -59,29 +59,14 @@ pub fn is_sidebar_agent_icon(candidate: Option<&str>) -> bool {
     }
 }
 
-/// `resolveSessionChatTranscriptAgent`: the transcript family an agent label belongs to.
+/// `resolveSessionChatTranscriptAgent`: the transcript family an agent label belongs to, from the
+/// one chat agent table (`SESSION_CHAT_AGENTS` in gx-protocol).
 pub fn transcript_agent(candidates: [Option<&str>; 2]) -> Option<&'static str> {
-    for candidate in candidates.into_iter().flatten() {
-        let normalized = crate::extras::agent_tasks::js_trim(candidate).to_lowercase();
-        let resolved = match normalized.as_str() {
-            "antigravity" | "antigravity-cli" | "antigravity cli" | "agy" => Some("antigravity"),
-            "claude" | "openclaude" => Some("claude"),
-            "codex" => Some("codex"),
-            "copilot" | "github copilot" | "github-copilot" => Some("copilot"),
-            "cursor" | "cursor-agent" | "cursor cli" => Some("cursor"),
-            "empryo" => Some("empryo"),
-            "grok" | "grok-build" => Some("grok"),
-            "hermes" | "hermes-agent" | "hermes agent" => Some("hermes"),
-            "pi" | "omp" => Some("pi"),
-            "zcode" | "zcode-cli" => Some("zcode"),
-            "freebuff" => Some("freebuff"),
-            _ => None,
-        };
-        if resolved.is_some() {
-            return resolved;
-        }
-    }
-    None
+    candidates.into_iter().flatten().find_map(|candidate| {
+        ghostex_gx_protocol::session_chat_transcript_family(
+            &crate::extras::agent_tasks::js_trim(candidate).to_lowercase(),
+        )
+    })
 }
 
 /// `resolveSessionChatDisplayAgent`: OMP transcripts use Pi's format, but OMP stays its own product
