@@ -2559,7 +2559,7 @@ Setting: `botAutomationsHidden` (on by default, which keeps the feed hidden).
 ## Voice agent
 
 Talk to your agents out loud. On a Mac, Windows or Linux, the headset button in
-the work area header (beside the ⋯ menu) starts a spoken conversation with Ghostex's voice
+the work area header (left of the Start, Open and Commit buttons) starts a spoken conversation with Ghostex's voice
 agent, and pressing it again hangs up; Option+Ctrl+V (Ctrl+Alt+Shift+V on Windows
 and Linux) does the same from anywhere in the window. Ask what your sessions are doing or
 which ones are waiting on you, have it read you the last messages of a session,
