@@ -280,12 +280,7 @@ fn abs_from_display(home: &Path, display: &str) -> PathBuf {
     }
 }
 
-fn plan_agent(
-    b: &mut Builder<'_>,
-    agent: &AgentReport,
-    report: &SyncReport,
-    options: &PlanOptions,
-) {
+fn plan_agent(b: &mut Builder<'_>, agent: &AgentReport, options: &PlanOptions) {
     let Some(spec) = &agent.spec else {
         return;
     };
@@ -500,12 +495,11 @@ fn plan_agent(
                     let op = b.keep_op(dir.clone(), Some(agent_id), "already linked");
                     b.push(PlanGroupKind::Hooks, op);
                 }
-                HooksState::Missing if report.source.hooks_dir_exists => {
+                HooksState::Missing => {
                     let op = b.link_op(dir.clone(), &source_hooks, agent_id, false);
                     b.push(PlanGroupKind::Hooks, op);
                 }
-                HooksState::Missing => {}
-                HooksState::RealDir if report.source.hooks_dir_exists => {
+                HooksState::RealDir => {
                     b.push(
                         PlanGroupKind::Hooks,
                         b.backup_op(dir.clone(), Some(agent_id), "agent-local hooks folder"),
@@ -513,7 +507,7 @@ fn plan_agent(
                     let op = b.link_op(dir.clone(), &source_hooks, agent_id, false);
                     b.push(PlanGroupKind::Hooks, op);
                 }
-                HooksState::RealDir => {}
+                HooksState::NothingShared => {}
                 HooksState::OtherLink => {
                     let op = b.keep_op(
                         dir.clone(),
@@ -526,7 +520,7 @@ fn plan_agent(
         }
     }
 
-    if options.link_lock && report.source.lock.exists {
+    if options.link_lock {
         if let (Some(lock), Some(path)) = (&agent.lock, spec.lock_link.as_ref()) {
             let source_lock = source.join(".skill-lock.json");
             match lock.state {
@@ -554,6 +548,7 @@ fn plan_agent(
                     );
                     b.push(PlanGroupKind::Hooks, op);
                 }
+                LockLinkState::NothingShared => {}
             }
         }
     }
@@ -586,7 +581,7 @@ pub fn build_plan(home: &Path, report: &SyncReport, options: &PlanOptions) -> Sy
             SyncScope::Agent(_) => continue,
         }
         if agent.detected {
-            plan_agent(&mut builder, agent, report, options);
+            plan_agent(&mut builder, agent, options);
         } else if let (Some(skills), Some(spec)) = (&agent.skills, &agent.spec) {
             // Leftover folders of agents that were never installed: only remove their dangling links.
             if let Some(dir) = spec.skills_dir.as_ref() {

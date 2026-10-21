@@ -316,7 +316,12 @@ impl GpuiAgentsHubModalWindow {
             .count();
         let hooks_targets = detected
             .iter()
-            .filter(|agent| agent.hooks.is_some())
+            .filter(|agent| {
+                agent
+                    .hooks
+                    .as_ref()
+                    .is_some_and(|hooks| hooks.state != "nothingShared")
+            })
             .count();
         let to_fix: Vec<&SyncProblem> = report
             .problems

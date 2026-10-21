@@ -219,7 +219,14 @@ pub fn child_names(dir: &Path) -> Vec<String> {
 pub fn display_path(path: &Path, home: &Path) -> String {
     match path.strip_prefix(home) {
         Ok(rest) if rest.as_os_str().is_empty() => "~".to_string(),
-        Ok(rest) => format!("~/{}", rest.display()),
+        // `/` between every part, so a Windows path built with `join` does not show as `~/.claude\hooks`.
+        Ok(rest) => format!(
+            "~/{}",
+            rest.components()
+                .map(|part| part.as_os_str().to_string_lossy())
+                .collect::<Vec<_>>()
+                .join("/")
+        ),
         Err(_) => path.display().to_string(),
     }
 }

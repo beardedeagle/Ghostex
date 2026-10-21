@@ -2152,7 +2152,9 @@ opens a plan first:
 one relative symlink per skill in every agent's skills folder, whole-folder links
 converted to per-skill links, the one-line pointer written into each agent's
 instruction file (a file with other content is backed up first), and the hooks
-folder and lock file linked into Claude Code and Codex. Nothing is deleted:
+folder and lock file linked into Claude Code and Codex (when `~/.agents` has no
+`hooks` folder or lock file, the Hook scripts card says "Nothing shared" and
+there is nothing to fix there). Nothing is deleted:
 anything in the way is moved to
 `~/.local/state/ghostex/agent-sync-backups/<stamp>/`, at the same path it had
 under your home folder, so agents never mistake a backup for a skill. Tidying

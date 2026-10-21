@@ -394,7 +394,7 @@ pub(crate) fn instructions_tone(agent: &SyncAgentReport) -> SyncTone {
 
 pub(crate) fn hooks_tone(agent: &SyncAgentReport) -> SyncTone {
     match agent.hooks.as_ref().map(|value| value.state.as_str()) {
-        None => SyncTone::Off,
+        None | Some("nothingShared") => SyncTone::Off,
         Some("linked") => SyncTone::Ok,
         Some("missing" | "realDir") => SyncTone::Warn,
         Some(_) => SyncTone::Err,
@@ -445,11 +445,11 @@ pub(crate) fn part_fix_groups(agent: &SyncAgentReport, part: SyncPart) -> Vec<&'
             let hooks_open = agent
                 .hooks
                 .as_ref()
-                .is_some_and(|hooks| hooks.state != "linked" && hooks.state != "otherLink");
+                .is_some_and(|hooks| matches!(hooks.state.as_str(), "missing" | "realDir"));
             let lock_open = agent
                 .lock
                 .as_ref()
-                .is_some_and(|lock| lock.state != "linked" && lock.state != "otherLink");
+                .is_some_and(|lock| matches!(lock.state.as_str(), "missing" | "realFile"));
             if agent.detected && (hooks_open || lock_open) {
                 vec!["hooks"]
             } else {
@@ -459,17 +459,12 @@ pub(crate) fn part_fix_groups(agent: &SyncAgentReport, part: SyncPart) -> Vec<&'
     }
 }
 
-/// How many fixes an agent row advertises ("3 to fix"). An agent the scan flags always shows at least one.
+/// How many fixes an agent row advertises ("3 to fix"): the plan groups that have a change for it.
 pub(crate) fn issue_count(agent: &SyncAgentReport) -> usize {
-    let count: usize = SYNC_PARTS
+    SYNC_PARTS
         .iter()
         .map(|part| part_fix_groups(agent, *part).len())
-        .sum();
-    if agent.status == "attention" {
-        count.max(1)
-    } else {
-        count
-    }
+        .sum()
 }
 
 /// Red when something is broken, amber when it works today but can go out of date.

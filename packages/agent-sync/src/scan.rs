@@ -113,6 +113,8 @@ pub enum HooksState {
     Missing,
     RealDir,
     OtherLink,
+    /// `~/.agents/hooks` does not exist, so there is nothing to link; the agent's own folder stays as it is.
+    NothingShared,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -131,6 +133,8 @@ pub enum LockLinkState {
     Missing,
     RealFile,
     OtherLink,
+    /// `~/.agents/.skill-lock.json` does not exist, so there is nothing to link.
+    NothingShared,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -584,13 +588,24 @@ fn with_counts(mut report: SkillsReport) -> SkillsReport {
     report
 }
 
-fn scan_hooks(home: &Path, spec: &AgentSpec) -> Option<HooksReport> {
+/// CDXC:AgentSync 2026-10-21 WHY:
+/// A hooks folder or lock file only counts as "to fix" when `~/.agents` has one to link it to.
+/// The scan used to report `Missing`/`RealDir` without that check while the plan skipped them, so
+/// a computer without `~/.agents/hooks` showed "Hook scripts: 1 to fix" for Claude Code and Codex
+/// that the Sync dialog could never fix (Windows report, 2026-10-21). `NothingShared` is that case,
+/// and the plan, the agent's status and the Hub's counts all read it from here.
+fn scan_hooks(home: &Path, spec: &AgentSpec, source: &SourceInfo) -> Option<HooksReport> {
     let dir = spec.hooks_dir.as_ref()?;
     let source_hooks = source_root(home).join("hooks");
+    let nothing_shared = !source.hooks_dir_exists;
     let Ok(metadata) = fs::symlink_metadata(dir) else {
         return Some(HooksReport {
             dir: fsx::display_path(dir, home),
-            state: HooksState::Missing,
+            state: if nothing_shared {
+                HooksState::NothingShared
+            } else {
+                HooksState::Missing
+            },
             link_target: None,
         });
     };
@@ -601,6 +616,8 @@ fn scan_hooks(home: &Path, spec: &AgentSpec) -> Option<HooksReport> {
         } else {
             HooksState::OtherLink
         }
+    } else if nothing_shared {
+        HooksState::NothingShared
     } else {
         HooksState::RealDir
     };
@@ -611,13 +628,18 @@ fn scan_hooks(home: &Path, spec: &AgentSpec) -> Option<HooksReport> {
     })
 }
 
-fn scan_lock(home: &Path, spec: &AgentSpec) -> Option<LockLinkReport> {
+fn scan_lock(home: &Path, spec: &AgentSpec, source: &SourceInfo) -> Option<LockLinkReport> {
     let path = spec.lock_link.as_ref()?;
     let source_lock = source_root(home).join(".skill-lock.json");
+    let nothing_shared = !source.lock.exists;
     let Ok(metadata) = fs::symlink_metadata(path) else {
         return Some(LockLinkReport {
             path: fsx::display_path(path, home),
-            state: LockLinkState::Missing,
+            state: if nothing_shared {
+                LockLinkState::NothingShared
+            } else {
+                LockLinkState::Missing
+            },
         });
     };
     let state = if metadata.file_type().is_symlink() {
@@ -626,6 +648,8 @@ fn scan_lock(home: &Path, spec: &AgentSpec) -> Option<LockLinkReport> {
         } else {
             LockLinkState::OtherLink
         }
+    } else if nothing_shared {
+        LockLinkState::NothingShared
     } else {
         LockLinkState::RealFile
     };
@@ -719,8 +743,8 @@ fn scan_agent(home: &Path, spec: &AgentSpec, source: &SourceInfo) -> AgentReport
             kind: spec.instruction_kind,
             state: pointer::classify(path, spec.instruction_kind),
         });
-    report.hooks = scan_hooks(home, spec);
-    report.lock = scan_lock(home, spec);
+    report.hooks = scan_hooks(home, spec, source);
+    report.lock = scan_lock(home, spec, source);
     report.status = if agent_needs_attention(&report) {
         AgentStatus::Attention
     } else {
@@ -729,40 +753,44 @@ fn scan_agent(home: &Path, spec: &AgentSpec, source: &SourceInfo) -> AgentReport
     report
 }
 
+/// CDXC:AgentSync 2026-10-21 WHY:
+/// An agent needs attention only when the plan has a change for it. States the plan only keeps
+/// for review by hand (a skills folder or hooks link pointing elsewhere, a copy that drifted from
+/// the source, an instruction file that is a link or not a file, nothing shared to link) used to
+/// count too, which put the agent under "To fix" with a count the Sync dialog showed as "Nothing
+/// to apply". Those states still show on the agent's cards.
 fn agent_needs_attention(report: &AgentReport) -> bool {
     if let Some(skills) = &report.skills {
-        match skills.dir_state {
-            SkillDirState::WholeFolderLink | SkillDirState::OtherLink | SkillDirState::NotADir => {
-                return true
-            }
-            SkillDirState::Missing if !report.universal && skills.counts.missing > 0 => {
-                return true
-            }
-            _ => {}
+        if skills.dir_state == SkillDirState::WholeFolderLink {
+            return true;
         }
         let c = &skills.counts;
         if c.dangling > 0
             || c.redundant_links > 0
             || c.backups > 0
             || c.copies_identical > 0
-            || c.copies_drifted > 0
             || (!report.universal && c.missing > 0)
         {
             return true;
         }
     }
     if let Some(instructions) = &report.instructions {
-        if instructions.state != InstructionState::Pointer {
+        if matches!(
+            instructions.state,
+            InstructionState::Missing
+                | InstructionState::LegacyPointer
+                | InstructionState::OtherContent
+        ) {
             return true;
         }
     }
     if let Some(hooks) = &report.hooks {
-        if hooks.state != HooksState::Linked {
+        if matches!(hooks.state, HooksState::Missing | HooksState::RealDir) {
             return true;
         }
     }
     if let Some(lock) = &report.lock {
-        if lock.state != LockLinkState::Linked {
+        if matches!(lock.state, LockLinkState::Missing | LockLinkState::RealFile) {
             return true;
         }
     }

@@ -602,6 +602,9 @@ impl GpuiAgentsHubModalWindow {
             Some("realDir") => {
                 "The hooks folder is a folder of its own. It is backed up, then linked.".to_string()
             }
+            Some("nothingShared") => {
+                "Your shared folder has no hooks folder, so there is nothing to link.".to_string()
+            }
             Some(_) => {
                 "The hooks folder links somewhere else, which Agent Sync leaves alone.".to_string()
             }
@@ -609,7 +612,11 @@ impl GpuiAgentsHubModalWindow {
         let mut lines = Vec::new();
         if let Some(hooks) = agent.hooks.as_ref() {
             lines.push(line(ICON_TERMINAL, hooks.dir.clone(), None));
-            if let Some(lock) = agent.lock.as_ref() {
+            if let Some(lock) = agent
+                .lock
+                .as_ref()
+                .filter(|lock| lock.state != "nothingShared")
+            {
                 let linked = lock.state == "linked";
                 lines.push(line(
                     if linked { ICON_CHECK } else { ICON_LINK },
@@ -631,7 +638,11 @@ impl GpuiAgentsHubModalWindow {
             "Hook scripts",
             hooks_tone(agent),
             groups.len(),
-            agent.hooks.is_none().then_some("Not used"),
+            match agent.hooks.as_ref().map(|hooks| hooks.state.as_str()) {
+                None => Some("Not used"),
+                Some("nothingShared") => Some("Nothing shared"),
+                Some(_) => None,
+            },
             state,
             lines,
             None,
