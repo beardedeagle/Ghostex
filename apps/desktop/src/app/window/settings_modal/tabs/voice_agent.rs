@@ -39,6 +39,7 @@ const PROVIDER: &str = "voiceAgentProvider";
 const XAI_VOICE: &str = "voiceAgentXaiVoice";
 const OPENAI_VOICE: &str = "voiceAgentOpenaiVoice";
 const SPEED: &str = "voiceAgentSpeed";
+const MUTE_BILLING: &str = "voiceAgentMuteBilling";
 const XAI_KEY: &str = "voiceAgentXaiKey";
 const OPENAI_KEY: &str = "voiceAgentOpenaiKey";
 const MEMORY: &str = "voiceAgentMemory";
@@ -485,7 +486,7 @@ impl Render for VoiceAgentTab {
         };
         let provider = values.string(PROVIDER);
         let mut provider_rows = Vec::new();
-        for key in [PROVIDER, XAI_VOICE, OPENAI_VOICE, SPEED] {
+        for key in [PROVIDER, XAI_VOICE, OPENAI_VOICE, SPEED, MUTE_BILLING] {
             // Only the chosen provider's voice is offered.
             let shown = match key {
                 XAI_VOICE => provider != "openai",

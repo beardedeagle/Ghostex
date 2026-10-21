@@ -2579,8 +2579,14 @@ Realtime keeps a call's voice once it has spoken, so the new voice starts with
 your next conversation (the panel says which). The small speed button right of
 the voice name ("1×") opens a menu of speeds (1×, 1.2×, 1.4×, 1.6×, 1.8×, 2×)
 that make it talk faster without changing its pitch, at once, even
-mid-sentence. It hangs up by itself after 5
-minutes with nobody talking.
+mid-sentence. The gear beside it chooses what muting costs on a Grok call:
+"Billed while connected" (the default) keeps Grok listening all call, so muted
+and quiet time is billed like talking; "Push-to-talk while muted" stops Grok
+listening while you are muted, so muted time isn't billed, and unmuting turns
+listening back on (the panel shows "Muted, not billed"). An answer it is giving
+finishes first, and it still tells you when a session finishes while you are
+muted. GPT Realtime bills only the audio sent, so muting it is already free. It
+hangs up by itself after 5 minutes with nobody talking.
 
 It remembers your last conversation as a short summary, kept on your computer
 until the next conversation replaces it. When you start a new conversation, the
@@ -2632,11 +2638,12 @@ through the phone's speaker, or a Bluetooth headset or car hands-free link
 when one is connected, and pauses while a call or a navigation prompt plays.
 The phone's voice screen has the same voice picker (tap the voice name under
 the computer's name) and a small speed button beside it that opens the list of
-speeds; both save the computer's settings, so
-the desktop and the phone talk with the same voice at the same speed. It shows
+speeds, and the same gear for what muting costs; they save the computer's
+settings, so the desktop and the phone talk with the same voice at the same
+speed. It shows
 the same "Last conversation" card with Continue, Start fresh and Forget.
 
-Settings: `voiceAgentProvider`, `voiceAgentXaiVoice`, `voiceAgentOpenaiVoice`, `voiceAgentSpeed`; the Memory row (`voiceAgentMemory`) forgets the remembered conversation.
+Settings: `voiceAgentProvider`, `voiceAgentXaiVoice`, `voiceAgentOpenaiVoice`, `voiceAgentSpeed`, `voiceAgentMuteBilling`; the Memory row (`voiceAgentMemory`) forgets the remembered conversation.
 
 ## Remote machines, web, and mobile
 

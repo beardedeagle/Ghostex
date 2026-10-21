@@ -27,7 +27,9 @@ const USAGE: &str = "Usage:
   without hanging up and print the conversation id), --resume <conversationId> (reattach),
   --voice <id> (a turn that switches the agent's voice; place it between --text turns),
   --rate <1.0-2.0> (report a client playback rate, as the desktop's speed buttons do),
-  --continue (a turn that hands the remembered last conversation to the agent, as Continue does).
+  --continue (a turn that hands the remembered last conversation to the agent, as Continue does),
+  --mute / --unmute (turns that mute or unmute the microphone the way the apps do; with
+  voiceAgentMuteBilling=pushToTalk a muted Grok call switches to push-to-talk).
 
 Runs a voice-agent conversation (or, with --dictate, a Grok dictation) against this computer's
 gxserver and prints captions, tool calls and state changes. Each --text or --wav is one turn;
@@ -54,6 +56,7 @@ enum Turn {
     Wav(String),
     Voice(String),
     Continue,
+    Mute(bool),
 }
 
 fn parse(args: &[String]) -> CliResult<Options> {
@@ -83,6 +86,11 @@ fn parse(args: &[String]) -> CliResult<Options> {
             "--text" => options.turns.push(Turn::Text(value(index, flag)?)),
             "--wav" => options.turns.push(Turn::Wav(value(index, flag)?)),
             "--voice" => options.turns.push(Turn::Voice(value(index, flag)?)),
+            "--mute" | "--unmute" => {
+                options.turns.push(Turn::Mute(flag == "--mute"));
+                index += 1;
+                continue;
+            }
             "--continue" => {
                 options.turns.push(Turn::Continue);
                 index += 1;
@@ -294,6 +302,10 @@ struct TurnWatch {
     playback_report: Option<(String, u64)>,
     /// A `voice` answer arrived since the last `--voice` turn.
     voice_answered: bool,
+    /// A `billing` frame arrived since the last `--mute` / `--unmute` turn.
+    billing_answered: bool,
+    /// `--mute`: no microphone audio is sent until `--unmute`.
+    muted: bool,
     /// `--rate`: how fast the simulated player plays the agent's audio.
     rate: f64,
 }
@@ -430,6 +442,18 @@ fn handle_frame(message: Message, start: Instant, watch: &mut TurnWatch, audio: 
                     field("text")
                 ),
                 "done" => println!("{at}  [dictation done] {}", field("text")),
+                "billing" => {
+                    watch.billing_answered = true;
+                    println!(
+                        "{at}  [billing] push-to-talk {}{}",
+                        frame["pushToTalk"],
+                        if frame["refused"] == true {
+                            " (refused)"
+                        } else {
+                            ""
+                        }
+                    );
+                }
                 "voice" => {
                     watch.voice_answered = true;
                     println!(
@@ -524,6 +548,8 @@ fn converse(socket: &mut WebSocket<TcpStream>, options: &Options) -> CliResult<(
                             barge = None;
                         }
                     }
+                    // A muted microphone sends nothing, as the apps do.
+                    None if watch.muted => {}
                     None => send_audio(socket, &silence)?,
                 }
                 next_chunk += Duration::from_millis(CHUNK_MS);
@@ -538,6 +564,26 @@ fn converse(socket: &mut WebSocket<TcpStream>, options: &Options) -> CliResult<(
     for turn in &options.turns {
         watch.agent_spoke = false;
         watch.quiet_since = None;
+        if let Turn::Mute(muted) = turn {
+            println!(
+                "{}  ({})",
+                elapsed(start),
+                if *muted { "muting" } else { "unmuting" }
+            );
+            watch.billing_answered = false;
+            watch.muted = *muted;
+            send_json(socket, json!({"type": "mute", "muted": muted}))?;
+            // No answer comes when the setting keeps voice detection on while muted.
+            let deadline = Instant::now() + Duration::from_secs(6);
+            pump(
+                socket,
+                &mut watch,
+                &mut audio,
+                &|watch: &TurnWatch| watch.billing_answered,
+                deadline,
+            )?;
+            continue;
+        }
         if let Turn::Voice(voice) = turn {
             println!("{}  (switching to the voice {voice})", elapsed(start));
             watch.voice_answered = false;
@@ -580,7 +626,7 @@ fn converse(socket: &mut WebSocket<TcpStream>, options: &Options) -> CliResult<(
                 println!("{}  (continue the last conversation)", elapsed(start));
                 send_json(socket, json!({"type": "continueMemory"}))?;
             }
-            Turn::Voice(_) => {}
+            Turn::Voice(_) | Turn::Mute(_) => {}
         }
         let deadline = Instant::now() + Duration::from_secs(options.turn_timeout);
         pump(

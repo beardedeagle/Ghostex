@@ -35,6 +35,7 @@ pub(super) const MAX_AUDIO_RESTARTS: u32 = 5;
 /// The speeds the panel's buttons and Settings › Voice agent offer (`voiceAgentSpeed`).
 pub(crate) const VOICE_AGENT_SPEEDS: [f32; 6] = [1.0, 1.2, 1.4, 1.6, 1.8, 2.0];
 const SPEED_SETTING: &str = "voiceAgentSpeed";
+const MUTE_BILLING_SETTING: &str = "voiceAgentMuteBilling";
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) enum VoicePhase {
@@ -126,6 +127,10 @@ pub(crate) struct VoiceAgent {
     pub(crate) voice_picker_open: bool,
     /// How fast the agent's audio plays (`voiceAgentSpeed`).
     pub(crate) speed: f32,
+    /// `voiceAgentMuteBilling` is `pushToTalk` (the gear menu).
+    pub(crate) push_to_talk_while_muted: bool,
+    /// gxserver switched this muted Grok call to push-to-talk: muted time is not billed.
+    pub(crate) billing_paused: bool,
     /// Where the user dragged the panel: its gap to the window's trailing edge and its top, kept
     /// for the rest of the app's run.
     pub(crate) panel_place: Option<gpui::Point<Pixels>>,
@@ -222,8 +227,14 @@ impl GhostexGpuiApp {
         agent.memory = None;
         agent.memory_state = VoiceMemoryState::Hidden;
         agent.memory_details_open = false;
-        agent.speed =
-            voice_agent_speed_setting(shared_settings::shared_sidebar_settings_snapshot().object());
+        let settings = shared_settings::shared_sidebar_settings_snapshot();
+        agent.speed = voice_agent_speed_setting(settings.object());
+        agent.push_to_talk_while_muted = settings
+            .object()
+            .get(MUTE_BILLING_SETTING)
+            .and_then(Value::as_str)
+            == Some("pushToTalk");
+        agent.billing_paused = false;
         agent.muted = false;
         agent.state = "connecting".to_string();
         agent.hang_up_timer = None;
@@ -301,6 +312,11 @@ impl GhostexGpuiApp {
         self.voice_agent.muted = muted;
         if let Some(link) = &self.voice_agent.link {
             link.shared.muted.store(muted, Ordering::SeqCst);
+            // gxserver switches a muted Grok call to push-to-talk when the setting says so.
+            if self.voice_agent.phase == VoicePhase::Live {
+                link.socket
+                    .send_json(&json!({ "type": "mute", "muted": muted }));
+            }
         }
         self.sync_voice_agent_panel(cx);
     }
@@ -440,6 +456,10 @@ impl GhostexGpuiApp {
                         "type": "playbackRate",
                         "rate": self.voice_agent.speed,
                     }));
+                    link.socket.send_json(&json!({
+                        "type": "mute",
+                        "muted": self.voice_agent.muted,
+                    }));
                 }
                 // A voice picked while connecting.
                 self.apply_voice_agent_settings(
@@ -520,6 +540,14 @@ impl GhostexGpuiApp {
                 }
             }
             "memory" => self.apply_voice_agent_memory_event(event),
+            "billing" => {
+                self.voice_agent.billing_paused = event["pushToTalk"].as_bool() == Some(true);
+                if event["refused"].as_bool() == Some(true) {
+                    self.push_voice_agent_row(VoiceRow::Announcement {
+                        text: "Grok didn't switch to push-to-talk, so this muted call is still billed while connected.".to_string(),
+                    });
+                }
+            }
             "interrupted" => {
                 if let Some(link) = &self.voice_agent.link
                     && let Some(played_ms) = event["playedMs"].as_u64()
@@ -607,6 +635,20 @@ impl GhostexGpuiApp {
         self.save_voice_agent_setting(SPEED_SETTING, json!(speed_setting_value(speed)), cx);
     }
 
+    /// The gear menu: saves `voiceAgentMuteBilling`, which the settings hook passes on.
+    pub(crate) fn set_voice_agent_mute_billing(
+        &mut self,
+        push_to_talk: bool,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        let value = if push_to_talk {
+            "pushToTalk"
+        } else {
+            "connected"
+        };
+        self.save_voice_agent_setting(MUTE_BILLING_SETTING, json!(value), cx);
+    }
+
     /// The panel's voice list: saves the voice for the conversation's provider, which the
     /// settings hook applies.
     pub(crate) fn pick_voice_agent_voice(&mut self, voice: String, cx: &mut gpui::Context<Self>) {
@@ -639,12 +681,20 @@ impl GhostexGpuiApp {
         cx: &mut gpui::Context<Self>,
     ) {
         let speed = voice_agent_speed_setting(settings);
+        let push_to_talk_while_muted =
+            settings.get(MUTE_BILLING_SETTING).and_then(Value::as_str) == Some("pushToTalk");
         let agent = &mut self.voice_agent;
+        let mute_billing_changed = push_to_talk_while_muted != agent.push_to_talk_while_muted;
+        agent.push_to_talk_while_muted = push_to_talk_while_muted;
         let Some(link) = agent.link.as_ref() else {
             agent.speed = speed;
             return;
         };
-        let mut changed = false;
+        let mut changed = mute_billing_changed;
+        if mute_billing_changed && agent.phase == VoicePhase::Live {
+            // gxserver reads the mode itself; a muted call switches at once.
+            link.socket.send_json(&json!({ "type": "settingsChanged" }));
+        }
         if speed != agent.speed {
             agent.speed = speed;
             link.shared.rate.store(speed.to_bits(), Ordering::SeqCst);

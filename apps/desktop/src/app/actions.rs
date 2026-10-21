@@ -230,6 +230,13 @@ impl AgentsWorkspaceTabSleepScope {
     }
 }
 
+/// A row of the voice panel's gear menu: `voiceAgentMuteBilling` (`pushToTalk` or `connected`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Action)]
+#[action(namespace = ghostex_gpui, no_json)]
+pub(crate) struct SetVoiceAgentMuteBilling {
+    pub(crate) push_to_talk: bool,
+}
+
 /// A row of the voice panel's speed menu: `voiceAgentSpeed` in hundredths (120 is 1.2×).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Action)]
 #[action(namespace = ghostex_gpui, no_json)]

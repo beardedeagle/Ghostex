@@ -58,6 +58,17 @@ pub(super) fn selected_voice(paths: &GxserverPaths, provider: Provider) -> Strin
         .unwrap_or_else(|| provider.default_voice().to_string())
 }
 
+pub(super) const MUTE_BILLING_SETTING: &str = "voiceAgentMuteBilling";
+
+/// Whether a muted Grok call switches to push-to-talk (`voiceAgentMuteBilling` is `pushToTalk`);
+/// the default `connected` keeps server voice detection on all call.
+pub(super) fn push_to_talk_while_muted(paths: &GxserverPaths) -> bool {
+    read_settings(paths)
+        .get(MUTE_BILLING_SETTING)
+        .and_then(Value::as_str)
+        == Some("pushToTalk")
+}
+
 /// `voiceAgentSpeed` as one of [`SPEEDS`] (1 when unset or unknown).
 pub(super) fn selected_speed(paths: &GxserverPaths) -> f64 {
     let settings = read_settings(paths);

@@ -158,6 +158,39 @@ impl Provider {
         update
     }
 
+    /// The conversation's `session.update` again with push-to-talk on (no turn detection: audio is
+    /// only billed when sent or received) or with server voice detection back on.
+    ///
+    /// CDXC:VoiceMode 2026-10-21 WHY: xAI documents "Sessions using the default `server_vad` turn detection are billed for session duration" and "Push-to-talk sessions are billed only for audio sent and received"; its realtime schema (`voice-realtime.ws.json`) gives `turn_detection.type` as "`server_vad` for automatic detection, `null` for manual turns". The whole configuration is resent, like a voice change, so tools, prompt and voice stay. OpenAI bills audio tokens, not connected time, so it is never switched.
+    pub(super) fn with_push_to_talk(
+        self,
+        session_update: &Value,
+        push_to_talk: bool,
+        event_id: &str,
+    ) -> Value {
+        let mut update = session_update.clone();
+        update["event_id"] = json!(event_id);
+        if self == Self::Xai {
+            update["session"]["turn_detection"] = if push_to_talk {
+                json!({"type": null})
+            } else {
+                json!({"type": "server_vad"})
+            };
+        }
+        update
+    }
+
+    /// Whether a `session.updated` event says push-to-talk is on; `None` when it does not say.
+    pub(super) fn session_push_to_talk(self, event: &Value) -> Option<bool> {
+        let detection = event.pointer("/session/turn_detection")?;
+        Some(detection.is_null() || detection.get("type").is_some_and(Value::is_null))
+    }
+
+    /// Whether muting can switch this provider to push-to-talk billing.
+    pub(super) fn bills_connected_time(self) -> bool {
+        matches!(self, Self::Xai)
+    }
+
     /// The voice a `session.updated` event says the session now speaks with.
     pub(super) fn session_voice(self, event: &Value) -> Option<String> {
         let pointer = match self {

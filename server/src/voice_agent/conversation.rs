@@ -41,6 +41,8 @@ const CUT_CAPTION_WAIT: Duration = Duration::from_millis(1_200);
 /// How long gxserver waits for the provider to accept a voice change before it keeps the voice
 /// for the next conversation.
 const VOICE_CHANGE_WAIT: Duration = Duration::from_secs(5);
+/// How long gxserver waits for the provider to accept a switch to or from push-to-talk.
+const TURN_CHANGE_WAIT: Duration = Duration::from_secs(5);
 /// The client playback rates gxserver accepts (the desktop offers 1x to 2x).
 const PLAYBACK_RATE_RANGE: std::ops::RangeInclusive<f64> = 0.5..=3.0;
 
@@ -80,6 +82,10 @@ pub(super) enum Input {
     Voice(String),
     /// How fast the attached client plays the agent's audio (1.0 is as the provider sent it).
     PlaybackRate(f64),
+    /// The client's microphone was muted or unmuted (it sends no audio while muted).
+    Mute(bool),
+    /// A voice setting changed (`voiceAgentMuteBilling`): read it again now.
+    SettingsChanged,
     /// Hand the remembered last conversation to the agent (Continue).
     ContinueMemory,
     /// The user forgot the remembered conversation.
@@ -112,6 +118,13 @@ struct CutPending {
 /// A voice change sent to the provider and not answered yet.
 struct VoiceChange {
     voice: String,
+    event_id: String,
+    deadline: Instant,
+}
+
+/// A switch to or from push-to-talk sent to the provider and not confirmed yet.
+struct TurnChange {
+    push_to_talk: bool,
     event_id: String,
     deadline: Instant,
 }
@@ -156,6 +169,15 @@ pub(super) struct Conversation {
     voice_changes: u64,
     /// The provider has sent agent audio (OpenAI's voice is fixed from then on).
     audio_sent: bool,
+    /// The attached client's microphone is muted.
+    muted: bool,
+    /// `voiceAgentMuteBilling` is `pushToTalk`: a muted Grok call drops server voice detection.
+    push_to_talk_while_muted: bool,
+    /// The provider session runs without turn detection (push-to-talk) right now.
+    push_to_talk: bool,
+    turn_change: Option<TurnChange>,
+    /// The provider refused push-to-talk: not asked again until the next mute.
+    push_to_talk_refused: bool,
     /// CDXC:VoiceMode 2026-10-20 WHY:
     /// The speed buttons stretch the agent's audio on the client (pitch kept), so a reply plays in less time than the provider's audio lasts. gxserver's playback clock (when the reply ends, how much was heard at an interruption, when a tool follow-up may start) runs at this rate; `playedMs` and `audio_end_ms` stay in the provider's audio time.
     playback_rate: f64,
@@ -220,6 +242,11 @@ impl Conversation {
             voice_change: None,
             voice_changes: 0,
             audio_sent: false,
+            muted: false,
+            push_to_talk_while_muted: false,
+            push_to_talk: false,
+            turn_change: None,
+            push_to_talk_refused: false,
             playback_rate: 1.0,
             sink,
             stream,
@@ -404,7 +431,8 @@ impl Conversation {
                 }
             }
             Input::Audio(bytes) => {
-                if bytes.len() >= 2 {
+                // A muted client sends none; nothing may sit uncommitted in a push-to-talk buffer.
+                if bytes.len() >= 2 && !self.push_to_talk && self.turn_change.is_none() {
                     let even = &bytes[..bytes.len() - bytes.len() % 2];
                     let audio = base64::engine::general_purpose::STANDARD.encode(even);
                     self.provider_send(
@@ -456,6 +484,21 @@ impl Conversation {
                 }
             }
             Input::Voice(voice) => self.change_voice(voice).await?,
+            Input::Mute(muted) => {
+                if muted != self.muted {
+                    self.muted = muted;
+                    self.push_to_talk_refused = false;
+                    self.push_to_talk_while_muted =
+                        super::keys::push_to_talk_while_muted(&self.state.paths);
+                }
+                self.sync_turn_detection().await?;
+            }
+            Input::SettingsChanged => {
+                self.push_to_talk_while_muted =
+                    super::keys::push_to_talk_while_muted(&self.state.paths);
+                self.push_to_talk_refused = false;
+                self.sync_turn_detection().await?;
+            }
             Input::PlaybackRate(rate) => {
                 let rate = rate.clamp(*PLAYBACK_RATE_RANGE.start(), *PLAYBACK_RATE_RANGE.end());
                 let now = Instant::now();
@@ -606,6 +649,17 @@ impl Conversation {
 
     async fn on_tick(&mut self) -> Result<(), Ended> {
         let now = Instant::now();
+        if self
+            .turn_change
+            .as_ref()
+            .is_some_and(|change| change.deadline <= now)
+        {
+            if let Some(change) = self.turn_change.take() {
+                self.turn_change_failed(&change, "noAnswer", None);
+            }
+        }
+        // A switch waiting for the agent to finish its answer, or for another session update.
+        self.sync_turn_detection().await?;
         if self
             .cut_pending
             .as_ref()
@@ -794,6 +848,15 @@ impl Conversation {
                 self.to_client(json!({"type": "caption", "role": "agent", "itemId": item_id, "text": text.trim(), "final": true}));
             }
             "session.updated" => {
+                if let Some(change) = self.turn_change.take() {
+                    match self.provider.session_push_to_talk(&event) {
+                        // Another update's echo (a voice change sent before): keep waiting.
+                        Some(echoed) if echoed != change.push_to_talk => {
+                            self.turn_change = Some(change)
+                        }
+                        _ => self.turn_changed(change.push_to_talk).await?,
+                    }
+                }
                 if let Some(change) = self.voice_change.take() {
                     // xAI's `session.updated` does not echo the voice; only a different one refuses.
                     match self.provider.session_voice(&event) {
@@ -880,6 +943,13 @@ impl Conversation {
                     .get("event_id")
                     .and_then(Value::as_str)
                     .unwrap_or_default();
+                if let Some(change) = self
+                    .turn_change
+                    .take_if(|change| !event_id.is_empty() && change.event_id == event_id)
+                {
+                    self.turn_change_failed(&change, code, error.get("message").cloned());
+                    return Ok(());
+                }
                 if let Some(change) = self
                     .voice_change
                     .take_if(|change| !event_id.is_empty() && change.event_id == event_id)
@@ -1002,6 +1072,71 @@ impl Conversation {
             "applied": applied,
             "reason": reason,
         }));
+    }
+
+    /// CDXC:VoiceMode 2026-10-21 DECISION:
+    /// User: a settings button on the voice screen toggles between the two billing modes, kept both "to test them and maybe remove one later": "Billed while connected" (server voice detection all call, muted and quiet time billed) and "Push-to-talk while muted" (muting switches the provider session to push-to-talk, which xAI bills "only for audio sent and received"; unmuting turns voice detection back on). `voiceAgentMuteBilling`, default `connected`. Only Grok switches: OpenAI bills audio tokens, so a muted GPT Realtime call already costs nothing.
+    /// CDXC:VoiceMode 2026-10-21 WHY:
+    /// Muting stops at the next quiet moment rather than mid-answer, so an answer the agent is speaking finishes; the half-heard speech the provider was holding when the user muted is cleared rather than committed as a turn; incoming audio is dropped while push-to-talk is on or switching. Announcements still work while muted: they are a text item and `response.create`, which push-to-talk allows.
+    async fn sync_turn_detection(&mut self) -> Result<(), Ended> {
+        if !self.provider.bills_connected_time() || self.turn_change.is_some() {
+            return Ok(());
+        }
+        let want = self.muted && self.push_to_talk_while_muted && !self.push_to_talk_refused;
+        if want == self.push_to_talk {
+            return Ok(());
+        }
+        // Going quiet waits for the answer in progress, and for a voice change's confirmation.
+        if want && (self.response_active || self.playing() || self.voice_change.is_some()) {
+            return Ok(());
+        }
+        self.voice_changes += 1;
+        let event_id = format!("ghostex-turns-{}", self.voice_changes);
+        let update = self
+            .provider
+            .with_push_to_talk(&self.session_update, want, &event_id);
+        self.provider_send(update).await?;
+        self.turn_change = Some(TurnChange {
+            push_to_talk: want,
+            event_id,
+            deadline: Instant::now() + TURN_CHANGE_WAIT,
+        });
+        Ok(())
+    }
+
+    async fn turn_changed(&mut self, push_to_talk: bool) -> Result<(), Ended> {
+        self.push_to_talk = push_to_talk;
+        self.session_update =
+            self.provider
+                .with_push_to_talk(&self.session_update, push_to_talk, "");
+        if let Some(update) = self.session_update.as_object_mut() {
+            update.remove("event_id");
+        }
+        if push_to_talk {
+            // Speech the provider was holding when the user muted is dropped, not answered.
+            self.provider_send(json!({"type": "input_audio_buffer.clear"}))
+                .await?;
+            self.user_captions.clear();
+            if self.user_speaking {
+                self.user_speaking = false;
+                self.set_state("listening");
+            }
+        }
+        self.to_client(json!({"type": "billing", "pushToTalk": push_to_talk}));
+        Ok(())
+    }
+
+    fn turn_change_failed(&mut self, change: &TurnChange, code: &str, message: Option<Value>) {
+        super::warn(
+            &self.state,
+            "voiceAgent.pushToTalkRefused",
+            json!({"provider": self.provider.id(), "pushToTalk": change.push_to_talk, "code": code, "message": message}),
+        );
+        if change.push_to_talk {
+            // Stay on voice detection (billed while connected) until the next mute.
+            self.push_to_talk_refused = true;
+            self.to_client(json!({"type": "billing", "pushToTalk": false, "refused": true}));
+        }
     }
 
     fn start_tool(&mut self, call_id: String, name: String, arguments: String) {

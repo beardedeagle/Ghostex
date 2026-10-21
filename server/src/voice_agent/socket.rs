@@ -203,6 +203,10 @@ async fn run_conversation_socket(
                         continue;
                     }
                     "voice" => Input::Voice(field("voice")),
+                    "mute" => {
+                        Input::Mute(value.get("muted").and_then(Value::as_bool) == Some(true))
+                    }
+                    "settingsChanged" => Input::SettingsChanged,
                     "playbackRate" => match value.get("rate").and_then(Value::as_f64) {
                         Some(rate) if rate.is_finite() => Input::PlaybackRate(rate),
                         _ => continue,

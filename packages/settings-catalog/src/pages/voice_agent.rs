@@ -41,6 +41,9 @@ pub(crate) fn provider() -> Section {
             row("voiceAgentSpeed", "Speaking speed", "How fast the voice agent talks, from normal speed to twice as fast. The voice keeps its pitch, and the speed menu next to the voice in the voice panel changes it too, even mid-sentence.").options(&[
                 opt("1×", "1"), opt("1.2×", "1.2"), opt("1.4×", "1.4"), opt("1.6×", "1.6"), opt("1.8×", "1.8"), opt("2×", "2"),
             ]),
+            row("voiceAgentMuteBilling", "Billing while muted", "What muting a Grok Voice call does. Billed while connected: Grok keeps listening all call, so muted and quiet time costs the same as talking. Push-to-talk while muted: muting stops Grok listening, so muted time isn't billed, and unmuting turns listening back on. GPT Realtime bills only the audio sent, so muting it is already free. The gear in the voice panel changes it too.").options(&[
+                opt("Billed while connected", "connected"), opt("Push-to-talk while muted", "pushToTalk"),
+            ]),
         ],
     )
 }

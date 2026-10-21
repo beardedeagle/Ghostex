@@ -112,6 +112,8 @@ struct PanelSnapshot {
     tool_label: Option<String>,
     rows: Vec<VoiceRow>,
     muted: bool,
+    /// The muted Grok call runs push-to-talk, so it is not billed.
+    billing_paused: bool,
     problem: Option<VoiceProblem>,
     provider: Option<String>,
     voice: Option<String>,
@@ -139,6 +141,8 @@ pub(crate) struct VoicePanelWindow {
     drag: Option<PanelDrag>,
     /// Where the speed button last painted, for its menu.
     speed_trigger: std::rc::Rc<std::cell::Cell<Option<Bounds<Pixels>>>>,
+    /// Where the gear button last painted, for its menu.
+    settings_trigger: std::rc::Rc<std::cell::Cell<Option<Bounds<Pixels>>>>,
 }
 
 /// "1×", "1.2×", … "2×".
@@ -267,6 +271,7 @@ impl GhostexGpuiApp {
                         scroll,
                         drag: None,
                         speed_trigger: Default::default(),
+                        settings_trigger: Default::default(),
                     }
                 })
             })
@@ -320,6 +325,60 @@ impl GhostexGpuiApp {
                 Box::new(SetVoiceAgentSpeed {
                     hundredths: (speed * 100.0).round() as u16,
                 }),
+            );
+        }
+        let app = cx.entity();
+        cx.defer(move |cx| {
+            let _ = main.update(cx, |_, window, cx| {
+                menu.toggle_below_for_app(app, trigger, window, cx);
+            });
+        });
+    }
+
+    /// Opens (or closes) the voice settings menu under the panel's gear, `trigger` in the panel's
+    /// coordinates: the two billing modes of a muted call, each with its one-line explanation.
+    fn toggle_voice_agent_settings_menu(
+        &mut self,
+        trigger: Bounds<Pixels>,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        let Some(main) = self.main_window_handle else {
+            return;
+        };
+        let frame = panel_frame(self.main_window_bounds.size, self.voice_agent.panel_place);
+        let trigger = Bounds::new(frame.origin + trigger.origin, trigger.size);
+        let push_to_talk = self.voice_agent.push_to_talk_while_muted;
+        let mut menu = GpuiContextMenu::new()
+            .menu_with_check(
+                "Billed while connected",
+                !push_to_talk,
+                Box::new(SetVoiceAgentMuteBilling {
+                    push_to_talk: false,
+                }),
+            )
+            .menu_with_disabled(
+                "Grok listens all call; muted time is billed",
+                true,
+                Box::new(SetVoiceAgentMuteBilling {
+                    push_to_talk: false,
+                }),
+            )
+            .separator()
+            .menu_with_check(
+                "Push-to-talk while muted",
+                push_to_talk,
+                Box::new(SetVoiceAgentMuteBilling { push_to_talk: true }),
+            )
+            .menu_with_disabled(
+                "Muting stops listening, so it isn't billed",
+                true,
+                Box::new(SetVoiceAgentMuteBilling { push_to_talk: true }),
+            );
+        if self.voice_agent.provider.as_deref() == Some("openai") {
+            menu = menu.separator().menu_with_disabled(
+                "GPT Realtime: muting is already free",
+                true,
+                Box::new(SetVoiceAgentMuteBilling { push_to_talk }),
             );
         }
         let app = cx.entity();
@@ -391,6 +450,7 @@ impl GhostexGpuiApp {
             tool_label: agent.tool_label.clone(),
             rows: agent.rows.clone(),
             muted: agent.muted,
+            billing_paused: agent.billing_paused,
             problem: agent.problem.clone(),
             provider: agent.provider.clone(),
             voice: agent.voice.clone(),
@@ -485,6 +545,8 @@ enum PanelAction {
     PickVoice(String),
     /// The speed button at these bounds, in the panel's coordinates.
     ToggleSpeedMenu(Bounds<Pixels>),
+    /// The gear button at these bounds, in the panel's coordinates.
+    ToggleSettingsMenu(Bounds<Pixels>),
     DragBy {
         delta: Point<Pixels>,
         first: bool,
@@ -515,6 +577,9 @@ impl VoicePanelWindow {
             let _ = app.update(cx, |app, cx| match action {
                 PanelAction::ToggleVoicePicker => app.toggle_voice_agent_voice_picker(cx),
                 PanelAction::PickVoice(voice) => app.pick_voice_agent_voice(voice, cx),
+                PanelAction::ToggleSettingsMenu(trigger) => {
+                    app.toggle_voice_agent_settings_menu(trigger, cx)
+                }
                 PanelAction::ToggleSpeedMenu(trigger) => {
                     app.toggle_voice_agent_speed_menu(trigger, cx)
                 }
@@ -619,6 +684,9 @@ impl VoicePanelWindow {
             VoicePhase::Ending => ("Hanging up…".to_string(), true),
             VoicePhase::Ended => ("Voice agent stopped".to_string(), false),
             VoicePhase::Idle | VoicePhase::Live => match snapshot.state.as_str() {
+                "listening" if snapshot.muted && snapshot.billing_paused => {
+                    ("Muted, not billed".to_string(), false)
+                }
                 "listening" if snapshot.muted => ("Muted".to_string(), false),
                 "listening" => ("Listening".to_string(), false),
                 "userSpeaking" => ("Hearing you".to_string(), false),
@@ -704,8 +772,51 @@ impl VoicePanelWindow {
             .child(self.voice_button(snapshot, colors, cx))
             .when(
                 matches!(snapshot.phase, VoicePhase::Starting | VoicePhase::Live),
-                |this| this.child(self.speed_button(snapshot, colors, cx)),
+                |this| {
+                    this.child(self.speed_button(snapshot, colors, cx))
+                        .child(self.settings_button(colors, cx))
+                },
             )
+            .into_any_element()
+    }
+
+    /// The gear right of the speed button: opens the voice settings menu (what muting bills).
+    fn settings_button(&self, colors: &PanelColors, cx: &mut Context<Self>) -> AnyElement {
+        let muted = colors.muted;
+        let hover = colors.ink.opacity(0.08);
+        let trigger = self.settings_trigger.clone();
+        let open_menu = move |this: &mut Self, cx: &mut Context<Self>| {
+            if let Some(bounds) = this.settings_trigger.get() {
+                this.run(PanelAction::ToggleSettingsMenu(bounds), cx);
+            }
+        };
+        h_flex()
+            .id("voice-panel-settings")
+            .role(gpui::Role::Button)
+            .aria_label(SharedString::new_static("Voice settings"))
+            .flex_shrink_0()
+            .size(px(20.0))
+            .items_center()
+            .justify_center()
+            .rounded(px(5.0))
+            .cursor_default()
+            .hover(move |this| this.bg(hover))
+            .on_prepaint(move |bounds, _, _| trigger.set(Some(bounds)))
+            .on_mouse_down(
+                MouseButton::Left,
+                cx.listener(move |this, _: &MouseDownEvent, window, cx| {
+                    window.prevent_default();
+                    cx.stop_propagation();
+                    open_menu(this, cx);
+                }),
+            )
+            .on_a11y_action(gpui::AccessibleAction::Click, {
+                let panel = cx.entity().downgrade();
+                move |_, _, cx| {
+                    let _ = panel.update(cx, |this, cx| open_menu(this, cx));
+                }
+            })
+            .child(titlebar_svg_icon(ICON_SETTINGS, 12.0, muted))
             .into_any_element()
     }
 
