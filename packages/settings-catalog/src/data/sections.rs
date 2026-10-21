@@ -34,6 +34,9 @@ use crate::json::J;
 /// preference, so keep the experimental gate hidden from ordinary settings
 /// browsing until users enable advanced density or search for it.
 ///
+/// CDXC:MarkedHandovers 2026-10-21 DECISION:
+/// User: "make this advanced" about Marked sections style; it joins the emoji and heading-strength rows behind Show Advanced.
+///
 /// CDXC:Settings 2026-06-28-08:01:
 /// Show Advanced persists as a Settings preference so advanced rows stay visible
 /// after restart until the user disables the switch.
@@ -118,6 +121,7 @@ pub const ADVANCED_MAIN_SETTING_KEYS: &[&str] = &[
     "wakeSleepingSessionsOnSelect",
     "showBetaFeatures",
     "fasterRendering",
+    "markedHandoversStyle",
     "markedHandoversEmoji",
     "markedHandoversHeadingStrength",
     "orchestratorPlainReplies",
