@@ -140,7 +140,7 @@ impl ChatOptionMenu {
 
     /// Gives the panel at `depth` a new content height, keeping the edge that faces its anchor (a
     /// pill's menu opens above the pill, so its bottom stays put while its rows come and go).
-    /// Where a window cannot be moved in place (the web build, Windows), the panel reopens instead.
+    /// Where a window cannot be moved in place (the web build), the panel reopens instead.
     pub(super) fn refit_panel_height(
         &mut self,
         depth: usize,

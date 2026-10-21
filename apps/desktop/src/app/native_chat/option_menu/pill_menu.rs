@@ -65,7 +65,7 @@ impl ChatOptionMenuPanel {
         };
         cx.notify();
         // Files and links only grows while it is open: filtering shrinks its list on every
-        // keystroke, and where a window cannot move in place (the web build, Windows) a shrink
+        // keystroke, and where a window cannot move in place (the web build) a shrink
         // reopens the menu, which took the filter's focus and sent the next key to the chat box.
         let current = self.heights.first().copied().unwrap_or(0.0);
         let height = if id == "filesLinks" {

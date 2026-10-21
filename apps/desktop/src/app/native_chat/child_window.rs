@@ -230,8 +230,8 @@ pub(crate) fn content_bounds(window: &gpui::Window) -> Bounds<Pixels> {
     bounds
 }
 
-/// The window's root native view, which the chat's child windows attach to on macOS. Elsewhere
-/// they keep the parent the chat was created with.
+/// The window's root native view (its HWND on Windows), which the chat's child windows attach to
+/// and are moved against. Elsewhere they keep the parent the chat was created with.
 #[cfg(target_os = "macos")]
 pub(crate) fn window_native_view(window: &gpui::Window) -> Option<*mut std::ffi::c_void> {
     use raw_window_handle::{HasWindowHandle, RawWindowHandle};
@@ -241,7 +241,16 @@ pub(crate) fn window_native_view(window: &gpui::Window) -> Option<*mut std::ffi:
     }
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(target_os = "windows")]
+pub(crate) fn window_native_view(window: &gpui::Window) -> Option<*mut std::ffi::c_void> {
+    use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+    match HasWindowHandle::window_handle(window).ok()?.as_raw() {
+        RawWindowHandle::Win32(handle) => Some(handle.hwnd.get() as *mut std::ffi::c_void),
+        _ => None,
+    }
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
 pub(crate) fn window_native_view(_: &gpui::Window) -> Option<*mut std::ffi::c_void> {
     None
 }
@@ -314,7 +323,65 @@ pub(crate) fn move_child_window(
         .unwrap_or(false)
 }
 
-#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+/// CDXC:PlatformSupport 2026-10-22 WHY:
+/// This used to answer "cannot move" on Windows, and every caller then closed the window and opened it again (a chat menu that changed height, the `$`/`@`/`/` list, the Docs note composer and format bar, the "Scroll to bottom" pill) or only resized it where it stood (the chat's pane dialogs). Removing an active pop-up handed activation to another app, so clicking the Threads menu's "N more" closed the menu and brought another app's window in front of Ghostex. `parent` is the HWND of the window `frame` is measured in (`window_native_view`), and the move runs from a task: `SetWindowPos` delivers `WM_SIZE` at once and GPUI's resize callback needs the app free (CDXC:ContextMenus 2026-10-02 in frosted_host.rs).
+#[cfg(target_os = "windows")]
+pub(crate) fn move_child_window(
+    handle: gpui::AnyWindowHandle,
+    parent: *mut std::ffi::c_void,
+    frame: Bounds<Pixels>,
+    cx: &mut gpui::App,
+) -> bool {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        SWP_NOACTIVATE, SWP_NOOWNERZORDER, SWP_NOZORDER, SetWindowPos,
+    };
+    if parent.is_null()
+        || !matches!(
+            handle.update(cx, |_, window, _| window_native_view(window)),
+            Ok(Some(_))
+        )
+    {
+        return false;
+    }
+    cx.spawn(async move |cx| {
+        let parent_origin = cx.update(|cx| {
+            cx.windows().into_iter().find_map(|window| {
+                window
+                    .update(cx, |_, window, _| {
+                        (window_native_view(window) == Some(parent))
+                            .then(|| content_bounds(window).origin)
+                    })
+                    .ok()
+                    .flatten()
+            })
+        });
+        let Some(origin) = parent_origin else {
+            return;
+        };
+        let Ok(Some((hwnd, scale))) = handle.update(cx, |_, window, _| {
+            window_native_view(window).map(|hwnd| (hwnd, window.scale_factor()))
+        }) else {
+            return;
+        };
+        let screen = Bounds::new(origin + frame.origin, frame.size);
+        let device = |value: Pixels| (f32::from(value) * scale).round() as i32;
+        unsafe {
+            SetWindowPos(
+                hwnd,
+                std::ptr::null_mut(),
+                device(screen.origin.x),
+                device(screen.origin.y),
+                device(screen.size.width),
+                device(screen.size.height),
+                SWP_NOACTIVATE | SWP_NOZORDER | SWP_NOOWNERZORDER,
+            );
+        }
+    })
+    .detach();
+    true
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
 pub(crate) fn move_child_window(
     _: gpui::AnyWindowHandle,
     _: *mut std::ffi::c_void,
