@@ -132,7 +132,7 @@ gives the mode pill a value before the first screen capture and without any
 screen at all (a sleeping session, a capped capture). The footer scrape still
 wins when present because it is the live value.
 */
-pub(super) fn claude_transcript_mode_choice(mode: &str) -> Option<SessionChatDetectedChoice> {
+pub(crate) fn claude_transcript_mode_choice(mode: &str) -> Option<SessionChatDetectedChoice> {
     let (value, label) = match mode.trim() {
         "auto" => ("auto", "Auto"),
         "bypassPermissions" => ("bypass", "Bypass permissions"),

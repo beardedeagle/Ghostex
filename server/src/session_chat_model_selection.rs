@@ -196,6 +196,23 @@ pub(crate) fn enqueue(
     state: &AppState,
     params: &Map<String, Value>,
 ) -> Result<Value, DomainStateError> {
+    enqueue_selection(state, params, false)
+}
+
+/// Queues a change Ghostex makes on its own, unless a pick is already waiting or applying: the
+/// user's own pick always wins, and a pick the user makes afterwards replaces this one.
+pub(crate) fn enqueue_unless_pending(
+    state: &AppState,
+    params: &Map<String, Value>,
+) -> Result<Value, DomainStateError> {
+    enqueue_selection(state, params, true)
+}
+
+fn enqueue_selection(
+    state: &AppState,
+    params: &Map<String, Value>,
+    unless_pending: bool,
+) -> Result<Value, DomainStateError> {
     let project = params
         .get("projectId")
         .and_then(Value::as_str)
@@ -254,6 +271,9 @@ pub(crate) fn enqueue(
     // model pick fail on that toggle again, and the pick itself was never applied.
     let previous =
         read_pending(&transaction, project, session_id).filter(|pending| pending.state != "failed");
+    if unless_pending && previous.is_some() {
+        return Ok(json!({ "ok": true, "queued": false, "skipped": "pendingSelection" }));
+    }
     let model = if model.is_empty() {
         previous
             .as_ref()
