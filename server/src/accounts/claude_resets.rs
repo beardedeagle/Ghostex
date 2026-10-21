@@ -69,7 +69,12 @@ impl ClaudeSlot {
         format!("{}:{}", self.email.to_lowercase(), self.organization)
     }
 
-    fn session_dir(&self) -> String {
+    /// Whether the default login's `~/.claude.json` names this slot's account, which is when `cswap run` starts plain `claude` on it.
+    pub(crate) fn names_default_login(&self, home: &Path) -> bool {
+        default_login_matches(home, &self.email, &self.organization)
+    }
+
+    pub(crate) fn session_dir(&self) -> String {
         let slug: String = self
             .email
             .chars()

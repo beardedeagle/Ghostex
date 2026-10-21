@@ -98,7 +98,11 @@ pub(crate) fn plan(
                     "This account switch needs an exact saved conversation and a single-line agent command.",
                 )
             })?;
-    let resume_command = typed_resume_command(state, session, resume_command)?;
+    let resume_command = typed_resume_command(
+        state,
+        session,
+        super::default_login::route_around_signed_out_default(&resume_command),
+    )?;
     let zmx_name = crate::zmx::provider_zmx_session_name(session)?;
     let identities = crate::zmx::read_zmx_session_process_identities(
         std::slice::from_ref(&zmx_name),

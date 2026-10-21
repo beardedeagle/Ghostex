@@ -86,7 +86,8 @@ pub(crate) fn create_attach_session_metadata_with_observed_state(
         .or(queued_launch_startup_text.clone())
         .or_else(|| {
             get_provider_restart_startup_text_for_session(&project, &probed_session, agent_settings)
-        });
+        })
+        .map(|text| crate::accounts::default_login::route_around_signed_out_default(&text));
     let startup_text_disposition =
         decide_startup_text_disposition(&probe.lifecycle_state, startup_text.as_deref());
     let session_for_attach = if explicit_startup_text.is_none()
@@ -256,7 +257,8 @@ pub(crate) fn start_session_provider_with_observed_state(
         .or(queued_launch_startup_text)
         .or_else(|| {
             get_provider_restart_startup_text_for_session(&project, &probed_session, agent_settings)
-        });
+        })
+        .map(|text| crate::accounts::default_login::route_around_signed_out_default(&text));
     let startup_text_disposition =
         decide_startup_text_disposition(&probe.lifecycle_state, startup_text.as_deref());
     let should_start_with_startup_text =

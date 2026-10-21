@@ -849,7 +849,7 @@ pub(crate) fn draft_switch_reuse_command(
                 .to_string(),
         });
     }
-    Ok(command.to_string())
+    Ok(crate::accounts::default_login::route_around_signed_out_default(command))
 }
 
 /*

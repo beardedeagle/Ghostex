@@ -7,6 +7,7 @@ mod cli;
 mod codex_blockers;
 pub(crate) mod continuation;
 pub(crate) mod default_account;
+pub(crate) mod default_login;
 pub(crate) mod disabled;
 pub(crate) mod drafts;
 pub(crate) mod endpoint;

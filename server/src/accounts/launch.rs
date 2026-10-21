@@ -396,7 +396,9 @@ fn one_shot_account_command(
         })?;
     let wrapper = launch_command(&home().ok()?, account).ok()?;
     let base = reusable_account_command(command, provider.id()).ok()?;
-    with_account_command(&base, provider, &wrapper).ok()
+    with_account_command(&base, provider, &wrapper)
+        .ok()
+        .map(|command| super::default_login::route_around_signed_out_default(&command))
 }
 /// CDXC:AgentProviders 2026-09-18 WHY:
 /// Windows has no HOME, so reading it alone failed every account launch and resume with "The server's home directory is unavailable."
