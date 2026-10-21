@@ -143,6 +143,60 @@ fn text_field(item: &Value, key: &str) -> String {
 
 /* ---------------------------------------------------------------- claude */
 
+/// CDXC:AgentProviders 2026-10-21 WHY:
+/// The title lookup read every Claude transcript on the computer from start to end (13 GB in 1,840 files on one Mac) although it uses only each file's first 2,001 lines, so a wake's fallback sat at full CPU for minutes (session G2nir) and held the shell. It now reads only the folders Claude stores this project's conversations in, stops each file after those lines, and gives up after this limit, newest conversations first, so the restore script always gets its shell back.
+const CLAUDE_LOOKUP_TIME_LIMIT: std::time::Duration = std::time::Duration::from_secs(10);
+
+/// Claude keeps a conversation under `projects/<folder>`, where the folder is the launch directory with every character other than an ASCII letter or digit (each UTF-16 unit) replaced by `-`, cut to 200 characters plus `-<hash>` when longer. Both the given and the resolved path are tried, because Claude records the resolved one (`/tmp` is stored as `-private-tmp`).
+fn claude_project_folder_names(project_path: &str) -> Vec<String> {
+    let encode = |path: &Path| -> String {
+        path.to_string_lossy()
+            .encode_utf16()
+            .map(|unit| match char::from_u32(u32::from(unit)) {
+                Some(c) if c.is_ascii_alphanumeric() => c,
+                _ => '-',
+            })
+            .collect()
+    };
+    let project = normalized_path(project_path);
+    let mut names = vec![encode(&project)];
+    if let Ok(resolved) = fs::canonicalize(&project) {
+        let resolved = encode(&resolved);
+        if !names.contains(&resolved) {
+            names.push(resolved);
+        }
+    }
+    names
+}
+
+fn claude_folder_matches(folder: &str, name: &str) -> bool {
+    const CLAUDE_FOLDER_NAME_LIMIT: usize = 200;
+    if name.len() <= CLAUDE_FOLDER_NAME_LIMIT {
+        return folder == name;
+    }
+    folder
+        .strip_prefix(&name[..CLAUDE_FOLDER_NAME_LIMIT])
+        .is_some_and(|rest| rest.starts_with('-'))
+}
+
+/// The first `limit` lines of a file, read lazily so a large transcript is never loaded whole.
+fn read_first_lines_lossy(path: &Path, limit: usize) -> Option<Vec<String>> {
+    use std::io::BufRead;
+    let mut reader = std::io::BufReader::new(fs::File::open(path).ok()?);
+    let mut lines = Vec::new();
+    let mut buffer = Vec::new();
+    while lines.len() < limit {
+        buffer.clear();
+        if reader.read_until(b'\n', &mut buffer).ok()? == 0 {
+            break;
+        }
+        let line = String::from_utf8_lossy(&buffer);
+        let line = line.strip_suffix('\n').unwrap_or(&line);
+        lines.push(line.strip_suffix('\r').unwrap_or(line).to_string());
+    }
+    Some(lines)
+}
+
 struct ClaudeMatch {
     latest: String,
     score: i64,
@@ -167,7 +221,10 @@ fn lookup_claude(project_path: &str, title: &str, first_prompt: &str) -> Option<
         }
     }
 
-    let mut matches: Vec<ClaudeMatch> = Vec::new();
+    // The folder names Claude can store this project's conversations under; `None` scans every folder (no project given).
+    let project_folders =
+        (!project_path.is_empty()).then(|| claude_project_folder_names(project_path));
+    let mut files: Vec<(std::time::SystemTime, PathBuf)> = Vec::new();
     for root in roots {
         let Ok(project_dirs) = fs::read_dir(&root) else {
             continue;
@@ -181,21 +238,42 @@ fn lookup_claude(project_path: &str, title: &str, first_prompt: &str) -> Option<
             {
                 continue;
             }
-            let Ok(files) = fs::read_dir(project_dir.path()) else {
+            let folder = project_dir.file_name().to_string_lossy().to_string();
+            if project_folders.as_ref().is_some_and(|names| {
+                !names
+                    .iter()
+                    .any(|name| claude_folder_matches(&folder, name))
+            }) {
+                continue;
+            }
+            let Ok(entries) = fs::read_dir(project_dir.path()) else {
                 continue;
             };
-            for file in files.flatten() {
+            for file in entries.flatten() {
                 let is_file = file.file_type().map(|kind| kind.is_file()).unwrap_or(false);
                 let name = file.file_name().to_string_lossy().to_string();
                 if !is_file || !name.ends_with(".jsonl") {
                     continue;
                 }
-                if let Some(result) =
-                    scan_claude_transcript(&file.path(), project_path, &title, &first_prompt)
-                {
-                    matches.push(result);
-                }
+                let modified = file
+                    .metadata()
+                    .and_then(|metadata| metadata.modified())
+                    .unwrap_or(std::time::UNIX_EPOCH);
+                files.push((modified, file.path()));
             }
+        }
+    }
+    // Newest first, so the time limit leaves out the oldest conversations.
+    files.sort_by_key(|(modified, _)| std::cmp::Reverse(*modified));
+
+    let started = std::time::Instant::now();
+    let mut matches: Vec<ClaudeMatch> = Vec::new();
+    for (_, path) in files {
+        if started.elapsed() > CLAUDE_LOOKUP_TIME_LIMIT {
+            break;
+        }
+        if let Some(result) = scan_claude_transcript(&path, project_path, &title, &first_prompt) {
+            matches.push(result);
         }
     }
 
@@ -226,8 +304,8 @@ fn scan_claude_transcript(
     let mut summaries: Vec<String> = Vec::new();
     let mut first_user = String::new();
     let mut latest = String::new();
-    let lines = read_lines_lossy(file_path)?;
-    for line in lines.iter().take(2001) {
+    let lines = read_first_lines_lossy(file_path, 2001)?;
+    for line in &lines {
         if line.is_empty() {
             continue;
         }
@@ -238,11 +316,13 @@ fn scan_claude_transcript(
         if !item_session_id.is_empty() {
             session_id = item_session_id;
         }
-        if let Some(cwd) = item.get("cwd").and_then(Value::as_str) {
-            cwd_values.push(cwd.to_string());
-        }
-        if let Some(item_project) = item.get("projectPath").and_then(Value::as_str) {
-            cwd_values.push(item_project.to_string());
+        // Every record repeats the cwd, and each distinct one is resolved on disk once below.
+        for key in ["cwd", "projectPath"] {
+            if let Some(cwd) = item.get(key).and_then(Value::as_str) {
+                if !cwd_values.iter().any(|seen| seen == cwd) {
+                    cwd_values.push(cwd.to_string());
+                }
+            }
         }
         if let Some(timestamp) = item.get("timestamp").and_then(Value::as_str) {
             if timestamp > latest.as_str() {

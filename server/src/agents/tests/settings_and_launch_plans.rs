@@ -495,10 +495,8 @@ fn resume_plan_extracts_provider_exact_identity_hints() {
         }));
     assert_eq!(claude_plan.get("displayCommand"), Some(&claude_resume));
     assert_eq!(claude_plan.get("copyCommand"), Some(&claude_resume));
-    assert!(claude_plan
-        .get("fallbackCommand")
-        .and_then(Value::as_str)
-        .is_some_and(|command| command.contains("CLAUDE_RESUME_SESSION_ID")));
+    // A conversation id needs no title lookup when its resume fails.
+    assert!(claude_plan.get("fallbackCommand").is_none());
 
     let cursor = json!({
         "agentId": "cursor",

@@ -759,8 +759,13 @@ pub(crate) fn build_agent_resume_fallback_command(input: &AgentResumeInput) -> O
             (exact != resume_title && !fresh)
                 .then(|| build_codex_resume_lookup_command(agent_command, &resume_title))
         }
+        // CDXC:AgentProviders 2026-10-21 WHY:
+        // The title lookup only helps when the saved reference is not a conversation id. A conversation id either resumes its written transcript or starts fresh under that id (see `build_agent_resume_command`), so when that fails (an account without a saved login: cswap's "Account-3 has no stored credentials") the lookup can only find the same conversation or a wrong one. It used to run anyway, scanned every transcript on the computer for minutes (session G2nir) and held the shell, so `ghostex agents switch-account` could not take over.
         "claude" => {
-            let _exact = get_claude_session_reference(input)?;
+            let exact = get_claude_session_reference(input)?;
+            if get_claude_session_id(Some(&exact)).is_some() {
+                return None;
+            }
             Some(build_claude_resume_lookup_command(
                 agent_command,
                 input,

@@ -13,6 +13,7 @@ pub(crate) fn rebind_exhausted(
     session: Value,
 ) -> Result<Value, DomainStateError> {
     let Some((account, command)) = rebind_target(repository, project, &session)? else {
+        refuse_turned_off(repository, project, &session)?;
         return Ok(session);
     };
     let runtime = &session["runtimeSettings"];
@@ -66,8 +67,41 @@ pub(crate) fn rebind_exhausted(
     Ok(updated)
 }
 
+/// A wake that stays on an account the user turned off (no working account to move to) is refused with a message saying so, instead of typing a command cswap can only refuse.
+fn refuse_turned_off(
+    repository: &DomainRepository<'_>,
+    project: &Value,
+    session: &Value,
+) -> Result<(), DomainStateError> {
+    let runtime = &session["runtimeSettings"];
+    let Some(current) = runtime["accountId"].as_str() else {
+        return Ok(());
+    };
+    if launch::provider(project, session).is_none() || drafts::needs_fresh_launch(session) {
+        return Ok(());
+    }
+    let registry = store::read(repository.db)?;
+    let Some(account) = registry
+        .accounts
+        .iter()
+        .find(|a| a.id == current && a.user_disabled)
+    else {
+        return Ok(());
+    };
+    let provider = match account.provider {
+        Provider::Claude => "Claude",
+        Provider::Codex => "Codex",
+    };
+    Err(DomainStateError::bad_request(format!(
+        "This session is on {provider} account {} ({}), which is turned off in Settings > Accounts, and no other {provider} account is ready to take it over. Turn an account on, or switch this session to another account.",
+        account.selector, account.name,
+    )))
+}
+
 /// CDXC:AgentProviders 2026-10-14 WHY:
-/// A wake on a cswap account with no saved login on this computer cannot start the CLI at all (the session G7v5a woke on slot 5 of a loaner Mac, printed "Account-5 has no stored credentials" twice and dropped to the shell with the user's message held). Like a disabled login (CDXC:AgentProviders 2026-10-08 in disabled.rs), waiting never brings it back, so the wake moves such a session to the best account with room even when the provider's rule waits at a limit. Everything else follows the 2026-10-11 rule above: a session on its own login, one whose recovery the user stopped, or one with Continue automatically off keeps its account and shows the sign-in card (session_chat_notice/start_failure.rs) instead.
+/// A wake on a cswap account with no saved login on this computer cannot start the CLI at all (the session G7v5a woke on slot 5 of a loaner Mac, printed "Account-5 has no stored credentials" twice and dropped to the shell with the user's message held). Like a disabled login (CDXC:AgentProviders 2026-10-08 in disabled.rs), waiting never brings it back, so the wake moves such a session to a working account even when the provider's rule waits at a limit. A session on its own login or one whose last account switch failed keeps its account and shows the sign-in card (session_chat_notice/start_failure.rs) instead.
+/// CDXC:AgentProviders 2026-10-21 DECISION:
+/// User (Q376, "Move sessions off an unusable account on resume"): a wake or restore never types a command that can only fail. Besides a signed-out login, an account the user turned off in Settings (`user_disabled`) or one whose organization disabled subscription access (`disabled`) moves the session too, whatever Continue automatically says (session G2nir restored on turned-off slot 3, cswap printed "Account-3 has no stored credentials"). The target is picked like a new session's account (default_account.rs), else the best Automatic account with room; never a Manual one unless the user pinned it for new sessions. The move is recorded as an automatic account switch, so the session shows which account it moved to. With no working account, a turned-off account refuses the wake with a message saying so (`rebind_exhausted`). Sessions still running on a turned-off account keep running (the 2026-10-14 DECISION on `SavedAccount::user_disabled`); only their next start moves.
 /// The account a wake of `session` should move to and its launch command, or `None` to keep the saved account.
 pub(crate) fn rebind_target(
     repository: &DomainRepository<'_>,
@@ -94,8 +128,8 @@ pub(crate) fn rebind_target(
         .accounts
         .iter()
         .find(|d| endpoint::account_id(d) == current);
-    let no_login = reading.is_some_and(|d| d.status == "loginRequired");
-    if !policy.enabled || (!no_login && policy.at_limit != LimitAction::Switch) {
+    let unusable = account_unusable(&registry, reading, current);
+    if !unusable && (!policy.enabled || policy.at_limit != LimitAction::Switch) {
         return Ok(None);
     }
     let model = runtime["accountBaseCommand"]
@@ -103,19 +137,31 @@ pub(crate) fn rebind_target(
         .or_else(|| runtime["agentCommand"].as_str())
         .and_then(|command| command_model(command, provider.id()))
         .unwrap_or_default();
-    if !no_login && !reading.is_some_and(|d| at_limit(d, &model, Utc::now())) {
+    if !unusable && !reading.is_some_and(|d| at_limit(d, &model, Utc::now())) {
         return Ok(None);
     }
-    let Some(account) = recovery::ranked(
+    let ranked = recovery::ranked(
         &registry,
         &snapshot,
         provider,
         Some(current),
         &model,
         policy.priority,
-    )
-    .into_iter()
-    .next() else {
+    );
+    let new_session_account = unusable
+        .then(|| super::default_account::quick_launch_account(&registry, &snapshot, provider))
+        .flatten()
+        .filter(|account| {
+            account.id != current
+                && !account.user_disabled
+                && account.disabled.is_none()
+                && snapshot
+                    .accounts
+                    .iter()
+                    .find(|d| endpoint::account_id(d) == account.id)
+                    .is_some_and(|d| d.status == "ready" && !at_limit(d, &model, Utc::now()))
+        });
+    let Some(account) = new_session_account.or_else(|| ranked.into_iter().next()) else {
         return Ok(None);
     };
     // A login cswap cannot launch right now keeps the wake on the saved account, as before this rule.
@@ -123,6 +169,20 @@ pub(crate) fn rebind_target(
         return Ok(None);
     };
     Ok(Some((account.clone(), command)))
+}
+
+/// Whether the session's account can never start the CLI as it is: signed out, turned off by the user, or refused by its organization.
+fn account_unusable(
+    registry: &Registry,
+    reading: Option<&DiscoveredAccount>,
+    current: &str,
+) -> bool {
+    reading.is_some_and(|d| d.status == "loginRequired")
+        || registry
+            .accounts
+            .iter()
+            .find(|a| a.id == current)
+            .is_some_and(|a| a.user_disabled || a.disabled.is_some())
 }
 
 /// A reading cswap trusts for switching that shows a window this model uses at 100%, with its reset still ahead.
