@@ -600,6 +600,15 @@ pub struct TerminalView {
     /// client and keeps owning editing keys mid-composition, and places the
     /// caret inside the preedit overlay.
     marked_selection_utf16: Option<Range<usize>>,
+    /// Last reported cursor signature used to invalidate IME coordinates:
+    /// `(cursor_col_row, marked_text, marked_selection, terminal_bounds, metrics)`
+    last_reported_ime_cursor: Option<(
+        Option<(u16, u16)>,
+        Option<String>,
+        Option<Range<usize>>,
+        Bounds<Pixels>,
+        CellMetrics,
+    )>,
     /// CDXC:Terminal 2026-09-27 WHY:
     /// Windows dead keys need both the accent and the following text key to reach TranslateMessage; encoding the following key directly would leave Windows' dead-key state pending even after sending the composed character.
     pending_character_input: bool,
@@ -777,6 +786,7 @@ impl TerminalView {
             selection: None,
             marked_text: None,
             marked_selection_utf16: None,
+            last_reported_ime_cursor: None,
             pending_character_input: false,
             focus_handle: cx.focus_handle(),
             focused: false,
@@ -837,6 +847,7 @@ impl TerminalView {
         self.selection = None;
         self.marked_text = None;
         self.marked_selection_utf16 = None;
+        self.last_reported_ime_cursor = None;
         self.hover_cell = None;
         self.hovered_link = None;
         self.drag = None;
@@ -2717,6 +2728,9 @@ impl TerminalView {
             self.cursor_blink_visible = true;
             self.model.send_focus(focused);
             cx.emit(TerminalViewEvent::FocusChanged { focused });
+            if focused {
+                self.last_reported_ime_cursor = None;
+            }
         }
 
         let metrics = compute_cell_metrics(&self.font, window);
@@ -2822,6 +2836,22 @@ impl TerminalView {
                     row, frame, &self.font, metrics, window,
                 )));
             }
+        }
+
+        if self.focused {
+            let cursor_signature = (
+                frame.cursor,
+                self.marked_text.clone(),
+                self.marked_selection_utf16.clone(),
+                bounds,
+                metrics,
+            );
+            if self.last_reported_ime_cursor.as_ref() != Some(&cursor_signature) {
+                self.last_reported_ime_cursor = Some(cursor_signature);
+                window.invalidate_character_coordinates();
+            }
+        } else {
+            self.last_reported_ime_cursor = None;
         }
 
         TerminalLayout {
@@ -3276,21 +3306,23 @@ impl EntityInputHandler for TerminalView {
             .map(|text| 0..text.encode_utf16().count())
     }
 
-    fn unmark_text(&mut self, _window: &mut Window, cx: &mut Context<Self>) {
+    fn unmark_text(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.marked_selection_utf16 = None;
         if self.marked_text.take().is_some() {
             cx.notify();
         }
+        window.invalidate_character_coordinates();
     }
 
     fn replace_text_in_range(
         &mut self,
         _range: Option<Range<usize>>,
         text: &str,
-        _window: &mut Window,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) {
         self.commit_ime_text(text, cx);
+        window.invalidate_character_coordinates();
     }
 
     fn replace_and_mark_text_in_range(
@@ -3298,7 +3330,7 @@ impl EntityInputHandler for TerminalView {
         _range: Option<Range<usize>>,
         new_text: &str,
         new_selected_range: Option<Range<usize>>,
-        _window: &mut Window,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) {
         if self.input_suppressed {
@@ -3306,6 +3338,7 @@ impl EntityInputHandler for TerminalView {
             if self.marked_text.take().is_some() {
                 cx.notify();
             }
+            window.invalidate_character_coordinates();
             return;
         }
         if new_text.is_empty() {
@@ -3324,6 +3357,7 @@ impl EntityInputHandler for TerminalView {
                 None => len_utf16..len_utf16,
             });
         }
+        window.invalidate_character_coordinates();
         cx.notify();
     }
 
