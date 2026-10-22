@@ -195,13 +195,19 @@ impl NativeChatView {
                         div()
                             .font_features(FontFeatures(vec![("tnum".into(), 1)].into()))
                             .child(text(phase, "countLabel")),
-                    )
-                    .when(!detail.is_empty(), |row| {
-                        row.tooltip(move |window, cx| {
-                            gpui_component::tooltip::Tooltip::new(detail.clone()).build(window, cx)
-                        })
-                    }),
+                    ),
             );
+            // The phase's description from the script, in full under its heading.
+            if !detail.is_empty() {
+                column = column.child(
+                    div()
+                        .pb(px(2.0 * s))
+                        .text_size(px(12.0 * s))
+                        .line_height(px(16.0 * s))
+                        .text_color(p.muted)
+                        .child(detail),
+                );
+            }
         }
         for agent in phase["agents"].as_array().into_iter().flatten() {
             column = column.child(self.workflow_agent_row(id, agent, p, cx));

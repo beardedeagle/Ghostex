@@ -8,7 +8,7 @@
 //! hoisted like answered questions), so the card is drawn once, outside any fold, and a call whose
 //! run gxserver has not read yet stays an ordinary tool row.
 //!
-//! CDXC:SessionChat 2026-10-22 DECISION: User asked for a nice UI for Claude Code's workflows in the chat, "using the same cards look that we have now in our chat": a "Workflow started" header with the workflow's name and description and a summary on the right ("4 agents · 2 working · 2 done"), the phases as small headings with their progress ("Map 2/2"), one row per agent (avatar with a status dot, label, a one-line preview of its output or prompt, its duration, a chevron that opens it in the subagent viewer), then the workflow's script in a code block collapsed behind "Show full script". Counts, statuses and durations update live while it runs. The desktop (`apps/desktop/src/app/native_chat/workflow_card.rs`) and the phone (`apps/mobile/app/src/chat/native/transcript/WorkflowCard.tsx`) draw the same card.
+//! CDXC:SessionChat 2026-10-22 DECISION: User asked for a nice UI for Claude Code's workflows in the chat, "using the same cards look that we have now in our chat": a "Workflow started" header with the workflow's name and description and a summary on the right ("4 agents · 2 working · 2 done"), the phases as small headings with their progress ("Map 2/2"), each phase's one-line description from the script (`meta.phases[].detail`, shipped as the phase's `detail`) as a muted line under its heading (the user's answer to Q383, "Show it under the heading", superseding the first build's hover tooltip), one row per agent (avatar with a status dot, label, a one-line preview of its output or prompt, its duration, a chevron that opens it in the subagent viewer), then the workflow's script in a code block collapsed behind "Show full script". Counts, statuses and durations update live while it runs. The desktop (`apps/desktop/src/app/native_chat/workflow_card.rs`) and the phone (`apps/mobile/app/src/chat/native/transcript/WorkflowCard.tsx`) draw the same card.
 
 use std::collections::BTreeMap;
 
@@ -202,7 +202,8 @@ fn card(run: &Value, now: i64) -> (Value, bool) {
             json!({
                 "key": if title.is_empty() { "other".to_string() } else { format!("phase:{title}") },
                 "title": title,
-                "detail": detail,
+                // The script's one-line description of the phase, drawn under its heading.
+            "detail": detail,
                 // A phase whose agents have not started yet has nothing to count.
                 "countLabel": if members.is_empty() { String::new() } else { format!("{done}/{}", members.len()) },
                 "agents": members,
