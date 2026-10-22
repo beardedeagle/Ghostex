@@ -121,9 +121,10 @@ impl NativeChatView {
             "label":"Auto-read","iconPath":"titlebar/volume.svg","checked":auto,
             "command":{"type":"readAloudAuto","on":!auto},
         });
-        // Auto-read is on but waits: said under the row, so a silent chat is not a mystery.
+        // Auto-read is on but waits: said under the row, so a silent chat is not a mystery. The
+        // phone's ⋯ menu says the same words (apps/mobile/app/src/chat/native/composer/menus.ts).
         let held = match read_aloud["autoReadHeld"].as_str() {
-            Some("voiceConversation") => Some("Quiet during the voice agent conversation"),
+            Some("voiceConversation") => Some("Quiet during the voice call"),
             Some("dictation") => Some("Quiet while you dictate"),
             _ => None,
         };
