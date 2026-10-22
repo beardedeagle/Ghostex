@@ -88,6 +88,8 @@ struct KeyField {
     input: Entity<InputState>,
     /// `None` until `/api/readVoiceAgent` answered.
     configured: Option<bool>,
+    /// A key is saved but can't be read anymore, so it has to be pasted again.
+    unreadable: bool,
     busy: bool,
     /// The last save or remove: whether it worked and what to say.
     note: Option<(bool, String)>,
@@ -129,6 +131,7 @@ impl VoiceAgentTab {
                         .placeholder(placeholder)
                 }),
                 configured: None,
+                unreadable: false,
                 busy: false,
                 note: None,
             };
@@ -172,9 +175,12 @@ impl VoiceAgentTab {
                     match result {
                         Ok(status) => {
                             page.read_error = None;
-                            page.xai.configured = status["keys"]["xai"]["configured"].as_bool();
-                            page.openai.configured =
-                                status["keys"]["openai"]["configured"].as_bool();
+                            for provider in [Provider::Xai, Provider::OpenAi] {
+                                let key = &status["keys"][provider.id()];
+                                let field = page.key(provider);
+                                field.configured = key["configured"].as_bool();
+                                field.unreadable = key["unreadable"].as_bool() == Some(true);
+                            }
                             page.memory = Some(status["memory"].clone());
                             page.memory_pending =
                                 status["memorySummaryPending"].as_bool().unwrap_or(false);
@@ -227,6 +233,7 @@ impl VoiceAgentTab {
                         Ok(answer) => {
                             let configured = answer["configured"].as_bool().unwrap_or(!remove);
                             field.configured = Some(configured);
+                            field.unreadable = false;
                             field.note = Some((
                                 true,
                                 if configured {
@@ -390,10 +397,14 @@ impl VoiceAgentTab {
         let field = self.key(provider);
         let input = field.input.clone();
         let configured = field.configured;
+        let unreadable = field.unreadable;
         let busy = field.busy;
         let note = field.note.clone();
         let status: SharedString = match (busy, configured) {
             (true, _) => format!("Checking the key with {}…", provider.label()).into(),
+            (false, _) if unreadable => {
+                "This saved key can't be read anymore. Paste it again.".into()
+            }
             (false, Some(true)) => "A key is saved on this computer.".into(),
             (false, Some(false)) => "No key yet.".into(),
             (false, None) => "".into(),
@@ -426,7 +437,7 @@ impl VoiceAgentTab {
                         },
                         cx,
                     ))
-                    .when(configured == Some(true), |this| {
+                    .when(configured == Some(true) || unreadable, |this| {
                         this.child(settings_button(
                             p,
                             remove_id,
@@ -448,6 +459,7 @@ impl VoiceAgentTab {
                         .text_size(px(12.5))
                         .text_color(hsla(match &note {
                             Some((false, _)) => p.destructive,
+                            None if unreadable && !busy => p.destructive,
                             _ => p.muted,
                         }))
                         .child(match note {

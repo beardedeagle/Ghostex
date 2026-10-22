@@ -13,7 +13,7 @@ use serde_json::Value;
 
 use super::provider::Provider;
 use crate::paths::GxserverPaths;
-use crate::vault;
+use crate::vault::{self, UnsealError};
 
 pub(super) const PROVIDER_SETTING: &str = "voiceAgentProvider";
 const XAI_VOICE_SETTING: &str = "voiceAgentXaiVoice";
@@ -107,14 +107,44 @@ pub(super) fn read_key(
     provider: Provider,
 ) -> Result<Option<String>, String> {
     match fs::read_to_string(sealed_path(paths, provider)) {
-        Ok(sealed) => vault::unseal(paths, sealed.trim()).map(Some),
+        Ok(sealed) => match vault::unseal(paths, sealed.trim()) {
+            Ok(key) => Ok(Some(key)),
+            Err(UnsealError::Unreadable) => Err(format!(
+                "The saved {} API key can't be read anymore. Paste it again in Settings > Voice agent.",
+                provider.label()
+            )),
+            Err(UnsealError::Vault(message)) => Err(message),
+        },
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
         Err(error) => Err(format!("Couldn't read the saved API key: {error}")),
     }
 }
 
-pub(super) fn key_configured(paths: &GxserverPaths, provider: Provider) -> bool {
-    sealed_path(paths, provider).is_file()
+/// What `/api/readVoiceAgent` says about a provider's key.
+///
+/// CDXC:VoiceMode 2026-10-22 DECISION:
+/// User, asked whether Settings should say when a saved key can't be unlocked: "sure just make the error more general please". A saved key that no longer opens shows in Settings as needing to be pasted again instead of as saved, and every message about it stays general ("can't be read anymore"), never guessing why (no other computer, restore or vault key).
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum KeyState {
+    Missing,
+    Saved,
+    /// Saved, but it doesn't open any more; only pasting it again helps.
+    Unreadable,
+}
+
+/// Opens the saved key to see that it still can: one small file and the vault key the vault
+/// caches for the process, cheap enough for every read.
+pub(super) fn key_state(paths: &GxserverPaths, provider: Provider) -> KeyState {
+    match fs::read_to_string(sealed_path(paths, provider)) {
+        Ok(sealed) => match vault::unseal(paths, sealed.trim()) {
+            Ok(_) => KeyState::Saved,
+            Err(UnsealError::Unreadable) => KeyState::Unreadable,
+            // The vault key may load next time (an unlocked Keychain); using the key says why.
+            Err(UnsealError::Vault(_)) => KeyState::Saved,
+        },
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => KeyState::Missing,
+        Err(_) => KeyState::Unreadable,
+    }
 }
 
 /// Seals and saves the key (a 0600 temporary file renamed over the old one), or removes it when

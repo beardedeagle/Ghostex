@@ -39,6 +39,7 @@ fn composio_status(state: &AppState, workspace: &str) -> Value {
     let signed_in = composio::signed_in(&state.paths, workspace);
     json!({
         "signedIn": signed_in,
+        "unreadable": !signed_in && composio::sign_in_unreadable(&state.paths, workspace),
         "apps": if signed_in { composio::apps(&state.paths, workspace) } else { Vec::new() },
         "suggestedApps": composio::suggested_apps(),
     })
@@ -137,7 +138,14 @@ pub(crate) fn list_composio_tools(
 ) -> Result<Value, DomainStateError> {
     let workspace = workspace_param(state, params)?;
     if !composio::signed_in(&state.paths, &workspace) {
-        return Err(failed(composio::NOT_CONNECTED.to_string()));
+        return Err(failed(
+            if composio::sign_in_unreadable(&state.paths, &workspace) {
+                composio::UNREADABLE
+            } else {
+                composio::NOT_CONNECTED
+            }
+            .to_string(),
+        ));
     }
     let tools = composio::mcp_tools(&state.paths, &workspace);
     if params.get("full").and_then(Value::as_bool) == Some(true) {

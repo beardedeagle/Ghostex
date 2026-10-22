@@ -26,6 +26,8 @@ pub(crate) const NOT_CONNECTED: &str =
     "Composio isn't connected in this workspace. Sign in with `ghostex connectors sign-in`.";
 pub(crate) const EXPIRED: &str =
     "This workspace's Composio sign-in expired. Sign in again with `ghostex connectors sign-in`.";
+pub(crate) const UNREADABLE: &str =
+    "This workspace's Composio sign-in can't be read anymore. Sign in again with `ghostex connectors sign-in`.";
 const NO_SIGN_IN: &str =
     "No Composio sign-in is in progress. Start it again with `ghostex connectors sign-in`.";
 pub(super) const STALE_LINK: &str =
@@ -128,7 +130,7 @@ pub(super) fn notify_changed(workspace: &str) {
     }
 }
 
-fn read_stored(paths: &GxserverPaths, workspace: &str) -> Result<Stored, String> {
+fn read_stored(paths: &GxserverPaths, workspace: &str) -> Result<Stored, store::ReadError> {
     let Some(plain) = store::read_secret(paths, PROVIDER, workspace)? else {
         return Ok(Stored::default());
     };
@@ -156,6 +158,17 @@ fn save(paths: &GxserverPaths, workspace: &str, stored: &Stored) -> Result<(), S
         .map_err(|error| format!("Couldn't save the Composio sign-in: {error}"))?;
     with_live(paths, workspace, |live| live.stored = Some(stored.clone()));
     Ok(())
+}
+
+/// A sign-in is saved but doesn't open any more, so Settings asks for a new one instead of
+/// showing the workspace as never signed in. Reads the file only while nothing is cached.
+pub(super) fn sign_in_unreadable(paths: &GxserverPaths, workspace: &str) -> bool {
+    with_live(paths, workspace, |live| {
+        live.session.is_none() && live.stored.is_none()
+    }) && matches!(
+        read_stored(paths, workspace),
+        Err(store::ReadError::Unreadable)
+    )
 }
 
 /// Signed in: a live session, or saved tokens (Open Dot's `signedIn`).

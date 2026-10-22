@@ -82,29 +82,39 @@ pub(crate) fn seal(paths: &GxserverPaths, plain: &str) -> Result<String, String>
     ))
 }
 
-pub(crate) fn unseal(paths: &GxserverPaths, sealed: &str) -> Result<String, String> {
-    let unreadable = || "This saved secret can't be read. Save it again.".to_string();
+/// Why a sealed secret didn't open.
+pub(crate) enum UnsealError {
+    /// It never opens with this computer's vault key: it is damaged, or the vault key changed since
+    /// it was sealed. Saving it again is the only fix; callers word that for their own secret.
+    Unreadable,
+    /// The vault key itself couldn't be loaded (a locked Keychain, for example), so the secret
+    /// may still open later; the text says what to do.
+    Vault(String),
+}
+
+pub(crate) fn unseal(paths: &GxserverPaths, sealed: &str) -> Result<String, UnsealError> {
     let mut parts = sealed.trim().split('.');
     let (Some(iv), Some(tag), Some(data), None) =
         (parts.next(), parts.next(), parts.next(), parts.next())
     else {
-        return Err(unreadable());
+        return Err(UnsealError::Unreadable);
     };
-    let iv = BASE64.decode(iv).map_err(|_| unreadable())?;
-    let tag = BASE64.decode(tag).map_err(|_| unreadable())?;
-    let mut data = BASE64.decode(data).map_err(|_| unreadable())?;
+    let unreadable = |_| UnsealError::Unreadable;
+    let iv = BASE64.decode(iv).map_err(unreadable)?;
+    let tag = BASE64.decode(tag).map_err(unreadable)?;
+    let mut data = BASE64.decode(data).map_err(unreadable)?;
     if iv.len() != 12 || tag.len() != 16 {
-        return Err(unreadable());
+        return Err(UnsealError::Unreadable);
     }
-    let key = master_key(paths)?;
-    let cipher = Aes256Gcm::new_from_slice(&key.bytes).map_err(|_| unreadable())?;
-    let nonce = aes_gcm::aead::Nonce::<Aes256Gcm>::try_from(&iv[..]).map_err(|_| unreadable())?;
+    let key = master_key(paths).map_err(UnsealError::Vault)?;
+    let cipher = Aes256Gcm::new_from_slice(&key.bytes).map_err(|_| UnsealError::Unreadable)?;
+    let nonce = aes_gcm::aead::Nonce::<Aes256Gcm>::try_from(&iv[..])
+        .map_err(|_| UnsealError::Unreadable)?;
     data.extend_from_slice(&tag);
-    let plain = cipher.decrypt(&nonce, data.as_slice()).map_err(|_| {
-        "This saved secret can't be unlocked with this computer's vault key. Save it again."
-            .to_string()
-    })?;
-    String::from_utf8(plain).map_err(|_| unreadable())
+    let plain = cipher
+        .decrypt(&nonce, data.as_slice())
+        .map_err(|_| UnsealError::Unreadable)?;
+    String::from_utf8(plain).map_err(|_| UnsealError::Unreadable)
 }
 
 /// The cached master key, loading (and on first use creating) it.

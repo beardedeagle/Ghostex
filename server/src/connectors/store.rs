@@ -6,7 +6,7 @@ use std::io::Write;
 use std::path::PathBuf;
 
 use crate::paths::GxserverPaths;
-use crate::vault;
+use crate::vault::{self, UnsealError};
 
 /// A workspace id as a file name: ids are `personal` or `ws-<uuid>`, so anything else is
 /// hex-encoded rather than trusted as a path part.
@@ -35,16 +35,33 @@ fn sealed_path(paths: &GxserverPaths, provider: &str, workspace_id: &str) -> Pat
         .join(format!("{}.sealed", file_stem(workspace_id)))
 }
 
+/// Why a saved sign-in couldn't be read.
+pub(super) enum ReadError {
+    /// It doesn't open any more, so only signing in again helps.
+    ///
+    /// CDXC:Connectors 2026-10-22 DECISION:
+    /// User, asked whether Settings should say when a saved key can't be unlocked: "sure just make the error more general please". A saved sign-in that no longer opens shows on Settings > Connectors and in `ghostex connectors status` as needing a new sign-in instead of as signed out, in general words that never guess why (no other computer, restore or vault key).
+    Unreadable,
+    /// Couldn't read it right now (the vault key didn't load, or the file couldn't be read).
+    Failed(String),
+}
+
 /// The workspace's saved sign-in, unsealed; `None` when it has none.
 pub(super) fn read_secret(
     paths: &GxserverPaths,
     provider: &str,
     workspace_id: &str,
-) -> Result<Option<String>, String> {
+) -> Result<Option<String>, ReadError> {
     match fs::read_to_string(sealed_path(paths, provider, workspace_id)) {
-        Ok(sealed) => vault::unseal(paths, &sealed).map(Some),
+        Ok(sealed) => match vault::unseal(paths, &sealed) {
+            Ok(plain) => Ok(Some(plain)),
+            Err(UnsealError::Unreadable) => Err(ReadError::Unreadable),
+            Err(UnsealError::Vault(message)) => Err(ReadError::Failed(message)),
+        },
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
-        Err(error) => Err(format!("Couldn't read the saved sign-in: {error}")),
+        Err(error) => Err(ReadError::Failed(format!(
+            "Couldn't read the saved sign-in: {error}"
+        ))),
     }
 }
 

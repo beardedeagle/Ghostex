@@ -2636,7 +2636,8 @@ It needs an API key: pick xAI Grok Voice (the default) or OpenAI GPT Realtime
 in Settings > Voice agent, pick a voice, and paste the provider's key there
 (xAI keys come from console.x.ai, OpenAI keys from platform.openai.com). The
 key is checked with the provider before it is saved, kept encrypted on this
-computer and never shown again. The provider bills your account while a
+computer and never shown again. If a saved key can't be read anymore,
+Settings > Voice agent says so on its row: paste it again. The provider bills your account while a
 conversation is open. When the provider refuses a conversation (for example
 xAI answering "payment required" because an X subscription's included usage
 is used up for the moment), the panel shows the provider's own reason.
@@ -3421,7 +3422,9 @@ backend: `ghostex team deploy|join|invite|identity|status|ping|leave`. Slack:
   › Roles. Each workspace has its own Composio sign-in
   and its own connected apps, so work apps stay in your Work workspace; while
   Workspaces is off, everything belongs to Personal. The sign-in stays on this
-  computer, sealed with a key kept in the system keychain. `ghostex connectors
+  computer, sealed with a key kept in the system keychain; if it can't be read
+  anymore, Settings › Connectors and `ghostex connectors status` say so, and you
+  sign in again. `ghostex connectors
   status` shows every workspace's sign-in and apps, `ghostex connectors tools`
   lists the Composio tools, and `ghostex connectors call <tool> --args
   '<json>'` runs a tool that only reads, such as `GMAIL_FETCH_EMAILS`;

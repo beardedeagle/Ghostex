@@ -5,7 +5,7 @@
 use axum::http::StatusCode;
 use serde_json::{json, Value};
 
-use super::keys::{self, KeyCheck};
+use super::keys::{self, KeyCheck, KeyState};
 use super::memory;
 use super::provider::Provider;
 use super::registry;
@@ -43,6 +43,14 @@ pub(crate) async fn handle_read_voice_agent_http(
     let paths = &state.paths;
     let provider = keys::selected_provider(paths);
     let voices = |provider: Provider| json!(provider.voices());
+    // `configured` means usable, so a client that knows only it treats an unreadable key as none.
+    let key_view = |provider: Provider| {
+        let state = keys::key_state(paths, provider);
+        json!({
+            "configured": state == KeyState::Saved,
+            "unreadable": state == KeyState::Unreadable,
+        })
+    };
     let result = json!({
         "provider": provider.id(),
         "voices": {
@@ -50,10 +58,7 @@ pub(crate) async fn handle_read_voice_agent_http(
             "openai": keys::selected_voice(paths, Provider::OpenAi),
         },
         "voiceOptions": {"xai": voices(Provider::Xai), "openai": voices(Provider::OpenAi)},
-        "keys": {
-            "xai": {"configured": keys::key_configured(paths, Provider::Xai)},
-            "openai": {"configured": keys::key_configured(paths, Provider::OpenAi)},
-        },
+        "keys": {"xai": key_view(Provider::Xai), "openai": key_view(Provider::OpenAi)},
         "secretsSealedWith": crate::vault::vault_backend(paths),
         "conversations": registry::summary(),
         "idleHangupMs": super::conversation::IDLE_HANGUP.as_millis() as u64,

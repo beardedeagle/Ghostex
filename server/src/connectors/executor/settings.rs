@@ -38,17 +38,32 @@ fn free_port() -> Result<u16, String> {
         .map_err(|error| format!("Couldn't find a free port for Executor: {error}"))
 }
 
+/// What Settings and the CLI say when the saved keys don't open any more.
+const UNREADABLE: &str =
+    "This workspace's saved Executor keys can't be read anymore. Turn Executor on again to give it new ones.";
+
 /// The workspace's saved Executor, or none when it was never turned on.
 pub(super) fn load(
     paths: &GxserverPaths,
     workspace: &str,
 ) -> Result<Option<WorkspaceExecutor>, String> {
-    let Some(plain) = store::read_secret(paths, PROVIDER, workspace)? else {
-        return Ok(None);
+    let plain = match store::read_secret(paths, PROVIDER, workspace) {
+        Ok(Some(plain)) => plain,
+        Ok(None) => return Ok(None),
+        Err(store::ReadError::Unreadable) => return Err(UNREADABLE.to_string()),
+        Err(store::ReadError::Failed(message)) => return Err(message),
     };
     serde_json::from_str(&plain)
         .map(Some)
         .map_err(|error| format!("The saved Executor settings are unreadable: {error}"))
+}
+
+/// The saved keys are there but don't open any more (`unreadable` in the Executor status).
+pub(super) fn unreadable(paths: &GxserverPaths, workspace: &str) -> bool {
+    matches!(
+        store::read_secret(paths, PROVIDER, workspace),
+        Err(store::ReadError::Unreadable)
+    )
 }
 
 pub(super) fn save(
@@ -65,8 +80,13 @@ pub(super) fn load_or_create(
     paths: &GxserverPaths,
     workspace: &str,
 ) -> Result<WorkspaceExecutor, String> {
-    if let Some(settings) = load(paths, workspace)? {
-        return Ok(settings);
+    match load(paths, workspace) {
+        Ok(Some(settings)) => return Ok(settings),
+        Ok(None) => {}
+        // Keys that can't be read never will be, so turning Executor on again replaces them.
+        // Executor 2.0.0-beta.22 opens its existing data folder with new keys (tried 2026-10-22).
+        Err(_) if unreadable(paths, workspace) => {}
+        Err(error) => return Err(error),
     }
     let settings = WorkspaceExecutor {
         enabled: false,

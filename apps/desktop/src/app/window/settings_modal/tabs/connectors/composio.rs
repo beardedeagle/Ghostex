@@ -64,18 +64,34 @@ impl ConnectorsTab {
         } else {
             let busy = self.is_busy(&id, "composio-sign-in");
             let workspace = id.clone();
+            // A saved sign-in that can't be read anymore (server/src/connectors/store.rs, ReadError).
+            let unreadable = flag(composio, "unreadable");
             rows.push(settings_list_item(
                 p,
-                Some(ListItemStatus::Neutral),
+                Some(if unreadable {
+                    ListItemStatus::Warning
+                } else {
+                    ListItemStatus::Neutral
+                }),
                 None,
-                "Not signed in",
-                Some(detail(
-                    "Sign this workspace in to Composio once in your browser, then connect its apps.",
-                )),
+                if unreadable {
+                    "Needs a new sign-in"
+                } else {
+                    "Not signed in"
+                },
+                Some(detail(if unreadable {
+                    "This sign-in can't be read anymore. Sign in again."
+                } else {
+                    "Sign this workspace in to Composio once in your browser, then connect its apps."
+                })),
                 Some(settings_button(
                     p,
                     format!("connectors-{id}-composio-sign-in"),
-                    if busy { "Opening…" } else { "Sign in" },
+                    match (busy, unreadable) {
+                        (true, _) => "Opening…",
+                        (false, true) => "Sign in again",
+                        (false, false) => "Sign in",
+                    },
                     None,
                     ButtonVariant::Outline,
                     offline || busy,

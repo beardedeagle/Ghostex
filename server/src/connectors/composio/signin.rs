@@ -12,6 +12,11 @@ pub(crate) fn signed_in(paths: &GxserverPaths, workspace: &str) -> bool {
     account::signed_in(paths, workspace)
 }
 
+/// The workspace's saved sign-in doesn't open any more (`unreadable` in `/api/readConnectors`).
+pub(crate) fn sign_in_unreadable(paths: &GxserverPaths, workspace: &str) -> bool {
+    account::sign_in_unreadable(paths, workspace)
+}
+
 /// Starts the workspace's sign-in: the authorization URL to open in the user's browser, or `None`
 /// when already signed in. `redirect_base` is gxserver's own `http://127.0.0.1:<port>` origin.
 pub(crate) fn sign_in(

@@ -63,8 +63,10 @@ pub(crate) fn status(paths: &GxserverPaths, workspace: &str) -> Value {
         .ok()
         .and_then(|settings| settings.as_ref())
         .map(|settings| format!("http://127.0.0.1:{}/api/oauth/callback", settings.port));
+    let unreadable = saved.is_err() && settings::unreadable(paths, workspace);
     json!({
         "enabled": enabled,
+        "unreadable": unreadable,
         "version": release::VERSION,
         "installed": installed,
         "install": install,

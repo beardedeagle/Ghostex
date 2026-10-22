@@ -31,7 +31,10 @@ fn state_line(executor: &Value) -> (ListItemStatus, String) {
         .and_then(Value::as_str)
         .is_some_and(|status| matches!(status, "queued" | "running"));
     let error = text(executor, "error");
-    if !flag(executor, "enabled") {
+    // Its saved keys can't be read anymore: gxserver's `error` says so in general words.
+    if flag(executor, "unreadable") && !error.is_empty() {
+        (ListItemStatus::Warning, error)
+    } else if !flag(executor, "enabled") {
         (
             ListItemStatus::Neutral,
             "Off. Turn it on to add apps; Ghostex downloads Executor the first time.".to_string(),

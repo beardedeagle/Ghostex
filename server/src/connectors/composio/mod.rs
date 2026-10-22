@@ -16,11 +16,11 @@ mod read_rule;
 mod signin;
 mod tools;
 
-pub(crate) use account::{set_changed_listener, NOT_CONNECTED};
+pub(crate) use account::{set_changed_listener, NOT_CONNECTED, UNREADABLE};
 pub(crate) use connections::start_connect;
 pub(crate) use oauth_route::{serve_oauth_redirect, OAUTH_REDIRECT_PATH};
 pub(crate) use read_rule::{call_decision, call_label, rule_tools, ComposioDecision};
-pub(crate) use signin::{sign_in, sign_out, signed_in};
+pub(crate) use signin::{sign_in, sign_in_unreadable, sign_out, signed_in};
 pub(crate) use tools::{apps, call_tool, mcp_tools, refresh};
 
 /// Apps suggested before the workspace connected any (Open Dot's SUGGESTED).
