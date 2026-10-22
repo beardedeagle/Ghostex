@@ -1654,6 +1654,28 @@ static NSEvent *GhostexGpuiNormalizedNavigationKeyEvent(NSEvent *event) {
     if (payloadClean || !cgEvent) {
       return event;
     }
+    /*
+     CDXC:Hotkeys 2026-10-22 WHY:
+     Every arrow, Home/End, PageUp/PageDown, Forward Delete and F-key event the
+     system makes (a real keyboard, Karabiner's virtual HID, any CGEventSource)
+     carries the layout's classic character code (0x1C-0x1F for the arrows)
+     together with the Fn flag, plus NumPad for the arrows. That is the shape
+     input methods read, so it is not dirty: rewriting it with an F700-range
+     payload made the Japanese input method decline Up/Down
+     (doCommandBySelector: instead of moving through its candidates), so
+     neither the chat box nor the terminal could pick a conversion candidate
+     from the keyboard. Only an event missing those flags (a posting tool that
+     set its own flags) is the 2026-07-04 control-code case and is rewritten.
+     */
+    if (entry.functionModifier) {
+      CGEventFlags systemFlags = kCGEventFlagMaskSecondaryFn;
+      if (entry.numericPad) {
+        systemFlags |= kCGEventFlagMaskNumericPad;
+      }
+      if ((CGEventGetFlags(cgEvent) & systemFlags) == systemFlags) {
+        return event;
+      }
+    }
 
     CGEventRef stripped = CGEventCreateCopy(cgEvent);
     if (!stripped) {
