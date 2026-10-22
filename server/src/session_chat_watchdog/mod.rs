@@ -75,6 +75,7 @@ mod probe;
 mod task;
 
 use claude_liveness::*;
+pub(crate) use delivery_match::transcript_line_records_prompt;
 use delivery_match::*;
 pub use probe::*;
 use task::*;

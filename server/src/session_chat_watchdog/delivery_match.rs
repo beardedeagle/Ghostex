@@ -236,6 +236,35 @@ pub(super) fn classify_watchdog_record(
     }
 }
 
+/// Whether a transcript line records a prompt the agent took: a composer submission, or a prompt
+/// Claude moved out of its queue into the running turn. Read by the queued prompt's play button
+/// (session_chat_send/queued_prompt_escape.rs).
+pub(crate) fn transcript_line_records_prompt(
+    agent: SessionChatTranscriptAgent,
+    line: &str,
+) -> bool {
+    if matches!(
+        classify_watchdog_record(agent, line),
+        Some(WatchdogRecord::UserSubmission(_))
+    ) {
+        return true;
+    }
+    agent == SessionChatTranscriptAgent::Claude
+        && parse_json_object(line).is_some_and(|record| {
+            record.get("type").and_then(Value::as_str) == Some("attachment")
+                && record
+                    .get("attachment")
+                    .and_then(Value::as_object)
+                    .is_some_and(|attachment| {
+                        attachment.get("type").and_then(Value::as_str) == Some("queued_command")
+                            && attachment
+                                .get("prompt")
+                                .and_then(Value::as_str)
+                                .is_some_and(|prompt| !prompt.trim().is_empty())
+                    })
+        })
+}
+
 fn claude_watchdog_record(record: &Map<String, Value>) -> Option<WatchdogRecord> {
     match record.get("type").and_then(Value::as_str)? {
         "assistant" => Some(WatchdogRecord::AgentOutput),

@@ -12,6 +12,12 @@ pub enum SessionChatSendStep {
     GuardCodexInterrupt,
     /// Stop this interrupt job if its Escape would be Claude's double-tap rewind.
     GuardClaudeInterrupt,
+    /// Stop the play button's Escape when the session took a submit or recorded a prompt after
+    /// the click (session_chat_send/queued_prompt_escape.rs).
+    GuardQueuedPromptEscape {
+        requested_at: Instant,
+        transcript: Option<QueuedPromptTranscriptMark>,
+    },
     /// Wait for Cursor to show "ctrl+c to stop", and stop this interrupt job if it never does.
     GuardCursorInterrupt,
     /// Answer the "Tell the agent what to do instead" box Cursor opens after an approval's Skip

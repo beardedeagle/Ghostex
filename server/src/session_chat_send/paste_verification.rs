@@ -20,13 +20,17 @@ pub(crate) async fn write_session_chat_payload(
         payload,
     );
     let zmx_name = zmx_name.to_string();
+    let written = payload;
     let payload = payload.to_string();
     let write = tokio::task::spawn_blocking(move || {
         crate::zmx::session_chat_zmx_write(&zmx_name, &payload)
     })
     .await;
     match write {
-        Ok(Ok(0)) => Ok(()),
+        Ok(Ok(0)) => {
+            note_session_chat_submit(project_id, session_id, written);
+            Ok(())
+        }
         Ok(Ok(code)) => Err(format!(
             "The session terminal refused chat input (exit {code})."
         )),

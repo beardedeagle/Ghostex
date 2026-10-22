@@ -362,6 +362,28 @@ pub(super) async fn run_session_chat_send_worker(
                         }
                     }
                 }
+                SessionChatSendStep::GuardQueuedPromptEscape {
+                    requested_at,
+                    transcript,
+                } => {
+                    if queued_prompt_escape_is_stale(
+                        &project_id,
+                        &session_id,
+                        requested_at,
+                        transcript.as_ref(),
+                    )
+                    .await
+                    {
+                        crate::session_chat_send_diagnostics::record_send_recovery_from_worker(
+                            "sessionChatSendDroppedStaleEscape",
+                            &project_id,
+                            &session_id,
+                            "The play button's Escape was dropped: since the click a message was submitted or the agent started a prompt.",
+                            &[],
+                        );
+                        break;
+                    }
+                }
                 SessionChatSendStep::GuardClaudeInterrupt => {
                     if !crate::session_chat_claude_interrupt::claim_claude_interrupt_escape(
                         &project_id,

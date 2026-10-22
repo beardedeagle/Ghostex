@@ -14,6 +14,7 @@ Read this when the user reports that pressing Enter in the chat did nothing, the
   - `sessionChatSendHeldForStartingAgent`: the agent was still printing "Restoring session...", so the message went to the queue as a startup send.
   - `sessionChatSendPressedEnterAgain` (Codex): the message was still in Codex's input box after Return, so the send pressed Return once more. Each one is a cause to fix at its source (`server/src/session_chat_send_submit.rs`); `sessionChatSendNotSubmitted` means Codex kept it even then and the send failed.
   - `sessionChatSendWaitedForBusyAgent`: the agent was mid-turn and its screen was slow to show the send's clear, paste or Return, so the send kept the input line and waited, typing nothing more (`server/src/session_chat_send/busy_input_wait.rs`). A send that waited five minutes without the agent catching up fails with "The agent stayed in the middle of a turn for five minutes…" and its `sessionChatSendFailedStep` names `AgentStalled`; nothing is retyped then.
+  - `sessionChatSendDroppedStaleEscape`: a queued prompt's play button (desktop) or Send now (phone) was clicked, and before its Escape reached the terminal a message was submitted or the agent's transcript recorded a prompt it took, so the Escape was dropped instead of cancelling that prompt (`server/src/session_chat_send/queued_prompt_escape.rs`).
 - `sessionChatDeliveryNotice`: the delivery watchdog showed a card such as "Your message might not have reached the agent", with the screen it saw. Compare its time with the agent's own transcript (Codex: `~/.codex/sessions/**/rollout-*<agent session id>.jsonl`, `user_message` rows) to see when, or whether, the message was recorded.
 
 Find the user's report by session and time (the `ts` fields are UTC):
@@ -33,11 +34,17 @@ EOF
 
 To see every kind of failure there has been, group the `sessionChatSendFailure` lines by `(endpoint, code, message)`.
 
-## 2. The desktop chat's own log (debug scenario)
+## 2. The send ledger and the agent's own records
+
+Successful sends write nothing to the log above. gxserver's database (`~/.local/state/ghostex/gxserver/state.db`, `%LOCALAPPDATA%\Ghostex\State\gxserver\state.db` on Windows) keeps every send RPC for 24 hours in `session_chat_send_requests`: `createdAtMs` is when the request arrived, `updatedAtMs` when its job finished (after the session's earlier jobs), and a row with `textBytes` 0 in its `response` and no `needles` is a raw key (`sendKey`: the play button's Escape, the Mode pill's Shift+Tab). Open it read-only (`sqlite3 'file:…/state.db?mode=ro'`) and filter on `projectId` and `sessionId`.
+
+Claude Code records the moment it takes a prompt in `~/.claude/history.jsonl` (`timestamp` in ms, with `sessionId`). In its transcript, a lone `total_tokens_reminder` attachment row followed by no user row means Claude took a Return and then dropped the prompt back into its input box: an Escape or Ctrl+C reached it before it wrote the prompt.
+
+## 3. The desktop chat's own log (debug scenario)
 
 `~/.local/state/ghostex/logs/gpui-session-chat-debug.jsonl`, written only while Show debug UI controls and the Chat area under Diagnostic logs are on. `sessionChat.nativeRpcResult` lines carry `method`, `sessionKey` (`projectId:sessionId`), `errorCode` and `errorMessage` for every chat RPC, so a refusal the user saw can be matched to the gxserver line above.
 
-## 3. The live screen
+## 4. The live screen
 
 `/Applications/Ghostex.app/Contents/Resources/Web/gxserver/bin/zmx history <zmxName>` prints the session's scrollback now (the zmx name is `S90-<projectId>-<sessionId>`, also in Copy Details as "Persistence").
 

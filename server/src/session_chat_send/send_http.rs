@@ -118,9 +118,21 @@ async fn send_session_chat_message_attempt(
             );
         }
         let steps = if key == "escape" {
-            Some(session_chat_interrupt_escape_steps(
+            let requested_at = Instant::now();
+            let session = target.session.clone();
+            let transcript =
+                tokio::task::spawn_blocking(move || QueuedPromptTranscriptMark::sample(&session))
+                    .await
+                    .ok()
+                    .flatten();
+            let mut steps = vec![SessionChatSendStep::GuardQueuedPromptEscape {
+                requested_at,
+                transcript,
+            }];
+            steps.extend(session_chat_interrupt_escape_steps(
                 session_chat_agent_for_session(&target.session).as_deref(),
-            ))
+            ));
+            Some(steps)
         } else {
             crate::session_chat_send::build_session_chat_key_steps(key)
         };
