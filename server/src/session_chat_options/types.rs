@@ -314,6 +314,9 @@ pub struct SessionChatTerminalDetection {
     capture neither clears it nor makes it stale.
     */
     pub tasks: Option<crate::session_chat_agent_tasks::SessionChatAgentTasks>,
+    /// CDXC:SessionChat 2026-10-22: Claude's Workflow runs for the chat's workflow cards, read
+    /// from disk beside the task list (`session_chat_claude_workflow_cards.rs`).
+    pub workflows: Option<crate::session_chat_claude_workflow_cards::SessionChatWorkflows>,
     /// True when a usable (non-truncated) screen backed this detection. It is
     /// the ONLY case where `notice: None` means "the screen is clean" — a failed
     /// or capped capture must never retire a notice.

@@ -274,6 +274,11 @@ pub(crate) fn resolve_session_chat_read_state(
     }
     // CDXC:SessionChat 2026-09-03: every task's id, subject and
     // status. A status flip is what wakes a long poller; there are no clocks.
+    // CDXC:SessionChat 2026-10-22: a workflow agent starting or finishing wakes a long poller.
+    match screen.workflows {
+        Some(workflows) => workflows.to_value().to_string().hash(&mut hasher),
+        None => 0u8.hash(&mut hasher),
+    }
     match screen.tasks {
         Some(tasks) => {
             for task in &tasks.tasks {
@@ -508,7 +513,7 @@ pub(crate) async fn handle_read_session_chat_http(
         session_agent_id,
         terminal_agent,
         agent_session_id,
-        agent_session_path: _,
+        agent_session_path,
         lifecycle_running,
         mut working,
         stored_prompt,
@@ -786,6 +791,9 @@ pub(crate) async fn handle_read_session_chat_http(
         if let Some(tasks) = detection.tasks.as_ref() {
             result.insert("agentTasks".to_string(), tasks.to_value());
         }
+        if let Some(workflows) = detection.workflows.as_ref() {
+            result.insert("workflows".to_string(), workflows.to_value());
+        }
         /*
         CDXC:AgentScreenDetection 2026-08-22: same capture again. Followerless
         clients need the "detection has run" bit for exactly the reason follower
@@ -826,6 +834,22 @@ pub(crate) async fn handle_read_session_chat_http(
         .flatten();
         if let Some(stored) = stored {
             result.insert("selectedOptions".to_string(), stored.to_value());
+        }
+        // CDXC:SessionChat 2026-10-22: a finished workflow card survives the session sleeping:
+        // its runs are on disk, so they are read without the running gate.
+        if agent.as_deref() == Some("claude") {
+            let path = agent_session_path.clone();
+            if let Some(workflows) = tokio::task::spawn_blocking(move || {
+                crate::session_chat_claude_workflow_cards::read_session_chat_workflows(
+                    path.as_deref(),
+                )
+            })
+            .await
+            .ok()
+            .flatten()
+            {
+                result.insert("workflows".to_string(), workflows.to_value());
+            }
         }
         result.insert("screenProbed".to_string(), json!(true));
     }

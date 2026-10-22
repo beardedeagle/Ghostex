@@ -590,6 +590,11 @@ impl NativeChatView {
         {
             row = row.child(cards);
         }
+        if !self.in_work_fold
+            && let Some(cards) = self.workflow_cards(&message["workflows"], p, cx)
+        {
+            row = row.child(cards);
+        }
         if self.has_reply_actions(message) {
             row = row.child(self.reply_actions(message, reply_focused, p, cx));
         }

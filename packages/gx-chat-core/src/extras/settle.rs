@@ -282,6 +282,9 @@ fn transcript_items(state: &ChatState, context: &ChatContext) -> Vec<Value> {
 /// idempotent and a surface that goes away cancels its own row.
 fn arm_timers(state: &mut ChatState, context: &ChatContext) {
     let (_, _, fleet_ticking) = panels::project(state, context);
+    // A running workflow card's agent clocks move on the same once-a-second republish.
+    let fleet_ticking =
+        fleet_ticking || crate::transcript::workflow_card::workflow_cards(state, context).1;
     let loading = state.extras.loading_started_at_ms;
     let poll = state.extras.subagent.poll_at_ms;
     let now = context.now_ms;

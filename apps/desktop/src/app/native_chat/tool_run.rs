@@ -69,7 +69,9 @@ impl NativeChatView {
         let visible: Vec<usize> = (0..tools.len())
             .filter(|index| {
                 cards_as_rows
-                    || (tools[*index]["exchange"] != true && tools[*index]["sentMessage"] != true)
+                    || (tools[*index]["exchange"] != true
+                        && tools[*index]["sentMessage"] != true
+                        && !self.has_workflow_card(&tools[*index]))
             })
             .collect();
         if visible.is_empty() {

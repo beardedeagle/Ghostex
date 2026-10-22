@@ -82,6 +82,7 @@ pub(crate) mod session_chat_claude_interrupt;
 pub(crate) mod session_chat_claude_panel;
 pub(crate) mod session_chat_claude_popups;
 pub mod session_chat_claude_question_prep;
+pub(crate) mod session_chat_claude_workflow_cards;
 pub(crate) mod session_chat_claude_workflows;
 pub(crate) mod session_chat_codex_async_answer;
 pub mod session_chat_codex_blocking;

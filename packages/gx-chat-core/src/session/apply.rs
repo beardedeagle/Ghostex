@@ -76,6 +76,7 @@ pub fn apply_state_frame(
     );
     state.session.agent_fleet = frame.state.agent_fleet.clone();
     state.session.agent_tasks = frame.state.agent_tasks.clone();
+    state.session.workflows = frame.state.workflows.clone();
     if let Some(commands) = frame.state.app_commands.clone() {
         // `if (event.appCommands) setAppCommands(event.appCommands)`: a fresh array each time.
         state.session.app_commands = commands;
@@ -393,6 +394,7 @@ pub fn apply_authoritative(
     );
     state.session.agent_fleet = result.state.agent_fleet.clone();
     state.session.agent_tasks = result.state.agent_tasks.clone();
+    state.session.workflows = result.state.workflows.clone();
     if let Some(commands) = result.state.app_commands.clone() {
         // `setAppCommands(result.appCommands)`: a fresh array every time the field is present.
         state.session.app_commands = commands;

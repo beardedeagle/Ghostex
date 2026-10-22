@@ -60,6 +60,8 @@ pub struct SessionState {
     pub agent_fleet: Option<Value>,
     /// The agent's task list. Cleared on omission, never gated on `working`.
     pub agent_tasks: Option<Value>,
+    /// Claude's Workflow runs, the workflow cards' source. Cleared on omission.
+    pub workflows: Option<Value>,
     /// Commands Ghostex typed into the agent itself. Unchanged on omission, never cleared.
     pub app_commands: Vec<Value>,
     /// The prompt the agent handed back after an Escape. Unchanged on omission.
@@ -133,6 +135,7 @@ impl Default for SessionState {
             terminal_activity: None,
             agent_fleet: None,
             agent_tasks: None,
+            workflows: None,
             app_commands: Vec::new(),
             returned_prompt: None,
             coordinator_threads: None,

@@ -260,6 +260,10 @@ pub struct ChatSideState {
     pub agent_fleet: Option<Value>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub agent_tasks: Option<Value>,
+    /// Claude's Workflow runs (`{ runs: [...] }`, `server/src/session_chat_claude_workflow_cards.rs`),
+    /// one per Workflow call, for the chat's workflow cards. Cleared on omission.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub workflows: Option<Value>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub screen_probed: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

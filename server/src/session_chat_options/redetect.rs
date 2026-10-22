@@ -36,6 +36,7 @@ pub(crate) fn schedule_session_chat_option_redetect(
         let mut published_activity = cached.activity;
         let mut published_fleet = cached.fleet;
         let mut published_tasks = cached.tasks;
+        let mut published_workflows = cached.workflows;
         let mut published_prompt = cached.prompt;
         /*
         CDXC:SessionChat 2026-09-10 WHY:
@@ -80,6 +81,11 @@ pub(crate) fn schedule_session_chat_option_redetect(
                 detection.tasks.as_ref(),
                 published_tasks.as_ref(),
             );
+            let workflows_changed =
+                !crate::session_chat_claude_workflow_cards::same_session_chat_workflows(
+                    detection.workflows.as_ref(),
+                    published_workflows.as_ref(),
+                );
             let prompt_changed = detection.captured && detection.prompt != published_prompt;
             let app_commands = crate::session_chat_app_command::session_chat_app_commands_identity(
                 &project_id,
@@ -92,6 +98,7 @@ pub(crate) fn schedule_session_chat_option_redetect(
                 && !activity_changed
                 && !fleet_changed
                 && !tasks_changed
+                && !workflows_changed
                 && !prompt_changed
                 && !app_commands_changed
             {
@@ -113,6 +120,9 @@ pub(crate) fn schedule_session_chat_option_redetect(
             if tasks_changed {
                 published_tasks = detection.tasks;
             }
+            if workflows_changed {
+                published_workflows = detection.workflows;
+            }
             if prompt_changed {
                 published_prompt = detection.prompt;
             }
@@ -130,6 +140,7 @@ pub(crate) fn schedule_session_chat_option_redetect(
                     activity: published_activity.as_ref(),
                     fleet: published_fleet.as_ref(),
                     tasks: published_tasks.as_ref(),
+                    workflows: published_workflows.as_ref(),
                     probed: detection.attempted,
                 },
             );

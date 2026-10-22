@@ -120,6 +120,7 @@ pub fn fold_state(previous: Option<&FoldedSnapshot>, incoming: StateCarrier<'_>)
     folded.result.state.terminal_activity = side.terminal_activity.clone();
     folded.result.state.agent_fleet = side.agent_fleet.clone();
     folded.result.state.agent_tasks = side.agent_tasks.clone();
+    folded.result.state.workflows = side.workflows.clone();
 
     folded.result.state.retired_async_question_ids = side
         .retired_async_question_ids

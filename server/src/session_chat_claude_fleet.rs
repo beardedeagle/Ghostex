@@ -129,7 +129,7 @@ fn notifications(parent: &mut Parent, content: &str, at: i64, queued: bool) {
                 }
                 original.unwrap_or(at)
             };
-            if parent.workflows.finish(id, at) {
+            if parent.workflows.finish(id, at, status) {
                 continue;
             }
             apply_turn(
@@ -228,6 +228,13 @@ fn read_parent_record(parent: &mut Parent, record: &Value) {
                 }
             }
             if block.get("type").and_then(Value::as_str) == Some("tool_use")
+                && block.get("name").and_then(Value::as_str) == Some("Workflow")
+            {
+                if let (Some(id), Some(input)) = (text(block.get("id")), block.get("input")) {
+                    parent.workflows.call(&id, input);
+                }
+            }
+            if block.get("type").and_then(Value::as_str) == Some("tool_use")
                 && block.get("name").and_then(Value::as_str) == Some("TaskStop")
             {
                 if let Some(id) = text(block.get("id")) {
@@ -239,7 +246,12 @@ fn read_parent_record(parent: &mut Parent, record: &Value) {
         }
     }
     if let Some(result) = record.get("toolUseResult") {
-        parent.workflows.launch(result, at);
+        let call_id = blocks.and_then(|blocks| {
+            blocks
+                .iter()
+                .find_map(|block| block.get("tool_use_id").and_then(Value::as_str))
+        });
+        parent.workflows.launch(result, at, call_id);
     }
     if let Some(id) = text(record.pointer("/toolUseResult/agentId")) {
         let launch = blocks
@@ -397,6 +409,13 @@ fn read_parent(path: &Path) -> anyhow::Result<Parent> {
         cache.insert(path.to_path_buf(), entry);
     }
     Ok(parent)
+}
+
+/// The Workflow launches the parent transcript recorded, for the chat's workflow cards.
+pub(crate) fn read_claude_workflow_runs(
+    path: &Path,
+) -> anyhow::Result<crate::session_chat_claude_workflows::WorkflowRuns> {
+    Ok(read_parent(path)?.workflows)
 }
 
 /// The background shells and monitors still running in this session, at most `count` (the footer's).

@@ -21,6 +21,7 @@ pub(crate) struct CachedSessionChatScreenState {
     pub(crate) activity: Option<crate::session_chat_terminal_activity::SessionChatTerminalActivity>,
     pub(crate) fleet: Option<crate::session_chat_agent_fleet::SessionChatAgentFleet>,
     pub(crate) tasks: Option<crate::session_chat_agent_tasks::SessionChatAgentTasks>,
+    pub(crate) workflows: Option<crate::session_chat_claude_workflow_cards::SessionChatWorkflows>,
     /// CDXC:AgentScreenDetection 2026-08-22: whether the cache entry these
     /// came from was backed by a whole capture at all.
     pub(crate) probed: bool,
@@ -34,6 +35,7 @@ impl CachedSessionChatScreenState {
             activity: self.activity.as_ref(),
             fleet: self.fleet.as_ref(),
             tasks: self.tasks.as_ref(),
+            workflows: self.workflows.as_ref(),
             probed: self.probed,
         }
     }
@@ -44,7 +46,7 @@ pub(crate) fn cached_session_chat_screen_state(
     project_id: &str,
     session_id: &str,
 ) -> CachedSessionChatScreenState {
-    let (prompt, screen_notice, activity, fleet, tasks, probed) = state
+    let (prompt, screen_notice, activity, fleet, tasks, workflows, probed) = state
         .session_chat_option_cache
         .lock()
         .ok()
@@ -58,6 +60,7 @@ pub(crate) fn cached_session_chat_screen_state(
                         entry.value.activity.clone(),
                         entry.value.fleet.clone(),
                         entry.value.tasks.clone(),
+                        entry.value.workflows.clone(),
                         entry.value.attempted,
                     )
                 })
@@ -73,6 +76,7 @@ pub(crate) fn cached_session_chat_screen_state(
         activity,
         fleet,
         tasks,
+        workflows,
         probed,
     }
 }
@@ -162,23 +166,25 @@ pub(super) fn publish_cached_session_chat_screen_state(
     session_id: &str,
 ) {
     let key = session_observer_key(project_id, session_id);
-    let (options, prompt, screen_notice, activity, fleet, tasks, captured) = option_cache
-        .lock()
-        .ok()
-        .and_then(|cache| {
-            cache.get(&key).map(|entry| {
-                (
-                    entry.value.options.clone(),
-                    entry.value.prompt.clone(),
-                    entry.value.notice.clone(),
-                    entry.value.activity.clone(),
-                    entry.value.fleet.clone(),
-                    entry.value.tasks.clone(),
-                    entry.value.attempted,
-                )
+    let (options, prompt, screen_notice, activity, fleet, tasks, workflows, captured) =
+        option_cache
+            .lock()
+            .ok()
+            .and_then(|cache| {
+                cache.get(&key).map(|entry| {
+                    (
+                        entry.value.options.clone(),
+                        entry.value.prompt.clone(),
+                        entry.value.notice.clone(),
+                        entry.value.activity.clone(),
+                        entry.value.fleet.clone(),
+                        entry.value.tasks.clone(),
+                        entry.value.workflows.clone(),
+                        entry.value.attempted,
+                    )
+                })
             })
-        })
-        .unwrap_or_default();
+            .unwrap_or_default();
     let notice = crate::session_chat_notice::resolve_session_chat_terminal_notice(
         project_id,
         session_id,
@@ -198,6 +204,7 @@ pub(super) fn publish_cached_session_chat_screen_state(
             activity: activity.as_ref(),
             fleet: fleet.as_ref(),
             tasks: tasks.as_ref(),
+            workflows: workflows.as_ref(),
             probed: captured,
         },
     );

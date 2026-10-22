@@ -80,6 +80,7 @@ pub fn side_state_moves(
         || cleared(&side.terminal_activity, &session.terminal_activity)
         || cleared(&side.agent_fleet, &session.agent_fleet)
         || cleared(&side.agent_tasks, &session.agent_tasks)
+        || cleared(&side.workflows, &session.workflows)
         || side.app_commands.is_some()
         || side
             .coordinator_threads

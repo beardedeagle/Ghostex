@@ -322,6 +322,9 @@ pub fn detect_session_chat_terminal_state(
         claude_session_id.as_deref(),
         claude_session_path.as_deref(),
     );
+    let workflows = crate::session_chat_claude_workflow_cards::read_session_chat_workflows(
+        claude_session_path.as_deref(),
+    );
     let mut diff_panel_screen = None;
     // CDXC:AgentScreenDetection 2026-09-26 WHY:
     // Claude paints headings and bold-only title lines in bold and drops their Markdown, so only the VT capture can tell a title from a one-line paragraph. Claude is read as VT once and every detector below gets the plain text it always had; the streamed message alone also reads the styling.
@@ -559,6 +562,7 @@ pub fn detect_session_chat_terminal_state(
         fleet,
         fleet_observed,
         tasks,
+        workflows,
         captured: screen.is_some(),
         attempted,
     }

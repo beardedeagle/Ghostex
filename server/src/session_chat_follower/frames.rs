@@ -112,6 +112,9 @@ pub struct SessionChatScreenState<'a> {
     the same omitted ⇒ CLEARED rule (the store is deleted with the session).
     */
     pub tasks: Option<&'a crate::session_chat_agent_tasks::SessionChatAgentTasks>,
+    /// CDXC:SessionChat 2026-10-22: Claude's Workflow runs, disk-backed like `tasks` and restated
+    /// by every producer the same way (omitted means cleared).
+    pub workflows: Option<&'a crate::session_chat_claude_workflow_cards::SessionChatWorkflows>,
     /*
     CDXC:AgentScreenDetection 2026-08-22:
     True once a WHOLE screen capture has actually been read for this session.
@@ -142,6 +145,9 @@ pub(crate) fn insert_screen_state(
     }
     if let Some(tasks) = screen.tasks {
         frame.insert("agentTasks".to_string(), tasks.to_value());
+    }
+    if let Some(workflows) = screen.workflows {
+        frame.insert("workflows".to_string(), workflows.to_value());
     }
     if screen.probed {
         frame.insert("screenProbed".to_string(), Value::Bool(true));

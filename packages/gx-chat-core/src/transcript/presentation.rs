@@ -266,6 +266,18 @@ pub fn project_message(
         "sentMessages".to_string(),
         Value::Array(project_sent_messages(message, &tool_pairs, line_breaks)),
     );
+    // The Workflow calls this message made, by call id: the document's `workflowCards` holds each
+    // run's card, drawn after the message's tool rows (`workflow_card.rs`).
+    projected.insert(
+        "workflows".to_string(),
+        Value::Array(
+            tool_pairs
+                .iter()
+                .filter_map(crate::transcript::workflow_card::workflow_call_id)
+                .map(Value::String)
+                .collect(),
+        ),
+    );
     projected.insert(
         "images".to_string(),
         Value::Array(images.iter().map(image_source).collect()),
@@ -853,6 +865,20 @@ pub fn build_scope(
                                 .cloned()
                             {
                                 Some(Value::Array(cards)) => cards,
+                                _ => Vec::new(),
+                            }
+                        })
+                        .collect(),
+                    /* The folded rows' workflow cards, hoisted like the sent messages. */
+                    workflows: collapsed_work
+                        .iter()
+                        .flat_map(|row| {
+                            match builder
+                                .message_or_placeholder(row, eager)
+                                .get("workflows")
+                                .cloned()
+                            {
+                                Some(Value::Array(ids)) => ids,
                                 _ => Vec::new(),
                             }
                         })

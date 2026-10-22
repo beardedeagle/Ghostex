@@ -192,6 +192,11 @@ pub fn tool_rows(
             row.insert("duration".to_string(), duration.unwrap_or_default().into());
             row.insert("hasDetail".to_string(), has_detail.into());
             row.insert("subagent".to_string(), subagent);
+            // A Workflow call is drawn as its run's card (`workflow_card.rs`) wherever the
+            // document has one for this id; the row stays only inside a turn's work fold.
+            if let Some(call_id) = crate::transcript::workflow_card::workflow_call_id(pair) {
+                row.insert("workflow".to_string(), call_id.into());
+            }
             Value::Object(row)
         })
         .collect()
@@ -201,7 +206,9 @@ pub fn tool_fold(pairs: &[ToolPair<'_>]) -> Value {
     let exchanges: Vec<bool> = pairs
         .iter()
         .map(|pair| {
-            answered_question_exchange(pair).is_some() || !sent_agent_messages(pair, &[]).is_empty()
+            answered_question_exchange(pair).is_some()
+                || !sent_agent_messages(pair, &[]).is_empty()
+                || crate::transcript::workflow_card::workflow_call_id(pair).is_some()
         })
         .collect();
     tool_run_fold(&exchanges)

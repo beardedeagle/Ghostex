@@ -106,6 +106,10 @@ pub async fn run_session_chat_follower(
     // Compared whole; a task flipping to completed is exactly the change the
     // panel exists to show.
     let mut published_tasks: Option<crate::session_chat_agent_tasks::SessionChatAgentTasks> = None;
+    // CDXC:SessionChat 2026-10-22: the Workflow runs last published, compared whole like tasks.
+    let mut published_workflows: Option<
+        crate::session_chat_claude_workflow_cards::SessionChatWorkflows,
+    > = None;
     // CDXC:AgentScreenDetection 2026-08-22: latched, not sampled. It answers
     // "has detection run for this session yet", so a later capture failure (the
     // session stopped, the daemon went away) must not put the composer back
@@ -290,6 +294,10 @@ pub async fn run_session_chat_follower(
                         detection.tasks.as_ref(),
                         published_tasks.as_ref(),
                     )
+                    || !crate::session_chat_claude_workflow_cards::same_session_chat_workflows(
+                        detection.workflows.as_ref(),
+                        published_workflows.as_ref(),
+                    )
                     || (detection.attempted && !published_screen_probed);
                 if !emitted_starting || starting_changed {
                     emit_state_frame(
@@ -307,6 +315,7 @@ pub async fn run_session_chat_follower(
                             activity: activity.as_ref(),
                             fleet: detection.fleet.as_ref(),
                             tasks: detection.tasks.as_ref(),
+                            workflows: detection.workflows.as_ref(),
                             probed: published_screen_probed || detection.attempted,
                         },
                     );
@@ -317,6 +326,7 @@ pub async fn run_session_chat_follower(
                     published_activity = activity;
                     published_fleet = detection.fleet;
                     published_tasks = detection.tasks;
+                    published_workflows = detection.workflows;
                     published_screen_probed = published_screen_probed || detection.attempted;
                     emitted_starting = true;
                 }
@@ -467,6 +477,7 @@ pub async fn run_session_chat_follower(
                         activity: snapshot_activity.as_ref(),
                         fleet: snapshot_detection.fleet.as_ref(),
                         tasks: snapshot_detection.tasks.as_ref(),
+                        workflows: snapshot_detection.workflows.as_ref(),
                         probed: published_screen_probed || snapshot_detection.attempted,
                     },
                 );
@@ -478,6 +489,7 @@ pub async fn run_session_chat_follower(
                 published_activity = snapshot_activity;
                 published_fleet = snapshot_detection.fleet;
                 published_tasks = snapshot_detection.tasks;
+                published_workflows = snapshot_detection.workflows;
                 published_prompt = prompt;
                 published_working = live.working;
                 published_state_valid = true;
@@ -656,6 +668,7 @@ pub async fn run_session_chat_follower(
                         activity: published_activity.as_ref(),
                         fleet: published_fleet.as_ref(),
                         tasks: published_tasks.as_ref(),
+                        workflows: published_workflows.as_ref(),
                         probed: published_screen_probed,
                     },
                 );
@@ -861,6 +874,11 @@ pub async fn run_session_chat_follower(
                     detection.tasks.as_ref(),
                     published_tasks.as_ref(),
                 );
+                let workflows_changed =
+                    !crate::session_chat_claude_workflow_cards::same_session_chat_workflows(
+                        detection.workflows.as_ref(),
+                        published_workflows.as_ref(),
+                    );
                 transcript_prompt.observe_stored(probe_live.prompt.as_ref());
                 let resolved_prompt =
                     resolve_session_chat_prompt(probe_live.prompt.clone(), &transcript_prompt);
@@ -883,6 +901,7 @@ pub async fn run_session_chat_follower(
                     || activity_changed
                     || fleet_changed
                     || tasks_changed
+                    || workflows_changed
                     || prompt_changed
                     || probed_changed
                 {
@@ -900,6 +919,9 @@ pub async fn run_session_chat_follower(
                     }
                     if tasks_changed {
                         published_tasks = detection.tasks;
+                    }
+                    if workflows_changed {
+                        published_workflows = detection.workflows;
                     }
                     if prompt_changed {
                         published_prompt = detected_prompt;
@@ -924,6 +946,7 @@ pub async fn run_session_chat_follower(
                             activity: published_activity.as_ref(),
                             fleet: published_fleet.as_ref(),
                             tasks: published_tasks.as_ref(),
+                            workflows: published_workflows.as_ref(),
                             probed: published_screen_probed,
                         },
                     );

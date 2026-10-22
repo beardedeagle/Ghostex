@@ -1360,6 +1360,15 @@ model and effort in compact form, such as Opus 5 High or Astra xHigh. Codex rows
 show the child's name/path beside the model and effort, after a ‣ separator.
 For Claude, hover to see the agent type, such as Explore or general-purpose.
 Unrecorded model values are labelled Model not recorded.
+When Claude runs a workflow (Claude Code's Workflow tool, a script that starts
+several agents in phases), the chat shows it as one Workflow card instead of a
+plain tool row: the workflow's name and description, how many agents are working
+and done, each phase with its progress (such as Map 2/2), and one row per agent
+with a short preview of what it is doing or what it answered and how long it took.
+The card keeps updating while the workflow runs. Click or tap an agent to read
+its whole transcript, and use Show full script under the card to see the script
+Claude ran. The card stays in the chat after the workflow finishes, even when the
+turn that started it is folded.
 Slash commands sent from chat stay in the conversation after a reload, together
 with any captured output. Long command output expands when clicked; model, effort,
 Fast mode, and compaction results keep their status rows.

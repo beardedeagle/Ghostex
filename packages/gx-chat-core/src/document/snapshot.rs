@@ -88,6 +88,10 @@ pub struct Document {
     pub withdrawn_pages: BTreeMap<String, crate::transcript::open_questions::WithdrawnPage>,
     /// Per completed-work row: the read is in flight, or it failed and offers a retry.
     pub deferred_work: BTreeMap<String, DeferredWorkRow>,
+    /// Claude Code workflow runs drawn as cards, by Workflow call id
+    /// (`transcript/workflow_card.rs`); a tool row's `workflow` names its card. Family b.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub workflow_cards: BTreeMap<String, Value>,
 
     // ---- composer ---------------------------------------------------------
     pub queue: Queue,

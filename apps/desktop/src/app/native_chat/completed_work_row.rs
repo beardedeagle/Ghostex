@@ -112,6 +112,9 @@ impl NativeChatView {
         if let Some(cards) = self.sent_agent_message_cards(&item["sentMessages"], p, cx) {
             tail.push(cards);
         }
+        if let Some(cards) = self.workflow_cards(&item["workflows"], p, cx) {
+            tail.push(cards);
+        }
         if item["final"].is_object() {
             tail.push(self.message_row(&item["final"], p, window, cx));
         }
