@@ -181,8 +181,11 @@ pub fn run() -> Result<(), JsValue> {
         let emoji_font = Cow::Borrowed(include_bytes!("../fonts/NotoEmoji-Regular.ttf").as_slice());
         let mono_font =
             Cow::Borrowed(include_bytes!("../fonts/JetBrainsMono-Regular.ttf").as_slice());
+        // CDXC:WebGpui 2026-10-22 DECISION: The user asked for Noto Sans Arabic in the web build: a browser page has no system fonts and the Canvas fallback only covers emoji and CJK, so Arabic, Persian and Urdu text drew as boxes. Text shaping finds it as a fallback face for those letters; the desktop app keeps using the system's fonts. The OFL licence sits beside the file (`fonts/NotoSansArabic-OFL.txt`).
+        let arabic_font =
+            Cow::Borrowed(include_bytes!("../fonts/NotoSansArabic-Regular.ttf").as_slice());
         cx.text_system()
-            .add_fonts(vec![emoji_font, mono_font])
+            .add_fonts(vec![emoji_font, mono_font, arabic_font])
             .expect("Failed to load fonts");
         cx.text_system()
             .add_fonts(platform_fonts())
