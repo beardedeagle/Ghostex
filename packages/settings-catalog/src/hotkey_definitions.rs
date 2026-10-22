@@ -110,6 +110,28 @@ pub const HOTKEY_DEFINITIONS: &[HotkeyDefinition] = &[
         retired_default_keys: &[],
         action: J::Obj(&[("id", J::Str("toggleDictation")), ("kind", J::Str("focusedChatAction"))]),
     },
+    // CDXC:VoiceMode 2026-10-21 DECISION:
+    // User (Q31): add both Read aloud hotkeys, "Read last reply aloud" and "Stop reading", with no default key. They belong to the Read aloud built-in extension (its `hotkeys`), so they are listed and fire only while it is on. Read last reply aloud reads the newest final reply of the chat on screen; Stop reading stops whatever Read aloud is saying, from anywhere in the window.
+    HotkeyDefinition {
+        id: "readAloudLastReply",
+        title: "Read Last Reply Aloud",
+        description: "Read the agent's newest reply in the chat you are looking at aloud, from the start.",
+        default_key: "",
+        windows_linux_default_key: None,
+        alternate_default_keys: &[],
+        retired_default_keys: &[],
+        action: J::Obj(&[("id", J::Str("readAloudLastReply")), ("kind", J::Str("readAloud"))]),
+    },
+    HotkeyDefinition {
+        id: "readAloudStop",
+        title: "Stop Reading",
+        description: "Stop Read aloud, whichever reply it is reading.",
+        default_key: "",
+        windows_linux_default_key: None,
+        alternate_default_keys: &[],
+        retired_default_keys: &[],
+        action: J::Obj(&[("id", J::Str("readAloudStop")), ("kind", J::Str("readAloud"))]),
+    },
     // CDXC:Hotkeys 2026-09-25 DECISION:
     // User: Cmd+Shift+O starts a new session and Cmd+N shows the agent picker, Cmd+T always opens a new browser tab, and Fork Session is Cmd+Ctrl+Shift+F (Ctrl+Alt+Shift+F on Windows and Linux), matching the ChatGPT and Codex apps. New Terminal stays on Cmd+Shift+T. This supersedes the 2026-09-24 layout (Cmd+T new chat, swapped by the default interface, picker on Cmd+Option+T).
     // The same day the user took more ChatGPT/Codex keys: Cmd+/ opens Hotkeys (was Cmd+.), Cmd+Shift+Backspace closes the focused session (Cmd+W stays), Cmd+J opens the Commands panel on Mac only (F12 keeps working everywhere; no Ctrl+J on Windows and Linux), Rename is Cmd+R on Mac and Ctrl+Shift+R on Windows and Linux because Ctrl+R belongs to the terminal, Reload Session has no default, Cmd+Shift+A also sleeps the focused session (Option+Shift+S stays), Cmd+Option+Shift+O opens Quick Access on recent projects, and in chat Cmd+Shift+; copies the last code block and Cmd+Shift+C (Mac only) copies the last reply.

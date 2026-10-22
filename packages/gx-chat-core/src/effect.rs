@@ -155,6 +155,22 @@ pub enum Effect {
     /// Something only the app shell can do: switch to the terminal, pick attachments, report the
     /// composer ready. Free-form because the list belongs to the app, not to chat.
     HostAction { action: String, params: Box<Value> },
+    /// Read aloud: speak `segments` in order with this device's voice, at the Voice and Speed the
+    /// device's settings name, replacing anything the app is speaking. Answered by
+    /// [`crate::ReadAloudEvent::SpeechEnded`] with the same `id` once the last segment ends or the
+    /// speech is cut off. `message_id` is the reply being read, `None` for a question line.
+    Speak {
+        id: String,
+        message_id: Option<String>,
+        segments: Vec<crate::read_aloud::SpeechSegment>,
+    },
+    /// Read aloud: stop utterance `id` if it is still the one speaking; nothing otherwise. Nothing
+    /// answers it (the core has already forgotten the utterance).
+    StopSpeaking { id: String },
+    /// Read aloud: the reader switched Auto-read in this chat's ⋯ menu. The host keeps the value for
+    /// this run of the app (never saved) and pushes it into every chat as
+    /// [`crate::ReadAloudEvent::SetAuto`].
+    SetReadAloudAuto { on: bool },
 }
 
 /// One write of a [`Effect::WriteStorageBatch`].

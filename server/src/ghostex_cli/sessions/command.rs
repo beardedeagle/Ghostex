@@ -33,6 +33,7 @@ pub fn sessions_command(args: &[String]) -> CliResult<()> {
                 merged.insert(key, value);
             }
         }
+        insert_built_in_features(&mut merged);
         print_json(&Value::Object(merged));
         return Ok(());
     }

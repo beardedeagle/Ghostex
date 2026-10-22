@@ -87,6 +87,8 @@ pub struct CatalogEntry {
     pub platform_defaults: Vec<(Platform, &'static J)>,
     /// A sentence when the row is not shown everywhere (`availability::availability_note`).
     pub availability: Option<String>,
+    /// The row's choices come from the running app (`rows::RuntimeOptions`).
+    pub runtime_options: Option<crate::rows::RuntimeOptions>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -248,6 +250,7 @@ fn catalog_entry(row: &SettingRow, location: &Location) -> CatalogEntry {
             crate::built_in_extensions::feature_owning_page(location.tab.0)
                 .and_then(crate::built_in_extensions::availability_note)
         }),
+        runtime_options: row.runtime_options,
     }
 }
 
@@ -375,10 +378,12 @@ pub fn catalog() -> Catalog {
         push(entry, &mut entries);
     }
 
+    entries.retain(|entry| crate::built_in_extensions::key_exists_somewhere(&entry.key));
     sort_by_page(&mut entries);
 
     let hotkeys = hotkey_definitions()
         .iter()
+        .filter(|definition| crate::built_in_extensions::hotkey_exists_somewhere(definition.id))
         .map(|definition| CatalogHotkey {
             id: definition.id,
             title: definition.title,
@@ -499,6 +504,9 @@ impl CatalogEntry {
         }
         if let Some(note) = &self.availability {
             fields.push(("availability", Json::str(note)));
+        }
+        if let Some(source) = self.runtime_options {
+            fields.push(("runtimeOptions", Json::str(source.as_str())));
         }
         Json::obj(fields)
     }

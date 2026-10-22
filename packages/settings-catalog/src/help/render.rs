@@ -49,7 +49,12 @@ fn describe_type(entry: &CatalogEntry) -> String {
             };
             format!("number{range}{allowed} default {default}")
         }
-        ValueType::String => format!("text, default {default}"),
+        ValueType::String => match entry.runtime_options {
+            Some(crate::rows::RuntimeOptions::SystemVoices) => format!(
+                "text: the name of a voice installed on this computer, as its Settings row lists them; default {default}, the system voice"
+            ),
+            None => format!("text, default {default}"),
+        },
         ValueType::Json => {
             "structured value; change it in Settings, not with `ghostex settings set`".to_string()
         }

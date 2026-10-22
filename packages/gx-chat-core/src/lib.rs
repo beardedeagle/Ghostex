@@ -35,6 +35,7 @@ pub mod jstime;
 pub mod menus;
 pub mod query;
 pub mod questions;
+pub mod read_aloud;
 pub mod session;
 pub mod state;
 pub mod transcript;
@@ -56,6 +57,7 @@ pub use crate::event::{
     ChatSettings, ComposerBootRead, ConnectionUpdate, Event, KnownSession, Measurement,
     OpenRowDetail, StartConfig, StorageKey, StorageRecord,
 };
+pub use crate::read_aloud::{ReadAloudDocument, ReadAloudEvent, SegmentKind, SpeechSegment};
 pub use crate::state::{
     ChatContext, ChatState, CommandMarker, ComposerState, CoreState, ExtrasState, FormattedTime,
     FormattedTimeStyle, FramePosition, LoadEarlierRequest, MenusState, MessagesState, PendingSend,

@@ -55,6 +55,14 @@ pub fn answer_query(
         Query::InsertAnswerAttachments => to_json(&answer_attachments_edit(arguments)?),
         Query::RemoveChatReference => to_json(&chat_reference_removal(arguments)?),
         Query::RenderVisual => render_visual(arguments)?,
+        // `null` when the chat has no agent message by that id.
+        Query::SpeakableSegments => to_json(&crate::read_aloud::message_segments(
+            state,
+            first.and_then(Value::as_str)?,
+        )),
+        Query::SpeakableMarkdown => to_json(&crate::read_aloud::speakable_segments(
+            first.and_then(Value::as_str)?,
+        )),
     })
 }
 
@@ -137,6 +145,10 @@ pub enum Query {
     RemoveChatReference,
     /// One ```visual block drawn for the phone: its scene as SVG, tooltip regions, or a page card.
     RenderVisual,
+    /// `speakableSegments(messageId)`: what Read aloud says for one agent message.
+    SpeakableSegments,
+    /// `speakableMarkdown(markdown)`: the same for any Markdown (the voice agent, tests).
+    SpeakableMarkdown,
 }
 
 impl Query {
@@ -151,6 +163,8 @@ impl Query {
             Self::InsertAnswerAttachments => "insertAnswerAttachments",
             Self::RemoveChatReference => "removeChatReference",
             Self::RenderVisual => "renderVisual",
+            Self::SpeakableSegments => "speakableSegments",
+            Self::SpeakableMarkdown => "speakableMarkdown",
         }
     }
 
@@ -165,6 +179,8 @@ impl Query {
             "insertAnswerAttachments" => Self::InsertAnswerAttachments,
             "removeChatReference" => Self::RemoveChatReference,
             "renderVisual" => Self::RenderVisual,
+            "speakableSegments" => Self::SpeakableSegments,
+            "speakableMarkdown" => Self::SpeakableMarkdown,
             _ => return None,
         })
     }

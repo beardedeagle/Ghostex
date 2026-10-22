@@ -10,7 +10,7 @@
 use crate::action::{ActionKind, UserAction};
 use crate::effect::Effect;
 use crate::state::{ChatContext, ChatState};
-use crate::{composer, extras, menus, questions, session, transcript};
+use crate::{composer, extras, menus, questions, read_aloud, session, transcript};
 
 /// The family that owns an action kind.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -27,6 +27,8 @@ pub enum Family {
     Menus,
     /// Family f: minimap, search, subagents, panels, terminal tail, Save to Markdown.
     Extras,
+    /// Read aloud (`crate::read_aloud`).
+    ReadAloud,
 }
 
 /// Who handles this kind.
@@ -177,6 +179,11 @@ pub fn owner(kind: &ActionKind) -> Option<Family> {
         | ActionKind::MarkdownSaveCancel
         | ActionKind::MarkdownSaveSubmit => Family::Extras,
 
+        ActionKind::ReadAloudMessage
+        | ActionKind::ReadAloudLastReply
+        | ActionKind::ReadAloudStop
+        | ActionKind::ReadAloudAuto => Family::ReadAloud,
+
         ActionKind::Other(_) => return None,
     })
 }
@@ -235,8 +242,10 @@ fn dispatch_action(
         Some(Family::Composer) => composer::handle(state, action, context),
         Some(Family::Menus) => menus::handle(state, action, context),
         Some(Family::Extras) => extras::handle(state, action, context),
+        Some(Family::ReadAloud) => read_aloud::handle(state, action, context),
         None => return Vec::new(),
     };
+    read_aloud::after_action(state, &action.kind);
     if std::mem::take(&mut state.core.skip_closing_publish) {
         return effects;
     }
@@ -292,6 +301,11 @@ fn clears_error(kind: &ActionKind) -> bool {
             | ActionKind::SubagentClose
             | ActionKind::SubagentRetry
             | ActionKind::SubagentLoadEarlier
+            // Reading aloud is not a gesture that can itself refuse.
+            | ActionKind::ReadAloudMessage
+            | ActionKind::ReadAloudLastReply
+            | ActionKind::ReadAloudStop
+            | ActionKind::ReadAloudAuto
             | ActionKind::Other(_)
     )
 }

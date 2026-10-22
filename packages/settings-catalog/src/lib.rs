@@ -32,7 +32,7 @@ pub use hotkey_label::hotkey_label;
 pub use hotkeys::{default_hotkeys, hotkey_definition, hotkey_definitions, HotkeyDefinition};
 pub use json::{Json, ToJson, J};
 pub use layout::{general_group, general_navigation, GeneralGroup, NavItem, GENERAL_GROUPS};
-pub use rows::{Page, Section, SettingOption, SettingRow};
+pub use rows::{Page, RuntimeOptions, Section, SettingOption, SettingRow};
 
 /// The desktop platform a catalog is built for: shortcut labels and a few rows differ.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

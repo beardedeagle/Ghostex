@@ -107,6 +107,7 @@ fn route(state: &mut ChatState, event: &Event, context: &ChatContext) -> Vec<Eff
         | Event::ModelCatalogChanged { .. }
         | Event::Measured(_)
         | Event::DraftChanged { .. } => Vec::new(),
+        Event::ReadAloud(input) => crate::read_aloud::handle_event(state, input, context),
         Event::SessionDirectoryChanged { sessions } => {
             let view = &mut state.transcript_view;
             if view.session_directory != *sessions {

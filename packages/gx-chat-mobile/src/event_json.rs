@@ -8,7 +8,7 @@
 use ghostex_gx_chat_core::protocol::{ChatAppendedFrame, ChatSnapshotFrame, ChatStateFrame};
 use ghostex_gx_chat_core::{
     ChatFrame, ChatSettings, ComposerBootRead, ConnectionUpdate, Event, KnownSession, Measurement,
-    OpenRowDetail, RpcOutcome, StartConfig, StorageKey, StorageRecord, UserAction,
+    OpenRowDetail, ReadAloudEvent, RpcOutcome, StartConfig, StorageKey, StorageRecord, UserAction,
 };
 use serde::Deserialize;
 use serde_json::Value;
@@ -90,6 +90,11 @@ enum EventJson {
     },
     SessionDirectoryChanged {
         sessions: Vec<KnownSession>,
+    },
+    /// `{"type": "readAloud", "event": {"kind": "setAvailable", "on": true}}`: the core's own
+    /// serde form of a Read aloud input, already camelCase.
+    ReadAloud {
+        event: ReadAloudEvent,
     },
 }
 
@@ -180,6 +185,7 @@ pub(crate) fn parse(json: &str) -> Result<Event, String> {
         EventJson::SessionDirectoryChanged { sessions } => {
             Event::SessionDirectoryChanged { sessions }
         }
+        EventJson::ReadAloud { event } => Event::ReadAloud(event),
     })
 }
 

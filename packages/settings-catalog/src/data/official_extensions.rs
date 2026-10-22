@@ -272,6 +272,24 @@ pub const GHOSTEX_OFFICIAL_EXTENSIONS: J = J::Arr(&[
         ("settingsPages", J::Arr(&[J::Str("workspaces")])),
         ("settingKeys", J::Arr(&[J::Str("projectWorkMode"), J::Str("projectLinearApiKey")])),
     ]),
+    // CDXC:VoiceMode 2026-10-21 DECISION:
+    // User: Read aloud ships as a Ghostex extension, disabled by default (2026-10-20), and (Q23) as a built-in extension, not a Store extension: a Store extension cannot reach the chat composer, a message's actions or the phone. A whole-feature entry like Workspaces, with a new key (`readAloudHidden`, default on = hidden) because the settings file stores every default; off hides the reply action, the ⋯ menu rows, the Voice and Speed rows and the two hotkeys, and keeps their saved values. No `platforms` list: the switch also governs the phone and Ghostex in a browser that talk to this computer, so it exists on Linux too, where the desktop draws no controls (Q25; `readAloudUnavailable` says why).
+    // SEE-ALSO: packages/gx-chat-core/src/read_aloud/ (the rules), server/src/ghostex_cli/sessions/mobile_summary.rs (`builtInFeatures`, how the phone learns the switch), docs/2026-10-20/voice-mode/read-aloud-client-contract.md.
+    J::Obj(&[
+        ("description", J::Str("Hear the agent's replies spoken aloud: Read aloud on a reply, and Auto-read in the chat's ⋯ menu, which speaks each finished reply of the chat you're looking at. Uses this device's own voices.")),
+        ("category", J::Str("features")),
+        ("id", J::Str("readAloud")),
+        ("placement", J::Str("feature")),
+        ("settingsKey", J::Str("readAloudHidden")),
+        // CDXC:VoiceMode 2026-10-22 DECISION: User: "it's ok to bring read aloud work into this release just make it experimental for now if not finished yet (show experimental features makes it appear in the extensions where if enabled then it actually work)". Gated by Enable Experimental Features like Connectors: its card, its Chat rows and its hotkeys show only while that is on, and the phone hears it is on (`builtInFeatures`) only then.
+        ("gatedBy", J::Str("showBetaFeatures")),
+        // CDXC:VoiceMode 2026-10-22 WHY: no app has the Read aloud controls or a speech engine yet, and the user wants the card to appear only where turning it on really works. `unreleased` makes the entry exist on no platform (`built_in_extensions::available_on`), so there is no card, no Chat row, no hotkey and nothing in the generated Help even with experimental features on. Delete this line once the desktop and phone draw the controls and speak, and name Read aloud in Enable Experimental Features' subtitle (`showBetaFeatures`, general/system.rs) in the same change.
+        ("unreleased", J::Bool(true)),
+        ("appWide", J::Bool(true)),
+        ("title", J::Str("Read aloud")),
+        ("settingKeys", J::Arr(&[J::Str("readAloudVoice"), J::Str("readAloudRate"), J::Str("readAloudUnavailable")])),
+        ("hotkeys", J::Arr(&[J::Str("readAloudLastReply"), J::Str("readAloudStop")])),
+    ]),
     // CDXC:Extensions 2026-10-19 DECISION:
     // User (Q306): Connectors, OS Integration and Debugging join the Settings rail's Extensions group, and "for the ones that aren't in extensions already add them to extensions and allow disabling/enabling them". Q313: "Switch on top of the gate": each is on by default and its page shows only while its switch is on and its gate (`gatedBy`) is open: Enable Experimental Features for Connectors and OS Integration, Show Advanced for Debugging (a search still finds Debugging, CDXC:Settings 2026-09-26 in rail.rs). Its Store card is left out while the gate is closed. Turning Connectors off also turns off `ghostex connectors` and its gxserver routes (server/src/connectors/gate.rs, whose CDXC:Connectors 2026-10-15 decision still holds). New `…Hidden` keys default to false, so nobody's Settings changes.
     J::Obj(&[

@@ -114,6 +114,8 @@ impl ChatCore {
             effects.extend(events::dispatch(&mut self.state, &expanded, &self.context));
         }
         self.republish();
+        // Read aloud's speech rides after the publish that shows it (`read_aloud/playback.rs`).
+        effects.append(&mut self.state.read_aloud.outbox);
         // One wake for the whole core, not one per timer: the table knows which key is earliest,
         // and the host only has to be asked again when that answer changed.
         let wake = self.next_wake_ms();
@@ -291,6 +293,8 @@ impl ChatCore {
         // `presentation.update(state.messages, …)` runs here in `publish`, on the list the
         // composition above has just produced.
         crate::transcript::rows::refresh(&mut self.state, &self.context);
+        // Auto-read reads the `finalIds` the refresh above just computed.
+        crate::read_aloud::observe(&mut self.state, &self.context);
         // The test is "did the STATE change", asked in the only terms the core has: assemble the
         // new state at the clock the published document was assembled at. Equal means nothing but
         // the clock moved, and the TypeScript would not have published either, so the host keeps

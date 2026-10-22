@@ -399,6 +399,9 @@ pub(crate) const GPUI_DEFAULT_GHOSTEX_HOTKEYS: &[(&str, &str)] = &[
     ("toggleChatFilesLinks", "ctrl+alt+l"),
     ("toggleVoiceAgent", "ctrl+alt+v"),
     ("toggleDictation", "ctrl+alt+d"),
+    // Read aloud's two hotkeys have no default key (packages/settings-catalog/src/hotkey_definitions.rs).
+    ("readAloudLastReply", ""),
+    ("readAloudStop", ""),
     ("forkSession", "cmd+ctrl+shift+f"),
     ("reloadSession", ""),
     ("sleepFocusedSession", "cmd+shift+a"),

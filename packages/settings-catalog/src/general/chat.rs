@@ -1,6 +1,6 @@
 use crate::data::*;
-use crate::json::opt;
-use crate::rows::{row, section, Section};
+use crate::json::{num_opt, opt};
+use crate::rows::{row, section, RuntimeOptions, Section};
 
 pub(crate) fn chat() -> Section {
     section(
@@ -29,6 +29,16 @@ pub(crate) fn chat() -> Section {
             row("orchestratorAllEfforts", "Show all effort levels", "Lists every effort level in the orchestrator effort pickers. Anything below High isn't recommended for orchestrators."),
             row("orchestratorPlaybook", "Orchestrator playbook", "How every orchestrator works: the playbook it follows. Edit it for all projects here, or for one project and its worktrees in Settings > Projects. Orchestrators, existing ones too, follow the edited playbook from their next guide read, and a switch turns an edited playbook off without losing it."),
             row("sessionChatVerboseMode", "Verbose mode", "Expand thinking blocks to show their tool calls by default. Each chat can override it from its composer."),
+            /*
+            CDXC:VoiceMode 2026-10-21 DECISION:
+            User (Q26): Read aloud's Voice and Speed are two rows on the existing Chat page, not a page of their own. (Q25) Hidden on Linux, which has no system voice: there the page shows `readAloudUnavailable` instead, pointing to the phone and the browser (`availability.rs`). Speed stays on Linux because Ghostex in a browser uses this computer's Speed.
+            CDXC:VoiceMode 2026-10-21 WHY: the rows show only while Read aloud is on (they are the feature's `settingKeys` in official_extensions.rs), like every other built-in feature's rows; with it off they would set something nothing uses. This is the orchestrator's call, not the user's.
+            */
+            row("readAloudVoice", "Read aloud voice", "The voice Read aloud speaks the agent's replies with: System voice, or one of the voices installed on this computer. Add voices in your computer's speech or accessibility settings. The phone has its own Voice in its Settings > Chat.").runtime_options(RuntimeOptions::SystemVoices),
+            row("readAloudRate", "Read aloud speed", "How fast Read aloud speaks, from 0.75× to twice as fast. Ghostex in a browser uses it too; the phone has its own Speed.").num_options(&[
+                num_opt("0.75×", 0.75), num_opt("1×", 1.0), num_opt("1.25×", 1.25), num_opt("1.5×", 1.5), num_opt("2×", 2.0),
+            ]),
+            row("readAloudUnavailable", "Read aloud", "This computer has no system voice, so Read aloud has no controls here. It works in the Ghostex phone app and in Ghostex in a browser connected to this computer."),
         ],
     )
 }

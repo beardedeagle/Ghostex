@@ -83,6 +83,9 @@ pub enum Event {
     /// Every session the host's own session list knows, on every machine, so a message between
     /// agents is named after the other session even when the transcript never says who it is.
     SessionDirectoryChanged { sessions: Vec<KnownSession> },
+    /// What only the app knows about Read aloud (the feature is on, Auto-read, the chat on screen,
+    /// a voice conversation, the microphone) and its speech engine's answers (`crate::read_aloud`).
+    ReadAloud(crate::read_aloud::ReadAloudEvent),
 }
 
 /// One session the host's session list knows (the sidebar on the desktop and the web build, the

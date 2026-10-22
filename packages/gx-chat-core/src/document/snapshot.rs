@@ -253,6 +253,11 @@ pub struct Document {
     pub skills_loading: bool,
     pub files_loading: bool,
 
+    // ---- read aloud ---------------------------------------------------------
+    /// The Read aloud controls' state (`crate::read_aloud`).
+    #[serde(default)]
+    pub read_aloud: crate::read_aloud::ReadAloudDocument,
+
     /// Keys this build does not model yet, carried through untouched.
     ///
     /// The producer spreads whole computation results into the document, so a new key can appear

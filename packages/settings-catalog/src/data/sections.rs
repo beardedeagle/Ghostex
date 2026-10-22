@@ -173,6 +173,8 @@ pub const HOTKEY_SETTINGS_SECTIONS: J = J::Arr(&[
                 J::Str("toggleChatFilesLinks"),
                 J::Str("toggleVoiceAgent"),
                 J::Str("toggleDictation"),
+                J::Str("readAloudLastReply"),
+                J::Str("readAloudStop"),
                 J::Str("createAgentSession"),
                 J::Str("createSession"),
                 J::Str("openCommandPalette"),
@@ -406,6 +408,9 @@ pub const MAIN_SETTINGS_SCROLL_TARGET_SETTING_KEYS: &[(&str, &[&str])] = &[
             "orchestratorPlainReplies",
             "orchestratorAllEfforts",
             "orchestratorPlaybook",
+            "readAloudVoice",
+            "readAloudRate",
+            "readAloudUnavailable",
         ],
     ),
     (
@@ -744,6 +749,9 @@ pub const MAIN_SETTINGS_SECTION_SETTING_KEYS: &[(&str, &[&str])] = &[
             "orchestratorPlainReplies",
             "orchestratorAllEfforts",
             "orchestratorPlaybook",
+            "readAloudVoice",
+            "readAloudRate",
+            "readAloudUnavailable",
         ],
     ),
     (

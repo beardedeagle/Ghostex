@@ -20,6 +20,12 @@ pub(super) fn built_in_extension_enabled(id: &str) -> bool {
     built_in_extensions::enabled(&saved_settings(), id)
 }
 
+/// The ids of the whole-feature built-in extensions that are on for this machine.
+pub(super) fn enabled_built_in_features() -> Vec<&'static str> {
+    let settings = saved_settings();
+    built_in_extensions::enabled_features_with(|key| settings.get(key).and_then(Value::as_bool))
+}
+
 /// `Ok` while `id` is on; otherwise the "turned off" error naming the switch to flip.
 pub(super) fn require_built_in_extension(id: &str) -> CliResult<()> {
     if built_in_extension_enabled(id) {

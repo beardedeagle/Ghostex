@@ -94,7 +94,7 @@ impl MobileChatCore {
 
     /// One of the pure helpers (`composerReferences`, `composerKeyIntent`, `referenceMenu`,
     /// `transcriptMenu`, `sendBlockedToast`, `insertAnswerAttachments`, `removeChatReference`,
-    /// `renderVisual`), answered from the current state.
+    /// `renderVisual`, `speakableSegments`, `speakableMarkdown`), answered from the current state.
     pub fn query(&self, name: String, arguments_json: String) -> String {
         self.run(|core| {
             let query = Query::from_wire(&name)

@@ -19,6 +19,26 @@ pub struct SettingRow {
     pub options: Vec<SettingOption>,
     /// Shown only while Show Advanced is on (search still finds it).
     pub advanced: bool,
+    /// The row is a select whose choices only the running app knows; `options` is then empty.
+    pub runtime_options: Option<RuntimeOptions>,
+}
+
+/// Where a select's choices come from when the catalog cannot list them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RuntimeOptions {
+    /// This device's installed speech voices, after a first "System voice" choice stored as `""`.
+    /// Each app lists its own (`readAloudVoice`: macOS `AVSpeechSynthesisVoice`, Windows
+    /// `SpeechSynthesizer::AllVoices`, the browser's `speechSynthesis`).
+    SystemVoices,
+}
+
+impl RuntimeOptions {
+    /// The id the catalog JSON carries (`runtimeOptions`).
+    pub fn as_str(self) -> &'static str {
+        match self {
+            RuntimeOptions::SystemVoices => "systemVoices",
+        }
+    }
 }
 
 /// A titled list of rows: a General section, or one section of another page.
@@ -56,6 +76,7 @@ pub(crate) fn row(
         subtitle: subtitle.into(),
         options: Vec::new(),
         advanced: false,
+        runtime_options: None,
     }
 }
 
@@ -95,6 +116,11 @@ impl SettingRow {
                     .to_string(),
             }
         }));
+        self
+    }
+
+    pub(crate) fn runtime_options(mut self, source: RuntimeOptions) -> Self {
+        self.runtime_options = Some(source);
         self
     }
 

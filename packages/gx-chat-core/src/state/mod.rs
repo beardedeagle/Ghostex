@@ -12,6 +12,7 @@ mod messages;
 mod pending;
 mod pickers;
 mod questions;
+mod read_aloud;
 mod session;
 mod transcript_view;
 
@@ -35,6 +36,7 @@ pub use crate::state::pickers::{
 pub use crate::state::questions::{
     AnswerRequest, AsyncQuestionsState, AsyncSubmit, FormSend, FormState, QuestionsState,
 };
+pub use crate::state::read_aloud::{Notice, Playing, ReadAloudState};
 pub use crate::state::session::{SessionIdentity, SessionState};
 pub use crate::state::transcript_view::{
     OpenRow, ProjectedMessage, ProjectionInputs, RewindRequest, TranscriptViewState,

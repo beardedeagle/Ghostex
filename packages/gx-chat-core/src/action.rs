@@ -225,6 +225,12 @@ action_kinds! {
     RewindSubmit => "rewindSubmit",
     SavePrompt => "savePrompt",
 
+    // Read aloud (`read_aloud/actions.rs`).
+    ReadAloudMessage => "readAloudMessage",
+    ReadAloudLastReply => "readAloudLastReply",
+    ReadAloudStop => "readAloudStop",
+    ReadAloudAuto => "readAloudAuto",
+
     // Modes and loading.
     ToggleSummary => "toggleSummary",
     SetVerbose => "setVerbose",

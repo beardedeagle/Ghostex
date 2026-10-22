@@ -31,6 +31,9 @@ pub const CLOUD_BOXES: &str = "cloudBoxes";
 /// Link to, Create Linear ticket, the Work view, the team's Slack flow, the `ghostex workspace`,
 /// `work-mode`, `link-session`, `team` and `slack` verbs).
 pub const WORKSPACES: &str = "workspaces";
+/// Read aloud (the reply action, Auto-read in the chat's ⋯ menu, the Voice and Speed rows on
+/// Settings > Chat, its two hotkeys); the phone learns it from `builtInFeatures`.
+pub const READ_ALOUD: &str = "readAloud";
 /// Connectors (Settings > Connectors, the `ghostex connectors` verbs and routes). Gated by Enable
 /// Experimental Features as well as its switch.
 pub const CONNECTORS: &str = "connectors";
@@ -71,8 +74,12 @@ pub fn switch_key(id: &str) -> Option<(&'static str, bool)> {
 }
 
 /// Whether built-in extension `id` exists on `platform` (its `platforms` list; none means every
-/// platform). One that does not is left off the Extensions page and is always off there.
+/// platform; an `unreleased` entry exists on none). One that does not is left off the Extensions
+/// page and is always off there.
 pub fn available_on(id: &str, platform: Platform) -> bool {
+    if entry(id).and_then(|entry| entry.get("unreleased")) == Some(&J::Bool(true)) {
+        return false;
+    }
     let Some(platforms) = entry(id).and_then(|entry| entry.get("platforms")) else {
         return true;
     };
@@ -133,6 +140,20 @@ pub fn enabled_with(id: &str, read: impl Fn(&str) -> Option<bool>) -> bool {
     value == enables
 }
 
+/// Whether built-in extension `id` is on and its gate (`gatedBy`) is open: what the user gets.
+pub fn on_with(id: &str, read: impl Fn(&str) -> Option<bool>) -> bool {
+    enabled_with(id, &read) && gate_open_with(id, &read)
+}
+
+/// The ids of every whole-feature entry (`placement: "feature"`) that is on, in catalog order,
+/// reading saved values through `read`. gxserver sends this to the phone as `builtInFeatures`.
+pub fn enabled_features_with(read: impl Fn(&str) -> Option<bool>) -> Vec<&'static str> {
+    features()
+        .filter_map(|entry| entry.get("id").and_then(J::as_str))
+        .filter(|id| on_with(id, &read))
+        .collect()
+}
+
 /// The setting that must also be on before built-in extension `id` shows at all (`gatedBy`:
 /// Enable Experimental Features for Connectors and OS Integration, Show Advanced for Debugging).
 /// Its switch sits on top of that gate; while the gate is closed its Store card is left out.
@@ -176,15 +197,15 @@ pub fn feature_owning_hotkey(hotkey_id: &str) -> Option<&'static str> {
         .and_then(|entry| entry.get("id").and_then(J::as_str))
 }
 
-/// Every row (setting key) owned by a whole-feature extension that is off, for a Settings search
-/// to leave out.
+/// Every row (setting key) owned by a whole-feature extension that is off or behind a closed
+/// gate, for a Settings search to leave out.
 pub fn hidden_setting_keys_with(read: impl Fn(&str) -> Option<bool>) -> Vec<&'static str> {
     features()
         .filter(|entry| {
             entry
                 .get("id")
                 .and_then(J::as_str)
-                .is_some_and(|id| !enabled_with(id, &read))
+                .is_some_and(|id| !on_with(id, &read))
         })
         .flat_map(|entry| strings(entry, "settingKeys"))
         .collect()
@@ -195,9 +216,27 @@ pub fn page_shown_with(page_id: &str, read: impl Fn(&str) -> Option<bool>) -> bo
     feature_owning_page(page_id).is_none_or(|id| enabled_with(id, read))
 }
 
-/// Hotkey `hotkey_id` is listed and fires: no feature owns it, or its feature is on.
+/// Hotkey `hotkey_id` is listed and fires: no feature owns it, or its feature is on and its gate
+/// is open.
 pub fn hotkey_shown_with(hotkey_id: &str, read: impl Fn(&str) -> Option<bool>) -> bool {
-    feature_owning_hotkey(hotkey_id).is_none_or(|id| enabled_with(id, read))
+    feature_owning_hotkey(hotkey_id).is_none_or(|id| on_with(id, read))
+}
+
+/// Whether setting `key` exists on some platform; the generated Help leaves out one that does not
+/// (an `unreleased` built-in extension's switch and rows).
+pub fn key_exists_somewhere(key: &str) -> bool {
+    [Platform::MacOs, Platform::Windows, Platform::Linux]
+        .into_iter()
+        .any(|platform| !key_unavailable_on(platform, key))
+}
+
+/// Whether hotkey `hotkey_id` exists on some platform: no feature owns it, or its feature does.
+pub fn hotkey_exists_somewhere(hotkey_id: &str) -> bool {
+    feature_owning_hotkey(hotkey_id).is_none_or(|id| {
+        [Platform::MacOs, Platform::Windows, Platform::Linux]
+            .into_iter()
+            .any(|platform| available_on(id, platform))
+    })
 }
 
 /// The customer-facing name of built-in extension `id` (its card title).

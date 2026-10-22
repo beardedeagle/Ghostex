@@ -123,6 +123,8 @@ pub const DEFAULT_GHOSTEX_SETTINGS: &[(&str, J)] = &[
     ("cloudBoxesHidden", J::Bool(true)),
     // CDXC:Workspaces 2026-10-09 DECISION: Workspaces is off by default (official_extensions.rs).
     ("workspacesHidden", J::Bool(true)),
+    // CDXC:VoiceMode 2026-10-21 DECISION: Read aloud is off by default (official_extensions.rs).
+    ("readAloudHidden", J::Bool(true)),
     // CDXC:Extensions 2026-10-19 DECISION: Connectors, OS Integration and Debugging are on by default; their old gates still apply (official_extensions.rs).
     ("connectorsHidden", J::Bool(false)),
     ("osIntegrationHidden", J::Bool(false)),
@@ -525,6 +527,10 @@ pub const DEFAULT_GHOSTEX_SETTINGS: &[(&str, J)] = &[
     ("voiceAgentOpenaiVoice", J::Str("marin")),
     ("voiceAgentSpeed", J::Str("1")),
     ("voiceAgentCallMode", J::Str("regular")),
+    // Read aloud's Voice (empty is the system voice) and Speed, on Settings > Chat. Auto-read has no
+    // saved value: CDXC:VoiceMode 2026-10-21 DECISION in packages/gx-chat-core/src/read_aloud/events.rs.
+    ("readAloudVoice", J::Str("")),
+    ("readAloudRate", J::Num(1.0)),
     // CDXC:SessionChat 2026-10-14 DECISION: User: "Disable this feature by default unless the user has it enabled in Settings, since I want to test it more." The chat's Previous question button shows only while this is on.
     ("chatPreviousQuestion", J::Bool(false)),
     // Whether someone flipped Previous question themselves (`USER_SET_COMPANIONS`).

@@ -56,6 +56,17 @@ const ROWS: &[RowAvailability] = &[
         only_on: &[Platform::MacOs],
         hidden_while: None,
     },
+    // CDXC:VoiceMode 2026-10-21 SEE-ALSO: Read aloud has no system voice on Linux (the DECISION is in general/chat.rs), so its Voice row is left out there and the note takes its place.
+    RowAvailability {
+        key: "readAloudVoice",
+        only_on: &[Platform::MacOs, Platform::Windows],
+        hidden_while: None,
+    },
+    RowAvailability {
+        key: "readAloudUnavailable",
+        only_on: &[Platform::Linux],
+        hidden_while: None,
+    },
 ];
 
 /// A default that differs from `DEFAULT_GHOSTEX_SETTINGS` on one platform.

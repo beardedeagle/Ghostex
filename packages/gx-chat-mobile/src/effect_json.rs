@@ -93,6 +93,18 @@ fn encode(effect: Effect) -> Value {
         Effect::HostAction { action, params } => {
             json!({ "type": "hostAction", "action": action, "params": *params })
         }
+        Effect::Speak {
+            id,
+            message_id,
+            segments,
+        } => json!({
+            "type": "speak",
+            "id": id,
+            "messageId": message_id,
+            "segments": segments,
+        }),
+        Effect::StopSpeaking { id } => json!({ "type": "stopSpeaking", "id": id }),
+        Effect::SetReadAloudAuto { on } => json!({ "type": "setReadAloudAuto", "on": on }),
         // `Effect` is `#[non_exhaustive]`: a core newer than this binding surfaces as a named
         // unknown the host can count, never as a silent drop.
         other => json!({ "type": "unknown", "name": variant_name(&other) }),

@@ -20,6 +20,7 @@ pub fn assemble(state: &ChatState, context: &ChatContext) -> Document {
     composer::document(state, context, &mut document);
     menus::document(state, context, &mut document);
     extras::document(state, context, &mut document);
+    crate::read_aloud::document(state, context, &mut document);
     document
 }
 

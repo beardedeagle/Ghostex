@@ -35,6 +35,8 @@ pub struct ChatState {
     pub pickers: crate::state::PickersState,
     /// The minimap, search, subagents, panels and the terminal tail. Family f.
     pub extras: ExtrasState,
+    /// Read aloud (`crate::read_aloud`).
+    pub read_aloud: crate::state::ReadAloudState,
 }
 
 /// The few things that belong to the seam rather than to a surface.

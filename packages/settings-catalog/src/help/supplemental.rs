@@ -454,6 +454,17 @@ pub(crate) const SUPPLEMENTAL_ROWS: &[Supplemental] = &[
         user_only: false,
     },
     Supplemental {
+        key: "readAloudHidden",
+        tab: EXTENSIONS,
+        group: None,
+        section: "official",
+        section_title: "Built-in",
+        title: "Turn off Read aloud",
+        subtitle: "Turn off Read aloud everywhere: Read aloud on replies, Auto-read in the chat's ⋯ menu, the Read aloud rows on Settings > Chat and the Read aloud hotkeys, on this computer and in the phone app and browser connected to it. Off by default, and shown only while Enable Experimental Features is on; your Voice and Speed are kept.",
+        options: &[],
+        user_only: false,
+    },
+    Supplemental {
         key: "connectorsHidden",
         tab: EXTENSIONS,
         group: None,
