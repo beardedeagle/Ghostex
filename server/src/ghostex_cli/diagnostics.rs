@@ -200,7 +200,10 @@ fn collect_logs(lines: f64) -> Value {
         })
         .unwrap_or_default();
     entries.sort();
-    for file in entries.into_iter().filter(|entry| entry.ends_with(".log")) {
+    for file in entries
+        .into_iter()
+        .filter(|entry| entry.ends_with(".log") || entry.ends_with(".jsonl"))
+    {
         let text = std::fs::read_to_string(log_dir().join(&file)).unwrap_or_default();
         let file_lines = slice_last(split_log_lines(&text), lines);
         result.insert(
@@ -342,6 +345,11 @@ fn print_no_log_match_note() {
     );
 }
 
+/// `ghostex bundle [dir]`: the app state, a screenshot, gxserver's status and the newest log lines,
+/// written to one folder for a bug report.
+///
+/// CDXC:Diagnostics 2026-10-22 WHY:
+/// The bundle is what a user is asked for when Ghostex is broken, yet it stopped at its first step whenever gxserver was down (it asked gxserver for the app state first) and on Windows always failed on its macOS-only screenshot tool, and it left out `gxserver.jsonl`. Every part is now collected on its own; a part that cannot be collected is recorded in `problems` with its reason, and `server.json` says what the CLI found about gxserver without needing it to answer.
 pub fn bundle_command(args: &[String]) -> CliResult<()> {
     let parsed = parse_args(args);
     let flags = &parsed.flags;
@@ -350,25 +358,76 @@ pub fn bundle_command(args: &[String]) -> CliResult<()> {
         None => cli_dir().join(format!("bundle-{}", timestamp_slug())),
     });
     std::fs::create_dir_all(&output_dir)?;
-    let state = actions::send_gxserver_cli_action("state", &json!({}), flags)?;
+    let mut problems = Vec::new();
+    let state =
+        actions::send_gxserver_cli_action("state", &json!({}), flags).unwrap_or_else(|error| {
+            problems.push(format!("App state: {error}"));
+            json!({ "ok": false, "error": error.to_string() })
+        });
     let screenshot = output_dir.join("screenshot.png");
-    capture_screenshot(&screenshot, flags)?;
+    let screenshot = if cfg!(target_os = "macos") {
+        match capture_screenshot(&screenshot, flags) {
+            Ok(()) => Some(screenshot),
+            Err(error) => {
+                problems.push(format!("Screenshot: {error}"));
+                None
+            }
+        }
+    } else {
+        problems.push("Screenshot: the bundle takes screenshots on macOS only.".to_string());
+        None
+    };
     let logs = collect_logs(number_flag_or(flags, "lines", 500.0));
-    std::fs::write(
-        output_dir.join("state.json"),
-        serde_json::to_string_pretty(&state).unwrap_or_else(|_| "null".to_string()),
-    )?;
-    std::fs::write(
-        output_dir.join("logs.json"),
-        serde_json::to_string_pretty(&logs).unwrap_or_else(|_| "null".to_string()),
-    )?;
+    let server = local_gxserver_report(flags);
+    for (name, value) in [
+        ("state.json", &state),
+        ("logs.json", &logs),
+        ("server.json", &server),
+    ] {
+        std::fs::write(
+            output_dir.join(name),
+            serde_json::to_string_pretty(value).unwrap_or_else(|_| "null".to_string()),
+        )?;
+    }
     print_json(&json!({
         "logs": output_dir.join("logs.json").to_string_lossy(),
         "ok": true,
         "outputDir": output_dir.to_string_lossy(),
-        "screenshot": screenshot.to_string_lossy(),
+        "problems": problems,
+        "screenshot": screenshot.map(|path| path.to_string_lossy().to_string()),
+        "server": output_dir.join("server.json").to_string_lossy(),
     }));
     Ok(())
+}
+
+/// What this computer says about its gxserver without needing it to answer: the runtime record
+/// it wrote when it started, whether that process still runs, and what its health check answered.
+fn local_gxserver_report(flags: &Flags) -> Value {
+    let paths = crate::paths::get_gxserver_paths(None);
+    let (runtime, runtime_error) = match crate::runtime::read_runtime_metadata(&paths) {
+        Ok(metadata) => (metadata, None),
+        Err(error) => (None, Some(error.to_string())),
+    };
+    let process_running = runtime
+        .as_ref()
+        .map(|metadata| crate::platform::process::process_is_alive(metadata.pid));
+    let health = match resolve_gxserver_server_target(flags, &json!({})) {
+        Ok(target) => match fetch_gxserver_health(&target, 2_000) {
+            Ok(Some(health)) => json!({ "answered": true, "health": health }),
+            Ok(None) => {
+                json!({ "answered": false, "error": format!("No gxserver answered on {}.", target.base_url) })
+            }
+            Err(error) => json!({ "answered": false, "error": error.to_string() }),
+        },
+        Err(error) => json!({ "answered": false, "error": error.to_string() }),
+    };
+    json!({
+        "health": health,
+        "processRunning": process_running,
+        "runtime": runtime,
+        "runtimeError": runtime_error,
+        "runtimeFile": paths.runtime_metadata_file.to_string_lossy(),
+    })
 }
 
 // ---------------------------------------------------------------------------

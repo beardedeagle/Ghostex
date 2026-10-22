@@ -1185,6 +1185,12 @@ pub(crate) fn gpui_gxserver_startup_failure_report(probes: &[String]) -> String 
             }
         }
     }
+    #[cfg(windows)]
+    if windows_terminal_backend::current_preference()
+        == windows_terminal_backend::WindowsTerminalBackendPreference::PowerShell
+    {
+        report.push_str(&gpui_windows_gxserver_runtime_record_report());
+    }
     if let Ok(token) = read_gpui_gxserver_auth_token() {
         report = report.replace(&token, "[redacted token]");
     }
@@ -1215,6 +1221,79 @@ pub(crate) fn gpui_gxserver_startup_failure_report(probes: &[String]) -> String 
         })
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+/// CDXC:ServerDaemon 2026-10-22 WHY:
+/// A Windows user's `gxserver status` said running while the app could not read a single answer, and the startup report could not show which process the app was waiting on. The report now names the daemon gxserver last recorded (pid, port, build, start time), whether that process still runs and which executable it is, so a stuck daemon, a stale record and a foreign program on the port read differently.
+#[cfg(windows)]
+fn gpui_windows_gxserver_runtime_record_report() -> String {
+    let path = shared_settings::ghostex_storage_paths()
+        .gxserver_state_dir()
+        .join("runtime")
+        .join("server.json");
+    let record = match fs::read_to_string(&path) {
+        Ok(text) => text,
+        Err(error) => return format!("\n\ngxserver runtime record: none ({error})"),
+    };
+    let Ok(record) = serde_json::from_str::<serde_json::Value>(&record) else {
+        return "\n\ngxserver runtime record: unreadable JSON".to_string();
+    };
+    let field = |key: &str| {
+        record
+            .get(key)
+            .map(|value| {
+                value
+                    .as_str()
+                    .map_or_else(|| value.to_string(), str::to_string)
+            })
+            .unwrap_or_else(|| "missing".to_string())
+    };
+    let pid = record
+        .get("pid")
+        .and_then(serde_json::Value::as_u64)
+        .and_then(|pid| u32::try_from(pid).ok());
+    let process = match pid {
+        None => "no pid recorded".to_string(),
+        Some(pid) => match gpui_local_process_is_alive(pid) {
+            Ok(true) => format!(
+                "running as {}",
+                gpui_windows_process_image(pid)
+                    .unwrap_or_else(|| "an executable Ghostex cannot read".to_string())
+            ),
+            Ok(false) => "not running (the record is stale)".to_string(),
+            Err(error) => error,
+        },
+    };
+    format!(
+        "\n\ngxserver runtime record: pid {}, port {}, build {}, started {}\nRecorded process: {process}",
+        field("pid"),
+        field("port"),
+        field("buildIdentity"),
+        field("startedAt"),
+    )
+}
+
+#[cfg(windows)]
+fn gpui_windows_process_image(pid: u32) -> Option<String> {
+    use windows_sys::Win32::{
+        Foundation::CloseHandle,
+        System::Threading::{
+            OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION, QueryFullProcessImageNameW,
+        },
+    };
+    let mut buffer = vec![0u16; 32_768];
+    let mut length = buffer.len() as u32;
+    // SAFETY: the handle is only queried and then closed; the buffer outlives the call.
+    let read = unsafe {
+        let process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
+        if process.is_null() {
+            return None;
+        }
+        let read = QueryFullProcessImageNameW(process, 0, buffer.as_mut_ptr(), &mut length);
+        CloseHandle(process);
+        read
+    };
+    (read != 0).then(|| String::from_utf16_lossy(&buffer[..length as usize]))
 }
 
 pub(crate) fn gpui_gxserver_protocol_mismatch_message(reported: Option<u64>) -> String {

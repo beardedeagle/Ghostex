@@ -93,7 +93,7 @@ pub(crate) fn gxserver_post_typed_operation_across_restart(
     let mut response = String::new();
     stream
         .read_to_string(&mut response)
-        .map_err(|_| "Could not read gxserver response.".to_string())?;
+        .map_err(|error| gxserver_read_failure_message(&address, timeout, &error))?;
     let (headers, body) = response
         .split_once("\r\n\r\n")
         .ok_or_else(|| "gxserver returned an invalid HTTP response.".to_string())?;
@@ -104,6 +104,27 @@ pub(crate) fn gxserver_post_typed_operation_across_restart(
         .and_then(|status| status.parse::<u16>().ok())
         .ok_or_else(|| "gxserver returned an invalid HTTP status.".to_string())?;
     Ok((status_code, gxserver_http_response_body(headers, body)?))
+}
+
+/// The prefix every unread-response error starts with; startup readiness checks match on it.
+pub(crate) const GXSERVER_READ_FAILURE_PREFIX: &str = "Could not read gxserver response";
+
+/// CDXC:ServerDaemon 2026-10-22 WHY:
+/// "Could not read gxserver response." was all a Windows user saw while something held the port without answering, so nobody could tell a gxserver still starting (the port is bound before startup work finishes) from one that dropped the connection or a security program cutting local traffic. The text now says which happened.
+fn gxserver_read_failure_message(
+    address: &str,
+    timeout: Duration,
+    error: &std::io::Error,
+) -> String {
+    match error.kind() {
+        ErrorKind::TimedOut | ErrorKind::WouldBlock => format!(
+            "{GXSERVER_READ_FAILURE_PREFIX}: something on {address} accepted the request but sent no answer within {} seconds. gxserver may still be starting.",
+            timeout.as_secs().max(1)
+        ),
+        _ => format!(
+            "{GXSERVER_READ_FAILURE_PREFIX}: the connection to {address} was closed before an answer arrived ({error}). gxserver may have stopped, or security software may be blocking local connections."
+        ),
+    }
 }
 
 fn connect_local_gxserver(address: &str, restart_wait: Duration) -> Result<TcpStream, String> {

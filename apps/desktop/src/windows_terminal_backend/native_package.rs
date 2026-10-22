@@ -46,6 +46,8 @@ pub(super) fn refresh_existing() -> Result<(), String> {
         .map_err(|error| format!("Could not update the managed Windows CLI package: {error:#}"))
 }
 
+/// CDXC:PlatformSupport 2026-10-22 WHY:
+/// A package copy an antivirus quarantined is put back from the bundle. Failing on it ("The existing package is missing …") stopped every launch before gxserver started, and reinstalling or downgrading Ghostex never touches this folder.
 fn refresh() -> Result<()> {
     let package = crate::shared_settings::ghostex_storage_paths()
         .gxserver_data_dir()
@@ -69,13 +71,13 @@ fn refresh() -> Result<()> {
         let source = resources.join("native").join(name);
         let target = package.join("bin").join(name);
         ensure!(
-            target.is_file(),
-            "The existing package is missing {}",
-            target.display()
+            source.is_file(),
+            "{} is missing from the Ghostex install folder. Windows Security or another antivirus program may have quarantined it: restore it from Windows Security > Virus & threat protection > Protection history, or reinstall Ghostex.",
+            source.display()
         );
         let hash = file_hash(&source)?;
         source_hashes.push(hash.clone());
-        if file_hash(&target)? != hash {
+        if !target.is_file() || file_hash(&target)? != hash {
             files.push((source, target, hash));
         }
     }
@@ -95,7 +97,7 @@ fn refresh() -> Result<()> {
         "The bundled build identity is inconsistent"
     );
     let identity_target = package.join("build-identity.json");
-    if fs::read(&identity_target)? != identity_bytes {
+    if fs::read(&identity_target).ok().as_deref() != Some(identity_bytes.as_slice()) {
         files.push((
             resources.join("build-identity.json"),
             identity_target,
@@ -116,10 +118,19 @@ fn refresh() -> Result<()> {
     // Verify every staged byte before replacing the first public entrypoint.
     for (source, target, hash) in &files {
         let copy = staged.join(target.file_name().context("Missing package filename")?);
-        fs::copy(source, &copy)?;
-        fs::OpenOptions::new().write(true).open(&copy)?.sync_all()?;
+        let staged_hash = fs::copy(source, &copy)
+            .and_then(|_| fs::OpenOptions::new().write(true).open(&copy)?.sync_all())
+            .map_err(anyhow::Error::from)
+            .and_then(|()| file_hash(&copy));
+        let Ok(staged_hash) = staged_hash else {
+            anyhow::bail!(
+                "{} disappeared or became unreadable while Ghostex copied it into {}. Windows Security or another antivirus program is probably removing it: allow it in Windows Security > Virus & threat protection > Protection history, then open Ghostex again.",
+                source.display(),
+                package.display()
+            );
+        };
         ensure!(
-            file_hash(&copy)? == *hash,
+            staged_hash == *hash,
             "Staged runtime verification failed: {}",
             copy.display()
         );
@@ -127,6 +138,12 @@ fn refresh() -> Result<()> {
     let mut replaced = Vec::new();
     for (_, target, _) in &files {
         let name = target.file_name().context("Missing package filename")?;
+        if !target.exists() {
+            // Nothing to replace or roll back: the verified copy fills the gap.
+            fs::rename(staged.join(name), target)
+                .with_context(|| format!("Restoring {}", target.display()))?;
+            continue;
+        }
         let backup = previous.join(name);
         if let Err(error) = replace(target, &staged.join(name), Some(&backup)) {
             // ReplaceFile can have moved the original before a later step fails.
@@ -168,7 +185,40 @@ fn file_hash(path: &Path) -> Result<String> {
     }
 }
 
+/// `ReplaceFileW`, retried for a while when another program holds one of the files open.
+///
+/// CDXC:PlatformSupport 2026-10-22 WHY:
+/// Antivirus scanners open a freshly written executable for several seconds (Defender's cloud check can hold one for 10 s or more), and ReplaceFile then fails with a sharing or access error although nothing is wrong. Those errors leave both files under their own names, so the call is simply tried again; any other error, or one that lasts past the wait, is reported.
 fn replace(target: &Path, staged: &Path, backup: Option<&Path>) -> std::io::Result<()> {
+    const ERROR_ACCESS_DENIED: i32 = 5;
+    const ERROR_SHARING_VIOLATION: i32 = 32;
+    const ERROR_LOCK_VIOLATION: i32 = 33;
+    const ERROR_UNABLE_TO_REMOVE_REPLACED: i32 = 1175;
+    const ERROR_UNABLE_TO_MOVE_REPLACEMENT: i32 = 1176;
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(15);
+    loop {
+        match replace_once(target, staged, backup) {
+            Err(error)
+                if matches!(
+                    error.raw_os_error(),
+                    Some(
+                        ERROR_ACCESS_DENIED
+                            | ERROR_SHARING_VIOLATION
+                            | ERROR_LOCK_VIOLATION
+                            | ERROR_UNABLE_TO_REMOVE_REPLACED
+                            | ERROR_UNABLE_TO_MOVE_REPLACEMENT
+                    )
+                ) && std::time::Instant::now() < deadline
+                    && backup.is_none_or(|backup| !backup.exists()) =>
+            {
+                std::thread::sleep(std::time::Duration::from_millis(250));
+            }
+            result => return result,
+        }
+    }
+}
+
+fn replace_once(target: &Path, staged: &Path, backup: Option<&Path>) -> std::io::Result<()> {
     let wide = |path: &Path| {
         path.as_os_str()
             .encode_wide()

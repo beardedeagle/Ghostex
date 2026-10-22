@@ -143,10 +143,17 @@ impl GhostexGpuiApp {
                             });
                             return;
                         }
+                        let title = if windows_terminal_backend::current_preference()
+                            == windows_terminal_backend::WindowsTerminalBackendPreference::PowerShell
+                        {
+                            "Ghostex could not prepare its background service"
+                        } else {
+                            "WSL runtime setup needed"
+                        };
                         let _ = this.update(cx, |this, cx| {
                             this.show_gpui_gxserver_bootstrap_toast(
                                 "warning",
-                                "WSL runtime setup needed",
+                                title,
                                 &message,
                                 true,
                                 cx,
