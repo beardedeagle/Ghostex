@@ -81,6 +81,9 @@ How to use this file:
 - **Show all effort levels** `orchestratorAllEfforts` (boolean, default false) [advanced]: Lists every effort level in the orchestrator effort pickers. Anything below High isn't recommended for orchestrators.
 - **Orchestrator playbook** `orchestratorPlaybook` (Settings UI row without a settings key; use `ghostex settings open`) [advanced]: How every orchestrator works: the playbook it follows. Edit it for all projects here, or for one project and its worktrees in Settings > Projects. Orchestrators, existing ones too, follow the edited playbook from their next guide read, and a switch turns an edited playbook off without losing it.
 - **Verbose mode** `sessionChatVerboseMode` (boolean, default false) [advanced]: Expand thinking blocks to show their tool calls by default. Each chat can override it from its composer.
+- **Read aloud voice** `readAloudVoice` (text: the id of a voice installed on this computer (on a Mac, for example `com.apple.voice.compact.en-US.Samantha`), easiest picked on its Settings row; default (empty), the system voice): The voice Read aloud speaks the agent's replies with: System voice, or one of the voices installed on this computer. Add voices in your computer's speech or accessibility settings. The phone has its own Voice in its Settings > Chat. Only on macOS.
+- **Read aloud speed** `readAloudRate` (number one of 0.75 | 1 | 1.25 | 1.5 | 2; default 1): How fast Read aloud speaks, from 0.75× to twice as fast. Ghostex in a browser uses it too; the phone has its own Speed. Option labels: 0.75 = 0.75×, 1 = 1×, 1.25 = 1.25×, 1.5 = 1.5×, 2 = 2×.
+- **Read aloud** `readAloudUnavailable` (Settings UI row without a settings key; use `ghostex settings open`): Read aloud can't speak on this computer, so it has no controls here. It works in the Ghostex phone app and in Ghostex in a browser connected to this computer. Only on Windows and Linux.
 ### Tools
 
 #### Browser
@@ -190,7 +193,7 @@ How to use this file:
 - **Wake sleeping sessions when selected** `wakeSleepingSessionsOnSelect` (boolean, default true) [advanced]: Wake a sleeping session as soon as you select it. Turn off to open it with a Resume button instead, so switching sessions does not wake it by accident.
 #### Experimental
 
-- **Enable Experimental Features** `showBetaFeatures` (boolean, default false) [advanced]: Show experimental surfaces: OS Integration settings, Browser color scheme, Keep Awake, and Connectors.
+- **Enable Experimental Features** `showBetaFeatures` (boolean, default false) [advanced]: Show experimental surfaces: OS Integration settings, Browser color scheme, Keep Awake, Connectors, and Read aloud.
 - **Faster rendering** `fasterRendering` (boolean, default false) [advanced]: Redraw only the parts of a window that changed, which uses less CPU while agents stream and you scroll. Experimental: turn it off if part of a window stops updating.
 ### Settings window
 
@@ -426,6 +429,7 @@ How to use this file:
 - **Spaces** `sidebarSpacesEnabled` (boolean, default false): Turn on Spaces: a row of Space icons at the top of the sidebar, Space menus, and the Space settings. Off by default; your saved Spaces are kept while it is off.
 - **Turn off Cloud Boxes** `cloudBoxesHidden` (boolean, default true): Turn off Cloud Boxes everywhere: the Cloud Boxes page in Settings, the Run on choice of a new thread, Run in a Box in the Select Agent menu and the agentbox commands. Off by default; your boxes and box settings are kept. Only on macOS and Linux.
 - **Turn off Workspaces** `workspacesHidden` (boolean, default true): Turn off Workspaces and work mode everywhere: the workspace button, the Workspaces page in Settings, Work mode on projects, the Work view, Linear and GitHub links on sessions and the workspace commands. Off by default; your workspaces, links, keys and team connections are kept.
+- **Turn off Read aloud** `readAloudHidden` (boolean, default true): Turn off Read aloud everywhere: Read aloud on replies, Auto-read in the chat's ⋯ menu, the Read aloud rows on Settings > Chat and the Read aloud hotkeys, on this computer and in the phone app and browser connected to it. Off by default, and shown only while Enable Experimental Features is on; your Voice and Speed are kept.
 - **Turn off Connectors** `connectorsHidden` (boolean, default false): Turn off Connectors everywhere: the Connectors page in Settings, the apps your agents get and the ghostex connectors commands. On by default, and shown only while Enable Experimental Features is on; your sign-ins and connected apps are kept.
 - **Turn off OS Integration** `osIntegrationHidden` (boolean, default false): Leave the OS Integration page out of Settings. On by default, and shown only while Enable Experimental Features is on.
 - **Turn off Debugging** `debuggingHidden` (boolean, default false): Leave the Debugging page out of Settings. On by default, and shown only while Show Advanced is on (a search still finds it).

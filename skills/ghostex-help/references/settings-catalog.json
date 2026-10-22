@@ -1245,6 +1245,72 @@
       "agentWritable": true
     },
     {
+      "key": "readAloudVoice",
+      "title": "Read aloud voice",
+      "subtitle": "The voice Read aloud speaks the agent's replies with: System voice, or one of the voices installed on this computer. Add voices in your computer's speech or accessibility settings. The phone has its own Voice in its Settings > Chat.",
+      "tab": "settings",
+      "tabTitle": "General",
+      "group": "chat",
+      "groupTitle": "Chat",
+      "section": "chat",
+      "sectionTitle": "Chat",
+      "type": "string",
+      "default": "",
+      "agentWritable": true,
+      "availability": "Only on macOS.",
+      "runtimeOptions": "systemVoices"
+    },
+    {
+      "key": "readAloudRate",
+      "title": "Read aloud speed",
+      "subtitle": "How fast Read aloud speaks, from 0.75× to twice as fast. Ghostex in a browser uses it too; the phone has its own Speed.",
+      "tab": "settings",
+      "tabTitle": "General",
+      "group": "chat",
+      "groupTitle": "Chat",
+      "section": "chat",
+      "sectionTitle": "Chat",
+      "type": "number",
+      "default": 1,
+      "options": [
+        {
+          "label": "0.75×",
+          "value": "0.75"
+        },
+        {
+          "label": "1×",
+          "value": "1"
+        },
+        {
+          "label": "1.25×",
+          "value": "1.25"
+        },
+        {
+          "label": "1.5×",
+          "value": "1.5"
+        },
+        {
+          "label": "2×",
+          "value": "2"
+        }
+      ],
+      "agentWritable": true
+    },
+    {
+      "key": "readAloudUnavailable",
+      "title": "Read aloud",
+      "subtitle": "Read aloud can't speak on this computer, so it has no controls here. It works in the Ghostex phone app and in Ghostex in a browser connected to this computer.",
+      "tab": "settings",
+      "tabTitle": "General",
+      "group": "chat",
+      "groupTitle": "Chat",
+      "section": "chat",
+      "sectionTitle": "Chat",
+      "type": "ui",
+      "agentWritable": false,
+      "availability": "Only on Windows and Linux."
+    },
+    {
       "key": "webLinkOpenTarget",
       "title": "Open links in",
       "subtitle": "Open web links from terminal output (Command-click), session chat, and detected dev servers in the project Browser view or the system default browser.",
@@ -3254,7 +3320,7 @@
     {
       "key": "showBetaFeatures",
       "title": "Enable Experimental Features",
-      "subtitle": "Show experimental surfaces: OS Integration settings, Browser color scheme, Keep Awake, and Connectors.",
+      "subtitle": "Show experimental surfaces: OS Integration settings, Browser color scheme, Keep Awake, Connectors, and Read aloud.",
       "tab": "settings",
       "tabTitle": "General",
       "group": "advanced",
@@ -10174,6 +10240,18 @@
       "agentWritable": true
     },
     {
+      "key": "readAloudHidden",
+      "title": "Turn off Read aloud",
+      "subtitle": "Turn off Read aloud everywhere: Read aloud on replies, Auto-read in the chat's ⋯ menu, the Read aloud rows on Settings > Chat and the Read aloud hotkeys, on this computer and in the phone app and browser connected to it. Off by default, and shown only while Enable Experimental Features is on; your Voice and Speed are kept.",
+      "tab": "extensions",
+      "tabTitle": "Store",
+      "section": "official",
+      "sectionTitle": "Built-in",
+      "type": "boolean",
+      "default": true,
+      "agentWritable": true
+    },
+    {
       "key": "connectorsHidden",
       "title": "Turn off Connectors",
       "subtitle": "Turn off Connectors everywhere: the Connectors page in Settings, the apps your agents get and the ghostex connectors commands. On by default, and shown only while Enable Experimental Features is on; your sign-ins and connected apps are kept.",
@@ -11731,6 +11809,18 @@
       "description": "Start dictating into the chat box of the chat session you are in; press again to stop and type what you said.",
       "defaultKey": "ctrl+alt+d",
       "windowsLinuxDefaultKey": "cmd+alt+shift+d"
+    },
+    {
+      "id": "readAloudLastReply",
+      "title": "Read Last Reply Aloud",
+      "description": "Read the agent's newest reply in the chat you are looking at aloud, from the start.",
+      "defaultKey": ""
+    },
+    {
+      "id": "readAloudStop",
+      "title": "Stop Reading",
+      "description": "Stop Read aloud, whichever reply it is reading.",
+      "defaultKey": ""
     },
     {
       "id": "createAgentSession",

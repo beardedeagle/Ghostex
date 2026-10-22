@@ -283,8 +283,6 @@ pub const GHOSTEX_OFFICIAL_EXTENSIONS: J = J::Arr(&[
         ("settingsKey", J::Str("readAloudHidden")),
         // CDXC:VoiceMode 2026-10-22 DECISION: User: "it's ok to bring read aloud work into this release just make it experimental for now if not finished yet (show experimental features makes it appear in the extensions where if enabled then it actually work)". Gated by Enable Experimental Features like Connectors: its card, its Chat rows and its hotkeys show only while that is on, and the phone hears it is on (`builtInFeatures`) only then.
         ("gatedBy", J::Str("showBetaFeatures")),
-        // CDXC:VoiceMode 2026-10-22 WHY: no app has the Read aloud controls or a speech engine yet, and the user wants the card to appear only where turning it on really works. `unreleased` makes the entry exist on no platform (`built_in_extensions::available_on`), so there is no card, no Chat row, no hotkey and nothing in the generated Help even with experimental features on. Delete this line once the desktop and phone draw the controls and speak, and name Read aloud in Enable Experimental Features' subtitle (`showBetaFeatures`, general/system.rs) in the same change.
-        ("unreleased", J::Bool(true)),
         ("appWide", J::Bool(true)),
         ("title", J::Str("Read aloud")),
         ("settingKeys", J::Arr(&[J::Str("readAloudVoice"), J::Str("readAloudRate"), J::Str("readAloudUnavailable")])),

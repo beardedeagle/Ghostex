@@ -979,6 +979,36 @@ uses the key on the computer the chat lives on, keeps the recording on the phone
 until that computer has it, shows Recording, Transcribing and Transcribe again
 in a row above the chat box, and a long press on the microphone
 offers Transcribe previous.
+Read aloud speaks the agent's replies, so you can follow a session while you
+drive or walk. It is experimental and off by default: turn on Settings > General
+> Advanced > Experimental > Enable Experimental Features, then switch on Read
+aloud in Settings > Extensions > Store (Features). On the computer, hover an
+agent's final reply and press Read aloud (the speaker, last before the time); on
+the reply being read it becomes Stop reading. Turn on Auto-read in the chat's
+More actions (⋯) menu to hear each finished reply of the chat you are looking
+at; while something is read, the same menu has Stop reading. Only the agent's
+final reply of each turn is read, never your messages, tool calls or thinking.
+Code blocks and tables are skipped with a short note, links are read by their
+name and a file path by its file name, and a turn that ends with a question says
+"The agent is asking you a question." Switching to another chat or sending a
+message stops the reading, and Auto-read stays quiet while you talk with the
+voice agent or dictate. Auto-read starts off each time Ghostex opens. Pick the
+voice and the speed on Settings > Chat (Read aloud voice, Read aloud speed);
+Ghostex in a browser uses the same speed. Two hotkeys, Read Last Reply Aloud and
+Stop Reading, have no key until you set one in Settings > Hotkeys. Read aloud
+uses the device's own voices: it speaks in the Mac app and in Ghostex in a
+browser; the Windows app does not speak yet and the Linux app has no voice, so
+use the phone or a browser there. On the phone, Read aloud works in the chats of
+a computer that has it switched on: hold a reply and choose Read aloud (Stop
+reading on the reply being read), and Auto-read and Stop reading are in the
+chat's ⋯ menu. The phone has its own voice and speed under Read aloud in its
+Settings > Chat, shown while one of your computers has it on. Auto-read keeps
+reading with the phone locked or Ghostex in the background: a "Voice mode on"
+notification shows it, with Pause (Resume) and Stop. If the phone cannot reach
+the computer for 5 minutes, Auto-read turns itself off and says so; if Ghostex
+on that computer is too old to stay connected in the background, the phone asks
+you to update it there (`showBetaFeatures`, `readAloudHidden`, `readAloudVoice`,
+`readAloudRate`).
 A long code block shows its first lines and scrolls inside the block; the arrows
 button in the block's header shows the whole block, and again collapses it.
 A long message you sent (more than 20 lines or 2,000 characters, such as a
@@ -3243,12 +3273,13 @@ backend: `ghostex team deploy|join|invite|identity|status|ping|leave`. Slack:
   Features are whole parts of Ghostex you can switch off to keep the app
   simple: Actions (off by default), Open In (on by default), Spaces (off by
   default), Cloud Boxes (off by default; macOS and Linux only, not listed on
-  Windows) and Workspaces (off by default; it brings workspaces, work mode, the
-  Work view and the team's Slack flow). Turning one off removes it everywhere at once (its header button,
+  Windows), Workspaces (off by default; it brings workspaces, work mode, the
+  Work view and the team's Slack flow) and Read aloud (off by default, and
+  listed only while Enable Experimental Features is on). Turning one off removes it everywhere at once (its header button,
   Settings pages and rows, hotkeys, Quick Access rows and menus) and turning it
   back on restores everything you had set up. Settings: `actionsHidden`,
   `openInTitlebarButtonHidden`, `sidebarSpacesEnabled`, `cloudBoxesHidden`,
-  `workspacesHidden`.
+  `workspacesHidden`, `readAloudHidden`.
   The Edit (pencil) button on a card chooses where that view, header button, or
   extension appears. Pick **Everywhere** or **Only in selected places**, then
   choose projects and spaces from the dropdown next to **Except in** (or

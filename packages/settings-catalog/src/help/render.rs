@@ -51,7 +51,7 @@ fn describe_type(entry: &CatalogEntry) -> String {
         }
         ValueType::String => match entry.runtime_options {
             Some(crate::rows::RuntimeOptions::SystemVoices) => format!(
-                "text: the name of a voice installed on this computer, as its Settings row lists them; default {default}, the system voice"
+                "text: the id of a voice installed on this computer (on a Mac, for example `com.apple.voice.compact.en-US.Samantha`), easiest picked on its Settings row; default {default}, the system voice"
             ),
             None => format!("text, default {default}"),
         },
