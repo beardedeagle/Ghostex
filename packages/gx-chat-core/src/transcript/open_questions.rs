@@ -97,6 +97,30 @@ pub struct Asker {
     pub keys: Vec<(String, String)>,
     /// Its tags whose answers came back as Skip (`mark_skipped`).
     pub skipped: Vec<String>,
+    /// Its tags a later form or page asks again or a later block withdrew: those questions wait on
+    /// the reader there, or nowhere, not here.
+    pub superseded: Vec<String>,
+}
+
+impl Asker {
+    /// How many of its questions still wait on the reader here while it is unanswered: a form's
+    /// questions (given `form`, the form it is) and a page's tags, less those superseded, at least
+    /// one. A form without its parsed questions counts its tags.
+    ///
+    /// CDXC:SessionStatus 2026-10-22 WHY:
+    /// Agents ask the questions still open again in a new "Open questions" form that leaves out the ones settled meanwhile (Q24 to Q29, then Q24 and Q26 to Q33, then Q26 to Q33). Counting every question of each earlier form, because one of its tags was never asked again, showed `answer requested (24)` on a session where 7 questions were left unanswered, the rest answered in the later forms. Each tag counts once, where it was asked last, as the 2026-10-14 decision on superseding reads.
+    pub fn waiting(&self, form: Option<&crate::transcript::question_forms::QuestionForm>) -> usize {
+        let superseded = |tag: &str| self.superseded.iter().any(|known| same_tag(known, tag));
+        let waiting = match (self.kind, form) {
+            (AskerKind::Form, Some(form)) => form
+                .questions
+                .iter()
+                .filter(|question| question.tag.is_empty() || !superseded(&question.tag))
+                .count(),
+            _ => self.tags.iter().filter(|tag| !superseded(tag)).count(),
+        };
+        waiting.max(1)
+    }
 }
 
 enum Found {
@@ -155,6 +179,7 @@ pub fn askers(messages: &[ChatMessage], answered: &[String]) -> Vec<Asker> {
                     withdrawn: Vec::new(),
                     keys,
                     skipped: Vec::new(),
+                    superseded: Vec::new(),
                 }
             } else if ghostex_gx_visual::is_visual_language(&language) {
                 let Some(page) = ghostex_gx_visual::page_reference(&body) else {
@@ -173,6 +198,7 @@ pub fn askers(messages: &[ChatMessage], answered: &[String]) -> Vec<Asker> {
                     withdrawn: Vec::new(),
                     keys: Vec::new(),
                     skipped: Vec::new(),
+                    superseded: Vec::new(),
                 }
             } else {
                 continue;
@@ -203,7 +229,13 @@ pub fn askers(messages: &[ChatMessage], answered: &[String]) -> Vec<Asker> {
         };
         let mut asker = asker.clone();
         asker.answered = answered.contains(&asker.id);
-        asker.obsolete = !asker.tags.is_empty() && asker.tags.iter().all(|tag| asked_again(tag));
+        asker.superseded = asker
+            .tags
+            .iter()
+            .filter(|tag| asked_again(tag))
+            .cloned()
+            .collect();
+        asker.obsolete = !asker.tags.is_empty() && asker.superseded.len() == asker.tags.len();
         asker.withdrawn = asker
             .tags
             .iter()

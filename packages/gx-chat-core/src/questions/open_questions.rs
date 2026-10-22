@@ -243,6 +243,7 @@ mod tests {
             withdrawn: Vec::new(),
             keys: Vec::new(),
             skipped: Vec::new(),
+            superseded: Vec::new(),
         });
         assert_eq!(project(&state).count, 0, "off by default");
         state.core.previous_question_enabled = true;

@@ -54,17 +54,15 @@ pub(crate) struct OpenAsker {
     pub(crate) tags: Vec<String>,
     /// The form itself, for a ```questions block.
     pub(crate) form: Option<QuestionForm>,
+    /// How many of its questions wait on the user (`Asker::waiting`).
+    waiting: usize,
     /// It was asked after the user's last message.
     latest_turn: bool,
 }
 
 impl OpenAsker {
-    /// How many questions it asks: a form's questions, a page's tags (at least one per page).
     fn count(&self) -> usize {
-        match (&self.kind, &self.form) {
-            (AskerKind::Form, Some(form)) => form.questions.len().max(1),
-            _ => self.tags.len().max(1),
-        }
+        self.waiting
     }
 }
 
@@ -169,12 +167,16 @@ impl Ledger {
             .into_iter()
             .filter(|asker| !asker.answered && !asker.obsolete)
             .filter(|asker| asker.kind != AskerKind::Page || !page_answered(&asker.id))
-            .map(|asker| OpenAsker {
-                form: forms.iter().find(|form| form.id == asker.id).cloned(),
-                latest_turn: turn_of.get(asker.message_id.as_str()) == Some(&self.turns),
-                id: asker.id,
-                kind: asker.kind,
-                tags: asker.tags,
+            .map(|asker| {
+                let form = forms.iter().find(|form| form.id == asker.id).cloned();
+                OpenAsker {
+                    waiting: asker.waiting(form.as_ref()),
+                    form,
+                    latest_turn: turn_of.get(asker.message_id.as_str()) == Some(&self.turns),
+                    id: asker.id,
+                    kind: asker.kind,
+                    tags: asker.tags,
+                }
             })
             .collect()
     }

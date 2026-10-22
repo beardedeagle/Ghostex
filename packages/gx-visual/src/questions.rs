@@ -195,6 +195,29 @@ fn title_tag(title: &str) -> Option<(&str, &str)> {
     (!rest.is_empty()).then(|| (&title[..end], rest))
 }
 
+/// A tag written as the question's `"id"` instead of its `"tag"` (`"id": "Q106"`), when the id is
+/// shaped like one: `[A-Za-z]{1,8}-?[0-9]{1,6}` and nothing else.
+///
+/// CDXC:SessionChat 2026-10-22 WHY:
+/// Agents often write `{"id": "Q106", "question": …, "options": …}`. Read as untagged, a later form asking Q106 again or `"withdraw": ["Q106"]` could never clear it, so the sidebar's pink question dot stayed on for questions the agent had already replaced or withdrawn. An id that is not tag-shaped (`"mDrive"`) is left alone.
+fn id_tag(object: &Map<String, Value>) -> Option<String> {
+    let id = string(object.get("id"));
+    let bytes = id.as_bytes();
+    let letters = bytes
+        .iter()
+        .take_while(|byte| byte.is_ascii_alphabetic())
+        .count();
+    let dash = usize::from(bytes.get(letters) == Some(&b'-'));
+    let digits = bytes[letters + dash..]
+        .iter()
+        .take_while(|byte| byte.is_ascii_digit())
+        .count();
+    let shaped = (1..=8).contains(&letters)
+        && (1..=6).contains(&digits)
+        && letters + dash + digits == bytes.len();
+    shaped.then_some(id)
+}
+
 fn question(
     object: &Map<String, Value>,
     number: usize,
@@ -233,6 +256,9 @@ fn question(
         if let Some((written, rest)) = title_tag(&title) {
             (tag, title) = (written.to_string(), rest.to_string());
         }
+    }
+    if tag.is_empty() {
+        tag = id_tag(object).unwrap_or_default();
     }
     let mut key = base.clone();
     let mut copy = 2;
