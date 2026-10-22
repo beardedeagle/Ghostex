@@ -153,6 +153,7 @@ pub(crate) fn gpui_focused_chat_hotkey_action_id(action_id: &str) -> bool {
             | "toggleChatComposerMaximized"
             | "toggleChatFilesLinks"
             | "toggleDictation"
+            | "readAloudLastReply"
     )
 }
 
@@ -768,9 +769,15 @@ pub(crate) fn gpui_keyboard_owner_allows_hotkey(
     }
     // CDXC:Workarea 2026-09-21 WHY:
     // The view panel toggle is window chrome, so it must win from every responder like the New Thread picker. It was only listed for the owners a view leaves behind while it is open, so Cmd+Option+B closed the panel but could not open it again once the keyboard sat with a responder outside those lists: the router passed the chord on to that responder and GPUI never saw it.
+    // Stop reading stops Read aloud from anywhere in the window (CDXC:VoiceMode 2026-10-21 DECISION
+    // in packages/settings-catalog/src/hotkey_definitions.rs).
     if matches!(
         action_id,
-        "toggleViewPanel" | "expandViewPanel" | "expandViewPanelFully" | "toggleVoiceAgent"
+        "toggleViewPanel"
+            | "expandViewPanel"
+            | "expandViewPanelFully"
+            | "toggleVoiceAgent"
+            | "readAloudStop"
     ) {
         return true;
     }
@@ -985,6 +992,11 @@ impl GhostexGpuiApp {
         }
         if gpui_focused_chat_hotkey_action_id(action_id) {
             return self.run_focused_chat_hotkey(action_id, window, cx);
+        }
+        // Whichever chat is being read stops, which only the chat host knows.
+        if action_id == "readAloudStop" {
+            crate::app::gx_chat::read_aloud_stop();
+            return true;
         }
         self.handle_gpui_app_modal_sidebar_command(
             serde_json::json!({

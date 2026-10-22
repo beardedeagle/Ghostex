@@ -40,6 +40,10 @@ impl GhostexGpuiApp {
                     self.run_focused_chat_hotkey(action_id, window, cx);
                     return;
                 }
+                if action_id == "readAloudStop" {
+                    crate::app::gx_chat::read_aloud_stop();
+                    return;
+                }
                 /*
                 CDXC:FocusMode 2026-06-25-15:01:
                 The shared command palette posts focused-session commands as `runGhostexHotkeyAction`. Handle command-pane Sleep/Wake/Close focused-session ids directly in GPUI before modal routing so command-palette rows operate on the shell-focused command tab instead of no-oping or trying to open another modal.

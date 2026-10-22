@@ -9,7 +9,7 @@ use super::super::super::fields::{
 use super::super::super::page::PageBlock;
 use super::super::orchestrator_playbook::{playbook_control, playbook_scope};
 use super::{GeneralCx, GeneralTab, save};
-use gpui::{AnyElement, Context, SharedString, Window};
+use gpui::{AnyElement, Context, IntoElement as _, SharedString, Window};
 use serde_json::json;
 
 fn chat_section(
@@ -115,9 +115,85 @@ fn chat_section(
     rows.extend(page.toggle(g, s, "orchestratorPlainReplies", "Orchestrators answer without markers", "Orchestrators answer normally, without marking the sections of their handovers. Their threads still mark the reports they send to the orchestrator. Applies to orchestrators started or resumed after you change it.", false, cx));
     rows.extend(page.toggle(g, s, "orchestratorAllEfforts", "Show all effort levels", "Lists every effort level in the orchestrator effort pickers. Anything below High isn't recommended for orchestrators.", false, cx));
     rows.extend(orchestrator_playbook_row(page, g, s, cx));
+    rows.extend(read_aloud_rows(page, g, s, window, cx));
     settings_section(&g.p, "Chat", None, None, rows)
         .map(|section| PageBlock::section("chat", section))
 }
+
+/// Read aloud's Voice and Speed, or on Linux the note that this computer has no voice. The catalog
+/// shows them only while Read aloud is on (its `settingKeys`) and leaves Voice out on Linux
+/// (`availability.rs`); titles and subtitles are the catalog's rows.
+fn read_aloud_rows(
+    page: &mut GeneralTab,
+    g: &GeneralCx,
+    section: &str,
+    window: &mut Window,
+    cx: &mut Context<GeneralTab>,
+) -> Vec<AnyElement> {
+    let catalog_row = |key: &str| {
+        settings_catalog()
+            .general_section("chat")
+            .and_then(|chat| chat.settings.iter().find(|row| row.key == key))
+            .map(|row| (row.title.clone(), row.subtitle.clone(), row.options.clone()))
+            .unwrap_or_default()
+    };
+    let mut rows = Vec::new();
+    // `RuntimeOptions::SystemVoices`: System voice, then this computer's voices (the host lists
+    // them when Settings opens).
+    let (title, subtitle, _) = catalog_row("readAloudVoice");
+    let listed = page.store.read(cx).request().read_aloud_voices.clone();
+    let voices: Vec<SettingOption> = if listed.is_empty() {
+        vec![SettingOption {
+            label: "System voice".to_string(),
+            value: String::new(),
+        }]
+    } else {
+        listed
+            .into_iter()
+            .map(|(value, label)| SettingOption { label, value })
+            .collect()
+    };
+    rows.extend(page.select(
+        g,
+        section,
+        "readAloudVoice",
+        &title,
+        &subtitle,
+        voices,
+        Some(READ_ALOUD_VOICE_WIDTH),
+        false,
+        window,
+        cx,
+    ));
+    let (title, subtitle, speeds) = catalog_row("readAloudRate");
+    rows.extend(page.number_select(
+        g,
+        section,
+        "readAloudRate",
+        &title,
+        &subtitle,
+        speeds,
+        false,
+        window,
+        cx,
+    ));
+    if g.visible(section, "readAloudUnavailable") {
+        let (title, subtitle, _) = catalog_row("readAloudUnavailable");
+        rows.push(setting_row(
+            &g.p,
+            "readAloudUnavailable",
+            RowSpec::new(title).description(subtitle),
+            None,
+            gpui::Empty.into_any_element(),
+            cx,
+        ));
+    }
+    rows
+}
+
+/// Voice names carry their language ("Samantha · English (United States)"), so the field is wider
+/// than the usual select.
+const READ_ALOUD_VOICE_WIDTH: f32 = 280.0;
 
 /// The orchestrator playbook for all projects: its state, the switch that turns an edited copy
 /// off, and the Edit button that opens its editor (tabs/orchestrator_playbook.rs). The playbook

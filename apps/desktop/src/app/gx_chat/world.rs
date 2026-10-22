@@ -25,6 +25,7 @@ use super::locale;
 use super::outbox::{self, Workers};
 use super::platform;
 use super::queries;
+use super::read_aloud::{self, ReadAloudHost, ReadAloudInput};
 use super::refusals;
 use super::retained;
 use super::saves;
@@ -120,6 +121,8 @@ pub(super) enum HostCommand {
     },
     /// What the chat socket read.
     Inbound(Inbound),
+    /// Read aloud: what only the app knows, and the speaker's answers (`read_aloud.rs`).
+    ReadAloud(ReadAloudInput),
 }
 
 /// How many renderer requests one chat with no view attached may hold before the chat is released.
@@ -173,6 +176,8 @@ pub(super) struct World {
     settings_checked_at: Option<Instant>,
     /// The session list revision each chat was last handed (`session_directory.rs`).
     directory_sent: std::collections::HashMap<String, u64>,
+    /// Read aloud's app-wide facts and the one speaker (`read_aloud.rs`).
+    pub(super) read_aloud: ReadAloudHost,
 }
 
 /// When the host must wake with no command: the core's timers and the draft retry ladder.
@@ -202,6 +207,7 @@ pub(super) fn turn(world: &mut World, command: Option<HostCommand>) {
         step(world, command);
         directory_pass(world);
         flush_broadcasts(world);
+        read_aloud::flush(world);
         world.store.prune()
     }));
     match pruned {
@@ -279,6 +285,7 @@ fn purge(world: &mut World, key: &str) {
     world.delivered.remove(key);
     world.held_requests.remove(key);
     world.directory_sent.remove(key);
+    read_aloud::forget(world, key);
     // The chat is gone from the store, so its identity is read back from its key.
     if let Some(identity) = ChatIdentity::from_retention_key(key) {
         world.transport.unfollow(key, &identity);
@@ -299,7 +306,10 @@ fn step(world: &mut World, command: Option<HostCommand>) {
             | HostCommand::Query { key, .. }
             | HostCommand::Pause { key, .. },
         ) => Some(key.clone()),
-        Some(HostCommand::Endpoint { .. } | HostCommand::Inbound(_)) | None => None,
+        Some(
+            HostCommand::Endpoint { .. } | HostCommand::Inbound(_) | HostCommand::ReadAloud(_),
+        )
+        | None => None,
     };
     match command {
         Some(HostCommand::Attach {
@@ -344,8 +354,9 @@ fn step(world: &mut World, command: Option<HostCommand>) {
             // outbox, and opening its chat is what registers the writer that drains it.
             world.draft_workers.entry(key.clone()).or_default();
             world.retry_wakes.insert(key.clone(), Instant::now());
-            let settings = settings_moved(world, &key);
-            drive(world, &key, settings.into_iter().collect());
+            let mut events: Vec<Event> = settings_moved(world, &key).into_iter().collect();
+            events.extend(read_aloud::attach(world, &key));
+            drive(world, &key, events);
         }
         Some(HostCommand::Detach { key, sink }) => {
             let Some(views) = world.views.get_mut(&key) else {
@@ -446,6 +457,7 @@ fn step(world: &mut World, command: Option<HostCommand>) {
             endpoint,
         }) => world.transport.set_endpoint(&machine_id, endpoint),
         Some(HostCommand::Inbound(inbound)) => transport::receive(world, inbound),
+        Some(HostCommand::ReadAloud(input)) => read_aloud::receive(world, input),
         None => {
             settings_pass(world);
             let due: Vec<String> = world
@@ -523,6 +535,7 @@ fn settings_pass(world: &mut World) {
         return;
     }
     world.settings_checked_at = Some(Instant::now());
+    read_aloud::settings_pass(world);
     let keys: Vec<String> = world.views.keys().cloned().collect();
     for key in keys {
         if let Some(event) = settings_moved(world, &key) {
@@ -899,6 +912,9 @@ fn perform(
                 world.wakes.remove(key);
             }
         },
+        effect @ (Effect::Speak { .. }
+        | Effect::StopSpeaking { .. }
+        | Effect::SetReadAloudAuto { .. }) => read_aloud::perform(world, key, effect),
         _ => {}
     }
 }
@@ -1153,6 +1169,9 @@ fn effect_name(effect: &Effect) -> &'static str {
         Effect::RestoreReturnedPrompt { .. } => "restoreReturnedPrompt",
         Effect::MarkdownSaved { .. } => "markdownSaved",
         Effect::HostAction { .. } => "hostAction",
+        Effect::Speak { .. } => "speak",
+        Effect::StopSpeaking { .. } => "stopSpeaking",
+        Effect::SetReadAloudAuto { .. } => "setReadAloudAuto",
         _ => "unrouted",
     }
 }

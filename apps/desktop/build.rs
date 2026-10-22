@@ -898,6 +898,13 @@ fn main() {
         .file(gpui_voice_audio)
         .compile("ghostex_gpui_voice_audio");
 
+    // Read aloud's speaker: AVSpeechSynthesizer (app/read_aloud/macos.rs).
+    let gpui_read_aloud = manifest_dir.join("native/macos/GpuiReadAloud.m");
+    println!("cargo:rerun-if-changed={}", gpui_read_aloud.display());
+    gpui_macos_objc_build()
+        .file(gpui_read_aloud)
+        .compile("ghostex_gpui_read_aloud");
+
     // The first-run intro video's WKWebView (window/onboarding/intro_web_view.rs).
     let gpui_intro_video_web_view = manifest_dir.join("native/macos/GpuiIntroVideoWebView.m");
     println!(

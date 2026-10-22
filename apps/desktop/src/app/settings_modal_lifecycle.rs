@@ -124,6 +124,7 @@ impl GhostexGpuiApp {
         }
         // The React page got its gxserver RPC from the page bootstrap; here it is the local token.
         request.gxserver_rpc_available = read_gpui_gxserver_auth_token().is_ok();
+        request.read_aloud_voices = crate::app::read_aloud::voice_options();
         // The dialogs and forms Settings had open when it last closed (settings_modal/restore.rs).
         let open_forms = read_preference_value(OPEN_FORMS_STORAGE_KEY)
             .ok()

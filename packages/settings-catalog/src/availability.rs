@@ -57,14 +57,15 @@ const ROWS: &[RowAvailability] = &[
         hidden_while: None,
     },
     // CDXC:VoiceMode 2026-10-21 SEE-ALSO: Read aloud has no system voice on Linux (the DECISION is in general/chat.rs), so its Voice row is left out there and the note takes its place.
+    // CDXC:VoiceMode 2026-10-22 WHY: Windows is treated like Linux until its speaker exists (WinRT `SpeechSynthesizer`, spec section 8.2; apps/desktop/src/app/read_aloud/mod.rs tells its chats Read aloud is unavailable): a Voice row there would pick a voice nothing speaks with. Add Windows back to `readAloudVoice` and drop it from the note when that speaker lands.
     RowAvailability {
         key: "readAloudVoice",
-        only_on: &[Platform::MacOs, Platform::Windows],
+        only_on: &[Platform::MacOs],
         hidden_while: None,
     },
     RowAvailability {
         key: "readAloudUnavailable",
-        only_on: &[Platform::Linux],
+        only_on: &[Platform::Windows, Platform::Linux],
         hidden_while: None,
     },
 ];

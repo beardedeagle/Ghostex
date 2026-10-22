@@ -192,6 +192,10 @@ pub(crate) struct SettingsOpenRequest {
     /// The host can reach the local gxserver (the React page's `tailcatRpc` was defined): set
     /// by the host after reading the open message, never by the message itself.
     pub(crate) gxserver_rpc_available: bool,
+    /// Read aloud's Voice choices, `(value, label)`, System voice first: this computer's voices,
+    /// listed by the host when Settings opens (`app/read_aloud/voices.rs`). Empty in the preview
+    /// binary, which offers System voice alone.
+    pub(crate) read_aloud_voices: Vec<(String, String)>,
     /// The preview binary's state name, for page states no open message reaches (an open
     /// dialog, an expanded row, a scripted interaction). Always `None` in the app.
     pub(crate) preview_state: Option<String>,
@@ -240,6 +244,7 @@ impl SettingsOpenRequest {
             open_color_picker: None,
             open_select: None,
             gxserver_rpc_available: false,
+            read_aloud_voices: Vec::new(),
             preview_state: None,
         }
     }

@@ -38,7 +38,7 @@ pub(crate) fn chat() -> Section {
             row("readAloudRate", "Read aloud speed", "How fast Read aloud speaks, from 0.75× to twice as fast. Ghostex in a browser uses it too; the phone has its own Speed.").num_options(&[
                 num_opt("0.75×", 0.75), num_opt("1×", 1.0), num_opt("1.25×", 1.25), num_opt("1.5×", 1.5), num_opt("2×", 2.0),
             ]),
-            row("readAloudUnavailable", "Read aloud", "This computer has no system voice, so Read aloud has no controls here. It works in the Ghostex phone app and in Ghostex in a browser connected to this computer."),
+            row("readAloudUnavailable", "Read aloud", "Read aloud can't speak on this computer, so it has no controls here. It works in the Ghostex phone app and in Ghostex in a browser connected to this computer."),
         ],
     )
 }

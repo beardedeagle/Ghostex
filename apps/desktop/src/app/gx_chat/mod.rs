@@ -37,6 +37,8 @@
 //! - `platform.rs` is the clock, the timezone and the random source.
 //! - `session_directory.rs` is the sidebar store's session list, which names the other session on
 //!   a message between agents.
+//! - `read_aloud.rs` tells every chat what only the app knows about Read aloud and drives the
+//!   app's one speaker (`crate::app::read_aloud`, a twin in the web build).
 //! - `diagnostics.rs` writes the periodic counters, behind the usual two gates; `refusals.rs` names
 //!   a refused request and an unrouted call with code constants.
 
@@ -53,6 +55,7 @@ mod locale;
 mod outbox;
 mod platform;
 mod queries;
+mod read_aloud;
 mod refusals;
 mod retained;
 pub(crate) mod saved_prompt_records;
@@ -66,6 +69,12 @@ mod worker;
 mod world;
 
 pub(crate) use identity::LOCAL_MACHINE_ID;
+/// Read aloud's inputs from the app; the web build has no Dictate or voice agent to report.
+#[allow(unused_imports)]
+pub(crate) use read_aloud::{
+    read_aloud_dictating, read_aloud_on_screen, read_aloud_speech_ended, read_aloud_stop,
+    read_aloud_voice_conversation,
+};
 pub(crate) use transport::current_model_catalog;
 /// The phone's host (packages/gpui-mobile) compiles this file and turns the touch composer on.
 #[allow(unused_imports)]

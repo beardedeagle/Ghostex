@@ -63,7 +63,12 @@ pub(super) fn route(effect: Effect) -> Routed {
         | Effect::SetTimer { .. }
         | Effect::Subscribe { .. }
         | Effect::Unsubscribe
-        | Effect::Reconnect => Routed::Host(effect),
+        | Effect::Reconnect
+        // Read aloud's speaker is the app's one speaker, which only the host sees whole
+        // (`read_aloud.rs`).
+        | Effect::Speak { .. }
+        | Effect::StopSpeaking { .. }
+        | Effect::SetReadAloudAuto { .. } => Routed::Host(effect),
         // `{kind: 'broker', method: 'presentation', params: {state}}`, which is what
         // `native-host.ts:676` pushed and what each app's chat binding reads
         // (`message["method"] == "presentation"` takes `params.state`). It goes to the renderer

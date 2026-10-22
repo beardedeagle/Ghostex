@@ -205,6 +205,18 @@ impl Render for GhostexGpuiApp {
         let shows_terminal = open
             .as_ref()
             .is_some_and(|session| self.web_shows_terminal(session));
+        // Read aloud's chat on screen: the chat the page shows (contract section 5).
+        crate::app::gx_chat::read_aloud_on_screen(
+            open.as_ref()
+                .filter(|_| !shows_terminal)
+                .and_then(|session| self.native_chats.get(session))
+                .and_then(|(_, view)| {
+                    view.read(cx)
+                        .runtime
+                        .as_ref()
+                        .map(|runtime| runtime.key().to_string())
+                }),
+        );
         let surface: Option<AnyElement> = open.as_ref().and_then(|session| {
             if shows_terminal {
                 self.terminals

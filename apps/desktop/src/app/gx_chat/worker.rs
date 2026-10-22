@@ -19,6 +19,7 @@ use serde_json::Value;
 use web_time::Instant;
 
 use super::identity::ChatIdentity;
+use super::read_aloud::ReadAloudInput;
 use super::transport;
 use super::world::{self, ChatHostOutput, HostCommand, Sink, World};
 
@@ -41,6 +42,13 @@ pub(crate) fn set_endpoint(machine_id: &str, base_url: &str, auth_token: &str) {
         machine_id: machine_id.to_string(),
         endpoint: Endpoint::new(base_url, auth_token),
     });
+}
+
+/// Read aloud's app-wide facts and the speaker's answers, for every chat (`read_aloud.rs`).
+pub(super) fn send_read_aloud(input: ReadAloudInput) {
+    let _ = COMMANDS
+        .get_or_init(spawn)
+        .send(HostCommand::ReadAloud(input));
 }
 
 /// Whether this host's chats are driven by a touch composer (a phone), which the core words
@@ -100,6 +108,11 @@ impl ChatHostHandle {
                 .get_or_init(|| Arc::new(AtomicBool::new(false)))
                 .clone(),
         }
+    }
+
+    /// The chat's retention key, which names it as the chat on screen (`read_aloud.rs`).
+    pub(crate) fn key(&self) -> &str {
+        &self.key
     }
 
     pub(crate) fn call(&self, method: &'static str, arguments: Vec<Value>) {

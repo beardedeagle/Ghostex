@@ -35,6 +35,8 @@ mod create_linear_ticket_modal_lifecycle;
 mod new_coordinator_modal_lifecycle;
 pub(crate) mod quick_access;
 mod quick_access_modal_lifecycle;
+/// Read aloud's speaker: the page's `speechSynthesis` (the desktop's `app/read_aloud/` twin).
+pub(crate) mod read_aloud;
 pub(crate) mod remote_conn;
 mod rename_session_modal_lifecycle;
 mod rename_worktree_modal_lifecycle;

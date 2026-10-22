@@ -57,11 +57,13 @@ pub(super) fn bootstrap(headers: &HeaderMap, api_url: &str) -> Response<Body> {
                 "properties": { "client": "web", "client_os": client_os },
             }));
     });
+    // CDXC:VoiceMode 2026-10-22 WHY: the page has no read of this computer's settings (apps/gpui-web/README.md), and Read aloud in a browser follows the switch of the computer serving the page (contract section 2), so the handshake names the built-in features that are on here: the same list the phone polls (`builtInFeatures`, sessions/mobile_summary.rs).
     let mut response = Json(rpc_success(
         request_id,
         json!({
             "authToken": token,
             "baseUrl": api_url,
+            "builtInFeatures": crate::ghostex_cli::built_in_extensions::enabled_built_in_features(),
             "machineLabel": label,
             "protocolVersion": GXSERVER_PROTOCOL_VERSION,
         }),

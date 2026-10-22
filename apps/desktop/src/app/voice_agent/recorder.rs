@@ -41,6 +41,13 @@ fn active_ids() -> std::sync::MutexGuard<'static, std::collections::HashSet<Stri
         .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
+/// Tells Read aloud whether Dictate's microphone is recording (`setDictating`), so a reply is not
+/// read aloud into the recording.
+fn report_microphone() {
+    let recording = !active_ids().is_empty();
+    crate::app::gx_chat::read_aloud_dictating(recording);
+}
+
 /// This app's own recordings folder.
 fn folder() -> PathBuf {
     ghostex_paths::GhostexPaths::resolve()
@@ -128,6 +135,7 @@ impl ActiveRecording {
         };
         recording.write_sidecar();
         active_ids().insert(recording.id.clone());
+        report_microphone();
 
         let (sender, receiver) = std::sync::mpsc::channel::<Vec<i16>>();
         let stopped = Arc::new(AtomicBool::new(false));
@@ -269,6 +277,7 @@ impl ActiveRecording {
             .unwrap_or(0);
         self.recording.duration_ms = data_bytes / 48;
         active_ids().remove(&self.recording.id);
+        report_microphone();
         self.recording.clone()
     }
 }
@@ -276,6 +285,7 @@ impl ActiveRecording {
 impl Drop for ActiveRecording {
     fn drop(&mut self) {
         active_ids().remove(&self.recording.id);
+        report_microphone();
         self.stopped.store(true, Ordering::SeqCst);
         if let Ok(mut slot) = self.running.lock() {
             slot.take();

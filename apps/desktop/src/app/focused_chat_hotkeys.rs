@@ -1,5 +1,5 @@
 //! Focus Chat Box, Copy Last Code Block, Copy Last Reply, Toggle Summary Mode, Maximize Chat Box,
-//! Files and Links and Dictate, answered for the chat of the focused session. The per-chat work is in `native_chat/chat_hotkeys.rs`.
+//! Files and Links, Dictate and Read Last Reply Aloud, answered for the chat of the focused session. The per-chat work is in `native_chat/chat_hotkeys.rs`.
 use crate::*;
 
 impl GhostexGpuiApp {
@@ -51,6 +51,13 @@ impl GhostexGpuiApp {
             // Like pressing the chat box's microphone (native_chat/dictation.rs).
             "toggleDictation" => {
                 view.update(cx, |view, cx| view.toggle_dictation_from_hotkey(window, cx))
+            }
+            // The newest final reply of the chat on screen, from the start (the core picks it).
+            "readAloudLastReply" => {
+                view.update(cx, |view, cx| {
+                    view.invoke(serde_json::json!({"type":"readAloudLastReply"}), cx)
+                });
+                true
             }
             _ => false,
         }

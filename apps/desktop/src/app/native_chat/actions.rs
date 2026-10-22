@@ -106,6 +106,40 @@ impl NativeChatView {
         json!({"label":"View","iconPath":"titlebar/eye.svg","detail":detail,"openOnHover":false,"children":modes})
     }
 
+    /// Read aloud's rows in the Chat section, right below View: the Auto-read check, and Stop
+    /// reading while this chat is being read. Neither shows while Read aloud is off or this
+    /// computer has no voice (`readAloud.available`).
+    ///
+    /// CDXC:VoiceMode 2026-10-20 SEE-ALSO: the user's decision that Auto-read is a switch in this menu, on the phone and the desktop together, is in packages/gx-chat-core/src/read_aloud/actions.rs; the phone's rows are in apps/mobile/app/src/chat/native/composer/menus.ts. They go below View, so none of the rows the CDXC:SessionFork and CDXC:SessionChat decisions place move.
+    fn read_aloud_rows(&self) -> Vec<Value> {
+        let read_aloud = &self.snapshot["readAloud"];
+        if read_aloud["available"] != true {
+            return Vec::new();
+        }
+        let auto = read_aloud["autoRead"] == true;
+        let mut auto_row = json!({
+            "label":"Auto-read","iconPath":"titlebar/volume.svg","checked":auto,
+            "command":{"type":"readAloudAuto","on":!auto},
+        });
+        // Auto-read is on but waits: said under the row, so a silent chat is not a mystery.
+        let held = match read_aloud["autoReadHeld"].as_str() {
+            Some("voiceConversation") => Some("Quiet during the voice agent conversation"),
+            Some("dictation") => Some("Quiet while you dictate"),
+            _ => None,
+        };
+        if let Some(held) = held {
+            auto_row["description"] = json!(held);
+        }
+        let mut rows = vec![auto_row];
+        if read_aloud["speaking"] == true {
+            rows.push(json!({
+                "label":"Stop reading","iconPath":"titlebar/player-stop.svg",
+                "hotkeyAction":"readAloudStop","command":{"type":"readAloudStop"},
+            }));
+        }
+        rows
+    }
+
     /// Files and links, always in this menu with its hotkey beside it.
     ///
     /// CDXC:FilesAndLinks 2026-10-15 DECISION:
@@ -190,6 +224,7 @@ impl NativeChatView {
         rows.push(json!({"heading":true,"label":"Chat"}));
         rows.extend(self.fork_branches_row());
         rows.push(self.view_modes_row(&appearance));
+        rows.extend(self.read_aloud_rows());
         // Side chat: the core offers it only for agents that take `/btw` (composer/side_chat.rs).
         if let Some(prefix) = self.snapshot["sideChat"].as_str() {
             rows.push(json!({"label":"Side chat","iconPath":"titlebar/message-circle.svg","checked":self.draft.starts_with(prefix),"command":{"type":"toggleSideChat","text":self.draft}}));

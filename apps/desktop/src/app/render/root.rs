@@ -184,6 +184,7 @@ impl Render for GhostexGpuiApp {
         self.sync_terminal_model_picker_keyboard_scope();
         self.main_window_bounds = window.bounds();
         self.voice_agent_follow_main_window(cx);
+        self.sync_read_aloud_on_screen(window, cx);
         self.main_window_handle = Some(gpui::Window::window_handle(window));
         crate::app::workspace_windows::sync_workspace_window_title(window, &self.project_name, cx);
         self.sync_main_window_glass(window, cx);

@@ -98,6 +98,15 @@ pub(crate) async fn bootstrap() -> Result<GxserverEndpoint, String> {
             .to_string(),
     };
     CURRENT_ENDPOINT.with(|current| *current.borrow_mut() = Some(endpoint.clone()));
+    // The built-in features on for this computer; an older `ghostex web` sends none (all off).
+    crate::app::read_aloud::set_computer_features(
+        result["builtInFeatures"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|id| id.as_str().map(str::to_string))
+            .collect(),
+    );
     Ok(endpoint)
 }
 

@@ -215,6 +215,9 @@ impl GhostexGpuiApp {
     /// button.
     pub(crate) fn sync_voice_agent_panel(&mut self, cx: &mut gpui::Context<Self>) {
         cx.notify();
+        // Auto-read stays quiet while a conversation is open (CDXC:VoiceMode 2026-10-21 DECISION
+        // in packages/gx-chat-core/src/read_aloud/events.rs).
+        crate::app::gx_chat::read_aloud_voice_conversation(self.voice_agent.active());
         if self.voice_agent.phase == VoicePhase::Idle {
             self.voice_agent.panel_reposition = None;
             self.voice_agent.panel_placed_for = None;

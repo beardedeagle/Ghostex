@@ -81,6 +81,7 @@ pub(crate) mod project_views;
 pub(crate) mod project_websites;
 pub(crate) mod quick_access;
 pub(crate) mod quick_access_modal_lifecycle;
+pub(crate) mod read_aloud;
 pub(crate) mod remote_conn;
 pub(crate) mod remote_gxserver_install_modal_lifecycle;
 pub(crate) mod remote_setup_modal_lifecycle;

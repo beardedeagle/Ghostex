@@ -12,6 +12,7 @@ enum ReplyAction {
     Copy,
     Annotate,
     SaveMarkdown,
+    ReadAloud,
 }
 
 impl NativeChatView {
@@ -83,7 +84,7 @@ impl NativeChatView {
     }
 
     /// CDXC:SessionChat 2026-09-19 SEE-ALSO:
-    /// React's `CopyFooter` and `.ghostex-chat-message-actions` in packages/core-ui/styles/chat.css (both deleted 2026-09-25) carried the user decision this mirrors: a final reply's actions sit in a row below it, Copy, Reply by Annotating, Save to md, then the time it arrived, starting at the prose column.
+    /// React's `CopyFooter` and `.ghostex-chat-message-actions` in packages/core-ui/styles/chat.css (both deleted 2026-09-25) carried the user decision this mirrors: a final reply's actions sit in a row below it, Copy, Reply by Annotating, Save to md, then the time it arrived, starting at the prose column. Read aloud joins the row just before the time (CDXC:VoiceMode below).
     pub(super) fn reply_actions(
         &self,
         message: &Value,
@@ -100,6 +101,7 @@ impl NativeChatView {
             gpui::Hsla::from(gpui::rgb(0xffffff)).opacity(5.0 / 255.0)
         };
         let button = |action: ReplyAction, label: &'static str, icon: &'static str| {
+            let click_id = id.clone();
             let click_markdown = markdown.clone();
             div()
                 .id(format!("reply-action:{id}:{label}"))
@@ -141,12 +143,15 @@ impl NativeChatView {
                         }),
                 )
                 .on_click(cx.listener(move |chat, _, _, cx| {
-                    chat.perform_reply_action(action, &click_markdown, cx)
+                    chat.perform_reply_action(action, &click_id, &click_markdown, cx)
                 }))
         };
         let can_annotate =
             self.config.app.is_some() && message["actionContent"]["canAnnotate"] == true;
         let can_save = message["actionContent"]["canSaveMarkdown"] == true;
+        let read_aloud = &self.snapshot["readAloud"];
+        let can_read_aloud = read_aloud["available"] == true;
+        let reading = can_read_aloud && read_aloud["speakingId"] == message["id"];
         let buttons = div()
             .flex()
             .items_center()
@@ -169,6 +174,21 @@ impl NativeChatView {
                     "Save message to Markdown",
                     "chat-actions/save",
                 ))
+            })
+            /*
+            CDXC:VoiceMode 2026-10-21 DECISION:
+            User (Q24): the desktop's Read aloud action goes last in the reply's hover row, just before the time. It reads Stop reading on the reply being read; the core decides both (packages/gx-chat-core/src/read_aloud/actions.rs), and it shows only while Read aloud is on and this computer has a voice (`readAloud.available`).
+            */
+            .when(can_read_aloud, |actions| {
+                actions.child(if reading {
+                    button(
+                        ReplyAction::ReadAloud,
+                        "Stop reading",
+                        "titlebar/player-stop.svg",
+                    )
+                } else {
+                    button(ReplyAction::ReadAloud, "Read aloud", "titlebar/volume.svg")
+                })
             });
         // The prose column: the marker's 2px inset, its 16px slot, and the 6px gap before the text,
         // or the column's own edge for an answer drawn without the dot.
@@ -399,6 +419,7 @@ impl NativeChatView {
     fn perform_reply_action(
         &mut self,
         action: ReplyAction,
+        id: &str,
         markdown: &str,
         cx: &mut Context<Self>,
     ) {
@@ -413,6 +434,10 @@ impl NativeChatView {
                 self.invoke(json!({"type":"markdownSaveOpen","markdown":markdown}), cx)
             }
             ReplyAction::Annotate => self.host("annotateReply", json!({"markdown":markdown}), cx),
+            // On the reply being read the core stops instead.
+            ReplyAction::ReadAloud => {
+                self.invoke(json!({"type":"readAloudMessage","messageId":id}), cx)
+            }
         }
     }
 }

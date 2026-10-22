@@ -27,6 +27,7 @@ use wasm_bindgen::closure::Closure;
 use web_time::Instant;
 
 use super::identity::ChatIdentity;
+use super::read_aloud::ReadAloudInput;
 use super::transport;
 use super::world::{self, ChatHostOutput, HostCommand, Sink, World};
 
@@ -147,6 +148,11 @@ pub(crate) fn set_endpoint(machine_id: &str, base_url: &str, auth_token: &str) {
     }));
 }
 
+/// Read aloud's app-wide facts and the speaker's answers, for every chat (`read_aloud.rs`).
+pub(super) fn send_read_aloud(input: ReadAloudInput) {
+    submit(Some(HostCommand::ReadAloud(input)));
+}
+
 /// A view's door onto the page's chat host.
 pub(crate) struct ChatHostHandle {
     key: String,
@@ -201,6 +207,11 @@ impl ChatHostHandle {
             id,
             outputs: receiver,
         }
+    }
+
+    /// The chat's retention key, which names it as the chat on screen (`read_aloud.rs`).
+    pub(crate) fn key(&self) -> &str {
+        &self.key
     }
 
     pub(crate) fn call(&self, method: &'static str, arguments: Vec<Value>) {
