@@ -16,6 +16,9 @@ pub(crate) struct GxRpcError {
     pub(crate) code: Option<String>,
     pub(crate) message: String,
     pub(crate) path: String,
+    /// No answer came back at all (nothing listening, no reply, no auth token yet), as opposed to
+    /// an answer that refused or failed the request.
+    pub(crate) unanswered: bool,
 }
 
 impl GxRpcError {
@@ -24,6 +27,16 @@ impl GxRpcError {
             code: None,
             message: message.into(),
             path: path.to_string(),
+            unanswered: false,
+        }
+    }
+
+    /// A call that got no answer from gxserver at all.
+    #[cfg_attr(target_family = "wasm", allow(dead_code))] // the web transport cannot tell
+    pub(crate) fn unanswered(path: &str, message: impl Into<String>) -> Self {
+        Self {
+            unanswered: true,
+            ..Self::transport(path, message)
         }
     }
 
@@ -44,6 +57,7 @@ impl GxRpcError {
                     .unwrap_or("gxserver rejected the request.")
                     .to_string(),
                 path: path.to_string(),
+                unanswered: false,
             });
         }
         if status.is_some_and(|status| !(200..300).contains(&status)) || envelope["ok"] != true {

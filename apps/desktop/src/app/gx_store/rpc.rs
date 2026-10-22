@@ -72,7 +72,7 @@ pub(crate) async fn gx_rpc_with_timeout(
                         "gxserver returned invalid JSON.",
                     )),
                 },
-                Err(message) => Err(GxRpcError::transport(&owned_path, message)),
+                Err(message) => Err(GxRpcError::unanswered(&owned_path, message)),
             };
             let _ = sender.send(result);
         });

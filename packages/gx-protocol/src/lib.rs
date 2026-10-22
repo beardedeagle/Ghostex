@@ -27,6 +27,7 @@ pub mod presentation;
 pub mod rpc;
 pub mod session_chat_agents;
 pub mod side_state;
+pub mod starting;
 pub mod tri;
 
 pub use chat::*;
@@ -40,6 +41,7 @@ pub use presentation::*;
 pub use rpc::*;
 pub use session_chat_agents::*;
 pub use side_state::*;
+pub use starting::*;
 pub use tri::Tri;
 
 /// The `product` string of every RPC envelope.

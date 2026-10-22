@@ -1,9 +1,11 @@
-use crate::app::gx_store::{gx_rpc, gx_rpc_with_timeout, write_client_document_value};
+use super::offline_issue::{FeedbackScrubContext, offline_issue};
+use crate::app::gx_store::{GxRpcError, gx_rpc, gx_rpc_with_timeout, write_client_document_value};
 use crate::app::model::GpuiRemoteGxserverRequestTarget;
 use crate::app::window::native_modal_kit::*;
 use base64::Engine as _;
 use gpui::{
-    App, AppContext as _, Context, Entity, FocusHandle, Image, KeyDownEvent, Subscription, Window,
+    App, AppContext as _, ClipboardItem, Context, Entity, FocusHandle, Image, KeyDownEvent,
+    Subscription, Window,
 };
 use gpui_component::input::{Enter, Escape, InputEvent, InputState, TextareaState};
 use serde_json::{Value, json};
@@ -59,6 +61,11 @@ pub(crate) struct FeedbackModalConfig {
     pub(crate) agent_id: Option<String>,
     /// The remote machine the reported session runs on; `None` starts the agent on this computer.
     pub(crate) agent_machine: Option<FeedbackAgentMachine>,
+    /// This computer's startup diagnostics for the browser issue when gxserver does not answer;
+    /// `None` where there are none to read (the web build), which also hides that offer.
+    pub(crate) offline_diagnostics: Option<fn() -> String>,
+    /// What to remove from that issue before the browser opens.
+    pub(crate) scrub_context: FeedbackScrubContext,
 }
 
 /// Client storage's `feedbackGithubUser` store: the GitHub username the last feedback named.
@@ -124,6 +131,12 @@ pub(crate) struct GpuiFeedbackModalWindow {
     /// A draft or a send is in flight.
     pub(super) busy: bool,
     pub(super) error: Option<String>,
+    pub(super) offline_diagnostics: Option<fn() -> String>,
+    pub(super) scrub_context: FeedbackScrubContext,
+    /// The last request got no answer from this computer's gxserver: offer the browser issue.
+    pub(super) offline_offer: bool,
+    /// Said once the browser issue opened.
+    pub(super) offline_notice: Option<String>,
     pub(super) fit: ModalFit,
     pub(super) focus_handle: FocusHandle,
     _subscriptions: Vec<Subscription>,
@@ -218,6 +231,10 @@ impl GpuiFeedbackModalWindow {
             footer: String::new(),
             busy: false,
             error: None,
+            offline_diagnostics: config.offline_diagnostics,
+            scrub_context: config.scrub_context,
+            offline_offer: false,
+            offline_notice: None,
             fit: ModalFit::fixed(),
             focus_handle: cx.focus_handle(),
             _subscriptions: subscriptions,
@@ -292,6 +309,8 @@ impl GpuiFeedbackModalWindow {
         }
         self.busy = true;
         self.error = None;
+        self.offline_offer = false;
+        self.offline_notice = None;
         cx.notify();
         self.remember_username(cx);
         let params = json!({
@@ -305,7 +324,7 @@ impl GpuiFeedbackModalWindow {
                 this.busy = false;
                 match result {
                     Ok(draft) => this.show_review(&draft, window, cx),
-                    Err(error) => this.error = Some(error.message),
+                    Err(error) => this.show_failure(error, true),
                 }
                 cx.notify();
             });
@@ -349,6 +368,8 @@ impl GpuiFeedbackModalWindow {
         }
         self.busy = true;
         self.error = None;
+        self.offline_offer = false;
+        self.offline_notice = None;
         cx.notify();
         let app = self.app;
         let title = self.title.trim().to_string();
@@ -384,7 +405,7 @@ impl GpuiFeedbackModalWindow {
                             }
                         }
                     }
-                    Err(error) => this.error = Some(error.message),
+                    Err(error) => this.show_failure(error, true),
                 }
                 cx.notify();
             });
@@ -409,6 +430,8 @@ impl GpuiFeedbackModalWindow {
         }
         self.busy = true;
         self.error = None;
+        self.offline_offer = false;
+        self.offline_notice = None;
         cx.notify();
         self.remember_username(cx);
         let mut params = json!({
@@ -416,6 +439,7 @@ impl GpuiFeedbackModalWindow {
             "message": self.message.trim(),
             "githubUsername": self.username(),
         });
+        let local = self.agent_machine.is_none();
         let (remote, remote_machine_id, agent_id) = match &self.agent_machine {
             Some(machine) => (
                 machine.target.clone(),
@@ -457,8 +481,58 @@ impl GpuiFeedbackModalWindow {
                                 .to_string(),
                         ),
                     },
-                    Err(error) => this.error = Some(error.message),
+                    Err(error) => this.show_failure(error, local),
                 }
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
+    /// Shows why a request failed, and offers the browser issue when this computer's gxserver gave
+    /// no answer (or said it is still starting) and there are diagnostics to send with it.
+    fn show_failure(&mut self, error: GxRpcError, local: bool) {
+        self.offline_offer = local
+            && self.offline_diagnostics.is_some()
+            && (error.unanswered || error.code.as_deref() == Some("serverStarting"));
+        self.error = Some(error.message);
+    }
+
+    /// "Open a GitHub issue in your browser" (CDXC:Feedback 2026-10-22 DECISION in
+    /// offline_issue.rs): the message (or the reviewed issue) and this computer's startup
+    /// diagnostics, cleaned of personal data, as a prefilled new-issue page.
+    pub(super) fn open_offline_issue(&mut self, cx: &mut Context<Self>) {
+        if self.busy {
+            return;
+        }
+        let (title, message) = match self.step {
+            FeedbackStep::Review => (self.title.clone(), self.body.clone()),
+            _ => (String::new(), self.message.clone()),
+        };
+        if message.trim().is_empty() {
+            return;
+        }
+        self.busy = true;
+        cx.notify();
+        let diagnostics = self.offline_diagnostics;
+        let context = self.scrub_context.clone();
+        let build = cx.background_executor().spawn(async move {
+            let diagnostics = diagnostics.map(|read| read());
+            offline_issue(&title, &message, diagnostics.as_deref(), &context)
+        });
+        cx.spawn(async move |this, cx| {
+            let issue = build.await;
+            let _ = this.update(cx, |this, cx| {
+                this.busy = false;
+                let notice = match issue.clipboard {
+                    Some(body) => {
+                        cx.write_to_clipboard(ClipboardItem::new_string(body));
+                        "GitHub opened in your browser. The report was too long for a link, so it is on your clipboard: paste it into the issue, check it, then press Create."
+                    }
+                    None => "GitHub opened in your browser with your report filled in, with personal data removed. Check it, then press Create there.",
+                };
+                cx.open_url(&issue.url);
+                this.offline_notice = Some(notice.to_string());
                 cx.notify();
             });
         })

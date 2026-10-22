@@ -2617,6 +2617,7 @@ dependencies = [
  "ghostex-gx-chat-core",
  "ghostex-gx-client",
  "ghostex-gx-core",
+ "ghostex-gx-protocol",
  "ghostex-paths",
  "ghostex-settings-catalog",
  "gpui",

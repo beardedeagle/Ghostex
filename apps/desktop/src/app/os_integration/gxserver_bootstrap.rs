@@ -275,6 +275,54 @@ impl GhostexGpuiApp {
                     #[cfg(not(target_os = "windows"))]
                     return;
                 }
+                /*
+                CDXC:ServerDaemon 2026-10-22 WHY:
+                A gxserver that says it is starting (server/src/server/startup_gate.rs) is waited for, with its step on the loading notice, and once it is ready this bootstrap runs again from the top so every ready-state check applies. Starting another one beside it would do nothing. Only one that is still starting after the startup patience falls through to the launch below, whose new gxserver replaces a hung start (stale_server_takeover.rs).
+                */
+                GpuiLocalGxserverHealthState::Starting { .. } => {
+                    #[cfg(target_os = "windows")]
+                    let show_starting_toast = show_loading_toast && !windows_first_run_setup_active;
+                    #[cfg(not(target_os = "windows"))]
+                    let show_starting_toast = show_loading_toast;
+                    loop {
+                        if GPUI_GXSERVER_BOOTSTRAP_GENERATION.load(Ordering::SeqCst) != bootstrap_generation {
+                            return;
+                        }
+                        let (health, detail) = cx
+                            .background_executor()
+                            .spawn(async { gpui_probe_local_gxserver_health_with_diagnostics() })
+                            .await;
+                        match health {
+                            GpuiLocalGxserverHealthState::Starting { starting_for, .. }
+                                if starting_for
+                                    < GPUI_GXSERVER_START_PATIENCE + Duration::from_secs(20) =>
+                            {
+                                if show_starting_toast {
+                                    let _ = this.update(cx, |this, cx| {
+                                        this.show_gpui_gxserver_bootstrap_toast(
+                                            "info",
+                                            "Loading sessions…",
+                                            &detail,
+                                            true,
+                                            cx,
+                                        );
+                                    });
+                                }
+                                cx.background_executor().timer(Duration::from_secs(1)).await;
+                            }
+                            GpuiLocalGxserverHealthState::Starting { .. } => {
+                                startup_diagnostics.push(format!("+{}ms gave up waiting: {detail}", startup_started.elapsed().as_millis()));
+                                break;
+                            }
+                            _ => {
+                                let _ = this.update(cx, |this, cx| {
+                                    this.start_gpui_local_gxserver_bootstrap(show_loading_toast, cx);
+                                });
+                                return;
+                            }
+                        }
+                    }
+                }
                 GpuiLocalGxserverHealthState::Unreachable => {}
             }
 
@@ -411,6 +459,12 @@ impl GhostexGpuiApp {
                 if !failure_shown {
                     startup_diagnostics.push(format!("+{}ms probe {attempt}: {detail}", startup_started.elapsed().as_millis()));
                 }
+                // A start that is moving counts as progress until it has run for the startup patience; the launch every 30 s below is what lets a hung one be replaced.
+                if let GpuiLocalGxserverHealthState::Starting { starting_for, .. } = &health
+                    && *starting_for < GPUI_GXSERVER_START_PATIENCE
+                {
+                    progress_at = std::time::Instant::now();
+                }
                 match health {
                     GpuiLocalGxserverHealthState::Healthy { tools_available } => {
                         let _ = this.update(cx, |this, cx| {
@@ -483,7 +537,8 @@ impl GhostexGpuiApp {
                         continue;
                     }
                     GpuiLocalGxserverHealthState::BuildMismatch => {}
-                    GpuiLocalGxserverHealthState::Unreachable => {
+                    GpuiLocalGxserverHealthState::Unreachable
+                    | GpuiLocalGxserverHealthState::Starting { .. } => {
                         if last_launch_at.elapsed() >= Duration::from_secs(30) {
                             last_launch_at = std::time::Instant::now();
                             let launch_binary = binary.clone();

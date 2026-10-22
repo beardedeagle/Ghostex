@@ -56,6 +56,7 @@ cef = { path = "../../.dependencies/cef-rs/cef", default-features = false }
 flate2 = "1"
 futures = "0.3"
 ghostex-paths = { path = "../../packages/paths" }
+ghostex-gx-protocol = { path = "../../packages/gx-protocol" }
 ghostex-client-storage = { path = "../../packages/client-storage-native" }
 ghostex-gx-chat-core = { path = "../../packages/gx-chat-core" }
 ghostex-gx-chat-client = { path = "../../packages/gx-chat-client" }

@@ -199,6 +199,24 @@ pub async fn get_gxserver_status(_build_identity: &str, _version: &str) -> Resul
     if let Some(health) = fetch_server_health(auth.as_ref().map(|auth| auth.token.as_str()), 800)? {
         return Ok(create_running_status(health, metadata));
     }
+    // A daemon that holds the port but is still starting answers 503 "starting" (server/src/server/startup_gate.rs).
+    if let Some(starting) = crate::http_client::fetch_server_starting(
+        auth.as_ref().map(|auth| auth.token.as_str()),
+        800,
+    )? {
+        return Ok(StatusResponse {
+            health: None,
+            message: starting
+                .get("message")
+                .and_then(Value::as_str)
+                .unwrap_or("gxserver is still starting.")
+                .to_string(),
+            metadata,
+            ok: true,
+            product: GXSERVER_PRODUCT.to_string(),
+            state: "starting".to_string(),
+        });
+    }
     if let Some(metadata) = metadata.clone() {
         if is_process_running(metadata.pid) {
             let pid = metadata.pid;

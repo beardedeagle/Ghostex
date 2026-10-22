@@ -43,8 +43,51 @@ pub(crate) fn gxserver_post_typed_operation(
     gxserver_post_typed_operation_across_restart(path, params, timeout, Duration::ZERO)
 }
 
-/// CDXC:ServerDaemon 2026-09-29 WHY: `cargo xtask start-server` and gxserver updates replace the daemon in place, leaving the port closed for about two seconds while the app stays open. A background caller that meets that gap waits up to `restart_wait` for the port to open again instead of failing, because a single refused connect put "gxserver is not reachable" on the chat's error line although gxserver was back a moment later. Only a refused connect is waited out: the request never reached gxserver, so sending it once the port opens cannot run it twice. UI-thread callers keep `Duration::ZERO`.
+/// CDXC:ServerDaemon 2026-10-22 WHY: `cargo xtask start-server` and gxserver updates replace the daemon in place, leaving the port closed for about two seconds while the app stays open. A background caller that meets that gap waits up to `restart_wait` for gxserver to answer instead of failing, because a single refused connect put "gxserver is not reachable" on the chat's error line although gxserver was back a moment later. Only a refused connect is waited out: the request never reached gxserver, so sending it once the port opens cannot run it twice. UI-thread callers keep `Duration::ZERO`. A gxserver still starting is waited out by every caller within its own `timeout` (`gpui_wait_out_gxserver_starting`).
 pub(crate) fn gxserver_post_typed_operation_across_restart(
+    path: &str,
+    params: &serde_json::Value,
+    timeout: Duration,
+    restart_wait: Duration,
+) -> Result<(u16, String), String> {
+    let started = Instant::now();
+    gpui_wait_out_gxserver_starting(started + timeout.max(restart_wait), |remaining| {
+        gxserver_post_typed_operation_once(
+            path,
+            params,
+            remaining.min(timeout),
+            (started + restart_wait).saturating_duration_since(Instant::now()),
+        )
+    })
+}
+
+/// Runs `attempt` (given the time left) until gxserver's answer is not "still starting" or the next
+/// try would fall past `deadline`, waiting the delay it advises in between; the last answer is
+/// returned either way. A request used to wait in a starting gxserver's listen backlog until it
+/// was served; the 503 `serverStarting` answer replaced that wait, so every local and remote
+/// typed operation waits it out here, within the time limit it already had (the rule:
+/// packages/gx-protocol/src/starting.rs).
+pub(crate) fn gpui_wait_out_gxserver_starting(
+    deadline: Instant,
+    mut attempt: impl FnMut(Duration) -> Result<(u16, String), String>,
+) -> Result<(u16, String), String> {
+    loop {
+        let answer = attempt(
+            deadline
+                .saturating_duration_since(Instant::now())
+                .max(Duration::from_millis(1)),
+        );
+        let Ok((status, body)) = &answer else {
+            return answer;
+        };
+        match ghostex_gx_protocol::server_starting_retry_after(*status, body) {
+            Some(delay) if Instant::now() + delay < deadline => std::thread::sleep(delay),
+            _ => return answer,
+        }
+    }
+}
+
+fn gxserver_post_typed_operation_once(
     path: &str,
     params: &serde_json::Value,
     timeout: Duration,

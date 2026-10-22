@@ -14,6 +14,7 @@ chrono = { version = "0.4", default-features = false, features = ["clock", "serd
 crossterm = "0.28"
 futures-util = "0.3"
 ghostex-paths = { path = "../packages/paths" }
+ghostex-gx-protocol = { path = "../packages/gx-protocol" }
 ghostex-docs = { path = "../packages/project-docs" }
 ghostex-find = { path = "../packages/find" }
 ghostex-settings-catalog = { path = "../packages/settings-catalog" }

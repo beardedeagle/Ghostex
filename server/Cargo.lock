@@ -897,6 +897,7 @@ dependencies = [
  "ghostex-editor-client",
  "ghostex-find",
  "ghostex-gx-chat-core",
+ "ghostex-gx-protocol",
  "ghostex-gx-visual",
  "ghostex-paths",
  "ghostex-settings-catalog",

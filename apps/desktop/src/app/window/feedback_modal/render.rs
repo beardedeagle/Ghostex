@@ -152,6 +152,7 @@ impl GpuiFeedbackModalWindow {
             ))
             .child(modal_hint(&p, added))
             .children(self.error.clone().map(|error| modal_error(&p, error)))
+            .children(self.render_offline_offer(cx))
             .into_any_element();
         vec![
             modal_header(
@@ -164,6 +165,42 @@ impl GpuiFeedbackModalWindow {
             ),
             fields,
         ]
+    }
+
+    /// The way to report while gxserver does not answer (CDXC:Feedback 2026-10-22 DECISION in
+    /// offline_issue.rs), shown under the error it answers.
+    fn render_offline_offer(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
+        let p = self.palette;
+        if let Some(notice) = self.offline_notice.clone() {
+            return Some(modal_hint(&p, notice).into_any_element());
+        }
+        if !self.offline_offer {
+            return None;
+        }
+        Some(
+            v_flex()
+                .w_full()
+                .flex_shrink_0()
+                .gap(px(8.0))
+                .child(modal_hint(
+                    &p,
+                    "Ghostex's background service isn't answering, so the report can't go \
+                     through it. You can open the issue on GitHub in your browser instead, with \
+                     your message and this computer's startup diagnostics filled in. Your user \
+                     name, home folder, computer name, addresses and tokens are removed first.",
+                ))
+                .child(div().flex().child(modal_action_button(
+                    &p,
+                    "feedback-open-in-browser",
+                    "Open a GitHub issue in your browser",
+                    self.busy.then(|| modal_spinner(p.primary_foreground)),
+                    ModalButtonTone::Primary,
+                    self.busy,
+                    |this, _window, cx| this.open_offline_issue(cx),
+                    cx,
+                )))
+                .into_any_element(),
+        )
     }
 
     fn render_sent(&self, number: u64, url: &str) -> Vec<AnyElement> {
@@ -277,6 +314,7 @@ impl Render for GpuiFeedbackModalWindow {
                 if let Some(error) = self.error.clone() {
                     content.push(modal_error(&p, error));
                 }
+                content.extend(self.render_offline_offer(cx));
                 content
             }
             FeedbackStep::Review => self.render_review(window, cx),

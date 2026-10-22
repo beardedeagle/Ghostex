@@ -51,6 +51,7 @@ pub(crate) async fn gx_rpc(
                             .unwrap_or("gxserver rejected the request.")
                             .to_string(),
                         path: owned_path,
+                        unanswered: false,
                     }),
                 }
             }

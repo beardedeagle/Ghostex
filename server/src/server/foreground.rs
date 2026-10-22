@@ -226,6 +226,16 @@ pub async fn run_gxserver_foreground(
             handle_http_request(http_state.clone(), request)
         }))
         .with_state(state.clone());
+    let startup_gate = StartupGate::new();
+    let app = {
+        let gate = startup_gate.clone();
+        let gate_state = state.clone();
+        app.layer(axum::middleware::from_fn(
+            move |request: axum::extract::Request, next: axum::middleware::Next| {
+                startup_gate_middleware(gate.clone(), gate_state.clone(), request, next)
+            },
+        ))
+    };
 
     let address: SocketAddr = format!("{local_host}:{local_port}")
         .parse()
@@ -257,7 +267,38 @@ pub async fn run_gxserver_foreground(
         }
         None => None,
     };
+    // Served from here on: until `startup_gate.open()` below every request is answered "starting".
+    let cleanup_paths = paths.clone();
+    let cleanup_owner = metadata.clone();
+    let (metadata_cleanup_tx, metadata_cleanup_rx) = tokio::sync::oneshot::channel();
+    let http_drain_rx = shutdown_tx.subscribe();
+    let loopback_v6_task = loopback_v6_listener.map(|listener| {
+        let mut shutdown_rx = shutdown_tx.subscribe();
+        let app = app.clone();
+        tokio::spawn(async move {
+            axum::serve(listener, app)
+                .with_graceful_shutdown(async move {
+                    let _ = shutdown_rx.recv().await;
+                })
+                .await
+        })
+    });
+    let mut serve_task = {
+        let mut shutdown_rx = shutdown_tx.subscribe();
+        tokio::spawn(async move {
+            axum::serve(listener, app)
+                .with_graceful_shutdown(async move {
+                    let _ = shutdown_rx.recv().await;
+                    // Remove discovery while this daemon still holds the listener: a replacement
+                    // cannot publish its record between our ownership check and unlink.
+                    let _ = metadata_cleanup_tx
+                        .send(remove_runtime_metadata(&cleanup_paths, &cleanup_owner));
+                })
+                .await
+        })
+    };
 
+    startup_gate.step("recovering title jobs");
     title_job_recovery::recover_title_jobs_after_restart(&paths)?;
     write_runtime_metadata(&paths, &metadata)?;
     let _ = logger.log_routine(
@@ -278,6 +319,7 @@ pub async fn run_gxserver_foreground(
         "serverId": metadata.server_id.clone(),
         "type": "serverStarted",
     }));
+    startup_gate.step("starting its background runtimes");
     state.automation_runtime.start(shutdown_tx.subscribe());
     state.delayed_send_runtime.start(
         shutdown_tx.subscribe(),
@@ -334,6 +376,7 @@ pub async fn run_gxserver_foreground(
     so each affected session is simply sleeping and the ordinary wake-on-open
     path restores it with its saved resume plan.
     */
+    startup_gate.step("checking the session daemons");
     if let Ok(db) = open_gxserver_database(&paths) {
         let repository = DomainRepository::new(&db, metadata.server_id.as_str());
         cycle_wire_incompatible_zmx_session_daemons(&repository, &logger, &metadata.server_id);
@@ -344,7 +387,9 @@ pub async fn run_gxserver_foreground(
     back from persisted state rather than leaving remote access silently down
     until someone reopens Settings.
     */
+    startup_gate.step("starting remote access");
     start_tailcat_from_persisted_state(&paths, &state.tailcat_runtime);
+    startup_gate.step("watching sessions");
     crate::program_status::init_status_source(&paths, state.logger.clone(), &metadata.server_id);
     sync_zmx_title_observers_for_all_sessions(&state, "server-start");
     sync_session_chat_followers_for_all_sessions(&state, "server-start");
@@ -377,7 +422,6 @@ pub async fn run_gxserver_foreground(
     */
     let telemetry_tasks = spawn_telemetry_tasks(&state, install_created_at);
 
-    let mut shutdown_rx = shutdown_tx.subscribe();
     let shutdown_for_signal = shutdown_tx.clone();
     let state_for_signal = state.clone();
     tokio::spawn(async move {
@@ -391,31 +435,13 @@ pub async fn run_gxserver_foreground(
         metadata.server_id.clone(),
     );
     shutdown_bounds::stop_session_watchers_on_shutdown(&state);
+    startup_gate.open();
 
-    let cleanup_paths = paths.clone();
-    let cleanup_owner = metadata.clone();
-    let (metadata_cleanup_tx, metadata_cleanup_rx) = tokio::sync::oneshot::channel();
-    let loopback_v6_task = loopback_v6_listener.map(|listener| {
-        let mut shutdown_rx = shutdown_tx.subscribe();
-        let app = app.clone();
-        tokio::spawn(async move {
-            axum::serve(listener, app)
-                .with_graceful_shutdown(async move {
-                    let _ = shutdown_rx.recv().await;
-                })
-                .await
-        })
-    });
-    let serve = axum::serve(listener, app).with_graceful_shutdown(async move {
-        let _ = shutdown_rx.recv().await;
-        // Remove discovery while this daemon still holds the listener: a replacement
-        // cannot publish its record between our ownership check and unlink.
-        let _ = metadata_cleanup_tx.send(remove_runtime_metadata(&cleanup_paths, &cleanup_owner));
-    });
     // The drain waits for every in-flight request; long waits are cut off (shutdown_bounds.rs).
     let serve_result = tokio::select! {
-        result = std::future::IntoFuture::into_future(serve) => result,
-        _ = shutdown_bounds::http_drain_limit_elapsed(shutdown_tx.subscribe()) => {
+        result = &mut serve_task => result.unwrap_or_else(|error| Err(std::io::Error::other(error))),
+        _ = shutdown_bounds::http_drain_limit_elapsed(http_drain_rx) => {
+            serve_task.abort();
             shutdown_bounds::log_http_drain_abandoned(&state);
             Ok(())
         }

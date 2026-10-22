@@ -299,21 +299,32 @@ pub fn request_gxserver_envelope(
         .number("timeout")
         .or_else(|| flags.number("timeoutMs"))
         .unwrap_or(15_000.0);
-    let request = ureq::post(&format!("{}{}", target.base_url, pathname))
-        .set("authorization", &format!("Bearer {}", target.token))
-        .set("content-type", "application/json")
-        .set(
-            GXSERVER_PROTOCOL_HEADER,
-            &GXSERVER_PROTOCOL_VERSION.to_string(),
-        )
-        .timeout(Duration::from_millis(timeout_ms.max(0.0) as u64));
-    let outcome = request.send_string(&body.to_string());
+    let body_text = body.to_string();
+    // A gxserver still starting is waited out within the same time limit (packages/gx-protocol/src/starting.rs).
+    let outcome = crate::http_client::wait_out_server_starting(
+        Instant::now() + Duration::from_millis(timeout_ms.max(0.0) as u64),
+        |remaining| {
+            ureq::post(&format!("{}{}", target.base_url, pathname))
+                .set("authorization", &format!("Bearer {}", target.token))
+                .set("content-type", "application/json")
+                .set(
+                    GXSERVER_PROTOCOL_HEADER,
+                    &GXSERVER_PROTOCOL_VERSION.to_string(),
+                )
+                .timeout(remaining.max(Duration::from_millis(1)))
+                .send_string(&body_text)
+                .map(|response| (true, response.status(), read_json_body(response)))
+                .or_else(|error| match error {
+                    ureq::Error::Status(status, response) => {
+                        Ok((false, status, read_json_body(response)))
+                    }
+                    error => Err(error),
+                })
+        },
+        starting_retry_after,
+    );
     let (status_ok, status, response_body) = match outcome {
-        Ok(response) => {
-            let status = response.status();
-            (true, status, read_json_body(response))
-        }
-        Err(ureq::Error::Status(status, response)) => (false, status, read_json_body(response)),
+        Ok(answer) => answer,
         Err(error) if timed_out_after_connecting(&error) => {
             return Err(timeout_error(target, pathname, body, timeout_ms));
         }
@@ -351,6 +362,18 @@ pub fn request_gxserver_envelope(
         })));
     }
     Ok(response_body.unwrap_or_else(|| json!({})))
+}
+
+/// The advised wait when an answer is a starting gxserver's.
+fn starting_retry_after(
+    answer: &Result<(bool, u16, Option<Value>), ureq::Error>,
+) -> Option<Duration> {
+    match answer {
+        Ok((false, 503, Some(body))) => {
+            ghostex_gx_protocol::server_starting_retry_after_value(body)
+        }
+        _ => None,
+    }
 }
 
 fn read_json_body(response: ureq::Response) -> Option<Value> {
@@ -628,20 +651,36 @@ pub fn read_local_gxserver_auth_token() -> CliResult<String> {
     Ok(token)
 }
 
+/// The target's health, waiting out a gxserver that is still starting within `timeout_ms`, as a
+/// request in its listen backlog used to.
 pub fn fetch_gxserver_health(target: &Target, timeout_ms: u64) -> CliResult<Option<Value>> {
-    let request = ureq::get(&format!(
-        "{}/api/health/server?protocolVersion={GXSERVER_PROTOCOL_VERSION}",
-        target.base_url
-    ))
-    .set("authorization", &format!("Bearer {}", target.token))
-    .set(
-        GXSERVER_PROTOCOL_HEADER,
-        &GXSERVER_PROTOCOL_VERSION.to_string(),
-    )
-    .timeout(Duration::from_millis(timeout_ms));
-    match request.call() {
-        Ok(response) => Ok(read_json_body(response)),
-        Err(ureq::Error::Status(_, _)) => Ok(None),
+    let outcome = crate::http_client::wait_out_server_starting(
+        Instant::now() + Duration::from_millis(timeout_ms),
+        |remaining| {
+            ureq::get(&format!(
+                "{}/api/health/server?protocolVersion={GXSERVER_PROTOCOL_VERSION}",
+                target.base_url
+            ))
+            .set("authorization", &format!("Bearer {}", target.token))
+            .set(
+                GXSERVER_PROTOCOL_HEADER,
+                &GXSERVER_PROTOCOL_VERSION.to_string(),
+            )
+            .timeout(remaining.max(Duration::from_millis(1)))
+            .call()
+            .map(|response| (true, response.status(), read_json_body(response)))
+            .or_else(|error| match error {
+                ureq::Error::Status(status, response) => {
+                    Ok((false, status, read_json_body(response)))
+                }
+                error => Err(error),
+            })
+        },
+        starting_retry_after,
+    );
+    match outcome {
+        Ok((true, _, body)) => Ok(body),
+        Ok((false, _, _)) => Ok(None),
         Err(error) => Err(CliError::Other(error.to_string())),
     }
 }

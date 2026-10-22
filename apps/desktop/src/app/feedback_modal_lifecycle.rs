@@ -25,6 +25,11 @@ impl GhostexGpuiApp {
                 .unwrap_or_default(),
             agent_id: read_primary_agent_launcher_id(),
             agent_machine: self.feedback_agent_machine(),
+            #[cfg(not(target_family = "wasm"))]
+            offline_diagnostics: Some(feedback_offline_diagnostics),
+            #[cfg(target_family = "wasm")]
+            offline_diagnostics: None,
+            scrub_context: feedback_scrub_context(),
         };
         let host = self.native_app_modal_host(cx, |app, command, cx| match command {
             FeedbackModalCommand::Closed => {
@@ -114,5 +119,76 @@ impl GhostexGpuiApp {
             agent_id: read_primary_agent_launcher_id()
                 .map(|agent_id| ghostex_gx_core::remote_launch_agent_id(hud.as_deref(), &agent_id)),
         })
+    }
+}
+
+/// This computer's gxserver startup diagnostics for the browser issue Send Bug / Feedback opens
+/// while gxserver does not answer: a fresh health probe and the startup report the "gxserver
+/// failed to start" notice copies.
+#[cfg(not(target_family = "wasm"))]
+fn feedback_offline_diagnostics() -> String {
+    let (_, probe) = crate::app::helpers::gpui_probe_local_gxserver_health_with_diagnostics();
+    crate::app::helpers::gpui_gxserver_startup_failure_report(&[format!(
+        "Health check when the report was made: {probe}"
+    )])
+}
+
+/// What this computer knows is private: its home folder, user and computer names, and the names,
+/// hosts and users of the saved remote machines (CDXC:Feedback 2026-10-22 DECISION in
+/// window/feedback_modal/offline_issue.rs).
+fn feedback_scrub_context() -> FeedbackScrubContext {
+    let variable = |name: &str| {
+        std::env::var(name)
+            .ok()
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+    };
+    let home_dirs = ["HOME", "USERPROFILE"]
+        .into_iter()
+        .filter_map(variable)
+        .collect();
+    let mut private_words: Vec<String> = [
+        "USER",
+        "USERNAME",
+        "LOGNAME",
+        "COMPUTERNAME",
+        "USERDOMAIN",
+        "HOSTNAME",
+    ]
+    .into_iter()
+    .filter_map(variable)
+    .collect();
+    #[cfg(all(unix, not(target_family = "wasm")))]
+    {
+        let mut name = [0u8; 256];
+        // SAFETY: the buffer is writable for its whole length and stays alive for the call.
+        if unsafe { libc::gethostname(name.as_mut_ptr().cast(), name.len()) } == 0 {
+            let end = name
+                .iter()
+                .position(|byte| *byte == 0)
+                .unwrap_or(name.len());
+            let host = String::from_utf8_lossy(&name[..end]).trim().to_string();
+            if let Some(short) = host.split('.').next().filter(|short| *short != host) {
+                private_words.push(short.to_string());
+            }
+            private_words.push(host);
+        }
+    }
+    if let Some(machines) = shared_settings::shared_sidebar_settings_snapshot()
+        .object()
+        .get("remoteMachines")
+        .and_then(serde_json::Value::as_array)
+    {
+        for machine in machines {
+            for field in ["name", "sshHost", "sshUser", "easyConnectAddress"] {
+                if let Some(value) = machine.get(field).and_then(serde_json::Value::as_str) {
+                    private_words.push(value.to_string());
+                }
+            }
+        }
+    }
+    FeedbackScrubContext {
+        home_dirs,
+        private_words,
     }
 }

@@ -245,6 +245,7 @@ pub(crate) fn gpui_take_over_local_gxserver_from_other_build(binary: &Path) -> V
                 return steps;
             }
             GpuiLocalGxserverHealthState::Unreachable
+            | GpuiLocalGxserverHealthState::Starting { .. }
             | GpuiLocalGxserverHealthState::ProtocolMismatch { .. } => {
                 still_answering = false;
                 break;
@@ -285,10 +286,45 @@ pub(crate) const GPUI_MISSING_MONACO_PROMPT_EDITOR_TOAST_ID: &str =
 pub(crate) const GPUI_GXSERVER_EXPECTED_PRODUCT: &str = "gxserver";
 
 pub(crate) enum GpuiLocalGxserverHealthState {
-    Healthy { tools_available: bool },
+    Healthy {
+        tools_available: bool,
+    },
     BuildMismatch,
-    ProtocolMismatch { reported: Option<u64> },
+    ProtocolMismatch {
+        reported: Option<u64>,
+    },
+    /// A gxserver holds the port but is still starting (CDXC:ServerDaemon 2026-10-22 DECISION in server/src/server/startup_gate.rs).
+    Starting {
+        starting_for: Duration,
+    },
     Unreachable,
+}
+
+/// How long and in which step a gxserver said it is still starting, read from its HTTP 503 `serverStarting` answer; `None` for any other answer, so an older gxserver (which never sends it) reads as before.
+pub(crate) fn gpui_gxserver_starting_answer(status: u16, body: &str) -> Option<(Duration, String)> {
+    if status != 503 {
+        return None;
+    }
+    let value = serde_json::from_str::<serde_json::Value>(body).ok()?;
+    if value.get("product").and_then(serde_json::Value::as_str)
+        != Some(GPUI_GXSERVER_EXPECTED_PRODUCT)
+        || value.get("error").and_then(serde_json::Value::as_str) != Some("serverStarting")
+    {
+        return None;
+    }
+    Some((
+        Duration::from_millis(
+            value
+                .get("startingForMs")
+                .and_then(serde_json::Value::as_u64)
+                .unwrap_or(0),
+        ),
+        value
+            .get("step")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("starting")
+            .to_string(),
+    ))
 }
 
 /// Mirrors the macOS GxserverClient handshake: authenticated health, product
@@ -300,10 +336,37 @@ pub(crate) fn gpui_probe_local_gxserver_health() -> GpuiLocalGxserverHealthState
 
 pub(crate) fn gpui_probe_local_gxserver_health_with_diagnostics()
 -> (GpuiLocalGxserverHealthState, String) {
-    let health = match gpui_gxserver_server_health(Duration::from_millis(1000)) {
-        Ok(health) => health,
-        Err(reason) => return (GpuiLocalGxserverHealthState::Unreachable, reason),
-    };
+    let health =
+        match gxserver_get_typed_operation("/api/health/server", Duration::from_millis(1000)) {
+            Ok((status, body)) if (200..300).contains(&status) => {
+                match serde_json::from_str::<serde_json::Value>(&body) {
+                    Ok(health) => health,
+                    Err(_) => {
+                        return (
+                            GpuiLocalGxserverHealthState::Unreachable,
+                            "gxserver health returned invalid JSON.".into(),
+                        );
+                    }
+                }
+            }
+            Ok((status, body)) => {
+                if let Some((starting_for, step)) = gpui_gxserver_starting_answer(status, &body) {
+                    let detail = format!(
+                        "gxserver is still starting ({step}, {} s so far).",
+                        starting_for.as_secs()
+                    );
+                    return (
+                        GpuiLocalGxserverHealthState::Starting { starting_for },
+                        detail,
+                    );
+                }
+                return (
+                    GpuiLocalGxserverHealthState::Unreachable,
+                    format!("gxserver health failed with HTTP {status}."),
+                );
+            }
+            Err(reason) => return (GpuiLocalGxserverHealthState::Unreachable, reason),
+        };
     if health.get("product").and_then(serde_json::Value::as_str)
         != Some(GPUI_GXSERVER_EXPECTED_PRODUCT)
     {
@@ -435,6 +498,7 @@ pub(crate) fn gpui_restart_local_gxserver_for_current_build() -> Result<(), Stri
                 return Err("The current gxserver build has an incompatible protocol.".to_string());
             }
             GpuiLocalGxserverHealthState::BuildMismatch
+            | GpuiLocalGxserverHealthState::Starting { .. }
             | GpuiLocalGxserverHealthState::Unreachable => {}
         }
     }

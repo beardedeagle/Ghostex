@@ -20,6 +20,18 @@ pub(crate) fn gpui_remote_gxserver_post_typed_operation(
     params: &serde_json::Value,
     timeout: Duration,
 ) -> Result<(u16, String), String> {
+    // A remote gxserver still starting is waited out like the local one (typed_operations.rs).
+    gpui_wait_out_gxserver_starting(std::time::Instant::now() + timeout, |remaining| {
+        gpui_remote_gxserver_post_typed_operation_once(target, path, params, remaining)
+    })
+}
+
+fn gpui_remote_gxserver_post_typed_operation_once(
+    target: &GpuiRemoteGxserverRequestTarget,
+    path: &str,
+    params: &serde_json::Value,
+    timeout: Duration,
+) -> Result<(u16, String), String> {
     /*
     CDXC:RemoteMachines 2026-06-24-16:48:
     Remote gxserver RPCs use the live SSH tunnel target and in-memory token captured by Rust after Keychain storage. Keep this helper transport-only and response-unlogged: callers own endpoint allowlists and user-facing generic errors, while tokens, URLs, remote paths, params, stdout/stderr, and daemon bodies are never persisted or copied to renderer globals.

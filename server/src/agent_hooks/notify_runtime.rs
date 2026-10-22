@@ -632,6 +632,8 @@ fn post_gxserver_hook_event(
 
 /// CDXC:AgentHooks 2026-10-09 WHY:
 /// Standard DNS resolution has no deadline and socket timeouts apply to each operation, so only resolution runs off-thread and every socket operation uses the remaining hook budget; a late DNS answer cannot send a hook event.
+///
+/// A gxserver still starting is waited out inside the same budget, so a hook event fired during a restart still arrives (packages/gx-protocol/src/starting.rs).
 fn post_json(
     base_url: &str,
     path: &str,
@@ -640,6 +642,31 @@ fn post_json(
     body: &Value,
 ) -> std::io::Result<String> {
     let deadline = Instant::now() + Duration::from_millis(1500);
+    crate::http_client::wait_out_server_starting(
+        deadline,
+        |_| post_json_once(deadline, base_url, path, token, protocol_version, body),
+        |response| {
+            let (head, body) = response.as_ref().ok()?.split_once("\r\n\r\n")?;
+            let status = head
+                .lines()
+                .next()?
+                .split_whitespace()
+                .nth(1)?
+                .parse()
+                .ok()?;
+            ghostex_gx_protocol::server_starting_retry_after(status, body)
+        },
+    )
+}
+
+fn post_json_once(
+    deadline: Instant,
+    base_url: &str,
+    path: &str,
+    token: &str,
+    protocol_version: i64,
+    body: &Value,
+) -> std::io::Result<String> {
     let remaining = || {
         deadline
             .checked_duration_since(Instant::now())

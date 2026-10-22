@@ -132,6 +132,44 @@ fn fetch_local_json(
     fetch_local_json_with_body(path, method, token, timeout_ms, &body)
 }
 
+/// What a gxserver that holds the port but is still starting answers on health
+/// (`{state:"starting", step, startingForMs}`, HTTP 503; see server/src/server/startup_gate.rs), or `None`
+/// when nothing answers or the answer is anything else.
+pub fn fetch_server_starting(token: Option<&str>, timeout_ms: u64) -> Result<Option<Value>> {
+    let body = String::new();
+    let Some((status, value)) =
+        fetch_local_response("/api/health/server", "GET", token, timeout_ms, &body)?
+    else {
+        return Ok(None);
+    };
+    Ok(
+        (status == 503 && ghostex_gx_protocol::server_starting_retry_after_value(&value).is_some())
+            .then_some(value),
+    )
+}
+
+/// Runs `attempt` (given the time left) until its answer is not a starting gxserver's
+/// (`retry_after` returns `None`) or the next try would fall past `deadline`, waiting the advised
+/// delay in between; the last answer is returned either way. One loop for every client in this
+/// crate that used to wait in a starting gxserver's listen backlog (packages/gx-protocol/src/starting.rs).
+pub(crate) fn wait_out_server_starting<T>(
+    deadline: std::time::Instant,
+    mut attempt: impl FnMut(Duration) -> T,
+    retry_after: impl Fn(&T) -> Option<Duration>,
+) -> T {
+    loop {
+        let answer = attempt(deadline.saturating_duration_since(std::time::Instant::now()));
+        match retry_after(&answer) {
+            Some(delay) if std::time::Instant::now() + delay < deadline => {
+                std::thread::sleep(delay)
+            }
+            _ => return answer,
+        }
+    }
+}
+
+/// A 2xx JSON answer, or `None`. A request other than the health check waits out a gxserver that
+/// is still starting, within `timeout_ms`; health answers at once, so status shows "starting".
 fn fetch_local_json_with_body(
     path: &str,
     method: &str,
@@ -139,6 +177,39 @@ fn fetch_local_json_with_body(
     timeout_ms: u64,
     body: &str,
 ) -> Result<Option<Value>> {
+    let deadline = std::time::Instant::now() + Duration::from_millis(timeout_ms);
+    let answer = wait_out_server_starting(
+        deadline,
+        |remaining| {
+            fetch_local_response(
+                path,
+                method,
+                token,
+                (remaining.as_millis() as u64).max(1),
+                body,
+            )
+        },
+        |answer| match answer {
+            Ok(Some((503, value))) if path != "/api/health/server" => {
+                ghostex_gx_protocol::server_starting_retry_after_value(value)
+            }
+            _ => None,
+        },
+    )?;
+    Ok(answer
+        .filter(|(status, _)| (200..300).contains(status))
+        .map(|(_, value)| value))
+}
+
+/// The status and JSON body of one local request; `None` when nothing answered in time or the
+/// answer was not JSON.
+fn fetch_local_response(
+    path: &str,
+    method: &str,
+    token: Option<&str>,
+    timeout_ms: u64,
+    body: &str,
+) -> Result<Option<(u16, Value)>> {
     let address = format!(
         "{GXSERVER_LOCAL_API_HOST}:{}",
         read_selected_local_api_port()?
@@ -191,21 +262,19 @@ fn fetch_local_json_with_body(
         Some(parts) => parts,
         None => return Ok(None),
     };
-    let status_ok = headers
+    let Some(status) = headers
         .lines()
         .next()
         .and_then(|line| line.split_whitespace().nth(1))
         .and_then(|status| status.parse::<u16>().ok())
-        .map(|status| (200..300).contains(&status))
-        .unwrap_or(false);
-    if !status_ok {
+    else {
         return Ok(None);
-    }
+    };
     let Ok(body) = decode_http_body(headers, body) else {
         return Ok(None);
     };
     match serde_json::from_str(body.trim()) {
-        Ok(value) => Ok(Some(value)),
+        Ok(value) => Ok(Some((status, value))),
         Err(_) => Ok(None),
     }
 }

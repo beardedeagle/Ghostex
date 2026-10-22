@@ -146,6 +146,7 @@ pub mod session_state_sync;
 mod shutdown_bounds;
 mod sidebar_spaces_switch;
 mod stale_server_takeover;
+mod startup_gate;
 pub mod telemetry_http;
 pub mod telemetry_tasks;
 #[cfg(test)]
@@ -174,6 +175,7 @@ pub(crate) use project_paths::*;
 use route_http::*;
 pub(crate) use session_state_sync::*;
 use stale_server_takeover::*;
+use startup_gate::*;
 pub(crate) use telemetry_http::*;
 pub(crate) use telemetry_tasks::*;
 pub(crate) use title_generation::*;

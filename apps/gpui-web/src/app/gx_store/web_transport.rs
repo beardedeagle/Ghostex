@@ -132,19 +132,46 @@ pub(crate) async fn rpc_envelope(
 ) -> Result<Value, Value> {
     let fail = |message: String| json!({"message": message, "endpoint": path});
     let body = json!({"params": params, "protocolVersion": PROTOCOL_VERSION});
-    let mut envelope = post_envelope(
-        &format!("{}{path}", endpoint.base_url),
-        Some(&endpoint.auth_token),
-        &body,
-    )
-    .await
-    .map_err(fail)?;
+    let started_ms = js_sys::Date::now();
+    let mut envelope = loop {
+        let envelope = post_envelope(
+            &format!("{}{path}", endpoint.base_url),
+            Some(&endpoint.auth_token),
+            &body,
+        )
+        .await
+        .map_err(fail)?;
+        // A gxserver still starting is waited out, as a request in its listen backlog used to be
+        // (packages/gx-protocol/src/starting.rs), up to the desktop's `gx_rpc` limit.
+        match ghostex_gx_protocol::server_starting_retry_after_value(&envelope) {
+            Some(delay)
+                if js_sys::Date::now() - started_ms + (delay.as_millis() as f64)
+                    < STARTING_WAIT_LIMIT_MS =>
+            {
+                sleep_ms(delay.as_millis() as i32).await
+            }
+            _ => break envelope,
+        }
+    };
     if envelope["ok"] != true {
         return Err(
             json!({"code": envelope["error"], "message": envelope["message"], "endpoint": path}),
         );
     }
     Ok(envelope["result"].take())
+}
+
+/// How long a request waits for a gxserver that is still starting: the desktop's `gx_rpc` limit.
+const STARTING_WAIT_LIMIT_MS: f64 = 60_000.0;
+
+/// Resolves after `ms` milliseconds on the page's own timer.
+async fn sleep_ms(ms: i32) {
+    let promise = js_sys::Promise::new(&mut |resolve, _reject| {
+        if let Some(window) = web_sys::window() {
+            let _ = window.set_timeout_with_callback_and_timeout_and_arguments_0(&resolve, ms);
+        }
+    });
+    let _ = JsFuture::from(promise).await;
 }
 
 /// Opens `/api/events`. Browsers cannot set headers on a WebSocket, so the token rides the query string. The returned socket must be kept alive by the caller.
