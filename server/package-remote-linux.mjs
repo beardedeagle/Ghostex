@@ -227,7 +227,7 @@ async function buildPackage({ config, outputDir, workRoot }) {
 
   await copyExecutable(gxserverBin, path.join(binsDir, 'gxserver'), 'gxserver');
   await copyExecutable(ghostexBin, path.join(binsDir, 'ghostex'), 'ghostex');
-  await copyExecutable(zmxBin, path.join(binsDir, 'zmx'), 'zmx');
+  await copyStrippedExecutable(zmxBin, path.join(binsDir, 'zmx'), 'zmx');
 
   /*
    * CDXC:AgentSkills 2026-09-11 WHY:
@@ -464,6 +464,31 @@ async function copyExecutable(source, destination, label) {
   await mkdir(path.dirname(destination), { recursive: true });
   await cp(source, destination);
   await chmod(destination, 0o755);
+}
+
+/*
+ * CDXC:Zmx 2026-10-22 WHY:
+ * `zig build -Doptimize=ReleaseSafe` leaves DWARF and a symbol table in zmx (16.1 MB, 12.9 MB of it debug info) and zmx's build.zig has no strip switch. This package ships inside every Linux install, the WSL runtime and remote hosts, so zmx is stripped here the way every Rust binary already is (no debug info, no symbol table; CDXC:Build 2026-10-11 DECISION in .cargo/config.toml), leaving about 3 MB. A zmx panic still prints its message; its stack trace shows addresses only. `zig objcopy` cannot strip ELF in Zig 0.16 ("unimplemented"); rust-objcopy (llvm-objcopy) comes with the pinned Rust toolchain that builds gxserver above and strips either architecture from any host, the macOS cross build included. Stripping changes no code or IPC, so the zmx wire generation is untouched.
+ */
+async function copyStrippedExecutable(source, destination, label) {
+  await assertFile(source, label);
+  await mkdir(path.dirname(destination), { recursive: true });
+  await run(await rustObjcopy(), ['--strip-all', source, destination]);
+  await chmod(destination, 0o755);
+}
+
+async function rustObjcopy() {
+  const [{ stdout: sysroot }, { stdout: verbose }] = await Promise.all([
+    execFileAsync('rustc', ['--print', 'sysroot'], { cwd: gxserverRoot }),
+    execFileAsync('rustc', ['-vV'], { cwd: gxserverRoot }),
+  ]);
+  const host = /^host: (\S+)$/mu.exec(verbose)?.[1];
+  if (!host) {
+    throw new Error('Could not read the Rust host triple from `rustc -vV`.');
+  }
+  const objcopy = path.join(sysroot.trim(), 'lib', 'rustlib', host, 'bin', 'rust-objcopy');
+  await assertFile(objcopy, 'rust-objcopy of the pinned Rust toolchain');
+  return objcopy;
 }
 
 async function assertDirectory(candidate, label) {

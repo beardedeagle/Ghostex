@@ -99,10 +99,35 @@ if [[ -z "$CEF_COMPONENT_VERSION" ]]; then
 	echo "Could not resolve the CEF component version from $CEF_PAYLOAD/include/cef_version.h" >&2
 	exit 1
 fi
+# The stripped Linux archive (strip_cef_component_elf_files) has its own
+# component identity; apps/desktop/build.rs appends the same suffix to the
+# version the app accepts. SEE-ALSO: LINUX_CEF_COMPONENT_SUFFIX in build.rs.
+LINUX_CEF_COMPONENT_SUFFIX="-stripped"
+CEF_COMPONENT_VERSION="$CEF_COMPONENT_VERSION$LINUX_CEF_COMPONENT_SUFFIX"
 CEF_COMPONENT_ARCH="x64"
 if [[ "$(uname -m)" == "aarch64" ]]; then
 	CEF_COMPONENT_ARCH="arm64"
 fi
+
+# CDXC:Release 2026-10-22 WHY:
+# The CEF Linux distribution ships libcef.so unstripped: 1.45 GB on x64 and
+# 2.49 GB on arm64, most of it debug sections and the static symbol table,
+# which nothing reads at runtime. Stripping them (the dynamic symbols stay)
+# takes the first-launch download from 366 MB to 152 MB on x64 and from 493 MB
+# to 155 MB on arm64, and the installed runtime from 1.5 GB (2.6 GB on arm64)
+# to under 400 MB. Each architecture builds natively, so the host's binutils
+# strip reads every file.
+strip_cef_component_elf_files() {
+	local root="$1" file
+	command -v strip >/dev/null 2>&1 || {
+		echo "binutils strip is required to strip the Linux CEF component" >&2
+		exit 1
+	}
+	while IFS= read -r -d '' file; do
+		[[ "$(head -c 4 "$file" | od -An -tx1 | tr -d ' \n')" == "7f454c46" ]] || continue
+		strip --strip-unneeded "$file"
+	done < <(find "$root" -type f -print0)
+}
 
 prepare_cef_component() {
 	local component_root asset_dir component_manifest stage_root archive_path build_manifest
@@ -118,6 +143,7 @@ prepare_cef_component() {
 	rm -rf "$stage_root/CMakeLists.txt" "$stage_root/cmake" "$stage_root/include" \
 		"$stage_root/libcef_dll" "$stage_root/archive.json"
 	rm -f "$stage_root/chrome-sandbox"
+	strip_cef_component_elf_files "$stage_root"
 	"$REPO_ROOT/tooling/release-gpui/create-deterministic-tar.sh" "$stage_root" "$archive_path"
 	rm -rf "$stage_root"
 	node "$REPO_ROOT/tooling/release-gpui/publish-component.mjs" \
@@ -174,6 +200,12 @@ mkdir -p "$APP_DIR"
 if [[ "$ON_DEMAND_COMPONENTS" == "1" ]]; then
 	cp "$CARGO_OUTPUT_ROOT/release/ghostex-gpui-cef-bootstrap" "$APP_DIR/Ghostex"
 	cp "$CARGO_OUTPUT_ROOT/release/ghostex-gpui" "$APP_DIR/ghostex-gpui-runtime"
+	# The launcher refuses a sealed CEF component whose version differs from the
+	# one build.rs compiled in, which no release job would notice before users.
+	grep -a -q -F -- "$CEF_COMPONENT_VERSION" "$APP_DIR/Ghostex" || {
+		echo "The launcher does not expect CEF component $CEF_COMPONENT_VERSION; apps/desktop/build.rs and this script disagree on LINUX_CEF_COMPONENT_SUFFIX" >&2
+		exit 1
+	}
 else
 	cp "$CARGO_OUTPUT_ROOT/release/ghostex-gpui" "$APP_DIR/Ghostex"
 fi

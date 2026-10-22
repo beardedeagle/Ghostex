@@ -20,6 +20,11 @@ struct LibGhosttyVtBuild {
     themes_dir: PathBuf,
 }
 
+/// CDXC:Release 2026-10-22 WHY:
+/// The Linux CEF component ships with its debug info stripped (apps/desktop/scripts/build-linux-app.sh), which changes its archive digest. Component tags are immutable and every shipped Linux app verifies the unstripped archive's digest, so the stripped archive gets its own identity: the CEF version plus this suffix, on Linux only (macOS and Windows keep the unsuffixed tag, so their installed runtimes stay valid). The suffix can be dropped with the next CEF update, whose tag has never held an unstripped Linux archive.
+/// SEE-ALSO: apps/desktop/scripts/build-linux-app.sh (LINUX_CEF_COMPONENT_SUFFIX).
+const LINUX_CEF_COMPONENT_SUFFIX: &str = "-stripped";
+
 fn emit_cef_component_version() {
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR"));
     let target = env::var("TARGET").expect("TARGET").replace('-', "_");
@@ -40,7 +45,7 @@ fn emit_cef_component_version() {
                 .and_then(|value| value.strip_suffix("\\0\";"))
         })
         .expect("pinned CEF bindings do not define CEF_VERSION");
-    let component_version: String = raw_version
+    let mut component_version: String = raw_version
         .chars()
         .map(|character| {
             if character.is_ascii_alphanumeric() || matches!(character, '.' | '_' | '-') {
@@ -50,6 +55,9 @@ fn emit_cef_component_version() {
             }
         })
         .collect();
+    if env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("linux") {
+        component_version.push_str(LINUX_CEF_COMPONENT_SUFFIX);
+    }
     println!("cargo:rerun-if-changed={}", bindings.display());
     println!("cargo:rustc-env=GHOSTEX_CEF_COMPONENT_VERSION={component_version}");
 }

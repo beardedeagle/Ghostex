@@ -63,8 +63,18 @@ trap 'rm -f "$FILE_LIST"' EXIT
 		--owner=0 --group=0 --numeric-owner \
 		--mtime=@946684800 \
 		--no-recursion --null --files-from "$FILE_LIST" -cf - |
-		zstd -19 -T0 -q -f -o "$TARBALL" -
+		zstd --ultra -22 --long=27 -T0 -q -f -o "$TARBALL" -
 )
+# CDXC:Release 2026-10-22 WHY:
+# Level 22 with a 2^27 window holds the 10.29.0 x64 payload in 80.0 MB, against
+# 91.7 MB at plain -19 and 82.8 MB at -19 --long=27 (it takes about three
+# minutes instead of 40 seconds). The window stops at 2^27 (128 MiB) because
+# that is the largest one zstd decoders accept without an explicit --long or
+# --memory flag: plain `zstd -d`, `tar --zstd`, bsdtar (makepkg for the AUR
+# package) and the Rust zstd crate behind ubi and mise all refuse a larger
+# window by default. --long=27 pins the window there even if a later zstd
+# changes what level 22 picks. Compressing takes about 1 GB of memory and
+# decoding about 130 MB.
 
 MEMBERS="$(zstd -dc "$TARBALL" | tar -tf -)"
 for required in ./opt/ghostex/Ghostex ./usr/bin/ghostex ./usr/bin/gx \

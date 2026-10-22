@@ -116,7 +116,9 @@ impl Render for GpuiCefComponentWindow {
             ),
         };
 
-        v_flex()
+        div()
+            .flex()
+            .flex_col()
             .size_full()
             .bg(rgb(0x17191d))
             .p(px(28.0))

@@ -44,8 +44,6 @@ use gpui::{
 };
 #[cfg(target_os = "linux")]
 use gpui::{InteractiveElement as _, ParentElement as _, Styled as _};
-#[cfg(target_os = "linux")]
-use gpui_component::v_flex;
 
 #[cfg(target_os = "linux")]
 struct GhostexGpuiApp {
@@ -245,11 +243,12 @@ fn main() {
     }
 }
 
+/// CDXC:PlatformSupport 2026-10-22 WHY:
+/// The setup window is drawn from plain GPUI elements (cef_component_window.rs), so this launcher neither imports nor initializes gpui-component. Using it for one `v_flex()` linked the whole widget kit and every tree-sitter grammar into the Linux `Ghostex` launcher: 77.5 MB on arm64 (82 MB on x64) with it, 29.5 MB without.
 #[cfg(target_os = "linux")]
 fn main() {
     let application = gpui_platform::application();
     application.run(|cx| {
-        gpui_component::init(cx);
         let app = cx.new(|_| GhostexGpuiApp {
             cef_component_window: None,
             cef_component_install_generation: 0,

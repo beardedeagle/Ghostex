@@ -38,7 +38,14 @@ Description: Ghostex desktop application
  Ghostex provides native AI development workspaces, terminals, and project tools.
 EOF
 DEB="$OUTPUT/ghostex_${VERSION}_${DEB_ARCH}.deb"
-dpkg-deb --build --root-owner-group "$PACKAGE_ROOT" "$DEB"
+# CDXC:Release 2026-10-22 WHY:
+# The runner's dpkg-deb defaults to a zstd -19 data.tar.zst: the 10.29.0 x64
+# DEB was 92.0 MB, where xz -9e holds the same files in about 77.5 MB. xz is
+# also the member every dpkg reads (since 1.15.6), while zstd members need
+# dpkg 1.21.18 or an Ubuntu-patched dpkg, so Debian 11 could not install the
+# zstd package at all. Compressing takes about 674 MiB of memory per xz
+# thread; installing needs 65 MiB.
+dpkg-deb --build --root-owner-group -Zxz -z9 -Sextreme "$PACKAGE_ROOT" "$DEB"
 dpkg-deb --info "$DEB" >/dev/null
 release_gpui_write_manifest "$OUTPUT" "linux-deb-$LINUX_ARCH" "$VERSION" "$DEB"
 printf 'Built Debian/Ubuntu %s release payload in %s\n' "$LINUX_ARCH" "$OUTPUT"

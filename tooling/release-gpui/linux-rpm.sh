@@ -36,8 +36,17 @@ mkdir -p "$RPM_ROOT"/{BUILD,BUILDROOT,RPMS,SOURCES,SPECS,SRPMS}
 # check installs with --nodeps, so it never noticed. The exclusion drops only
 # that one generated requirement.
 tar -C "$PACKAGE_ROOT" -czf "$RPM_ROOT/SOURCES/ghostex-$VERSION.tar.gz" .
+# CDXC:Release 2026-10-22 WHY:
+# rpmbuild 4.18 on the Ubuntu runner writes a gzip -9 payload by default
+# (w9.gzdio): the 10.29.0 x64 RPM was 119.2 MB, where the same files in xz -9
+# are about 77.7 MB. Every rpm that installs Ghostex reads xz payloads (rpm has
+# since 4.6; Fedora and EL have shipped xz payloads for years). rpm's payload
+# mode string has no xz "extreme" flag (rpmio skips letters it does not know),
+# so level 9 is the ceiling; it needs about 674 MiB to compress and 65 MiB to
+# install.
 cat >"$RPM_ROOT/SPECS/ghostex.spec" <<EOF
 %global __requires_exclude ^libcef[.]so
+%global _binary_payload w9.xzdio
 Name: ghostex
 Version: $VERSION
 Release: 1%{?dist}
