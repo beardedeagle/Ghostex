@@ -44,6 +44,7 @@ pub(crate) mod fonts;
 mod fork_branches;
 pub(crate) mod frosted_overlay_window;
 mod image_viewer;
+pub(crate) use image_viewer::ImageViewerHost;
 mod images;
 mod inter_agent_message;
 mod launch;

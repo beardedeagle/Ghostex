@@ -24,7 +24,7 @@ impl GhostexGpuiApp {
             app.handle_gpui_mermaid_diagram_modal_command(command, cx);
         });
         let kind = GpuiAppModalKind::MermaidDiagram;
-        let (width, height) = self.gpui_native_modal_size_on_screen(kind.window_size(), cx);
+        let (width, height) = self.chat_preview_modal_size(cx);
         self.open_native_app_modal(
             kind,
             width,

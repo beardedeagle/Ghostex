@@ -1,5 +1,6 @@
 //! Open, close and link plumbing for the native Markdown table popup.
 //! SEE-ALSO: apps/desktop/src/app/window/markdown_table_modal.rs (the window entity), apps/desktop/src/app/native_app_modal_lifecycle.rs (the shared window path).
+use crate::app::native_chat::table_preview::{CHAT_PREVIEW_HEIGHT, CHAT_PREVIEW_WIDTH};
 use crate::app::window::*;
 use crate::*;
 
@@ -24,7 +25,7 @@ impl GhostexGpuiApp {
             app.handle_gpui_markdown_table_modal_command(command, cx);
         });
         let kind = GpuiAppModalKind::MarkdownTable;
-        let (width, height) = self.gpui_native_modal_size_on_screen(kind.window_size(), cx);
+        let (width, height) = self.chat_preview_modal_size(cx);
         self.open_native_app_modal(
             kind,
             width,
@@ -108,6 +109,22 @@ impl GhostexGpuiApp {
             } else {
                 height
             },
+        )
+    }
+
+    /// The size the floating previews open at: the page window (`ghostex show`), the Mermaid
+    /// diagram viewer and the Markdown table viewer, kept on the main window's screen.
+    ///
+    /// CDXC:SessionChat 2026-10-22 DECISION:
+    /// User: the floating page window "and similar pop ups" open at 95% of the app window's height and 80% of its width. The similar ones are the larger previews of chat content: the Mermaid diagram viewer and the Markdown table viewer (app modals) and the chat's own table preview (native_chat/table_preview/window.rs). The image viewer already covers the whole window and is unchanged. This supersedes the fixed 1248 x 912 (diagram and table) and 1120 x 820 (page) opening sizes.
+    pub(crate) fn chat_preview_modal_size(&self, cx: &gpui::App) -> (f32, f32) {
+        let main = self.main_window_bounds.size;
+        self.gpui_native_modal_size_on_screen(
+            gpui::size(
+                main.width * CHAT_PREVIEW_WIDTH,
+                main.height * CHAT_PREVIEW_HEIGHT,
+            ),
+            cx,
         )
     }
 }

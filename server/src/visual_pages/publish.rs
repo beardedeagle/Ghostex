@@ -17,8 +17,9 @@ pub(crate) const PUBLISH_VISUAL_PAGE_ENDPOINT: &str = "/api/publishVisualPage";
 pub(crate) const PUBLISH_VISUAL_PAGE_BODY_LIMIT_BYTES: usize =
     2 * VISUAL_PAGE_MAX_BYTES + 64 * 1024;
 
-/// `/api/publishVisualPage` `{title, html, sessionRef?}`: stores a page `ghostex show` prepared
-/// and answers `{id, title, path}`, where `path` is the `/visual/<id>` route that serves it.
+/// `/api/publishVisualPage` `{title, html, sessionRef?, sourcePath?}`: stores a page `ghostex show`
+/// prepared and answers `{id, title, path}`, where `path` is the `/visual/<id>` route that serves
+/// it. `sourcePath` is the HTML file it was prepared from, kept for Refresh (`source.rs`).
 pub(crate) fn handle_publish_visual_page_http(
     state: &AppState,
     endpoint_path: String,
@@ -62,7 +63,16 @@ pub(crate) fn handle_publish_visual_page_http(
             "publishVisualPage requires title.",
         );
     };
-    let id = match write_page(&state.paths.root_dir, &title, html, text("sessionRef")) {
+    let source = text("sourcePath")
+        .map(std::path::Path::new)
+        .filter(|path| path.is_absolute() && path.is_file());
+    let id = match write_page(
+        &state.paths.root_dir,
+        &title,
+        html,
+        text("sessionRef"),
+        source,
+    ) {
         Ok(id) => id,
         Err(error) => {
             return domain_error_response(

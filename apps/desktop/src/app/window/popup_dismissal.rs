@@ -8,16 +8,16 @@
 //! On Linux the window manager can move keyboard focus without a click: Hyprland (Omarchy's default) and other focus-follows-mouse setups focus the main window as soon as the pointer crosses onto it, so every popup that closed on focus loss closed when the mouse moved (Cmd+N's picker, the Saved Prompts Quick Access from a right-click, the chat's model menu, which flashed and vanished because the pointer is still over its trigger). Taking focus back fights the window manager on every pointer motion. So on Linux a focus loss dismisses a popup only once no Ghostex window holds focus (focus left the app), and a press in the main window after the popup opened is the click-away. macOS and Windows focus only on a click, so their focus loss stays the dismissal.
 use gpui::{Context, Subscription, Window};
 
-/// The latest pointer press in a Ghostex window (the main window, or a page shown in any window),
-/// which Linux popups close on, and the window it landed in.
-#[cfg(target_os = "linux")]
+/// The latest pointer press in a Ghostex window (the main window, or a page shown in any window
+/// on Linux), which Linux popups close on, and the window it landed in. Every platform records it:
+/// the floating page window counts these presses as its second click away
+/// (window/visual_page_modal.rs).
 #[derive(Clone, Copy)]
-struct MainWindowPointerPress {
-    at: std::time::Instant,
-    window: gpui::WindowId,
+pub(crate) struct MainWindowPointerPress {
+    pub(crate) at: std::time::Instant,
+    pub(crate) window: gpui::WindowId,
 }
 
-#[cfg(target_os = "linux")]
 impl gpui::Global for MainWindowPointerPress {}
 
 /// How long a Linux focus loss waits for another Ghostex window to report focus before it counts
@@ -28,13 +28,15 @@ const FOCUS_SETTLE: std::time::Duration = std::time::Duration::from_millis(120);
 /// Records a pointer press in `window`, closing the popups open before it except the one it landed
 /// in (Linux).
 pub(crate) fn note_main_window_pointer_press(window: gpui::WindowId, cx: &mut gpui::App) {
-    #[cfg(target_os = "linux")]
     cx.set_global(MainWindowPointerPress {
         at: std::time::Instant::now(),
         window,
     });
-    #[cfg(not(target_os = "linux"))]
-    let _ = (window, cx);
+}
+
+/// The latest recorded press, if any.
+pub(crate) fn latest_main_window_press(cx: &gpui::App) -> Option<MainWindowPointerPress> {
+    cx.try_global::<MainWindowPointerPress>().copied()
 }
 
 /// Call when a popup that closes on click-away has lost focus. Runs `dismiss` now, except on

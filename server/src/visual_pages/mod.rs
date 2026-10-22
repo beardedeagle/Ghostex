@@ -10,6 +10,7 @@ mod prepare;
 mod publish;
 mod questions;
 mod serve;
+mod source;
 mod store;
 mod theme;
 mod thumbnail;
@@ -23,6 +24,11 @@ pub(crate) use publish::{
 };
 pub(crate) use questions::{page_answered, page_questions};
 pub(crate) use serve::{serve, VISUAL_PAGE_ROUTE_PREFIX};
+pub(crate) use source::{
+    handle_read_http as handle_read_visual_page_source_http,
+    handle_refresh_http as handle_refresh_visual_page_http, READ_VISUAL_PAGE_SOURCE_ENDPOINT,
+    REFRESH_VISUAL_PAGE_ENDPOINT,
+};
 pub(crate) use store::VISUAL_PAGE_MAX_BYTES;
 pub(crate) use thumbnail::{
     handle_read_http as handle_read_visual_page_thumbnail_http,

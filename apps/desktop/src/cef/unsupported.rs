@@ -180,9 +180,19 @@ pub struct PageScreenshot {
     pub picture: futures::channel::oneshot::Receiver<Option<String>>,
 }
 
+/// What the floating page window hears from its page (`shell/floating_page_bridge.rs`); never
+/// made here.
+pub struct FloatingPageBridge {
+    pub messages: futures::channel::mpsc::UnboundedReceiver<String>,
+}
+
 pub struct CefBrowser;
 
 impl CefBrowser {
+    pub fn install_floating_page_bridge(&self, _script: &str) -> Option<FloatingPageBridge> {
+        None
+    }
+
     pub fn capture_page_top(
         &self,
         _width: f64,

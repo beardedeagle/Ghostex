@@ -49,26 +49,32 @@ fn served_page_id(url: &str, port: u16) -> Option<String> {
 
 /// The floating page window's page finished loading in `surface`, which shows `viewport` (logical
 /// pixels, which are CSS pixels at the page's default zoom). Pictures it when its card needs one;
-/// `remote` is the machine whose gxserver published it, `None` for this computer's.
+/// `remote` is the machine whose gxserver published it, `None` for this computer's. `done` runs
+/// once the picture is taken or not needed.
+///
+/// CDXC:SessionChat 2026-10-22 WHY:
+/// The picture is the top of the page, and DevTools paints nothing for a clip outside the viewport, so a page the window had scrolled back to where the reader left it (window/visual_page_modal/page.rs) was pictured blank. The window puts the scroll back in `done`, after the picture. `captureBeyondViewport` would picture the top of a scrolled page too, but it lays the on-screen page out at its full height for the shot.
 pub(crate) fn picture_opened_page(
     surface: gpui::WeakEntity<CefSurface>,
     url: &str,
     remote: Option<GpuiRemoteGxserverRequestTarget>,
     viewport: (f32, f32),
     cx: &mut gpui::App,
+    done: impl FnOnce(&mut gpui::App) + 'static,
 ) {
     let port = remote
         .as_ref()
         .map_or_else(gpui_local_gxserver_api_port, |remote| remote.local_port);
     let Some(page_id) = served_page_id(url, port) else {
-        return;
+        return done(cx);
     };
     if CAPTURING.swap(true, Ordering::AcqRel) {
-        return;
+        return done(cx);
     }
     cx.spawn(async move |cx| {
         let _ = picture_page(&surface, &page_id, remote, viewport, cx).await;
         CAPTURING.store(false, Ordering::Release);
+        cx.update(done);
     })
     .detach();
 }

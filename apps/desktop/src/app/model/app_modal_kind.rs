@@ -394,9 +394,9 @@ impl GpuiAppModalKind {
             // CDXC:Onboarding 2026-09-11 WHY:
             // The new onboarding renders a 1672x941 stage scaled to fit its window, so the frame keeps that aspect ratio at a size that still fits a 1440x900 screen with the menu bar and Dock.
             Self::Onboarding => size(px(1400.0), px(788.0)),
-            // CDXC:SessionChat 2026-09-06 DECISION:
-            // User: start only the diagram dialog 20% wider and taller (1248x912, previously 1040x760).
-            // SEE-ALSO: apps/desktop/src/app/window/mermaid_diagram_modal.rs and markdown_table_modal.rs open at this size.
+            // The floating previews open at a share of the app window instead
+            // (`chat_preview_modal_size`, CDXC:SessionChat 2026-10-22, which supersedes the
+            // 2026-09-06 1248 x 912 diagram size); these stay for the generic modal paths.
             Self::MermaidDiagram => size(px(1248.0), px(912.0)),
             Self::MarkdownTable => size(px(1248.0), px(912.0)),
             Self::VisualPage => size(px(1120.0), px(820.0)),

@@ -37,9 +37,10 @@ fn thumbnail_path(gxserver_state_dir: &Path, id: &str) -> std::path::PathBuf {
     visual_pages_dir(gxserver_state_dir).join(format!("{id}.png"))
 }
 
-/// The page was answered after its picture was taken.
+/// The page was answered, or refreshed from its file (`source.rs`), after its picture was taken.
 fn answered_since_picture(record: &Value) -> bool {
-    is_answered(record) && record.get("thumbnailAnswered").and_then(Value::as_bool) != Some(true)
+    (is_answered(record) && record.get("thumbnailAnswered").and_then(Value::as_bool) != Some(true))
+        || record.get("thumbnailOutdated").and_then(Value::as_bool) == Some(true)
 }
 
 fn is_answered(record: &Value) -> bool {

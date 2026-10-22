@@ -51,7 +51,13 @@ pub fn show_command(args: &[String]) -> CliResult<()> {
         .map(str::to_string)
         .or(prepared.title)
         .unwrap_or_else(|| file_stem(&path));
-    let mut params = json!({ "title": title, "html": prepared.html });
+    // gxserver keeps the file's path so the desktop's page window can offer to refresh the page
+    // when the file changes (visual_pages/source.rs).
+    let mut params = json!({
+        "title": title,
+        "html": prepared.html,
+        "sourcePath": path.to_string_lossy(),
+    });
     if let Some(session_ref) = calling_session_ref() {
         params["sessionRef"] = Value::String(session_ref);
     }

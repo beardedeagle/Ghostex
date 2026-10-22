@@ -24,7 +24,7 @@ impl Render for TablePreviewWindow {
         let s = p.scale;
         if glass {
             // The main window's content sits at minus this window's frame in its coordinates.
-            let frame = table_preview_frame(area, s);
+            let frame = table_preview_frame(area);
             crate::app::helpers::sync_overlay_window_glass(
                 window,
                 gpui::point(-frame.origin.x, -frame.origin.y),

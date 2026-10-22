@@ -986,6 +986,11 @@ pub fn endpoint_for(path: &str) -> Option<EndpointDescriptor> {
         */
         "/api/readVisualPageThumbnail" | "/api/storeVisualPageThumbnail" => full_local(path),
         /*
+        CDXC:ServerApi 2026-10-22 WHY:
+        Refresh reads the HTML file a page was published from on this computer and replaces the page, so like publishing it is for this computer's own clients only: the desktop app asks here, or through its tunnel for a remote machine's page (visual_pages/source.rs).
+        */
+        "/api/readVisualPageSource" | "/api/refreshVisualPage" => full_local(path),
+        /*
         CDXC:RemotePairing 2026-09-03:
         The only unauthenticated write endpoint. A phone registers its SSH key
         through the Easy Connect tunnel before it holds any gxserver credential,

@@ -75,7 +75,7 @@ impl NativeChatView {
         let scale = super::super::appearance::ChatAppearance::current(&self.snapshot).scale;
         let glass = crate::app::helpers::window_glass_active();
         cx.defer(move |cx| {
-            let frame = table_preview_frame(area, scale);
+            let frame = table_preview_frame(area);
             let result = main
                 .update(cx, |_, window, cx| {
                     let origin = super::super::child_window::content_bounds(window).origin;
@@ -176,14 +176,18 @@ impl NativeChatView {
     }
 }
 
-/// The preview card: React's 1248px table modal, centred in `area` (the window the chat is drawn
-/// in, `expanded_area`) and kept inside it.
-pub(in crate::app::native_chat) fn table_preview_frame(
-    area: Bounds<Pixels>,
-    scale: f32,
-) -> Bounds<Pixels> {
-    let width = px(1248.0 * scale).min(area.size.width - px(48.0));
-    let height = px(912.0 * scale).min(area.size.height - px(48.0));
+/// The share of the app window's width and height the floating previews open at: this table
+/// preview, and the page window and the diagram and table viewers
+/// (`chat_preview_modal_size` in app/markdown_table_modal_lifecycle.rs, CDXC:SessionChat 2026-10-22
+/// there).
+pub(crate) const CHAT_PREVIEW_WIDTH: f32 = 0.8;
+pub(crate) const CHAT_PREVIEW_HEIGHT: f32 = 0.95;
+
+/// The preview card, centred in `area` (the window the chat is drawn in, `expanded_area`) at the
+/// floating previews' share of it. This replaced React's 1248px table modal size.
+pub(in crate::app::native_chat) fn table_preview_frame(area: Bounds<Pixels>) -> Bounds<Pixels> {
+    let width = area.size.width * CHAT_PREVIEW_WIDTH;
+    let height = area.size.height * CHAT_PREVIEW_HEIGHT;
     Bounds::new(
         area.origin
             + gpui::point(

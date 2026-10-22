@@ -195,13 +195,20 @@ impl Render for ImageViewerWindow {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let snapshot = self.chat.read(cx).snapshot.clone();
         let p = ChatAppearance::current(&snapshot);
-        let Some((image, zoom, completed)) = self
+        let Some((image, zoom, completed, count)) = self
             .chat
             .read(cx)
             .image_viewer
             .request
             .as_ref()
-            .map(|request| (request.current().clone(), request.zoom, request.completed))
+            .map(|request| {
+                (
+                    request.current().clone(),
+                    request.zoom,
+                    request.completed,
+                    request.images.len(),
+                )
+            })
         else {
             return div().size_full().into_any_element();
         };
@@ -486,6 +493,7 @@ impl Render for ImageViewerWindow {
                 }
             }))
             .child(body)
+            .children(self.step_arrows(count, &p, cx))
             .when(failure.is_none(), |viewer| viewer.child(toolbar))
             .child(close)
             .child(self.pan_listeners(cx))

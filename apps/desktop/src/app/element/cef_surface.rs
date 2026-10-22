@@ -253,6 +253,14 @@ impl CefSurface {
         self.browser.capture_page_top(width, height, scale)
     }
 
+    /// The floating page window's line from its page (`cef/shell/floating_page_bridge.rs`).
+    pub(crate) fn install_floating_page_bridge(
+        &self,
+        script: &str,
+    ) -> Option<cef::FloatingPageBridge> {
+        self.browser.install_floating_page_bridge(script)
+    }
+
     pub(crate) fn browser_identifier(&self) -> i32 {
         self.browser.identifier()
     }

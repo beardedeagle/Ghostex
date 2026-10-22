@@ -2,6 +2,7 @@ use std::{
     fs,
     path::{Path, PathBuf},
     sync::Mutex,
+    time::UNIX_EPOCH,
 };
 
 use rand::RngCore;
@@ -39,28 +40,66 @@ pub(super) fn clip_chars(text: &str, max_chars: usize) -> String {
     text.chars().take(max_chars).collect()
 }
 
-/// Writes `<id>.html` and its `<id>.json` record and returns the new id.
+/// Writes `<id>.html` and its `<id>.json` record and returns the new id. `source` is the HTML file
+/// the page was prepared from, whose path and modification time the record keeps for Refresh.
 pub(super) fn write_page(
     gxserver_state_dir: &Path,
     title: &str,
     html: &str,
     session_ref: Option<&str>,
+    source: Option<&Path>,
 ) -> std::io::Result<String> {
     let dir = visual_pages_dir(gxserver_state_dir);
     fs::create_dir_all(&dir)?;
     let id = new_page_id();
-    let record = json!({
+    let mut record = json!({
         "title": title,
         "createdAt": chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
         "sessionRef": session_ref
             .map(|value| clip_chars(value, VISUAL_PAGE_SESSION_REF_MAX_CHARS)),
     });
+    if let Some(source) = source {
+        record["sourcePath"] = json!(source.to_string_lossy());
+        record["sourceModifiedMs"] = json!(source_modified_ms(source));
+    }
     fs::write(dir.join(format!("{id}.html")), html)?;
     fs::write(
         dir.join(format!("{id}.json")),
         serde_json::to_vec_pretty(&record).unwrap_or_default(),
     )?;
     Ok(id)
+}
+
+/// When the file at `path` was last changed, in milliseconds since the epoch.
+pub(super) fn source_modified_ms(path: &Path) -> Option<u64> {
+    let modified = fs::metadata(path).ok()?.modified().ok()?;
+    let millis = modified.duration_since(UNIX_EPOCH).ok()?.as_millis();
+    u64::try_from(millis).ok()
+}
+
+/// Replaces a published page's HTML with its file prepared again (`source.rs`), keeping its id,
+/// and notes the file's time on the record. The page's picture is marked out of date so the
+/// desktop takes a new one the next time it shows the page.
+pub(super) fn replace_page_html(
+    gxserver_state_dir: &Path,
+    id: &str,
+    html: &str,
+    source_modified_ms: Option<u64>,
+) -> Result<(), StoreAnswersError> {
+    let _guard = RECORD_WRITE_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let mut record = read_record(gxserver_state_dir, id).ok_or(StoreAnswersError::NotFound)?;
+    let path = visual_pages_dir(gxserver_state_dir).join(format!("{id}.html"));
+    let temporary = path.with_extension("html.tmp");
+    fs::write(&temporary, html)
+        .and_then(|()| fs::rename(&temporary, &path))
+        .map_err(StoreAnswersError::Io)?;
+    record["sourceModifiedMs"] = json!(source_modified_ms);
+    record["refreshedAt"] =
+        json!(chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true));
+    record["thumbnailOutdated"] = json!(true);
+    write_record(gxserver_state_dir, id, &record).map_err(StoreAnswersError::Io)
 }
 
 pub(super) fn read_page(gxserver_state_dir: &Path, id: &str) -> Option<Vec<u8>> {
@@ -172,6 +211,9 @@ pub(super) fn note_thumbnail(
     record["thumbnailAt"] =
         json!(chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true));
     record["thumbnailAnswered"] = json!(answered);
+    if let Some(fields) = record.as_object_mut() {
+        fields.remove("thumbnailOutdated");
+    }
     write_record(gxserver_state_dir, id, &record).map_err(StoreAnswersError::Io)?;
     Ok(record)
 }

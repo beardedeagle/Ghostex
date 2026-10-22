@@ -7,6 +7,9 @@
 //! the surround closes it, and Copy image / Copy path / Save image sit beside the close button.
 //! A native child window owns its own frame and input, which is how every other chat overlay here
 //! is built (save_markdown, the context editor).
+//!
+//! CDXC:SessionChat 2026-10-22 DECISION:
+//! User: clicking a picture in the floating page window opens "the exact same popup style that we get when clicking on an image in the chat view transcript", and "all of this needs to be inside the floating html pop up and keep it open while I'm clicking to enlarge these images". The same viewer then opens over the page window instead of the chat's window (`ImageViewerHost`), as a child of that window, and closes with it; next and previous step through the page's pictures.
 
 use super::super::state::NativeChatView;
 use gpui::{
@@ -25,12 +28,22 @@ pub(in crate::app::native_chat) struct ImageViewerRequest {
     pub(super) completed: Option<&'static str>,
 }
 
+/// Another window the viewer opens over instead of the chat's: the floating page window.
+#[derive(Clone, Copy, PartialEq)]
+pub(crate) struct ImageViewerHost {
+    pub(crate) window: gpui::AnyWindowHandle,
+    /// Its root native view, which the viewer's window is attached to.
+    pub(crate) native_view: *mut std::ffi::c_void,
+}
+
 #[derive(Default)]
 pub(in crate::app::native_chat) struct ImageViewerState {
     pub(in crate::app::native_chat) handle: Option<gpui::WindowHandle<Root>>,
     opening: bool,
     subscription: Option<Subscription>,
     pub(in crate::app::native_chat) request: Option<ImageViewerRequest>,
+    /// The window the viewer is over when it is not the chat's own.
+    pub(in crate::app::native_chat) host: Option<ImageViewerHost>,
 }
 
 pub(super) struct ImageViewerWindow {
@@ -44,6 +57,8 @@ pub(super) struct ImageViewerWindow {
     pub(super) zoom_anchor: Option<super::pan::ZoomAnchor>,
     /// The size the picture was painted at last, when it is known.
     pub(super) painted: Option<gpui::Size<gpui::Pixels>>,
+    /// The side the pointer is near, whose step arrow shows: -1 left, 1 right, 0 neither.
+    pub(super) edge: isize,
     _subscription: Subscription,
 }
 
@@ -54,8 +69,45 @@ impl NativeChatView {
         index: usize,
         cx: &mut Context<Self>,
     ) {
+        self.open_image_viewer_over(images, index, None, cx);
+    }
+
+    /// The viewer over `host` (the floating page window) with that page's pictures, which are
+    /// image values the chat already knows (`transport` `data` or `url`).
+    pub(crate) fn open_hosted_image_viewer(
+        &mut self,
+        images: Vec<Value>,
+        index: usize,
+        host: ImageViewerHost,
+        cx: &mut Context<Self>,
+    ) {
+        self.open_image_viewer_over(images, index, Some(host), cx);
+    }
+
+    /// Whether the viewer is open (or opening) over `host`'s window.
+    pub(crate) fn hosted_image_viewer_open(&self, host: gpui::WindowId) -> bool {
+        self.image_viewer.request.is_some()
+            && self
+                .image_viewer
+                .host
+                .is_some_and(|open| open.window.window_id() == host)
+    }
+
+    fn open_image_viewer_over(
+        &mut self,
+        images: Vec<Value>,
+        index: usize,
+        host: Option<ImageViewerHost>,
+        cx: &mut Context<Self>,
+    ) {
         if images.is_empty() {
             return;
+        }
+        // A viewer open over another window is closed first; the new one opens over its own.
+        if self.image_viewer.host != host {
+            self.image_viewer.request = None;
+            self.sync_image_viewer_window(cx);
+            self.image_viewer.host = host;
         }
         let index = index.min(images.len() - 1);
         self.image_viewer.request = Some(ImageViewerRequest {
@@ -115,12 +167,19 @@ impl NativeChatView {
     }
 
     pub(in crate::app::native_chat) fn sync_image_viewer_window(&mut self, cx: &mut Context<Self>) {
-        if self.pane_hidden || self.image_viewer.request.is_none() {
+        let host = self.image_viewer.host;
+        // A viewer over the page window belongs to that window, not to the pane.
+        let hidden = self.pane_hidden && host.is_none();
+        if hidden || self.image_viewer.request.is_none() {
             // The closed-window observer belongs to the window that is going away; keeping it would
             // leave a stale watcher able to close a viewer the reader opened next.
             self.image_viewer.subscription = None;
             if let Some(handle) = self.image_viewer.handle.take() {
-                let main = self.main_window.filter(|_| !self.pane_hidden);
+                // Closing hands the keyboard back to the window the viewer was over.
+                let main = match host {
+                    Some(host) => Some(host.window),
+                    None => self.main_window.filter(|_| !self.pane_hidden),
+                };
                 cx.defer(move |cx| {
                     let _ = handle.update(cx, |_, window, _| window.remove_window());
                     if let Some(main) = main {
@@ -133,17 +192,28 @@ impl NativeChatView {
         if self.image_viewer.handle.is_some() || self.image_viewer.opening {
             return;
         }
-        let Some(main) = self.open_main_window(cx) else {
+        let Some(main) = host
+            .map(|host| host.window)
+            .filter(|window| cx.windows().contains(window))
+            .or_else(|| self.open_main_window(cx).filter(|_| host.is_none()))
+        else {
             return;
         };
         self.image_viewer.opening = true;
         let area = self.expanded_area();
-        let parent = self.child_window_parent(cx);
+        let parent = host.map_or_else(|| self.child_window_parent(cx), |host| host.native_view);
         let glass = crate::app::helpers::window_glass_active_for(self.main_window);
         let chat = cx.entity();
         cx.defer(move |cx| {
             let result = main
                 .update(cx, |_, window, cx| {
+                    // Over the page window: the whole of it.
+                    let area = match host {
+                        Some(_) => {
+                            gpui::Bounds::new(gpui::Point::default(), window.viewport_size())
+                        }
+                        None => area,
+                    };
                     let origin = window.bounds().origin + area.origin;
                     // Chat Lab's regular macOS titlebar is outside GPUI's content coordinates.
                     #[cfg(target_os = "macos")]
@@ -215,6 +285,7 @@ impl NativeChatView {
                                         press: None,
                                         zoom_anchor: None,
                                         painted: None,
+                                        edge: 0,
                                         _subscription: subscription,
                                     }
                                 });
@@ -242,6 +313,13 @@ impl NativeChatView {
                                         .is_some_and(|handle| handle.window_id() == id)
                                     {
                                         chat.image_viewer.handle = None;
+                                        chat.close_image_viewer(cx);
+                                    } else if chat
+                                        .image_viewer
+                                        .host
+                                        .is_some_and(|host| host.window.window_id() == id)
+                                    {
+                                        // The page window closed under it.
                                         chat.close_image_viewer(cx);
                                     }
                                 });
