@@ -27,12 +27,34 @@ pub(crate) type TextNormalizer = fn(&str) -> String;
 impl FieldStates {
     /// The input of a text field, created on first render with its change handler; the buffer
     /// follows `value` whenever the field is not focused.
+    ///
+    /// CDXC:Release 2026-10-22 WHY: the body lives in `text_state_shared`, generic over the page only; generic over the change handler too it was copied into the release binary once per call site (22 copies, about 0.1 MB).
     pub(crate) fn text_state<V: SettingsPage>(
         page: &mut V,
         id: &SharedString,
         value: &str,
         placeholder: Option<&str>,
         on_change: impl Fn(&mut V, String, &mut Window, &mut Context<V>) + 'static,
+        window: &mut Window,
+        cx: &mut Context<V>,
+    ) -> Entity<InputState> {
+        Self::text_state_shared(
+            page,
+            id,
+            value,
+            placeholder,
+            Box::new(on_change),
+            window,
+            cx,
+        )
+    }
+
+    fn text_state_shared<V: SettingsPage>(
+        page: &mut V,
+        id: &SharedString,
+        value: &str,
+        placeholder: Option<&str>,
+        on_change: Box<dyn Fn(&mut V, String, &mut Window, &mut Context<V>)>,
         window: &mut Window,
         cx: &mut Context<V>,
     ) -> Entity<InputState> {

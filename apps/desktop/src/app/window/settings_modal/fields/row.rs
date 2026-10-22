@@ -307,12 +307,11 @@ fn placed_tooltip(
 }
 
 /// `ModifiedSettingResetButton`: a 14px asterisk hung 3px left of the label.
-fn modified_reset_button<V: SettingsPage>(
+fn modified_reset_button(
     p: &SettingsPalette,
     id: ElementId,
     after_label: bool,
-    on_reset: PageAction<V>,
-    cx: &mut Context<V>,
+    on_reset: BoundPress,
 ) -> AnyElement {
     let color = p.modified_marker();
     let hover = p.foreground;
@@ -329,9 +328,7 @@ fn modified_reset_button<V: SettingsPage>(
         .cursor_pointer()
         .text_color(hsla(color))
         .hover(move |this| this.text_color(hsla(hover)))
-        .on_press(cx, move |this, window, cx| {
-            on_reset(this, window, cx);
-        })
+        .on_bound_press(on_reset)
         .child(settings_icon(icon::ASTERISK, 10.0, color));
     // `<TooltipContent className='whitespace-pre-line text-center' sideOffset={6}>` (below).
     let button = placed_tooltip(
@@ -454,6 +451,8 @@ pub(crate) fn description_info_button(
 /// User: rows show no subtitle text. The description (and any subtitle) lives only in the tooltip behind the hover-revealed info icon next to the label.
 /// `SettingRow`: the label line on the left (asterisk, `↳` prefix, label, badge, advanced arrow
 /// and info icon) and the control on the right, or under the label for a wide row.
+///
+/// CDXC:Release 2026-10-22 WHY: the body lives in the non-generic `setting_row_bound`; generic over the page it was copied into the release binary once per page and id type (14 copies, about 0.15 MB).
 pub(crate) fn setting_row<V: SettingsPage>(
     p: &SettingsPalette,
     id: impl Into<SharedString>,
@@ -462,7 +461,19 @@ pub(crate) fn setting_row<V: SettingsPage>(
     control: AnyElement,
     cx: &mut Context<V>,
 ) -> AnyElement {
-    let id: SharedString = id.into();
+    let on_reset = on_reset
+        .filter(|_| spec.modified)
+        .map(|on_reset| bind_press_rc(cx, on_reset));
+    setting_row_bound(p, id.into(), spec, on_reset, control)
+}
+
+fn setting_row_bound(
+    p: &SettingsPalette,
+    id: SharedString,
+    spec: RowSpec,
+    on_reset: Option<BoundPress>,
+    control: AnyElement,
+) -> AnyElement {
     let group: SharedString = format!("settings-row-{id}").into();
     let tooltip = spec.tooltip_text();
     let label = if spec.dependent {
@@ -493,7 +504,6 @@ pub(crate) fn setting_row<V: SettingsPage>(
             ElementId::Name(format!("{id}-reset").into()),
             spec.marker_after_label,
             on_reset,
-            cx,
         ));
     }
     if let Some(readout) = spec.readout.clone() {

@@ -90,6 +90,8 @@ pub(crate) fn sized_button_colors(
 
 /// A shadcn button of `size` and `variant`: optional leading and trailing icons (12px at `xs`,
 /// 16px otherwise), half opacity and the `DisabledSettingControlTooltip` reason while disabled.
+///
+/// CDXC:Release 2026-10-22 WHY: the body lives in the non-generic `settings_sized_button_bound`; generic over the click handler it was copied into the release binary once per call site (27 copies, about 0.13 MB).
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn settings_sized_button<V: 'static>(
     p: &SettingsPalette,
@@ -104,6 +106,33 @@ pub(crate) fn settings_sized_button<V: 'static>(
     on_click: impl Fn(&mut V, &mut Window, &mut Context<V>) + 'static,
     cx: &mut Context<V>,
 ) -> AnyElement {
+    settings_sized_button_bound(
+        p,
+        id.into(),
+        label.into(),
+        leading_icon,
+        trailing_icon,
+        variant,
+        size,
+        disabled,
+        disabled_reason,
+        bind_press(cx, on_click),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn settings_sized_button_bound(
+    p: &SettingsPalette,
+    id: ElementId,
+    label: SharedString,
+    leading_icon: Option<&'static str>,
+    trailing_icon: Option<&'static str>,
+    variant: SizedButtonVariant,
+    size: SizedButtonSize,
+    disabled: bool,
+    disabled_reason: Option<SharedString>,
+    on_click: BoundPress,
+) -> AnyElement {
     let (fills, text) = sized_button_colors(p, variant);
     let (height, side, gap, icon_size, line_height) = match size {
         SizedButtonSize::Xs => (24.0, 10.0, 4.0, 12.0, 18.67),
@@ -114,7 +143,6 @@ pub(crate) fn settings_sized_button<V: 'static>(
         SizedButtonSize::Xs | SizedButtonSize::Sm => 8.0,
         SizedButtonSize::Default => 10.0,
     };
-    let label: SharedString = label.into();
     h_flex()
         .id(id)
         .role(gpui::Role::Button)
@@ -143,9 +171,7 @@ pub(crate) fn settings_sized_button<V: 'static>(
             this.cursor_pointer()
                 .hover(move |this| this.bg(hsla(fills.hover)))
                 .active(move |this| this.bg(hsla(fills.pressed)))
-                .on_press(cx, move |this, window, cx| {
-                    on_click(this, window, cx);
-                })
+                .on_bound_press(on_click)
         })
         .children(leading_icon.map(|icon| settings_icon(icon, icon_size, text)))
         .child(label)
@@ -155,6 +181,8 @@ pub(crate) fn settings_sized_button<V: 'static>(
 
 /// A square icon button (`icon-xs` 24px with a 12px glyph, `icon-sm` 28px, `icon` 32px) with an
 /// optional tooltip, in any variant.
+///
+/// CDXC:Release 2026-10-22 WHY: the body lives in the non-generic `settings_square_button_bound`; generic over the click handler it was copied into the release binary once per call site.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn settings_square_button<V: 'static>(
     p: &SettingsPalette,
@@ -169,6 +197,33 @@ pub(crate) fn settings_square_button<V: 'static>(
     on_click: impl Fn(&mut V, &mut Window, &mut Context<V>) + 'static,
     cx: &mut Context<V>,
 ) -> AnyElement {
+    settings_square_button_bound(
+        p,
+        id.into(),
+        icon,
+        icon_color,
+        variant,
+        size,
+        tooltip,
+        disabled,
+        disabled_reason,
+        bind_press(cx, on_click),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn settings_square_button_bound(
+    p: &SettingsPalette,
+    id: ElementId,
+    icon: &'static str,
+    icon_color: Option<gpui::Rgba>,
+    variant: SizedButtonVariant,
+    size: f32,
+    tooltip: Option<SharedString>,
+    disabled: bool,
+    disabled_reason: Option<SharedString>,
+    on_click: BoundPress,
+) -> AnyElement {
     let (fills, text) = sized_button_colors(p, variant);
     let icon_size = if size <= 24.0 { 12.0 } else { 16.0 };
     let tip = if disabled {
@@ -176,7 +231,6 @@ pub(crate) fn settings_square_button<V: 'static>(
     } else {
         tooltip
     };
-    let id: ElementId = id.into();
     let a11y_label: SharedString = tip.clone().unwrap_or_else(|| id.to_string().into());
     div()
         .id(id)
@@ -197,9 +251,7 @@ pub(crate) fn settings_square_button<V: 'static>(
             this.cursor_pointer()
                 .hover(move |this| this.bg(hsla(fills.hover)))
                 .active(move |this| this.bg(hsla(fills.pressed)))
-                .on_press(cx, move |this, window, cx| {
-                    on_click(this, window, cx);
-                })
+                .on_bound_press(on_click)
         })
         .child(settings_icon(icon, icon_size, icon_color.unwrap_or(text)))
         .into_any_element()

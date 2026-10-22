@@ -15,6 +15,7 @@ use gpui::{
     StatefulInteractiveElement as _, Styled as _, Window, anchored, deferred, div, point, px,
 };
 use gpui_component::v_flex;
+use std::rc::Rc;
 
 /// Row height inside the popup (`min-height: 2rem`).
 const POPUP_ROW_HEIGHT: f32 = 32.0;
@@ -92,8 +93,13 @@ pub(crate) fn settings_select<V: SettingsPage>(
     )
 }
 
+/// A select's change handler, shared by the trigger's keys and every popup row.
+type SelectChange<V> = Rc<dyn Fn(&mut V, String, &mut Window, &mut Context<V>)>;
+
 /// [`settings_select`] with options that show, dimmed, but cannot be picked (`unavailable` holds
 /// their values): an editor app that is not installed, for example.
+///
+/// CDXC:Release 2026-10-22 WHY: the body lives in `settings_select_shared`, generic over the page only; generic over the change handler too it was copied into the release binary once per call site (11 copies plus 12 inlined into `select_field`, about 0.29 MB).
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn settings_select_with_unavailable<V: SettingsPage>(
     page: &mut V,
@@ -109,7 +115,37 @@ pub(crate) fn settings_select_with_unavailable<V: SettingsPage>(
     window: &mut Window,
     cx: &mut Context<V>,
 ) -> AnyElement {
-    let id: SharedString = id.into();
+    settings_select_shared(
+        page,
+        p,
+        id.into(),
+        options,
+        unavailable,
+        value,
+        width,
+        disabled,
+        disabled_reason,
+        Rc::new(on_change),
+        window,
+        cx,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn settings_select_shared<V: SettingsPage>(
+    page: &mut V,
+    p: &SettingsPalette,
+    id: SharedString,
+    options: &[SettingOption],
+    unavailable: &[String],
+    value: &str,
+    width: Option<f32>,
+    disabled: bool,
+    disabled_reason: Option<SharedString>,
+    on_change: SelectChange<V>,
+    window: &mut Window,
+    cx: &mut Context<V>,
+) -> AnyElement {
     let unavailable: Vec<String> = unavailable.to_vec();
     let selected = options.iter().position(|option| option.value == value);
     if page.field_states().pending_open_select.as_ref() == Some(&id) {

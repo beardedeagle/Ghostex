@@ -165,6 +165,8 @@ fn popup_border(p: &SettingsPalette) -> gpui::Rgba {
 /// The dropdown, drawn above the page while `state` is open. `rows` are the rows the caller's
 /// filter kept; `on_choose` gets the index of the chosen one; `keep_open` leaves the dropdown
 /// open after a choice (the multi-select).
+///
+/// CDXC:Release 2026-10-22 WHY: the body lives in `searchable_dropdown_shared`, generic over the page only; generic over the choose handler too it was copied into the release binary once per call site (about 21 KB each).
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn searchable_dropdown<V: 'static>(
     p: &SettingsPalette,
@@ -184,7 +186,39 @@ pub(crate) fn searchable_dropdown<V: 'static>(
     if !state.open {
         return None;
     }
-    let id: SharedString = id.into();
+    searchable_dropdown_shared(
+        p,
+        id.into(),
+        state,
+        get_state,
+        rows,
+        empty_message,
+        align,
+        width,
+        keep_open,
+        footer,
+        Rc::new(on_choose),
+        window,
+        cx,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn searchable_dropdown_shared<V: 'static>(
+    p: &SettingsPalette,
+    id: SharedString,
+    state: &DropdownState,
+    get_state: fn(&mut V) -> &mut DropdownState,
+    rows: &[DropdownRow],
+    empty_message: &'static str,
+    align: DropdownAlign,
+    width: Option<f32>,
+    keep_open: bool,
+    footer: Option<AnyElement>,
+    on_choose: Rc<dyn Fn(&mut V, usize, &mut Window, &mut Context<V>)>,
+    window: &Window,
+    cx: &mut Context<V>,
+) -> Option<AnyElement> {
     let trigger = state.trigger_bounds.get()?;
     let filter = state.filter.clone()?;
     let p = *p;

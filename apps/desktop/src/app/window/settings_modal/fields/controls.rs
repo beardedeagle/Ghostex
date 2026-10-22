@@ -192,17 +192,16 @@ pub(crate) fn settings_button<V: 'static>(
     on_click: impl Fn(&mut V, &mut Window, &mut Context<V>) + 'static,
     cx: &mut Context<V>,
 ) -> AnyElement {
-    settings_button_sized(
+    settings_button_bound(
         p,
-        id,
-        label,
+        id.into(),
+        label.into(),
         leading_icon,
         variant,
         ButtonSize::Default,
         disabled,
         disabled_reason,
-        on_click,
-        cx,
+        bind_press(cx, on_click),
     )
 }
 
@@ -212,6 +211,8 @@ pub(crate) fn settings_button<V: 'static>(
 /// A button with a text label is always filled (CDXC:AppModal 2026-10-14 on
 /// `neutral_button_fills`): `Ghost` renders as `Outline` here and in the Agents Hub's
 /// `hub_button`.
+///
+/// CDXC:Release 2026-10-22 WHY: the body lives in the non-generic `settings_button_bound`; generic over the click handler it was copied into the release binary once per call site (90 copies, about 0.43 MB, plus 18 inlined into `settings_button`).
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn settings_button_sized<V: 'static>(
     p: &SettingsPalette,
@@ -225,6 +226,31 @@ pub(crate) fn settings_button_sized<V: 'static>(
     on_click: impl Fn(&mut V, &mut Window, &mut Context<V>) + 'static,
     cx: &mut Context<V>,
 ) -> AnyElement {
+    settings_button_bound(
+        p,
+        id.into(),
+        label.into(),
+        leading_icon,
+        variant,
+        size,
+        disabled,
+        disabled_reason,
+        bind_press(cx, on_click),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn settings_button_bound(
+    p: &SettingsPalette,
+    id: ElementId,
+    label: SharedString,
+    leading_icon: Option<&'static str>,
+    variant: ButtonVariant,
+    size: ButtonSize,
+    disabled: bool,
+    disabled_reason: Option<SharedString>,
+    on_click: BoundPress,
+) -> AnyElement {
     let variant = match variant {
         ButtonVariant::Ghost => ButtonVariant::Outline,
         other => other,
@@ -233,7 +259,6 @@ pub(crate) fn settings_button_sized<V: 'static>(
     let primary = variant == ButtonVariant::Primary;
     let text = button_text(p, variant);
     let (height, side, gap, line_height) = size.metrics();
-    let label: SharedString = label.into();
     h_flex()
         .id(id)
         .role(gpui::Role::Button)
@@ -269,9 +294,7 @@ pub(crate) fn settings_button_sized<V: 'static>(
             this.cursor_pointer()
                 .hover(move |this| this.bg(hsla(fills.hover)))
                 .active(move |this| this.bg(hsla(fills.pressed)))
-                .on_press(cx, move |this, window, cx| {
-                    on_click(this, window, cx);
-                })
+                .on_bound_press(on_click)
         })
         .children(leading_icon.map(|icon| settings_icon(icon, 16.0, text)))
         .child(label)
@@ -279,6 +302,8 @@ pub(crate) fn settings_button_sized<V: 'static>(
 }
 
 /// A square icon button (`size='icon'` 32px, `icon-sm` 28px, `icon-xs` 24px) in any variant.
+///
+/// CDXC:Release 2026-10-22 WHY: the body lives in the non-generic `settings_icon_button_bound`; generic over the click handler it was copied into the release binary once per call site (19 copies, about 60 KB).
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn settings_icon_button<V: 'static>(
     p: &SettingsPalette,
@@ -292,9 +317,33 @@ pub(crate) fn settings_icon_button<V: 'static>(
     on_click: impl Fn(&mut V, &mut Window, &mut Context<V>) + 'static,
     cx: &mut Context<V>,
 ) -> AnyElement {
+    settings_icon_button_bound(
+        p,
+        id.into(),
+        icon,
+        icon_size,
+        size,
+        variant,
+        tooltip,
+        disabled,
+        bind_press(cx, on_click),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn settings_icon_button_bound(
+    p: &SettingsPalette,
+    id: ElementId,
+    icon: &'static str,
+    icon_size: f32,
+    size: f32,
+    variant: ButtonVariant,
+    tooltip: Option<SharedString>,
+    disabled: bool,
+    on_click: BoundPress,
+) -> AnyElement {
     let fills = button_colors(p, variant);
     let color = button_text(p, variant);
-    let id: ElementId = id.into();
     div()
         .id(id.clone())
         .role(gpui::Role::Button)
@@ -314,9 +363,7 @@ pub(crate) fn settings_icon_button<V: 'static>(
             this.cursor_pointer()
                 .hover(move |this| this.bg(hsla(fills.hover)))
                 .active(move |this| this.bg(hsla(fills.pressed)))
-                .on_press(cx, move |this, window, cx| {
-                    on_click(this, window, cx);
-                })
+                .on_bound_press(on_click)
         })
         .child(settings_icon(icon, icon_size, color))
         .into_any_element()

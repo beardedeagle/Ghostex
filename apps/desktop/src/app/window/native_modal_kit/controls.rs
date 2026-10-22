@@ -216,6 +216,8 @@ pub(crate) enum ModalButtonTone {
 /// A footer pill button (`.gx-app-modal-action-button`): 32px tall, 8px radius, the neutral fill
 /// by default, the primary fill for the primary tone, the destructive fill for the danger tone
 /// (CDXC:AppModal 2026-10-14 on [`neutral_button_fills`]), half opacity when disabled.
+///
+/// CDXC:Release 2026-10-22 WHY: the body lives in the non-generic `modal_action_button_bound`; generic over the click handler it was copied into the release binary once per call site (52 copies, about 0.18 MB).
 pub(crate) fn modal_action_button<V: 'static>(
     p: &ModalPalette,
     id: &'static str,
@@ -225,6 +227,26 @@ pub(crate) fn modal_action_button<V: 'static>(
     disabled: bool,
     on_click: impl Fn(&mut V, &mut Window, &mut Context<V>) + 'static,
     cx: &mut Context<V>,
+) -> AnyElement {
+    modal_action_button_bound(
+        p,
+        id,
+        label.into(),
+        leading,
+        tone,
+        disabled,
+        bind_press(cx, on_click),
+    )
+}
+
+fn modal_action_button_bound(
+    p: &ModalPalette,
+    id: &'static str,
+    label: SharedString,
+    leading: Option<AnyElement>,
+    tone: ModalButtonTone,
+    disabled: bool,
+    on_click: BoundPress,
 ) -> AnyElement {
     let p = *p;
     let (fills, text) = match tone {
@@ -242,7 +264,6 @@ pub(crate) fn modal_action_button<V: 'static>(
             p.destructive,
         ),
     };
-    let label: SharedString = label.into();
     h_flex()
         .id(id)
         .role(gpui::Role::Button)
@@ -269,9 +290,7 @@ pub(crate) fn modal_action_button<V: 'static>(
             this.cursor_pointer()
                 .hover(move |this| this.bg(hsla(fills.hover)))
                 .active(move |this| this.bg(hsla(fills.pressed)))
-                .on_press(cx, move |this, window, cx| {
-                    on_click(this, window, cx);
-                })
+                .on_bound_press(on_click)
         })
         .children(leading)
         .child(label)
@@ -327,25 +346,53 @@ pub(crate) fn a11y_toggled(on: bool) -> gpui::Toggled {
     }
 }
 
+/// A view's click handler already bound to that view, so the element code that attaches it is
+/// not generic over the view or the handler.
+pub(crate) type BoundPress = Rc<dyn Fn(&mut Window, &mut App)>;
+
+/// Binds `handler` to the view `cx` belongs to (what `cx.listener` does for one click).
+pub(crate) fn bind_press<V: 'static>(
+    cx: &Context<V>,
+    handler: impl Fn(&mut V, &mut Window, &mut Context<V>) + 'static,
+) -> BoundPress {
+    bind_press_rc(cx, Rc::new(handler))
+}
+
+/// [`bind_press`] for a handler that is already shared.
+#[inline(never)]
+pub(crate) fn bind_press_rc<V: 'static>(
+    cx: &Context<V>,
+    handler: Rc<dyn Fn(&mut V, &mut Window, &mut Context<V>)>,
+) -> BoundPress {
+    let view = cx.weak_entity();
+    Rc::new(move |window, app| {
+        let _ = view.update(app, |this, cx| handler(this, window, cx));
+    })
+}
+
 /// `on_click` for a native modal control that also answers an accessibility press (VoiceOver,
 /// cua-driver) by running the same handler.
 ///
 /// CDXC:Accessibility 2026-10-01 WHY: GPUI answers a press on a node with no press listener by synthesising a mouse click at the node's last bounds, which lands on whatever is there now: nothing when the control is scrolled out of its list, the wrong row after a re-layout. The handler is called directly instead.
+///
+/// CDXC:Release 2026-10-22 WHY: `on_press` only binds the handler and hands it to the non-generic `on_bound_press`. With the body generic over the handler, the release binary carried one full copy per call site (485 copies, about 0.88 MB with their closures and drop glue).
 pub(crate) trait PressExt: gpui::StatefulInteractiveElement + Sized {
     fn on_press<V: 'static>(
         self,
         cx: &Context<V>,
         handler: impl Fn(&mut V, &mut Window, &mut Context<V>) + 'static,
     ) -> Self {
-        let handler = Rc::new(handler);
-        let click = Rc::clone(&handler);
-        let view = cx.entity().downgrade();
-        self.on_click(cx.listener(move |this, _: &ClickEvent, window, cx| {
-            click(this, window, cx);
-        }))
-        .on_a11y_action(gpui::AccessibleAction::Click, move |_, window, app| {
-            let _ = view.update(app, |this, cx| handler(this, window, cx));
-        })
+        self.on_bound_press(bind_press(cx, handler))
+    }
+
+    /// [`PressExt::on_press`] with a handler bound by [`bind_press`].
+    #[inline(never)]
+    fn on_bound_press(self, press: BoundPress) -> Self {
+        let click = Rc::clone(&press);
+        self.on_click(move |_: &ClickEvent, window, app| click(window, app))
+            .on_a11y_action(gpui::AccessibleAction::Click, move |_, window, app| {
+                press(window, app)
+            })
     }
 }
 
