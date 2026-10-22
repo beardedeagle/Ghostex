@@ -83,6 +83,17 @@ fn paste_sanitize_and_normalize_match_spec() {
         "\u{1b}[200~one\rtwo\u{1b}[201~"
     );
     assert_eq!(build_session_chat_paste_bytes("solo"), "solo");
+    // Long single line → framed, so it arrives as one paste; long commands stay typed.
+    let long_line = "word ".repeat(200);
+    assert_eq!(
+        build_session_chat_paste_bytes(&long_line),
+        format!("\u{1b}[200~{long_line}\u{1b}[201~")
+    );
+    let long_command = format!("/rename {long_line}");
+    assert_eq!(build_session_chat_paste_bytes(&long_command), long_command);
+    // 300 form feeds sanitize to 900 bytes, so the line is framed.
+    let control_heavy = "\u{c}".repeat(300);
+    assert!(build_session_chat_paste_bytes(&control_heavy).starts_with("\u{1b}[200~"));
     assert!(is_multiline_draft("text\n"));
     assert!(!is_multiline_draft("text"));
     assert_eq!(

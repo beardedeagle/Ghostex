@@ -122,13 +122,22 @@ pub fn is_multiline_draft(text: &str) -> bool {
     text.contains(['\r', '\n'])
 }
 
-/// Multiline → framed (NO submit); single-line → sanitized unframed text.
+/// CDXC:SessionChat 2026-10-22 WHY:
+/// The terminal delivers a large write to the agent in several reads, and Claude Code treats each unframed read as a separate paste, so a long single-line message was recorded in pieces split mid-word. The transcript then no longer matched the send: the delivery watchdog reported "Your message was not delivered", the echo stayed as a second bubble, and the paste check retyped the message. Inside a bracketed-paste frame Claude Code joins the reads into one paste. Short text stays unframed so short sends are unchanged, and `/` or `!` input stays unframed because a frame turns a long command into a `[Pasted text]` placeholder instead of running it.
+fn is_long_single_line_message(text: &str) -> bool {
+    text.len() > SESSION_CHAT_UNFRAMED_SINGLE_LINE_MAX_BYTES
+        && !text.trim_start().starts_with(['/', '!'])
+}
+
+/// Multiline or long single-line → framed (NO submit); short single-line → sanitized unframed text.
 pub fn build_session_chat_paste_bytes(text: &str) -> String {
     let staged = disambiguate_agent_tui_submit_text(text);
-    if is_multiline_draft(text) {
+    // Measured after sanitizing: each control character becomes a three-byte sign.
+    let unframed = sanitize_bracketed_paste_text(&staged);
+    if is_multiline_draft(text) || is_long_single_line_message(&unframed) {
         wrap_terminal_bracketed_paste_text(&staged)
     } else {
-        sanitize_bracketed_paste_text(&staged)
+        unframed
     }
 }
 

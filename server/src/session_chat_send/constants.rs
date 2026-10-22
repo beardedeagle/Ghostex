@@ -134,6 +134,9 @@ pub(super) const SESSION_CHAT_DRAFT_PRESERVE_TIMEOUT: Duration = Duration::from_
 pub(super) const SESSION_CHAT_PROMPT_EDITOR_INPUT: &str = "\u{7}";
 pub(super) const SESSION_CHAT_GROK_PROMPT_EDITOR_INPUT: &str = "\u{10}";
 pub(super) const PROMPT_STASH_REQUEST_FRESHNESS: Duration = Duration::from_secs(15);
+/// Longest single-line message written without a bracketed-paste frame, kept well under
+/// one terminal read (1022 bytes on macOS) so an unframed send always arrives whole.
+pub(super) const SESSION_CHAT_UNFRAMED_SINGLE_LINE_MAX_BYTES: usize = 512;
 pub(super) const BRACKETED_PASTE_START: &str = "\u{1b}[200~";
 pub(super) const BRACKETED_PASTE_END: &str = "\u{1b}[201~";
 pub(super) static SESSION_CHAT_DRAFT_PRESERVE_SEQUENCE: AtomicU64 = AtomicU64::new(1);
