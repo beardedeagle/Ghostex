@@ -647,6 +647,68 @@ fn marketing_version() -> (String, bool) {
     (version, false)
 }
 
+/// The terminal font faces, in the order `register_gpui_terminal_engine_fonts`
+/// (src/terminal_gpui_engine.rs) registers them.
+const TERMINAL_FONT_FACES: [&str; 4] = ["Regular", "Bold", "Italic", "BoldItalic"];
+/// Part of the cache stamp, so changing how the frame is built rebuilds it.
+const TERMINAL_FONT_FRAME_SETTINGS: &str = "zstd level 19, window log 24";
+
+/// Packs the four terminal font faces into one zstd frame in OUT_DIR (the
+/// binary embeds only that frame, see `register_gpui_terminal_engine_fonts`)
+/// and writes their byte lengths so the unpacked bytes split back into the
+/// original files. Level 19 takes about a second in an unoptimized build
+/// script and this script also reruns for unrelated inputs, so unchanged faces
+/// reuse the frame from the last run.
+fn compress_terminal_font_faces() {
+    use std::hash::Hasher as _;
+
+    let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR"));
+    let font_dir = manifest_dir.join("../../.dependencies/ghostty/src/font/res");
+    let faces = TERMINAL_FONT_FACES.map(|face| {
+        let path = font_dir.join(format!("JetBrainsMonoNerdFont-{face}.ttf"));
+        println!("cargo:rerun-if-changed={}", path.display());
+        fs::read(&path).unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()))
+    });
+    let out_dir = PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR"));
+    let frame_path = out_dir.join("terminal_font_faces.zst");
+    let lengths_path = out_dir.join("terminal_font_face_lengths.rs");
+    let stamp_path = out_dir.join("terminal_font_faces.stamp");
+    let mut hasher = std::hash::DefaultHasher::new();
+    for face in &faces {
+        hasher.write_usize(face.len());
+        hasher.write(face);
+    }
+    let stamp = format!("{TERMINAL_FONT_FRAME_SETTINGS}: {:016x}", hasher.finish());
+    if frame_path.is_file()
+        && lengths_path.is_file()
+        && fs::read_to_string(&stamp_path).is_ok_and(|saved| saved == stamp)
+    {
+        return;
+    }
+    let mut compressor = zstd::bulk::Compressor::new(19).expect("zstd compressor");
+    // A window over the whole input, so each face's icon glyphs match the previous face's copy.
+    compressor
+        .set_parameter(zstd::zstd_safe::CParameter::WindowLog(24))
+        .expect("zstd window log");
+    compressor
+        .set_parameter(zstd::zstd_safe::CParameter::ContentSizeFlag(true))
+        .expect("zstd content size flag");
+    let frame = compressor
+        .compress(&faces.concat())
+        .unwrap_or_else(|error| panic!("failed to compress the terminal font faces: {error}"));
+    let lengths = faces
+        .iter()
+        .map(|face| face.len().to_string())
+        .collect::<Vec<_>>()
+        .join(", ");
+    fs::write(&frame_path, frame)
+        .unwrap_or_else(|error| panic!("failed to write {}: {error}", frame_path.display()));
+    fs::write(&lengths_path, format!("[{lengths}]\n"))
+        .unwrap_or_else(|error| panic!("failed to write {}: {error}", lengths_path.display()));
+    fs::write(&stamp_path, stamp)
+        .unwrap_or_else(|error| panic!("failed to write {}: {error}", stamp_path.display()));
+}
+
 fn main() {
     // CDXC:Build 2026-10-07 WHY:
     // The About page, telemetry and the Linux update check read GHOSTEX_BUILD_MARKETING_VERSION on every platform. It used to be emitted only from the Windows resource step, so Linux and macOS release builds showed the crate version (0.1.0) instead of the release version.
@@ -664,6 +726,7 @@ fn main() {
         println!("cargo:rerun-if-changed={GHOSTTYKIT_ARCHIVE}");
     }
     emit_cef_component_version();
+    compress_terminal_font_faces();
 
     if env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
         let manifest_dir =

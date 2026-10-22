@@ -94,6 +94,8 @@ percent-encoding = "2"
 raw-window-handle = "0.6"
 regex = "1"
 rust-embed = { version = "8.7.2", features = ["include-exclude"] }
+# CDXC:Terminal 2026-10-22 WHY: unpacks the terminal font faces that build.rs packs into one zstd frame (see register_gpui_terminal_engine_fonts). Pure Rust, so every target builds it with plain cargo; decoding only, without the checksum feature (the frame carries no checksum).
+ruzstd = { version = "0.9", default-features = false }
 serde_json = "1"
 # `rc` makes `Arc<Value>` deserializable, which the sidebar snapshot needs: a group's menu and
 # its header buttons are the two heavy fields of a list that is cloned per patch and per install.
@@ -173,6 +175,8 @@ windows-sys = { version = "0.61", features = [
 [build-dependencies]
 cc = "1"
 image = { version = "0.25", default-features = false, features = ["png"] }
+# Packs the terminal font faces into one frame at build time (build.rs); none of it ships in the app.
+zstd = { version = "0.14", default-features = false }
 
 [patch."https://github.com/zed-industries/zed"]
 gpui = { path = "../../.dependencies/zed/crates/gpui" }

@@ -336,39 +336,76 @@ impl GpuiEngineTerminalRecord {
     }
 }
 
+/// The JetBrains Mono Nerd Font faces the ghostty tree carries (Regular, Bold,
+/// Italic, BoldItalic) packed into one zstd frame by build.rs.
+const TERMINAL_FONT_FACES_FRAME: &[u8] =
+    include_bytes!(concat!(env!("OUT_DIR"), "/terminal_font_faces.zst"));
+/// Byte length of each face in the unpacked frame, in registration order.
+const TERMINAL_FONT_FACE_LENGTHS: [usize; 4] =
+    include!(concat!(env!("OUT_DIR"), "/terminal_font_face_lengths.rs"));
+
 /// Register the vendored JetBrains Mono Nerd Font faces the ghostty tree
 /// already carries so the engine's default terminal font resolves without a
 /// system install. Idempotent per process: the GPUI chat view registers the same
 /// faces for its monospace text, and a host that opens both must not add them twice.
+///
+/// CDXC:Terminal 2026-10-22 DECISION:
+/// User chose "Ship the four faces as one compressed file, unpack at startup" over rebuilding the faces from a Nerd Font symbols font, because a fallback font would change how icons look on Windows and in powerline prompts.
+///
+/// CDXC:Terminal 2026-10-22 WHY:
+/// The four faces (9.15 MB) share about 10,000 byte-identical icon glyphs, but each face's copy sits 2.3 MB after the previous one: the DMG compresses 4 MiB chunks on their own and the Windows zip's deflate looks back only 32 KB, so neither could share them. One zstd frame of all four is 1.31 MB. Measured on a 10.30.0 release build (macOS arm64): the app binary shrank by 7.6 MB, a 4 MiB-chunk xz model of the DMG by 2.0 MB and gzip -9 (the zip) by 3.7 MB; the Linux tar.zst and xz packages already saw across the faces and stay about the same size. ruzstd unpacks the frame in about 9 ms (M5 Pro), once per process.
+/// On macOS and Linux the unpacked faces are registered as borrowed `'static` slices, exactly as the embedded files were: on macOS an owned buffer takes another CoreText path (a font-kit memory handle instead of a CGFont over the bytes), so borrowing keeps the rendering identical. On Windows both paths copy the data into DirectWrite, so the faces go in owned and the unpacked buffer is freed, which avoids keeping 9 MB twice.
 pub(crate) fn register_gpui_terminal_engine_fonts(cx: &App) {
     static REGISTERED: std::sync::Once = std::sync::Once::new();
     REGISTERED.call_once(|| {
-        let fonts: Vec<std::borrow::Cow<'static, [u8]>> = vec![
-            include_bytes!(
-                "../../../.dependencies/ghostty/src/font/res/JetBrainsMonoNerdFont-Regular.ttf"
-            )
-            .as_slice()
-            .into(),
-            include_bytes!(
-                "../../../.dependencies/ghostty/src/font/res/JetBrainsMonoNerdFont-Bold.ttf"
-            )
-            .as_slice()
-            .into(),
-            include_bytes!(
-                "../../../.dependencies/ghostty/src/font/res/JetBrainsMonoNerdFont-Italic.ttf"
-            )
-            .as_slice()
-            .into(),
-            include_bytes!(
-                "../../../.dependencies/ghostty/src/font/res/JetBrainsMonoNerdFont-BoldItalic.ttf"
-            )
-            .as_slice()
-            .into(),
-        ];
+        let faces = match unpack_terminal_font_faces() {
+            Ok(faces) => faces,
+            Err(error) => {
+                eprintln!("gpui terminal engine font unpacking failed: {error}");
+                return;
+            }
+        };
+        // DirectWrite copies in-memory font data it is given without an owner, so on Windows the
+        // unpacked buffer is handed over owned and freed after registration instead of kept twice.
+        #[cfg(target_os = "windows")]
+        let fonts: Vec<std::borrow::Cow<'static, [u8]>> = split_terminal_font_faces(&faces)
+            .into_iter()
+            .map(|face| std::borrow::Cow::Owned(face.to_vec()))
+            .collect();
+        #[cfg(not(target_os = "windows"))]
+        let fonts: Vec<std::borrow::Cow<'static, [u8]>> = split_terminal_font_faces(faces.leak())
+            .into_iter()
+            .map(std::borrow::Cow::Borrowed)
+            .collect();
         if let Err(error) = cx.text_system().add_fonts(fonts) {
             eprintln!("gpui terminal engine font registration failed: {error}");
         }
     });
+}
+
+/// Unpacks the frame into the four original files, back to back. Outside Windows
+/// the caller keeps this buffer for the rest of the process, because the text
+/// system borrows the faces for as long as the app runs, as it borrowed the
+/// embedded files. Runs once, inside `register_gpui_terminal_engine_fonts`.
+fn unpack_terminal_font_faces() -> Result<Vec<u8>, String> {
+    let total = TERMINAL_FONT_FACE_LENGTHS.iter().sum::<usize>();
+    let mut bytes = vec![0u8; total];
+    let written = ruzstd::decoding::FrameDecoder::new()
+        .decode_all(TERMINAL_FONT_FACES_FRAME, &mut bytes)
+        .map_err(|error| error.to_string())?;
+    if written != total {
+        return Err(format!("unpacked {written} of {total} bytes"));
+    }
+    Ok(bytes)
+}
+
+/// Splits the unpacked buffer back into the four faces, in registration order.
+fn split_terminal_font_faces(mut rest: &[u8]) -> [&[u8]; 4] {
+    TERMINAL_FONT_FACE_LENGTHS.map(|length| {
+        let (face, tail) = rest.split_at(length);
+        rest = tail;
+        face
+    })
 }
 
 /// Element font config from the shared terminal settings. The app default
