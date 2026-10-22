@@ -242,6 +242,24 @@ pub(crate) fn nest_threads(
         }
     }
 
+    // The drawn row that stands for the focused thread when a folded coordinator hides it: its
+    // nearest ancestor that is drawn.
+    let mut folded_of = vec![false; sessions.len()];
+    for placed in &order {
+        folded_of[placed.index] = placed.folded;
+    }
+    let holds_active = sessions
+        .iter()
+        .position(|session| session.is_focused)
+        .filter(|focused| folded_of[*focused])
+        .and_then(|focused| {
+            let mut ancestor = parent_of[focused]?;
+            while folded_of[ancestor] {
+                ancestor = parent_of[ancestor]?;
+            }
+            Some(ancestor)
+        });
+
     let mut sessions: Vec<Option<SessionView>> = sessions.into_iter().map(Some).collect();
     let mut nested = Vec::with_capacity(order.len());
     let mut sections = Vec::with_capacity(order.len());
@@ -271,6 +289,7 @@ pub(crate) fn nest_threads(
             }),
             older_threads_shown: shows_older[index],
             older_hidden,
+            contains_active_session: holds_active == Some(index),
             ..RowNesting::default()
         };
         nested.push(session);

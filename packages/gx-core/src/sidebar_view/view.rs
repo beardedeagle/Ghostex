@@ -253,6 +253,12 @@ pub struct RowNesting {
     pub older_threads_shown: bool,
     /// On a thread row: it is one of its coordinator's older threads and they are not listed.
     pub older_hidden: bool,
+    /// On a coordinator row: the focused session is one of its threads that a fold hides, so this
+    /// row carries the active highlight for it.
+    ///
+    /// CDXC:Coordinators 2026-10-22 DECISION:
+    /// User: "when i'm on a thread that's under a coordinator and the coordinator is collapsed then we need to show the 'active' highlight on that orchestrator but somehow indicate that the thread is under it, not it. just show the circle with empty center we already use to indicate this". The nearest drawn coordinator above the hidden focused thread gets the active fill and the hollow circle a collapsed section heading uses, in its crown's spot while the card is not hovered; an expanded coordinator leaves the highlight on the thread row.
+    pub contains_active_session: bool,
 }
 
 /// A coordinator's threads in the list.

@@ -44,6 +44,10 @@ impl GhostexGpuiApp {
             Some(collapsed) if hovered => {
                 super::threads::coordinator_fold_chevron(collapsed, appearance)
             }
+            // CDXC:Coordinators 2026-10-22 SEE-ALSO: the user's decision on gx-core `RowNesting::contains_active_session` (the hollow circle in the crown's spot while the card is not hovered).
+            Some(true) if super::threads::coordinator_holds_active(session) => {
+                super::threads::contains_active_marker(appearance)
+            }
             _ => icon,
         };
         div().id(format!("native-session-identity-{id}")).size(px(15.0 * appearance.scale)).flex_shrink_0().flex().items_center().justify_center().child(icon)

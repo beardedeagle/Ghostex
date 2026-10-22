@@ -901,6 +901,7 @@ fn build_session(
                 "collapsed": session.nesting.collapsed,
                 "older": session.nesting.older_threads,
                 "olderShown": session.nesting.older_threads_shown,
+                "containsActive": session.nesting.contains_active_session,
             }),
         );
     }

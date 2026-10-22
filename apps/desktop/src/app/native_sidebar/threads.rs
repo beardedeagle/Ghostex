@@ -312,6 +312,29 @@ pub(crate) fn coordinator_fold_state(session: &NativeSidebarSession) -> Option<b
     Some(threads.get("collapsed").and_then(Value::as_bool) == Some(true))
 }
 
+/// A folded coordinator that stands in for the focused thread it hides (gx-core
+/// `RowNesting::contains_active_session`).
+pub(crate) fn coordinator_holds_active(session: &NativeSidebarSession) -> bool {
+    session
+        .details
+        .get("coordinatorThreads")
+        .and_then(|threads| threads.get("containsActive"))
+        .and_then(Value::as_bool)
+        == Some(true)
+}
+
+/// The hollow circle a collapsed section heading draws when the focused session is inside it; a
+/// coordinator draws it in its crown's spot for a hidden focused thread.
+pub(crate) fn contains_active_marker(appearance: &SidebarAppearance) -> AnyElement {
+    let scale = appearance.scale;
+    div()
+        .size(px(9.0 * scale))
+        .rounded_full()
+        .border(px(1.5 * scale))
+        .border_color(chrome_color(0xa3a3a3, 0x858585))
+        .into_any_element()
+}
+
 /// The fold chevron a hovered coordinator card draws in the crown's spot: pointing right while the
 /// threads are folded, down while they are open, like a project's.
 ///
