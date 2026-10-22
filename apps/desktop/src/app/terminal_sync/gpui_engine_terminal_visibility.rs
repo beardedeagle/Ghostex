@@ -50,8 +50,9 @@ impl GhostexGpuiApp {
     - Chat: a rendered chat slot holds a wide-grid claim with `ZMX_CHAT`.
     - Parked: a session outside the rendered slots holds no chat claim.
     - Both non-visible states: a chat client's local emulator is resized to
-      `ZMX_RESTING_GRID_COLS` x its current rows, the width its claim widens
-      the daemon to; a parked client keeps its grid (CDXC:Zmx 2026-09-25 below).
+      the wider of its current width and `ZMX_RESTING_GRID_COLS` x its current
+      rows, the same `max` its claim applies to the daemon grid; a parked
+      client keeps its grid (CDXC:Zmx 2026-09-25 below).
       Then the matching `ZMX_CHAT` or `ZMX_HIDDEN` is written into the PTY input
       (the same `write_input` path pastes use; the attach client consumes the
       sequence and never forwards it to the shell).
@@ -276,8 +277,9 @@ impl GhostexGpuiApp {
     }
 
     /// Whether a `refresh-if-stale` may carry this engine terminal's grid:
-    /// false while the client is announced chat or parked (its model rests at
-    /// `ZMX_RESTING_GRID_COLS`) or while a visible announce is still pending
+    /// false while the client is announced chat (its model rests at no less
+    /// than `ZMX_RESTING_GRID_COLS`) or parked (it keeps its grid), or while a
+    /// visible announce is still pending
     /// (the next prepaint re-establishes and claims the real grid). Records
     /// outside the visibility protocol (non-zmx shells, command pane) are
     /// never gated here.
