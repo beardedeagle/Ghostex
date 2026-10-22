@@ -132,10 +132,12 @@ fn is_long_single_line_message(text: &str) -> bool {
 /// Multiline or long single-line → framed (NO submit); short single-line → sanitized unframed text.
 pub fn build_session_chat_paste_bytes(text: &str) -> String {
     let staged = disambiguate_agent_tui_submit_text(text);
-    if is_multiline_draft(text) || is_long_single_line_message(&staged) {
+    // Measured after sanitizing: each control character becomes a three-byte sign.
+    let unframed = sanitize_bracketed_paste_text(&staged);
+    if is_multiline_draft(text) || is_long_single_line_message(&unframed) {
         wrap_terminal_bracketed_paste_text(&staged)
     } else {
-        sanitize_bracketed_paste_text(&staged)
+        unframed
     }
 }
 
