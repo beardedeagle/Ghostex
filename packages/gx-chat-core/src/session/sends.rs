@@ -60,7 +60,7 @@ pub fn begin_send(
         after_message_timestamp,
         matching_occurrence: None,
         matching_after_timestamp: None,
-        sent_while_working: working,
+        sent_while_working: working && !steers_into_running_turn(state),
         shell_command: false,
     };
     let entry = assign_occurrence(&state.pending.sends, entry);
@@ -72,6 +72,12 @@ pub fn begin_send(
             .split_off(state.pending.sends.len() - PENDING_SEND_LIMIT);
     }
     id
+}
+
+/// CDXC:SessionChat 2026-10-22 WHY:
+/// Codex takes a message sent while it works into the running turn instead of queueing it: live on 2026-10-22, Codex 0.163 recorded the chat's mid-turn send as a `UserMessage` of that turn about a second after the send, and its queued-message preview never appeared. So the echo is not marked queued and carries no play button ("Queued, click to interrupt and send"): its Escape could only interrupt the turn now answering the message (the 2026-10-22 DECISION in server/src/session_chat_send/queued_prompt_escape.rs).
+fn steers_into_running_turn(state: &ChatState) -> bool {
+    crate::extras::agents::transcript_agent([state.session.agent.as_deref(), None]) == Some("codex")
 }
 
 /// A `!` shell line's echo. Claude and Codex record the command as a shell row (folded into the

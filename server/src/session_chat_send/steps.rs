@@ -16,6 +16,7 @@ pub enum SessionChatSendStep {
     /// the click (session_chat_send/queued_prompt_escape.rs).
     GuardQueuedPromptEscape {
         requested_at: Instant,
+        agent: Option<String>,
         transcript: Option<QueuedPromptTranscriptMark>,
     },
     /// Wait for Cursor to show "ctrl+c to stop", and stop this interrupt job if it never does.

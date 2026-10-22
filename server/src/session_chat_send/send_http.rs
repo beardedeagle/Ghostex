@@ -125,13 +125,13 @@ async fn send_session_chat_message_attempt(
                     .await
                     .ok()
                     .flatten();
+            let agent = session_chat_agent_for_session(&target.session);
             let mut steps = vec![SessionChatSendStep::GuardQueuedPromptEscape {
                 requested_at,
+                agent: agent.clone(),
                 transcript,
             }];
-            steps.extend(session_chat_interrupt_escape_steps(
-                session_chat_agent_for_session(&target.session).as_deref(),
-            ));
+            steps.extend(session_chat_interrupt_escape_steps(agent.as_deref()));
             Some(steps)
         } else {
             crate::session_chat_send::build_session_chat_key_steps(key)

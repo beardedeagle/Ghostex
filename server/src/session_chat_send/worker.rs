@@ -364,11 +364,14 @@ pub(super) async fn run_session_chat_send_worker(
                 }
                 SessionChatSendStep::GuardQueuedPromptEscape {
                     requested_at,
+                    agent,
                     transcript,
                 } => {
                     if queued_prompt_escape_is_stale(
                         &project_id,
                         &session_id,
+                        &zmx_name,
+                        agent.as_deref(),
                         requested_at,
                         transcript.as_ref(),
                     )
@@ -378,7 +381,7 @@ pub(super) async fn run_session_chat_send_worker(
                             "sessionChatSendDroppedStaleEscape",
                             &project_id,
                             &session_id,
-                            "The play button's Escape was dropped: since the click a message was submitted or the agent started a prompt.",
+                            "The play button's Escape was dropped: since the click a message was submitted or the agent started a prompt, or no prompt waits in the agent's queue.",
                             &[],
                         );
                         break;
