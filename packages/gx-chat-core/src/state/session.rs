@@ -35,6 +35,9 @@ pub struct SessionState {
     pub retired_async_question_ids: Vec<String>,
     /// Questions older than this stamp no longer count. Absent means unchanged, `null` means none.
     pub async_questions_since: Option<i64>,
+    /// When this session was forked from another (epoch ms): questions asked before then belong to
+    /// the parent. Absent means unchanged, `null` means it is no fork.
+    pub forked_at: Option<i64>,
     /// The transcript family, for example `claude` or `codex`.
     pub agent: Option<String>,
     pub agent_session_id: Option<String>,
@@ -123,6 +126,7 @@ impl Default for SessionState {
             prompt: None,
             retired_async_question_ids: Vec::new(),
             async_questions_since: None,
+            forked_at: None,
             agent: None,
             agent_session_id: None,
             session_agent_id: None,

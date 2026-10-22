@@ -62,7 +62,7 @@ pub fn unanswered(state: &ChatState) -> Vec<&Asker> {
         .transcript_view
         .askers
         .iter()
-        .filter(|asker| !asker.answered && !asker.obsolete)
+        .filter(|asker| !asker.answered && !asker.obsolete && !asker.inherited)
         .filter(|asker| {
             asker.kind != AskerKind::Form
                 || state
@@ -244,6 +244,7 @@ mod tests {
             keys: Vec::new(),
             skipped: Vec::new(),
             superseded: Vec::new(),
+            inherited: false,
         });
         assert_eq!(project(&state).count, 0, "off by default");
         state.core.previous_question_enabled = true;

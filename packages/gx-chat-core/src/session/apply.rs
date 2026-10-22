@@ -64,6 +64,11 @@ pub fn apply_state_frame(
     } else if matches!(frame.state.async_questions_since, Tri::Null) {
         state.session.async_questions_since = None;
     }
+    if let Tri::Value(at) = frame.state.forked_at {
+        state.session.forked_at = Some(at);
+    } else if matches!(frame.state.forked_at, Tri::Null) {
+        state.session.forked_at = None;
+    }
     if let Some(ids) = frame.state.retired_async_question_ids.clone() {
         state.session.retired_async_question_ids = ids;
     }
@@ -130,6 +135,7 @@ pub fn apply_agent_identity(state: &mut ChatState, patch: &AgentIdentity) {
         session.selected_options = None;
         session.screen_probed = false;
         session.async_questions_since = None;
+        session.forked_at = None;
         session.retired_async_question_ids = Vec::new();
     }
     if patch.agent.is_some() {
@@ -380,6 +386,11 @@ pub fn apply_authoritative(
         state.session.async_questions_since = Some(since);
     } else if matches!(result.state.async_questions_since, Tri::Null) {
         state.session.async_questions_since = None;
+    }
+    if let Tri::Value(at) = result.state.forked_at {
+        state.session.forked_at = Some(at);
+    } else if matches!(result.state.forked_at, Tri::Null) {
+        state.session.forked_at = None;
     }
     if let Some(ids) = result.state.retired_async_question_ids.clone() {
         state.session.retired_async_question_ids = ids;

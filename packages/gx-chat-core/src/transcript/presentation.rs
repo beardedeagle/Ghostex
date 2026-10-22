@@ -522,6 +522,11 @@ pub fn scope<'a>(state: &'a ChatState, view: &'a TranscriptViewState) -> Project
     let answered: Vec<String> = sent.iter().map(|answers| answers.page_id.clone()).collect();
     let mut found = askers(&state.messages.composed, &answered);
     crate::transcript::open_questions::mark_skipped(&mut found, &sent);
+    crate::transcript::open_questions::mark_inherited(
+        &mut found,
+        &state.messages.composed,
+        state.session.forked_at,
+    );
     ProjectionScope {
         messages: &state.messages.composed,
         working: is_working(state),

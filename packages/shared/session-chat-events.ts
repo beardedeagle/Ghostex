@@ -40,6 +40,7 @@ interface SessionChatFrameBase {
 export interface GxserverSessionChatSnapshotEvent extends SessionChatFrameBase {
   /** Codex process start in epoch ms; earlier async questions expired on resume. Omitted means unchanged. */
   asyncQuestionsSince?: number | null;
+  forkedAt?: number | null;
   /** Server-confirmed answers/skips, including answers still queued inside Codex. Omitted means unchanged. */
   retiredAsyncQuestionIds?: string[];
   type: 'sessionChatSnapshot';
@@ -128,6 +129,7 @@ export interface GxserverSessionChatAppendedEvent extends SessionChatFrameBase {
 export interface GxserverSessionChatReplacedEvent extends SessionChatFrameBase {
   /** Codex process start in epoch ms; earlier async questions expired on resume. Omitted means unchanged. */
   asyncQuestionsSince?: number | null;
+  forkedAt?: number | null;
   /** Server-confirmed answers/skips, including answers still queued inside Codex. Omitted means unchanged. */
   retiredAsyncQuestionIds?: string[];
   type: 'sessionChatReplaced';
@@ -194,6 +196,7 @@ export interface GxserverSessionChatReplacedEvent extends SessionChatFrameBase {
 export interface GxserverSessionChatStateEvent extends SessionChatFrameBase {
   /** Codex process start in epoch ms; earlier async questions expired on resume. Omitted means unchanged. */
   asyncQuestionsSince?: number | null;
+  forkedAt?: number | null;
   /** Server-confirmed answers/skips, including answers still queued inside Codex. Omitted means unchanged. */
   retiredAsyncQuestionIds?: string[];
   type: 'sessionChatState';

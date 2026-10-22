@@ -100,6 +100,9 @@ pub struct Asker {
     /// Its tags a later form or page asks again or a later block withdrew: those questions wait on
     /// the reader there, or nowhere, not here.
     pub superseded: Vec<String>,
+    /// Asked before this session was forked from another (`mark_inherited`): it waits in the
+    /// parent, not here.
+    pub inherited: bool,
 }
 
 impl Asker {
@@ -180,6 +183,7 @@ pub fn askers(messages: &[ChatMessage], answered: &[String]) -> Vec<Asker> {
                     keys,
                     skipped: Vec::new(),
                     superseded: Vec::new(),
+                    inherited: false,
                 }
             } else if ghostex_gx_visual::is_visual_language(&language) {
                 let Some(page) = ghostex_gx_visual::page_reference(&body) else {
@@ -199,6 +203,7 @@ pub fn askers(messages: &[ChatMessage], answered: &[String]) -> Vec<Asker> {
                     keys: Vec::new(),
                     skipped: Vec::new(),
                     superseded: Vec::new(),
+                    inherited: false,
                 }
             } else {
                 continue;
@@ -291,6 +296,25 @@ pub fn mark_skipped(
                 }
             }
         };
+    }
+}
+
+/// Marks the forms and pages a forked session's transcript carries from before the fork: the replies
+/// that hold them are older than `forked_at` (the session's fork time, epoch ms). A reply without a
+/// time is the fork's own.
+///
+/// CDXC:SessionStatus 2026-10-23 DECISION:
+/// User, asked whether a fork should count the open questions it inherits from the conversation it was forked from: "No, only questions asked after the fork". The pink question dot, `answer requested (n)` and the Previous question pill count only questions the fork itself asked; the parent still counts its own. The fork point is the time gxserver created the forked session (`forkedAt`, from its `createdAt`): a Claude fork copies the parent's lines with their original times, all older than that, and every line the fork writes is newer.
+pub fn mark_inherited(askers: &mut [Asker], messages: &[ChatMessage], forked_at: Option<i64>) {
+    let Some(forked_at) = forked_at else {
+        return;
+    };
+    for asker in askers.iter_mut() {
+        asker.inherited = messages
+            .iter()
+            .find(|message| message.id == asker.message_id)
+            .and_then(|message| message.timestamp)
+            .is_some_and(|at| at < forked_at);
     }
 }
 

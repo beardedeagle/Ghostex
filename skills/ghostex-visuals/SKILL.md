@@ -205,11 +205,13 @@ Ghostex can't show the form, so ask in prose instead.
   "Previous question" pill steps through the questions still waiting for an
   answer.
 - A question that no longer matters should stop counting as unanswered. Asking
-  every tag of an earlier form again, in a later form or page, replaces it. To
-  drop tags without asking anything, write a block with only `withdraw`; it
-  also works beside new questions. When the user answers a question another way
-  (in the chat, in another form or page, or by doing what it asked), withdraw
-  its tag in your next block instead of asking it again:
+  every tag of an earlier form again, in a later form or page, replaces it. When
+  you ask only some of an earlier form's questions again, the ones you leave out
+  keep counting there: withdraw any of them that are settled, in that same
+  block. To drop tags without asking anything, write a block with only
+  `withdraw`; it also works beside new questions. When the user answers a
+  question another way (in the chat, in another form or page, or by doing what
+  it asked), withdraw its tag in your next block instead of asking it again:
 
   ```questions
   {"withdraw": ["Q3", "Q4"]}

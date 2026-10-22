@@ -62,6 +62,7 @@ export interface SessionChatSubagentInfo {
 export interface GxserverReadSessionChatResult {
   /** Codex process start in epoch ms; earlier async questions expired on resume. Omitted means unchanged. */
   asyncQuestionsSince?: number | null;
+  forkedAt?: number | null;
   /** Server-confirmed answers/skips, including answers still queued inside Codex. Omitted means unchanged. */
   retiredAsyncQuestionIds?: string[];
   /** Present only for a child transcript read, independent of the main chat stream. */

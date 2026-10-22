@@ -240,7 +240,7 @@ pub struct TurnLifecycle {
 /// | `queue` | the daemon has no queue support (present even when empty otherwise) |
 /// | `screenProbed` | not probed yet (sticky once true) |
 /// | `agentSessionId` | snapshot or replaced: cleared; state: unchanged |
-/// | `accountSwitch`, `apiRetry`, `pendingModelSelection`, `asyncQuestionsSince` | a daemon without queue support; otherwise always written, `null` meaning none |
+/// | `accountSwitch`, `apiRetry`, `pendingModelSelection`, `asyncQuestionsSince`, `forkedAt` | a daemon without queue support; otherwise always written, `null` meaning none |
 /// | `retiredAsyncQuestionIds` | a daemon without queue support; otherwise always written |
 ///
 /// Payload shapes are kept loose (`Value`) until the native chat needs each one typed; every one
@@ -295,6 +295,10 @@ pub struct ChatSideState {
     pub pending_model_selection: Tri<Value>,
     #[serde(default, skip_serializing_if = "Tri::is_absent")]
     pub async_questions_since: Tri<i64>,
+    /// When this session was forked from another, in epoch ms, or `null` when it is no fork: the
+    /// questions its transcript carries from before then were asked in the parent.
+    #[serde(default, skip_serializing_if = "Tri::is_absent")]
+    pub forked_at: Tri<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub retired_async_question_ids: Option<Vec<String>>,
 }

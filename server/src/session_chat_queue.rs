@@ -100,6 +100,8 @@ pub struct SessionChatQueueSnapshot {
     /// The retry after a connection or server error (accounts/api_errors.rs `chat_state`).
     pub api_retry: Option<Value>,
     pub async_questions_since: Option<i64>,
+    /// When the session was forked from another (`session_chat_open_questions::read_forked_at`).
+    pub forked_at: Option<i64>,
     pub retired_async_question_ids: Vec<String>,
     pub pending_model_selection: Option<crate::session_chat_model_selection::PendingModelSelection>,
 }
@@ -118,6 +120,7 @@ impl SessionChatQueueSnapshot {
             "asyncQuestionsSince".to_string(),
             json!(self.async_questions_since),
         );
+        target.insert("forkedAt".to_string(), json!(self.forked_at));
         target.insert(
             "accountSwitch".to_string(),
             self.account_switch.clone().unwrap_or(Value::Null),
@@ -153,6 +156,7 @@ impl SessionChatQueueSnapshot {
         revision.push_str(&serde_json::to_string(&self.account_switch).unwrap_or_default());
         revision.push_str(&serde_json::to_string(&self.api_retry).unwrap_or_default());
         revision.push_str(&serde_json::to_string(&self.async_questions_since).unwrap_or_default());
+        revision.push_str(&serde_json::to_string(&self.forked_at).unwrap_or_default());
         revision
             .push_str(&serde_json::to_string(&self.retired_async_question_ids).unwrap_or_default());
         for prompt in &self.queue {
@@ -780,6 +784,7 @@ fn read_snapshot(
         async_questions_since: crate::session_chat_async_questions::read_async_questions_since(
             db, project_id, session_id,
         ),
+        forked_at: crate::session_chat_open_questions::read_forked_at(db, project_id, session_id),
         account_switch: crate::accounts::switch_progress::read(db, project_id, session_id),
         api_retry: read_api_retry(db, project_id, session_id),
         queue,

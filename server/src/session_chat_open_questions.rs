@@ -20,9 +20,10 @@ use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 
 use ghostex_gx_chat_core::protocol::ChatMessage;
-use ghostex_gx_chat_core::transcript::open_questions::{askers, AskerKind};
+use ghostex_gx_chat_core::transcript::open_questions::{askers, mark_inherited, AskerKind};
 use ghostex_gx_chat_core::transcript::page_answers::answers_page_id;
 use ghostex_gx_chat_core::transcript::question_forms::{question_forms, QuestionForm};
+use rusqlite::OptionalExtension;
 use serde_json::{json, Map, Value};
 
 use crate::domain::DomainRepository;
@@ -51,7 +52,6 @@ pub(crate) struct OpenAsker {
     /// The form's id or the page's id.
     pub(crate) id: String,
     pub(crate) kind: AskerKind,
-    pub(crate) tags: Vec<String>,
     /// The form itself, for a ```questions block.
     pub(crate) form: Option<QuestionForm>,
     /// How many of its questions wait on the user (`Asker::waiting`).
@@ -96,6 +96,30 @@ pub(crate) fn open_question_count(session: &Value) -> usize {
         .pointer(&format!("/runtimeSettings/{RUNTIME_KEY}/count"))
         .and_then(Value::as_u64)
         .unwrap_or(0) as usize
+}
+
+/// When this session was forked from another, in epoch ms: the time Ghostex created it. The chat
+/// carries it as `forkedAt`, and questions asked before it belong to the parent
+/// (gx-chat-core's `mark_inherited`). `None` when the session is no fork.
+pub(crate) fn read_forked_at(
+    db: &rusqlite::Connection,
+    project_id: &str,
+    session_id: &str,
+) -> Option<i64> {
+    let created: Option<String> = db
+        .query_row(
+            r#"SELECT createdAt FROM sessions WHERE projectId = ?1 AND sessionId = ?2
+            AND (json_type(runtimeSettingsJson, '$.forkedFromSessionId') = 'text'
+              OR json_type(launchSettingsJson, '$.forkedFromSessionId') = 'text')"#,
+            rusqlite::params![project_id, session_id],
+            |row| row.get(0),
+        )
+        .optional()
+        .ok()
+        .flatten();
+    chrono::DateTime::parse_from_rfc3339(&created?)
+        .ok()
+        .map(|at| at.timestamp_millis())
 }
 
 fn text_of(message: &SessionChatMessage) -> String {
@@ -148,6 +172,7 @@ impl Ledger {
     fn open(
         &self,
         also_answered: &[String],
+        forked_at: Option<i64>,
         page_answered: impl Fn(&str) -> bool,
     ) -> Vec<OpenAsker> {
         let messages: Vec<ChatMessage> = self
@@ -163,9 +188,11 @@ impl Ledger {
         let mut answered = self.answered.clone();
         answered.extend(also_answered.iter().cloned());
         let forms = question_forms(&messages);
-        askers(&messages, &answered)
+        let mut found = askers(&messages, &answered);
+        mark_inherited(&mut found, &messages, forked_at);
+        found
             .into_iter()
-            .filter(|asker| !asker.answered && !asker.obsolete)
+            .filter(|asker| !asker.answered && !asker.obsolete && !asker.inherited)
             .filter(|asker| asker.kind != AskerKind::Page || !page_answered(&asker.id))
             .map(|asker| {
                 let form = forms.iter().find(|form| form.id == asker.id).cloned();
@@ -175,7 +202,6 @@ impl Ledger {
                     latest_turn: turn_of.get(asker.message_id.as_str()) == Some(&self.turns),
                     id: asker.id,
                     kind: asker.kind,
-                    tags: asker.tags,
                 }
             })
             .collect()
@@ -244,7 +270,8 @@ fn read_open(
     .filter(|prompt| prompt.state != "failed")
     .filter_map(|prompt| answers_page_id(&prompt.text))
     .collect();
-    let open = ledger.open(&queued, |id| {
+    let forked_at = read_forked_at(db, project_id, session_id);
+    let open = ledger.open(&queued, forked_at, |id| {
         crate::visual_pages::page_answered(&state.paths.root_dir, id)
     });
     let newly: Vec<OpenAsker> = if notify_turn {

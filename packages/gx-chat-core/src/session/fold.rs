@@ -133,6 +133,12 @@ pub fn fold_state(previous: Option<&FoldedSnapshot>, incoming: StateCarrier<'_>)
             .unwrap_or(Tri::Absent),
         present => present.clone(),
     };
+    folded.result.state.forked_at = match &side.forked_at {
+        Tri::Absent => previous_side
+            .map(|state| state.forked_at.clone())
+            .unwrap_or(Tri::Absent),
+        present => present.clone(),
+    };
 
     folded.result.agent = incoming_agent(&incoming)
         .cloned()
