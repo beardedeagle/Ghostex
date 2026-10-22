@@ -91,12 +91,18 @@ impl NativeChatView {
 
     /// CDXC:SessionChat 2026-09-28 DECISION:
     /// User: instead of "Waiting for agent…" above a prompt or a "Queued" label, show an icon left of the bubble at its bottom (an earlier placement under the bubble in the time and Copy row drifted away from short prompts and was rejected as ugly). A spinner means "Waiting for agent"; a play button means "Queued, click to interrupt and send", and a click sends one Escape so the agent takes the queued message right away.
+    ///
+    /// CDXC:SessionChat 2026-10-22 DECISION:
+    /// User: "add button to cancel sending and bring it back to chat". A queued message the agent can give back (`queueTakeBackIds`, Claude Code only: packages/gx-chat-core/src/composer/queue_take_back.rs) gets Back to composer left of its play button, the same take-back as the hover row's button and the composer's Up key; it spins while gxserver pulls the message out of the agent's queue.
+    ///
+    /// Answers the indicator and how many 24px slots it is wide, so the caller hangs it off the
+    /// bubble's left edge at the right distance.
     pub(super) fn delivery_indicator(
         &self,
         message: &Value,
         p: &ChatAppearance,
         cx: &Context<Self>,
-    ) -> Option<AnyElement> {
+    ) -> Option<(AnyElement, usize)> {
         let id = text(message, "id");
         let s = p.scale;
         let delivery = &message["startupDelivery"];
@@ -143,30 +149,109 @@ impl NativeChatView {
                     )
                     .into_any_element()
             };
-            return Some(
+            return Some((
                 slot.role(gpui::Role::Status)
                     .child(glyph)
                     .into_any_element(),
-            );
+                1,
+            ));
         }
-        Some(
-            slot.role(gpui::Role::Button)
-                .tab_index(0)
-                .chat_cursor_pointer()
-                .hover(|style| style.bg(p.border.opacity(0.4)))
+        let take_back = (!self.in_subagent
+            && self.snapshot["queueTakeBackIds"]
+                .as_array()
+                .is_some_and(|ids| ids.iter().any(|queued| queued == &message["id"])))
+        .then(|| self.take_back_indicator(message, p, cx));
+        let play = slot
+            .role(gpui::Role::Button)
+            .tab_index(0)
+            .chat_cursor_pointer()
+            .hover(|style| style.bg(p.border.opacity(0.4)))
+            .child(
+                svg()
+                    .path("titlebar/player-play.svg")
+                    .size(px(12.0 * s))
+                    .text_color(p.muted)
+                    .group_hover("native-chat-delivery-indicator", |style| {
+                        style.text_color(p.foreground)
+                    }),
+            )
+            .on_click(cx.listener(|this, _, _, cx| {
+                this.invoke(json!({"type":"sendKey","key":"escape"}), cx)
+            }));
+        let slots = 1 + usize::from(take_back.is_some());
+        Some((
+            div()
+                .flex()
+                .items_center()
+                .gap(px(2.0 * s))
+                .children(take_back)
+                .child(play)
+                .into_any_element(),
+            slots,
+        ))
+    }
+
+    /// Back to composer beside a queued message's play button, or its spinner while the take-back
+    /// runs.
+    fn take_back_indicator(
+        &self,
+        message: &Value,
+        p: &ChatAppearance,
+        cx: &Context<Self>,
+    ) -> AnyElement {
+        let id = text(message, "id");
+        let s = p.scale;
+        let busy = self.snapshot["queueTakeBackBusy"] == message["id"];
+        let label: gpui::SharedString = if busy {
+            "Taking the message back…".into()
+        } else {
+            format!(
+                "Back to composer ({})",
+                text(&self.snapshot, "queueTakeBackHotkey")
+            )
+            .into()
+        };
+        let tooltip = label.clone();
+        let slot = div()
+            .id(gpui::SharedString::from(format!("delivery-take-back:{id}")))
+            .group("native-chat-delivery-take-back")
+            .aria_label(label)
+            .size(px(24.0 * s))
+            .flex_shrink_0()
+            .flex()
+            .items_center()
+            .justify_center()
+            .rounded(px(6.0 * s))
+            .tooltip(move |window, cx| {
+                gpui_component::tooltip::Tooltip::new(tooltip.clone()).build(window, cx)
+            });
+        if busy {
+            return slot
+                .role(gpui::Role::Status)
                 .child(
                     svg()
-                        .path("titlebar/player-play.svg")
+                        .path("titlebar/loader2.svg")
                         .size(px(12.0 * s))
-                        .text_color(p.muted)
-                        .group_hover("native-chat-delivery-indicator", |style| {
-                            style.text_color(p.foreground)
-                        }),
+                        .text_color(p.muted),
                 )
-                .on_click(cx.listener(|this, _, _, cx| {
-                    this.invoke(json!({"type":"sendKey","key":"escape"}), cx)
-                }))
-                .into_any_element(),
-        )
+                .into_any_element();
+        }
+        slot.role(gpui::Role::Button)
+            .tab_index(0)
+            .chat_cursor_pointer()
+            .hover(|style| style.bg(p.border.opacity(0.4)))
+            .child(
+                svg()
+                    .path("titlebar/arrow-back-up.svg")
+                    .size(px(12.0 * s))
+                    .text_color(p.muted)
+                    .group_hover("native-chat-delivery-take-back", |style| {
+                        style.text_color(p.foreground)
+                    }),
+            )
+            .on_click(cx.listener(move |this, _, _, cx| {
+                this.invoke(json!({"type":"takeBackQueued","messageId":id.clone()}), cx)
+            }))
+            .into_any_element()
     }
 }

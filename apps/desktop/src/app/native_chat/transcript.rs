@@ -373,13 +373,17 @@ impl NativeChatView {
             let mut bubble_appearance = p.clone();
             bubble_appearance.prose = p.primary;
             // The delivery indicator sits left of the bubble, level with its last line, so it never drifts away from a short prompt. It hangs off the bubble's own left edge (6px gap, the 1px border counted) because a flex row around the bubble measured a prompt with an inline picture at min-content, one word per line.
-            let indicator = self.delivery_indicator(message, p, cx).map(|icon| {
-                div()
-                    .absolute()
-                    .bottom(px(11.0 * s))
-                    .left(px(-31.0 * s))
-                    .child(icon)
-            });
+            let indicator = self
+                .delivery_indicator(message, p, cx)
+                .map(|(icon, slots)| {
+                    // Each 24px slot after the first adds its own width and the 2px gap between them.
+                    let offset = 31.0 + 26.0 * slots.saturating_sub(1) as f32;
+                    div()
+                        .absolute()
+                        .bottom(px(11.0 * s))
+                        .left(px(-offset * s))
+                        .child(icon)
+                });
             let bubble = div()
                 .relative()
                 .max_w(relative(0.8))
