@@ -306,6 +306,16 @@ pub(crate) fn activity_for_hook_event(
         {
             return Some("working".to_string());
         }
+        if lower == "stop" && antigravity_stop_awaits_background_work(payload) {
+            return Some("working".to_string());
+        }
+        // agy's question tool waits for the user's answer, as Claude's AskUserQuestion does.
+        if lower == "pretooluse"
+            && first_string([nested_get(payload, &["toolCall", "name"])]).as_deref()
+                == Some("ask_question")
+        {
+            return Some("attention".to_string());
+        }
         if matches!(
             lower.as_str(),
             "stop" | "turn-completion" | "sessionend" | "session-end"
@@ -440,6 +450,60 @@ pub(crate) fn claude_notification_is_idle_input(payload: &Value) -> bool {
                 .contains("waiting for your input")
         })
         .unwrap_or(false)
+}
+
+/// CDXC:AgentHooks 2026-10-23 WHY:
+/// Antigravity CLI's hook payloads never name their event (its hook contract: the stdin JSON is the common fields plus the event's own arguments, and the command is given no event name either; CDXC:AgentProviders 2026-09-03 in notify_runtime.rs), so every agy rule in this table, which is keyed by event name, matched nothing: under the Detection status source nothing said agy was working, the chat fell back to Send as soon as the prompt reached agy's step log, and the turn read as finished (GitHub #271). The event is read off the arguments agy documents for each hook: Stop carries `terminationReason`, `fullyIdle`, `executionNum` or `finalModelOutput`; PostToolUse adds `result` or `error` to PreToolUse's `toolCall`; PostInvocation adds `modelOutput` or `modelThinking` to PreInvocation's `invocationNum`. A `hookType` (agy's own `HOOK_TYPE_*` enum) wins when a build sends one. A payload with none of these (SessionStart's common fields) stays unnamed.
+pub(crate) fn antigravity_hook_event_name(payload: &Value) -> Option<&'static str> {
+    let has = |key: &str| payload.get(key).is_some_and(|value| !value.is_null());
+    if let Some(kind) = first_string([payload.get("hookType")]) {
+        return match kind.trim_start_matches("HOOK_TYPE_") {
+            "PRE_INVOCATION" => Some("PreInvocation"),
+            "POST_INVOCATION" => Some("PostInvocation"),
+            "PRE_TOOL_USE" => Some("PreToolUse"),
+            "POST_TOOL_USE" => Some("PostToolUse"),
+            "STOP" => Some("Stop"),
+            "SESSION_START" => Some("SessionStart"),
+            _ => None,
+        };
+    }
+    if [
+        "terminationReason",
+        "fullyIdle",
+        "executionNum",
+        "finalModelOutput",
+    ]
+    .iter()
+    .any(|key| has(key))
+    {
+        return Some("Stop");
+    }
+    if has("toolCall") {
+        return Some(if has("result") || has("error") {
+            "PostToolUse"
+        } else {
+            "PreToolUse"
+        });
+    }
+    if has("modelOutput") || has("modelThinking") {
+        return Some("PostInvocation");
+    }
+    if has("invocationNum") || has("initialNumSteps") {
+        return Some("PreInvocation");
+    }
+    None
+}
+
+/// CDXC:AgentHooks 2026-10-23 WHY:
+/// Antigravity CLI moves a command that outlives `WaitMsBeforeAsync` (often 1s) into a background task and tells the model to say it will wait and end the turn; its loop then stops (`terminationReason: NO_TOOL_CALL`) and the CLI wakes the model again when the task finishes, so the turn's real answer comes later (GitHub #271: the chat dropped to Send and "Worked" a few seconds in, and the replies popped up minutes later). The Stop payload says so with `fullyIdle`, but it is a plain proto3 bool that agy's protojson leaves out when false, so only `fullyIdle: true` means the agent is done. Any other stop reason (a cancel, an error, a limit) ends the turn as before, and a payload without a stop reason keeps the old idle.
+/// SEE-ALSO: server/src/session_chat_antigravity_mirror.rs keeps the transcript's turn open across the same wait; server/src/agents/activity.rs re-derives this Stop from the forwarded fields.
+pub(crate) fn antigravity_stop_awaits_background_work(payload: &Value) -> bool {
+    let fully_idle = payload_boolean(payload, &["fullyIdle", "fully_idle"]);
+    let reason = first_string([
+        payload.get("terminationReason"),
+        payload.get("termination_reason"),
+    ]);
+    fully_idle != Some(true) && reason.as_deref() == Some("NO_TOOL_CALL")
 }
 
 fn payload_boolean(payload: &Value, keys: &[&str]) -> Option<bool> {

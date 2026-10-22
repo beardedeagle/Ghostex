@@ -1088,6 +1088,17 @@ pub(crate) fn normalize_agent_hook_event_activity(params: &Map<String, Value>) -
             event,
             &Value::Object(params.clone()),
         )
+    } else if agent.as_deref() == Some("antigravity") {
+        // agy's stop keeps the turn working while background work will wake it again, and its
+        // question tool waits for the user (CDXC:AgentHooks 2026-10-23 in event_mapping.rs).
+        crate::agent_hooks::event_mapping::activity_for_hook_event(
+            "antigravity",
+            event.and_then(Value::as_str).unwrap_or_default(),
+            &Value::Object(params.clone()),
+        )
+        .or_else(|| {
+            normalize_agent_hook_activity(params.get("status"), event, params.get("agentName"))
+        })
     } else if let Some(agent @ ("mastra" | "hermes-agent" | "copilot")) = agent.as_deref() {
         // These decide from the payload; Hermes needs the tool name, Copilot the notification type.
         crate::agent_hooks::event_mapping::activity_for_hook_event(

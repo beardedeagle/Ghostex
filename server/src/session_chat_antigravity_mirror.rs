@@ -220,11 +220,63 @@ fn antigravity_tool_calls(record: &Map<String, Value>) -> Vec<Value> {
         .collect()
 }
 
+const BACKGROUND_TASK_LAUNCH: &str = "Tool is running as a background task with task id: ";
+const BACKGROUND_TASK_END: &str = "Task id \"";
+
+/// CDXC:SessionChat 2026-10-23 WHY:
+/// A command that outlives its `WaitMsBeforeAsync` becomes a background task, and agy tells the model to "update the user with a short message (that you have launched the command and will wait for it to finish) and end the turn"; when the task ends, agy injects a `SYSTEM_MESSAGE` naming it (`Task id "<id>" finished with result: …`) and runs the model again. That "will wait" reply is prose without tool calls, the shape the lifecycle decoder reads as the turn's end, so the chat folded the turn into "Worked" seconds in and the real answer arrived minutes later outside it (GitHub #271). The mirror follows the turn's launched tasks and marks prose written while one is still running `awaitsBackgroundTasks`, which the decoder does not read as an end. A new prompt starts the count again, so a task agy never reports back on holds at most one turn open.
+/// SEE-ALSO: server/src/agent_hooks/event_mapping.rs (`antigravity_stop_awaits_background_work`, the same wait seen from agy's Stop hook).
+#[derive(Default)]
+struct BackgroundTasks {
+    running: Vec<String>,
+}
+
+impl BackgroundTasks {
+    fn observe(&mut self, record: &Map<String, Value>) {
+        let source = record.get("source").and_then(Value::as_str);
+        let step_type = record.get("type").and_then(Value::as_str);
+        if (source, step_type) == (Some("USER_EXPLICIT"), Some("USER_INPUT")) {
+            self.running.clear();
+            return;
+        }
+        let Some(content) = record.get("content").and_then(Value::as_str) else {
+            return;
+        };
+        match source {
+            Some("MODEL") if step_type != Some("PLANNER_RESPONSE") => {
+                if let Some(start) = content.find(BACKGROUND_TASK_LAUNCH) {
+                    let id: String = content[start + BACKGROUND_TASK_LAUNCH.len()..]
+                        .chars()
+                        .take_while(|ch| !ch.is_whitespace())
+                        .collect();
+                    if !id.is_empty() && !self.running.contains(&id) {
+                        self.running.push(id);
+                    }
+                }
+            }
+            Some("SYSTEM") => {
+                if content.contains("background tasks have been stopped") {
+                    self.running.clear();
+                }
+                for (start, _) in content.match_indices(BACKGROUND_TASK_END) {
+                    let rest = &content[start + BACKGROUND_TASK_END.len()..];
+                    if let Some(end) = rest.find('"') {
+                        let id = &rest[..end];
+                        self.running.retain(|running| running != id);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn any_running(&self) -> bool {
+        !self.running.is_empty()
+    }
+}
+
 /// Mirror rows for one raw step, in display order.
-fn mirror_rows_for_step(line: &str) -> Vec<Value> {
-    let Some(record) = parse_json_object(line) else {
-        return Vec::new();
-    };
+fn mirror_rows_for_step(record: &Map<String, Value>, awaits_background_tasks: bool) -> Vec<Value> {
     let Some(step_index) = record.get("step_index").and_then(Value::as_u64) else {
         return Vec::new();
     };
@@ -270,7 +322,7 @@ fn mirror_rows_for_step(line: &str) -> Vec<Value> {
                     ]),
                 ));
             }
-            let tool_calls = antigravity_tool_calls(&record);
+            let tool_calls = antigravity_tool_calls(record);
             let text = content.filter(|text| !text.trim().is_empty());
             if text.is_some() || !tool_calls.is_empty() {
                 let mut extra = Map::new();
@@ -279,6 +331,8 @@ fn mirror_rows_for_step(line: &str) -> Vec<Value> {
                 }
                 if !tool_calls.is_empty() {
                     extra.insert("toolCalls".into(), Value::Array(tool_calls));
+                } else if awaits_background_tasks {
+                    extra.insert("awaitsBackgroundTasks".into(), Value::Bool(true));
                 }
                 rows.push(row("assistant", extra));
             }
@@ -312,11 +366,17 @@ fn build_mirror(raw: &[u8]) -> Vec<u8> {
     };
     let text = String::from_utf8_lossy(complete);
     let mut out = Vec::with_capacity(complete.len());
+    let mut background_tasks = BackgroundTasks::default();
     for line in text.lines() {
         if line.trim().is_empty() {
             continue;
         }
-        for row in mirror_rows_for_step(line) {
+        let Some(record) = parse_json_object(line) else {
+            continue;
+        };
+        let rows = mirror_rows_for_step(&record, background_tasks.any_running());
+        background_tasks.observe(&record);
+        for row in rows {
             if let Ok(serialized) = serde_json::to_vec(&row) {
                 out.extend_from_slice(&serialized);
                 out.push(b'\n');

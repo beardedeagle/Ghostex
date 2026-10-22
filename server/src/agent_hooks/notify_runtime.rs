@@ -93,6 +93,12 @@ pub fn run_notify_hook(args: Vec<String>) -> Result<Option<String>, DomainStateE
         payload.get("hookEventName"),
         payload.get("event"),
     ])
+    .or_else(|| {
+        (agent_key == "antigravity")
+            .then(|| super::event_mapping::antigravity_hook_event_name(&payload))
+            .flatten()
+            .map(str::to_string)
+    })
     .unwrap_or_default();
     let session_id = first_string([
         payload.get("session_id"),
@@ -549,6 +555,18 @@ fn post_gxserver_hook_event(
     if agent_key == "cursor" && event_name.trim().eq_ignore_ascii_case("stop") {
         if let Some(status) = first_string([payload.get("status")]) {
             params.insert("stopStatus".to_string(), json!(status));
+        }
+    }
+    // The server re-derives an Antigravity event's activity from whether background work will wake
+    // the agent again and which tool it calls (CDXC:AgentHooks 2026-10-23 in event_mapping.rs).
+    if agent_key == "antigravity" {
+        for key in ["fullyIdle", "terminationReason"] {
+            if let Some(value) = payload.get(key) {
+                params.insert(key.to_string(), value.clone());
+            }
+        }
+        if let Some(tool) = first_string([nested_get(&payload, &["toolCall", "name"])]) {
+            params.insert("toolCall".to_string(), json!({ "name": tool }));
         }
     }
     params.insert("agentName".to_string(), json!(agent_key));

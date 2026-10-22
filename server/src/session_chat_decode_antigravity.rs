@@ -7,6 +7,8 @@ step log. One mirror row per rendered message, in this shape:
      "narration": true}
     {"stepIndex": 7, "part": "assistant", "createdAt": "…", "text": "pong",
      "toolCalls": [{"name": "run_command", "args": {"CommandLine": "echo pong"}}]}
+    {"stepIndex": 27, "part": "assistant", "createdAt": "…", "text": "…will wait…",
+     "awaitsBackgroundTasks": true}
     {"stepIndex": 0, "part": "user", "createdAt": "…", "text": "…"}
     {"stepIndex": 2, "part": "tool", "createdAt": "…", "toolType": "GENERIC",
      "text": "The command exited with code 0.\nOutput:\npong", "isError": true}
@@ -234,8 +236,9 @@ pub fn decode_antigravity_transcript_line(
 The step log writes no explicit turn markers: a user row opens a turn, and a
 planner step that answers in prose WITHOUT asking for tools is the turn's last
 step (a step with tool calls is always followed by the tool's result and
-another planner step). Interrupts write no closing row, so ready-state
-recovery for them rides the agent-hook activity signal like Pi's.
+another planner step), unless the mirror marked it `awaitsBackgroundTasks`.
+Interrupts write no closing row, so ready-state recovery for them rides the
+agent-hook activity signal like Pi's.
 */
 pub fn decode_antigravity_turn_lifecycle(
     line: &str,
@@ -256,7 +259,11 @@ pub fn decode_antigravity_turn_lifecycle(
                 .get("toolCalls")
                 .and_then(Value::as_array)
                 .is_some_and(|tool_calls| !tool_calls.is_empty());
-            if asks_for_tools || antigravity_is_narration(&record) {
+            // A reply written while a background task runs is not the answer: agy runs the
+            // model again when the task ends (CDXC:SessionChat 2026-10-23 in the mirror module).
+            let awaits_background_tasks =
+                record.get("awaitsBackgroundTasks") == Some(&Value::Bool(true));
+            if asks_for_tools || antigravity_is_narration(&record) || awaits_background_tasks {
                 return None;
             }
             Some(SessionChatTurnLifecycle {
