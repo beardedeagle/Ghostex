@@ -27,13 +27,15 @@ const SETTINGS_WRITE_CONFIRM_TIMEOUT: Duration = Duration::from_secs(3);
 const SETTINGS_WRITE_POLL_INTERVAL: Duration = Duration::from_millis(100);
 pub(super) const SETTINGS_UPDATE_SOURCE: &str = "cli:settings";
 
-/// Mirrors `SETTINGS_MODAL_NAVIGATION_TABS` in
-/// packages/shared/ghostex-settings/settings-modal-navigation.ts (deleted 2026-10-01).
+/// The tabs `--tab` may name. Keep in lockstep with `SETTINGS_MODAL_TABS` in
+/// packages/gx-core/src/renderer_commands/verbs.rs, which the desktop app checks again.
 const SETTINGS_MODAL_TABS: &[&str] = &[
     "settings",
     "theme",
     "integrations",
+    "voiceAgent",
     "connectors",
+    "workspaces",
     "cloudBoxes",
     "extensions",
     "osIntegration",

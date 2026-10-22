@@ -27,12 +27,16 @@ use crate::core::Core;
 use crate::keys::MachineId;
 use crate::sidebar_view::text::{js_trim, utf16_len, utf16_prefix};
 
-/// `SETTINGS_MODAL_NAVIGATION_TABS`, the tabs `ghostex settings open --tab` may name.
-/// SEE-ALSO: packages/shared/ghostex-settings/settings-modal-navigation.ts (deleted 2026-10-01) (keep in lockstep).
-pub const SETTINGS_MODAL_TABS: [&str; 15] = [
+/// The tabs `ghostex settings open --tab` may name, each a `SettingsTabId` id
+/// (apps/desktop/src/app/window/settings_modal/model.rs). Keep in lockstep with
+/// `SETTINGS_MODAL_TABS` in server/src/ghostex_cli/settings.rs, which checks `--tab` first.
+pub const SETTINGS_MODAL_TABS: [&str; 18] = [
     "settings",
     "theme",
     "integrations",
+    "voiceAgent",
+    "connectors",
+    "workspaces",
     "cloudBoxes",
     "extensions",
     "osIntegration",
