@@ -162,6 +162,7 @@ impl NativeChatView {
                     TextareaState::new(window, cx)
                         .submit_on_enter(true)
                         .auto_grow(1, 4)
+                        .auto_text_direction(true)
                         .placeholder("Or write your own answer…")
                         .default_value(text(&draft, "other"))
                 });

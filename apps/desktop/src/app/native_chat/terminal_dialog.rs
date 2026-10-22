@@ -388,6 +388,7 @@ impl NativeChatView {
                         TextareaState::new(window, cx)
                             .submit_on_enter(true)
                             .auto_grow(2, 6)
+                            .auto_text_direction(true)
                             .validate(move |value, _| value.encode_utf16().count() <= limit)
                             .placeholder(placeholder)
                             .default_value(server_value.clone())

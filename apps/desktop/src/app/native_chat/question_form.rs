@@ -155,6 +155,7 @@ impl NativeChatView {
         let input = cx.new(|cx| {
             TextareaState::new(window, cx)
                 .auto_grow(1, 6)
+                .auto_text_direction(true)
                 .placeholder(hint.clone())
                 .default_value(value)
         });

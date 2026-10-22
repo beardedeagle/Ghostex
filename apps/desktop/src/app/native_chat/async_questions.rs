@@ -183,6 +183,7 @@ impl NativeChatView {
                 TextareaState::new(window, cx)
                     .submit_on_enter(true)
                     .auto_grow(1, 5)
+                    .auto_text_direction(true)
                     .placeholder(if options.is_some_and(|options| !options.is_empty()) {
                         "Or write your own answer…"
                     } else {

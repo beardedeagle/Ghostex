@@ -27,6 +27,7 @@ impl NativeChatView {
             let input = cx.new(|cx| {
                 TextareaState::new(window, cx)
                     .auto_grow(3, 8)
+                    .auto_text_direction(true)
                     .placeholder("What’s next in this thread…")
                     .default_value(value.clone())
             });

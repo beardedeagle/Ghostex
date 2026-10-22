@@ -499,6 +499,7 @@ impl NativeChatView {
         }
     }
 
+    /// CDXC:SessionChat 2026-10-22 DECISION: The composer lays out each line whose first strong character is right-to-left (Arabic, Hebrew, Persian…) right-to-left and right-aligned, "like it works in text area in the web", i.e. `dir="auto"` per line; left-to-right lines stay as they are. The chat's other text fields do the same.
     pub(crate) fn ensure_input(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.input.is_none() {
             let draft = self.draft.clone();
@@ -506,6 +507,7 @@ impl NativeChatView {
                 TextareaState::new(window, cx)
                     .submit_on_enter(true)
                     .auto_grow(3, 7)
+                    .auto_text_direction(true)
                     .default_value(draft)
             });
             self.input = Some(input);

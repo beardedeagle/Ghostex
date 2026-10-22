@@ -1195,6 +1195,10 @@ prompt; they never use it on their own. Install the skill from Settings >
 Integrations (Ghostex Visuals) or with `ghostex visual install-skill`. Pages
 open in a sandbox and can't reach your computer's files or Ghostex.
 When the agent needs your decisions, it asks them as a form right in the chat
+Right-to-left languages (Arabic, Hebrew, Persian and the like) work in the chat
+box and the transcript: a line that starts in one of them is right-aligned and
+reads right to left, like a web text box, and the arrow keys follow its reading
+direction; lines in left-to-right languages stay as they are.
 on desktop, web, and mobile: every question at once, with choices you click
 and a note box for each. Nothing is picked for you (the agent may mark the
 option it recommends), every choice question has an Other / none of these
