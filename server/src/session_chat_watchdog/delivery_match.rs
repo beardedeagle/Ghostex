@@ -407,22 +407,8 @@ pub(super) fn json_escaped_needle(text: &str) -> Option<String> {
     (!inner.is_empty()).then(|| inner.to_string())
 }
 
-/*
-CDXC:AgentScreenDetection 2026-08-20:
-A message the CLI executes itself instead of sending to the model. Both agents
-have exactly two of these, and both use the same two prefixes:
-  - `/command` — Claude's local commands and Codex's `SlashCommand` popup, from
-    `/usage` and `/model` (pure UI, nothing recorded anywhere) through `/init`
-    and `/compact` (a turn is recorded, but its text is the command's expanded
-    prompt, never what the user typed);
-  - `!command` — a shell escape in both CLIs, run locally and never sent.
-Recognition is deliberately strict, because everything downstream of it either
-adds evidence or REMOVES an alarm: a single line, an alphabetic first character
-after the prefix, and no other punctuation inside the name, so a pasted path
-(`/Users/...`) or a prose message that opens with a slash stays an ordinary
-message. Namespaced plugin commands (`/plugin-dev:agent-creator`) keep their
-colon — the CLI logs the full name and the needle below has to match it.
-*/
+/// A message the CLI executes itself instead of sending to the model; recognised by
+/// `parse_agent_cli_command` (CDXC:AgentScreenDetection in session_chat_send/input_bytes.rs).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) enum InterceptedInput {
     /// The `/command` token, prefix included.
@@ -434,32 +420,16 @@ pub(super) enum InterceptedInput {
 
 impl InterceptedInput {
     pub(super) fn detect(text: &str) -> Option<Self> {
-        let trimmed = text.trim();
-        if trimmed.lines().count() != 1 {
-            return None;
-        }
-        if let Some(rest) = trimmed.strip_prefix('/') {
-            let mut name = String::new();
-            for ch in rest.chars() {
-                if ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-' | ':') {
-                    name.push(ch);
-                    continue;
+        Some(
+            match crate::session_chat_send::parse_agent_cli_command(text)? {
+                crate::session_chat_send::AgentCliCommand::Slash(name) => {
+                    Self::SlashCommand(format!("/{name}"))
                 }
-                if ch.is_whitespace() {
-                    break;
+                crate::session_chat_send::AgentCliCommand::Shell(command) => {
+                    Self::ShellEscape(command.to_string())
                 }
-                return None;
-            }
-            if !name.starts_with(|ch: char| ch.is_ascii_alphabetic()) {
-                return None;
-            }
-            return Some(Self::SlashCommand(format!("/{name}")));
-        }
-        let command = trimmed.strip_prefix('!')?.trim();
-        if !command.starts_with(|ch: char| ch.is_ascii_alphabetic()) {
-            return None;
-        }
-        Some(Self::ShellEscape(command.to_string()))
+            },
+        )
     }
 
     /// Extra raw-scan needles that PROVE the CLI took the input. Claude names

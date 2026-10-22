@@ -123,10 +123,63 @@ pub fn is_multiline_draft(text: &str) -> bool {
 }
 
 /// CDXC:SessionChat 2026-10-22 WHY:
-/// The terminal delivers a large write to the agent in several reads, and Claude Code treats each unframed read as a separate paste, so a long single-line message was recorded in pieces split mid-word. The transcript then no longer matched the send: the delivery watchdog reported "Your message was not delivered", the echo stayed as a second bubble, and the paste check retyped the message. Inside a bracketed-paste frame Claude Code joins the reads into one paste. Short text stays unframed so short sends are unchanged, and `/` or `!` input stays unframed because a frame turns a long command into a `[Pasted text]` placeholder instead of running it.
+/// The terminal delivers a large write to the agent in several reads, and Claude Code treats each unframed read as a separate paste, so a long single-line message was recorded in pieces split mid-word. The transcript then no longer matched the send: the delivery watchdog reported "Your message was not delivered", the echo stayed as a second bubble, and the paste check retyped the message. Inside a bracketed-paste frame Claude Code joins the reads into one paste. Short text stays unframed so short sends are unchanged, and a real `/command` or `!command` (`parse_agent_cli_command`) stays unframed because a frame turns a long command into a `[Pasted text]` placeholder instead of running it; prose that merely opens with a slash, such as a dictated message starting with a `/Users/...` path, is framed like any other long line.
 fn is_long_single_line_message(text: &str) -> bool {
     text.len() > SESSION_CHAT_UNFRAMED_SINGLE_LINE_MAX_BYTES
-        && !text.trim_start().starts_with(['/', '!'])
+        && parse_agent_cli_command(text).is_none()
+}
+
+/// Input the agent CLI runs itself instead of sending to the model.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum AgentCliCommand<'a> {
+    /// The `/command` name, without its `/`.
+    Slash(&'a str),
+    /// The `!command` body, with the `!` stripped.
+    Shell(&'a str),
+}
+
+/*
+CDXC:AgentScreenDetection 2026-08-20:
+A message the CLI executes itself instead of sending to the model. Both agents
+have exactly two of these, and both use the same two prefixes:
+  - `/command` — Claude's local commands and Codex's `SlashCommand` popup, from
+    `/usage` and `/model` (pure UI, nothing recorded anywhere) through `/init`
+    and `/compact` (a turn is recorded, but its text is the command's expanded
+    prompt, never what the user typed);
+  - `!command` — a shell escape in both CLIs, run locally and never sent.
+Recognition is deliberately strict, because everything downstream of it either
+adds evidence or REMOVES an alarm: a single line, an alphabetic first character
+after the prefix, and no other punctuation inside the name, so a pasted path
+(`/Users/...`) or a prose message that opens with a slash stays an ordinary
+message. Namespaced plugin commands (`/plugin-dev:agent-creator`) keep their
+colon — the CLI logs the full name and the delivery watchdog's needle has to
+match it. The delivery watchdog (`InterceptedInput::detect`) and the send's
+paste framing (`is_long_single_line_message`) share this one check, so a
+message the watchdog reads as a command is exactly one the send types unframed.
+*/
+pub(crate) fn parse_agent_cli_command(text: &str) -> Option<AgentCliCommand<'_>> {
+    let trimmed = text.trim();
+    if trimmed.lines().count() != 1 {
+        return None;
+    }
+    if let Some(rest) = trimmed.strip_prefix('/') {
+        let end = rest
+            .find(|ch: char| !(ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-' | ':')))
+            .unwrap_or(rest.len());
+        if !rest[end..].chars().next().is_none_or(char::is_whitespace) {
+            return None;
+        }
+        let name = &rest[..end];
+        if !name.starts_with(|ch: char| ch.is_ascii_alphabetic()) {
+            return None;
+        }
+        return Some(AgentCliCommand::Slash(name));
+    }
+    let command = trimmed.strip_prefix('!')?.trim();
+    if !command.starts_with(|ch: char| ch.is_ascii_alphabetic()) {
+        return None;
+    }
+    Some(AgentCliCommand::Shell(command))
 }
 
 /// Multiline or long single-line → framed (NO submit); short single-line → sanitized unframed text.

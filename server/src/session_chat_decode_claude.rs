@@ -943,7 +943,7 @@ const CLAUDE_PASTED_CONTENT_CLOSE: &str = "</pasted_content";
 
 /*
 CDXC:SessionChat 2026-09-20 WHY:
-Chat delivers every multi-line send as a bracketed paste (`build_session_chat_paste_bytes`), and Claude Code records the submitted prompt with each pasted span wrapped in `<pasted_content id="ab12">` … `</pasted_content id="ab12">`, escaping a literal tag spelling inside the body by slipping a backslash in behind the `<`.
+Chat delivers every multi-line or long single-line send as a bracketed paste (`build_session_chat_paste_bytes`), and Claude Code records the submitted prompt with each pasted span wrapped in `<pasted_content id="ab12">` … `</pasted_content id="ab12">`, escaping a literal tag spelling inside the body by slipping a backslash in behind the `<`.
 Those tags exist only to tell the model where the clipboard text began: Claude Code's own TUI shows the collapsed `[Pasted text #1 …]` placeholder and never prints them, so a transcript that renders the row verbatim put markup the user never typed into their own chat bubble and left the optimistic echo unmatched against the row it belongs to.
 Unwrap the envelope for user rows only; assistant text is never wrapped.
 */
