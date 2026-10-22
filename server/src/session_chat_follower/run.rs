@@ -648,6 +648,14 @@ pub async fn run_session_chat_follower(
             || effective_prompt != published_prompt
             || live.working != published_working
         {
+            /*
+            CDXC:SessionChat 2026-10-22 WHY:
+            This frame restates the notice, and the post-answer redetect (session_chat_options/redetect.rs) publishes through the shared detector cache, not through this loop. Restating this loop's own last copy sent an answered permission prompt back out right after the redetect had cleared it (the answer turns the agent to working, which lands here): the chat drew the answered card again for a moment, then the next frame took it away. The newest whole capture in the cache is the current notice.
+            */
+            let cached = read_cached_detection();
+            if cached.captured {
+                published_notice = cached.notice;
+            }
             if published_state_valid {
                 emit_state_frame(
                     &emit,
