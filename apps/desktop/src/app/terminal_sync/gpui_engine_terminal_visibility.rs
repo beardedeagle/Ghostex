@@ -50,8 +50,9 @@ impl GhostexGpuiApp {
     - Chat: a rendered chat slot holds a wide-grid claim with `ZMX_CHAT`.
     - Parked: a session outside the rendered slots holds no chat claim.
     - Both non-visible states: a chat client's local emulator is resized to
-      `ZMX_RESTING_GRID_COLS` x its current rows, the width its claim widens
-      the daemon to; a parked client keeps its grid (CDXC:Zmx 2026-09-25 below).
+      the wider of its current width and `ZMX_RESTING_GRID_COLS` x its current
+      rows, the same `max` its claim applies to the daemon grid; a parked
+      client keeps its grid (CDXC:Zmx 2026-09-25 below).
       Then the matching `ZMX_CHAT` or `ZMX_HIDDEN` is written into the PTY input
       (the same `write_input` path pastes use; the attach client consumes the
       sequence and never forwards it to the shell).
@@ -204,10 +205,10 @@ impl GhostexGpuiApp {
                 // CDXC:Zmx 2026-09-25 WHY:
                 // A parked viewer keeps its grid instead of reflowing to the resting width (supersedes parking both non-visible states at 200 columns). With no visible or chat claim the daemon retains the grid the viewer last claimed (loop.zig electLeader), so the mirror at that grid takes the streamed output exactly and a redisplay at the same size needs no reflow, no claim round trip and no reflow hold. The 200-column park re-wrapped that output against a grid the daemon was not using, and every switch back resized, reflowed and held.
                 // If another client changes the daemon grid meanwhile, the redisplay's claim changes it back, and the daemon repaints every client from its own screen.
-                // Chat keeps the resting width, because the chat claim itself widens the daemon to at least 200 columns.
+                // Chat widens to the resting width but never narrows, the same `max` the chat claim applies to the daemon grid (loop.zig electLeader). Resting a wider terminal at 200 columns left the mirror narrower than the grid the agent kept drawing at, and the redisplay at the unchanged grid gets no repaint, so the lines broken at column 200 stayed on screen.
                 let (current_cols, rows) = view.read(cx).model().size();
                 let cols = if visibility == GpuiEngineTerminalZmxVisibility::Chat {
-                    ZMX_RESTING_GRID_COLS
+                    current_cols.max(ZMX_RESTING_GRID_COLS)
                 } else {
                     current_cols
                 };
@@ -276,8 +277,9 @@ impl GhostexGpuiApp {
     }
 
     /// Whether a `refresh-if-stale` may carry this engine terminal's grid:
-    /// false while the client is announced chat or parked (its model rests at
-    /// `ZMX_RESTING_GRID_COLS`) or while a visible announce is still pending
+    /// false while the client is announced chat (its model rests at no less
+    /// than `ZMX_RESTING_GRID_COLS`) or parked (it keeps its grid), or while a
+    /// visible announce is still pending
     /// (the next prepaint re-establishes and claims the real grid). Records
     /// outside the visibility protocol (non-zmx shells, command pane) are
     /// never gated here.
