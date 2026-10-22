@@ -159,6 +159,21 @@ fn decorate_notice(raw: &Value, notice: &TerminalNotice) -> Value {
             .collect();
     }
     object.remove("approvalCommand");
+    // A Claude Code permission prompt read whole is drawn as the card's `approval` details, which
+    // show its command already.
+    let approval = raw.get("permissionRequest").and_then(|request| {
+        crate::questions::permission_card::presentation(request, &notice.title)
+    });
+    object.remove("permissionRequest");
+    match approval {
+        Some(approval) => {
+            object.insert("approval".to_string(), approval);
+            commands.clear();
+        }
+        None => {
+            object.remove("approval");
+        }
+    }
     if commands.is_empty() {
         object.remove("collapsedDetail");
     } else {

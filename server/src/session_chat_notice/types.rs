@@ -254,6 +254,8 @@ pub struct SessionChatTerminalNotice {
     pub error_lines: Option<String>,
     /// The command an approval card asks to run, drawn under its title while the card is folded (`approvalCommand`, read by the chat core's `collapsedDetail`).
     pub approval_command: Option<String>,
+    /// What a Claude Code permission prompt asks (`permissionRequest`), which the chat core turns into the approval card's title, command and warning.
+    pub permission_request: Option<crate::session_chat_claude_permission::ClaudePermissionRequest>,
     pub source: SessionChatTerminalNoticeSource,
     /// RFC3339 millis; also the client's dismissal key.
     pub detected_at: String,
@@ -287,6 +289,7 @@ impl SessionChatTerminalNotice {
             screen_tail: None,
             error_lines: None,
             approval_command: None,
+            permission_request: None,
             source,
             detected_at: chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
             actions: Vec::new(),
@@ -317,6 +320,14 @@ impl SessionChatTerminalNotice {
 
     pub fn with_approval_command(mut self, command: Option<String>) -> Self {
         self.approval_command = command.filter(|command| !command.trim().is_empty());
+        self
+    }
+
+    pub fn with_permission_request(
+        mut self,
+        request: Option<crate::session_chat_claude_permission::ClaudePermissionRequest>,
+    ) -> Self {
+        self.permission_request = request;
         self
     }
 
@@ -369,6 +380,7 @@ impl SessionChatTerminalNotice {
                 && self.detail == other.detail
                 && self.error_lines == other.error_lines
                 && self.approval_command == other.approval_command
+                && self.permission_request == other.permission_request
                 && self.source == other.source
                 && self.blocks_input == other.blocks_input
                 && self.actions == other.actions
@@ -457,6 +469,11 @@ impl SessionChatTerminalNotice {
             identity.push('\u{1f}');
             identity.push_str(self.screen_tail.as_deref().unwrap_or_default());
         }
+        // Two prompts with the same rows and no warning differ only in what they ask.
+        if let Some(request) = self.permission_request.as_ref() {
+            identity.push('\u{1f}');
+            identity.push_str(&request.to_value().to_string());
+        }
         // The dialog id is the plain panel's hash, which a side answer read whole does not change.
         if let Some(side_question) = self
             .dialog
@@ -493,6 +510,9 @@ impl SessionChatTerminalNotice {
         }
         if let Some(command) = self.approval_command.as_deref() {
             map.insert("approvalCommand".to_string(), json!(command));
+        }
+        if let Some(request) = self.permission_request.as_ref() {
+            map.insert("permissionRequest".to_string(), request.to_value());
         }
         if self.passes_keys_through() {
             map.insert("passthrough".to_string(), json!(true));

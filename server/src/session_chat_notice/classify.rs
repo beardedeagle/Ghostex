@@ -353,7 +353,15 @@ pub fn classify_session_chat_terminal_notice(
         if let Some(picker) =
             crate::session_chat_resume_prompt::detect_session_chat_terminal_picker(screen_text)
         {
-            return Some(notice_from_picker(&screen, picker));
+            let permission = (picker.kind
+                == crate::session_chat_resume_prompt::SessionChatTerminalPickerKind::PermissionPrompt)
+                .then(|| {
+                    crate::session_chat_claude_permission::detect_claude_permission_request(
+                        screen_text,
+                    )
+                })
+                .flatten();
+            return Some(notice_from_picker(&screen, picker).with_permission_request(permission));
         }
         if let Some(dialog) = crate::session_chat_claude_dialog::detect_claude_dialog(screen_text) {
             // CDXC:AgentProviders 2026-09-22 WHY:

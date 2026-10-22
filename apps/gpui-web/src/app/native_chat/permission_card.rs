@@ -1,0 +1,1 @@
+../../../../desktop/src/app/native_chat/permission_card.rs

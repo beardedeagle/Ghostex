@@ -365,6 +365,8 @@ struct PickerRow {
     number: u32,
     label: String,
     selected: bool,
+    /// The column the label starts at, which a wrapped line of the label is indented to.
+    label_column: usize,
 }
 
 /// A picker painted inside a bordered box arrives as `│ ❯ 2. … │`; the border
@@ -436,14 +438,32 @@ fn picker_runs(window: &[String]) -> Vec<Vec<PickerRow>> {
                 {
                     runs.push(std::mem::take(&mut current));
                 }
+                let label_column = text
+                    .find(". ")
+                    .map_or(0, |at| text[..at].chars().count() + 2);
                 current.push(PickerRow {
                     line,
                     number,
                     label,
                     selected,
+                    label_column,
                 });
             }
             None => {
+                // CDXC:AgentScreenDetection 2026-10-22 WHY: Claude Code 2.1.301's Edit and Write prompts offer "Yes, and switch to accept edits (…) for this session; Yes, and always allow access to … for this session (shift+tab)", which wraps onto a line indented under its label even at 200 columns. The wrap split the Yes row from the No row, so the prompt was not read as a permission prompt at all. A line indented to at least the previous row's label column continues that row.
+                if let Some(last) = current.last_mut() {
+                    let indent = text.chars().take_while(|c| *c == ' ').count();
+                    if last.line + 1 == line
+                        && !is_chrome_line(text)
+                        && last.label_column > 0
+                        && indent >= last.label_column
+                    {
+                        last.label.push(' ');
+                        last.label.push_str(text.trim());
+                        last.line = line;
+                        continue;
+                    }
+                }
                 if !current.is_empty() {
                     runs.push(std::mem::take(&mut current));
                 }
@@ -617,7 +637,7 @@ fn permission_prompt_run_kind(
 }
 
 /// CDXC:AgentScreenDetection 2026-09-26 WHY: a file write or edit asks "Do you want to create approve.txt?" or "Do you want to make this edit to notes.md?" over the same Yes / "Yes, allow all edits during this session" / No rows, so matching only "Do you want to proceed?" left those prompts with the hook card's Allow and Deny alone and no way to pick the session-wide row from chat. Any "Do you want to …?" heading counts; the Yes and No rows are still required.
-fn is_permission_prompt_heading(heading: &str) -> bool {
+pub(crate) fn is_permission_prompt_heading(heading: &str) -> bool {
     let heading = heading.trim();
     heading.contains(PERMISSION_PROMPT_HEADING)
         || (heading.starts_with(PERMISSION_PROMPT_HEADING_LEAD) && heading.ends_with('?'))

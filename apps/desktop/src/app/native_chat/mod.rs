@@ -93,6 +93,7 @@ mod mermaid_render;
 mod message_actions;
 mod page_answers;
 mod page_card;
+mod permission_card;
 mod rich_markdown;
 mod row_details;
 mod send_control;

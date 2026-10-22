@@ -106,7 +106,12 @@ impl NativeChatView {
             body.extend(dialog_body);
             footer_end.extend(dialog_actions);
         }
-        if !collapsed && !panel && notice["detail"].is_string() {
+        // A permission prompt read whole (`approval` in the chat core) says what it asks itself.
+        let approval = notice["approval"].is_object();
+        if approval {
+            body.extend(self.permission_details(&notice["approval"], collapsed, &key, p, cx));
+        }
+        if !collapsed && !panel && !approval && notice["detail"].is_string() {
             body.push(
                 div()
                     .line_height(px(19.6 * p.scale))
@@ -484,39 +489,41 @@ impl NativeChatView {
         } else {
             Vec::new()
         };
-        Some(
-            self.tone_card(
-                ToneCardParts {
-                    look: tone_look(&text(notice, "tone"), p),
-                    title: Some(text(&notice["dialog"]["presentation"], "title"))
+        Some(self.tone_card(
+            ToneCardParts {
+                look: tone_look(&text(notice, "tone"), p),
+                title: if approval {
+                    text(&notice["approval"], "title")
+                } else {
+                    Some(text(&notice["dialog"]["presentation"], "title"))
                         .filter(|title| panel && !title.is_empty())
-                        .unwrap_or_else(|| text(notice, "title")),
-                    detail: String::new(),
-                    trailing,
-                    body,
-                    footer_start: if numbered {
-                        vec![
-                            div()
-                                .text_size(px(12.5 * p.scale))
-                                .text_color(p.muted)
-                                .child("Press a number, or click a row")
-                                .into_any_element(),
-                        ]
-                    } else {
-                        Vec::new()
-                    },
-                    // The notice's own actions sit at the footer's right end, ahead of its dialog
-                    // buttons and Dismiss.
-                    footer_end: actions.into_iter().chain(footer_end).collect(),
+                        .unwrap_or_else(|| text(notice, "title"))
                 },
-                Some(ToneBodyMotion {
-                    key: &body_key,
-                    frame: motion,
-                    shut: collapsed,
-                }),
-                press,
-                p,
-            ),
-        )
+                detail: text(&notice["approval"], "source"),
+                trailing,
+                body,
+                footer_start: if numbered {
+                    vec![
+                        div()
+                            .text_size(px(12.5 * p.scale))
+                            .text_color(p.muted)
+                            .child("Press a number, or click a row")
+                            .into_any_element(),
+                    ]
+                } else {
+                    Vec::new()
+                },
+                // The notice's own actions sit at the footer's right end, ahead of its dialog
+                // buttons and Dismiss.
+                footer_end: actions.into_iter().chain(footer_end).collect(),
+            },
+            Some(ToneBodyMotion {
+                key: &body_key,
+                frame: motion,
+                shut: collapsed,
+            }),
+            press,
+            p,
+        ))
     }
 }
