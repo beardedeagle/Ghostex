@@ -19,7 +19,7 @@ CDXC:SessionIdentity 2026-09-01:
 front, for every identity observation. On a registry with a few thousand rows in
 one project that is ~70ms of JSON hydration, and the live zmx process scan calls
 this once per running agent session on every listSessions /
-readPresentationSnapshot / readProjectStatus / WS-subscribe request — the list
+readPresentationSnapshot / WS-subscribe request — the list
 alone was the bulk of a ~900ms response.
 
 Only two places actually read the list, and neither runs on the steady-state
@@ -408,8 +408,8 @@ pub(crate) fn apply_session_state_update(
 /*
 CDXC:SessionIdentity 2026-09-01:
 The live zmx process scan re-observes the SAME identity on every poll, and a
-poll happens on every listSessions / readPresentationSnapshot / readProjectStatus
-/ WS-subscribe request. Steady state is therefore "everything this observation
+poll happens on every listSessions / readPresentationSnapshot / WS-subscribe
+request. Steady state is therefore "everything this observation
 carries is already stored", which `apply_session_state_update` answers with
 `changed: false` after re-deriving the identity, re-deriving runtime settings,
 and — until the lazy handle above — hydrating the project's whole session list.

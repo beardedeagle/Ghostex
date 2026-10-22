@@ -23,66 +23,6 @@ fn renderer_command_actions_keep_only_renderer_owned_mobile_timer_actions() {
 }
 
 #[test]
-fn project_status_agent_title_polling_predicate_matches_typescript() {
-    let pending = json!({
-        "kind": "agent",
-        "projectId": "P1abc",
-        "runtimeSettings": {
-            "pendingAgentTitleRequestStatus": "pending"
-        },
-        "sessionId": "G1abc",
-        "title": "Trusted user title"
-    });
-    assert!(should_check_agent_metadata_title_for_project_status(
-        &pending
-    ));
-
-    let trusted = json!({
-        "kind": "agent",
-        "projectId": "P1abc",
-        "runtimeSettings": {},
-        "sessionId": "G1abc",
-        "title": "Investigate renderer state"
-    });
-    assert!(!should_check_agent_metadata_title_for_project_status(
-        &trusted
-    ));
-
-    let placeholder = json!({
-        "kind": "agent",
-        "projectId": "P1abc",
-        "runtimeSettings": { "titleSource": "placeholder" },
-        "sessionId": "G1abc",
-        "title": "Codex Session"
-    });
-    assert!(should_check_agent_metadata_title_for_project_status(
-        &placeholder
-    ));
-
-    let reconciled = json!({
-        "kind": "agent",
-        "projectId": "P1abc",
-        "runtimeSettings": { "titleMetadataSource": "agent-metadata" },
-        "sessionId": "G1abc",
-        "title": "Codex Session"
-    });
-    assert!(!should_check_agent_metadata_title_for_project_status(
-        &reconciled
-    ));
-
-    let terminal = json!({
-        "kind": "terminal",
-        "projectId": "P1abc",
-        "runtimeSettings": {},
-        "sessionId": "G1abc",
-        "title": "Codex Session"
-    });
-    assert!(!should_check_agent_metadata_title_for_project_status(
-        &terminal
-    ));
-}
-
-#[test]
 fn renderer_command_payload_adds_structured_session_target() {
     /*
     CDXC:CefRuntime 2026-06-21-19:22:

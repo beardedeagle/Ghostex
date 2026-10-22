@@ -1,39 +1,6 @@
-use serde_json::{json, Map, Value};
+use serde_json::{json, Value};
 
 use super::*;
-
-#[test]
-fn search_result_title_projection_matches_generic_type_script_rows() {
-    let projects = vec![project("P100", "Titles", false, false)];
-    let sessions = vec![session(
-        "P100",
-        "G100",
-        "Terminal Session",
-        "running",
-        1000.0,
-    )];
-
-    let result = search_sessions(projects, sessions, &Map::new()).expect("search sessions");
-    let results = result
-        .get("results")
-        .and_then(Value::as_array)
-        .expect("results");
-    let row = results.first().expect("search row");
-    assert_eq!(row.get("titleSource").and_then(Value::as_str), Some("user"));
-    assert_eq!(
-        row.get("isTemporaryTitle").and_then(Value::as_bool),
-        Some(false)
-    );
-    assert_eq!(row.get("trustedResumeTitle"), None);
-    assert_eq!(
-        row.get("displayTitle").and_then(Value::as_str),
-        Some("\u{2217} Terminal Session")
-    );
-    assert_eq!(
-        row.get("displayTitleTooltip").and_then(Value::as_str),
-        Some("\u{2217} Terminal Session (Unsynced title)")
-    );
-}
 
 #[test]
 fn title_projection_strips_factory_droid_status_marker_from_stored_title() {

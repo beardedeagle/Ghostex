@@ -15,10 +15,7 @@ pub(super) async fn route_prompts_http(
         token_extension_id,
     } = request;
     Ok(match endpoint.path.as_str() {
-        "/api/scheduleDelayedSend"
-        | "/api/cancelDelayedSend"
-        | "/api/postponeDelayedSend"
-        | "/api/readDelayedSends" => {
+        "/api/scheduleDelayedSend" | "/api/cancelDelayedSend" | "/api/postponeDelayedSend" => {
             handle_delayed_send_http(&state, endpoint.path, request_id, &body_json)
         }
         "/api/savePinnedPrompt" => handle_domain_http(
@@ -84,13 +81,6 @@ pub(super) async fn route_prompts_http(
         themselves, so every client filters the same rail instead of keeping a
         private list that drifts per machine.
         */
-        "/api/listStashedPromptTags" => handle_domain_http(
-            &state,
-            endpoint.path,
-            request_id,
-            &body_json,
-            |repository, _, _, _| repository.list_stashed_prompt_tags(),
-        ),
         "/api/saveStashedPromptTag" => handle_domain_http(
             &state,
             endpoint.path,

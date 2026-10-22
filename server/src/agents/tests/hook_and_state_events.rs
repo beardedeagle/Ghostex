@@ -69,66 +69,6 @@ fn agent_hook_rejects_cross_agent_metadata_for_stored_pi_session_without_launch_
 }
 
 #[test]
-fn session_state_rejects_cross_agent_metadata_for_stored_pi_session_without_launch_lock() {
-    let (temp, db) = open_test_database();
-    let repository = DomainRepository::new(&db, "test-server");
-    let (lifecycle, before) = create_pi_agent_session_without_launch_lock(&repository);
-    assert_eq!(
-        before
-            .get("runtimeSettings")
-            .and_then(Value::as_object)
-            .and_then(|settings| settings.get("launchAgentId")),
-        None
-    );
-
-    let result = ingest_session_state_event(
-        &repository,
-        &lifecycle,
-        json!({
-            "agentName": "factory droid",
-            "agentSessionId": "d7f1ca76-435b-4102-acdb-e3e786cd72a9",
-            "agentSessionPath": "/tmp/.factory/sessions/thread.jsonl",
-            "projectId": lifecycle.project_id.clone(),
-            "sessionId": lifecycle.session_id.clone(),
-            "startupText": "droid",
-            "status": "working",
-            "title": "Wrong Droid Thread"
-        })
-        .as_object()
-        .expect("state params"),
-        temp.path(),
-    )
-    .expect("state result");
-
-    assert_eq!(result.get("changed"), Some(&json!(false)));
-    assert_eq!(
-        result.get("reason"),
-        Some(&json!("session-state-agent-mismatch"))
-    );
-    let response_session = result.get("session").expect("response session");
-    assert_eq!(response_session.get("agentId"), Some(&json!("pi")));
-    let runtime_settings = response_session
-        .get("runtimeSettings")
-        .and_then(Value::as_object)
-        .expect("runtime settings");
-    assert_eq!(runtime_settings.get("agentName"), Some(&json!("pi")));
-    assert_eq!(runtime_settings.get("agentSessionId"), None);
-    let stored = repository
-        .get_session(&lifecycle.project_id, &lifecycle.session_id)
-        .expect("read stored")
-        .expect("stored session");
-    assert_eq!(stored.get("updatedAt"), before.get("updatedAt"));
-    assert_eq!(stored.get("title"), before.get("title"));
-    assert_eq!(stored.get("agentId"), Some(&json!("pi")));
-    let stored_runtime_settings = stored
-        .get("runtimeSettings")
-        .and_then(Value::as_object)
-        .expect("stored runtime settings");
-    assert_eq!(stored_runtime_settings.get("agentName"), Some(&json!("pi")));
-    assert_eq!(stored_runtime_settings.get("agentSessionId"), None);
-}
-
-#[test]
 fn agent_hook_rejects_passive_identity_conflict_before_activity_prompt_and_title() {
     let (temp, db) = open_test_database();
     let repository = DomainRepository::new(&db, "test-server");

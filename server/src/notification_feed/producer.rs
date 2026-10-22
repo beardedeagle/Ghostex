@@ -32,10 +32,7 @@ pub(crate) fn observe_agent_activity_result(
 ) {
     if !matches!(
         endpoint_path,
-        "/api/ingestAgentHookEvent"
-            | "/api/ingestSessionStateEvent"
-            | "/api/ingestTerminalTitleEvent"
-            | "/api/updateAgentActivity"
+        "/api/ingestAgentHookEvent" | "/api/ingestTerminalTitleEvent" | "/api/updateAgentActivity"
     ) {
         return;
     }

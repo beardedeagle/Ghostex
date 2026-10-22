@@ -392,10 +392,6 @@ impl<'a> DomainRepository<'a> {
         Ok(result)
     }
 
-    pub fn list_stashed_prompt_tags(&self) -> DomainResult<Value> {
-        Ok(json!({ "tags": read_stashed_prompt_tags(self.db)? }))
-    }
-
     /*
     CDXC:SavedPrompts 2026-08-23:
     Create or rename a tag. Names are compared case-insensitively so a second

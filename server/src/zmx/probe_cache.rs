@@ -12,8 +12,8 @@ use super::{
 
 /*
 CDXC:Zmx 2026-09-01:
-`listSessions`, `readPresentationSnapshot`, `readProjectStatus`, and the
-presentation subscribe boundary all run the same zmx existence and process
+`listSessions`, `readPresentationSnapshot`, and the presentation subscribe
+boundary all run the same zmx existence and process
 snapshot probes, and desktop/web clients poll them roughly every two seconds.
 Each probe spawns a shell that runs `zmx list` plus `ps -axo`, so a single poll
 tick paid for several identical subprocess round trips and delayed every other

@@ -1,4 +1,4 @@
-//! Agent routes: automations, agent CLI maintenance, managed tools, agent boxes, accounts, agent settings and launch plans, skills and hooks, zmx session lifecycle and interaction, and renderer commands.
+//! Agent routes: automations, agent CLI maintenance, managed tools, agent boxes, accounts, agent settings and resume plans, hooks, zmx session lifecycle and interaction, and renderer commands.
 
 use super::*;
 
@@ -36,7 +36,6 @@ pub(super) async fn route_agents_http(
         }
         "/api/readAgentSettings"
         | "/api/updateAgentSettings"
-        | "/api/readAgentLaunchPlan"
         | "/api/readAgentResumePlan"
         | "/api/forkSession"
         | "/api/switchDraftAgent"
@@ -44,21 +43,16 @@ pub(super) async fn route_agents_http(
         | "/api/switchSessionAgent"
         | "/api/requestSessionRename"
         | "/api/cancelFirstPromptAutoTitle"
-        | "/api/ingestSessionStateEvent"
         | "/api/ingestTerminalTitleEvent"
         | "/api/updateAgentActivity"
         | "/api/ingestAgentHookEvent" => {
             handle_agent_http(&state, endpoint.path, request_id, &body_json).await
-        }
-        "/api/readAgentSkillStatus" | "/api/installAgentSkills" => {
-            handle_agent_skill_http(&state, endpoint.path, request_id, &body_json).await
         }
         "/api/readAgentHookStatus" | "/api/installAgentHooks" | "/api/uninstallAgentHooks" => {
             handle_agent_hook_http(&state, endpoint.path, request_id, &body_json)
         }
         "/api/createWorkspaceTerminal"
         | "/api/attachSessionMetadata"
-        | "/api/probeSessionProvider"
         | "/api/startSessionProvider"
         | "/api/transitionSession"
         | "/api/sleepSession"

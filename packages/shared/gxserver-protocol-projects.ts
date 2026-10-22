@@ -384,12 +384,6 @@ export interface GxserverRunGitHubActionParams extends GxserverProjectOperationS
   action: GxserverGitHubAction;
 }
 
-export interface GxserverRunProjectSetupCommandParams extends GxserverProjectOperationScope {
-  action: GxserverProjectSetupAction;
-  setupCommandProjectId?: GxserverProjectId;
-  setupCommandProjectPath?: string;
-}
-
 export interface GxserverDeleteWorktreeProjectParams {
   deleteLocalBranch?: boolean;
   deleteRemoteBranch?: boolean;
@@ -441,14 +435,6 @@ export interface GxserverRunBeadsActionParams extends GxserverProjectOperationSc
   status?: GxserverBeadsStatus;
   title?: string;
   value?: string;
-}
-
-export interface GxserverResolveGitRootForPathParams {
-  path: string;
-}
-
-export interface GxserverResolveGitRootForPathResult {
-  gitRoot?: string;
 }
 
 export interface GxserverRepositoryCloneOptions {

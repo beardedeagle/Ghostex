@@ -5,31 +5,9 @@ use crate::domain::DomainStateError;
 use crate::session_status::normalize_agent_activity_value;
 use rusqlite::Connection;
 
-pub(crate) fn build_project_agent_launch_plan(
-    project: &Value,
-    agent_id: &str,
-    agent_session_id: Option<String>,
-    settings: &Map<String, Value>,
-) -> Value {
-    let agent_config = resolve_project_agent_config(project, agent_id, None);
-    build_agent_launch_plan(AgentLaunchInput {
-        accept_all_mode: read_text_from_map(&agent_config, "acceptAllMode"),
-        agent_id: agent_id.to_string(),
-        agent_session_id,
-        command: read_text_from_map(&agent_config, "command"),
-        delayed_send_deadline_at: None,
-        first_user_message: None,
-        global_accept_all_enabled: settings
-            .get("agentAcceptAllEnabled")
-            .and_then(Value::as_bool)
-            .unwrap_or(false),
-        icon: read_text_from_map(&agent_config, "icon"),
-    })
-}
-
 /*
 CDXC:ServerApi 2026-06-22-05:39:
-`createAgentSession` is a CRUD endpoint, but its durable row is shaped by the same project agent config and persisted agent settings as TypeScript gxserver. Build the launch plan before repository insertion so listSessions/readProjectStatus return the same launchSettings and runtimeSettings immediately after creation.
+`createAgentSession` is a CRUD endpoint, but its durable row is shaped by the same project agent config and persisted agent settings as TypeScript gxserver. Build the launch plan before repository insertion so listSessions returns the same launchSettings and runtimeSettings immediately after creation.
 */
 pub(crate) fn create_agent_session_params_for_project(
     db: &Connection,

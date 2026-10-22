@@ -32,6 +32,7 @@ pub async fn dispatch_typed_operation_endpoint(
         "/api/runGitAction" => run_git_action(params, &context).await,
         "/api/runGitHubAction" => run_github_action(params, &context).await,
         "/api/runWorktreeAction" => run_worktree_action(params, &context).await,
+        // CDXC:ServerApi 2026-10-22 WHY: an internal dispatch key only (worktree_ops runs a new worktree's setup command); the HTTP route lost its last client in 10.3.0 and was removed from `endpoint_for`.
         "/api/runProjectSetupCommand" => run_project_setup_command(params, &context).await,
         "/api/runBeadsAction" => run_beads_action(params, &context).await,
         _ => Err(TypedOperationError::not_found(format!(

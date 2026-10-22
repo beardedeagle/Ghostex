@@ -259,55 +259,6 @@ fn create_agent_session_params_use_project_agent_config_and_settings() {
 }
 
 #[test]
-fn launch_plan_applies_agent_settings_accept_all() {
-    let (_temp, db) = open_test_database();
-    let project = json!({
-        "customAgents": [{ "agentId": "codex", "command": "codex" }],
-        "launchSettings": {},
-    });
-    let default_settings = read_agent_settings(&db).expect("settings");
-    let plan = build_project_agent_launch_plan(&project, "codex", None, &default_settings);
-    assert_eq!(plan.get("command"), Some(&json!("codex")));
-    update_agent_settings(
-        &db,
-        json!({ "agentAcceptAllEnabled": false })
-            .as_object()
-            .expect("params"),
-    )
-    .expect("update settings");
-    let disabled_settings = read_agent_settings(&db).expect("disabled settings");
-    let plan = build_project_agent_launch_plan(&project, "codex", None, &disabled_settings);
-    assert_eq!(plan.get("command"), Some(&json!("codex")));
-}
-
-#[test]
-fn launch_plan_keeps_typescript_custom_agent_lookup_and_empty_shape() {
-    let settings = normalize_agent_settings(None);
-    let project_with_id_only_agent = json!({
-        "customAgents": [{ "id": "codex", "command": "codex --profile ignored" }],
-        "launchSettings": {},
-    });
-    let plan =
-        build_project_agent_launch_plan(&project_with_id_only_agent, "codex", None, &settings);
-    assert_eq!(plan.get("agentCommand"), Some(&json!("codex")));
-    assert_eq!(plan.get("command"), Some(&json!("codex")));
-
-    let unknown_plan = build_project_agent_launch_plan(
-        &json!({ "customAgents": [], "launchSettings": {} }),
-        "custom-local",
-        None,
-        &settings,
-    );
-    assert_eq!(unknown_plan.get("agentCommand"), Some(&json!("")));
-    assert_eq!(unknown_plan.get("command"), Some(&json!("")));
-    assert_eq!(unknown_plan.get("startupText"), Some(&json!("")));
-    assert_eq!(
-        unknown_plan.get("startupTextDisposition"),
-        Some(&json!("none"))
-    );
-}
-
-#[test]
 fn accept_all_specs_match_typescript_aliases_and_icon_mapping() {
     assert_eq!(
         resolve_agent_launch_command("cursor", "cursor-agent --allow-all", None, true, None),

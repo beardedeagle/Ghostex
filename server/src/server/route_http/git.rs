@@ -16,7 +16,6 @@ pub(super) async fn route_git_http(
         "/api/runGitAction"
         | "/api/runGitHubAction"
         | "/api/runWorktreeAction"
-        | "/api/runProjectSetupCommand"
         | "/api/runBeadsAction" => {
             handle_typed_operation_http(&state, endpoint.path, request_id, &body_json).await
         }

@@ -94,25 +94,6 @@ export interface GxserverTerminalTitleEventResult {
 export type GxserverFirstPromptTitleGenerationAgent =
   'codex' | 'cursor' | 'claude' | 'grok' | 'pi' | 'antigravity' | 'custom';
 
-export interface GxserverSessionStateEventParams extends GxserverSessionLifecycleParams {
-  agentName?: string;
-  agentSessionId?: string;
-  agentSessionPath?: string;
-  firstPromptTitleGenerationAgent?: GxserverFirstPromptTitleGenerationAgent;
-  firstPromptTitleGenerationCommand?: string;
-  firstUserMessage?: string;
-  startupText?: string;
-  title?: string;
-  titleSource?: GxserverSessionTitleSource;
-}
-
-export interface GxserverSessionStateEventResult {
-  changed: boolean;
-  projection: GxserverSessionTitleProjection;
-  reason: string;
-  session: GxserverSessionDomainState;
-}
-
 export interface GxserverSessionRenameRequestParams extends GxserverSessionLifecycleParams {
   agentName?: string;
   agentSessionId?: string;
@@ -136,12 +117,6 @@ export interface GxserverAttachSessionMetadataParams extends GxserverSessionLife
 }
 
 export type GxserverAgentStartupTextDisposition = 'none' | 'queueAfterTerminalReady';
-
-export interface GxserverAgentLaunchPlanParams {
-  agentId: string;
-  agentSessionId?: string;
-  projectId: GxserverProjectId;
-}
 
 export interface GxserverAgentLaunchPlan {
   agentCommand?: string;
@@ -295,12 +270,6 @@ export interface GxserverStartSessionProviderResult {
   started: boolean;
   startupTextDisposition: GxserverStartupTextDisposition;
   zmxName: GxserverZmxSessionName;
-}
-
-export interface GxserverSessionProviderProbeResponse {
-  provider: 'zmx';
-  providerState: GxserverProviderProbeResult;
-  session: GxserverSessionDomainState;
 }
 
 export interface GxserverProviderKillResult {

@@ -4,7 +4,7 @@ use rusqlite::Connection;
 use serde_json::{json, Map, Value};
 
 use crate::{
-    domain::{read_project_id, DomainRepository, DomainStateError},
+    domain::{DomainRepository, DomainStateError},
     zmx::{ZmxEndpointError, ZmxServerContext},
 };
 
@@ -62,7 +62,6 @@ pub fn dispatch_agent_endpoint(
         endpoint_path,
         "/api/requestSessionRename"
             | "/api/cancelFirstPromptAutoTitle"
-            | "/api/ingestSessionStateEvent"
             | "/api/ingestTerminalTitleEvent"
             | "/api/updateAgentActivity"
             | "/api/ingestAgentHookEvent"
@@ -80,23 +79,6 @@ pub fn dispatch_agent_endpoint(
             presentation_session: None,
             result: json!({ "settings": update_agent_settings(db, params)? }),
         },
-        "/api/readAgentLaunchPlan" => {
-            let project_id = read_project_id(params)?;
-            let project = require_project(repository, &project_id)?;
-            let agent_id = read_required_text(params.get("agentId"), "agentId")?;
-            let settings = read_agent_settings(db)?;
-            AgentEndpointOutput {
-                presentation_session: None,
-                result: json!({
-                    "plan": build_project_agent_launch_plan(
-                        &project,
-                        &agent_id,
-                        read_text(params, "agentSessionId"),
-                        &settings,
-                    )
-                }),
-            }
-        }
         "/api/readAgentResumePlan" => {
             let lifecycle = read_lifecycle(params)?;
             let project = require_project(repository, &lifecycle.project_id)?;
@@ -159,14 +141,6 @@ pub fn dispatch_agent_endpoint(
         "/api/cancelFirstPromptAutoTitle" => {
             let lifecycle = read_lifecycle(params)?;
             let result = cancel_first_prompt_auto_title(repository, &lifecycle, params)?;
-            AgentEndpointOutput {
-                presentation_session: Some((lifecycle.project_id, lifecycle.session_id)),
-                result,
-            }
-        }
-        "/api/ingestSessionStateEvent" => {
-            let lifecycle = read_lifecycle(params)?;
-            let result = ingest_session_state_event(repository, &lifecycle, params, home_dir)?;
             AgentEndpointOutput {
                 presentation_session: Some((lifecycle.project_id, lifecycle.session_id)),
                 result,

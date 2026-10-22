@@ -168,43 +168,6 @@ pub(super) async fn route_projects_http(
                 Ok(json!({ "project": project, "recentProjects": recent_projects }))
             },
         ),
-        "/api/readProjectStatus" => handle_domain_http(
-            &state,
-            endpoint.path,
-            request_id,
-            &body_json,
-            |repository, db, params, _| {
-                let project_id = read_project_id(params)?;
-                let project = repository.get_project(&project_id)?.ok_or_else(|| {
-                    DomainStateError::not_found(format!("Project {project_id} does not exist."))
-                })?;
-                /*
-                CDXC:Projects 2026-06-22-06:21:
-                readProjectStatus is a polling project-status read, but TypeScript gxserver repairs live zmx process identity before returning the project/session graph and schedules agent metadata title checks for eligible sessions. Keep those side effects here instead of treating the endpoint as a plain repository read so Rust clients receive the same status projection.
-                */
-                let sessions = repository.list_sessions(Some(project_id.as_str()))?;
-                let mut sessions_changed =
-                    sync_zmx_provider_existence(&state, db, repository, &sessions)?;
-                sessions_changed |= sync_live_zmx_process_identities(
-                    &state,
-                    db,
-                    repository,
-                    &sessions,
-                    None,
-                    "read-project-status",
-                )?;
-                let sessions = if sessions_changed {
-                    repository.list_sessions(Some(project_id.as_str()))?
-                } else {
-                    sessions
-                };
-                schedule_agent_title_metadata_checks_for_sessions(&state, &sessions);
-                Ok(json!({
-                    "project": project,
-                    "sessions": sessions,
-                }))
-            },
-        ),
         "/api/addProjectPath" => handle_domain_http(
             &state,
             endpoint.path,
@@ -368,9 +331,6 @@ pub(super) async fn route_projects_http(
         }
         "/api/discoverSourceControl" | "/api/lookupRepository" => {
             handle_source_control_http(&state, endpoint.path, request_id, &body_json).await
-        }
-        "/api/resolveGitRootForPath" => {
-            handle_resolve_git_root_for_path_http(&state, endpoint.path, request_id, &body_json)
         }
         "/api/projectView" => {
             crate::project_views::handle(&state, endpoint.path, request_id, &body_json).await

@@ -34,7 +34,6 @@ use crate::{
         install_agent_hooks, read_agent_hook_status, read_codex_hook_session_identities,
         uninstall_agent_hooks,
     },
-    agent_skills::{install_agent_skills, read_agent_skill_status},
     agents::{
         agent_metadata_title_revision, apply_created_session_identity,
         apply_live_process_session_identity, create_agent_session_params_for_project,
@@ -58,7 +57,7 @@ use crate::{
         DomainStateError,
     },
     events::EventClientSender,
-    ids::{is_gxserver_project_id, is_gxserver_session_id},
+    ids::is_gxserver_project_id,
     logging::{
         query_gxserver_logs, DiagnosticLogScenario, GxserverLogInput, LogLevel, LogQueryError,
     },

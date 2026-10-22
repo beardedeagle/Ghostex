@@ -407,18 +407,15 @@ pub fn endpoint_for(path: &str) -> Option<EndpointDescriptor> {
         */
         | "/api/agentbox"
         | "/api/agentAccounts"
-        | "/api/readAgentLaunchPlan"
         | "/api/readAgentResumePlan"
         | "/api/requestSessionRename"
         | "/api/generateSessionTitle"
         | "/api/cancelFirstPromptAutoTitle"
-        | "/api/ingestSessionStateEvent"
         | "/api/ingestTerminalTitleEvent"
         | "/api/updateAgentActivity"
         | "/api/readPresentationSnapshot"
         | "/api/readSidebarHud"
         | "/api/mutateSidebarHudSettings"
-        | "/api/readWorkspaceSessionGroups"
         | "/api/updateWorkspaceSessionGroups"
         /*
         CDXC:Navigation 2026-08-19:
@@ -464,7 +461,6 @@ pub fn endpoint_for(path: &str) -> Option<EndpointDescriptor> {
         | "/api/scheduleDelayedSend"
         | "/api/cancelDelayedSend"
         | "/api/postponeDelayedSend"
-        | "/api/readDelayedSends"
         | "/api/readAutomationState"
         | "/api/saveAutomation"
         | "/api/deleteAutomation"
@@ -472,7 +468,6 @@ pub fn endpoint_for(path: &str) -> Option<EndpointDescriptor> {
         | "/api/setAutomationEnabled"
         | "/api/archiveAutomationRun"
         | "/api/markAutomationRunRead"
-        | "/api/searchSessions"
         | "/api/listPreviousSessions"
         /*
         CDXC:SessionFork 2026-08-28:
@@ -541,7 +536,6 @@ pub fn endpoint_for(path: &str) -> Option<EndpointDescriptor> {
         | "/api/reloadSessionAgent"
         | "/api/startSessionProvider"
         | "/api/killSession"
-        | "/api/probeSessionProvider"
         | "/api/readResourceSessionOwners"
         | "/api/listSessions"
         | "/api/removeSession"
@@ -603,7 +597,6 @@ pub fn endpoint_for(path: &str) -> Option<EndpointDescriptor> {
         | "/api/reorderSessionChatQueue"
         | "/api/sendSessionChatQueuedPrompt"
         | "/api/setSessionChatDraft"
-        | "/api/listSessionChatDrafts"
         /*
         CDXC:TranscriptExport 2026-08-20:
         Exporting a transcript is remote-allowed for the same reason reading a
@@ -627,7 +620,6 @@ pub fn endpoint_for(path: &str) -> Option<EndpointDescriptor> {
         | "/api/listRecentProjects"
         | "/api/restoreRecentProject"
         | "/api/removeRecentProject"
-        | "/api/readProjectStatus"
         | "/api/addProjectPath"
         | "/api/listProjectWorktrees"
         | "/api/createProjectWorktree"
@@ -674,7 +666,6 @@ pub fn endpoint_for(path: &str) -> Option<EndpointDescriptor> {
         | "/api/readProjectGitState"
         | "/api/runGitHubAction"
         | "/api/runWorktreeAction"
-        | "/api/runProjectSetupCommand"
         | "/api/runBeadsAction"
         | "/api/runProjectDocsAction"
         // CDXC:AppModal 2026-10-17 WHY: remote-allowed like runProjectDocsAction: Quick Access's Files tab searches a remote machine's projects on that machine, naming projects only, never folders.
@@ -889,8 +880,6 @@ pub fn endpoint_for(path: &str) -> Option<EndpointDescriptor> {
         "/api/readAgentHookStatus"
         | "/api/installAgentHooks"
         | "/api/uninstallAgentHooks"
-        | "/api/readAgentSkillStatus"
-        | "/api/installAgentSkills"
         /*
         CDXC:ServerDaemon 2026-06-24-13:30:
         Pinned Prompts can carry user-authored bodies, so their shared gxserver
@@ -914,7 +903,6 @@ pub fn endpoint_for(path: &str) -> Option<EndpointDescriptor> {
         tag catalogue and its assignments stay on the same local-only
         authenticated listener as the prompts they describe.
         */
-        | "/api/listStashedPromptTags"
         | "/api/saveStashedPromptTag"
         | "/api/deleteStashedPromptTag"
         | "/api/setStashedPromptTags"
@@ -979,8 +967,7 @@ pub fn endpoint_for(path: &str) -> Option<EndpointDescriptor> {
         | "/api/pairedDevices"
         | "/api/removePairedDevice"
         | "/api/pairedDeviceSeen"
-        | "/api/queryLogs"
-        | "/api/resolveGitRootForPath" => full_local(path),
+        | "/api/queryLogs" => full_local(path),
         /*
         CDXC:Feedback 2026-10-04 WHY:
         Sending feedback files a public GitHub issue through the Ghostex

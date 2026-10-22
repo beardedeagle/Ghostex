@@ -130,10 +130,6 @@ export const GXSERVER_FAVORITE_PROMPT_TAG_ID = 'favorite';
 /** The tagId automatically assigned whenever a prompt is stashed. */
 export const GXSERVER_STASHED_PROMPT_TAG_ID = 'stashed';
 
-export interface GxserverListStashedPromptTagsResult {
-  tags: readonly GxserverStashedPromptTag[];
-}
-
 export interface GxserverSaveStashedPromptTagParams {
   color?: string;
   name: string;

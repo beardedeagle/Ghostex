@@ -1,4 +1,4 @@
-//! Session routes: create, list, update, order, settle/snooze and remove sessions, the presentation snapshot, coordinators, close-after-done, keep-awake leases, session search, previous sessions and fork branches, and session title generation.
+//! Session routes: create, list, update, order, settle/snooze and remove sessions, the presentation snapshot, coordinators, close-after-done, keep-awake leases, previous sessions and fork branches, and session title generation.
 
 use anyhow::Result;
 use serde_json::{json, Value};
@@ -6,9 +6,7 @@ use serde_json::{json, Value};
 use crate::{
     agents::{apply_created_session_identity, create_agent_session_params_for_project},
     domain::{read_optional_project_id, read_project_id, read_session_id, DomainStateError},
-    presentation::{
-        list_previous_sessions, list_session_fork_branches, search_presentation_sessions,
-    },
+    presentation::{list_previous_sessions, list_session_fork_branches},
     session_lifecycle,
 };
 
@@ -176,9 +174,9 @@ pub(super) async fn route_sessions_http(
                 every such row survives the filter, so they operate on the same
                 candidate set either way. The one pass that also touches other
                 rows is the working-directory title repair inside
-                `sync_session_state_sidecars`; it stays exhaustive on the one
-                unfiltered path left (`/api/readProjectStatus`) and is
-                idempotent, so a narrower list simply defers it. Since
+                `sync_session_state_sidecars`; it stays exhaustive whenever a
+                caller omits `includeStopped` and is idempotent, so a narrower
+                list simply defers it. Since
                 2026-09-11 the snapshot poll and the presentation subscribe use
                 `list_presentation_sessions`, which also covers every row the
                 repair could change while it is still visible.
@@ -549,13 +547,6 @@ pub(super) async fn route_sessions_http(
             |repository, _db, params, _| {
                 crate::session_chat_grid_claim::hold_session_chat_grid(&state, repository, params)
             },
-        ),
-        "/api/searchSessions" => handle_domain_http(
-            &state,
-            endpoint.path,
-            request_id,
-            &body_json,
-            |_, db, params, server_id| search_presentation_sessions(db, server_id, params),
         ),
         "/api/openCoordinatorThread" => {
             coordinator_open_http::handle_open_coordinator_thread_http(

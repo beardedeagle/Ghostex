@@ -57,17 +57,6 @@ pub fn read_presentation_snapshot(
     Ok(snapshot)
 }
 
-pub fn search_presentation_sessions(
-    db: &Connection,
-    server_id: &str,
-    params: &Map<String, Value>,
-) -> Result<Value, DomainStateError> {
-    let repository = DomainRepository::new(db, server_id);
-    let projects = repository.list_projects()?;
-    let sessions = repository.list_session_search_rows()?;
-    search_sessions(projects, sessions, params)
-}
-
 pub fn list_previous_sessions(
     db: &Connection,
     server_id: &str,

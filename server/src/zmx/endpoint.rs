@@ -357,6 +357,7 @@ pub fn dispatch_zmx_lifecycle_endpoint(
     agent_settings: &Map<String, Value>,
 ) -> ZmxEndpointResult<ZmxEndpointOutput> {
     let result = match endpoint_path {
+        // CDXC:ServerApi 2026-10-22 WHY: an internal dispatch key only (drafts.rs, draft_run_location.rs); the HTTP route lost its last client in 7.13.0 and was removed from `endpoint_for`.
         "/api/probeSessionProvider" => {
             let lifecycle = read_lifecycle_params(params)?;
             let (probe, session, _, _) = probe_and_cache_session_provider(repository, &lifecycle)?;

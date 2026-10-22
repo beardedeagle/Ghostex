@@ -26,8 +26,7 @@ impl ProjectPathHttpError {
 CDXC:ServerApi 2026-06-22-04:19:
 The Rust HTTP dispatcher must implement the same generic filesystem API surface
 as TypeScript gxserver before domain-specific worktree deletion parity lands.
-Remote project picking may browse directory names through `/api/browseProjectDirectories`,
-and local open-path routing may probe a Git root through `/api/resolveGitRootForPath`;
+Remote project picking may browse directory names through `/api/browseProjectDirectories`;
 the broader filesystem/admin endpoints remain cataloged but unimplemented.
 */
 pub(crate) fn handle_browse_project_directories_http(
@@ -225,38 +224,6 @@ pub(crate) fn normalize_new_directory_name(
         ));
     }
     Ok(value.to_string())
-}
-
-pub(crate) fn handle_resolve_git_root_for_path_http(
-    state: &AppState,
-    endpoint_path: String,
-    request_id: String,
-    body: &Value,
-) -> RoutedResponse {
-    let params = match read_domain_rpc_params(body) {
-        Ok(params) => params,
-        Err(error) => {
-            return routed_json(
-                Some(endpoint_path),
-                StatusCode::INTERNAL_SERVER_ERROR,
-                rpc_error("internalError", error.message, Some(request_id)),
-            );
-        }
-    };
-    match resolve_git_root_for_existing_directory(params.get("path"), &state.paths.home_dir) {
-        Ok(git_root) => {
-            let mut result = Map::new();
-            if let Some(git_root) = git_root {
-                result.insert("gitRoot".to_string(), Value::String(git_root));
-            }
-            routed_json(
-                Some(endpoint_path),
-                StatusCode::OK,
-                rpc_success(request_id, Value::Object(result)),
-            )
-        }
-        Err(error) => project_path_error_response(endpoint_path, request_id, error),
-    }
 }
 
 pub(crate) fn project_path_error_response(

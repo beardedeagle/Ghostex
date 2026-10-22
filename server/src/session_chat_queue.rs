@@ -1123,15 +1123,8 @@ pub fn read_non_blank_session_chat_draft_contents(
         .collect()
 }
 
-/*
-CDXC:Drafts 2026-08-28:
-The `/api/listSessionChatDrafts` read behind the client-side draft-cache
-reconcile. The composer's per-keystroke localStorage cache is not durable — a
-kill that skips a clean Chromium shutdown drops uncommitted batches — so this
-table is the copy that survives, and clients heal their cache from it at boot.
-One bounded list (at most one row per session with unsent text), stamped so
-the client can refuse anything older than what it still holds.
-*/
+/// Every session's unsent draft (at most one row per session with unsent text) and the recovery
+/// checkpoints, for the history `/api/readAppUserData` returns.
 pub fn list_session_chat_drafts_value(db: &Connection) -> Result<Value, DomainStateError> {
     let mut drafts = Vec::new();
     for (project, session, draft) in crate::session_chat_draft_versions::read_all(db)? {

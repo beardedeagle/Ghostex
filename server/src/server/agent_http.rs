@@ -425,35 +425,6 @@ pub(crate) fn handle_agent_hook_http(
     }
 }
 
-/*
-CDXC:AgentSkills 2026-06-19-13:59:
-Agent skill status/install endpoints are local-only because they inspect or mutate user-local agent skill directories. Route them outside domain-state handlers so install stdout/stderr are returned only in the RPC response and are not written to persistent gxserver logs.
-*/
-pub(crate) async fn handle_agent_skill_http(
-    state: &AppState,
-    endpoint_path: String,
-    request_id: String,
-    body: &Value,
-) -> RoutedResponse {
-    let params = match read_domain_rpc_params(body) {
-        Ok(params) => params,
-        Err(error) => return domain_error_response(endpoint_path, request_id, error),
-    };
-    let result = if endpoint_path == "/api/installAgentSkills" {
-        install_agent_skills(&state.paths, &params).await
-    } else {
-        read_agent_skill_status(&state.paths, &params)
-    };
-    match result {
-        Ok(result) => routed_json(
-            Some(endpoint_path),
-            StatusCode::OK,
-            rpc_success(request_id, result),
-        ),
-        Err(error) => domain_error_response(endpoint_path, request_id, error),
-    }
-}
-
 pub(crate) fn agent_error_response(
     endpoint_path: String,
     request_id: String,
@@ -578,7 +549,6 @@ pub(crate) fn log_agent_activity_transition(
 ) {
     let trigger = match endpoint_path {
         "/api/ingestAgentHookEvent" => "agentHook",
-        "/api/ingestSessionStateEvent" => "sessionState",
         "/api/ingestTerminalTitleEvent" => "terminalTitle",
         "/api/updateAgentActivity" => "activityRpc",
         _ => return,
@@ -660,12 +630,6 @@ pub(crate) fn should_schedule_agent_title_metadata_check(
     match endpoint_path {
         "/api/requestSessionRename" => {
             result.get("pendingAgentMetadata").and_then(Value::as_bool) == Some(true)
-        }
-        "/api/ingestSessionStateEvent" => {
-            result.get("reason").and_then(Value::as_str)
-                != Some("passive-session-identity-conflict")
-                && result.get("reason").and_then(Value::as_str)
-                    != Some("session-state-agent-mismatch")
         }
         "/api/ingestTerminalTitleEvent" => {
             result.get("changed").and_then(Value::as_bool) == Some(true)

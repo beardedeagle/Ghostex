@@ -104,7 +104,6 @@ impl DelayedSendRuntime {
             "/api/scheduleDelayedSend" => self.schedule(params),
             "/api/cancelDelayedSend" => self.cancel(params),
             "/api/postponeDelayedSend" => self.postpone(params),
-            "/api/readDelayedSends" => self.read(params),
             _ => Err(DomainStateError::not_found(format!(
                 "{endpoint_path} is not a gxserver delayed-send endpoint."
             ))),
@@ -272,38 +271,6 @@ impl DelayedSendRuntime {
             "projectId": project_id,
             "sessionId": session_id,
         }))
-    }
-
-    fn read(&self, params: &Map<String, Value>) -> Result<Value, DomainStateError> {
-        let db = open_gxserver_database(&self.paths).map_err(internal_error)?;
-        let project_id = params
-            .get("projectId")
-            .and_then(Value::as_str)
-            .map(str::trim)
-            .filter(|value| !value.is_empty());
-        let records = read_armed_records(&db)?
-            .into_iter()
-            .filter(|record| project_id.is_none_or(|project_id| record.project_id == project_id))
-            .filter_map(|record| {
-                read_delayed_send_projection(
-                    &db,
-                    &record.project_id,
-                    &record.session_id,
-                    Utc::now(),
-                )
-                .transpose()
-                .map(|result| {
-                    result.map(|projection| {
-                        json!({
-                            "delayedSend": projection,
-                            "projectId": record.project_id,
-                            "sessionId": record.session_id,
-                        })
-                    })
-                })
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        Ok(json!({ "delayedSends": records }))
     }
 
     fn recover_after_restart(&self) -> Result<(), DomainStateError> {

@@ -251,12 +251,8 @@ export interface GxserverSessionLifecycleParams {
 }
 
 /**
- * CDXC:Drafts 2026-08-28:
- * One row per session with unsent composer text, from `/api/listSessionChatDrafts`.
- * Clients reconcile their per-keystroke draft cache from this at boot, because
- * that cache does not survive a kill that skips a clean Chromium shutdown —
- * the daemon's SQLite copy does. `updatedAt` is the daemon's ISO stamp of the
- * last synced push, which is what the reconcile compares against.
+ * One row per session with unsent composer text, as `/api/readAppUserData` returns it in `drafts`.
+ * `updatedAt` is the daemon's ISO stamp of the last synced push.
  */
 export interface GxserverSessionChatDraftListEntry {
   parked?: boolean;
@@ -269,11 +265,6 @@ export interface GxserverSessionChatDraftListEntry {
   projectId: GxserverProjectId;
   sessionId: GxserverSessionId;
   updatedAt: string;
-}
-
-export interface GxserverListSessionChatDraftsResult {
-  drafts: GxserverSessionChatDraftListEntry[];
-  recoveryDrafts?: import('./session-chat-queue').SessionChatRecoveryDraft[];
 }
 
 /*

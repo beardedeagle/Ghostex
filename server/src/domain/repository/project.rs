@@ -1,14 +1,14 @@
 use std::collections::HashSet;
 
 use rusqlite::{params, OptionalExtension};
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value};
 
 use crate::domain::{
     are_project_worktree_metadata_equal, detect_registered_git_worktree_metadata,
     find_project_by_path_in, merge_project_update, normalize_existing_directory_path,
     normalize_project_input, normalize_project_root_path, normalize_project_system_kind,
     normalize_project_visibility, now_iso, path_basename, project_from_row, project_insert_params,
-    project_row_from_sql, read_optional_text, read_project_id, read_string_field,
+    project_row_from_sql, read_optional_text, read_string_field,
     read_unvalidated_project_lookup_id, recent_project_from_project, sql_error, DomainRepository,
     DomainResult, DomainStateError,
 };
@@ -328,17 +328,6 @@ impl<'a> DomainRepository<'a> {
             create_params.insert("worktree".to_string(), Value::Object(worktree));
         }
         self.create_project(&create_params)
-    }
-
-    pub fn read_project_status(&self, params: &Map<String, Value>) -> DomainResult<Value> {
-        let project_id = read_project_id(params)?;
-        let project = self.get_project(&project_id)?.ok_or_else(|| {
-            DomainStateError::not_found(format!("Project {project_id} does not exist."))
-        })?;
-        Ok(json!({
-            "project": project,
-            "sessions": self.list_sessions(Some(&project_id))?,
-        }))
     }
 
     pub(crate) fn find_project_by_path(

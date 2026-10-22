@@ -253,17 +253,6 @@ pub(super) async fn route_chat_http(
             .await;
             response
         }
-        // CDXC:Drafts 2026-08-28: the boot-time draft-cache
-        // reconcile read; see list_session_chat_drafts_value.
-        "/api/listSessionChatDrafts" => handle_domain_http(
-            &state,
-            endpoint.path,
-            request_id,
-            &body_json,
-            |_repository, db, _params, _| {
-                crate::session_chat_queue::list_session_chat_drafts_value(db)
-            },
-        ),
         /*
         CDXC:SessionChat 2026-08-26:
         The evidence read behind a `composerNotReady` refusal. Domain-shaped
