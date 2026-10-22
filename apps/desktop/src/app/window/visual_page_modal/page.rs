@@ -4,7 +4,7 @@
 //!
 //! CDXC:SessionChat 2026-10-22 DECISION:
 //! User: "closing and reopening the same page brings back its scroll position". The offset is kept in memory per page for as long as the app runs, and put back once the page has loaded (and again after Refresh).
-//! SEE-ALSO: apps/desktop/src/cef/shell/floating_page_bridge.rs (the binding the script calls), apps/desktop/src/app/native_chat/image_viewer/window.rs (the viewer over the page window).
+//! SEE-ALSO: apps/desktop/src/cef/shell/floating_page_bridge.rs (the binding the script calls), apps/desktop/src/app/native_chat/image_viewer/window.rs (the viewer over the page window), apps/mobile/app/src/chat/native/cards/pageSheetScript.ts (the phone's copy of the script, posting through `ReactNativeWebView.postMessage`).
 
 use serde_json::{Value, json};
 use std::{cell::RefCell, collections::HashMap};

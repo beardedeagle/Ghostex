@@ -1228,9 +1228,14 @@ page in your browser instead. Clicking a picture in the page opens the chat's
 image viewer inside that window, with arrows (and the Left and Right keys) to
 step through the page's pictures. A page you reopen comes back where you left
 it scrolled, and when the agent changes the page's file while the window is
-open, a Refresh button at the top right reloads it. A page
-the agent publishes for the browser, and pages on web and mobile, open in the
-browser. Agents do this when you ask for `$ghostex-visuals` in your
+open, a Refresh button at the top right reloads it. On mobile the card opens
+the page full screen over the chat. Tapping a picture in it opens the chat's
+image viewer over the page (swipe or use the arrows to step through the page's
+pictures), the Close button at the top closes it, and Android's back closes it
+only when pressed twice within two seconds. It also comes back where you left
+it scrolled, and shows Refresh when the agent changes the page's file. A page
+the agent publishes for the browser opens in the browser on desktop, and pages
+on web open in the browser. Agents do this when you ask for `$ghostex-visuals` in your
 prompt; they never use it on their own. Install the skill from Settings >
 Integrations (Ghostex Visuals) or with `ghostex visual install-skill`. Pages
 open in a sandbox and can't reach your computer's files or Ghostex.
@@ -1250,7 +1255,7 @@ shows them as a card, and the form then reads Answered. Questions that need a pi
 such as choosing between two mockups, come as a page instead, where you can
 also pick an option right at its mockup and add a note under each mockup. A
 page works the same way: its card reads Answered once you send, and opening it
-again shows what you sent. On desktop the floating window closes once your answers are
+again shows what you sent. On desktop and mobile the page closes once your answers are
 sent, and stays open with the error if they could not be. Until you send,
 what you picked and typed is kept, in a form and on a page alike, even when
 you close the page or the chat, switch sessions, or restart. With Settings >
