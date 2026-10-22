@@ -90,8 +90,8 @@ use crate::ghostty_vt::{
 use crate::support_logs::{self, GpuiDiagnosticScenario, GpuiSupportLog};
 use crate::terminal_model::{
     Rgb, SnapshotCell, SnapshotRow, TerminalConfirmCloseBehavior, TerminalEvent, TerminalEventSink,
-    TerminalExit, TerminalModel, TerminalSnapshot, TerminalSpawnConfig, TerminalTextRow,
-    UnderlineStyle as CellUnderline, WheelRoute,
+    TerminalExit, TerminalModel, TerminalSnapshot, TerminalSpawnConfig, TerminalTextCell,
+    TerminalTextRow, UnderlineStyle as CellUnderline, WheelRoute,
 };
 use crate::terminal_scrollbar_reveal::ScrollbarReveal;
 use crate::terminal_wheel;
@@ -1577,23 +1577,42 @@ impl TerminalView {
         }
 
         /*
-        CDXC:Terminal 2026-07-12:
+        CDXC:Terminal 2026-10-23 WHY:
         The composited libghostty-vt path owns terminal encoding but not the
         embedded surface's AppKit key-equivalent layer. Preserve the managed
         macOS pane contract here: natural line editing is
         `terminal_line_editing_input`, Cmd-G is the rich-editor Ctrl-G chord,
-        and the main editing commands are sent as explicit Super CSI-u
-        sequences before GPUI application bindings can claim them.
+        and the remaining editing commands are sent as explicit Super CSI-u
+        sequences before GPUI application bindings can claim them. Only a
+        program that turned on the kitty keyboard protocol can read those
+        sequences (Claude Code and Codex push flags 5 at start); a plain shell
+        echoed "7;9u", and Claude Code typed a plain "a". Cmd-A is Ghostty's
+        unconditional `super+a=select_all` binding, so it selects the
+        scrollback in every program; without kitty flags the other keys send
+        nothing, as in Ghostty.
         */
         if cfg!(target_os = "macos")
             && modifiers.platform
             && !modifiers.control
             && !modifiers.alt
             && !modifiers.function
+            && !modifiers.shift
+            && keystroke.key == "a"
+        {
+            self.select_all(cx);
+            cx.stop_propagation();
+            return;
+        }
+        if cfg!(target_os = "macos")
+            && modifiers.platform
+            && !modifiers.control
+            && !modifiers.alt
+            && !modifiers.function
+            && self.model.kitty_keyboard_flags().unwrap_or(0) != 0
         {
             let managed_editing_input: Option<Vec<u8>> =
                 match (modifiers.shift, keystroke.key.as_str()) {
-                    (false, key @ ("a" | "c" | "s" | "y" | "z")) => key
+                    (false, key @ ("c" | "s" | "y" | "z")) => key
                         .chars()
                         .next()
                         .map(|key| format!("\x1b[{};9u", key as u32).into_bytes()),
@@ -1994,16 +2013,43 @@ impl TerminalView {
         }
     }
 
-    /// Edit › Select All: every row of the scrollback, which Copy then copies.
+    /// Edit › Select All: the scrollback from its first to its last non-blank
+    /// cell, as Ghostty's `select_all` does, so the empty rows under the prompt
+    /// are not painted with the selection color.
     fn select_all(&mut self, cx: &mut Context<Self>) {
-        let Some(frame) = self.frame.as_ref() else {
+        let Ok(rows) = self.model.read_scrollback_rows() else {
             return;
         };
-        let Some(last_row) = frame.scrollbar.total.checked_sub(1) else {
+        let has_text = |cell: &&TerminalTextCell| {
+            !cell
+                .text
+                .trim_matches(|c: char| c == '\0' || c.is_whitespace())
+                .is_empty()
+        };
+        let start = rows.iter().find_map(|row| {
+            row.cells
+                .iter()
+                .find(has_text)
+                .map(|cell| (row.absolute_row, cell.column))
+        });
+        let end = rows.iter().rev().find_map(|row| {
+            row.cells
+                .iter()
+                .rev()
+                .find(has_text)
+                .map(|cell| (row.absolute_row, cell.column + 1))
+        });
+        let (Some(start), Some(end)) = (start, end) else {
             return;
         };
         self.drag = None;
-        self.selection = Some(line_selection(frame.cols, 0, last_row));
+        self.selection = Some(TerminalSelection {
+            start_row: start.0,
+            start_col: start.1,
+            end_row: end.0,
+            end_col: end.1,
+            rectangular: false,
+        });
         cx.notify();
     }
 
