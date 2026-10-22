@@ -204,10 +204,10 @@ impl GhostexGpuiApp {
                 // CDXC:Zmx 2026-09-25 WHY:
                 // A parked viewer keeps its grid instead of reflowing to the resting width (supersedes parking both non-visible states at 200 columns). With no visible or chat claim the daemon retains the grid the viewer last claimed (loop.zig electLeader), so the mirror at that grid takes the streamed output exactly and a redisplay at the same size needs no reflow, no claim round trip and no reflow hold. The 200-column park re-wrapped that output against a grid the daemon was not using, and every switch back resized, reflowed and held.
                 // If another client changes the daemon grid meanwhile, the redisplay's claim changes it back, and the daemon repaints every client from its own screen.
-                // Chat keeps the resting width, because the chat claim itself widens the daemon to at least 200 columns.
+                // Chat widens to the resting width but never narrows, the same `max` the chat claim applies to the daemon grid (loop.zig electLeader). Resting a wider terminal at 200 columns left the mirror narrower than the grid the agent kept drawing at, and the redisplay at the unchanged grid gets no repaint, so the lines broken at column 200 stayed on screen.
                 let (current_cols, rows) = view.read(cx).model().size();
                 let cols = if visibility == GpuiEngineTerminalZmxVisibility::Chat {
-                    ZMX_RESTING_GRID_COLS
+                    current_cols.max(ZMX_RESTING_GRID_COLS)
                 } else {
                     current_cols
                 };
