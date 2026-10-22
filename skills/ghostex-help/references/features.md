@@ -1203,6 +1203,10 @@ collapsed even at the bottom of the conversation until you click it, and
 collapses again when you click elsewhere.
 An empty collapsed composer shows only the first placeholder line, and scrolling
 keeps the same toolbar buttons visible.
+Right-to-left languages (Arabic, Hebrew, Persian and the like) work in the chat
+box and the transcript: a line that starts in one of them is right-aligned and
+reads right to left, like a web text box, and the arrow keys follow its reading
+direction; lines in left-to-right languages stay as they are.
 Hex colors (#RRGGBB, #RRGGBBAA, and the short #RGB and #RGBA when they contain a letter, such as #fa0) in messages, inline code, and tables have a small rounded color swatch
 beside the value on desktop and web; an all-digit number such as #1234 is not a color and stays plain text (or links to the project's GitHub issue). Copying keeps the original text.
 Mermaid diagrams an agent writes (a ```mermaid block) are drawn as diagrams in
@@ -1217,18 +1221,20 @@ writes an HTML page and the chat shows a card for it with a small preview
 picture of the page, the same on desktop, web, and mobile. The picture is taken
 the first time you open the page in the Ghostex desktop app (and again after you
 answer it); until then the card shows the page's file name. On desktop the card opens
-the page in a floating window over the chat, which closes when you click away
-or press Escape; its header can open the page in your browser instead. A page
+the page in a floating window over the chat. Clicking outside it once only
+arms it ("Click outside again to close"); a second click outside within two
+seconds closes it, as do Escape and its close button. Its header can open the
+page in your browser instead. Clicking a picture in the page opens the chat's
+image viewer inside that window, with arrows (and the Left and Right keys) to
+step through the page's pictures. A page you reopen comes back where you left
+it scrolled, and when the agent changes the page's file while the window is
+open, a Refresh button at the top right reloads it. A page
 the agent publishes for the browser, and pages on web and mobile, open in the
 browser. Agents do this when you ask for `$ghostex-visuals` in your
 prompt; they never use it on their own. Install the skill from Settings >
 Integrations (Ghostex Visuals) or with `ghostex visual install-skill`. Pages
 open in a sandbox and can't reach your computer's files or Ghostex.
 When the agent needs your decisions, it asks them as a form right in the chat
-Right-to-left languages (Arabic, Hebrew, Persian and the like) work in the chat
-box and the transcript: a line that starts in one of them is right-aligned and
-reads right to left, like a web text box, and the arrow keys follow its reading
-direction; lines in left-to-right languages stay as they are.
 on desktop, web, and mobile: every question at once, with choices you click
 and a note box for each. Nothing is picked for you (the agent may mark the
 option it recommends), every choice question has an Other / none of these
@@ -1364,10 +1370,11 @@ Sending in a new chat shows your message immediately in the conversation while
 Ghostex waits for the agent to be ready. It appears once, with a spinner beside the
 bubble's bottom-left corner while it waits; you can retry or remove it if delivery fails.
 A message sent while the agent is still working shows a play button there instead:
-click it to interrupt the agent (one Escape) so it takes that message right away. For Claude Code,
-Back to composer in that message's actions (hover it; on the phone, under the bubble) takes it out of
-Claude's queue and adds its text and pictures to your chat draft instead, unsent; pressing Up in an
-empty chat box does the same for the newest queued message, like Up in Claude's own input. Prompts you explicitly
+click it (tap it on the phone) to interrupt the agent so it takes that message right away. For Claude
+Code and Grok Build, Back to composer (the arrow left of the play button, also in the message's hover
+actions and in the menu you get by holding the message on the phone) takes it out of the agent's queue
+and adds its text and pictures to your chat draft instead, unsent; pressing Up in an empty chat box does
+the same for the newest queued message, like Up in the agent's own input. Prompts you explicitly
 queue stay in the list above the input. This also applies when reopening the chat
 or continuing on another device.
 While the agent works, a one-line card just above the chat box says what it is
@@ -3703,6 +3710,15 @@ connected remote machine, the agent starts on that machine instead, in its own
 Ghostex config folder, and reads that machine's version, settings and logs; the
 switch's description names the machine. If that machine is not connected, Start
 Agent says so instead of starting on this computer.
+
+If Ghostex's background service (gxserver) is not answering on this computer,
+Review, Send and Start Agent cannot go through it. The desktop app then offers
+"Open a GitHub issue in your browser": it opens a new issue on the Ghostex GitHub
+with your message and this computer's startup diagnostics filled in. Your user
+name, home folder, computer name, saved remote machines, addresses, emails and
+tokens are removed first. Nothing is posted until you press Create on GitHub. A
+long report has its diagnostics shortened to fit in the link, and the issue says
+so; a message too long even on its own is put on your clipboard for you to paste.
 
 On the phone, Send Bug / Feedback is in the menu at the top of the Sessions
 screen, under Settings. It has the same form: your GitHub username (required,
