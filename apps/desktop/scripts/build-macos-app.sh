@@ -289,9 +289,7 @@ validate_local_gxserver_runtime_resources() {
 		"gxserver/bin/gxserver" \
 		"gxserver/bin/ghostex" \
 		"gxserver/bin/zmx" \
-		"gxserver/build-identity.json" \
-		"gxserver/dist/protocol/index.js" \
-		"gxserver/dist/protocol/index.d.ts"; do
+		"gxserver/build-identity.json"; do
 		if [[ ! -e "$WEB_SOURCE_DIR/$required_path" ]]; then
 			echo "Missing GPUI local gxserver resource: $WEB_SOURCE_DIR/$required_path" >&2
 			missing=1

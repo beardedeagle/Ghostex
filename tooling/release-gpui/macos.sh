@@ -369,7 +369,9 @@ phase_dmg() {
 	STAGE_ROOT="$REPO_ROOT/build/release-gpui/macos-staging.noindex"
 	mkdir -p "$STAGE_ROOT"
 	STAGE="$(mktemp -d "$STAGE_ROOT/stage-XXXXXX")"
-	trap 'rm -rf "$STAGE"' EXIT
+	# The read-write image sits next to the stage, never inside it, because the stage is the image's source folder.
+	RW_IMAGE="$STAGE.rw.dmg"
+	trap 'rm -rf "$STAGE" "$RW_IMAGE"' EXIT
 	ditto "$APP_PATH" "$STAGE/Ghostex.app"
 	ln -s /Applications "$STAGE/Applications"
 	# CDXC:Release 2026-08-22:
@@ -379,19 +381,22 @@ phase_dmg() {
 	# "Resource busy" minutes after the app was signed and validated. 7.13.0 lost a
 	# 30-minute build to exactly that, and the retry produced the DMG. Bounded, and
 	# the partial image is removed first so a retry never reads a stale file.
-	# CDXC:Release 2026-10-20 WHY: ULMO (LZMA) instead of the default UDZO (zlib): repacking the 10.28.0 app took the DMG from 110.6 MB to 76.4 MB. ULMO opens on macOS 10.15 and later, well under the app's 13.0 minimum, and Sparkle updates mount the same DMG.
+	# CDXC:Release 2026-10-22 WHY: ULMO (LZMA) instead of the default UDZO (zlib) took the 10.28.0 DMG from 110.6 MB to 76.4 MB; ULMO opens on macOS 10.15 and later, well under the app's 13.0 minimum, and Sparkle updates mount the same DMG. Building a read-write APFS image and converting it replaces the one-step `hdiutil create -format ULMO` (2026-10-20), which left about 3 MB of unused gaps: on the 10.29.0 app the one-step DMG was 76.2 MB, build-then-convert with the default 1 MiB chunks 72.7 MB, and with 4 MiB chunks 68.8 MB. `udif-chunk-size` counts 512-byte sectors and is undocumented (found in the DiskImages framework); hdiutil accepts 512 to 2,097,152, but the reader rejects chunks above 4 MiB, so 8192 is the ceiling. hdiutil silently ignores image keys it does not know, so an hdiutil without this key still produces a valid DMG with 1 MiB chunks. The volume must stay case-insensitive APFS: release-final-verify.mjs opens the mounted app as `ghostex.app`.
+	# CDXC:Release 2026-10-22 DECISION: the user chose 4 MiB LZMA chunks (`-imagekey udif-chunk-size=8192`) knowing it relies on an undocumented hdiutil key and still needs a mount test on macOS 13 and 14.
 	for attempt in 1 2 3; do
-		if hdiutil create -volname Ghostex -srcfolder "$STAGE" -format ULMO "$DMG"; then
+		rm -f "$RW_IMAGE" "$DMG"
+		if hdiutil create -volname Ghostex -srcfolder "$STAGE" -fs APFS -format UDRW "$RW_IMAGE" &&
+			hdiutil convert "$RW_IMAGE" -format ULMO -imagekey udif-chunk-size=8192 -o "$DMG"; then
 			break
 		fi
 		if [[ "$attempt" == 3 ]]; then
-			echo "hdiutil create failed after $attempt attempts" >&2
+			echo "hdiutil create/convert failed after $attempt attempts" >&2
 			exit 1
 		fi
-		echo "hdiutil create failed (attempt $attempt); retrying" >&2
-		rm -f "$DMG"
+		echo "hdiutil create/convert failed (attempt $attempt); retrying" >&2
 		sleep "$((attempt * 10))"
 	done
+	rm -f "$RW_IMAGE"
 	release_gpui_assert_dmg_budget "$DMG"
 
 	for name in gxserver-linux-x64.tar.gz gxserver-linux-arm64.tar.gz; do

@@ -493,130 +493,6 @@ gxserver_rust_package_version() {
 	printf '%s\n' "$package_version"
 }
 
-stage_gxserver_protocol_exports() {
-	local target_dir="$1"
-	local protocol_stage_dir="$BUILD_CACHE_DIR/gxserver-protocol"
-	local tsc_bin="$REPO_ROOT/node_modules/typescript/bin/tsc"
-	if [[ ! -f "$REPO_ROOT/packages/shared/gxserver-protocol.ts" ]]; then
-		echo "shared gxserver protocol source is missing: $REPO_ROOT/packages/shared/gxserver-protocol.ts" >&2
-		exit 1
-	fi
-	if [[ ! -f "$tsc_bin" ]]; then
-		echo "TypeScript compiler is missing at $tsc_bin. Run bun install before packaging gxserver." >&2
-		exit 1
-	fi
-	rm -rf "$protocol_stage_dir"
-	mkdir -p "$protocol_stage_dir/src" "$protocol_stage_dir/types" "$target_dir/dist/protocol"
-	cp "$REPO_ROOT/packages/shared/gxserver-protocol.ts" "$protocol_stage_dir/src/index.ts"
-	# CDXC:ServerApi 2026-08-21-12:10: packages/shared/gxserver-protocol.ts pulls in
-	# sibling shared modules (session-chat.ts, which now pulls session-chat-queue.ts).
-	# Stage the whole relative-import closure instead of a hand-kept file list so adding a
-	# shared module never breaks packaging with a TS2307 "cannot find module" failure.
-	GXSERVER_PROTOCOL_SHARED_DIR="$REPO_ROOT/packages/shared" \
-		GXSERVER_PROTOCOL_STAGE_SRC_DIR="$protocol_stage_dir/src" \
-		"$GXSERVER_NODE_BIN" <<'JS'
-const fs = require("node:fs");
-const path = require("node:path");
-
-const sharedDir = process.env.GXSERVER_PROTOCOL_SHARED_DIR;
-const stageSrcDir = process.env.GXSERVER_PROTOCOL_STAGE_SRC_DIR;
-const relativeSpecifier = /(?:^|[\s;])(?:import|export)\s[^;]*?from\s*["'](\.[^"']*)["']/g;
-
-const pending = [path.join(stageSrcDir, "index.ts")];
-const staged = new Set(pending);
-while (pending.length > 0) {
-	const filePath = pending.pop();
-	const source = fs.readFileSync(filePath, "utf8");
-	for (const match of source.matchAll(relativeSpecifier)) {
-		const specifier = match[1].replace(/\.(?:ts|tsx|js)$/, "");
-		const moduleName = `${specifier.replace(/^\.\//, "")}.ts`;
-		const sourcePath = path.join(sharedDir, moduleName);
-		const stagedPath = path.join(stageSrcDir, moduleName);
-		if (staged.has(stagedPath)) {
-			continue;
-		}
-		if (!fs.existsSync(sourcePath)) {
-			console.error(`shared gxserver protocol dependency is missing: ${sourcePath}`);
-			process.exit(1);
-		}
-		fs.mkdirSync(path.dirname(stagedPath), { recursive: true });
-		fs.copyFileSync(sourcePath, stagedPath);
-		staged.add(stagedPath);
-		pending.push(stagedPath);
-	}
-}
-JS
-	bun build "$protocol_stage_dir/src/index.ts" --outfile "$target_dir/dist/protocol/index.js" --format esm --target node
-	"$GXSERVER_NODE_BIN" "$tsc_bin" \
-		--declaration \
-		--emitDeclarationOnly \
-		--isolatedModules \
-		--module ESNext \
-		--moduleResolution bundler \
-		--outDir "$protocol_stage_dir/types" \
-		--rootDir "$protocol_stage_dir/src" \
-		--skipLibCheck \
-		--strict \
-		--target ES2023 \
-		"$protocol_stage_dir/src/index.ts"
-	cp "$protocol_stage_dir"/types/*.d.ts "$target_dir/dist/protocol/"
-}
-
-write_gxserver_rust_package_manifest() {
-	local target_dir="$1"
-	local package_version="$2"
-	GXSERVER_PACKAGE_DIR="$target_dir" GXSERVER_PACKAGE_VERSION="$package_version" "$GXSERVER_NODE_BIN" <<'JS'
-const { writeFileSync } = require("node:fs");
-const { join } = require("node:path");
-
-const targetDir = process.env.GXSERVER_PACKAGE_DIR;
-const version = process.env.GXSERVER_PACKAGE_VERSION;
-writeFileSync(
-	join(targetDir, "package.json"),
-	`${JSON.stringify({
-		name: "gxserver",
-		version,
-		private: true,
-		description: "Ghostex gxserver daemon and shared protocol package.",
-		type: "module",
-		bin: {
-			gxserver: "./bin/gxserver",
-		},
-		exports: {
-			"./protocol": {
-				types: "./dist/protocol/index.d.ts",
-				default: "./dist/protocol/index.js",
-			},
-		},
-	}, null, 2)}\n`,
-	"utf8",
-);
-JS
-}
-
-write_gxserver_rust_package_readme() {
-	local target_dir="$1"
-	cat >"$target_dir/README.md" <<'EOF'
-# gxserver server package
-
-gxserver is the Ghostex daemon used by the desktop app and server-only remote installs.
-
-## Runtime dependency
-
-This package uses the bundled native gxserver executable in `bin/gxserver` and does not require Node.js or better-sqlite3 at runtime.
-
-## Commands
-
-- `bin/gxserver`: run gxserver in the foreground.
-- `bin/gxserver start`: start gxserver in the background.
-- `bin/gxserver status --json`: check runtime state for health/status automation.
-- `bin/gxserver stop`: stop only the gxserver control plane; zmx sessions are not killed.
-- `bin/gxserver stop-all`: kill gxserver-tracked zmx sessions, then stop the control plane.
-
-The package includes Ghostex's pinned zmx artifact in `bin/`.
-EOF
-}
-
 write_gxserver_package_build_identity() {
 	local target_dir="$1"
 	local package_version="$2"
@@ -671,8 +547,9 @@ package_gxserver_rust_package() {
 	local package_dir="$1"
 	local rust_bin="$2"
 	local package_version="$3"
-	# CDXC:Release 2026-06-22-16:17: Local and release macOS builds no longer keep the deleted gxserver/ TypeScript source tree. Assemble the Rust daemon package directly from server, packages/shared/gxserver-protocol.ts, and app-owned tool binaries so `cargo xtask start` never cds into gxserver/ for the default packaged daemon.
+	# CDXC:Release 2026-06-22-16:17: Local and release macOS builds no longer keep the deleted gxserver/ TypeScript source tree. Assemble the Rust daemon package directly from server and app-owned tool binaries so `cargo xtask start` never cds into gxserver/ for the default packaged daemon.
 	# CDXC:Build 2026-06-22-23:23: zmx remains required.
+	# CDXC:Release 2026-10-22 WHY: the package no longer ships the TypeScript-era npm package.json, README.md and dist/protocol exports (about 0.2 MB of the download). Nothing reads them: the app, the CLI, `cargo xtask start` and the remote install use only bin/ and build-identity.json, and the Linux remote package dropped the same files on 2026-07-13 (server/package-remote-linux.mjs).
 	rm -rf "$package_dir"
 	mkdir -p "$package_dir/bin"
 	cp "$rust_bin" "$package_dir/bin/gxserver"
@@ -682,9 +559,6 @@ package_gxserver_rust_package() {
 	cp "${rust_bin%/*}/ghostex" "$package_dir/bin/ghostex"
 	cp "$WEB_DIR/bin/zmx" "$package_dir/bin/zmx"
 	chmod 755 "$package_dir/bin/gxserver" "$package_dir/bin/ghostex" "$package_dir/bin/zmx"
-	stage_gxserver_protocol_exports "$package_dir"
-	write_gxserver_rust_package_manifest "$package_dir" "$package_version"
-	write_gxserver_rust_package_readme "$package_dir"
 	write_gxserver_package_build_identity "$package_dir" "$package_version"
 }
 
@@ -903,10 +777,7 @@ package_gxserver_if_needed() {
 	# GPUI bundles the native Rust gxserver package used by standalone installs.
 	# TypeScript daemon packaging is intentionally unsupported.
 	#
-	# CDXC:Build 2026-06-07-16:23: gxserver packaging should skip work when gxserver runtime sources, package metadata, packager code, the bundled zmx binary, and generated protocol inputs are unchanged.
-	#
-	# Rust packaging preserves generated TypeScript protocol exports for web
-	# consumers, but the daemon and public CLI are native executables.
+	# CDXC:Build 2026-06-07-16:23: gxserver packaging should skip work when gxserver runtime sources, package metadata, packager code, and the bundled zmx binary are unchanged.
 	package_dir="$BUILD_CACHE_DIR/gxserver-rs/server-package"
 	build_gxserver_rust_if_needed
 	rust_bin="$GXSERVER_RUST_BIN"
@@ -915,24 +786,17 @@ package_gxserver_if_needed() {
 		exit 1
 	fi
 	package_version="$(gxserver_rust_package_version)"
-	# packages/shared/gxserver-protocol.ts is a barrel over gxserver-protocol-*.ts; hash every part.
-	local protocol_path_args=()
-	local protocol_source
-	for protocol_source in "$REPO_ROOT"/packages/shared/gxserver-protocol*.ts; do
-		protocol_path_args+=(--path "$protocol_source")
-	done
 	package_digest="$(fingerprint_inputs \
 		--value "gxserver-package-v9-rust-only" \
 		--value "arch=$GHOSTEX_MACOS_ARCH" \
 		--value "version=$package_version" \
 		--value "rust=$(path_identity "$rust_bin")" \
 		--path "$SCRIPT_DIR/prepare-macos-runtime.sh" \
-		"${protocol_path_args[@]}" \
 		--path "$GXSERVER_RS_ROOT/src" \
 		--path "$GXSERVER_RS_ROOT/Cargo.toml" \
 		--path "$GXSERVER_RS_ROOT/Cargo.lock" \
 		--path "$WEB_DIR/bin/zmx")"
-	local cache_outputs=("$target_dir/build-identity.json" "$target_dir/bin/gxserver" "$target_dir/dist/protocol/index.js" "$target_dir/dist/protocol/index.d.ts")
+	local cache_outputs=("$target_dir/build-identity.json" "$target_dir/bin/gxserver")
 	cache_outputs+=("$target_dir/bin/ghostex")
 	if cache_matches "gxserver-package-$GHOSTEX_MACOS_ARCH" "$package_digest" "${cache_outputs[@]}" &&
 		gxserver_package_supports_macos_arch "$target_dir"; then

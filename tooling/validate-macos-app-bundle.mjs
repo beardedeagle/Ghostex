@@ -193,8 +193,6 @@ async function validateBundledGxserverRuntime({ arch, resourcesRoot }) {
       rustGxserverBinary,
       rustGxserverZmx,
       path.join(gxserverRoot, 'build-identity.json'),
-      path.join(gxserverRoot, 'dist', 'protocol', 'index.js'),
-      path.join(gxserverRoot, 'dist', 'protocol', 'index.d.ts'),
     ]);
     await assertMachOContainsArch(rustGxserverBinary, arch);
     await assertMachOContainsArch(rustGxserverZmx, arch);
