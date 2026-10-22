@@ -473,7 +473,8 @@ async function copyExecutable(source, destination, label) {
 async function copyStrippedExecutable(source, destination, label) {
   await assertFile(source, label);
   await mkdir(path.dirname(destination), { recursive: true });
-  await run(await rustObjcopy(), ['--strip-all', source, destination]);
+  const objcopy = await rustObjcopy();
+  await run(objcopy.command, ['--strip-all', source, destination], { env: objcopy.env });
   await chmod(destination, 0o755);
 }
 
@@ -488,7 +489,12 @@ async function rustObjcopy() {
   }
   const objcopy = path.join(sysroot.trim(), 'lib', 'rustlib', host, 'bin', 'rust-objcopy');
   await assertFile(objcopy, 'rust-objcopy of the pinned Rust toolchain');
-  return objcopy;
+  // The aarch64 Linux toolchain's rust-objcopy links libLLVM from the sysroot's lib folder, which
+  // only rustup's proxies put on the loader path, so a direct call needs it (10.31.0's ARM64 build
+  // failed with "libLLVM.so.22.1-rust-1.95.0-stable: cannot open shared object file").
+  const libDir = path.join(sysroot.trim(), 'lib');
+  const loaderPath = [libDir, process.env.LD_LIBRARY_PATH].filter(Boolean).join(path.delimiter);
+  return { command: objcopy, env: { LD_LIBRARY_PATH: loaderPath } };
 }
 
 async function assertDirectory(candidate, label) {
