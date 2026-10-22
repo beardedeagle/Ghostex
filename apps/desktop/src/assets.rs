@@ -6,7 +6,7 @@ use std::borrow::Cow;
 #[path = "assets/chat_message_actions.rs"]
 mod chat_message_actions;
 #[path = "assets/chat_references.rs"]
-mod chat_references;
+pub(crate) mod chat_references;
 #[path = "assets/chat_working.rs"]
 pub(crate) mod chat_working;
 #[path = "assets/onboarding.rs"]
@@ -21,10 +21,21 @@ mod onboarding;
 #[include = "capture/**/*.svg"]
 struct GhostexEmbeddedAssets;
 
-#[derive(RustEmbed)]
-#[folder = "../../packages/core-ui/assets"]
-#[include = "*.svg"]
-struct GhostexAgentIconAssets;
+/// The 256px app icon, embedded once for every reader: Settings > About, the Linux window icon and
+/// the Ghostex Capture button (which used the byte-identical `icon_128x128@2x.png`).
+pub(crate) static APP_ICON_PNG: &[u8] =
+    include_bytes!("../resources/AppIcon.appiconset/icon_256x256.png");
+
+/// DM Sans's static 400, 500, 600 and 700 faces, embedded once for the chat (`native_chat/fonts.rs`)
+/// and the onboarding (`window/onboarding/fonts.rs`), which both register them. They live here
+/// because every build that compiles either file (the app, apps/gpui-web, the modal demo and
+/// packages/gpui-mobile, which has its own `assets.rs` with the same static) has this module.
+pub(crate) static DM_SANS_UPRIGHT_FACES: [&[u8]; 4] = [
+    include_bytes!("../../../.dependencies/app-fonts/dm-sans/static/400.ttf"),
+    include_bytes!("../../../.dependencies/app-fonts/dm-sans/static/500.ttf"),
+    include_bytes!("../../../.dependencies/app-fonts/dm-sans/static/600.ttf"),
+    include_bytes!("../../../.dependencies/app-fonts/dm-sans/static/700.ttf"),
+];
 
 pub(crate) struct GhostexAssets;
 
@@ -50,9 +61,7 @@ impl AssetSource for GhostexAssets {
         }
         // CDXC:Settings 2026-10-07 DECISION: The user said "yes show real icon": Settings > About draws the real Ghostex app icon (the same PNG the window and Dock use), not a "G" placeholder tile.
         if path == "app-icon.png" {
-            return Ok(Some(Cow::Borrowed(include_bytes!(
-                "../resources/AppIcon.appiconset/icon_256x256.png"
-            ))));
+            return Ok(Some(Cow::Borrowed(APP_ICON_PNG)));
         }
         if let Some(key) = path.strip_prefix("onboarding/") {
             return onboarding::asset(key)
@@ -68,9 +77,12 @@ impl AssetSource for GhostexAssets {
                 .map(|asset| Some(asset.data))
                 .ok_or_else(|| anyhow!("could not find embedded Ghostex asset at path {path:?}"));
         }
+        // CDXC:Icons 2026-10-22 WHY: `agent-icons/<key>.svg` is served from gx-core's agent logo table, which already embeds every `packages/core-ui/assets/*.svg` for the sidebar's coloured logos; a second RustEmbed of the same folder put the artwork in the binary twice. A new agent logo goes into that table (`packages/gx-core/src/sidebar_menu/agent_logos.rs`).
         if let Some(agent_icon_path) = path.strip_prefix("agent-icons/") {
-            return GhostexAgentIconAssets::get(agent_icon_path)
-                .map(|asset| Some(asset.data))
+            return agent_icon_path
+                .strip_suffix(".svg")
+                .and_then(ghostex_gx_core::agent_logo_svg)
+                .map(|svg| Some(Cow::Borrowed(svg.as_bytes())))
                 .ok_or_else(|| anyhow!("could not find embedded agent icon at path {path:?}"));
         }
         gpui_component_assets::Assets.load(path)
@@ -80,10 +92,14 @@ impl AssetSource for GhostexAssets {
         let mut assets = GhostexEmbeddedAssets::iter()
             .filter_map(|asset| asset.starts_with(path).then(|| asset.into()))
             .collect::<Vec<_>>();
-        assets.extend(GhostexAgentIconAssets::iter().filter_map(|asset| {
-            let asset = format!("agent-icons/{asset}");
-            asset.starts_with(path).then(|| asset.into())
-        }));
+        assets.extend(
+            ghostex_gx_core::agent_logo_icons()
+                .into_iter()
+                .filter_map(|icon| {
+                    let asset = format!("agent-icons/{icon}.svg");
+                    asset.starts_with(path).then(|| asset.into())
+                }),
+        );
         assets.extend(gpui_component_assets::Assets.list(path)?);
         assets.sort_unstable();
         assets.dedup();

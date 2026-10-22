@@ -2,7 +2,9 @@
 use crate::app::helpers::*;
 use crate::*;
 use gpui::http_client::Url;
-use scraper::{Html, Selector};
+use html5ever::tendril::TendrilSink;
+use html5ever::{local_name, namespace_url, ns};
+use markup5ever_rcdom::{Handle, NodeData, RcDom};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::{
     io::Read,
@@ -266,30 +268,34 @@ pub(crate) fn probe_browser_site(
             response = next_response;
         }
         if response.content_type.to_ascii_lowercase().contains("html") {
-            let html = Html::parse_document(&String::from_utf8_lossy(&response.body));
-            let title_selector = Selector::parse("title").expect("static selector");
-            site.title = html.select(&title_selector).next().and_then(|title| {
+            let html = html5ever::parse_document(RcDom::default(), Default::default())
+                .one(String::from_utf8_lossy(&response.body).as_ref());
+            site.title = html_find_first(&html.document, |node| {
+                html_element_named(node, local_name!("title"))
+            })
+            .and_then(|title| {
+                let mut text = String::new();
+                html_find_first(&title, |node| {
+                    if let NodeData::Text { contents } = &node.data {
+                        text.push_str(&contents.borrow());
+                    }
+                    false
+                });
                 sanitize_browser_tab_cached_title(
-                    &title
-                        .text()
-                        .collect::<String>()
-                        .split_whitespace()
-                        .collect::<Vec<_>>()
-                        .join(" "),
+                    &text.split_whitespace().collect::<Vec<_>>().join(" "),
                 )
             });
-            let icon_selector = Selector::parse("link[rel][href]").expect("static selector");
-            let icon_url = html
-                .select(&icon_selector)
-                .find(|link| {
-                    link.value().attr("rel").is_some_and(|rel| {
+            let icon_url = html_find_first(&html.document, |node| {
+                html_element_named(node, local_name!("link"))
+                    && html_attr(node, local_name!("href")).is_some()
+                    && html_attr(node, local_name!("rel")).is_some_and(|rel| {
                         rel.split_whitespace()
                             .any(|part| part.eq_ignore_ascii_case("icon"))
                     })
-                })
-                .and_then(|link| link.value().attr("href"))
-                .and_then(|href| document_url.join(href).ok())
-                .unwrap_or_else(|| document_url.join("/favicon.ico").expect("root URL"));
+            })
+            .and_then(|link| html_attr(&link, local_name!("href")))
+            .and_then(|href| document_url.join(&href).ok())
+            .unwrap_or_else(|| document_url.join("/favicon.ico").expect("root URL"));
             if remote_browser_loopback_url(&icon_url)
                 && icon_url.port_or_known_default() == Some(port.port)
                 && let Ok(icon) = fetch_browser_page(icon_url.as_str(), proxy_port)
@@ -310,6 +316,41 @@ pub(crate) fn probe_browser_site(
     }
     site.checked_at = SystemTime::now();
     site
+}
+
+/// First node in document order (`root` included) that `matches`, walking a `<template>`'s contents as part of the template and using a stack so a deeply nested page cannot overflow the thread.
+fn html_find_first(root: &Handle, mut matches: impl FnMut(&Handle) -> bool) -> Option<Handle> {
+    let mut stack = vec![root.clone()];
+    while let Some(node) = stack.pop() {
+        if matches(&node) {
+            return Some(node);
+        }
+        stack.extend(node.children.borrow().iter().rev().cloned());
+        if let NodeData::Element {
+            template_contents, ..
+        } = &node.data
+            && let Some(contents) = template_contents.borrow().as_ref()
+        {
+            stack.push(contents.clone());
+        }
+    }
+    None
+}
+
+fn html_element_named(node: &Handle, name: html5ever::LocalName) -> bool {
+    matches!(&node.data, NodeData::Element { name: element, .. } if element.local == name)
+}
+
+/// The value of an attribute that has no namespace, as a CSS `[name]` selector matches it.
+fn html_attr(node: &Handle, name: html5ever::LocalName) -> Option<String> {
+    let NodeData::Element { attrs, .. } = &node.data else {
+        return None;
+    };
+    attrs
+        .borrow()
+        .iter()
+        .find(|attr| attr.name.ns == ns!() && attr.name.local == name)
+        .map(|attr| attr.value.to_string())
 }
 
 fn remote_browser_loopback_url(url: &Url) -> bool {

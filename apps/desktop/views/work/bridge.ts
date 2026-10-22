@@ -34,7 +34,7 @@ window.addEventListener(RESPONSE_EVENT, (event) => {
   else request.reject(new Error(detail.error || 'The request failed.'));
 });
 
-/** The page's own dev mode: `?fixtures=1` answers every request from sample data, with no app. */
+/** The page's own dev mode: `?fixtures=1` answers every request from sample data, with no app (only in a page built with `GHOSTEX_WORK_FIXTURES=1`, see `mount` in work.tsx). */
 export function isFixtureMode(): boolean {
   return new URLSearchParams(location.search).get('fixtures') === '1';
 }

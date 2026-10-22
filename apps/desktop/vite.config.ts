@@ -265,6 +265,8 @@ async function buildInlineCefEntryScript(
     conditions: ['production'],
     define: {
       'process.env.NODE_ENV': '"production"',
+      // The Work page's sample data, left out unless asked for (`mount` in views/work.tsx).
+      'process.env.GHOSTEX_WORK_FIXTURES': JSON.stringify(process.env.GHOSTEX_WORK_FIXTURES === '1' ? '1' : ''),
       // React Native's dev flag, read by react-native-enriched-markdown's web build (the Work page's Markdown).
       __DEV__: 'false',
     },

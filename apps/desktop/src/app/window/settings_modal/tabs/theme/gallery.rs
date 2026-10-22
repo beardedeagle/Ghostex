@@ -1,4 +1,4 @@
-//! The Live styles' posters (packages/core-ui/assets/glass-live, rendered from the glass shaders by
+//! The Live styles' posters (assets/modals/settings/glass-live, rendered from the glass shaders by
 //! tooling/glass-live/render-posters.swift in a sample theme), one per style and appearance. The
 //! React gallery shows these stills, never the animation itself.
 use gpui::{Image, ImageFormat};
@@ -9,12 +9,12 @@ macro_rules! poster {
         include_bytes!(concat!(
             "../../../../../../assets/modals/settings/glass-live/",
             $name,
-            ".jpg"
+            ".webp"
         ))
     };
 }
 
-/// The JPEG of `style` (`WINDOW_GLASS_LIVE_STYLE_OPTIONS`) in dark or light mode.
+/// The WebP of `style` (`WINDOW_GLASS_LIVE_STYLE_OPTIONS`) in dark or light mode.
 fn poster_bytes(style: &str, light: bool) -> Option<&'static [u8]> {
     Some(match (style, light) {
         ("aurora", false) => poster!("aurora-dark"),
@@ -40,5 +40,5 @@ fn poster_bytes(style: &str, light: bool) -> Option<&'static [u8]> {
 /// The poster image of `style`, decoded by GPUI when first drawn.
 pub(super) fn poster(style: &str, light: bool) -> Option<Arc<Image>> {
     poster_bytes(style, light)
-        .map(|bytes| Arc::new(Image::from_bytes(ImageFormat::Jpeg, bytes.to_vec())))
+        .map(|bytes| Arc::new(Image::from_bytes(ImageFormat::Webp, bytes.to_vec())))
 }

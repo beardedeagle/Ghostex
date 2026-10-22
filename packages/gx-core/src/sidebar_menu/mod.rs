@@ -36,7 +36,7 @@ mod session;
 mod text;
 mod workspace;
 
-pub use agent_logos::{agent_logo_icons, colored_agent_logo};
+pub use agent_logos::{agent_logo_icons, agent_logo_svg, colored_agent_logo};
 pub use commands::MenuCommand;
 pub use group::MenuGroup;
 pub(crate) use header::account_provider;

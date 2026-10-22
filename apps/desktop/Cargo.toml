@@ -83,7 +83,7 @@ tree-sitter = "0.26"
 tree-sitter-containerfile = "0.9"
 tree-sitter-hcl = "1.1"
 tree-sitter-powershell = "0.26"
-image = { version = "0.25", default-features = false, features = ["png"] }
+image = { version = "0.25", default-features = false, features = ["png", "webp"] }
 # CDXC:SessionTitles 2026-09-15 WHY: the native Rename Session dialog ports `normalizeSessionRenameTitle` (NFKC + a Unicode-class glyph filter); both crates were already in the graph through gpui and url, so this is a direct-dependency promotion, not a new download.
 icu_normalizer = "2"
 libc = "0.2"
@@ -99,7 +99,9 @@ serde_json = "1"
 # its header buttons are the two heavy fields of a list that is cloned per patch and per install.
 serde = { version = "1", features = ["derive", "rc"] }
 rusqlite = { version = "0.32", features = ["bundled"] }
-scraper = { version = "0.24", default-features = false }
+# CDXC:Browser 2026-10-22 WHY: the remote sites menu reads a page's `<title>` and icon link with the html5ever and RcDom versions gpui-component's base crate already links. `scraper` did this before and brought a second html5ever copy into the binary; keep these two on gpui-base's versions so no new copy appears.
+html5ever = "0.27"
+markup5ever_rcdom = "0.3"
 sha2 = "0.10"
 tar = "0.4"
 tokio = { version = "1", features = ["rt", "net", "time", "sync", "io-util", "macros"] }

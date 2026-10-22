@@ -570,10 +570,12 @@ pub(crate) fn render_vignette() -> BackdropPixels {
 }
 
 /// `.grain`: the 160px noise tile repeated across the stage, composed into one bitmap.
+///
+/// CDXC:Onboarding 2026-10-22 WHY: the tile is lossless WebP (pixel-identical to the PNG it replaced, a third of the bytes). Lossy WebP or JPEG would smear the per-pixel noise that is the whole point of the tile.
 pub(crate) fn render_grain() -> Option<BackdropPixels> {
     let tile = image::load_from_memory_with_format(
-        include_bytes!("../../../../../../packages/core-ui/onboarding/assets/grain.png"),
-        image::ImageFormat::Png,
+        include_bytes!("../../../../../../packages/core-ui/onboarding/assets/grain.webp"),
+        image::ImageFormat::WebP,
     )
     .ok()?
     .into_rgba8();

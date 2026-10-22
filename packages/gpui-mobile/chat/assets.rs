@@ -13,7 +13,7 @@ use std::borrow::Cow;
 #[path = "assets/chat_message_actions.rs"]
 mod chat_message_actions;
 #[path = "assets/chat_references.rs"]
-mod chat_references;
+pub(crate) mod chat_references;
 #[path = "assets/chat_working.rs"]
 pub(crate) mod chat_working;
 
@@ -27,6 +27,14 @@ struct GhostexEmbeddedAssets;
 #[folder = "../../../packages/core-ui/assets"]
 #[include = "*.svg"]
 struct GhostexAgentIconAssets;
+
+/// The desktop `assets.rs`'s DM Sans faces, which the shared `native_chat/fonts.rs` registers.
+pub(crate) static DM_SANS_UPRIGHT_FACES: [&[u8]; 4] = [
+    include_bytes!("../../../.dependencies/app-fonts/dm-sans/static/400.ttf"),
+    include_bytes!("../../../.dependencies/app-fonts/dm-sans/static/500.ttf"),
+    include_bytes!("../../../.dependencies/app-fonts/dm-sans/static/600.ttf"),
+    include_bytes!("../../../.dependencies/app-fonts/dm-sans/static/700.ttf"),
+];
 
 pub(crate) struct GhostexAssets;
 

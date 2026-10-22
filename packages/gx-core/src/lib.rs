@@ -182,11 +182,11 @@ pub use crate::sidebar_drag::{
     ORDER_WRITE_MESSAGE_TYPES, PROJECT_MOVE_COMMAND_TYPES, PROJECT_ORDER_MESSAGE_TYPE,
 };
 pub use crate::sidebar_menu::{
-    agent_launcher_items, agent_launcher_items_with_accounts, agent_logo_icons, colored_agent_logo,
-    hover_strip, machine_workspace_menu, menu_to_json, project_header_actions, workspace_menu,
-    workspace_switch_target, HeaderCommand, HoverAction, HoverStrip, LauncherAgent, MenuCommand,
-    MenuGroup, MenuHost, MenuItem, MenuOpenTarget, MenuSecondary, MenuSplit, SessionActions,
-    SidebarMenus,
+    agent_launcher_items, agent_launcher_items_with_accounts, agent_logo_icons, agent_logo_svg,
+    colored_agent_logo, hover_strip, machine_workspace_menu, menu_to_json, project_header_actions,
+    workspace_menu, workspace_switch_target, HeaderCommand, HoverAction, HoverStrip, LauncherAgent,
+    MenuCommand, MenuGroup, MenuHost, MenuItem, MenuOpenTarget, MenuSecondary, MenuSplit,
+    SessionActions, SidebarMenus,
 };
 pub use crate::sidebar_ui::{
     collapse_into_storage, collapse_state_from_storage, hidden_items_from_storage,

@@ -35,8 +35,19 @@ fn titlebar_entry(account: &Value, machine: &str) -> Value {
     account
 }
 
+/// The account logo the titlebar entry and the Account Usage popup draw, embedded once for both:
+/// Codex's own artwork, and for Claude the agent logo (the same bytes the sidebar draws).
+///
 /// CDXC:AgentProviders 2026-09-09 WHY:
 /// The Codex artwork matches the shared chat SVG; the old 100px SVG had internal padding that made its titlebar icon visibly smaller than Claude.
+pub(crate) fn account_logo_svg(codex: bool) -> &'static str {
+    if codex {
+        include_str!("../../../assets/account-usage/codex.svg")
+    } else {
+        ghostex_gx_core::agent_logo_svg("claude").expect("the Claude agent logo")
+    }
+}
+
 fn icon(codex: bool) -> Arc<gpui::Image> {
     static CODEX: OnceLock<Arc<gpui::Image>> = OnceLock::new();
     static CLAUDE: OnceLock<Arc<gpui::Image>> = OnceLock::new();
@@ -46,12 +57,12 @@ fn icon(codex: bool) -> Arc<gpui::Image> {
     let (slot, svg) = if codex {
         (
             if light { &CODEX_LIGHT } else { &CODEX },
-            include_str!("../../../assets/account-usage/codex.svg"),
+            account_logo_svg(true),
         )
     } else {
         (
             if light { &CLAUDE_LIGHT } else { &CLAUDE },
-            include_str!("../../../assets/account-usage/claude.svg"),
+            account_logo_svg(false),
         )
     };
     slot.get_or_init(|| {

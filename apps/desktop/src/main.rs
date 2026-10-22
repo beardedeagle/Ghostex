@@ -522,7 +522,7 @@ fn gpui_platform_window_icon() -> Option<Arc<image::RgbaImage>> {
             GPUI_LINUX_WINDOW_ICON
                 .get_or_init(|| {
                     let source = image::load_from_memory_with_format(
-                        include_bytes!("../resources/AppIcon.appiconset/icon_256x256.png"),
+                        assets::APP_ICON_PNG,
                         image::ImageFormat::Png,
                     )
                     .expect("the embedded Ghostex Linux window icon must be a valid PNG")

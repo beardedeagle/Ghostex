@@ -44,7 +44,7 @@ pub(crate) fn dm_sans() -> &'static str {
 pub(crate) fn register(cx: &App) {
     static REGISTERED: std::sync::Once = std::sync::Once::new();
     REGISTERED.call_once(|| {
-        let fonts = vec![
+        let mut fonts = vec![
             include_bytes!(
                 "../../../../../../packages/core-ui/onboarding/assets/fonts/Manrope-700.ttf"
             )
@@ -60,19 +60,12 @@ pub(crate) fn register(cx: &App) {
             )
             .as_slice()
             .into(),
-            include_bytes!("../../../../../../.dependencies/app-fonts/dm-sans/static/400.ttf")
-                .as_slice()
-                .into(),
-            include_bytes!("../../../../../../.dependencies/app-fonts/dm-sans/static/500.ttf")
-                .as_slice()
-                .into(),
-            include_bytes!("../../../../../../.dependencies/app-fonts/dm-sans/static/600.ttf")
-                .as_slice()
-                .into(),
-            include_bytes!("../../../../../../.dependencies/app-fonts/dm-sans/static/700.ttf")
-                .as_slice()
-                .into(),
         ];
+        fonts.extend(
+            crate::assets::DM_SANS_UPRIGHT_FACES
+                .iter()
+                .map(|face| std::borrow::Cow::Borrowed(*face)),
+        );
         if let Err(error) = cx.text_system().add_fonts(fonts) {
             eprintln!("[ghostex-gpui] Could not register the onboarding fonts: {error}");
         }

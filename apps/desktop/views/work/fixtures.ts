@@ -1,7 +1,7 @@
 /**
  * Sample answers for the page's dev mode (`work.html?fixtures=1`), shaped exactly like gxserver's
  * and the desktop bridge's, so the page can be drawn and screenshotted without the app. Loaded
- * only in that mode.
+ * only in that mode, which only a page built with `GHOSTEX_WORK_FIXTURES=1` has (`mount` in work.tsx).
  */
 import type {
   CloudDraft,

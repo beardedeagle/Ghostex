@@ -10,8 +10,10 @@
 
 use crate::keys::encode_uri_component;
 
-/// `(icon key, brand colour, raw SVG)` in `COLORED_AGENT_LOGOS` order.
-const LOGOS: &[(&str, &str, &str)] = &[
+/// `(icon key, brand colour, raw SVG)` in `COLORED_AGENT_LOGOS` order. A `static`, so the artwork
+/// is in the binary once: the desktop's `agent-icons/<key>.svg` assets read it through
+/// [`agent_logo_svg`] instead of embedding the same files again.
+static LOGOS: &[(&str, &str, &str)] = &[
     (
         "amp-cli",
         "#ffffff",
@@ -147,6 +149,15 @@ const LOGOS: &[(&str, &str, &str)] = &[
 /// Every icon key that has artwork, in catalog order. For the parity harness.
 pub fn agent_logo_icons() -> Vec<&'static str> {
     LOGOS.iter().map(|(icon, _, _)| *icon).collect()
+}
+
+/// The raw artwork of an icon key (`packages/core-ui/assets/<key>.svg`), or `None` for an icon
+/// key with no artwork.
+pub fn agent_logo_svg(icon: &str) -> Option<&'static str> {
+    LOGOS
+        .iter()
+        .find(|(key, _, _)| *key == icon)
+        .map(|(_, _, svg)| *svg)
 }
 
 /// `COLORED_AGENT_LOGOS[icon]`: the brand-coloured artwork as a data URL, or `None` for an icon

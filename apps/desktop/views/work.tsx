@@ -415,8 +415,13 @@ function WorkApp() {
   );
 }
 
+/**
+ * CDXC:WorkMode 2026-10-22 WHY:
+ * The CEF build inlines the page into one esbuild bundle without code splitting, so a plain lazy `import()` of the fixtures still shipped the sample data (with internal Slack, Linear and GitHub links) in every install.
+ * The CEF build defines both variables below, so this branch and the fixtures drop out of every normal build; `GHOSTEX_WORK_FIXTURES=1 bunx vite build --config apps/desktop/vite.config.ts --outDir <folder>` builds a page that keeps `?fixtures=1` for screenshots.
+ */
 async function mount(): Promise<void> {
-  if (isFixtureMode()) {
+  if ((process.env.NODE_ENV !== 'production' || process.env.GHOSTEX_WORK_FIXTURES === '1') && isFixtureMode()) {
     const { answerFromFixtures } = await import('./work/fixtures');
     installFixtureAnswers(answerFromFixtures);
   }

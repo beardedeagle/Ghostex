@@ -5,8 +5,8 @@
 //   swift tooling/glass-live/render-posters.swift            (writes the posters)
 //   swift tooling/glass-live/render-posters.swift --measure  (checks the styles, writes nothing)
 //
-// It writes packages/core-ui/assets/glass-live/<style>-<appearance>.jpg. Re-run it whenever a
-// style changes. The poster colours are a sample (the Blue theme); the window paints each style in
+// It writes apps/desktop/assets/modals/settings/glass-live/<style>-<appearance>.webp through
+// `cwebp` (`brew install webp`). Re-run it whenever a style changes. The poster colours are a sample (the Blue theme); the window paints each style in
 // the current theme's colours.
 //
 // --measure prints, for every style, how bright it draws above its base colour (averaged over the
@@ -55,7 +55,7 @@ let palettes: [(String, [SIMD4<Float>])] = [
 
 let root = FileManager.default.currentDirectoryPath
 let sourcePath = root + "/.dependencies/zed/crates/gpui_macos/src/live_backdrop.metal"
-let outputFolder = root + "/packages/core-ui/assets/glass-live"
+let outputFolder = root + "/apps/desktop/assets/modals/settings/glass-live"
 guard let source = try? String(contentsOfFile: sourcePath, encoding: .utf8) else {
     fatalError("cannot read \(sourcePath); run from the repo root")
 }
@@ -150,9 +150,24 @@ for style in styles {
             bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipLast.rawValue),
             provider: provider, decode: nil, shouldInterpolate: true, intent: .defaultIntent)!
         let bitmap = NSBitmapImageRep(cgImage: image)
-        let data = bitmap.representation(using: .jpeg, properties: [.compressionFactor: 0.82])!
-        let path = "\(outputFolder)/\(style)-\(appearance).jpg"
-        try data.write(to: URL(fileURLWithPath: path))
-        print("wrote \(path) (\(data.count / 1024) KB)")
+        let png = bitmap.representation(using: .png, properties: [:])!
+        let pngPath = NSTemporaryDirectory() + "glass-live-\(style)-\(appearance).png"
+        try png.write(to: URL(fileURLWithPath: pngPath))
+        // WebP at quality 85 looks the same as the old JPEG at about a quarter of its size: the
+        // posters are smooth gradients, which WebP keeps without the blocks JPEG needs bytes for.
+        let path = "\(outputFolder)/\(style)-\(appearance).webp"
+        let cwebp = Process()
+        cwebp.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        cwebp.arguments = [
+            "cwebp", "-quiet", "-q", "85", "-m", "6", "-sharp_yuv", "-metadata", "none", pngPath, "-o", path,
+        ]
+        try cwebp.run()
+        cwebp.waitUntilExit()
+        try? FileManager.default.removeItem(atPath: pngPath)
+        guard cwebp.terminationStatus == 0 else {
+            fatalError("cwebp could not write \(path); install it with `brew install webp`")
+        }
+        let size = (try FileManager.default.attributesOfItem(atPath: path)[.size] as? Int) ?? 0
+        print("wrote \(path) (\(size / 1024) KB)")
     }
 }

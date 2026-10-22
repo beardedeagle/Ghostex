@@ -200,9 +200,9 @@ pub(crate) fn asset(key: &str) -> Option<Cow<'static, [u8]>> {
         }
         // A frame of the intro video (10.2s), drawn under the intro page's player and in place of it
         // where there is no web view or no network (window/onboarding/intro_video.rs).
-        "intro-video.jpg" => {
+        "intro-video.webp" => {
             return Some(Cow::Borrowed(include_bytes!(
-                "../../assets/onboarding/intro-video.jpg"
+                "../../assets/onboarding/intro-video.webp"
             )));
         }
 

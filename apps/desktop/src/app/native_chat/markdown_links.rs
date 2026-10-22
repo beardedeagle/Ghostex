@@ -32,10 +32,8 @@ struct WebVisual {
 }
 
 pub(super) static VISUAL: LazyLock<ReferenceVisual> = LazyLock::new(|| {
-    serde_json::from_str(include_str!(
-        "../../../../../packages/gx-chat-core/visual/reference-visual.json"
-    ))
-    .expect("shared reference appearance")
+    serde_json::from_str(crate::assets::chat_references::REFERENCE_VISUAL_JSON)
+        .expect("shared reference appearance")
 });
 
 /// Blend a shared hex color the way the chat stylesheet does: raw in light mode, lightened toward

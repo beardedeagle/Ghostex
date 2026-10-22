@@ -2,7 +2,7 @@
 //! operating system's own web view, with Continue into setup.
 //!
 //! CDXC:Onboarding 2026-10-01 DECISION:
-//! User: "I don't want to force CEF install, so let's use the built-in web view on each OS just for this YouTube embed." The intro video (the Ghostex v10 launch video, unlisted on YouTube) is the first screen of the first run, before the setup panels, once per install (`introVideoSeen` in gpui-first-run-onboarding-state.json). It plays in the system web view (intro_web_view.rs), never CEF, and that web view exists only on this page. Linux links no system web view (WebKitGTK would be a new library every Linux install must have), and there the user chose to keep a link: "a still from the video" filling the frame "with a YouTube play button inside it and the text 'Watch the intro on YouTube'", opening the video in the browser from anywhere on it. The still is bundled (assets/onboarding/intro-video.jpg), never fetched from YouTube.
+//! User: "I don't want to force CEF install, so let's use the built-in web view on each OS just for this YouTube embed." The intro video (the Ghostex v10 launch video, unlisted on YouTube) is the first screen of the first run, before the setup panels, once per install (`introVideoSeen` in gpui-first-run-onboarding-state.json). It plays in the system web view (intro_web_view.rs), never CEF, and that web view exists only on this page. Linux links no system web view (WebKitGTK would be a new library every Linux install must have), and there the user chose to keep a link: "a still from the video" filling the frame "with a YouTube play button inside it and the text 'Watch the intro on YouTube'", opening the video in the browser from anywhere on it. The still is bundled (assets/onboarding/intro-video.webp), never fetched from YouTube.
 //! CDXC:Onboarding 2026-10-01 WHY:
 //! Nothing here waits on the network: YouTube is asked first, a frame that cannot reach it says so over the same still, and Continue always works.
 //! SEE-ALSO: apps/desktop/native/macos/GpuiIntroVideoWebView.m, apps/desktop/src/app/os_integration/first_run_onboarding.rs (the once-per-install gate), apps/desktop/src/app/onboarding_modal_lifecycle.rs (`IntroVideoSeen`).
@@ -291,7 +291,7 @@ impl GpuiOnboardingWindow {
         };
         // Every state draws over the same still from the video, so the frame never shows an empty box.
         let still = || {
-            img("onboarding/intro-video.jpg")
+            img("onboarding/intro-video.webp")
                 .absolute()
                 .left_0()
                 .top_0()

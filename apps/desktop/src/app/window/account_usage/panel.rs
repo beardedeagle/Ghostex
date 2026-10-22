@@ -46,9 +46,10 @@ impl AccountUsagePanel {
     ) -> Self {
         let codex = text(&account, "provider") == "codex";
         let logo = if codex {
-            include_str!("../../../../assets/account-usage/codex.svg").replace("#ffffff", "#8cbbe8")
+            crate::app::titlebar::account_usage::account_logo_svg(true)
+                .replace("#ffffff", "#8cbbe8")
         } else {
-            include_str!("../../../../assets/account-usage/claude.svg").to_string()
+            crate::app::titlebar::account_usage::account_logo_svg(false).to_string()
         };
         cx.spawn(async move |this, cx| {
             loop {

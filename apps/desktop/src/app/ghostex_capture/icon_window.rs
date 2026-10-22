@@ -32,7 +32,7 @@ fn app_icon_image() -> Option<Arc<RenderImage>> {
     IMAGE
         .get_or_init(|| {
             let decoded = image::load_from_memory_with_format(
-                include_bytes!("../../../resources/AppIcon.appiconset/icon_128x128@2x.png"),
+                crate::assets::APP_ICON_PNG,
                 image::ImageFormat::Png,
             )
             .ok()?
