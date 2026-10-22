@@ -93,7 +93,7 @@ impl NativeChatView {
     /// User: instead of "Waiting for agent…" above a prompt or a "Queued" label, show an icon left of the bubble at its bottom (an earlier placement under the bubble in the time and Copy row drifted away from short prompts and was rejected as ugly). A spinner means "Waiting for agent"; a play button means "Queued, click to interrupt and send", and a click sends one Escape so the agent takes the queued message right away.
     ///
     /// CDXC:SessionChat 2026-10-22 DECISION:
-    /// User: "add button to cancel sending and bring it back to chat". A queued message the agent can give back (`queueTakeBackIds`, Claude Code only: packages/gx-chat-core/src/composer/queue_take_back.rs) gets Back to composer left of its play button, the same take-back as the hover row's button and the composer's Up key; it spins while gxserver pulls the message out of the agent's queue.
+    /// User: "add button to cancel sending and bring it back to chat". A queued message the agent can give back (`queueTakeBackIds`, Claude Code and Grok Build: packages/gx-chat-core/src/composer/queue_take_back.rs) gets Back to composer left of its play button, the same take-back as the hover row's button and the composer's Up key; it spins while gxserver pulls the message out of the agent's queue.
     ///
     /// Answers the indicator and how many 24px slots it is wide, so the caller hangs it off the
     /// bubble's left edge at the right distance.

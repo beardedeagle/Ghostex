@@ -1,7 +1,7 @@
 use super::*;
 
 /// The diagnostic source of every write a take-back makes.
-const TAKE_BACK_SOURCE: &str = "session-chat-queue-take-back";
+pub(super) const TAKE_BACK_SOURCE: &str = "session-chat-queue-take-back";
 /// Claude Code's own key for its queue: Up in an empty input box brings every queued message back
 /// into the box ("Press up to edit queued messages").
 const CLAUDE_QUEUE_PULL_KEY: &str = "\u{1b}[A";
@@ -233,7 +233,7 @@ async fn pull_claude_queue_in_send_queue(
 
 /// A queued message's text without its picture references and with whitespace folded, so the
 /// chat bubble's copy text and Claude's queue row compare equal.
-fn take_back_key(text: &str) -> String {
+pub(super) fn take_back_key(text: &str) -> String {
     let (text, _) = split_image_references(text);
     let (text, _) = strip_bare_image_markers(&text);
     text.split_whitespace().collect::<Vec<_>>().join(" ")
@@ -372,11 +372,31 @@ fn split_image_references(text: &str) -> (String, Vec<String>) {
     (kept.trim().to_string(), paths)
 }
 
+/// A take-back the agent's screen refused or a write failed: the RPC error the core shows.
+fn take_back_failure(
+    endpoint_path: String,
+    request_id: String,
+    error: SessionChatSendError,
+) -> RoutedResponse {
+    domain_error_response(
+        endpoint_path,
+        request_id,
+        DomainStateError {
+            code: if error.composer_not_ready() {
+                "composerNotReady"
+            } else {
+                "sessionInputFailed"
+            },
+            message: error.message,
+        },
+    )
+}
+
 /// `/api/takeBackSessionChatQueuedMessage`: takes a message the agent CLI queued behind its running
 /// turn back out of that queue and answers with its text, for the chat composer.
 ///
 /// CDXC:SessionChat 2026-10-11 WHY:
-/// Back to composer (the user's decision is in packages/gx-chat-core/src/composer/queue_take_back.rs) must leave the agent with nothing queued for the message and an empty input box before the text is handed back. Claude gives back its whole queue at once, so the other messages are typed into its queue again, oldest first, and any that cannot be are handed back too: nothing is sent twice or lost. When the agent already took the message, `takenBack` is false and nothing is handed back for it.
+/// Back to composer (the user's decision is in packages/gx-chat-core/src/composer/queue_take_back.rs) must leave the agent with nothing queued for the message and an empty input box before the text is handed back. Claude gives back its whole queue at once, so the other messages are typed into its queue again, oldest first, and any that cannot be are handed back too: nothing is sent twice or lost. When the agent already took the message, `takenBack` is false and nothing is handed back for it. Grok Build deletes just the one message from its queue (grok_queue_pull.rs), and the chat's own text for it is handed back.
 pub(crate) async fn handle_take_back_session_chat_queued_message_http(
     state: &AppState,
     endpoint_path: String,
@@ -408,14 +428,30 @@ pub(crate) async fn handle_take_back_session_chat_queued_message_http(
             DomainStateError::bad_request("takeBackSessionChatQueuedMessage requires text."),
         );
     }
-    if session_chat_agent_for_session(&target.session).as_deref() != Some("claude") {
-        return domain_error_response(
-            endpoint_path,
-            request_id,
-            DomainStateError::bad_request(
-                "Only Claude Code's own queue can give a message back to the chat.",
-            ),
-        );
+    match session_chat_agent_for_session(&target.session).as_deref() {
+        Some("claude") => {}
+        Some("grok") => {
+            return match take_back_grok_queued_message(&target, text.clone()).await {
+                Ok(taken) => routed_json(
+                    Some(endpoint_path),
+                    StatusCode::OK,
+                    rpc_success(
+                        request_id,
+                        json!({ "takenBack": taken, "text": if taken { text.trim() } else { "" } }),
+                    ),
+                ),
+                Err(error) => take_back_failure(endpoint_path, request_id, error),
+            };
+        }
+        _ => {
+            return domain_error_response(
+                endpoint_path,
+                request_id,
+                DomainStateError::bad_request(
+                    "Only Claude Code's and Grok Build's own queues can give a message back to the chat.",
+                ),
+            );
+        }
     }
     let transcript = crate::session_chat::resolve_session_chat_transcript_agent(Some("claude"))
         .and_then(|agent| {
@@ -438,20 +474,7 @@ pub(crate) async fn handle_take_back_session_chat_queued_message_http(
     };
     let popped = match pull_claude_queue_in_send_queue(&target, transcript).await {
         Ok(popped) => popped,
-        Err(error) => {
-            return domain_error_response(
-                endpoint_path,
-                request_id,
-                DomainStateError {
-                    code: if error.composer_not_ready() {
-                        "composerNotReady"
-                    } else {
-                        "sessionInputFailed"
-                    },
-                    message: error.message,
-                },
-            )
-        }
+        Err(error) => return take_back_failure(endpoint_path, request_id, error),
     };
     let mut popped: Vec<String> = popped
         .iter()

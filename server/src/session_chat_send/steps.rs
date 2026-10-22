@@ -100,6 +100,11 @@ pub enum SessionChatSendStep {
     PullClaudeQueue {
         transcript: PathBuf,
     },
+    /// Delete the queued message `text` from Grok Build's queue panel, answering it in the job's
+    /// draft sink when it was there (grok_queue_pull.rs).
+    PullGrokQueue {
+        text: String,
+    },
     /// Stop the job when Empryo's input box holds text other than `replacement`.
     GuardEmpryoDraft {
         replacement: String,

@@ -15,6 +15,8 @@ use crate::action::UserAction;
 use crate::composer::references::next_image_reference_index;
 use crate::composer::transcript_menu::append_draft_text;
 use crate::effect::Effect;
+use crate::session::constants::PENDING_ID_PREFIX;
+use crate::session::sends;
 use crate::state::ChatState;
 use crate::wire::{ChatRpcMethod, RpcOutcome};
 
@@ -41,9 +43,10 @@ pub struct QueueTakeBack {
     pub text: String,
 }
 
-/// Agents whose own queue gxserver can take a message back out of.
+/// Agents whose own queue gxserver can take a message back out of (Claude Code with Up and its
+/// transcript, Grok Build with its queue panel's `x`).
 fn agent_supports_take_back(agent: Option<&str>) -> bool {
-    agent == Some("claude")
+    matches!(agent, Some("claude" | "grok"))
 }
 
 /// A user message the agent holds in its own queue: Claude's enqueue row, or chat's echo of a send
@@ -160,6 +163,10 @@ pub fn advance(state: &mut ChatState, request_id: u64, outcome: &RpcOutcome) -> 
                     "The agent already took this message, so it stays sent.",
                     None,
                 );
+            } else if let Some(pending_id) = take_back.message_id.strip_prefix(PENDING_ID_PREFIX) {
+                // Grok never writes a queued message to its transcript, so nothing else would
+                // replace the chat's own echo of it once it is out of the queue.
+                sends::drop_send(state, pending_id);
             }
             if text.trim().is_empty() {
                 return Vec::new();

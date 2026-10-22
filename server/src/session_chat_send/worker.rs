@@ -887,6 +887,31 @@ pub(super) async fn run_session_chat_send_worker(
                         }
                     }
                 }
+                SessionChatSendStep::PullGrokQueue { text } => {
+                    match pull_grok_queue(
+                        &project_id,
+                        &session_id,
+                        &zmx_name,
+                        &source,
+                        &text,
+                        &|| job_generation != generation.load(Ordering::SeqCst),
+                    )
+                    .await
+                    {
+                        Ok(taken) => {
+                            if let Some(sink) = captured_draft.take() {
+                                let _ = sink.send(CapturedTerminalDraft {
+                                    queued_messages: if taken { vec![text] } else { Vec::new() },
+                                    ..CapturedTerminalDraft::default()
+                                });
+                            }
+                        }
+                        Err(error) => {
+                            outcome = Err(error);
+                            break;
+                        }
+                    }
+                }
                 SessionChatSendStep::GuardEmpryoDraft { replacement } => {
                     let input =
                         capture_session_terminal_text_vt(&zmx_name)
