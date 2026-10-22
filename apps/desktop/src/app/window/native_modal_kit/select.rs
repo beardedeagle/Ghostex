@@ -372,6 +372,50 @@ pub(crate) struct ModalSearchableSelectRow {
     pub(crate) disabled: bool,
 }
 
+/// The filter field at the top of a searchable dropdown (the React `InputGroup` of
+/// `searchable-dropdown.css`): 32px, 6px radius, the `--input` border over a `bg-input/30` fill
+/// composited on `surface`, and while `focused` the `--ring` border with its 3px 20% halo. The
+/// caller adds the text (an `Input`, or text it paints itself) and the trailing search icon or
+/// clear button. Every searchable dropdown's filter is drawn by this one helper.
+pub(crate) fn modal_filter_field(light: bool, surface: gpui::Rgba, focused: bool) -> gpui::Div {
+    // `--input` and `bg-input/30` (theme.css, modals-light.css). The fill is
+    // composited over the popup surface because gpui paints the focus-ring
+    // shadow behind the element, where a translucent fill would let it through.
+    let (input_border, input_background) = if light {
+        (
+            modal_rgba(0x000000, 0.16),
+            css_mix(rgb(0x000000), 0.16 * 0.3, surface),
+        )
+    } else {
+        (
+            modal_rgba(0xffffff, 0.15),
+            css_mix(rgb(0xffffff), 0.15 * 0.3, surface),
+        )
+    };
+    // `--ring`: oklch(55.6% 0 0) dark, #737373 light.
+    let ring = rgb(0x737373);
+    h_flex()
+        .w_full()
+        .h(px(32.0))
+        .pl(px(10.0))
+        .pr(px(12.0))
+        .gap(px(8.0))
+        .items_center()
+        .rounded(px(6.0))
+        .border_1()
+        .border_color(hsla(if focused { ring } else { input_border }))
+        .bg(hsla(input_background))
+        .when(focused, |this| {
+            this.shadow(vec![gpui::BoxShadow {
+                color: hsla(rgba_of(ring, 0.2)),
+                offset: point(px(0.0), px(0.0)),
+                blur_radius: px(0.0),
+                spread_radius: px(3.0),
+                inset: false,
+            }])
+        })
+}
+
 /// The searchable shadcn Select popup (`packages/components/ui/select.tsx` (deleted 2026-10-01)
 /// with `searchable-dropdown.css`): trigger-wide, 8px radius, `0 12px 28px`
 /// shadow, a filter `InputGroup` (32px, 6px radius, `--input` border, ring
@@ -413,22 +457,6 @@ pub(crate) fn modal_searchable_select_menu<V: 'static>(
     } else {
         modal_rgba(0xffffff, 0.12)
     };
-    // `--input` and `bg-input/30` (theme.css, modals-light.css). The fill is
-    // composited over the popup surface because gpui paints the focus-ring
-    // shadow behind the element, where a translucent fill would let it through.
-    let (input_border, input_background) = if p.light {
-        (
-            modal_rgba(0x000000, 0.16),
-            css_mix(rgb(0x000000), 0.16 * 0.3, p.solid_surface),
-        )
-    } else {
-        (
-            modal_rgba(0xffffff, 0.15),
-            css_mix(rgb(0xffffff), 0.15 * 0.3, p.solid_surface),
-        )
-    };
-    // `--ring`: oklch(55.6% 0 0) dark, #737373 light.
-    let ring = rgb(0x737373);
     let filter_focused = filter.read(cx).focus_handle(cx).is_focused(window);
     let query = filter.read(cx).value().to_string();
     let row_highlight = rgba_of(p.foreground, 0.08);
@@ -465,26 +493,7 @@ pub(crate) fn modal_searchable_select_menu<V: 'static>(
                     .child(row.label.clone()),
             )
     });
-    let filter_group = h_flex()
-        .w_full()
-        .h(px(32.0))
-        .pl(px(10.0))
-        .pr(px(12.0))
-        .gap(px(8.0))
-        .items_center()
-        .rounded(px(6.0))
-        .border_1()
-        .border_color(hsla(if filter_focused { ring } else { input_border }))
-        .bg(hsla(input_background))
-        .when(filter_focused, |this| {
-            this.shadow(vec![gpui::BoxShadow {
-                color: hsla(rgba_of(ring, 0.2)),
-                offset: point(px(0.0), px(0.0)),
-                blur_radius: px(0.0),
-                spread_radius: px(3.0),
-                inset: false,
-            }])
-        })
+    let filter_group = modal_filter_field(p.light, p.solid_surface, filter_focused)
         .child(
             div().flex_1().min_w_0().child(
                 Input::new(filter)

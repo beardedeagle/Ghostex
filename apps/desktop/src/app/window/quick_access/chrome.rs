@@ -8,7 +8,7 @@ use super::palette::{
     QUICK_ACCESS_RADIUS_MENU_ITEM, QUICK_ACCESS_SEARCH_BAR_HEIGHT, QUICK_ACCESS_SEARCH_FONT_SIZE,
     QuickAccessPalette, hsla, parse_css_color,
 };
-use crate::app::window::native_modal_kit::MODAL_UI_FONT;
+use crate::app::window::native_modal_kit::{MODAL_UI_FONT, modal_filter_field, rgba_of};
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
     AnyElement, App, Bounds, ClickEvent, Context, InteractiveElement as _, IntoElement,
@@ -579,8 +579,12 @@ pub(crate) fn quick_access_select_trigger<V: 'static>(
         .into_any_element()
 }
 
-/// The portaled picker: the Codex popup surface with 28px rows, restated here
-/// the way `.previous-sessions-tag-filter-menu` restates it outside the modal.
+/// The portaled picker: the app's searchable dropdown look (`modal_searchable_select_menu`), a
+/// filter field under an 8px-padded header above a 4px-padded list of 32px rows, on Quick
+/// Access's own menu fills.
+///
+/// CDXC:AppModal 2026-10-22 DECISION:
+/// User, of the project picker's bare "Filter projects..." line: "should look like other dropdowns we have which look better in the app". The filter is the shared `modal_filter_field` (search icon, input box, focus ring) and the rows take the shared select's 32px height, for every Quick Access picker.
 ///
 /// CDXC:Theming 2026-09-26 DECISION:
 /// User, of the accent-blue text on the chosen option: "we shouldn't show this color for selected item's text, just keep it default color for the text". A chosen option keeps the row's text colour and carries the check the app's other menus use, which is also what shows the tags a multi-choice tag filter has on.
@@ -633,8 +637,9 @@ pub(crate) fn quick_access_select_menu<V: 'static>(
                     h_flex()
                         .id(("quick-access-select-row", index))
                         .w_full()
-                        .min_h(px(28.0))
-                        .px(px(8.0))
+                        .min_h(px(32.0))
+                        .px(px(10.0))
+                        .py(px(6.0))
                         .gap(px(8.0))
                         .items_center()
                         .rounded(px(QUICK_ACCESS_RADIUS_MENU_ITEM))
@@ -702,39 +707,74 @@ pub(crate) fn quick_access_select_menu<V: 'static>(
         })
         .collect::<Vec<_>>();
     let stand_in = matches!(paint, QuickAccessMenuPaint::StandIn(_));
+    let surface = if matches!(paint, QuickAccessMenuPaint::Hosted) {
+        p.hosted_menu_background
+    } else {
+        p.menu_background
+    };
+    // Keystrokes reach the query while the menu is open (`menu_key` in window.rs), so the field is
+    // always the focused one: it draws the focus ring and a caret after the typed text.
+    let filter = select.searchable.then(|| {
+        div()
+            .w_full()
+            .flex_shrink_0()
+            .p(px(8.0))
+            .border_b_1()
+            .border_color(hsla(p.menu_border))
+            .child(
+                modal_filter_field(p.light, surface, true)
+                    .text_size(px(QUICK_ACCESS_ITEM_FONT_SIZE))
+                    .line_height(px(20.0))
+                    .child(
+                        h_flex()
+                            .flex_1()
+                            .min_w_0()
+                            .overflow_hidden()
+                            .whitespace_nowrap()
+                            .items_center()
+                            .children((!menu.query.is_empty()).then(|| {
+                                div()
+                                    .text_color(hsla(p.foreground))
+                                    .child(menu.query.clone())
+                            }))
+                            .child(
+                                div()
+                                    .flex_shrink_0()
+                                    .w(px(1.0))
+                                    .h(px(16.0))
+                                    .bg(hsla(p.foreground)),
+                            )
+                            .children(menu.query.is_empty().then(|| {
+                                div()
+                                    .min_w_0()
+                                    .overflow_hidden()
+                                    .text_ellipsis()
+                                    .text_color(hsla(p.muted))
+                                    .child(select.search_placeholder.clone())
+                            })),
+                    )
+                    .child(
+                        svg()
+                            .path(ICON_SEARCH)
+                            .size(px(16.0))
+                            .flex_shrink_0()
+                            .text_color(hsla(rgba_of(p.muted, 0.5))),
+                    ),
+            )
+    });
     let panel = v_flex()
         .id(id)
-        .p(px(4.0))
-        .gap(px(1.0))
+        .overflow_hidden()
         .rounded(px(QUICK_ACCESS_RADIUS_CONTROL))
         .border_1()
         .border_color(hsla(p.menu_border))
-        .children(select.searchable.then(|| {
-            h_flex()
-                .w_full()
-                .h(px(28.0))
-                .px(px(8.0))
-                .mb(px(4.0))
-                .items_center()
-                .border_b_1()
-                .border_color(hsla(p.menu_border))
-                .text_size(px(QUICK_ACCESS_ITEM_FONT_SIZE))
-                .text_color(hsla(if menu.query.is_empty() {
-                    p.muted
-                } else {
-                    p.foreground
-                }))
-                .child(if menu.query.is_empty() {
-                    select.search_placeholder.clone()
-                } else {
-                    menu.query.clone()
-                })
-        }))
+        .children(filter)
         .child(
             v_flex()
                 .id((id, 0usize))
                 .w_full()
                 .min_h_0()
+                .p(px(4.0))
                 .overflow_y_scroll()
                 // The stand-in lays out the same rows, but the scroll position is the hosted menu's.
                 .when(!stand_in, |this| this.track_scroll(&menu.scroll))
