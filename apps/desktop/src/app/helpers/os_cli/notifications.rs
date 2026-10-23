@@ -400,9 +400,82 @@ pub(crate) fn gpui_deliver_linux_notification(
     }
 }
 
+/// What the menu bar status item last showed, and whose state it showed (see
+/// `apply_gpui_menu_bar_status_item`).
+#[cfg(target_os = "macos")]
+struct GpuiMenuBarStatusItemShown {
+    /// The address of the lead window's status state that was applied, standing for that window.
+    owner: usize,
+    badge: Option<GpuiMenuBarStatusItemState>,
+    projects: Vec<GpuiStatusIndicatorProjectState>,
+}
+
+#[cfg(target_os = "macos")]
+thread_local! {
+    static GPUI_MENU_BAR_STATUS_ITEM_SHOWN: std::cell::RefCell<Option<GpuiMenuBarStatusItemShown>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+/// Whether two project lists draw the same Running Agents rows: the ids, titles, statuses, order
+/// and last-active times the dropdown receives, not the project icons or question marks it never
+/// shows.
+#[cfg(target_os = "macos")]
+fn gpui_menu_bar_status_rows_match(
+    shown: &[GpuiStatusIndicatorProjectState],
+    next: &[GpuiStatusIndicatorProjectState],
+) -> bool {
+    shown.len() == next.len()
+        && shown.iter().zip(next).all(|(shown, next)| {
+            shown.project_id == next.project_id
+                && shown.title == next.title
+                && shown.sessions.len() == next.sessions.len()
+                && shown
+                    .sessions
+                    .iter()
+                    .zip(&next.sessions)
+                    .all(|(shown, next)| {
+                        shown.session_id == next.session_id
+                            && shown.title == next.title
+                            && shown.last_active_at == next.last_active_at
+                            && shown.status == next.status
+                            && shown.order == next.order
+                    })
+        })
+}
+
+/// CDXC:StatusPet 2026-10-23 WHY:
+/// Every change of the sidebar's status indicators used to rebuild the status item's badge image
+/// and its Running Agents rows, although most changes (a section count, a project icon, a question
+/// mark) are things the item never shows. It is applied again only when its badge or its rows
+/// would differ, or when another window became the lead: the closing lead hides the item
+/// (`hide_gpui_menu_bar_status_item` in core.rs), and its successor's state lives elsewhere.
 #[cfg(target_os = "macos")]
 pub(crate) fn apply_gpui_menu_bar_status_item(state: &GpuiSidebarSessionStatusIndicatorsState) {
-    if let Some(visible_state) = gpui_menu_bar_status_item_visible_state(state) {
+    let owner = state as *const GpuiSidebarSessionStatusIndicatorsState as usize;
+    let badge = gpui_menu_bar_status_item_visible_state(state);
+    let unchanged = GPUI_MENU_BAR_STATUS_ITEM_SHOWN.with_borrow(|shown| {
+        shown.as_ref().is_some_and(|shown| {
+            shown.owner == owner
+                && shown.badge == badge
+                && (badge.is_none()
+                    || gpui_menu_bar_status_rows_match(&shown.projects, &state.projects))
+        })
+    });
+    if unchanged {
+        return;
+    }
+    GPUI_MENU_BAR_STATUS_ITEM_SHOWN.with_borrow_mut(|shown| {
+        *shown = Some(GpuiMenuBarStatusItemShown {
+            owner,
+            badge,
+            projects: if badge.is_some() {
+                state.projects.clone()
+            } else {
+                Vec::new()
+            },
+        });
+    });
+    if let Some(visible_state) = badge {
         let (_project_owners, project_entries) = gpui_menu_bar_status_native_projects(state);
         unsafe {
             GhostexGpuiApplyMenuBarStatusItemWithProjects(

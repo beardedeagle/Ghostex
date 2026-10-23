@@ -127,7 +127,8 @@ impl GhostexGpuiApp {
                 })
                 .into_any_element()
         };
-        let actions = (*group.header_actions).clone();
+        // Borrowed, not copied: the buttons are drawn only while the header is hovered.
+        let actions = &group.header_actions;
         // Where this header (or its pinned copy) was painted: its menus hang below it (menus.rs).
         let header_bounds = Rc::new(Cell::new(None::<gpui::Bounds<gpui::Pixels>>));
         // CDXC:Projects 2026-09-18 DECISION:
@@ -216,7 +217,7 @@ impl GhostexGpuiApp {
                                 gpui_component::Root::hide_tooltip(window, cx);
                             }
                         })
-                        .children(actions.into_iter().enumerate().map(|(index, item)| {
+                        .children(actions.iter().enumerate().map(|(index, item)| {
                             let label = item["label"].as_str().unwrap_or("").to_owned();
                             let command = item.get("command").cloned();
                             let children = item.get("children").cloned();

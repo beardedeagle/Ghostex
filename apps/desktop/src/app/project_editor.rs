@@ -7,6 +7,9 @@
 // RefCell backs cross-platform runtime state (window frame persistence), not
 // just the macOS-only shims that first introduced the import.
 
+use std::cell::RefCell;
+use std::rc::Rc;
+
 use crate::app::consts::*;
 use crate::app::helpers::*;
 use crate::app::model::*;
@@ -157,6 +160,7 @@ impl GhostexGpuiApp {
         cx: &mut gpui::Context<Self>,
     ) {
         cx.spawn(async move |this, cx| {
+            let mut titlebar_actions_hud = None;
             loop {
                 cx.background_executor()
                     .timer(PROJECT_EDITOR_AUTO_SLEEP_POLICY_POLL_INTERVAL)
@@ -165,7 +169,7 @@ impl GhostexGpuiApp {
                 if this
                     .update(cx, |this, cx| {
                         this.reschedule_project_editor_auto_sleep_if_policy_changed(cx);
-                        this.refresh_titlebar_actions_in_background(cx);
+                        this.refresh_titlebar_actions_if_hud_moved(&mut titlebar_actions_hud, cx);
                         let runtime_settings_changed =
                             this.refresh_sidebar_runtime_settings_if_changed(cx);
                         let gxserver_bootstrap_changed =
@@ -193,8 +197,28 @@ impl GhostexGpuiApp {
         // Ctrl+G, so this shell only learns about open editor windows by
         // asking the daemon socket. Only `openCount > 0` is stored; session
         // titles, paths, and draft content never enter the shell.
+        //
+        // CDXC:PromptEditor 2026-10-23 WHY: the answer only decides whether the work area header
+        // shows the Prompt Editor button, which nobody sees in a minimized or covered window, so
+        // that window does not ask; the first poll after it is shown again brings the button up
+        // to date.
         cx.spawn(async move |this, cx| {
             loop {
+                let Ok(main_window) = this.read_with(cx, |this, _| this.main_window_handle) else {
+                    break;
+                };
+                let hidden = main_window
+                    .and_then(|main| {
+                        cx.update_window(main, |_, window, _| !window.is_visible())
+                            .ok()
+                    })
+                    .unwrap_or(false);
+                if hidden {
+                    cx.background_executor()
+                        .timer(GHOSTEX_EDITOR_DAEMON_POLL_INTERVAL)
+                        .await;
+                    continue;
+                }
                 let open = cx
                     .background_executor()
                     .spawn(async move { gpui_ghostex_editor_daemon_open_count() > 0 })
@@ -225,8 +249,35 @@ impl GhostexGpuiApp {
         CDXC:CommandPane 2026-06-24-23:36:
         Command-pane Action status polling is bounded to GPUI-owned session-state files while live action runs exist. It updates only safe tab activity metadata and never reads command output, terminal content, paths from renderer payloads, logs, shell-state JSON, or persisted command text.
         */
+        /*
+        CDXC:CommandPane 2026-10-23 WHY:
+        The poll used to wake the app twice a second for as long as it ran, even with no Action running. It now parks on the first poll that finds none and resumes when the app changes with a run in progress: starting an Action opens its tab, which notifies the app.
+        */
+        // Only the observer owns the slot a parked poll waits on, so the slot, and the wait, end
+        // with the app.
+        let waker: Rc<RefCell<Option<futures::channel::oneshot::Sender<()>>>> = Rc::default();
+        let parked_slot = Rc::downgrade(&waker);
+        cx.observe_self(move |this, _cx| {
+            if this.command_pane.has_active_action_runs()
+                && let Some(sender) = waker.borrow_mut().take()
+            {
+                let _ = sender.send(());
+            }
+        })
+        .detach();
         cx.spawn(async move |this, cx| {
+            let mut parked = false;
             loop {
+                if parked {
+                    let Some(slot) = parked_slot.upgrade() else {
+                        break;
+                    };
+                    let (sender, receiver) = futures::channel::oneshot::channel();
+                    *slot.borrow_mut() = Some(sender);
+                    drop(slot);
+                    let _ = receiver.await;
+                    parked = false;
+                }
                 cx.background_executor()
                     .timer(COMMAND_ACTION_STATUS_POLL_INTERVAL)
                     .await;
@@ -234,6 +285,7 @@ impl GhostexGpuiApp {
                 if this
                     .update(cx, |this, cx| {
                         if !this.command_pane.has_active_action_runs() {
+                            parked = true;
                             return;
                         }
                         let refresh = this

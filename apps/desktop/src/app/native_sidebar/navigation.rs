@@ -24,6 +24,7 @@ impl GhostexGpuiApp {
         &self,
         appearance: &SidebarAppearance,
         footer: bool,
+        usage_meter_count: usize,
         cx: &mut gpui::Context<Self>,
     ) -> AnyElement {
         let scale = appearance.scale;
@@ -39,7 +40,9 @@ impl GhostexGpuiApp {
         } else {
             &snapshot.search_shortcut
         };
-        let more_menu = snapshot.more_menu.clone();
+        // The menu is read when the button is pressed; sharing the snapshot keeps this row from
+        // copying the menu's JSON on every frame.
+        let more_menu_snapshot = snapshot.clone();
         /*
         CDXC:Sidebar 2026-09-20 DECISION:
         User: with the titlebar row deleted, the sidebar's Search row is what sits in the window's
@@ -279,7 +282,7 @@ impl GhostexGpuiApp {
                                     size: gpui::size(gpui::px(1.0), gpui::px(1.0)),
                                 });
                                 Self::toggle_native_sidebar_more_menu(
-                                    &more_menu,
+                                    &more_menu_snapshot.more_menu,
                                     trigger,
                                     event.position,
                                     scale,
@@ -299,7 +302,11 @@ impl GhostexGpuiApp {
             deliberate duplicate.
             */
             .when(footer, |row| {
-                row.children(self.render_native_sidebar_usage_toggle(appearance, cx))
+                row.children(self.render_native_sidebar_usage_toggle(
+                    appearance,
+                    usage_meter_count,
+                    cx,
+                ))
             })
             .when(footer, |row| {
                 row.child(

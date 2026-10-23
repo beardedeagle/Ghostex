@@ -17,8 +17,6 @@ use std::time::Duration;
 // RefCell backs cross-platform runtime state (window frame persistence), not
 // just the macOS-only shims that first introduced the import.
 
-use gpui::Animation;
-use gpui::AnimationExt as _;
 use gpui::AnyElement;
 use gpui::FontWeight;
 use gpui::InteractiveElement as _;
@@ -37,6 +35,7 @@ use gpui_component::tooltip::ManagedTooltipExt as _;
 use gpui_component::tooltip::ManagedTooltipPlacement;
 
 use crate::app::consts::*;
+use crate::app::helpers::ThrottledAnimationExt as _;
 use crate::app::helpers::*;
 use crate::app::model::*;
 use crate::*;
@@ -107,10 +106,13 @@ impl GhostexGpuiApp {
                     .ml(px(1.0))
                     .mt(px(1.5));
                     if progress.is_none() {
-                        this.child(ring.with_animation(
+                        // The ring reads the clock itself (`paint_titlebar_update_progress_ring`);
+                        // this only redraws it, at the shared indicator rate rather than on every
+                        // display frame.
+                        this.child(ring.with_throttled_animation(
                             "ghostex-gpui-titlebar-update-progress-pending",
-                            Animation::new(Duration::from_millis(1_250)).repeat(),
-                            |ring, _delta| ring,
+                            Duration::from_millis(1_250),
+                            |ring, _progress| ring,
                         ))
                     } else {
                         this.child(ring)

@@ -243,6 +243,41 @@ impl GhostexGpuiApp {
         self.titlebar_actions_snapshot.clone()
     }
 
+    /// The settings poll's read of the titlebar's Actions: only when the sidebar HUD moved since
+    /// `seen`, the HUD the last such read went with.
+    ///
+    /// CDXC:AgentLauncher 2026-10-23 WHY:
+    /// The poll used to ask gxserver for `/api/readSidebarHud` every two seconds, forever, to keep
+    /// the Actions current. gxserver announces every Actions change (a project's row for its own
+    /// Actions, `globalSidebarCommandsChanged` for the Global ones) and the store re-reads and
+    /// recomposes the sidebar HUD from it, so a HUD that did not move means Actions that did not
+    /// either. A project switch, a Settings save and a remote reconnect still read them at once.
+    /// The poll keeps the 30-second extensions check those reads used to carry.
+    pub(crate) fn refresh_titlebar_actions_if_hud_moved(
+        &mut self,
+        seen: &mut Option<std::sync::Weak<serde_json::Value>>,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        let hud = self
+            .native_sidebar
+            .snapshot
+            .as_ref()
+            .map(|snapshot| &snapshot.hud);
+        let moved = match (hud, seen.as_ref()) {
+            (Some(hud), Some(seen)) => !std::ptr::eq(std::sync::Arc::as_ptr(hud), seen.as_ptr()),
+            (Some(_), None) => true,
+            (None, _) => false,
+        };
+        if !moved {
+            self.refresh_extensions_if_stale(cx);
+            return;
+        }
+        // A weak handle keeps the old allocation from being reused for a new HUD at the same
+        // address, without keeping the old document alive.
+        *seen = hud.map(std::sync::Arc::downgrade);
+        self.refresh_titlebar_actions_in_background(cx);
+    }
+
     pub(crate) fn refresh_titlebar_actions_in_background(&mut self, cx: &mut gpui::Context<Self>) {
         if self.titlebar_actions_refresh_in_flight {
             return;

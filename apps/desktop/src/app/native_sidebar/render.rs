@@ -50,6 +50,15 @@ impl GhostexGpuiApp {
         let (space_offset, space_opacity) = self.native_sidebar.space_gesture.presentation();
         let appearance = SidebarAppearance::from_hud(&snapshot.hud, window);
         let sticky_clip_top = self.native_sticky_project_clip_top(&content, &appearance);
+        // Built once per frame for the Commands row's button and whichever strip can draw: the
+        // pinned one and the peek are exclusive (`sidebar_usage_visible`).
+        let usage_meters = self.account_usage_meters();
+        let usage_meter_count = usage_meters.len();
+        let (pinned_usage_meters, peek_usage_meters) = if self.sidebar_usage_visible {
+            (usage_meters, Vec::new())
+        } else {
+            (Vec::new(), usage_meters)
+        };
         v_flex()
             .on_children_prepainted(move |bounds, window, cx| {
                 if bounds.len() >= 4 {
@@ -132,7 +141,7 @@ impl GhostexGpuiApp {
             .text_size(px(15.55 * appearance.scale))
             .font_family(crate::ui_fonts::UI_FONT)
             .font_weight(FontWeight::LIGHT)
-            .child(self.render_native_sidebar_navigation(&appearance, false, cx))
+            .child(self.render_native_sidebar_navigation(&appearance, false, usage_meter_count, cx))
             .child(self.render_native_sidebar_selectors(&snapshot, &appearance, cx))
             /*
             The list and its bottom fade ramp are one child on purpose: the
@@ -310,8 +319,18 @@ impl GhostexGpuiApp {
                 v_flex()
                     .w_full()
                     .flex_shrink_0()
-                    .children(self.render_native_sidebar_usage(&appearance, window, cx))
-                    .child(self.render_native_sidebar_navigation(&appearance, true, cx)),
+                    .children(self.render_native_sidebar_usage(
+                        &appearance,
+                        pinned_usage_meters,
+                        window,
+                        cx,
+                    ))
+                    .child(self.render_native_sidebar_navigation(
+                        &appearance,
+                        true,
+                        usage_meter_count,
+                        cx,
+                    )),
             )
             .child(
                 gpui::canvas(
@@ -357,7 +376,12 @@ impl GhostexGpuiApp {
                 .inset_0(),
             )
             .children(self.render_native_sticky_project(&content, &appearance, cx))
-            .children(self.render_native_sidebar_usage_peek(&appearance, window, cx))
+            .children(self.render_native_sidebar_usage_peek(
+                &appearance,
+                peek_usage_meters,
+                window,
+                cx,
+            ))
             .children(self.render_native_sidebar_menu(window, cx))
             .into_any_element()
     }

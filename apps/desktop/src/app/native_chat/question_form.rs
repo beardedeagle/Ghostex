@@ -75,7 +75,10 @@ impl NativeChatView {
     /// renderer has no window to make one), keeps their placeholders in step with the picks, and
     /// drops the inputs of forms that were answered or left the transcript.
     pub(super) fn sync_form_inputs(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let forms = self.snapshot["questionForms"].clone();
+        // Holding the document's `Arc` frees `self` for the inputs without copying the forms on
+        // every frame the chat draws.
+        let snapshot = self.snapshot.clone();
+        let forms = &snapshot["questionForms"];
         let mut wanted = HashSet::new();
         for (id, form) in forms.as_object().into_iter().flatten() {
             if form["state"] != "open" {

@@ -280,24 +280,31 @@ impl<E: IntoElement + 'static> Element for ThrottledAnimation<E> {
                     .expect("a throttled animation lays out once per frame");
                 let mut element = (self.animator)(element, progress).into_any_element();
                 let layout_id = element.request_layout(window, cx);
-                if !reduce_motion {
-                    request_indicator_frame(self.frame_interval, window, cx);
-                }
                 ((layout_id, element), state)
             },
         )
     }
 
+    /// CDXC:SessionChat 2026-10-23 WHY:
+    /// The next frame is asked for here rather than at layout, and only while the indicator is
+    /// inside the clip it is painted in. One scrolled out of a list (a busy machine's spinner in a
+    /// long sidebar, a loading row overdrawn past the transcript's edge) used to keep its window
+    /// drawing thirty times a second for nothing anyone could see. Scrolling it back in redraws
+    /// the view, whose prepaint asks again. A window that is minimized or covered draws no frames,
+    /// so its indicators stop after the frame already asked for.
     fn prepaint(
         &mut self,
         _id: Option<&GlobalElementId>,
         _inspector_id: Option<&InspectorElementId>,
-        _bounds: Bounds<Pixels>,
+        bounds: Bounds<Pixels>,
         element: &mut Self::RequestLayoutState,
         window: &mut Window,
         cx: &mut App,
     ) -> Self::PrepaintState {
         element.prepaint(window, cx);
+        if !cx.reduce_motion() && bounds.intersects(&window.content_mask().bounds) {
+            request_indicator_frame(self.frame_interval, window, cx);
+        }
     }
 
     fn paint(

@@ -60,6 +60,11 @@ pub(crate) struct GitHost {
     /// probe is in flight.
     pub(super) poll_generation: u64,
     pub(super) poll_started: bool,
+    /// The window is not being presented (minimized, covered, on another Space), so the poll
+    /// waits; `visibility_watch` restarts it when the window shows again.
+    pub(super) window_hidden: bool,
+    #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
+    pub(super) visibility_watch: Option<gpui::Subscription>,
     pub(super) diff_stats: HashMap<String, ProjectDiffStats>,
     pub(super) pending_diff_probes: HashSet<String>,
     /// Open review dialogs by request id.
@@ -80,6 +85,8 @@ impl Default for GitHost {
             pending_git_hub_probes: HashSet::new(),
             poll_generation: 0,
             poll_started: false,
+            window_hidden: false,
+            visibility_watch: None,
             diff_stats: HashMap::new(),
             pending_diff_probes: HashSet::new(),
             reviews: HashMap::new(),
