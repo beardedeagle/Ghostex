@@ -315,6 +315,7 @@ impl NativeChatView {
         error: Option<String>,
         cx: &mut Context<Self>,
     ) -> Self {
+        Self::release_chat_images_with_view(cx);
         let list = gpui::ListState::new(0, gpui::ListAlignment::Top, gpui::px(400.0));
         list.set_follow_mode(gpui::FollowMode::Tail);
         let subagent_list = gpui::ListState::new(0, gpui::ListAlignment::Top, gpui::px(400.0));

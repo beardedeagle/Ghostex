@@ -1,5 +1,5 @@
 use super::file_actions::FileMenuExt as _;
-use super::{appearance::ChatAppearance, images::ChatImageSource, state::NativeChatView};
+use super::{appearance::ChatAppearance, images::ChatImageTile, state::NativeChatView};
 use crate::app::helpers::ThrottledAnimationExt as _;
 use crate::app::native_chat::cursor::ChatCursor as _;
 use gpui::prelude::FluentBuilder as _;
@@ -123,7 +123,10 @@ impl NativeChatView {
             let removed = range.clone();
             let answer_key = answer_key.clone();
             let outlined = active.as_deref() == Some(path.as_str());
-            let source = self.chat_image(&images[index], cx);
+            // The transcript's own cover-cropped copy (the tile is the transcript thumbnail's
+            // size): painting the picture itself here made GPUI decode it at full size and keep
+            // that copy for as long as the app ran.
+            let source = self.chat_image_tile(&images[index], p, cx);
             let open = images.clone();
             row = row.child(
                 div()
@@ -148,9 +151,10 @@ impl NativeChatView {
                             })
                             .when_some(
                                 match source {
-                                    ChatImageSource::Bytes(bytes) => Some(img(bytes)),
-                                    ChatImageSource::Uri(url) => Some(img(url)),
-                                    _ => None,
+                                    ChatImageTile::Thumbnail(shrunk) => Some(img(shrunk)),
+                                    ChatImageTile::Whole(bytes) => Some(img(bytes)),
+                                    ChatImageTile::Uri(url) => Some(img(url)),
+                                    ChatImageTile::Loading | ChatImageTile::Unavailable(_) => None,
                                 },
                                 |tile, image| {
                                     tile.child(image.size_full().object_fit(gpui::ObjectFit::Cover))

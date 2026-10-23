@@ -21,7 +21,7 @@ use serde_json::Value;
 
 /// The picture on screen, and the rest of its message's pictures for next/previous.
 pub(in crate::app::native_chat) struct ImageViewerRequest {
-    pub(super) images: Vec<Value>,
+    pub(in crate::app::native_chat) images: Vec<Value>,
     pub(super) index: usize,
     /// 0 is the fitted size; every step after it enlarges, and the last step returns to fitted.
     pub(super) zoom: usize,
@@ -104,27 +104,52 @@ impl NativeChatView {
             return;
         }
         // A viewer open over another window is closed first; the new one opens over its own.
+        let mut replaced = None;
         if self.image_viewer.host != host {
-            self.image_viewer.request = None;
+            replaced = self.image_viewer.request.take();
             self.sync_image_viewer_window(cx);
             self.image_viewer.host = host;
         }
         let index = index.min(images.len() - 1);
-        self.image_viewer.request = Some(ImageViewerRequest {
+        let previous = self.image_viewer.request.replace(ImageViewerRequest {
             images,
             index,
             zoom: 0,
             completed: None,
         });
         self.sync_image_viewer_window(cx);
+        if let Some(replaced) = replaced.or(previous) {
+            self.release_replaced_viewer_pictures(replaced, cx);
+        }
         cx.notify();
     }
 
     pub(in crate::app::native_chat) fn close_image_viewer(&mut self, cx: &mut Context<Self>) {
-        if self.image_viewer.request.take().is_some() {
+        if let Some(closed) = self.image_viewer.request.take() {
             self.sync_image_viewer_window(cx);
+            self.release_viewed_pictures(&closed.images, cx);
             cx.notify();
         }
+    }
+
+    /// The pictures of a preview another one replaced, except those the new one shows too.
+    fn release_replaced_viewer_pictures(
+        &mut self,
+        replaced: ImageViewerRequest,
+        cx: &mut Context<Self>,
+    ) {
+        let shown = self
+            .image_viewer
+            .request
+            .as_ref()
+            .map(|request| request.images.as_slice())
+            .unwrap_or_default();
+        let gone: Vec<Value> = replaced
+            .images
+            .into_iter()
+            .filter(|image| !shown.contains(image))
+            .collect();
+        self.release_viewed_pictures(&gone, cx);
     }
 
     /// Next or previous picture across the message this one came from.

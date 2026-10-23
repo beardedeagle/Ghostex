@@ -28,6 +28,94 @@ const MAX_RETAINED_BYTES: usize = 4 * 1024 * 1024;
 /// How often an idle chat's size is re-measured. Measuring it is a walk of the whole transcript.
 const SIZE_RECHECK: std::time::Duration = std::time::Duration::from_secs(5);
 
+/// Counts the UTF-16 code units of the JSON written to it without keeping any of it, and stops the
+/// walk once `limit` is passed.
+///
+/// CDXC:SessionChat 2026-10-23 WHY: the size check used to build the document's whole JSON string
+/// and then its UTF-16 copy (megabytes on a long chat) every five seconds per idle chat, only to
+/// count them.
+struct Utf16Count {
+    units: usize,
+    limit: usize,
+}
+
+impl std::io::Write for Utf16Count {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        for &byte in bytes {
+            // Every UTF-8 lead byte starts one UTF-16 unit; a four-byte sequence is a surrogate
+            // pair. serde_json only writes valid UTF-8.
+            if byte & 0xC0 != 0x80 {
+                self.units += 1;
+            }
+            if byte >= 0xF0 {
+                self.units += 1;
+            }
+        }
+        if self.units > self.limit {
+            return Err(std::io::ErrorKind::FileTooLarge.into());
+        }
+        Ok(bytes.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+/// Whether what a retained chat holds passes `MAX_RETAINED_BYTES`, in the UTF-16 bytes the
+/// TypeScript store measured its snapshot in.
+///
+/// CDXC:SessionChat 2026-10-23 WHY: only the document used to be measured, which carries no
+/// transcript rows, so the cap never tripped. The transcript is held several times over: the
+/// authoritative list, the composed list, the retained fold, each message's projection and the
+/// built rows. All of them are counted.
+fn retained_past_limit(core: &ChatCore) -> bool {
+    let state = core.state();
+    let mut count = Utf16Count {
+        units: 0,
+        limit: MAX_RETAINED_BYTES / 2,
+    };
+    let walked = (|| -> serde_json::Result<()> {
+        serde_json::to_writer(&mut count, core.document())?;
+        serde_json::to_writer(&mut count, &state.messages.list)?;
+        serde_json::to_writer(&mut count, &state.messages.composed)?;
+        serde_json::to_writer(&mut count, &state.messages.snapshot)?;
+        serde_json::to_writer(&mut count, &*state.transcript_view.items)?;
+        serde_json::to_writer(&mut count, &state.transcript_view.deferred)?;
+        for projected in state.transcript_view.projected.values() {
+            serde_json::to_writer(&mut count, &projected.source)?;
+            serde_json::to_writer(&mut count, &projected.model)?;
+        }
+        Ok(())
+    })();
+    // A value that does not serialize at all says nothing about its size, as before.
+    walked.is_err() && count.units > count.limit
+}
+
+/// What decides whether a retained chat could have changed size since it was last measured.
+#[derive(Clone, Copy, PartialEq)]
+struct SizeFingerprint {
+    revision: u64,
+    /// The built rows' allocation, which a rebuild replaces.
+    items: usize,
+    messages: usize,
+    composed: usize,
+    projected: usize,
+}
+
+impl SizeFingerprint {
+    fn of(core: &ChatCore) -> Self {
+        let state = core.state();
+        Self {
+            revision: core.revision(),
+            items: std::sync::Arc::as_ptr(&state.transcript_view.items) as usize,
+            messages: state.messages.list.len(),
+            composed: state.messages.composed.len(),
+            projected: state.transcript_view.projected.len(),
+        }
+    }
+}
+
 /// One retained chat.
 pub(super) struct Retained {
     /// Who this chat is, which the chat socket follows it by.
@@ -39,8 +127,8 @@ pub(super) struct Retained {
     pub(super) listeners: usize,
     /// When a view last called into it, which is what the LRU and the idle expiry read.
     pub(super) touched_at: Instant,
-    /// When this chat's size was last measured.
-    measured_at: Option<Instant>,
+    /// When this chat's size was last measured, what it measured, and whether it was too big.
+    measured: Option<(Instant, SizeFingerprint, bool)>,
 }
 
 impl Retained {
@@ -52,28 +140,28 @@ impl Retained {
             session_key,
             listeners: 0,
             touched_at: Instant::now(),
-            measured_at: None,
+            measured: None,
         }
     }
 
     /// Whether this chat has outgrown what the store keeps.
     ///
-    /// The size is measured at most every five seconds, because it is a walk of the whole document.
+    /// The size is measured at most every five seconds, because it is a walk of the whole
+    /// transcript, and not again while nothing it holds has changed.
     fn oversized(&mut self) -> bool {
         if self.core.state().messages.composed.len() > MAX_RETAINED_MESSAGES {
             return true;
         }
-        if self
-            .measured_at
-            .is_some_and(|at| at.elapsed() < SIZE_RECHECK)
+        let fingerprint = SizeFingerprint::of(&self.core);
+        if let Some((at, measured, oversized)) = self.measured
+            && (at.elapsed() < SIZE_RECHECK || measured == fingerprint)
         {
-            return false;
+            return oversized;
         }
-        self.measured_at = Some(Instant::now());
         // UTF-16 accounting, the same conservative measure the TypeScript took of its snapshot.
-        serde_json::to_string(self.core.document())
-            .map(|text| text.encode_utf16().count() * 2 > MAX_RETAINED_BYTES)
-            .unwrap_or(false)
+        let oversized = retained_past_limit(&self.core);
+        self.measured = Some((Instant::now(), fingerprint, oversized));
+        oversized
     }
 }
 

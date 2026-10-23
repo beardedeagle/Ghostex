@@ -63,6 +63,21 @@ pub(crate) struct ChatMermaidCache {
     showing_source: HashSet<String>,
 }
 
+impl ChatMermaidCache {
+    /// Every painted diagram, for a chat view that is going away and must take its atlas tiles
+    /// with it (`images.rs`, `release_chat_images_with_view`).
+    pub(super) fn take_rasters(&self) -> Vec<Arc<RenderImage>> {
+        self.entries
+            .borrow_mut()
+            .drain()
+            .filter_map(|(_, entry)| match entry {
+                Entry::Ready(diagram) => diagram.raster.map(|(_, raster)| raster),
+                Entry::Rendering | Entry::Source(_) => None,
+            })
+            .collect()
+    }
+}
+
 /// The diagram's Mermaid text: the fence's lines without its opening and closing runs.
 pub(super) fn fence_source(fence: &str) -> String {
     let lines = fence.lines().collect::<Vec<_>>();
