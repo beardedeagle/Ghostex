@@ -105,6 +105,25 @@ void GhostexGpuiCaptureSetWindowFrame(void *native_view, double x, double y,
            animate:NO];
 }
 
+/// Lays the area-selection overlay over a whole screen, menu bar, notch and Dock included, from a
+/// frame in GPUI's global space.
+///
+/// CDXC:GhostexCapture 2026-10-23 WHY:
+/// User: area selection "shows the whole screen shifted down". GPUI opens the overlay as a titled
+/// panel, which macOS keeps below the menu bar when it is shown, and `floatingPanel` drops it to the
+/// floating level, under the menu bar and the Dock. Once borderless it is placed again (macOS leaves
+/// a borderless window's frame alone) at the screen-saver level screenshot tools use, so the frozen
+/// picture lines up with the screen and a drag can start anywhere on it.
+void GhostexGpuiCaptureCoverScreen(void *native_view, double x, double y, double width,
+                                   double height) {
+  NSWindow *window = GhostexGpuiCaptureWindowOfView(native_view);
+  if (!window) {
+    return;
+  }
+  window.level = NSScreenSaverWindowLevel;
+  GhostexGpuiCaptureSetWindowFrame(native_view, x, y, width, height);
+}
+
 /// Lets a borderless Ghostex Capture window be resized from its edges, no smaller than
 /// `min_width` x `min_height` points. GPUI only adds the resizable style to windows with a title bar.
 void GhostexGpuiCaptureMakeResizable(void *native_view, double min_width,

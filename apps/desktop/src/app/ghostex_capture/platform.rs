@@ -43,6 +43,13 @@ unsafe extern "C" {
         width: f64,
         height: f64,
     );
+    fn GhostexGpuiCaptureCoverScreen(
+        native_view: *mut std::ffi::c_void,
+        x: f64,
+        y: f64,
+        width: f64,
+        height: f64,
+    );
     fn GhostexGpuiCaptureFocusWindow(native_view: *mut std::ffi::c_void);
     fn GhostexGpuiCaptureHideWindow(native_view: *mut std::ffi::c_void) -> bool;
     fn GhostexGpuiCaptureShowWindow(native_view: *mut std::ffi::c_void, focus: bool);
@@ -95,6 +102,23 @@ pub(crate) fn set_window_frame(native: NativeWindow, frame: Bounds<Pixels>, scal
     windows::set_frame(native, frame, scale);
     #[cfg(target_os = "linux")]
     x11::set_frame(native, frame, scale);
+}
+
+/// Lays a prepared window over the whole of `screen` (GPUI's global space), above the menu bar and
+/// the Dock: the area-selection overlay. Elsewhere the window already opened at that frame.
+pub(crate) fn cover_screen(native: NativeWindow, screen: Bounds<Pixels>) {
+    #[cfg(target_os = "macos")]
+    unsafe {
+        GhostexGpuiCaptureCoverScreen(
+            native as *mut std::ffi::c_void,
+            f32::from(screen.origin.x) as f64,
+            f32::from(screen.origin.y) as f64,
+            f32::from(screen.size.width) as f64,
+            f32::from(screen.size.height) as f64,
+        )
+    };
+    #[cfg(not(target_os = "macos"))]
+    let _ = (native, screen);
 }
 
 /// Lets a window be resized from its edges, no smaller than `min`. GPUI gives a window with no
