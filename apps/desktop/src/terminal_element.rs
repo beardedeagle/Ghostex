@@ -1537,6 +1537,8 @@ impl TerminalView {
         let keystroke = &event.keystroke;
         let modifiers = &keystroke.modifiers;
         self.last_modifiers = *modifiers;
+        // A Cmd-A release lost to a focus change must not swallow a later one.
+        self.select_all_release_pending = false;
         /*
         CDXC:SessionTitles 2026-07-26:
         While a first-prompt title is generating the pane is input-suppressed
@@ -2056,7 +2058,21 @@ impl TerminalView {
                     })
             })
             .flatten();
-        let (end_row, end_col) = last_text.unwrap_or((last_row, frame.cols));
+        // A blank visible screen at the bottom selects nothing, as in Ghostty,
+        // or ends at the scrollback row just above it when there is history.
+        let (end_row, end_col) = match last_text {
+            Some(end) => end,
+            None if at_bottom => match frame.scrollbar.offset.checked_sub(1) {
+                Some(row_above) => (row_above, frame.cols),
+                None => {
+                    self.drag = None;
+                    self.selection = None;
+                    cx.notify();
+                    return;
+                }
+            },
+            None => (last_row, frame.cols),
+        };
         self.drag = None;
         self.selection = Some(TerminalSelection {
             start_row: 0,
