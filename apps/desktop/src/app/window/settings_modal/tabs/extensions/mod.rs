@@ -1,8 +1,11 @@
 //! The Extensions page (packages/core-ui/settings-modal/tabs/extensions.tsx (deleted 2026-10-01)): Views (Arrange views),
 //! one filter bar over every extension, the Built-in cards grouped by category, the Extensions
 //! Store (installed and available cards, the detail page that replaces the whole page, the install
-//! consent), Your views (custom views with their editor and templates), and Related settings
-//! (links to the Accounts, Projects, Actions, Sidebar and Hotkeys sections).
+//! consent) and Your views (custom views with their editor and templates).
+//!
+//! CDXC:Extensions 2026-10-23 DECISION:
+//! The page ends with Your views and has no "Related settings" link section: the user said "remove
+//! this" about it. The account usage stars live only on Settings > Accounts.
 //!
 //! CDXC:Extensions 2026-09-28 WHY:
 //! The page calls gxserver through the Settings host (`GxserverRpc`, `HttpGet`) instead of the
@@ -14,7 +17,6 @@ pub(crate) mod data;
 mod delete_view;
 mod detail;
 mod filter_bar;
-mod related_settings;
 mod remembered_form;
 mod scope_editor;
 mod sections;
@@ -448,10 +450,7 @@ impl ExtensionsTab {
                 self.preview_applied = true;
                 self.request_delete_view(view.id(), view.name().to_string(), window, cx);
             }
-            "extensions-store"
-            | "extensions-views"
-            | "extensions-templates"
-            | "extensions-related" => {
+            "extensions-store" | "extensions-views" | "extensions-templates" => {
                 if self.browser.catalog.is_none() {
                     return;
                 }
@@ -459,7 +458,6 @@ impl ExtensionsTab {
                 self.choosing_template = state == "extensions-templates";
                 let section = match state.as_str() {
                     "extensions-store" => "store",
-                    "extensions-related" => "relatedSettings",
                     _ => "customViews",
                 };
                 let store = self.store.clone();
@@ -572,11 +570,6 @@ impl Render for ExtensionsTab {
         if counts.custom_visible {
             let section = self.render_custom_views_section(&p, window, cx);
             blocks.push(PageBlock::section("customViews", section));
-        }
-        // Navigation, not settings: no catalog rows, so a search hides it.
-        if !searching {
-            let section = self.render_related_settings_section(&p, cx);
-            blocks.push(PageBlock::section("relatedSettings", section));
         }
         if let Some(dialog) = self.render_arrange_dialog(&p, window, cx) {
             blocks.push(PageBlock::plain(dialog));
