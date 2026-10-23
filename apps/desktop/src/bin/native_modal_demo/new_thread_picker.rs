@@ -205,6 +205,7 @@ pub(super) fn open(demo: &super::DemoEnv, cx: &mut App) {
             _ => "local".to_string(),
         },
         close_when_inactive: false,
+        cloud_default_account: None,
     };
     let (window, view) = super::open_modal_window(
         NEW_THREAD_PICKER_WIDTH,

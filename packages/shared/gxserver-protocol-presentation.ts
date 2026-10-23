@@ -282,6 +282,30 @@ export interface GxserverPresentationSessionWork {
   offerCleanup?: true;
 }
 
+/** A Claude cloud session (`PresentationClaudeCloud` in gx-protocol). */
+export interface GxserverPresentationClaudeCloud {
+  /** `draft` (no task yet), `starting`, `running`, `failed` or `moved` (brought to this computer). */
+  state: string;
+  /** `https://claude.ai/code/session_…`, once the session exists. */
+  url?: string;
+  /** The branch the session pushes to. */
+  branch?: string;
+  /** The latest status line, e.g. "Pull request #12 opened". */
+  statusText?: string;
+  prUrl?: string;
+  /** Why the start failed. */
+  error?: string;
+  /** `live` once the terminal shows the cloud session itself, `unavailable` while Claude does not allow attaching. */
+  attach?: string;
+  /** The saved Claude account the session runs on. */
+  accountId?: string;
+  accountName?: string;
+  /** The email the account's claude.ai page must be signed in as. */
+  accountEmail?: string;
+  /** "<account> hit its 5h limit · resumes 4:10 pm" while the account is out of usage. */
+  limitNotice?: string;
+}
+
 /** The agentbox sandbox a session's agent runs in (`PresentationAgentbox` in gx-protocol). */
 export interface GxserverPresentationAgentbox {
   /** `docker`, `hetzner`, `vercel`, `daytona`, `e2b`, `digitalocean`, or `docker:<host alias>`. */
@@ -326,6 +350,8 @@ export interface GxserverPresentationSession {
   accountSlot?: string;
   /** Present only when the agent runs inside an agentbox sandbox instead of on this machine. */
   agentbox?: GxserverPresentationAgentbox;
+  /** Present only for a Claude cloud session: the agent runs on claude.ai's computers. */
+  claudeCloud?: GxserverPresentationClaudeCloud;
   /** The session's OSC 7501 program status; absent when it has no records to show. */
   programStatus?: GxserverProgramStatus;
   actions: GxserverPresentationSessionActions;

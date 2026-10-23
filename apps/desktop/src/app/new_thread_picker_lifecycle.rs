@@ -188,7 +188,7 @@ fn new_thread_picker_boxes(
 
 /// The registered accounts of the `/api/agentAccounts` list the user has not turned off, masked
 /// and summarised for the picker's rows.
-fn new_thread_picker_accounts(state: &Value) -> Vec<NewThreadPickerAccount> {
+pub(crate) fn new_thread_picker_accounts(state: &Value) -> Vec<NewThreadPickerAccount> {
     state["accounts"]
         .as_array()
         .map(Vec::as_slice)
@@ -306,6 +306,19 @@ impl GhostexGpuiApp {
             default_run_location: shared_settings::shared_sidebar_settings_snapshot()
                 .agentbox_default_location(),
             close_when_inactive: true,
+            cloud_default_account: self
+                .gx_store
+                .core
+                .focus()
+                .active_project
+                .as_ref()
+                .filter(|project| project.machine.is_local())
+                .and_then(|project| {
+                    ghostex_gx_core::project_last_cloud_account(
+                        &self.gx_store.core,
+                        &project.project_id,
+                    )
+                }),
         }
     }
 

@@ -232,6 +232,9 @@ pub(crate) fn project_presentation_session(
     if let Some(agentbox) = crate::agentbox::presentation_agentbox_value(session) {
         output.insert("agentbox".to_string(), agentbox);
     }
+    if let Some(cloud) = crate::claude_cloud::presentation_cloud_value(session) {
+        output.insert("claudeCloud".to_string(), cloud);
+    }
     if activity == "attention" {
         output.insert(
             "attention".to_string(),

@@ -570,6 +570,45 @@ fn full_menu(
         );
     }
 
+    // A Claude cloud session's own section. Only this computer's rows: the session's link and the
+    // worktree it comes back to belong to the gxserver that started it.
+    // CDXC:ClaudeCloud 2026-10-23 DECISION: User: Bring to this computer goes "into a new worktree; the new local row takes over and the cloud row parks", and the row's menu also opens the session on claude.ai.
+    if let Some(cloud) = row
+        .claude_cloud
+        .as_ref()
+        .filter(|_| !group.is_remote && !group.is_stale)
+    {
+        if !menu.is_empty() {
+            menu.push(MenuItem::separator());
+        }
+        let has_page = cloud.url.is_some();
+        menu.push(
+            MenuItem::row(
+                "Open on claude.ai",
+                "external-link",
+                MenuCommand::claude_cloud_session(id, "open"),
+            )
+            .with_disabled(!has_page),
+        );
+        menu.push(
+            MenuItem::row(
+                "Bring to This Computer",
+                "device-laptop",
+                MenuCommand::claude_cloud_session(id, "bringBack"),
+            )
+            .with_disabled(!has_page || cloud.state == "moved"),
+        );
+        // Offered while the session's account is out of usage (CDXC:ClaudeCloud in
+        // server/src/claude_cloud/accounts.rs).
+        if cloud.limit_notice.is_some() && cloud.state == "running" {
+            menu.push(MenuItem::row(
+                "Start a Copy on Another Account…",
+                "copy",
+                MenuCommand::claude_cloud_session(id, "copy"),
+            ));
+        }
+    }
+
     let mut advanced: Vec<MenuItem> = vec![MenuItem::heading("Session")];
     if !enabled.contains(&HoverAction::Note) {
         if let Some(item) = &rows.note {
@@ -592,7 +631,8 @@ fn full_menu(
         }
     }
     // A box session has no transcript on this computer to fork, export or move to another account.
-    let in_box = row.agentbox.is_some();
+    // A Claude cloud session's conversation lives on claude.ai, so none of these apply to it either.
+    let in_box = row.agentbox.is_some() || row.claude_cloud.is_some();
     if caps.can_fork_session && !in_box {
         advanced.push(MenuItem::row(
             "Fork",

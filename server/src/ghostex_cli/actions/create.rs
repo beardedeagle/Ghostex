@@ -244,6 +244,27 @@ pub(super) fn create_gxserver_agent_session(payload: &Value, flags: &Flags) -> C
             json!({ "firstUserInputDraft": draft }),
         );
     }
+    // CDXC:ClaudeCloud 2026-10-23 SEE-ALSO: `--prompt` is a Claude cloud session's task (server/src/claude_cloud/create.rs keeps it in the session's record and its terminal starts the session with it); other agents get their first message through `send-session-chat-message`.
+    if let Some(prompt) = payload
+        .get("prompt")
+        .and_then(Value::as_str)
+        .filter(|value| !value.trim().is_empty())
+    {
+        let cloud = params.get("agentId").and_then(Value::as_str) == Some("claude-cloud")
+            || params.get("runLocation").and_then(Value::as_str) == Some("claude-cloud");
+        if !cloud {
+            return Err(CliError::Other(
+                "create-agent --prompt is for Claude cloud sessions (create-agent claude-cloud). Send other agents their first message with send-session-chat-message.".to_string(),
+            ));
+        }
+        let mut runtime = params
+            .get("runtimeSettings")
+            .and_then(Value::as_object)
+            .cloned()
+            .unwrap_or_default();
+        runtime.insert("firstUserMessage".to_string(), json!(prompt));
+        params.insert("runtimeSettings".to_string(), Value::Object(runtime));
+    }
     let title = flags
         .0
         .get("title")

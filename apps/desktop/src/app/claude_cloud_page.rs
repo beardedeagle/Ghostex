@@ -1,0 +1,537 @@
+//! Claude cloud sessions' claude.ai pages in the Browser: each saved Claude account's own Browser
+//! profile, the reader that turns what a page shows into the session's status, the notice Ghostex
+//! puts at the top of a page (sign in, wrong account, out of usage), and the per-account sign-in
+//! state Settings > Accounts shows (`claude-cloud-signins.json`, read there by
+//! window/settings_modal/tabs/accounts/editor.rs).
+//!
+//! CDXC:ClaudeCloud 2026-10-23 DECISION:
+//! User: claude.ai sign-ins live in "one Browser profile per Claude account, only for its cloud pages", kept on disk across restarts and built the same way as workspace profiles (`workspace-claude-<hash>`, so the workspace profile machinery opens it, cef/shell/workspace_browser.rs). Other tabs keep the workspace's profile.
+//!
+//! CDXC:ClaudeCloud 2026-10-23 DECISION:
+//! User: each account signs in "both" ways: the first time one of its rows needs it (the page shows "Sign in to claude.ai as <email> to see this session" over claude.ai's own login, in that account's profile), or ahead of time from Settings > Accounts; signing in never blocks starting a session. A profile belongs to an account "by email": the email claude.ai reports is matched to the account's email, and signing in as anyone else is a mismatch, answered with "a warning with one Sign in as <account> button"; nothing is signed out without that click.
+//!
+//! SEE-ALSO: cef/shell/claude_cloud_page.rs (the page reader and the notice script),
+//! server/src/claude_cloud/page_status.rs (what a reading changes), packages/gx-core/src/claude_cloud.rs.
+
+use crate::app::gx_store::gx_rpc_with_timeout;
+use crate::app::model::*;
+use crate::*;
+use serde_json::{Value, json};
+use std::collections::HashMap;
+use std::time::Duration;
+
+/// How often open claude.ai pages are asked.
+const SWEEP_INTERVAL: Duration = Duration::from_secs(4);
+const RPC_TIMEOUT: Duration = Duration::from_secs(20);
+const SIGNIN_FILE: &str = "claude-cloud-signins.json";
+
+/// What Ghostex last told gxserver and showed on one page.
+#[derive(Default)]
+struct PageMemory {
+    reported: Option<Value>,
+    notice: Option<Value>,
+}
+
+/// A Browser tab opened for one account's claude.ai sign-in.
+#[derive(Clone)]
+struct SignInTab {
+    profile: String,
+    account_id: String,
+    name: String,
+    email: Option<String>,
+}
+
+thread_local! {
+    static SIGN_IN_TABS: RefCell<HashMap<BrowserTabId, SignInTab>> = RefCell::new(HashMap::new());
+    /// The sign-in Settings just asked for, claimed by the login tab it opens.
+    static PENDING_SIGN_IN: RefCell<Option<SignInTab>> = const { RefCell::new(None) };
+    static PAGES: RefCell<HashMap<BrowserTabId, PageMemory>> = RefCell::new(HashMap::new());
+    static SIGNINS: RefCell<Option<HashMap<String, Value>>> = const { RefCell::new(None) };
+    static SWEEP_STARTED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// The Browser profile of a saved Claude account's claude.ai pages.
+pub(crate) fn claude_account_browser_profile(account_id: &str) -> String {
+    use sha2::{Digest, Sha256};
+    let digest = format!("{:x}", Sha256::digest(account_id.trim().as_bytes()));
+    format!("workspace-claude-{}", &digest[..24])
+}
+
+fn signin_file() -> std::path::PathBuf {
+    ghostex_paths::GhostexPaths::resolve()
+        .state_dir
+        .join(SIGNIN_FILE)
+}
+
+fn with_signins<T>(read: impl FnOnce(&mut HashMap<String, Value>) -> T) -> T {
+    SIGNINS.with(|signins| {
+        let mut signins = signins.borrow_mut();
+        let map = signins.get_or_insert_with(|| {
+            std::fs::read_to_string(signin_file())
+                .ok()
+                .and_then(|text| serde_json::from_str(&text).ok())
+                .unwrap_or_default()
+        });
+        read(map)
+    })
+}
+
+fn remember_signin(account_id: &str, email: Option<&str>) {
+    let changed = with_signins(|map| {
+        let entry = json!({ "email": email, "at": chrono::Utc::now().to_rfc3339() });
+        let same = map.get(account_id).and_then(|value| value.get("email")) == entry.get("email");
+        map.insert(account_id.to_string(), entry);
+        !same
+    });
+    if changed {
+        let text = with_signins(|map| serde_json::to_string(map).unwrap_or_default());
+        let path = signin_file();
+        if let Some(parent) = path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        let _ = std::fs::write(path, text);
+    }
+}
+
+/// The cloud session a page shows: its account and the email it must be signed in as.
+struct ExpectedAccount {
+    account_id: String,
+    name: String,
+    email: Option<String>,
+    limit_notice: Option<String>,
+}
+
+impl GhostexGpuiApp {
+    /// The CEF profile a Browser tab opens with when it is a claude.ai page of a cloud session (its
+    /// account's profile) or a sign-in tab Ghostex opened for an account; `None` for every other
+    /// tab, which keeps the workspace's profile.
+    pub(crate) fn claude_cloud_tab_profile(
+        &self,
+        tab_id: BrowserTabId,
+        url: &str,
+    ) -> Option<String> {
+        if let Some(tab) = SIGN_IN_TABS.with(|tabs| tabs.borrow().get(&tab_id).cloned()) {
+            return Some(tab.profile);
+        }
+        if url.starts_with("https://claude.ai/login")
+            && let Some(pending) = PENDING_SIGN_IN.with(|pending| pending.borrow_mut().take())
+        {
+            let profile = pending.profile.clone();
+            SIGN_IN_TABS.with(|tabs| tabs.borrow_mut().insert(tab_id, pending));
+            return Some(profile);
+        }
+        ghostex_gx_core::claude_cloud_page_account(&self.gx_store.core, url)
+            .flatten()
+            .map(|account_id| claude_account_browser_profile(&account_id))
+    }
+
+    /// A popup a Claude account's claude.ai page opens (its Google sign-in) gets the page's own
+    /// profile, so the sign-in lands in that account's cookies.
+    ///
+    /// CDXC:ClaudeCloud 2026-10-23 WHY: the user may sign in to claude.ai with Google. The Browser turns a page's popup into a tab of its own, which would open on the workspace's profile and keep the Google sign-in out of the account's profile; the popup inherits the profile of the tab it came from instead.
+    pub(crate) fn inherit_claude_cloud_tab_profile(
+        &mut self,
+        source_tab: BrowserTabId,
+        source_url: &str,
+        popup_tab: BrowserTabId,
+    ) {
+        let inherited = SIGN_IN_TABS
+            .with(|tabs| tabs.borrow().get(&source_tab).cloned())
+            .or_else(|| {
+                let expected = self.expected_claude_account(source_tab, source_url)?;
+                Some(SignInTab {
+                    profile: claude_account_browser_profile(&expected.account_id),
+                    account_id: expected.account_id,
+                    name: expected.name,
+                    email: expected.email,
+                })
+            });
+        if let Some(inherited) = inherited {
+            SIGN_IN_TABS.with(|tabs| tabs.borrow_mut().insert(popup_tab, inherited));
+        }
+    }
+
+    /// Settings > Accounts' "Sign in to claude.ai": claude.ai's login in the account's own
+    /// profile, in a new Browser tab of the active project.
+    pub(crate) fn open_claude_account_sign_in(
+        &mut self,
+        account_id: &str,
+        name: &str,
+        email: Option<&str>,
+        window: &mut Window,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        self.ensure_claude_cloud_page_sweep(cx);
+        PENDING_SIGN_IN.with(|pending| {
+            *pending.borrow_mut() = Some(SignInTab {
+                profile: claude_account_browser_profile(account_id),
+                account_id: account_id.to_string(),
+                name: name.to_string(),
+                email: email.map(str::to_lowercase),
+            })
+        });
+        self.open_browser_url_from_renderer_command(
+            GpuiSidebarOpenBrowserUrlMessage {
+                url: "https://claude.ai/login".to_string(),
+                reuse: GpuiBrowserRendererOpenReuse::None,
+                from_quick_header: false,
+                project_id: None,
+            },
+            window,
+            cx,
+        );
+        // A login tab that never asked for its profile (the Browser was off) leaves nothing behind.
+        PENDING_SIGN_IN.with(|pending| pending.borrow_mut().take());
+    }
+
+    /// Start a Copy on Another Account: asks which saved Claude account the copy runs on, then
+    /// starts it (server/src/claude_cloud/copy.rs) and selects its row.
+    pub(crate) fn start_claude_cloud_copy(
+        &mut self,
+        session: ghostex_gx_core::SessionKey,
+        window: &mut Window,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        let current = self
+            .gx_store
+            .core
+            .presentation()
+            .loaded(&ghostex_gx_core::MachineId::Local)
+            .and_then(|loaded| loaded.server_session(&session.project_id, &session.session_id))
+            .and_then(|row| row.claude_cloud.as_ref()?.account_id.clone());
+        let accounts: Vec<(String, String)> = self
+            .new_thread_picker_accounts
+            .as_ref()
+            .map(crate::app::new_thread_picker_lifecycle::new_thread_picker_accounts)
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|account| {
+                account.provider == "claude"
+                    && account.ready
+                    && Some(&account.id) != current.as_ref()
+            })
+            .take(4)
+            .map(|account| (account.id, account.name))
+            .collect();
+        if accounts.is_empty() {
+            self.dispatch_gpui_workspace_action_toast(
+                "warning",
+                "No other Claude account to start a copy on",
+                "Add another Claude account in Settings > Accounts first.",
+                cx,
+            );
+            return;
+        }
+        let mut buttons: Vec<&str> = vec!["Cancel"];
+        buttons.extend(accounts.iter().map(|(_, name)| name.as_str()));
+        let answer = window.prompt(
+            gpui::PromptLevel::Info,
+            "Start a copy on which account?",
+            Some("A new cloud session carries on from this session's branch, with a summary of its task. This session stays where it is."),
+            &buttons,
+            cx,
+        );
+        cx.spawn(async move |this, cx| {
+            let Ok(choice) = answer.await else {
+                return;
+            };
+            let Some((account_id, _)) = choice.checked_sub(1).and_then(|index| accounts.get(index))
+            else {
+                return;
+            };
+            let params = json!({
+                "action": "copy",
+                "projectId": session.project_id,
+                "sessionId": session.session_id,
+                "accountId": account_id,
+            });
+            let result = gx_rpc_with_timeout(None, "/api/claudeCloud", params, RPC_TIMEOUT).await;
+            let _ = this.update(cx, |this, cx| match result {
+                Ok(value) => {
+                    if let (Some(project_id), Some(session_id)) =
+                        (value["projectId"].as_str(), value["sessionId"].as_str())
+                    {
+                        let row_id = ghostex_gx_core::SessionKey::local(project_id, session_id)
+                            .to_sidebar_session_id();
+                        this.dispatch_native_sidebar_ui(
+                            json!({"type": "selectSession", "sessionId": row_id, "mode": "focus"}),
+                            cx,
+                        );
+                    }
+                }
+                Err(error) => this.dispatch_gpui_workspace_action_toast(
+                    "warning",
+                    "Could not start the copy",
+                    &error.message,
+                    cx,
+                ),
+            });
+        })
+        .detach();
+    }
+
+    /// Settings > Accounts' "Sign out": forgets the account's claude.ai cookies.
+    pub(crate) fn sign_claude_account_out(&mut self, account_id: &str) -> Result<(), String> {
+        let profile = claude_account_browser_profile(account_id);
+        sign_profile_out_of_claude(&profile)?;
+        remember_signin(account_id, None);
+        Ok(())
+    }
+
+    /// Starts the page sweep once per app run.
+    pub(crate) fn ensure_claude_cloud_page_sweep(&mut self, cx: &mut gpui::Context<Self>) {
+        if SWEEP_STARTED.with(|started| started.replace(true)) {
+            return;
+        }
+        cx.spawn(async move |this, cx| {
+            loop {
+                cx.background_executor().timer(SWEEP_INTERVAL).await;
+                if this
+                    .update(cx, |this, cx| this.sweep_claude_cloud_pages(cx))
+                    .is_err()
+                {
+                    break;
+                }
+            }
+        })
+        .detach();
+    }
+
+    fn expected_claude_account(&self, tab_id: BrowserTabId, url: &str) -> Option<ExpectedAccount> {
+        if let Some(tab) = SIGN_IN_TABS.with(|tabs| tabs.borrow().get(&tab_id).cloned()) {
+            return Some(ExpectedAccount {
+                account_id: tab.account_id,
+                name: tab.name,
+                email: tab.email,
+                limit_notice: None,
+            });
+        }
+        let link = ghostex_gx_core::claude_cloud_session_link(url)?;
+        let loaded = self
+            .gx_store
+            .core
+            .presentation()
+            .loaded(&ghostex_gx_core::MachineId::Local)?;
+        let cloud = loaded
+            .server_sessions()
+            .filter_map(|session| session.claude_cloud.as_ref())
+            .find(|cloud| {
+                cloud
+                    .url
+                    .as_deref()
+                    .and_then(ghostex_gx_core::claude_cloud_session_link)
+                    == Some(link.clone())
+            })?;
+        Some(ExpectedAccount {
+            account_id: cloud.account_id.clone()?,
+            name: cloud
+                .account_name
+                .clone()
+                .unwrap_or_else(|| "this account".to_string()),
+            email: cloud
+                .account_email
+                .clone()
+                .map(|email| email.to_lowercase()),
+            limit_notice: cloud.limit_notice.clone(),
+        })
+    }
+
+    /// Asks every open claude.ai page what it shows, and acts on the answers already in.
+    fn sweep_claude_cloud_pages(&mut self, cx: &mut gpui::Context<Self>) {
+        let tabs: Vec<(BrowserTabId, String, Entity<CefSurface>)> = self
+            .browser_surfaces
+            .iter()
+            .filter_map(|(tab_id, surface)| {
+                let url = self.browser_tabs.tab(*tab_id)?.url.clone();
+                url.starts_with("https://claude.ai/")
+                    .then(|| (*tab_id, url, surface.clone()))
+            })
+            .collect();
+        PAGES.with(|pages| {
+            pages
+                .borrow_mut()
+                .retain(|tab_id, _| tabs.iter().any(|(id, _, _)| id == tab_id))
+        });
+        for (tab_id, url, surface) in tabs {
+            let answer = surface.read(cx).take_claude_cloud_page_answer();
+            surface.read(cx).ask_claude_cloud_page();
+            let Some(answer) = answer.and_then(|text| serde_json::from_str::<Value>(&text).ok())
+            else {
+                continue;
+            };
+            self.handle_claude_cloud_page_answer(tab_id, &url, &surface, answer, cx);
+        }
+    }
+
+    fn handle_claude_cloud_page_answer(
+        &mut self,
+        tab_id: BrowserTabId,
+        tab_url: &str,
+        surface: &Entity<CefSurface>,
+        answer: Value,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        let page_url = answer["url"].as_str().unwrap_or(tab_url).to_string();
+        let expected = self.expected_claude_account(tab_id, &page_url);
+        let email = answer["email"].as_str().map(str::to_lowercase);
+        let signed_out = answer["signedOut"].as_bool() == Some(true);
+        if let Some(expected) = &expected {
+            match (&email, signed_out) {
+                (Some(email), _) if expected.email.as_deref() == Some(email.as_str()) => {
+                    remember_signin(&expected.account_id, Some(email));
+                }
+                (_, true) => remember_signin(&expected.account_id, None),
+                _ => {}
+            }
+        }
+        // The reading, for a cloud session's page (gxserver ignores any other page).
+        if ghostex_gx_core::claude_cloud_session_link(&page_url).is_some() {
+            let report = json!({
+                "action": "pageStatus",
+                "url": page_url,
+                "status": answer["status"].as_str().unwrap_or("unknown"),
+                "branch": answer.get("branch").cloned().unwrap_or(Value::Null),
+                "prUrl": answer.get("prUrl").cloned().unwrap_or(Value::Null),
+                "limit": answer.get("limit").cloned().unwrap_or(Value::Null),
+            });
+            let changed = PAGES.with(|pages| {
+                let mut pages = pages.borrow_mut();
+                let memory = pages.entry(tab_id).or_default();
+                let changed = memory.reported.as_ref() != Some(&report);
+                memory.reported = Some(report.clone());
+                changed
+            });
+            if changed {
+                cx.background_executor()
+                    .spawn(async move {
+                        let _ = gx_rpc_with_timeout(None, "/api/claudeCloud", report, RPC_TIMEOUT)
+                            .await;
+                    })
+                    .detach();
+            }
+        }
+        let notice = expected.as_ref().and_then(|expected| {
+            let wanted = expected
+                .email
+                .clone()
+                .unwrap_or_else(|| expected.name.clone());
+            if signed_out {
+                return Some(json!({
+                    "text": format!(
+                        "Sign in to claude.ai as {wanted} to see this session. You only do this once for {}.",
+                        expected.name
+                    ),
+                }));
+            }
+            if let (Some(seen), Some(want)) = (&email, &expected.email)
+                && seen != want
+            {
+                return Some(json!({
+                    "text": format!(
+                        "This page is signed in as {seen}, but the session runs on {} ({want}).",
+                        expected.name
+                    ),
+                    "button": format!("Sign in as {}", expected.name),
+                    "action": "signOut",
+                }));
+            }
+            expected.limit_notice.as_ref().map(|limit| {
+                json!({
+                    "text": limit,
+                    "button": "Start a copy on another account",
+                    "action": "copy",
+                })
+            })
+        });
+        let show = PAGES.with(|pages| {
+            let mut pages = pages.borrow_mut();
+            let memory = pages.entry(tab_id).or_default();
+            let show = memory.notice != notice;
+            memory.notice = notice.clone();
+            show
+        });
+        if show {
+            let script = crate::cef::claude_cloud_page_notice_script(notice.as_ref());
+            surface.update(cx, |surface, _| {
+                surface.execute_app_owned_script(&script);
+            });
+        }
+        match answer["request"].as_str() {
+            Some("signOut") => {
+                let profile = SIGN_IN_TABS
+                    .with(|tabs| tabs.borrow().get(&tab_id).map(|tab| tab.profile.clone()))
+                    .or_else(|| {
+                        expected
+                            .as_ref()
+                            .map(|expected| claude_account_browser_profile(&expected.account_id))
+                    });
+                if let Some(profile) = profile {
+                    if let Err(error) = sign_profile_out_of_claude(&profile) {
+                        self.dispatch_gpui_workspace_action_toast(
+                            "warning",
+                            "Could not sign this page out of claude.ai",
+                            &error,
+                            cx,
+                        );
+                        return;
+                    }
+                    if let Some(expected) = &expected {
+                        remember_signin(&expected.account_id, None);
+                    }
+                    PAGES.with(|pages| pages.borrow_mut().remove(&tab_id));
+                    surface.update(cx, |surface, _| {
+                        surface
+                            .execute_app_owned_script("location.href = 'https://claude.ai/login';");
+                    });
+                }
+            }
+            Some("copy") => {
+                if let Some(link) = ghostex_gx_core::claude_cloud_session_link(&page_url) {
+                    self.start_claude_cloud_copy_for_link(&link, cx);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// "Start a copy on another account" from a page's notice: the session's row's own action.
+    fn start_claude_cloud_copy_for_link(&mut self, link: &str, cx: &mut gpui::Context<Self>) {
+        let Some(session) = self
+            .gx_store
+            .core
+            .presentation()
+            .loaded(&ghostex_gx_core::MachineId::Local)
+            .and_then(|loaded| {
+                loaded.server_sessions().find(|session| {
+                    session
+                        .claude_cloud
+                        .as_ref()
+                        .and_then(|cloud| cloud.url.as_deref())
+                        .and_then(ghostex_gx_core::claude_cloud_session_link)
+                        .as_deref()
+                        == Some(link)
+                })
+            })
+            .map(|session| {
+                ghostex_gx_core::SessionKey::local(
+                    session.project_id.clone(),
+                    session.session_id.clone(),
+                )
+            })
+        else {
+            return;
+        };
+        self.defer_in_main_window(cx, move |this, window, cx| {
+            this.start_claude_cloud_copy(session, window, cx);
+        });
+    }
+}
+
+/// Signs one profile out of claude.ai: its claude.ai cookies are deleted, nothing else.
+fn sign_profile_out_of_claude(profile: &str) -> Result<(), String> {
+    crate::cef::clear_workspace_browser_site_cookies(
+        profile,
+        &["https://claude.ai", "https://anthropic.com"],
+    )
+    .map_err(|_| "Open one of this account's claude.ai pages first.".to_string())
+}

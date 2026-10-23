@@ -765,6 +765,7 @@ pub fn endpoint_for(path: &str) -> Option<EndpointDescriptor> {
         link is recorded on this computer, so only this computer's clients may draft or start one.
         */
         "/api/draftCloudWork" | "/api/startCloudWork" => full_local(path),
+        "/api/claudeCloud" => full_local(path),
         /*
         CDXC:Workspaces 2026-10-09 WHY:
         Workspaces belong to the daemon that owns the projects, exactly like its Spaces, so a

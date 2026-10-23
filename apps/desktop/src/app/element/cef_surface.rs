@@ -355,6 +355,15 @@ impl CefSurface {
         self.browser.ask_page_keep_awake();
     }
 
+    /// The claude.ai page reader (cef/shell/claude_cloud_page.rs).
+    pub(crate) fn ask_claude_cloud_page(&self) {
+        self.browser.ask_claude_cloud_page();
+    }
+
+    pub(crate) fn take_claude_cloud_page_answer(&self) -> Option<String> {
+        self.browser.take_claude_cloud_page_answer()
+    }
+
     #[cfg(target_os = "macos")]
     pub(crate) fn reparent_native_view(
         &self,

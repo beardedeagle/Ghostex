@@ -284,6 +284,15 @@ impl MenuCommand {
         Self(json!({ "type": "agentboxSessionAction", "sessionId": session_id, "action": action }))
     }
 
+    /// `{ type: 'claudeCloudSessionAction', sessionId, action }`: a Claude cloud session's Open on
+    /// claude.ai (`open`), Bring to This Computer (`bringBack`) and Start a Copy on Another
+    /// Account (`copy`).
+    pub(crate) fn claude_cloud_session(session_id: &str, action: &str) -> Self {
+        Self(
+            json!({ "type": "claudeCloudSessionAction", "sessionId": session_id, "action": action }),
+        )
+    }
+
     /// `{ type: 'coordinatorSessionAction', sessionId, action }`: an orchestrator's Goal &
     /// Instructions (`goal`) and Memory (`memory`) editors, a thread's Mark Thread Done
     /// (`markDone`) and Reopen Thread (`reopen`).

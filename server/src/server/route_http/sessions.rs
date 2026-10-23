@@ -52,6 +52,9 @@ pub(super) async fn route_sessions_http(
             request_id,
             &body_json,
             |repository, db, params, _| {
+                // A Claude cloud create goes to the repo's main checkout project (claude_cloud/create.rs).
+                let cloud_params = crate::claude_cloud::cloud_create_params(repository, params)?;
+                let params = cloud_params.as_ref().unwrap_or(params);
                 let project = repository.resolve_create_session_project(params)?;
                 let params = &coordinator_runtime::prepare_coordinator_create_params(params)?;
                 let create_params = create_agent_session_params_for_project(db, &project, params)?;

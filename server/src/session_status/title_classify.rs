@@ -32,7 +32,11 @@ pub(super) fn classify_terminal_title_status(
             CDXC:AgentScreenDetection 2026-10-17 WHY:
             OMP 18.11 paints a spinner title while it runs a tool. Unrecognised, it fell through to the other agents' spinner scans, which claimed it for Codex; the identity check then dropped the record as the wrong agent's, so the sidebar went idle mid-turn and never reached attention (observed live 2026-10-17, throwaway G2ow5). Ghostex's OMP extension reports prompts, tools, questions and finished turns through hooks, so its titles carry no status signal.
             */
-            "opencode" | "empryo" | "zcode" | "omp" => None,
+            /*
+            CDXC:ClaudeCloud 2026-10-23 WHY:
+            A Claude cloud session's terminal runs Ghostex's own cloud client (or, once Claude allows it, `claude --cloud <link>` attached to the cloud), and its status comes from the session's branch and pull request and from its claude.ai page (server/src/claude_cloud/). An attached Claude would paint Claude's spinner titles, which would override that status, so its titles carry no status signal.
+            */
+            "opencode" | "empryo" | "zcode" | "omp" | "claude-cloud" => None,
             _ => None,
         };
         return state.map(|state| signal(agent_name, state));
@@ -66,7 +70,10 @@ pub(super) fn classify_terminal_title_status(
 
 /// Agents whose terminal titles say nothing about their activity; their hooks own it.
 pub(super) fn titles_carry_no_status(agent_name: Option<&str>) -> bool {
-    matches!(agent_name, Some("opencode" | "empryo" | "zcode" | "omp"))
+    matches!(
+        agent_name,
+        Some("opencode" | "empryo" | "zcode" | "omp" | "claude-cloud")
+    )
 }
 
 pub(super) fn signal(agent_name: &str, state: &str) -> TitleStatusSignal {
@@ -103,6 +110,7 @@ pub(super) fn normalize_status_agent_name(value: Option<&str>) -> Option<String>
             | "pi"
             | "omp"
             | "zcode"
+            | "claude-cloud"
     )
     .then(|| mapped.to_string())
 }

@@ -221,6 +221,46 @@ impl GhostexGpuiApp {
                     }
                 }
             }
+            // Settings > Accounts' "claude.ai in Ghostex" (app/claude_cloud_page.rs).
+            "signInClaudeAccountToClaudeAi" => {
+                let text = |key: &str| command.get(key).and_then(serde_json::Value::as_str);
+                if let Some(account_id) = text("accountId") {
+                    let (account_id, name) = (
+                        account_id.to_string(),
+                        text("name").unwrap_or("this account").to_string(),
+                    );
+                    let email = text("email")
+                        .filter(|email| email.contains('@'))
+                        .map(str::to_string);
+                    self.open_claude_account_sign_in(
+                        &account_id,
+                        &name,
+                        email.as_deref(),
+                        window,
+                        cx,
+                    );
+                }
+            }
+            "signOutClaudeAccountFromClaudeAi" => {
+                if let Some(account_id) =
+                    command.get("accountId").and_then(serde_json::Value::as_str)
+                {
+                    match self.sign_claude_account_out(account_id) {
+                        Ok(()) => self.dispatch_gpui_workspace_action_toast(
+                            "success",
+                            "Signed out of claude.ai",
+                            "This account's cloud sessions will ask you to sign in again.",
+                            cx,
+                        ),
+                        Err(error) => self.dispatch_gpui_workspace_action_toast(
+                            "error",
+                            "Couldn't sign out of claude.ai",
+                            &error,
+                            cx,
+                        ),
+                    }
+                }
+            }
             // The Workspaces settings page's "Forget all answers" (browser_site_requests.rs).
             "forgetWorkspaceBrowserSiteAnswers" => {
                 let workspace_id = command

@@ -9,6 +9,7 @@
 const AGENTS: &[(&str, &str, &str)] = &[
     ("codex", "codex", "Codex"),
     ("claude", "claude", "Claude"),
+    ("claude-cloud", "claude-cloud", "Claude (cloud)"),
     ("cursor", "cursor-cli", "Cursor CLI"),
     ("pi", "pi", "Pi Agent"),
     ("opencode", "opencode", "OpenCode"),

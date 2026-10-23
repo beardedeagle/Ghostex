@@ -1,6 +1,7 @@
 pub(crate) mod actions;
 mod agent_launcher_menu;
 mod agentbox;
+mod claude_cloud;
 pub(crate) mod appearance;
 pub(crate) mod automations_row;
 mod bots;

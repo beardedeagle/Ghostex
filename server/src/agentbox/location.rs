@@ -130,7 +130,11 @@ pub(crate) fn requested_agentbox_provider(
             ))
         }
     };
-    if value.is_empty() || value == "local" {
+    // Claude cloud is not a box (server/src/claude_cloud/create.rs settles it).
+    if value.is_empty()
+        || value == "local"
+        || value == crate::claude_cloud::CLAUDE_CLOUD_RUN_LOCATION
+    {
         return Ok(None);
     }
     let provider = value
@@ -162,12 +166,15 @@ pub(crate) fn run_location_from_cli(value: &str) -> Result<String, String> {
     if value.is_empty() || value == "local" {
         return Ok("local".to_string());
     }
+    if value == crate::claude_cloud::CLAUDE_CLOUD_RUN_LOCATION {
+        return Ok(value.to_string());
+    }
     let provider = value.strip_prefix("agentbox:").unwrap_or(value);
     if provider_spec(provider).is_some() || remote_docker_alias(provider).is_some() {
         return Ok(format!("agentbox:{provider}"));
     }
     Err(format!(
-        "--run-on {value} is not a run location. Use local, docker, hetzner, vercel, daytona, e2b, digitalocean or docker:<host alias>."
+        "--run-on {value} is not a run location. Use local, claude-cloud, docker, hetzner, vercel, daytona, e2b, digitalocean or docker:<host alias>."
     ))
 }
 

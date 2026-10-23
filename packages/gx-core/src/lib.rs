@@ -19,6 +19,7 @@ mod app_lifecycle;
 mod attention;
 pub mod bot_feed;
 mod change;
+mod claude_cloud;
 mod connection;
 mod core;
 mod doc_sync;
@@ -52,6 +53,12 @@ pub use crate::active_project_context::{
     active_project_context_payload, project_context_payload, quick_automations_payload,
     quick_projectless_payload, ACTIVE_PROJECT_CONTEXT_MESSAGE_TYPE,
     ACTIVE_PROJECT_CONTEXT_MESSAGE_VERSION,
+};
+pub use crate::claude_cloud::{
+    claude_cloud_page_account, claude_cloud_session_link, is_claude_cloud_agent,
+    is_claude_cloud_run_location, is_claude_cloud_session, project_last_cloud_account,
+    session_claude_cloud_page, CLAUDE_CLOUD_AGENT_ID, CLAUDE_CLOUD_DESCRIPTION,
+    CLAUDE_CLOUD_LABEL, CLAUDE_CLOUD_RUN_LOCATION, THIS_COMPUTER_DESCRIPTION,
 };
 pub use crate::agentbox::{
     agentbox_agent_family, agentbox_location_label, agentbox_locations_from_status,

@@ -213,6 +213,13 @@ impl GhostexGpuiApp {
         }
         self.gx_store_persist_remembered_sessions(cx);
         self.gx_store_publish_workspace_focus(cx);
+        // A running Claude cloud session opens its claude.ai page in the Browser, whatever asked
+        // for the focus (CDXC:ClaudeCloud in packages/gx-core/src/claude_cloud.rs).
+        if let Some(url) = ghostex_gx_core::session_claude_cloud_page(&self.gx_store.core, &session)
+        {
+            self.open_claude_cloud_page(&session, url, cx);
+            return;
+        }
         self.gx_store_request_workspace_focus(
             GpuiSidebarWorkspaceTerminalFocusMessage {
                 force_remount: false,

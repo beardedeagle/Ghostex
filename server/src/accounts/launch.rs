@@ -181,6 +181,42 @@ pub(crate) fn command(home: &Path, account: &SavedAccount) -> Result<String, Dom
         quote_shell_arg(&account.selector)
     ))
 }
+/// The program and arguments that run `claude` on a saved Claude account (`cswap run <slot>
+/// --share-history --`, then Claude's own arguments), for a caller that spawns the CLI itself
+/// rather than typing a command into a shell: the cloud runner. Refused like [`launch_command`].
+///
+/// CDXC:ClaudeCloud 2026-10-23 WHY: a Claude cloud session runs on the claude.ai login of the account that started it, so its start, follow-ups and attach run `claude` through the same account wrapper a local Claude session's command uses, `--share-history` included.
+pub(crate) fn claude_account_argv(
+    db: &Connection,
+    account_id: &str,
+) -> Result<Vec<String>, DomainStateError> {
+    let registry = store::read(db)?;
+    let account = registry
+        .accounts
+        .iter()
+        .find(|account| account.id == account_id && account.provider == Provider::Claude)
+        .ok_or_else(|| {
+            DomainStateError::bad_request(
+                "The Claude account this cloud session started on is no longer registered.",
+            )
+        })?;
+    let home = home()?;
+    launch_command(&home, account)?;
+    let executable = helpers::executable(&home, account.provider.helper()).ok_or_else(|| {
+        DomainStateError::bad_request(format!(
+            "Install {} on this computer first.",
+            account.provider.helper()
+        ))
+    })?;
+    Ok(vec![
+        executable.to_string_lossy().into_owned(),
+        "run".to_string(),
+        account.selector.clone(),
+        "--share-history".to_string(),
+        "--".to_string(),
+    ])
+}
+
 /// `command` for a session that is about to start on `account`: refused when the helper would only print an error.
 pub(crate) fn launch_command(
     home: &Path,

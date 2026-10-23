@@ -636,7 +636,11 @@ impl GhostexGpuiApp {
             }
             profile
         } else {
-            let profile = self.browser_tab_cef_profile(profile_id);
+            // A Claude cloud session's claude.ai page opens in its account's own profile
+            // (CDXC:ClaudeCloud in app/claude_cloud_page.rs).
+            let profile = self
+                .claude_cloud_tab_profile(tab_id, &url)
+                .unwrap_or_else(|| self.browser_tab_cef_profile(profile_id));
             if !self.prepare_workspace_browser_context(&profile, cx) {
                 return None;
             }

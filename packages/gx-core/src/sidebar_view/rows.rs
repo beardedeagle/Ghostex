@@ -330,6 +330,7 @@ pub(crate) fn session_row(
                 box_name: agentbox.box_name.clone(),
                 provider_label: agentbox.provider_label.clone(),
             }),
+        claude_cloud: session.claude_cloud.clone(),
         work,
         key: Some(key),
     }

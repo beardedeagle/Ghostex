@@ -171,6 +171,15 @@ pub const DEFAULT_SIDEBAR_AGENTS: J = J::Arr(&[
         ("name", J::Str("Claude")),
     ]),
     J::Obj(&[
+        ("agentId", J::Str("claude-cloud")),
+        (
+            "command",
+            J::Str("\"${GHOSTEX_CLI_EXECUTABLE:-ghostex}\" claude-cloud attach"),
+        ),
+        ("icon", J::Str("claude-cloud")),
+        ("name", J::Str("Claude (cloud)")),
+    ]),
+    J::Obj(&[
         ("agentId", J::Str("cursor")),
         ("command", J::Str("cursor-agent")),
         ("icon", J::Str("cursor-cli")),

@@ -47,6 +47,13 @@ pub(crate) fn create_agent_session_params_for_project(
         configured_command,
         &mut runtime_settings,
     )?;
+    // A Claude cloud session runs Ghostex's cloud client, not a local agent: its record and account
+    // are settled here (server/src/claude_cloud/create.rs); no other create may carry a record.
+    if agent_id == crate::claude_cloud::CLAUDE_CLOUD_AGENT_ID {
+        crate::claude_cloud::prepare_cloud_runtime(db, project, &mut runtime_settings)?;
+    } else {
+        crate::claude_cloud::strip_client_record(&mut runtime_settings);
+    }
     let agentbox_provider = crate::agentbox::requested_agentbox_provider(params)?;
     // Only a box create writes a box record; a client cannot make a session a box session.
     if agentbox_provider.is_none() {
@@ -196,11 +203,26 @@ pub(crate) fn create_agent_session_params_for_project(
             // Only the command this launch runs names the id; `agentCommand` stays the base that
             // resume, fork and account wrapping rebuild from. Pi's id is minted here; Empryo's names
             // the session folder seeded for a launch model (session_chat_empryo_launch_selection.rs).
-            let session_command = |command: &str| match (&pi_session_id, &empryo_session_id) {
-                (Some(id), _) => Some(super::pi_session_id::with_pi_session_id(command, id)),
-                (None, Some(id)) => Some(format!("{} --session {id}", command.trim_end())),
-                (None, None) => None,
-            };
+            // A Claude cloud session brought to this computer teleports on this one launch; its
+            // later resumes use the local conversation teleport made (claude_cloud/bring_back.rs).
+            let teleport = runtime_settings
+                .remove(crate::claude_cloud::TELEPORT_RUNTIME_KEY)
+                .and_then(|id| id.as_str().map(str::to_string))
+                .filter(|id| crate::claude_cloud::is_cloud_session_id(id))
+                .filter(|_| {
+                    resume_agent_family_id(Some(agent_id.clone()), &agent_config, &launch_settings)
+                        .as_deref()
+                        == Some("claude")
+                });
+            let session_command =
+                |command: &str| match (&pi_session_id, &empryo_session_id, &teleport) {
+                    (Some(id), _, _) => Some(super::pi_session_id::with_pi_session_id(command, id)),
+                    (None, Some(id), _) => Some(format!("{} --session {id}", command.trim_end())),
+                    (None, None, Some(id)) => {
+                        Some(format!("{} --teleport {id}", command.trim_end()))
+                    }
+                    (None, None, None) => None,
+                };
             if let Some(plan) = plan.as_object_mut() {
                 if let Some(command) = plan
                     .get("command")

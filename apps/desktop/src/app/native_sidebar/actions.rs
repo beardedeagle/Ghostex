@@ -73,6 +73,10 @@ impl GhostexGpuiApp {
                     .detach();
                 }
             }
+        } else if action.command["type"] == "claudeCloudSessionAction" {
+            // A Claude cloud session's Open on claude.ai and Bring to This Computer
+            // (native_sidebar/claude_cloud.rs).
+            self.run_native_sidebar_claude_cloud_action(&action.command, cx);
         } else if action.command["type"] == "agentboxSessionAction" {
             // A box session's Open Box Web App, Open Box Screen, Stop Box and Destroy Box
             // (native_sidebar/agentbox.rs); Destroy asks first, which needs this window.

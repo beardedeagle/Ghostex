@@ -180,6 +180,11 @@ pub(crate) const GPUI_DEFAULT_SIDEBAR_AGENTS: &[GpuiDefaultSidebarAgent] = &[
         name: "Claude",
     },
     GpuiDefaultSidebarAgent {
+        agent_id: "claude-cloud",
+        icon: "claude-cloud",
+        name: "Claude (cloud)",
+    },
+    GpuiDefaultSidebarAgent {
         agent_id: "cursor",
         icon: "cursor-cli",
         name: "Cursor CLI",

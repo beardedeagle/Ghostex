@@ -917,6 +917,13 @@ fn build_session(
             }),
         );
     }
+    // A Claude cloud session, drawn by native_sidebar/claude_cloud.rs.
+    if let Some(cloud) = &row.claude_cloud {
+        details.insert(
+            "claudeCloud".to_string(),
+            serde_json::to_value(cloud).unwrap_or_default(),
+        );
+    }
     NativeSidebarSession {
         session_id: row.sidebar_session_id.clone(),
         display_title: Some(row.display_title.clone()),

@@ -321,7 +321,33 @@ pub(crate) fn start_cloud_work(
             "The task is {length} characters; a cloud session starts with at most {MAX_CLOUD_PROMPT_CHARS}. Shorten it and try again."
         )));
     }
-    let runner = provider.runner(&state.paths.home_dir);
+    // CDXC:ClaudeCloud 2026-10-23 WHY: the session runs on the Claude account the sidebar's Claude button would pick (or the one the request names), through that account's `cswap run … --share-history`, never the bare `~/.claude` login; the account is kept with the session's row so its follow-ups, attach and teleport use it too.
+    let account = {
+        let db = open_gxserver_database(&state.paths)
+            .map_err(|error| internal(format!("SQLite gxserver state error: {error}")))?;
+        let repository = DomainRepository::new(&db, state.metadata.server_id.as_str());
+        let project = repository
+            .get_project(&plan.project_id)?
+            .ok_or_else(|| DomainStateError::not_found("The ticket's project does not exist."))?;
+        crate::claude_cloud::pick_claude_account(
+            &db,
+            &project,
+            text(params, "accountId").as_deref(),
+        )?
+    };
+    let runner = match account.get("accountId").and_then(Value::as_str) {
+        Some(account_id) if provider.id == "claude-code" => {
+            let db = open_gxserver_database(&state.paths)
+                .map_err(|error| internal(format!("SQLite gxserver state error: {error}")))?;
+            crate::cloud_runner::claude_code_on_the_web(
+                &state.paths.home_dir,
+                Some(crate::accounts::launch::claude_account_argv(
+                    &db, account_id,
+                )?),
+            )
+        }
+        _ => provider.runner(&state.paths.home_dir),
+    };
     let session = runner
         .start(&CloudStartRequest {
             repo_dir: Path::new(&plan.project_path),
@@ -333,6 +359,35 @@ pub(crate) fn start_cloud_work(
         .duration_since(UNIX_EPOCH)
         .map(|elapsed| elapsed.as_millis() as u64)
         .unwrap_or(0);
+    let mut warnings = plan.warnings.clone();
+    // The session's sidebar row (crate::claude_cloud), in the main checkout's project.
+    let sidebar_session = match crate::claude_cloud::add_started_cloud_session(
+        state,
+        crate::claude_cloud::StartedCloudSession {
+            project_id: plan.project_id.clone(),
+            url: session.url.clone(),
+            branch: Some(plan.branch.clone()),
+            task: Some(prompt.clone()),
+            title: match &plan.title {
+                Some(title) => format!("{}: {title}", plan.label),
+                None => format!("{} in Claude's cloud", plan.label),
+            },
+            ticket: Some((plan.ticket_key.clone(), plan.label.clone())),
+            account: account.clone(),
+            quiet: false,
+        },
+    ) {
+        Ok((project_id, session_id)) => {
+            Some(json!({ "projectId": project_id, "sessionId": session_id }))
+        }
+        Err(error) => {
+            warnings.push(format!(
+                "The session started, but Ghostex could not add it to the sidebar: {}",
+                error.message
+            ));
+            None
+        }
+    };
     let record = json!({
         "sessionUrl": session.url,
         "provider": provider.id,
@@ -344,8 +399,8 @@ pub(crate) fn start_cloud_work(
         "workspaceId": plan.workspace_id,
         "branch": plan.branch,
         "startedAt": started_at,
+        "sidebarSession": sidebar_session,
     });
-    let mut warnings = plan.warnings.clone();
     // The session is live from here on: a record that fails to save is reported, not undone.
     if let Err(error) = store_cloud_session(&state.paths, record) {
         warnings.push(format!(
@@ -404,6 +459,49 @@ fn store_cloud_session(paths: &GxserverPaths, record: Value) -> std::io::Result<
     sessions.insert(0, record);
     sessions.truncate(MAX_RECORDS);
     fs::create_dir_all(&paths.app_data_dir)?;
+    let path = records_path(paths);
+    let temp = path.with_extension("json.tmp");
+    {
+        let mut file = fs::File::create(&temp)?;
+        file.write_all(
+            json!({ "version": 1, "sessions": sessions })
+                .to_string()
+                .as_bytes(),
+        )?;
+        file.sync_all()?;
+    }
+    fs::rename(&temp, &path)
+}
+
+/// The records that have no sidebar row yet (kept before cloud sessions had rows).
+pub(crate) fn unlinked_cloud_records(paths: &GxserverPaths) -> Vec<Value> {
+    read_records(paths)
+        .into_iter()
+        .filter(|record| record.get("sidebarSession").is_none_or(Value::is_null))
+        .collect()
+}
+
+/// Names the sidebar session of the record with `session_url`.
+pub(crate) fn link_cloud_record_to_session(
+    paths: &GxserverPaths,
+    session_url: &str,
+    project_id: &str,
+    session_id: &str,
+) -> std::io::Result<()> {
+    let _guard = RECORDS_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let mut sessions = read_records(paths);
+    let mut changed = false;
+    for record in &mut sessions {
+        if record.get("sessionUrl").and_then(Value::as_str) == Some(session_url) {
+            record["sidebarSession"] = json!({ "projectId": project_id, "sessionId": session_id });
+            changed = true;
+        }
+    }
+    if !changed {
+        return Ok(());
+    }
     let path = records_path(paths);
     let temp = path.with_extension("json.tmp");
     {

@@ -48,6 +48,9 @@ const SCROLLBAR_WIDTH: f32 = 5.0;
 
 const PLACEHOLDER_AGENTS: &str = "Search agents, browser, terminal...";
 const PLACEHOLDER_ACCOUNTS: &str = "Search accounts...";
+/// Above a Claude (cloud) account list.
+const CLOUD_ACCOUNT_NOTE: &str =
+    "Runs on this account for good: its usage, follow-ups and Bring to this computer stay on it.";
 const HINT_MOVE: &str = "Move";
 const HINT_START: &str = "Start";
 const HINT_BACK: &str = "Back";
@@ -200,7 +203,8 @@ impl NewThreadPickerAgent {
             return None;
         }
         match self.family() {
-            "claude" => Some("claude"),
+            // A Claude cloud session runs on a saved Claude account too (CDXC:ClaudeCloud).
+            "claude" | "claude-cloud" => Some("claude"),
             "codex" => Some("codex"),
             _ => None,
         }
@@ -260,6 +264,9 @@ pub(crate) struct NewThreadPickerConfig {
     pub(crate) default_run_location: String,
     /// The app closes the picker when its window stops being key; the preview keeps it open.
     pub(crate) close_when_inactive: bool,
+    /// The account of the active project's last Claude cloud session: the Claude (cloud) account
+    /// list highlights it first (gx-core `project_last_cloud_account`).
+    pub(crate) cloud_default_account: Option<String>,
 }
 
 /// What the picker asks its host to do. The picker removes its own window
@@ -336,6 +343,8 @@ pub(crate) struct GpuiNewThreadPickerWindow {
     /// active, so losing activation only closes a window that was shown.
     was_active: bool,
     close_when_inactive: bool,
+    /// See `NewThreadPickerConfig::cloud_default_account`.
+    cloud_default_account: Option<String>,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -399,6 +408,7 @@ impl GpuiNewThreadPickerWindow {
             agents_loaded: config.agents_loaded,
             accounts: config.accounts,
             accounts_error: None,
+            cloud_default_account: config.cloud_default_account.clone(),
             run_on: RunOnState::new(config.boxes, config.default_run_location),
             run_on_scroll: ScrollHandle::new(),
             query: String::new(),
@@ -434,6 +444,8 @@ impl GpuiNewThreadPickerWindow {
             self.accounts_error = None;
         }
         self.run_on = RunOnState::new(config.boxes, config.default_run_location);
+        self.run_on.set_cloud(self.cloud_agent_index().is_some());
+        self.cloud_default_account = config.cloud_default_account;
         self.fit_window_height(window);
         self.reveal_selected_run_location();
         self.scope = None;
@@ -460,6 +472,7 @@ impl GpuiNewThreadPickerWindow {
             .map(|agent| agent.agent_id.clone());
         self.agents = agents;
         self.agents_loaded = true;
+        self.run_on.set_cloud(self.cloud_agent_index().is_some());
         if let Some(scope_agent_id) = self.scope.and(selected_agent_id.as_deref()) {
             self.scope = self
                 .agents
@@ -528,6 +541,12 @@ impl GpuiNewThreadPickerWindow {
 
     fn scope_agent(&self) -> Option<&NewThreadPickerAgent> {
         self.scope.and_then(|index| self.agents.get(index))
+    }
+
+    /// The account list is the Claude (cloud) agent's.
+    fn cloud_scope(&self) -> bool {
+        self.scope_agent()
+            .is_some_and(|agent| ghostex_gx_core::is_claude_cloud_agent(&agent.agent_id))
     }
 
     fn provider_accounts(&self, provider: &str) -> Vec<usize> {
@@ -666,6 +685,17 @@ impl GpuiNewThreadPickerWindow {
         }
         self.scope = Some(agent_index);
         self.selected = 0;
+        // A cloud session's list starts on the project's last cloud account.
+        if self.cloud_scope() {
+            if let Some(position) = self.cloud_default_account.as_deref().and_then(|default| {
+                self.rows().iter().position(|row| {
+                    matches!(row, PickerRow::Account(index)
+                        if self.account(*index).is_some_and(|account| account.id == default))
+                })
+            }) {
+                self.selected = position;
+            }
+        }
         self.clear_query(window, cx);
         self.set_placeholder(PLACEHOLDER_ACCOUNTS, window, cx);
         self.scroll.scroll_to_item(0);
@@ -1166,7 +1196,15 @@ impl GpuiNewThreadPickerWindow {
         };
         let display_name = account.name.clone();
         let usage = account.usage.clone();
-        let is_default = account.is_default;
+        // A cloud session's default is the project's last cloud account, when it has one.
+        let is_default = match self
+            .cloud_default_account
+            .as_deref()
+            .filter(|_| self.cloud_scope())
+        {
+            Some(default) => account.id == default,
+            None => account.is_default,
+        };
         let ready = account.ready;
         self.row_shell(
             ElementId::Name(format!("new-thread-account-{index}").into()),
@@ -1300,6 +1338,10 @@ impl GpuiNewThreadPickerWindow {
             }
             Some(agent) => {
                 let agent = agent.clone();
+                // The pick is final for a cloud session: Claude cannot move it to another account.
+                if self.cloud_scope() && self.accounts.is_some() {
+                    children.push(self.render_hint_text(CLOUD_ACCOUNT_NOTE));
+                }
                 if self.accounts.is_none() && self.accounts_error.is_none() {
                     children.push(self.render_hint_text(READING_ACCOUNTS));
                 }

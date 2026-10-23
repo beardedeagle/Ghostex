@@ -572,6 +572,7 @@ impl GhostexGpuiApp {
             this.schedule_project_editor_auto_sleep_for_inactive_modes(cx);
             this.start_project_editor_auto_sleep_policy_polling(cx);
             this.start_web_page_sleep_sweep(cx);
+            this.ensure_claude_cloud_page_sweep(cx);
             this.start_sidebar_hover_reveal_polling(window, cx);
             this.start_command_action_status_polling(cx);
             this.start_command_pane_auto_minimize_polling(window, cx);

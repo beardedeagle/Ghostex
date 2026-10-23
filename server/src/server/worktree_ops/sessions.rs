@@ -205,6 +205,32 @@ pub(crate) fn normalize_worktree_session_create_request(
     if params.get("markedHandovers").and_then(Value::as_bool) == Some(true) {
         agent_session_params.insert("markedHandovers".to_string(), Value::Bool(true));
     }
+    // A Claude cloud session brought to this computer (crate::claude_cloud): it stays on the
+    // account that started it (`runtimeSettings.accountId`, as the ordinary create takes it) and
+    // its first launch teleports the cloud session.
+    let mut runtime_settings = Map::new();
+    for (param, key) in [
+        ("accountId", "accountId"),
+        (
+            "teleportCloudSession",
+            crate::claude_cloud::TELEPORT_RUNTIME_KEY,
+        ),
+    ] {
+        if let Some(value) = params
+            .get(param)
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+        {
+            runtime_settings.insert(key.to_string(), json!(value));
+        }
+    }
+    if !runtime_settings.is_empty() {
+        agent_session_params.insert(
+            "runtimeSettings".to_string(),
+            Value::Object(runtime_settings),
+        );
+    }
     Ok(WorktreeSessionCreateRequest {
         agent_id,
         base_branch,
@@ -652,9 +678,15 @@ pub(crate) fn create_and_start_worktree_session(
             create_params.insert(key.clone(), value.clone());
         }
         if let Some(prompt) = request.first_prompt.as_deref() {
+            let mut runtime_settings = create_params
+                .get("runtimeSettings")
+                .and_then(Value::as_object)
+                .cloned()
+                .unwrap_or_default();
+            runtime_settings.insert("firstUserMessage".to_string(), json!(prompt));
             create_params.insert(
                 "runtimeSettings".to_string(),
-                json!({ "firstUserMessage": prompt }),
+                Value::Object(runtime_settings),
             );
         }
         create_agent_session_params_for_project(&db, &project, &create_params)?

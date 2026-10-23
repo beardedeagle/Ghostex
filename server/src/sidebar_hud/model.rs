@@ -120,6 +120,14 @@ pub(super) const DEFAULT_SIDEBAR_AGENTS: &[DefaultSidebarAgent] = &[
         icon: "claude",
         name: "Claude",
     },
+    // CDXC:ClaudeCloud 2026-10-23 SEE-ALSO: the user's decision on the "Claude (cloud)" agent is in packages/gx-core/src/claude_cloud.rs; its sessions are server/src/claude_cloud/.
+    DefaultSidebarAgent {
+        agent_id: "claude-cloud",
+        command: crate::claude_cloud::CLAUDE_CLOUD_COMMAND,
+        hidden_by_default: false,
+        icon: "claude-cloud",
+        name: "Claude (cloud)",
+    },
     DefaultSidebarAgent {
         agent_id: "cursor",
         command: "cursor-agent",

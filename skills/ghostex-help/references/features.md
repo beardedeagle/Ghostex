@@ -154,12 +154,12 @@ for now: pick one and a box shows the task Ghostex wrote from the ticket (its ID
 title, link, a short part of its description, the branch to work on with a pull
 request linked to the ticket, and your team's instructions in a team workspace).
 Edit it and click **Start**; the session runs on the ticket's branch (or creates
-it when GitHub does not have it yet), opens in the app's browser and shows under
-**Conversations** as yours, with **Open in Claude** and **Open in terminal**
-(which attaches to it in a new terminal session with `claude --cloud <link>`). It
-uses your own `claude` login, so sign in to Claude Code first, and the project
-needs a GitHub remote. From a terminal: `ghostex work-mode start SPX-1245 --cloud
-[--prompt-file task.md]`. **New ticket** at
+it when GitHub does not have it yet) on your Claude account (the one your
+project's last cloud session used, otherwise your account for new sessions),
+gets a sidebar row like any Claude cloud session (see Claude cloud sessions)
+with the ticket's chip, and shows under **Conversations** as yours, with **Open
+in Claude** and **Open in terminal**. The project needs a GitHub remote. From a
+terminal: `ghostex work-mode start SPX-1245 --cloud [--prompt-file task.md]`. **New ticket** at
 the top creates a Linear ticket or a GitHub issue (see Create Linear Ticket
 under Git and worktrees) and the list picks it up right away. The Work view is
 part of the desktop app; the web version opens a chip's link instead.
@@ -1786,7 +1786,10 @@ bars with reset times (labelled 5h, 7d and Fable), Enabled, Name, Auto-switch (w
 it at a limit, shown as an Auto-switch on or off tag), Show usage in the sidebar,
 and under Advanced the Session badge (up to two letters or numbers on its
 session icons) and its Account number, which you can swap with another
-account's. Changes save as you make them; Sign in again and Remove sit at the
+account's. A Claude account also shows **claude.ai in Ghostex**: whether its own
+Browser profile is signed in to claude.ai for its cloud sessions, with **Sign in
+to claude.ai** or **Sign out** (see Claude cloud sessions). Changes save as you
+make them; Sign in again and Remove sit at the
 bottom, and Remove asks first and says how many sessions use the account.
 Turn Enabled off to keep an account you no longer use (for example one whose
 subscription ended) saved but out of use: it shows dimmed with a Disabled tag,
@@ -2864,6 +2867,51 @@ Credential Manager.
 Related settings: Settings > Remote (all rows are user-only; open them with
 `ghostex settings open --tab remote`), `hideKeepAwakeTitlebarControl` and the
 Keep Awake rows for machines that must stay reachable.
+
+## Claude cloud sessions (Claude Code on the web, in the sidebar)
+
+A Claude cloud session runs on Claude's own computers (Claude Code on the web)
+instead of this computer, so it keeps going when the computer sleeps, and still
+has its row in the sidebar. Pick **Claude (cloud)** in New Thread (its Run on row
+then shows **Claude cloud**; picking that place picks the agent, and any other
+agent dims it), choose the Claude account it runs on, and type the task in its
+terminal; the session starts on claude.ai from the project's GitHub repository on
+a new `claude/…` branch. The account is final for that session: its usage,
+follow-ups and Bring to this computer all stay on it. New Thread highlights the
+account of the project's last cloud session first. The row always sits under the
+project of the repository's main folder, even when started from a worktree.
+
+- **The row**: a plain cloud icon after the title; hover it for the account,
+  branch and latest status. Clicking it opens the session's claude.ai page in
+  Ghostex's Browser. While that page is open, the row shows working (orange),
+  needs you (blue) and Done like any session; otherwise it says what reached
+  GitHub ("Pushed 3 commits to claude/…", "Pull request #12 opened") with a blue
+  dot and a notification.
+- **Signing in**: each Claude account has its own claude.ai sign-in in Ghostex,
+  kept in its own Browser profile and used only for its cloud pages (Google
+  sign-in works there too). The first time a row needs it, the page says "Sign in
+  to claude.ai as <email> to see this session"; or sign in ahead of time from
+  Settings > Accounts > the account > claude.ai in Ghostex. If a page is signed
+  in as someone else, it says so with a **Sign in as <account>** button; nothing
+  is signed out until you click it.
+- **Out of usage**: when the session's account hits a limit, the row and page say
+  so with the reset time ("Work hit its 5h limit · resumes 4:10 pm") and offer
+  **Start a copy on another account**: a new cloud session carries on from the
+  same branch with a summary of the task, and the original stays where it is.
+- **Right-click a cloud row**: **Open on claude.ai**, **Bring to This Computer**
+  (continues it here in a new worktree with `claude --teleport`; the new local row
+  takes over and the cloud row parks) and, while its account is out of usage,
+  **Start a Copy on Another Account…**.
+- **Needs**: Claude Code signed in with claude.ai (Pro, Max, Team or
+  Enterprise; not an API key), the repository on GitHub with Claude's GitHub app,
+  and a cloud environment set up on claude.ai for that account. Cloud sessions
+  count against your Claude plan's limits. Claude does not yet let Ghostex show a
+  cloud session's live messages in its own terminal or chat; when it does, the
+  row opens Ghostex's terminal instead of the page.
+
+CLI: `ghostex create-agent claude-cloud --project-id <id> --prompt "<task>"`,
+`ghostex claude-cloud status <session>`, `ghostex claude-cloud send <session>
+<message>`, `ghostex claude-cloud bring-back <session>`.
 
 ## Cloud Boxes (agents in a box, here or in the cloud)
 

@@ -4,6 +4,7 @@ pub mod actions;
 mod agent_cli;
 pub mod agent_sync;
 mod agentbox_cli;
+mod claude_cloud_cli;
 mod agents;
 pub mod app_update;
 pub mod args;
@@ -96,6 +97,7 @@ const HELP_GATE_EXCLUDED: &[&str] = &[
     "agentbox",
     "agents",
     "app-update",
+    "claude-cloud",
     "orchestrator",
     "coordinator",
     "automations",
@@ -201,6 +203,7 @@ fn is_known_command(name: &str) -> bool {
         "agent-cli",
         "agentbox",
         "agents",
+        "claude-cloud",
         "orchestrator",
         "coordinator",
         "sessions",
@@ -406,6 +409,7 @@ fn run_command(name: &str, args: &[String]) -> CliResult<()> {
             agentbox_cli::run(args)
         }
         "agents" => agents::run(args),
+        "claude-cloud" => claude_cloud_cli::run(args),
         // CDXC:Coordinators 2026-10-10 DECISION: user renamed Coordinator to Orchestrator; `coordinator` stays a hidden alias (see ghostex_cli/coordinator/command.rs).
         "orchestrator" | "coordinator" => coordinator::run(args),
         "sessions" | "s" | "list-sessions" | "ls" => sessions::sessions_command(args),

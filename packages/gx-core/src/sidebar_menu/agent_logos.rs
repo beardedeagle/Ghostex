@@ -147,6 +147,16 @@ static LOGOS: &[(&str, &str, &str)] = &[
 ];
 
 /// Every icon key that has artwork, in catalog order. For the parity harness.
+/// The artwork an icon key draws: Claude (cloud) is Claude's logo (its row's cloud glyph says
+/// where it runs).
+fn logo_key(icon: &str) -> &str {
+    if icon == "claude-cloud" {
+        "claude"
+    } else {
+        icon
+    }
+}
+
 pub fn agent_logo_icons() -> Vec<&'static str> {
     LOGOS.iter().map(|(icon, _, _)| *icon).collect()
 }
@@ -154,6 +164,7 @@ pub fn agent_logo_icons() -> Vec<&'static str> {
 /// The raw artwork of an icon key (`packages/core-ui/assets/<key>.svg`), or `None` for an icon
 /// key with no artwork.
 pub fn agent_logo_svg(icon: &str) -> Option<&'static str> {
+    let icon = logo_key(icon);
     LOGOS
         .iter()
         .find(|(key, _, _)| *key == icon)
@@ -166,6 +177,7 @@ pub fn agent_logo_svg(icon: &str) -> Option<&'static str> {
 /// The URLs are built once. A host draws them for every row of every project on every
 /// install, and percent-encoding a kilobyte of SVG that many times is work with one answer.
 pub fn colored_agent_logo(icon: &str) -> Option<&'static str> {
+    let icon = logo_key(icon);
     static BUILT: std::sync::OnceLock<Vec<(&'static str, String)>> = std::sync::OnceLock::new();
     BUILT
         .get_or_init(|| {

@@ -10,6 +10,10 @@ const NOTIFICATION_BODY_SCAN_LIMIT: usize = 60;
 /// The text of the agent's newest assistant message, so a feed row says what the agent said instead of only that it stopped.
 /// Reads the provider transcript tail the same way the chat prompt scanner does; every miss (no agent, no transcript, no assistant text in the window) returns None and the caller falls back to a kind label.
 pub(crate) fn last_assistant_message_text(session: &Value) -> Option<String> {
+    // A Claude cloud session has no transcript here; its latest status line stands in.
+    if let Some(text) = crate::claude_cloud::notification_text(session) {
+        return Some(text);
+    }
     last_assistant_message(session).map(|(text, _)| text)
 }
 

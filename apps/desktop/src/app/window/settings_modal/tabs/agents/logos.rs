@@ -81,6 +81,12 @@ fn logo_color(icon: &str, p: &SettingsPalette) -> gpui::Rgba {
 
 /// The brand logo of `icon` at `size`, or `None` for an icon without a logo.
 pub(super) fn agent_logo(icon: &str, size: f32, p: &SettingsPalette) -> Option<AnyElement> {
+    // Claude (cloud) draws Claude's logo.
+    let icon = if icon == "claude-cloud" {
+        "claude"
+    } else {
+        icon
+    };
     let name = AGENT_ICONS.iter().find(|known| **known == icon)?;
     let path = SharedString::from(format!("agent-icons/{name}.svg"));
     if *name == "omp" {

@@ -8690,6 +8690,10 @@
           "value": "Claude"
         },
         {
+          "label": "Claude (cloud)",
+          "value": "Claude (cloud)"
+        },
+        {
           "label": "Cursor CLI",
           "value": "Cursor CLI"
         },

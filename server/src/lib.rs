@@ -18,6 +18,7 @@ pub mod automations;
 pub mod board_start_work;
 pub(crate) mod bot_feed;
 pub(crate) mod bot_projects;
+pub(crate) mod claude_cloud;
 pub mod cli;
 pub mod close_after_done;
 pub(crate) mod cloud_runner;

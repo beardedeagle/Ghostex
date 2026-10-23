@@ -865,6 +865,12 @@ impl GhostexGpuiApp {
         if !self.titlebar_mode_available(TitlebarMode::Browser) {
             return;
         }
+        // The tab the user clicked in, before the popup takes the selection: a popup from a
+        // Claude account's claude.ai page (its Google sign-in) stays in that account's profile.
+        let source_tab = self
+            .browser_tabs
+            .active_tab()
+            .map(|tab| (tab.id, tab.url.clone()));
         let popup_tab_id = self.browser_tabs.open_loaded_popup_tab(
             requested_url,
             self.browser_profiles.active_profile_id(),
@@ -873,6 +879,9 @@ impl GhostexGpuiApp {
         let Some(popup_tab_id) = popup_tab_id else {
             return;
         };
+        if let Some((source_id, source_url)) = source_tab {
+            self.inherit_claude_cloud_tab_profile(source_id, &source_url, popup_tab_id);
+        }
         if let Some(tab) = self
             .browser_tabs
             .tabs

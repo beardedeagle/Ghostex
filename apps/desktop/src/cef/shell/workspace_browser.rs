@@ -201,6 +201,21 @@ pub(crate) fn clear_workspace_browser_profile(profile: &str) -> Result<()> {
         .context("failed to schedule workspace browser profile clear")
 }
 
+/// Deletes one disk-backed profile's cookies for `urls` only (a Claude account's claude.ai
+/// sign-in, app/claude_cloud_page.rs), leaving every other site signed in. The profile's context
+/// must be open.
+pub(crate) fn clear_workspace_browser_site_cookies(profile: &str, urls: &[&str]) -> Result<()> {
+    let context = workspace_browser_request_context(profile)?;
+    let cookies = context
+        .cookie_manager(None)
+        .context("the profile has no cookie store")?;
+    for url in urls {
+        cookies.delete_cookies(Some(&CefString::from(*url)), None, None);
+    }
+    cookies.flush_store(None);
+    Ok(())
+}
+
 pub(super) fn clear_workspace_browser_contexts() {
     WORKSPACE_CONTEXTS.with(|contexts| {
         for (_, entry) in contexts.borrow_mut().drain() {

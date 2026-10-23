@@ -16,8 +16,9 @@
 use super::super::super::super::native_modal_kit::*;
 use super::super::super::catalog::SettingOption;
 use super::super::super::fields::{
-    FieldStates, RowSpec, SizedButtonSize, SizedButtonVariant, setting_row, settings_icon,
-    settings_select, settings_sized_button, settings_text_input, switch_control, tooltip_text,
+    ButtonVariant, FieldStates, RowSpec, SizedButtonSize, SizedButtonVariant, setting_row,
+    settings_button, settings_icon, settings_select, settings_sized_button, settings_text_input,
+    switch_control, tooltip_text,
 };
 use super::super::super::palette::SettingsPalette;
 use super::data::{Account, helper_label, normalize_account_indicator_input};
@@ -481,6 +482,89 @@ impl AccountsTab {
         )
     }
 
+    /// "claude.ai in Ghostex": whether this account's own Browser profile is signed in to
+    /// claude.ai, with Sign in to claude.ai or Sign out (CDXC:ClaudeCloud in
+    /// app/claude_cloud_page.rs). Ghostex learns it from the account's claude.ai pages.
+    fn render_claude_ai_row(
+        &mut self,
+        p: &SettingsPalette,
+        account: &Account,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let id = account.id();
+        let signin = claude_ai_signin(&id);
+        let (description, signed_in) = match &signin {
+            Some(Some(email)) => (
+                format!("Signed in as {email}. Its cloud sessions open here."),
+                true,
+            ),
+            Some(None) => (
+                "Not signed in. Its cloud sessions' pages ask you to sign in.".to_string(),
+                false,
+            ),
+            None => (
+                "Not checked yet. Sign in once so this account's cloud sessions open in Ghostex."
+                    .to_string(),
+                false,
+            ),
+        };
+        let (name, email) = (account.name(), account.email());
+        let button = if signed_in {
+            let id = id.clone();
+            settings_button(
+                p,
+                SharedString::from(format!("account-editor-{id}-claude-ai-signout")),
+                "Sign out",
+                None,
+                ButtonVariant::Outline,
+                false,
+                None,
+                move |page: &mut Self, _window, cx| {
+                    super::super::super::store::post_store_message(
+                        &page.store,
+                        json!({ "type": "signOutClaudeAccountFromClaudeAi", "accountId": id }),
+                        cx,
+                    );
+                },
+                cx,
+            )
+        } else {
+            let id = id.clone();
+            settings_button(
+                p,
+                SharedString::from(format!("account-editor-{id}-claude-ai-signin")),
+                "Sign in to claude.ai",
+                None,
+                ButtonVariant::Outline,
+                false,
+                None,
+                move |page: &mut Self, _window, cx| {
+                    super::super::super::store::post_store_message(
+                        &page.store,
+                        json!({
+                            "type": "signInClaudeAccountToClaudeAi",
+                            "accountId": id,
+                            "name": name,
+                            "email": email,
+                        }),
+                        cx,
+                    );
+                },
+                cx,
+            )
+        };
+        setting_row(
+            p,
+            SharedString::from(format!("account-editor-{}-claude-ai", account.id())),
+            RowSpec::new("claude.ai in Ghostex")
+                .description(description)
+                .inset_x(0.0),
+            None,
+            button,
+            cx,
+        )
+    }
+
     /// Enabled, Name, Auto-switch, Show usage in the sidebar, and Advanced.
     #[allow(clippy::too_many_arguments)]
     fn render_detail_rows(
@@ -540,6 +624,10 @@ impl AccountsTab {
             ),
             cx,
         ));
+        // claude.ai in Ghostex: the sign-in this Claude account's cloud pages use.
+        if enabled && account.provider() == "claude" {
+            rows.push(self.render_claude_ai_row(p, account, cx));
+        }
         // Auto-switch and Show usage in the sidebar mean nothing while the account is turned off.
         if enabled {
             // Auto-switch.
@@ -986,6 +1074,38 @@ impl AccountsTab {
 }
 
 /// " 37 sessions use it." for the needs-sign-in note.
+/// What the app last saw of a Claude account's claude.ai sign-in (`claude-cloud-signins.json`,
+/// written by app/claude_cloud_page.rs): `Some(Some(email))` signed in, `Some(None)` signed out,
+/// `None` not seen yet. Read again only when the file changes.
+fn claude_ai_signin(account_id: &str) -> Option<Option<String>> {
+    thread_local! {
+        static CACHE: std::cell::RefCell<(Option<std::time::SystemTime>, serde_json::Value)> =
+            std::cell::RefCell::new((None, serde_json::Value::Null));
+    }
+    let path = ghostex_paths::GhostexPaths::resolve()
+        .state_dir
+        .join("claude-cloud-signins.json");
+    let modified = std::fs::metadata(&path)
+        .and_then(|meta| meta.modified())
+        .ok();
+    CACHE.with(|cache| {
+        let mut cache = cache.borrow_mut();
+        if cache.0 != modified {
+            cache.1 = std::fs::read_to_string(&path)
+                .ok()
+                .and_then(|text| serde_json::from_str(&text).ok())
+                .unwrap_or(serde_json::Value::Null);
+            cache.0 = modified;
+        }
+        cache.1.get(account_id).map(|entry| {
+            entry
+                .get("email")
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_string)
+        })
+    })
+}
+
 fn sessions_sentence(count: u64) -> String {
     match count {
         0 => String::new(),

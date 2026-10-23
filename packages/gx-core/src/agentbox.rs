@@ -180,12 +180,15 @@ fn valid_provider_id(id: &str) -> bool {
 /// A draft whose chat Run on row picked a box (`agentbox.pending`) keeps Chat View: nothing runs
 /// in its box until its first message, which creates the box and clears `pending`, and that flip
 /// is what hands the thread to its terminal on every client.
+///
+/// A Claude cloud session has no transcript here either: its conversation lives on claude.ai.
 pub fn session_chat_view_unavailable(core: &Core, session: &SessionKey) -> bool {
     core.presentation().session(session).is_some_and(|session| {
-        session
-            .agentbox
-            .as_ref()
-            .is_some_and(|agentbox| !agentbox.pending)
+        session.claude_cloud.is_some()
+            || session
+                .agentbox
+                .as_ref()
+                .is_some_and(|agentbox| !agentbox.pending)
     })
 }
 
@@ -222,6 +225,10 @@ pub fn agentbox_location_label(run_location: &str) -> String {
 /// The agent agentbox runs for a launcher agent: Claude, Codex, OpenCode and Pi, by the agent's
 /// icon (its family) or, without one, its id. `None` for every other agent.
 pub fn agentbox_agent_family(agent_id: &str, icon: Option<&str>) -> Option<&'static str> {
+    // Claude (cloud) shows Claude's icon but runs on claude.ai, never in a box.
+    if crate::claude_cloud::is_claude_cloud_agent(agent_id) {
+        return None;
+    }
     match icon.unwrap_or(agent_id).trim() {
         "claude" => Some("claude"),
         "codex" => Some("codex"),

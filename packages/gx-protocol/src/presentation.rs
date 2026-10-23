@@ -429,6 +429,46 @@ pub struct PresentationAgentbox {
     pub pending: bool,
 }
 
+/// A Claude cloud session: the agent runs on claude.ai's computers, and the session's row opens
+/// its claude.ai page (server/src/claude_cloud/).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PresentationClaudeCloud {
+    /// `draft` (no task yet), `starting`, `running`, `failed` or `moved` (brought to this computer).
+    #[serde(default, deserialize_with = "crate::de::null_as_default")]
+    pub state: String,
+    /// `https://claude.ai/code/session_…`, once the session exists.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+    /// The branch the session pushes to.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub branch: Option<String>,
+    /// The latest status line, e.g. "Pushed 3 commits to claude/x" or "Pull request #12 opened".
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub status_text: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pr_url: Option<String>,
+    /// Why the start failed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+    /// `live` once the session's terminal shows the cloud session itself (`claude --cloud <link>`
+    /// attached), `unavailable` while Claude does not allow attaching for the account.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub attach: Option<String>,
+    /// The Saved Claude account the session runs on; its claude.ai page opens in that account's
+    /// Browser profile.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub account_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub account_name: Option<String>,
+    /// The email the account's claude.ai page must be signed in as.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub account_email: Option<String>,
+    /// "<account> hit its 5h limit · resumes 4:10 pm" while the account is out of usage.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub limit_notice: Option<String>,
+}
+
 /// One OSC 7501 record of a session.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -729,6 +769,9 @@ pub struct PresentationSession {
     /// Present only when the agent runs inside an agentbox sandbox instead of on this machine.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub agentbox: Option<PresentationAgentbox>,
+    /// Present only for a Claude cloud session: the agent runs on claude.ai's computers.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub claude_cloud: Option<PresentationClaudeCloud>,
     /// Accounts or agents this session can be resumed under; element shape kept loose.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub switchable_agents: Option<Value>,

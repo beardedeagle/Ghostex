@@ -68,6 +68,7 @@ pub fn default_agent_id_for_icon(icon: Option<&str>) -> Option<&'static str> {
     Some(match icon? {
         "codex" => "codex",
         "claude" => "claude",
+        "claude-cloud" => "claude-cloud",
         "cursor-cli" => "cursor",
         "pi" => "pi",
         "opencode" => "opencode",
@@ -114,6 +115,7 @@ fn default_session_agent_title_name(lowercased: &str) -> Option<&'static str> {
         "agy" | "antigravity" | "antigravity-cli" => "Antigravity CLI",
         "amp" | "amp-cli" => "Amp CLI",
         "claude" | "claude-code" => "Claude",
+        "claude-cloud" => "Claude (cloud)",
         "codebuddy" | "code-buddy" => "CodeBuddy",
         "codex" | "codex-cli" => "Codex",
         "command-code" | "commandcode" => "Command Code",

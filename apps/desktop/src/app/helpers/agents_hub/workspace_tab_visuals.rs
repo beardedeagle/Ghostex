@@ -66,7 +66,8 @@ pub(crate) fn workspace_tab_agent_icon_path(agent_icon: &str) -> Option<&'static
         "amp-cli" => Some("agent-icons/amp-cli.svg"),
         "antigravity-cli" => Some("agent-icons/antigravity-cli.svg"),
         "browser" => Some("agent-icons/browser.svg"),
-        "claude" => Some("agent-icons/claude.svg"),
+        // Claude (cloud) draws Claude's logo; its row's cloud glyph says where it runs.
+        "claude" | "claude-cloud" => Some("agent-icons/claude.svg"),
         "codebuddy" => Some("agent-icons/codebuddy.svg"),
         "command-code" => Some("agent-icons/command-code.svg"),
         "cursor-cli" => Some("agent-icons/cursor-cli.svg"),
@@ -107,7 +108,7 @@ pub(crate) fn workspace_tab_agent_icon_accent_color(agent_icon: &str) -> u32 {
         "amp-cli" => 0xffffff,
         "antigravity-cli" => 0x749bff,
         "browser" => 0x82b7ff,
-        "claude" => 0xd97757,
+        "claude" | "claude-cloud" => 0xd97757,
         "codebuddy" => 0x72d6ff,
         "command-code" => 0x22d3ee,
         "cursor-cli" => 0xedecec,

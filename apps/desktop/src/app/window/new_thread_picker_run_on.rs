@@ -8,6 +8,8 @@
 //! CDXC:AgentBox 2026-10-01 WHY:
 //! The orchestrator decided, while the user was away, that the row and its 30px appear only when agentbox is installed and the project is on this computer; without agentbox, on Windows, for a remote project, or before a status answer, the picker is exactly the one the user sized (CDXC:AgentLauncher 2026-09-09 in new_thread_picker.rs), and discovery stays in Settings > Cloud Boxes and the sidebar's Select Agent menu.
 //! SEE-ALSO: packages/gx-core/src/agentbox.rs (which locations are ready, which agents a box runs), apps/desktop/src/app/gx_store/agentbox.rs (the status read), packages/gx-core/src/sidebar_menu/run_in_box.rs (the sidebar launcher's twin).
+//!
+//! CDXC:ClaudeCloud 2026-10-23 SEE-ALSO: the user's decision in packages/gx-core/src/claude_cloud.rs puts Claude cloud in this row as its own place, right after This computer, whenever the agent list has the Claude (cloud) agent, so the row now shows for that too (without agentbox it holds This computer and Claude cloud). The Claude cloud chip is lit while the Claude (cloud) agent is highlighted and dimmed while another agent is; picking it highlights that agent, and picking another place moves off it to Claude. Every place's one-line meaning is its chip's tooltip.
 use super::*;
 use gpui_component::input::{MoveEnd, MoveHome};
 
@@ -18,6 +20,7 @@ const RUN_ON_LABEL: &str = "Run on";
 const THIS_COMPUTER: &str = "This computer";
 const SET_UP_LINK: &str = "Run in a cloud box…";
 const ICON_THIS_COMPUTER: &str = "titlebar/device-desktop.svg";
+const ICON_CLAUDE_CLOUD: &str = "titlebar/cloud.svg";
 #[cfg(target_os = "macos")]
 const KEYS: &str = "⌘←→";
 #[cfg(not(target_os = "macos"))]
@@ -89,6 +92,8 @@ pub(crate) struct RunOnState {
     selected: Option<String>,
     /// The user picked a chip during this open, so a late status answer keeps their pick.
     touched: bool,
+    /// The agent list has the Claude (cloud) agent, so Claude cloud is a place too.
+    cloud: bool,
 }
 
 impl RunOnState {
@@ -98,6 +103,7 @@ impl RunOnState {
             preferred,
             selected: None,
             touched: false,
+            cloud: false,
         };
         state.apply_preferred();
         state
@@ -138,7 +144,11 @@ impl RunOnState {
     }
 
     pub(crate) fn shown(&self) -> bool {
-        self.boxes.shows_run_on()
+        self.boxes.shows_run_on() || self.cloud
+    }
+
+    pub(crate) fn set_cloud(&mut self, cloud: bool) {
+        self.cloud = cloud;
     }
 
     /// Chip index: 0 is This computer, then the boxes in order.
@@ -173,6 +183,53 @@ pub(crate) fn runs_in_box(agent: &NewThreadPickerAgent) -> bool {
 }
 
 impl GpuiNewThreadPickerWindow {
+    /// The Claude (cloud) agent's index in the agent list.
+    pub(super) fn cloud_agent_index(&self) -> Option<usize> {
+        self.agents
+            .iter()
+            .position(|agent| ghostex_gx_core::is_claude_cloud_agent(&agent.agent_id))
+    }
+
+    /// The highlighted row's agent, outside an account list.
+    fn highlighted_agent(&self) -> Option<usize> {
+        match (self.scope, self.selected_row()) {
+            (None, Some(PickerRow::Agent(index))) => Some(index),
+            _ => None,
+        }
+    }
+
+    fn cloud_highlighted(&self) -> bool {
+        self.highlighted_agent().is_some() && self.highlighted_agent() == self.cloud_agent_index()
+    }
+
+    /// Chips: This computer, Claude cloud (when offered), then the boxes.
+    fn chip_count(&self) -> usize {
+        self.run_on.chip_count() + usize::from(self.run_on.cloud)
+    }
+
+    fn chip_selected(&self) -> usize {
+        if self.run_on.cloud && self.cloud_highlighted() {
+            return 1;
+        }
+        match self.run_on.selected_index() {
+            0 => 0,
+            index => index + usize::from(self.run_on.cloud),
+        }
+    }
+
+    /// Highlights the agent at `agent_index`, when the list shows it.
+    fn highlight_agent(&mut self, agent_index: usize) {
+        let rows = self.rows();
+        if let Some(position) = rows
+            .iter()
+            .position(|row| *row == PickerRow::Agent(agent_index))
+        {
+            self.selected = position;
+            self.scroll
+                .scroll_to_item(self.scroll_child_index(&rows, position));
+        }
+    }
+
     /// The host's newest read of `/api/agentbox status`.
     pub(crate) fn set_run_locations(
         &mut self,
@@ -205,11 +262,31 @@ impl GpuiNewThreadPickerWindow {
     }
 
     fn pick_run_location(&mut self, index: usize, window: &mut Window, cx: &mut Context<Self>) {
+        let index = index.min(self.chip_count() - 1);
+        let cloud_chip = self.run_on.cloud && index == 1;
+        let box_index = match index {
+            0 => 0,
+            _ if cloud_chip => 0,
+            index => index - usize::from(self.run_on.cloud),
+        };
         let was = self.run_on.selected_index();
-        self.run_on
-            .select_index(index.min(self.run_on.chip_count() - 1));
+        self.run_on.select_index(box_index);
         if was != self.run_on.selected_index() {
             self.run_location_changed(window, cx);
+        }
+        if cloud_chip {
+            if let Some(cloud) = self.cloud_agent_index() {
+                self.highlight_agent(cloud);
+            }
+        } else if self.cloud_highlighted() {
+            // Claude cloud runs only there, so another place moves the highlight to Claude.
+            if let Some(claude) = self
+                .agents
+                .iter()
+                .position(|agent| agent.agent_id == "claude")
+            {
+                self.highlight_agent(claude);
+            }
         }
         self.reveal_selected_run_location();
         cx.notify();
@@ -217,13 +294,12 @@ impl GpuiNewThreadPickerWindow {
 
     /// Scrolls the chips so the picked one is on screen when they do not all fit.
     pub(super) fn reveal_selected_run_location(&self) {
-        self.run_on_scroll
-            .scroll_to_item(self.run_on.selected_index());
+        self.run_on_scroll.scroll_to_item(self.chip_selected());
     }
 
     /// `⌘←→ Location` in the key-hint row, while there is more than one place to pick.
     pub(super) fn run_on_key_hint(&self) -> Option<impl IntoElement> {
-        (self.run_on.shown() && self.run_on.chip_count() > 1 && self.scope.is_none())
+        (self.run_on.shown() && self.chip_count() > 1 && self.scope.is_none())
             .then(|| self.render_hint(&[KEYS], HINT_LOCATION))
     }
 
@@ -234,11 +310,11 @@ impl GpuiNewThreadPickerWindow {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let count = self.run_on.chip_count() as isize;
+        let count = self.chip_count() as isize;
         if count < 2 {
             return;
         }
-        let next = (self.run_on.selected_index() as isize + delta).rem_euclid(count) as usize;
+        let next = (self.chip_selected() as isize + delta).rem_euclid(count) as usize;
         self.pick_run_location(next, window, cx);
     }
 
@@ -268,8 +344,7 @@ impl GpuiNewThreadPickerWindow {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if cfg!(target_os = "macos") && window.modifiers().platform && self.run_on.chip_count() > 1
-        {
+        if cfg!(target_os = "macos") && window.modifiers().platform && self.chip_count() > 1 {
             cx.stop_propagation();
             self.cycle_run_location(-1, window, cx);
             return;
@@ -279,8 +354,7 @@ impl GpuiNewThreadPickerWindow {
 
     /// The Cmd+Right half of `MoveEnd` on macOS; Ctrl+E and End still move the caret.
     pub(super) fn on_move_end(&mut self, _: &MoveEnd, window: &mut Window, cx: &mut Context<Self>) {
-        if cfg!(target_os = "macos") && window.modifiers().platform && self.run_on.chip_count() > 1
-        {
+        if cfg!(target_os = "macos") && window.modifiers().platform && self.chip_count() > 1 {
             cx.stop_propagation();
             self.cycle_run_location(1, window, cx);
             return;
@@ -308,7 +382,7 @@ impl GpuiNewThreadPickerWindow {
             "right" => 1,
             _ => return,
         };
-        if self.run_on.chip_count() > 1 {
+        if self.chip_count() > 1 {
             cx.stop_propagation();
             self.cycle_run_location(delta, window, cx);
         }
@@ -323,7 +397,10 @@ impl GpuiNewThreadPickerWindow {
         cx: &mut Context<Self>,
     ) -> AnyElement {
         let c = self.colors;
-        let selected = self.run_on.selected_index() == index;
+        let selected = self.chip_selected() == index;
+        // Claude cloud dims while another agent is highlighted: only Claude runs there.
+        let dimmed =
+            self.run_on.cloud && index == 1 && !selected && self.highlighted_agent().is_some();
         h_flex()
             .id(ElementId::Name(format!("new-thread-run-on-{index}").into()))
             .flex_shrink_0()
@@ -345,6 +422,7 @@ impl GpuiNewThreadPickerWindow {
                     .text_color(hsla(c.muted))
                     .hover(|chip| chip.bg(hsla(rgba_of(c.foreground, 0.06))))
             })
+            .when(dimmed, |chip| chip.opacity(0.45))
             .child(modal_icon(
                 icon,
                 13.0,
@@ -382,9 +460,19 @@ impl GpuiNewThreadPickerWindow {
             0,
             ICON_THIS_COMPUTER,
             THIS_COMPUTER.to_string(),
-            None,
+            Some(ghostex_gx_core::THIS_COMPUTER_DESCRIPTION.to_string()),
             cx,
         )];
+        if self.run_on.cloud {
+            chips.push(self.render_run_on_chip(
+                1,
+                ICON_CLAUDE_CLOUD,
+                ghostex_gx_core::CLAUDE_CLOUD_LABEL.to_string(),
+                Some(ghostex_gx_core::CLAUDE_CLOUD_DESCRIPTION.to_string()),
+                cx,
+            ));
+        }
+        let box_offset = 1 + usize::from(self.run_on.cloud);
         for (offset, location) in self.run_on.boxes.locations().iter().enumerate() {
             // A label the chip cuts short is readable on hover.
             let tooltip = location
@@ -392,7 +480,7 @@ impl GpuiNewThreadPickerWindow {
                 .clone()
                 .or_else(|| (location.label.chars().count() > 16).then(|| location.label.clone()));
             chips.push(self.render_run_on_chip(
-                offset + 1,
+                offset + box_offset,
                 location.icon(),
                 location.label.clone(),
                 tooltip,

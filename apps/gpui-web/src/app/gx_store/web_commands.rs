@@ -222,6 +222,12 @@ impl GhostexGpuiApp {
         let Some(session) = self.gx_store.session_key_for_row(row_id) else {
             return;
         };
+        // A running Claude cloud session opens its claude.ai page (a new browser tab here).
+        if let Some(url) = ghostex_gx_core::session_claude_cloud_page(&self.gx_store.core, &session)
+        {
+            self.open_claude_cloud_page(&session, url, cx);
+            return;
+        }
         self.web_open_session(session, cx);
     }
 

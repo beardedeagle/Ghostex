@@ -7,6 +7,7 @@ mod chat;
 mod connectors;
 mod control;
 mod dispatch;
+mod claude_cloud;
 mod git;
 mod projects;
 mod prompts;
@@ -24,6 +25,7 @@ mod workspaces;
 
 use agents::route_agents_http;
 use chat::route_chat_http;
+use claude_cloud::route_claude_cloud_http;
 use connectors::route_connectors_http;
 use control::route_control_http;
 pub(in crate::server) use dispatch::route_http;

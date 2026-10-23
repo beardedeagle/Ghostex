@@ -93,6 +93,7 @@ pub(crate) const CLOUD_PROVIDERS: &[CloudProvider] = &[CloudProvider {
     runner: |home_dir| {
         Box::new(ClaudeCodeOnTheWeb {
             home_dir: home_dir.to_path_buf(),
+            account: None,
         })
     },
 }];
@@ -118,12 +119,36 @@ pub(crate) fn cloud_runner(home_dir: &Path) -> Box<dyn CloudRunner + Send + Sync
 /// text on stdin answers `{"ok":true,"session_id":…}`.
 struct ClaudeCodeOnTheWeb {
     home_dir: PathBuf,
+    /// `cswap run <slot> --share-history --` when the session runs on a saved Claude account
+    /// (crate::accounts::launch::claude_account_argv); `None` runs the current CLI login.
+    account: Option<Vec<String>>,
+}
+
+/// Claude Code on the web on a saved Claude account (`account` from
+/// `claude_account_argv`), or on the current CLI login: the runner of a Claude cloud session
+/// (crate::claude_cloud).
+pub(crate) fn claude_code_on_the_web(
+    home_dir: &Path,
+    account: Option<Vec<String>>,
+) -> Box<dyn CloudRunner + Send + Sync> {
+    Box::new(ClaudeCodeOnTheWeb {
+        home_dir: home_dir.to_path_buf(),
+        account,
+    })
 }
 
 impl ClaudeCodeOnTheWeb {
     fn program(&self) -> Result<PathBuf, String> {
         crate::accounts::helpers::executable(&self.home_dir, "claude")
             .ok_or_else(|| "Claude Code (`claude`) is not installed on this computer.".to_string())
+    }
+
+    /// The program and the arguments before Claude's own: the account wrapper, or `claude`.
+    fn invocation(&self) -> Result<(PathBuf, Vec<String>), String> {
+        match self.account.as_deref() {
+            Some([program, wrapper @ ..]) => Ok((PathBuf::from(program), wrapper.to_vec())),
+            _ => Ok((self.program()?, Vec::new())),
+        }
     }
 }
 
@@ -133,7 +158,9 @@ impl CloudRunner for ClaudeCodeOnTheWeb {
     }
 
     fn start(&self, request: &CloudStartRequest<'_>) -> Result<CloudSession, String> {
-        let mut command = CommandBuilder::new(self.program()?);
+        let (program, wrapper) = self.invocation()?;
+        let mut command = CommandBuilder::new(program);
+        command.args(&wrapper);
         command.arg("--cloud");
         command.arg(request.prompt);
         // A headless start cannot answer the "send this machine's settings?" question.
@@ -221,8 +248,10 @@ impl CloudRunner for ClaudeCodeOnTheWeb {
     }
 
     fn send(&self, session_url: &str, text: &str) -> Result<(), String> {
-        let mut command = background_command(self.program()?);
+        let (program, wrapper) = self.invocation()?;
+        let mut command = background_command(program);
         command
+            .args(&wrapper)
             .args(["-p", "--cloud", session_url, "--output-format", "json"])
             .current_dir(&self.home_dir);
         // On stdin, so a long message never meets the command-line limit.
