@@ -239,6 +239,17 @@ if ($RobocopyExitCode -gt 7) {
 if (-not (Test-Path -LiteralPath $InstalledExecutable -PathType Leaf)) {
     throw "The installed Ghostex executable is missing: $InstalledExecutable"
 }
+<#
+CDXC:Release 2026-10-23 WHY:
+The staged app has no ghostex.exe: it is gxserver.exe under the CLI's name, a hard link made on the PC (apps/desktop/src/windows_cli_link.rs). The mirror retired or removed the old one like any other executable missing from the build. Link it here so the CLI works before the app first starts, and so a machine-wide install, which the app cannot write to, has one.
+#>
+$InstalledCli = Join-Path $InstallDir "resources/native/ghostex.exe"
+if (Test-Path -LiteralPath $InstalledServer -PathType Leaf) {
+    if (Test-Path -LiteralPath $InstalledCli) {
+        Remove-Item -LiteralPath $InstalledCli -Force
+    }
+    New-Item -ItemType HardLink -Path $InstalledCli -Target $InstalledServer | Out-Null
+}
 
 <#
 CDXC:Build 2026-09-20 DECISION:

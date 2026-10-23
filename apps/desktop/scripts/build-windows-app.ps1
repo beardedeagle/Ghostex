@@ -146,6 +146,7 @@ if ($BuildApp) {
 if ($BuildRuntime) {
     Push-Location (Join-Path $RepoRoot "server")
     try {
+        # The app ships gxserver.exe alone (ghostex.exe is made on the PC, apps/desktop/src/windows_cli_link.rs); ghostex.exe is still compiled because .github/workflows/release-gpui-windows.yml checks and uploads it.
         Invoke-CargoReleaseBuild @("--bin", "gxserver", "--bin", "ghostex")
         if ($LASTEXITCODE -ne 0) { throw "Native Windows runtime build failed" }
     }
@@ -327,9 +328,8 @@ Copy-Item (Join-Path $RepoRoot "apps/editor/dist/web") (Join-Path $PromptEditorR
 # an optional WSL component.
 $NativeResources = Join-Path $AppDir "resources/native"
 New-Item -ItemType Directory -Force -Path $NativeResources | Out-Null
-foreach ($binary in @("gxserver.exe", "ghostex.exe")) {
-    Copy-Item (Join-Path $RepoRoot "server/target/release/$binary") $NativeResources
-}
+# ghostex.exe is gxserver.exe under the CLI's name: the app makes it a hard link on the PC, because the installer package cannot hold links (CDXC:Release 2026-10-23 in server/src/main.rs).
+Copy-Item (Join-Path $RepoRoot "server/target/release/gxserver.exe") $NativeResources
 Copy-Item (Join-Path $RepoRoot ".dependencies/wmx/target/release/wmx.exe") $NativeResources
 # CDXC:AgentSkills 2026-09-27 WHY:
 # The native CLI resolves its offline skill catalog next to resources/native.

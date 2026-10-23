@@ -323,7 +323,7 @@ if ($RunPack) {
         foreach ($file in $SignedFiles) { Assert-SignPathSignature $file.FullName }
         # Put the signed binaries into the staged app before packing, then
         # re-seal build-identity.json: the app compares its fingerprint with
-        # the SHA-256 of the installed gxserver.exe, ghostex.exe and wmx.exe
+        # the SHA-256 of the installed gxserver.exe and wmx.exe
         # (windows_terminal_backend/native_package.rs), and signing changed them.
         $StagedBinaries = Get-ChildItem $AppDir -Recurse -File | Where-Object {
             $_.Extension -in @(".exe", ".dll", ".node") -and $_.FullName -notmatch $VpkSignExclude

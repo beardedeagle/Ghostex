@@ -40,6 +40,8 @@ mod terminal_shaders;
 mod terminal_wheel;
 mod ui_fonts;
 #[cfg(target_os = "windows")]
+mod windows_cli_link;
+#[cfg(target_os = "windows")]
 mod windows_single_instance;
 mod windows_terminal_backend;
 #[cfg(target_os = "windows")]

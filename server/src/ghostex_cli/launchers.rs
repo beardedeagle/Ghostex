@@ -240,7 +240,7 @@ pub fn current_cli_executable() -> PathBuf {
 }
 
 /// CDXC:Cli 2026-10-23 WHY:
-/// On macOS and Linux `ghostex` is a link to gxserver (CDXC:Release 2026-10-23 in server/src/main.rs), so the realpath above names gxserver, and Linux reports that path as the executable even before it. Callers need the CLI's own entry: its folder holds `skills/` in the app bundle, and the path is what sessions run as `GHOSTEX_CLI_EXECUTABLE`, where gxserver's own name would start the server instead. The bundle's entry is `Contents/Resources/CLI/ghostex`; every other layout keeps the `ghostex` link beside gxserver.
+/// On macOS and Linux `ghostex` is a link to gxserver (CDXC:Release 2026-10-23 in server/src/main.rs), so the realpath above names gxserver, and Linux reports that path as the executable even before it. Callers need the CLI's own entry: its folder holds `skills/` in the app bundle, and the path is what sessions run as `GHOSTEX_CLI_EXECUTABLE`, where gxserver's own name would start the server instead. The bundle's entry is `Contents/Resources/CLI/ghostex`; every other layout keeps the `ghostex` link beside gxserver. Windows reports a hard link under its own name, so `ghostex.exe` needs no mapping.
 fn merged_cli_entry(executable: &Path) -> Option<PathBuf> {
     if executable.file_name()? != "gxserver" {
         return None;

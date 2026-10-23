@@ -4,7 +4,8 @@ use std::{fs, io::Read, os::windows::ffi::OsStrExt, path::Path, sync::Mutex};
 use windows_sys::Win32::Storage::FileSystem::ReplaceFileW;
 
 static REFRESH_LOCK: Mutex<()> = Mutex::new(());
-const BINARIES: [&str; 3] = ["gxserver.exe", "ghostex.exe", "wmx.exe"];
+// ghostex.exe is not copied: it is the package's own gxserver.exe under the CLI's name (`link_cli`).
+const BINARIES: [&str; 2] = ["gxserver.exe", "wmx.exe"];
 
 /// Records the installed app folder for CLIs and scripts that cannot derive it (see `GhostexPaths::windows_app_dir_file`).
 pub(super) fn record_app_dir() {
@@ -105,7 +106,7 @@ fn refresh() -> Result<()> {
         ));
     }
     if files.is_empty() {
-        return Ok(());
+        return link_cli(&package);
     }
 
     let transaction = package
@@ -169,7 +170,13 @@ fn refresh() -> Result<()> {
         }
         replaced.push((target.clone(), backup));
     }
-    Ok(())
+    link_cli(&package)
+}
+
+/// A replaced gxserver.exe leaves the package's hard-linked `ghostex.exe` on the old program, and a package from before 2026-10-23 holds a separate CLI there.
+fn link_cli(package: &Path) -> Result<()> {
+    crate::windows_cli_link::link_cli(&package.join("bin"), &package.join(".retired-native"))
+        .with_context(|| format!("Linking {}", package.join("bin/ghostex.exe").display()))
 }
 
 fn file_hash(path: &Path) -> Result<String> {

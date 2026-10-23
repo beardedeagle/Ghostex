@@ -11,6 +11,9 @@
 //! installing the verified component first and puts it on the loader path.
 
 #[cfg(target_os = "windows")]
+#[path = "../windows_cli_link.rs"]
+mod windows_cli_link;
+#[cfg(target_os = "windows")]
 #[path = "../windows_updater.rs"]
 mod windows_updater;
 

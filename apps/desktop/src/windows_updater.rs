@@ -34,7 +34,12 @@ pub(crate) enum WindowsUpdateCheck {
 pub(crate) fn run_startup_hooks() {
     // Velopack owns install/update lifecycle command-line invocations. This
     // must run before GPUI, CEF, logging, or any background threads start.
-    VelopackApp::build().set_auto_apply_on_startup(false).run();
+    VelopackApp::build()
+        .set_auto_apply_on_startup(false)
+        .on_after_install_fast_callback(|_| crate::windows_cli_link::link_installed_cli())
+        .on_after_update_fast_callback(|_| crate::windows_cli_link::link_installed_cli())
+        .run();
+    crate::windows_cli_link::link_installed_cli();
     adopt_release_app_user_model_id();
 }
 
