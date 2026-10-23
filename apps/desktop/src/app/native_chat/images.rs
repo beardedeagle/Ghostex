@@ -82,7 +82,7 @@ const THUMBNAIL_PIXEL_RATIO: f32 = 2.0;
 const THUMBNAIL_MAX_SOURCE_PIXELS: u64 = 64 * 1024 * 1024;
 
 /// CDXC:SessionChat 2026-10-23 WHY:
-/// Every picture a chat ever showed used to stay in memory until its chat view was dropped (its file bytes, every shrunk copy, and GPUI's full-size decoded copy of each one opened in the preview), and up to 24 chat views stay warm (`session_chat_prewarm.rs`). The cache now keeps this many bytes per chat (file bytes plus the shrunk copies' pixels) and lets the pictures drawn longest ago go first, so scrolling back to one reads and shrinks it again. A tile is drawn from its shrunk copy without the file bytes, so those go first.
+/// Every picture a chat ever showed used to stay in memory until its chat view was dropped (its file bytes, every shrunk copy, GPUI's full-size decoded copy of each one opened in the preview, and every painted Mermaid diagram, up to 32 MB each), and up to 24 chat views stay warm (`session_chat_prewarm.rs`). The cache now keeps this many bytes per chat (file bytes, the shrunk copies' pixels and the painted diagrams, `mermaid.rs`) and lets the pictures drawn longest ago go first, so scrolling back to one reads and shrinks (or paints) it again. A tile is drawn from its shrunk copy without the file bytes, so those go first; a diagram let go keeps its drawing and is only painted again.
 const CHAT_IMAGE_BUDGET_BYTES: usize = 32 * 1024 * 1024;
 /// What a chat whose pane has been off screen for `HIDDEN_TRIM_DELAY` keeps: the pictures it drew
 /// last, so coming back to it shows them at once.
@@ -112,7 +112,7 @@ impl ChatImageEntry {
 }
 
 /// The pixels a shrunk copy holds in memory (and again in the window's texture atlas).
-fn rendered_bytes(picture: &RenderImage) -> usize {
+pub(super) fn rendered_bytes(picture: &RenderImage) -> usize {
     (0..picture.frame_count())
         .map(|frame| picture.as_bytes(frame).map_or(0, <[u8]>::len))
         .sum()
@@ -261,15 +261,23 @@ impl ChatImageCache {
         self.rows_drawn_at.set(Some(Instant::now()));
     }
 
-    /// Lets the pictures drawn longest ago go until the cache holds at most `budget` bytes, never
-    /// one drawn within `RECENTLY_DRAWN`, one the transcript's rows still show (when `on_screen`),
-    /// or one of `pinned` (the preview's and the composer's pictures).
-    fn trim(&self, budget: usize, on_screen: bool, pinned: &[u64]) -> ReleasedPictures {
+    /// Lets the pictures drawn longest ago go until the cache and the painted Mermaid diagrams
+    /// (`diagrams`) hold at most `budget` bytes, never one drawn within `RECENTLY_DRAWN`, one the
+    /// transcript's rows still show (when `on_screen`), or one of `pinned` (the preview's and the
+    /// composer's pictures).
+    fn trim(
+        &self,
+        budget: usize,
+        on_screen: bool,
+        pinned: &[u64],
+        diagrams: &super::mermaid::ChatMermaidCache,
+    ) -> ReleasedPictures {
         let rows_drawn_at = self.rows_drawn_at.get().filter(|_| on_screen);
         enum Slot {
             Entry(u64),
             Thumbnail((u64, u32)),
             Strip((u64, u32, u32)),
+            Diagram((String, bool)),
         }
         let mut entries = self.entries.borrow_mut();
         let mut thumbnails = self.thumbnails.borrow_mut();
@@ -300,6 +308,10 @@ impl ChatImageCache {
                     candidates.push((kept.drawn_at, Slot::Strip(*key), bytes));
                 }
             }
+        }
+        for (drawn_at, key, bytes) in diagrams.painted() {
+            total += bytes;
+            candidates.push((drawn_at, Slot::Diagram(key), bytes));
         }
         let mut released = ReleasedPictures::default();
         if total <= budget {
@@ -343,6 +355,7 @@ impl ChatImageCache {
                         released.rendered.push(shrunk);
                     }
                 }
+                Slot::Diagram(key) => released.rendered.extend(diagrams.take_painted(&key)),
             }
         }
         released
@@ -789,9 +802,11 @@ impl NativeChatView {
     ///
     /// Every caller notifies the chat afterwards, so a surface showing a picture that was let go
     /// is drawn again (and asks for it again) rather than replayed from before.
-    fn trim_chat_images(&mut self, cx: &mut Context<Self>) {
+    pub(super) fn trim_chat_images(&mut self, cx: &mut Context<Self>) {
         let pinned = self.pinned_pictures();
-        let released = self.images.trim(CHAT_IMAGE_BUDGET_BYTES, true, &pinned);
+        let released = self
+            .images
+            .trim(CHAT_IMAGE_BUDGET_BYTES, true, &pinned, &self.mermaid);
         release_chat_pictures(released, cx);
     }
 
@@ -823,9 +838,12 @@ impl NativeChatView {
                     // Still sparing what was drawn lately: a view can be drawn while its pane
                     // counts as hidden (the floating sessions panel).
                     let pinned = this.pinned_pictures();
-                    let released = this
-                        .images
-                        .trim(HIDDEN_CHAT_IMAGE_BUDGET_BYTES, false, &pinned);
+                    let released = this.images.trim(
+                        HIDDEN_CHAT_IMAGE_BUDGET_BYTES,
+                        false,
+                        &pinned,
+                        &this.mermaid,
+                    );
                     if !released.pictures.is_empty() || !released.rendered.is_empty() {
                         release_chat_pictures(released, cx);
                         cx.notify();
@@ -869,9 +887,27 @@ impl NativeChatView {
         cx.on_release(|chat, cx| {
             let mut released = chat.images.take_all();
             released.rendered.extend(chat.mermaid.take_rasters());
+            released
+                .pictures
+                .extend(chat.visual.page_thumbnails.take_pictures());
             release_chat_pictures(released, cx);
         })
         .detach();
+    }
+
+    /// Page-card pictures a newer one replaced (`page_card.rs`).
+    pub(super) fn release_page_pictures(
+        &self,
+        pictures: Vec<Arc<gpui::Image>>,
+        cx: &mut Context<Self>,
+    ) {
+        release_chat_pictures(
+            ReleasedPictures {
+                pictures,
+                rendered: Vec::new(),
+            },
+            cx,
+        );
     }
 
     /// The transport answered a `loadImage` ask (the core's `chatImage` request).

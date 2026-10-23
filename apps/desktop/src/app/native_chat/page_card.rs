@@ -71,6 +71,18 @@ pub(crate) struct PageThumbnails {
     entries: RefCell<HashMap<(String, bool), Thumbnail>>,
 }
 
+impl PageThumbnails {
+    /// Every picture, for a chat view that is going away (`images.rs`,
+    /// `release_chat_images_with_view`).
+    pub(super) fn take_pictures(&self) -> Vec<Arc<gpui::Image>> {
+        self.entries
+            .borrow_mut()
+            .drain()
+            .filter_map(|(_, thumbnail)| thumbnail.image)
+            .collect()
+    }
+}
+
 impl NativeChatView {
     /// The page's picture, asking the core for it the first time the card is drawn and again,
     /// while the card is still drawn, each time the core said to wait.
@@ -109,6 +121,7 @@ impl NativeChatView {
             .map(|bytes| Arc::new(gpui::Image::from_bytes(ImageFormat::Png, bytes)));
         let settled = params["settled"].as_bool().unwrap_or(true);
         let retry = params["retryInMs"].as_u64();
+        let mut replaced = Vec::new();
         {
             let mut entries = self.visual.page_thumbnails.entries.borrow_mut();
             for ((id, _), entry) in entries.iter_mut() {
@@ -116,12 +129,18 @@ impl NativeChatView {
                     continue;
                 }
                 // A stale picture stays up until its replacement arrives.
-                if image.is_some() {
-                    entry.image = image.clone();
+                if let Some(image) = &image
+                    && let Some(old) = entry.image.replace(image.clone())
+                    && old.id != image.id
+                {
+                    replaced.push(old);
                 }
                 entry.settled = settled;
             }
         }
+        // GPUI keeps a decoded copy of each picture it painted until it is told to let it go;
+        // the notify below draws the card with its new picture first.
+        self.release_page_pictures(replaced, cx);
         if let (false, Some(retry)) = (settled, retry) {
             // Waits, then lets the next draw of the card ask again: a card scrolled away asks
             // nothing until it is drawn.
