@@ -521,6 +521,18 @@ impl<'a> DomainRepository<'a> {
     /// On a registry with 8,600 stopped rows that parse was the single largest CPU cost of an otherwise idle gxserver.
     /// SQLite's json_extract pulls just those keys in C and leaves the rest of each column unparsed; the `json_type` guards keep the exact `Value::as_str` / `as_array` semantics the family reader applies to a fully hydrated row.
     pub fn list_session_fork_rows(&self) -> DomainResult<Vec<Value>> {
+        self.map_session_fork_rows(|row| row)
+    }
+
+    /// `list_session_fork_rows` with each row handed to `map` as soon as it is built, so a caller
+    /// that keeps only a few facts per row never holds the whole registry's rows at once.
+    ///
+    /// CDXC:SessionFork 2026-10-23 WHY:
+    /// The fork-family build held one JSON object per session row, about 45 MB for 10,900 rows, while it ran; the cache reads the same rows through `SessionForkFacts`, so only those small facts outlive each row.
+    pub fn map_session_fork_rows<T>(
+        &self,
+        mut map: impl FnMut(Value) -> T,
+    ) -> DomainResult<Vec<T>> {
         let mut statement = self
             .db
             .prepare_cached(
@@ -559,12 +571,15 @@ impl<'a> DomainRepository<'a> {
                     restored_from_session_id: row.get(9)?,
                 })
             })
-            .map_err(sql_error)?
-            .collect::<std::result::Result<Vec<_>, _>>()
             .map_err(sql_error)?;
-        rows.into_iter()
-            .map(|row| session_fork_row_value(&self.server_id, row))
-            .collect()
+        let mut mapped = Vec::new();
+        for row in rows {
+            mapped.push(map(session_fork_row_value(
+                &self.server_id,
+                row.map_err(sql_error)?,
+            )?));
+        }
+        Ok(mapped)
     }
 
     /// Full session rows whose `runtimeSettings.<key>` is a JSON object, in `list_sessions`

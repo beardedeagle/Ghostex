@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 
 use rusqlite::{Connection, OptionalExtension};
 
-use super::SessionForkFamilies;
+use super::{SessionForkFacts, SessionForkFamilies};
 use crate::domain::{sql_error, DomainRepository, DomainStateError};
 
 const MAX_DATABASES: usize = 4;
@@ -25,8 +25,9 @@ pub(crate) fn read_session_fork_families(
 ) -> Result<Arc<SessionForkFamilies>, DomainStateError> {
     let database = db.path().filter(|path| !path.is_empty());
     if !db.is_autocommit() || database.is_none() {
-        return Ok(Arc::new(SessionForkFamilies::build(
-            &DomainRepository::new(db, server_id).list_session_fork_rows()?,
+        return Ok(Arc::new(SessionForkFamilies::build_from_facts(
+            &DomainRepository::new(db, server_id)
+                .map_session_fork_rows(|row| SessionForkFacts::from_session(&row))?,
         )));
     }
     static CACHE: OnceLock<Mutex<VecDeque<CachedFamilies>>> = OnceLock::new();
@@ -73,7 +74,7 @@ pub(crate) fn read_session_fork_families(
     }
     /*
     CDXC:StateSync 2026-10-23 WHY:
-    Reading every row's lineage and building the graph holds about 45 MB on a registry of 10,900 rows, and right after a start every client's first snapshot and the first deltas all missed the cache at once and each built its own copy, which made up much of gxserver's 300 to 650 MB startup peak. One build runs at a time; a caller that waited finds the graph the build before it cached for the same token and uses it.
+    Reading every row's lineage and building the graph held about 45 MB on a registry of 10,900 rows (about 20 MB since the build keeps only `SessionForkFacts` per row), and right after a start every client's first snapshot and the first deltas all missed the cache at once and each built its own copy, which made up much of gxserver's 300 to 650 MB startup peak. One build runs at a time; a caller that waited finds the graph the build before it cached for the same token and uses it.
     */
     static BUILD: Mutex<()> = Mutex::new(());
     let _building = BUILD
@@ -83,8 +84,9 @@ pub(crate) fn read_session_fork_families(
         transaction.commit().map_err(sql_error)?;
         return Ok(families);
     }
-    let rows = DomainRepository::new(&transaction, server_id).list_session_fork_rows()?;
-    let families = Arc::new(SessionForkFamilies::build(&rows));
+    let rows = DomainRepository::new(&transaction, server_id)
+        .map_session_fork_rows(|row| SessionForkFacts::from_session(&row))?;
+    let families = Arc::new(SessionForkFamilies::build_from_facts(&rows));
     transaction.commit().map_err(sql_error)?;
     let cacheable = rows.len() <= MAX_CACHED_SESSIONS;
     drop(rows);

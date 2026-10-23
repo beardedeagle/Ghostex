@@ -7,7 +7,7 @@
 use serde_json::{json, Map, Value};
 
 use super::poller::send_activity;
-use super::record::{normalized_session_url, session_cloud_record, CloudState};
+use super::record::{normalized_session_url, session_cloud_record, CloudState, RECORD_KEY};
 use super::start::{open, save};
 use crate::domain::{DomainRepository, DomainStateError};
 use crate::server::AppState;
@@ -36,15 +36,16 @@ pub(crate) fn apply_page_status(
     }
     let db = open(state)?;
     let repository = DomainRepository::new(&db, state.metadata.server_id.as_str());
-    let Some((session, mut record)) =
-        repository
-            .list_sessions(None)?
-            .into_iter()
-            .find_map(|session| {
-                let record = session_cloud_record(&session)?;
-                (record.state == CloudState::Running && record.url.as_deref() == Some(url.as_str()))
-                    .then_some((session, record))
-            })
+    // Only a row whose `claudeCloud` is an object carries a cloud record, so SQLite picks those
+    // rows (in the same order) instead of every session row being hydrated for each report.
+    let Some((session, mut record)) = repository
+        .list_sessions_with_runtime_object(RECORD_KEY)?
+        .into_iter()
+        .find_map(|session| {
+            let record = session_cloud_record(&session)?;
+            (record.state == CloudState::Running && record.url.as_deref() == Some(url.as_str()))
+                .then_some((session, record))
+        })
     else {
         // A claude.ai page that is not one of Ghostex's cloud sessions.
         return Ok(json!({ "ok": true, "matched": false }));
