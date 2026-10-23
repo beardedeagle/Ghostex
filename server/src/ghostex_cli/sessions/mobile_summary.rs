@@ -627,6 +627,8 @@ fn to_mobile_session_summary(session: &Value) -> Value {
     insert_js(&mut map, "gitStatus", &[s("gitStatus")]);
     // CDXC:WorkMode 2026-10-09 WHY: the same second-whitelist trap as the keys around it: the phone's Copy submenu needs the session's PR, Linear and issue links, and `to_cli_session` forwarding `work` is not enough because this compactor drops everything it does not name.
     insert_non_null(&mut map, "work", s("work"));
+    // CDXC:ClaudeCloud 2026-10-23 WHY: the same second-whitelist trap: the phone's row needs the Claude cloud record (state, claude.ai link, attach) to mark the row and open the session's page on a tap.
+    insert_non_null(&mut map, "claudeCloud", s("claudeCloud"));
     /*
      * CDXC:SessionChat 2026-08-21-b:
      * The phone's session-row queue badge reads these two. This compactor is a
