@@ -9,7 +9,7 @@
 //! A published page is untrusted and sandboxed, so it gets no renderer bridge (the allowlist in cef/sidebar_bridge_manifest.rs). The DevTools protocol the screenshot and keep-awake code already drive lets the browser process put a script into this one browser and read what it hands back, with nothing added to the helper renderer. The page can call the queue with anything it likes; each reader only takes the messages it knows.
 //!
 //! CDXC:Browser 2026-10-23 WHY:
-//! The bridge was a DevTools binding (`Runtime.addBinding`), but its `Runtime.bindingCalled` events never reached the app's DevTools observer (seen 2026-10-23 for Browser tabs and the floating page window: the page called it, an outside DevTools session attached to the same page heard its own binding, the app saw nothing, across reloads; the page window's picture clicks did nothing). Method results do arrive (the claude.ai page reader relies on them), so the page queues its messages and the app's waiting evaluate collects them as a method result.
+//! The bridge used to be a DevTools binding (`Runtime.addBinding`) whose calls arrive as `Runtime.bindingCalled` events. On 2026-10-23 neither the page window's picture clicks nor Browser notifications got through, which first looked like CEF not delivering binding events; the real cause was that the observer registration was dropped right after install (see `PageBridge` in app/element/cef_surface.rs). The queue read by a waiting evaluate replaced it in the meantime and was kept: one mechanism for every page, built only on method results, which the claude.ai page reader also relies on.
 use super::*;
 use cef::{
     DevToolsMessageObserver, ImplDevToolsMessageObserver, WrapDevToolsMessageObserver,

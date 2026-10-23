@@ -17,7 +17,6 @@ use super::native_modal_kit::*;
 use crate::app::helpers::*;
 use crate::app::native_chat::state::NativeChatView;
 use crate::*;
-use futures::StreamExt as _;
 use gpui::{
     App, Context, Entity, FocusHandle, FontWeight, InteractiveElement as _, IntoElement,
     KeyDownEvent, ParentElement as _, Render, Styled as _, Subscription, Task, WeakEntity, Window,
@@ -261,7 +260,7 @@ impl GpuiVisualPageModalWindow {
             });
         let page_messages = page_bridge.map(|mut bridge| {
             cx.spawn(async move |this, cx| {
-                while let Some(payload) = bridge.messages.next().await {
+                while let Some(payload) = bridge.next().await {
                     let Some(message) = page::read_page_message(&payload) else {
                         continue;
                     };
@@ -305,6 +304,16 @@ impl GpuiVisualPageModalWindow {
     }
 
     fn receive_page_message(&mut self, message: page::PageMessage, cx: &mut Context<Self>) {
+        support_logs::append_for_scenario(
+            support_logs::GpuiSupportLog::SidebarRefresh,
+            "native.sidebar.refresh",
+            "gpui.visualPage.pageMessage",
+            serde_json::json!({
+                "images": matches!(message, page::PageMessage::Images { .. }),
+                "chat": self.chat.is_some(),
+                "viewerHost": self.viewer_host.is_some(),
+            }),
+        );
         match message {
             page::PageMessage::Images { images, index } => {
                 let (Some(chat), Some(host)) = (self.chat.clone(), self.viewer_host) else {

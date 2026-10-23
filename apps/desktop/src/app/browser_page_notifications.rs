@@ -7,7 +7,6 @@
 
 use crate::app::model::*;
 use crate::*;
-use futures::StreamExt as _;
 use serde_json::Value;
 
 /// What a notification click carries: the page's address after this prefix.
@@ -75,7 +74,7 @@ impl GhostexGpuiApp {
             return;
         };
         cx.spawn(async move |this, cx| {
-            while let Some(message) = bridge.messages.next().await {
+            while let Some(message) = bridge.next().await {
                 let Ok(message) = serde_json::from_str::<Value>(&message) else {
                     continue;
                 };

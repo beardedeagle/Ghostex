@@ -10,9 +10,18 @@ pub(crate) use site_prompt::{SitePromptContent, SitePromptIcon, cef_surface_for_
 
 /// What a page's script posted through its bridge (`CefSurface::install_page_bridge`), while
 /// this is kept. Dropping it stops listening.
+///
+/// CDXC:SessionChat 2026-10-23 WHY: the fields stay private and messages are read with `next`. The page window and Browser notifications kept their bridge by moving it into an `async move` task that only touched `bridge.messages`; a Rust 2021 closure then captures that one field and drops the rest at once, which cancelled the driver here and, before it, dropped the DevTools observer registration of the binding bridge, so no message ever arrived (seen 2026-10-23).
 pub(crate) struct PageBridge {
-    pub(crate) messages: futures::channel::mpsc::UnboundedReceiver<String>,
+    messages: futures::channel::mpsc::UnboundedReceiver<String>,
     _driver: gpui::Task<()>,
+}
+
+impl PageBridge {
+    /// The page's next message; `None` once the page is gone.
+    pub(crate) async fn next(&mut self) -> Option<String> {
+        futures::StreamExt::next(&mut self.messages).await
+    }
 }
 
 /// After a failed wait (the page navigated), how long before asking its next document.
@@ -365,7 +374,14 @@ impl CefSurface {
         script: &str,
         cx: &mut gpui::App,
     ) -> Option<PageBridge> {
-        if !surface.read(cx).browser.install_page_bridge_script(script) {
+        let installed = surface.read(cx).browser.install_page_bridge_script(script);
+        support_logs::append_for_scenario(
+            support_logs::GpuiSupportLog::SidebarRefresh,
+            "native.sidebar.refresh",
+            "gpui.pageBridge.install",
+            serde_json::json!({ "installed": installed }),
+        );
+        if !installed {
             return None;
         }
         let (sender, messages) = futures::channel::mpsc::unbounded();
@@ -377,7 +393,20 @@ impl CefSurface {
                 else {
                     return;
                 };
-                match answer.await {
+                let answer = answer.await;
+                support_logs::append_for_scenario(
+                    support_logs::GpuiSupportLog::SidebarRefresh,
+                    "native.sidebar.refresh",
+                    "gpui.pageBridge.answer",
+                    serde_json::json!({
+                        "answer": match &answer {
+                            Ok(Some(text)) => format!("{} bytes", text.len()),
+                            Ok(None) => "failed".to_string(),
+                            Err(_) => "pageGone".to_string(),
+                        }
+                    }),
+                );
+                match answer {
                     Ok(Some(text)) => {
                         let batch: Vec<String> = serde_json::from_str(&text).unwrap_or_default();
                         for message in batch {
