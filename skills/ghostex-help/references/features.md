@@ -1552,6 +1552,8 @@ toggle (`sessionChatSimpleMode`, on by default). The phone app has Simple mode t
 under More actions > View in its chat box or in its Settings > Chat; the phone keeps
 its own switch, also on by default.
 
+While the agent is working, its thinking shows as a closed "Thinking…" card with the newest finished line beside it, so it never pushes the rest of the chat away; click (or tap) the card to read the whole thought, which keeps the newest lines in view as they arrive, and click again to close it. The commands the thought runs stay in view below the card, and when the turn ends everything folds into its "Previous turn" card as before. This works the same for every agent, on the computer, the web and the phone.
+
 Grey thinking (Settings > Chat, off by default) shows the agent's thinking in grey and its replies in the full text colour, so the two are easy to tell apart (`sessionChatMutedThinking`); the phone has the same switch in its Settings > Chat.
 
 Marked handovers: orchestrators and their threads begin each part of

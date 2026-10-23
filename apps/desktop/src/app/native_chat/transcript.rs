@@ -448,7 +448,13 @@ impl NativeChatView {
                 && message["tools"]
                     .as_array()
                     .is_some_and(|tools| !tools.is_empty());
-            if reasoning && tools {
+            // The running turn's thinking is a card (gx-chat-core `transcript/thinking_card.rs`).
+            let card = reasoning && message["thinkingCard"].is_object();
+            if card {
+                // The calls the thought made stay in view below its card, drawn by the run below
+                // as a reply's flat calls are.
+                row = row.child(self.thinking_card(&id, message, body.clone(), p, cx));
+            } else if reasoning && tools {
                 let key = format!("reasoning:{id}");
                 // A running summary turn's newest row opens its tools (gx-chat-core `summary_mode_turns`).
                 let expanded = self.is_expanded(&key, p.work_open || message["toolsOpen"] == true);

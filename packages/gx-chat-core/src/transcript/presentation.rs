@@ -697,6 +697,8 @@ pub fn build_scope(
     );
     let summary = scope.summary;
     let worked_turn = latest_worked_turn(&projection.items, scope.working);
+    let running_thinking =
+        crate::transcript::thinking_card::RunningThinking::new(scope.messages, scope.working);
     let length = if summary {
         projection.summary_turns.len()
     } else {
@@ -743,6 +745,7 @@ pub fn build_scope(
                         .map(|message| {
                             let mut row = builder.message_or_placeholder(message, eager);
                             list_tools_in_work_fold(&mut row);
+                            running_thinking.mark(message, &mut row);
                             if turn.running_row.as_deref() == Some(message.id.as_str()) {
                                 if let Value::Object(fields) = &mut row {
                                     fields.insert("toolsOpen".to_string(), Value::Bool(true));
@@ -769,9 +772,9 @@ pub fn build_scope(
                 let eager = builder.eager(index);
                 let turn = match item {
                     RenderItem::Message(message) => {
-                        return TranscriptItem::Message {
-                            message: builder.message_or_placeholder(message, eager),
-                        }
+                        let mut row = builder.message_or_placeholder(message, eager);
+                        running_thinking.mark(message, &mut row);
+                        return TranscriptItem::Message { message: row };
                     }
                     RenderItem::CompletedWork(turn) => turn,
                 };
