@@ -72,6 +72,10 @@ pub struct CoreState {
     /// Every deadline the core is waiting on. Any family may arm one by key; the host only ever
     /// sees the earliest, as the frame's `nextWakeMs`.
     pub timers: crate::session::timers::TimerTable,
+    /// No renderer is showing this chat ([`crate::Event::Visibility`]), so the clocks that only
+    /// redraw and the accounts poll wait until it is shown
+    /// ([`crate::session::timers::held_while_hidden`]). False until a host says otherwise.
+    pub hidden: bool,
     /// The timer keys that came due during the dispatch running right now, cleared before the next
     /// one. A family reads its own keys out of this rather than being called back.
     pub fired_timers: Vec<String>,
@@ -313,6 +317,27 @@ impl CoreState {
                 // controller's own, not React's, and only the closing publish carries it.
                 self.chain_continued = true;
             }
+        }
+    }
+
+    /// Milliseconds until the earliest deadline the host must wake for. A hidden chat's held
+    /// timers do not count ([`crate::session::timers::held_while_hidden`]).
+    pub fn next_wake_ms(&self, now_ms: f64) -> Option<u64> {
+        if self.hidden {
+            self.timers
+                .next_wake_ms_except(now_ms, crate::session::timers::held_while_hidden)
+        } else {
+            self.timers.next_wake_ms(now_ms)
+        }
+    }
+
+    /// Takes the timers due at `now_ms` off the table, leaving a hidden chat's held ones armed.
+    pub fn take_due_timers(&mut self, now_ms: f64) -> Vec<String> {
+        if self.hidden {
+            self.timers
+                .due_except(now_ms, crate::session::timers::held_while_hidden)
+        } else {
+            self.timers.due(now_ms)
         }
     }
 

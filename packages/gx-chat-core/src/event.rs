@@ -86,6 +86,13 @@ pub enum Event {
     /// What only the app knows about Read aloud (the feature is on, Auto-read, the chat on screen,
     /// a voice conversation, the microphone) and its speech engine's answers (`crate::read_aloud`).
     ReadAloud(crate::read_aloud::ReadAloudEvent),
+    /// Whether any renderer is showing this chat.
+    ///
+    /// A hidden chat stays retained, followed and folded, but its once-a-second clocks, its meter
+    /// clocks and its accounts poll wait; showing it runs whatever they owe in the same turn, so
+    /// the first document it sends is current. A host that never sends this keeps every timer
+    /// running.
+    Visibility { shown: bool },
 }
 
 /// One session the host's session list knows (the sidebar on the desktop and the web build, the

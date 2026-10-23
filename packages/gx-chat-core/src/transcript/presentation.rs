@@ -499,6 +499,9 @@ pub struct ProjectionScope<'a> {
     pub question_tags: Vec<QuestionTag>,
     /// How the messages this session sent other agents and left waiting ended, by send id.
     pub agent_message_deliveries: Option<&'a Value>,
+    /// The ids this instance's backfill batches already projected
+    /// ([`TranscriptViewState::backfilled`]).
+    pub backfilled: &'a std::collections::BTreeSet<String>,
 }
 
 /// The session's line-break rule, which the subagent viewer shares: a child runs the same agent.
@@ -542,6 +545,7 @@ pub fn scope<'a>(state: &'a ChatState, view: &'a TranscriptViewState) -> Project
         question_tags: linkable_tags(&found),
         askers: found,
         agent_message_deliveries: state.session.agent_message_deliveries.as_ref(),
+        backfilled: &view.backfilled,
     }
 }
 
@@ -561,6 +565,18 @@ pub fn project_cached(
             return entry.model.clone();
         }
     }
+    let entry = project_entry(scope, context, message);
+    let model = entry.model.clone();
+    cache.insert(message.id.clone(), entry);
+    model
+}
+
+/// One message's full projection with the facts its cache entry is judged by.
+fn project_entry(
+    scope: &ProjectionScope<'_>,
+    context: &ChatContext,
+    message: &ChatMessage,
+) -> ProjectedMessage {
     // How long each call ran comes from the rows as they arrived, before the fold merged them.
     let durations = tool_durations(
         message,
@@ -581,17 +597,13 @@ pub fn project_cached(
     } else {
         Vec::new()
     };
-    cache.insert(
-        message.id.clone(),
-        ProjectedMessage {
-            source: message.clone(),
-            model: model.clone(),
-            line_breaks: scope.line_breaks,
-            linked_tags: linked_words(&words, &scope.question_tags),
-            tag_words: words,
-        },
-    );
-    model
+    ProjectedMessage {
+        source: message.clone(),
+        model,
+        line_breaks: scope.line_breaks,
+        linked_tags: linked_words(&words, &scope.question_tags),
+        tag_words: words,
+    }
 }
 
 /// The cached model still stands: the same message, projected under the same line-break rule, and
@@ -604,7 +616,18 @@ fn fresh(entry: &ProjectedMessage, message: &ChatMessage, scope: &ProjectionScop
 
 /// `pruneModels`: once the cache is well past the transcript's size, drop every entry whose id is
 /// no longer in the transcript or its deferred rows.
-fn prune_cache(cache: &mut ProjectionCache, scope: &ProjectionScope<'_>) {
+///
+/// CDXC:SessionChat 2026-10-23 WHY: An entry the pass just drew from (`used`) is kept whatever its
+/// id. A row the fold derives (a Codex `!` command's `:command` and `:output` halves, a side
+/// question) has an id no transcript message carries, so once loaded work rows held the cache past
+/// the bound, every pass dropped those rows again; with more than one batch of them outside the
+/// eager tail, each batch re-queued what the previous prune had dropped and the zero-delay backfill
+/// re-ran the whole projection for as long as the chat was retained.
+fn prune_cache(
+    cache: &mut ProjectionCache,
+    scope: &ProjectionScope<'_>,
+    used: &std::collections::HashSet<String>,
+) {
     if cache.len() <= scope.messages.len() * 2 + 64 {
         return;
     }
@@ -616,6 +639,7 @@ fn prune_cache(cache: &mut ProjectionCache, scope: &ProjectionScope<'_>) {
     for rows in scope.deferred.values() {
         live.extend(rows.iter().map(|row| row.id.as_str()));
     }
+    live.extend(used.iter().map(String::as_str));
     let stale: Vec<String> = cache
         .keys()
         .filter(|id| !live.contains(id.as_str()))
@@ -632,6 +656,13 @@ struct Builder<'a> {
     cache: &'a mut ProjectionCache,
     eager_from: usize,
     backfill: Vec<ChatMessage>,
+    /// Every id this pass has drawn a row for, so a second, different message with the same id
+    /// never evicts the first one's cache entry.
+    used: std::collections::HashSet<String>,
+    /// Where each queued id sits in `backfill`, so a message drawn several times (a completed
+    /// turn's row feeds its files, questions, sent messages, workflows and its own row) is queued
+    /// once.
+    queued: std::collections::HashMap<String, usize>,
 }
 
 impl Builder<'_> {
@@ -645,13 +676,30 @@ impl Builder<'_> {
 
     /// The full projection when it is cheap or the row is near the tail; otherwise a stable
     /// plain-text stand-in queued for backfill.
+    ///
+    /// A row the cache cannot hold is projected on the spot rather than queued: a second message
+    /// with an id this pass already drew (the cache keeps one entry per id, so the two would evict
+    /// each other on every batch), or a row a batch of this run already projected and that is
+    /// still out of date. Queuing either kept the zero-delay backfill re-running the whole
+    /// projection for ever.
     fn message_or_placeholder(&mut self, message: &ChatMessage, eager: bool) -> Value {
         if let Some(model) = self.projected(message) {
+            self.used.insert(message.id.clone());
             return model;
+        }
+        if let Some(&at) = self.queued.get(&message.id) {
+            if self.backfill[at] == *message {
+                return placeholder(message);
+            }
+        }
+        let first = self.used.insert(message.id.clone());
+        if !first || self.scope.backfilled.contains(&message.id) {
+            return project_entry(self.scope, self.context, message).model;
         }
         if eager {
             return project_cached(self.cache, self.scope, self.context, message);
         }
+        self.queued.insert(message.id.clone(), self.backfill.len());
         self.backfill.push(message.clone());
         placeholder(message)
     }
@@ -710,6 +758,8 @@ pub fn build_scope(
         cache,
         eager_from: length.saturating_sub(EAGER_TAIL_ITEMS),
         backfill: Vec::new(),
+        used: std::collections::HashSet::new(),
+        queued: std::collections::HashMap::new(),
     };
 
     let mut items: Vec<TranscriptItem> = if summary {
@@ -914,9 +964,11 @@ pub fn build_scope(
 
     // `itemIndex`: the first row that draws a given id, which is what a dash jumps to.
     let mut item_index: Vec<(String, usize)> = Vec::with_capacity(items.len());
+    let mut indexed: std::collections::HashSet<String> =
+        std::collections::HashSet::with_capacity(items.len());
     for (index, item) in items.iter().enumerate() {
         let id = message_id(item);
-        if !item_index.iter().any(|(known, _)| *known == id) {
+        if indexed.insert(id.clone()) {
             item_index.push((id, index));
         }
     }
@@ -926,13 +978,13 @@ pub fn build_scope(
         .map(|turn| (&turn.user, turn.final_message.as_ref()))
         .collect();
     let minimap = crate::extras::minimap::project_minimap_turns(&turns, &item_index);
-    let backfill = builder.backfill;
+    let Builder { backfill, used, .. } = builder;
     crate::transcript::approval_wait::open_waiting_call(
         &mut items,
         cache,
         scope.approval_wait.as_ref(),
     );
-    prune_cache(cache, scope);
+    prune_cache(cache, scope, &used);
     let page_answers = page_answers_in(scope.messages);
     let answered_pages: Vec<String> = page_answers
         .iter()

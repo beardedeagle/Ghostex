@@ -124,6 +124,10 @@ pub fn refresh(state: &mut ChatState, context: &ChatContext) {
     view.page_answers = projection.page_answers;
     view.askers = projection.askers;
     view.backfill = projection.backfill;
+    if view.backfill.is_empty() {
+        // The run is over: a row that changes from here on queues again like any other.
+        view.backfilled.clear();
+    }
     view.projection_inputs = Some(inputs);
     // `update` runs INSIDE `publish` in the TypeScript, so a rebuild only becomes a new array the
     // host can see on a turn that publishes. `ChatCore::republish` turns this flag into the
@@ -135,12 +139,19 @@ pub fn refresh(state: &mut ChatState, context: &ChatContext) {
     // from the settle instead waited for the NEXT event's settle, so on every real chat the first
     // transcript shipped its older rows as placeholders one document longer than the TypeScript
     // brain did.
+    // A pass that left nothing queued drops the timer the settle armed before it ran, which
+    // otherwise fired once more on an empty queue and published a whole document for nothing.
     if state.transcript_view.has_pending_backfill() {
         state.core.timers.arm_once(
             crate::transcript::settle::BACKFILL_TIMER,
             context.now_ms,
             0.0,
         );
+    } else {
+        state
+            .core
+            .timers
+            .cancel(crate::transcript::settle::BACKFILL_TIMER);
     }
 }
 
@@ -162,6 +173,8 @@ pub fn advance(state: &mut ChatState, context: &ChatContext) -> bool {
     // a completed turn's work rows come from the `loadWork` reads and are in no list at all. Each
     // is projected NOW and cached, so the refresh below reads whole rows for them.
     let batch: Vec<ghostex_gx_protocol::ChatMessage> = view.backfill.split_off(batch_start);
+    view.backfilled
+        .extend(batch.iter().map(|message| message.id.clone()));
     let mut cache = std::mem::take(&mut state.transcript_view.projected);
     {
         let scope = presentation::scope(state, &state.transcript_view);

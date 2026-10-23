@@ -60,6 +60,7 @@ fn scope<'a>(
         askers: Vec::new(),
         question_tags: Vec::new(),
         agent_message_deliveries: None,
+        backfilled: &view.backfilled,
     }
 }
 
@@ -139,6 +140,9 @@ pub fn refresh(state: &mut ChatState, context: &ChatContext) {
     view.question_forms = projection.question_forms;
     view.page_answers = projection.page_answers;
     view.backfill = projection.backfill;
+    if view.backfill.is_empty() {
+        view.backfilled.clear();
+    }
     view.projection_inputs = Some(inputs);
     let details = row_details(state, context);
     state.extras.subagent.view.row_details = details;
@@ -195,6 +199,8 @@ pub fn advance(state: &mut ChatState, context: &ChatContext) -> bool {
         .len()
         .saturating_sub(crate::state::BACKFILL_BATCH);
     let batch: Vec<ChatMessage> = view.backfill.split_off(batch_start);
+    view.backfilled
+        .extend(batch.iter().map(|message| message.id.clone()));
     let mut cache = std::mem::take(&mut view.projected);
     {
         let view = &state.extras.subagent.view;

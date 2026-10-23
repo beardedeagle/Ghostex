@@ -29,12 +29,71 @@ use crate::session::view_state::transcript_status_after_state;
 /// frame keeps that frame's routing keys (`type`, `projectId`, `sessionId`, `serverId`,
 /// `protocolVersion`). They are carried here for the same reason: the stored record must still
 /// deserialize as what the TypeScript wrote.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+///
+/// `extra` never holds a key `result` owns, because both are written flat into one object: the
+/// frame keys are the only ones the fold adds, and the read below leaves the result's own keys
+/// out of it.
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct FoldedSnapshot {
     #[serde(flatten)]
     pub result: ReadSessionChatResult,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
+}
+
+/// CDXC:SessionChat 2026-10-23 WHY: Read by hand rather than derived. With two flattened fields,
+/// serde hands the second (`extra`) every key of the object, including all the ones `result` reads
+/// (`result` flattens the side state itself, so it does not consume its keys). Every record a
+/// hydrated chat wrote back therefore held each result key twice, the transcript included; the
+/// next read refused it with "duplicate field", so the chat reopened empty until its live snapshot
+/// arrived, and the record was twice its size. A record written that way is still read: its first
+/// copy of a key is the result as it was folded and the second is the stale one from the earlier
+/// read, so the first one wins.
+impl<'de> Deserialize<'de> for FoldedSnapshot {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        use serde::de::Error;
+        let mut entries = deserializer.deserialize_map(FirstEntryWins)?;
+        // The transcript is the bulk of a record and always the result's, so it is read on its
+        // own instead of being copied into the probe that finds the result's keys.
+        let messages = entries.shift_remove("messages");
+        let mut result: ReadSessionChatResult =
+            serde_json::from_value(Value::Object(entries.clone())).map_err(D::Error::custom)?;
+        let owned = match serde_json::to_value(&result) {
+            Ok(Value::Object(owned)) => owned,
+            _ => Map::new(),
+        };
+        result.messages = match messages {
+            None | Some(Value::Null) => Vec::new(),
+            Some(rows) => serde_json::from_value(rows).map_err(D::Error::custom)?,
+        };
+        entries.retain(|key, _| !owned.contains_key(key));
+        Ok(Self {
+            result,
+            extra: entries,
+        })
+    }
+}
+
+/// An object's entries, keeping the first value of a key that appears more than once.
+struct FirstEntryWins;
+
+impl<'de> serde::de::Visitor<'de> for FirstEntryWins {
+    type Value = Map<String, Value>;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        formatter.write_str("a retained chat snapshot object")
+    }
+
+    fn visit_map<A: serde::de::MapAccess<'de>>(
+        self,
+        mut access: A,
+    ) -> Result<Self::Value, A::Error> {
+        let mut entries = Map::new();
+        while let Some((key, value)) = access.next_entry::<String, Value>()? {
+            entries.entry(key).or_insert(value);
+        }
+        Ok(entries)
+    }
 }
 
 impl FoldedSnapshot {

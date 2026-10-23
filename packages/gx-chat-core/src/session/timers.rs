@@ -33,6 +33,27 @@ pub fn callback_reads_clock(key: &str) -> bool {
     )
 }
 
+/// The timers a hidden chat holds until it is shown again ([`crate::Event::Visibility`]).
+///
+/// CDXC:SessionChat 2026-10-23 WHY: Every retained chat kept its once-a-second fleet and activity
+/// clocks, its two 30-second meter clocks and its 30-second accounts read running, although each
+/// of those only redraws or refreshes what is on screen; with a dozen chats retained that was most
+/// of the chat host's timer traffic and one accounts read per chat per 30 seconds. The stall
+/// watchdog, the read retries, the backfill, the draft push and the send retries keep running, so
+/// a hidden chat's data stays current and nothing the user sent waits for it to be shown.
+/// SEE-ALSO: the keys in `extras/settle.rs`, `menus/lifecycle.rs` and
+/// `apps/desktop/src/app/gx_chat/world.rs` (`visibility_moved`), which tells the core.
+pub fn held_while_hidden(key: &str) -> bool {
+    matches!(
+        key,
+        "extras.fleetClock"
+            | "extras.activityClock"
+            | "menus.contextMeter"
+            | "menus.switchClock"
+            | "menus.accountsPoll"
+    )
+}
+
 /// One armed timer.
 #[derive(Clone, Debug, PartialEq)]
 pub struct TimerEntry {
@@ -117,10 +138,16 @@ impl TimerTable {
     /// host's `tick` deletes or re-stamps a row before calling its callback: a handler that arms
     /// the same key again must win over the bookkeeping of the fire that ran it.
     pub fn due(&mut self, now_ms: f64) -> Vec<String> {
+        self.due_except(now_ms, |_| false)
+    }
+
+    /// [`Self::due`], leaving the keys `held` names armed however overdue they are, so they fire
+    /// on the first drain that no longer holds them.
+    pub fn due_except(&mut self, now_ms: f64, held: impl Fn(&str) -> bool) -> Vec<String> {
         let mut fired = Vec::new();
         let mut keep = Vec::with_capacity(self.entries.len());
         for entry in std::mem::take(&mut self.entries) {
-            if entry.due_at_ms > now_ms {
+            if entry.due_at_ms > now_ms || held(&entry.key) {
                 keep.push(entry);
                 continue;
             }
@@ -141,8 +168,14 @@ impl TimerTable {
     /// Never negative: an overdue timer asks for an immediate wake, which is what
     /// `Math.max(0, …)` does on the TypeScript side.
     pub fn next_wake_ms(&self, now_ms: f64) -> Option<u64> {
+        self.next_wake_ms_except(now_ms, |_| false)
+    }
+
+    /// [`Self::next_wake_ms`] over the keys `held` does not name.
+    pub fn next_wake_ms_except(&self, now_ms: f64, held: impl Fn(&str) -> bool) -> Option<u64> {
         self.entries
             .iter()
+            .filter(|entry| !held(&entry.key))
             .map(|entry| entry.due_at_ms)
             .fold(None, |earliest: Option<f64>, due| {
                 Some(match earliest {

@@ -68,6 +68,14 @@ pub struct TranscriptViewState {
     /// turn's work rows come from the `loadWork` reads and are in no list an id could be looked up
     /// in, and an id that never resolved kept the zero-delay timer firing on every tick.
     pub backfill: Vec<ChatMessage>,
+    /// The ids a backfill batch has projected since the queue was last empty.
+    ///
+    /// CDXC:SessionChat 2026-10-23 WHY: A row a batch has just projected that the next pass still
+    /// finds out of date cannot be settled by another batch, and re-queuing it kept the zero-delay
+    /// timer re-running the whole projection for as long as the chat was retained (a third of the
+    /// chat host thread in a real profile; one cause is in `prune_cache`). Such a row is projected
+    /// on the spot instead, so every batch makes progress and the queue always drains.
+    pub backfilled: std::collections::BTreeSet<String>,
     /// Bumped by every applied batch, so the next publish differs and the rows ship.
     pub backfill_revision: u64,
     /// The open-row set the renderer last reported, with the detail each row asks for.
@@ -197,6 +205,7 @@ impl Default for TranscriptViewState {
             deferred: BTreeMap::new(),
             projected: BTreeMap::new(),
             backfill: Vec::new(),
+            backfilled: std::collections::BTreeSet::new(),
             backfill_revision: 0,
             open_rows: Vec::new(),
             rewind: None,
@@ -235,6 +244,7 @@ impl TranscriptViewState {
     pub fn invalidate(&mut self) {
         self.projected.clear();
         self.backfill.clear();
+        self.backfilled.clear();
         self.items = Default::default();
         self.projection_inputs = None;
     }

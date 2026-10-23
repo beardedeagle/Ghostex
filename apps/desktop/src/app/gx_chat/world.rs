@@ -354,8 +354,11 @@ fn step(world: &mut World, command: Option<HostCommand>) {
             // outbox, and opening its chat is what registers the writer that drains it.
             world.draft_workers.entry(key.clone()).or_default();
             world.retry_wakes.insert(key.clone(), Instant::now());
-            let mut events: Vec<Event> = settings_moved(world, &key).into_iter().collect();
+            let mut events: Vec<Event> = settings_moved(world, &key, &boot::chat_settings())
+                .into_iter()
+                .collect();
             events.extend(read_aloud::attach(world, &key));
+            events.extend(visibility_moved(world, &key));
             drive(world, &key, events);
         }
         Some(HostCommand::Detach { key, sink }) => {
@@ -369,6 +372,9 @@ fn step(world: &mut World, command: Option<HostCommand>) {
                     retained.listeners = 0;
                     retained.touched_at = Instant::now();
                 }
+            }
+            if let Some(event) = visibility_moved(world, &key) {
+                drive(world, &key, vec![event]);
             }
         }
         Some(HostCommand::Call {
@@ -447,9 +453,13 @@ fn step(world: &mut World, command: Option<HostCommand>) {
             } else {
                 activate_view(world, &key, sink);
             }
-            // Shown again: everything the view missed, as one drain from the revision it last had.
-            if resumed {
-                publish(world, &key, Vec::new());
+            match visibility_moved(world, &key) {
+                // The chat's held clocks catch up in the same turn, and the drive drains it.
+                Some(event) => drive(world, &key, vec![event]),
+                // Shown again: everything the view missed, as one drain from the revision it last
+                // had.
+                None if resumed => publish(world, &key, Vec::new()),
+                None => {}
             }
         }
         Some(HostCommand::Endpoint {
@@ -492,12 +502,15 @@ fn step(world: &mut World, command: Option<HostCommand>) {
 /// here outlives its views by up to five minutes and boots once, so without this a chat reopened
 /// after "Hide account emails" was switched kept drawing with the value it booted with. A chat that
 /// has not booted yet gets them from its boot read instead.
-fn settings_moved(world: &World, key: &str) -> Option<Event> {
+fn settings_moved(
+    world: &World,
+    key: &str,
+    settings: &ghostex_gx_chat_core::ChatSettings,
+) -> Option<Event> {
     let state = world.store.get(key)?.core.state();
     if !state.core.controller_started {
         return None;
     }
-    let settings = boot::chat_settings();
     (settings.hide_account_emails != state.core.hide_account_emails
         || settings.title != state.core.title
         || settings
@@ -516,7 +529,21 @@ fn settings_moved(world: &World, key: &str) -> Option<Event> {
             ghostex_gx_chat_core::transcript::marked_sections::heading_strength(strength)
                 != state.core.marked_heading_strength
         }))
-    .then(|| Event::SettingsChanged(Box::new(settings)))
+    .then(|| Event::SettingsChanged(Box::new(settings.clone())))
+}
+
+/// Whether any of a chat's views is on screen, when its core was last told otherwise.
+///
+/// A view that is attached and not paused counts as shown: the warm pool pauses a view only once it
+/// has been off screen for a while (`session_chat_warm_pool.rs`), so flipping between a few chats
+/// keeps their clocks running.
+fn visibility_moved(world: &World, key: &str) -> Option<Event> {
+    let hidden = world.store.get(key)?.core.state().core.hidden;
+    let shown = world
+        .views
+        .get(key)
+        .is_some_and(|views| views.iter().any(|view| !view.sink.paused));
+    (shown == hidden).then_some(Event::Visibility { shown })
 }
 
 /// How often the timer pass compares the chats' settings with Settings.
@@ -536,9 +563,11 @@ fn settings_pass(world: &mut World) {
     }
     world.settings_checked_at = Some(Instant::now());
     read_aloud::settings_pass(world);
+    // Read once for every chat: each read copies the whole settings object.
+    let settings = boot::chat_settings();
     let keys: Vec<String> = world.views.keys().cloned().collect();
     for key in keys {
-        if let Some(event) = settings_moved(world, &key) {
+        if let Some(event) = settings_moved(world, &key, &settings) {
             drive(world, &key, vec![event]);
         }
     }

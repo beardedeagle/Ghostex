@@ -21,7 +21,7 @@ pub fn dispatch(state: &mut ChatState, event: &Event, context: &ChatContext) -> 
     // dispatch: a family answers its own timer inside its ordinary handler
     // (`state.core.timer_fired(KEY)`), which is why the drain cannot live in one family's arm.
     state.core.fired_timers = if matches!(event, Event::Tick) {
-        state.core.timers.due(context.now_ms)
+        state.core.take_due_timers(context.now_ms)
     } else {
         Vec::new()
     };
@@ -108,6 +108,11 @@ fn route(state: &mut ChatState, event: &Event, context: &ChatContext) -> Vec<Eff
         | Event::Measured(_)
         | Event::DraftChanged { .. } => Vec::new(),
         Event::ReadAloud(input) => crate::read_aloud::handle_event(state, input, context),
+        // `ChatCore::handle` follows a show with a tick, which runs what the held timers owe.
+        Event::Visibility { shown } => {
+            state.core.hidden = !shown;
+            Vec::new()
+        }
         Event::SessionDirectoryChanged { sessions } => {
             let view = &mut state.transcript_view;
             if view.session_directory != *sessions {
