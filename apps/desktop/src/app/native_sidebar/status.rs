@@ -126,12 +126,21 @@ pub(crate) fn status_dot_stack(
     .filter(|(shown, _)| *shown)
     .map(|(_, color)| color)
     .collect();
-    let ring = 1.0 * scale;
-    let size = STATUS_DOT_SIZE * scale + 2.0 * ring;
+    let hover = backdrop.hover;
+    overlapped_dots(dots, scale, backdrop.rest, Some((hover, backdrop.group)))
+}
+
+/// The overlapped dots of [`status_dot_stack`], each with a 1px ring in `ring` (what the stack sits on); `hover` is the ring colour while the pointer is over the owner group.
+fn overlapped_dots(
+    dots: Vec<Hsla>,
+    scale: f32,
+    ring: Hsla,
+    hover: Option<(Hsla, SharedString)>,
+) -> gpui::Div {
+    let border = 1.0 * scale;
+    let size = STATUS_DOT_SIZE * scale + 2.0 * border;
     let step = 4.0 * scale;
     let width = dots.len().saturating_sub(1) as f32 * step + size;
-    let hover = backdrop.hover;
-    let group = backdrop.group;
     div()
         .relative()
         .flex_shrink_0()
@@ -144,43 +153,65 @@ pub(crate) fn status_dot_stack(
                 .top_0()
                 .size(px(size))
                 .rounded_full()
-                .border(px(ring))
-                .border_color(backdrop.rest)
-                .group_hover(group.clone(), move |dot| dot.border_color(hover))
+                .border(px(border))
+                .border_color(ring)
+                .when_some(hover.clone(), |dot, (hover, group)| {
+                    dot.group_hover(group, move |dot| dot.border_color(hover))
+                })
                 .bg(color)
         }))
 }
 
-pub(crate) fn question_indicator(working: bool, scale: f32) -> AnyElement {
+/// CDXC:SessionStatus 2026-10-23 DECISION:
+/// User: "also 1 more thing if there's question + working or question + done then show those 2 dots overlapping like we show it at the bottom of the space button". A row with a pending question draws the pink dot, and when the session is also working (orange) or done (blue attention) a second dot overlaps it, as `status_dot_stack` draws the Space buttons' dots: the pink one behind and to the left, the other in front, a 1px ring in `ring` (the row's fill) between them. The pair is centred in the same `STATUS_SLOT_WIDTH` slot as every other indicator.
+pub(crate) fn question_indicator(activity: &str, scale: f32, ring: Hsla) -> AnyElement {
+    let front: Option<Hsla> = match activity {
+        "working" => Some(rgb(WORKING_COLOR).into()),
+        "attention" => Some(rgb(0x95d7f6).into()),
+        _ => None,
+    };
+    let dots = match front {
+        Some(front) => overlapped_dots(vec![rgb(QUESTION_COLOR).into(), front], scale, ring, None)
+            .into_any_element(),
+        None => div()
+            .size(px(STATUS_DOT_SIZE * scale))
+            .rounded_full()
+            .bg(rgb(QUESTION_COLOR))
+            .into_any_element(),
+    };
     div()
+        .w(px(STATUS_SLOT_WIDTH * scale))
         .h(px(16.0 * scale))
         .flex_shrink_0()
         .flex()
         .items_center()
-        .gap(px(4.0 * scale))
-        .when(working, |indicator| {
-            indicator.child(
-                div()
-                    .size(px(STATUS_DOT_SIZE * scale))
-                    .rounded_full()
-                    .bg(rgb(WORKING_COLOR)),
-            )
-        })
-        .child(
-            div()
-                .w(px(STATUS_SLOT_WIDTH * scale))
-                .h_full()
-                .flex()
-                .items_center()
-                .justify_center()
-                .child(
-                    div()
-                        .size(px(STATUS_DOT_SIZE * scale))
-                        .rounded_full()
-                        .bg(rgb(QUESTION_COLOR)),
-                ),
-        )
+        .justify_center()
+        .child(dots)
         .into_any_element()
+}
+
+/// The ring colour for a row's overlapped dots: the sidebar background under the row's own fill, as it looks at rest or while the pointer is over the row.
+pub(crate) fn session_row_ring(
+    appearance: &SidebarAppearance,
+    highlighted: bool,
+    visible: bool,
+    question_fill: Option<gpui::Rgba>,
+    hovered: bool,
+) -> Hsla {
+    let base = titlebar_background();
+    if let Some(fill) = question_fill {
+        return base.blend(fill.into());
+    }
+    if highlighted {
+        return base.blend(appearance.session_selected);
+    }
+    if hovered {
+        return base.blend(appearance.session_hover);
+    }
+    if visible {
+        return base.blend(appearance.visible);
+    }
+    base
 }
 
 pub(crate) fn completion_opacity(start: web_time::Instant) -> f32 {
