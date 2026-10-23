@@ -246,6 +246,10 @@ export function injectManageAgentationScript(documentValue: Document): void {
   (documentValue.body || documentValue.documentElement).appendChild(script);
 }
 
+/**
+ * CDXC:Docs 2026-10-23 DECISION: User (issue #280): turning on Annotate for an HTML file in Files goes straight into annotating mode and stays in it across the reloads Files does when the file changes on disk. agentation@3.0.2 mounts collapsed (`isActive` is component state that starts false, is never persisted, and has no prop or handle), so the bootstrap clicks Agentation's own collapsed toolbar once it renders. It looks for the "Start feedback mode" control, which exists only while collapsed, so it can never switch an active toolbar off; its Cmd/Ctrl+Shift+F shortcut was rejected because it toggles and the synthetic key would also reach the page's own listeners. Every srcdoc reload re-runs this bootstrap, which is what keeps it active.
+ * SEE-ALSO: apps/desktop/src/app/helpers/browser.rs (`autoActivate`, the Browser toolbar's Annotate does the same).
+ */
 export function buildManageAgentationBootstrapScript(): string {
   return `
 export const rootId = "ghostex-agentation-root";
@@ -264,6 +268,29 @@ rootEl.id = rootId;
 rootEl.setAttribute("data-agentation-html-root", "true");
 rootEl.setAttribute("data-agentation-root", "true");
 (document.body || document.documentElement).appendChild(rootEl);
+// Annotate means "annotate now": open Agentation's collapsed toolbar as soon
+// as it renders (see CDXC:Docs 2026-10-23 in html-viewer.tsx).
+const startManageAgentationFeedbackMode = () => {
+  const startSelector = '[data-agentation-toolbar] [title="Start feedback mode"][role="button"]';
+  const tryStart = () => {
+    const startButton = document.querySelector(startSelector);
+    if (!startButton) {
+      return false;
+    }
+    startButton.click();
+    return true;
+  };
+  if (tryStart()) {
+    return;
+  }
+  const observer = new MutationObserver(() => {
+    if (tryStart()) {
+      observer.disconnect();
+    }
+  });
+  observer.observe(document.body || document.documentElement, { childList: true, subtree: true });
+  setTimeout(() => observer.disconnect(), 5000);
+};
 Promise.all([
   import(${JSON.stringify(MANAGE_AGENTATION_REACT_URL)}),
   import(${JSON.stringify(MANAGE_AGENTATION_REACT_DOM_CLIENT_URL)}),
@@ -299,6 +326,7 @@ Promise.all([
   const root = ReactDOMClient.createRoot(rootEl);
   globalThis.__GHOSTEX_AGENTATION__ = { container: rootEl, root };
   root.render(React.createElement(Agentation));
+  startManageAgentationFeedbackMode();
 }).catch((error) => {
   console.warn("[Ghostex Docs Agentation] page injection failed", {
     message: error instanceof Error ? error.message : String(error)
