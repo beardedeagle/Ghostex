@@ -813,13 +813,13 @@ pub const DEFAULT_GHOSTEX_SETTINGS: &[(&str, J)] = &[
     ("windowGlassBlurRadius", J::Num(60.0)),
     ("windowGlassWindowsBlur", J::Str("acrylic")),
     ("windowGlassMenuBlurRadius", J::Num(20.0)),
-    // CDXC:Theming 2026-10-04 DECISION:
-    // User: "please make the app's transparency level 10 by default (the slider in settings)". The four tints are the ones Settings' Strength slider writes at 10 (`transparencyStrengthPatch`), so the slider opens on 10; they replace the strength-20 tints 88, 81, 93 and 86.
+    // CDXC:Theming 2026-10-23 DECISION:
+    // User: "please make the app's transparency level 10 by default (the slider in settings)" (2026-10-04), then "pls make the sidebar and main area default to having the same strength for the transparency by default". The four tints are the ones Settings' Strength slider writes at 10 (`transparencyStrengthPatch`), so the slider opens on 10, and the sidebar and the work area share one tint per appearance; they replace 94/91 (dark) and 97/93 (light), which kept the work area more see-through.
     // SEE-ALSO: apps/desktop/src/app/helpers/window_glass.rs, apps/desktop/src/app/window/onboarding/model.rs, apps/desktop/src/app/window/settings_modal/tabs/theme/colours.rs.
     ("windowGlassSidebarOpacityDark", J::Num(94.0)),
-    ("windowGlassWorkAreaTintDark", J::Num(91.0)),
+    ("windowGlassWorkAreaTintDark", J::Num(94.0)),
     ("windowGlassSidebarOpacityLight", J::Num(97.0)),
-    ("windowGlassWorkAreaTintLight", J::Num(93.0)),
+    ("windowGlassWorkAreaTintLight", J::Num(97.0)),
     ("terminalBackgroundMode", J::Str("pure")),
     ("workspaceBackgroundColor", J::Str("")),
     ("clickToWakeSleepingSessions", J::Bool(true)),

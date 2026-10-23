@@ -363,14 +363,14 @@ impl OnboardingSettings {
                 "windowGlassWorkAreaTintDark",
                 "windowGlassMainOpacityDark",
                 glass_sidebar_dark,
-                91.0,
+                94.0,
             ),
             glass_sidebar_light,
             glass_work_area_light: work_area(
                 "windowGlassWorkAreaTintLight",
                 "windowGlassMainOpacityLight",
                 glass_sidebar_light,
-                93.0,
+                97.0,
             ),
         }
     }
@@ -678,7 +678,6 @@ pub(crate) fn colourfulness_display_step(points: f64) -> usize {
         .clamp(0.0, COLOURFULNESS_LAST_POSITION as f64) as usize
 }
 
-const TRANSPARENCY_WORK_AREA_GAP: f64 = 7.0;
 const TRANSPARENCY_STRENGTH_DEFAULT: f64 = 20.0;
 pub(crate) const TRANSPARENCY_STRENGTH_STEP: f64 = 5.0;
 
@@ -689,20 +688,13 @@ fn transparency_sidebar_tint(strength: f64, at_default: f64) -> f64 {
     (at_default * (100.0 - strength)) / (100.0 - TRANSPARENCY_STRENGTH_DEFAULT)
 }
 
-fn transparency_work_area_gap(strength: f64) -> f64 {
-    let ramp = (strength / TRANSPARENCY_STRENGTH_DEFAULT)
-        .min((100.0 - strength) / TRANSPARENCY_STRENGTH_DEFAULT)
-        .min(1.0);
-    TRANSPARENCY_WORK_AREA_GAP * ramp.max(0.0)
-}
-
-/// `transparencyStrengthPatch`: the four glass tints one strength (0-100) sets.
+/// `transparencyStrengthPatch`: the four glass tints one strength (0-100) sets, the sidebar and
+/// the work area equal (CDXC:Theming DECISION on `strength_patch` in settings_modal/tabs/theme/colours.rs).
 pub(crate) fn transparency_strength_patch(strength: f64) -> Map<String, Value> {
     let value = strength.clamp(0.0, 100.0);
-    let gap = transparency_work_area_gap(value);
     let tints = |at_default: f64| {
-        let sidebar = transparency_sidebar_tint(value, at_default);
-        (sidebar.round(), (sidebar - gap).round().max(0.0))
+        let tint = transparency_sidebar_tint(value, at_default).round();
+        (tint, tint)
     };
     let (dark_sidebar, dark_work) = tints(88.0);
     let (light_sidebar, light_work) = tints(93.0);
@@ -756,4 +748,26 @@ pub(crate) fn transparency_strength(settings: &OnboardingSettings) -> (Option<f6
         ))
     .then_some(nearest);
     (exact, nearest)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn unsaved_tints_read_as_strength_ten_with_equal_areas() {
+        let settings = OnboardingSettings::from_object(&Map::new());
+        assert_eq!(settings.glass_sidebar_dark, settings.glass_work_area_dark);
+        assert_eq!(settings.glass_sidebar_light, settings.glass_work_area_light);
+        assert_eq!(transparency_strength(&settings), (Some(10.0), 10.0));
+        let patch = transparency_strength_patch(35.0);
+        assert_eq!(
+            patch["windowGlassSidebarOpacityDark"],
+            patch["windowGlassWorkAreaTintDark"]
+        );
+        assert_eq!(
+            patch["windowGlassSidebarOpacityLight"],
+            patch["windowGlassWorkAreaTintLight"]
+        );
+    }
 }

@@ -182,13 +182,13 @@ static MAIN_WINDOW_ID: AtomicU64 = AtomicU64::new(u64::MAX);
 /// Default coverage of the sidebar's and the work area's tints over the blurred desktop: point 10
 /// of the Transparency strength slider (CDXC:Theming 2026-10-04 DECISION on the tint defaults in
 /// packages/settings-catalog/src/data/defaults.rs; `transparencyStrengthPatch` in
-/// packages/core-ui/settings-modal/theme-simple-controls.tsx (deleted 2026-10-01)), which keeps the sidebar a little
-/// more solid than the work area. SEE-ALSO: the CDXC:Theming 2026-09-25 DECISION on
+/// packages/core-ui/settings-modal/theme-simple-controls.tsx (deleted 2026-10-01)), the same tint for the sidebar
+/// and the work area. SEE-ALSO: the CDXC:Theming 2026-09-25 DECISION on
 /// `DEFAULT_WINDOW_GLASS_SIDEBAR_OPACITY_DARK_PERCENT` in packages/shared/ghostex-settings/types.ts (deleted 2026-10-01).
 const SIDEBAR_GLASS_ALPHA_DARK: f32 = 0.94;
 const SIDEBAR_GLASS_ALPHA_LIGHT: f32 = 0.97;
-const WORK_AREA_GLASS_ALPHA_DARK: f32 = 0.91;
-const WORK_AREA_GLASS_ALPHA_LIGHT: f32 = 0.93;
+const WORK_AREA_GLASS_ALPHA_DARK: f32 = 0.94;
+const WORK_AREA_GLASS_ALPHA_LIGHT: f32 = 0.97;
 
 /// CDXC:Theming 2026-09-23 DECISION:
 /// User: "implement sliders for the glass for sidebar vs main area (2 different sliders for dark mode, and 2 for light mode)", then "can we make the sidebar darker than main area somehow? currently this isn't possible / i feel would be nicer if they are separate and each can be modified freely? not doubling up the transparency for workarea when i do for sidebar??". Under glass the sidebar and the work area each paint their own tint straight over the blurred desktop, and nothing tints the window underneath both, so either area can be the darker one. Settings holds four percentages (`windowGlassSidebarOpacityDark`, `windowGlassWorkAreaTintDark`, `windowGlassSidebarOpacityLight`, `windowGlassWorkAreaTintLight`) whose defaults are the constants above. This supersedes the same day's shell tint under the whole window with the work area's value as an extra layer over it; a saved extra layer (`windowGlassMainOpacity*`) is carried over as the coverage the two layers added up to.

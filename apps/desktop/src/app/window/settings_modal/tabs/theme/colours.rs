@@ -585,12 +585,11 @@ pub(super) fn colourfulness_patch(position: usize) -> Map<String, Value> {
 }
 
 /// `TRANSPARENCY_STRENGTH_*` and the anchor the strength-to-tint curve is drawn from: strength 20 is
-/// 88/93, and the shipped default is strength 10 (94/91/97/93 in the settings catalog).
+/// 88/93, and the shipped default is strength 10 (94 dark and 97 light for both areas in the settings catalog).
 pub(super) const STRENGTH_MIN: f64 = 0.0;
 pub(super) const STRENGTH_MAX: f64 = 100.0;
 pub(super) const STRENGTH_STEP: f64 = 5.0;
 const STRENGTH_DEFAULT: f64 = 20.0;
-const STRENGTH_WORK_AREA_GAP: f64 = 7.0;
 const SIDEBAR_AT_DEFAULT_DARK: f64 = 88.0;
 const SIDEBAR_AT_DEFAULT_LIGHT: f64 = 93.0;
 
@@ -601,23 +600,15 @@ fn strength_sidebar_tint(strength: f64, at_default: f64) -> f64 {
     (at_default * (STRENGTH_MAX - strength)) / (STRENGTH_MAX - STRENGTH_DEFAULT)
 }
 
-fn strength_work_area_gap(strength: f64) -> f64 {
-    let ramp = (strength / STRENGTH_DEFAULT)
-        .min((STRENGTH_MAX - strength) / STRENGTH_DEFAULT)
-        .min(1.0);
-    STRENGTH_WORK_AREA_GAP * ramp.max(0.0)
-}
-
 /// `transparencyStrengthPatch`: the four glass tints one strength sets.
 ///
-/// CDXC:Theming 2026-09-27 DECISION:
-/// User: "add transparency strength selection" to the setup and the Theme page, then "it needs to make the sidebar darker than main not vice versa", "make it 7 point difference and make it a slider with more options", and then "Full range". Strength is one 0-100 slider in steps of 5 that sets the four tints at once: 0 fully solid, 100 fully clear, 20 the shipped default, the work area 7 points more see-through than the sidebar with the gap narrowing to 0 at both ends.
+/// CDXC:Theming 2026-10-23 DECISION:
+/// User: "add transparency strength selection" to the setup and the Theme page, then "make it a slider with more options" and "Full range"; then "pls make the sidebar and main area default to having the same strength for the transparency by default". Strength is one 0-100 slider in steps of 5 that sets the four tints at once (0 fully solid, 100 fully clear), and every stop gives the sidebar and the work area the same tint. This supersedes the 2026-09-27 rule that kept the work area up to 7 points more see-through than the sidebar ("it needs to make the sidebar darker than main", "make it 7 point difference"); the two per-area tint settings still let a user set them apart by hand.
 pub(super) fn strength_patch(strength: f64) -> Map<String, Value> {
     let value = strength.clamp(STRENGTH_MIN, STRENGTH_MAX);
-    let gap = strength_work_area_gap(value);
     let tints = |at_default: f64| {
-        let sidebar = strength_sidebar_tint(value, at_default);
-        (sidebar.round(), (sidebar - gap).round().max(0.0))
+        let tint = strength_sidebar_tint(value, at_default).round();
+        (tint, tint)
     };
     let (dark_sidebar, dark_work) = tints(SIDEBAR_AT_DEFAULT_DARK);
     let (light_sidebar, light_work) = tints(SIDEBAR_AT_DEFAULT_LIGHT);
@@ -673,4 +664,53 @@ pub(super) fn paired_preset(from_dark: bool, preset: &str) -> Option<String> {
 /// `#rrggbb` of a colour (for the swatch cache key).
 pub(super) fn hex_of(color: Rgb) -> String {
     color.hex()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const TINT_KEYS: [&str; 4] = [
+        "windowGlassSidebarOpacityDark",
+        "windowGlassWorkAreaTintDark",
+        "windowGlassSidebarOpacityLight",
+        "windowGlassWorkAreaTintLight",
+    ];
+
+    #[test]
+    fn every_strength_gives_both_areas_the_same_tint() {
+        let mut strength = STRENGTH_MIN;
+        while strength <= STRENGTH_MAX {
+            let patch = strength_patch(strength);
+            assert_eq!(
+                patch["windowGlassSidebarOpacityDark"],
+                patch["windowGlassWorkAreaTintDark"]
+            );
+            assert_eq!(
+                patch["windowGlassSidebarOpacityLight"],
+                patch["windowGlassWorkAreaTintLight"]
+            );
+            strength += STRENGTH_STEP;
+        }
+        assert_eq!(
+            strength_patch(STRENGTH_MIN)["windowGlassWorkAreaTintDark"],
+            100
+        );
+        assert_eq!(
+            strength_patch(STRENGTH_MAX)["windowGlassWorkAreaTintLight"],
+            0
+        );
+    }
+
+    #[test]
+    fn catalog_defaults_are_strength_ten() {
+        let patch = strength_patch(10.0);
+        for key in TINT_KEYS {
+            let default = ghostex_settings_catalog::default_value(key)
+                .and_then(ghostex_settings_catalog::J::as_f64);
+            assert_eq!(patch[key].as_f64(), default, "{key}");
+        }
+        let values = SettingsValues::from_map(Map::new());
+        assert_eq!(strength_from_settings(&values), (Some(10.0), 10.0));
+    }
 }

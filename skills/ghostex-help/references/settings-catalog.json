@@ -8283,7 +8283,7 @@
       "section": "theming",
       "sectionTitle": "Theme",
       "type": "number",
-      "default": 91,
+      "default": 94,
       "agentWritable": true
     },
     {
@@ -8311,7 +8311,7 @@
       "section": "theming",
       "sectionTitle": "Theme",
       "type": "number",
-      "default": 93,
+      "default": 97,
       "agentWritable": true
     },
     {
