@@ -10,6 +10,7 @@
 //! The phone draws the same pills and menus in apps/mobile/app/src/chat/native/cards/ChatPills.tsx.
 
 use super::{appearance::ChatAppearance, state::NativeChatView, transcript::text};
+use crate::app::helpers::ThrottledAnimationExt as _;
 use crate::app::native_chat::cursor::ChatCursor as _;
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
@@ -18,7 +19,7 @@ use gpui::{
     px, rgb, svg,
 };
 use serde_json::{Value, json};
-use std::{cell::Cell, rc::Rc};
+use std::{cell::Cell, rc::Rc, time::Duration};
 
 /// A menu's header line, the gap between its sections and its footer line ("N more"), unscaled.
 pub(super) const MENU_HEADER_HEIGHT: f32 = 24.0;
@@ -27,6 +28,10 @@ pub(super) const MENU_FOOTER_HEIGHT: f32 = 22.0;
 
 /// The amber of a thread waiting on the user's approval (coordinator_threads.rs).
 pub(super) const ATTENTION_COLOR: u32 = 0xf5a524;
+
+/// The sidebar's working colour (native_sidebar/status.rs `WORKING_COLOR`), the dot of a pill
+/// whose menu has a working subagent or thread.
+const RUNNING_COLOR: u32 = 0xc68a06;
 
 /// Each pill's frame at its last paint, which its menu opens against.
 #[derive(Default)]
@@ -46,6 +51,33 @@ impl ChatPillBounds {
             _ => self.subagents.clone(),
         }
     }
+}
+
+/// The yellow dot before a running pill's icon (`running`, extras/chat_pills.rs, where the user's
+/// decision lives). It fades on the 1.6 s beat of the Subagents menu's running dot
+/// (agent_fleet.rs), and stays still with Reduce motion on.
+fn running_dot(s: f32) -> AnyElement {
+    let dot = div()
+        .size(px(6.0 * s))
+        .rounded_full()
+        .flex_shrink_0()
+        .bg(rgb(RUNNING_COLOR));
+    if crate::app::helpers::gpui_macos_reduce_motion_enabled() {
+        return dot.into_any_element();
+    }
+    dot.with_throttled_animation(
+        "chat-pill-running-dot",
+        Duration::from_millis(1600),
+        |dot, phase| {
+            let progress = if phase < 0.5 {
+                phase * 2.0
+            } else {
+                (1.0 - phase) * 2.0
+            };
+            dot.opacity(1.0 - 0.65 * progress)
+        },
+    )
+    .into_any_element()
 }
 
 /// The menu-toggle key of a pill (menu_toggle.rs).
@@ -307,6 +339,7 @@ impl NativeChatView {
             .chat_cursor_pointer()
             .when(open, |pill| pill.bg(p.foreground.opacity(0.08)))
             .hover(|style| style.bg(p.foreground.opacity(0.06)))
+            .when(pill["running"] == true, |pill| pill.child(running_dot(s)))
             .child(
                 svg()
                     .path(icon(&id))

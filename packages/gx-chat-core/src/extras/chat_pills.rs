@@ -7,6 +7,9 @@
 //! CDXC:SessionChat 2026-10-18 DECISION:
 //! User (2026-10-15): "i want threads to be a small pill above the chat and i want other things to also be pills above the chat that are aligned to the right on the same row as "working" and scrollable horizontally when there's no space", "i want to reduce the amout of vertical space taken up by these", and later "make the Question pill and scroll to bottom pill not floating, make them appear as the leftmost in the pills row and they should both just be icons". So Threads, Tasks, Subagents and Background are pills in this order, right-aligned beside the label, with scroll-to-bottom (a down arrow) and Previous question (a ?) leftmost. User (2026-10-17, the working indicator review): the pills ride on the working card ("on the pill", Q259; also while idle, Q260), "make the scroll to bottom pill always appear on the leftmost so it doesn't push other pills when it appears", and "shouldn't allow wrapping in the pill itself, we should truncate the text on the left to make space for the pills (... at the end)": one line, the pills at full width and the label cut with an ellipsis. User (2026-10-18): "why is the threads showing as part of the expanded working card? they shouldn't, they should show as menu for each one, let's make the pill itself not expandable at all, instead it should show a menu like we used to have for 'Threads' please": each pill opens its own floating menu again (a sheet on the phone), and the card never opens (extras/working_card.rs). Supersedes the 2026-10-17 pills as a summary of a card that opened to every section (Q256), and still the 2026-10-15 own line under the word on a narrow chat and the phone.
 //!
+//! CDXC:SessionChat 2026-10-23 DECISION:
+//! User: "make running thread / running sub agents here have an indicator about this please (yellow color) because right now there's no color which is bad". From the mockups they picked a pulsing dot (Q449 "A"), pulsing rather than still (Q450 "pulse"), the same on the phone (Q451 "yes"), and for the Subagents number "running" (Q452: the running count while any run, the total once none do). So a pill whose menu has a working subagent or thread is `running`: the renderers draw a 6px dot in the sidebar's working yellow (#c68a06) before its icon, fading on the 1.6 s beat of the Subagents menu's own running dot, and still with reduce motion on. The Threads number stays the in-flight count above.
+//!
 //! CDXC:SessionChat 2026-10-18 SEE-ALSO:
 //! apps/desktop/src/app/native_chat/working_card.rs and chat_pills.rs (desktop and web), apps/mobile/app/src/chat/native/cards/WorkingCard.tsx and ChatPills.tsx (phone) draw this list and must match.
 
@@ -48,6 +51,7 @@ pub fn chat_pills(
                 String::new()
             },
             attention: threads.get("attention") == Some(&Value::Bool(true)),
+            running: count(threads, "working") > 0,
             aria_label: format!("Threads, {meta}"),
             meta,
         });
@@ -59,6 +63,7 @@ pub fn chat_pills(
             label: "Tasks".to_string(),
             count: format!("{}/{}", count(tasks, "done"), count(tasks, "total")),
             attention: false,
+            running: false,
             aria_label: format!("Tasks, {meta}"),
             meta,
         });
@@ -67,13 +72,19 @@ pub fn chat_pills(
         let rows = fleet
             .get("rows")
             .and_then(Value::as_array)
-            .map_or(0, Vec::len);
+            .map_or(&[][..], Vec::as_slice);
+        let working = rows
+            .iter()
+            .filter(|row| row.get("working") == Some(&Value::Bool(true)))
+            .count();
         let meta = text(fleet, "countLabel");
         pills.push(ChatPill {
             id: "subagents".to_string(),
             label: "Subagents".to_string(),
-            count: rows.to_string(),
+            // The running ones while any run, every listed one once none do (Q452).
+            count: if working > 0 { working } else { rows.len() }.to_string(),
             attention: false,
+            running: working > 0,
             aria_label: format!("Subagents, {meta}"),
             meta,
         });
@@ -85,9 +96,38 @@ pub fn chat_pills(
             label: "Background".to_string(),
             count: count(background, "count").to_string(),
             attention: false,
+            running: false,
             aria_label: format!("Background tasks, {meta}"),
             meta,
         });
     }
     pills
+}
+
+#[cfg(test)]
+mod tests {
+    use super::chat_pills;
+    use serde_json::{json, Value};
+
+    #[test]
+    fn subagents_count_the_running_ones_while_any_run() {
+        let fleet = json!({"rows": [{"working": true}, {"working": false}, {"working": false}]});
+        let pill = &chat_pills(&Value::Null, &Value::Null, &fleet, &Value::Null)[0];
+        assert_eq!((pill.count.as_str(), pill.running), ("1", true));
+
+        let finished = json!({"rows": [{"working": false}, {"working": false}]});
+        let pill = &chat_pills(&Value::Null, &Value::Null, &finished, &Value::Null)[0];
+        assert_eq!((pill.count.as_str(), pill.running), ("2", false));
+    }
+
+    #[test]
+    fn threads_run_only_while_one_is_working() {
+        let waiting = json!({"inFlight": 1, "working": 0, "attention": true});
+        let pill = &chat_pills(&waiting, &Value::Null, &Value::Null, &Value::Null)[0];
+        assert_eq!((pill.count.as_str(), pill.running), ("1", false));
+
+        let working = json!({"inFlight": 2, "working": 2});
+        let pill = &chat_pills(&working, &Value::Null, &Value::Null, &Value::Null)[0];
+        assert!(pill.running);
+    }
 }
