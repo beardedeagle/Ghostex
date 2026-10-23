@@ -101,17 +101,11 @@ pub(crate) fn site_permission_kinds(requested: u32) -> Vec<SitePermissionKind> {
         ),
         (
             PermissionRequestTypes::STORAGE_ACCESS,
-            kind(
-                "use its cookies on this site",
-                Some(ContentSettingTypes::STORAGE_ACCESS),
-            ),
+            kind("use its cookies on this site", None),
         ),
         (
             PermissionRequestTypes::TOP_LEVEL_STORAGE_ACCESS,
-            kind(
-                "use its cookies on this site",
-                Some(ContentSettingTypes::TOP_LEVEL_STORAGE_ACCESS),
-            ),
+            kind("use its cookies on this site", None),
         ),
         (
             PermissionRequestTypes::MULTIPLE_DOWNLOADS,
@@ -133,17 +127,11 @@ pub(crate) fn site_permission_kinds(requested: u32) -> Vec<SitePermissionKind> {
         ),
         (
             PermissionRequestTypes::PROTECTED_MEDIA_IDENTIFIER,
-            kind(
-                "play protected content",
-                Some(ContentSettingTypes::PROTECTED_MEDIA_IDENTIFIER),
-            ),
+            kind("play protected content", None),
         ),
         (
             PermissionRequestTypes::REGISTER_PROTOCOL_HANDLER,
-            kind(
-                "open a type of link",
-                Some(ContentSettingTypes::PROTOCOL_HANDLERS),
-            ),
+            kind("open a type of link", None),
         ),
         (
             PermissionRequestTypes::FILE_SYSTEM_ACCESS,
@@ -178,7 +166,9 @@ pub(crate) fn site_permission_kinds(requested: u32) -> Vec<SitePermissionKind> {
 }
 
 /// Every content setting a permission answer may have been kept under, for Forget all answers.
-pub(crate) const SITE_PERMISSION_CONTENT_TYPES: [ContentSettingTypes; 17] = [
+///
+/// CDXC:Browser 2026-10-23 WHY: only plain per-site permission settings are written. Forget all answers once reset every kind a prompt can carry, including storage access, top-level storage access, protected media and protocol handlers, and Chromium aborted the whole app on one of them (a fatal check under `SetContentSetting`, every launch while the forget was pending, seen 2026-10-23). Those kinds are still asked and answered for the page, but not kept.
+pub(crate) const SITE_PERMISSION_CONTENT_TYPES: [ContentSettingTypes; 13] = [
     ContentSettingTypes::NOTIFICATIONS,
     ContentSettingTypes::GEOLOCATION,
     ContentSettingTypes::MEDIASTREAM_CAMERA,
@@ -189,13 +179,9 @@ pub(crate) const SITE_PERMISSION_CONTENT_TYPES: [ContentSettingTypes; 17] = [
     ContentSettingTypes::IDLE_DETECTION,
     ContentSettingTypes::LOCAL_FONTS,
     ContentSettingTypes::WINDOW_MANAGEMENT,
-    ContentSettingTypes::STORAGE_ACCESS,
-    ContentSettingTypes::TOP_LEVEL_STORAGE_ACCESS,
     ContentSettingTypes::AUTOMATIC_DOWNLOADS,
     ContentSettingTypes::POINTER_LOCK,
     ContentSettingTypes::KEYBOARD_LOCK,
-    ContentSettingTypes::PROTECTED_MEDIA_IDENTIFIER,
-    ContentSettingTypes::PROTOCOL_HANDLERS,
 ];
 
 /// A pending permission prompt. Dropping it unanswered denies the request.
