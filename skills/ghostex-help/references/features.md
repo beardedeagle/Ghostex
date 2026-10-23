@@ -2906,6 +2906,12 @@ project of the repository's main folder, even when started from a worktree.
   Auto Sleep while the session runs); otherwise it says what reached
   GitHub ("Pushed 3 commits to claude/…", "Pull request #12 opened") with a blue
   dot and a notification.
+- **Close keeps it, asleep**: Close on a cloud row that is running on claude.ai
+  (from the row, its tab, a project's Close Inactive, or the phone) puts it to
+  sleep instead, because the session goes on running there; the row stays with
+  its cloud icon and still opens the page. Close it again while it is asleep to
+  take it off the list. `ghostex kill` (and the phone's Kill Session) still
+  closes it straight away.
 - **Signing in**: each Claude account has its own claude.ai sign-in in Ghostex,
   kept in its own Browser profile and used only for its cloud pages (Google
   sign-in works there too). The first time a row needs it, the page says "Sign in

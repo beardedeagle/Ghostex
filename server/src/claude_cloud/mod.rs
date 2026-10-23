@@ -22,7 +22,9 @@ pub(crate) use create::{
     cloud_create_params, pick_claude_account, prepare_cloud_runtime, strip_client_record,
 };
 
-pub(crate) use record::{is_cloud_session_id, presentation_cloud_value};
+pub(crate) use record::{
+    close_keeps_session_asleep, is_cloud_session_id, presentation_cloud_value,
+};
 
 /// `runtimeSettings` key of a local Claude session's create that teleports a cloud session on
 /// its first launch (agents/launch_plan.rs; bring_back.rs sets it).

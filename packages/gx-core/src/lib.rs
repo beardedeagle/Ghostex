@@ -54,13 +54,6 @@ pub use crate::active_project_context::{
     quick_projectless_payload, ACTIVE_PROJECT_CONTEXT_MESSAGE_TYPE,
     ACTIVE_PROJECT_CONTEXT_MESSAGE_VERSION,
 };
-pub use crate::claude_cloud::{
-    claude_cloud_page_account, claude_cloud_session_link, is_claude_cloud_agent,
-    is_claude_cloud_run_location, is_claude_cloud_session, is_running_claude_cloud_page,
-    project_last_cloud_account,
-    session_claude_cloud_page, CLAUDE_CLOUD_AGENT_ID, CLAUDE_CLOUD_DESCRIPTION,
-    CLAUDE_CLOUD_LABEL, CLAUDE_CLOUD_RUN_LOCATION, THIS_COMPUTER_DESCRIPTION,
-};
 pub use crate::agentbox::{
     agentbox_agent_family, agentbox_location_label, agentbox_locations_from_status,
     is_agentbox_run_location, session_chat_view_unavailable, AgentboxLocation, AgentboxLocations,
@@ -74,6 +67,13 @@ pub use crate::attention::{
     MIN_ATTENTION_VISIBLE_MS,
 };
 pub use crate::change::{ChangeSummary, IgnoredReason, SideStateChanges};
+pub use crate::claude_cloud::{
+    claude_cloud_page_account, claude_cloud_session_link, close_keeps_claude_cloud_row,
+    is_claude_cloud_agent, is_claude_cloud_run_location, is_claude_cloud_session,
+    is_running_claude_cloud_page, project_last_cloud_account, session_claude_cloud_page,
+    CLAUDE_CLOUD_AGENT_ID, CLAUDE_CLOUD_DESCRIPTION, CLAUDE_CLOUD_LABEL, CLAUDE_CLOUD_RUN_LOCATION,
+    THIS_COMPUTER_DESCRIPTION,
+};
 pub use crate::connection::{ConnectionPhase, ConnectionState, ConnectionUpdate};
 pub use crate::core::{Core, Effect, Event, Intent, Output, ResubscribeReason};
 pub use crate::doc_sync::{
@@ -139,13 +139,14 @@ pub use crate::sidebar_accounts::{
 };
 pub use crate::sidebar_actions::{
     apply_close_answer, apply_flags_answer, apply_fork_answer, apply_lifecycle_answer,
-    apply_snooze_answer, bulk_request_summary, close_optimistic_follow_ups, iso_string_from_ms,
-    local_project_group_project_id, owns_batch_command, owns_bulk_message, owns_close_message,
-    owns_flags_message, owns_fork_message, owns_lifecycle_message, owns_modal_message,
-    owns_open_command, owns_reload_message, owns_reload_set_message, owns_remote_session_message,
-    owns_snooze_action, owns_snooze_message, plan_batch, plan_bulk_request, plan_close_request,
-    plan_flags_request, plan_fork_request, plan_full_reload, plan_lifecycle_request,
-    plan_modal_action, plan_open_action, plan_read_only_action, plan_reload_set, plan_remote_focus,
+    apply_snooze_answer, bulk_request_summary, close_as_claude_cloud_sleep,
+    close_optimistic_follow_ups, iso_string_from_ms, local_project_group_project_id,
+    owns_batch_command, owns_bulk_message, owns_close_message, owns_flags_message,
+    owns_fork_message, owns_lifecycle_message, owns_modal_message, owns_open_command,
+    owns_reload_message, owns_reload_set_message, owns_remote_session_message, owns_snooze_action,
+    owns_snooze_message, plan_batch, plan_bulk_request, plan_close_request, plan_flags_request,
+    plan_fork_request, plan_full_reload, plan_lifecycle_request, plan_modal_action,
+    plan_open_action, plan_read_only_action, plan_reload_set, plan_remote_focus,
     plan_remote_session_action, plan_snooze_action, plan_snooze_request, plan_sort_action,
     reload_continues_after, rename_seed_title, snooze_wake_ms, ActionEffect, BatchPlan, BulkAction,
     BulkRequest, CloseAnswer, CloseFollowUp, CloseRequest, FlagsFollowUp, FlagsRequest,

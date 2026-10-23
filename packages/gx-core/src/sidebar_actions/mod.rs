@@ -59,8 +59,8 @@ pub use bulk::{
     BatchPlan, BulkAction, BulkRequest, BULK_MESSAGE_TYPES, BULK_SLEEP_INTERVAL_MS,
 };
 pub use close::{
-    apply_close_answer, close_optimistic_follow_ups, owns_close_message, plan_close_request,
-    CloseAnswer, CloseFollowUp, CloseRequest,
+    apply_close_answer, close_as_claude_cloud_sleep, close_optimistic_follow_ups,
+    owns_close_message, plan_close_request, CloseAnswer, CloseFollowUp, CloseRequest,
 };
 pub use delayed_send::{delayed_send_seed, owns_delayed_send_command, plan_delayed_send_action};
 pub use flags::{

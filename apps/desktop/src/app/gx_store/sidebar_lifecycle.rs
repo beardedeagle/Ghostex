@@ -22,8 +22,9 @@ use ghostex_gx_core::{
     ActiveGroup, CloseAnswer, CloseFollowUp, CloseRequest, Event, FocusOptions, ForkFollowUp,
     ForkRequest, Intent, LifecycleAnswer, LifecycleCall, LifecycleFollowUp, LifecycleRequest,
     SessionKey, apply_close_answer, apply_fork_answer, apply_lifecycle_answer,
-    close_optimistic_follow_ups, owns_close_message, owns_fork_message, owns_lifecycle_message,
-    plan_close_request, plan_fork_request, plan_lifecycle_request,
+    close_as_claude_cloud_sleep, close_optimistic_follow_ups, owns_close_message,
+    owns_fork_message, owns_lifecycle_message, plan_close_request, plan_fork_request,
+    plan_lifecycle_request,
 };
 use serde_json::Value;
 
@@ -328,6 +329,17 @@ impl GhostexGpuiApp {
         if !self.gx_store_sidebar_list_ready() {
             self.gx_store.sidebar_lifecycle.declined_source += 1;
             return false;
+        }
+        // An awake Claude cloud row is put to sleep instead and stays listed ("Keep it listed,
+        // asleep", gx-core `close_as_claude_cloud_sleep`).
+        if let Some(sleep) = close_as_claude_cloud_sleep(&self.gx_store.core, message) {
+            return match self.gx_store_start_lifecycle(&sleep, cx) {
+                Some(task) => {
+                    task.detach();
+                    true
+                }
+                None => false,
+            };
         }
         let Some(request) = plan_close_request(&self.gx_store.core, message) else {
             return false;

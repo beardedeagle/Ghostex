@@ -155,6 +155,28 @@ pub fn plan_close_request(core: &Core, message: &Value) -> Option<CloseRequest> 
     })
 }
 
+/// The Sleep a `closeSession` becomes for an awake Claude cloud row, or `None` for every other
+/// row. Planned as the row's own Sleep rather than a close that gxserver turns into one, because
+/// a close hides the row until the daemon reports it stopped, and this one never stops.
+/// CDXC:ClaudeCloud 2026-10-23: "Keep it listed, asleep" (the DECISION is in
+/// server/src/claude_cloud/record.rs `close_keeps_session_asleep`).
+pub fn close_as_claude_cloud_sleep(core: &Core, message: &Value) -> Option<Value> {
+    if text_field(message, "type")? != "closeSession" {
+        return None;
+    }
+    let sidebar_session_id = text_field(message, "sessionId")?;
+    let session = SessionKey::parse_sidebar_session_id(sidebar_session_id)?;
+    (session.machine.is_local()
+        && crate::claude_cloud::close_keeps_claude_cloud_row(core, &session))
+    .then(|| {
+        json!({
+            "type": "setSessionSleeping",
+            "sessionId": sidebar_session_id,
+            "sleeping": true,
+        })
+    })
+}
+
 /// What happens the moment the user clicks, before anything is called.
 pub fn close_optimistic_follow_ups(request: &CloseRequest) -> Vec<CloseFollowUp> {
     let mut follow_ups = vec![CloseFollowUp::Hide {

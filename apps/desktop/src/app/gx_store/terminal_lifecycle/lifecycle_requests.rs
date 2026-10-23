@@ -16,8 +16,8 @@ use std::time::Duration;
 use ghostex_gx_core::protocol::LifecycleState;
 use ghostex_gx_core::{
     Event, FocusOptions, Intent, LIFECYCLE_PATCH_TTL_MS, REMOTE_AWAITED_TIMEOUT_MS, SessionKey,
-    SessionPatch, open_remote_session_terminal, provider_transition_committed,
-    terminal_lifecycle_fallback_focus,
+    SessionPatch, close_keeps_claude_cloud_row, open_remote_session_terminal,
+    provider_transition_committed, terminal_lifecycle_fallback_focus,
 };
 use serde_json::{Value, json};
 
@@ -115,12 +115,20 @@ impl GhostexGpuiApp {
         replacement: Option<SessionKey>,
         cx: &mut gpui::Context<Self>,
     ) {
-        self.gx_store_tab_lifecycle_intent(
-            Intent::HideSession {
-                session: session.clone(),
-            },
-            cx,
-        );
+        // CDXC:ClaudeCloud 2026-10-23: gxserver puts an awake Claude cloud session to sleep on
+        // Close and keeps its row ("Keep it listed, asleep", server/src/claude_cloud/record.rs
+        // `close_keeps_session_asleep`), so its row shows asleep instead of leaving the list.
+        let keeps_row = close_keeps_claude_cloud_row(&self.gx_store.core, &session);
+        if keeps_row {
+            self.gx_store_patch_tab_lifecycle(&session, LifecycleState::Sleeping, cx);
+        } else {
+            self.gx_store_tab_lifecycle_intent(
+                Intent::HideSession {
+                    session: session.clone(),
+                },
+                cx,
+            );
+        }
         if let Some(replacement) = replacement {
             self.gx_store_select_local_workspace_session(
                 &replacement,
@@ -137,7 +145,7 @@ impl GhostexGpuiApp {
         });
         cx.spawn(async move |this, cx| {
             let result = gx_rpc(None, "/api/transitionSession", params).await;
-            if result.is_err() {
+            if result.is_err() && !keeps_row {
                 let _ = this.update(cx, |this, cx| {
                     this.gx_store_tab_lifecycle_intent(Intent::UnhideSession { session }, cx);
                 });
