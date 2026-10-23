@@ -520,10 +520,17 @@ pub(crate) fn gpui_is_ghostex_owned_command_path(
         return true;
     }
     let realpath = gpui_realpath_or_self(path);
-    if gpui_path_is_relative_to(&realpath, cli_dir) {
+    if gpui_realpath_is_bundle_cli(&realpath, cli_dir) {
         return true;
     }
     gpui_is_ghostex_app_owned_command_realpath(command, &realpath)
+}
+
+/// Whether `realpath` is this bundle's CLI: a file in its CLI folder, or the
+/// file `CLI/ghostex` links to.
+pub(crate) fn gpui_realpath_is_bundle_cli(realpath: &Path, cli_dir: &Path) -> bool {
+    gpui_path_is_relative_to(realpath, cli_dir)
+        || realpath == gpui_realpath_or_self(&cli_dir.join(GPUI_GHOSTEX_CLI_BINARY_NAME))
 }
 
 /// What a PATH entry for `ghostex` or `gx` is, as far as the package-manager rule cares.
@@ -585,6 +592,7 @@ pub(crate) fn gpui_package_managed_cli_decision(
 pub(crate) fn gpui_is_package_cli_link_target(command: &str, resolved: &Path) -> bool {
     let normalized = gpui_path_string(resolved).replace('\\', "/").to_lowercase();
     normalized.ends_with("/ghostex.app/contents/resources/cli/ghostex")
+        || gpui_is_merged_bundle_cli_realpath(&normalized)
         || (normalized.contains("/caskroom/ghostex/")
             && normalized.ends_with(&format!("/.homebrew-command-wrappers/{command}")))
 }
@@ -715,16 +723,24 @@ pub(crate) fn gpui_is_ghostex_app_owned_command_realpath(command: &str, realpath
         .map(|file_name| {
             file_name.eq_ignore_ascii_case("ghostex")
                 || (cfg!(windows) && file_name.eq_ignore_ascii_case("ghostex.exe"))
+                || (cfg!(unix) && file_name.eq_ignore_ascii_case("gxserver"))
         })
         .unwrap_or(false)
         && gpui_path_is_relative_to(realpath, &managed_gxserver_dir);
     is_managed_ghostex_cli
+        || gpui_is_merged_bundle_cli_realpath(&normalized)
         || normalized.contains(&format!("/ghostex.app/contents/resources/cli/{command}"))
         || normalized.contains(&format!(
             "/ghostex.app/contents/resources/web/cli/{command}"
         ))
         || normalized.contains("/ghostex.app/contents/resources/cli/ghostex-cli.mjs")
         || (command == "ghostex" && normalized.contains("/ghostex.app/contents/macos/ghostex"))
+}
+
+/// CDXC:Cli 2026-10-23 WHY:
+/// macOS and Linux ship `ghostex` as a link to gxserver (CDXC:Release 2026-10-23 in server/src/main.rs), so a PATH entry linking to a bundle's `CLI/ghostex`, the Homebrew cask's included, now resolves to `Contents/Resources/Web/gxserver/bin/gxserver`. Every realpath ownership check accepts that file as the CLI; otherwise startup would treat the cask's link as someone else's command, the failure behind GitHub issue #203. `normalized` is the lowercased path with `/` separators.
+fn gpui_is_merged_bundle_cli_realpath(normalized: &str) -> bool {
+    normalized.ends_with("/ghostex.app/contents/resources/web/gxserver/bin/gxserver")
 }
 
 pub(crate) fn gpui_is_marked_ghostex_wrapper_file(path: &Path) -> bool {

@@ -1018,6 +1018,11 @@ fn main() {
         println!("cargo:rustc-link-lib=c++");
         println!("cargo:rustc-link-lib=z");
     }
+    /*
+    CDXC:Release 2026-10-23 DECISION:
+    The user chose to stop exporting symbols from the app's executables. The GhosttyKit archive CI builds leaves glslang, SPIRV-Cross and libc++ template instances as visible weak symbols, so the 10.30.0 app exported 17,784 of them: their export trie, names and weak binds cost about 0.8 MB of the DMG, and dyld coalesced every one at launch. Nothing loads symbols from these executables (GPUI's dlsym looks up CoreGraphics functions), so none need exporting.
+    */
+    println!("cargo:rustc-link-arg-bins=-Wl,-no_exported_symbols");
 
     println!("cargo:rustc-link-lib=framework=Cocoa");
     println!("cargo:rustc-link-lib=framework=Foundation");

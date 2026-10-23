@@ -235,7 +235,27 @@ pub fn unique_paths(paths: &[Option<PathBuf>]) -> Vec<PathBuf> {
 pub fn current_cli_executable() -> PathBuf {
     std::env::current_exe()
         .map(|exe| std::fs::canonicalize(&exe).unwrap_or(exe))
+        .map(|exe| merged_cli_entry(&exe).unwrap_or(exe))
         .unwrap_or_else(|_| PathBuf::from("ghostex"))
+}
+
+/// CDXC:Cli 2026-10-23 WHY:
+/// On macOS and Linux `ghostex` is a link to gxserver (CDXC:Release 2026-10-23 in server/src/main.rs), so the realpath above names gxserver, and Linux reports that path as the executable even before it. Callers need the CLI's own entry: its folder holds `skills/` in the app bundle, and the path is what sessions run as `GHOSTEX_CLI_EXECUTABLE`, where gxserver's own name would start the server instead. The bundle's entry is `Contents/Resources/CLI/ghostex`; every other layout keeps the `ghostex` link beside gxserver.
+fn merged_cli_entry(executable: &Path) -> Option<PathBuf> {
+    if executable.file_name()? != "gxserver" {
+        return None;
+    }
+    let bin_dir = executable.parent()?;
+    if cfg!(target_os = "macos") {
+        // <app>/Contents/Resources/Web/gxserver/bin/gxserver
+        let resources = bin_dir.parent()?.parent()?.parent()?;
+        let bundle_cli = resources.join("CLI").join("ghostex");
+        if resources.file_name()? == "Resources" && bundle_cli.exists() {
+            return Some(bundle_cli);
+        }
+    }
+    let sibling = bin_dir.join("ghostex");
+    sibling.exists().then_some(sibling)
 }
 
 /// Directory holding this CLI (Node: path.dirname(fileURLToPath(import.meta.url))).

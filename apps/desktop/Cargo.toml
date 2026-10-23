@@ -101,7 +101,7 @@ serde_json = "1"
 # `rc` makes `Arc<Value>` deserializable, which the sidebar snapshot needs: a group's menu and
 # its header buttons are the two heavy fields of a list that is cloned per patch and per install.
 serde = { version = "1", features = ["derive", "rc"] }
-rusqlite = { version = "0.32", features = ["bundled"] }
+rusqlite = "0.32"
 # CDXC:Browser 2026-10-22 WHY: the remote sites menu reads a page's `<title>` and icon link with the html5ever and RcDom versions gpui-component's base crate already links. `scraper` did this before and brought a second html5ever copy into the binary; keep these two on gpui-base's versions so no new copy appears.
 html5ever = "0.27"
 markup5ever_rcdom = "0.3"
@@ -129,6 +129,10 @@ rodio = { version = "0.20", default-features = false, features = ["symphonia-mp3
 cpal = "0.15"
 sonora = "=0.2.0"
 sonora-common-audio = "=0.2.0"
+
+# macOS links the system SQLite: CDXC:Release 2026-10-23 DECISION in server/Cargo.toml.
+[target.'cfg(not(target_os = "macos"))'.dependencies]
+rusqlite = { version = "0.32", features = ["bundled"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 x11rb = { version = "0.13", features = ["xinput"] }

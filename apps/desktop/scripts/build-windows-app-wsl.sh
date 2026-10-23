@@ -350,15 +350,14 @@ EOF
 		'if errorlevel 1 exit /b %errorlevel%' \
 		"\"$WINDOWS_RUSTUP_WIN\" target add $WSL_RUST_TARGET" \
 		'if errorlevel 1 exit /b %errorlevel%' \
-		"\"$WINDOWS_CARGO_WIN\" build --release --manifest-path \"$REPO_ROOT_WIN\\server\\Cargo.toml\" --target $WSL_RUST_TARGET --bin gxserver --bin ghostex" \
+		"\"$WINDOWS_CARGO_WIN\" build --release --manifest-path \"$REPO_ROOT_WIN\\server\\Cargo.toml\" --target $WSL_RUST_TARGET --bin gxserver" \
 		'exit /b %errorlevel%' \
 		>"$build_batch"
 
 	"$CMD_EXE" /d /c call "$build_batch_win" 2>&1 | cat
 
 	WSL_GXSERVER_CURRENT_BIN="$WSL_GXSERVER_CARGO_OUTPUT_ROOT/$WSL_RUST_TARGET/release/gxserver"
-	WSL_GHOSTEX_CURRENT_BIN="$WSL_GXSERVER_CARGO_OUTPUT_ROOT/$WSL_RUST_TARGET/release/ghostex"
-	if [[ ! -x "$WSL_GXSERVER_CURRENT_BIN" || ! -x "$WSL_GHOSTEX_CURRENT_BIN" ]]; then
+	if [[ ! -x "$WSL_GXSERVER_CURRENT_BIN" ]]; then
 		echo "The current-source WSL gxserver build is missing: $WSL_GXSERVER_CURRENT_BIN" >&2
 		exit 1
 	fi
@@ -571,10 +570,11 @@ stage_current_wsl_runtime_archive() {
 		exit 1
 	fi
 	cp "$WSL_GXSERVER_CURRENT_BIN" "$package_dir/bin/gxserver"
-	cp "$WSL_GHOSTEX_CURRENT_BIN" "$package_dir/bin/ghostex"
+	# As in the release Linux package, bin/ghostex is a link to gxserver (CDXC:Release 2026-10-23 in server/src/main.rs). An older base archive still holds a separate binary there.
+	rm -f "$package_dir/bin/ghostex"
+	ln -s gxserver "$package_dir/bin/ghostex"
 	cp "$WSL_ZMX_CURRENT_BIN" "$package_dir/bin/zmx"
 	chmod 755 "$package_dir/bin/gxserver"
-	chmod 755 "$package_dir/bin/ghostex"
 	chmod 755 "$package_dir/bin/zmx"
 
 	# The package identity participates in gxserver's restart decision. Keeping

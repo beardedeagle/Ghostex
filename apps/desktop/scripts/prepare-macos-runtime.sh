@@ -400,7 +400,7 @@ resolve_gxserver_marketing_version() {
 }
 
 build_gxserver_rust_if_needed() {
-	local cargo_bin cargo_target output_path cli_output_path
+	local cargo_bin cargo_target output_path
 	local marketing_version
 	if [[ ! -f "$GXSERVER_RS_ROOT/Cargo.toml" ]]; then
 		cat >&2 <<EOF
@@ -414,7 +414,6 @@ EOF
 	cargo_bin="$(resolve_gxserver_rust_cargo)"
 	cargo_target="$(gxserver_rust_cargo_target)"
 	output_path="$GXSERVER_RS_ROOT/target/$cargo_target/release/gxserver"
-	cli_output_path="$GXSERVER_RS_ROOT/target/$cargo_target/release/ghostex"
 	GXSERVER_RUST_BIN=""
 	marketing_version="$(resolve_gxserver_marketing_version)"
 	# CDXC:Build 2026-09-05 WHY:
@@ -441,14 +440,10 @@ EOF
 	(
 		cd "$GXSERVER_RS_ROOT"
 		GHOSTEX_GPUI_MARKETING_VERSION="$marketing_version" \
-			"$cargo_bin" build --release --bins --manifest-path "$GXSERVER_RS_ROOT/Cargo.toml" --target "$cargo_target" ${cargo_profile_args[@]+"${cargo_profile_args[@]}"}
+			"$cargo_bin" build --release --bin gxserver --manifest-path "$GXSERVER_RS_ROOT/Cargo.toml" --target "$cargo_target" ${cargo_profile_args[@]+"${cargo_profile_args[@]}"}
 	)
 	if ! binary_supports_macos_arch "$output_path" "$GHOSTEX_MACOS_ARCH"; then
 		echo "Rust gxserver binary does not contain $GHOSTEX_MACOS_ARCH: $output_path" >&2
-		exit 1
-	fi
-	if ! binary_supports_macos_arch "$cli_output_path" "$GHOSTEX_MACOS_ARCH"; then
-		echo "Rust ghostex CLI binary does not contain $GHOSTEX_MACOS_ARCH: $cli_output_path" >&2
 		exit 1
 	fi
 	GXSERVER_RUST_BIN="$output_path"
@@ -553,12 +548,10 @@ package_gxserver_rust_package() {
 	rm -rf "$package_dir"
 	mkdir -p "$package_dir/bin"
 	cp "$rust_bin" "$package_dir/bin/gxserver"
-	# CDXC:Cli 2026-07-13: the public ghostex/gx CLI is the native
-	# Rust binary built alongside gxserver; stage it in the same package so
-	# app bundles and PATH wrappers resolve one implementation.
-	cp "${rust_bin%/*}/ghostex" "$package_dir/bin/ghostex"
+	# The public ghostex/gx CLI is gxserver started under the name `ghostex` (CDXC:Release 2026-10-23 in server/src/main.rs).
+	ln -s gxserver "$package_dir/bin/ghostex"
 	cp "$WEB_DIR/bin/zmx" "$package_dir/bin/zmx"
-	chmod 755 "$package_dir/bin/gxserver" "$package_dir/bin/ghostex" "$package_dir/bin/zmx"
+	chmod 755 "$package_dir/bin/gxserver" "$package_dir/bin/zmx"
 	write_gxserver_package_build_identity "$package_dir" "$package_version"
 }
 
@@ -938,9 +931,8 @@ if [[ "${GHOSTEX_MACOS_GXSERVER_ONLY:-0}" == "1" ]]; then
 	fi
 	package_gxserver_if_needed
 	mkdir -p "$CLI_DIR"
-	cp "$WEB_DIR/gxserver/bin/ghostex" "$CLI_DIR/ghostex"
+	ln -sfh ../Web/gxserver/bin/gxserver "$CLI_DIR/ghostex"
 	ln -sfh "ghostex" "$CLI_DIR/gx"
-	chmod 755 "$CLI_DIR/ghostex"
 	printf 'Prepared the gxserver package only at %s\n' "$WEB_DIR/gxserver"
 	exit 0
 fi
@@ -1077,9 +1069,9 @@ package_gxserver_if_needed
 # CDXC:Cli 2026-06-07-13:53: The app CLI is not a web asset. Stage it under Contents/Resources/CLI so DMG and Homebrew installs can symlink public commands to one app-owned runtime while Web remains only the sidebar/runtime asset folder.
 # CDXC:Cli 2026-07-13: the public CLI is the native Rust `ghostex`
 # binary built with gxserver; the Node module + launcher scripts were deleted.
-cp "$WEB_DIR/gxserver/bin/ghostex" "$CLI_DIR/ghostex"
+# Since 2026-10-23 it is gxserver itself, linked under the CLI's name (CDXC:Release in server/src/main.rs).
+ln -sfh ../Web/gxserver/bin/gxserver "$CLI_DIR/ghostex"
 ln -sfh "ghostex" "$CLI_DIR/gx"
-chmod 755 "$CLI_DIR/ghostex"
 stage_remote_gxserver_linux_packages_if_configured
 if [[ "$GHOSTEX_ON_DEMAND_ASSETS" == "1" ]]; then
 	stage_code_server_component_asset

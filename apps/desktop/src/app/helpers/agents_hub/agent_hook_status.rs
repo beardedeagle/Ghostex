@@ -324,7 +324,7 @@ pub(crate) fn gpui_is_probably_ghostex_command(path: &Path, command: &str) -> bo
     }
     gpui_current_bundle_cli_dir_for_ownership_probe()
         .as_ref()
-        .map(|cli_dir| gpui_path_is_relative_to(&realpath, cli_dir))
+        .map(|cli_dir| gpui_realpath_is_bundle_cli(&realpath, cli_dir))
         .unwrap_or(false)
 }
 

@@ -1,6 +1,19 @@
 #!/usr/bin/env node
 import { createHash } from 'node:crypto';
-import { access, chmod, cp, mkdir, mkdtemp, readFile, readdir, realpath, rm, stat, writeFile } from 'node:fs/promises';
+import {
+  access,
+  chmod,
+  cp,
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  realpath,
+  rm,
+  stat,
+  symlink,
+  writeFile,
+} from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -209,7 +222,7 @@ async function buildPackage({ config, outputDir, workRoot }) {
   await rm(stageDir, { force: true, recursive: true });
   await mkdir(binsDir, { recursive: true });
 
-  const { ghostexBin, gxserverBin } = await buildGxserver(config);
+  const { gxserverBin } = await buildGxserver(config);
   /*
    * CDXC:PromptSearch 2026-08-20:
    * zehn used to be built here with its own pinned Zig 0.16 toolchain. It is now
@@ -226,7 +239,7 @@ async function buildPackage({ config, outputDir, workRoot }) {
   });
 
   await copyExecutable(gxserverBin, path.join(binsDir, 'gxserver'), 'gxserver');
-  await copyExecutable(ghostexBin, path.join(binsDir, 'ghostex'), 'ghostex');
+  await linkCli(binsDir);
   await copyStrippedExecutable(zmxBin, path.join(binsDir, 'zmx'), 'zmx');
 
   /*
@@ -259,6 +272,19 @@ async function buildPackage({ config, outputDir, workRoot }) {
   await rm(outputDir, { force: true, recursive: true });
   await mkdir(path.dirname(outputDir), { recursive: true });
   await cp(stageDir, outputDir, { recursive: true });
+  // cp rewrites a relative link to an absolute one into the stage folder (Node) or copies its target (Bun).
+  await linkCli(path.join(outputDir, 'bin'));
+}
+
+/*
+ * The public ghostex/gx CLI is gxserver started under the name `ghostex`
+ * (CDXC:Release 2026-10-23 in server/src/main.rs), so bin/ghostex is a relative
+ * link and the package carries one copy of the program.
+ */
+async function linkCli(binsDir) {
+  const cliPath = path.join(binsDir, 'ghostex');
+  await rm(cliPath, { force: true });
+  await symlink('gxserver', cliPath);
 }
 
 /*
@@ -282,13 +308,12 @@ async function resolveMarketingVersion() {
 }
 
 async function buildGxserver(config) {
-  await run('cargo', ['build', '--release', '--target', config.rustTarget], {
+  await run('cargo', ['build', '--release', '--target', config.rustTarget, '--bin', 'gxserver'], {
     cwd: gxserverRoot,
     env: { GHOSTEX_GPUI_MARKETING_VERSION: await resolveMarketingVersion() },
   });
   const releaseDir = path.join(cargoTargetRoot(gxserverRoot), config.rustTarget, 'release');
   return {
-    ghostexBin: path.join(releaseDir, 'ghostex'),
     gxserverBin: path.join(releaseDir, 'gxserver'),
   };
 }

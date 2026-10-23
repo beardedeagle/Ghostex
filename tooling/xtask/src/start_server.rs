@@ -108,21 +108,20 @@ pub fn run(args: &[String]) -> Res<i32> {
             .arg(&runtime_dir)
             .arg(&stage_dir),
     )?;
-    for binary in ["gxserver", "ghostex"] {
-        let binary_path = stage_dir.join("bin").join(binary);
-        run_checked(Command::new("/usr/bin/xattr").arg("-c").arg(&binary_path))?;
-        let mut sign = Command::new("codesign");
-        if sign_identity == "-" {
-            sign.args(["--force", "--sign", "-"]);
-        } else {
-            sign.args(["--force", "--options", "runtime"]);
-            if !timestamp_flag.is_empty() {
-                sign.arg(&timestamp_flag);
-            }
-            sign.args(["--sign", &sign_identity]);
+    // `bin/ghostex` is a link to gxserver (CDXC:Release 2026-10-23 in server/src/main.rs), so gxserver is the only binary to sign.
+    let binary_path = stage_dir.join("bin/gxserver");
+    run_checked(Command::new("/usr/bin/xattr").arg("-c").arg(&binary_path))?;
+    let mut sign = Command::new("codesign");
+    if sign_identity == "-" {
+        sign.args(["--force", "--sign", "-"]);
+    } else {
+        sign.args(["--force", "--options", "runtime"]);
+        if !timestamp_flag.is_empty() {
+            sign.arg(&timestamp_flag);
         }
-        run_checked(sign.arg(&binary_path))?;
+        sign.args(["--sign", &sign_identity]);
     }
+    run_checked(sign.arg(&binary_path))?;
 
     step(&format!("Installing into {INSTALLED_APP}..."));
     // rsync writes each file beside its target and renames it, so the daemon still running from the old binary keeps its inode.
@@ -132,12 +131,7 @@ pub fn run(args: &[String]) -> Res<i32> {
             .arg(format!("{}/", stage_dir.display()))
             .arg(format!("{}/", installed_dir.display())),
     )?;
-    run_checked(
-        util::command("rsync")
-            .arg("-a")
-            .arg(stage_dir.join("bin/ghostex"))
-            .arg(&installed_cli),
-    )?;
+    link_installed_cli(&installed_cli)?;
 
     let launchd_target = format!("gui/{}/{LAUNCHD_LABEL}", uid());
     let job = launchd_job(&launchd_target);
@@ -268,6 +262,21 @@ fn pid_of(health: &serde_json::Value) -> String {
         .get("pid")
         .map(|pid| pid.to_string())
         .unwrap_or_default()
+}
+
+/// Points the installed CLI/ghostex at the gxserver just installed; an app installed before gxserver and the CLI became one program still has the separate CLI binary there. The rename swaps it in one step, so a hook that runs `ghostex` meanwhile never finds it missing.
+fn link_installed_cli(installed_cli: &Path) -> Res {
+    #[cfg(unix)]
+    {
+        let staged =
+            installed_cli.with_file_name(format!(".ghostex.start-server-{}", std::process::id()));
+        let _ = fs::remove_file(&staged);
+        std::os::unix::fs::symlink("../Web/gxserver/bin/gxserver", &staged)?;
+        fs::rename(&staged, installed_cli)?;
+    }
+    #[cfg(not(unix))]
+    let _ = installed_cli;
+    Ok(())
 }
 
 fn run_checked(command: &mut Command) -> Res {

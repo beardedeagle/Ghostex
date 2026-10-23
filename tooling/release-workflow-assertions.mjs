@@ -98,7 +98,7 @@ const RELEASE_BUILD_WORKFLOWS = [
   },
   {
     compileNeedles: [BUILD_SCRIPT_BASENAME, 'cargo '],
-    contract: [{ file: 'server/package-remote-linux.mjs', literal: 'run("cargo", ["build", "--release"' }],
+    contract: [{ file: 'server/package-remote-linux.mjs', literal: "run('cargo', ['build', '--release'" }],
     file: '.github/workflows/release-gpui-gxserver.yml',
     platform: 'gxserver',
   },

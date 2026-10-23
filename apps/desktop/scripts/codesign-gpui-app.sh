@@ -47,7 +47,7 @@ fi
 /usr/bin/xattr -cr "$SIGN_TARGET"
 
 if [[ "$CODE_SIGN_IDENTITY" == "-" ]]; then
-	codesign --force --deep --sign - "$SIGN_TARGET"
+	codesign --force --deep --pagesize 16384 --sign - "$SIGN_TARGET"
 	codesign --verify --deep --strict --verbose=2 "$SIGN_TARGET"
 	exit 0
 fi
@@ -113,11 +113,12 @@ reuse_signature() {
 }
 
 # CDXC:Release 2026-10-19 WHY: Apple's timestamp server sometimes refuses requests for a short while ("The timestamp service is not available."); in 10.22.0 (run 38358214637) that failed the macOS job after 50 minutes and the re-run cost 35 more. `codesign --force` can simply run again, so only that error is retried, three attempts in all; every other failure stops the build at once.
+# CDXC:Release 2026-10-23 DECISION: the user chose to sign every Mach-O with 16 KB pages to shrink the DMG. The macos-15 runner's codesign hashes 4 KB pages, and those hashes do not compress: 16 KB pages store a quarter as many and cut about 1.3 MB from the DMG (measured on 10.30.0). Releases are arm64 only, whose pages are 16 KB; Spotify, Discord and Cursor ship 16 KB signatures to macOS 11 and 12.
 codesign_retrying_timestamp() {
 	local attempt output status
 	for attempt in 1 2 3; do
 		status=0
-		output="$(codesign "$@" 2>&1)" || status=$?
+		output="$(codesign --pagesize 16384 "$@" 2>&1)" || status=$?
 		[[ -z "$output" ]] || printf '%s\n' "$output" >&2
 		[[ "$status" != 0 ]] || return 0
 		if [[ "$attempt" == 3 || "$output" != *"The timestamp service is not available"* ]]; then

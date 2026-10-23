@@ -1346,9 +1346,10 @@ done
 # CDXC:AgentSkills 2026-06-26-13:47: The GPUI app bundle must carry `$ghostex-move-codex-session` with the other CLI skills so `ghostex move-codex-session install-skill` works from installed builds.
 # CDXC:Cli 2026-07-13: `ghostex` is the native Rust CLI from the
 # app-owned gxserver package; `gx` is a bundle-internal symlink to it.
+# Since 2026-10-23 `ghostex` is a link to that package's gxserver, which runs as the CLI under this name (CDXC:Release in server/src/main.rs).
 find "$CLI_DIR" -mindepth 1 -maxdepth 1 ! -name ghostex ! -name gx ! -name skills -exec rm -rf {} + 2>/dev/null || true
 mkdir -p "$CLI_DIR/skills"
-stage_file_if_changed "$GXSERVER_SOURCE_DIR/bin/ghostex" "$CLI_DIR/ghostex" 0755
+ln -sfh ../Web/gxserver/bin/gxserver "$CLI_DIR/ghostex"
 ln -sfh "ghostex" "$CLI_DIR/gx"
 for staged_skill in "$CLI_DIR/skills"/*; do
 	[[ -e "$staged_skill" ]] || continue
@@ -1371,9 +1372,9 @@ done
 rm -rf "$WEB_DIR/portless"
 stage_tree_if_changed "$WEB_BIN_SOURCE_DIR" "$WEB_DIR/bin"
 stage_tree_if_changed "$GXSERVER_SOURCE_DIR" "$WEB_DIR/gxserver"
-# CDXC:Release 2026-10-20 WHY: the gxserver package's `ghostex` and `zmx` are the same builds as CLI/ghostex and Web/bin/zmx (only their signature timestamps differed), so they are relative links into the bundle, saving about 14.6 MB. CLI/ghostex must stay the real file: the CLI canonicalizes its own path to find CLI/skills. The remote Mac install archives this package with `tar -h` so the links arrive as files.
+# CDXC:Release 2026-10-23 WHY: the gxserver package's `zmx` is the same build as Web/bin/zmx (only its signature timestamp differed), so it is a relative link into the bundle, and since gxserver and the CLI became one program (CDXC:Release 2026-10-23 in server/src/main.rs) `ghostex` and CLI/ghostex are links to gxserver. gxserver stays the real file so the daemon keeps its code identity; the CLI maps its realpath back to CLI/ghostex to find CLI/skills. The remote Mac install archives this package with `tar -h` so the links arrive as files. Supersedes the 2026-10-20 note, when CLI/ghostex was a separate real binary.
 # SEE-ALSO: gpui_upload_install_bundled_remote_gxserver_and_read_token_inner in apps/desktop/src/app/helpers/remote/install.rs, current_cli_executable in server/src/ghostex_cli/launchers.rs.
-ln -sfh ../../../CLI/ghostex "$WEB_DIR/gxserver/bin/ghostex"
+ln -sfh gxserver "$WEB_DIR/gxserver/bin/ghostex"
 ln -sfh ../../bin/zmx "$WEB_DIR/gxserver/bin/zmx"
 if [[ "$GHOSTEX_ON_DEMAND_ASSETS" == "1" ]]; then
 	rm -rf "$WEB_DIR/code-server"
