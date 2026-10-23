@@ -1,7 +1,7 @@
 //! The floating window a chat page card opens: an agent's published HTML page (`ghostex show`)
-//! over the chat, closed by two clicks away, Escape or its close button. A picture clicked in the
-//! page opens the chat's image viewer over the window (`page.rs`), and a refresh button appears
-//! when the page's file changed on disk (`source.rs`).
+//! over the chat, closed by two clicks away, Escape or its close button. The page's own script
+//! (`page.rs`) opens its pictures in a viewer inside the page and remembers where the reader left
+//! it, and a refresh button appears when the page's file changed on disk (`source.rs`).
 //!
 //! CDXC:SessionChat 2026-10-09 DECISION:
 //! User: an agent's HTML page marked to open floating opens "in a pop up above the chat basically that when i click away goes away". A card whose block carries `"open": "popup"` opens its page here instead of in the browser.
@@ -15,16 +15,14 @@ mod source;
 
 use super::native_modal_kit::*;
 use crate::app::helpers::*;
-use crate::app::native_chat::state::NativeChatView;
 use crate::*;
 use gpui::{
     App, Context, Entity, FocusHandle, FontWeight, InteractiveElement as _, IntoElement,
-    KeyDownEvent, ParentElement as _, Render, Styled as _, Subscription, Task, WeakEntity, Window,
-    div, point, px, size,
+    KeyDownEvent, ParentElement as _, Render, Styled as _, Subscription, Task, Window, div, point,
+    px, size,
 };
 use gpui_component::{h_flex, v_flex};
 use std::{
-    cell::Cell,
     rc::Rc,
     time::{Duration, Instant},
 };
@@ -64,15 +62,9 @@ pub(crate) struct GpuiVisualPageModalWindow {
     surface: Option<Entity<CefSurface>>,
     error: Option<String>,
     focus_handle: FocusHandle,
-    /// The page's id on the gxserver that serves it, for Refresh and the scroll memory.
+    /// The page's id on the gxserver that serves it, for Refresh.
     page_id: Option<String>,
     remote: Option<GpuiRemoteGxserverRequestTarget>,
-    /// The chat whose card opened the page; its image viewer shows the page's pictures.
-    chat: Option<WeakEntity<NativeChatView>>,
-    viewer_host: Option<crate::app::native_chat::ImageViewerHost>,
-    /// The page's latest scroll offset, and the one to put back once the next load ends.
-    scroll: (f64, f64),
-    restore_scroll: Rc<Cell<Option<(f64, f64)>>>,
     /// The page's file changed on disk since it was published (`source.rs`).
     source_changed: bool,
     refreshing: bool,
@@ -81,7 +73,6 @@ pub(crate) struct GpuiVisualPageModalWindow {
     /// The press in another window counted last, so the same press is never counted twice.
     counted_press: Option<Instant>,
     _disarm: Option<Task<()>>,
-    _page_messages: Option<Task<()>>,
     _source_watch: Option<Task<()>>,
     _click_away: Vec<Subscription>,
 }
@@ -95,13 +86,10 @@ impl GpuiVisualPageModalWindow {
         palette: ModalPalette,
         host: VisualPageModalHost,
         remote: Option<GpuiRemoteGxserverRequestTarget>,
-        chat: Option<WeakEntity<NativeChatView>>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
         let page_id = page::page_id(&url);
-        let memory_key = page_id.clone().unwrap_or_else(|| url.clone());
-        let restore_scroll = Rc::new(Cell::new(page::remembered_scroll(&memory_key)));
         let focus_handle = cx.focus_handle();
         focus_handle.focus(window, cx);
         let theme = if palette.light { "light" } else { "dark" };
@@ -157,7 +145,6 @@ impl GpuiVisualPageModalWindow {
             Rc::default();
         let page_loaded: cef::PageLoadEndHandler = {
             let shown_surface = shown_surface.clone();
-            let modal = cx.weak_entity();
             let page = url.clone();
             let viewport = window.viewport_size();
             let viewport = (
@@ -173,23 +160,13 @@ impl GpuiVisualPageModalWindow {
                 };
                 let page = page.clone();
                 let remote = remote.clone();
-                let modal = modal.clone();
                 let async_cx = async_cx.clone();
                 // Run on the next turn: this is called from inside CEF's message pump.
                 foreground
                     .spawn(async move {
                         async_cx.update(|cx| {
-                            // The scroll goes back once the top of the page has been pictured.
                             crate::app::visual_page_thumbnails::picture_opened_page(
-                                surface,
-                                &page,
-                                remote,
-                                viewport,
-                                cx,
-                                move |cx| {
-                                    let _ =
-                                        modal.update(cx, |this, cx| this.restore_page_scroll(cx));
-                                },
+                                surface, &page, remote, viewport, cx,
                             )
                         });
                     })
@@ -219,11 +196,10 @@ impl GpuiVisualPageModalWindow {
                     cx,
                 )
             });
-        let mut page_bridge = None;
         let (surface, error) = match created {
             Ok(surface) => {
                 *shown_surface.borrow_mut() = Some(surface.downgrade());
-                page_bridge = CefSurface::install_page_bridge(&surface, page::PAGE_SCRIPT, cx);
+                surface.read(cx).add_page_script(page::PAGE_SCRIPT);
                 // A CEF page starts 1×1 and only gets its frame when the window paints; give it
                 // the area under the header from the start so it lays out at its real width.
                 let viewport = window.viewport_size();
@@ -251,28 +227,6 @@ impl GpuiVisualPageModalWindow {
                 )
             }
         };
-        let viewer_host =
-            crate::app::native_chat::child_window::window_native_view(window).map(|native_view| {
-                crate::app::native_chat::ImageViewerHost {
-                    window: gpui::Window::window_handle(window),
-                    native_view,
-                }
-            });
-        let page_messages = page_bridge.map(|mut bridge| {
-            cx.spawn(async move |this, cx| {
-                while let Some(payload) = bridge.next().await {
-                    let Some(message) = page::read_page_message(&payload) else {
-                        continue;
-                    };
-                    if this
-                        .update(cx, |this, cx| this.receive_page_message(message, cx))
-                        .is_err()
-                    {
-                        return;
-                    }
-                }
-            })
-        });
         let mut click_away = super::popup_dismissal::close_app_modal_on_click_away(window, cx);
         click_away.push(observe_presses_elsewhere(window, cx));
         let mut modal = Self {
@@ -286,73 +240,16 @@ impl GpuiVisualPageModalWindow {
             focus_handle,
             page_id,
             remote,
-            chat,
-            viewer_host,
-            scroll: (0.0, 0.0),
-            restore_scroll,
             source_changed: false,
             refreshing: false,
             armed_at: None,
             counted_press: None,
             _disarm: None,
-            _page_messages: page_messages,
             _source_watch: None,
             _click_away: click_away,
         };
         modal.watch_page_source(cx);
         modal
-    }
-
-    fn receive_page_message(&mut self, message: page::PageMessage, cx: &mut Context<Self>) {
-        support_logs::append_for_scenario(
-            support_logs::GpuiSupportLog::SidebarRefresh,
-            "native.sidebar.refresh",
-            "gpui.visualPage.pageMessage",
-            serde_json::json!({
-                "images": matches!(message, page::PageMessage::Images { .. }),
-                "chat": self.chat.is_some(),
-                "viewerHost": self.viewer_host.is_some(),
-            }),
-        );
-        match message {
-            page::PageMessage::Images { images, index } => {
-                let (Some(chat), Some(host)) = (self.chat.clone(), self.viewer_host) else {
-                    return;
-                };
-                let _ = chat.update(cx, |chat, cx| {
-                    chat.open_hosted_image_viewer(images, index, host, cx)
-                });
-            }
-            page::PageMessage::Scroll { x, y } => {
-                self.scroll = (x, y);
-                page::remember_scroll(self.scroll_memory_key(), self.scroll);
-            }
-        }
-    }
-
-    fn scroll_memory_key(&self) -> &str {
-        self.page_id.as_deref().unwrap_or(&self.url)
-    }
-
-    /// Once the page has loaded: back to where the reader was when they closed it (or refreshed).
-    fn restore_page_scroll(&mut self, cx: &mut Context<Self>) {
-        let Some(offset) = self.restore_scroll.take() else {
-            return;
-        };
-        self.scroll = offset;
-        if let Some(surface) = &self.surface {
-            let script = page::restore_scroll_script(offset);
-            surface.update(cx, |surface, _| surface.execute_app_owned_script(&script));
-        }
-    }
-
-    /// The chat's image viewer is open over this window: the focus it took is not a click away.
-    fn shows_image_viewer(&self, window: &Window, cx: &App) -> bool {
-        let own = gpui::Window::window_handle(window).window_id();
-        self.chat
-            .as_ref()
-            .and_then(|chat| chat.upgrade())
-            .is_some_and(|chat| chat.read(cx).hosted_image_viewer_open(own))
     }
 
     /// One click away: the first arms the window, a second within `CLICK_AWAY_ARMED_FOR` closes it.
@@ -547,12 +444,6 @@ impl ModalCornerClose for GpuiVisualPageModalWindow {
         if !pressed_just_now {
             self.click_away(cx);
         }
-    }
-
-    /// Opening the chat's image viewer over the page takes focus from this window, which is not a
-    /// click away.
-    fn keeps_open_on_click_away(&self, window: &Window, cx: &App) -> bool {
-        self.shows_image_viewer(window, cx)
     }
 
     /// It draws its own close button in its header.

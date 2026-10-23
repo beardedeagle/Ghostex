@@ -1230,11 +1230,16 @@ answer it); until then the card shows the page's file name. On desktop the card 
 the page in a floating window over the chat. Clicking outside it once only
 arms it ("Click outside again to close"); a second click outside within two
 seconds closes it, as do Escape and its close button. Its header can open the
-page in your browser instead. Clicking a picture in the page opens the chat's
-image viewer inside that window, with arrows (and the Left and Right keys) to
-step through the page's pictures. A page you reopen comes back where you left
-it scrolled, and when the agent changes the page's file while the window is
-open, a Refresh button at the top right reloads it. On mobile the card opens
+page in your browser instead. Clicking a picture in the page opens it in a
+viewer inside the page, styled like the chat's image viewer: click or scroll to
+zoom, drag to pan, use the arrows near the edges (or the Left and Right keys) to
+step through the page's pictures, and Escape, the close button or a click beside
+the picture to close the viewer (the window stays open). Its buttons zoom, copy
+the picture, and open a picture from the web in your browser; a picture inside
+the page itself can't be saved from there. A page you reopen comes back where
+you left it scrolled, even after Ghostex restarts, and when the agent changes
+the page's file while the window is open, a Refresh button at the top right
+reloads it. On mobile the card opens
 the page full screen over the chat. Tapping a picture in it opens the chat's
 image viewer over the page (swipe or use the arrows to step through the page's
 pictures), the Close button at the top closes it, and Android's back closes it

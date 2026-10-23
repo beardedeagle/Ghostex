@@ -168,10 +168,8 @@ impl NativeChatView {
         let parent = self.child_window_parent(cx);
         let scale = super::appearance::ChatAppearance::current(&self.snapshot).scale;
         let windows: [Option<(gpui::AnyWindowHandle, Bounds<Pixels>)>; 6] = [
-            // A viewer over the page window stays where that window is.
             self.image_viewer
                 .handle
-                .filter(|_| self.image_viewer.host.is_none())
                 .map(|handle| (handle.into(), expanded)),
             self.table_preview.handle.map(|handle| {
                 (

@@ -366,6 +366,12 @@ impl CefSurface {
         self.browser.ask_page_keep_awake();
     }
 
+    /// Puts `script` into every document of this page, the current one included; nothing comes
+    /// back from it (cef/shell/page_bridge.rs).
+    pub(crate) fn add_page_script(&self, script: &str) -> bool {
+        self.browser.add_page_script(script)
+    }
+
     /// Puts `script` into every document of this page and hears what it posts with
     /// `window.__ghostexPageBridge(json)` (cef/shell/page_bridge.rs), for as long as the bridge is
     /// kept and the page lives. `None` when the page has no browser yet.

@@ -1,9 +1,9 @@
 //! What the app hears from a page's own script without a renderer bridge: the script calls
 //! `window.__ghostexPageBridge(json)`, which queues the message in the page, and the app keeps one
 //! DevTools `Runtime.evaluate` per page waiting on that queue (`install_page_bridge` in
-//! app/element/cef_surface.rs drives it). Used by the floating page window
-//! (app/window/visual_page_modal/page.rs) and by Browser pages' notifications
-//! (app/browser_page_notifications.rs).
+//! app/element/cef_surface.rs drives it). Used by Browser pages' notifications
+//! (app/browser_page_notifications.rs). `add_page_script` puts a script into every document with
+//! no way back, which the floating page window uses (app/window/visual_page_modal/page.rs).
 //!
 //! CDXC:SessionChat 2026-10-22 WHY:
 //! A published page is untrusted and sandboxed, so it gets no renderer bridge (the allowlist in cef/sidebar_bridge_manifest.rs). The DevTools protocol the screenshot and keep-awake code already drive lets the browser process put a script into this one browser and read what it hands back, with nothing added to the helper renderer. The page can call the queue with anything it likes; each reader only takes the messages it knows.
@@ -107,6 +107,12 @@ impl CefBrowser {
     /// Runs the bridge queue and `script` in every document this browser loads from now on, the
     /// current one included.
     pub fn install_page_bridge_script(&self, script: &str) -> bool {
+        self.add_page_script(&format!("{PAGE_BRIDGE_PRELUDE}{script}"))
+    }
+
+    /// Runs `script` in every document this browser loads from now on, the current one included,
+    /// before the page's own scripts. Nothing comes back from it.
+    pub fn add_page_script(&self, script: &str) -> bool {
         let browser = self.browser.borrow().clone();
         let Some(host) = browser.host() else {
             return false;
@@ -118,9 +124,7 @@ impl CefBrowser {
         // (`install_page_input_tracker`).
         params.set_string(
             Some(&CefString::from("source")),
-            Some(&CefString::from(
-                format!("{PAGE_BRIDGE_PRELUDE}{script}").as_str(),
-            )),
+            Some(&CefString::from(script)),
         );
         params.set_bool(Some(&CefString::from("runImmediately")), 1);
         host.execute_dev_tools_method(

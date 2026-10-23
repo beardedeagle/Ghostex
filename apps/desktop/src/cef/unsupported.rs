@@ -190,6 +190,10 @@ impl CefBrowser {
         false
     }
 
+    pub fn add_page_script(&self, _script: &str) -> bool {
+        false
+    }
+
     pub fn wait_for_page_messages(&self) -> Option<PageBridgeAnswer> {
         None
     }

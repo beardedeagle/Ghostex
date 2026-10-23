@@ -80,7 +80,8 @@ fn status(code: StatusCode) -> RoutedResponse {
 
 /// The page's content policy for this response. The page's own copy allows it to reach its server
 /// (`'self'`), and a browser enforces both policies, so naming the page's own routes here (its
-/// answers and its draft, under `/visual/<id>/`) keeps the page off every other gxserver route.
+/// answers, its draft and its scroll position, under `/visual/<id>/`) keeps the page off every
+/// other gxserver route.
 fn header_policy(id: &str, host: Option<&str>) -> String {
     let host = host.filter(|host| {
         !host.is_empty()

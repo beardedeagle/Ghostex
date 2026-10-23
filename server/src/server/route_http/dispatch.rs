@@ -53,6 +53,11 @@ pub(in crate::server) async fn route_http(
         return crate::file_links::serve(method, path, query, parts.headers, body).await;
     }
 
+    // Before the page itself: `/visual/<id>/scroll` is the page's own scroll position.
+    if matches!(method, Method::GET | Method::POST) && crate::visual_pages::is_scroll_route(&path) {
+        return crate::visual_pages::page_scroll(state.clone(), method, path, body).await;
+    }
+
     if method == Method::GET && path.starts_with(crate::visual_pages::VISUAL_PAGE_ROUTE_PREFIX) {
         let host = parts
             .headers

@@ -17,10 +17,6 @@ impl GhostexGpuiApp {
         window: &mut Window,
         cx: &mut gpui::Context<Self>,
     ) {
-        // The chat whose card this is shows the page's pictures (`chatSessionId`).
-        let mut message = message.clone();
-        message["chatSessionId"] = session_id.0.into();
-        let message = &message;
         let open = |app: &mut Self, message: &serde_json::Value, window: &mut Window, cx| {
             app.receive_app_modal_host_bridge_event(
                 AppModalHostBridgeEvent::Message(message.to_string()),
@@ -110,11 +106,6 @@ impl GhostexGpuiApp {
         let remote = remote_project.as_ref().and_then(|remote_project| {
             self.gpui_remote_gxserver_request_target(&remote_project.remote_machine_id)
         });
-        let chat = message
-            .get("chatSessionId")
-            .and_then(serde_json::Value::as_u64)
-            .and_then(|session_id| self.native_chat_views.get(&TerminalSessionId(session_id)))
-            .map(|chat| chat.downgrade());
         let palette = self.gpui_native_modal_palette();
         let host = self.native_app_modal_host(cx, move |app, command, cx| {
             app.handle_gpui_visual_page_modal_command(command, remote_project.clone(), cx);
@@ -128,7 +119,7 @@ impl GhostexGpuiApp {
             move |window, cx| {
                 cx.new(|cx| {
                     GpuiVisualPageModalWindow::new(
-                        url, title, detail, palette, host, remote, chat, window, cx,
+                        url, title, detail, palette, host, remote, window, cx,
                     )
                 })
             },
