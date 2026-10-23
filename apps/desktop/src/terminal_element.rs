@@ -606,6 +606,9 @@ pub struct TerminalView {
     /// CDXC:Terminal 2026-09-27 WHY:
     /// Windows dead keys need both the accent and the following text key to reach TranslateMessage; encoding the following key directly would leave Windows' dead-key state pending even after sending the composed character.
     pending_character_input: bool,
+    /// Cmd+A ran Select All on press, so its release must not reach a program
+    /// in kitty report-events mode either, as in Ghostty.
+    select_all_release_pending: bool,
     focus_handle: FocusHandle,
     /// Focus state as of the last prepaint; edges send focus reports
     /// (mode 1004) and switch the cursor to hollow.
@@ -782,6 +785,7 @@ impl TerminalView {
             marked_selection_utf16: None,
             last_reported_ime_cursor: None,
             pending_character_input: false,
+            select_all_release_pending: false,
             focus_handle: cx.focus_handle(),
             focused: false,
             last_modifiers: Modifiers::default(),
@@ -1577,23 +1581,43 @@ impl TerminalView {
         }
 
         /*
-        CDXC:Terminal 2026-07-12:
+        CDXC:Terminal 2026-10-23 WHY:
         The composited libghostty-vt path owns terminal encoding but not the
         embedded surface's AppKit key-equivalent layer. Preserve the managed
         macOS pane contract here: natural line editing is
         `terminal_line_editing_input`, Cmd-G is the rich-editor Ctrl-G chord,
-        and the main editing commands are sent as explicit Super CSI-u
-        sequences before GPUI application bindings can claim them.
+        and the remaining editing commands are sent as explicit Super CSI-u
+        sequences before GPUI application bindings can claim them. Only a
+        program that turned on the kitty keyboard protocol can read those
+        sequences (Claude Code and Codex push flags 5 at start); a plain shell
+        echoed "7;9u", and Claude Code typed a plain "a". Cmd-A is Ghostty's
+        unconditional `super+a=select_all` binding, so it selects the
+        scrollback in every program; without kitty flags the other keys send
+        nothing, as in Ghostty.
         */
         if cfg!(target_os = "macos")
             && modifiers.platform
             && !modifiers.control
             && !modifiers.alt
             && !modifiers.function
+            && !modifiers.shift
+            && keystroke.key == "a"
+        {
+            self.select_all(cx);
+            self.select_all_release_pending = true;
+            cx.stop_propagation();
+            return;
+        }
+        if cfg!(target_os = "macos")
+            && modifiers.platform
+            && !modifiers.control
+            && !modifiers.alt
+            && !modifiers.function
+            && self.model.kitty_keyboard_flags().unwrap_or(0) != 0
         {
             let managed_editing_input: Option<Vec<u8>> =
                 match (modifiers.shift, keystroke.key.as_str()) {
-                    (false, key @ ("a" | "c" | "s" | "y" | "z")) => key
+                    (false, key @ ("c" | "s" | "y" | "z")) => key
                         .chars()
                         .next()
                         .map(|key| format!("\x1b[{};9u", key as u32).into_bytes()),
@@ -1808,6 +1832,10 @@ impl TerminalView {
         {
             return;
         }
+        if self.select_all_release_pending && keystroke.key == "a" {
+            self.select_all_release_pending = false;
+            return;
+        }
         let (key, unshifted_codepoint) = keystroke_vt_key(keystroke);
         let _ = self.model.send_key(&VtKeyInput {
             action: VtKeyAction::Release,
@@ -1994,7 +2022,11 @@ impl TerminalView {
         }
     }
 
-    /// Edit › Select All: every row of the scrollback, which Copy then copies.
+    /// Edit › Select All: the scrollback up to its last non-blank cell, as
+    /// Ghostty's `select_all` does, so the empty rows under the prompt are not
+    /// painted with the selection color. Those rows are in the active screen,
+    /// so the visible frame is enough when the view is at the bottom; reading
+    /// the whole scrollback here would stall the key press on a long history.
     fn select_all(&mut self, cx: &mut Context<Self>) {
         let Some(frame) = self.frame.as_ref() else {
             return;
@@ -2002,8 +2034,37 @@ impl TerminalView {
         let Some(last_row) = frame.scrollbar.total.checked_sub(1) else {
             return;
         };
+        let at_bottom = frame.scrollbar.offset + frame.scrollbar.len >= frame.scrollbar.total;
+        let last_text = at_bottom
+            .then(|| {
+                frame
+                    .rows
+                    .iter()
+                    .enumerate()
+                    .rev()
+                    .find_map(|(index, row)| {
+                        let col = row
+                            .cells
+                            .iter()
+                            .rposition(|cell| cell.base != '\0' && !cell.base.is_whitespace())?;
+                        let width = if row.cells[col].width == VtCellWide::Wide {
+                            2
+                        } else {
+                            1
+                        };
+                        Some((frame.scrollbar.offset + index as u64, col as u16 + width))
+                    })
+            })
+            .flatten();
+        let (end_row, end_col) = last_text.unwrap_or((last_row, frame.cols));
         self.drag = None;
-        self.selection = Some(line_selection(frame.cols, 0, last_row));
+        self.selection = Some(TerminalSelection {
+            start_row: 0,
+            start_col: 0,
+            end_row,
+            end_col,
+            rectangular: false,
+        });
         cx.notify();
     }
 
