@@ -108,7 +108,7 @@ pub fn ensure_gxserver_storage_layout(paths: &GxserverPaths) -> Result<()> {
 
 /// CDXC:ServerDaemon 2026-10-23 DECISION:
 /// User: "avoid any unnecessary writes", and accepted synchronous=NORMAL for state.db. In WAL mode this drops the fsync on every commit and syncs at checkpoints instead: an app or gxserver crash still loses nothing and the database cannot corrupt; only a power cut or OS crash can lose the last few commits.
-/// On 2026-10-23 the user chose the sessions(lifecycleState, updatedAt) index (migration 0046) despite the small write it adds to every session update, so the lifecycle lists stop reading the whole registry; this supersedes reading "no unnecessary writes" as "no new indexes".
+/// On 2026-10-23 the user chose the sessions(lifecycleState, updatedAt) index (migration 0046) despite the small write it adds to every session update, so the lifecycle lists stop reading the whole registry; this supersedes reading "no unnecessary writes" as "no new indexes". The same day they chose a second one for the same reason (Q34, "yes, add it"): the partial index of kept stopped rows (migration 0047), so the sidebar's first snapshot stops reading the whole registry too.
 pub(super) fn apply_wal_durability(db: &Connection) -> Result<()> {
     db.pragma_update(None, "synchronous", "NORMAL")?;
     Ok(())

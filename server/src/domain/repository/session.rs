@@ -736,17 +736,25 @@ impl<'a> DomainRepository<'a> {
     /// The snapshot poll and the presentation subscribe hydrated every row of the registry on each call and then discarded all but the pinned stopped ones; with 8,600 stopped rows next to 190 live ones that was a third of an idle gxserver's CPU.
     /// Fork families are not derived from this list; they need the whole registry and come from `list_session_fork_rows`.
     /// SEE-ALSO: `select_presentation_sessions` in presentation/session_projection.rs, `should_include_presentation_session` in presentation/session_attributes.rs.
+    ///
+    /// CDXC:StateSync 2026-10-23 WHY:
+    /// The one `OR` across five columns could use no index, so this still read every row. The two
+    /// halves are disjoint (the `lifecycleState` CHECK allows five values), so they are listed
+    /// separately: live rows through `idx_sessions_lifecycle_updated`, kept stopped rows through the
+    /// partial `idx_sessions_presentation_kept`, whose `WHERE` the second half repeats word for word
+    /// so SQLite can use it. The `+` keeps the planner off the lifecycle index for `stopped`, which
+    /// would visit all 10,000+ stopped rows.
     pub fn list_presentation_sessions(&self) -> DomainResult<Vec<Value>> {
         let mut statement = self
             .db
             .prepare_cached(
                 r#"
                 SELECT * FROM sessions
-                WHERE lifecycleState <> 'stopped'
-                   OR isPinned = 1
-                   OR isParked = 1
-                   OR isFavorite = 1
-                   OR (sessionTag IS NOT NULL AND sessionTag <> '')
+                WHERE lifecycleState IN ('running', 'sleeping', 'missing', 'unknown')
+                UNION ALL
+                SELECT * FROM sessions
+                WHERE +lifecycleState = 'stopped'
+                  AND (isPinned = 1 OR isParked = 1 OR isFavorite = 1 OR (sessionTag IS NOT NULL AND sessionTag <> ''))
                 ORDER BY updatedAt DESC, projectId ASC, sessionId ASC
                 "#,
             )
