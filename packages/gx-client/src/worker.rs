@@ -336,8 +336,9 @@ impl Worker {
         self.stats
             .bytes_received
             .fetch_add(text.len() as u64, Ordering::Relaxed);
-        // One `apiRequestHandled` frame arrives per HTTP request any client makes: by far the
-        // most frequent frame, and nothing reads it. Drop it before paying for a parse.
+        // gxservers of releases before 2026-10-23 send one `apiRequestHandled` frame per HTTP
+        // request any client makes (CDXC:ServerApi 2026-10-23 in server/src/server/http_dispatch.rs):
+        // by far their most frequent frame, and nothing reads it. Drop it before paying for a parse.
         match peek_event_type(text) {
             Some(EVENT_TYPE_API_REQUEST_HANDLED) => {
                 bump(&self.stats.api_request_handled_dropped);

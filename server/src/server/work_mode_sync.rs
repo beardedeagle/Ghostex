@@ -41,8 +41,11 @@ fn work_fingerprint(project: &Value, session: &Value) -> String {
     .to_string()
 }
 
-/// One pass: refresh the caches every work-mode session reads, then publish the rows whose links,
-/// statuses or branch title changed. Blocking; runs on the 60s background worker.
+/// One pass: refresh the caches every open work-mode session reads, then publish the rows whose
+/// links, statuses or branch title changed. Blocking; runs on the 60s background worker.
+///
+/// CDXC:WorkMode 2026-10-23 DECISION:
+/// User chose "Only open sessions": the work-mode pass refreshes Linear and `gh` status only for sessions that are not closed (`stopped`), and a closed session's status updates when it is reopened. The pass used to read and fingerprint every session of a work-mode project each minute, closed ones included (8,148 rows for one project on 2026-10-23), and kept a fingerprint for each in memory; closed sessions' fingerprints are dropped now, so a reopened session is published on the next pass.
 pub(crate) fn run_work_mode_refresh_once(state: &Arc<AppState>) -> Result<(), DomainStateError> {
     let db = open_gxserver_database(&state.paths).map_err(|error| DomainStateError {
         code: "internalError",
@@ -55,12 +58,15 @@ pub(crate) fn run_work_mode_refresh_once(state: &Arc<AppState>) -> Result<(), Do
         .filter(project_work_mode)
         .collect();
     if projects.is_empty() {
+        if let Ok(mut published) = published_work().lock() {
+            published.clear();
+        }
         return Ok(());
     }
     let mut sessions = Vec::new();
     for project in &projects {
         if let Some(project_id) = project.get("projectId").and_then(Value::as_str) {
-            sessions.extend(repository.list_sessions(Some(project_id))?);
+            sessions.extend(repository.list_sessions_excluding_stopped(Some(project_id))?);
         }
     }
     refresh_work_caches(&state.paths, &projects, &sessions);
@@ -96,6 +102,18 @@ pub(crate) fn run_work_mode_refresh_once(state: &Arc<AppState>) -> Result<(), Do
         .collect();
     let mut changed = Vec::new();
     if let Ok(mut published) = published_work().lock() {
+        let open: std::collections::HashSet<(&str, &str)> = sessions
+            .iter()
+            .filter_map(|session| {
+                Some((
+                    session.get("projectId")?.as_str()?,
+                    session.get("sessionId")?.as_str()?,
+                ))
+            })
+            .collect();
+        published.retain(|(project_id, session_id), _| {
+            open.contains(&(project_id.as_str(), session_id.as_str()))
+        });
         for session in &sessions {
             let (Some(project_id), Some(session_id)) = (
                 session.get("projectId").and_then(Value::as_str),

@@ -3,7 +3,7 @@
 //! make.
 //!
 //! CDXC:VoiceMode 2026-10-20 WHY:
-//! Going through the router rather than calling handlers directly keeps every route-level rule the CLI and the chat get (the send-once ledger on sends and answers, endpoint gates, request logging and the `apiRequestHandled` event), and keeps the tools working when those handlers change shape.
+//! Going through the router rather than calling handlers directly keeps every route-level rule the CLI and the chat get (the send-once ledger on sends and answers, endpoint gates, request logging), and keeps the tools working when those handlers change shape.
 
 use std::sync::Arc;
 use std::time::Duration;

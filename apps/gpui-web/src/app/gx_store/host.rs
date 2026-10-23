@@ -240,7 +240,7 @@ impl GhostexGpuiApp {
         match event {
             StreamEvent::Open => self.gx_store_subscribe(true),
             StreamEvent::Frame(text) => {
-                // One per HTTP request any client makes, and nothing reads it.
+                // Older gxservers send one per HTTP request any client makes; nothing reads it.
                 if text.contains("\"type\":\"apiRequestHandled\"") || text.contains("\"sessionChat")
                 {
                     return;
