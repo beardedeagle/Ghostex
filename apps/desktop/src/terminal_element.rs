@@ -1597,6 +1597,12 @@ impl TerminalView {
         scrollback in every program; without kitty flags the other keys send
         nothing, as in Ghostty.
         */
+        /*
+        CDXC:Terminal 2026-10-23 DECISION:
+        Cmd+A always selects the terminal, as in Ghostty, even in full-screen
+        editors like fresh or gte; Ctrl+A selects their text (user: "Always
+        select the terminal").
+        */
         if cfg!(target_os = "macos")
             && modifiers.platform
             && !modifiers.control
