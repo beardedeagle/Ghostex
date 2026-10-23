@@ -200,7 +200,7 @@ jobs:
         run: tooling/release-gpui/fetch-zig-deps.sh ghostty
       - uses: actions/setup-node@v4
         with:
-          node-version: 24.13.1
+          node-version: 24.22.1
       - name: Validate Sparkle signing credential
         if: ${{ inputs.update_sparkle }}
         env:

@@ -92,7 +92,7 @@ jobs:
           bun-version: 1.4.0
       - uses: actions/setup-node@v7
         with:
-          node-version: 24.13.1
+          node-version: 24.22.1
       - name: Restore pinned React Native sources
         env:
           GH_TOKEN: ${{ github.token }}

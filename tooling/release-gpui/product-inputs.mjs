@@ -27,7 +27,7 @@ export const TOOLCHAIN = Object.freeze({
   bun: '1.4.0',
   dotnet: '8.0.x',
   java: '17.0.19+10',
-  node: '24.13.1',
+  node: '24.22.1',
   ripgrepPackageVersion: '1.17.1',
   ripgrepSha256: '2fa16464fd8638588a67c7fc172d3c4b57fbdc65dff366e10b0b0e90734628a6',
   ripgrepVersion: 'v15.0.1',
