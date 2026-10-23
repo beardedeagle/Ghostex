@@ -4,7 +4,7 @@
 //! The set is the runtime's `setGroupSleeping`: the members in the group's own order, of those the
 //! ones whose row in that machine's LIVE presentation can move (running to sleep, sleeping to
 //! wake). The host sends it through the ordinary `setSessionsSleeping`, so sleeps go out 350 ms
-//! apart and wakes together. The Chats group has no members and moves nothing, as before.
+//! apart and wakes together.
 //!
 //! SEE-ALSO: apps/desktop/sidebar/gxserver-runtime/auto-sleep.ts (`setGroupSleeping`, deleted with
 //! this port), packages/gx-core/src/sidebar_actions/bulk.rs.

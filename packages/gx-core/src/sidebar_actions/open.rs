@@ -303,8 +303,8 @@ fn plan_project_action(view: &SidebarView, command: &Value) -> Option<SidebarAct
         }
         // `getQuickAccessSessionProjectId`: the machine-scoped id for a remote project and the
         // editor's own id otherwise, which are the same string here (the workspace project id),
-        // except for a remote group whose machine context carries no project id. That is the
-        // machine's Chats group, which has no `projectContext` and returned above.
+        // except for a remote group whose machine context carries no project id, which has no
+        // `projectContext` and returned above.
         // The Create Linear Ticket dialog (apps/desktop/src/app/window/create_linear_ticket_modal.rs),
         // which calls `/api/createLinearIssue` and `/api/startWorkOnTicket` (server/src/work_mode/).
         "createLinearTicket" => {

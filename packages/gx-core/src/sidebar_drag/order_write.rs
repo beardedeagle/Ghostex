@@ -203,9 +203,8 @@ fn plan_sync_session_order(
             },
         );
     }
-    // `parseGxserverPresentationProjectGroupId`: a project group, and nothing else. The machine's
-    // Chats group and a remote group both fall out here with no write, which is what the
-    // TypeScript's `if (!projectId) return` does.
+    // `parseGxserverPresentationProjectGroupId`: a project group, and nothing else. Any other group
+    // falls out here with no write, which is what the TypeScript's `if (!projectId) return` does.
     let Some(project) = ProjectKey::parse_sidebar_group_id(group_id) else {
         return Some(OrderWritePlan::refused("notAProjectGroup"));
     };

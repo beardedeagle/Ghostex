@@ -217,10 +217,6 @@ pub fn usage() -> String {
             "Create a terminal session; --start materializes the live terminal immediately",
         ),
         format_help_command(
-            "create-chat [title] [--input text] [--start] --json",
-            "Create a Quick chat workspace with its first terminal session",
-        ),
-        format_help_command(
             "create-agent <agentId> --project-id id [--group-id id] [--model m] [--effort e] [--first-input-draft text] [--run-on location] [--defer-start] [--replace-empty-sessions] [--allow-hidden]",
             "Create and start a configured agent session; an agent turned off in Settings > Agents is refused unless --allow-hidden is passed (ghostex agents types lists the visible ones); --model/--effort (Claude, Codex, Antigravity CLI; Pi takes provider/model and a thinking level) apply to this session only; Empryo takes provider/model and starts on it without changing Empryo's default; --first-input-draft stages text in its input without sending; --run-on local|docker|hetzner|vercel|daytona|e2b|digitalocean|docker:<host> runs Claude, Codex, OpenCode or Pi in an agentbox box",
         ),

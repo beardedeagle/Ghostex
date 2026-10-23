@@ -8,7 +8,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use super::collections::{project_sidebar_collections, CollectionItem, CollectionsState};
 use super::daemon_wait::{DaemonWait, TRY_NOW_LABEL};
-use super::groups::{group_summary, GroupBuild, GroupKind, GroupPlan};
+use super::groups::{group_summary, GroupBuild, GroupPlan};
 use super::inputs::{
     effective_sidebar_mode, SidebarHostInputs, SidebarMode, SidebarSettings, SidebarUiState,
     UnavailableState, LOCAL_MACHINE_ID,
@@ -247,9 +247,6 @@ pub(crate) fn assemble(input: AssembleInput<'_>) -> SidebarView {
 
     let mut groups: Vec<GroupView> = Vec::new();
     for plan in input.plans {
-        if plan.kind == GroupKind::Chats {
-            continue;
-        }
         let Some(build) = input.builds.get(&plan.group_id) else {
             continue;
         };
@@ -488,7 +485,7 @@ fn empty_state(input: &AssembleInput<'_>, selection: Option<&SpaceSelection>) ->
     // user whose only projects are on a remote machine is not shown first-run copy.
     let known = input.meta.project_settings_count > 0
         || input.host.recent_project_count > 0
-        || input.plans.iter().any(|plan| plan.kind != GroupKind::Chats)
+        || !input.plans.is_empty()
         || (input.any_machine_draws_a_project)();
     let copy = if !known {
         "No projects added yet."

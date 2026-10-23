@@ -35,9 +35,6 @@ const NOW_MS: u64 = 1_790_000_000_000;
 /// as well: the same code decides both, and the user-made groups of a remote project live in THIS
 /// computer's document under the machine-scoped project id.
 const MACHINE: &str = "remote-ab12";
-/// A loaded machine with no chat project, the only way to ask the Chats collection of a machine
-/// for an empty list.
-const CHATLESS_MACHINE: &str = "remote-cd34";
 /// A machine no snapshot ever arrived for: every list of it is `NotLoaded`.
 const OFFLINE_MACHINE: &str = "remote-ef56";
 
@@ -195,19 +192,8 @@ fn cases() -> Vec<(String, ActiveGroup, bool)> {
                 subgroup("P-bare", "g-never-made"),
                 false,
             ),
-            // The Chats collection of a machine that has a chat project with a row.
-            (
-                label("chats-with-rows"),
-                ActiveGroup::Chats(machine.clone()),
-                false,
-            ),
         ]);
     }
-    cases.push((
-        "chatless/chats-empty".to_string(),
-        ActiveGroup::Chats(MachineId::Remote(CHATLESS_MACHINE.to_string())),
-        true,
-    ));
     cases.push((
         "offline/project-not-loaded".to_string(),
         ActiveGroup::Project(ProjectKey::remote(OFFLINE_MACHINE, "P-rows")),
@@ -244,8 +230,8 @@ fn project_list_shape(store: &PresentationStore, group: &ActiveGroup) -> Value {
     }
 }
 
-/// Two machines holding the same five projects, plus a machine with no chat project. The
-/// user-made groups of both live in THIS computer's workspace-groups document.
+/// Two machines holding the same five projects. The user-made groups of both live in THIS
+/// computer's workspace-groups document.
 fn seeded_core() -> Core {
     let mut core = Core::new();
     core.handle_raw_frame(
@@ -260,12 +246,6 @@ fn seeded_core() -> Core {
         NOW_MS,
     )
     .expect("the remote frame parses");
-    core.handle_raw_frame(
-        MachineId::Remote(CHATLESS_MACHINE.to_string()),
-        &chatless_snapshot().to_string(),
-        NOW_MS,
-    )
-    .expect("the chatless frame parses");
     let state = serde_json::from_value::<ghostex_gx_protocol::WorkspaceSessionGroupsState>(
         workspace_groups_json(),
     )
@@ -313,24 +293,19 @@ fn snapshot(server_id: &str) -> Value {
     frame(
         server_id,
         &[
-            ("P-sub-only", vec!["A", "B"], false),
-            ("P-kept", vec!["D", "E"], false),
-            ("P-empty", vec![], false),
-            ("P-rows", vec!["F"], false),
-            ("P-bare", vec![], false),
-            ("P-chat", vec!["CS1"], true),
+            ("P-sub-only", vec!["A", "B"]),
+            ("P-kept", vec!["D", "E"]),
+            ("P-empty", vec![]),
+            ("P-rows", vec!["F"]),
+            ("P-bare", vec![]),
         ],
     )
 }
 
-fn chatless_snapshot() -> Value {
-    frame("server-chatless", &[("P-bare", vec![], false)])
-}
-
-fn frame(server_id: &str, projects: &[(&str, Vec<&str>, bool)]) -> Value {
+fn frame(server_id: &str, projects: &[(&str, Vec<&str>)]) -> Value {
     let sessions: Vec<Value> = projects
         .iter()
-        .flat_map(|(project_id, session_ids, _)| {
+        .flat_map(|(project_id, session_ids)| {
             session_ids.iter().map(move |session_id| {
                 json!({
                     "sessionId": session_id,
@@ -361,20 +336,17 @@ fn frame(server_id: &str, projects: &[(&str, Vec<&str>, bool)]) -> Value {
         "snapshot": {
             "revision": 1,
             "generatedAt": "2026-09-21T00:00:00.000Z",
-            "projects": projects.iter().map(|(project_id, _, chat)| json!({
+            "projects": projects.iter().map(|(project_id, _)| json!({
                 "projectId": project_id,
                 "title": project_id,
-                "path": match chat {
-                    true => format!("/Users/x/.ghostex/chats/{project_id}"),
-                    false => format!("/tmp/{project_id}"),
-                },
+                "path": format!("/tmp/{project_id}"),
                 "pathState": "available",
                 "groupIds": [format!("{project_id}:active")],
                 "sortKey": format!("1:{project_id}"),
                 "createdAt": "2026-06-29T13:10:42.091Z",
                 "updatedAt": "2026-09-15T01:18:43.055Z",
             })).collect::<Vec<_>>(),
-            "groups": projects.iter().map(|(project_id, session_ids, _)| json!({
+            "groups": projects.iter().map(|(project_id, session_ids)| json!({
                 "groupId": format!("{project_id}:active"),
                 "projectId": project_id,
                 "title": "Active",

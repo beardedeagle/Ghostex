@@ -9,7 +9,7 @@
 use std::time::Duration;
 
 use ghostex_gx_core::git_menu::{GitPollTarget, plan_git_poll_cycle};
-use ghostex_gx_core::{MachineId, ProjectDiffStats, ProjectKey, is_chat_project_path};
+use ghostex_gx_core::{MachineId, ProjectDiffStats, ProjectKey};
 
 use super::calls::{self, Remote};
 use super::hud::GitReadOptions;
@@ -74,8 +74,8 @@ impl GhostexGpuiApp {
     }
 
     /// The projects whose header the sidebar draws right now: this computer's projects with a
-    /// folder (not a Chats container or a Quick project), and a remote machine's while its stream
-    /// is live (`getVisibleProjectDiffStatsRefreshTargets`).
+    /// folder, and a remote machine's while its stream is live
+    /// (`getVisibleProjectDiffStatsRefreshTargets`).
     fn git_poll_probes(&self) -> Vec<PollProbe> {
         let view = self.gx_store.sidebar_list.view();
         let presentation = self.gx_store.core.presentation();
@@ -96,7 +96,7 @@ impl GhostexGpuiApp {
                     return None;
                 }
                 let path = context.path.trim().trim_end_matches('/');
-                if path.is_empty() || is_chat_project_path(path) {
+                if path.is_empty() {
                     return None;
                 }
                 let target = match key.machine {

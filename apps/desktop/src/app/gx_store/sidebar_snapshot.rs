@@ -443,9 +443,6 @@ fn more_menu(
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     let mut any_expanded = false;
     for group in &view.groups {
-        if group.core.group_id == ghostex_gx_core::CHATS_GROUP_ID {
-            continue;
-        }
         group.core.group_id.hash(&mut hasher);
         any_expanded |= !input.collapsed_groups.contains(&group.core.group_id);
     }

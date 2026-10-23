@@ -243,7 +243,6 @@ fn is_known_command(name: &str) -> bool {
         "terminal",
         "t",
         "create-session",
-        "create-chat",
         "create-agent",
         "run-agent",
         "run-command",
@@ -451,12 +450,6 @@ fn run_command(name: &str, args: &[String]) -> CliResult<()> {
         "create-session" => {
             run_bridge_action("createSession", Parser::CreateSession, fail_on_not_ok, args)
         }
-        "create-chat" => run_bridge_action(
-            "createChatSession",
-            Parser::CreateSession,
-            fail_on_not_ok,
-            args,
-        ),
         "create-agent" => run_bridge_action("createAgentSession", Parser::Agent, plain, args),
         "run-agent" => run_bridge_action("runAgent", Parser::Agent, plain, args),
         "run-command" => {

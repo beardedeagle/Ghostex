@@ -16,7 +16,7 @@
 //! packages/core-ui/sidebar-store-model.ts (deleted 2026-10-01) (`sessionIdsByGroup`, `sessionsById`, `groupsById`).
 
 use crate::core::Core;
-use crate::keys::{parse_workspace_subgroup_id, MachineId, ProjectKey, SessionKey, CHATS_GROUP_ID};
+use crate::keys::{parse_workspace_subgroup_id, MachineId, ProjectKey, SessionKey};
 use crate::sidebar_view::membership::project_members;
 use crate::sidebar_view::projects::build_project_meta;
 use crate::sidebar_view::SidebarInputs;
@@ -34,8 +34,6 @@ pub(crate) struct MoveRow {
 pub(crate) struct MoveGroup {
     pub(crate) group_id: String,
     pub(crate) machine: MachineId,
-    /// The project the group belongs to; absent for a machine's Chats group, which belongs to
-    /// several.
     pub(crate) project: Option<ProjectKey>,
     pub(crate) rows: Vec<MoveRow>,
 }
@@ -78,10 +76,6 @@ pub(crate) fn group_by_id(
     if let Some((project, subgroup_id)) = parse_workspace_subgroup_id(group_id) {
         return subgroup_membership(core, inputs, &project, &subgroup_id);
     }
-    let machine = chats_group_machine(group_id);
-    if let Some(machine) = machine {
-        return chats_membership(core, inputs, &machine);
-    }
     let project = ProjectKey::parse_sidebar_group_id(group_id)?;
     project_membership(core, inputs, &project)
 }
@@ -113,8 +107,7 @@ pub(crate) fn group_of_session(
         .map(|group| group.group_id.clone());
     let candidate = match document_group {
         Some(group_id) => subgroup_membership(core, inputs, &project, &group_id),
-        None => project_membership(core, inputs, &project)
-            .or_else(|| chats_membership(core, inputs, &project.machine)),
+        None => project_membership(core, inputs, &project),
     }?;
     candidate
         .index_of(sidebar_session_id)
@@ -123,7 +116,7 @@ pub(crate) fn group_of_session(
 }
 
 /// A project group, or `None` for a project the projection draws no group for (parked, recent,
-/// locally hidden, or a chat project, whose rows go into the Chats group instead).
+/// or locally hidden).
 fn project_membership(
     core: &Core,
     inputs: &SidebarInputs,
@@ -142,7 +135,7 @@ fn project_membership(
     {
         return None;
     }
-    let members = project_members(store, entry, &project.machine, &project.project_id, true);
+    let members = project_members(store, entry, &project.machine, &project.project_id);
     Some(MoveGroup {
         group_id: project.to_sidebar_group_id(),
         machine: project.machine.clone(),
@@ -181,7 +174,7 @@ fn subgroup_membership(
     {
         return None;
     }
-    let members = project_members(store, entry, &project.machine, &project.project_id, true);
+    let members = project_members(store, entry, &project.machine, &project.project_id);
     let subgroup = members.subgroups.iter().find(|group| {
         group.sidebar_group_id == crate::keys::encode_workspace_subgroup_id(project, subgroup_id)
     })?;
@@ -194,36 +187,6 @@ fn subgroup_membership(
             .iter()
             .filter_map(|session_id| move_row(core, project, session_id))
             .collect(),
-    })
-}
-
-/// A machine's Chats collection. The native sidebar draws no row for it, so nothing the user can
-/// drag lands here; it is built because `sessionIdsByGroup` holds it and a payload can name it.
-fn chats_membership(core: &Core, inputs: &SidebarInputs, machine: &MachineId) -> Option<MoveGroup> {
-    let store = core.presentation();
-    let entry = store.machine(machine)?;
-    let meta = build_project_meta(
-        entry,
-        workspace_project_order(core, machine),
-        inputs.host.parked_project_ids(machine),
-    );
-    let mut rows = Vec::new();
-    for project_id in &meta.chat_order {
-        let project = ProjectKey {
-            machine: machine.clone(),
-            project_id: project_id.clone(),
-        };
-        for session_id in project_members(store, entry, machine, project_id, true).session_ids {
-            if let Some(row) = move_row(core, &project, &session_id) {
-                rows.push(row);
-            }
-        }
-    }
-    Some(MoveGroup {
-        group_id: chats_group_id(machine),
-        machine: machine.clone(),
-        project: None,
-        rows,
     })
 }
 
@@ -250,21 +213,4 @@ pub(super) fn workspace_project_order<'a>(core: &'a Core, machine: &MachineId) -
         .and_then(|entry| entry.side_state().workspace_groups.as_ref())
         .map(|groups| groups.project_order.as_slice())
         .unwrap_or_default()
-}
-
-pub(super) fn chats_group_id(machine: &MachineId) -> String {
-    match machine {
-        MachineId::Local => CHATS_GROUP_ID.to_string(),
-        MachineId::Remote(machine_id) => {
-            ProjectKey::remote(machine_id.as_str(), CHATS_GROUP_ID).to_sidebar_group_id()
-        }
-    }
-}
-
-fn chats_group_machine(group_id: &str) -> Option<MachineId> {
-    if group_id == CHATS_GROUP_ID {
-        return Some(MachineId::Local);
-    }
-    let project = ProjectKey::parse_sidebar_group_id(group_id)?;
-    (project.project_id == CHATS_GROUP_ID).then_some(project.machine)
 }

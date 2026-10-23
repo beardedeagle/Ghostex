@@ -57,9 +57,6 @@ const REMOTE_SESSION_INFIX: &str = ":session:";
 const REMOTE_GROUP_INFIX: &str = ":group:";
 const WORKSPACE_SUBGROUP_PREFIX: &str = "gpui-wsg:";
 
-/// Sidebar group id of the Chats collection.
-pub const CHATS_GROUP_ID: &str = "combined-chats";
-
 impl ProjectKey {
     pub fn local(project_id: impl Into<String>) -> Self {
         Self {

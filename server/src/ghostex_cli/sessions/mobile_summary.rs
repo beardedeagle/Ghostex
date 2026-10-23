@@ -170,10 +170,6 @@ pub(super) fn to_mobile_session_list(result: &Value) -> Value {
                                 .get("worktreeJson")
                                 .or_else(|| project.get("worktree")),
                         );
-                        project_map.insert(
-                            "isChat".to_string(),
-                            json!(is_mobile_chats_collection_project(project)),
-                        );
                         // CDXC:WorkMode 2026-10-09 WHY: the phone's project menu ticks its Work Mode row from this; the inventory rows are raw project rows, so the switch is read with the same rule the presentation snapshot uses and sent only when true, like the snapshot's own `workMode`.
                         if crate::work_mode::project_work_mode(project) {
                             project_map.insert("workMode".to_string(), json!(true));

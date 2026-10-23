@@ -138,10 +138,6 @@ fn normalize_project_order(
                 .overlay(project_id)
                 .and_then(|overlay| overlay.worktree.as_ref())
                 .map(|worktree| worktree.parent_project_id.clone()),
-            // `normalizeWorkspaceProjectOrder` builds its items with a worktree and nothing else,
-            // so every one of them is a code project here even if the sidebar calls it a chat.
-            // Reproduced rather than improved: the chat partition would change the stored order.
-            is_chat: false,
         })
         .collect();
     order_projects_with_worktrees(&items)

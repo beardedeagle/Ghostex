@@ -26,7 +26,7 @@ use std::time::{Duration, Instant};
 use ghostex_gx_core::protocol::LifecycleState;
 use ghostex_gx_core::{
     ActiveGroup, Event, IgnoredReason, Intent, MachineId, SessionKey, TabSession,
-    active_project_context_payload, default_group_for_project,
+    active_project_context_payload,
 };
 use serde_json::Value;
 
@@ -124,12 +124,8 @@ impl GhostexGpuiApp {
         let publish = &self.gx_store.focus_publish;
         if publish.quick_automations_open(focus.local_stamp) {
             store.loaded(&MachineId::Local)?;
-            // `openQuickAutomationsPage`: the overview owns the Chats group and adds its synthetic
-            // row to the visible set.
-            let tabs = store
-                .tab_sessions(&ActiveGroup::Chats(MachineId::Local))
-                .loaded()
-                .map(|tabs| workspace_tab_sessions(core, &tabs));
+            // `openQuickAutomationsPage`: the overview has no session tabs of its own and adds its
+            // synthetic row to the visible set.
             let mut visible = focus
                 .visible_sessions
                 .iter()
@@ -140,7 +136,7 @@ impl GhostexGpuiApp {
             }
             return Some(GpuiGxserverPresentationFocusState {
                 active_project_id: Some(GPUI_QUICK_AUTOMATIONS_PROJECT_ID.to_string()),
-                active_project_tab_sessions: tabs,
+                active_project_tab_sessions: Some(Vec::new()),
                 focused_session_id: Some(QUICK_AUTOMATIONS_SESSION_ID.to_string()),
                 visible_session_ids: visible,
             });
@@ -148,7 +144,7 @@ impl GhostexGpuiApp {
         let (project, group, focused, visible) = match publish.unplaced_for(focus.local_stamp) {
             Some(held) => {
                 let project = held.session.project_key();
-                let group = default_group_for_project(store, &project);
+                let group = ActiveGroup::Project(project.clone());
                 (
                     Some(project),
                     Some(group),
@@ -169,10 +165,15 @@ impl GhostexGpuiApp {
         if store.loaded(&MachineId::Local).is_none() && !remote_selection {
             return None;
         }
-        let tabs = group
-            .as_ref()
-            .and_then(|group| store.tab_sessions(group).loaded())
-            .map(|tabs| workspace_tab_sessions(core, &tabs));
+        let tabs = match (&project, &group) {
+            (_, Some(group)) => store
+                .tab_sessions(group)
+                .loaded()
+                .map(|tabs| workspace_tab_sessions(core, &tabs)),
+            // Nothing is active because this computer has no project: there are no tabs.
+            (None, None) => Some(Vec::new()),
+            (Some(_), None) => None,
+        };
         Some(GpuiGxserverPresentationFocusState {
             active_project_id: project.map(|project| project.to_workspace_project_id()),
             active_project_tab_sessions: tabs,
@@ -263,8 +264,7 @@ impl GhostexGpuiApp {
         let payload = match publish.unplaced_for(focus.local_stamp) {
             Some(held) => {
                 let project = held.session.project_key();
-                let group = default_group_for_project(core.presentation(), &project);
-                ghostex_gx_core::project_context_payload(core.presentation(), &project, &group)
+                ghostex_gx_core::project_context_payload(core.presentation(), &project)
                     .unwrap_or_else(ghostex_gx_core::quick_projectless_payload)
             }
             None => active_project_context_payload(core.presentation(), focus, overview),

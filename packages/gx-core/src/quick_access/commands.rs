@@ -81,7 +81,6 @@ const APP_MODAL_COMMANDS: &[(&str, &str, &str, &str)] = &[
 
 /// `(commandId, searchText, title)`; the message each posts is [`sidebar_message`].
 const SIDEBAR_MESSAGE_COMMANDS: &[(&str, &str, &str)] = &[
-    ("quickTerminal", "Quick Terminal new chat terminal", "Quick Terminal"),
     ("quickBrowserTab", "Quick Browser Tab browser chat", "Quick Browser Tab"),
     (
         "automations",
@@ -117,7 +116,6 @@ const SIDEBAR_MESSAGE_COMMANDS: &[(&str, &str, &str)] = &[
 
 fn sidebar_message(command_id: &str) -> Value {
     match command_id {
-        "quickTerminal" => json!({ "type": "createChat" }),
         "quickBrowserTab" => json!({ "type": "openBrowserChat" }),
         "automations" => json!({ "type": "openAutomationsPage" }),
         "searchByText" => {
@@ -622,7 +620,6 @@ fn app_modal_icon(modal: &str) -> &'static str {
 fn sidebar_message_icon(command_id: &str) -> &'static str {
     match command_id {
         "searchByText" => "search",
-        "quickTerminal" => "terminal-2",
         "quickBrowserTab" => "browser",
         "automations" => "settings-automation",
         "extensions" => "puzzle",

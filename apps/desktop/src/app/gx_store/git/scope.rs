@@ -2,7 +2,7 @@
 //! read (preferences, worktree metadata, path, title), taken from the store's presentation.
 
 use ghostex_gx_core::git_menu::{GitPreferences, GitStateProject};
-use ghostex_gx_core::{MachineId, ProjectKey, group_project, is_chat_project_path};
+use ghostex_gx_core::{MachineId, ProjectKey, group_project};
 use serde_json::Value;
 
 use super::calls::Remote;
@@ -26,7 +26,7 @@ pub(crate) struct GitScope {
     pub(crate) path: Option<String>,
     pub(crate) preferences: GitPreferences,
     pub(crate) worktree: Option<WorktreeFacts>,
-    /// A Chats container or another project with no repository of its own.
+    /// A project with no folder, so no repository of its own.
     pub(crate) projectless: bool,
 }
 
@@ -148,8 +148,7 @@ impl GhostexGpuiApp {
             .map(|path| path.trim_end_matches('/'))
             .filter(|path| !path.is_empty())
             .map(str::to_string);
-        let projectless =
-            path.as_deref().is_none_or(is_chat_project_path) || self.git_project_is_quick(&key);
+        let projectless = path.is_none();
         Ok(GitScope {
             remote,
             title: project.title.clone(),
@@ -159,23 +158,6 @@ impl GhostexGpuiApp {
             projectless,
             key,
         })
-    }
-
-    /// `isGpuiPresentationQuickDomainProject`: the machine's domain row says Quick.
-    fn git_project_is_quick(&self, key: &ProjectKey) -> bool {
-        self.gx_store
-            .core
-            .presentation()
-            .machine(&key.machine)
-            .and_then(|machine| machine.domain_project(&key.project_id))
-            .is_some_and(|project| {
-                project.get("isQuick").and_then(Value::as_bool) == Some(true)
-                    || project
-                        .get("launchSettings")
-                        .and_then(|settings| settings.get("isQuick"))
-                        .and_then(Value::as_bool)
-                        == Some(true)
-            })
     }
 
     /// The project the titlebar shows, as the store's scoped id.

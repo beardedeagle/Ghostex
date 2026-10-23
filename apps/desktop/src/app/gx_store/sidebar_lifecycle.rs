@@ -229,23 +229,17 @@ impl GhostexGpuiApp {
         };
         self.gx_store.sidebar_lifecycle.forks += 1;
         if let Some(group) = request.activate.clone() {
-            // A chat project's fork is refused in the planner, so `Chats` cannot arrive; if it ever
-            // did, the fork still goes out and only the activation is skipped, because the group
-            // the store would activate is one its own list draws no row for.
             let intent = match group {
                 ActiveGroup::Subgroup { project, group_id } => {
                     self.gx_store.sidebar_lifecycle.forks_from_group += 1;
-                    Some(Intent::FocusSubgroup { project, group_id })
+                    Intent::FocusSubgroup { project, group_id }
                 }
-                ActiveGroup::Project(project) => Some(Intent::FocusProject { project }),
-                ActiveGroup::Chats(_) => None,
+                ActiveGroup::Project(project) => Intent::FocusProject { project },
             };
-            if let Some(intent) = intent {
-                let output = self.gx_store.core.handle(Event::Intent(intent), now_ms());
-                if !output.changes.is_empty() {
-                    self.gx_store.sidebar_list.note_changes(&output.changes);
-                    self.gx_store_update_sidebar_list(cx);
-                }
+            let output = self.gx_store.core.handle(Event::Intent(intent), now_ms());
+            if !output.changes.is_empty() {
+                self.gx_store.sidebar_list.note_changes(&output.changes);
+                self.gx_store_update_sidebar_list(cx);
             }
         }
         let path = request.rpc_path;

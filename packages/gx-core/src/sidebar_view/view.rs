@@ -98,7 +98,7 @@ pub struct MachineTabView {
 pub struct RemoteMachineView {
     pub machine_id: String,
     pub machine_name: String,
-    /// The raw project id in that machine's daemon; absent for its Chats group.
+    /// The raw project id in that machine's daemon.
     pub project_id: Option<String>,
 }
 
@@ -113,7 +113,7 @@ pub struct GroupView {
     /// written against ownership, not against what is on screen.
     pub collection_id: Option<String>,
     /// The project whose Space shows this group: its own for a project group, the project it was
-    /// made in for a user-made session group. Absent for a group with no project (Chats).
+    /// made in for a user-made session group.
     pub space_project: Option<SpaceProject>,
 }
 

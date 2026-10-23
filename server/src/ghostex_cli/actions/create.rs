@@ -47,38 +47,6 @@ pub(super) fn create_gxserver_quick_terminal(payload: &Value, flags: &Flags) -> 
     create_gxserver_session(&Value::Object(inner), flags)
 }
 
-pub(super) fn create_gxserver_chat_session(payload: &Value, flags: &Flags) -> CliResult<Value> {
-    /*
-    CDXC:Mobile 2026-07-18:
-    Mobile Quick "+" must mirror the GPUI Quick header: create a fresh
-    projectless chat workspace through gxserver's createQuickProject, then
-    create the initial terminal session inside it through the ordinary
-    create-session path. gxserver stays the filesystem authority for
-    ~/ghostex/chats so mobile never derives chat storage paths itself.
-    */
-    let created_project = rpc::call_gxserver_rpc(
-        "/api/createQuickProject",
-        &json!({ "kind": "terminal" }),
-        flags,
-    )?;
-    let project_id = created_project
-        .get("project")
-        .and_then(|project| project.get("projectId"))
-        .filter(|value| !value.is_null())
-        .cloned();
-    let project_id = match project_id {
-        Some(value) => value,
-        None => {
-            return Err(CliError::Other(
-                "createQuickProject did not return a projectId.".to_string(),
-            ))
-        }
-    };
-    let mut inner = payload.as_object().cloned().unwrap_or_default();
-    inner.insert("projectId".to_string(), project_id);
-    create_gxserver_session(&Value::Object(inner), flags)
-}
-
 pub(super) fn create_gxserver_session(payload: &Value, flags: &Flags) -> CliResult<Value> {
     let project_id_value = payload
         .get("projectId")

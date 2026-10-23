@@ -389,7 +389,7 @@ mod tests {
                 "ok": true,
                 "product": "gxserver",
                 "revision": "r1",
-                "projects": [ { "isChat": false, "name": "Alpha", "path": "/a", "projectId": "P1" } ],
+                "projects": [ { "name": "Alpha", "path": "/a", "projectId": "P1" } ],
                 "recentProjects": [],
                 "sessions": [
                     {
@@ -693,20 +693,6 @@ mod tests {
     }
 
     #[test]
-    fn mobile_chat_project_classification_matches_gpui_contract() {
-        assert!(is_mobile_chats_collection_project(&json!({
-            "path": "/Users/me/.ghostex-dev/chats/session-a"
-        })));
-        assert!(is_mobile_chats_collection_project(&json!({
-            "launchSettings": { "isQuick": true }
-        })));
-        assert!(!is_mobile_chats_collection_project(&json!({
-            "name": "Chat tools",
-            "path": "/Users/me/code/chat-tools"
-        })));
-    }
-
-    #[test]
     fn mobile_summary_keeps_active_and_recent_project_contracts_separate() {
         let summary = to_mobile_session_list(&json!({
             "ok": true,
@@ -722,8 +708,7 @@ mod tests {
         let projects = summary["projects"].as_array().unwrap();
         assert_eq!(projects.len(), 2);
         assert_eq!(projects[0]["projectId"], "P1");
-        assert_eq!(projects[0]["isChat"], false);
-        assert_eq!(projects[1]["isChat"], true);
+        assert_eq!(projects[1]["projectId"], "PC");
         assert_eq!(summary["recentProjects"][0]["projectId"], "PR");
         assert!(summary["sessions"].as_array().unwrap().is_empty());
     }

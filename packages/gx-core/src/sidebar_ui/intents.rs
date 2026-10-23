@@ -106,7 +106,7 @@ pub enum SidebarUiIntent {
 #[serde(rename_all = "camelCase")]
 pub struct ToggleAllProjectsInput {
     pub machine_id: String,
-    /// Every project group the machine currently draws, the Chats collection left out.
+    /// Every project group the machine currently draws.
     pub group_ids: Vec<String>,
 }
 

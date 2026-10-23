@@ -2,7 +2,7 @@
 //!
 //! CDXC:Worktrees 2026-09-21 WHY:
 //! `packages/shared/project-worktree-order.ts` (deleted 2026-10-01) is generic over an ITEM (`{orderId, projectId,
-//! worktree, isChat}`) and the sidebar list only ever needed it over PROJECT IDS, so M4a ported the
+//! worktree}`) and the sidebar list only ever needed it over PROJECT IDS, so M4a ported the
 //! id-shaped half into `sidebar_view/projects.rs`. The project moves need the item-shaped half,
 //! because a drag is keyed by GROUP id and several groups (a project and each of its user-made
 //! groups) share one project id. Writing the second half beside the first is how this port's twin
@@ -28,8 +28,6 @@ pub struct ProjectOrderItem {
     /// not a parent there either; a caller that trimmed first would be a second rule to keep in
     /// step, and `js_trim` is not `str::trim`.
     pub parent_project_id: Option<String>,
-    /// `isChat === true || isQuick === true`. Chat projects lead and are never nested.
-    pub is_chat: bool,
 }
 
 impl ProjectOrderItem {
@@ -64,23 +62,6 @@ impl DropPosition {
             _ => None,
         }
     }
-}
-
-/// `orderProjectsWithWorktrees`: the chat projects keep their order and lead, then the code
-/// projects with their worktrees nested under their parents.
-pub fn order_projects_with_worktrees(projects: &[ProjectOrderItem]) -> Vec<ProjectOrderItem> {
-    let mut ordered: Vec<ProjectOrderItem> = projects
-        .iter()
-        .filter(|project| project.is_chat)
-        .cloned()
-        .collect();
-    let code: Vec<ProjectOrderItem> = projects
-        .iter()
-        .filter(|project| !project.is_chat)
-        .cloned()
-        .collect();
-    ordered.extend(order_code_projects_with_worktrees(&code));
-    ordered
 }
 
 /// `moveProjectsWithWorktrees`: the drop, then a re-nest of the whole order.
@@ -151,11 +132,11 @@ pub fn can_drop_project_with_worktrees(
     target_family.as_deref() == Some(source_family.as_str())
 }
 
-/// `orderCodeProjectsWithWorktrees`.
+/// `orderProjectsWithWorktrees`: the projects with their worktrees nested under their parents.
 ///
 /// The worktree set is keyed by PROJECT id, not by order id, which is what makes several rows of
 /// one project (its own group and each of its user-made groups) move together as one block.
-fn order_code_projects_with_worktrees(projects: &[ProjectOrderItem]) -> Vec<ProjectOrderItem> {
+pub fn order_projects_with_worktrees(projects: &[ProjectOrderItem]) -> Vec<ProjectOrderItem> {
     let mut worktree_project_ids: BTreeSet<String> = BTreeSet::new();
     let mut worktrees_by_parent: Vec<(String, Vec<ProjectOrderItem>)> = Vec::new();
     for project in projects {

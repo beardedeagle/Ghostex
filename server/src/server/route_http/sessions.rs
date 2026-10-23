@@ -364,7 +364,6 @@ pub(super) async fn route_sessions_http(
                 deliberately, and changing that is not this feature's call to
                 make.
                 */
-                let removed_a_draft = crate::agents::session_is_draft(&session);
                 crate::agents::kill_draft_session_provider(&session);
                 let project_id = value_text(&session, "projectId")?;
                 let session_id = value_text(&session, "sessionId")?;
@@ -375,32 +374,6 @@ pub(super) async fn route_sessions_http(
                     &project_id,
                     &session_id,
                 )?;
-                if removed_a_draft {
-                    /*
-                    CDXC:Drafts 2026-08-28:
-                    A quick chat's draft was created inside a throwaway
-                    `~/ghostex/chats` workspace made for it alone, so deleting
-                    the draft has to collect that workspace too or the sidebar
-                    accumulates empty "Chat …" projects over real directories
-                    nobody will ever open. A no-op unless the project is a quick
-                    one with no sessions left; see
-                    `discard_stranded_quick_project` for the guards on its
-                    directory delete.
-                    */
-                    if crate::agents::discard_stranded_quick_project(
-                        repository,
-                        &state.paths.home_dir,
-                        &project_id,
-                    )? {
-                        schedule_presentation_project_delta(
-                            &state,
-                            db,
-                            repository,
-                            &project_id,
-                            "projectUpdated",
-                        )?;
-                    }
-                }
                 Ok(json!({ "session": session }))
             },
         ),

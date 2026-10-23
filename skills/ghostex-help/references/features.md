@@ -462,8 +462,7 @@ sleeping sessions" (Settings > Hotkeys, under Next Session) to jump over them. T
 use Cmd+Alt+] and Cmd+Alt+[ (Ctrl+Alt+] and Ctrl+Alt+[ on Windows and Linux).
 Shortcuts: `focusNextSession`, `focusPreviousSession`, `focusNextPaneTab`,
 `focusPreviousPaneTab`; setting: `sidebarSessionCycleSkipsSleeping`.
-Top chrome holds the Quick section (projectless Quick chats and terminals),
-tag filters, Spaces, and More Options: Settings, Search by
+Top chrome holds tag filters, Spaces, and More Options: Settings, Search by
 Prompt, Previous Sessions, Mobile & Remote, Extensions, Tips.
 **Group working sessions** (in the More menu's Sort & Filter page, and in
 Settings > Sidebar; both switch the same setting, off by default) moves each

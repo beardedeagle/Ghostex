@@ -851,7 +851,7 @@ pub fn endpoint_for(path: &str) -> Option<EndpointDescriptor> {
         | "/api/setSlackFlowSettings"
         | "/api/readSlackManifest"
         | "/api/postSlackWorkingThread" => full_local(path),
-        "/api/createQuickProject" | "/api/syncBotProjects" => full_local(path),
+        "/api/syncBotProjects" => full_local(path),
         /*
         CDXC:Bots 2026-09-27 WHY:
         The feed reads this computer's Hermes cron output, which holds whole

@@ -68,8 +68,6 @@ pub struct ChangeSummary {
     pub project_order_changed: Vec<MachineId>,
     /// The order or membership of sessions in these projects changed (tab strips, sidebar rows).
     pub session_order_changed: Vec<ProjectKey>,
-    /// The membership or order of the Chats collection of these machines changed.
-    pub chat_collection_changed: Vec<MachineId>,
     /// The connection state of these machines changed.
     pub connection_changed: Vec<MachineId>,
     pub side_state: SideStateChanges,
@@ -96,7 +94,6 @@ impl ChangeSummary {
             && self.sessions_removed.is_empty()
             && self.project_order_changed.is_empty()
             && self.session_order_changed.is_empty()
-            && self.chat_collection_changed.is_empty()
             && self.connection_changed.is_empty()
             && !self.side_state.any()
             && !self.focus_changed
@@ -127,10 +124,6 @@ impl ChangeSummary {
         push_unique(&mut self.project_order_changed, machine);
     }
 
-    pub(crate) fn note_chat_collection_changed(&mut self, machine: MachineId) {
-        push_unique(&mut self.chat_collection_changed, machine);
-    }
-
     pub(crate) fn note_connection_changed(&mut self, machine: MachineId) {
         push_unique(&mut self.connection_changed, machine);
     }
@@ -140,14 +133,13 @@ impl ChangeSummary {
     ///
     /// It is conservative, never the other way round: every change of a tab list's keys sets it,
     /// and a few inputs set it without moving a key (a machine reload with identical rows, a
-    /// legacy group delta, a reorder of projects that are not chat projects). A project title
-    /// change, a group rename, and a row content change do not set it.
+    /// legacy group delta). A project title change, a group rename, and a row content change do
+    /// not set it.
     pub fn tab_lists_changed(&self) -> bool {
         !self.machines_reloaded.is_empty()
             || !self.projects_removed.is_empty()
             || !self.project_order_changed.is_empty()
             || !self.session_order_changed.is_empty()
-            || !self.chat_collection_changed.is_empty()
     }
 
     /// Folds `other` into `self`, so a host can coalesce a burst of events into one repaint. `other`
@@ -173,9 +165,6 @@ impl ChangeSummary {
         for key in other.sessions_removed {
             self.sessions_changed.retain(|changed| *changed != key);
             self.note_session_removed(key);
-        }
-        for machine in other.chat_collection_changed {
-            self.note_chat_collection_changed(machine);
         }
         for machine in other.connection_changed {
             self.note_connection_changed(machine);

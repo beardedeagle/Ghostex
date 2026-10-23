@@ -1,6 +1,6 @@
 // Ghostex Help: the "Ask Ghostex" sample-question popup menu reached from the
 // titlebar's ⋯ menu or the Ghostex Help hotkey, and the flow that turns a picked
-// question into a Ghostex Help quick chat.
+// question into a Ghostex Help agent session.
 
 use gpui::FontWeight;
 use gpui::IntoElement;
@@ -235,9 +235,9 @@ impl GhostexGpuiApp {
 
     /// A picked Help row: make sure the bundled `ghostex-help` skill is
     /// installed (a local folder copy, run off the UI thread), then ask the
-    /// Rust store (gx_store/create/os_integration.rs) to start a Quick agent chat whose first message invokes
-    /// the skill with the question. The store owns quick-workspace creation,
-    /// the default prompt agent, and focusing the new session.
+    /// Rust store (gx_store/create/os_integration.rs) to start an agent session in the Ghostex
+    /// config folder's project whose first message invokes the skill with the question. The store
+    /// owns the project lookup, the default prompt agent, and focusing the new session.
     pub(crate) fn run_gpui_titlebar_help_question(
         &mut self,
         question_index: usize,

@@ -7,7 +7,7 @@
 use std::collections::BTreeSet;
 
 use crate::core::Core;
-use crate::keys::{MachineId, SessionKey, CHATS_GROUP_ID};
+use crate::keys::{MachineId, SessionKey};
 use crate::sidebar_view::collections::CollectionsState;
 use crate::sidebar_view::machine_spaces::spaces_enabled_on;
 use crate::sidebar_view::spaces::SpacesState;
@@ -185,16 +185,15 @@ impl<'a> SidebarMenus<'a> {
                 .as_ref()
                 .map(|remote| remote.machine_name.as_str()),
             is_stale: core.is_stale,
-            // A project group and a user-made group can take a session into a new group; a
-            // machine's Chats collection cannot.
+            // A project group and a user-made group can take a session into a new group.
             //
             // CDXC:ContextMenus 2026-09-20 WHY:
             // Asked of the project row rather than of the group id, which is what
             // `createGpuiRemotePresentationSidebarGroups` does (`project !== undefined`). The id
             // test alone was written for this computer, where a project group always has a row;
             // a remote group whose project the machine did not publish is the case it was never
-            // asked about, and `!is_chats_group` would offer the item on a group with nothing to
-            // put in it.
+            // asked about, and a group-id test would offer the item on a group with nothing to put
+            // in it.
             //
             // A bot's sessions stay under the bot: Bots lists them flat, with no groups (the bot
             // row's own menu has no New Group, see sidebar_menu/project.rs), so a group made from
@@ -374,7 +373,6 @@ impl<'a> SidebarMenus<'a> {
             .view
             .groups
             .iter()
-            .filter(|group| !is_chats_group(group.core.group_id.as_str()))
             .map(|group| group.core.group_id.clone())
             .collect();
         navigation::more_menu(&navigation::MoreMenuInput {
@@ -445,24 +443,8 @@ impl<'a> SidebarMenus<'a> {
     }
 }
 
-/// Whether a sidebar group id is a machine's Chats collection. A remote machine's is
-/// `remote:<machine>:group:combined-chats`, so the id is not comparable as one string.
-///
-/// CDXC:ContextMenus 2026-09-20 WHY:
-/// Written as two string tests rather than through `ProjectKey::parse_sidebar_group_id`, which is
-/// the obvious way and is what this was first. `menu_group` runs once per ROW, not once per group,
-/// so parsing meant percent-decoding a project path out of every local group id for every row of
-/// every install: one allocation and one decode per row for a question that is answered by a
-/// prefix and a suffix. The two forms are the only ones the encoder produces.
 /// Whether a sidebar group id is a user-made session group, which has no project row of its own
 /// and can still take a session into a new group.
 fn is_user_made_group(group_id: &str) -> bool {
     group_id.starts_with("gpui-wsg:")
-}
-
-fn is_chats_group(group_id: &str) -> bool {
-    const REMOTE_PREFIX: &str = "remote:";
-    const REMOTE_CHATS_SUFFIX: &str = ":group:combined-chats";
-    group_id == CHATS_GROUP_ID
-        || (group_id.starts_with(REMOTE_PREFIX) && group_id.ends_with(REMOTE_CHATS_SUFFIX))
 }

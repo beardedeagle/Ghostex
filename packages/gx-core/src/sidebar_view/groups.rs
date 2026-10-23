@@ -23,19 +23,6 @@ use super::view::{
 /// Where a group's rows come from.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum GroupKind {
-    /// The Chats collection of a machine. Never drawn by the native sidebar; its rows still count
-    /// towards the machine tab and the Other view.
-    ///
-    /// CDXC:Automations 2026-09-21 WHY:
-    /// This is also where the All Automations overview row would be, and why no sidebar draws one.
-    /// `withQuickAutomationsOverviewGroup` splices a synthetic row into the CHATS group of the
-    /// published projection, and `createNativeSidebarSnapshot` drops every chat collection before
-    /// it builds the list (the deleted sidebar page's `model.ts`, `group.isChatCollection` in the group loop),
-    /// so the desktop sidebar has never shown it and neither does this list. What the More menu's
-    /// All Automations really does is `openAutomationsPage`, which changes the active project and
-    /// opens the Automate workarea; the row is a side effect nobody sees here. Do not add one: the
-    /// sidebar has never drawn it, so a row here would be a new difference, not a fix.
-    Chats,
     Project,
     /// A user-made session group inside a project.
     Subgroup,

@@ -130,7 +130,7 @@ pub fn navigation_history_target(response: &Value) -> Option<NavigationHistoryEn
 }
 
 /// `createNavigationHistoryEntry`: the active group's project, and its focused session when one
-/// is. The Chats collection and a projectless selection are no stop.
+/// is. A projectless selection is no stop.
 ///
 /// The active group is the one the model marks; when none is marked and a project is selected,
 /// that project's group, as `withSelectedProjectActiveGroup` re-asserted the selection.

@@ -30,7 +30,7 @@ pub struct MoreMenuInput<'a> {
     /// Which filter rows exist at all, and which of them are enabled: this computer's catalog.
     pub filter_catalog: &'a TagCatalog,
     pub host: &'a MenuHost,
-    /// The project group ids the list draws, without the Chats group.
+    /// The project group ids the list draws.
     pub drawn_project_group_ids: &'a [String],
 }
 

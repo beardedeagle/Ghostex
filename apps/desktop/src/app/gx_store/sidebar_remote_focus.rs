@@ -30,8 +30,7 @@
 //!
 //! **`keepView` is planned from the group the runtime's `activeGroupId` would hold**, which the
 //! store's focus is now (`gx_store_remote_focus_group` in focus_perform.rs): a focused remote
-//! session answers its project's own group or its machine's Chats, never the user-made group its
-//! row sits in, because that is the group `setRemotePresentationSessionFocus` named and the string
+//! session answers its project's own group, never the user-made group its row sits in, because that is the group `setRemotePresentationSessionFocus` named and the string
 //! rule in gx-core `plan_remote_focus` was written against it. This supersedes the
 //! `RuntimeActiveGroup` tracking of what was sent to and published by the runtime.
 //!

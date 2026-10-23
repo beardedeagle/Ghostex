@@ -1,5 +1,5 @@
-//! Which projects the list shows, in which order, and what rides on each of them: the chat
-//! projects, the parked ones, the icon, the worktree metadata, and the manual order.
+//! Which projects the list shows, in which order, and what rides on each of them: the parked
+//! ones, the icon, the worktree metadata, and the manual order.
 //!
 //! Ported from `createGpuiPresentationProjectProjectionMetadata` in the deleted
 //! `gxserver-runtime/helpers/presentation-projection.ts` (see git history).
@@ -14,7 +14,6 @@ use ghostex_gx_protocol::PresentationProject;
 use serde_json::Value;
 
 use crate::presentation_store::MachinePresentation;
-use crate::selectors::is_chat_project_path;
 
 use super::text::js_trim;
 use super::view::WorktreeView;
@@ -26,8 +25,6 @@ use crate::project_docs::{
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(crate) struct ProjectOverlay {
     pub(crate) icon_data_url: Option<String>,
-    pub(crate) is_chat_project: bool,
-    pub(crate) is_quick_project: bool,
     /// The Hermes profile a bot project stands for (`default` for `HERMES_HOME` itself).
     pub(crate) bot_profile: Option<String>,
     pub(crate) order_index: Option<usize>,
@@ -40,10 +37,7 @@ pub(crate) struct ProjectOverlay {
 pub(crate) struct ProjectMeta {
     pub(crate) overlays: BTreeMap<String, ProjectOverlay>,
     pub(crate) hidden_project_ids: BTreeSet<String>,
-    pub(crate) chat_project_ids: BTreeSet<String>,
-    /// Visible chat projects in sidebar order.
-    pub(crate) chat_order: Vec<String>,
-    /// Visible code projects in sidebar order, worktrees under their parents.
+    /// Visible projects in sidebar order, worktrees under their parents.
     pub(crate) project_order: Vec<String>,
     /// Visible bot projects in sidebar order, which Bots mode lists instead of `project_order`.
     pub(crate) bot_order: Vec<String>,
@@ -56,7 +50,7 @@ impl ProjectMeta {
         self.overlays.get(project_id)
     }
 
-    /// Every project that gets a project group, code projects first, then bots. Both kinds are
+    /// Every project that gets a project group, projects first, then bots. Both kinds are
     /// built in either mode; `assemble` draws the kind the mode lists, the way it applies a Space.
     pub(crate) fn grouped_project_ids(&self) -> impl Iterator<Item = &String> {
         self.project_order.iter().chain(&self.bot_order)
@@ -95,24 +89,6 @@ fn path_for_comparison(value: &str) -> String {
     } else {
         stripped.to_string()
     }
-}
-
-/// `isGpuiPresentationChatDomainProject`.
-fn is_chat_domain_project(project: &Value) -> bool {
-    boolean_field(Some(project), "isChat") == Some(true)
-        || boolean_field(project.get("launchSettings"), "isChat") == Some(true)
-        || project
-            .get("path")
-            .and_then(Value::as_str)
-            .and_then(|path| normalize_project_path(Some(path)))
-            .is_some_and(|path| is_chat_project_path(&path))
-}
-
-/// `isGpuiPresentationQuickDomainProject`.
-fn is_quick_domain_project(project: &Value) -> bool {
-    boolean_field(Some(project), "isQuick") == Some(true)
-        || boolean_field(project.get("launchSettings"), "isQuick") == Some(true)
-        || is_chat_domain_project(project)
 }
 
 /// `gpuiPresentationProjectIconDataUrl`: the user's attached image, else the stored data URL. A
@@ -248,23 +224,16 @@ pub(crate) fn build_project_meta(
     );
 
     for (project_id, project) in &domain_projects {
-        let is_chat = is_chat_domain_project(project);
-        let is_quick = is_quick_domain_project(project);
         let worktree =
             resolve_worktree_parent(normalize_worktree(project.get("worktree")), &candidates);
         if boolean_field(Some(project), "isRecentProject") == Some(true) {
             meta.hidden_project_ids.insert((*project_id).clone());
-        }
-        if is_chat || is_quick {
-            meta.chat_project_ids.insert((*project_id).clone());
         }
         merge_overlay(
             &mut meta.overlays,
             project_id,
             ProjectOverlayPatch {
                 icon_data_url: project_icon_data_url(project),
-                is_chat_project: is_chat,
-                is_quick_project: is_quick,
                 order_index: order_index.get(project_id.as_str()).copied(),
                 worktree,
                 ..ProjectOverlayPatch::default()
@@ -276,7 +245,7 @@ pub(crate) fn build_project_meta(
         let worktree =
             resolve_worktree_parent(normalize_worktree(project.worktree.as_ref()), &candidates);
         // CDXC:Bots 2026-09-26 WHY:
-        // A bot is an ordinary gxserver project flagged in `launchSettings` (`isBot`, `botProfile`), the same JSON split the Chats projects use, so no schema migration and no `systemKind` value is needed.
+        // A bot is an ordinary gxserver project flagged in `launchSettings` (`isBot`, `botProfile`), so no schema migration and no `systemKind` value is needed.
         // The presentation row carries the profile (`botProfile`), which every client holds from its first frame.
         let bot_profile = project.bot_profile.clone();
         if index.is_some() || worktree.is_some() || bot_profile.is_some() {
@@ -291,25 +260,6 @@ pub(crate) fn build_project_meta(
                 },
             );
         }
-        let known_domain = machine.domain_projects.contains_key(&project.project_id);
-        let chat_path = project
-            .path
-            .as_deref()
-            .and_then(|path| normalize_project_path(Some(path)))
-            .is_some_and(|path| is_chat_project_path(&path));
-        if known_domain || !chat_path {
-            continue;
-        }
-        meta.chat_project_ids.insert(project.project_id.clone());
-        merge_overlay(
-            &mut meta.overlays,
-            &project.project_id,
-            ProjectOverlayPatch {
-                is_chat_project: true,
-                is_quick_project: true,
-                ..ProjectOverlayPatch::default()
-            },
-        );
     }
 
     let visible: Vec<&PresentationProject> = loaded
@@ -320,28 +270,12 @@ pub(crate) fn build_project_meta(
                 && !machine.is_project_hidden(&project.project_id)
         })
         .collect();
-    // `isGxserverPresentationChatProject`: the overlay's flags, else the projection's chat set.
-    let is_chat = |project: &PresentationProject, meta: &ProjectMeta| {
-        meta.overlays
-            .get(&project.project_id)
-            .is_some_and(|overlay| overlay.is_quick_project || overlay.is_chat_project)
-            || meta.chat_project_ids.contains(&project.project_id)
-    };
-    let chat_order = order_sidebar_projects(
-        visible
-            .iter()
-            .copied()
-            .filter(|project| is_chat(project, &meta)),
-        &meta,
-    );
     let (bots, projects): (Vec<&PresentationProject>, Vec<&PresentationProject>) = visible
         .iter()
         .copied()
-        .filter(|project| !is_chat(project, &meta))
         .partition(|project| meta.bot_profile(&project.project_id).is_some());
     let project_order = order_sidebar_projects(projects.into_iter(), &meta);
     let bot_order = order_sidebar_projects(bots.into_iter(), &meta);
-    meta.chat_order = chat_order;
     meta.project_order = project_order;
     meta.bot_order = bot_order;
     meta.project_settings_count = project_settings_count(machine);
@@ -362,12 +296,6 @@ fn merge_overlay(
     if let Some(icon_data_url) = patch.icon_data_url {
         overlay.icon_data_url = Some(icon_data_url);
     }
-    if patch.is_chat_project {
-        overlay.is_chat_project = true;
-    }
-    if patch.is_quick_project {
-        overlay.is_quick_project = true;
-    }
     if let Some(bot_profile) = patch.bot_profile {
         overlay.bot_profile = Some(bot_profile);
     }
@@ -382,8 +310,6 @@ fn merge_overlay(
 #[derive(Default)]
 struct ProjectOverlayPatch {
     icon_data_url: Option<String>,
-    is_chat_project: bool,
-    is_quick_project: bool,
     bot_profile: Option<String>,
     order_index: Option<usize>,
     worktree: Option<WorktreeView>,
@@ -392,8 +318,6 @@ struct ProjectOverlayPatch {
 impl ProjectOverlayPatch {
     fn is_empty(&self) -> bool {
         self.icon_data_url.is_none()
-            && !self.is_chat_project
-            && !self.is_quick_project
             && self.bot_profile.is_none()
             && self.order_index.is_none()
             && self.worktree.is_none()
@@ -455,8 +379,6 @@ fn order_projects_with_worktrees(ids: &[String], meta: &ProjectMeta) -> Vec<Stri
                 parent_project_id: overlay
                     .and_then(|overlay| overlay.worktree.as_ref())
                     .map(|worktree| worktree.parent_project_id.clone()),
-                is_chat: overlay
-                    .is_some_and(|overlay| overlay.is_chat_project || overlay.is_quick_project),
             }
         })
         .collect();
@@ -475,7 +397,6 @@ fn project_settings_count(machine: &MachinePresentation) -> usize {
             .filter(|project| {
                 normalize_project_path(project.get("path").and_then(Value::as_str)).is_some()
                     && boolean_field(Some(project), "isRecentProject") != Some(true)
-                    && !is_quick_domain_project(project)
             })
             .count();
     }
@@ -485,10 +406,7 @@ fn project_settings_count(machine: &MachinePresentation) -> usize {
             loaded
                 .projects()
                 .iter()
-                .filter(|project| {
-                    normalize_project_path(project.path.as_deref())
-                        .is_some_and(|path| !is_chat_project_path(&path))
-                })
+                .filter(|project| normalize_project_path(project.path.as_deref()).is_some())
                 .count()
         })
         .unwrap_or_default()

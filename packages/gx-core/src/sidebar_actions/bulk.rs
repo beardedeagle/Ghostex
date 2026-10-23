@@ -378,8 +378,8 @@ fn explicit_session_ids(message: &Value) -> Option<Vec<String>> {
 }
 
 /// `parseGpuiRemotePresentationGroupId` then `parseGxserverPresentationProjectGroupId`, which are
-/// string parses and ask the store nothing. A user-made session group (`gpui-wsg:`), the Chats
-/// collection and anything else that is not a project group fail the parse and are refused here.
+/// string parses and ask the store nothing. A user-made session group (`gpui-wsg:`) and anything
+/// else that is not a project group fail the parse and are refused here.
 fn project_of_group(message: &Value) -> Option<ProjectKey> {
     let group_id = text_field(message, "groupId")?;
     ProjectKey::parse_sidebar_group_id(group_id)

@@ -79,12 +79,12 @@ pub use crate::doc_sync::{
     document_reconcile_wanted, DocumentSync, EmptyEchoRule, SyncEffect, SyncPolicy, SyncedDocument,
 };
 pub use crate::focus::{
-    default_group_for_project, empty_tab_list_confirmed, next_visible_sessions_for_local_focus,
-    ActiveGroup, ExternalFocusUpdate, FocusField, FocusOutcome, FocusState,
+    empty_tab_list_confirmed, next_visible_sessions_for_local_focus, ActiveGroup,
+    ExternalFocusUpdate, FocusField, FocusOutcome, FocusState,
 };
 pub use crate::keys::{
     decode_uri_component, encode_uri_component, encode_workspace_subgroup_id,
-    parse_workspace_subgroup_id, MachineId, ProjectKey, SessionKey, CHATS_GROUP_ID,
+    parse_workspace_subgroup_id, MachineId, ProjectKey, SessionKey,
 };
 pub use crate::notification_feed::{
     notification_feed_jump_target, notification_feed_state_message, NotificationFeedCommand,
@@ -123,7 +123,7 @@ pub use crate::quick_access::{
 };
 pub use crate::renderer_commands::*;
 pub use crate::selectors::{
-    is_chat_project_path, Loadable, TabDirection, TabSession, DEFAULT_TERMINAL_SESSION_TITLE,
+    Loadable, TabDirection, TabSession, DEFAULT_TERMINAL_SESSION_TITLE,
     QUICK_AUTOMATIONS_PROJECT_ID, TAB_SESSION_TITLE_MAX_UTF16,
 };
 pub use crate::session_create::*;

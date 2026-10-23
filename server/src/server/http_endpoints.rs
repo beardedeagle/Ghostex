@@ -442,61 +442,6 @@ fn start_board_work_session_provider(
     Ok(())
 }
 
-pub(crate) fn create_quick_project_params(
-    home_dir: &Path,
-    params: &Map<String, Value>,
-) -> std::result::Result<Map<String, Value>, DomainStateError> {
-    /*
-    CDXC:AgentLauncher 2026-07-11:
-    Quick actions must mirror macOS by creating a real projectless workspace
-    under ~/ghostex/chats before creating its first terminal or agent. Keep the
-    filesystem authority in gxserver, which already owns the authenticated
-    project registry and the user's configured HOME, rather than deriving a
-    private home path in the sidebar renderer.
-    */
-    let kind = params
-        .get("kind")
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .filter(|kind| matches!(*kind, "terminal" | "agent"))
-        .ok_or_else(|| DomainStateError {
-            code: "badRequest",
-            message: "kind must be terminal or agent.".to_string(),
-        })?;
-    let now = chrono::Local::now();
-    let timestamp = now.format("%Y-%m-%d-%H%M%S%3f");
-    let suffix = Uuid::new_v4().simple().to_string();
-    let suffix = &suffix[..8];
-    let chat_path = home_dir
-        .join("ghostex")
-        .join("chats")
-        .join(format!("{timestamp}-{kind}-{suffix}"));
-    fs::create_dir_all(&chat_path).map_err(|_| DomainStateError {
-        code: "internalError",
-        message: "Unable to create the Quick workspace directory.".to_string(),
-    })?;
-
-    let mut launch_settings = Map::new();
-    launch_settings.insert("isChat".to_string(), Value::Bool(true));
-    launch_settings.insert("isQuick".to_string(), Value::Bool(true));
-    launch_settings.insert(
-        "quickKind".to_string(),
-        Value::String("terminal".to_string()),
-    );
-
-    let mut project_params = Map::new();
-    project_params.insert(
-        "name".to_string(),
-        Value::String(now.format("Chat %Y-%m-%d %H:%M").to_string()),
-    );
-    project_params.insert(
-        "path".to_string(),
-        Value::String(chat_path.to_string_lossy().to_string()),
-    );
-    project_params.insert("launchSettings".to_string(), Value::Object(launch_settings));
-    Ok(project_params)
-}
-
 pub(crate) fn domain_error_response(
     endpoint_path: String,
     request_id: String,

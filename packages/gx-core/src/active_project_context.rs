@@ -11,7 +11,7 @@ use std::collections::BTreeSet;
 
 use serde_json::{json, Value};
 
-use crate::focus::{ActiveGroup, FocusState};
+use crate::focus::FocusState;
 use crate::keys::ProjectKey;
 use crate::presentation_store::PresentationStore;
 use crate::sidebar_view::projects::build_project_meta;
@@ -34,30 +34,19 @@ pub fn active_project_context_payload(
     if quick_automations_overview {
         return quick_automations_payload();
     }
-    let (Some(project), Some(group)) = (&focus.active_project, &focus.active_group) else {
+    let (Some(project), Some(_)) = (&focus.active_project, &focus.active_group) else {
         return quick_projectless_payload();
     };
-    project_payload(store, project, group).unwrap_or_else(quick_projectless_payload)
+    project_payload(store, project).unwrap_or_else(quick_projectless_payload)
 }
 
-/// The context of `project` while `group` is the active group, or `None` when the Quick payload
-/// applies: the Chats collection is active, or the project has no daemon row the store holds.
-pub fn project_context_payload(
-    store: &PresentationStore,
-    project: &ProjectKey,
-    group: &ActiveGroup,
-) -> Option<Value> {
-    project_payload(store, project, group)
+/// The context of `project`, or `None` when the Quick payload applies: the project has no daemon
+/// row the store holds.
+pub fn project_context_payload(store: &PresentationStore, project: &ProjectKey) -> Option<Value> {
+    project_payload(store, project)
 }
 
-fn project_payload(
-    store: &PresentationStore,
-    project: &ProjectKey,
-    group: &ActiveGroup,
-) -> Option<Value> {
-    if matches!(group, ActiveGroup::Chats(_)) {
-        return None;
-    }
+fn project_payload(store: &PresentationStore, project: &ProjectKey) -> Option<Value> {
     let machine = store.machine(&project.machine)?;
     let loaded = machine.loaded()?;
     let row = loaded.project(&project.project_id)?;

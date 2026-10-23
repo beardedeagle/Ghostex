@@ -24,13 +24,13 @@
 //!
 //! **`keepView` is read from the sidebar group id, not from the typed active group.** The
 //! TypeScript asks `parseGpuiRemotePresentationGroupId(activeGroupId)` and compares the machine and
-//! the project it finds, so a Space's subgroup id, the machine's Chats group and a local group all
-//! answer "this focus changes the project". Reproducing that on the string keeps the two sides
+//! the project it finds, so a Space's subgroup id and a local group both answer "this focus
+//! changes the project". Reproducing that on the string keeps the two sides
 //! reading one rule instead of two.
 //!
 //! **And the group id is the OLD RUNTIME's, handed in, never the core's focus.**
 //! CDXC:RemoteMachines 2026-09-21 WHY:
-//! Since remote focus part 2 step 2 the core's focus DOES follow a remote focus (the host's tab selection takes it), but it still cannot stand in for the runtime's group, for two reasons. The core names the user-made group a row sits in (`group_of_session`), where `setRemotePresentationSessionFocus` always names the project's own group or the machine's Chats, and the string rule above answers differently for the two. And the runtime's `activeGroupId` still moves on paths the store does not see in the moment (a group attach from navigation history or a Space restore, a lifecycle replacement and its restores); the store learns those from the runtime's publish, which lags the command. Planning from `core.focus()` before step 2 sent a `keepView` the runtime did not on every second click inside the active remote project. So the group is what the runtime holds at the moment of the click, which [`RuntimeActiveGroup`] tracks from what the host SENT the runtime and what the runtime last PUBLISHED; its comment has the proof.
+//! Since remote focus part 2 step 2 the core's focus DOES follow a remote focus (the host's tab selection takes it), but it still cannot stand in for the runtime's group, for two reasons. The core names the user-made group a row sits in (`group_of_session`), where `setRemotePresentationSessionFocus` always names the project's own group, and the string rule above answers differently for the two. And the runtime's `activeGroupId` still moves on paths the store does not see in the moment (a group attach from navigation history or a Space restore, a lifecycle replacement and its restores); the store learns those from the runtime's publish, which lags the command. Planning from `core.focus()` before step 2 sent a `keepView` the runtime did not on every second click inside the active remote project. So the group is what the runtime holds at the moment of the click, which [`RuntimeActiveGroup`] tracks from what the host SENT the runtime and what the runtime last PUBLISHED; its comment has the proof.
 //!
 //! Refused, each with its reason: a LOCAL row (the store's own focus path owns it), a browser row
 //! (an app tab, not a session), and an id that does not parse as a remote session. A machine whose
@@ -46,9 +46,7 @@
 use serde_json::{json, Map, Value};
 
 use crate::core::Core;
-use crate::focus::ActiveGroup;
 use crate::keys::{MachineId, ProjectKey, SessionKey};
-use crate::selectors::is_chat_project_path;
 
 use super::resolve::{
     text_field, NATIVE_PROJECT_PATH_ACTION_MESSAGE_TYPE, NATIVE_PROJECT_PATH_ACTION_MESSAGE_VERSION,
@@ -205,7 +203,7 @@ pub fn plan_remote_focus(
         keep_view,
         preferred_interface.as_deref(),
     );
-    let focus_group = remote_focus_group(core, &session);
+    let focus_group = remote_focus_group(&session);
     let attention_acknowledgement = json!({
         "projectId": session.project_key().to_workspace_project_id(),
         "sessionId": session.to_focus_state_session_id(),
@@ -262,8 +260,7 @@ pub fn open_remote_session_terminal(
 
 /// `focusChangesActiveProject` for a remote target: the active group id is parsed as a remote
 /// PROJECT group, and the focus stays inside the project only when that parse names this machine
-/// and this project. A subgroup id, the machine's Chats group and every local group all fail that
-/// parse and answer "the project changes", which is the rule the string form encodes.
+/// and this project. A subgroup id and every local group fail that parse and answer "the project changes", which is the rule the string form encodes.
 fn focus_changes_active_project(runtime_active_group: Option<&str>, session: &SessionKey) -> bool {
     let Some(project) = runtime_active_group.and_then(ProjectKey::parse_sidebar_group_id) else {
         return true;
@@ -271,22 +268,11 @@ fn focus_changes_active_project(runtime_active_group: Option<&str>, session: &Se
     project.machine != session.machine || project.project_id != session.project_id
 }
 
-/// The group `setRemotePresentationSessionFocus` makes active for a remote row: the machine's Chats
-/// group when THAT machine's live presentation stores the project under a chats folder, else the
-/// remote project's own group. Never a user-made subgroup, whatever the row's group is: the old
-/// runtime does not look at subgroups here. A machine with no live rows answers the project group,
-/// as `remotePresentations.get(machineId)` finding nothing does.
-pub fn remote_focus_group(core: &Core, session: &SessionKey) -> String {
-    let chat = core
-        .presentation()
-        .loaded_live(&session.machine)
-        .and_then(|loaded| loaded.project(&session.project_id))
-        .and_then(|project| project.path.as_deref())
-        .is_some_and(is_chat_project_path);
-    match chat {
-        true => ActiveGroup::Chats(session.machine.clone()).to_sidebar_group_id(),
-        false => session.project_key().to_sidebar_group_id(),
-    }
+/// The group `setRemotePresentationSessionFocus` makes active for a remote row: the remote
+/// project's own group. Never a user-made subgroup, whatever the row's group is: the old runtime
+/// does not look at subgroups here.
+pub fn remote_focus_group(session: &SessionKey) -> String {
+    session.project_key().to_sidebar_group_id()
 }
 
 /// How long a group the host sent is believed without the runtime publishing it. The runtime

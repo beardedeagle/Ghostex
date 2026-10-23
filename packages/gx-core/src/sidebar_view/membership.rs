@@ -1,5 +1,4 @@
-//! Which sessions belong to which sidebar group: a project's own list, its user-made groups, and
-//! the machine's Chats collection.
+//! Which sessions belong to which sidebar group: a project's own list and its user-made groups.
 //!
 //! SEE-ALSO: packages/shared/gxserver-presentation-sidebar-projection.ts (deleted 2026-10-01)
 //! (`createGxserverPresentationSessionsByProjectFromGroups`). `spliceWorkspaceSubgroups` was ported
@@ -62,7 +61,6 @@ pub(crate) fn project_members(
     machine: &MachinePresentation,
     machine_id: &MachineId,
     project_id: &str,
-    emit_subgroups: bool,
 ) -> ProjectMembers {
     let Some(loaded) = machine.loaded() else {
         return ProjectMembers::default();
@@ -75,12 +73,8 @@ pub(crate) fn project_members(
     let mut claimed: BTreeSet<String> = BTreeSet::new();
     for (group_id, title, session_ids) in subgroups_of_project(store, &project) {
         // Every member of a user-made group, whether or not its row still exists, is kept out of
-        // the project's own list, as `collectWorkspaceSubgroupSessionKeys` does. That holds for a
-        // chat project too, whose user-made groups are never drawn.
+        // the project's own list, as `collectWorkspaceSubgroupSessionKeys` does.
         claimed.extend(session_ids.iter().cloned());
-        if !emit_subgroups {
-            continue;
-        }
         members.subgroups.push(SubgroupMembers {
             sidebar_group_id: encode_workspace_subgroup_id(&project, &group_id),
             title,

@@ -1,13 +1,12 @@
 //! An agent launch from the sidebar's launcher, a project header, a machine tab's launcher, the New
 //! Thread picker, a launch with an account and the Hooks Required dialog, performed in Rust
-//! (`requestAgentSessionLaunch`, `confirmAgentHookLaunch`, `createAgentSession`,
-//! `createQuickAgentSession` in the old runtime).
+//! (`requestAgentSessionLaunch`, `confirmAgentHookLaunch` and `createAgentSession` in the old
+//! runtime).
 //!
 //! The order is the runtime's: the agent's hooks are checked first (`/api/readAgentHookStatus`),
-//! and hooks that are not installed open the Hooks Required dialog instead of launching; the
-//! Chats collection launches into a new Quick project; a remote project launches on its machine,
-//! which resolves the command; this computer creates a draft row with the agent's own command and
-//! opens it, and the attach path starts the CLI.
+//! and hooks that are not installed open the Hooks Required dialog instead of launching; a remote
+//! project launches on its machine, which resolves the command; this computer creates a draft row
+//! with the agent's own command and opens it, and the attach path starts the CLI.
 //!
 //! CDXC:AgentLauncher 2026-09-14 DECISION:
 //! User: starting a new agent from Docs, Code, Browser, or any other non-Agents view must keep that view selected.
@@ -28,11 +27,11 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use ghostex_gx_core::{
-    CHATS_GROUP_ID, ProjectKey, SessionKey, TitleGenerationSettings, agent_session_default_title,
-    created_session, default_agent_id_for_icon, first_prompt_title_runtime_settings,
-    is_agentbox_run_location, local_agent_launch_params, open_remote_session_terminal,
-    remote_agent_launch_params, remote_launch_agent_id, replacing_empty_sessions,
-    resolve_sidebar_agent, start_provider_params, with_run_location,
+    ProjectKey, SessionKey, TitleGenerationSettings, agent_session_default_title, created_session,
+    default_agent_id_for_icon, first_prompt_title_runtime_settings, is_agentbox_run_location,
+    local_agent_launch_params, open_remote_session_terminal, remote_agent_launch_params,
+    remote_launch_agent_id, replacing_empty_sessions, resolve_sidebar_agent, start_provider_params,
+    with_run_location,
 };
 use serde_json::{Value, json};
 
@@ -357,8 +356,8 @@ impl GhostexGpuiApp {
         }
     }
 
-    /// `createAgentSessionFromSidebarLaunch`: the Chats collection launches into a new Quick
-    /// project; every other group into its own project. `run_location` names an agentbox box.
+    /// `createAgentSessionFromSidebarLaunch`: every group launches into its own project.
+    /// `run_location` names an agentbox box.
     fn gx_store_launch_agent_from_sidebar(
         &mut self,
         agent_id: &str,
@@ -367,27 +366,6 @@ impl GhostexGpuiApp {
         run_location: Option<&str>,
         cx: &mut gpui::Context<Self>,
     ) {
-        if group_id == Some(CHATS_GROUP_ID) {
-            let agent_id = agent_id.to_string();
-            let account_id = account_id.map(str::to_string);
-            let run_location = run_location.map(str::to_string);
-            // CDXC:AgentLauncher 2026-07-11:
-            // A Quick agent never launches inside the active code project: it gets a new
-            // projectless chat workspace, then the same configured-agent launch path as project
-            // headers.
-            self.gx_store_create_quick_project("agent", cx, move |this, project_id, cx| {
-                let group_id = ProjectKey::local(project_id).to_sidebar_group_id();
-                this.gx_store_create_agent_session_at(
-                    &agent_id,
-                    Some(&group_id),
-                    account_id.as_deref(),
-                    run_location.as_deref(),
-                    cx,
-                )
-                .detach();
-            });
-            return;
-        }
         self.gx_store_create_agent_session_at(agent_id, group_id, account_id, run_location, cx)
             .detach();
     }
@@ -643,46 +621,6 @@ impl GhostexGpuiApp {
                     }
                 })
                 .detach();
-            });
-        })
-        .detach();
-    }
-
-    /// `createQuickProject(kind)`: a new projectless chat workspace, made active, then `then`.
-    pub(super) fn gx_store_create_quick_project(
-        &mut self,
-        kind: &'static str,
-        cx: &mut gpui::Context<Self>,
-        then: impl FnOnce(&mut Self, &str, &mut gpui::Context<Self>) + 'static,
-    ) {
-        cx.spawn(async move |this, cx| {
-            let result = gx_rpc(None, "/api/createQuickProject", json!({ "kind": kind })).await;
-            let _ = this.update(cx, |this, cx| {
-                let project_id = result.ok().and_then(|response| {
-                    response
-                        .get("project")
-                        .and_then(|project| project.get("projectId"))
-                        .and_then(Value::as_str)
-                        .map(str::to_string)
-                });
-                let Some(project_id) = project_id else {
-                    this.gx_store_create_toast(
-                        "error",
-                        "Quick action failed",
-                        Some("Ghostex could not create the Quick workspace."),
-                        cx,
-                    );
-                    return;
-                };
-                // `focusProjectId(project)` and the publish.
-                this.dispatch_native_sidebar_command(
-                    json!({
-                        "type": "focusGroup",
-                        "groupId": ProjectKey::local(project_id.as_str()).to_sidebar_group_id(),
-                    }),
-                    cx,
-                );
-                then(this, &project_id, cx);
             });
         })
         .detach();

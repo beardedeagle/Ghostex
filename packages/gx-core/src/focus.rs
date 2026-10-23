@@ -7,7 +7,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::keys::{
     encode_workspace_subgroup_id, parse_workspace_subgroup_id, MachineId, ProjectKey, SessionKey,
-    CHATS_GROUP_ID,
 };
 use crate::presentation_store::PresentationStore;
 
@@ -17,8 +16,6 @@ use crate::presentation_store::PresentationStore;
 pub enum ActiveGroup {
     /// A project's own group.
     Project(ProjectKey),
-    /// The Chats collection of a machine: the sessions of all its chat projects.
-    Chats(MachineId),
     /// A user-made session group inside a project.
     Subgroup {
         project: ProjectKey,
@@ -31,27 +28,16 @@ impl ActiveGroup {
     pub fn to_sidebar_group_id(&self) -> String {
         match self {
             Self::Project(project) => project.to_sidebar_group_id(),
-            Self::Chats(MachineId::Local) => CHATS_GROUP_ID.to_string(),
-            Self::Chats(MachineId::Remote(machine_id)) => {
-                ProjectKey::remote(machine_id.as_str(), CHATS_GROUP_ID).to_sidebar_group_id()
-            }
             Self::Subgroup { project, group_id } => encode_workspace_subgroup_id(project, group_id),
         }
     }
 
     /// Inverse of [`Self::to_sidebar_group_id`].
     pub fn parse_sidebar_group_id(value: &str) -> Option<Self> {
-        if value == CHATS_GROUP_ID {
-            return Some(Self::Chats(MachineId::Local));
-        }
         if let Some((project, group_id)) = parse_workspace_subgroup_id(value) {
             return Some(Self::Subgroup { project, group_id });
         }
-        let project = ProjectKey::parse_sidebar_group_id(value)?;
-        if project.project_id == CHATS_GROUP_ID {
-            return Some(Self::Chats(project.machine));
-        }
-        Some(Self::Project(project))
+        ProjectKey::parse_sidebar_group_id(value).map(Self::Project)
     }
 }
 
@@ -239,12 +225,7 @@ impl FocusState {
     /// A focused session of another project is cleared: the focused session owns the active
     /// project, so leaving it would snap the active project straight back. The visible set is left
     /// alone; the host reports the new one.
-    pub fn focus_project(
-        &mut self,
-        store: &PresentationStore,
-        project: ProjectKey,
-        now_ms: u64,
-    ) -> FocusOutcome {
+    pub fn focus_project(&mut self, project: ProjectKey, now_ms: u64) -> FocusOutcome {
         let before = self.projection();
         self.stamp(now_ms);
         if self
@@ -254,7 +235,7 @@ impl FocusState {
         {
             self.focused_session = None;
         }
-        self.active_group = Some(default_group_for_project(store, &project));
+        self.active_group = Some(ActiveGroup::Project(project.clone()));
         self.active_project = Some(project);
         FocusOutcome {
             changed: before != self.projection(),
@@ -272,13 +253,12 @@ impl FocusState {
     /// keeps a stale id from naming a group the list draws no row for.
     pub fn focus_subgroup(
         &mut self,
-        store: &PresentationStore,
         project: ProjectKey,
         group_id: String,
         now_ms: u64,
     ) -> FocusOutcome {
         let before = self.projection();
-        let mut outcome = self.focus_project(store, project.clone(), now_ms);
+        let mut outcome = self.focus_project(project.clone(), now_ms);
         self.active_group = Some(ActiveGroup::Subgroup { project, group_id });
         outcome.changed = before != self.projection();
         outcome
@@ -368,7 +348,7 @@ impl FocusState {
     /// Makes focus agree with the store. Runs after every event.
     ///
     /// CDXC:FocusRouting 2026-09-19 WHY:
-    /// The TypeScript runtime re-derived the active project and group from the focused session on every publish (`ensureActiveProject`), and the desktop workspace depends on that: the active group's tab list is its authority for which tabs exist, so a group that does not contain the focused session, or that names a project that is gone, reads as "no tabs" and clears the workspace. Doing it here, after every event, keeps the invariant in one place instead of at each call site. The rules, in order: (1) focus never points at a session the store does not hold, judged only for machines that are loaded; (2) a focused session owns the active project, and the group is the Chats collection for a chat project, else the user-made group that contains the session, else the project's own group; (3) otherwise the active project stays while it exists and is not hidden, with a group that belongs to it; (4) otherwise the first local code project in sidebar order (the manual project order when there is one, else `sortKey`; TypeScript took the first by `sortKey` only) becomes active, else the local Chats collection. The remembered last session of a project is never forgotten here: it must survive the project being closed and reopened, so memory and the host's persisted copy always agree.
+    /// The TypeScript runtime re-derived the active project and group from the focused session on every publish (`ensureActiveProject`), and the desktop workspace depends on that: the active group's tab list is its authority for which tabs exist, so a group that does not contain the focused session, or that names a project that is gone, reads as "no tabs" and clears the workspace. Doing it here, after every event, keeps the invariant in one place instead of at each call site. The rules, in order: (1) focus never points at a session the store does not hold, judged only for machines that are loaded; (2) a focused session owns the active project, and the group is the user-made group that contains the session, else the project's own group; (3) otherwise the active project stays while it exists and is not hidden, with a group that belongs to it; (4) otherwise the first local project in sidebar order (the manual project order when there is one, else `sortKey`; TypeScript took the first by `sortKey` only) becomes active, else nothing is (2026-10-23: the Chats collection that used to take rules 2 and 4 was removed with the projectless chat workspaces). The remembered last session of a project is never forgotten here: it must survive the project being closed and reopened, so memory and the host's persisted copy always agree.
     pub fn reconcile(&mut self, store: &PresentationStore) -> FocusOutcome {
         let before = self.projection();
         let exists =
@@ -410,12 +390,7 @@ impl FocusState {
             }
             if store.project(project).is_some() {
                 let group_fits = match &self.active_group {
-                    Some(ActiveGroup::Project(owner)) => {
-                        owner == project && !store.is_chat_project(project)
-                    }
-                    Some(ActiveGroup::Chats(machine)) => {
-                        *machine == project.machine && store.is_chat_project(project)
-                    }
+                    Some(ActiveGroup::Project(owner)) => owner == project,
                     Some(ActiveGroup::Subgroup {
                         project: owner,
                         group_id,
@@ -429,7 +404,7 @@ impl FocusState {
                     None => false,
                 };
                 if !group_fits {
-                    self.active_group = Some(default_group_for_project(store, project));
+                    self.active_group = Some(ActiveGroup::Project(project.clone()));
                 }
                 return;
             }
@@ -438,15 +413,15 @@ impl FocusState {
         if store.loaded(&MachineId::Local).is_none() {
             return;
         }
-        let first_code_project = store.first_code_project(&MachineId::Local);
-        match first_code_project {
+        let first_project = store.first_project(&MachineId::Local);
+        match first_project {
             Some(project) => {
                 self.active_group = Some(ActiveGroup::Project(project.clone()));
                 self.active_project = Some(project);
             }
             None => {
                 self.active_project = None;
-                self.active_group = Some(ActiveGroup::Chats(MachineId::Local));
+                self.active_group = None;
             }
         }
     }
@@ -478,18 +453,9 @@ pub fn empty_tab_list_confirmed(store: &PresentationStore, group: &ActiveGroup) 
     let empty = |group: &ActiveGroup| matches!(store.tab_sessions(group), crate::selectors::Loadable::Loaded(tabs) if tabs.is_empty());
     match group {
         ActiveGroup::Subgroup { project, .. } => {
-            empty(group) && empty(&default_group_for_project(store, project))
+            empty(group) && empty(&ActiveGroup::Project(project.clone()))
         }
-        ActiveGroup::Project(_) | ActiveGroup::Chats(_) => empty(group),
-    }
-}
-
-/// The group a project's sessions live in when the caller names none.
-pub fn default_group_for_project(store: &PresentationStore, project: &ProjectKey) -> ActiveGroup {
-    if store.is_chat_project(project) {
-        ActiveGroup::Chats(project.machine.clone())
-    } else {
-        ActiveGroup::Project(project.clone())
+        ActiveGroup::Project(_) => empty(group),
     }
 }
 

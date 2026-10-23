@@ -640,20 +640,6 @@ impl<'a> DomainRepository<'a> {
             .collect()
     }
 
-    /// Whether the project owns any session row at all — the same answer as
-    /// `!list_sessions(Some(project_id))?.is_empty()`, without hydrating every
-    /// row of the project to produce a boolean.
-    pub fn has_sessions(&self, project_id: &str) -> DomainResult<bool> {
-        self.db
-            .query_row(
-                "SELECT EXISTS (SELECT 1 FROM sessions WHERE projectId = ?1)",
-                params![project_id],
-                |row| row.get::<_, i64>(0),
-            )
-            .map(|exists| exists != 0)
-            .map_err(sql_error)
-    }
-
     /// `list_sessions` narrowed to rows that are not durably `stopped`, i.e.
     /// `running`, `sleeping`, `missing`, and `unknown`.
     ///

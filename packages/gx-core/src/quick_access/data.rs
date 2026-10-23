@@ -43,7 +43,7 @@ pub struct QuickAccessStoreGroup {
     pub editor_project_id: Option<String>,
     /// `remoteMachineContext.machineId`, for a group of a remote machine.
     pub remote_machine_id: Option<String>,
-    /// `remoteMachineContext.projectId`; absent for a remote machine's Chats group.
+    /// `remoteMachineContext.projectId`.
     pub remote_project_id: Option<String>,
     /// `sessionIdsByGroup[groupId]` resolved through `sessionsById`, in store order.
     pub sessions: Vec<QuickAccessSession>,

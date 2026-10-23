@@ -180,14 +180,13 @@ impl GhostexGpuiApp {
 
 /// The rows and ids the intents above are resolved against: the list that is on screen.
 impl GhostexGpuiApp {
-    /// Every project group the machine draws, the Chats collection left out.
+    /// Every project group the machine draws.
     fn sidebar_drawn_project_group_ids(&self) -> Vec<String> {
         self.gx_store
             .sidebar_list
             .view()
             .groups
             .iter()
-            .filter(|group| group.core.group_id != ghostex_gx_core::CHATS_GROUP_ID)
             .map(|group| group.core.group_id.clone())
             .collect()
     }
