@@ -78,6 +78,7 @@ impl MessagesState {
         apply_incoming(&mut next, &mut index, list);
         self.list = next;
         self.index_by_id = index;
+        self.list_revision = self.list_revision.wrapping_add(1);
     }
 
     /// Folds an append into the list in place.
@@ -87,6 +88,7 @@ impl MessagesState {
         apply_incoming(&mut list, &mut index, incoming);
         self.list = list;
         self.index_by_id = index;
+        self.list_revision = self.list_revision.wrapping_add(1);
         // The merger put the incoming OBJECT in the list wherever it replaced or appended, so a
         // row that landed carries a new `deferredWork`.
         for message in incoming {

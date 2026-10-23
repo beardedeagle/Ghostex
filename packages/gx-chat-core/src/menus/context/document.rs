@@ -16,13 +16,22 @@ use crate::state::{ChatContext, ChatState};
 
 /// Writes family e2's context keys into `into`.
 pub fn document(state: &ChatState, context: &ChatContext, into: &mut Document) {
+    document_with_icon(state, context, menu_inputs(state, context).agent_icon, into);
+}
+
+/// [`document`] with the agent icon family e's document already read off this frame's options.
+pub fn document_with_icon(
+    state: &ChatState,
+    context: &ChatContext,
+    agent_icon: Option<String>,
+    into: &mut Document,
+) {
     let pickers = &state.pickers;
     let detected: Option<DetectedOptions> = state
         .session
         .selected_options
         .as_ref()
         .and_then(|value| serde_json::from_value(value.clone()).ok());
-    let agent_icon = menu_inputs(state, context).agent_icon;
     // `accounts?.accounts.find((account) => account.id === accounts.session?.accountId)`. Family
     // e1 folds the raw answer; the context rows read more of an account than e1's menu view keeps
     // (the session count, the usage snapshot's age, every window's own reset), so the row is read

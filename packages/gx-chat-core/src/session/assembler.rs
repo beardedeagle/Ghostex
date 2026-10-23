@@ -179,14 +179,17 @@ fn supersedes(candidate: &ChatMessage, existing: &ChatMessage) -> bool {
 /// its result; the row is the transcript's tail by definition, so it ranks after every transcript
 /// row instead of between those two.
 pub fn sort_rank(message: &ChatMessage) -> u8 {
-    if message.id == STREAMING_ID {
+    id_rank(&message.id)
+}
+
+fn id_rank(id: &str) -> u8 {
+    if id == STREAMING_ID {
         return 1;
     }
-    if message.id.starts_with(TERMINAL_TOOL_ID_PREFIX) {
+    if id.starts_with(TERMINAL_TOOL_ID_PREFIX) {
         return 2;
     }
-    if message.id.starts_with(PENDING_ID_PREFIX) || message.id.starts_with(LAUNCH_PENDING_ID_PREFIX)
-    {
+    if id.starts_with(PENDING_ID_PREFIX) || id.starts_with(LAUNCH_PENDING_ID_PREFIX) {
         return 3;
     }
     0
@@ -319,6 +322,135 @@ impl Assembler {
         rows.sort_by(compare);
         rows
     }
+}
+
+/// [`Assembler::reset`] over [`Row::stamped`]`(list)`, then the sorted rows' messages: what the
+/// composition reads, with the same merges in the same order and the same sort, byte for byte.
+///
+/// The composition rebuilds this on every transcript change. `reset` cloned each message into both
+/// indexes, the sorted list and the answer, and computed each turn key (the whole text, lowercased
+/// and collapsed) up to four times, so a new message on a long chat paid for the whole history
+/// several times over. Here the indexes hold positions, and every turn key is computed once.
+pub fn assembled_messages(list: &[ChatMessage]) -> Vec<ChatMessage> {
+    enum Outcome {
+        Drop,
+        Replace(usize),
+        Insert,
+    }
+    let keys: Vec<String> = list.iter().map(turn_key).collect();
+    // One per stored row: its position in `list` (also its arrival stamp) and the id it is
+    // stored under, its own or the shadowed one it was re-keyed to.
+    let mut entries: Vec<(usize, String)> = Vec::new();
+    let mut by_id: BTreeMap<String, usize> = BTreeMap::new();
+    let mut by_turn: BTreeMap<&str, usize> = BTreeMap::new();
+    let outranks = |candidate: usize, existing: usize| {
+        source_priority(&list[candidate].source) > source_priority(&list[existing].source)
+    };
+    for (at, message) in list.iter().enumerate() {
+        let mut id = message.id.clone();
+        // `merge_one`, step for step.
+        let outcome = 'merge: {
+            if let Some(existing) = by_id.get(&id).copied() {
+                let occupant = entries[existing].0;
+                let collides = match (list[occupant].byte_offset, message.byte_offset) {
+                    (Some(left), Some(right)) => left != right,
+                    _ => keys[occupant] != keys[at],
+                };
+                if !collides {
+                    break 'merge if outranks(at, occupant) {
+                        Outcome::Replace(existing)
+                    } else {
+                        Outcome::Drop
+                    };
+                }
+                id = match message.byte_offset {
+                    None => format!("{}#{}", message.id, turn_key_digest(&keys[at])),
+                    Some(offset) => format!("{}@{offset}", message.id),
+                };
+                if let Some(shadow) = by_id.get(&id).copied() {
+                    break 'merge if outranks(at, entries[shadow].0) {
+                        Outcome::Replace(shadow)
+                    } else {
+                        Outcome::Drop
+                    };
+                }
+            }
+            if let Some(existing) = by_turn.get(keys[at].as_str()).copied() {
+                if list[entries[existing].0].source != message.source {
+                    break 'merge if outranks(at, entries[existing].0) {
+                        Outcome::Replace(existing)
+                    } else {
+                        Outcome::Drop
+                    };
+                }
+            }
+            Outcome::Insert
+        };
+        match outcome {
+            Outcome::Drop => continue,
+            // `replace_entry`: the previous row leaves both indexes before the new one enters.
+            Outcome::Replace(previous) => {
+                let previous_at = entries[previous].0;
+                by_id.remove(&entries[previous].1);
+                by_turn.remove(keys[previous_at].as_str());
+            }
+            Outcome::Insert => {}
+        }
+        entries.push((at, id.clone()));
+        by_id.insert(id, entries.len() - 1);
+        by_turn.insert(keys[at].as_str(), entries.len() - 1);
+    }
+    // `sorted_values`: the id index's rows in key order, stably sorted by `compare`.
+    let mut order: Vec<usize> = by_id.values().copied().collect();
+    order.sort_by(|left, right| {
+        let (left_at, left_id) = &entries[*left];
+        let (right_at, right_id) = &entries[*right];
+        compare_stored(
+            (&list[*left_at], left_id, *left_at),
+            (&list[*right_at], right_id, *right_at),
+        )
+    });
+    order
+        .into_iter()
+        .map(|index| {
+            let (at, id) = &entries[index];
+            let mut message = list[*at].clone();
+            if &message.id != id {
+                message.id = id.clone();
+            }
+            message
+        })
+        .collect()
+}
+
+/// [`compare`] for a stored row given as its message, the id it is stored under, and its arrival.
+fn compare_stored(
+    left: (&ChatMessage, &str, usize),
+    right: (&ChatMessage, &str, usize),
+) -> Ordering {
+    let (left_message, left_id, left_arrival) = left;
+    let (right_message, right_id, right_arrival) = right;
+    let rank = id_rank(left_id).cmp(&id_rank(right_id));
+    if rank != Ordering::Equal {
+        return rank;
+    }
+    let stamp = left_message
+        .timestamp
+        .unwrap_or(i64::MIN)
+        .cmp(&right_message.timestamp.unwrap_or(i64::MIN));
+    if stamp != Ordering::Equal {
+        return stamp;
+    }
+    match (left_message.byte_offset, right_message.byte_offset) {
+        (Some(a), Some(b)) if a != b => return a.cmp(&b),
+        (Some(_), Some(_)) => {}
+        _ => {
+            if left_arrival != right_arrival {
+                return left_arrival.cmp(&right_arrival);
+            }
+        }
+    }
+    left_id.cmp(right_id)
 }
 
 fn is_tail_append(current: &[Row], incoming: &[Row]) -> bool {

@@ -22,12 +22,14 @@ pub fn before_compose(state: &mut ChatState, context: &ChatContext) {
         .map(|name| (*name).to_string())
         .collect();
     refresh_boundaried(state, &catalog);
-    let boundaried = std::mem::take(&mut state.messages.boundaried);
-    let transcript = pending_transcript(state, &boundaried);
-    state.messages.boundaried = boundaried;
+    // The list the echoes reconcile against is built only when something waits on it: it copies
+    // the whole transcript, and doing that on every event made each keystroke on a long chat pay
+    // for the full history.
+    let mut transcript = None;
 
     if !state.pending.sends.is_empty() {
-        state.pending.sends = prune_pending_sends(&state.pending.sends, &transcript);
+        let against = reconciled(state, &mut transcript);
+        state.pending.sends = prune_pending_sends(&state.pending.sends, against);
     }
     // Keep hydrated sends until the transcript replaces them, including the gap between terminal
     // delivery and the agent flushing its transcript to disk.
@@ -37,9 +39,16 @@ pub fn before_compose(state: &mut ChatState, context: &ChatContext) {
             &queue,
             state.session.agent.as_deref(),
         );
-        state.pending.sends = prune_pending_sends(&hydrated, &transcript);
+        state.pending.sends = if hydrated.is_empty() {
+            hydrated
+        } else {
+            prune_pending_sends(&hydrated, reconciled(state, &mut transcript))
+        };
     }
-    crate::session::answer_echoes::settle(state, context, &transcript);
+    if crate::session::answer_echoes::waiting(state) {
+        let against = reconciled(state, &mut transcript);
+        crate::session::answer_echoes::settle(state, context, against);
+    }
 
     // Clear the Stop suppression once the live signal settles.
     if state.session.interrupted && !working_signal(state) {
@@ -49,6 +58,14 @@ pub fn before_compose(state: &mut ChatState, context: &ChatContext) {
     confirm_fast_mode_marker(state);
     crate::session::terminal::settle(state, is_working(state));
     let _ = context;
+}
+
+/// The list pending echoes are reconciled against, built once per settle on first use.
+fn reconciled<'a>(
+    state: &ChatState,
+    slot: &'a mut Option<Vec<ghostex_gx_protocol::ChatMessage>>,
+) -> &'a [ghostex_gx_protocol::ChatMessage] {
+    slot.get_or_insert_with(|| pending_transcript(state, &state.messages.boundaried))
 }
 
 /// CDXC:SessionChat 2026-09-04 DECISION:

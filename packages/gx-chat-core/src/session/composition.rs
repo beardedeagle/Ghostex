@@ -11,9 +11,9 @@ use crate::session::app_commands::{
     app_commands_as_messages, reconcile_local_command_output,
     retire_markers_covered_by_local_commands,
 };
-use crate::session::assembler::{Assembler, Row};
+use crate::session::assembler::assembled_messages;
 use crate::session::markers::{
-    apply_marker_boundaries, markers_as_messages, retire_interrupt_markers,
+    apply_marker_boundaries_in, markers_as_messages, retire_interrupt_markers,
 };
 use crate::session::pending::{pending_sends_as_messages, visible_pending_sends};
 use crate::session::startup_sends::pending_with_startup_sends;
@@ -80,20 +80,26 @@ pub fn surface_skill_invocation_user_turns(
     catalog_command_names: &[String],
     agent: Option<&str>,
 ) -> Vec<ChatMessage> {
+    surface_skill_invocation_user_turns_in(messages.to_vec(), catalog_command_names, agent)
+}
+
+/// [`surface_skill_invocation_user_turns`] on a list the caller owns, rewritten in place rather
+/// than copied twice.
+pub fn surface_skill_invocation_user_turns_in(
+    mut messages: Vec<ChatMessage>,
+    catalog_command_names: &[String],
+    agent: Option<&str>,
+) -> Vec<ChatMessage> {
     let built_in = crate::composer::slash_commands::slash_commands_for_agent(agent);
-    let mut changed = false;
-    let mut out = Vec::with_capacity(messages.len());
-    for message in messages {
+    for message in &mut messages {
         let plain_text = message
             .blocks
             .iter()
             .all(|block| matches!(block, ChatBlock::Text { .. }));
         if !matches!(message.role, ChatRole::User) || !plain_text {
-            out.push(message.clone());
             continue;
         }
         let Some(envelope) = parse_command_envelope(&text_of(message, "\n")) else {
-            out.push(message.clone());
             continue;
         };
         let catalog_name = envelope.name.trim_start_matches('/').to_lowercase();
@@ -108,7 +114,6 @@ pub fn surface_skill_invocation_user_turns(
                     .iter()
                     .any(|command| command.name.eq_ignore_ascii_case(&catalog_name)))
         {
-            out.push(message.clone());
             continue;
         }
         // The harness canonicalizes a plugin skill to `/plugin:name`, but the user typed the
@@ -120,22 +125,15 @@ pub fn surface_skill_invocation_user_turns(
         } else {
             format!("/{}", short_command_name(&envelope.name))
         };
-        let mut next = message.clone();
-        next.blocks = vec![ChatBlock::Text {
+        message.blocks = vec![ChatBlock::Text {
             text: if envelope.args.is_empty() {
                 token
             } else {
                 format!("{token} {}", envelope.args)
             },
         }];
-        out.push(next);
-        changed = true;
     }
-    if changed {
-        out
-    } else {
-        messages.to_vec()
-    }
+    messages
 }
 
 /// `/plugin:name` as the user typed it: `name`.
@@ -170,11 +168,27 @@ pub fn pending_transcript(state: &ChatState, boundaried: &[ChatMessage]) -> Vec<
     rows
 }
 
-/// What `boundaried` depends on: the transcript's identity and the markers.
+/// What `boundaried` depends on: the transport list, the markers and the agent (whose built-in
+/// commands decide which slash turns surface).
+///
+/// Keyed on the list's own revision rather than the composition identity, which also moves for
+/// every streamed update, app-command field and pending echo: each of those rebuilt and re-sorted
+/// the whole transcript although nothing it is made from had changed.
 #[derive(Clone, Debug, PartialEq)]
 pub struct BoundariedKey {
-    pub identity: u64,
+    pub list_revision: u64,
     pub markers: Vec<crate::state::CommandMarker>,
+    pub agent: Option<String>,
+}
+
+impl BoundariedKey {
+    fn of(state: &ChatState) -> Self {
+        Self {
+            list_revision: state.messages.list_revision,
+            markers: state.pending.markers.clone(),
+            agent: state.session.agent.clone(),
+        }
+    }
 }
 
 /// The dependencies of the `messages` memo in `controller.ts`, by identity where the TypeScript
@@ -198,10 +212,7 @@ pub struct ComposeKey {
 /// Rebuilds `state.messages.boundaried` when the transcript or the markers changed, and keeps it
 /// otherwise: the `assembled` / `surfaced` / `boundaried` memos of `controller.ts`.
 pub fn refresh_boundaried(state: &mut ChatState, catalog: &[String]) {
-    let key = BoundariedKey {
-        identity: state.messages.composition_identity,
-        markers: state.pending.markers.clone(),
-    };
+    let key = BoundariedKey::of(state);
     if state.messages.boundaried_key.as_ref() == Some(&key) {
         return;
     }
@@ -246,16 +257,12 @@ pub fn compose_cached(
 /// This is `boundaried` in the TypeScript, and it is what every later step measures against.
 /// [`refresh_boundaried`] keeps the answer on the state; this is the rebuild.
 pub fn boundaried_transcript(state: &ChatState, catalog: &[String]) -> Vec<ChatMessage> {
-    let mut assembler = Assembler::default();
-    assembler.reset(&Row::stamped(&state.messages.list));
-    let assembled: Vec<ChatMessage> = assembler
-        .rows
-        .iter()
-        .map(|row| row.message.clone())
-        .collect();
-    let surfaced =
-        surface_skill_invocation_user_turns(&assembled, catalog, state.session.agent.as_deref());
-    apply_marker_boundaries(&surfaced, &state.pending.markers)
+    let surfaced = surface_skill_invocation_user_turns_in(
+        assembled_messages(&state.messages.list),
+        catalog,
+        state.session.agent.as_deref(),
+    );
+    apply_marker_boundaries_in(surfaced, &state.pending.markers)
 }
 
 /// The whole composed list the renderer sees.
@@ -268,13 +275,14 @@ pub fn compose(
     preview_text: Option<&str>,
     working: bool,
 ) -> Vec<ChatMessage> {
-    let boundaried = if state.messages.boundaried_key.as_ref().is_some_and(|key| {
-        key.identity == state.messages.composition_identity && key.markers == state.pending.markers
-    }) {
-        state.messages.boundaried.clone()
-    } else {
-        boundaried_transcript(state, catalog)
-    };
+    let rebuilt;
+    let boundaried: &[ChatMessage] =
+        if state.messages.boundaried_key.as_ref() == Some(&BoundariedKey::of(state)) {
+            &state.messages.boundaried
+        } else {
+            rebuilt = boundaried_transcript(state, catalog);
+            &rebuilt
+        };
     let queue = state.session.queue_prompts.clone().unwrap_or_default();
     let startup_pending =
         pending_with_startup_sends(&state.pending.sends, &queue, state.session.agent.as_deref());
@@ -289,13 +297,10 @@ pub fn compose(
         &pending_messages,
     );
 
-    // A marker whose text an authoritative user row already carries is the same fact twice.
-    let authoritative_text: Vec<String> = boundaried
-        .iter()
-        .filter(|message| matches!(message.source, ChatSource::Transcript))
-        .map(normalized_text)
-        .filter(|text| !text.is_empty())
-        .collect();
+    // A marker whose text an authoritative user row already carries is the same fact twice. The
+    // texts are normalized only when a user marker needs them: doing it for every user row on
+    // every composition made each new message on a long chat pay for the whole history.
+    let authoritative_text = std::cell::OnceCell::new();
     let marker_messages: Vec<ChatMessage> = markers_as_messages(
         &retire_interrupt_markers(&state.pending.markers, &boundaried),
         compaction_records(&state.messages.list),
@@ -303,7 +308,16 @@ pub fn compose(
     .into_iter()
     .filter(|message| {
         !matches!(message.role, ChatRole::User)
-            || !authoritative_text.contains(&normalized_text(message))
+            || !authoritative_text
+                .get_or_init(|| {
+                    boundaried
+                        .iter()
+                        .filter(|message| matches!(message.source, ChatSource::Transcript))
+                        .map(normalized_text)
+                        .filter(|text| !text.is_empty())
+                        .collect::<Vec<String>>()
+                })
+                .contains(&normalized_text(message))
     })
     .collect();
     let marker_messages = retire_markers_covered_by_local_commands(
@@ -332,8 +346,13 @@ pub fn compose(
             && !visible_tool.is_some_and(|tool| terminal_stream_is_tool(stream, tool))
             && !terminal_stream_retired(stream, &boundaried)
     });
-    let mut with_pending = boundaried.clone();
-    with_pending.extend(pending_messages.iter().cloned());
+    // `derive_streaming_text` reads only the last row of the transcript plus the pending echoes.
+    let with_pending: Vec<ChatMessage> = pending_messages
+        .last()
+        .or(boundaried.last())
+        .cloned()
+        .into_iter()
+        .collect();
     // Titles at the end wait for the text under them while the message is still being painted;
     // a stream that is no longer the newest thing on screen (a tool call, the turn's end) shows all.
     let streaming_text = match terminal_stream_text {

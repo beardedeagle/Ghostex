@@ -22,6 +22,21 @@ use crate::transcript::question_forms::answers_message;
 /// The id prefix of the echo a form's own send draws before its queue row exists.
 const FORM_ECHO_PREFIX: &str = "answers:";
 
+/// Whether [`settle`] has anything to do: a pending send that carries a page's answers, or a form
+/// whose send is in flight. Otherwise it would keep every send and add none.
+pub fn waiting(state: &ChatState) -> bool {
+    state
+        .pending
+        .sends
+        .iter()
+        .any(|entry| answers_page_id(&entry.text).is_some())
+        || state
+            .questions
+            .forms
+            .values()
+            .any(|form| form.send.is_some())
+}
+
 /// Keeps the answer echoes in step: one for each form send in flight, none for answers the
 /// transcript already carries.
 pub fn settle(state: &mut ChatState, context: &ChatContext, transcript: &[ChatMessage]) {

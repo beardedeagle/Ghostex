@@ -94,6 +94,14 @@ pub fn apply_marker_boundaries(
     messages: &[ChatMessage],
     markers: &[CommandMarker],
 ) -> Vec<ChatMessage> {
+    apply_marker_boundaries_in(messages.to_vec(), markers)
+}
+
+/// [`apply_marker_boundaries`] on a list the caller owns, filtered in place.
+pub fn apply_marker_boundaries_in(
+    mut messages: Vec<ChatMessage>,
+    markers: &[CommandMarker],
+) -> Vec<ChatMessage> {
     let mut clear_sent_at: Option<i64> = None;
     for marker in markers {
         if is_clear_command(&marker.command) {
@@ -104,13 +112,10 @@ pub fn apply_marker_boundaries(
         }
     }
     let Some(boundary) = clear_sent_at else {
-        return messages.to_vec();
+        return messages;
     };
+    messages.retain(|message| message.timestamp.is_some_and(|stamp| stamp > boundary));
     messages
-        .iter()
-        .filter(|message| message.timestamp.is_some_and(|stamp| stamp > boundary))
-        .cloned()
-        .collect()
 }
 
 fn message_text_lower(message: &ChatMessage) -> String {

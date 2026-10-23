@@ -30,8 +30,8 @@ pub fn assemble(state: &ChatState, context: &ChatContext) -> Document {
 /// family a's, in [`crate::ChatCore`].
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct FrameParts {
-    /// The main transcript list. Family b.
-    pub items: Vec<TranscriptItem>,
+    /// The main transcript list. Family b. The projection's own list, shared rather than copied.
+    pub items: std::sync::Arc<Vec<TranscriptItem>>,
     /// The open subagent's transcript. Family f.
     pub subagent_items: Vec<TranscriptItem>,
     /// The minimap rail. Family f.
@@ -107,7 +107,20 @@ fn item_identity(state: &ChatState, item: &TranscriptItem) -> u64 {
 
 /// Everything a frame carries beside the document.
 pub fn frame_parts(state: &ChatState, context: &ChatContext) -> FrameParts {
-    let items = transcript::rows(state, context);
+    frame_parts_with_items(
+        state,
+        context,
+        transcript::rows::rows_shared(state, context),
+    )
+}
+
+/// [`frame_parts`] around a transcript list the caller already holds, which is the projection's
+/// current one whenever it did not rebuild since.
+pub fn frame_parts_with_items(
+    state: &ChatState,
+    context: &ChatContext,
+    items: std::sync::Arc<Vec<TranscriptItem>>,
+) -> FrameParts {
     let item_identities = items
         .iter()
         .map(|item| item_identity(state, item))

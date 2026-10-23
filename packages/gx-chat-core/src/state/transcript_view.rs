@@ -77,7 +77,10 @@ pub struct TranscriptViewState {
     /// Save-prompt status by message id: `saving`, `saved` or `error`.
     pub saved_prompts: BTreeMap<String, String>,
     /// The last built item list, so a publish that changed nothing ships nothing.
-    pub items: Vec<TranscriptItem>,
+    ///
+    /// Shared with the frame parts and the record of what each renderer was sent, which would
+    /// otherwise copy every row twice on each rebuild.
+    pub items: std::sync::Arc<Vec<TranscriptItem>>,
     /// The newest finished turn's "Worked for 2m 13s", which the working card above the composer shows
     /// instead of that turn's fold (`extras::working_card`), or `None`.
     pub worked_line: Option<String>,
@@ -198,7 +201,7 @@ impl Default for TranscriptViewState {
             open_rows: Vec::new(),
             rewind: None,
             saved_prompts: BTreeMap::new(),
-            items: Vec::new(),
+            items: Default::default(),
             worked_line: None,
             final_ids: Vec::new(),
             answered_pages: Vec::new(),
@@ -232,7 +235,7 @@ impl TranscriptViewState {
     pub fn invalidate(&mut self) {
         self.projected.clear();
         self.backfill.clear();
-        self.items.clear();
+        self.items = Default::default();
         self.projection_inputs = None;
     }
 

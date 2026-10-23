@@ -18,10 +18,18 @@ use crate::transcript::presentation;
 /// Pure, so it can be called from `frame_parts` with a shared borrow. [`refresh`] does the same work
 /// once per turn and stores the answer, and this hands that back when it is current.
 pub fn rows(state: &ChatState, context: &ChatContext) -> Vec<TranscriptItem> {
+    rows_shared(state, context).as_ref().clone()
+}
+
+/// [`rows`] without copying the projection's list when it has one.
+pub fn rows_shared(
+    state: &ChatState,
+    context: &ChatContext,
+) -> std::sync::Arc<Vec<TranscriptItem>> {
     if !state.transcript_view.items.is_empty() {
-        return state.transcript_view.items.clone();
+        return std::sync::Arc::clone(&state.transcript_view.items);
     }
-    presentation::build(state, context).items
+    std::sync::Arc::new(presentation::build(state, context).items)
 }
 
 /// Details for the rows the renderer currently draws open, keyed by its own row key.
@@ -104,11 +112,12 @@ pub fn refresh(state: &mut ChatState, context: &ChatContext) {
     // it is produced by this pass and stored on its owner's state.
     state.extras.minimap = projection.minimap;
     let view = &mut state.transcript_view;
-    view.items = projection.items;
+    let mut items = projection.items;
     view.worked_line = projection.worked_turn.map(|(id, label)| {
-        without_worked_time(&mut view.items, &id);
+        without_worked_time(&mut items, &id);
         label
     });
+    view.items = std::sync::Arc::new(items);
     view.final_ids = projection.final_ids;
     view.answered_pages = projection.answered_pages;
     view.question_forms = projection.question_forms;

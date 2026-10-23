@@ -37,13 +37,17 @@ pub struct MenuInputs {
 
 /// Reads family e1's options and builds family e2's inputs.
 pub fn menu_inputs(state: &ChatState, context: &ChatContext) -> MenuInputs {
-    let options = compute_native_chat_options(state, context);
+    menu_inputs_from(state, &compute_native_chat_options(state, context))
+}
+
+/// [`menu_inputs`] from options the caller already computed.
+pub fn menu_inputs_from(state: &ChatState, options: &NativeChatOptions) -> MenuInputs {
     let agent_icon = options
         .catalog
         .as_ref()
         .map(|catalog| catalog.model_icon.clone());
     MenuInputs {
-        menu: model_menu_context(state, &options),
+        menu: model_menu_context(state, options),
         catalogs: model_menu_catalogs(state, options.model_provider),
         agent_icon,
     }

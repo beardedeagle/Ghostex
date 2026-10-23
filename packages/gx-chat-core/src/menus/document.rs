@@ -93,8 +93,16 @@ pub fn document(state: &ChatState, context: &ChatContext, into: &mut Document) {
         extra: serde_json::Map::new(),
     };
 
-    crate::menus::picker::document(state, context, into);
-    crate::menus::context::document(state, context, into);
+    // One build of the menu inputs for both halves: each half building its own recomputed the
+    // options and swept every provider's model catalog again, twice per document.
+    let inputs = crate::menus::picker::inputs::menu_inputs_from(state, &options);
+    crate::menus::picker::document::document_with(state, context, &inputs, into);
+    crate::menus::context::document::document_with_icon(
+        state,
+        context,
+        inputs.agent_icon.clone(),
+        into,
+    );
 }
 
 /// A field the TypeScript hook normalizes to `null` when it has no value: present either way.

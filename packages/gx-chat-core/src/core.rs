@@ -7,8 +7,8 @@
 
 use crate::dispatch::events;
 use crate::document::{
-    assemble, frame_parts, Document, Frame, FrameParts, ItemsSplice, MinimapMarker, RowDetails,
-    TranscriptItem,
+    assemble, frame_parts, frame_parts_with_items, Document, Frame, FrameParts, ItemsSplice,
+    MinimapMarker, RowDetails, TranscriptItem,
 };
 use crate::effect::Effect;
 use crate::event::Event;
@@ -56,6 +56,9 @@ pub struct ChatCore {
     /// drain after it shipped the replacements, which are different objects however equal they are.
     /// The core has no identities, so the first publish clears those two pointers by hand.
     published_once: bool,
+    /// Whether `parts.items` is the projection's current list, so a publish the projection did not
+    /// rebuild for can keep it instead of copying and comparing every row again.
+    parts_items_current: bool,
 }
 
 /// The parts the host already has, which is what turns a whole list into a splice.
@@ -68,7 +71,7 @@ pub struct SentFrame {
     /// The parts counter the host was last sent, so a drain after a publish ships all four
     /// channels and a drain without one ships none.
     parts_revision: u64,
-    items: Option<Vec<TranscriptItem>>,
+    items: Option<std::sync::Arc<Vec<TranscriptItem>>>,
     item_identities: Vec<u64>,
     subagent_items: Option<Vec<TranscriptItem>>,
     minimap: Option<Vec<MinimapMarker>>,
@@ -187,10 +190,10 @@ impl ChatCore {
                 self.sent
                     .items
                     .as_deref()
-                    .map(|items| (items, self.sent.item_identities.as_slice())),
-                (&self.parts.items, &self.parts.item_identities),
+                    .map(|items| (items.as_slice(), self.sent.item_identities.as_slice())),
+                (self.parts.items.as_slice(), &self.parts.item_identities),
             ));
-            self.sent.items = Some(self.parts.items.clone());
+            self.sent.items = Some(std::sync::Arc::clone(&self.parts.items));
             self.sent.item_identities = self.parts.item_identities.clone();
         }
         // The other three keep their identity when their content does: the minimap rail caches its
@@ -312,6 +315,7 @@ impl ChatCore {
                 ..Default::default()
             };
             self.parts = FrameParts::default();
+            self.parts_items_current = false;
             self.state.transcript_view.projection_revision += 1;
             self.parts_revision = self.state.transcript_view.projection_revision;
             self.published_context = self.context.clone();
@@ -326,7 +330,7 @@ impl ChatCore {
         if chain_continued && !requested {
             return;
         }
-        let probe = assemble(&self.state, &self.published_context);
+        let mut probe = assemble(&self.state, &self.published_context);
         // A rebuilt projection is a publish of its own: `update` rebuilds only when one of its
         // inputs changed identity, every one of those is a `useState` value the lifecycle
         // republishes on, and `take` then ships the new (if equal) array as a degenerate splice.
@@ -341,7 +345,10 @@ impl ChatCore {
             || crate::extras::markers(&self.state, &self.published_context) != self.parts.minimap
             || crate::transcript::row_details(&self.state, &self.published_context)
                 != self.parts.row_details;
-        let state_moved = probe.reactive() != self.document.reactive();
+        // `probe.reactive() != self.document.reactive()` without copying both documents: the one
+        // key `reactive` blanks is made equal on the probe, which is dropped right after.
+        probe.async_questions = self.document.async_questions.clone();
+        let state_moved = probe != self.document;
         if !requested && !parts_moved && !state_moved {
             return;
         }
@@ -355,7 +362,17 @@ impl ChatCore {
             self.state.menus.panel_clock_ms = Some(self.context.clock_read(usize::MAX));
         }
         let document = assemble(&self.state, &self.context);
-        let parts = frame_parts(&self.state, &self.context);
+        // The rows only change when the projection rebuilt (`transcript::rows` hands back its
+        // list), so without a rebuild the list already held is kept: copying it and comparing it
+        // row by row on every publish was most of a keystroke's cost on a long chat.
+        let keep_items =
+            !rebuilt && self.parts_items_current && !self.state.transcript_view.items.is_empty();
+        let parts = if keep_items {
+            let items = std::mem::take(&mut self.parts.items);
+            frame_parts_with_items(&self.state, &self.context, items)
+        } else {
+            frame_parts(&self.state, &self.context)
+        };
         // CDXC:SessionChat 2026-10-01 WHY: The imperative publishes above (`requested`) ship
         // whether or not anything moved, and every keystroke asks for one (`composerSelection`
         // follows the caret, the composer measures itself), so a typing user received about ten
@@ -365,11 +382,26 @@ impl ChatCore {
         // frame, now moves only when the document did; the rows, the minimap, the subagent list and
         // the row details still ship whenever they change, on their own channels.
         let document_moved = !self.published_once || document != self.document;
-        if !document_moved && parts == self.parts && !rebuilt {
+        // Compared only when the answer matters: a rebuild publishes whatever the parts say.
+        let parts_unchanged = !document_moved
+            && !rebuilt
+            && if keep_items {
+                parts.item_identities == self.parts.item_identities
+                    && parts.subagent_items == self.parts.subagent_items
+                    && parts.minimap == self.parts.minimap
+                    && parts.row_details == self.parts.row_details
+            } else {
+                parts == self.parts
+            };
+        if parts_unchanged {
+            if keep_items {
+                self.parts.items = parts.items;
+            }
             return;
         }
         self.document = document;
         self.parts = parts;
+        self.parts_items_current = !self.state.transcript_view.items.is_empty();
         if std::mem::take(&mut self.state.transcript_view.projection_rebuilt) {
             self.state.transcript_view.projection_revision += 1;
         }

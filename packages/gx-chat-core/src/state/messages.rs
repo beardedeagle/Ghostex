@@ -107,6 +107,9 @@ pub struct MessagesState {
     /// every event re-keyed and re-sorted the whole transcript once a second on a working session.
     pub boundaried: Vec<ChatMessage>,
     pub boundaried_key: Option<crate::session::composition::BoundariedKey>,
+    /// Bumped whenever `list` changes (`replace_list`, `apply_append`, `remove_ids`), which is
+    /// what `boundaried` is rebuilt on.
+    pub list_revision: u64,
     /// The dependencies the last composed list was built from (the `messages` memo's deps).
     pub compose_key: Option<crate::session::composition::ComposeKey>,
     /// Bumped every time the composed list is rebuilt: the memo's output is a new array whenever

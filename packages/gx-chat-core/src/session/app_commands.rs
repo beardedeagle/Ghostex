@@ -209,16 +209,23 @@ pub fn app_commands_as_messages(
     commands: &[Value],
     transcript: &[ChatMessage],
 ) -> Vec<ChatMessage> {
-    let recorded: Vec<String> = transcript
-        .iter()
-        .filter_map(|message| {
-            let envelope = parse_command_envelope(&joined_text(message, "\n"))?;
-            Some(normalize_pending_text(&format!(
-                "{} {}",
-                envelope.name, envelope.args
-            )))
+    // Built on first use: most turns carry no command this applies to, and it parses every
+    // transcript row, which made each keystroke on a long chat pay for the whole transcript.
+    let recorded_cell = std::cell::OnceCell::new();
+    let recorded = || -> &Vec<String> {
+        recorded_cell.get_or_init(|| {
+            transcript
+                .iter()
+                .filter_map(|message| {
+                    let envelope = parse_command_envelope(&joined_text(message, "\n"))?;
+                    Some(normalize_pending_text(&format!(
+                        "{} {}",
+                        envelope.name, envelope.args
+                    )))
+                })
+                .collect()
         })
-        .collect();
+    };
     let mut rows = Vec::new();
     let mut claimed_records: Vec<usize> = Vec::new();
     for entry in commands {
@@ -234,7 +241,7 @@ pub fn app_commands_as_messages(
             {
                 continue;
             }
-        } else if local_command && recorded.contains(&normalize_pending_text(&command)) {
+        } else if local_command && recorded().contains(&normalize_pending_text(&command)) {
             continue;
         }
         // A command the user sent from chat renders as the same two rows the archive replays.
@@ -297,7 +304,7 @@ pub fn app_commands_as_messages(
             ));
             continue;
         }
-        if recorded.contains(&normalize_pending_text(&command)) {
+        if recorded().contains(&normalize_pending_text(&command)) {
             continue;
         }
         if let Some(argument) = rename_argument(&command) {

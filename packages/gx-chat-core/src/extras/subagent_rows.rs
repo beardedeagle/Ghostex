@@ -72,7 +72,7 @@ pub fn refresh(state: &mut ChatState, context: &ChatContext) {
     let Some(page) = state.extras.subagent.page.clone() else {
         // `if (!page) { this.items = []; return; }`: the caches are NOT cleared here, only by a
         // restart, which is what makes reopening the same target cheap.
-        state.extras.subagent.view.items.clear();
+        state.extras.subagent.view.items = Default::default();
         state.extras.subagent.view.projection_inputs = None;
         return;
     };
@@ -133,7 +133,7 @@ pub fn refresh(state: &mut ChatState, context: &ChatContext) {
     };
     let view = &mut state.extras.subagent.view;
     view.projected = cache;
-    view.items = projection.items;
+    view.items = std::sync::Arc::new(projection.items);
     view.final_ids = projection.final_ids;
     view.answered_pages = projection.answered_pages;
     view.question_forms = projection.question_forms;
@@ -149,7 +149,7 @@ pub fn refresh(state: &mut ChatState, context: &ChatContext) {
 /// Pure, the way `crate::document::frame_parts` needs it to be: [`refresh`] does the work once per
 /// event and this hands back what it stored.
 pub fn rows(state: &ChatState, _context: &ChatContext) -> Vec<TranscriptItem> {
-    state.extras.subagent.view.items.clone()
+    state.extras.subagent.view.items.as_ref().clone()
 }
 
 /// `rowDetail(kind, messageId, index)` against the child transcript.

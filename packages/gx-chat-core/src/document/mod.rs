@@ -10,7 +10,7 @@ mod snapshot;
 mod transcript;
 mod view;
 
-pub use crate::document::assemble::{assemble, frame_parts, FrameParts};
+pub use crate::document::assemble::{assemble, frame_parts, frame_parts_with_items, FrameParts};
 pub use crate::document::composer::{
     ComposerActions, ComposerChrome, ComposerOverflow, Draft, IncomingDraft, Interaction,
     InterruptToast, Note,

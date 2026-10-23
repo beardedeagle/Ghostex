@@ -41,18 +41,42 @@ pub fn is_js_space(value: char) -> bool {
 /// Collapses every run of whitespace to one space and trims, the `.trim().replace(/\s+/g, ' ')`
 /// tail of `normalizeSessionChatPendingText`.
 pub fn collapse_whitespace(text: &str) -> String {
+    // The non-empty pieces between whitespace runs, joined by one space. Whole pieces are copied
+    // and ASCII is tested a byte at a time, because this runs over every message's text on each
+    // rebuild and pushing it one character at a time was the biggest single cost there.
+    let bytes = text.as_bytes();
     let mut out = String::with_capacity(text.len());
-    let mut pending_space = false;
-    for value in text.chars() {
-        if is_js_space(value) {
-            pending_space = !out.is_empty();
-            continue;
-        }
-        if pending_space {
+    let mut piece_start: Option<usize> = None;
+    let mut index = 0;
+    let close_piece = |out: &mut String, start: usize, end: usize| {
+        if !out.is_empty() {
             out.push(' ');
-            pending_space = false;
         }
-        out.push(value);
+        out.push_str(&text[start..end]);
+    };
+    while index < bytes.len() {
+        let byte = bytes[index];
+        let (space, width) = if byte.is_ascii() {
+            // `char::is_whitespace` on ASCII: tab, newline, vertical tab, form feed, return, space.
+            (
+                matches!(byte, b'\t' | b'\n' | 0x0b | 0x0c | b'\r' | b' '),
+                1,
+            )
+        } else {
+            let value = text[index..].chars().next().unwrap_or_default();
+            (is_js_space(value), value.len_utf8())
+        };
+        if space {
+            if let Some(start) = piece_start.take() {
+                close_piece(&mut out, start, index);
+            }
+        } else if piece_start.is_none() {
+            piece_start = Some(index);
+        }
+        index += width;
+    }
+    if let Some(start) = piece_start {
+        close_piece(&mut out, start, bytes.len());
     }
     out
 }
@@ -264,7 +288,12 @@ const ESCAPED_MARKUP_ATTRIBUTE: &str = "data-ghostex-escaped";
 /// `parseSessionChatCommandEnvelope`.
 pub fn parse_command_envelope(text: &str) -> Option<CommandEnvelope> {
     let trimmed = text.trim_start_matches(is_js_space);
-    if !trimmed.to_lowercase().starts_with("<command-") {
+    // `toLowerCase().startsWith('<command-')` without lowercasing the whole message: no character
+    // outside ASCII lowercases to one of these, so comparing the first bytes is the same test.
+    if !trimmed
+        .get(..9)
+        .is_some_and(|head| head.eq_ignore_ascii_case("<command-"))
+    {
         // Ordinary prompts, XML pastes.
         return None;
     }
