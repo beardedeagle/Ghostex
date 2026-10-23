@@ -260,6 +260,22 @@ pub(crate) fn apply_program_status(
     }
     if combines {
         observe_program_opinion(project_id, session_id, &session);
+        // agy reports done while a background task will wake it again; its hooks keep the turn
+        // working (CDXC:SessionStatus 2026-10-23 in mode.rs).
+        if matches!(effective, "done" | "finished")
+            && super::antigravity_background_wait(project_id, session_id)
+        {
+            if records_changed {
+                let _ = schedule_presentation_session_delta(
+                    state,
+                    &db,
+                    &repository,
+                    project_id,
+                    session_id,
+                );
+            }
+            return;
+        }
         // Combined: detection owns idle. A program's idle after its own
         // working or blocked hands the session to detection's view (its
         // shadow, which may still say working); a finished turn is `finished`

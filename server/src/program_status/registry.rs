@@ -374,6 +374,30 @@ pub(crate) fn set_program_status_applied(
     }
 }
 
+fn antigravity_background_waits() -> &'static Mutex<std::collections::HashSet<String>> {
+    static WAITS: OnceLock<Mutex<std::collections::HashSet<String>>> = OnceLock::new();
+    WAITS.get_or_init(|| Mutex::new(std::collections::HashSet::new()))
+}
+
+/// Antigravity CLI's last hook for the session: whether it was a Stop that background work will
+/// wake again (CDXC:SessionStatus 2026-10-23 in mode.rs). Every agy hook rewrites it.
+pub(crate) fn note_antigravity_background_wait(project_id: &str, session_id: &str, waits: bool) {
+    if let Ok(mut waiting) = antigravity_background_waits().lock() {
+        let key = registry_key(project_id, session_id);
+        if waits {
+            waiting.insert(key);
+        } else {
+            waiting.remove(&key);
+        }
+    }
+}
+
+pub(crate) fn antigravity_background_wait(project_id: &str, session_id: &str) -> bool {
+    antigravity_background_waits()
+        .lock()
+        .is_ok_and(|waiting| waiting.contains(&registry_key(project_id, session_id)))
+}
+
 /// The user pressed Escape in the terminal pane or Stop in the chat.
 pub(crate) fn note_program_status_interrupt(project_id: &str, session_id: &str) {
     if let Ok(mut registry) = registry().lock() {
@@ -386,6 +410,7 @@ pub(crate) fn note_program_status_interrupt(project_id: &str, session_id: &str) 
 /// Forget a session whose watch ended (session stopped or slept): its
 /// daemon, and with it every record, is gone.
 pub(crate) fn forget_program_status(project_id: &str, session_id: &str) -> bool {
+    note_antigravity_background_wait(project_id, session_id, false);
     registry()
         .lock()
         .ok()

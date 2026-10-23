@@ -200,6 +200,19 @@ pub(crate) fn ingest_agent_hook_event(
     let mut activity_update: Option<ActivityUpdate> = None;
     let mut session_chat_prompt_changed = false;
     let mut session_chat_activity_changed = false;
+    if normalize_agent_id(params.get("agentName").and_then(Value::as_str)).as_deref()
+        == Some("antigravity")
+    {
+        let stop = read_text(params, "eventName")
+            .is_some_and(|event| event.trim().eq_ignore_ascii_case("stop"));
+        crate::program_status::note_antigravity_background_wait(
+            &lifecycle.project_id,
+            &lifecycle.session_id,
+            stop && crate::agent_hooks::event_mapping::antigravity_stop_awaits_background_work(
+                &Value::Object(params.clone()),
+            ),
+        );
+    }
     let mut activity_reason = if hook_activity.is_some() {
         "activity-unchanged".to_string()
     } else {
