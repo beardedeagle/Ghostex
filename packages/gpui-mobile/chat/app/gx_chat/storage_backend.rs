@@ -198,10 +198,14 @@ pub(super) fn write(
                 now_ms,
             );
             finish(connection, matches!(result, Ok(RecordWrite::Stored)))?;
-            // A refused write answers `Ok`, as the desktop's door does (`write_record(..).map(|_| ())`
-            // in `gx_chat/storage_backend.rs`): the entry bound, the one a single value can break,
-            // was already refused by `storage.rs` before this call.
-            result.map(|_| ())
+            // A refused write reaches the core as a failed write, as the desktop's door reports it
+            // (`write_row` in `apps/desktop/src/app/gx_chat/storage_backend.rs`); it used to look
+            // like success.
+            match result {
+                Ok(RecordWrite::Stored | RecordWrite::Unchanged) => Ok(()),
+                Ok(RecordWrite::Refused(_)) => Err("refused"),
+                Err(reason) => Err(reason),
+            }
         }
         (Backend::Records(_), None) => {
             connection.execute_batch("BEGIN IMMEDIATE").map_err(|_| "begin")?;
