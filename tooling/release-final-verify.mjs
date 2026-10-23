@@ -534,7 +534,7 @@ async function verify(cleanupPaths) {
   await check('windows-update-feeds', async () => {
     const arches = ['x64', 'arm64'].filter((arch) => {
       const names = windowsUpdateArtifactNames(version, arch);
-      return [names.installer, names.portable, names.feed, names.fullPackage].some((name) =>
+      return [names.installer, names.feed, names.fullPackage].some((name) =>
         releaseAssets.some((asset) => asset.name === name)
       );
     });
@@ -545,17 +545,11 @@ async function verify(cleanupPaths) {
     const validated = [];
     for (const arch of arches) {
       const names = windowsUpdateArtifactNames(version, arch);
-      const channelNames = new Set([
-        names.installer,
-        names.portable,
-        names.feed,
-        names.fullPackage,
-        names.deltaPackage,
-      ]);
+      const channelNames = new Set([names.installer, names.feed, names.fullPackage, names.deltaPackage]);
       const channelAssets = releaseAssets
         .filter((asset) => channelNames.has(asset.name))
         .map((asset) => ({ name: asset.name, sha256: parseAssetSha(asset), size: asset.size }));
-      for (const required of [names.installer, names.portable, names.feed, names.fullPackage]) {
+      for (const required of [names.installer, names.feed, names.fullPackage]) {
         const asset = channelAssets.find((candidate) => candidate.name === required);
         if (!asset) throw new Error(`Windows ${arch} release is missing ${required}.`);
         if (!asset.sha256) throw new Error(`GitHub reports no digest for ${required}.`);

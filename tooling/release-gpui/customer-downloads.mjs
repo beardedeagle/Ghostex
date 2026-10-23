@@ -44,9 +44,7 @@ export function customerDownloadEntries(version, assetNames) {
       title: 'Windows',
       downloads: [
         asset('x64 installer', `ghostex-${version}-windows-x64.exe`),
-        asset('x64 portable', `ghostex-${version}-windows-x64-portable.zip`),
         asset('ARM64 installer', `ghostex-${version}-windows-arm64.exe`),
-        asset('ARM64 portable', `ghostex-${version}-windows-arm64-portable.zip`),
       ],
     },
     {

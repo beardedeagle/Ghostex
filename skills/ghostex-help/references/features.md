@@ -68,11 +68,8 @@ notes with an **Open download page** button instead of installing the update;
 install the new package the same way you installed Ghostex. Linux downloads come
 for x64 and for ARM64 (aarch64) computers, each as a .deb, an .rpm and a portable
 .tar.zst on the release page; pick the one that matches your computer's processor
-(`uname -m` prints x86_64 or aarch64). On Windows, the
-portable zip keeps all its data in a `GhostexData` folder next to itself and runs
-beside an installed Ghostex without sharing its sessions, settings or projects.
-It uses the agent hooks the installed Ghostex set up (its Settings lists them as
-installed by another Ghostex) instead of rewriting them.
+(`uname -m` prints x86_64 or aarch64). Windows downloads come as an installer
+for x64 and for ARM64 computers; there is no portable version.
 
 **Open a view** is the picker the panel shows when nothing is open in it. It
 lists every view you can open here: the built-in views first, then your own views

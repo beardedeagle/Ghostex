@@ -34,7 +34,7 @@
 #                     generates) -> SignPath round 1.
 #   package-pack      the real `vpk pack`; its sign hook swaps each file for its
 #                     round-1 signed copy, matched by the SHA-256 of the
-#                     unsigned bytes, so the nupkg, delta and portable zip hold
+#                     unsigned bytes, so the full and delta nupkgs hold
 #                     signed binaries. The inner Velopack Setup.exe is left for
 #                     SignPath round 2.
 #   package-bundle    bundle the signed inner setup behind the launcher and
@@ -231,7 +231,6 @@ $EscapedVersion = [regex]::Escape($Version)
 $FeedName = "releases.$Channel.json"
 $VpkOutput = Join-Path $Output "velopack"
 $Installer = Join-Path $Output "ghostex-$Version-windows-$Arch.exe"
-$Archive = Join-Path $Output "ghostex-$Version-windows-$Arch-portable.zip"
 $InnerInstallerName = "Ghostex-Velopack-Setup.exe"
 $InnerInstaller = Join-Path $VpkOutput $InnerInstallerName
 # Each SignPath round trip uploads one folder and downloads its signed copy
@@ -261,6 +260,10 @@ function Assert-SignPathSignature([string]$Path) {
     }
 }
 
+# CDXC:Release 2026-10-23 DECISION:
+# The user stopped the Windows portable build: "let's stop building portable
+# ghostex please i dont wanna support that". Every pack runs with --noPortable,
+# so a Windows release ships only the installer and the Velopack update files.
 function Invoke-VelopackPack([string]$PackOutput, [bool]$WithSignHook) {
     $Changelog = Get-Content -Raw (Join-Path $RepoRoot "CHANGELOG.md")
     $ReleaseNotesMatch = [regex]::Match(
@@ -286,6 +289,7 @@ function Invoke-VelopackPack([string]$PackOutput, [bool]$WithSignHook) {
         --releaseNotes $ReleaseNotesPath `
         --runtime $Runtime `
         --shortcuts "Desktop,StartMenuRoot" `
+        --noPortable `
         @SignArgs
     if ($LASTEXITCODE -ne 0) { throw "Velopack packaging failed" }
     Remove-Item $ReleaseNotesPath
@@ -372,9 +376,8 @@ if ($RunPack) {
     Remove-Item Env:VPK_TOKEN -ErrorAction SilentlyContinue
 
     $GeneratedInstaller = Get-ChildItem $VpkOutput -File -Filter "*Setup.exe" | Select-Object -First 1
-    $GeneratedPortable = Get-ChildItem $VpkOutput -File -Filter "*Portable.zip" | Select-Object -First 1
-    if (-not $GeneratedInstaller -or -not $GeneratedPortable) {
-        throw "Velopack did not produce both Setup.exe and Portable.zip"
+    if (-not $GeneratedInstaller) {
+        throw "Velopack did not produce Setup.exe"
     }
     if ($SignedPhases) {
         New-Item -ItemType Directory -Force -Path $SetupDir | Out-Null
@@ -431,10 +434,6 @@ if ($RunBundle) {
     }
     Remove-Item $InnerSource
 
-    $GeneratedPortable = Get-ChildItem $VpkOutput -File -Filter "*Portable.zip" | Select-Object -First 1
-    if (-not $GeneratedPortable) { throw "Velopack did not produce Portable.zip" }
-    Move-Item $GeneratedPortable.FullName $Archive
-
     $CurrentPackagePattern = "^$([regex]::Escape($PackId))-$EscapedVersion-$([regex]::Escape($Channel))-(full|delta)\.nupkg$"
     $CurrentPackages = Get-ChildItem $VpkOutput -File -Filter "*.nupkg" | Where-Object {
         $_.Name -match $CurrentPackagePattern
@@ -488,7 +487,7 @@ foreach ($feed in @($FeedName, "assets.$Channel.json", "RELEASES-$Channel")) {
     $path = Join-Path $Output $feed
     if (Test-Path $path) { $UpdateArtifacts += $path }
 }
-$Artifacts = @($Installer, $Archive) + $UpdateArtifacts | ForEach-Object {
+$Artifacts = @($Installer) + $UpdateArtifacts | ForEach-Object {
     $item = Get-Item $_
     [ordered]@{
         name = $item.Name
