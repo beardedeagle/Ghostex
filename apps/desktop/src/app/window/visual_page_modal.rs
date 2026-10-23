@@ -3,6 +3,9 @@
 //! (`page.rs`) opens its pictures in a viewer inside the page and remembers where the reader left
 //! it, and a refresh button appears when the page's file changed on disk (`source.rs`).
 //!
+//! CDXC:SessionChat 2026-10-23 DECISION:
+//! User: "fam when i click on a html inline page to open it it takes ages to show the window. please make it show the window instantly from first time (even if content inside it needs a second, but we should react to the click instantly)". The window opens on the click with its header and a loading state, and its page is created afterwards: on the window's next frame, or, on the first page of an app run, once the web runtime that click starts is up (`web_runtime_changed`). Before, the window waited for both: the runtime's start, and creating the page's browser, which blocks until Chromium has made it. `open_timing.rs` logs where an open's time goes.
+//!
 //! CDXC:SessionChat 2026-10-09 DECISION:
 //! User: an agent's HTML page marked to open floating opens "in a pop up above the chat basically that when i click away goes away". A card whose block carries `"open": "popup"` opens its page here instead of in the browser.
 //! CDXC:SessionChat 2026-10-22 DECISION:
@@ -10,10 +13,12 @@
 //! CDXC:SessionChat 2026-10-09 WHY:
 //! The page is loaded with `#gx-theme=light|dark`, which the bootstrap every published page starts with (server/src/visual_pages/theme.rs) reads before first paint, so the page wears the app's appearance rather than the system's. Links the page opens go to the reader's browser, so the window only ever shows the page itself.
 //! SEE-ALSO: apps/desktop/src/app/visual_page_modal_lifecycle.rs (open and close), apps/desktop/src/app/native_chat/visual.rs (the card), packages/gx-visual (the `open` mark).
+pub(crate) mod open_timing;
 mod page;
 mod source;
 
 use super::native_modal_kit::*;
+use crate::app::helpers::web_runtime::{WebRuntimeState, web_runtime_state};
 use crate::app::helpers::*;
 use crate::*;
 use gpui::{
@@ -59,7 +64,13 @@ pub(crate) struct GpuiVisualPageModalWindow {
     url: String,
     title: String,
     detail: String,
+    /// What the page is loaded from: `url` with the app's theme and `gx-floating=1`.
+    page_url: String,
+    /// The card's open message, for opening it again behind the web runtime's install prompt.
+    open_message: serde_json::Value,
     surface: Option<Entity<CefSurface>>,
+    /// The page has loaded once; until then the header shows a spinner.
+    loaded: bool,
     error: Option<String>,
     focus_handle: FocusHandle,
     /// The page's id on the gxserver that serves it, for Refresh.
@@ -78,14 +89,19 @@ pub(crate) struct GpuiVisualPageModalWindow {
 }
 
 impl GpuiVisualPageModalWindow {
+    /// `web_runtime_ready`: the web runtime is up, so the page is created on the window's next
+    /// frame; otherwise the app creates it once the runtime it is starting is up
+    /// (`web_runtime_changed`).
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         url: String,
         title: String,
         detail: String,
+        open_message: serde_json::Value,
         palette: ModalPalette,
         host: VisualPageModalHost,
         remote: Option<GpuiRemoteGxserverRequestTarget>,
+        web_runtime_ready: bool,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
@@ -97,6 +113,82 @@ impl GpuiVisualPageModalWindow {
             "{}#gx-theme={theme}&gx-floating=1",
             url.split('#').next().unwrap_or(&url)
         );
+        // Creating the page's browser holds the app until Chromium has made it, so it waits for
+        // the frame after the window's first one: the window is on screen first.
+        let modal = cx.weak_entity();
+        window.on_next_frame(move |window, cx| {
+            open_timing::mark("windowShown");
+            if web_runtime_ready {
+                let _ = modal.update(cx, |this, cx| this.create_surface(window, cx));
+            }
+        });
+        let mut click_away = super::popup_dismissal::close_app_modal_on_click_away(window, cx);
+        click_away.push(observe_presses_elsewhere(window, cx));
+        let mut modal = Self {
+            host,
+            palette,
+            url,
+            title,
+            detail,
+            page_url,
+            open_message,
+            surface: None,
+            loaded: false,
+            error: None,
+            focus_handle,
+            page_id,
+            remote,
+            source_changed: false,
+            refreshing: false,
+            armed_at: None,
+            counted_press: None,
+            _disarm: None,
+            _source_watch: None,
+            _click_away: click_away,
+        };
+        modal.watch_page_source(cx);
+        modal
+    }
+
+    /// The web runtime the window is waiting for changed (`refresh_web_runtime_views`): once it
+    /// is up the page is created; when it failed the window says why. Returns the card's open
+    /// message when the runtime turned out not to be installed, for the app to show its install
+    /// prompt instead of this window.
+    pub(crate) fn web_runtime_changed(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Option<serde_json::Value> {
+        if self.surface.is_some() || self.error.is_some() {
+            return None;
+        }
+        if cef::context_initialized() {
+            open_timing::mark("webRuntimeReady");
+            self.create_surface(window, cx);
+            return None;
+        }
+        match web_runtime_state() {
+            WebRuntimeState::Failed(message) => {
+                open_timing::finish("webRuntimeFailed");
+                self.error = Some(message);
+                cx.notify();
+                None
+            }
+            WebRuntimeState::NotInstalled | WebRuntimeState::Installing(_) => {
+                Some(self.open_message.clone())
+            }
+            WebRuntimeState::Installed | WebRuntimeState::Running => None,
+        }
+    }
+
+    /// Creates the page's browser under the header.
+    fn create_surface(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.surface.is_some() || self.error.is_some() {
+            return;
+        }
+        open_timing::mark("pageCreateStarted");
+        let url = self.url.clone();
+        let remote = self.remote.clone();
         // A remote machine's page can link to that machine's own localhost, which only the app
         // knows how to reach (`gpui_remote_machine_url`), so every link goes through it.
         let popup_open_handler: cef::BrowserPopupOpenHandler = {
@@ -145,6 +237,7 @@ impl GpuiVisualPageModalWindow {
             Rc::default();
         let page_loaded: cef::PageLoadEndHandler = {
             let shown_surface = shown_surface.clone();
+            let modal = cx.weak_entity();
             let page = url.clone();
             let viewport = window.viewport_size();
             let viewport = (
@@ -153,17 +246,25 @@ impl GpuiVisualPageModalWindow {
             );
             let async_cx = cx.to_async();
             let foreground = cx.foreground_executor().clone();
-            let remote = remote.clone();
             Rc::new(move || {
                 let Some(surface) = shown_surface.borrow().clone() else {
                     return;
                 };
+                let modal = modal.clone();
                 let page = page.clone();
                 let remote = remote.clone();
-                let async_cx = async_cx.clone();
+                let mut async_cx = async_cx.clone();
                 // Run on the next turn: this is called from inside CEF's message pump.
                 foreground
                     .spawn(async move {
+                        let _ = modal.update(&mut async_cx, |this, cx| {
+                            if !this.loaded {
+                                open_timing::mark("pageLoaded");
+                                open_timing::finish("loaded");
+                                this.loaded = true;
+                                cx.notify();
+                            }
+                        });
                         async_cx.update(|cx| {
                             crate::app::visual_page_thumbnails::picture_opened_page(
                                 surface, &page, remote, viewport, cx,
@@ -179,11 +280,11 @@ impl GpuiVisualPageModalWindow {
                 CefSurface::try_new(
                     "ghostex-gpui-visual-page".to_string(),
                     parent,
-                    page_url,
+                    self.page_url.clone(),
                     VISUAL_PAGE_CEF_PROFILE_ID.to_string(),
                     pane_prepaint_background_color(),
                     false,
-                    hsla(palette.surface),
+                    hsla(self.palette.surface),
                     None,
                     true,
                     Some(popup_open_handler),
@@ -196,7 +297,8 @@ impl GpuiVisualPageModalWindow {
                     cx,
                 )
             });
-        let (surface, error) = match created {
+        open_timing::mark("pageCreated");
+        match created {
             Ok(surface) => {
                 *shown_surface.borrow_mut() = Some(surface.downgrade());
                 surface.read(cx).add_page_script(page::PAGE_SCRIPT);
@@ -213,7 +315,7 @@ impl GpuiVisualPageModalWindow {
                     ),
                     window.scale_factor(),
                 );
-                (Some(surface), None)
+                self.surface = Some(surface);
             }
             Err(error) => {
                 support_logs::append(
@@ -221,35 +323,11 @@ impl GpuiVisualPageModalWindow {
                     "gpui.cefSurface.createFailed",
                     serde_json::json!({ "surface": "visualPage", "error": error }),
                 );
-                (
-                    None,
-                    Some("This page could not be opened here.".to_string()),
-                )
+                open_timing::finish("pageCreateFailed");
+                self.error = Some("This page could not be opened here.".to_string());
             }
-        };
-        let mut click_away = super::popup_dismissal::close_app_modal_on_click_away(window, cx);
-        click_away.push(observe_presses_elsewhere(window, cx));
-        let mut modal = Self {
-            host,
-            palette,
-            url,
-            title,
-            detail,
-            surface,
-            error,
-            focus_handle,
-            page_id,
-            remote,
-            source_changed: false,
-            refreshing: false,
-            armed_at: None,
-            counted_press: None,
-            _disarm: None,
-            _source_watch: None,
-            _click_away: click_away,
-        };
-        modal.watch_page_source(cx);
-        modal
+        }
+        cx.notify();
     }
 
     /// One click away: the first arms the window, a second within `CLICK_AWAY_ARMED_FOR` closes it.
@@ -360,6 +438,14 @@ impl Render for GpuiVisualPageModalWindow {
                         None => this,
                     }),
             )
+            .when(!self.loaded && self.error.is_none(), |this| {
+                this.child(
+                    div()
+                        .flex_shrink_0()
+                        .px(px(6.0))
+                        .child(modal_spinner(p.muted)),
+                )
+            })
             .when(self.source_changed || self.refreshing, |this| {
                 this.child(self.refresh_button(cx))
             })
@@ -387,6 +473,14 @@ impl Render for GpuiVisualPageModalWindow {
             .min_h_0()
             .w_full()
             .children(self.surface.clone())
+            .when(self.surface.is_none() && self.error.is_none(), |this| {
+                this.flex()
+                    .items_center()
+                    .justify_center()
+                    .text_size(px(13.0))
+                    .text_color(hsla(p.muted))
+                    .child("Opening the page…")
+            })
             .when_some(self.error.clone(), |this, error| {
                 this.flex()
                     .items_center()

@@ -1,5 +1,6 @@
 //! Open and close plumbing for the floating window a chat page card opens.
 //! SEE-ALSO: apps/desktop/src/app/window/visual_page_modal.rs (the window entity), apps/desktop/src/app/native_app_modal_lifecycle.rs (the shared window path), apps/desktop/src/app/cef_deferred_startup.rs (an open that waits for the web runtime).
+use crate::app::helpers::web_runtime::web_runtime_available;
 use crate::app::helpers::*;
 use crate::app::window::*;
 use crate::web_bridge_types::AppModalHostBridgeEvent;
@@ -17,6 +18,7 @@ impl GhostexGpuiApp {
         window: &mut Window,
         cx: &mut gpui::Context<Self>,
     ) {
+        visual_page_modal::open_timing::start(cef::context_initialized());
         let open = |app: &mut Self, message: &serde_json::Value, window: &mut Window, cx| {
             app.receive_app_modal_host_bridge_event(
                 AppModalHostBridgeEvent::Message(message.to_string()),
@@ -64,8 +66,10 @@ impl GhostexGpuiApp {
     }
 
     /// Opens the floating window for the `visualPage` open message the chat's page card sends
-    /// (`url`, `title`, and the published file's name as `file`). The page needs the web runtime:
-    /// until it runs, the open is held (and the install prompt shown when it is not installed).
+    /// (`url`, `title`, and the published file's name as `file`). The window opens at once; its
+    /// page needs the web runtime, so when the runtime is installed but not running yet it is
+    /// started and the page created once it is up (`sync_visual_page_modal_with_web_runtime`).
+    /// When it is not installed the open is held behind the install prompt instead.
     pub(crate) fn open_gpui_visual_page_modal(
         &mut self,
         message: &serde_json::Value,
@@ -85,7 +89,9 @@ impl GhostexGpuiApp {
         }) else {
             return;
         };
-        if !cef::context_initialized() {
+        let web_runtime_ready = cef::context_initialized();
+        if !web_runtime_ready && !web_runtime_available() {
+            visual_page_modal::open_timing::finish("webRuntimeNotInstalled");
             self.defer_gpui_app_modal_open_for_cef(
                 GpuiAppModalKind::VisualPage,
                 message.clone(),
@@ -112,6 +118,7 @@ impl GhostexGpuiApp {
         });
         let kind = GpuiAppModalKind::VisualPage;
         let (width, height) = self.chat_preview_modal_size(cx);
+        let open_message = message.clone();
         self.open_native_app_modal(
             kind,
             width,
@@ -119,12 +126,44 @@ impl GhostexGpuiApp {
             move |window, cx| {
                 cx.new(|cx| {
                     GpuiVisualPageModalWindow::new(
-                        url, title, detail, palette, host, remote, window, cx,
+                        url,
+                        title,
+                        detail,
+                        open_message,
+                        palette,
+                        host,
+                        remote,
+                        web_runtime_ready,
+                        window,
+                        cx,
                     )
                 })
             },
             cx,
         );
+        visual_page_modal::open_timing::mark("windowOpened");
+        if !web_runtime_ready {
+            self.request_cef_runtime(cx);
+        }
+    }
+
+    /// The web runtime changed (`refresh_web_runtime_views`): a page window opened before it was
+    /// up gets its page now, or says why it failed. A runtime that turned out not to be installed
+    /// closes the window for the install prompt, which opens the page once it is installed.
+    pub(crate) fn sync_visual_page_modal_with_web_runtime(&mut self, cx: &mut gpui::Context<Self>) {
+        let reopen = self
+            .update_native_app_modal(
+                GpuiAppModalKind::VisualPage,
+                cx,
+                |modal: &mut GpuiVisualPageModalWindow, window, cx| {
+                    modal.web_runtime_changed(window, cx)
+                },
+            )
+            .flatten();
+        if let Some(message) = reopen {
+            self.close_native_app_modal_from_bridge(cx);
+            self.defer_gpui_app_modal_open_for_cef(GpuiAppModalKind::VisualPage, message, cx);
+        }
     }
 
     /// `remote_project` is the machine whose session published the open page, `None` for this

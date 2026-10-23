@@ -33,6 +33,7 @@ impl GhostexGpuiApp {
                 .spawn(async { cef_component_window::verified_cef_runtime_readiness() });
             cx.spawn(async move |this, cx| {
                 let readiness = readiness.await;
+                crate::app::window::visual_page_modal::open_timing::mark("webRuntimeChecked");
                 let started_waiting = std::time::Instant::now();
                 loop {
                     let Ok(sliding) = this.update(cx, |this, _| this.panel_motion.animating())
@@ -265,6 +266,7 @@ impl GhostexGpuiApp {
             self.refresh_gpui_plugins_modal(cx);
         }
         self.refresh_web_runtime_modal_prompt(cx);
+        self.sync_visual_page_modal_with_web_runtime(cx);
         cx.notify();
     }
 }
