@@ -28,6 +28,7 @@ use std::path::PathBuf;
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
+use ghostex_client_storage::RecordUsage;
 use ghostex_gx_core::{
     COLLAPSE_STORAGE_KEY, HIDDEN_ITEMS_STORAGE_KEY, MACHINE_TAB_STORAGE_KEY,
     PROJECT_COLLECTIONS_STORAGE_KEY, SIDEBAR_WINDOW_SCOPE_ID, SidebarCollapseDiff,
@@ -130,6 +131,10 @@ struct Connections {
     write: Option<Connection>,
     /// The sizes the bounds were last measured against, and when.
     totals: Option<(Instant, Totals)>,
+    /// The `records` table's per-store usage as the WRITE connection last saw it. Its stamp only
+    /// means something on that connection, so it is forgotten whenever `write` is opened or
+    /// dropped.
+    records: RecordUsage,
 }
 
 fn connections() -> &'static Mutex<Connections> {
@@ -258,9 +263,11 @@ pub(super) fn write_sidebar_ui_state(
     let mut held = connections()
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let held = &mut *held;
     if held.write.is_none() {
         let started = Instant::now();
         held.write = Some(open(OpenFlags::SQLITE_OPEN_READ_WRITE)?);
+        held.records.forget();
         report.open_us = started.elapsed().as_micros() as u64;
     }
     // Reused while it is recent, and always before the transaction opens.
@@ -279,12 +286,19 @@ pub(super) fn write_sidebar_ui_state(
             totals
         }
     };
-    let result = write_in_transaction(connection, write, &mut totals, &mut report);
+    let result = write_in_transaction(
+        connection,
+        write,
+        &mut totals,
+        &mut report,
+        &mut held.records,
+    );
     match &result {
         Ok(()) => held.totals = Some((Instant::now(), totals)),
         Err(_) => {
             held.write = None;
             held.totals = None;
+            held.records.forget();
         }
     }
     result.map(|()| report)
@@ -295,16 +309,22 @@ fn write_in_transaction(
     write: &SidebarUiWrite,
     totals: &mut Totals,
     report: &mut SidebarWriteReport,
+    records: &mut RecordUsage,
 ) -> Result<(), &'static str> {
     let started = Instant::now();
     connection
         .execute_batch("BEGIN IMMEDIATE")
         .map_err(|_| "begin")?;
     report.begin_us = started.elapsed().as_micros() as u64;
+    let records_current = records.is_current(connection);
     let started = Instant::now();
     let result = write_inside_transaction(connection, write, totals, report);
     report.stored_us = started.elapsed().as_micros() as u64;
     if result.is_ok() {
+        // Only `preferences` rows changed, so the `records` tallies still hold.
+        if records_current {
+            records.restamp(connection);
+        }
         let started = Instant::now();
         connection.execute_batch("COMMIT").map_err(|_| "commit")?;
         report.commit_us = started.elapsed().as_micros() as u64;
@@ -532,24 +552,40 @@ pub(crate) fn with_read_connection<T>(
 /// (`records_storage.rs`) borrows it for the same reason it borrows the read side: one pool, one
 /// busy timeout and one error vocabulary for a file two tables of which this app now writes.
 ///
-/// A failed call drops the connection AND the cached preference totals, because a connection whose
-/// statement failed may have left the transaction open and the totals were measured against a
-/// database this process can no longer vouch for.
+/// A failed call drops the connection AND the cached preference totals and record tallies, because
+/// a connection whose statement failed may have left the transaction open and the totals were
+/// measured against a database this process can no longer vouch for. A closure that changes
+/// `records` rows here does not have to say so: the tallies' stamp sees the change and the next
+/// records write rescans.
 pub(crate) fn with_write_connection<T>(
     write: impl FnOnce(&Connection) -> Result<T, &'static str>,
+) -> Result<T, &'static str> {
+    with_records_write_connection(|connection, _| write(connection))
+}
+
+/// [`with_write_connection`] with the `records` tallies that belong to the pooled connection, for
+/// the `records` door (`records_storage.rs`), which moves them with every row it writes.
+pub(crate) fn with_records_write_connection<T>(
+    write: impl FnOnce(&Connection, &mut RecordUsage) -> Result<T, &'static str>,
 ) -> Result<T, &'static str> {
     let mut held = connections()
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let held = &mut *held;
     if held.write.is_none() {
         held.write = Some(open(
             OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_CREATE,
         )?);
+        held.records.forget();
     }
-    let result = write(held.write.as_ref().expect("opened above"));
+    let result = write(
+        held.write.as_ref().expect("opened above"),
+        &mut held.records,
+    );
     if result.is_err() {
         held.write = None;
         held.totals = None;
+        held.records.forget();
     }
     result
 }
@@ -590,10 +626,12 @@ pub(crate) fn write_client_document_value(
     let mut held = connections()
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let held = &mut *held;
     if held.write.is_none() {
         held.write = Some(open(
             OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_CREATE,
         )?);
+        held.records.forget();
     }
     // Read before the transaction opens, for the same reason the sidebar's own write does: the
     // totals read is the slow part and it must not sit inside the window another writer's busy
@@ -608,12 +646,14 @@ pub(crate) fn write_client_document_value(
         Some(totals) => totals,
         None => Totals::read(connection)?,
     };
-    let result = write_client_document_in_transaction(connection, key, raw, &mut totals);
+    let result =
+        write_client_document_in_transaction(connection, key, raw, &mut totals, &mut held.records);
     match &result {
         Ok(_) => held.totals = Some((Instant::now(), totals)),
         Err(_) => {
             held.write = None;
             held.totals = None;
+            held.records.forget();
         }
     }
     result
@@ -624,10 +664,12 @@ fn write_client_document_in_transaction(
     key: &str,
     raw: Option<&str>,
     totals: &mut Totals,
+    records: &mut RecordUsage,
 ) -> Result<Option<&'static str>, &'static str> {
     connection
         .execute_batch("BEGIN IMMEDIATE")
         .map_err(|_| "begin")?;
+    let records_current = records.is_current(connection);
     let result = (|| -> Result<Option<&'static str>, &'static str> {
         let Some(raw) = raw else {
             // A removal only shrinks every total, so no bound can refuse it.
@@ -645,6 +687,10 @@ fn write_client_document_in_transaction(
         Ok(None)
     })();
     if result.is_ok() {
+        // Only `preferences` rows changed, so the `records` tallies still hold.
+        if records_current {
+            records.restamp(connection);
+        }
         connection.execute_batch("COMMIT").map_err(|_| "commit")?;
     } else {
         let _ = connection.execute_batch("ROLLBACK");

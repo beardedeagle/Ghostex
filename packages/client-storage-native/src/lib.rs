@@ -10,6 +10,7 @@ mod storage_import_docs;
 mod storage_init;
 mod storage_metadata;
 mod storage_records;
+mod storage_usage;
 pub use storage_catalog::{CATALOG, CatalogBackend, CatalogStore, definition_for_key};
 pub use storage_import_docs::import_docs_browser_state;
 pub use storage_init::{StorageInitReport, initialize_client_storage};
@@ -20,3 +21,4 @@ pub use storage_records::{
     MAX_BACKEND_BYTES, RecordRead, RecordStore, RecordWrite, read_record, storage_bytes,
     write_record,
 };
+pub use storage_usage::RecordUsage;

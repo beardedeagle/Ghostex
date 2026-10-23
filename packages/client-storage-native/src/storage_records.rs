@@ -17,7 +17,9 @@
 use rusqlite::{Connection, OptionalExtension, params};
 use serde_json::{Value, json};
 
-use crate::storage_metadata::{RecordStoreUsage, apply_record_metadata, scan_record_usage};
+use crate::storage_catalog::catalog_store;
+use crate::storage_metadata::RecordStoreUsage;
+use crate::storage_usage::RecordUsage;
 
 /// `STORAGE_BUDGETS.indexeddb` (`packages/client-storage/budgets.ts`), shared by every store on
 /// that backend.
@@ -61,20 +63,12 @@ fn utf16_len(value: &str) -> usize {
     value.chars().map(char::len_utf16).sum()
 }
 
-/// Stores one record, with the catalog's four bounds and the table's bookkeeping.
+/// Stores one record, with the catalog's bounds and the table's bookkeeping, measured by a scan of
+/// its own. A caller that writes more than once keeps a [`RecordUsage`] and calls
+/// [`RecordUsage::write`], which scans once and then keeps the numbers.
 ///
 /// The caller owns the transaction and must already be inside one: the bounds are measured against
 /// the table as it stands and the row and its metadata have to land together.
-///
-/// CDXC:Settings 2026-09-21 WHY:
-/// The order of the three steps is the whole cost model. The UNCHANGED comparison is first and is
-/// one indexed lookup, because the common case is two writers agreeing on the same payload and it
-/// must not pay for a scan. The bounds and the bookkeeping then share ONE pass over the table:
-/// the second pass the first cut made was measured at 9.8 ms inside `BEGIN IMMEDIATE`, where the
-/// other writer's transactions are waiting, and it asked the same question twice. What replaces it
-/// is arithmetic rather than a guess: inside the transaction nothing else can touch the table, so
-/// the table after the write is the table the scan saw with exactly one row replaced, and that is
-/// what [`usage_after_write`] computes.
 pub fn write_record(
     connection: &Connection,
     store: RecordStore,
@@ -82,100 +76,296 @@ pub fn write_record(
     raw: &str,
     now_ms: i64,
 ) -> Result<RecordWrite, &'static str> {
-    let held: Option<(String, String)> = connection
-        .query_row(
-            "SELECT store, value FROM records WHERE key=?1",
-            [key],
-            |row| Ok((row.get(0)?, row.get(1)?)),
-        )
-        .optional()
-        .map_err(|_| "read")?;
-    let held: Option<(String, Value)> =
-        held.and_then(|(store, text)| Some((store, serde_json::from_str::<Value>(&text).ok()?)));
-    let unchanged = held.as_ref().is_some_and(|(_, row)| {
-        row.get("raw").and_then(Value::as_str) == Some(raw)
-            && row.get("schemaVersion").and_then(Value::as_i64) == Some(store.version)
-    });
-    if unchanged {
-        return Ok(RecordWrite::Unchanged);
-    }
-    let scan = scan_record_usage(connection).map_err(|_| "usage")?;
-    let previous_store = held.as_ref().map(|(store, _)| store.clone());
-    let previous_bytes = held.as_ref().map_or(0, |(_, row)| row_number(row, "bytes"));
-    let usage = Usage::from_scan(&scan, store.id, previous_store.as_deref(), previous_bytes);
-    let next_bytes = storage_bytes(key, raw) as i64;
-    if let Some(bound) = usage.refuses(store, next_bytes) {
-        return Ok(RecordWrite::Refused(bound));
-    }
-    // The counter `applyDatabaseMutations` bumps per mutation. Taken above BOTH the metadata row
-    // and every row's own revision, so the bookkeeping below, which reports the highest row
-    // revision, cannot move the stored counter backwards past a service that is ahead of its rows.
-    let revision = usage.revision_floor.max(metadata_revision(connection)?) + 1;
-    let row = json!({
-        "key": key,
-        "store": store.id,
-        "raw": raw,
-        "bytes": next_bytes,
-        "updatedAt": now_ms,
-        "revision": revision,
-        "schemaVersion": store.version,
-    });
-    connection
-        .execute(
-            "INSERT INTO records VALUES (?1,?2,?3) ON CONFLICT(key) DO UPDATE SET store=excluded.store,value=excluded.value",
-            params![key, store.id, row.to_string()],
-        )
-        .map_err(|_| "write")?;
-    let after = usage_after_write(
-        scan,
-        store.id,
-        previous_store.as_deref(),
-        previous_bytes,
-        next_bytes,
-        revision,
-    );
-    apply_record_metadata(connection, &after).map_err(|_| "metadata")?;
-    Ok(RecordWrite::Stored)
+    RecordUsage::new().write(connection, store, key, raw, now_ms)
 }
 
-/// The table after one row was written, from the scan taken before it.
-///
-/// Equal to a second scan because the write is inside the transaction that took the first one: one
-/// row moved from `previous_store` to `store_id` and changed size, and nothing else could have.
-/// `highest_revision` is left alone on the store the row LEFT even though a real scan could report
-/// a lower one there, because the only thing read from it is the highest revision of the whole
-/// table, and the revision just written is above every revision the scan saw.
-fn usage_after_write(
-    mut scan: Vec<RecordStoreUsage>,
-    store_id: &str,
-    previous_store: Option<&str>,
-    previous_bytes: i64,
-    next_bytes: i64,
-    revision: i64,
-) -> Vec<RecordStoreUsage> {
-    if let Some(previous_store) = previous_store
-        && let Some(entry) = scan.iter_mut().find(|entry| entry.store == previous_store)
-    {
-        entry.bytes -= previous_bytes;
-        entry.entries -= 1;
-    }
-    match scan.iter_mut().find(|entry| entry.store == store_id) {
-        Some(entry) => {
-            entry.bytes += next_bytes;
-            entry.entries += 1;
-            entry.highest_revision = revision;
+impl RecordUsage {
+    /// Stores one record, with the catalog's bounds and the table's bookkeeping.
+    ///
+    /// The caller owns the transaction and must already be inside one (`BEGIN IMMEDIATE`), commit
+    /// it on `Stored`, roll it back otherwise, and forget these tallies when its COMMIT fails.
+    ///
+    /// CDXC:Settings 2026-10-23 WHY:
+    /// Supersedes the 2026-09-21 cost model of one pass over the whole table per changed write.
+    /// The order of the steps is the cost model. The UNCHANGED comparison is first and is one
+    /// indexed lookup, because the common case is a writer repeating the payload it already
+    /// stored, and it must not pay for anything else. The bounds are then measured against the
+    /// tallies, which cost nothing while their stamp holds (`storage_usage.rs`). Only a `cache`
+    /// store that is at a bound, or may hold an expired row, reads its own rows, because that is
+    /// the only case that has to choose rows to evict.
+    pub fn write(
+        &mut self,
+        connection: &Connection,
+        store: RecordStore,
+        key: &str,
+        raw: &str,
+        now_ms: i64,
+    ) -> Result<RecordWrite, &'static str> {
+        let result = self.write_row(connection, store, key, raw, now_ms);
+        if result.is_err() {
+            self.forget();
         }
-        None => scan.push(RecordStoreUsage {
-            store: store_id.to_string(),
-            bytes: next_bytes,
-            entries: 1,
-            highest_revision: revision,
-        }),
+        result
     }
-    // A store whose last row this write took away produces no group in a real scan, and
-    // `apply_record_metadata` is what puts its usage row back to zero.
-    scan.retain(|entry| entry.entries > 0);
-    scan
+
+    /// Removes one record and keeps the bookkeeping exact. `Ok(false)` is a key with no row, and
+    /// nothing was written; the caller owns the transaction as for [`RecordUsage::write`].
+    ///
+    /// The `revision` counter is left where it is: nothing a removal does can be compared against
+    /// it, and the full recount this replaced could move it backwards past its own rows.
+    pub fn remove(&mut self, connection: &Connection, key: &str) -> Result<bool, &'static str> {
+        let result = self.remove_row_at(connection, key);
+        if result.is_err() {
+            self.forget();
+        }
+        result
+    }
+
+    fn write_row(
+        &mut self,
+        connection: &Connection,
+        store: RecordStore,
+        key: &str,
+        raw: &str,
+        now_ms: i64,
+    ) -> Result<RecordWrite, &'static str> {
+        let held: Option<(String, String)> = connection
+            .prepare_cached("SELECT store, value FROM records WHERE key=?1")
+            .and_then(|mut statement| {
+                statement
+                    .query_row([key], |row| Ok((row.get(0)?, row.get(1)?)))
+                    .optional()
+            })
+            .map_err(|_| "read")?;
+        let held: Option<(String, Value)> = held
+            .and_then(|(store, text)| Some((store, serde_json::from_str::<Value>(&text).ok()?)));
+        let unchanged = held.as_ref().is_some_and(|(_, row)| {
+            row.get("raw").and_then(Value::as_str) == Some(raw)
+                && row.get("schemaVersion").and_then(Value::as_i64) == Some(store.version)
+        });
+        if unchanged {
+            return Ok(RecordWrite::Unchanged);
+        }
+        self.refresh(connection)?;
+        let previous_store = held.as_ref().map(|(store, _)| store.clone());
+        let previous_bytes = held.as_ref().map_or(0, |(_, row)| row_number(row, "bytes"));
+        let usage = Usage::from_scan(
+            self.stores(),
+            store.id,
+            previous_store.as_deref(),
+            previous_bytes,
+        );
+        let next_bytes = storage_bytes(key, raw) as i64;
+        let mut eviction = Vec::new();
+        let mut measured_oldest = None;
+        if catalog_store(store.id).is_some_and(|definition| definition.cache) {
+            if next_bytes > store.max_entry_bytes {
+                return Ok(RecordWrite::Refused("entry"));
+            }
+            if usage.bound_broken(store, next_bytes).is_some()
+                || self.may_hold_expired(store, &usage, now_ms)
+            {
+                match plan_eviction(connection, store, key, next_bytes, now_ms, &usage)? {
+                    Eviction::Refused(bound) => return Ok(RecordWrite::Refused(bound)),
+                    Eviction::Admitted { removals, oldest } => {
+                        eviction = removals;
+                        measured_oldest = Some(oldest);
+                    }
+                }
+            }
+        } else if let Some(bound) = usage.refuses(store, next_bytes) {
+            return Ok(RecordWrite::Refused(bound));
+        }
+        // The counter `applyDatabaseMutations` bumps per mutation. Taken above BOTH the metadata row
+        // and every row's own revision, so the bookkeeping, which reports the highest row revision,
+        // cannot move the stored counter backwards past a service that is ahead of its rows.
+        let revision = usage.revision_floor.max(metadata_revision(connection)?) + 1;
+        for (evicted, bytes) in &eviction {
+            connection
+                .prepare_cached("DELETE FROM records WHERE key=?1")
+                .and_then(|mut statement| statement.execute([evicted]))
+                .map_err(|_| "write")?;
+            self.remove_row(store.id, *bytes);
+        }
+        let row = json!({
+            "key": key,
+            "store": store.id,
+            "raw": raw,
+            "bytes": next_bytes,
+            "updatedAt": now_ms,
+            "revision": revision,
+            "schemaVersion": store.version,
+        });
+        connection
+            .prepare_cached(
+                "INSERT INTO records VALUES (?1,?2,?3) ON CONFLICT(key) DO UPDATE SET store=excluded.store,value=excluded.value",
+            )
+            .and_then(|mut statement| statement.execute(params![key, store.id, row.to_string()]))
+            .map_err(|_| "write")?;
+        let known_oldest = self.oldest(store.id);
+        let was_empty = usage.store_entries == 0;
+        if let Some(previous_store) = previous_store.as_deref() {
+            self.remove_row(previous_store, previous_bytes);
+        }
+        self.add_row(store.id, next_bytes, revision);
+        if store.max_age_ms.is_some() {
+            let oldest = match measured_oldest {
+                Some(measured) => measured,
+                None if was_empty => Some(now_ms),
+                None => known_oldest.map(|oldest| oldest.min(now_ms)),
+            };
+            self.set_oldest(store.id, oldest);
+        }
+        let mut touched = vec![store.id];
+        if let Some(previous_store) = previous_store.as_deref()
+            && previous_store != store.id
+        {
+            touched.push(previous_store);
+        }
+        self.settle(connection, &touched, Some(revision))?;
+        Ok(RecordWrite::Stored)
+    }
+
+    fn remove_row_at(&mut self, connection: &Connection, key: &str) -> Result<bool, &'static str> {
+        // Measured the way the scan measures it, so the tallies move by what the scan counted.
+        let held: Option<(String, i64)> = connection
+            .prepare_cached(
+                "SELECT store, CAST(COALESCE(json_extract(value,'$.bytes'),0) AS INTEGER) FROM records WHERE key=?1",
+            )
+            .and_then(|mut statement| {
+                statement
+                    .query_row([key], |row| Ok((row.get(0)?, row.get(1)?)))
+                    .optional()
+            })
+            .map_err(|_| "read")?;
+        let Some((store, bytes)) = held else {
+            return Ok(false);
+        };
+        // Before the delete, so a scan this has to take still counts the row it removes.
+        self.refresh(connection)?;
+        connection
+            .prepare_cached("DELETE FROM records WHERE key=?1")
+            .and_then(|mut statement| statement.execute([key]))
+            .map_err(|_| "write")?;
+        self.remove_row(&store, bytes);
+        self.settle(connection, &[store.as_str()], None)?;
+        Ok(true)
+    }
+
+    /// Whether a `cache` store with an age limit may hold a row past it, which `admission` would
+    /// evict on this write even with every bound met.
+    fn may_hold_expired(&self, store: RecordStore, usage: &Usage, now_ms: i64) -> bool {
+        let Some(limit) = store.max_age_ms else {
+            return false;
+        };
+        if usage.store_entries == 0 {
+            return false;
+        }
+        self.oldest(store.id)
+            .is_none_or(|oldest| now_ms - oldest > limit)
+    }
+}
+
+/// What `admission` decided for a write to a `cache` store.
+enum Eviction {
+    /// The rows to delete first, as `(key, bytes)`, and the oldest `updatedAt` left behind.
+    Admitted {
+        removals: Vec<(String, i64)>,
+        oldest: Option<i64>,
+    },
+    Refused(&'static str),
+}
+
+/// `admission` (`packages/client-storage/budgets.ts`) for a `cache` store: its expired rows, and
+/// then its oldest rows, give way until the write fits, the oldest first by `updatedAt` and then by
+/// key.
+///
+/// CDXC:Settings 2026-10-23 WHY:
+/// Supersedes the 2026-09-21 rule that this door refused every write that broke a bound, even in
+/// a `cache` store. A cache store's own rows are disposable by the catalog's definition, and
+/// refusing instead froze each store at its cap: `sessionOptions` sat at 2,000 rows (1,692 of them
+/// past their 30 days) and refused the options of every new session, and `chatSnapshots` sat at 24
+/// expired rows and refused every new retained conversation. What stays refused is the part of
+/// `applyDatabaseMutations` that evicts OTHER stores' cache rows when the shared 128 MiB total is
+/// what broke, because a write that quietly deleted another feature's data would be a loss nobody
+/// could trace back to it, and a write whose own row would be the one to give way, which
+/// `admission` turns into a silent delete. Both are refused and named instead.
+fn plan_eviction(
+    connection: &Connection,
+    store: RecordStore,
+    key: &str,
+    next_bytes: i64,
+    now_ms: i64,
+    usage: &Usage,
+) -> Result<Eviction, &'static str> {
+    let mut candidates: Vec<(String, i64, i64)> = connection
+        .prepare_cached(
+            "SELECT key,
+                    CAST(COALESCE(json_extract(value,'$.bytes'),0) AS INTEGER),
+                    CAST(COALESCE(json_extract(value,'$.updatedAt'),0) AS INTEGER)
+             FROM records WHERE store=?1",
+        )
+        .and_then(|mut statement| {
+            statement
+                .query_map([store.id], |row| {
+                    Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+                })?
+                .collect::<Result<Vec<_>, _>>()
+        })
+        .map_err(|_| "usage")?;
+    candidates.retain(|(held, _, _)| held != key);
+    let mut bytes = candidates.iter().map(|(_, bytes, _)| bytes).sum::<i64>() + next_bytes;
+    let mut count = candidates.len() as i64 + 1;
+    let mut total = usage.backend_bytes - usage.previous_bytes + next_bytes;
+    candidates.push((key.to_string(), next_bytes, now_ms));
+    candidates.sort_by(|left, right| left.2.cmp(&right.2).then_with(|| left.0.cmp(&right.0)));
+    let expired = |updated_at: i64| {
+        store
+            .max_age_ms
+            .is_some_and(|limit| now_ms - updated_at > limit)
+    };
+    let mut removals = Vec::new();
+    let mut kept_from = candidates.len();
+    for (index, (candidate, candidate_bytes, updated_at)) in candidates.iter().enumerate() {
+        let broken = cache_bound_broken(store, bytes, count, total);
+        if broken.is_none() && !expired(*updated_at) {
+            kept_from = index;
+            break;
+        }
+        if candidate == key {
+            return Ok(Eviction::Refused(broken.unwrap_or("store")));
+        }
+        removals.push((candidate.clone(), *candidate_bytes));
+        bytes -= candidate_bytes;
+        total -= candidate_bytes;
+        count -= 1;
+    }
+    if let Some(bound) = cache_bound_broken(store, bytes, count, total) {
+        return Ok(Eviction::Refused(bound));
+    }
+    let oldest = candidates[kept_from..]
+        .iter()
+        .map(|(_, _, updated_at)| *updated_at)
+        .min();
+    Ok(Eviction::Admitted { removals, oldest })
+}
+
+/// `admission`'s three totals, in its order.
+fn cache_bound_broken(
+    store: RecordStore,
+    bytes: i64,
+    count: i64,
+    total: i64,
+) -> Option<&'static str> {
+    if bytes > store.max_bytes {
+        Some("store")
+    } else if count > store.max_entries {
+        Some("entries")
+    } else if total > MAX_BACKEND_BYTES {
+        Some("backend")
+    } else {
+        None
+    }
 }
 
 /// A number off a stored row, read the way SQLite's `CAST(... AS INTEGER)` reads it, so the
@@ -230,7 +420,7 @@ impl Usage {
 
     /// The bound this value would break, or `None` when all four admit it. `admission`'s four, in
     /// its order and in its UTF-16 accounting.
-    fn refuses(&self, store: RecordStore, next_bytes: i64) -> Option<&'static str> {
+    fn bound_broken(&self, store: RecordStore, next_bytes: i64) -> Option<&'static str> {
         if next_bytes > store.max_entry_bytes {
             return Some("entry");
         }
@@ -243,16 +433,22 @@ impl Usage {
         (self.backend_bytes - self.previous_bytes + next_bytes > MAX_BACKEND_BYTES)
             .then_some("backend")
     }
+
+    /// The refusal for a store that is not a `cache`: any broken bound, but only for a write that
+    /// GROWS the key, which is `applyDatabaseMutations`' rule that existing protected data may
+    /// exceed a new budget and shrinking it must still work.
+    fn refuses(&self, store: RecordStore, next_bytes: i64) -> Option<&'static str> {
+        if next_bytes <= self.previous_bytes {
+            return None;
+        }
+        self.bound_broken(store, next_bytes)
+    }
 }
 
 fn metadata_revision(connection: &Connection) -> Result<i64, &'static str> {
     let stored: Option<String> = connection
-        .query_row(
-            "SELECT value FROM metadata WHERE key='revision'",
-            [],
-            |row| row.get(0),
-        )
-        .optional()
+        .prepare_cached("SELECT value FROM metadata WHERE key='revision'")
+        .and_then(|mut statement| statement.query_row([], |row| row.get(0)).optional())
         .map_err(|_| "metadata")?;
     Ok(stored
         .and_then(|text| serde_json::from_str::<Value>(&text).ok())
@@ -292,10 +488,8 @@ pub fn read_record(
     now_ms: i64,
 ) -> Result<RecordRead, &'static str> {
     let row: Option<String> = connection
-        .query_row("SELECT value FROM records WHERE key=?1", [key], |row| {
-            row.get(0)
-        })
-        .optional()
+        .prepare_cached("SELECT value FROM records WHERE key=?1")
+        .and_then(|mut statement| statement.query_row([key], |row| row.get(0)).optional())
         .map_err(|_| "read")?;
     let Some(row) = row.and_then(|text| serde_json::from_str::<Value>(&text).ok()) else {
         return Ok(RecordRead::Missing);

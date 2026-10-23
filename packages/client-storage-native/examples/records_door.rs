@@ -274,16 +274,6 @@ fn run(scratch: &PathBuf, checks: &mut Checks) -> Result<(), String> {
     let after_refusal = snapshot(&connection)?;
     checks.check("a refusal writes nothing", after_refusal == after_ahead);
     fill_store(&connection, STORE.max_entries)?;
-    let crowded = json!({"rows": ["z"]}).to_string();
-    checks.check(
-        "the entry-count bound refuses a new key",
-        write_in_transaction(
-            &connection,
-            "…:machine:one-too-many",
-            &crowded,
-            NOW + 40_000,
-        )? == RecordWrite::Refused("entries"),
-    );
     checks.check(
         "a key already in the store is still admitted at the bound",
         commit(
@@ -291,6 +281,27 @@ fn run(scratch: &PathBuf, checks: &mut Checks) -> Result<(), String> {
             &json!({"rows": ["y"]}).to_string(),
             NOW + 41_000,
         )? == RecordWrite::Stored,
+    );
+    // The store is a `cache`, so a new key at the entry bound evicts the store's oldest row
+    // (`admission`) rather than being refused.
+    let oldest = oldest_key(&connection)?;
+    let crowded = json!({"rows": ["z"]}).to_string();
+    checks.check(
+        "a cache store at its entry bound admits a new key",
+        write_in_transaction(
+            &connection,
+            "…:machine:one-too-many",
+            &crowded,
+            NOW + 42_000,
+        )? == RecordWrite::Stored,
+    );
+    checks.check(
+        "by evicting its oldest row and nothing else",
+        row(&connection, &oldest).is_err() && store_count(&connection)? == STORE.max_entries,
+    );
+    checks.check(
+        "and the totals still agree with a hand recount",
+        snapshot(&connection)?.metadata == recount(&connection)?,
     );
 
     // An emptied store.
@@ -337,21 +348,39 @@ fn write_in_transaction(
     result.map_err(str::to_string)
 }
 
-/// Fills the store up to its entry bound.
+/// Fills the store up to its entry bound. Counted again after every write, because a write to a
+/// `cache` store also evicts the rows past the store's age limit.
 fn fill_store(connection: &Connection, entries: i64) -> Result<(), String> {
-    let held: i64 = connection
+    let mut index = 0;
+    while store_count(connection)? < entries {
+        let key = format!("…:machine:filler-{index}");
+        let raw = json!({"filler": index}).to_string();
+        write_in_transaction(connection, &key, &raw, NOW + 35_000 + index)?;
+        index += 1;
+    }
+    Ok(())
+}
+
+fn store_count(connection: &Connection) -> Result<i64, String> {
+    connection
         .query_row(
             "SELECT COUNT(*) FROM records WHERE store=?1",
             [STORE.id],
             |row| row.get(0),
         )
-        .map_err(|error| error.to_string())?;
-    for index in held..entries {
-        let key = format!("…:machine:filler-{index}");
-        let raw = json!({"filler": index}).to_string();
-        write_in_transaction(connection, &key, &raw, NOW + 35_000 + index)?;
-    }
-    Ok(())
+        .map_err(|error| error.to_string())
+}
+
+/// The store's row `admission` evicts first: the oldest `updatedAt`, then the lowest key.
+fn oldest_key(connection: &Connection) -> Result<String, String> {
+    connection
+        .query_row(
+            "SELECT key FROM records WHERE store=?1
+             ORDER BY CAST(json_extract(value,'$.updatedAt') AS INTEGER), key LIMIT 1",
+            [STORE.id],
+            |row| row.get(0),
+        )
+        .map_err(|error| error.to_string())
 }
 
 #[derive(Debug, PartialEq, Eq)]
