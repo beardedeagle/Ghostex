@@ -34,16 +34,6 @@ pub(crate) fn gpui_app_modal_sidebar_state_message_for_active_project_id(
     )
 }
 
-pub(crate) fn gpui_app_modal_sidebar_state_message_from_settings_snapshot(
-    settings_snapshot: &shared_settings::SharedSidebarSettingsSnapshot,
-    latest_snapshot: Option<&GpuiProjectSnapshot>,
-) -> serde_json::Value {
-    gpui_app_modal_sidebar_state_message_from_settings_snapshot_for_active_project_id(
-        settings_snapshot,
-        gpui_active_project_id_from_snapshot(latest_snapshot),
-    )
-}
-
 fn gpui_app_modal_sidebar_state_message_from_settings_snapshot_for_active_project_id(
     settings_snapshot: &shared_settings::SharedSidebarSettingsSnapshot,
     active_project_id: Option<&str>,
@@ -65,6 +55,19 @@ pub(crate) struct GpuiAppModalGxserverHydrate {
     recent_projects: Vec<serde_json::Value>,
     pinned_prompts: Vec<serde_json::Value>,
     custom_session_tags: Option<serde_json::Value>,
+}
+
+/// A settings change waiting on the background hydrate read (`app_modal_hydrate.rs`).
+#[derive(Default)]
+pub(crate) enum GpuiAppModalHydrateResend {
+    #[default]
+    Idle,
+    /// The open modals get the read's data if it differs from `sent`, the data they were last given with the change (`None`: none).
+    /// `stale`: a read was already running when the change came, so its answer can predate the change and one more read follows.
+    Waiting {
+        sent: Option<GpuiAppModalGxserverHydrate>,
+        stale: bool,
+    },
 }
 
 pub(crate) fn gpui_fetch_app_modal_gxserver_hydrate(

@@ -37,9 +37,7 @@ impl GhostexGpuiApp {
             {
                 refresh_gpui_visual_settings(&settings);
                 apply_gpui_component_theme(cx);
-                let message =
-                    self.gpui_app_modal_sidebar_state_message_from_settings_snapshot(&settings);
-                self.refresh_open_gpui_app_modal_sidebar_state(message, cx);
+                self.refresh_open_gpui_app_modals_after_settings_change(&settings, cx);
                 cx.notify();
             }
             if shared_settings::effective_content_color_scheme(

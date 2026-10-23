@@ -154,18 +154,6 @@ impl GhostexGpuiApp {
         ))
     }
 
-    pub(crate) fn gpui_app_modal_sidebar_state_message_from_settings_snapshot(
-        &self,
-        settings_snapshot: &shared_settings::SharedSidebarSettingsSnapshot,
-    ) -> serde_json::Value {
-        self.with_gpui_command_pane_sidebar_indicators(
-            gpui_app_modal_sidebar_state_message_from_settings_snapshot(
-                settings_snapshot,
-                self.latest_sidebar_project_snapshot.as_ref(),
-            ),
-        )
-    }
-
     pub(crate) fn with_gpui_command_pane_sidebar_indicators(
         &self,
         mut message: serde_json::Value,
@@ -312,10 +300,7 @@ impl GhostexGpuiApp {
         self.prune_project_workarea_runtime_cef_surfaces_for_current_gates(cx);
         self.ensure_project_workarea_runtime_cef_surfaces_for_current_context(cx);
         self.reload_live_gpui_engine_terminal_config(cx);
-        let sidebar_state_message =
-            self.gpui_app_modal_sidebar_state_message_from_settings_snapshot(settings_snapshot);
-        self.reset_open_git_commit_prompt_agent(&sidebar_state_message, cx);
-        self.refresh_open_gpui_app_modal_sidebar_state(sidebar_state_message, cx);
+        self.refresh_open_gpui_app_modals_after_settings_change(settings_snapshot, cx);
         self.sync_titlebar_account_privacy(cx);
         self.apply_voice_agent_settings(settings_snapshot.object(), cx);
     }

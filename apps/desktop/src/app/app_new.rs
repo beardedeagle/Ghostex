@@ -433,6 +433,7 @@ impl GhostexGpuiApp {
                 app_modal_open_attempt_id: 0,
                 app_modal_gxserver_hydrate: None,
                 app_modal_gxserver_hydrate_refreshing: false,
+                app_modal_gxserver_hydrate_resend: GpuiAppModalHydrateResend::Idle,
                 app_modal_command_return_focus_target: None,
                 plugin_settings_action_progress: HashMap::new(),
                 plugin_settings_action_errors: HashMap::new(),
