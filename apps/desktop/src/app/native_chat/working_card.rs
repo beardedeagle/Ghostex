@@ -107,7 +107,8 @@ impl NativeChatView {
             // A capsule, like the pills it carries (the 2026-10-18 DECISION in the core's
             // extras/working_card.rs).
             .rounded_full()
-            .bg(p.card_panel)
+            // The composer's own fill, so the card and the chat box under it always match.
+            .bg(p.composer_background)
             .overflow_hidden()
             .text_color(p.card_muted)
             .when(left_bottom, |card| {
