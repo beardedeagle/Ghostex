@@ -249,12 +249,14 @@ fn press_head_rounded(
 }
 
 /// The fold chevron at the end of a pressable head.
+///
+/// CDXC:SessionChat 2026-10-23 DECISION: User, on the question card docked above the composer: "the arrow in this case is flipped on the top right (should be opposite direction for that chevron)". The card sits on the composer, so folding moves its top edge down and opening moves it up: open points down (fold down), folded points up (open up). Only the docked question card uses this chevron; transcript cards keep their own right/down disclosure. The phone's `AskHead` (apps/mobile/app/src/chat/native/cards/askCard.tsx) matches.
 pub(super) fn chevron(open: bool, p: &ChatAppearance) -> AnyElement {
     svg()
         .path(if open {
-            "titlebar/chevron-up.svg"
-        } else {
             "titlebar/chevron-down.svg"
+        } else {
+            "titlebar/chevron-up.svg"
         })
         .size(px(14.0 * p.scale))
         .flex_shrink_0()
