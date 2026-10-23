@@ -216,10 +216,28 @@ impl GhostexGpuiApp {
         }
     }
 
-    /// The list's last block when it is a project or a session group, not a collection.
+    /// The group drawn last in the list, which the empty space under it takes a session into: an
+    /// open project's last session group, drawn inside the project's block (session_group_tree.rs),
+    /// or else the project itself. `None` when the list ends with a collection.
     fn native_sidebar_last_group_id(&self) -> Option<String> {
-        let last = self.native_sidebar.snapshot.as_ref()?.order.last()?;
-        (last.kind != "collection").then(|| last.id.clone())
+        let snapshot = self.native_sidebar.snapshot.as_ref()?;
+        let tree = super::session_group_tree::SessionGroupTree::new(snapshot);
+        let group = |id: &str| snapshot.groups.iter().find(|group| group.group_id == id);
+        let last = snapshot.order.iter().rev().find(|item| {
+            item.kind == "collection" || !group(&item.id).is_some_and(|group| tree.nests(group))
+        })?;
+        if last.kind == "collection" {
+            return None;
+        }
+        let Some(project) = group(&last.id) else {
+            return Some(last.id.clone());
+        };
+        if !project.collapsed
+            && let Some(session_group) = tree.children(&project.group_id).last()
+        {
+            return Some(session_group.group_id.clone());
+        }
+        Some(project.group_id.clone())
     }
 
     /// `land` for this target, or what it answered the last time the pointer was over it.

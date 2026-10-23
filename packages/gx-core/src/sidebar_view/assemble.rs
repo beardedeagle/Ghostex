@@ -300,16 +300,48 @@ pub(crate) fn assemble(input: AssembleInput<'_>) -> SidebarView {
             &parent_project_of_group,
         )
     };
+    // A collection draws its projects' session groups under them (the desktop's
+    // session_group_tree.rs), so they join the collection's ids right after their project instead
+    // of standing at the top level: everything that walks the list in drawn order (the rows, the
+    // next/previous session, slots, the close successor) then meets them where they are drawn.
+    let session_groups_of = |project: &str| {
+        rendered_ids
+            .iter()
+            .filter(|group_id| owner_project_group_id(group_id).as_deref() == Some(project))
+            .cloned()
+            .collect::<Vec<_>>()
+    };
+    let nested_session_groups: BTreeSet<String> = collection_items
+        .iter()
+        .filter_map(|item| match item {
+            CollectionItem::Collection { group_ids, .. } => Some(group_ids),
+            CollectionItem::Project { .. } => None,
+        })
+        .flatten()
+        .flat_map(|project| session_groups_of(project))
+        .collect();
     for item in collection_items {
         match item {
-            CollectionItem::Project { group_id } => order.push(OrderItem {
-                kind: OrderKind::Project,
-                id: group_id,
-            }),
+            CollectionItem::Project { group_id } => {
+                if nested_session_groups.contains(&group_id) {
+                    continue;
+                }
+                order.push(OrderItem {
+                    kind: OrderKind::Project,
+                    id: group_id,
+                })
+            }
             CollectionItem::Collection {
                 collection,
                 group_ids,
             } => {
+                let group_ids: Vec<String> = group_ids
+                    .into_iter()
+                    .flat_map(|project| {
+                        let session_groups = session_groups_of(&project);
+                        std::iter::once(project).chain(session_groups)
+                    })
+                    .collect();
                 let storage_id = format!("{section_key}:{}", collection.collection_id);
                 if !input.ui.show_hidden
                     && input.ui.hidden_items.collection_keys.contains(&storage_id)
@@ -321,15 +353,7 @@ pub(crate) fn assemble(input: AssembleInput<'_>) -> SidebarView {
                         group.collection_color = Some(collection.color.clone());
                     }
                 }
-                // A project's hidden session groups (left out of `group_ids` while it is collapsed)
-                // still count towards the collection holding the project.
-                let sessions: Vec<_> = groups
-                    .iter()
-                    .filter(|group| {
-                        group_ids.contains(&group.core.group_id)
-                            || owner_project_group_id(&group.core.group_id)
-                                .is_some_and(|owner| group_ids.contains(&owner))
-                    })
+                let sessions: Vec<_> = collection_groups(&groups, &group_ids)
                     .flat_map(|group| group.core.sessions.clone())
                     .collect();
                 let summary = group_summary(&sessions);
@@ -525,6 +549,20 @@ pub(crate) fn empty_state_deadline_ms(
 /// renderers draw a session group inside its project's block, so it folds with the project.
 pub fn owner_project_group_id(group_id: &str) -> Option<String> {
     parse_workspace_subgroup_id(group_id).map(|(project, _)| project.to_sidebar_group_id())
+}
+
+/// The groups a collection holds, `group_ids` being its ids: its projects and their session
+/// groups, including those a collapsed project hides and leaves out of the ids, so the
+/// collection's header counts their sessions and its menu and Select All act on them too.
+pub fn collection_groups<'a>(
+    groups: &'a [GroupView],
+    group_ids: &'a [String],
+) -> impl Iterator<Item = &'a GroupView> + 'a {
+    groups.iter().filter(|group| {
+        group_ids.contains(&group.core.group_id)
+            || owner_project_group_id(&group.core.group_id)
+                .is_some_and(|owner| group_ids.contains(&owner))
+    })
 }
 
 /// Whether `group_id` is a session group whose project is collapsed.

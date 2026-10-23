@@ -227,7 +227,7 @@ pub use crate::sidebar_view::{
     UNTAGGED_TAG_FILTER,
 };
 pub use crate::sidebar_view::{
-    machine_switch_memory, owner_project_group_id, plan_machine_switch_restore,
+    collection_groups, machine_switch_memory, owner_project_group_id, plan_machine_switch_restore,
     plan_workspace_switch_restore, project_workspace_id, window_machine_tabs, window_spaces,
     window_workspace, WindowWorkspace, MACHINE_SESSION_MEMORY_SPACE_ID,
 };

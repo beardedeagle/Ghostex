@@ -35,11 +35,8 @@ const BRANCH_WIDTH: f32 = 6.0;
 
 /// The list's session groups by the project that owns them, for the projects the list draws at
 /// the top or inside a project group. Built from the snapshot's groups, which keep a collapsed
-/// project's groups so they can fold away with it.
-///
-/// A project in a project group has its session groups at the top of gx-core's `order`, not in
-/// the project group's ids, so the owners are looked up across the whole list: otherwise those
-/// groups would be drawn twice, under their project and again at the top.
+/// project's groups so they can fold away with it. gx-core lists an open project's session groups
+/// right after it, in `order` or in its project group's ids, and the list skips them there.
 pub(crate) struct SessionGroupTree<'a> {
     children: HashMap<&'a str, Vec<&'a NativeSidebarGroup>>,
 }

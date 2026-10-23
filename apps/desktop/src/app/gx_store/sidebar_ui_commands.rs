@@ -232,12 +232,7 @@ impl GhostexGpuiApp {
 
     fn sidebar_collection_session_ids(&self, collection_id: &str) -> Vec<String> {
         let group_ids = self.sidebar_collection_group_ids(collection_id);
-        self.gx_store
-            .sidebar_list
-            .view()
-            .groups
-            .iter()
-            .filter(|group| group_ids.iter().any(|id| *id == group.core.group_id))
+        ghostex_gx_core::collection_groups(&self.gx_store.sidebar_list.view().groups, &group_ids)
             .flat_map(|group| group.core.sessions.iter())
             .map(|session| session.row.sidebar_session_id.clone())
             .collect()
