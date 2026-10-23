@@ -84,6 +84,14 @@ impl GhostexGpuiApp {
         palette
     }
 
+    /// Something the palette is drawn from changed in settings (the theme colour, a custom tint,
+    /// Colourfulness, the chat theme or font): the next draw rebuilds it and restyles the live
+    /// editors, as a light/dark or glass change does.
+    pub(crate) fn native_docs_notify_appearance(&mut self, cx: &mut Context<Self>) {
+        self.native_docs.appearance_signature = None;
+        self.native_docs_notify(cx);
+    }
+
     /// Runs in the app's render. `None` when the context has no project, which keeps the
     /// placeholder.
     ///
