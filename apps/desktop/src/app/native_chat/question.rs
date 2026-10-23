@@ -8,6 +8,7 @@ use super::{
     transcript::text,
 };
 use crate::app::native_chat::cursor::ChatCursor as _;
+use crate::app::window::native_modal_kit::app_vertical_scrollbar;
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
     AnyElement, AppContext as _, Context, InteractiveElement as _, IntoElement, ParentElement as _,
@@ -55,12 +56,14 @@ impl NativeChatView {
         let collapsed = self.collapsed.contains(&collapse_key);
         let motion = self.disclosure_frame(&collapse_key, !collapsed, cx);
         let multiple = question["multiSelect"] == true;
+        let max_h = question_card_max_height(self.bounds.get().size.height, window);
         let mut options = div()
             .id("question-options")
+            .flex_shrink_0()
             .flex()
             .flex_col()
             .gap(px(8.0 * s))
-            .max_h(window.viewport_size().height * 0.45)
+            .max_h(max_h * 0.45)
             .overflow_y_scroll();
         for (option_index, option) in question["options"]
             .as_array()
@@ -113,21 +116,44 @@ impl NativeChatView {
                 );
             }
         }
+        let question_scroll = self
+            .nested_scrolls
+            .borrow_mut()
+            .entry(format!("question-text:{}", prompt_hash(&collapse_key, index)).into())
+            .or_default()
+            .clone();
         let body = div()
             .flex()
             .flex_col()
+            .min_h_0()
             .gap(px(12.0 * s))
             .child(
                 div()
+                    .relative()
+                    .flex()
+                    .flex_col()
+                    .min_h_0()
                     .min_w_0()
-                    .text_size(px(15.0 * s))
-                    .line_height(px(22.0 * s))
-                    .text_color(p.foreground)
-                    .child(text(question, "question")),
+                    .child(
+                        div()
+                            .id("question-text")
+                            .track_scroll(&question_scroll)
+                            .overflow_y_scroll()
+                            .min_h_0()
+                            .min_w_0()
+                            // Clear of the thumb, which sits over the text's right edge.
+                            .pr(px(10.0 * s))
+                            .text_size(px(15.0 * s))
+                            .line_height(px(22.0 * s))
+                            .text_color(p.foreground)
+                            .child(text(question, "question")),
+                    )
+                    .child(app_vertical_scrollbar(&question_scroll).id("question-text-scrollbar")),
             )
             .when(multiple, |body| {
                 body.child(
                     div()
+                        .flex_shrink_0()
                         .mt(px(-6.0 * s))
                         .text_size(px(12.0 * s))
                         .text_color(p.muted)
@@ -282,7 +308,7 @@ impl NativeChatView {
             cx.notify();
         }))
         .into_any_element();
-        Some(self.ask_card(
+        Some(self.capped_ask_card(
             head,
             shows_body.then_some(body),
             footer,
@@ -290,6 +316,7 @@ impl NativeChatView {
                 key: &collapse_key,
                 frame: motion,
             }),
+            max_h,
             p,
         ))
     }
@@ -330,4 +357,24 @@ impl NativeChatView {
                 button.on_click(cx.listener(move |this, _, _, cx| this.invoke(action.clone(), cx)))
             })
     }
+}
+
+/// CDXC:SessionChat 2026-10-23 DECISION: User: "please make the height of this limited and the text in the middle scrollable. right now it sometimes becomes super tall and i can't click on the buttons at the bottom." The card stands in for the composer, so it may take at most four fifths of the chat pane's height, leaving the rest to the transcript above it; its head, options and footer keep their height and only the question text scrolls in what is left. The options keep their own scroll at under half the card. The phone caps its card the same way (apps/mobile/app/src/chat/native/cards/QuestionCard.tsx).
+fn question_card_max_height(pane: gpui::Pixels, window: &Window) -> gpui::Pixels {
+    // The pane is measured after the first frame; until then the window stands in for it.
+    let room = if pane > px(0.0) {
+        pane
+    } else {
+        window.viewport_size().height
+    };
+    room * 0.8
+}
+
+/// The question text's scroll offset is kept per question, so the next one starts at its top.
+fn prompt_hash(prompt: &str, index: usize) -> u64 {
+    use std::hash::{Hash as _, Hasher as _};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    prompt.hash(&mut hasher);
+    index.hash(&mut hasher);
+    hasher.finish()
 }

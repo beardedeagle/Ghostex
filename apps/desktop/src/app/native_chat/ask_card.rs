@@ -360,7 +360,26 @@ impl NativeChatView {
             .border_1()
             .border_color(p.input_border)
             .bg(p.card_panel);
-        self.ask_card_in(shell, 14.0, head, body, footer, motion, p)
+        self.ask_card_in(shell, 14.0, head, body, footer, motion, None, p)
+    }
+
+    /// The asking card no taller than `max_h`: its head and footer keep their height and the body
+    /// gives up the rest, so whatever inside it may shrink (`min_h_0` and a scroll) does.
+    pub(super) fn capped_ask_card(
+        &self,
+        head: AnyElement,
+        body: Option<AnyElement>,
+        footer: Vec<AnyElement>,
+        motion: Option<AskBodyMotion>,
+        max_h: gpui::Pixels,
+        p: &ChatAppearance,
+    ) -> AnyElement {
+        let shell = div()
+            .rounded(px(14.0 * p.scale))
+            .border_1()
+            .border_color(p.input_border)
+            .bg(p.card_panel);
+        self.ask_card_in(shell, 14.0, head, body, footer, motion, Some(max_h), p)
     }
 
     /// An answered card that never folds (the page answers), its body on the one-line cards'
@@ -383,6 +402,7 @@ impl NativeChatView {
             body,
             Vec::new(),
             None,
+            None,
             p,
         )
     }
@@ -398,7 +418,16 @@ impl NativeChatView {
     ) -> AnyElement {
         let shape = &*SINGLE_LINE_CARD;
         let shell = shape.shell(div(), p);
-        self.ask_card_in(shell, shape.padding_x, head, body, Vec::new(), motion, p)
+        self.ask_card_in(
+            shell,
+            shape.padding_x,
+            head,
+            body,
+            Vec::new(),
+            motion,
+            None,
+            p,
+        )
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -410,13 +439,16 @@ impl NativeChatView {
         body: Option<AnyElement>,
         footer: Vec<AnyElement>,
         motion: Option<AskBodyMotion>,
+        max_h: Option<gpui::Pixels>,
         p: &ChatAppearance,
     ) -> AnyElement {
         let s = p.scale;
+        let capped = max_h.is_some();
         let body = body.map(|body| {
             let padded = div()
                 .w_full()
                 .min_w_0()
+                .when(capped, |padded| padded.flex().flex_col().min_h_0())
                 .px(px(pad * s))
                 .pb(px(pad * s))
                 .child(body)
@@ -432,6 +464,7 @@ impl NativeChatView {
         shell
             .w_full()
             .min_w_0()
+            .when_some(max_h, |card, max_h| card.max_h(max_h))
             .flex()
             .flex_col()
             .overflow_hidden()
