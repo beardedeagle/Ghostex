@@ -194,6 +194,9 @@ impl GhostexGpuiApp {
                 row.bg(appearance.selected)
                     .child(super::decorations::selected_outline(appearance))
             })
+            .when(self.native_sidebar_group_drop_target(&id), |row| {
+                super::sections::section_drop_highlight(row, scale)
+            })
             .child(title)
             .when_some(bot_gateway_running, |row, running| {
                 row.child(super::bots::bot_gateway_dot(running, appearance))
