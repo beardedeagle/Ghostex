@@ -394,6 +394,12 @@ pub(crate) fn dark_chrome_controls(
     )
 }
 
+/// How much deeper a custom light colour is drawn than its saved depth. Colourfulness saves the
+/// depth from Graphite's 96, while the tinted light presets sit at 95, so a custom colour drawn at
+/// the saved depth showed paler than a preset of the same hue (CDXC:Theming 2026-10-23 DECISION in
+/// settings_modal/tabs/theme/mod.rs). The Settings preview keeps its own copy in tabs/theme/colours.rs.
+pub(crate) const CUSTOM_LIGHT_THEME_DEPTH_SHIFT: f64 = -1.0;
+
 /// Mirror of `resolveLightChromeControls` in packages/shared/ghostex-settings/titlebar-color.ts (deleted 2026-10-01).
 pub(crate) fn light_chrome_controls(
     object: &serde_json::Map<String, serde_json::Value>,
@@ -406,7 +412,8 @@ pub(crate) fn light_chrome_controls(
             object
                 .get("customSidebarTitlebarLightBackgroundLightnessPercent")
                 .and_then(serde_json::Value::as_f64)
-                .unwrap_or(DEFAULT_CUSTOM_SIDEBAR_TITLEBAR_LIGHT_BACKGROUND_LIGHTNESS_PERCENT),
+                .unwrap_or(DEFAULT_CUSTOM_SIDEBAR_TITLEBAR_LIGHT_BACKGROUND_LIGHTNESS_PERCENT)
+                + CUSTOM_LIGHT_THEME_DEPTH_SHIFT,
         );
         let tint =
             gpui_settings_hex_rgb(object.get("customSidebarTitlebarLightBackgroundTintColor"))

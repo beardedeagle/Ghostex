@@ -769,8 +769,8 @@ impl ThemeTab {
     /// The "+" square: the custom colour for that mode, and its Pick Color dialog opened at the
     /// square on the saved tint.
     ///
-    /// CDXC:Theming 2026-06-15 WHY:
-    /// The custom background is a calibrated depth (Colourfulness sets it) plus an in-app tint picker, not a freeform colour: calibrated backgrounds keep sidebar row states predictable, and the tint picker must not be the system colour panel.
+    /// CDXC:Theming 2026-10-23 DECISION:
+    /// After a report that a custom light mode colour was not used, the user asked whether a custom colour should be drawn as strongly as the presets: "Yes, same strength as presets". A custom light colour is drawn at the tinted light presets' depth (one point deeper than the depth Colourfulness saves, `CUSTOM_LIGHT_THEME_DEPTH_SHIFT` in helpers/titlebar/chrome_tints.rs), so it shows as strongly as a preset of the same hue. Supersedes the 2026-06-15 rule that drew it at the saved depth; the custom colour is still a calibrated tint chosen in the in-app picker, not a freeform background.
     fn pick_custom_colour(&mut self, dark: bool, window: &mut Window, cx: &mut Context<Self>) {
         self.select_preset(dark, "custom".to_string(), cx);
         let tint_key = custom_tint_key(dark);

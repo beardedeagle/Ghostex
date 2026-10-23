@@ -154,6 +154,11 @@ pub(super) fn clamp_darkness(value: f64) -> f64 {
     round_half(value).clamp(MIN_DARKNESS, MAX_DARKNESS)
 }
 
+/// `CUSTOM_LIGHT_THEME_DEPTH_SHIFT` in helpers/titlebar/chrome_tints.rs: a custom light colour is
+/// drawn one point deeper than its saved depth, at the tinted presets' depth (this page is also
+/// compiled into the modal demo, which has no app helpers).
+const CUSTOM_LIGHT_THEME_DEPTH_SHIFT: f64 = -1.0;
+
 /// `clampSidebarTitlebarLightBackgroundLightnessPercent`.
 pub(super) fn clamp_lightness(value: f64) -> f64 {
     if !value.is_finite() {
@@ -482,7 +487,10 @@ fn chrome_controls(values: &SettingsValues, dark: bool) -> (f64, String) {
         )
     } else {
         (
-            clamp_lightness(values.f64("customSidebarTitlebarLightBackgroundLightnessPercent")),
+            clamp_lightness(
+                values.f64("customSidebarTitlebarLightBackgroundLightnessPercent")
+                    + CUSTOM_LIGHT_THEME_DEPTH_SHIFT,
+            ),
             normalize_hex(
                 &values.string("customSidebarTitlebarLightBackgroundTintColor"),
                 DEFAULT_TINT,
