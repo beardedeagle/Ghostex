@@ -15,7 +15,8 @@ use super::super::super::fields::{
 use super::super::super::palette::SettingsPalette;
 use super::super::super::store::{SettingsStore, post_store_message};
 use super::colours::{
-    STRENGTH_MAX, STRENGTH_MIN, STRENGTH_STEP, strength_from_settings, strength_patch,
+    STRENGTH_MAX, STRENGTH_MIN, STRENGTH_STEP, strength_from_settings, strength_gaps,
+    strength_patch,
 };
 use super::controls::{
     ICON_BEHIND_GLASS, ICON_BLUR, ICON_STRENGTH, ICON_TRANSPARENCY, indented_row,
@@ -244,7 +245,8 @@ impl ThemeTab {
             let saver: SliderSaver = Rc::new(
                 |store: &Entity<SettingsStore>, value, _commit, cx: &mut App| {
                     store.update(cx, |store, cx| {
-                        store.apply_patch(strength_patch(value), "settings:control", cx)
+                        let patch = strength_patch(value, strength_gaps(&store.values()));
+                        store.apply_patch(patch, "settings:control", cx)
                     });
                 },
             );
@@ -255,7 +257,7 @@ impl ThemeTab {
                     "windowGlassSidebarOpacityDark",
                     "Strength",
                     if exact.is_none() {
-                        "Tuned by hand under More transparency options; moving this resets all four tints."
+                        "Tuned by hand under More transparency options; moving this sets the tints from the slider again, keeping the difference between the sidebar and the work area."
                     } else if windows_blur_shown(&values)
                         && values.string("windowGlassWindowsBlur") == "acrylic"
                     {

@@ -3708,8 +3708,10 @@ control picks Off, Dark only or Always (Dark only, the default on macOS and Linu
 keeps light mode solid; Off, so the window is fast and solid, is the default on
 Windows), and
 Strength sets how see-through it is, from 0 (fully solid) to 100 (fully clear); the default
-is 10, and it gives the sidebar and the work area the same tint (the four tint settings under
-More transparency options set them apart by hand). Blur sets how soft what shows behind the window looks, from 0 (sharp) to 100 points;
+is 10, and out of the box the sidebar and the work area get the same tint. The four tint settings
+under More transparency options set them apart by hand, in dark and light mode separately; moving
+Strength afterwards moves both and keeps that difference (it narrows only where a tint reaches 0
+or 100). Blur sets how soft what shows behind the window looks, from 0 (sharp) to 100 points;
 the default is 60. On Windows, Desktop and windows uses Windows' own blur, which has no amount
 to set, so there Blur is a choice instead: Acrylic (the default, Windows' frosted blur, which stays
 blurred while Ghostex is in the background), Plain blur (the same blur without Windows' grey

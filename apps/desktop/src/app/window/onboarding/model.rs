@@ -688,16 +688,26 @@ fn transparency_sidebar_tint(strength: f64, at_default: f64) -> f64 {
     (at_default * (100.0 - strength)) / (100.0 - TRANSPARENCY_STRENGTH_DEFAULT)
 }
 
-/// `transparencyStrengthPatch`: the four glass tints one strength (0-100) sets, the sidebar and
-/// the work area equal (CDXC:Theming DECISION on `strength_patch` in settings_modal/tabs/theme/colours.rs).
-pub(crate) fn transparency_strength_patch(strength: f64) -> Map<String, Value> {
+/// `transparencyStrengthPatch`: the four glass tints one strength (0-100) sets, keeping the
+/// difference the user set between the sidebar and the work area in each appearance, each tint
+/// clamped to 0-100 (CDXC:Theming DECISION on `strength_patch` in settings_modal/tabs/theme/colours.rs).
+pub(crate) fn transparency_strength_patch(
+    strength: f64,
+    settings: &OnboardingSettings,
+) -> Map<String, Value> {
     let value = strength.clamp(0.0, 100.0);
-    let tints = |at_default: f64| {
-        let tint = transparency_sidebar_tint(value, at_default).round();
-        (tint, tint)
+    let tints = |at_default: f64, gap: f64| {
+        let sidebar = transparency_sidebar_tint(value, at_default).round();
+        (sidebar, (sidebar + gap).round().clamp(0.0, 100.0))
     };
-    let (dark_sidebar, dark_work) = tints(88.0);
-    let (light_sidebar, light_work) = tints(93.0);
+    let (dark_sidebar, dark_work) = tints(
+        88.0,
+        settings.glass_work_area_dark - settings.glass_sidebar_dark,
+    );
+    let (light_sidebar, light_work) = tints(
+        93.0,
+        settings.glass_work_area_light - settings.glass_sidebar_light,
+    );
     let mut patch = Map::new();
     patch.insert(
         "windowGlassSidebarOpacityDark".into(),
@@ -734,7 +744,7 @@ pub(crate) fn transparency_strength(settings: &OnboardingSettings) -> (Option<f6
     };
     let nearest =
         ((raw / TRANSPARENCY_STRENGTH_STEP).round() * TRANSPARENCY_STRENGTH_STEP).clamp(0.0, 100.0);
-    let patch = transparency_strength_patch(nearest);
+    let patch = transparency_strength_patch(nearest, settings);
     let matches = |key: &str, value: f64| patch.get(key).and_then(Value::as_f64) == Some(value);
     let exact = (matches("windowGlassSidebarOpacityDark", settings.glass_sidebar_dark)
         && matches("windowGlassWorkAreaTintDark", settings.glass_work_area_dark)
@@ -754,20 +764,54 @@ pub(crate) fn transparency_strength(settings: &OnboardingSettings) -> (Option<f6
 mod tests {
     use super::*;
 
+    fn settings_with(tints: [f64; 4]) -> OnboardingSettings {
+        let mut settings = OnboardingSettings::from_object(&Map::new());
+        [
+            settings.glass_sidebar_dark,
+            settings.glass_work_area_dark,
+            settings.glass_sidebar_light,
+            settings.glass_work_area_light,
+        ] = tints;
+        settings
+    }
+
+    fn tints(patch: &Map<String, Value>) -> [f64; 4] {
+        [
+            "windowGlassSidebarOpacityDark",
+            "windowGlassWorkAreaTintDark",
+            "windowGlassSidebarOpacityLight",
+            "windowGlassWorkAreaTintLight",
+        ]
+        .map(|key| patch[key].as_f64().unwrap())
+    }
+
     #[test]
-    fn unsaved_tints_read_as_strength_ten_with_equal_areas() {
+    fn unsaved_tints_read_as_strength_ten_and_stay_equal() {
         let settings = OnboardingSettings::from_object(&Map::new());
         assert_eq!(settings.glass_sidebar_dark, settings.glass_work_area_dark);
         assert_eq!(settings.glass_sidebar_light, settings.glass_work_area_light);
         assert_eq!(transparency_strength(&settings), (Some(10.0), 10.0));
-        let patch = transparency_strength_patch(35.0);
+        let [dark_sidebar, dark_work, light_sidebar, light_work] =
+            tints(&transparency_strength_patch(35.0, &settings));
+        assert_eq!(dark_sidebar, dark_work);
+        assert_eq!(light_sidebar, light_work);
+    }
+
+    #[test]
+    fn a_hand_set_gap_is_kept_and_clamped_at_the_ends() {
+        let settings = settings_with([94.0, 89.0, 97.0, 99.0]);
+        assert_eq!(transparency_strength(&settings), (Some(10.0), 10.0));
         assert_eq!(
-            patch["windowGlassSidebarOpacityDark"],
-            patch["windowGlassWorkAreaTintDark"]
+            tints(&transparency_strength_patch(40.0, &settings)),
+            [66.0, 61.0, 70.0, 72.0]
         );
         assert_eq!(
-            patch["windowGlassSidebarOpacityLight"],
-            patch["windowGlassWorkAreaTintLight"]
+            tints(&transparency_strength_patch(0.0, &settings)),
+            [100.0, 95.0, 100.0, 100.0]
+        );
+        assert_eq!(
+            tints(&transparency_strength_patch(100.0, &settings)),
+            [0.0, 0.0, 0.0, 2.0]
         );
     }
 }
