@@ -4,7 +4,7 @@
 //! instead of calling into `cef`, and the Plugins row reads the same state.
 //!
 //! CDXC:CefRuntime 2026-09-28 DECISION:
-//! User: "I want the user to be able to actually use almost all of the app without even installing or running the CEF browser (so we make the browser optional like we did for the code editor)". CEF is an optional component like the Code view's editor: only a web view that is about to be shown may start it, nothing is downloaded until the user presses Install on a web view or in Plugins, and a runtime that cannot start shows its error on the web view instead of stopping the app.
+//! User: "I want the user to be able to actually use almost all of the app without even installing or running the CEF browser (so we make the browser optional like we did for the code editor)". CEF is an optional component like the Code view's editor: nothing is downloaded until the user presses Install on a web view or in Plugins, and a runtime that cannot start shows its error on the web view instead of stopping the app. Only a web view about to be shown used to start it; since 2026-10-23 an installed runtime is also warmed up after launch (CDXC:CefRuntime 2026-10-23 in app/cef_deferred_startup.rs).
 //! SEE-ALSO: docs/2026-09-28/gpui-modals-migration/CEF-OPTIONAL.md, apps/desktop/src/app/web_runtime_install.rs (install, start, uninstall), apps/desktop/src/app/render/web_runtime_prompt.rs (the prompt card), apps/desktop/src/cef_component_window.rs (component checks), apps/desktop/src/cef/windows.rs (the delay-loaded libcef.dll).
 
 use std::sync::Mutex;

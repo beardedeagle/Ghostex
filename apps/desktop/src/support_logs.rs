@@ -260,6 +260,21 @@ fn append_unconditionally(log: GpuiSupportLog, event: &str, details: serde_json:
     let _ = file.write_all(line.as_bytes());
 }
 
+/// When this process started, as close to `main` as it can be taken, for launch timings.
+static LAUNCHED_AT: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
+
+/// Called first thing in `main`.
+pub fn note_launch() {
+    LAUNCHED_AT.get_or_init(std::time::Instant::now);
+}
+
+/// Milliseconds since `note_launch`.
+pub fn ms_since_launch() -> u64 {
+    LAUNCHED_AT
+        .get()
+        .map_or(0, |launched| launched.elapsed().as_millis() as u64)
+}
+
 pub fn logs_directory() -> PathBuf {
     shared_settings::ghostex_storage_paths().logs_dir.clone()
 }

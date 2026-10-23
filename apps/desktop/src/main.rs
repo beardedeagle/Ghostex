@@ -172,6 +172,7 @@ pub(crate) use crate::app::core::*;
 pub(crate) use crate::app::view_scopes::*;
 
 fn main() {
+    support_logs::note_launch();
     #[cfg(windows)]
     if gpui_run_windows_remote_ssh_askpass() {
         return;

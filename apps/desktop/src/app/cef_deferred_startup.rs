@@ -1,11 +1,15 @@
-// Launch-time CEF deferral: the runtime starts only when a web view is about to be shown, and
-// only when it is installed (app/helpers/web_runtime.rs).
+// Launch-time CEF start: an installed runtime is warmed up a few seconds after launch, and a web
+// view about to be shown starts it sooner (app/helpers/web_runtime.rs).
 
 use futures::StreamExt as _;
 
 use crate::app::helpers::web_runtime::*;
 use crate::app::model::*;
 use crate::*;
+
+/// How long after the first window's first frame an installed web runtime is started, so its
+/// start (which holds the app while Chromium initializes) lands after launch has settled.
+const WEB_RUNTIME_WARM_UP_AFTER: std::time::Duration = std::time::Duration::from_secs(3);
 
 /// An app-modal open that arrived before CEF was ready.
 pub(crate) struct GpuiAppModalOpenDeferredForCef {
@@ -14,8 +18,10 @@ pub(crate) struct GpuiAppModalOpenDeferredForCef {
 }
 
 impl GhostexGpuiApp {
-    /// CDXC:CefRuntime 2026-09-28 DECISION:
-    /// User: "I want the user to be able to actually use almost all of the app without even installing or running the CEF browser". Launch starts no web runtime and no longer warms it once launch has settled (supersedes the 2026-09-19 decision to warm CEF after launch so Settings and Quick Access opened instantly; Quick Access is native and Settings is being ported). CEF starts on the first browser-creation signal, which only a web view about to be shown sends (a Browser tab, a web workarea view, an extension popup or modal, Files' browser area), including one restored at launch.
+    /// CEF starts on the first browser-creation signal, which only a web view about to be shown
+    /// sends (a Browser tab, a web workarea view, an extension popup or modal, Files' browser
+    /// area, the chat's page window), including one restored at launch, and, when it is
+    /// installed, a few seconds after launch (`warm_up_web_runtime_after_launch`).
     pub(crate) fn begin_deferred_cef_startup(&mut self, cx: &mut gpui::Context<Self>) {
         self.gx_store_load_remote_recent_projects(cx);
         if let Some(mut demand) = cef::take_runtime_demand_receiver() {
@@ -28,7 +34,36 @@ impl GhostexGpuiApp {
                 }
             })
             .detach();
+            // The demand receiver is taken once per process, so this runs for the first window.
+            Self::warm_up_web_runtime_after_launch(cx);
         }
+    }
+
+    /// CDXC:CefRuntime 2026-10-23 DECISION:
+    /// User: asked whether to start the web runtime in the background at launch so the first chat page opens fast (the first page waited about 1.5 s for the runtime), "Yes, warm it up at launch". An installed runtime is started `WEB_RUNTIME_WARM_UP_AFTER` the first window's first frame, so it costs launch nothing; a runtime that is not installed is left alone (no prompt, no download), and web views still start it on demand when they come first. This supersedes the 2026-09-28 rule that only a web view about to be shown starts it (app/helpers/web_runtime.rs).
+    fn warm_up_web_runtime_after_launch(cx: &mut gpui::Context<Self>) {
+        if web_runtime_state() != WebRuntimeState::Installed {
+            return;
+        }
+        let app: &gpui::App = cx;
+        app.spawn(async move |cx| {
+            cx.background_executor()
+                .timer(WEB_RUNTIME_WARM_UP_AFTER)
+                .await;
+            if web_runtime_state() != WebRuntimeState::Installed {
+                return;
+            }
+            support_logs::append(
+                support_logs::GpuiSupportLog::HostLifecycle,
+                "gpui.host.webRuntimeWarmUp",
+                serde_json::json!({
+                    "pid": std::process::id(),
+                    "sinceLaunchMs": support_logs::ms_since_launch(),
+                }),
+            );
+            cx.update(crate::app::workspace_windows::request_cef_runtime_in_every_window);
+        })
+        .detach();
     }
 
     /// A web view wants CEF. Starts it when it is installed and not started yet; while it is not
