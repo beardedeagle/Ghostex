@@ -63,6 +63,9 @@ pub struct SidebarRevealPlan {
     pub collapsed_section: Option<SectionId>,
     /// The group is collapsed.
     pub collapsed_group: bool,
+    /// The collapsed project whose session group holds the row (a collapsed project hides its
+    /// session groups).
+    pub collapsed_owner_group: Option<String>,
     /// The folded coordinators above the row, by sidebar row id.
     pub collapsed_coordinators: Vec<String>,
     /// The group or its collection is hidden and Show Hidden is off.
@@ -110,6 +113,11 @@ impl SidebarRevealPlan {
         if let Some(storage_id) = &self.collapsed_collection_storage_id {
             intents.push(SidebarUiIntent::ToggleCollectionCollapsed {
                 storage_id: storage_id.clone(),
+            });
+        }
+        if let Some(owner) = &self.collapsed_owner_group {
+            intents.push(SidebarUiIntent::ToggleGroupCollapsed {
+                group_id: owner.clone(),
             });
         }
         if self.collapsed_group {
@@ -197,6 +205,8 @@ pub fn reveal_plan(
             .collapse
             .collapsed_groups
             .contains(&found.group_id),
+        collapsed_owner_group: super::assemble::owner_project_group_id(&found.group_id)
+            .filter(|owner| inputs.ui.collapse.collapsed_groups.contains(owner)),
         collapsed_coordinators: found.folded_by.clone(),
         collapsed_collection_storage_id: collection_storage_id.clone().filter(|storage_id| {
             inputs

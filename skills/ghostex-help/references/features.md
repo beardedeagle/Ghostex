@@ -561,7 +561,9 @@ Move to Group page lists them: pick one to move the session there, or Remove
 from Group to put it back in the project's list. Dragging a session onto
 another group or onto its project's list does the same, and so does dropping
 it in the empty space under the last group in the list; the group that would
-take it lights up while you drag.
+take it lights up while you drag. A project's groups sit indented under it
+with a guide line, and hide while the project is collapsed; the collapsed
+project still shows when one of their agents is working or needs you.
 In Add Project, select the computer whose folders you want to browse. Local
 folder starts in your home folder, and External drives and other folders shows
 that computer's filesystem root. On a computer running native Windows

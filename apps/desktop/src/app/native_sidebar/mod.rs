@@ -34,6 +34,7 @@ mod scroll_fade;
 mod section_move;
 mod sections;
 pub(crate) mod selectors;
+mod session_group_tree;
 mod session_hover;
 mod session_list;
 pub(crate) mod sessions;

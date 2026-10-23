@@ -33,9 +33,12 @@ impl GhostexGpuiApp {
         }
     }
 
+    /// A project's block: its header and, while it is open or folding, its rows and then its
+    /// `session_groups` (session_group_tree.rs), which fold with it.
     pub(crate) fn render_native_sidebar_group(
         &self,
         group: &NativeSidebarGroup,
+        session_groups: &[&NativeSidebarGroup],
         hud: &Value,
         appearance: &SidebarAppearance,
         cx: &mut gpui::Context<Self>,
@@ -128,7 +131,14 @@ impl GhostexGpuiApp {
                                 .children(body)
                                 .into_any_element()
                         }));
-                    self.render_native_disclosure(key, content.into_any_element(), cx)
+                    self.render_native_project_fold(
+                        key,
+                        content.into_any_element(),
+                        session_groups,
+                        hud,
+                        appearance,
+                        cx,
+                    )
                 });
         // The line of a project drop is drawn on the project's whole block, header and sessions,
         // because a project dropped after an expanded one lands after its sessions too.

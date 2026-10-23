@@ -55,6 +55,13 @@ pub(crate) struct NativeSidebarGroup {
     pub(crate) is_active: bool,
     #[serde(default)]
     pub(crate) is_stale: bool,
+    /// The project a user-made session group belongs to (gx-core `owner_project_group_id`); the
+    /// list draws the group inside that project's block.
+    #[serde(default)]
+    pub(crate) owner_group_id: Option<String>,
+    /// One of this project's session groups holds the focused session.
+    #[serde(default)]
+    pub(crate) holds_active_session_group: bool,
     pub(crate) project_context: Option<Value>,
     pub(crate) remote_machine_context: Option<Value>,
     #[serde(deserialize_with = "deserialize_sessions")]
