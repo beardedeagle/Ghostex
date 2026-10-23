@@ -1,0 +1,236 @@
+<!doctype html>
+<!--
+  The phone's chat core, running as WebAssembly in the app's hidden WebView
+  (docs/2026-10-23/mobile-ota/webview-core/PLAN.md). This file is the template: `cargo xtask
+  build-mobile-chat-wasm` fills in the wasm (base64) and writes
+  apps/mobile/app/assets/chat-core/chat-core.html. One self-contained file, because expo-updates
+  stores assets flat by hash (a page cannot load a sibling file) and fetch cannot read file://.
+
+  Protocol (every message is one JSON text):
+
+  Page to host, through window.ReactNativeWebView.postMessage:
+    {"type":"ready","version":"gx-chat-wasm 0.1.0","wasmBytes":N,"instantiateMs":N}
+    {"type":"failed","error":"..."}     the wasm could not start; nothing else will be answered
+    {"type":"crashed","error":"..."}    the wasm trapped (a core panicked; wasm cannot unwind).
+                                        Every core in it is gone: reload the page and rebuild.
+    {"id":N,"ok":true,"result":<value>}
+    {"id":N,"ok":false,"error":{"code":"...","message":"..."}}
+    {"batch":[<reply>, ...]}            the replies to one batch, in request order
+
+  Host to page, either `window.gxChatCore.receive(<text>)` (what the native direct-post helper
+  evaluates) or a "message" event whose data is the text (react-native-webview's postMessage):
+    {"id":N,"op":"<op>","handle":H,"args":[...]}
+    {"batch":[<request>, ...]}          one round trip for a settle round's calls
+
+  Ops (H is the number "new" answered; results mirror modules/gx-chat-core/src/index.ts):
+    version                         -> "gx-chat-wasm 0.1.0"
+    memoryBytes                     -> the wasm memory's size in bytes (it only ever grows, so the
+                                       host reloads the page when no chat is open and this is large)
+    retainedSnapshotKey [m, p, s]   -> the record key string
+    new                             -> H
+    dispose        H                -> null
+    handle         H [event, ctx]   -> the effects array          (event and ctx are JSON texts)
+    frameAt        H [last, nowMs]  -> the frame envelope object  (last: number or null for none)
+    query          H [name, args]   -> the helper's answer        (args is the JSON argument array)
+    nextWakeMs     H                -> number or null
+    revision       H                -> number
+    forgetSent     H                -> {}
+    allocateRequestId H             -> number
+  A core answer of {"error":{...}} (bad event, panicked core...) arrives as ok:false with that
+  error, as the native module's `checked` throws it. Any op on a handle that was disposed or never
+  created answers {"code":"disposed"}, as the native module's calls throw after dispose(). A success
+  result is the core's own JSON, spliced into the reply without parsing it here.
+-->
+<html>
+<head>
+<meta charset="utf-8">
+<title>Ghostex chat core</title>
+</head>
+<body>
+<script>
+(function () {
+  'use strict';
+  var WASM_BASE64 = '__GX_CHAT_CORE_WASM_BASE64__';
+  var ERROR_PREFIX = '{"error":';
+  var encoder = new TextEncoder();
+  var decoder = new TextDecoder();
+  var wasm = null;
+  var crashed = null;
+  var live = new Set();
+  var HANDLE_OPS = { dispose: 1, handle: 1, frameAt: 1, query: 1, nextWakeMs: 1, revision: 1, forgetSent: 1, allocateRequestId: 1 };
+
+  function post(text) {
+    window.ReactNativeWebView.postMessage(text);
+  }
+
+  function bytes() {
+    return new Uint8Array(wasm.memory.buffer);
+  }
+
+  // Copies `text` into wasm memory; returns [pointer, length].
+  function put(text) {
+    var data = encoder.encode(text);
+    var ptr = wasm.gx_alloc(data.length);
+    bytes().set(data, ptr);
+    return [ptr, data.length];
+  }
+
+  function release(arg) {
+    wasm.gx_free(arg[0], arg[1]);
+  }
+
+  // Reads the result buffer a text-answering export returned.
+  function take(ptr) {
+    return decoder.decode(bytes().subarray(ptr, ptr + wasm.gx_result_len()));
+  }
+
+  // Calls a text-answering export with string arguments (each passed as pointer, length).
+  function callText(name, leading, strings) {
+    var args = strings.map(put);
+    try {
+      var flat = leading.slice();
+      args.forEach(function (arg) { flat.push(arg[0], arg[1]); });
+      return take(wasm[name].apply(null, flat));
+    } finally {
+      args.forEach(release);
+    }
+  }
+
+  function str(value) {
+    return typeof value === 'string' ? value : String(value);
+  }
+
+  // One op; answers {raw: <core JSON text>} or {value: <JS value>}.
+  function run(op, handle, args) {
+    args = args || [];
+    if (HANDLE_OPS[op] === 1 && !live.has(handle)) {
+      return { error: { code: 'disposed', message: 'This chat core was disposed.' } };
+    }
+    switch (op) {
+      case 'version':
+        return { value: take(wasm.gx_version()) };
+      case 'memoryBytes':
+        return { value: wasm.memory.buffer.byteLength };
+      case 'retainedSnapshotKey':
+        return { value: callText('gx_retained_snapshot_key', [], [str(args[0]), str(args[1]), str(args[2])]) };
+      case 'new': {
+        var created = wasm.gx_core_new();
+        live.add(created);
+        return { value: created };
+      }
+      case 'dispose':
+        live.delete(handle);
+        wasm.gx_core_dispose(handle);
+        return { value: null };
+      case 'handle':
+        return { raw: callText('gx_core_handle', [handle], [str(args[0]), str(args[1])]) };
+      case 'frameAt': {
+        var last = typeof args[0] === 'number' ? args[0] : -1;
+        var now = typeof args[1] === 'number' ? args[1] : Date.now();
+        return { raw: take(wasm.gx_core_frame_at(handle, last, now)) };
+      }
+      case 'query':
+        return { raw: callText('gx_core_query', [handle], [str(args[0]), str(args[1])]) };
+      case 'nextWakeMs': {
+        var wake = wasm.gx_core_next_wake_ms(handle);
+        return { value: wake < 0 ? null : wake };
+      }
+      case 'revision':
+        return { value: wasm.gx_core_revision(handle) };
+      case 'forgetSent':
+        return { raw: take(wasm.gx_core_forget_sent(handle)) };
+      case 'allocateRequestId':
+        return { value: wasm.gx_core_allocate_request_id(handle) };
+      default:
+        return { error: { code: 'unknownOp', message: 'No op named ' + JSON.stringify(op) + '.' } };
+    }
+  }
+
+  function errorReply(id, error) {
+    return JSON.stringify({ id: id, ok: false, error: error });
+  }
+
+  // One request to one reply text.
+  function answer(request) {
+    var id = request && typeof request.id === 'number' ? request.id : null;
+    if (crashed !== null) return errorReply(id, { code: 'crashed', message: crashed });
+    if (wasm === null) return errorReply(id, { code: 'notReady', message: 'The chat core is still loading.' });
+    var outcome;
+    try {
+      outcome = run(request.op, request.handle, request.args);
+    } catch (error) {
+      crashed = String((error && error.message) || error);
+      post(JSON.stringify({ type: 'crashed', error: crashed }));
+      return errorReply(id, { code: 'crashed', message: crashed });
+    }
+    if (outcome.error) return errorReply(id, outcome.error);
+    if (outcome.raw !== undefined) {
+      if (outcome.raw.lastIndexOf(ERROR_PREFIX, 0) === 0) {
+        var parsed = null;
+        try { parsed = JSON.parse(outcome.raw).error; } catch (ignored) {}
+        return errorReply(id, parsed || { code: 'unknown', message: outcome.raw });
+      }
+      return '{"id":' + JSON.stringify(id) + ',"ok":true,"result":' + outcome.raw + '}';
+    }
+    return JSON.stringify({ id: id, ok: true, result: outcome.value });
+  }
+
+  function receive(message) {
+    var request;
+    try {
+      request = typeof message === 'string' ? JSON.parse(message) : message;
+    } catch (error) {
+      post(errorReply(null, { code: 'badRequest', message: 'Not JSON: ' + String(error) }));
+      return;
+    }
+    if (request && Array.isArray(request.batch)) {
+      post('{"batch":[' + request.batch.map(answer).join(',') + ']}');
+    } else {
+      post(answer(request));
+    }
+  }
+
+  function onMessageEvent(event) {
+    if (event && typeof event.data === 'string') receive(event.data);
+  }
+
+  function decodeBase64(text) {
+    var binary = atob(text);
+    var out = new Uint8Array(binary.length);
+    for (var i = 0; i < binary.length; i++) out[i] = binary.charCodeAt(i);
+    return out;
+  }
+
+  window.gxChatCore = { receive: receive };
+  window.addEventListener('message', onMessageEvent);
+  document.addEventListener('message', onMessageEvent);
+
+  var started = Date.now();
+  var module;
+  try {
+    module = decodeBase64(WASM_BASE64);
+  } catch (error) {
+    post(JSON.stringify({ type: 'failed', error: 'The page carries no wasm: ' + String(error) }));
+    return;
+  }
+  WebAssembly.instantiate(module, {}).then(
+    function (result) {
+      wasm = result.instance.exports;
+      var seed = new Uint32Array(2);
+      crypto.getRandomValues(seed);
+      wasm.gx_seed(seed[0], seed[1]);
+      post(JSON.stringify({
+        type: 'ready',
+        version: take(wasm.gx_version()),
+        wasmBytes: module.length,
+        instantiateMs: Date.now() - started,
+      }));
+    },
+    function (error) {
+      post(JSON.stringify({ type: 'failed', error: String((error && error.message) || error) }));
+    }
+  );
+})();
+</script>
+</body>
+</html>

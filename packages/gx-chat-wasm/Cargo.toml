@@ -1,0 +1,26 @@
+# CDXC:SessionChat 2026-10-23 SEE-ALSO: the phone's chat core as WebAssembly, for the hidden WebView
+# in docs/2026-10-23/mobile-ota/webview-core/PLAN.md. A C ABI over packages/gx-chat-json, the JSON
+# layer the UniFFI binding (packages/gx-chat-mobile) uses too, so both answer byte for byte alike.
+# `cargo xtask build-mobile-chat-wasm` builds it and writes the page that loads it
+# (apps/mobile/app/assets/chat-core/chat-core.html, from page/chat-core.html).
+[package]
+name = "ghostex-gx-chat-wasm"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+name = "gx_chat_wasm"
+path = "src/lib.rs"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+ghostex-gx-chat-json = { path = "../gx-chat-json" }
+
+[profile.release]
+# wasm32 cannot unwind: a panic traps the instance, and the page treats that as every core gone.
+panic = "abort"
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+strip = "debuginfo"

@@ -415,8 +415,8 @@ const PRODUCT_LIST = [
      *
      * The Rust chat core is the second exception, on the same terms: the submodule's
      * modules/gx-chat-core loads libgx_chat_mobile.so and its UniFFI Kotlin bindings,
-     * which the Android job builds from packages/gx-chat-mobile (and the gx-chat-core,
-     * gx-protocol and gx-visual crates it compiles in) and never commits. Without these
+     * which the Android job builds from packages/gx-chat-mobile (and the gx-chat-json,
+     * gx-chat-core, gx-protocol and gx-visual crates it compiles in) and never commits. Without these
      * pathspecs a release that changed only the chat core would reuse the previous APK.
      * The same job exports the release's over-the-air update (tooling/release-mobile/ota-export.sh).
      *
@@ -437,9 +437,14 @@ const PRODUCT_LIST = [
       { pathspec: 'apps/mobile/tailcat-bridge/**' },
       { pathspec: ':(exclude)apps/mobile/tailcat-bridge/build' },
       { pathspec: 'packages/gx-chat-mobile/**' },
+      { pathspec: 'packages/gx-chat-json/**' },
       { pathspec: 'packages/gx-chat-core/**' },
       { pathspec: 'packages/gx-protocol/**' },
       { pathspec: 'packages/gx-visual/**' },
+      { pathspec: 'packages/gx-chat-wasm/**' },
+      { pathspec: ':(exclude)packages/gx-chat-wasm/target' },
+      { pathspec: 'tooling/release-mobile/chat-core-page.sh' },
+      { pathspec: 'tooling/xtask/src/mobile_chat_wasm.rs' },
       { pathspec: 'tooling/release-mobile/android.sh' },
       { pathspec: 'tooling/release-mobile/ota-export.sh' },
       { pathspec: 'tooling/release-gpui/android.sh' },

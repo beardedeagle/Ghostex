@@ -77,6 +77,20 @@ jobs:
           test -s "$MODULE/Generated/gx_chat_mobile.swift"
           test -s "$MODULE/Vendor/GxChatMobile.xcframework/ios-arm64/libgx_chat_mobile.a"
           test -s "$MODULE/Vendor/GxChatMobile.xcframework/ios-arm64-simulator/libgx_chat_mobile.a"
+      # The chat core as WebAssembly for the app's hidden WebView ("Browser view" chat brain), cached
+      # on exactly its inputs (tooling/release-mobile/chat-core-page.sh pins binaryen). Metro bundles
+      # the page into the app and into the over-the-air update.
+      - name: Restore the chat core page
+        id: chat_core_page_cache
+        uses: actions/cache@v6
+        with:
+          path: apps/mobile/app/assets/chat-core/chat-core.html
+          key: chat-core-page-${{ runner.os }}-${{ hashFiles('packages/gx-chat-wasm/src/**', 'packages/gx-chat-wasm/page/**', 'packages/gx-chat-wasm/Cargo.*', 'packages/gx-chat-wasm/rust-toolchain.toml', 'packages/gx-chat-json/**', 'packages/gx-chat-core/**', 'packages/gx-protocol/**', 'packages/gx-visual/**', 'tooling/xtask/src/mobile_chat_wasm.rs', 'tooling/release-mobile/chat-core-page.sh') }}
+      - name: Build the chat core page
+        if: steps.chat_core_page_cache.outputs.cache-hit != 'true'
+        run: tooling/release-mobile/chat-core-page.sh
+      - name: Verify the chat core page
+        run: test -s apps/mobile/app/assets/chat-core/chat-core.html
       - name: Install repository dependencies
         run: bun install --frozen-lockfile
       - name: Install JavaScript dependencies

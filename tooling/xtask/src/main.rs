@@ -6,6 +6,7 @@ mod gxserver;
 mod help;
 mod http;
 mod isolated;
+mod mobile_chat_wasm;
 mod remote_build;
 mod start;
 mod start_server;
@@ -49,6 +50,8 @@ Checks and generators
                           write the phone's chat-capable agent list
   generate-mobile-tabler-icons
                           regenerate the phone's Tabler icon set
+  build-mobile-chat-wasm  build the phone's chat core as WebAssembly into
+                          apps/mobile/app/assets/chat-core/chat-core.html (needs binaryen's wasm-opt)
 
 Other
   gxserver-remote-linux [--arch x64|arm64|all] [--allow-cross] | --release
@@ -93,6 +96,7 @@ fn main() {
         "generate-mobile-tabler-icons" => {
             tasks::mobile_script(&name, "generate-tabler-icons.mjs", &args)
         }
+        "build-mobile-chat-wasm" => mobile_chat_wasm::run(&args),
         "gxserver-remote-linux" => tasks::gxserver_remote_linux(&args),
         "history" => tasks::history(&args),
         "cli" => tasks::cli(&args),
