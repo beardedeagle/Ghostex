@@ -342,8 +342,16 @@ fn filter_pending_sends(
     if still_open.is_empty() {
         return Vec::new();
     }
-    let all_rows: Vec<&ChatMessage> = messages.iter().collect();
-    let glued = select_pending_indices_represented(&still_open, &texts(&all_rows));
+    // CDXC:SessionChat 2026-10-23 WHY: the glued match reads the text of every user message in
+    // the transcript, and it can only match two echoes or more. A prompt queued behind a long turn
+    // kept one echo open for the whole turn, and a 3,400-message chat paid about 35 ms of every
+    // event for texts nothing read.
+    let glued = if still_open.len() < 2 {
+        Vec::new()
+    } else {
+        let all_rows: Vec<&ChatMessage> = messages.iter().collect();
+        select_pending_indices_represented(&still_open, &texts(&all_rows))
+    };
 
     let mut embedded: Vec<usize> = Vec::new();
     for (index, entry) in still_open.iter().enumerate() {

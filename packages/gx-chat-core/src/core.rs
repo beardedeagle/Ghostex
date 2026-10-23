@@ -13,6 +13,7 @@ use crate::document::{
 use crate::effect::Effect;
 use crate::event::Event;
 use crate::state::{ChatContext, ChatState};
+use crate::transcript::items::ItemRows;
 
 /// One chat's brain.
 ///
@@ -74,7 +75,7 @@ pub struct SentFrame {
     /// The parts counter the host was last sent, so a drain after a publish ships all four
     /// channels and a drain without one ships none.
     parts_revision: u64,
-    items: Option<std::sync::Arc<Vec<TranscriptItem>>>,
+    items: Option<std::sync::Arc<crate::transcript::items::TranscriptItems>>,
     item_identities: Vec<u64>,
     subagent_items: Option<Vec<TranscriptItem>>,
     minimap: Option<Vec<MinimapMarker>>,
@@ -212,8 +213,8 @@ impl ChatCore {
                 self.sent
                     .items
                     .as_deref()
-                    .map(|items| (items.as_slice(), self.sent.item_identities.as_slice())),
-                (self.parts.items.as_slice(), &self.parts.item_identities),
+                    .map(|items| (items, self.sent.item_identities.as_slice())),
+                (self.parts.items.as_ref(), &self.parts.item_identities),
             );
             self.sent.items = Some(std::sync::Arc::clone(&self.parts.items));
             self.sent.item_identities = self.parts.item_identities.clone();
@@ -231,7 +232,7 @@ impl ChatCore {
                         .subagent_items
                         .as_deref()
                         .map(|items| (items, &[][..])),
-                    (&self.parts.subagent_items, &[]),
+                    (self.parts.subagent_items.as_slice(), &[]),
                 );
                 self.sent.subagent_items = Some(self.parts.subagent_items.clone());
                 (!splice.changes_nothing()).then_some(splice)
@@ -368,8 +369,13 @@ impl ChatCore {
         // so it is not serialized again here to be compared on every other event; the subagent
         // list is compared where it is stored instead of through a copy.
         let parts_moved = rebuilt
-            || self.state.extras.subagent.view.items.as_slice()
-                != self.parts.subagent_items.as_slice()
+            || !self
+                .state
+                .extras
+                .subagent
+                .view
+                .items
+                .eq_slice(&self.parts.subagent_items)
             || crate::transcript::row_details(&self.state, &self.published_context)
                 != self.parts.row_details;
         // `probe.reactive() != self.document.reactive()` without copying both documents: the one
@@ -487,37 +493,45 @@ fn expand(event: Event) -> Vec<Event> {
 ///
 /// Each side is the items and their identities ([`FrameParts::item_identities`]): an item is the
 /// same object only when its value AND its identity are unchanged.
-fn splice(
-    previous: Option<(&[TranscriptItem], &[u64])>,
-    next: (&[TranscriptItem], &[u64]),
+///
+/// A row both lists hold from one shared chunk (the settled turns, `transcript/items.rs`) is the same
+/// value, so only its identity is compared.
+fn splice<Rows: ItemRows + ?Sized>(
+    previous: Option<(&Rows, &[u64])>,
+    next: (&Rows, &[u64]),
 ) -> ItemsSplice {
     let (next, next_identities) = next;
     let Some((previous, previous_identities)) = previous else {
         return ItemsSplice {
             start: 0,
             delete_count: 0,
-            items: next.to_vec(),
-            length: next.len(),
+            items: (0..next.row_count())
+                .map(|at| next.row(at).clone())
+                .collect(),
+            length: next.row_count(),
         };
     };
     let identity = |identities: &[u64], at: usize| identities.get(at).copied().unwrap_or_default();
     let same = |left: usize, right: usize| {
-        previous[left] == next[right]
-            && identity(previous_identities, left) == identity(next_identities, right)
+        identity(previous_identities, left) == identity(next_identities, right)
+            && (previous.same_row(left, next, right) || previous.row(left) == next.row(right))
     };
-    let limit = previous.len().min(next.len());
+    let (previous_len, next_len) = (previous.row_count(), next.row_count());
+    let limit = previous_len.min(next_len);
     let mut start = 0;
     while start < limit && same(start, start) {
         start += 1;
     }
     let mut end = 0;
-    while end < limit - start && same(previous.len() - 1 - end, next.len() - 1 - end) {
+    while end < limit - start && same(previous_len - 1 - end, next_len - 1 - end) {
         end += 1;
     }
     ItemsSplice {
         start,
-        delete_count: previous.len() - start - end,
-        items: next[start..next.len() - end].to_vec(),
-        length: next.len(),
+        delete_count: previous_len - start - end,
+        items: (start..next_len - end)
+            .map(|at| next.row(at).clone())
+            .collect(),
+        length: next_len,
     }
 }

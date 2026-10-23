@@ -61,6 +61,7 @@ fn scope<'a>(
         question_tags: Vec::new(),
         agent_message_deliveries: None,
         backfilled: &view.backfilled,
+        question_forms: std::cell::OnceCell::new(),
     }
 }
 
@@ -134,7 +135,9 @@ pub fn refresh(state: &mut ChatState, context: &ChatContext) {
     };
     let view = &mut state.extras.subagent.view;
     view.projected = cache;
-    view.items = std::sync::Arc::new(projection.items);
+    view.items = std::sync::Arc::new(crate::transcript::items::TranscriptItems::from_items(
+        projection.items,
+    ));
     view.final_ids = projection.final_ids;
     view.answered_pages = projection.answered_pages;
     view.question_forms = projection.question_forms;
@@ -153,7 +156,7 @@ pub fn refresh(state: &mut ChatState, context: &ChatContext) {
 /// Pure, the way `crate::document::frame_parts` needs it to be: [`refresh`] does the work once per
 /// event and this hands back what it stored.
 pub fn rows(state: &ChatState, _context: &ChatContext) -> Vec<TranscriptItem> {
-    state.extras.subagent.view.items.as_ref().clone()
+    state.extras.subagent.view.items.to_vec()
 }
 
 /// `rowDetail(kind, messageId, index)` against the child transcript.

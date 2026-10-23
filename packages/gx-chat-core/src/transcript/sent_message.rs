@@ -13,7 +13,8 @@ use serde_json::{json, Value};
 use crate::document::TranscriptItem;
 use crate::event::KnownSession;
 use crate::transcript::agent_message_card::{
-    agent_display_name, apply_live_delivery, dress_received, dress_sent, subagent_label,
+    agent_display_name, apply_live_delivery, dress_received, dress_sent, live_delivery_key,
+    subagent_label,
 };
 use crate::transcript::jsstr::{ascii_lower, js_trim, last_path_segment};
 use crate::transcript::line_breaks::{agent_line_breaks, AgentLineBreaks};
@@ -440,7 +441,11 @@ pub fn project_sent_messages(
             });
             // Named again once the whole transcript is read (`resolve_recipients`).
             complete(
-                &Directory::new(),
+                &Names {
+                    fleet: Directory::new(),
+                    learned: &[],
+                    log: None,
+                },
                 &HostDirectory::default(),
                 None,
                 std::slice::from_mut(&mut card),
@@ -493,8 +498,8 @@ fn recipient(sent: &SentAgentMessage) -> Value {
 }
 
 /// What the transcript says about a session or a background agent.
-#[derive(Clone, Default)]
-struct Known {
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Known {
     agent: String,
     title: String,
     /// One of this session's own background agents, named "<type> subagent".
@@ -504,6 +509,56 @@ struct Known {
 /// The recipient a reference names, as far as the transcript tells: the header of a message that
 /// session sent here, the call that started a background agent, or the result of an earlier send.
 type Directory = HashMap<String, Known>;
+
+/// What one stretch of rows teaches about the sessions and agents their messages name (`learn`),
+/// the first word on each reference winning.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct LearnedNames(Directory);
+
+/// Every name and delivery a resolution looked up, with what it found: while each still finds the
+/// same, resolving the same rows again changes nothing.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct RecipientLookups {
+    names: HashMap<String, Option<Known>>,
+    deliveries: HashMap<String, Option<Value>>,
+}
+
+/// The names a resolution reads: the Subagents roster first, then what each stretch of rows taught,
+/// in transcript order, which is the order one directory built over all of them would hold.
+struct Names<'a> {
+    fleet: Directory,
+    learned: &'a [&'a LearnedNames],
+    log: Option<std::cell::RefCell<RecipientLookups>>,
+}
+
+impl Names<'_> {
+    fn get(&self, key: &str) -> Option<&Known> {
+        let found = std::iter::once(&self.fleet)
+            .chain(self.learned.iter().map(|learned| &learned.0))
+            .find_map(|directory| directory.get(key));
+        if let Some(log) = &self.log {
+            log.borrow_mut()
+                .names
+                .entry(key.to_string())
+                .or_insert_with(|| found.cloned());
+        }
+        found
+    }
+
+    fn note_delivery(&self, recipient: &Value, deliveries: Option<&Value>) {
+        let (Some(log), Some(id)) = (&self.log, live_delivery_key(recipient)) else {
+            return;
+        };
+        log.borrow_mut()
+            .deliveries
+            .entry(id.to_string())
+            .or_insert_with(|| {
+                deliveries
+                    .and_then(|deliveries| deliveries.get(id))
+                    .cloned()
+            });
+    }
+}
 
 fn directory_key(reference: &str) -> String {
     js_trim(reference).to_lowercase()
@@ -643,7 +698,7 @@ fn looks_like_reference(target: &str) -> bool {
 
 /// A message from another session or a background agent, named from the host's session list or
 /// the transcript, then dressed again.
-fn complete_received(directory: &Directory, hosts: &HostDirectory, message: &mut Value) {
+fn complete_received(directory: &Names, hosts: &HostDirectory, message: &mut Value) {
     let inter = &mut message["interAgentMessage"];
     if !inter.is_object() {
         return;
@@ -679,7 +734,7 @@ fn complete_received(directory: &Directory, hosts: &HostDirectory, message: &mut
 /// Names one recipient: the session's title (the host's session list first, then its send's
 /// result, then the transcript), else its agent's name; a background agent is "<type> subagent".
 /// Empty when nothing names it, which the card reads as "another agent".
-fn name_recipient(directory: &Directory, hosts: &HostDirectory, recipient: &mut Value) {
+fn name_recipient(directory: &Names, hosts: &HostDirectory, recipient: &mut Value) {
     let target = text(recipient, "target").to_string();
     let global_ref = text(recipient, "globalRef").to_string();
     let (target, global_ref) = (target.as_str(), global_ref.as_str());
@@ -743,7 +798,7 @@ fn name_recipient(directory: &Directory, hosts: &HostDirectory, recipient: &mut 
 /// Names each card's recipients, brings their status up to date from gxserver's delivery watch
 /// (`deliveries`), and writes its `card`.
 fn complete(
-    directory: &Directory,
+    directory: &Names,
     hosts: &HostDirectory,
     deliveries: Option<&Value>,
     cards: &mut [Value],
@@ -752,6 +807,7 @@ fn complete(
         if let Some(recipients) = sent["recipients"].as_array_mut() {
             for recipient in recipients.iter_mut() {
                 name_recipient(directory, hosts, recipient);
+                directory.note_delivery(recipient, deliveries);
                 apply_live_delivery(recipient, deliveries);
             }
             if let Some(first) = recipients.first() {
@@ -808,27 +864,139 @@ pub fn resolve_recipients(
     sessions: &[KnownSession],
     deliveries: Option<&Value>,
 ) {
-    let hosts = HostDirectory::new(sessions);
+    let learned = learn_names(items);
+    resolve_recipients_after(items, agent_fleet, sessions, deliveries, &[&learned], false);
+}
+
+/// What `items` teach about the sessions and agents their messages name.
+pub fn learn_names(items: &[TranscriptItem]) -> LearnedNames {
     let mut directory = Directory::new();
-    learn_fleet(&mut directory, agent_fleet);
-    for item in items.iter_mut() {
-        for message in messages_mut(item) {
+    for item in items {
+        for message in messages_of(item) {
             learn(&mut directory, message);
         }
     }
+    LearnedNames(directory)
+}
+
+/// [`resolve_recipients`] for rows whose names are spread over several stretches of the transcript:
+/// `learned` is what each stretch taught, oldest first, `items`' own stretch among them. With
+/// `log`, every lookup is recorded, so a later pass can tell whether these rows would still
+/// resolve the same ([`lookups_hold`]).
+pub fn resolve_recipients_after(
+    items: &mut [TranscriptItem],
+    agent_fleet: Option<&Value>,
+    sessions: &[KnownSession],
+    deliveries: Option<&Value>,
+    learned: &[&LearnedNames],
+    log: bool,
+) -> RecipientLookups {
+    let hosts = HostDirectory::new(sessions);
+    let mut fleet = Directory::new();
+    learn_fleet(&mut fleet, agent_fleet);
+    let directory = Names {
+        fleet,
+        learned,
+        log: log.then(|| std::cell::RefCell::new(RecipientLookups::default())),
+    };
+    let directory = &directory;
     for item in items.iter_mut() {
         for message in messages_mut(item) {
-            complete_received(&directory, &hosts, message);
+            complete_received(directory, &hosts, message);
             if let Some(cards) = message
                 .get_mut("sentMessages")
                 .and_then(Value::as_array_mut)
             {
-                complete(&directory, &hosts, deliveries, cards);
+                complete(directory, &hosts, deliveries, cards);
             }
         }
         // A finished turn's hoisted cards are copies of its work rows' own.
         if let TranscriptItem::CompletedWork { sent_messages, .. } = item {
-            complete(&directory, &hosts, deliveries, sent_messages);
+            complete(directory, &hosts, deliveries, sent_messages);
         }
+    }
+    directory
+        .log
+        .as_ref()
+        .map(|log| log.take())
+        .unwrap_or_default()
+}
+
+impl LearnedNames {
+    /// Adds what a later stretch taught, keeping every name this already holds: the one directory
+    /// both stretches together teach.
+    pub fn extend_after(&mut self, later: &LearnedNames) {
+        for (key, known) in &later.0 {
+            self.0.entry(key.clone()).or_insert_with(|| known.clone());
+        }
+    }
+}
+
+/// The names a check reads ([`NameCheck::holds`]): the Subagents roster, then each stretch's names
+/// in transcript order. Built once for every chunk a pass checks.
+pub struct NameCheck<'a> {
+    names: Names<'a>,
+    deliveries: Option<&'a Value>,
+}
+
+impl<'a> NameCheck<'a> {
+    pub fn new(
+        agent_fleet: Option<&Value>,
+        learned: &'a [&'a LearnedNames],
+        deliveries: Option<&'a Value>,
+    ) -> Self {
+        let mut fleet = Directory::new();
+        learn_fleet(&mut fleet, agent_fleet);
+        Self {
+            names: Names {
+                fleet,
+                learned,
+                log: None,
+            },
+            deliveries,
+        }
+    }
+
+    /// Whether rows resolved with `lookups` recorded would resolve the same now: every name they
+    /// looked up still finds what it found, and every delivery they read is still what it was.
+    pub fn holds(&self, lookups: &RecipientLookups) -> bool {
+        lookups
+            .names
+            .iter()
+            .all(|(key, found)| self.names.get(key) == found.as_ref())
+            && lookups.deliveries.iter().all(|(id, found)| {
+                self.deliveries.and_then(|deliveries| deliveries.get(id)) == found.as_ref()
+            })
+    }
+}
+
+/// [`messages_mut`] read-only.
+fn messages_of(item: &TranscriptItem) -> Vec<&Value> {
+    match item {
+        TranscriptItem::Message { message } => vec![message],
+        TranscriptItem::Summary {
+            user,
+            final_message,
+            earlier_replies,
+            work,
+            outcome,
+            ..
+        } => std::iter::once(user)
+            .chain(final_message.iter())
+            .chain(earlier_replies.iter())
+            .chain(work.iter())
+            .chain(outcome.iter())
+            .collect(),
+        TranscriptItem::CompletedWork {
+            work,
+            artifacts,
+            final_message,
+            ..
+        } => work
+            .iter()
+            .chain(artifacts.iter())
+            .chain(final_message.iter())
+            .collect(),
+        TranscriptItem::Unknown(_) => Vec::new(),
     }
 }

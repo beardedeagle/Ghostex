@@ -14,7 +14,7 @@ use crate::session::constants::{
     STALL_CHECK_INTERVAL_MS, STALL_THRESHOLD_MS, TIMER_READ_DEADLINE, TIMER_RESYNC_FOLLOW_UP,
     TIMER_RESYNC_RETRY, TIMER_SEED_RETRY, TIMER_STALL, TIMER_TERMINAL_TOOL_HOLD,
 };
-use crate::session::fold::{fold_append, fold_state, FoldedSnapshot, StateCarrier};
+use crate::session::fold::{fold_state, FoldedSnapshot, StateCarrier};
 use crate::session::frame_publish::{side_state_moves, FrameIdentity};
 use crate::session::pagination::{page_has_more, PageBoundary};
 use crate::session::reads::{
@@ -403,18 +403,18 @@ fn frame_arrived(state: &mut ChatState, frame: &ChatFrame, context: &ChatContext
                 Verdict::Drop => Vec::new(),
                 Verdict::Resync => request_resync(state, context),
                 Verdict::Apply => {
-                    let Some(previous) = state.messages.snapshot.clone() else {
+                    // Folded in place: nothing below reads the retained fold before it is put back.
+                    let Some(mut folded) = state.messages.snapshot.take() else {
                         return request_resync(state, context);
                     };
                     // Retract first: the rows that replace an abandoned prompt can ride the very
                     // same frame.
                     if state.messages.remove_ids(&appended.superseded_message_ids) {
-                        state.messages.snapshot = Some(previous.clone());
                         state.messages.authoritative_revision += 1;
                         // `setTranscript(mergerRef.current.list)` on a retraction.
                         state.messages.new_composition_identity();
                     }
-                    let folded = fold_append(&previous, appended);
+                    crate::session::fold::fold_append_into(&mut folded, appended);
                     if !appended.messages.is_empty() {
                         state.messages.apply_append(&appended.messages);
                         // `setTranscript(mergerRef.current.list)`: `applySessionChatMergerAppend`
@@ -455,8 +455,16 @@ fn frame_arrived(state: &mut ChatState, frame: &ChatFrame, context: &ChatContext
                 Verdict::Apply => {
                     // The retained fold still absorbs the frame (that is what the host persists
                     // and what a reopen seeds from); the VIEW takes the frame's own fields.
-                    let folded =
-                        fold_state(state.messages.snapshot.as_ref(), StateCarrier::State(frame));
+                    // A state frame carries no rows and folds none, so the fold's rows are moved
+                    // across rather than copied with everything else on every streamed sample.
+                    let mut previous = state.messages.snapshot.take();
+                    let rows = previous
+                        .as_mut()
+                        .map(|previous| std::mem::take(&mut previous.result.messages));
+                    let mut folded = fold_state(previous.as_ref(), StateCarrier::State(frame));
+                    if let Some(rows) = rows {
+                        folded.result.messages = rows;
+                    }
                     state.messages.snapshot = Some(folded);
                     let before = FrameIdentity::capture(state);
                     let moved =

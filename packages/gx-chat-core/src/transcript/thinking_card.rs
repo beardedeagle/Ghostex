@@ -40,6 +40,19 @@ impl RunningThinking {
         Self { ids, live }
     }
 
+    /// The reasoning rows that get a card.
+    pub fn ids(&self) -> &[String] {
+        &self.ids
+    }
+
+    /// The card a reasoning row gets: `Some(live)`, or `None` when it gets none.
+    pub fn card(&self, id: &str) -> Option<bool> {
+        self.ids
+            .iter()
+            .any(|known| known == id)
+            .then(|| self.live.as_deref() == Some(id))
+    }
+
     /// Adds `thinkingCard` to a projected reasoning row of the running turn.
     pub fn mark(&self, message: &ChatMessage, row: &mut Value) {
         if !self.ids.iter().any(|id| id == &message.id) {

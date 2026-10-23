@@ -31,7 +31,7 @@ pub fn assemble(state: &ChatState, context: &ChatContext) -> Document {
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct FrameParts {
     /// The main transcript list. Family b. The projection's own list, shared rather than copied.
-    pub items: std::sync::Arc<Vec<TranscriptItem>>,
+    pub items: std::sync::Arc<crate::transcript::items::TranscriptItems>,
     /// The open subagent's transcript. Family f.
     pub subagent_items: Vec<TranscriptItem>,
     /// The minimap rail. Family f.
@@ -119,7 +119,7 @@ pub fn frame_parts(state: &ChatState, context: &ChatContext) -> FrameParts {
 pub fn frame_parts_with_items(
     state: &ChatState,
     context: &ChatContext,
-    items: std::sync::Arc<Vec<TranscriptItem>>,
+    items: std::sync::Arc<crate::transcript::items::TranscriptItems>,
 ) -> FrameParts {
     let item_identities = items
         .iter()

@@ -331,13 +331,37 @@ impl Assembler {
 /// indexes, the sorted list and the answer, and computed each turn key (the whole text, lowercased
 /// and collapsed) up to four times, so a new message on a long chat paid for the whole history
 /// several times over. Here the indexes hold positions, and every turn key is computed once.
+///
+/// CDXC:SessionChat 2026-10-23 WHY: The turn key index merges only rows from different sources,
+/// so on a list of one source (every transcript read so far is all `transcript`) it can merge
+/// nothing, and the keys are computed only for the rare row whose id another row already holds.
+/// Computing them all was most of the cost of each new row on a long chat.
 pub fn assembled_messages(list: &[ChatMessage]) -> Vec<ChatMessage> {
     enum Outcome {
         Drop,
         Replace(usize),
         Insert,
     }
-    let keys: Vec<String> = list.iter().map(turn_key).collect();
+    let single_source = list.windows(2).all(|pair| pair[0].source == pair[1].source);
+    let keys: Vec<String> = if single_source {
+        Vec::new()
+    } else {
+        list.iter().map(turn_key).collect()
+    };
+    let mut computed: Vec<Option<String>> = if single_source {
+        vec![None; list.len()]
+    } else {
+        Vec::new()
+    };
+    let mut key_at = |at: usize| -> String {
+        if single_source {
+            computed[at]
+                .get_or_insert_with(|| turn_key(&list[at]))
+                .clone()
+        } else {
+            keys[at].clone()
+        }
+    };
     // One per stored row: its position in `list` (also its arrival stamp) and the id it is
     // stored under, its own or the shadowed one it was re-keyed to.
     let mut entries: Vec<(usize, String)> = Vec::new();
@@ -354,7 +378,7 @@ pub fn assembled_messages(list: &[ChatMessage]) -> Vec<ChatMessage> {
                 let occupant = entries[existing].0;
                 let collides = match (list[occupant].byte_offset, message.byte_offset) {
                     (Some(left), Some(right)) => left != right,
-                    _ => keys[occupant] != keys[at],
+                    _ => key_at(occupant) != key_at(at),
                 };
                 if !collides {
                     break 'merge if outranks(at, occupant) {
@@ -364,7 +388,7 @@ pub fn assembled_messages(list: &[ChatMessage]) -> Vec<ChatMessage> {
                     };
                 }
                 id = match message.byte_offset {
-                    None => format!("{}#{}", message.id, turn_key_digest(&keys[at])),
+                    None => format!("{}#{}", message.id, turn_key_digest(&key_at(at))),
                     Some(offset) => format!("{}@{offset}", message.id),
                 };
                 if let Some(shadow) = by_id.get(&id).copied() {
@@ -375,7 +399,10 @@ pub fn assembled_messages(list: &[ChatMessage]) -> Vec<ChatMessage> {
                     };
                 }
             }
-            if let Some(existing) = by_turn.get(keys[at].as_str()).copied() {
+            if let Some(existing) = (!single_source)
+                .then(|| by_turn.get(keys[at].as_str()).copied())
+                .flatten()
+            {
                 if list[entries[existing].0].source != message.source {
                     break 'merge if outranks(at, entries[existing].0) {
                         Outcome::Replace(existing)
@@ -392,13 +419,17 @@ pub fn assembled_messages(list: &[ChatMessage]) -> Vec<ChatMessage> {
             Outcome::Replace(previous) => {
                 let previous_at = entries[previous].0;
                 by_id.remove(&entries[previous].1);
-                by_turn.remove(keys[previous_at].as_str());
+                if !single_source {
+                    by_turn.remove(keys[previous_at].as_str());
+                }
             }
             Outcome::Insert => {}
         }
         entries.push((at, id.clone()));
         by_id.insert(id, entries.len() - 1);
-        by_turn.insert(keys[at].as_str(), entries.len() - 1);
+        if !single_source {
+            by_turn.insert(keys[at].as_str(), entries.len() - 1);
+        }
     }
     // `sorted_values`: the id index's rows in key order, stably sorted by `compare`.
     let mut order: Vec<usize> = by_id.values().copied().collect();

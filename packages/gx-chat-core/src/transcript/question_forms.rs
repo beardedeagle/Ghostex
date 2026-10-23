@@ -73,6 +73,18 @@ pub fn form_fences(markdown: &str) -> Vec<(String, String)> {
 /// earlier questions (`open_questions.rs`) is not a form. A block that could not be read is
 /// marked `resent` once gxserver's message asking for it again is in the transcript.
 pub fn question_forms(messages: &[ChatMessage]) -> Vec<QuestionForm> {
+    let (mut forms, resent) = form_entries(messages, &[]);
+    mark_resent(&mut forms, &resent);
+    forms
+}
+
+/// The forms the replies in `messages` hold that `prior` (the forms of the messages before them)
+/// does not, and the ids gxserver's messages among them asked to have sent again: the reading half
+/// of [`question_forms`], before [`mark_resent`].
+pub fn form_entries(
+    messages: &[ChatMessage],
+    prior: &[QuestionForm],
+) -> (Vec<QuestionForm>, Vec<String>) {
     let mut forms: Vec<QuestionForm> = Vec::new();
     let mut resent: Vec<String> = Vec::new();
     for message in messages {
@@ -86,7 +98,7 @@ pub fn question_forms(messages: &[ChatMessage]) -> Vec<QuestionForm> {
             continue;
         }
         for (id, body) in form_fences(&prose_markdown(&message.blocks)) {
-            if !forms.iter().any(|form| form.id == id) {
+            if !prior.iter().chain(forms.iter()).any(|form| form.id == id) {
                 let form = parse_form(&body);
                 if !form.is_withdrawal() {
                     forms.push(form);
@@ -94,10 +106,15 @@ pub fn question_forms(messages: &[ChatMessage]) -> Vec<QuestionForm> {
             }
         }
     }
+    (forms, resent)
+}
+
+/// Marks a form that could not be read once gxserver's message asking for it again is in the
+/// transcript.
+pub fn mark_resent(forms: &mut [QuestionForm], resent: &[String]) {
     for form in forms.iter_mut().filter(|form| !form.error.is_empty()) {
         form.resent = resent.contains(&form.id);
     }
-    forms
 }
 
 /// Drops a ```questions block that could not be read once the agent's next reply holds a form that
@@ -109,6 +126,17 @@ pub fn question_forms(messages: &[ChatMessage]) -> Vec<QuestionForm> {
 /// CDXC:SessionChat 2026-10-21 DECISION:
 /// User (Q366): "Hide it entirely": once the questions were sent again successfully, the failed card disappears from the transcript and only the working form shows; the resend row (Ghostex's own message to the agent) goes with it. The re-ask is any readable form in the agent's replies between the resend row and the next user message.
 pub fn hide_redone_forms(messages: &mut Vec<ChatMessage>) -> Vec<String> {
+    let redone = redone_forms(messages);
+    if redone.is_empty() {
+        return Vec::new();
+    }
+    strip_redone_forms(messages, &redone);
+    redone.into_iter().map(|(_, resend)| resend).collect()
+}
+
+/// The forms [`hide_redone_forms`] drops, as `(form id, id of the resend message)`: each resend
+/// message the agent answered with a form that reads, before the next user message.
+pub fn redone_forms(messages: &[ChatMessage]) -> Vec<(String, String)> {
     let mut redone: Vec<(String, String)> = Vec::new();
     for (at, message) in messages.iter().enumerate() {
         if message.role != ChatRole::User {
@@ -133,8 +161,14 @@ pub fn hide_redone_forms(messages: &mut Vec<ChatMessage>) -> Vec<String> {
             redone.push((id.to_string(), message.id.clone()));
         }
     }
+    redone
+}
+
+/// Takes the ```questions blocks of the `redone` forms out of every reply, and a reply left with
+/// nothing out of the list.
+pub fn strip_redone_forms(messages: &mut Vec<ChatMessage>, redone: &[(String, String)]) {
     if redone.is_empty() {
-        return Vec::new();
+        return;
     }
     messages.retain_mut(|message| {
         if message.role != ChatRole::Assistant {
@@ -176,5 +210,4 @@ pub fn hide_redone_forms(messages: &mut Vec<ChatMessage>) -> Vec<String> {
         }
         !(stripped && message.blocks.is_empty())
     });
-    redone.into_iter().map(|(_, resend)| resend).collect()
 }

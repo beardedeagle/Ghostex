@@ -290,6 +290,13 @@ pub fn fold_state(previous: Option<&FoldedSnapshot>, incoming: StateCarrier<'_>)
 /// `foldSessionChatAppend`: new rows, and nothing else that is not on the frame.
 pub fn fold_append(previous: &FoldedSnapshot, event: &ChatAppendedFrame) -> FoldedSnapshot {
     let mut folded = previous.clone();
+    fold_append_into(&mut folded, event);
+    folded
+}
+
+/// [`fold_append`] into the retained fold itself, which every appended frame would otherwise copy
+/// whole, twice.
+pub fn fold_append_into(folded: &mut FoldedSnapshot, event: &ChatAppendedFrame) {
     folded.result.epoch = event.base.epoch;
     folded.result.seq = event.base.seq;
     if !event.superseded_message_ids.is_empty() {
@@ -300,14 +307,13 @@ pub fn fold_append(previous: &FoldedSnapshot, event: &ChatAppendedFrame) -> Fold
                 .any(|id| id == &message.id)
         });
     }
-    folded.result.messages = merge_messages(&folded.result.messages, &event.messages);
+    crate::session::merge::merge_messages_into(&mut folded.result.messages, &event.messages);
     if let Some(lifecycle) = event.lifecycle.clone() {
         folded.result.lifecycle = Some(lifecycle);
     }
     if !event.messages.is_empty() {
         folded.result.status = ChatStatus::Ready;
     }
-    folded
 }
 
 /// `mergeOptions`: the stronger evidence wins, then the later capture, and the three status

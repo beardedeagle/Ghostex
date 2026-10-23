@@ -26,8 +26,9 @@ use std::collections::BTreeMap;
 use ghostex_gx_protocol::ChatMessage;
 use serde_json::Value;
 
-use crate::document::{DeferredWorkRow, RowDetails, TranscriptItem};
+use crate::document::{DeferredWorkRow, RowDetails};
 use crate::transcript::deferred_work::{DeferredWalk, DeferredWorkCache};
+use crate::transcript::items::TranscriptItems;
 
 /// Items from the tail that are fully projected before the first publish; the rest backfill in
 /// batches of the same size.
@@ -88,7 +89,7 @@ pub struct TranscriptViewState {
     ///
     /// Shared with the frame parts and the record of what each renderer was sent, which would
     /// otherwise copy every row twice on each rebuild.
-    pub items: std::sync::Arc<Vec<TranscriptItem>>,
+    pub items: std::sync::Arc<TranscriptItems>,
     /// The newest finished turn's "Worked for 2m 13s", which the working card above the composer shows
     /// instead of that turn's fold (`extras::working_card`), or `None`.
     pub worked_line: Option<String>,
@@ -139,6 +140,10 @@ pub struct TranscriptViewState {
     /// `sentTranscriptItems === transcriptItems`, and a rebuilt list is a new array even when
     /// every row in it was reused.
     pub projection_revision: u64,
+    /// The turns before the newest accepted prompt (and the older rows of a long running turn),
+    /// built once and shared by every rebuild after them (`transcript/settled.rs`), or `None` until
+    /// a whole build could settle them.
+    pub settled: Option<crate::transcript::settled::SettledPrefix>,
     /// The host's session list, which names the other session on a message between agents.
     pub session_directory: Vec<crate::event::KnownSession>,
     /// Bumped whenever [`Self::session_directory`] changes, so the projection rebuilds.
@@ -232,6 +237,7 @@ impl Default for TranscriptViewState {
             fold_settled_at: None,
             projection_rebuilt: false,
             projection_revision: 0,
+            settled: None,
             session_directory: Vec::new(),
             session_directory_revision: 0,
         }
@@ -247,6 +253,7 @@ impl TranscriptViewState {
         self.backfilled.clear();
         self.items = Default::default();
         self.projection_inputs = None;
+        self.settled = None;
     }
 
     /// Whether any row is still drawn as a plain-text placeholder, which is what keeps the 0 ms

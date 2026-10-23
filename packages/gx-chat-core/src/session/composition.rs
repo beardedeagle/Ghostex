@@ -247,7 +247,10 @@ pub fn compose_cached(
     if state.messages.compose_key.as_ref() == Some(&key) {
         return;
     }
-    state.messages.composed = compose(state, catalog, preview_text, working);
+    let previous = std::mem::take(&mut state.messages.composed);
+    let (composed, part) = compose_after(state, catalog, preview_text, working, previous);
+    state.messages.composed = composed;
+    state.messages.transcript_part = Some(part);
     state.messages.compose_key = Some(key);
     state.messages.compose_generation = state.messages.compose_generation.wrapping_add(1);
 }
@@ -265,6 +268,25 @@ pub fn boundaried_transcript(state: &ChatState, catalog: &[String]) -> Vec<ChatM
     apply_marker_boundaries_in(surfaced, &state.pending.markers)
 }
 
+/// What the composed list's head, the transcript with the archived local commands reconciled into
+/// it, is built from.
+#[derive(Clone, Debug, PartialEq)]
+pub struct TranscriptPartKey {
+    pub boundaried: BoundariedKey,
+    pub app_commands: Vec<serde_json::Value>,
+    pub pending: Vec<ChatMessage>,
+    pub async_questions_since: Option<i64>,
+}
+
+/// The composed list's head as the last composition built it: what from, how many rows, and a
+/// revision that moves whenever the head was built again rather than kept.
+#[derive(Clone, Debug, PartialEq)]
+pub struct TranscriptPart {
+    pub key: TranscriptPartKey,
+    pub len: usize,
+    pub revision: u64,
+}
+
 /// The whole composed list the renderer sees.
 ///
 /// Everything with no authoritative record yet rides in the tail, in the order `controller.ts`
@@ -275,6 +297,23 @@ pub fn compose(
     preview_text: Option<&str>,
     working: bool,
 ) -> Vec<ChatMessage> {
+    compose_after(state, catalog, preview_text, working, Vec::new()).0
+}
+
+/// [`compose`], given the list the last composition built: when the head is built from the same
+/// transcript, app commands, echoes and retirement stamp, that list's head is kept rather than
+/// built again, and only the tail is.
+///
+/// CDXC:SessionChat 2026-10-23 WHY: Every streamed delta recomposes the list (the stream is a
+/// dependency), and building the head copied and reconciled the whole transcript each time, a few
+/// milliseconds per event on a long chat for rows that had not changed.
+fn compose_after(
+    state: &ChatState,
+    catalog: &[String],
+    preview_text: Option<&str>,
+    working: bool,
+    previous: Vec<ChatMessage>,
+) -> (Vec<ChatMessage>, TranscriptPart) {
     let rebuilt;
     let boundaried: &[ChatMessage] =
         if state.messages.boundaried_key.as_ref() == Some(&BoundariedKey::of(state)) {
@@ -286,25 +325,72 @@ pub fn compose(
     let queue = state.session.queue_prompts.clone().unwrap_or_default();
     let startup_pending =
         pending_with_startup_sends(&state.pending.sends, &queue, state.session.agent.as_deref());
-    let against = pending_transcript(state, &boundaried);
+    // The list an echo is matched against copies the transcript; with nothing pending there is
+    // nothing to match.
+    let visible = if startup_pending.is_empty() {
+        Vec::new()
+    } else {
+        visible_pending_sends(&startup_pending, &pending_transcript(state, boundaried))
+    };
     let pending_messages = crate::transcript::local_command::with_live_shell_output(
-        pending_sends_as_messages(&visible_pending_sends(&startup_pending, &against)),
+        pending_sends_as_messages(&visible),
         state.pending.terminal_shell.as_ref(),
-        &boundaried,
+        boundaried,
     );
-    let transcript = crate::transcript::local_command::without_shell_echo_queue_rows(
-        reconcile_local_command_output(&boundaried, &state.session.app_commands),
-        &pending_messages,
-    );
+    let key = TranscriptPartKey {
+        boundaried: BoundariedKey::of(state),
+        app_commands: state.session.app_commands.clone(),
+        pending: pending_messages.clone(),
+        async_questions_since: state.session.async_questions_since,
+    };
+    let kept = state
+        .messages
+        .transcript_part
+        .as_ref()
+        .filter(|part| part.key == key && previous.len() >= part.len);
+    let (mut composed, part) = match kept {
+        Some(part) => {
+            let mut composed = previous;
+            composed.truncate(part.len);
+            (
+                composed,
+                TranscriptPart {
+                    key,
+                    len: part.len,
+                    revision: part.revision,
+                },
+            )
+        }
+        None => {
+            let mut transcript = crate::transcript::local_command::without_shell_echo_queue_rows(
+                reconcile_local_command_output(boundaried, &state.session.app_commands),
+                &pending_messages,
+            );
+            retire_async_questions(state, &mut transcript);
+            let len = transcript.len();
+            let revision = state
+                .messages
+                .transcript_part
+                .as_ref()
+                .map_or(0, |part| part.revision.wrapping_add(1));
+            (transcript, TranscriptPart { key, len, revision })
+        }
+    };
+    let transcript = &composed[..];
 
     // A marker whose text an authoritative user row already carries is the same fact twice. The
     // texts are normalized only when a user marker needs them: doing it for every user row on
     // every composition made each new message on a long chat pay for the whole history.
     let authoritative_text = std::cell::OnceCell::new();
-    let marker_messages: Vec<ChatMessage> = markers_as_messages(
-        &retire_interrupt_markers(&state.pending.markers, &boundaried),
-        compaction_records(&state.messages.list),
-    )
+    // Counting the compactions classifies every transcript row, which only a marker reads.
+    let marker_messages: Vec<ChatMessage> = if state.pending.markers.is_empty() {
+        Vec::new()
+    } else {
+        markers_as_messages(
+            &retire_interrupt_markers(&state.pending.markers, boundaried),
+            compaction_records(&state.messages.list),
+        )
+    }
     .into_iter()
     .filter(|message| {
         !matches!(message.role, ChatRole::User)
@@ -323,16 +409,16 @@ pub fn compose(
     let marker_messages = retire_markers_covered_by_local_commands(
         &marker_messages,
         &state.session.app_commands,
-        &transcript,
+        transcript,
         &state.pending.markers,
     );
 
     // Order, from `controller.ts`: the transient terminal statuses, then the app-command rows, then
     // the markers, then the streaming bubble, then the pending echoes.
     let mut tail: Vec<ChatMessage> =
-        unreconciled_terminal_statuses(&state.pending.terminal_status_messages, &boundaried);
+        unreconciled_terminal_statuses(&state.pending.terminal_status_messages, boundaried);
     tail.extend(surface_skill_invocation_user_turns(
-        &app_commands_as_messages(&state.session.app_commands, &transcript),
+        &app_commands_as_messages(&state.session.app_commands, transcript),
         catalog,
         state.session.agent.as_deref(),
     ));
@@ -344,7 +430,7 @@ pub fn compose(
     let terminal_stream_text = state.pending.terminal_stream.as_ref().filter(|stream| {
         (stream.live || working)
             && !visible_tool.is_some_and(|tool| terminal_stream_is_tool(stream, tool))
-            && !terminal_stream_retired(stream, &boundaried)
+            && !terminal_stream_retired(stream, boundaried)
     });
     // `derive_streaming_text` reads only the last row of the transcript plus the pending echoes.
     let with_pending: Vec<ChatMessage> = pending_messages
@@ -369,11 +455,15 @@ pub fn compose(
     // CDXC:SessionChat 2026-10-18 DECISION: User (Q253, "card"): the pending tool card and the working row become one card (`extras::working_card`, since 2026-10-18 in its own row right above the composer). The pending tool no longer rides in the tail as a row of its own; the card's label shows it. Supersedes the 2026-10-17 open "Running now" section, gone with the card's opening ("let's make the pill itself not expandable at all").
     tail.extend(pending_messages);
 
-    let mut composed = transcript;
+    retire_async_questions(state, &mut tail);
     composed.extend(tail);
-    // An async question older than the retirement stamp is no longer offered.
+    (composed, part)
+}
+
+/// An async question older than the retirement stamp is no longer offered.
+fn retire_async_questions(state: &ChatState, messages: &mut [ChatMessage]) {
     if let Some(since) = state.session.async_questions_since {
-        for message in &mut composed {
+        for message in messages {
             if message.async_questions.is_some()
                 && message.timestamp.is_some_and(|stamp| stamp < since)
             {
@@ -381,5 +471,4 @@ pub fn compose(
             }
         }
     }
-    composed
 }
