@@ -2742,6 +2742,11 @@ sessions, so any client can control agents on any machine.
   built yourself is signed differently) and install the latest release's APK;
   if it still fails, `adb install ghostex-android.apk` from a computer shows
   the real reason.
+  The phone app keeps itself up to date: most releases download in the
+  background and apply the next time the app starts, or right away with
+  Restart to update in the phone's Settings > Updates, which also shows the
+  running version. A release that needs a new app shows Update available
+  there instead, with a Download button on the GitHub APK.
   With Auto reconnect enabled in the phone's Settings > Connection, the phone
   checks the connection when you return to the app or its network changes and
   reconnects interrupted agent terminals. Tap a red cloud or choose Reconnect

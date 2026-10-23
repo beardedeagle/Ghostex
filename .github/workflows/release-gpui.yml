@@ -654,6 +654,48 @@ jobs:
       plan: ${{ needs.prepare.outputs.plan }}
     secrets: inherit
 
+  # The phone app's over-the-air update for this release (tooling/release-mobile/ota-server/README.md):
+  # the JavaScript the Android job exported, signed and uploaded to ota.ghostex.dev. It runs only
+  # after the Android stage published, so phones never run JavaScript from a release that did not
+  # come out, and never for a prerelease. Until the two secrets exist it says so and does nothing.
+  publish_ota:
+    if: >-
+      ${{
+        always() &&
+        !inputs.build_only &&
+        !inputs.prerelease &&
+        needs.prepare.outputs.job_android == 'build' &&
+        needs.publish_android.result == 'success'
+      }}
+    needs:
+      - prepare
+      - publish_android
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout: tooling/release-mobile
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.22.1
+      - uses: actions/download-artifact@v8
+        with:
+          name: ota-bundles
+          path: build/ota
+      - name: Sign and publish the over-the-air update
+        env:
+          GHOSTEX_OTA_SIGNING_KEY: ${{ secrets.GHOSTEX_OTA_SIGNING_KEY }}
+          GHOSTEX_OTA_UPLOAD_TOKEN: ${{ secrets.GHOSTEX_OTA_UPLOAD_TOKEN }}
+        run: |
+          if [ -z "$GHOSTEX_OTA_SIGNING_KEY" ] || [ -z "$GHOSTEX_OTA_UPLOAD_TOKEN" ]; then
+            echo "::notice::GHOSTEX_OTA_SIGNING_KEY or GHOSTEX_OTA_UPLOAD_TOKEN is not set, so phones get this release only as a new app (tooling/release-mobile/ota-server/README.md)."
+            exit 0
+          fi
+          node tooling/release-mobile/ota-publish.mjs publish build/ota
+
   publish_linux:
     if: >-
       ${{

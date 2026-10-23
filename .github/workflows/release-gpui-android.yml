@@ -174,7 +174,7 @@ jobs:
           path: |
             apps/mobile/app/modules/gx-chat-core/android/src/main/jniLibs
             apps/mobile/app/modules/gx-chat-core/android/src/main/java/dev/ghostex/gxchatcore/uniffi
-          key: gx-chat-core-android-${{ runner.os }}-ndk${{ env.ANDROID_NDK_VERSION }}-abis-${{ env.GHOSTEX_ANDROID_ABIS }}-cargo-ndk${{ env.CARGO_NDK_VERSION }}-${{ hashFiles('packages/gx-chat-mobile/**', 'packages/gx-chat-core/**', 'packages/gx-protocol/**') }}
+          key: gx-chat-core-android-${{ runner.os }}-ndk${{ env.ANDROID_NDK_VERSION }}-abis-${{ env.GHOSTEX_ANDROID_ABIS }}-cargo-ndk${{ env.CARGO_NDK_VERSION }}-${{ hashFiles('packages/gx-chat-mobile/**', 'packages/gx-chat-core/**', 'packages/gx-protocol/**', 'packages/gx-visual/**') }}
       - name: Build the Rust chat core for Android
         if: steps.gx_chat_core_cache.outputs.cache-hit != 'true'
         run: |
@@ -280,6 +280,20 @@ jobs:
           CCACHE_SLOPPINESS: include_file_ctime,include_file_mtime,time_macros
           CCACHE_MAXSIZE: 2G
         run: tooling/release-gpui/android.sh "${{ inputs.version }}"
+      # The same release's JavaScript as an over-the-air update for Android and iOS phones whose
+      # app has the same native code (tooling/release-mobile/ota-server/README.md). The GitHub
+      # release's publish_ota job signs and uploads it once the release is out; the Play bundle
+      # has its own runtime version and publishes nothing yet.
+      - name: Export the over-the-air update
+        if: ${{ inputs.distribution != 'play' }}
+        run: tooling/release-mobile/ota-export.sh "${{ inputs.version }}" "build/release-gpui/${{ inputs.version }}/ota"
+      - uses: actions/upload-artifact@v7
+        if: ${{ inputs.distribution != 'play' }}
+        with:
+          name: ota-bundles
+          path: build/release-gpui/${{ inputs.version }}/ota/
+          if-no-files-found: error
+          retention-days: 14
       - name: Report ccache statistics
         if: ${{ always() && steps.ccache.conclusion == 'success' }}
         run: ccache --show-stats

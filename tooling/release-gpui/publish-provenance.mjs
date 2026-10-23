@@ -51,7 +51,9 @@ export function isNonProductArtifactDirectory(name) {
     name.startsWith('release-provenance-') ||
     name.startsWith('release-code-server-') ||
     /* The Windows jobs' SignPath round-trip uploads (release-gpui-windows.yml). */
-    name.startsWith('signpath-')
+    name.startsWith('signpath-') ||
+    /* The phone app's over-the-air update, published by release-gpui.yml's publish_ota job. */
+    name.startsWith('ota-')
   );
 }
 

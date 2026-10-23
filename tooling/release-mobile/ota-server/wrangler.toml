@@ -1,0 +1,13 @@
+# The phone app's over-the-air update server (README.md in this folder).
+name = "ghostex-ota"
+main = "src/worker.js"
+compatibility_date = "2026-10-01"
+workers_dev = false
+routes = [{ pattern = "ota.ghostex.dev", custom_domain = true }]
+
+[[r2_buckets]]
+binding = "OTA"
+bucket_name = "ghostex-ota"
+
+# Secret, set with `wrangler secret put UPLOAD_TOKEN`: the bearer token the release workflow
+# uploads with (GitHub secret GHOSTEX_OTA_UPLOAD_TOKEN). At least 32 characters.

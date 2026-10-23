@@ -413,9 +413,10 @@ const PRODUCT_LIST = [
      *
      * The Rust chat core is the second exception, on the same terms: the submodule's
      * modules/gx-chat-core loads libgx_chat_mobile.so and its UniFFI Kotlin bindings,
-     * which the Android job builds from packages/gx-chat-mobile (and the gx-chat-core and
-     * gx-protocol crates it compiles in) and never commits. Without these pathspecs a
-     * release that changed only the chat core would reuse the previous APK.
+     * which the Android job builds from packages/gx-chat-mobile (and the gx-chat-core,
+     * gx-protocol and gx-visual crates it compiles in) and never commits. Without these
+     * pathspecs a release that changed only the chat core would reuse the previous APK.
+     * The same job exports the release's over-the-air update (tooling/release-mobile/ota-export.sh).
      *
      * FINGERPRINT_ALGORITHM_REVISION is deliberately NOT bumped for this purely
      * additive change. The header rule exists so a stale record can never be
@@ -436,7 +437,9 @@ const PRODUCT_LIST = [
       { pathspec: 'packages/gx-chat-mobile/**' },
       { pathspec: 'packages/gx-chat-core/**' },
       { pathspec: 'packages/gx-protocol/**' },
+      { pathspec: 'packages/gx-visual/**' },
       { pathspec: 'tooling/release-mobile/android.sh' },
+      { pathspec: 'tooling/release-mobile/ota-export.sh' },
       { pathspec: 'tooling/release-gpui/android.sh' },
       { pathspec: '.github/workflows/release-gpui-android.yml' },
     ],
