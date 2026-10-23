@@ -161,6 +161,10 @@ impl NativeChatView {
                 )
             })
             .child(options)
+            .when(
+                self.snapshot["questionCard"]["reconnecting"] == true,
+                |body| body.child(reconnecting_note(p)),
+            )
             .into_any_element();
         let mut footer = Vec::new();
         if index > 0 {
@@ -377,4 +381,16 @@ fn prompt_hash(prompt: &str, index: usize) -> u64 {
     prompt.hash(&mut hasher);
     index.hash(&mut hasher);
     hasher.finish()
+}
+
+/// The line a question or approval card shows while its answer waits for gxserver to come back
+/// (gx-chat-core `questions/unreachable_retry.rs`).
+pub(super) fn reconnecting_note(p: &ChatAppearance) -> AnyElement {
+    div()
+        .flex_shrink_0()
+        .text_size(px(12.0 * p.scale))
+        .line_height(px(17.0 * p.scale))
+        .text_color(p.muted)
+        .child("Reconnecting to Ghostex… your answer goes out as soon as it's back.")
+        .into_any_element()
 }

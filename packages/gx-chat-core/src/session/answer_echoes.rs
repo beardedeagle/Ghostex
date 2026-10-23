@@ -64,17 +64,28 @@ pub fn settle(state: &mut ChatState, context: &ChatContext, transcript: &[ChatMe
         };
         let text = answers_message(form, &send.answers);
         let key = normalize_pending_text(&text);
-        if sends
-            .iter()
-            .any(|entry| normalize_pending_text(&entry.text) == key)
+        // While gxserver is away the echo says it is reconnecting (`questions/unreachable_retry.rs`).
+        let delivery = if send.retry.reconnecting {
+            "reconnecting"
+        } else {
+            "sending"
+        };
+        if let Some(entry) = sends
+            .iter_mut()
+            .find(|entry| normalize_pending_text(&entry.text) == key)
         {
+            if entry.id.starts_with(FORM_ECHO_PREFIX) {
+                if let Some(echo) = entry.startup_delivery.as_mut() {
+                    echo.state = delivery.to_string();
+                }
+            }
             continue;
         }
         sends.push(PendingSend {
             id: format!("{FORM_ECHO_PREFIX}{id}"),
             startup_delivery: Some(StartupDelivery {
                 prompt_id: String::new(),
-                state: "sending".to_string(),
+                state: delivery.to_string(),
                 error_message: None,
             }),
             text,

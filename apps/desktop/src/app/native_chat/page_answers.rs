@@ -97,6 +97,8 @@ impl NativeChatView {
         if !failed {
             let label = if delivery["state"] == "queued" {
                 "Waiting for the agent to be free…"
+            } else if delivery["state"] == "reconnecting" {
+                "Reconnecting to Ghostex… your answers go out as soon as it's back."
             } else {
                 "Sending to the agent…"
             };

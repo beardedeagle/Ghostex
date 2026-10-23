@@ -34,6 +34,9 @@ impl NativeChatView {
                 p,
             ));
         }
+        if card["reconnecting"] == true {
+            body.push(super::question::reconnecting_note(p));
+        }
         let mut footer_start = Vec::new();
         if !summary.is_empty() {
             footer_start.push(

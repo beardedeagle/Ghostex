@@ -304,19 +304,22 @@ fn send_answers(
     // See the SessionChat 2026-10-11 DECISION in server/src/visual_pages/answers.rs: answers go
     // into the session's chat queue, which types them once the agent is idle, like a page's.
     let request_id = state.core.allocate_request_id();
+    let params = json!({
+        "text": answers_message(&form, &answers),
+        "sendRequestId": format!("question-form-{id}-{}", context.now_millis()),
+    });
     let effect = Effect::SendRpc {
         request_id,
         method: ChatRpcMethod::QueueSessionChatPrompt,
-        params: Box::new(json!({
-            "text": answers_message(&form, &answers),
-            "sendRequestId": format!("question-form-{id}-{}", context.now_millis()),
-        })),
+        params: Box::new(params.clone()),
     };
     if let Some(entry) = state.questions.forms.get_mut(id) {
         entry.error = None;
         entry.send = Some(FormSend {
             request_id,
             answers,
+            params,
+            retry: Default::default(),
         });
     }
     state.core.request_publish();
@@ -340,8 +343,15 @@ pub fn rpc_settled(
                 .is_some_and(|send| send.request_id == request_id)
         })
         .map(|(id, _)| id.clone())?;
-    let sent = state.questions.forms.get_mut(&id)?.send.take()?;
+    let mut sent = state.questions.forms.get_mut(&id)?.send.take()?;
     state.core.request_publish();
+    if crate::questions::unreachable_retry::Retry::wait_out(&mut sent.retry, outcome) {
+        // gxserver never answered: the answers stay on their way and go again once it is back.
+        if let Some(entry) = state.questions.forms.get_mut(&id) {
+            entry.send = Some(sent);
+        }
+        return Some(Vec::new());
+    }
     match outcome {
         // Queued: the saved picks stay until the transcript carries the answers (`sync`), so a
         // queued message the user removes again leaves the form as it was after a reload.
@@ -540,6 +550,13 @@ pub fn project(state: &ChatState) -> BTreeMap<String, Value> {
                     "sendError".to_string(),
                     json!(entry.error.clone().unwrap_or_default()),
                 );
+                object.insert(
+                    "reconnecting".to_string(),
+                    json!(entry
+                        .send
+                        .as_ref()
+                        .is_some_and(|send| send.retry.reconnecting)),
+                );
             }
             (form.id.clone(), value)
         })
@@ -559,4 +576,44 @@ pub fn toggle(state: &mut ChatState, id: &str) {
 /// Whether a storage key is a question form's, and which.
 pub fn form_of_key(key: &StorageKey) -> Option<String> {
     crate::questions::drafts::form_of_drafts_key(key)
+}
+
+/// Sends again every form whose answers gxserver never took, once the retry timer fires.
+pub fn resend_unreachable(state: &mut ChatState) -> Vec<Effect> {
+    let ids: Vec<String> = state
+        .questions
+        .forms
+        .iter()
+        .filter(|(_, entry)| entry.send.as_ref().is_some_and(|send| send.retry.due()))
+        .map(|(id, _)| id.clone())
+        .collect();
+    let mut effects = Vec::new();
+    for id in ids {
+        let request_id = state.core.allocate_request_id();
+        let Some(send) = state
+            .questions
+            .forms
+            .get_mut(&id)
+            .and_then(|entry| entry.send.as_mut())
+        else {
+            continue;
+        };
+        send.request_id = request_id;
+        send.retry.in_flight = true;
+        effects.push(Effect::SendRpc {
+            request_id,
+            method: ChatRpcMethod::QueueSessionChatPrompt,
+            params: Box::new(send.params.clone()),
+        });
+    }
+    effects
+}
+
+/// Whether a form's answers wait for gxserver to come back.
+pub fn any_waiting_for_server(state: &ChatState) -> bool {
+    state
+        .questions
+        .forms
+        .values()
+        .any(|entry| entry.send.as_ref().is_some_and(|send| send.retry.due()))
 }

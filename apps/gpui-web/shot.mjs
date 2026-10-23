@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Drives the page in headless Chrome over the DevTools protocol (no dependencies): waits in real time so the gxserver WebSocket can deliver, prints the page's console, and saves a screenshot.
-// usage: node shot.mjs <out.png> [--wait ms] [--timeout ms] [--size WxH] [--url url] [--click x,y]... [--wheel x,y,deltaY] [--type text] [--insert text] [--key Enter]
+// usage: node shot.mjs <out.png> [--wait ms] [--timeout ms] [--size WxH] [--url url] [--click x,y]... [--wheel x,y,deltaY] [--type text] [--insert text] [--key Enter] [--shot mid.png]
 import { spawn } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -14,7 +14,7 @@ const option = (name, fallback) => {
 };
 const steps = [];
 for (let i = 0; i < args.length; i += 2) {
-  if (['--click', '--rightclick', '--type', '--insert', '--key', '--pause', '--move', '--eval', '--print', '--pasteimage', '--wheel'].includes(args[i])) {
+  if (['--click', '--rightclick', '--type', '--insert', '--key', '--pause', '--move', '--eval', '--print', '--pasteimage', '--wheel', '--shot'].includes(args[i])) {
     steps.push([args[i].slice(2), args[i + 1]]);
   }
 }
@@ -170,6 +170,12 @@ try {
       await send('Runtime.evaluate', { expression });
     } else if (kind === 'pause') {
       await sleep(Number(value));
+      continue;
+    } else if (kind === 'shot') {
+      // A screenshot partway through, beside the one taken at the end.
+      const { data } = await send('Page.captureScreenshot', { format: 'png' });
+      writeFileSync(value, Buffer.from(data, 'base64'));
+      console.log(`saved ${value}`);
       continue;
     }
     await sleep(600);

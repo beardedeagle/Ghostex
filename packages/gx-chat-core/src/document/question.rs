@@ -27,6 +27,10 @@ pub struct QuestionCard {
     /// The muted line under it: the tool, and the folder it runs in when known.
     #[serde(default)]
     pub approval_detail: String,
+    /// The answer went out while gxserver was away and goes again once it is back
+    /// (`questions::unreachable_retry`); the card says it is reconnecting.
+    #[serde(default)]
+    pub reconnecting: bool,
 }
 
 /// The card's primary button.

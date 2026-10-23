@@ -72,6 +72,10 @@ pub fn document(state: &ChatState, context: &ChatContext, into: &mut Document) {
         drafts: card.drafts,
         answering: card.answering,
         busy: card.answering || card.transition,
+        reconnecting: questions
+            .answer_request
+            .as_ref()
+            .is_some_and(|request| request.retry.reconnecting),
         loading: card.loading,
         approval_ask: match prompt.as_ref() {
             Some(InteractivePrompt::Approval { tool, .. }) => approval_ask(tool).to_string(),

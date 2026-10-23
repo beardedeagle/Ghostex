@@ -102,9 +102,23 @@ pub fn rpc_settled(
 }
 
 fn answer_settled(state: &mut ChatState, outcome: &RpcOutcome) -> Vec<Effect> {
-    let Some(request) = state.questions.answer_request.take() else {
+    let Some(mut request) = state.questions.answer_request.take() else {
         return Vec::new();
     };
+    if crate::questions::unreachable_retry::Retry::wait_out(&mut request.retry, outcome) {
+        // gxserver never answered: the card comes back, held, saying it is reconnecting, and the
+        // answer goes again once gxserver is back (`unreachable_retry`). Its later success hides it.
+        if let Some((key, tool_use_id)) = request.restore_dismissed.take() {
+            if state.questions.dismissed_prompt == request.prompt_key {
+                state.questions.dismissed_prompt = key;
+                state.questions.dismissed_tool_use_id = tool_use_id;
+            }
+        }
+        state.questions.answer_request = Some(request);
+        state.core.request_publish();
+        refresh_gates(state);
+        return Vec::new();
+    }
     let notice = TerminalNotice::parse(state.session.terminal_notice.as_ref());
     let mut effects = Vec::new();
     match outcome {

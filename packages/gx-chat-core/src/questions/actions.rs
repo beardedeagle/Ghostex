@@ -215,6 +215,7 @@ pub fn handle(state: &mut ChatState, action: &UserAction, context: &ChatContext)
         _ => {}
     }
     crate::questions::sync::refresh_gates(state);
+    crate::questions::unreachable_retry::stamp_answer_send(state, context, &mut effects);
     effects
 }
 
@@ -349,6 +350,8 @@ fn answer_prompt(state: &mut ChatState, answer: &Value) -> Vec<Effect> {
         submitted: AnswerDrafts::new(),
         content_key: None,
         restore_dismissed,
+        params: Value::Null,
+        retry: Default::default(),
     });
     vec![Effect::SendRpc {
         request_id,
@@ -494,6 +497,8 @@ pub(crate) fn advance(state: &mut ChatState, prompt: &InteractivePrompt) -> Vec<
         submitted: indexed_drafts(&drafts),
         content_key: state.questions.question_content_key.clone(),
         restore_dismissed,
+        params: Value::Null,
+        retry: Default::default(),
     });
     vec![Effect::SendRpc {
         request_id,

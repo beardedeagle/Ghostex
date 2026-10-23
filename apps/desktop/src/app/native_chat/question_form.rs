@@ -358,6 +358,10 @@ impl NativeChatView {
         let status = match phase.as_str() {
             "answered" => "Sent to the agent.".to_string(),
             "queued" => "Queued: it goes to the agent once it's ready.".to_string(),
+            // gx-chat-core `questions/unreachable_retry.rs`: the answers wait for gxserver to come back.
+            "sending" if form["reconnecting"] == true => {
+                "Reconnecting to Ghostex… your answers go out as soon as it's back.".to_string()
+            }
             "sending" => "Sending…".to_string(),
             _ if !send_error.is_empty() => send_error.clone(),
             _ => "Questions you leave blank are sent as skipped.".to_string(),

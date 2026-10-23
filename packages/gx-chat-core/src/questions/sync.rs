@@ -126,7 +126,7 @@ pub fn adopt_dismissed_notice(state: &mut ChatState, dismissed: Option<Dismissed
 /// of the call that asked for them, so the `try`, `catch` and `finally` bodies of the TypeScript
 /// handlers run here (`crate::questions::events`), and the reconciliation [`sync`] does then runs
 /// over the result.
-pub fn settle(state: &mut ChatState, event: &Event, _context: &ChatContext) -> Vec<Effect> {
+pub fn settle(state: &mut ChatState, event: &Event, context: &ChatContext) -> Vec<Effect> {
     let mut effects = match event {
         Event::RpcSettled {
             request_id,
@@ -143,5 +143,7 @@ pub fn settle(state: &mut ChatState, event: &Event, _context: &ChatContext) -> V
         _ => Vec::new(),
     };
     effects.extend(sync(state));
+    crate::questions::unreachable_retry::stamp_answer_send(state, context, &mut effects);
+    effects.extend(crate::questions::unreachable_retry::settle(state, context));
     effects
 }

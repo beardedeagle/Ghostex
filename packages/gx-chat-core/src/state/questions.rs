@@ -119,6 +119,10 @@ pub struct FormState {
 pub struct FormSend {
     pub request_id: u64,
     pub answers: serde_json::Value,
+    /// The call's parameters, sent again unchanged (same `sendRequestId`) while gxserver is away.
+    pub params: serde_json::Value,
+    /// See [`crate::questions::unreachable_retry`].
+    pub retry: crate::questions::unreachable_retry::Retry,
 }
 
 /// The answer call in flight and what settling it means.
@@ -135,6 +139,10 @@ pub struct AnswerRequest {
     pub content_key: Option<String>,
     /// The dismissal this send replaced when it hid the card at once, put back if it fails.
     pub restore_dismissed: Option<(Option<String>, Option<String>)>,
+    /// The call's parameters with its `sendRequestId`, sent again unchanged while gxserver is away.
+    pub params: serde_json::Value,
+    /// See [`crate::questions::unreachable_retry`].
+    pub retry: crate::questions::unreachable_retry::Retry,
 }
 
 /// Async question selection, explicit submission, retirement and draft persistence.
