@@ -257,10 +257,13 @@ view from the strip.
   Browser, the Code view, website and extension views, and HTML, drawing and
   media files in Files show an Install button instead of the page (or Hide tab
   to remove the view), and web links and saved Browser actions open in the
-  system browser. Nothing is downloaded until you press Install, and the runtime
-  starts only when one of those views is shown. Settings > Extensions > Store > Built-in
-  > Chromium runtime (CEF) installs, reinstalls or uninstalls it (uninstall
-  before opening a web view, right after starting Ghostex). Annotate the current page
+  system browser. Nothing is downloaded until you press Install; once installed,
+  the runtime starts quietly a few seconds after Ghostex opens, so pages open
+  fast. Settings > Extensions > Store > Built-in > Chromium runtime (CEF)
+  installs, reinstalls or uninstalls it. Uninstall while the runtime is running
+  removes it the next time Ghostex starts (Keep installed undoes that until
+  then); on Windows a Reinstall while it runs is done at the next start too.
+  Annotate the current page
   with Agentation in the Browser toolbar; GitHub pages disallow that tool.
   When a page shows its content inside a frame, such as a Storybook story,
   the Annotate toolbar opens inside that frame so the content itself can be

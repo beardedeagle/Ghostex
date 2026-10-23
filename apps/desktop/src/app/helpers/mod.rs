@@ -29,6 +29,7 @@ pub(crate) mod titlebar;
 pub(crate) mod titlebar_split_button;
 pub(crate) mod web_bridge_types;
 pub(crate) mod web_runtime;
+pub(crate) mod web_runtime_pending;
 pub(crate) mod window_glass;
 pub(crate) mod window_glass_live;
 pub(crate) mod window_glass_video;

@@ -219,8 +219,15 @@ fn main() {
     thread::spawn(gpui_auto_install_ghostex_cli_wrappers);
     // Only finds the CEF runtime on disk; nothing starts or downloads it here
     // (CDXC:CefRuntime 2026-09-28 in app/helpers/web_runtime.rs).
+    // A runtime the user uninstalled (or, on Windows, reinstalled) while it ran is removed first,
+    // before anything can load it (app/helpers/web_runtime_pending.rs).
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
+    let web_runtime_usable =
+        app::helpers::web_runtime_pending::apply_pending_web_runtime_change_at_launch();
+    #[cfg(target_os = "linux")]
+    let web_runtime_usable = true;
     #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
-    if cef_component_window::configure_cef_framework_path_for_process() {
+    if web_runtime_usable && cef_component_window::configure_cef_framework_path_for_process() {
         app::helpers::web_runtime::set_web_runtime_state(
             app::helpers::web_runtime::WebRuntimeState::Installed,
         );

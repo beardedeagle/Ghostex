@@ -100,6 +100,7 @@ impl GhostexGpuiApp {
             | "requestPluginSettingsStatus"
             | "reinstallPlugin"
             | "uninstallPlugin"
+            | "cancelPluginChange"
             | "setOSIntegrationDefaults"
             | "requestGhostexFolderStats"
             | "openGhostexFolder" => {

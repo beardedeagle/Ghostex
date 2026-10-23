@@ -6,6 +6,10 @@ use futures::StreamExt as _;
 use futures::channel::mpsc;
 
 use crate::app::helpers::web_runtime::*;
+use crate::app::helpers::web_runtime_pending::{
+    PENDING_CHANGES_SUPPORTED, PendingWebRuntimeChange, cancel_pending_web_runtime_change,
+    mark_pending_web_runtime_change,
+};
 use crate::app::model::*;
 use crate::component_store::ComponentStoreProgressPhase;
 use crate::*;
@@ -97,12 +101,19 @@ impl GhostexGpuiApp {
         if started && !reinstall {
             return;
         }
-        // CDXC:CefRuntime 2026-09-28 WHY: Windows keeps a loaded DLL's file locked, so replacing the component under a running Chromium fails halfway and leaves no runtime for the next start.
+        // CDXC:CefRuntime 2026-09-28 WHY: Windows keeps a loaded DLL's file locked, so replacing the component under a running Chromium fails halfway and leaves no runtime for the next start. The next launch swaps it instead (app/helpers/web_runtime_pending.rs).
         if started && cfg!(target_os = "windows") {
-            self.plugin_settings_action_errors
-                .insert("cef", WEB_RUNTIME_IN_USE_MESSAGE.to_string());
+            if let Err(message) =
+                mark_pending_web_runtime_change(PendingWebRuntimeChange::Reinstall)
+            {
+                self.plugin_settings_action_errors.insert("cef", message);
+            }
             self.refresh_web_runtime_views(cx);
             return;
+        }
+        // Installing again means keeping the runtime: a removal waiting for the next launch is off.
+        if let Err(message) = cancel_pending_web_runtime_change() {
+            self.plugin_settings_action_errors.insert("cef", message);
         }
         self.cef_component_install_generation =
             self.cef_component_install_generation.wrapping_add(1);
@@ -199,8 +210,18 @@ impl GhostexGpuiApp {
         }
     }
 
-    /// Plugins' Uninstall. Refused while Chromium runs in this process and for a runtime bundled
-    /// next to the app.
+    /// Plugins' Undo for a change waiting for the next launch: the runtime stays as it is.
+    pub(crate) fn cancel_web_runtime_pending_change(&mut self, cx: &mut gpui::Context<Self>) {
+        self.plugin_settings_action_errors.remove("cef");
+        if let Err(message) = cancel_pending_web_runtime_change() {
+            self.plugin_settings_action_errors.insert("cef", message);
+        }
+        self.refresh_web_runtime_views(cx);
+    }
+
+    /// Plugins' Uninstall. While Chromium runs in this process it only marks the runtime for
+    /// removal at the next launch (on Linux it is refused); a runtime bundled next to the app is
+    /// refused.
     pub(crate) fn uninstall_web_runtime(&mut self, cx: &mut gpui::Context<Self>) {
         self.plugin_settings_action_errors.remove("cef");
         let result = self.uninstall_web_runtime_files();
@@ -214,7 +235,8 @@ impl GhostexGpuiApp {
         if matches!(web_runtime_state(), WebRuntimeState::Installing(_)) {
             return Err("The web runtime is being installed.".to_string());
         }
-        if self.web_runtime_started_in_process() {
+        let started = self.web_runtime_started_in_process();
+        if started && !PENDING_CHANGES_SUPPORTED {
             return Err(WEB_RUNTIME_IN_USE_MESSAGE.to_string());
         }
         #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
@@ -224,6 +246,10 @@ impl GhostexGpuiApp {
                     "This build carries its own web runtime, which cannot be uninstalled."
                         .to_string(),
                 );
+            }
+            // Chromium cannot be unloaded, so the next launch removes it before it can start.
+            if started {
+                return mark_pending_web_runtime_change(PendingWebRuntimeChange::Uninstall);
             }
             cef_component_window::uninstall_cef_component()?;
             set_web_runtime_state(

@@ -35,6 +35,11 @@ impl GhostexGpuiApp {
             })
             .detach();
             // The demand receiver is taken once per process, so this runs for the first window.
+            // A Windows Reinstall asked for while the runtime ran removed it at launch
+            // (app/helpers/web_runtime_pending.rs); it is downloaded again now.
+            if crate::app::helpers::web_runtime_pending::take_reinstall_after_launch() {
+                self.install_web_runtime(false, cx);
+            }
             Self::warm_up_web_runtime_after_launch(cx);
         }
     }
