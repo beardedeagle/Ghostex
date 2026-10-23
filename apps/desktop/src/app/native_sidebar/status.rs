@@ -12,6 +12,10 @@ use crate::app::helpers::titlebar_background;
 /// User: "the pink question dot is smaller than the other dots this is wrong please make all the dots same size (pink one needs to be bigger a bit)". Every status dot in the sidebar (working, attention, question, shell-running, failed) is this one size, so none of them can drift again; the blue attention dot was 7px and the pink question dot 6px before. The project header's count badges (a 6px legend dot beside a number) are not status dots.
 pub(crate) const STATUS_DOT_SIZE: f32 = 8.0;
 
+/// CDXC:SessionStatus 2026-10-23 DECISION:
+/// User: "the icons on the right side are not the same horizontal alignment (not aligned to each other), pls fix". Every status indicator at a session row's right edge sits in a slot of this one width with its dot centred in it, so all kinds (working, attention, question, shell-running, failed) share one vertical centre line; the question dot used to sit in a narrower slot and drew 6px right of the others. A question row that is also working puts the orange dot left of the slot, so the pink dot stays on the line.
+pub(crate) const STATUS_SLOT_WIDTH: f32 = 19.0;
+
 /// CDXC:SessionStatus 2026-09-21 DECISION:
 /// User: "I feel we have multiple degrees for the orange color status \"working\" in the sidebar pls unify all of them on this new one you picked", so every working dot, count, and badge in the sidebar uses this one orange (the Spaces badge orange, 20% darker than the old 0xf8ad07 so a white digit stays readable on it).
 pub(crate) const WORKING_COLOR: u32 = 0xc68a06;
@@ -65,7 +69,7 @@ pub(crate) fn activity_indicator(
     };
     Some(
         div()
-            .w(px(19.0 * scale))
+            .w(px(STATUS_SLOT_WIDTH * scale))
             .h(px(16.0 * scale))
             .flex_shrink_0()
             .flex()
@@ -150,11 +154,9 @@ pub(crate) fn status_dot_stack(
 pub(crate) fn question_indicator(working: bool, scale: f32) -> AnyElement {
     div()
         .h(px(16.0 * scale))
-        .min_w(px(16.0 * scale))
         .flex_shrink_0()
         .flex()
         .items_center()
-        .justify_center()
         .gap(px(4.0 * scale))
         .when(working, |indicator| {
             indicator.child(
@@ -166,9 +168,17 @@ pub(crate) fn question_indicator(working: bool, scale: f32) -> AnyElement {
         })
         .child(
             div()
-                .size(px(STATUS_DOT_SIZE * scale))
-                .rounded_full()
-                .bg(rgb(QUESTION_COLOR)),
+                .w(px(STATUS_SLOT_WIDTH * scale))
+                .h_full()
+                .flex()
+                .items_center()
+                .justify_center()
+                .child(
+                    div()
+                        .size(px(STATUS_DOT_SIZE * scale))
+                        .rounded_full()
+                        .bg(rgb(QUESTION_COLOR)),
+                ),
         )
         .into_any_element()
 }
