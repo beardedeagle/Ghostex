@@ -257,24 +257,25 @@ for (const arch of ['x64', 'arm64']) {
   }
   const windowsPlatform = `windows-${arch}`;
   if (byPlatform.has(windowsPlatform)) {
-    const portable = artifactPath(windowsPlatform, `ghostex-${version}-windows-${arch}-portable.zip`);
-    const velopackPayloadRoot = 'current';
+    // The full update package holds the app under lib/app (Velopack's PackageBuilder).
+    const fullPackage = artifactPath(windowsPlatform, `Ghostex-${version}-win-${arch}-stable-full.nupkg`);
+    const velopackPayloadRoot = 'lib/app';
     const componentManifest = validateOnDemandManifestV2(
-      JSON.parse(readZipEntryText(portable, `${velopackPayloadRoot}/resources/on-demand-resources.json`))
+      JSON.parse(readZipEntryText(fullPackage, `${velopackPayloadRoot}/resources/on-demand-resources.json`))
     );
     for (const componentName of ['cef', 'code-server']) {
       if (!componentManifest.components[componentName]?.platforms?.[`windows-${arch}`]) {
-        throw new Error(`${path.basename(portable)} manifest v2 is missing ${componentName} for windows-${arch}`);
+        throw new Error(`${path.basename(fullPackage)} manifest v2 is missing ${componentName} for windows-${arch}`);
       }
     }
     if (!componentManifest.components['code-server'].platforms[`windows-native-${arch}`]) {
-      throw new Error(`${path.basename(portable)} manifest v2 is missing code-server for windows-native-${arch}`);
+      throw new Error(`${path.basename(fullPackage)} manifest v2 is missing code-server for windows-native-${arch}`);
     }
-    if (zipEntries(portable).some((entry) => entry.startsWith(`${velopackPayloadRoot}/code-server/`))) {
-      throw new Error(`${path.basename(portable)} still bundles the native editor`);
+    if (zipEntries(fullPackage).some((entry) => entry.startsWith(`${velopackPayloadRoot}/code-server/`))) {
+      throw new Error(`${path.basename(fullPackage)} still bundles the native editor`);
     }
     if (componentManifest.assets[linuxPlatform]?.sha256 !== linuxSha) {
-      throw new Error(`${path.basename(portable)} manifest v2 ${linuxPlatform} sha256 does not match ${linuxName}`);
+      throw new Error(`${path.basename(fullPackage)} manifest v2 ${linuxPlatform} sha256 does not match ${linuxName}`);
     }
   }
 }

@@ -161,7 +161,6 @@ function validateArtifactContract(platform, names, contract) {
   const channel = `win-${arch}-stable`;
   const required = new Set([
     `ghostex-${version}-windows-${arch}.exe`,
-    `ghostex-${version}-windows-${arch}-portable.zip`,
     `releases.${channel}.json`,
     `Ghostex-${version}-${channel}-full.nupkg`,
   ]);
@@ -380,9 +379,10 @@ for (const arch of ['x64', 'arm64']) {
   }
   const windowsPlatform = `windows-${arch}`;
   if (byPlatform.has(windowsPlatform)) {
-    const portable = artifactPath(windowsPlatform, `ghostex-${version}-windows-${arch}-portable.zip`);
-    const velopackPayloadRoot = 'current';
-    const entries = zipEntries(portable);
+    // The full update package holds the app under lib/app (Velopack's PackageBuilder).
+    const fullPackage = artifactPath(windowsPlatform, `Ghostex-${version}-win-${arch}-stable-full.nupkg`);
+    const velopackPayloadRoot = 'lib/app';
+    const entries = zipEntries(fullPackage);
     const forbidden = entries.find(
       (entry) =>
         entry === 'libcef.dll' ||
@@ -392,25 +392,25 @@ for (const arch of ['x64', 'arm64']) {
         (entry.startsWith(`${velopackPayloadRoot}/resources/wsl/code-server-`) &&
           (entry.endsWith(`-linux-${arch}.tar.gz`) || entry.endsWith(`-linux-${arch}.tar.gz.sha256`)))
     );
-    if (forbidden) throw new Error(`${path.basename(portable)} still embeds release-excluded payload ${forbidden}`);
+    if (forbidden) throw new Error(`${path.basename(fullPackage)} still embeds release-excluded payload ${forbidden}`);
     const componentManifestEntry = `${velopackPayloadRoot}/resources/on-demand-resources.json`;
     const componentManifest = validateOnDemandManifestV2(
-      JSON.parse(readZipEntryText(portable, componentManifestEntry))
+      JSON.parse(readZipEntryText(fullPackage, componentManifestEntry))
     );
     for (const componentName of ['cef', 'code-server']) {
       const component = componentManifest.components[componentName];
       const asset = component?.platforms?.[`windows-${arch}`];
       if (!asset) {
-        throw new Error(`${path.basename(portable)} manifest v2 is missing ${componentName} for windows-${arch}`);
+        throw new Error(`${path.basename(fullPackage)} manifest v2 is missing ${componentName} for windows-${arch}`);
       }
     }
     // The native editor is downloaded on first use (build-windows-app.ps1).
     if (!componentManifest.components['code-server'].platforms[`windows-native-${arch}`]) {
-      throw new Error(`${path.basename(portable)} manifest v2 is missing code-server for windows-native-${arch}`);
+      throw new Error(`${path.basename(fullPackage)} manifest v2 is missing code-server for windows-native-${arch}`);
     }
     // The WSL gxserver is downloaded on demand: the sealed entry must name this release's Linux archive.
     if (componentManifest.assets[linuxPlatform]?.sha256 !== linuxSha) {
-      throw new Error(`${path.basename(portable)} manifest v2 ${linuxPlatform} sha256 does not match ${linuxName}`);
+      throw new Error(`${path.basename(fullPackage)} manifest v2 ${linuxPlatform} sha256 does not match ${linuxName}`);
     }
   }
 }

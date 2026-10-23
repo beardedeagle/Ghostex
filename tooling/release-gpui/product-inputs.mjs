@@ -74,7 +74,10 @@ export const IGNORED_FOR_RELEASE = Object.freeze([
   { path: 'LICENSE', why: 'Metadata only.' },
   { path: 'README.md', why: 'Metadata only.' },
   { path: 'TERMS.md', why: 'Project glossary for agents and contributors; metadata only.' },
-  { path: 'THIRD_PARTY_NOTICES.md', why: 'Third-party licence notices kept at the repo root; metadata only, like LICENSE.' },
+  {
+    path: 'THIRD_PARTY_NOTICES.md',
+    why: 'Third-party licence notices kept at the repo root; metadata only, like LICENSE.',
+  },
   { path: 'appcast.xml', why: 'Sparkle feed output written by the publisher, not a build input.' },
   { path: 'claude-code-codex-keybindings.json', why: 'Developer keybindings; not packaged.' },
   { path: 'favicon.png', why: 'Web asset for local tooling; not packaged by any release job.' },
@@ -191,7 +194,6 @@ function windowsArtifacts(version, arch) {
   const channel = `win-${arch}-stable`;
   return [
     `ghostex-${version}-windows-${arch}.exe`,
-    `ghostex-${version}-windows-${arch}-portable.zip`,
     `releases.${channel}.json`,
     `Ghostex-${version}-${channel}-full.nupkg`,
   ];

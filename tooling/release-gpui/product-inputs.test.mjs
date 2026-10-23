@@ -97,7 +97,6 @@ describe('release product input map', () => {
     expect(productDefinition('gxserver-wsl-windows-x64').artifacts(version)).toEqual(['gxserver-wsl-windows-x64.zip']);
     expect(productDefinition('windows-x64').artifacts(version)).toEqual([
       'ghostex-7.8.0-windows-x64.exe',
-      'ghostex-7.8.0-windows-x64-portable.zip',
       'releases.win-x64-stable.json',
       'Ghostex-7.8.0-win-x64-stable-full.nupkg',
     ]);

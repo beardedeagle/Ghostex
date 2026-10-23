@@ -22,7 +22,6 @@ export function windowsUpdateArtifactNames(version, arch) {
     feed: `releases.${channel}.json`,
     fullPackage: `Ghostex-${version}-${channel}-full.nupkg`,
     installer: `ghostex-${version}-windows-${arch}.exe`,
-    portable: `ghostex-${version}-windows-${arch}-portable.zip`,
   };
 }
 
@@ -56,7 +55,7 @@ function validatePackageEntry({ artifact, entry, expectedType, version }) {
 export function validateWindowsUpdateFeed({ arch, artifacts, feedText, version }) {
   const names = windowsUpdateArtifactNames(version, arch);
   const byName = normalizeArtifacts(artifacts);
-  for (const required of [names.installer, names.portable, names.feed, names.fullPackage]) {
+  for (const required of [names.installer, names.feed, names.fullPackage]) {
     if (!byName.has(required)) throw new Error(`Windows ${arch} update channel is missing ${required}.`);
   }
 

@@ -1,6 +1,6 @@
 # Build the sidebar, desktop and native Windows session binaries, then stage
 # the CEF runtime and bundled resources. The release workflow wraps this
-# directory with Velopack to create signed installed and portable packages.
+# directory with Velopack to create the signed installer and update packages.
 #
 # Development layouts keep the conventional flat CEF payload beside the app.
 # Release layouts stage a CEF-free native bootstrap plus an internal runtime;
@@ -135,7 +135,7 @@ if ($BuildApp) {
     # libghostty-vt (GHOSTEX_ZIG override honored by apps/desktop/build.rs).
     Push-Location $GpuiDir
     try {
-        Invoke-CargoReleaseBuild @("--bin", "ghostex-gpui-cef-bootstrap", "--bin", "ghostex-gpui", "--bin", "ghostex-gpui-cef-helper", "--bin", "ghostex-windows-installer")
+        Invoke-CargoReleaseBuild @("--bin", "ghostex-gpui-cef-bootstrap", "--bin", "ghostex-gpui", "--bin", "ghostex-gpui-cef-helper", "--bin", "ghostex-windows-installer", "--bin", "ghostex-windows-installer-pack")
         if ($LASTEXITCODE -ne 0) { throw "cargo build failed" }
     }
     finally {

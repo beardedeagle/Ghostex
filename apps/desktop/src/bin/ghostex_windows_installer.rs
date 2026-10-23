@@ -1,5 +1,8 @@
 #![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
 
+#[path = "../windows_installer_payload.rs"]
+mod windows_installer_payload;
+
 use std::{
     env,
     ffi::{OsStr, OsString},
@@ -10,8 +13,9 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-const BUNDLED_SETUP_MAGIC: &[u8; 16] = b"GXSETUP1TRAILER!";
-const BUNDLED_SETUP_LENGTH_LEN: usize = 8;
+use windows_installer_payload::{
+    LENGTH_LEN as BUNDLED_SETUP_LENGTH_LEN, MAGIC as BUNDLED_SETUP_MAGIC,
+};
 const BUNDLED_SETUP_SEARCH_LEN: u64 = 1024 * 1024;
 const INSTALL_ROOT_NAME: &str = "Ghostex";
 const INSTALLED_LAUNCHER_NAME: &str = "Ghostex.exe";
@@ -208,7 +212,12 @@ fn extract_bundled_setup() -> Result<TemporarySetup, String> {
         .seek(SeekFrom::Start(payload_start))
         .map_err(|error| format!("The setup payload could not be opened: {error}"))?;
     let (temporary, mut destination) = create_temporary_setup()?;
-    io::copy(&mut source.take(payload_len), &mut destination)
+    // The Setup.exe is one xz (LZMA) stream: CDXC:Release 2026-10-23 in src/bin/ghostex_windows_installer_pack.rs.
+    #[cfg(target_os = "windows")]
+    let mut payload = liblzma::read::XzDecoder::new(io::BufReader::new(source.take(payload_len)));
+    #[cfg(not(target_os = "windows"))]
+    let mut payload = source.take(payload_len);
+    io::copy(&mut payload, &mut destination)
         .map_err(|error| format!("The setup payload could not be extracted: {error}"))?;
     destination
         .flush()
