@@ -90,8 +90,8 @@ use crate::ghostty_vt::{
 use crate::support_logs::{self, GpuiDiagnosticScenario, GpuiSupportLog};
 use crate::terminal_model::{
     Rgb, SnapshotCell, SnapshotRow, TerminalConfirmCloseBehavior, TerminalEvent, TerminalEventSink,
-    TerminalExit, TerminalModel, TerminalSnapshot, TerminalSpawnConfig, TerminalTextCell,
-    TerminalTextRow, UnderlineStyle as CellUnderline, WheelRoute,
+    TerminalExit, TerminalModel, TerminalSnapshot, TerminalSpawnConfig, TerminalTextRow,
+    UnderlineStyle as CellUnderline, WheelRoute,
 };
 use crate::terminal_scrollbar_reveal::ScrollbarReveal;
 use crate::terminal_wheel;
@@ -606,6 +606,9 @@ pub struct TerminalView {
     /// CDXC:Terminal 2026-09-27 WHY:
     /// Windows dead keys need both the accent and the following text key to reach TranslateMessage; encoding the following key directly would leave Windows' dead-key state pending even after sending the composed character.
     pending_character_input: bool,
+    /// Cmd+A ran Select All on press, so its release must not reach a program
+    /// in kitty report-events mode either, as in Ghostty.
+    select_all_release_pending: bool,
     focus_handle: FocusHandle,
     /// Focus state as of the last prepaint; edges send focus reports
     /// (mode 1004) and switch the cursor to hollow.
@@ -782,6 +785,7 @@ impl TerminalView {
             marked_selection_utf16: None,
             last_reported_ime_cursor: None,
             pending_character_input: false,
+            select_all_release_pending: false,
             focus_handle: cx.focus_handle(),
             focused: false,
             last_modifiers: Modifiers::default(),
@@ -1600,6 +1604,7 @@ impl TerminalView {
             && keystroke.key == "a"
         {
             self.select_all(cx);
+            self.select_all_release_pending = true;
             cx.stop_propagation();
             return;
         }
@@ -1827,6 +1832,10 @@ impl TerminalView {
         {
             return;
         }
+        if self.select_all_release_pending && keystroke.key == "a" {
+            self.select_all_release_pending = false;
+            return;
+        }
         let (key, unshifted_codepoint) = keystroke_vt_key(keystroke);
         let _ = self.model.send_key(&VtKeyInput {
             action: VtKeyAction::Release,
@@ -2013,41 +2022,47 @@ impl TerminalView {
         }
     }
 
-    /// Edit › Select All: the scrollback from its first to its last non-blank
-    /// cell, as Ghostty's `select_all` does, so the empty rows under the prompt
-    /// are not painted with the selection color.
+    /// Edit › Select All: the scrollback up to its last non-blank cell, as
+    /// Ghostty's `select_all` does, so the empty rows under the prompt are not
+    /// painted with the selection color. Those rows are in the active screen,
+    /// so the visible frame is enough when the view is at the bottom; reading
+    /// the whole scrollback here would stall the key press on a long history.
     fn select_all(&mut self, cx: &mut Context<Self>) {
-        let Ok(rows) = self.model.read_scrollback_rows() else {
+        let Some(frame) = self.frame.as_ref() else {
             return;
         };
-        let has_text = |cell: &&TerminalTextCell| {
-            !cell
-                .text
-                .trim_matches(|c: char| c == '\0' || c.is_whitespace())
-                .is_empty()
-        };
-        let start = rows.iter().find_map(|row| {
-            row.cells
-                .iter()
-                .find(has_text)
-                .map(|cell| (row.absolute_row, cell.column))
-        });
-        let end = rows.iter().rev().find_map(|row| {
-            row.cells
-                .iter()
-                .rev()
-                .find(has_text)
-                .map(|cell| (row.absolute_row, cell.column + 1))
-        });
-        let (Some(start), Some(end)) = (start, end) else {
+        let Some(last_row) = frame.scrollbar.total.checked_sub(1) else {
             return;
         };
+        let at_bottom = frame.scrollbar.offset + frame.scrollbar.len >= frame.scrollbar.total;
+        let last_text = at_bottom
+            .then(|| {
+                frame
+                    .rows
+                    .iter()
+                    .enumerate()
+                    .rev()
+                    .find_map(|(index, row)| {
+                        let col = row
+                            .cells
+                            .iter()
+                            .rposition(|cell| cell.base != '\0' && !cell.base.is_whitespace())?;
+                        let width = if row.cells[col].width == VtCellWide::Wide {
+                            2
+                        } else {
+                            1
+                        };
+                        Some((frame.scrollbar.offset + index as u64, col as u16 + width))
+                    })
+            })
+            .flatten();
+        let (end_row, end_col) = last_text.unwrap_or((last_row, frame.cols));
         self.drag = None;
         self.selection = Some(TerminalSelection {
-            start_row: start.0,
-            start_col: start.1,
-            end_row: end.0,
-            end_col: end.1,
+            start_row: 0,
+            start_col: 0,
+            end_row,
+            end_col,
             rectangular: false,
         });
         cx.notify();
