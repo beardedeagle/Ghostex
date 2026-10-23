@@ -7,7 +7,7 @@ use super::*;
 /// Scans the tail window bottom-up; the bottom-most match wins. Returns `None`
 /// when the window carries no statusline this parser understands. A detection
 /// carries the agent's whole footer (statusline down to the bottom of the
-/// screen) as `terminal_status_line`.
+/// screen, stopping above Claude's subagent block) as `terminal_status_line`.
 pub fn detect_session_chat_selection(
     agent: SessionChatOptionAgent,
     text: &str,
@@ -209,7 +209,10 @@ pub fn detect_session_chat_selection(
         return None;
     }
     if let Some(top) = topmost_match {
-        let footer = scanned_lines[top..]
+        let end = claude_subagent_block_start(agent, &scanned_lines)
+            .filter(|start| *start > top)
+            .unwrap_or(scanned_lines.len());
+        let footer = scanned_lines[top..end]
             .iter()
             .map(|line| {
                 // Grok draws its statusline on the composer's border chrome.
@@ -227,6 +230,18 @@ pub fn detect_session_chat_selection(
         }
     }
     Some(found)
+}
+
+/// Where Claude's subagent block starts in the scanned footer, when one is on screen.
+///
+/// CDXC:AgentScreenDetection 2026-10-23 DECISION:
+/// User chose to leave Claude's subagent rows out of `terminal_status_line` (the context meter's tooltip): their ticking timers changed the detected options every second, so every working chat's options were republished about every 2 seconds, and the subagent strip already shows those rows. The footer now ends where the block starts; other agents and a Claude footer without the block are unchanged.
+/// SEE-ALSO: `agent_fleet_block_start` in session_chat_agent_fleet.rs, the tooltip in packages/gx-chat-core/src/menus/context/meter.rs.
+fn claude_subagent_block_start(agent: SessionChatOptionAgent, lines: &[String]) -> Option<usize> {
+    if agent != SessionChatOptionAgent::Claude {
+        return None;
+    }
+    crate::session_chat_agent_fleet::agent_fleet_block_start(lines)
 }
 
 /// CDXC:AgentProviders 2026-09-29 WHY:
