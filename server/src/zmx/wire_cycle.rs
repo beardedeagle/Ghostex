@@ -162,33 +162,6 @@ pub(crate) fn parse_zmx_wire_generation(version_output: &str) -> Option<u32> {
     })
 }
 
-/// Generation recorded on a session, or `None` for a daemon started before any
-/// stamp existed. A legacy binary-identity stamp resolves to generation 1.
-fn recorded_zmx_wire_generation(session: &Value) -> Option<u32> {
-    let provider_state = session.get("providerState").and_then(Value::as_object)?;
-    if let Some(generation) = provider_state
-        .get(ZMX_WIRE_GENERATION_KEY)
-        .and_then(Value::as_u64)
-    {
-        return u32::try_from(generation).ok();
-    }
-    // CDXC:ZmxWireGeneration 2026-09-14 WHY:
-    // The extracted Windows host and its predecessor share generation 1. Import the native protocol stamp so installing wmx preserves running agents.
-    #[cfg(windows)]
-    if provider_state
-        .get("nativeSessionProtocol")
-        .and_then(Value::as_u64)
-        == Some(1)
-    {
-        return Some(1);
-    }
-    provider_state
-        .get(LEGACY_ZMX_BINARY_STAMP_KEY)
-        .and_then(Value::as_str)
-        .filter(|stamp| !stamp.is_empty())
-        .map(|_| LEGACY_STAMP_WIRE_GENERATION)
-}
-
 /// Provider state for a session whose daemon this gxserver just started, with
 /// the spawning binary's wire generation recorded. Every provider start must go
 /// through here: an unstamped live daemon is cycled on the next startup.
@@ -218,6 +191,88 @@ pub(crate) fn started_provider_state_patch(
     Ok(provider_state)
 }
 
+/// What the wire cycle reads of one session row.
+struct WireCycleRow {
+    project_id: String,
+    session_id: String,
+    stopped: bool,
+    recorded_generation: Option<u32>,
+}
+
+/// Every session row's ids, whether it is closed, and its recorded wire generation, in
+/// `list_sessions` order, read without hydrating any row.
+///
+/// CDXC:ZmxWireGeneration 2026-10-23 WHY:
+/// The pass hydrated every session row (about 148 MB for 10,900 rows) at the same moment as the other startup passes, which made gxserver's startup peak 300 to 650 MB, to read three provider-state keys and the lifecycle of each. SQLite now reads just those, and the generation is decided exactly as the hydrated row's `providerState` decided it (`stored_zmx_wire_generation`; its zmx name is the derived `create_zmx_session_name`, as hydration makes it). Every row is still a candidate, closed ones included.
+fn list_wire_cycle_rows(
+    repository: &DomainRepository<'_>,
+) -> Result<Vec<WireCycleRow>, DomainStateError> {
+    let mut statement = repository
+        .db
+        .prepare(&format!(
+            "SELECT projectId, sessionId, lifecycleState,
+                    json_type(providerStateJson, '$.{ZMX_WIRE_GENERATION_KEY}'),
+                    CASE WHEN json_type(providerStateJson, '$.{ZMX_WIRE_GENERATION_KEY}') = 'integer'
+                         THEN json_extract(providerStateJson, '$.{ZMX_WIRE_GENERATION_KEY}') END,
+                    CASE WHEN json_type(providerStateJson, '$.{LEGACY_ZMX_BINARY_STAMP_KEY}') = 'text'
+                         THEN json_extract(providerStateJson, '$.{LEGACY_ZMX_BINARY_STAMP_KEY}') END,
+                    CASE WHEN json_type(providerStateJson, '$.nativeSessionProtocol') = 'integer'
+                         THEN json_extract(providerStateJson, '$.nativeSessionProtocol') END
+             FROM sessions
+             ORDER BY updatedAt DESC, projectId ASC, sessionId ASC"
+        ))
+        .map_err(crate::domain::sql_error)?;
+    let rows = statement
+        .query_map([], |row| {
+            let generation_type: Option<String> = row.get(3)?;
+            let generation: Option<i64> = row.get(4)?;
+            let legacy_stamp: Option<String> = row.get(5)?;
+            let native_protocol: Option<i64> = row.get(6)?;
+            Ok(WireCycleRow {
+                project_id: row.get(0)?,
+                session_id: row.get(1)?,
+                stopped: row.get::<_, String>(2)? == "stopped",
+                recorded_generation: stored_zmx_wire_generation(
+                    generation_type.as_deref(),
+                    generation,
+                    legacy_stamp.as_deref(),
+                    native_protocol,
+                ),
+            })
+        })
+        .map_err(crate::domain::sql_error)?;
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(crate::domain::sql_error)
+}
+
+/// Generation recorded on a session, or `None` for a daemon started before any stamp existed,
+/// from its stored provider-state values: a non-negative integer generation wins (or is unusable
+/// past `u32`), then Windows' native protocol 1, then a non-empty legacy binary-identity stamp,
+/// which resolves to generation 1.
+fn stored_zmx_wire_generation(
+    generation_type: Option<&str>,
+    generation: Option<i64>,
+    legacy_stamp: Option<&str>,
+    native_protocol: Option<i64>,
+) -> Option<u32> {
+    if generation_type == Some("integer") {
+        if let Some(generation) = generation.filter(|generation| *generation >= 0) {
+            return u32::try_from(generation).ok();
+        }
+    }
+    // CDXC:ZmxWireGeneration 2026-09-14 WHY:
+    // The extracted Windows host and its predecessor share generation 1. Import the native protocol stamp so installing wmx preserves running agents.
+    #[cfg(windows)]
+    if native_protocol == Some(1) {
+        return Some(1);
+    }
+    #[cfg(not(windows))]
+    let _ = native_protocol;
+    legacy_stamp
+        .filter(|stamp| !stamp.is_empty())
+        .map(|_| LEGACY_STAMP_WIRE_GENERATION)
+}
+
 /// Terminates every live daemon this gxserver owns that a zmx of a different
 /// wire generation spawned, and leaves its session sleeping so the ordinary
 /// wake path restores it. Runs before the listener starts serving so no client can attach to a
@@ -245,24 +300,23 @@ pub(crate) fn cycle_wire_incompatible_zmx_session_daemons(
         });
         return;
     };
-    let Ok(sessions) = repository.list_sessions(None) else {
+    let Ok(rows) = list_wire_cycle_rows(repository) else {
         return;
     };
     // A session stamped with the current generation is compatible whether or not its daemon lives, so only the others are probed.
-    let candidates: Vec<_> = sessions
-        .iter()
-        .filter_map(|session| {
-            let project_id = string_field(session, "projectId")?;
-            let session_id = string_field(session, "sessionId")?;
-            let zmx_name = provider_zmx_session_name(session).ok()?;
-            let recorded_generation = recorded_zmx_wire_generation(session);
-            (recorded_generation != Some(current_generation)).then_some((
-                project_id,
-                session_id,
+    let candidates: Vec<_> = rows
+        .into_iter()
+        .filter(|row| row.recorded_generation != Some(current_generation))
+        .map(|row| {
+            let zmx_name =
+                crate::ids::create_zmx_session_name(server_id, &row.project_id, &row.session_id);
+            (
+                row.project_id,
+                row.session_id,
                 zmx_name,
-                recorded_generation,
-                session,
-            ))
+                row.recorded_generation,
+                row.stopped,
+            )
         })
         .collect();
     let live = zmx_session_daemons_present(
@@ -271,7 +325,7 @@ pub(crate) fn cycle_wire_incompatible_zmx_session_daemons(
             .map(|(_, _, zmx_name, _, _)| zmx_name.as_str())
             .collect::<Vec<_>>(),
     );
-    for ((project_id, session_id, zmx_name, recorded_generation, session), live) in
+    for ((project_id, session_id, zmx_name, recorded_generation, stopped), live) in
         candidates.into_iter().zip(live)
     {
         if !live {
@@ -279,12 +333,7 @@ pub(crate) fn cycle_wire_incompatible_zmx_session_daemons(
         }
         // A closed session keeps its terminal state; only a session that can be
         // woken becomes sleeping.
-        let target_lifecycle =
-            if string_field(session, "lifecycleState").as_deref() == Some("stopped") {
-                "stopped"
-            } else {
-                "sleeping"
-            };
+        let target_lifecycle = if stopped { "stopped" } else { "sleeping" };
         let lifecycle = LifecycleParams {
             project_id: project_id.clone(),
             session_id: session_id.clone(),

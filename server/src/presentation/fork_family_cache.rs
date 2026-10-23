@@ -49,11 +49,11 @@ pub(crate) fn read_session_fork_families(
         "{revision}|{}",
         duplicate_session_order(&transaction, database, &revision)?
     );
-    let cached = {
+    let lookup = || -> Result<Option<Arc<SessionForkFamilies>>, DomainStateError> {
         let mut cache = cache
             .lock()
             .map_err(|_| DomainStateError::corrupt_state("Session fork cache is poisoned."))?;
-        cache
+        Ok(cache
             .iter()
             .position(|entry| {
                 entry.database == database
@@ -65,16 +65,30 @@ pub(crate) fn read_session_fork_families(
                 let families = entry.families.clone();
                 cache.push_back(entry);
                 families
-            })
+            }))
     };
-    if let Some(families) = cached {
+    if let Some(families) = lookup()? {
+        transaction.commit().map_err(sql_error)?;
+        return Ok(families);
+    }
+    /*
+    CDXC:StateSync 2026-10-23 WHY:
+    Reading every row's lineage and building the graph holds about 45 MB on a registry of 10,900 rows, and right after a start every client's first snapshot and the first deltas all missed the cache at once and each built its own copy, which made up much of gxserver's 300 to 650 MB startup peak. One build runs at a time; a caller that waited finds the graph the build before it cached for the same token and uses it.
+    */
+    static BUILD: Mutex<()> = Mutex::new(());
+    let _building = BUILD
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    if let Some(families) = lookup()? {
         transaction.commit().map_err(sql_error)?;
         return Ok(families);
     }
     let rows = DomainRepository::new(&transaction, server_id).list_session_fork_rows()?;
     let families = Arc::new(SessionForkFamilies::build(&rows));
     transaction.commit().map_err(sql_error)?;
-    if rows.len() <= MAX_CACHED_SESSIONS {
+    let cacheable = rows.len() <= MAX_CACHED_SESSIONS;
+    drop(rows);
+    if cacheable {
         let mut cache = cache
             .lock()
             .map_err(|_| DomainStateError::corrupt_state("Session fork cache is poisoned."))?;

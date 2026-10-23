@@ -58,10 +58,16 @@ pub(crate) fn add_started_cloud_session(
         message: format!("SQLite gxserver state error: {error}"),
     })?;
     let repository = DomainRepository::new(&db, state.metadata.server_id.as_str());
-    // One row per cloud session.
-    if let Some(existing) = repository.list_sessions(None)?.into_iter().find(|session| {
-        session_cloud_record(session).is_some_and(|record| record.url.as_deref() == Some(&url))
-    }) {
+    // One row per cloud session. Only a row whose `claudeCloud` is an object carries a cloud
+    // record, so SQLite picks those rows instead of every row being hydrated; this runs for each
+    // unlinked Work page record at every start.
+    if let Some(existing) = repository
+        .list_sessions_with_runtime_object(RECORD_KEY)?
+        .into_iter()
+        .find(|session| {
+            session_cloud_record(session).is_some_and(|record| record.url.as_deref() == Some(&url))
+        })
+    {
         let text = |key: &str| {
             existing
                 .get(key)
