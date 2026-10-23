@@ -26,7 +26,8 @@ durable write per session:
    settle reads as "work ended then", not "the daemon noticed now".
 
 Only sessions the sidebar can actually show (running/sleeping) are considered, so
-a backlog of long-dead stopped rows never produces a delta storm.
+a backlog of long-dead stopped rows never produces a delta storm, and those rows
+are never even read.
 
 `resolve_pull_request` is injected rather than read from the git-status cache
 here so the rules stay testable without a probe cache, and so the sweep never
@@ -43,7 +44,9 @@ pub fn run_session_lifecycle_sweep(
         DomainStateError::corrupt_state(format!("Invalid gxserver timestamp: {now_iso}."))
     })?;
     let mut outcome = SessionLifecycleSweepOutcome::default();
-    for session in repository.list_sessions(None)? {
+    // A stopped row is never active, so leaving it in SQL keeps the same rows in the same order
+    // (and the same `max_mutations` cut) without hydrating the closed backlog every minute.
+    for session in repository.list_sessions_excluding_stopped(None)? {
         if outcome.changed.len() >= options.max_mutations {
             break;
         }

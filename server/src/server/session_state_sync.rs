@@ -416,7 +416,12 @@ pub(crate) fn sync_title_signaled_zmx_process_identity(
         message: format!("SQLite gxserver state error: {error}"),
     })?;
     let repository = DomainRepository::new(&db, state.metadata.server_id.as_str());
-    let sessions = repository.list_sessions(Some(project_id))?;
+    // The targeted repair keeps only the row with this session id, which is unique within its
+    // project, so it reads that row instead of hydrating the whole project (thousands of rows).
+    let sessions = repository
+        .get_session(project_id, session_id)?
+        .into_iter()
+        .collect::<Vec<_>>();
     sync_live_zmx_process_identities(
         state,
         &db,

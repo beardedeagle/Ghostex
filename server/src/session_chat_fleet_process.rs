@@ -94,7 +94,51 @@ fn process_started_at(pid: i64) -> anyhow::Result<i64> {
     )?)
 }
 
-#[cfg(not(windows))]
+/// CDXC:SessionStatus 2026-10-23 WHY:
+/// macOS reads the start time from the kernel's process record, the same `p_starttime` `ps -o lstart=` prints. The `ps` probe went through a login-free zsh each time, and the fleet pass asks for every running Claude and Codex session every five seconds, so it started one shell and one `ps` per session per pass. Whole seconds, as `lstart` printed them, keep every stored run boundary comparable.
+#[cfg(target_os = "macos")]
+fn process_started_at(pid: i64) -> anyhow::Result<i64> {
+    let pid = i32::try_from(pid)?;
+    // A plain C output buffer; only a complete reply is read.
+    let mut info: libc::proc_bsdinfo = unsafe { std::mem::zeroed() };
+    let size = std::mem::size_of_val(&info) as i32;
+    let read = unsafe {
+        libc::proc_pidinfo(
+            pid,
+            libc::PROC_PIDTBSDINFO,
+            0,
+            &mut info as *mut _ as *mut libc::c_void,
+            size,
+        )
+    };
+    anyhow::ensure!(read == size, "Agent process start is unavailable");
+    Ok(i64::try_from(info.pbi_start_tvsec)?.saturating_mul(1000))
+}
+
+/// CDXC:SessionStatus 2026-10-23 WHY:
+/// Linux reads the start time from `/proc` the way procps computes `lstart` (boot time plus whole seconds of start ticks), instead of starting a shell and `ps` per session per fleet pass.
+#[cfg(target_os = "linux")]
+fn process_started_at(pid: i64) -> anyhow::Result<i64> {
+    anyhow::ensure!(pid > 0, "Agent process start is unavailable");
+    let stat = std::fs::read_to_string(format!("/proc/{pid}/stat"))?;
+    // comm can contain spaces and parentheses; field 22 follows the final closing parenthesis.
+    let ticks = stat
+        .rsplit_once(')')
+        .and_then(|(_, rest)| rest.split_whitespace().nth(19))
+        .and_then(|value| value.parse::<u64>().ok())
+        .ok_or_else(|| anyhow::anyhow!("Agent process start is unavailable"))?;
+    let boot_seconds = std::fs::read_to_string("/proc/stat")?
+        .lines()
+        .find_map(|line| line.strip_prefix("btime "))
+        .and_then(|value| value.trim().parse::<u64>().ok())
+        .ok_or_else(|| anyhow::anyhow!("Agent process start is unavailable"))?;
+    let hertz = unsafe { libc::sysconf(libc::_SC_CLK_TCK) };
+    anyhow::ensure!(hertz > 0, "Agent process start is unavailable");
+    let seconds = boot_seconds.saturating_add(ticks / hertz as u64);
+    Ok(i64::try_from(seconds)?.saturating_mul(1000))
+}
+
+#[cfg(not(any(windows, target_os = "macos", target_os = "linux")))]
 fn process_started_at(pid: i64) -> anyhow::Result<i64> {
     let result = crate::zmx::run_zmx_probe_script(
         format!("LC_ALL=C TZ=UTC ps -p {pid} -o lstart="),

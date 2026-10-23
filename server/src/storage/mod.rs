@@ -22,11 +22,14 @@ mod maintenance;
 pub use maintenance::hold_gxserver_database_open;
 
 mod legacy_backfill;
+mod pool;
 mod schema_migrations;
 mod setup;
 #[cfg(test)]
 mod tests;
 
 use legacy_backfill::*;
+pub use pool::GxserverDatabase;
+use pool::{borrow_gxserver_database, open_unpooled_gxserver_database};
 pub use schema_migrations::*;
 pub use setup::*;

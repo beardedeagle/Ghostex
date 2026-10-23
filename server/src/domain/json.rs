@@ -23,11 +23,16 @@ pub(crate) fn parse_object_map(
     row_kind: &str,
     row_id: &str,
 ) -> DomainResult<Map<String, Value>> {
-    let parsed = parse_json_column(value, column, row_kind, row_id)?;
-    parsed
-        .as_object()
-        .cloned()
-        .ok_or_else(|| corrupt_json_column(column, row_kind, row_id, "expected a JSON object"))
+    // The parsed value is taken apart, not copied: these columns are read for every row of every list.
+    match parse_json_column(value, column, row_kind, row_id)? {
+        Value::Object(object) => Ok(object),
+        _ => Err(corrupt_json_column(
+            column,
+            row_kind,
+            row_id,
+            "expected a JSON object",
+        )),
+    }
 }
 
 pub(crate) fn parse_object_array(
@@ -36,8 +41,7 @@ pub(crate) fn parse_object_array(
     row_kind: &str,
     row_id: &str,
 ) -> DomainResult<Value> {
-    let parsed = parse_json_column(value, column, row_kind, row_id)?;
-    let Some(items) = parsed.as_array() else {
+    let Value::Array(items) = parse_json_column(value, column, row_kind, row_id)? else {
         return Err(corrupt_json_column(
             column,
             row_kind,
@@ -45,19 +49,15 @@ pub(crate) fn parse_object_array(
             "expected a JSON array of objects",
         ));
     };
-    let mut output = Vec::new();
-    for (index, item) in items.iter().enumerate() {
-        let Some(object) = item.as_object() else {
-            return Err(corrupt_json_column(
-                column,
-                row_kind,
-                row_id,
-                &format!("expected object at array index {index}"),
-            ));
-        };
-        output.push(Value::Object(object.clone()));
+    if let Some(index) = items.iter().position(|item| !item.is_object()) {
+        return Err(corrupt_json_column(
+            column,
+            row_kind,
+            row_id,
+            &format!("expected object at array index {index}"),
+        ));
     }
-    Ok(Value::Array(output))
+    Ok(Value::Array(items))
 }
 
 pub(crate) fn parse_string_array(

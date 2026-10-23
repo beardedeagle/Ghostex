@@ -179,7 +179,7 @@ pub(crate) fn read_sessions_owning_agent_conversation(
 
 fn open_prompt_launch_database(
     state: &AppState,
-) -> Result<rusqlite::Connection, crate::agent_prompt_search::PromptSearchError> {
+) -> Result<crate::storage::GxserverDatabase, crate::agent_prompt_search::PromptSearchError> {
     open_gxserver_database(&state.paths).map_err(|error| {
         crate::agent_prompt_search::PromptSearchError {
             code: "internalError",

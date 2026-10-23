@@ -16,6 +16,13 @@ use crate::domain::{
 };
 use crate::ids::{create_session_id, create_zmx_session_name, is_gxserver_project_id};
 
+/// The three session columns usage counts need (`list_session_agent_facts`).
+pub struct SessionAgentFacts {
+    pub lifecycle_state: String,
+    pub agent_id: Option<String>,
+    pub agent_command: Option<String>,
+}
+
 impl<'a> DomainRepository<'a> {
     pub fn create_session(
         &self,
@@ -516,7 +523,7 @@ impl<'a> DomainRepository<'a> {
     pub fn list_session_fork_rows(&self) -> DomainResult<Vec<Value>> {
         let mut statement = self
             .db
-            .prepare(
+            .prepare_cached(
                 r#"
                 SELECT projectId, sessionId, lifecycleState,
                        CASE WHEN json_type(providerStateJson, '$.lifecycleState') = 'text'
@@ -558,6 +565,105 @@ impl<'a> DomainRepository<'a> {
         rows.into_iter()
             .map(|row| session_fork_row_value(&self.server_id, row))
             .collect()
+    }
+
+    /// Full session rows whose `runtimeSettings.<key>` is a JSON object, in `list_sessions`
+    /// order: the rows a `session.pointer("/runtimeSettings/<key>").and_then(Value::as_object)`
+    /// filter over the whole registry keeps, with the test run in SQLite so only those rows are
+    /// hydrated. `key` is a plain identifier.
+    pub fn list_sessions_with_runtime_object(&self, key: &str) -> DomainResult<Vec<Value>> {
+        let mut statement = self
+            .db
+            .prepare_cached(
+                "SELECT * FROM sessions WHERE json_type(runtimeSettingsJson, ?1) = 'object' ORDER BY updatedAt DESC, projectId ASC, sessionId ASC",
+            )
+            .map_err(sql_error)?;
+        let rows = statement
+            .query_map([format!("$.{key}")], session_row_from_sql)
+            .map_err(sql_error)?
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(sql_error)?;
+        rows.into_iter()
+            .map(|row| session_from_row(&self.server_id, row))
+            .collect()
+    }
+
+    /// Every row's `lifecycleState`, `agentId` and string `runtimeSettings.agentCommand`, the
+    /// values a hydrated row carries for those keys, read without hydrating any row.
+    pub fn list_session_agent_facts(&self) -> DomainResult<Vec<SessionAgentFacts>> {
+        let mut statement = self
+            .db
+            .prepare_cached(
+                r#"
+                SELECT lifecycleState, agentId,
+                       CASE WHEN json_type(runtimeSettingsJson, '$.agentCommand') = 'text'
+                            THEN json_extract(runtimeSettingsJson, '$.agentCommand') END
+                FROM sessions
+                "#,
+            )
+            .map_err(sql_error)?;
+        let rows = statement
+            .query_map([], |row| {
+                Ok(SessionAgentFacts {
+                    lifecycle_state: row.get(0)?,
+                    agent_id: row.get(1)?,
+                    agent_command: row.get(2)?,
+                })
+            })
+            .map_err(sql_error)?
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(sql_error)?;
+        Ok(rows)
+    }
+
+    /// Every agent conversation id the registry records, stopped rows included: each row's
+    /// `runtimeSettings.agentSessionId` and the strings in its
+    /// `runtimeSettings.previousAgentSessionIds`, exactly the values a hydrated row's
+    /// `Value::as_str` / `as_array` reads would give. SQLite pulls the two keys out of the JSON
+    /// column, so no row is hydrated.
+    pub fn list_recorded_agent_session_ids(&self) -> DomainResult<Vec<String>> {
+        let mut statement = self
+            .db
+            .prepare_cached(
+                r#"
+                SELECT CASE WHEN json_type(runtimeSettingsJson, '$.agentSessionId') = 'text'
+                            THEN json_extract(runtimeSettingsJson, '$.agentSessionId') END,
+                       CASE WHEN json_type(runtimeSettingsJson, '$.previousAgentSessionIds') = 'array'
+                            THEN json_extract(runtimeSettingsJson, '$.previousAgentSessionIds') END
+                FROM sessions
+                "#,
+            )
+            .map_err(sql_error)?;
+        let rows = statement
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, Option<String>>(0)?,
+                    row.get::<_, Option<String>>(1)?,
+                ))
+            })
+            .map_err(sql_error)?
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(sql_error)?;
+        let mut ids = Vec::new();
+        for (current, previous) in rows {
+            ids.extend(current);
+            let Some(previous) = previous else {
+                continue;
+            };
+            let Value::Array(items) = serde_json::from_str(&previous).map_err(|error| {
+                DomainStateError::corrupt_state(format!(
+                    "Corrupt previousAgentSessionIds in a session row: {error}"
+                ))
+            })?
+            else {
+                continue;
+            };
+            ids.extend(items.into_iter().filter_map(|item| match item {
+                Value::String(id) => Some(id),
+                _ => None,
+            }));
+        }
+        Ok(ids)
     }
 
     /// The project's rows that can satisfy `identities_match_strength` for an
@@ -618,7 +724,7 @@ impl<'a> DomainRepository<'a> {
     pub fn list_presentation_sessions(&self) -> DomainResult<Vec<Value>> {
         let mut statement = self
             .db
-            .prepare(
+            .prepare_cached(
                 r#"
                 SELECT * FROM sessions
                 WHERE lifecycleState <> 'stopped'
@@ -654,6 +760,8 @@ impl<'a> DomainRepository<'a> {
     /// 'sleeping', 'stopped', 'missing', 'unknown'))`, and hydration passes
     /// each of those five values through unchanged, so the SQL predicate and
     /// an in-memory `lifecycleState != "stopped"` filter select the same rows.
+    /// The predicate names the four other states rather than `<> 'stopped'`
+    /// so `idx_sessions_lifecycle_updated` can serve it.
     pub fn list_sessions_excluding_stopped(
         &self,
         project_id: Option<&str>,
@@ -661,8 +769,8 @@ impl<'a> DomainRepository<'a> {
         let rows = if let Some(project_id) = project_id {
             let mut statement = self
                 .db
-                .prepare(
-                    "SELECT * FROM sessions WHERE projectId = ?1 AND lifecycleState <> 'stopped' ORDER BY updatedAt DESC, sessionId ASC",
+                .prepare_cached(
+                    "SELECT * FROM sessions WHERE projectId = ?1 AND lifecycleState IN ('running', 'sleeping', 'missing', 'unknown') ORDER BY updatedAt DESC, sessionId ASC",
                 )
                 .map_err(sql_error)?;
             let rows = statement
@@ -674,8 +782,8 @@ impl<'a> DomainRepository<'a> {
         } else {
             let mut statement = self
                 .db
-                .prepare(
-                    "SELECT * FROM sessions WHERE lifecycleState <> 'stopped' ORDER BY updatedAt DESC, projectId ASC, sessionId ASC",
+                .prepare_cached(
+                    "SELECT * FROM sessions WHERE lifecycleState IN ('running', 'sleeping', 'missing', 'unknown') ORDER BY updatedAt DESC, projectId ASC, sessionId ASC",
                 )
                 .map_err(sql_error)?;
             let rows = statement
@@ -700,7 +808,7 @@ impl<'a> DomainRepository<'a> {
     ) -> DomainResult<Vec<Value>> {
         let mut statement = self
             .db
-            .prepare(
+            .prepare_cached(
                 "SELECT * FROM sessions WHERE lifecycleState = ?1 ORDER BY updatedAt DESC, projectId ASC, sessionId ASC",
             )
             .map_err(sql_error)?;
@@ -712,6 +820,25 @@ impl<'a> DomainRepository<'a> {
         rows.into_iter()
             .map(|row| session_from_row(&self.server_id, row))
             .collect()
+    }
+
+    /// Whether a `running` session's trimmed `agentId` is `agent_id`: the rows a
+    /// `list_sessions_with_lifecycle_state("running")` caller keeps with
+    /// `read_session_text(session, "agentId") == Some(agent_id)`, read from the lifecycle index
+    /// and one column instead of hydrating every running row.
+    pub fn has_running_session_with_agent(&self, agent_id: &str) -> DomainResult<bool> {
+        let mut statement = self
+            .db
+            .prepare_cached("SELECT agentId FROM sessions WHERE lifecycleState = 'running'")
+            .map_err(sql_error)?;
+        let mut rows = statement.query([]).map_err(sql_error)?;
+        while let Some(row) = rows.next().map_err(sql_error)? {
+            let stored: Option<String> = row.get(0).map_err(sql_error)?;
+            if stored.as_deref().map(str::trim) == Some(agent_id) {
+                return Ok(true);
+            }
+        }
+        Ok(false)
     }
 
     /// Full session rows whose recorded agent conversation is `agent_session_id`, in `list_sessions` order.
@@ -763,11 +890,9 @@ impl<'a> DomainRepository<'a> {
     pub fn get_session(&self, project_id: &str, session_id: &str) -> DomainResult<Option<Value>> {
         let row = self
             .db
-            .query_row(
-                "SELECT * FROM sessions WHERE projectId = ?1 AND sessionId = ?2",
-                params![project_id, session_id],
-                session_row_from_sql,
-            )
+            .prepare_cached("SELECT * FROM sessions WHERE projectId = ?1 AND sessionId = ?2")
+            .map_err(sql_error)?
+            .query_row(params![project_id, session_id], session_row_from_sql)
             .optional()
             .map_err(sql_error)?;
         row.map(|row| session_from_row(&self.server_id, row))

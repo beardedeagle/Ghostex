@@ -9,7 +9,7 @@ use crate::{
     storage::{initialize_gxserver_storage, open_gxserver_database},
 };
 
-fn open_test_database() -> (tempfile::TempDir, rusqlite::Connection) {
+fn open_test_database() -> (tempfile::TempDir, crate::storage::GxserverDatabase) {
     let temp = tempfile::tempdir().expect("tempdir");
     let paths = get_gxserver_paths(Some(temp.path().to_path_buf()));
     initialize_gxserver_storage(&paths).expect("storage init");

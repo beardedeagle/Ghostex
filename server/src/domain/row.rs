@@ -30,7 +30,9 @@ pub(crate) struct ProjectRow {
     name: String,
     notification_rules_json: String,
     path: Option<String>,
-    previous_session_history_json: String,
+    /// `None` when the row was read without its session history (see
+    /// `project_row_without_session_history_from_sql`).
+    previous_session_history_json: Option<String>,
     project_board_config_json: String,
     pub(crate) project_id: String,
     recent_closed_at: Option<String>,
@@ -42,6 +44,16 @@ pub(crate) struct ProjectRow {
 }
 
 pub(crate) fn project_row_from_sql(row: &rusqlite::Row<'_>) -> rusqlite::Result<ProjectRow> {
+    let mut project = project_row_without_session_history_from_sql(row)?;
+    project.previous_session_history_json = Some(row.get("previousSessionHistoryJson")?);
+    Ok(project)
+}
+
+/// A project row whose statement left `previousSessionHistoryJson` out; the hydrated project
+/// has no `previousSessionHistory` key.
+pub(crate) fn project_row_without_session_history_from_sql(
+    row: &rusqlite::Row<'_>,
+) -> rusqlite::Result<ProjectRow> {
     Ok(ProjectRow {
         project_id: row.get("projectId")?,
         name: row.get("name")?,
@@ -67,7 +79,7 @@ pub(crate) fn project_row_from_sql(row: &rusqlite::Row<'_>) -> rusqlite::Result<
         notification_rules_json: row.get("notificationRulesJson")?,
         git_config_json: row.get("gitConfigJson")?,
         project_board_config_json: row.get("projectBoardConfigJson")?,
-        previous_session_history_json: row.get("previousSessionHistoryJson")?,
+        previous_session_history_json: None,
         created_at: row.get("createdAt")?,
         updated_at: row.get("updatedAt")?,
     })
@@ -183,15 +195,17 @@ pub(crate) fn project_from_row(row: ProjectRow) -> DomainResult<Value> {
         )?,
     );
     insert_optional_string(&mut project, "path", row.path);
-    project.insert(
-        "previousSessionHistory".to_string(),
-        parse_object_array(
-            &row.previous_session_history_json,
-            "previousSessionHistoryJson",
-            "project",
-            &row.project_id,
-        )?,
-    );
+    if let Some(history) = &row.previous_session_history_json {
+        project.insert(
+            "previousSessionHistory".to_string(),
+            parse_object_array(
+                history,
+                "previousSessionHistoryJson",
+                "project",
+                &row.project_id,
+            )?,
+        );
+    }
     project.insert(
         "projectBoardConfig".to_string(),
         parse_object(

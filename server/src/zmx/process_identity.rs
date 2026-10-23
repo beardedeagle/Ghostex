@@ -429,22 +429,94 @@ pub(crate) fn process_open_file_paths(process_id: i64) -> Vec<PathBuf> {
         .collect()
 }
 
+/// `struct proc_fileinfo` from `<sys/proc_info.h>`, which the libc crate does not declare. Only its layout is used.
+#[cfg(target_os = "macos")]
+#[repr(C)]
+#[allow(dead_code)]
+struct ProcFileInfo {
+    fi_openflags: u32,
+    fi_status: u32,
+    fi_offset: i64,
+    fi_type: i32,
+    fi_guardflags: u32,
+}
+
+/// `struct vnode_fdinfowithpath`, the `PROC_PIDFDVNODEPATHINFO` reply.
+#[cfg(target_os = "macos")]
+#[repr(C)]
+#[allow(dead_code)]
+struct VnodeFdInfoWithPath {
+    pfi: ProcFileInfo,
+    pvip: libc::vnode_info_path,
+}
+
+#[cfg(target_os = "macos")]
+const PROC_PIDFDVNODEPATHINFO: libc::c_int = 2;
+
+/// CDXC:SessionIdentity 2026-10-23 WHY:
+/// The paths of the files the process holds open, read from the kernel's file table as Linux reads `/proc/<pid>/fd`. This ran `lsof` (about 60ms of CPU and 200ms of wall time) for every live Codex process on each two-second identity snapshot. Every reader of these paths looks for a Codex rollout, which Codex keeps open for append, so the descriptors are the whole answer; `lsof` also listed the working directory, the executable and its libraries, which no reader wants.
 #[cfg(target_os = "macos")]
 pub(crate) fn process_open_file_paths(process_id: i64) -> Vec<PathBuf> {
-    let output = std::process::Command::new("/usr/sbin/lsof")
-        .args(["-Fn", "-p", &process_id.to_string()])
-        .output();
-    let Ok(output) = output else {
+    use std::os::unix::ffi::OsStringExt;
+
+    let Ok(pid) = i32::try_from(process_id) else {
         return Vec::new();
     };
-    if !output.status.success() {
+    let entry_size = std::mem::size_of::<libc::proc_fdinfo>();
+    // Both calls fill plain C output buffers; only complete replies are read.
+    let needed =
+        unsafe { libc::proc_pidinfo(pid, libc::PROC_PIDLISTFDS, 0, std::ptr::null_mut(), 0) };
+    if needed <= 0 {
         return Vec::new();
     }
-    String::from_utf8_lossy(&output.stdout)
-        .lines()
-        .filter_map(|line| line.strip_prefix('n'))
-        .filter(|path| Path::new(path).is_absolute())
-        .map(PathBuf::from)
+    // Room for descriptors opened between the two calls.
+    let mut descriptors: Vec<libc::proc_fdinfo> =
+        Vec::with_capacity(needed as usize / entry_size + 32);
+    let Ok(capacity) = i32::try_from(descriptors.capacity() * entry_size) else {
+        return Vec::new();
+    };
+    let listed = unsafe {
+        libc::proc_pidinfo(
+            pid,
+            libc::PROC_PIDLISTFDS,
+            0,
+            descriptors.as_mut_ptr() as *mut libc::c_void,
+            capacity,
+        )
+    };
+    if listed <= 0 {
+        return Vec::new();
+    }
+    unsafe { descriptors.set_len(listed as usize / entry_size) };
+    let reply_size = std::mem::size_of::<VnodeFdInfoWithPath>() as i32;
+    descriptors
+        .iter()
+        .filter(|descriptor| descriptor.proc_fdtype == libc::PROX_FDTYPE_VNODE as u32)
+        .filter_map(|descriptor| {
+            let mut info: VnodeFdInfoWithPath = unsafe { std::mem::zeroed() };
+            let read = unsafe {
+                libc::proc_pidfdinfo(
+                    pid,
+                    descriptor.proc_fd,
+                    PROC_PIDFDVNODEPATHINFO,
+                    &mut info as *mut _ as *mut libc::c_void,
+                    reply_size,
+                )
+            };
+            if read != reply_size {
+                return None;
+            }
+            let bytes = info
+                .pvip
+                .vip_path
+                .iter()
+                .flatten()
+                .map(|byte| *byte as u8)
+                .take_while(|byte| *byte != 0)
+                .collect::<Vec<_>>();
+            let path = PathBuf::from(std::ffi::OsString::from_vec(bytes));
+            path.is_absolute().then_some(path)
+        })
         .collect()
 }
 

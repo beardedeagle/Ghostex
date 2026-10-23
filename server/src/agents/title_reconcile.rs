@@ -686,65 +686,133 @@ from the resolved identity on resumed and forked Claude sessions.
 */
 pub(crate) const CLAUDE_TRANSCRIPT_TITLE_TAIL_BYTES: u64 = 256 * 1024;
 
-pub(crate) fn read_claude_transcript_title(transcript_path: &Path) -> Option<AgentMetadataTitle> {
-    let (tail, tail_start) =
-        read_transcript_tail_text_with_offset(transcript_path, CLAUDE_TRANSCRIPT_TITLE_TAIL_BYTES)?;
-    for (line_offset, line) in tail.rsplit('\n').scan(tail.len(), |line_end, line| {
-        let line_offset = line_end.saturating_sub(line.len());
-        *line_end = line_offset.saturating_sub(1);
-        Some((line_offset, line))
-    }) {
-        let line = line.trim();
-        if line.is_empty() {
-            continue;
-        }
-        let Ok(entry) = serde_json::from_str::<Value>(line) else {
-            continue;
-        };
-        let Some(entry) = entry.as_object() else {
-            continue;
-        };
-        if entry.get("type").and_then(Value::as_str) != Some("custom-title") {
-            continue;
-        }
-        let title = normalize_metadata_title(entry.get("customTitle"))?;
-        return Some(AgentMetadataTitle {
-            agent_session_id: None,
-            provider: "claude-transcript",
-            record_revision: Some(format!(
-                "{}:{}",
-                transcript_path.to_string_lossy(),
-                tail_start.saturating_add(line_offset as u64),
-            )),
-            title,
-            updated_at: None,
-        });
-    }
-    None
+/// One transcript's newest `custom-title` record among its complete lines, as of `end`.
+#[derive(Clone)]
+struct ClaudeTitleScan {
+    identity: String,
+    /// The end of the last complete line read.
+    end: u64,
+    /// A hash of the bytes just before `end`, so a rewritten transcript is read again in full.
+    guard: u64,
+    /// The newest `custom-title` record before `end`: its line's offset and its normalized title,
+    /// `None` when that title does not normalize (which hides every older record too).
+    newest: Option<(u64, Option<String>)>,
 }
 
-fn read_transcript_tail_text_with_offset(path: &Path, tail_bytes: u64) -> Option<(String, u64)> {
-    let mut file = fs::File::open(path).ok()?;
+/// How many bytes before a cached scan's end must be unchanged for the scan to resume there.
+const CLAUDE_TITLE_RESUME_GUARD_BYTES: u64 = 256;
+
+fn claude_title_resume_guard(file: &fs::File, end: u64) -> Option<u64> {
+    use std::hash::{Hash, Hasher};
+    let start = end.saturating_sub(CLAUDE_TITLE_RESUME_GUARD_BYTES);
+    let mut bytes = vec![0; (end - start) as usize];
+    crate::session_chat::read_exact_at(file, &mut bytes, start).ok()?;
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    bytes.hash(&mut hasher);
+    Some(hasher.finish())
+}
+
+/// The `custom-title` record a transcript line holds: `Some(title)` with the title normalized
+/// (itself `None` when it does not normalize), or `None` for any other line.
+fn claude_custom_title_line(line: &[u8]) -> Option<Option<String>> {
+    let line = String::from_utf8_lossy(line);
+    let line = line.trim();
+    if line.is_empty() {
+        return None;
+    }
+    let entry = serde_json::from_str::<Value>(line).ok()?;
+    let entry = entry.as_object()?;
+    if entry.get("type").and_then(Value::as_str) != Some("custom-title") {
+        return None;
+    }
+    Some(normalize_metadata_title(entry.get("customTitle")))
+}
+
+/// CDXC:SessionTitles 2026-10-23 WHY:
+/// The tail window above was read and every line in it parsed on each pass, so a working Claude session (whose transcript changes every second) cost a 256 KB read and parse per second. The newest `custom-title` record among the complete lines is now remembered with the offset the read reached, and while the transcript only grows (same file, unchanged bytes before that offset) only the appended bytes are read: a record among them is newer, and otherwise the remembered one stands while it is still inside the window. The answer is the same as the full window read: the newest `custom-title` line that starts inside the last 256 KB, the unterminated last line included, and `None` when that record's title does not normalize.
+pub(crate) fn read_claude_transcript_title(transcript_path: &Path) -> Option<AgentMetadataTitle> {
+    static SCANS: std::sync::OnceLock<
+        std::sync::Mutex<std::collections::HashMap<PathBuf, ClaudeTitleScan>>,
+    > = std::sync::OnceLock::new();
+    let scans = SCANS.get_or_init(Default::default);
+    let identity = crate::session_chat::read_transcript_file_version(transcript_path)
+        .ok()?
+        .identity;
+    let mut file = fs::File::open(transcript_path).ok()?;
     let length = file.metadata().ok()?.len();
-    let start = length.saturating_sub(tail_bytes);
-    file.seek(SeekFrom::Start(start)).ok()?;
-    let mut bytes = Vec::with_capacity(length.saturating_sub(start) as usize);
+    let window_start = length.saturating_sub(CLAUDE_TRANSCRIPT_TITLE_TAIL_BYTES);
+    // A line counts when it starts inside the window; a partial first line is cut off.
+    let in_window = |offset: u64| window_start == 0 || offset > window_start;
+    let previous = scans
+        .lock()
+        .ok()
+        .and_then(|scans| scans.get(transcript_path).cloned())
+        .filter(|previous| {
+            previous.identity == identity
+                && previous.end <= length
+                && in_window(previous.end)
+                && claude_title_resume_guard(&file, previous.end) == Some(previous.guard)
+        });
+    let read_from = previous
+        .as_ref()
+        .map_or(window_start, |previous| previous.end);
+    file.seek(SeekFrom::Start(read_from)).ok()?;
+    let mut bytes = Vec::with_capacity(length.saturating_sub(read_from) as usize);
     file.read_to_end(&mut bytes).ok()?;
-    let mut text_start = start;
-    if start > 0 {
-        match bytes.iter().position(|byte| *byte == b'\n') {
-            Some(first_newline) => {
-                let removed = first_newline + 1;
-                bytes.drain(..removed);
-                text_start = text_start.saturating_add(removed as u64);
-            }
-            None => {
-                bytes.clear();
-                text_start = length;
+    let mut text_start = read_from;
+    if previous.is_none() && read_from > 0 {
+        let first_newline = bytes.iter().position(|byte| *byte == b'\n')?;
+        bytes.drain(..=first_newline);
+        text_start += first_newline as u64 + 1;
+    }
+    let complete = bytes
+        .iter()
+        .rposition(|byte| *byte == b'\n')
+        .map_or(0, |last_newline| last_newline + 1);
+    let mut newest = None;
+    let mut line_end = complete.saturating_sub(1);
+    for line in bytes[..complete.saturating_sub(1)].rsplit(|byte| *byte == b'\n') {
+        let line_start = line_end - line.len();
+        if complete > 0 {
+            if let Some(title) = claude_custom_title_line(line) {
+                newest = Some((text_start + line_start as u64, title));
+                break;
             }
         }
+        line_end = line_start.saturating_sub(1);
     }
-    Some((String::from_utf8_lossy(&bytes).into_owned(), text_start))
+    if newest.is_none() {
+        newest = previous
+            .and_then(|previous| previous.newest)
+            .filter(|(offset, _)| in_window(*offset));
+    }
+    let end = text_start + complete as u64;
+    if let Some(guard) = claude_title_resume_guard(&file, end) {
+        if let Ok(mut scans) = scans.lock() {
+            if scans.len() >= 1024 {
+                scans.clear();
+            }
+            scans.insert(
+                transcript_path.to_path_buf(),
+                ClaudeTitleScan {
+                    identity,
+                    end,
+                    guard,
+                    newest: newest.clone(),
+                },
+            );
+        }
+    }
+    let (offset, title) = claude_custom_title_line(&bytes[complete..])
+        .map(|title| (end, title))
+        .or(newest)?;
+    Some(AgentMetadataTitle {
+        agent_session_id: None,
+        provider: "claude-transcript",
+        record_revision: Some(format!("{}:{offset}", transcript_path.to_string_lossy())),
+        title: title?,
+        updated_at: None,
+    })
 }
 
 pub(crate) fn read_codex_session_index_title(

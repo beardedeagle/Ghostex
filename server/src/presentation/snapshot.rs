@@ -122,7 +122,9 @@ pub fn build_presentation_session_delta(
     project_id: &str,
     session_id: &str,
 ) -> Result<Value, DomainStateError> {
-    let project = repository.get_project(project_id)?;
+    // The session projection reads the project's settings, never its restorable session history
+    // (the 130 KB column only `domainProject` in a project delta carries).
+    let project = repository.get_project_without_session_history(project_id)?;
     let session = repository.get_session(project_id, session_id)?;
     let (Some(project), Some(session)) = (project, session) else {
         return Ok(json!({

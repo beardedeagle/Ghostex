@@ -87,7 +87,14 @@ pub(crate) fn dispatch(
             params.get("refresh").and_then(Value::as_bool) == Some(true) || operation == "register",
         )
     };
-    let _gate = state.accounts.mutations.lock().map_err(store::error)?;
+    // CDXC:AgentProviders 2026-10-23 WHY:
+    // The four read operations change nothing, so they no longer queue behind `mutations`: a switch restarting a session holds it for seconds, and every open chat's 30-second `session` poll and the titlebar's read used to wait that out.
+    let read_only = matches!(operation, "list" | "roster" | "session" | "titlebar");
+    let _gate = if read_only {
+        None
+    } else {
+        Some(state.accounts.mutations.lock().map_err(store::error)?)
+    };
     let db = crate::storage::open_gxserver_database(&state.paths).map_err(store::error)?;
     let repository = DomainRepository::new(&db, &state.metadata.server_id);
     let mut registry = store::read(&db)?;
@@ -843,8 +850,11 @@ fn state_value(
     home: &std::path::Path,
     params: &Map<String, Value>,
 ) -> Result<Value, DomainStateError> {
-    let titlebar = params.get("operation").and_then(Value::as_str) == Some("titlebar");
-    let session_counts = if titlebar {
+    let operation = params.get("operation").and_then(Value::as_str);
+    let titlebar = operation == Some("titlebar");
+    // CDXC:AgentProviders 2026-10-23 WHY:
+    // `sessionCount` is drawn only by Settings > Accounts (`list` and the mutations it sends) and `ghostex accounts` (`roster`). The `session` answer feeds the chat's and the sidebar's account menus, which never read it, and every open chat asks for it every 30 seconds; counting walks every session row's JSON, so `session` skips it as `titlebar` already did.
+    let session_counts = if titlebar || operation == Some("session") {
         HashMap::new()
     } else {
         session_account_counts(repository)?

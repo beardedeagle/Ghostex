@@ -209,7 +209,11 @@ fn collect(
     let db = open_gxserver_database(&state.paths).map_err(store::error)?;
     let repo = DomainRepository::new(&db, &state.metadata.server_id);
     let registry = store::read(&db)?;
-    let targets = if let Some(selected) = selected.filter(|_| !restart) {
+    let selected = selected.filter(|_| !restart);
+    // CDXC:AgentProviders 2026-10-23 WHY:
+    // The 30-second pass hydrated every session row (over ten thousand on a long-lived registry) although `plan_session` acts only on running and sleeping rows. A periodic pass now reads the rows that are not stopped; the two things a stopped row still took part in are kept exactly: the policy-override test below runs over every row in SQL, and a stopped session's usage-limit wait is still settled after the loop. The startup pass keeps the full list because `restore_session` repairs every row.
+    let periodic = selected.is_none() && !restart;
+    let targets = if let Some(selected) = selected {
         selected
             .into_iter()
             .map(|(pid, sid)| repo.get_session(&pid, &sid))
@@ -217,8 +221,10 @@ fn collect(
             .into_iter()
             .flatten()
             .collect()
-    } else {
+    } else if restart {
         repo.list_sessions(None)?
+    } else {
+        repo.list_sessions_excluding_stopped(None)?
     };
     if restart {
         let _gate = state
@@ -231,6 +237,9 @@ fn collect(
             else {
                 continue;
             };
+            if !restore_may_apply(&registry, old) {
+                continue;
+            }
             if let Err(error) = restore_session(state, &repo, &registry, pid, sid) {
                 log(
                     state,
@@ -254,10 +263,14 @@ fn collect(
                     .unwrap_or_default()
                     .enabled
             })
-        && !targets.iter().any(|s| {
-            s.pointer("/runtimeSettings/accountPolicyOverride/enabled")
-                .and_then(Value::as_bool)
-                == Some(true)
+        && !(if periodic {
+            any_session_enables_policy_override(&db)?
+        } else {
+            targets.iter().any(|s| {
+                s.pointer("/runtimeSettings/accountPolicyOverride/enabled")
+                    .and_then(Value::as_bool)
+                    == Some(true)
+            })
         })
     {
         return Ok(vec![]);
@@ -265,6 +278,7 @@ fn collect(
     let snapshot = state.accounts.refresh(&state.paths.home_dir, false);
     let detector = SessionChatOptionDetector::new(state);
     let mut plans = vec![];
+    let mut settled = BTreeSet::new();
     for old in targets {
         let (Some(pid), Some(sid)) = (old["projectId"].as_str(), old["sessionId"].as_str()) else {
             continue;
@@ -273,6 +287,9 @@ fn collect(
             plan_session(state, &db, &repo, &registry, &snapshot, &detector, &old)
         }));
         super::limit_wait::settle(state, &repo, pid, sid);
+        if periodic {
+            settled.insert((pid.to_string(), sid.to_string()));
+        }
         match planned {
             Ok(Ok(Some(plan))) => plans.push(plan),
             Ok(Ok(None)) => {}
@@ -299,7 +316,50 @@ fn collect(
             }
         }
     }
+    if periodic {
+        // The stopped rows this pass no longer reads: a wait that is still open for one of them
+        // ends here, as it did when the pass walked every row.
+        for (pid, sid) in super::limit_wait::waiting_sessions() {
+            if !settled.contains(&(pid.clone(), sid.clone())) {
+                super::limit_wait::settle(state, &repo, &pid, &sid);
+            }
+        }
+    }
     Ok(plans)
+}
+/// Whether any session row, stopped ones included, turns its account policy on by itself (`accountPolicyOverride.enabled` is JSON `true`).
+fn any_session_enables_policy_override(
+    db: &rusqlite::Connection,
+) -> Result<bool, DomainStateError> {
+    db.query_row(
+        "SELECT EXISTS (SELECT 1 FROM sessions WHERE json_type(runtimeSettingsJson, '$.accountPolicyOverride.enabled') = 'true')",
+        [],
+        |row| row.get::<_, bool>(0),
+    )
+    .map_err(store::error)
+}
+/// Whether `restore_session` can do anything for this row, judged from the row as the startup pass listed it: each of its steps starts from one of these fields.
+///
+/// CDXC:AgentProviders 2026-10-23 WHY:
+/// The startup pass re-read every session row (10,900 on 2026-10-23) one at a time while holding `accounts.mutations`, so account requests waited out the whole walk after each start, though only about a hundred rows carry anything to repair. Rows without these fields are skipped; the rest are still re-read under the lock before anything is written, as before.
+fn restore_may_apply(registry: &Registry, session: &Value) -> bool {
+    let runtime = &session["runtimeSettings"];
+    let stale_slot = registry
+        .accounts
+        .iter()
+        .find(|account| runtime["accountId"].as_str() == Some(account.id.as_str()))
+        .is_some_and(|account| {
+            runtime["accountSlot"] != json!(account.selector)
+                || runtime.get("accountColor").is_some()
+        });
+    stale_slot
+        || runtime["accountRecovery"]["accountWait"].is_object()
+        || runtime.get("accountSuppressedUsageNoticeAt").is_some()
+        || runtime["accountRecovery"]["status"] == "retrying"
+        || matches!(
+            runtime["accountSwitch"]["phase"].as_str(),
+            Some("switching" | "resuming" | "continuing")
+        )
 }
 /// Startup repair for one session: slot migration, the suppressed usage notice, and a recovery interrupted by the restart.
 fn restore_session(
@@ -324,8 +384,12 @@ fn restore_session(
             .unwrap_or_default();
         runtime.insert("accountSlot".into(), json!(account.selector));
         runtime.remove("accountColor");
-        endpoint::update_session(repo, &session, runtime)?;
-        session = repo.get_session(pid, sid)?.unwrap_or(session);
+        // CDXC:AgentProviders 2026-10-23 WHY:
+        // The slot migration rewrote every session bound to a saved account on every gxserver start, closed ones included (1,818 rows on 2026-10-23, all already migrated), which made each start write the whole set and stamp all of them with the start time as `updatedAt`. Only a row the migration actually changes is written now.
+        if session["runtimeSettings"].as_object() != Some(&runtime) {
+            endpoint::update_session(repo, &session, runtime)?;
+            session = repo.get_session(pid, sid)?.unwrap_or(session);
+        }
     }
     super::limit_wait::restore(&session);
     if let Some(since) = time(session.pointer("/runtimeSettings/accountSuppressedUsageNoticeAt")) {

@@ -45,7 +45,7 @@ pub(crate) async fn handle_read_project_git_state_http(
         Ok(params) => params,
         Err(error) => return domain_error_response(endpoint_path, request_id, error),
     };
-    let projects = match list_projects(state) {
+    let projects = match requested_project(state, &params) {
         Ok(projects) => projects,
         Err(error) => return domain_error_response(endpoint_path, request_id, error),
     };
@@ -57,6 +57,26 @@ pub(crate) async fn handle_read_project_git_state_http(
         ),
         Err(error) => typed_operation_error_response(endpoint_path, request_id, error),
     }
+}
+
+/// The requested project as the one-row project list the typed operations resolve their scope from: every operation this endpoint runs is scoped to `projectId`, so reading the whole registry for each call (the sidebar's poll makes one a second) only to pick one row out of it is skipped. An unknown or missing id yields an empty list, which the operations refuse exactly as before.
+fn requested_project(
+    state: &AppState,
+    params: &Map<String, Value>,
+) -> Result<Vec<Value>, DomainStateError> {
+    let Ok(project_id) = read_project_id(params) else {
+        return Ok(Vec::new());
+    };
+    let db = open_gxserver_database(&state.paths).map_err(|error| DomainStateError {
+        code: "internalError",
+        message: format!("SQLite gxserver state error: {error}"),
+    })?;
+    Ok(
+        DomainRepository::new(&db, state.metadata.server_id.as_str())
+            .get_project(&project_id)?
+            .into_iter()
+            .collect(),
+    )
 }
 
 pub(crate) fn list_projects(state: &AppState) -> Result<Vec<Value>, DomainStateError> {

@@ -126,7 +126,9 @@ fn required_param(params: &Map<String, Value>, key: &str) -> Result<String, Doma
         .ok_or_else(|| DomainStateError::bad_request(format!("Pass {key}.")))
 }
 
-fn open_repository_db(state: &AppState) -> Result<rusqlite::Connection, DomainStateError> {
+fn open_repository_db(
+    state: &AppState,
+) -> Result<crate::storage::GxserverDatabase, DomainStateError> {
     open_gxserver_database(&state.paths).map_err(|error| DomainStateError {
         code: "internalError",
         message: format!("SQLite gxserver state error: {error}"),

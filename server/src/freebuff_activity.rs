@@ -92,6 +92,16 @@ fn refresh(state: &AppState, observed: &mut HashMap<String, Observed>) {
         return;
     };
     let repository = DomainRepository::new(&db, &state.metadata.server_id);
+    // Every two seconds: with no Freebuff session running there is nothing to watch, and one
+    // indexed column read says so without hydrating every running session.
+    match repository.has_running_session_with_agent("freebuff") {
+        Ok(true) => {}
+        Ok(false) => {
+            observed.clear();
+            return;
+        }
+        Err(_) => return,
+    }
     let Ok(sessions) = repository.list_sessions_with_lifecycle_state("running") else {
         return;
     };
