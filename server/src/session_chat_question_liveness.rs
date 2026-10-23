@@ -139,15 +139,16 @@ fn claude_question_tab_for_heading(
     best.next().is_none().then_some(first)
 }
 
-/// Reads the selector's current tab and highlighted row from a screen capture.
-/// `None` when the capture shows no AskUserQuestion selector for these
-/// questions, or its highlight cannot be placed.
-pub fn claude_question_selector_position(
+/// The tab on screen and the line its option rows start from.
+///
+/// CDXC:AgentScreenDetection 2026-10-23 WHY: Claude draws a question taller than its terminal (a 45-line JSON approval, observed 2026-10-23) with the tab row and the question's start scrolled off the top, so a reader that needs the tab row refused every answer with "where its highlight sits could not be read". With no tab row on screen the tab is read from what is still there: the option rows, every label in order with the "Type something" row after them, and the end of that question's text right above them. A question whose rows and text both fit is the tab; two that fit, or none, read as "not placed", as a tie does in `claude_question_tab_for_heading`.
+pub(crate) fn claude_question_tab_and_rows(
     questions: &[SessionChatQuestion],
-    screen_text: &str,
-) -> Option<ClaudeQuestionSelectorPosition> {
-    let lines: Vec<&str> = screen_text.lines().map(str::trim_end).collect();
-    let tab_row = claude_question_tab_row(&lines)?;
+    lines: &[&str],
+) -> Option<(usize, usize)> {
+    let Some(tab_row) = claude_question_tab_row(lines) else {
+        return claude_question_tab_scrolled_off(questions, lines);
+    };
     let below = &lines[tab_row + 1..];
     let heading_start = below.iter().position(|line| !line.trim().is_empty())?;
     let heading_len = below[heading_start..]
@@ -167,7 +168,19 @@ pub fn claude_question_selector_position(
     } else {
         claude_question_tab_for_heading(questions, &heading)?
     };
-    let highlight = below[heading_start + heading_len..]
+    Some((tab, tab_row + 1 + heading_start + heading_len))
+}
+
+/// Reads the selector's current tab and highlighted row from a screen capture.
+/// `None` when the capture shows no AskUserQuestion selector for these
+/// questions, or its highlight cannot be placed.
+pub fn claude_question_selector_position(
+    questions: &[SessionChatQuestion],
+    screen_text: &str,
+) -> Option<ClaudeQuestionSelectorPosition> {
+    let lines: Vec<&str> = screen_text.lines().map(str::trim_end).collect();
+    let (tab, rows_from) = claude_question_tab_and_rows(questions, &lines)?;
+    let highlight = lines[rows_from..]
         .iter()
         .find_map(|line| line.strip_prefix('❯'))?
         .trim();
@@ -257,4 +270,104 @@ pub fn format_ask_answer_message(
         })
         .collect();
     format!("My answers to your questions:\n{}", lines.join("\n"))
+}
+
+/// One numbered selector row: its number and its text, past the highlight
+/// mark and a multi-select checkbox.
+fn claude_option_row(line: &str) -> Option<(usize, &str)> {
+    let line = line.trim_start().trim_start_matches('❯').trim_start();
+    let (number, rest) = line.split_once(". ")?;
+    let number = number.parse::<usize>().ok()?;
+    let rest = match rest.strip_prefix('[').and_then(|rest| rest.split_once(']')) {
+        Some((_, rest)) => rest,
+        None => rest,
+    };
+    Some((number, rest.trim()))
+}
+
+/// The line of the last run of rows on screen that shows every option of
+/// `question` in order ("1. <label>" …) followed by its "Type something" row.
+fn claude_option_rows_line(question: &SessionChatQuestion, lines: &[&str]) -> Option<usize> {
+    let labels: Vec<String> = question
+        .options
+        .iter()
+        .map(|option| {
+            let prefix: String = option
+                .label
+                .trim()
+                .chars()
+                .take(LIVE_LABEL_PREFIX_CHARS)
+                .collect();
+            prefix.trim_end().to_string()
+        })
+        .collect();
+    (0..lines.len()).rev().find(|start| {
+        let mut next = 1;
+        for line in &lines[*start..] {
+            let Some((number, text)) = claude_option_row(line) else {
+                // A description under its option, or the rule before "Chat about this".
+                if next == 1 {
+                    return false;
+                }
+                continue;
+            };
+            if number != next {
+                if next == 1 {
+                    return false;
+                }
+                continue;
+            }
+            if labels
+                .get(number - 1)
+                .is_some_and(|label| !text.starts_with(label.as_str()))
+            {
+                return false;
+            }
+            if number == labels.len() + 1 {
+                return true;
+            }
+            next += 1;
+        }
+        false
+    })
+}
+
+/// See CDXC:AgentScreenDetection on `claude_question_tab_and_rows`.
+fn claude_question_tab_scrolled_off(
+    questions: &[SessionChatQuestion],
+    lines: &[&str],
+) -> Option<(usize, usize)> {
+    let fits: Vec<(usize, usize)> = questions
+        .iter()
+        .enumerate()
+        .filter(|(_, question)| !question.preview_layout && !question.options.is_empty())
+        .filter_map(|(index, question)| {
+            let rows = claude_option_rows_line(question, lines)?;
+            // The question's last lines: the block right above the rows, up to a blank line.
+            let above = &lines[..rows];
+            let end = above.iter().rposition(|line| !line.trim().is_empty())?;
+            let start = above[..end]
+                .iter()
+                .rposition(|line| line.trim().is_empty())
+                .map_or(0, |blank| blank + 1);
+            let shown: String = above[start..=end]
+                .iter()
+                .map(|line| without_whitespace(without_question_gutter(line)))
+                .collect();
+            // Claude clips a very long question with "…".
+            let shown = shown.trim_end_matches('…');
+            let tail: String = {
+                let chars: Vec<char> = shown.chars().collect();
+                chars[chars.len().saturating_sub(HEADING_MATCH_CHARS)..]
+                    .iter()
+                    .collect()
+            };
+            (!tail.is_empty() && without_whitespace(&question.question).contains(&tail))
+                .then_some((index, rows))
+        })
+        .collect();
+    match fits.as_slice() {
+        [only] => Some(*only),
+        _ => None,
+    }
 }

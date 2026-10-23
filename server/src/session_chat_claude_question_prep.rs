@@ -3,7 +3,7 @@
 
 use crate::session_chat::SessionChatQuestion;
 use crate::session_chat_question_liveness::{
-    claude_question_selector_position, claude_question_tab_row, ClaudeQuestionSelectorPosition,
+    claude_question_selector_position, claude_question_tab_and_rows, ClaudeQuestionSelectorPosition,
 };
 use crate::session_chat_question_row_align::{write_keys_and_await_repaint, CLEAR_LINE_KEYS};
 use crate::session_chat_send::capture_session_terminal_text;
@@ -71,8 +71,8 @@ pub fn read_claude_question_tab(
     let rows = question.options.len() + 1;
     tab.ticked = vec![None; rows];
     let lines: Vec<&str> = screen.lines().map(str::trim_end).collect();
-    let tab_row = claude_question_tab_row(&lines)?;
-    for line in &lines[tab_row + 1..] {
+    let (_, rows_from) = claude_question_tab_and_rows(questions, &lines)?;
+    for line in &lines[rows_from..] {
         let line = line.trim_start().trim_start_matches('❯').trim_start();
         let Some((number, rest)) = line.split_once(". ") else {
             continue;
