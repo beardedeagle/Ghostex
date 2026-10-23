@@ -42,6 +42,8 @@ pub(crate) fn cef_surface_for_browser(browser_id: i32) -> Option<WeakEntity<CefS
 pub(crate) enum SitePromptIcon {
     ExternalApp,
     LocalNetwork,
+    Notifications,
+    Permission,
 }
 
 pub(crate) struct SitePromptContent {
@@ -265,7 +267,8 @@ impl CefSurface {
         let id_suffix = format!("{}-{}", self.id, prompt.id);
         let icon = match content.icon {
             SitePromptIcon::ExternalApp => TITLEBAR_ICON_EXTERNAL_LINK,
-            SitePromptIcon::LocalNetwork => BROWSER_ICON_LOCK_FILLED,
+            SitePromptIcon::LocalNetwork | SitePromptIcon::Permission => BROWSER_ICON_LOCK_FILLED,
+            SitePromptIcon::Notifications => "titlebar/bell.svg",
         };
         let ring = cx.theme().ring;
         let focused = self.site_prompts.focused_button(window);

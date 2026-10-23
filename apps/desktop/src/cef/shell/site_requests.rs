@@ -20,6 +20,8 @@ use super::*;
 pub enum BrowserSiteRequest {
     OpenExternalApp(BrowserExternalAppRequest),
     LocalNetworkAccess(BrowserLocalNetworkAccessRequest),
+    /// Any other permission prompt (site_permissions.rs).
+    Permission(BrowserSitePermissionRequest),
 }
 
 pub struct BrowserExternalAppRequest {
@@ -269,7 +271,7 @@ impl SitePromptPageWatch {
         }
     }
 
-    fn page_gone(&mut self) -> impl std::future::Future<Output = ()> + 'static {
+    pub(crate) fn page_gone(&mut self) -> impl std::future::Future<Output = ()> + 'static {
         let page_gone = self.page_gone.take();
         async move {
             let gone = match page_gone {

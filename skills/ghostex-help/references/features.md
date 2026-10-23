@@ -279,7 +279,13 @@ view from the strip.
   for an app on this computer (Okta FastPass looks for Okta Verify this way) asks
   "Allow … to connect to apps on this computer?"; Allow and Don't Allow are both
   remembered for that site in that workspace's Browser (Don't Allow on linear.app keeps
-  Linear pages in the Browser instead of sending them to the Linear desktop app). These
+  Linear pages in the Browser instead of sending them to the Linear desktop app). Any
+  other permission a site asks for (show notifications, know your location, use the
+  clipboard, camera or microphone, and the like) asks "… wants to show notifications."
+  with Allow and Block, remembered for that site in that workspace's Browser; a site you
+  allow to notify shows real system notifications, and clicking one brings its page back.
+  A sign-in window a site opens (Continue with Google, Apple or GitHub) opens as its own
+  small window and closes itself when you finish. These
   questions show as a bar at the top of the page that asked, under the Browser's address
   bar, one at a time; they never block the window, so you can keep working or close it.
   The × (or Escape) means "not now" and remembers nothing, and a question goes away by
@@ -2891,16 +2897,20 @@ project of the repository's main folder, even when started from a worktree.
 - **The row**: a plain cloud icon after the title; hover it for the account,
   branch and latest status. Clicking it opens the session's claude.ai page in
   Ghostex's Browser. While that page is open, the row shows working (orange),
-  needs you (blue) and Done like any session; otherwise it says what reached
+  needs you (blue) and Done like any session (the page stays open through Browser
+  Auto Sleep while the session runs); otherwise it says what reached
   GitHub ("Pushed 3 commits to claude/…", "Pull request #12 opened") with a blue
   dot and a notification.
 - **Signing in**: each Claude account has its own claude.ai sign-in in Ghostex,
   kept in its own Browser profile and used only for its cloud pages (Google
   sign-in works there too). The first time a row needs it, the page says "Sign in
   to claude.ai as <email> to see this session"; or sign in ahead of time from
-  Settings > Accounts > the account > claude.ai in Ghostex. If a page is signed
-  in as someone else, it says so with a **Sign in as <account>** button; nothing
-  is signed out until you click it.
+  Settings > Accounts > the account > claude.ai in Ghostex: Settings steps aside
+  while claude.ai's login is open, a **Back to Settings** button at the bottom
+  right brings it back on that account, and a spinner beside the button waits
+  until the account shows as signed in. If a page is signed in as someone else,
+  it says so with a **Sign in as <account>** button; nothing is signed out until
+  you click it.
 - **Out of usage**: when the session's account hits a limit, the row and page say
   so with the reset time ("Work hit its 5h limit · resumes 4:10 pm") and offer
   **Start a copy on another account**: a new cloud session carries on from the

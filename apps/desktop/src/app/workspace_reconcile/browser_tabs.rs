@@ -800,6 +800,7 @@ impl GhostexGpuiApp {
         let source_pane_id = find_browser_leaf_id_for_tab(&self.browser_tabs.root, tab_id);
         let closing_last_browser_tab = self.browser_tabs.tabs.len() == 1;
         self.remove_browser_surface(tab_id, cx);
+        self.forget_claude_cloud_tab(self.browser_tabs_project_id.as_deref(), tab_id);
         self.browser_find_states.remove(&tab_id);
         self.browser_find_inputs.remove(&tab_id);
         self.browser_find_input_subscriptions.remove(&tab_id);

@@ -723,6 +723,7 @@ impl Drop for CefBrowser {
         self.app_initiated_close.set(true);
         forget_page_keep_awake_probe(self.identifier());
         forget_claude_cloud_page_probe(self.identifier());
+        forget_page_notification_wait(self.identifier());
         site_prompts_browser_closed(self.identifier());
         #[cfg(target_os = "macos")]
         if let Some(view) = self.native_view() {

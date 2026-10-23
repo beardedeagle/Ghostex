@@ -672,6 +672,7 @@ impl GhostexGpuiApp {
         CDXC:Browser 2026-09-19 DECISION:
         User: the colour behind a Browser page is #0d0d0d in dark mode, not black.
         */
+        let page_profile = profile.clone();
         let surface = match CefSurface::try_new(
             surface_id,
             parent_ns_view,
@@ -705,6 +706,7 @@ impl GhostexGpuiApp {
             }
         };
         self.browser_surfaces.insert(tab_id, surface.clone());
+        self.relay_browser_page_notifications(&surface, page_profile, cx);
         support_logs::append_for_scenario(
             support_logs::GpuiSupportLog::SidebarRefresh,
             "native.sidebar.refresh",

@@ -82,6 +82,28 @@ pub fn claude_cloud_page_account(core: &Core, url: &str) -> Option<Option<String
         .map(|cloud| cloud.account_id.clone())
 }
 
+/// Whether a claude.ai page is the page of a cloud session that is running on claude.ai right now.
+pub fn is_running_claude_cloud_page(core: &Core, url: &str) -> bool {
+    let Some(page) = claude_cloud_session_link(url) else {
+        return false;
+    };
+    core.presentation()
+        .loaded(&crate::MachineId::Local)
+        .is_some_and(|loaded| {
+            loaded
+                .server_sessions()
+                .filter_map(|session| session.claude_cloud.as_ref())
+                .any(|cloud| {
+                    cloud.state == "running"
+                        && cloud
+                            .url
+                            .as_deref()
+                            .and_then(claude_cloud_session_link)
+                            .is_some_and(|link| link == page)
+                })
+        })
+}
+
 /// `https://claude.ai/code/session_…` without its query or fragment, for any link into one.
 pub fn claude_cloud_session_link(url: &str) -> Option<String> {
     let rest = url.trim().strip_prefix("https://claude.ai/code/")?;

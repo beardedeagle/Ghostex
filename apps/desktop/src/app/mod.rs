@@ -136,6 +136,8 @@ pub(crate) mod visual_page_thumbnails;
 pub(crate) mod voice_agent;
 pub(crate) mod web_page_sleep;
 pub(crate) mod claude_cloud_page;
+pub(crate) mod claude_cloud_sign_in_return;
+pub(crate) mod browser_page_notifications;
 pub(crate) mod web_runtime_install;
 pub(crate) mod web_runtime_prompt_modal_lifecycle;
 pub(crate) mod work_link_picker_modal_lifecycle;

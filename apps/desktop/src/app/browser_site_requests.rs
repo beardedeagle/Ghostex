@@ -44,6 +44,9 @@ async fn answer_browser_site_request(request: BrowserSiteRequest, cx: &mut Async
         BrowserSiteRequest::LocalNetworkAccess(request) => {
             answer_local_network_access_request(request, cx).await
         }
+        BrowserSiteRequest::Permission(request) => {
+            answer_site_permission_request(request, cx).await
+        }
     }
 }
 
@@ -169,6 +172,51 @@ async fn answer_local_network_access_request(
     }
 }
 
+/// Notifications, location, clipboard and every other permission a page asks for
+/// (CDXC:Browser 2026-10-23 in cef/shell/site_permissions.rs): "<site> wants to show
+/// notifications", Allow or Block, kept for the site in that browser profile and listed for Forget
+/// all answers. Anything but an answer (the ×, the page gone, no page to ask on) denies, so the
+/// page's request always settles.
+async fn answer_site_permission_request(
+    mut request: crate::cef::BrowserSitePermissionRequest,
+    cx: &mut AsyncApp,
+) {
+    let Some(surface) = cef_surface_for_browser(request.browser_id()) else {
+        return;
+    };
+    let site = site_label(request.origin());
+    let phrases: Vec<&str> = request.kinds().iter().map(|kind| kind.phrase).collect();
+    let wants = match phrases.as_slice() {
+        [] => "use a feature of this computer".to_string(),
+        [one] => (*one).to_string(),
+        [rest @ .., last] => format!("{} and {last}", rest.join(", ")),
+    };
+    let icon = if request.kinds().iter().any(|kind| kind.notifications) {
+        SitePromptIcon::Notifications
+    } else {
+        SitePromptIcon::Permission
+    };
+    let page_gone = request.page_gone();
+    let answer = ask_on_page(
+        &surface,
+        SitePromptContent {
+            key: format!("permission|{}|{wants}", request.origin()),
+            icon,
+            message: format!("{site} wants to {wants}."),
+            detail: None,
+            allow_label: "Allow".to_string(),
+            deny_label: "Block".to_string(),
+        },
+        page_gone,
+        cx,
+    )
+    .await;
+    if let Some(Some(allow)) = answer {
+        remember_browser_site_answer(request.profile(), request.origin());
+        request.answer(allow);
+    }
+}
+
 /// Shows a question on the page that asked and waits for it. None when it was not shown (the page
 /// has the same question up already, or is gone) or its page went away; `Some(None)` for "not
 /// now" (the ×, Escape, or the page's surface dropped with its tab or window); `Some(Some(_))` for
@@ -201,7 +249,8 @@ fn browser_site_answers_path() -> std::path::PathBuf {
 #[derive(Default, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct BrowserSiteAnswers {
-    /// The sites with a kept answer, by profile key (`browser_site_answers_profile`).
+    /// The sites with a kept answer (Local Network Access or any other permission), by profile
+    /// key (`browser_site_answers_profile`). Saved data keeps the field's first name.
     #[serde(default)]
     local_network: BTreeMap<String, BTreeSet<String>>,
     /// Profiles whose answers Forget all answers could not reach yet; forgotten when the
@@ -324,7 +373,11 @@ fn forget_profile_site_answers(
     let origins = answers.local_network.remove(profile).unwrap_or_default();
     let kept = origins
         .iter()
-        .filter(|origin| !crate::cef::forget_local_network_access_answer(profile, origin))
+        .filter(|origin| {
+            let network = crate::cef::forget_local_network_access_answer(profile, origin);
+            let permissions = crate::cef::forget_site_permission_answers(profile, origin);
+            !(network && permissions)
+        })
         .cloned()
         .collect::<BTreeSet<_>>();
     if kept.is_empty() {

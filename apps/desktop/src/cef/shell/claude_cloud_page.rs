@@ -4,7 +4,7 @@
 //! thread-local the app's sweep reads (apps/desktop/src/app/claude_cloud_page/).
 //!
 //! CDXC:ClaudeCloud 2026-10-23 WHY:
-//! claude.ai's markup is not Ghostex's and changes without notice, so the reader keys on what a person sees rather than on class names: a Stop or Interrupt control or an `aria-busy` region means working; Approve, Allow, Deny or a choice list, or "waiting for your input", means it needs the user; an enabled message box with neither means idle. Anything else, the login page included, is `unknown` and changes nothing, so the branch and pull request status stays. The signed-in email comes from claude.ai's own account answer on the same origin (`/api/account`), asked once per page; a page that will not say leaves the email unknown, which never counts as a mismatch.
+//! claude.ai's markup is not Ghostex's and changes without notice, so the reader keys on what a person sees rather than on class names: a Stop or Interrupt control or an `aria-busy` region means working; Approve, Allow, Deny or a choice list, or "waiting for your input", means it needs the user; an enabled message box with neither means idle. Anything else, the login page included, is `unknown` and changes nothing, so the branch and pull request status stays. The signed-in email comes from claude.ai's own account answer on the same origin (`/api/account`), asked once per page, or from the email the page's account button shows (`/api/account` answered nothing in the 2026-10-23 live test); a page that will not say leaves the email unknown, which never counts as a mismatch.
 
 use super::*;
 use cef::{
@@ -58,6 +58,16 @@ const CLAUDE_CLOUD_PAGE_QUESTION: &str = r#"(() => {
         if (typeof email === 'string' && email.includes('@')) memory.email = email.trim().toLowerCase();
       })
       .catch(() => {});
+  }
+  // claude.ai's account button shows the signed-in email (in the sidebar's account menu); a short
+  // text that is only an email, outside the conversation, is that.
+  if (!memory.email && !out.signedOut) {
+    const pattern = /^[^\s@]{1,64}@[^\s@]{1,253}\.[A-Za-z]{2,}$/;
+    for (const el of document.querySelectorAll('nav *, aside *, header *, button, [role="button"], [data-testid*="user" i], [data-testid*="account" i]')) {
+      if (el.closest('main')) continue;
+      const text = (el.textContent || '').trim();
+      if (text.length < 90 && pattern.test(text)) { memory.email = text.toLowerCase(); break; }
+    }
   }
   if (memory.email) out.email = memory.email;
   if (memory.request) { out.request = memory.request; memory.request = null; }

@@ -355,6 +355,15 @@ impl CefSurface {
         self.browser.ask_page_keep_awake();
     }
 
+    /// A Browser page's notifications (cef/shell/page_notifications.rs).
+    pub(crate) fn install_page_notification_script(&self, script: &str) -> bool {
+        self.browser.install_page_notification_script(script)
+    }
+
+    pub(crate) fn wait_for_page_notifications(&self) -> Option<cef::PageNotificationAnswer> {
+        self.browser.wait_for_page_notifications()
+    }
+
     /// The claude.ai page reader (cef/shell/claude_cloud_page.rs).
     pub(crate) fn ask_claude_cloud_page(&self) {
         self.browser.ask_claude_cloud_page();

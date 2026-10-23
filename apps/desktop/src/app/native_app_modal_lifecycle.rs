@@ -53,6 +53,10 @@ impl GhostexGpuiApp {
     ) {
         self.remove_gpui_app_modal_window_without_focus_restore(cx);
         self.remove_native_app_modal_window(cx);
+        // Settings is back: the Back to Settings button of a claude.ai sign-in has done its job.
+        if kind == GpuiAppModalKind::Settings {
+            crate::app::claude_cloud_sign_in_return::hide_claude_sign_in_return_button(cx);
+        }
         let (width, initial_height) = if kind.is_large_panel() {
             let (width, height) = kind.large_panel_size(width, initial_height);
             self.gpui_native_modal_size_on_screen(size(px(width), px(height)), cx)

@@ -232,6 +232,7 @@ impl GhostexGpuiApp {
                     let email = text("email")
                         .filter(|email| email.contains('@'))
                         .map(str::to_string);
+                    self.step_settings_aside_for_claude_sign_in(&account_id, cx);
                     self.open_claude_account_sign_in(
                         &account_id,
                         &name,

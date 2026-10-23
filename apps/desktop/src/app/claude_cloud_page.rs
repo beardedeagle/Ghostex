@@ -21,7 +21,7 @@ use std::collections::HashMap;
 use std::time::Duration;
 
 /// How often open claude.ai pages are asked.
-const SWEEP_INTERVAL: Duration = Duration::from_secs(4);
+const SWEEP_INTERVAL: Duration = Duration::from_secs(2);
 const RPC_TIMEOUT: Duration = Duration::from_secs(20);
 const SIGNIN_FILE: &str = "claude-cloud-signins.json";
 
@@ -41,8 +41,13 @@ struct SignInTab {
     email: Option<String>,
 }
 
+/// A Browser tab across projects: tab ids are numbered per project, and closing a project's last
+/// tab turns that same id into its empty New Tab, which the next link reuses.
+type TabKey = (Option<String>, BrowserTabId);
+
 thread_local! {
-    static SIGN_IN_TABS: RefCell<HashMap<BrowserTabId, SignInTab>> = RefCell::new(HashMap::new());
+    /// The Claude account each Browser tab's claude.ai page belongs to, until the tab closes.
+    static SIGN_IN_TABS: RefCell<HashMap<TabKey, SignInTab>> = RefCell::new(HashMap::new());
     /// The sign-in Settings just asked for, claimed by the login tab it opens.
     static PENDING_SIGN_IN: RefCell<Option<SignInTab>> = const { RefCell::new(None) };
     static PAGES: RefCell<HashMap<BrowserTabId, PageMemory>> = RefCell::new(HashMap::new());
@@ -102,6 +107,29 @@ struct ExpectedAccount {
 }
 
 impl GhostexGpuiApp {
+    fn claude_tab_key(&self, tab_id: BrowserTabId) -> TabKey {
+        (self.browser_tabs_project_id.clone(), tab_id)
+    }
+
+    fn claude_tab_account(&self, tab_id: BrowserTabId) -> Option<SignInTab> {
+        let key = self.claude_tab_key(tab_id);
+        SIGN_IN_TABS.with(|tabs| tabs.borrow().get(&key).cloned())
+    }
+
+    fn bind_claude_tab_account(&self, tab_id: BrowserTabId, tab: SignInTab) {
+        let key = self.claude_tab_key(tab_id);
+        SIGN_IN_TABS.with(|tabs| tabs.borrow_mut().insert(key, tab));
+    }
+
+    /// A Browser tab closed (or turned back into the empty New Tab): its id no longer belongs to
+    /// the Claude account its page was signed in for.
+    ///
+    /// CDXC:ClaudeCloud 2026-10-23 WHY: the user signed in one account, closed its tab and clicked Sign in for a second account, and the second account's login opened in the first account's profile, already signed in as the first (seen 2026-10-23). Closing a project's last tab keeps its id for the empty New Tab, the next link loads into it, and the account was still remembered by that id. An account belongs to a tab only until the tab closes, and the id is scoped to its project.
+    pub(crate) fn forget_claude_cloud_tab(&self, project_id: Option<&str>, tab_id: BrowserTabId) {
+        let key = (project_id.map(str::to_string), tab_id);
+        SIGN_IN_TABS.with(|tabs| tabs.borrow_mut().remove(&key));
+    }
+
     /// The CEF profile a Browser tab opens with when it is a claude.ai page of a cloud session (its
     /// account's profile) or a sign-in tab Ghostex opened for an account; `None` for every other
     /// tab, which keeps the workspace's profile.
@@ -110,44 +138,52 @@ impl GhostexGpuiApp {
         tab_id: BrowserTabId,
         url: &str,
     ) -> Option<String> {
-        if let Some(tab) = SIGN_IN_TABS.with(|tabs| tabs.borrow().get(&tab_id).cloned()) {
-            return Some(tab.profile);
-        }
+        // The Sign in Settings just asked for wins over anything the tab was before.
         if url.starts_with("https://claude.ai/login")
             && let Some(pending) = PENDING_SIGN_IN.with(|pending| pending.borrow_mut().take())
         {
             let profile = pending.profile.clone();
-            SIGN_IN_TABS.with(|tabs| tabs.borrow_mut().insert(tab_id, pending));
+            self.bind_claude_tab_account(tab_id, pending);
             return Some(profile);
         }
-        ghostex_gx_core::claude_cloud_page_account(&self.gx_store.core, url)
-            .flatten()
-            .map(|account_id| claude_account_browser_profile(&account_id))
+        if let Some(tab) = self.claude_tab_account(tab_id) {
+            return Some(tab.profile);
+        }
+        // A cloud session's page, or claude.ai's login it redirected to: the tab keeps its account
+        // from here on, so the sign-in notice still knows it on the login page.
+        let expected = self.expected_claude_account(tab_id, url)?;
+        let tab = SignInTab {
+            profile: claude_account_browser_profile(&expected.account_id),
+            account_id: expected.account_id,
+            name: expected.name,
+            email: expected.email,
+        };
+        let profile = tab.profile.clone();
+        self.bind_claude_tab_account(tab_id, tab);
+        Some(profile)
     }
 
-    /// A popup a Claude account's claude.ai page opens (its Google sign-in) gets the page's own
-    /// profile, so the sign-in lands in that account's cookies.
+    /// A tab a Claude account's claude.ai page opens gets the page's own profile, so what is signed
+    /// in there lands in that account's cookies.
     ///
-    /// CDXC:ClaudeCloud 2026-10-23 WHY: the user may sign in to claude.ai with Google. The Browser turns a page's popup into a tab of its own, which would open on the workspace's profile and keep the Google sign-in out of the account's profile; the popup inherits the profile of the tab it came from instead.
+    /// CDXC:ClaudeCloud 2026-10-23 WHY: the user may sign in to claude.ai with Google. A page's sign-in popup is its own window in the page's profile (cef/shell/sign_in_popup.rs), but any other page it opens becomes a Browser tab, which would open on the workspace's profile and keep that sign-in out of the account's profile; the tab inherits the profile of the tab it came from instead.
     pub(crate) fn inherit_claude_cloud_tab_profile(
         &mut self,
         source_tab: BrowserTabId,
         source_url: &str,
         popup_tab: BrowserTabId,
     ) {
-        let inherited = SIGN_IN_TABS
-            .with(|tabs| tabs.borrow().get(&source_tab).cloned())
-            .or_else(|| {
-                let expected = self.expected_claude_account(source_tab, source_url)?;
-                Some(SignInTab {
-                    profile: claude_account_browser_profile(&expected.account_id),
-                    account_id: expected.account_id,
-                    name: expected.name,
-                    email: expected.email,
-                })
-            });
+        let inherited = self.claude_tab_account(source_tab).or_else(|| {
+            let expected = self.expected_claude_account(source_tab, source_url)?;
+            Some(SignInTab {
+                profile: claude_account_browser_profile(&expected.account_id),
+                account_id: expected.account_id,
+                name: expected.name,
+                email: expected.email,
+            })
+        });
         if let Some(inherited) = inherited {
-            SIGN_IN_TABS.with(|tabs| tabs.borrow_mut().insert(popup_tab, inherited));
+            self.bind_claude_tab_account(popup_tab, inherited);
         }
     }
 
@@ -180,8 +216,15 @@ impl GhostexGpuiApp {
             window,
             cx,
         );
-        // A login tab that never asked for its profile (the Browser was off) leaves nothing behind.
-        PENDING_SIGN_IN.with(|pending| pending.borrow_mut().take());
+        // A login tab whose page is made later (its profile was still being set up) keeps the
+        // account until then; nothing else may claim it.
+        if let Some(pending) = PENDING_SIGN_IN.with(|pending| pending.borrow_mut().take())
+            && let Some(tab) = self.browser_tabs.active_tab()
+            && tab.url.starts_with("https://claude.ai/login")
+            && !self.browser_surfaces.contains_key(&tab.id)
+        {
+            self.bind_claude_tab_account(tab.id, pending);
+        }
     }
 
     /// Start a Copy on Another Account: asks which saved Claude account the copy runs on, then
@@ -298,7 +341,7 @@ impl GhostexGpuiApp {
     }
 
     fn expected_claude_account(&self, tab_id: BrowserTabId, url: &str) -> Option<ExpectedAccount> {
-        if let Some(tab) = SIGN_IN_TABS.with(|tabs| tabs.borrow().get(&tab_id).cloned()) {
+        if let Some(tab) = self.claude_tab_account(tab_id) {
             return Some(ExpectedAccount {
                 account_id: tab.account_id,
                 name: tab.name,
@@ -306,7 +349,7 @@ impl GhostexGpuiApp {
                 limit_notice: None,
             });
         }
-        let link = ghostex_gx_core::claude_cloud_session_link(url)?;
+        let link = cloud_session_link_in(url)?;
         let loaded = self
             .gx_store
             .core
@@ -338,6 +381,19 @@ impl GhostexGpuiApp {
 
     /// Asks every open claude.ai page what it shows, and acts on the answers already in.
     fn sweep_claude_cloud_pages(&mut self, cx: &mut gpui::Context<Self>) {
+        // Tabs that are gone or back to an empty New Tab (the projectless tabs go when a project
+        // opens) keep no account.
+        let live_project = self.browser_tabs_project_id.clone();
+        SIGN_IN_TABS.with(|tabs| {
+            tabs.borrow_mut().retain(|(project, tab_id), _| {
+                if *project != live_project {
+                    return project.is_some();
+                }
+                self.browser_tabs
+                    .tab(*tab_id)
+                    .is_some_and(|tab| tab.state == BrowserTabState::Loaded)
+            })
+        });
         let tabs: Vec<(BrowserTabId, String, Entity<CefSurface>)> = self
             .browser_surfaces
             .iter()
@@ -379,6 +435,10 @@ impl GhostexGpuiApp {
             match (&email, signed_out) {
                 (Some(email), _) if expected.email.as_deref() == Some(email.as_str()) => {
                     remember_signin(&expected.account_id, Some(email));
+                    crate::app::claude_cloud_sign_in_return::finish_claude_sign_in_return(
+                        &expected.account_id,
+                        cx,
+                    );
                 }
                 (_, true) => remember_signin(&expected.account_id, None),
                 _ => {}
@@ -458,8 +518,9 @@ impl GhostexGpuiApp {
         }
         match answer["request"].as_str() {
             Some("signOut") => {
-                let profile = SIGN_IN_TABS
-                    .with(|tabs| tabs.borrow().get(&tab_id).map(|tab| tab.profile.clone()))
+                let profile = self
+                    .claude_tab_account(tab_id)
+                    .map(|tab| tab.profile)
                     .or_else(|| {
                         expected
                             .as_ref()
@@ -525,6 +586,26 @@ impl GhostexGpuiApp {
             this.start_claude_cloud_copy(session, window, cx);
         });
     }
+}
+
+/// The cloud session link a claude.ai page belongs to: the page itself, or the session claude.ai's
+/// login page returns to (`/login?returnTo=%2Fcode%2Fsession_…`).
+fn cloud_session_link_in(url: &str) -> Option<String> {
+    ghostex_gx_core::claude_cloud_session_link(url).or_else(|| {
+        let query = url
+            .strip_prefix("https://claude.ai/login")?
+            .split_once('?')?
+            .1;
+        let return_to = query
+            .split('&')
+            .find_map(|pair| pair.strip_prefix("returnTo="))?;
+        let decoded = return_to
+            .replace("%2F", "/")
+            .replace("%2f", "/")
+            .replace("%3F", "?")
+            .replace("%3f", "?");
+        ghostex_gx_core::claude_cloud_session_link(&format!("https://claude.ai{decoded}"))
+    })
 }
 
 /// Signs one profile out of claude.ai: its claude.ai cookies are deleted, nothing else.

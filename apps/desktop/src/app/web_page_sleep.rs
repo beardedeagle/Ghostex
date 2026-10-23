@@ -46,8 +46,14 @@ fn web_page_is_due(surface: &Entity<CefSurface>, limit: Duration, cx: &gpui::App
 }
 
 impl GhostexGpuiApp {
+    /// A running Claude cloud session's claude.ai page (see the 2026-10-23 sentence below).
+    fn keeps_claude_cloud_page_awake(&self, url: &str) -> bool {
+        ghostex_gx_core::is_running_claude_cloud_page(&self.gx_store.core, url)
+    }
+
     /// CDXC:SessionSleep 2026-09-30 DECISION:
     /// User: "sleep the web runtime when we can if nothing is needing it so it stops taking ram", following the Auto Sleep settings. A page off screen for its Auto Sleep time is closed and its tab or view stays in place, reloading when selected: browser tabs of every project after Browser Auto Sleep, Files pages and website or extension views after Project Auto Sleep, and Off keeps them. Pages playing sound, pages whose last edited box still holds text (asked of the page, `cef/shell/page_keep_awake.rs`) and the page each background Space opens on stay awake, the last because the user wants swiping between Spaces "to show the web pages instant" (CDXC:Spaces 2026-09-30). The timers only marked views asleep and hid their pages, which kept every renderer running. VS Code keeps its own Auto Sleep, which also stops the code-server the other projects share. The runtime's own core cannot restart within one run, so it stays until the app quits.
+    /// 2026-10-23: a Claude cloud session's claude.ai page also stays awake, but "only while the cloud session runs" (the user's answer), because the page is where Ghostex reads whether the session is working or needs the user (CDXC:ClaudeCloud in app/claude_cloud_page.rs); once the session is brought to this computer or fails, its page sleeps like any other.
     pub(crate) fn start_web_page_sleep_sweep(&mut self, cx: &mut gpui::Context<Self>) {
         cx.spawn(async move |this, cx| {
             loop {
@@ -86,6 +92,12 @@ impl GhostexGpuiApp {
             let live_due = self
                 .browser_surfaces
                 .iter()
+                .filter(|(tab_id, _)| {
+                    !self
+                        .browser_tabs
+                        .tab(**tab_id)
+                        .is_some_and(|tab| self.keeps_claude_cloud_page_awake(&tab.url))
+                })
                 .filter(|(_, surface)| web_page_is_due(surface, limit, cx))
                 .map(|(tab_id, _)| *tab_id)
                 .collect::<Vec<_>>();
@@ -102,6 +114,11 @@ impl GhostexGpuiApp {
                         .iter()
                         .filter(|(tab_id, surface)| {
                             !space_kept.keeps_browser_tab(project_id, **tab_id)
+                                && !self
+                                    .parked_browser_tabs_by_project
+                                    .get(project_id)
+                                    .and_then(|tabs| tabs.tab(**tab_id))
+                                    .is_some_and(|tab| self.keeps_claude_cloud_page_awake(&tab.url))
                                 && web_page_is_due(surface, limit, cx)
                         })
                         .map(|(tab_id, _)| (project_id.clone(), *tab_id))
