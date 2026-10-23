@@ -158,29 +158,40 @@ impl GhostexGpuiApp {
                         })
                         .ok()
                         .flatten();
-                    opened.push((index, handle, native, focused));
+                    opened.push((index, handle, native, focused, screen.bounds));
                 }
             }
             // The screen under the pointer takes the keyboard last, so Enter and Esc go there.
-            opened.sort_by_key(|(_, _, _, focused)| *focused);
-            for (_, _, native, _) in &opened {
+            opened.sort_by_key(|(_, _, _, focused, _)| *focused);
+            for (_, _, native, _, bounds) in &opened {
                 if let Some(native) = native {
                     platform::prepare_floating_window(*native, true);
+                    // CDXC:GhostexCapture 2026-10-23 WHY:
+                    // User: area selection "shows the whole screen shifted down". GPUI opens the
+                    // overlay as a titled panel, and macOS keeps a titled window's top below the
+                    // menu bar when it is shown, so the frozen screen was drawn from below the
+                    // real menu bar (33pt lower on a notched MacBook) and ran off the bottom. Once
+                    // the window is borderless macOS leaves its frame alone, so it is put back over
+                    // the whole screen, menu bar and notch included, at the pop-up level above it.
+                    #[cfg(target_os = "macos")]
+                    platform::set_window_frame(*native, *bounds, 1.0);
                 }
+                #[cfg(not(target_os = "macos"))]
+                let _ = bounds;
             }
             let Some(app) = app.upgrade() else {
                 return;
             };
             app.update(cx, |app, cx| {
                 if let Some(area) = app.ghostex_capture.area.as_mut() {
-                    for (index, handle, _, _) in opened {
+                    for (index, handle, _, _, _) in opened {
                         if let Some(entry) = area.screens.get_mut(index) {
                             entry.window = Some(handle);
                         }
                     }
                 } else {
                     // Cancelled while the windows opened.
-                    for (_, handle, _, _) in opened {
+                    for (_, handle, _, _, _) in opened {
                         App::defer(cx, move |cx| {
                             let _ = handle.update(cx, |_, window, _| window.remove_window());
                         });
