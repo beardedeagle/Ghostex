@@ -4,7 +4,7 @@
 //!
 //! CDXC:SessionChat 2026-10-22 DECISION:
 //! User: "closing and reopening the same page brings back its scroll position". The offset is kept in memory per page for as long as the app runs, and put back once the page has loaded (and again after Refresh).
-//! SEE-ALSO: apps/desktop/src/cef/shell/floating_page_bridge.rs (the binding the script calls), apps/desktop/src/app/native_chat/image_viewer/window.rs (the viewer over the page window), apps/mobile/app/src/chat/native/cards/pageSheetScript.ts (the phone's copy of the script, posting through `ReactNativeWebView.postMessage`).
+//! SEE-ALSO: apps/desktop/src/cef/shell/page_bridge.rs (the queue the script posts to), apps/desktop/src/app/native_chat/image_viewer/window.rs (the viewer over the page window), apps/mobile/app/src/chat/native/cards/pageSheetScript.ts (the phone's copy of the script, posting through `ReactNativeWebView.postMessage`).
 
 use serde_json::{Value, json};
 use std::{cell::RefCell, collections::HashMap};
@@ -20,7 +20,7 @@ pub(super) const PAGE_SCRIPT: &str = r#"(() => {
   Object.defineProperty(window, '__ghostexFloatingPageScript', { value: true });
   // The window puts the scroll back itself, after the card's picture of the page top is taken.
   try { history.scrollRestoration = 'manual'; } catch (_) {}
-  const send = (message) => { try { window.__ghostexFloatingPage(JSON.stringify(message)); } catch (_) {} };
+  const send = (message) => { try { window.__ghostexPageBridge(JSON.stringify(message)); } catch (_) {} };
   const SKIP = 'a[href],button,label,summary,select,input,textarea,[role=button],[role=link],[role=radio],[role=checkbox],[role=option],[onclick],[contenteditable],gx-option,gx-questions .gx-choice,[data-gx-no-viewer]';
   const sourceOf = (img) => img.currentSrc || img.src || '';
   const viewable = (img) => {

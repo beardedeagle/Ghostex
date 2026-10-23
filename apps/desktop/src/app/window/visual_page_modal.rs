@@ -224,9 +224,7 @@ impl GpuiVisualPageModalWindow {
         let (surface, error) = match created {
             Ok(surface) => {
                 *shown_surface.borrow_mut() = Some(surface.downgrade());
-                page_bridge = surface
-                    .read(cx)
-                    .install_floating_page_bridge(page::PAGE_SCRIPT);
+                page_bridge = CefSurface::install_page_bridge(&surface, page::PAGE_SCRIPT, cx);
                 // A CEF page starts 1×1 and only gets its frame when the window paints; give it
                 // the area under the header from the start so it lays out at its real width.
                 let viewport = window.viewport_size();

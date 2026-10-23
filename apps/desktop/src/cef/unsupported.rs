@@ -180,16 +180,17 @@ pub struct PageScreenshot {
     pub picture: futures::channel::oneshot::Receiver<Option<String>>,
 }
 
-/// What the floating page window hears from its page (`shell/floating_page_bridge.rs`); never
-/// made here.
-pub struct FloatingPageBridge {
-    pub messages: futures::channel::mpsc::UnboundedReceiver<String>,
-}
+/// A page bridge's waiting question (`shell/page_bridge.rs`); never made here.
+pub type PageBridgeAnswer = futures::channel::oneshot::Receiver<Option<String>>;
 
 pub struct CefBrowser;
 
 impl CefBrowser {
-    pub fn install_floating_page_bridge(&self, _script: &str) -> Option<FloatingPageBridge> {
+    pub fn install_page_bridge_script(&self, _script: &str) -> bool {
+        false
+    }
+
+    pub fn wait_for_page_messages(&self) -> Option<PageBridgeAnswer> {
         None
     }
 
