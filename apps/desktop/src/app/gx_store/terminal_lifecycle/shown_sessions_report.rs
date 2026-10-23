@@ -1,5 +1,6 @@
 //! The sessions this client shows, reported to the daemons that own them as keep-awake leases,
-//! so their Auto Sleep sweep leaves them alone. Web-ready: `gx_rpc` only.
+//! so their Auto Sleep sweep leaves them alone, and the chats it shows as chat grid leases
+//! (`chat_grid_claims.rs`). Web-ready: `gx_rpc` only.
 //!
 //! CDXC:SessionSleep 2026-09-25 WHY:
 //! Auto Sleep runs in gxserver (CDXC:SessionSleep 2026-09-25 DECISION in `server/src/session_auto_sleep.rs`), which cannot see a client's screen. Every client reports what it shows through `/api/holdSessionsAwake` (the phone already did), renewing before the lease runs out and releasing what it stopped showing, and a session is shown while any client holds it. A remote machine's session is held on that machine.
@@ -111,4 +112,32 @@ pub(crate) async fn send_hold_call(
         params["release"] = Value::Bool(true);
     }
     let _ = gx_rpc(remote, "/api/holdSessionsAwake", params).await;
+}
+
+/// One report holds a chat's grid claim this long (`/api/holdSessionChatGrid`); a client that
+/// stops renewing (quit, crash, closed page) lets the daemon go back to its terminals' grid within it.
+pub(crate) const CHAT_GRID_TTL_MS: i64 = 45_000;
+/// Renewed well inside the lease.
+pub(crate) const CHAT_GRID_RENEW_MS: u64 = 15_000;
+
+/// Sends one call. A gxserver without the endpoint (an older remote) just declines it.
+pub(crate) async fn send_chat_grid_call(
+    remote: Option<GpuiRemoteGxserverRequestTarget>,
+    holder_id: String,
+    call: HoldCall,
+) {
+    let sessions: Vec<Value> = call
+        .sessions
+        .into_iter()
+        .map(|(project_id, session_id)| json!({ "projectId": project_id, "sessionId": session_id }))
+        .collect();
+    let mut params = json!({
+        "holderId": holder_id,
+        "sessions": sessions,
+        "ttlMs": CHAT_GRID_TTL_MS,
+    });
+    if call.release {
+        params["release"] = Value::Bool(true);
+    }
+    let _ = gx_rpc(remote, "/api/holdSessionChatGrid", params).await;
 }

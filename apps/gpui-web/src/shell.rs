@@ -199,6 +199,8 @@ impl GhostexGpuiApp {
 
 impl Render for GhostexGpuiApp {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        self.web_sync_terminal_zmx_visibility(cx);
+        self.web_report_chat_grid_claims(cx);
         let sidebar = (!self.sidebar_collapsed).then(|| self.render_native_sidebar(window, cx));
         let status = self.gx_store.status.clone();
         let open = self.open_session.clone();

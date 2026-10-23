@@ -33,6 +33,9 @@ struct Link {
     /// CDXC:WebGpui 2026-09-28 WHY:
     /// The grid this view last laid out, announced when the socket opens. The first layout resizes the view before the socket is open, and that resize control cannot be sent yet; announcing the attach-time 80x24 instead left the session's PTY at 80x24 in a full-size pane until the window was resized, which a full-screen TUI such as Codex's fullscreen view draws as a small box in the corner.
     size: (u16, u16),
+    /// The zmx state this client claims (`visible`, `chat` or `parked`, the states of server/src/terminal_ws.rs's `visibility` control), and the state and grid last sent, so an unchanged claim is not sent again.
+    state: &'static str,
+    announced: Option<(&'static str, u16, u16)>,
 }
 
 impl Link {
@@ -48,6 +51,18 @@ impl Link {
         if self.open {
             let _ = self.socket.send_with_str(&message.to_string());
         }
+    }
+
+    /// Claims `state` at the grid this view has. gxserver resizes the session's PTY and types the matching `ZMX_VISIBLE` / `ZMX_CHAT` / `ZMX_HIDDEN` sequence into its `zmx attach` client, so the bytes are the other emitters' by construction.
+    fn announce(&mut self) {
+        let (cols, rows) = self.size;
+        if !self.open || self.announced == Some((self.state, cols, rows)) {
+            return;
+        }
+        self.announced = Some((self.state, cols, rows));
+        self.send_control(
+            serde_json::json!({"type": "visibility", "state": self.state, "cols": cols, "rows": rows}),
+        );
     }
 }
 
@@ -78,6 +93,8 @@ pub struct TerminalModel {
     _listeners: Vec<Closure<dyn FnMut(MessageEvent)>>,
     _on_open: Closure<dyn FnMut()>,
     _on_close: Closure<dyn FnMut()>,
+    /// The grid this view had when it last left the screen, given back when it is shown again.
+    displayed_size: Option<(u16, u16)>,
 }
 
 include!(concat!(env!("OUT_DIR"), "/terminal_model.rs"));
@@ -106,6 +123,8 @@ impl TerminalModel {
             open: false,
             waiting: Vec::new(),
             size: (config.cols, config.rows),
+            state: "visible",
+            announced: None,
         }))));
 
         let mut vt = VtTerminal::new(config.cols, config.rows, config.max_scrollback)?;
@@ -139,11 +158,8 @@ impl TerminalModel {
         let on_open = Closure::<dyn FnMut()>::new(move || {
             let mut link = open_link.0.borrow_mut();
             link.open = true;
-            let (cols, rows) = link.size;
-            // The same visibility contract every other client keeps with zmx: a visible client names its real grid (server/src/terminal_ws.rs translates it into ZMX_VISIBLE).
-            link.send_control(
-                serde_json::json!({"type": "visibility", "state": "visible", "cols": cols, "rows": rows}),
-            );
+            // The same visibility contract every other client keeps with zmx: a visible client names its real grid (server/src/terminal_ws.rs translates it into ZMX_VISIBLE), and one the page has stopped showing says chat or parked.
+            link.announce();
             for bytes in std::mem::take(&mut link.waiting) {
                 let _ = link.socket.send_with_u8_array(&bytes);
             }
@@ -186,7 +202,11 @@ impl TerminalModel {
         socket.set_onmessage(Some(on_message.as_ref().unchecked_ref()));
 
         let close_link = Arc::clone(&link);
-        let on_close = Closure::<dyn FnMut()>::new(move || close_link.0.borrow_mut().open = false);
+        let on_close = Closure::<dyn FnMut()>::new(move || {
+            let mut link = close_link.0.borrow_mut();
+            link.open = false;
+            link.announced = None;
+        });
         socket.set_onclose(Some(on_close.as_ref().unchecked_ref()));
 
         Ok(Self {
@@ -204,6 +224,7 @@ impl TerminalModel {
             _listeners: vec![on_message],
             _on_open: on_open,
             _on_close: on_close,
+            displayed_size: None,
         })
     }
 
@@ -235,11 +256,39 @@ impl TerminalModel {
         if (cols, rows) != self.size {
             let mut link = self.link.0.borrow_mut();
             link.size = (cols, rows);
-            link.send_control(serde_json::json!({"type": "resize", "cols": cols, "rows": rows}));
+            link.announce();
         }
         self.size = (cols, rows);
         self.cell_size_px = (cell_width_px, cell_height_px);
         Ok(())
+    }
+
+    /// The zmx state this client claims: `visible` while the page shows this terminal, `chat` while it shows the session's chat instead, `parked` while it shows another session. Returns the grid to resize the view to before `announce_zmx_visibility`, or `None` when the view's next prepaint resizes it back to its slot and that resize announces. A chat rests at least `ZMX_RESTING_GRID_COLS` wide, the same `max` the daemon applies to a chat-claimed grid, and a parked view keeps its grid (CDXC:Zmx 2026-09-25 and 2026-10-23 in the desktop's visibility pass).
+    ///
+    /// CDXC:Zmx 2026-10-23 WHY: the page kept the terminal it had shown attached and claiming `visible` while it showed the chat or another session, so a terminal nobody looked at led the daemon's grid: after a desktop terminal on the same session parked, the grid jumped back to the browser window's size. This is the desktop's visibility pass (apps/desktop/src/app/terminal_sync/gpui_engine_terminal_visibility.rs) for the page's one work area.
+    pub fn set_zmx_visibility(&mut self, state: &'static str) -> Option<(u16, u16)> {
+        let mut link = self.link.0.borrow_mut();
+        if link.state == state {
+            return None;
+        }
+        if link.state == "visible" {
+            self.displayed_size = Some(self.size);
+        }
+        link.state = state;
+        let (cols, rows) = self.size;
+        match state {
+            "chat" => Some((cols.max(ZMX_RESTING_GRID_COLS), rows)),
+            "visible" => match self.displayed_size.take() {
+                Some(size) if size != self.size => None,
+                _ => Some(self.size),
+            },
+            _ => Some(self.size),
+        }
+    }
+
+    /// Sends the state `set_zmx_visibility` chose, at the grid this view has now, unless the resize already did.
+    pub fn announce_zmx_visibility(&mut self) {
+        self.link.0.borrow_mut().announce();
     }
 
     /// The desktop retires its emulator when a zmx viewer detaches to free memory; a page's terminal lives as long as its view.

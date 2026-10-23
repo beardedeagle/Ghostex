@@ -40,6 +40,9 @@ pub(crate) struct GhostexGpuiApp {
     /// The keep-awake lease on the open session (`gx_store/terminal_lifecycle/shown_sessions.rs`).
     pub(crate) shown_sessions:
         crate::app::gx_store::terminal_lifecycle::shown_sessions::WebShownSessions,
+    /// The chat grid lease on the chat the page shows (`gx_store/terminal_lifecycle/chat_grid_claims.rs`).
+    pub(crate) chat_grid_claims:
+        crate::app::gx_store::terminal_lifecycle::chat_grid_claims::WebChatGridClaims,
     /// Every chat opened in this page, with the shell id its view was given.
     pub(crate) terminals:
         HashMap<ghostex_gx_core::SessionKey, Entity<crate::terminal_element::TerminalView>>,
@@ -100,6 +103,7 @@ impl GhostexGpuiApp {
             snapshot_browser_focus: false,
             open_session: None,
             shown_sessions: Default::default(),
+            chat_grid_claims: Default::default(),
             native_chats: HashMap::new(),
             chat_presentations: HashMap::new(),
             terminals: HashMap::new(),

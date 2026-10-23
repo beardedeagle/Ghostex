@@ -4,23 +4,16 @@
 //! Terminal-default user's sessions keep exactly the grid their terminals claim.
 //!
 //! SEE-ALSO: apps/desktop/src/app/gx_store/terminal_lifecycle/shown_sessions.rs (the same lease
-//! shape for keep-awake), apps/desktop/src/app/terminal_sync/gpui_engine_terminal_viewers.rs.
+//! shape for keep-awake), apps/desktop/src/app/terminal_sync/gpui_engine_terminal_viewers.rs,
+//! apps/gpui-web/src/app/gx_store/terminal_lifecycle/chat_grid_claims.rs (the web page's twin).
 
 use std::time::Duration;
 
-use serde_json::{Value, json};
-
-use super::shown_sessions_report::{HoldCall, ShownSessions, ShownSessionsReport};
+use super::shown_sessions_report::{
+    CHAT_GRID_RENEW_MS, HoldCall, ShownSessions, ShownSessionsReport, send_chat_grid_call,
+};
 use crate::GhostexGpuiApp;
-use crate::app::gx_store::gx_rpc;
 use crate::app::helpers::GpuiWorkspaceTerminalSessionKey;
-use crate::app::model::GpuiRemoteGxserverRequestTarget;
-
-/// One report holds a chat's claim this long; a window that stops renewing (quit, crash) lets
-/// the daemon go back to its terminals' grid within it.
-const CHAT_GRID_TTL_MS: i64 = 45_000;
-/// Renewed well inside the lease.
-const CHAT_GRID_RENEW_MS: u64 = 15_000;
 
 #[derive(Default)]
 pub(crate) struct ChatGridClaimsHost {
@@ -121,26 +114,4 @@ impl GhostexGpuiApp {
         }
         shown
     }
-}
-
-/// Sends one call. A gxserver without the endpoint (an older remote) just declines it.
-async fn send_chat_grid_call(
-    remote: Option<GpuiRemoteGxserverRequestTarget>,
-    holder_id: String,
-    call: HoldCall,
-) {
-    let sessions: Vec<Value> = call
-        .sessions
-        .into_iter()
-        .map(|(project_id, session_id)| json!({ "projectId": project_id, "sessionId": session_id }))
-        .collect();
-    let mut params = json!({
-        "holderId": holder_id,
-        "sessions": sessions,
-        "ttlMs": CHAT_GRID_TTL_MS,
-    });
-    if call.release {
-        params["release"] = Value::Bool(true);
-    }
-    let _ = gx_rpc(remote, "/api/holdSessionChatGrid", params).await;
 }

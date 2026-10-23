@@ -1,4 +1,5 @@
-//! The desktop's `terminal_lifecycle/` files the page compiles: a session's rename, note and Delayed Send edits, and the single calls a session's own controls make, Close After Done and a user-made group's Sleep and Wake. The rest of that folder answers the desktop's pane workspace (tab close, sleep and wake from a tab, terminal events), which the page does not have.
+//! The desktop's `terminal_lifecycle/` files the page compiles: a session's rename, note and Delayed Send edits, and the single calls a session's own controls make, Close After Done and a user-made group's Sleep and Wake. `shown_sessions.rs` and `chat_grid_claims.rs` are the page's own halves of the desktop's leases. The rest of that folder answers the desktop's pane workspace (tab close, sleep and wake from a tab, terminal events), which the page does not have.
+pub(crate) mod chat_grid_claims;
 mod close_after_done;
 mod group_sleep;
 pub(crate) mod session_calls;

@@ -63,4 +63,31 @@ impl GhostexGpuiApp {
         self.terminals.insert(session.clone(), view.clone());
         Some(view)
     }
+
+    /// Tells each terminal this page keeps attached what its zmx client is: `visible` for the open
+    /// session shown as its terminal, `chat` for the open session shown as its chat, `parked` for
+    /// the rest. Cheap when nothing changed; called every render, before the shown terminal's
+    /// prepaint.
+    pub(crate) fn web_sync_terminal_zmx_visibility(&mut self, cx: &mut gpui::Context<Self>) {
+        let open = self.open_session.clone();
+        let shows_terminal = open
+            .as_ref()
+            .is_some_and(|session| self.web_shows_terminal(session));
+        for (session, view) in &self.terminals {
+            let state = match open.as_ref() {
+                Some(open) if open == session && shows_terminal => "visible",
+                Some(open) if open == session => "chat",
+                _ => "parked",
+            };
+            view.update(cx, |view, cx| {
+                if view.set_displayed(state == "visible") {
+                    cx.notify();
+                }
+                if let Some((cols, rows)) = view.model_mut().set_zmx_visibility(state) {
+                    view.resize_grid(cols, rows, cx);
+                    view.model_mut().announce_zmx_visibility();
+                }
+            });
+        }
+    }
 }
