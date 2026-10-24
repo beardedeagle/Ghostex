@@ -22,8 +22,8 @@ use crate::session_git_status::{
 use crate::session_links::{
     forget_session_link_mentions_except, needs_full_scan, parse_github_url,
     presentation_session_links, remember_session_link_mentions, scan_transcript,
-    session_link_entries, stored_session_links, write_session_links, SessionLinkKind,
-    SessionLinkRef, SessionLinkSource, StoredSessionLink,
+    session_link_entries, session_links_read_snapshot, stored_session_links, write_session_links,
+    SessionLinkKind, SessionLinkRef, SessionLinkSource, StoredSessionLink,
 };
 use crate::storage::open_gxserver_database;
 use crate::work_mode::{
@@ -246,6 +246,32 @@ pub(crate) fn run_session_links_refresh_once(
                 published.insert(key.clone(), fingerprint);
                 changed.push(key);
             }
+        }
+    }
+    // What was read is kept with each session's links, so the lists show it right after the next
+    // start (`entry_value` in server/src/session_links/presentation.rs).
+    for session in &sessions {
+        let (Some((project_id, session_id)), Some(project)) = (
+            ids(session),
+            session
+                .get("projectId")
+                .and_then(Value::as_str)
+                .and_then(|id| projects_by_id.get(id)),
+        ) else {
+            continue;
+        };
+        let Some(links) = presentation_session_links(project, session) else {
+            continue;
+        };
+        let snapshot = session_links_read_snapshot(&links);
+        // Read again right before writing, so a pin or a removal made meanwhile is kept.
+        let current = repository
+            .get_session(&project_id, &session_id)?
+            .unwrap_or_else(|| session.clone());
+        let mut stored = stored_session_links(&current);
+        if snapshot != stored.read {
+            stored.read = snapshot;
+            write_session_links(&db, &project_id, &session_id, &stored)?;
         }
     }
     for (project_id, session_id) in changed {

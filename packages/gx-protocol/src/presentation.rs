@@ -721,6 +721,20 @@ pub struct PresentationSessionLink {
         skip_serializing_if = "is_false"
     )]
     pub finished: bool,
+    /// A person pinned it: it leads every list and always shows in the sidebar.
+    #[serde(
+        default,
+        deserialize_with = "crate::de::null_as_default",
+        skip_serializing_if = "is_false"
+    )]
+    pub pinned: bool,
+    /// Never read yet, and a read is on its way: no title or state to show.
+    #[serde(
+        default,
+        deserialize_with = "crate::de::null_as_default",
+        skip_serializing_if = "is_false"
+    )]
+    pub loading: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -748,6 +762,13 @@ pub struct PresentationSuggestedLink {
         skip_serializing_if = "is_false"
     )]
     pub finished: bool,
+    /// As on `PresentationSessionLink`.
+    #[serde(
+        default,
+        deserialize_with = "crate::de::null_as_default",
+        skip_serializing_if = "is_false"
+    )]
+    pub loading: bool,
 }
 
 /// One session row. Unique only together with `project_id`.

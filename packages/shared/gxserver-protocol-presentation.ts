@@ -302,6 +302,10 @@ export interface GxserverPresentationSessionLink {
   /** "From branch", "Agent opened", "Closed by #318"… */
   sourceLabel: string;
   finished?: true;
+  /** A person pinned it: it leads every list and always shows in the sidebar. */
+  pinned?: true;
+  /** Never read yet, and a read is on its way: no title or state to show. */
+  loading?: true;
 }
 
 /** Every link of a session, open work first, and the PR and issue URLs its chat only mentioned (`PresentationSessionLinks`). */
@@ -324,6 +328,7 @@ export interface GxserverPresentationSuggestedLink {
   /** "Mentioned in the chat" for a suggestion, where a removed link came from (or "Removed"). */
   sourceLabel?: string;
   finished?: true;
+  loading?: true;
 }
 
 /** A Claude cloud session (`PresentationClaudeCloud` in gx-protocol). */

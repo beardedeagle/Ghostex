@@ -15,6 +15,8 @@
 //! User picked "B. Open work first, finished work folded" for the links card's height: the list leads with an "Open N" group of the links that still need something, merged and closed links sit in one "Merged or closed N" group folded until opened, then Suggested and Removed (folded) as before. This replaces the Pull requests / GitHub issues / Linear sections, in the card, the header's "+N" dropdown and the phone's sheet alike. With it came "Fit what's shown": the list measures what is actually shown (a folded group is its header line) and its window resizes when a group folds or opens. And "Half the window's height": past half the window's height the list scrolls inside the card under its fixed header.
 //! CDXC:SessionLinks 2026-10-24 DECISION:
 //! User: "make suggested and removed also have the same look as other ones (2 rows)". Suggested and Removed entries use the same two-line row as linked ones (number, title and state, then "Mentioned in the chat" or where a removed link came from, server/src/session_links/presentation.rs), with Link or Restore where the × sits and no dashed box.
+//! CDXC:SessionLinks 2026-10-24 DECISION:
+//! User: "for the linked issues/prs/linear i want to be able to pin a few so they appear on top under "pinned" and they always appear in the sidebar. this is so i can pin the main pr/issue for each thread". Each linked entry has a pin button beside its × (`/api/pinSessionLink`), and a Pinned group leads the list above Open, pinned issues and Linear tickets before pinned PRs (gxserver's order, server/src/session_links/presentation.rs).
 //! CDXC:SessionLinks 2026-10-24 WHY:
 //! The list opens from a click or a hover the app is still handling, and opening a window draws it at once, so a list that read the app while drawing crashed Ghostex ("cannot read GhostexGpuiApp while it is already being updated"). The opener hands the list in, and later changes arrive through the observer, which runs after the app's update.
 
@@ -72,12 +74,12 @@ pub(crate) fn session_links_list_height(
     let open = |group: &str| !folded.iter().any(|folded| folded == group);
     // The body's children, which sit 2px apart.
     let mut children: Vec<f32> = Vec::new();
-    for (group, _, finished) in SESSION_LINK_GROUPS {
-        let undone = undo.filter(|undo| undo.finished == finished);
+    for (group, _) in SESSION_LINK_GROUPS {
+        let undone = undo.filter(|undo| link_in_group(undo, group));
         let rows: Vec<f32> = links
             .items
             .iter()
-            .filter(|item| item.finished == finished)
+            .filter(|item| link_in_group(item, group))
             .filter(|item| undone.is_none_or(|undo| undo.key != item.key))
             .map(entry_height)
             .collect();
@@ -139,12 +141,26 @@ fn entry_height(link: &SessionLink) -> f32 {
     }
 }
 
-/// The link groups in list order: id, title, and whether they hold finished (merged or closed)
-/// links.
-const SESSION_LINK_GROUPS: [(&str, &str, bool); 2] = [
-    ("open", "Open", false),
-    ("finished", "Merged or closed", true),
+/// The link groups in list order: id and title. Pinned leads (CDXC:SessionLinks 2026-10-24 in
+/// server/src/session_links/store.rs); Open, Loading and Merged or closed hold the rest. A link
+/// never read yet waits under Loading, so Open only lists what is known to be open and agrees
+/// with the header's "N open" (server/src/session_links/presentation.rs `entry_value`).
+const SESSION_LINK_GROUPS: [(&str, &str); 4] = [
+    ("pinned", "Pinned"),
+    ("open", "Open"),
+    ("loading", "Loading"),
+    ("finished", "Merged or closed"),
 ];
+
+/// Whether a link belongs to the group `group` of `SESSION_LINK_GROUPS`.
+fn link_in_group(link: &SessionLink, group: &str) -> bool {
+    match group {
+        "pinned" => link.pinned,
+        "loading" => !link.pinned && link.loading,
+        "open" => !link.pinned && !link.loading && !link.finished,
+        _ => !link.pinned && !link.loading && link.finished,
+    }
+}
 
 pub(crate) struct SessionLinksList {
     main_app: gpui::WeakEntity<GhostexGpuiApp>,
@@ -152,6 +168,8 @@ pub(crate) struct SessionLinksList {
     host: SessionLinksListHost,
     /// The entry whose × was clicked once, waiting for the second click.
     armed: Option<String>,
+    /// The entry under the pointer: only it shows its pin and ×.
+    hovered: Option<String>,
     /// The entry just removed, which reads "Removed · Undo" for a few seconds.
     undo: Option<SessionLink>,
     /// The groups folded shut, by id (`open`, `finished`, `suggested`, `removed`), as
@@ -195,6 +213,7 @@ impl SessionLinksList {
             key,
             host,
             armed: None,
+            hovered: None,
             undo: None,
             folded: folded_session_link_groups(),
             max_height,
@@ -256,10 +275,51 @@ impl SessionLinksList {
         cx.notify();
     }
 
-    /// A linked entry: its row with the × that removes it.
+    /// A linked entry: its row with its pin and the × that removes it.
+    ///
+    /// CDXC:SessionLinks 2026-10-24 DECISION:
+    /// User: "please don't show the x or pin icon unless i hover on that link", "please don't use this pin icon, there's another nicer one tat i like", "if we pin a thread then keep the pin icon shown in that case and make it filled". The pin and × show only while the pointer is on the row (or while its × waits for the second click); a pinned link always shows its pin, filled. The pin is the outline and filled pair the sidebar's account usage button uses (`pin-outline.svg`, `pin-filled.svg`).
     fn render_row(&self, link: &SessionLink, cx: &mut Context<Self>) -> AnyElement {
-        let remove = self.render_remove_button(link, cx);
-        self.render_entry(link, remove, cx)
+        let hovered = self.hovered.as_deref() == Some(link.key.as_str());
+        let armed = self.armed.as_deref() == Some(link.key.as_str());
+        let sidebar_id = self.key.to_sidebar_session_id();
+        let key = link.key.clone();
+        let pin = !link.pinned;
+        let pin_button = Self::icon_button(
+            format!("session-link-pin-{}", link.key),
+            if link.pinned {
+                "titlebar/pin-filled.svg"
+            } else {
+                "titlebar/pin-outline.svg"
+            },
+            if link.pinned {
+                "Unpin"
+            } else {
+                "Pin to the top"
+            },
+            move |list, _, _, cx| {
+                list.send(
+                    json!({
+                        "type": "pinSessionLink",
+                        "sessionId": sidebar_id,
+                        "key": key,
+                        "pinned": pin,
+                    }),
+                    cx,
+                );
+            },
+            cx,
+        );
+        let remove = (hovered || armed).then(|| self.render_remove_button(link, cx));
+        let actions = h_flex()
+            .flex_shrink_0()
+            .gap(px(2.0))
+            .when(hovered || armed || link.pinned, |actions| {
+                actions.child(pin_button)
+            })
+            .children(remove)
+            .into_any_element();
+        self.render_entry(link, actions, cx)
     }
 
     /// Every entry's row (a linked link, a suggestion, a removed link): icon, number, title and
@@ -274,14 +334,28 @@ impl SessionLinksList {
         let tone_color = session_link_tone_color(tone);
         let red = session_link_tone_color(SessionLinkTone::Closed);
         let open = open_session_link_command(link);
-        let title = link.title.clone().unwrap_or_default();
+        let loading = link.loading && link.title.is_none();
+        let title = if loading {
+            "Loading…".to_string()
+        } else {
+            link.title.clone().unwrap_or_default()
+        };
         let detail = link.detail_line();
         let failing = link.checks.as_deref() == Some("failing");
+        let row_key = link.key.clone();
         h_flex()
             .id(gpui::SharedString::from(format!(
                 "session-link-{}",
                 link.key
             )))
+            .on_hover(cx.listener(move |list, hovered: &bool, _, cx| {
+                if *hovered {
+                    list.hovered = Some(row_key.clone());
+                } else if list.hovered.as_deref() == Some(row_key.as_str()) {
+                    list.hovered = None;
+                }
+                cx.notify();
+            }))
             .h(px(entry_height(link)))
             .w_full()
             .flex_shrink_0()
@@ -292,11 +366,26 @@ impl SessionLinksList {
             .rounded(px(6.0))
             .when(link.finished, |row| row.opacity(0.62))
             .hover(|row| row.bg(chrome_ink().opacity(0.07)))
-            .child(div().pt(px(2.0)).child(titlebar_svg_icon(
-                session_link_glyph_icon(glyph),
-                14.0,
-                tone_color,
-            )))
+            // The state is the icon's colour; hovering the icon says it (gx-core `state_tooltip`).
+            .child({
+                let tooltip = link.state_tooltip();
+                div()
+                    .id(gpui::SharedString::from(format!(
+                        "session-link-state-{}",
+                        link.key
+                    )))
+                    .pt(px(2.0))
+                    .child(titlebar_svg_icon(
+                        session_link_glyph_icon(glyph),
+                        14.0,
+                        tone_color,
+                    ))
+                    .when(!tooltip.is_empty(), |icon| {
+                        icon.tooltip(move |window, cx| {
+                            Tooltip::new(tooltip.clone()).build(window, cx)
+                        })
+                    })
+            })
             .child(
                 v_flex()
                     .flex_1()
@@ -318,18 +407,13 @@ impl SessionLinksList {
                                     .flex_1()
                                     .min_w_0()
                                     .truncate()
-                                    .text_color(chrome_ink().opacity(0.86))
+                                    .text_color(chrome_ink().opacity(if loading {
+                                        0.45
+                                    } else {
+                                        0.86
+                                    }))
                                     .child(title),
-                            )
-                            .when_some(link.state_label(), |line, state| {
-                                line.child(
-                                    div()
-                                        .flex_shrink_0()
-                                        .text_size(px(11.5))
-                                        .text_color(tone_color)
-                                        .child(state),
-                                )
-                            }),
+                            ),
                     )
                     .when(!detail.is_empty(), |lines| {
                         lines.child(
@@ -693,12 +777,15 @@ impl Render for SessionLinksList {
         .collect::<Vec<_>>()
         .join(" · ");
         let mut body = v_flex().w_full().gap(px(2.0));
-        for (section, title, finished) in SESSION_LINK_GROUPS {
-            let undo = self.undo.clone().filter(|undo| undo.finished == finished);
+        for (section, title) in SESSION_LINK_GROUPS {
+            let undo = self
+                .undo
+                .clone()
+                .filter(|undo| link_in_group(undo, section));
             let items: Vec<&SessionLink> = links
                 .items
                 .iter()
-                .filter(|item| item.finished == finished)
+                .filter(|item| link_in_group(item, section))
                 .filter(|item| undo.as_ref().is_none_or(|undo| undo.key != item.key))
                 .collect();
             if items.is_empty() && undo.is_none() {

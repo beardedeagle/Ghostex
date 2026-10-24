@@ -238,6 +238,7 @@ fn entry_value(
     cwd: Option<&str>,
     repo: Option<&str>,
     linear_key: Option<u64>,
+    read: &Map<String, Value>,
 ) -> Value {
     let link = &entry.link;
     let mut output = Map::new();
@@ -302,7 +303,62 @@ fn entry_value(
     if finished {
         output.insert("finished".to_string(), json!(true));
     }
+    // CDXC:SessionLinks 2026-10-24 WHY:
+    // The caches the pass fills live in memory, so after every gxserver start each link read "#270" with no title or state until the pass reached it, and with 20 reads a minute shared by every open session that took minutes ("omg why do we show nothing for all these (no title)"). What was last read is kept with the session's links (`sessionLinks.read`, written by server/src/server/session_links_sync.rs) and shown until the pass reads it again; a link never read is `loading` while a read is possible, and the lists keep it out of Open until its state is known.
+    if !output.contains_key("state") {
+        match read.get(&link.key()).and_then(Value::as_object) {
+            Some(snapshot) => {
+                for (field, value) in snapshot {
+                    output.entry(field.clone()).or_insert_with(|| value.clone());
+                }
+            }
+            None => {
+                let readable = match link {
+                    SessionLinkRef::Linear { .. } => linear_key.is_some(),
+                    SessionLinkRef::Github { .. } => {
+                        crate::session_git_status::gh_cli_is_available()
+                    }
+                };
+                if readable {
+                    output.insert("loading".to_string(), json!(true));
+                }
+            }
+        }
+    }
     Value::Object(output)
+}
+
+/// What the lists show of each linked link that has been read, by key: the part of `items` that
+/// `sessionLinks.read` keeps across gxserver starts (`entry_value`).
+pub(crate) fn session_links_read_snapshot(links: &Value) -> Map<String, Value> {
+    let mut snapshot = Map::new();
+    for item in links
+        .get("items")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+    {
+        let (Some(key), Some(_)) = (item.get("key").and_then(Value::as_str), item.get("state"))
+        else {
+            continue;
+        };
+        let mut read = Map::new();
+        for field in [
+            "state",
+            "stateName",
+            "title",
+            "checks",
+            "review",
+            "url",
+            "finished",
+        ] {
+            if let Some(value) = item.get(field) {
+                read.insert(field.to_string(), value.clone());
+            }
+        }
+        snapshot.insert(key.to_string(), Value::Object(read));
+    }
+    snapshot
 }
 
 /// Where an entry's kind sorts: pull requests, then issues, then Linear tickets.
@@ -325,15 +381,24 @@ fn other_entry_value(
     cwd: Option<&str>,
     repo: Option<&str>,
     linear_key: Option<u64>,
+    read: &Map<String, Value>,
 ) -> Value {
-    let mut output = match entry_value(entry, cwd, repo, linear_key) {
+    let mut output = match entry_value(entry, cwd, repo, linear_key, read) {
         Value::Object(output) => output,
         _ => Map::new(),
     };
     output.retain(|key, _| {
         matches!(
             key.as_str(),
-            "key" | "kind" | "label" | "url" | "title" | "state" | "stateName" | "finished"
+            "key"
+                | "kind"
+                | "label"
+                | "url"
+                | "title"
+                | "state"
+                | "stateName"
+                | "finished"
+                | "loading"
         )
     });
     output.insert("sourceLabel".to_string(), json!(source));
@@ -369,13 +434,35 @@ pub(crate) fn presentation_session_links(project: &Value, session: &Value) -> Op
         .map(|(index, entry)| {
             (
                 index,
-                entry_value(entry, cwd.as_deref(), repo.as_deref(), linear_key),
+                entry_value(
+                    entry,
+                    cwd.as_deref(),
+                    repo.as_deref(),
+                    linear_key,
+                    &stored.read,
+                ),
             )
         })
         .collect();
+    // Pinned links lead: pinned issues and Linear tickets, then pinned PRs (the user's "pinned
+    // issue as 1st thing (gh/linear) then the pinned pr after it"; store.rs `set_pinned`).
+    for (_, item) in items.iter_mut() {
+        let pinned = item
+            .get("key")
+            .and_then(Value::as_str)
+            .is_some_and(|key| stored.is_pinned(key));
+        if pinned {
+            item["pinned"] = json!(true);
+        }
+    }
     items.sort_by_key(|(index, item)| {
         let finished = item.get("finished").and_then(Value::as_bool) == Some(true);
-        (finished, kind_rank(item), *index)
+        let pin = match (item.get("pinned").is_some(), kind_rank(item)) {
+            (true, 0) => 1,
+            (true, _) => 0,
+            (false, _) => 2,
+        };
+        (pin, finished, kind_rank(item), *index)
     });
     let linked: HashSet<String> = entries.iter().map(|entry| entry.link.key()).collect();
     let mut suggested: Vec<Value> = mentioned
@@ -401,6 +488,7 @@ pub(crate) fn presentation_session_links(project: &Value, session: &Value) -> Op
                 cwd.as_deref(),
                 repo.as_deref(),
                 linear_key,
+                &stored.read,
             )
         })
         .collect();
@@ -427,7 +515,14 @@ pub(crate) fn presentation_session_links(project: &Value, session: &Value) -> Op
                 Some(_) => source_label(&entry),
                 None => "Removed".to_string(),
             };
-            other_entry_value(&entry, source, cwd.as_deref(), repo.as_deref(), linear_key)
+            other_entry_value(
+                &entry,
+                source,
+                cwd.as_deref(),
+                repo.as_deref(),
+                linear_key,
+                &stored.read,
+            )
         })
         .collect();
     // Suggested and Removed list pull requests, then issues, then Linear tickets, like the

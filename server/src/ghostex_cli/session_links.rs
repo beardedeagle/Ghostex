@@ -1,4 +1,4 @@
-//! `ghostex link add|remove|list` (crate::session_links): the PRs, GitHub issues and Linear tickets
+//! `ghostex link add|remove|restore|pin|unpin|list` (crate::session_links): the PRs, GitHub issues and Linear tickets
 //! a session is linked to. An agent reports the PR or issue it is working on with `ghostex link
 //! add`; without `--session` it names the session the command runs in.
 //!
@@ -62,6 +62,19 @@ pub(super) fn link_command(args: &[String]) -> CliResult<()> {
             print_json(&result);
             Ok(())
         }
+        "pin" | "unpin" => {
+            let key = target.ok_or_else(|| {
+                CliError::Other(format!(
+                    "Pass the link to {subcommand} (its key, URL, #123 or ID)."
+                ))
+            })?;
+            params.insert("key".to_string(), json!(key));
+            params.insert("pinned".to_string(), json!(subcommand == "pin"));
+            let result =
+                rpc::call_gxserver_rpc("/api/pinSessionLink", &Value::Object(params), flags)?;
+            print_json(&result);
+            Ok(())
+        }
         "list" => {
             let result =
                 rpc::call_gxserver_rpc("/api/readSessionLinks", &Value::Object(params), flags)?;
@@ -73,7 +86,7 @@ pub(super) fn link_command(args: &[String]) -> CliResult<()> {
             Ok(())
         }
         other => Err(CliError::Other(format!(
-            "Unknown link command \"{other}\". Use add, remove, restore or list."
+            "Unknown link command \"{other}\". Use add, remove, restore, pin, unpin or list."
         ))),
     }
 }
@@ -127,6 +140,11 @@ fn print_links(result: &Value) {
         println!("No links.");
     }
     for item in &items {
+        let pin = if item.get("pinned").and_then(Value::as_bool) == Some(true) {
+            "📌 "
+        } else {
+            ""
+        };
         let state = [
             text(item, "stateName"),
             text(item, "state"),
@@ -139,7 +157,7 @@ fn print_links(result: &Value) {
         .collect::<Vec<_>>()
         .join(", ");
         println!(
-            "{:<18} {:<28} {}  ({})  {}",
+            "{pin}{:<18} {:<28} {}  ({})  {}",
             text(item, "label"),
             state,
             text(item, "title"),

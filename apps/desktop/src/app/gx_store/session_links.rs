@@ -13,7 +13,8 @@ use crate::app::model::{GpuiBrowserRendererOpenReuse, GpuiSidebarOpenBrowserUrlM
 
 impl GhostexGpuiApp {
     /// Answers `openSessionLink {url}`, `removeSessionLink {sessionId, key}`,
-    /// `restoreSessionLink {sessionId, key}` and `addSessionLink {sessionId, link}`; the session is
+    /// `restoreSessionLink {sessionId, key}`, `pinSessionLink {sessionId, key, pinned}` and
+    /// `addSessionLink {sessionId, link}`; the session is
     /// named by its sidebar id.
     pub(crate) fn gx_store_run_session_links(
         &mut self,
@@ -65,7 +66,10 @@ impl GhostexGpuiApp {
                 }
                 true
             }
-            Some(kind @ ("removeSessionLink" | "addSessionLink" | "restoreSessionLink")) => {
+            Some(
+                kind @ ("removeSessionLink" | "addSessionLink" | "restoreSessionLink"
+                | "pinSessionLink"),
+            ) => {
                 let Some(session) = command
                     .get("sessionId")
                     .and_then(Value::as_str)
@@ -74,7 +78,18 @@ impl GhostexGpuiApp {
                 else {
                     return true;
                 };
-                let (path, params, failure) = if kind == "restoreSessionLink" {
+                let (path, params, failure) = if kind == "pinSessionLink" {
+                    (
+                        "/api/pinSessionLink",
+                        json!({
+                            "projectId": session.project_id,
+                            "sessionId": session.session_id,
+                            "key": command.get("key").cloned().unwrap_or(Value::Null),
+                            "pinned": command.get("pinned").and_then(Value::as_bool).unwrap_or(true),
+                        }),
+                        "Couldn't pin the link",
+                    )
+                } else if kind == "restoreSessionLink" {
                     (
                         "/api/restoreSessionLink",
                         json!({

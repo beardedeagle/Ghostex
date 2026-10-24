@@ -44,6 +44,10 @@ pub struct SessionLink {
     /// "From branch", "Agent opened", "Closed by #318"…
     pub source_label: String,
     pub finished: bool,
+    /// A person pinned it: gxserver lists it first, and every sidebar option but Off shows it.
+    pub pinned: bool,
+    /// Never read yet, with a read on its way: the lists say "Loading…" and keep it out of Open.
+    pub loading: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -58,6 +62,7 @@ pub struct SuggestedSessionLink {
     /// The second line: "Mentioned in the chat", or where a removed link came from.
     pub source_label: String,
     pub finished: bool,
+    pub loading: bool,
 }
 
 /// The icon an entry draws; each renderer maps it to its own SVG.
@@ -110,6 +115,7 @@ fn other_link(
         state_name: item.state_name.clone(),
         source_label: item.source_label.clone(),
         finished: item.finished,
+        loading: item.loading,
     }
 }
 
@@ -132,6 +138,8 @@ impl SessionLinks {
                     source: item.source.clone(),
                     source_label: item.source_label.clone(),
                     finished: item.finished,
+                    pinned: item.pinned,
+                    loading: item.loading,
                 })
                 .collect(),
             suggested: links.suggested.iter().map(other_link).collect(),
@@ -226,23 +234,46 @@ impl SessionLink {
     /// CDXC:SessionLinks 2026-10-24 DECISION:
     /// User: "i dont like the "You added"/"mentioned in chat" text there i think no need for that". Where a link came from ("You added", "Agent added", "From branch", "Mentioned in the chat") is not shown; only "Closed by #284" stays, with an open PR's checks and review.
     pub fn detail_line(&self) -> String {
-        let checks = match self.checks.as_deref() {
-            Some("passing") => Some("Checks passing"),
-            Some("failing") => Some("Checks failing"),
-            Some("pending") => Some("Checks running"),
-            _ => None,
-        };
-        let review = match self.review.as_deref() {
-            Some("reviewRequired") => Some("Review requested"),
-            Some("approved") => Some("Approved"),
-            Some("changesRequested") => Some("Changes requested"),
-            _ => None,
-        };
+        let (checks, review) = (self.checks_words(), self.review_words());
         let closed_by = (self.source == "closes").then_some(self.source_label.as_str());
         [checks, review, closed_by]
             .into_iter()
             .flatten()
             .filter(|part| !part.trim().is_empty())
+            .collect::<Vec<_>>()
+            .join(" · ")
+    }
+
+    fn checks_words(&self) -> Option<&'static str> {
+        match self.checks.as_deref() {
+            Some("passing") => Some("Checks passing"),
+            Some("failing") => Some("Checks failing"),
+            Some("pending") => Some("Checks running"),
+            _ => None,
+        }
+    }
+
+    fn review_words(&self) -> Option<&'static str> {
+        match self.review.as_deref() {
+            Some("reviewRequired") => Some("Review requested"),
+            Some("approved") => Some("Approved"),
+            Some("changesRequested") => Some("Changes requested"),
+            _ => None,
+        }
+    }
+
+    /// What hovering a row's icon says: the state in words, then a PR's checks and review
+    /// (`Open · Checks failing · Review requested`); "Loading…" before it was read.
+    ///
+    /// CDXC:SessionLinks 2026-10-24 DECISION:
+    /// User: "no need for the word merged and closed i should be able to hover their icon to get that word instead in tooltip". The lists' rows show no state word; the icon's colour carries the state and its tooltip says it, with a PR's checks and review.
+    pub fn state_tooltip(&self) -> String {
+        let state = self
+            .state_label()
+            .or_else(|| self.loading.then(|| "Loading…".to_string()));
+        [state.as_deref(), self.checks_words(), self.review_words()]
+            .into_iter()
+            .flatten()
             .collect::<Vec<_>>()
             .join(" · ")
     }
@@ -278,6 +309,8 @@ impl SuggestedSessionLink {
             source: String::new(),
             source_label: self.source_label.clone(),
             finished: self.finished,
+            pinned: false,
+            loading: self.loading,
         }
     }
 }
@@ -346,6 +379,10 @@ impl SessionLinks {
     /// The colour of the most pressing link: failing checks or changes asked for, then a review
     /// asked for or checks still running, then open work, then a draft, then finished work.
     pub fn most_pressing_tone(&self) -> SessionLinkTone {
+        Self::most_pressing_tone_of(self.items.iter())
+    }
+
+    fn most_pressing_tone_of<'a>(links: impl Iterator<Item = &'a SessionLink>) -> SessionLinkTone {
         let rank = |link: &SessionLink| -> (u8, SessionLinkTone) {
             if link.checks.as_deref() == Some("failing")
                 || link.review.as_deref() == Some("changesRequested")
@@ -363,8 +400,7 @@ impl SessionLinks {
                 (4, SessionLinkTone::Merged)
             }
         };
-        self.items
-            .iter()
+        links
             .map(rank)
             .min_by_key(|(rank, _)| *rank)
             .map(|(_, tone)| tone)
@@ -394,24 +430,39 @@ impl SessionLinks {
                 hover_card: true,
             };
         }
+        // Pinned links lead `items` (gxserver sorts them first) and show under every option but
+        // Off (CDXC:SessionLinks 2026-10-24 in server/src/session_links/store.rs).
         let all = || (0..self.items.len()).collect::<Vec<_>>();
+        let pinned = || {
+            self.items
+                .iter()
+                .enumerate()
+                .filter(|(_, link)| link.pinned)
+                .map(|(index, _)| index)
+                .collect::<Vec<_>>()
+        };
         let (line, badge) = match display {
             SessionLinksDisplay::Always => (all(), None),
             SessionLinksDisplay::Selected if selected => (all(), None),
-            SessionLinksDisplay::Selected => (Vec::new(), None),
-            SessionLinksDisplay::Badge => (
-                Vec::new(),
-                Some(SessionLinksBadge {
-                    count: self.items.len(),
-                    tone: self.most_pressing_tone(),
-                    suggested: false,
-                }),
-            ),
+            SessionLinksDisplay::Selected => (pinned(), None),
+            // The pinned chips on the line under the name; the title row's badge counts the rest.
+            SessionLinksDisplay::Badge => {
+                let rest = self.items.iter().filter(|link| !link.pinned);
+                let count = rest.clone().count();
+                (
+                    pinned(),
+                    (count > 0).then(|| SessionLinksBadge {
+                        count,
+                        tone: Self::most_pressing_tone_of(rest),
+                        suggested: false,
+                    }),
+                )
+            }
             SessionLinksDisplay::OpenOnly => (
                 self.items
                     .iter()
                     .enumerate()
-                    .filter(|(_, link)| !link.finished)
+                    .filter(|(_, link)| link.pinned || !link.finished)
                     .map(|(index, _)| index)
                     .collect(),
                 None,
@@ -475,6 +526,8 @@ mod tests {
             source: String::new(),
             source_label: String::new(),
             finished,
+            pinned: false,
+            loading: false,
         }
     }
 

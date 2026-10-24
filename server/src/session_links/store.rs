@@ -75,6 +75,11 @@ pub(crate) struct StoredSessionLinks {
     pub(crate) removed: Vec<String>,
     /// What a removed stored link was, so Restore puts it back with its source.
     pub(crate) removed_items: Vec<StoredSessionLink>,
+    /// Keys of links a person pinned, in the order they were pinned.
+    pub(crate) pinned: Vec<String>,
+    /// What was last read about each linked link (title, state, checks, review, url, finished),
+    /// by key, so the lists show it right after gxserver starts while the pass reads it again.
+    pub(crate) read: Map<String, Value>,
 }
 
 impl StoredSessionLinks {
@@ -122,7 +127,26 @@ impl StoredSessionLinks {
         if newly_removed {
             self.removed.push(key.to_string());
         }
+        self.pinned.retain(|pinned| pinned != key);
         newly_removed || self.items.len() != before
+    }
+
+    pub(crate) fn is_pinned(&self, key: &str) -> bool {
+        self.pinned.iter().any(|pinned| pinned == key)
+    }
+
+    /// Pins or unpins a link. Returns whether anything changed.
+    ///
+    /// CDXC:SessionLinks 2026-10-24 DECISION:
+    /// User: "for the linked issues/prs/linear i want to be able to pin a few so they appear on top under "pinned" and they always appear in the sidebar. this is so i can pin the main pr/issue for each thread. we should always show the pinned issue as 1st thing (gh/linear) then the pinned pr after it in the sidebar order and in the floating and top of the chat pane so it's consistent". Pins are kept per session with its links (`sessionLinks.pinned`), so every client and `ghostex link pin|unpin` agree; removing a link unpins it.
+    pub(crate) fn set_pinned(&mut self, key: &str, pinned: bool) -> bool {
+        let was = self.is_pinned(key);
+        if pinned && !was {
+            self.pinned.push(key.to_string());
+        } else if !pinned && was {
+            self.pinned.retain(|known| known != key);
+        }
+        was != pinned
     }
 
     /// Takes a link off the removed list and puts back the stored link it was, when it had one.
@@ -180,7 +204,13 @@ impl StoredSessionLinks {
                 Value::Object(object)
             })
             .collect();
-        json!({ "items": items, "removed": self.removed, "removedItems": removed_items })
+        json!({
+            "items": items,
+            "removed": self.removed,
+            "removedItems": removed_items,
+            "pinned": self.pinned,
+            "read": self.read,
+        })
     }
 }
 
@@ -223,20 +253,28 @@ pub(crate) fn stored_session_links(session: &Value) -> StoredSessionLinks {
     };
     let items = parse_items("items");
     let removed_items = parse_items("removedItems");
-    let removed = links
-        .get("removed")
-        .and_then(Value::as_array)
-        .map(|keys| {
-            keys.iter()
-                .filter_map(Value::as_str)
-                .map(str::to_string)
-                .collect()
-        })
-        .unwrap_or_default();
+    let keys = |field: &str| -> Vec<String> {
+        links
+            .get(field)
+            .and_then(Value::as_array)
+            .map(|keys| {
+                keys.iter()
+                    .filter_map(Value::as_str)
+                    .map(str::to_string)
+                    .collect()
+            })
+            .unwrap_or_default()
+    };
     StoredSessionLinks {
         items,
-        removed,
+        removed: keys("removed"),
         removed_items,
+        pinned: keys("pinned"),
+        read: links
+            .get("read")
+            .and_then(Value::as_object)
+            .cloned()
+            .unwrap_or_default(),
     }
 }
 

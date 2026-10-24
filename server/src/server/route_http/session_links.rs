@@ -106,36 +106,7 @@ pub(super) async fn route_session_links_http(
             |repository, db, params, _| {
                 let (project, session) = session_of(repository, params)?;
                 let text = text_param(params, "key")?;
-                // A key as clients send it, or the link as a person typed it: `#283` is whichever
-                // of the session's links has that number, a PR or an issue.
-                let key = match SessionLinkRef::from_key(&text) {
-                    Some(link) => link.key(),
-                    None => {
-                        let repo = session_repo(&project, &session);
-                        let linked: Vec<String> = session_link_entries(&project, &session)
-                            .into_iter()
-                            .map(|entry| entry.link.key())
-                            .collect();
-                        let candidates: Vec<String> = [
-                            None,
-                            Some(SessionLinkKind::Issue),
-                            Some(SessionLinkKind::Linear),
-                        ]
-                        .into_iter()
-                        .filter_map(|kind| parse_link_input(&text, repo.as_deref(), kind))
-                        .map(|link| link.key())
-                        .collect();
-                        candidates
-                            .iter()
-                            .find(|key| linked.contains(key))
-                            .cloned()
-                            .ok_or_else(|| {
-                                DomainStateError::bad_request(format!(
-                                    "\"{text}\" names none of this session's links."
-                                ))
-                            })?
-                    }
-                };
+                let key = linked_key(&project, &session, &text)?;
                 let (project_id, session_id) = ids_of(params)?;
                 let mut stored = stored_session_links(&session);
                 let removed = stored.remove(&key);
@@ -154,6 +125,44 @@ pub(super) async fn route_session_links_http(
                     "sessionId": session_id,
                     "key": key,
                     "removed": removed,
+                }))
+            },
+        ),
+        // Pins or unpins one of the session's links (`pinned`, true by default); pinned links lead
+        // every list and always show in the sidebar (CDXC:SessionLinks 2026-10-24 in
+        // server/src/session_links/store.rs).
+        "/api/pinSessionLink" => handle_domain_http(
+            &state,
+            endpoint.path,
+            request_id,
+            &body_json,
+            |repository, db, params, _| {
+                let (project, session) = session_of(repository, params)?;
+                let text = text_param(params, "key")?;
+                let key = linked_key(&project, &session, &text)?;
+                let pinned = params
+                    .get("pinned")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(true);
+                let (project_id, session_id) = ids_of(params)?;
+                let mut stored = stored_session_links(&session);
+                let changed = stored.set_pinned(&key, pinned);
+                if changed {
+                    write_session_links(db, &project_id, &session_id, &stored)?;
+                    schedule_presentation_session_delta(
+                        &state,
+                        db,
+                        repository,
+                        &project_id,
+                        &session_id,
+                    )?;
+                }
+                Ok(json!({
+                    "projectId": project_id,
+                    "sessionId": session_id,
+                    "key": key,
+                    "pinned": pinned,
+                    "changed": changed,
                 }))
             },
         ),
@@ -291,4 +300,29 @@ fn session_of(
         .get_session(&project_id, &session_id)?
         .ok_or_else(|| DomainStateError::bad_request("No such session."))?;
     Ok((project, session))
+}
+
+/// A key as clients send it, or one of the session's links as a person typed it: `#283` is
+/// whichever of them has that number, a PR or an issue.
+fn linked_key(project: &Value, session: &Value, text: &str) -> Result<String, DomainStateError> {
+    if let Some(link) = SessionLinkRef::from_key(text) {
+        return Ok(link.key());
+    }
+    let repo = session_repo(project, session);
+    let linked: Vec<String> = session_link_entries(project, session)
+        .into_iter()
+        .map(|entry| entry.link.key())
+        .collect();
+    [
+        None,
+        Some(SessionLinkKind::Issue),
+        Some(SessionLinkKind::Linear),
+    ]
+    .into_iter()
+    .filter_map(|kind| parse_link_input(text, repo.as_deref(), kind))
+    .map(|link| link.key())
+    .find(|key| linked.contains(key))
+    .ok_or_else(|| {
+        DomainStateError::bad_request(format!("\"{text}\" names none of this session's links."))
+    })
 }

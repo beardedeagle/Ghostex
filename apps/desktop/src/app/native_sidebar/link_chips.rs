@@ -135,6 +135,25 @@ pub(crate) fn session_link_chip_body(
         })
 }
 
+/// The Badge option's count: a link icon and the number, in `color`; dashed for suggestions.
+fn session_links_badge_body(count: usize, color: Hsla, dashed: bool, scale: f32) -> gpui::Div {
+    div()
+        .flex()
+        .flex_shrink_0()
+        .items_center()
+        .gap(px(3.0 * scale))
+        .h(px(16.0 * scale))
+        .px(px(5.0 * scale))
+        .rounded_full()
+        .border_1()
+        .when(dashed, |badge| badge.border_dashed())
+        .border_color(color.opacity(0.45))
+        .text_size(px(10.5 * scale))
+        .text_color(color)
+        .child(titlebar_svg_icon("titlebar/link.svg", 10.0 * scale, color))
+        .child(count.to_string())
+}
+
 /// The "+N" pill: the links that did not fit, with a red dot when one of them has failing checks.
 ///
 /// CDXC:SessionLinks 2026-10-24 SEE-ALSO: the user's "dot-only" answer (server/src/server/session_links_sync.rs); this dot is how a failing PR behind "+N" still shows.
@@ -216,47 +235,40 @@ impl GhostexGpuiApp {
     /// Whether the row draws a second line: its links line, or a Work mode card's Clean up / Keep
     /// offer for a merged PR (work_chips.rs), which takes the line while it waits.
     pub(crate) fn native_session_has_second_line(&self, session: &NativeSidebarSession) -> bool {
+        let row = self.native_session_links_row(session);
         session.work.as_ref().is_some_and(|work| work.offer_cleanup)
-            || !self.native_session_links_row(session).line.is_empty()
+            || !row.line.is_empty()
+            || row.badge.is_some_and(|badge| badge.suggested)
     }
 
-    /// The badge a row shows with the Badge option: the number of links, coloured by the most
-    /// pressing one; or, under every option, a session's suggestions while it has no links, muted
-    /// and dashed. Hidden while the row is hovered, like the row's other badges.
+    /// The badge a row's title shows with the Badge option: the number of links (the ones not
+    /// pinned), coloured by the most pressing one. Hidden while the row is hovered, like the row's
+    /// other badges. A session's quiet suggestions badge sits on the line under its name instead.
     pub(super) fn render_native_session_links_badge(
         &self,
         session: &NativeSidebarSession,
         appearance: &SidebarAppearance,
     ) -> Option<AnyElement> {
         let badge = self.native_session_links_row(session).badge?;
-        let scale = appearance.scale;
+        // The quiet suggestions badge sits on the line under the name instead
+        // (`render_native_session_link_line`).
+        if badge.suggested {
+            return None;
+        }
         let color = if badge.suggested {
             appearance.muted
         } else {
             session_link_tone_color(badge.tone)
         };
         Some(
-            div()
-                .flex()
-                .flex_shrink_0()
-                .items_center()
-                .gap(px(3.0 * scale))
-                .h(px(16.0 * scale))
-                .px(px(5.0 * scale))
-                .rounded_full()
-                .border_1()
-                .when(badge.suggested, |badge| badge.border_dashed())
-                .border_color(color.opacity(0.45))
-                .text_size(px(10.5 * scale))
-                .text_color(color)
-                .child(titlebar_svg_icon("titlebar/link.svg", 10.0 * scale, color))
-                .child(badge.count.to_string())
+            session_links_badge_body(badge.count, color, badge.suggested, appearance.scale)
                 .into_any_element(),
         )
     }
 
-    /// The row's links line (the Always, Selected session and Open work only options): the chips
-    /// gx-core picked that fit, then "+N" for the rest, which opens the floating card.
+    /// The row's links line (the Always, Selected session and Open work only options, and the
+    /// pinned links under every option but Off): the chips gx-core picked that fit, pinned first,
+    /// then "+N" for the rest (the badge under Badge), which opens the floating card.
     pub(super) fn render_native_session_link_line(
         &self,
         session: &NativeSidebarSession,
@@ -269,8 +281,31 @@ impl GhostexGpuiApp {
             return None;
         }
         let row = self.native_session_links_row(session);
+        let scale = appearance.scale;
         if row.line.is_empty() {
-            return None;
+            // CDXC:SessionLinks 2026-10-24 DECISION:
+            // User: "show the option to link a thread with issues/prs etc under the name of the thread instead of on the same thread title row", which they narrowed to "i said that for the case where it's showing me the link icon and telling me there's suggested links". The quiet suggestions badge of a session with suggestions but no links sits on a line under the session's name, where its chips would be; the regular Badge for linked links stays on the title row.
+            let badge = row.badge.filter(|badge| badge.suggested)?;
+            return Some(
+                h_flex()
+                    .h(px(LINK_LINE_HEIGHT * scale))
+                    .flex_shrink_0()
+                    .w_full()
+                    .min_w_0()
+                    .overflow_hidden()
+                    // Under the title.
+                    .pl(px((indent + 15.0 + 6.0) * scale))
+                    .child(
+                        session_links_badge_body(badge.count, appearance.muted, true, scale)
+                            .id(format!(
+                                "native-session-links-suggested-{}",
+                                session.session_id
+                            ))
+                            .role(gpui::Role::Image)
+                            .aria_label(format!("{} suggested links", badge.count)),
+                    )
+                    .into_any_element(),
+            );
         }
         let links: &SessionLinks = session.links.as_deref()?;
         let items: Vec<SessionLink> = row
@@ -278,7 +313,6 @@ impl GhostexGpuiApp {
             .iter()
             .filter_map(|index| links.items.get(*index).cloned())
             .collect();
-        let scale = appearance.scale;
         // The card's width as it last painted, kept in step with the sidebar's width (the card's
         // inset from the sidebar's edges does not change while the sidebar is dragged wider),
         // less the line's indent under the title and its right padding.
@@ -306,7 +340,12 @@ impl GhostexGpuiApp {
             .iter()
             .map(|link| link_chip_width(&text_system, link, 11.5))
             .collect();
-        let never_shown = links.items.len() - items.len();
+        // Under Badge the title row's badge counts the links the pinned chips leave out.
+        let never_shown = if row.badge.is_some() {
+            0
+        } else {
+            links.items.len() - items.len()
+        };
         let failing_beyond = |shown: usize| {
             links.items.iter().any(|link| {
                 link.checks.as_deref() == Some("failing")
@@ -323,7 +362,7 @@ impl GhostexGpuiApp {
                 overflow_pill_width(&text_system, hidden, failing_beyond(shown), 11.0)
             },
         );
-        let hidden = links.items.len() - shown;
+        let hidden = items.len() + never_shown - shown;
         let show_tooltips = self.native_sidebar.pointer_inside
             && self.native_sidebar.menu.is_none()
             && !cx.has_active_drag();

@@ -3356,7 +3356,8 @@ to three of them after the session's title, open work first, each with its numbe
 state and checks, then +N for the rest (or a List pill when they all fit), which
 opens the whole list: each link with its icon (a branch for a pull request, the
 GitHub mark for an issue, the Linear logo for a Linear ticket, coloured by its
-state), number, title and state, and under it, only when there is something to act
+state; rest the pointer on the icon to see the state in words, with a pull request's
+checks and review), number and title, and under it, only when there is something to act
 on, an open pull request's checks (passing, failing or running) and review (review
 requested, approved or changes requested) or the pull request that closes an issue.
 Suggested and Removed links look the same, with a link button (Link) or a restore
@@ -3368,7 +3369,16 @@ chevron on its header and keeps its count; what you fold stays folded in every
 session and after a restart (the phone keeps its own). Click a link to open it; **Open
 session links in** (Settings > General > Browser) opens them in the internal
 browser (the default) or your default browser. Click a link's × and then Remove?
-within three seconds to remove it; a removed link never comes back by itself.
+within three seconds to remove it; a removed link never comes back by itself. Click
+the pin beside the × to pin a link (the main issue or PR of the session, say): pinned
+links lead a Pinned group at the top of the list, pinned issues and Linear tickets
+first, then pinned pull requests; they come first beside the header's title, and the
+sidebar always shows them under every Session links choice but Off (with Badge, the
+pinned chips sit on a line under the name and the badge counts the rest). Click the pin again to unpin.
+`ghostex link pin <link>` and `ghostex link unpin <link>` do the same. The pin and the
+× show when the pointer is on a link (a pinned link always shows its filled pin). Each
+link keeps what was last read about it, so its title and state show right away after
+Ghostex restarts; a link not read yet says Loading… until its state is known.
 Right after a removal its row reads Removed · Undo for a few seconds, and every
 removed link stays under a Removed group, folded until you open it, at the bottom of the list
 (on the phone's sheet too) with Restore, which puts it back as it was and lets it
@@ -3380,7 +3390,7 @@ the most pressing link: red for failing checks or changes asked for, amber for a
 review asked for or checks still running), Open work only (a line of the ones
 still open, none once they are all merged or closed), or Off. A session with no
 links yet but links the chat mentioned shows a muted, dashed badge counting those
-suggestions with every choice but Off. Rest the pointer on a
+suggestions on a line under its name, with every choice but Off. Rest the pointer on a
 card that has links and, after the tooltip delay, a card opens beside the sidebar
 listing them the same way, with the same open, ×, Remove? and Link as the
 header's list. It is as tall as what it shows and grows or shrinks when you fold a
