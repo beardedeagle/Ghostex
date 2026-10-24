@@ -767,6 +767,40 @@ impl NativeChatView {
     }
 }
 
+/// What a question form's footer says about the questions left blank; the footer shows it behind an
+/// (i) icon (`ask_info_hint`). The phone's copy is QuestionForm.tsx `SKIPPED_HINT`, the page kit's
+/// is server/src/visual_pages/kit.rs.
+pub(super) const SKIPPED_HINT: &str = "Questions you leave blank are sent as skipped.";
+
+/// A small (i) icon whose quick tooltip says `hint`, for a footer note that is not worth a line of its
+/// own.
+///
+/// CDXC:SessionChat 2026-10-24 DECISION: User: "remove the text about skipped (add i icon there for that)". The question form's footer no longer prints "Questions you leave blank are sent as skipped." (five lines on the phone); a small (i) icon stands in its place, before Skip all and Send answers, and shows the sentence in a tooltip on hover here, on a tap on the phone (QuestionForm.tsx `InfoHint`) and on the HTML question pages (server/src/visual_pages/kit.rs `.gx-send-info`). The buttons keep their size and place. Status messages (Sending, Queued, a send error) still print as text.
+pub(super) fn ask_info_hint(hint: &'static str, p: &ChatAppearance) -> AnyElement {
+    let s = p.scale;
+    div()
+        .id("question-form-info")
+        .role(gpui::Role::Button)
+        .aria_label(hint)
+        .size(px(20.0 * s))
+        .flex_shrink_0()
+        .flex()
+        .items_center()
+        .justify_center()
+        .child(
+            svg()
+                .path("titlebar/info-circle.svg")
+                .size(px(16.0 * s))
+                .text_color(p.muted),
+        )
+        .managed_tooltip_with(
+            Some(gpui_component::Placement::Top),
+            Some(QUICK_TOOLTIP_DELAY),
+            move |window, cx| gpui_component::tooltip::Tooltip::new(hint).build(window, cx),
+        )
+        .into_any_element()
+}
+
 /// An answer as plain text: the card's foreground colour at medium weight, no chip, border or fill.
 pub(super) fn plain_answer(words: String, p: &ChatAppearance) -> AnyElement {
     let s = p.scale;

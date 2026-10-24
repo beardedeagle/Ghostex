@@ -139,6 +139,9 @@ gx-question.gx-answered .gx-choice[aria-checked=true] .gx-mark{border-color:var(
 .gx-skip-all+.gx-send-button{margin-left:0}
 .gx-send-status{flex:1;min-width:0;font-size:12.5px;color:var(--muted-foreground)}
 .gx-send-status.gx-error{color:var(--destructive)}
+.gx-send-info{position:relative;display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;padding:0;border:0;background:none;color:var(--muted-foreground);font:inherit;cursor:default}
+.gx-send-info::after{content:attr(data-tip);position:absolute;bottom:calc(100% + 6px);left:0;width:max-content;max-width:240px;padding:4px 8px;border-radius:6px;border:1px solid var(--border);background:var(--background);color:var(--foreground);font:500 12px/16px var(--font-mono);text-align:left;opacity:0;pointer-events:none;transition:opacity .08s ease 0s;z-index:5}
+.gx-send-info:hover::after,.gx-send-info:focus-visible::after{opacity:1;transition-delay:.15s}
 </style>"#;
 
 /// The kit's behaviour: turns the first `<gx-questions>` into a working form once the page has
@@ -239,7 +242,9 @@ function setup(root){
   function changed(){syncOptions();if(window.ghostex&&ghostex.__saveDraft)ghostex.__saveDraft("kit",collect());}
   questions=Array.prototype.map.call(root.querySelectorAll("gx-question"),function(qe,index){return question(qe,index,used,changed);});
   options=bindOptions(questions,changed);syncOptions();
-  var bar=el("div","gx-send"),button=el("button","gx-send-button"),label=el("span",null,root.getAttribute("submit")||"Send answers"),status=el("span","gx-send-status","Questions you leave blank are sent as skipped.");
+  var bar=el("div","gx-send"),button=el("button","gx-send-button"),label=el("span",null,root.getAttribute("submit")||"Send answers"),status=el("span","gx-send-status"),info=el("button","gx-send-info");
+  /* The sentence about blank questions is an (i) icon with the quick tooltip, not a line of text beside the buttons (the SessionChat 2026-10-24 DECISION in apps/desktop/src/app/native_chat/ask_card.rs `ask_info_hint`). Any status message replaces the icon. */
+  info.type="button";info.setAttribute("aria-label","Questions you leave blank are sent as skipped.");info.setAttribute("data-tip","Questions you leave blank are sent as skipped.");info.innerHTML='<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0"/><path d="M12 9h.01"/><path d="M11 12h1v4h1"/></svg>';status.append(info);
   var mac=/Mac|iPhone|iPad/.test(navigator.platform||"");
   /* The shortcuts show in a quick tooltip (CSS, data-tip), not on the buttons. */
   button.setAttribute("data-tip","Send answers · "+(mac?"⌘↵":"Ctrl+Enter"));
