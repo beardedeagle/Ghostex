@@ -463,6 +463,7 @@ pub(crate) fn assemble(input: AssembleInput<'_>) -> SidebarView {
         order,
         machine_notice: super::machine_connection::machine_notice(
             input.host.machine(&input.ui.selected_machine_id),
+            input.ui,
         ),
         empty_state: {
             let empty = empty_state(&input, selection.as_ref());

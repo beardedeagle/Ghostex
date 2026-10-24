@@ -62,6 +62,10 @@ impl GhostexGpuiApp {
             "selectMachine" => Some(SidebarUiIntent::SelectMachine {
                 machine_id: text("machineId")?,
             }),
+            "machineNotice" => Some(SidebarUiIntent::SetMachineNoticeCollapsed {
+                machine_id: text("machineId")?,
+                state: text("collapsedState"),
+            }),
             "selectSpace" => Some(SidebarUiIntent::SelectSpace {
                 space_id: text("spaceId")?,
             }),

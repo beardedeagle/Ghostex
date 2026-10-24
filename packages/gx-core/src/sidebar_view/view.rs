@@ -60,6 +60,11 @@ pub struct MachineNotice {
     pub busy: bool,
     /// The last attempt failed, so the notice draws in the error colour and offers Reconnect.
     pub failed: bool,
+    /// The machine's connection state word, which a shrink is remembered against.
+    pub state: String,
+    /// The user shrank this failure to a one-line pill (the mark and the title); a press on the
+    /// pill opens the card again.
+    pub collapsed: bool,
 }
 
 impl SidebarView {

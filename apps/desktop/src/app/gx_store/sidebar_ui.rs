@@ -211,6 +211,22 @@ impl SidebarUiHost {
         moved
     }
 
+    /// Forgets shrunk machine notices whose failure is over (gx-core
+    /// `retain_machine_notice_collapses`).
+    pub(super) fn retain_machine_notice_collapses(
+        &mut self,
+        machines: &[ghostex_gx_core::MachineTabInput],
+    ) -> bool {
+        if self.store.state().collapsed_machine_notices.is_empty() {
+            return false;
+        }
+        let moved = self.store.retain_machine_notice_collapses(machines);
+        if moved {
+            self.generation += 1;
+        }
+        moved
+    }
+
     /// Drops ticked tag filters the Sort & Filter menu no longer offers, which is what the old
     /// projection did on every build. A tag turned off in Settings, or a custom tag the daemon
     /// dropped, stops filtering here as well as in the list, and does not start again if it comes

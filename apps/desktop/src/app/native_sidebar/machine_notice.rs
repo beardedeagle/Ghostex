@@ -92,8 +92,8 @@ impl GhostexGpuiApp {
         appearance: &SidebarAppearance,
         cx: &mut gpui::Context<Self>,
     ) -> AnyElement {
-        let content = if notice.busy {
-            self.render_native_sidebar_machine_pill(notice, appearance)
+        let content = if notice.busy || notice.collapsed {
+            self.render_native_sidebar_machine_pill(notice, appearance, cx)
         } else {
             self.render_native_sidebar_machine_card(notice, appearance, cx)
         };
@@ -112,6 +112,7 @@ impl GhostexGpuiApp {
         let scale = appearance.scale;
         let reconnect_id = notice.machine_id.clone();
         let configure_id = notice.machine_id.clone();
+        let collapse = json!({"type": "machineNotice", "machineId": notice.machine_id, "collapsedState": notice.state});
         let indent = px(20.0 * scale);
         v_flex()
             .id("native-sidebar-machine-notice")
@@ -147,11 +148,32 @@ impl GhostexGpuiApp {
                     ))
                     .child(
                         div()
+                            .flex_1()
                             .min_w_0()
                             .text_size(px(12.5 * scale))
                             .font_weight(FontWeight::SEMIBOLD)
                             .text_color(appearance.foreground)
                             .child(notice.title.clone()),
+                    )
+                    .child(
+                        h_flex()
+                            .id("native-sidebar-machine-notice-close")
+                            .flex_shrink_0()
+                            .size(px(20.0 * scale))
+                            .mr(px(-4.0 * scale))
+                            .justify_center()
+                            .rounded(px(5.0 * scale))
+                            .cursor_pointer()
+                            .hover(|button| button.bg(appearance.hover))
+                            .child(titlebar_svg_icon(
+                                "titlebar/x.svg",
+                                12.0 * scale,
+                                appearance.muted,
+                            ))
+                            .on_click(cx.listener(move |app, _, _, cx| {
+                                cx.stop_propagation();
+                                app.dispatch_native_sidebar_ui(collapse.clone(), cx);
+                            })),
                     ),
             )
             .when_some(notice.detail.clone(), |card, detail| {
@@ -202,13 +224,38 @@ impl GhostexGpuiApp {
             .into_any_element()
     }
 
-    /// The one-line pill near the top of the list while the machine connects.
+    /// The one-line pill near the top of the list: a spinner while the machine connects, or the
+    /// shrunk failure's red mark and title, which opens the card again on a press.
     fn render_native_sidebar_machine_pill(
         &self,
         notice: &ghostex_gx_core::MachineNotice,
         appearance: &SidebarAppearance,
+        cx: &mut gpui::Context<Self>,
     ) -> AnyElement {
         let scale = appearance.scale;
+        let expand = json!({"type": "machineNotice", "machineId": notice.machine_id});
+        let mark = if notice.busy {
+            spinning_loader(
+                format!("native-machine-notice-busy-{}", notice.machine_id),
+                12.0 * scale,
+                appearance.muted,
+            )
+        } else {
+            titlebar_svg_icon(
+                if notice.failed {
+                    "titlebar/alert-triangle.svg"
+                } else {
+                    "titlebar/cloud.svg"
+                },
+                12.0 * scale,
+                if notice.failed {
+                    rgb(0xff9494).into()
+                } else {
+                    appearance.muted
+                },
+            )
+            .into_any_element()
+        };
         h_flex()
             .flex_shrink_0()
             .pt(px(6.0 * scale))
@@ -217,6 +264,7 @@ impl GhostexGpuiApp {
             .justify_center()
             .child(
                 h_flex()
+                    .id("native-sidebar-machine-notice-pill")
                     .min_w_0()
                     .h(px(PILL_HEIGHT * scale))
                     .px(px(12.0 * scale))
@@ -228,12 +276,21 @@ impl GhostexGpuiApp {
                     .shadow_sm()
                     .occlude()
                     .text_size(px(12.0 * scale))
-                    .text_color(appearance.muted)
-                    .child(spinning_loader(
-                        format!("native-machine-notice-busy-{}", notice.machine_id),
-                        12.0 * scale,
-                        appearance.muted,
-                    ))
+                    .text_color(if notice.busy {
+                        appearance.muted
+                    } else {
+                        appearance.foreground
+                    })
+                    .when(!notice.busy, |pill| {
+                        pill.font_weight(FontWeight::SEMIBOLD)
+                            .cursor_pointer()
+                            .hover(|pill| pill.bg(appearance.hover))
+                            .on_click(cx.listener(move |app, _, _, cx| {
+                                cx.stop_propagation();
+                                app.dispatch_native_sidebar_ui(expand.clone(), cx);
+                            }))
+                    })
+                    .child(mark)
                     .child(div().min_w_0().truncate().child(notice.title.clone())),
             )
             .into_any_element()

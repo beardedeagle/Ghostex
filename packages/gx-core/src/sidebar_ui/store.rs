@@ -98,6 +98,26 @@ impl SidebarUiStore {
         before != self.state.selected_tag_filters.len()
     }
 
+    /// Forgets a shrunk machine notice once its machine connected, moved to any other state than
+    /// the one shrunk (another failure, plain `disconnected`), or left the tabs, so the next
+    /// failure opens the full card. A connect attempt in between keeps it, so a retry that fails the same way stays
+    /// a pill. Returns whether anything was forgotten. Never persisted.
+    pub fn retain_machine_notice_collapses(
+        &mut self,
+        machines: &[crate::sidebar_view::MachineTabInput],
+    ) -> bool {
+        let notices = &mut self.state.collapsed_machine_notices;
+        let before = notices.len();
+        notices.retain(|machine_id, state| {
+            machines.iter().any(|machine| {
+                machine.machine_id == *machine_id
+                    && (machine.state == *state
+                        || crate::sidebar_view::machine_state_is_busy(&machine.state))
+            })
+        });
+        before != notices.len()
+    }
+
     /// The machine tab the sidebar draws.
     pub fn selected_machine_id(&self) -> &str {
         &self.state.selected_machine_id
@@ -189,6 +209,14 @@ impl SidebarUiStore {
                 let moved = self.state.selected_machine_id != machine_id;
                 self.state.selected_machine_id = machine_id;
                 outcome(moved, SidebarPersistSet::machine_tab())
+            }
+            SidebarUiIntent::SetMachineNoticeCollapsed { machine_id, state } => {
+                let notices = &mut self.state.collapsed_machine_notices;
+                let moved = match state {
+                    Some(state) => notices.insert(machine_id, state.clone()) != Some(state),
+                    None => notices.remove(&machine_id).is_some(),
+                };
+                outcome(moved, SidebarPersistSet::default())
             }
             SidebarUiIntent::ToggleTagFilter { tag } => {
                 match self

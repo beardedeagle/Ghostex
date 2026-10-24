@@ -224,6 +224,9 @@ pub struct SidebarUiState {
     pub selected_tag_filters: Vec<String>,
     /// Sidebar row ids of a multi-selection.
     pub selected_session_ids: Vec<String>,
+    /// Per remote machine, the failure state word whose notice the user shrank to a pill. Never
+    /// persisted (`machine_connection::machine_notice`).
+    pub collapsed_machine_notices: BTreeMap<String, String>,
 }
 
 impl Default for SidebarUiState {
@@ -235,6 +238,7 @@ impl Default for SidebarUiState {
             show_hidden: false,
             selected_tag_filters: Vec::new(),
             selected_session_ids: Vec::new(),
+            collapsed_machine_notices: BTreeMap::new(),
         }
     }
 }

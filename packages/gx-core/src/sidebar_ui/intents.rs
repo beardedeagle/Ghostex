@@ -56,6 +56,12 @@ pub enum SidebarUiIntent {
     SelectMachine {
         machine_id: String,
     },
+    /// Shrink a machine's failure notice to its one-line pill for this failure state (`Some`), or
+    /// open the full card again (`None`).
+    SetMachineNoticeCollapsed {
+        machine_id: String,
+        state: Option<String>,
+    },
     /// Tick or untick one tag filter.
     ToggleTagFilter {
         tag: String,

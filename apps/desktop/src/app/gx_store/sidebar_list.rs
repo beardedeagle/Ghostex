@@ -506,10 +506,15 @@ impl GhostexGpuiApp {
             list.last_built_at_ms = now_ms;
             list.built = true;
         }
-        // A row the list stopped drawing leaves the multi-selection, which is itself one of the
-        // list's inputs, so the build runs once more when it did.
+        // A row the list stopped drawing leaves the multi-selection, and a machine failure that
+        // ended forgets its shrunk notice; both are list inputs, so the build runs once more when
+        // either moved.
         let mut changed = changed;
-        if self.gx_store_prune_sidebar_selection() {
+        let notices_moved = self
+            .gx_store
+            .sidebar_ui
+            .retain_machine_notice_collapses(&self.gx_store.sidebar_list.last_inputs.host.machines);
+        if self.gx_store_prune_sidebar_selection() | notices_moved {
             let mut inputs = std::mem::take(&mut self.gx_store.sidebar_list.last_inputs);
             let settings = inputs.settings.clone();
             let ui_generation = self.gx_store.sidebar_ui.generation();
