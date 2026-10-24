@@ -9,5 +9,6 @@
 mod drafts_and_attachments;
 mod file_open;
 mod host_actions;
+mod run_in_terminal;
 
 pub(crate) use drafts_and_attachments::*;

@@ -15,10 +15,16 @@ use serde_json::json;
 /// Written by the core's native Markdown pass in packages/gx-chat-core/src/transcript/native_markdown.rs.
 #[derive(Deserialize)]
 struct FenceHeader {
-    label: String,
+    /// The file the fence names; absent on a fence that only carries a command.
+    #[serde(default)]
+    label: Option<String>,
+    #[serde(default)]
     icon: String,
     #[serde(default)]
     href: Option<String>,
+    /// The command its Run button runs, percent-encoded (`run_command.rs` in gx-chat-core).
+    #[serde(default)]
+    run: Option<String>,
 }
 
 /// The private-use character the shared projection marks a fence's header with.
@@ -99,14 +105,21 @@ pub(super) fn header(
 ) -> AnyElement {
     let s = p.scale;
     let key = wrap_key(id, block);
-    let named = parse(block.meta().as_deref());
-    let language = block
-        .lang()
-        .map(|lang| lang.to_string())
+    // A fence written without a language carries the core's header as its only info word.
+    let lang = block.lang().map(|lang| lang.to_string());
+    let header_word = lang.as_deref().filter(|lang| lang.starts_with(MARK));
+    let header = parse(header_word.or(block.meta().as_deref()));
+    let run = header
+        .as_ref()
+        .and_then(|header| header.run.as_deref())
+        .and_then(ghostex_gx_chat_core::transcript::run_command::decode_command);
+    let named = header.filter(|header| header.label.is_some());
+    let language = lang
+        .filter(|lang| !lang.starts_with(MARK))
         .unwrap_or_else(|| "code".to_owned());
     let label = named
         .as_ref()
-        .map(|header| header.label.clone())
+        .and_then(|header| header.label.clone())
         .unwrap_or_else(|| language.to_lowercase());
     let code = block.code().to_string();
     let open = named.as_ref().and_then(|header| header.href.clone());
@@ -186,6 +199,9 @@ pub(super) fn header(
                             });
                         },
                     ))
+                })
+                .when_some(run, |this, command| {
+                    this.child(super::run_command::run_button(command, &chat, p))
                 })
                 .child(action("copy-fence", "titlebar/copy.svg", p, move |cx| {
                     crate::app::helpers::gpui_copy_to_clipboard(

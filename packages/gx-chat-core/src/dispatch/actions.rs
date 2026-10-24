@@ -51,6 +51,8 @@ pub fn owner(kind: &ActionKind) -> Option<Family> {
         | ActionKind::OpenMarkdownLink
         | ActionKind::ReviewFileChanges
         | ActionKind::OpenAgentSession
+        | ActionKind::RunInTerminal
+        | ActionKind::PasteInTerminal
         | ActionKind::LoadImage
         | ActionKind::LoadPageThumbnail => Family::Transcript,
 

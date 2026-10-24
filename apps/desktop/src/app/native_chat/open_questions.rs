@@ -341,8 +341,10 @@ pub(super) fn question_tag_link(reference: &Value, p: &ChatAppearance) -> Option
             border_color: border,
             radius: px(visual.radius * s),
             hover_background: Some(hex(&wash.color).opacity(wash.alpha)),
+            background: None,
         }),
         font_weight: Some(gpui::FontWeight::SEMIBOLD),
         strikethrough: state == "withdrawn",
+        ..Default::default()
     })
 }

@@ -178,6 +178,47 @@ pub fn agent_record_params(
     Value::Object(params)
 }
 
+/// `/api/createSession` for a chat's Run or Paste in terminal: a plain terminal in `cwd` (the
+/// project's folder when `None`), titled with the command's first line. With `submit` it types
+/// `command` and presses Enter once its shell is up, the way `ghostex create-session --input` does;
+/// without it the shell starts empty and the host types the command at its prompt.
+///
+/// SEE-ALSO: `run_in_terminal_payload` in server/src/ghostex_cli/run_in_terminal.rs builds the same
+/// create for the phone and the CLI.
+pub fn command_terminal_create_params(
+    project_id: &str,
+    cwd: Option<&str>,
+    command: &str,
+    submit: bool,
+) -> Value {
+    let first_line = command.lines().next().unwrap_or_default().trim();
+    let title: String = first_line.chars().take(60).collect();
+    let mut params = match terminal_create_params(
+        Some(project_id),
+        Some(if title.is_empty() {
+            DEFAULT_TERMINAL_SESSION_TITLE
+        } else {
+            &title
+        }),
+    ) {
+        Value::Object(params) => params,
+        _ => Map::new(),
+    };
+    if let Some(cwd) = cwd.filter(|cwd| !cwd.trim().is_empty()) {
+        params.insert("cwd".to_string(), json!(cwd));
+    }
+    if submit {
+        params.insert(
+            "launchSettings".to_string(),
+            json!({
+                "startupText": command,
+                "runtimeRelevant": { "queueProviderStartupText": true },
+            }),
+        );
+    }
+    Value::Object(params)
+}
+
 /// `/api/createAgentSession` of `ghostex://terminal` with a command: the command IS the launch.
 pub fn os_integration_command_params(command: &str, project_id: &str, title: &str) -> Value {
     json!({

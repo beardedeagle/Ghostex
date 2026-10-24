@@ -113,6 +113,8 @@ action_kinds! {
     OpenMarkdownLink => "openMarkdownLink",
     ReviewFileChanges => "reviewFileChanges",
     OpenAgentSession => "openAgentSession",
+    RunInTerminal => "runInTerminal",
+    PasteInTerminal => "pasteInTerminal",
     RefreshComposerChrome => "refreshComposerChrome",
     Stash => "stash",
     RestoreReturned => "restoreReturned",

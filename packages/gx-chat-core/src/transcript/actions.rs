@@ -263,6 +263,23 @@ pub fn handle(state: &mut ChatState, action: &UserAction, context: &ChatContext)
                 params: Box::new(json!({ "projectId": project_id, "sessionId": session_id })),
             }]
         }
+        // A command in a reply goes to a new terminal of the session's own folder, which only the
+        // host can open (`run_command.rs`): Run types it and presses Enter, Paste only types it.
+        ActionKind::RunInTerminal | ActionKind::PasteInTerminal => {
+            let command = text(action, "command");
+            if command.trim().is_empty() {
+                return Vec::new();
+            }
+            let name = if action.kind == ActionKind::RunInTerminal {
+                "runInTerminal"
+            } else {
+                "pasteInTerminal"
+            };
+            vec![Effect::HostAction {
+                action: name.to_string(),
+                params: Box::new(json!({ "command": command })),
+            }]
+        }
         ActionKind::LoadPageThumbnail => crate::transcript::page_thumbnails::load(state, action),
         ActionKind::LoadImage => {
             /*

@@ -59,8 +59,9 @@ pub const NATIVE_VISUAL_CLOSE: &str = "\u{e000}/visual";
 pub const NATIVE_QUESTIONS_OPEN: &str = "\u{e000}questions:";
 pub const NATIVE_QUESTIONS_CLOSE: &str = "\u{e000}/questions";
 
-/// What the native code-block header shows, as JSON on the fence's info string.
-fn fence_header(info: &str) -> Option<String> {
+/// What the native code-block header shows, as JSON on the fence's info string: the file the fence
+/// names (`label`, `icon`, `href`), and the command its Run button runs (`run`, `run_command.rs`).
+fn fence_header(info: &str, run: Option<String>) -> Option<String> {
     let trimmed = js_trim(info);
     let language_len: usize = trimmed
         .chars()
@@ -68,25 +69,59 @@ fn fence_header(info: &str) -> Option<String> {
         .map(char::len_utf8)
         .sum();
     let meta = js_trim(&trimmed[language_len..]);
-    let title = fence_title(if meta.is_empty() { None } else { Some(meta) })?;
-    let separator = title.rfind(['/', '\\']).map_or(0, |at| at + 1);
-    let reference = resolve_fence_title_file_path(title);
-    let mut entries: Vec<(&str, Value)> = vec![
-        ("label", title.into()),
-        ("icon", file_path_icon_name(&title[separator..]).into()),
-    ];
-    if let Some(reference) = reference {
+    let mut entries: Vec<(&str, Value)> = Vec::new();
+    if let Some(title) = fence_title(if meta.is_empty() { None } else { Some(meta) }) {
+        let separator = title.rfind(['/', '\\']).map_or(0, |at| at + 1);
+        entries.push(("label", title.into()));
+        entries.push(("icon", file_path_icon_name(&title[separator..]).into()));
+        if let Some(reference) = resolve_fence_title_file_path(title) {
+            entries.push((
+                "href",
+                format!(
+                    "{}{}",
+                    reference.path,
+                    file_position_suffix(reference.position.as_ref())
+                )
+                .into(),
+            ));
+        }
+    }
+    // The command travels percent-encoded: a fence written without a language has only this header
+    // on its info string, whose first word a Markdown parser takes as the language, and a parser
+    // also undoes backslash escapes there, which would break a quoted command's JSON.
+    if let Some(run) = run {
         entries.push((
-            "href",
-            format!(
-                "{}{}",
-                reference.path,
-                file_position_suffix(reference.position.as_ref())
-            )
-            .into(),
+            "run",
+            crate::transcript::run_command::encode_command(&run).into(),
         ));
     }
-    Some(format!("{NATIVE_MARK}{}", stringify_pairs(&entries)))
+    (!entries.is_empty()).then(|| format!("{NATIVE_MARK}{}", stringify_pairs(&entries)))
+}
+
+/// The command a finished fence runs: its body, without the fence's own indent, judged by
+/// `run_command::fence_command`. A fence still streaming offers nothing.
+fn fence_command_of(
+    lines: &[&str],
+    open: usize,
+    character: u8,
+    run: usize,
+    info: &str,
+) -> Option<String> {
+    let close = lines[open + 1..].iter().position(|line| {
+        fence_close(line).is_some_and(|(closing, length)| closing == character && length >= run)
+    })? + open
+        + 1;
+    let indent = lines[open].len() - lines[open].trim_start_matches(' ').len();
+    let body = lines[open + 1..close]
+        .iter()
+        .map(|line| {
+            let own = line.len() - line.trim_start_matches(' ').len();
+            &line[own.min(indent)..]
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    let language = js_trim(info).split(is_js_space).next().unwrap_or_default();
+    crate::transcript::run_command::fence_command(language, &body)
 }
 
 /// One picture, as the native renderer needs it: the same source fields the projected image blocks
@@ -451,7 +486,7 @@ fn closed_drawn_fence(
 ///
 /// All three are line-structured, so this costs a scan rather than a second parse of every
 /// streaming message.
-fn mark_blocks(markdown: &str) -> String {
+fn mark_blocks(markdown: &str, commands: bool) -> String {
     let lines = split_lf(markdown);
     let mut result: Vec<String> = Vec::with_capacity(lines.len());
     let mut fence: Option<(u8, usize)> = None;
@@ -487,7 +522,10 @@ fn mark_blocks(markdown: &str) -> String {
                 continue;
             }
             fence = Some((character, run));
-            result.push(match fence_header(info) {
+            let run = commands
+                .then(|| fence_command_of(&lines, index, character, run, info))
+                .flatten();
+            result.push(match fence_header(info, run) {
                 Some(header) => format!("{line} {header}"),
                 None => line.to_string(),
             });
@@ -532,7 +570,7 @@ fn mark_blocks(markdown: &str) -> String {
         result.push(format!("{NATIVE_ALERT_OPEN}{marker}"));
         // The body is ordinary Markdown once the quote markers are gone, so its own fences still
         // get their headers.
-        result.push(mark_blocks(&body[1..].join("\n")));
+        result.push(mark_blocks(&body[1..].join("\n"), commands));
         result.push(NATIVE_ALERT_CLOSE.to_string());
         index = end + 1;
     }
@@ -605,6 +643,7 @@ struct Edit {
 fn collect_edits(
     nodes: &[Node],
     bare: bool,
+    commands: bool,
     markdown: &str,
     image_references: &[(usize, usize)],
     edits: &mut Vec<Edit>,
@@ -627,6 +666,23 @@ fn collect_edits(
                 continue;
             };
             let Some(reference) = resolve_inline_code_file_path(&code.value) else {
+                // A command keeps its code look: the span, backticks and all, becomes the text of a
+                // link the renderers draw as the span with its Copy and Paste in terminal buttons
+                // (`run_command.rs`).
+                if let Some(command) = commands
+                    .then(|| crate::transcript::run_command::inline_command(&code.value))
+                    .flatten()
+                {
+                    edits.push(Edit {
+                        start,
+                        end,
+                        text: format!(
+                            "[{}]({})",
+                            &markdown[start..end],
+                            crate::transcript::run_command::command_href(&command)
+                        ),
+                    });
+                }
                 continue;
             };
             let target = format!(
@@ -662,6 +718,7 @@ fn collect_edits(
             collect_edits(
                 children,
                 bare && !quoted_alert,
+                commands,
                 markdown,
                 image_references,
                 edits,
@@ -704,7 +761,7 @@ fn collect_edits(
 /// resolve_inline_code_file_path in file_paths.rs is the single detection rule: a span that becomes
 /// a file chip in React becomes a pill here, and ordinary code such as `cargo check` or
 /// `chrome_ink().opacity(0.12)` becomes neither.
-fn link_file_references(markdown: &str, bare_paths: bool) -> String {
+fn link_file_references(markdown: &str, bare_paths: bool, commands: bool) -> String {
     let Ok(tree) = markdown::to_mdast(markdown, &ParseOptions::default()) else {
         return markdown.to_string();
     };
@@ -718,6 +775,7 @@ fn link_file_references(markdown: &str, bare_paths: bool) -> String {
     collect_edits(
         children,
         bare_paths,
+        commands,
         markdown,
         &image_references,
         &mut edits,
@@ -737,6 +795,16 @@ fn link_file_references(markdown: &str, bare_paths: bool) -> String {
         );
     }
     result
+}
+
+/// A single-line backtick span holding a command the chat offers to run (`run_command.rs`).
+fn has_inline_code_command_evidence(markdown: &str) -> bool {
+    markdown.contains('`')
+        && markdown.lines().any(|line| {
+            code_spans(line).into_iter().any(|(start, end)| {
+                crate::transcript::run_command::inline_command(&line[start + 1..end - 1]).is_some()
+            })
+        })
 }
 
 /// `[\\/@]|:\d`.
@@ -1020,7 +1088,9 @@ pub fn native_markdown(markdown: &str, bare_paths: bool) -> String {
         && (markdown.contains(":\\") || markdown.contains(":/") || markdown.contains("\\\\"));
     let windows_paths_wanted = markdown.contains(":\\") || markdown.contains("\\\\");
     let bare_wanted = bare_paths && has_path_evidence(markdown);
-    let paths_wanted = bare_wanted || has_inline_code_path_evidence(markdown);
+    // Commands are offered in what an agent wrote, never in a prompt somebody typed.
+    let commands_wanted = !bare_paths && has_inline_code_command_evidence(markdown);
+    let paths_wanted = bare_wanted || commands_wanted || has_inline_code_path_evidence(markdown);
     let blocks_wanted = markdown.contains("```")
         || markdown.contains("~~~")
         || markdown.contains('>')
@@ -1030,7 +1100,7 @@ pub fn native_markdown(markdown: &str, bare_paths: bool) -> String {
         return markdown.to_string();
     }
     let linked = if paths_wanted {
-        link_file_references(markdown, bare_wanted)
+        link_file_references(markdown, bare_wanted, commands_wanted)
     } else {
         markdown.to_string()
     };
@@ -1046,7 +1116,7 @@ pub fn native_markdown(markdown: &str, bare_paths: bool) -> String {
         linked
     };
     if blocks_wanted {
-        mark_blocks(&linked)
+        mark_blocks(&linked, !bare_paths)
     } else {
         linked
     }

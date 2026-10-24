@@ -42,6 +42,7 @@ pub mod question_exchange;
 pub mod question_forms;
 pub mod raw_html;
 pub mod rows;
+pub mod run_command;
 pub mod script_loops;
 pub mod sent_message;
 pub mod sent_message_script;

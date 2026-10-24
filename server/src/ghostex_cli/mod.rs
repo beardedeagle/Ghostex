@@ -32,6 +32,7 @@ pub mod ports;
 mod previous_sessions;
 pub mod resources;
 pub mod rpc;
+mod run_in_terminal;
 pub mod saved_prompts;
 pub mod selector;
 mod session_chat_model;
@@ -248,6 +249,7 @@ fn is_known_command(name: &str) -> bool {
         "run-agent",
         "run-command",
         "run-action",
+        "run-in-terminal",
         "quick-actions",
         "click-button",
         "save-command",
@@ -462,6 +464,7 @@ fn run_command(name: &str, args: &[String]) -> CliResult<()> {
             require_actions()?;
             sessions::run_quick_action_command(args)
         }
+        "run-in-terminal" => run_in_terminal::run_in_terminal_command(args),
         "quick-actions" => quick_actions_command(args),
         "click-button" => {
             // `click-button command <id>` runs an Action; `click-button agent <id>` does not.

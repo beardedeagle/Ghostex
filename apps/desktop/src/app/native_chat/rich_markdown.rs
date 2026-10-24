@@ -608,6 +608,7 @@ impl NativeChatView {
         style.highlight_theme = super::markdown_style::highlight_theme(p.light);
         // CDXC:SessionChat 2026-10-01 DECISION: "For larger tables that flow out of the screen, please add the ability for text to wrap. No need to scroll on VS Code (better)." A table fits the transcript's width: short columns (ids, refs) stay on one line, long ones share the rest and wrap, and it scrolls sideways only when even those floors are wider than the pane (the component's adaptive layout, set in `markdown_style::text_style`). Supersedes the 2026-09-25 capped columns that kept a wide table wider than the pane; cells still always wrap, never collapse.
         let references = super::markdown_links::presentations(references, p);
+        let command_appearance = p.clone();
         let header_id = id.clone();
         let wrap_id = id.clone();
         let wrap_choices = self.code_wrap.clone();
@@ -633,10 +634,16 @@ impl NativeChatView {
                 references
                     .get(&(href.to_owned(), label.to_owned()))
                     .cloned()
+                    .or_else(|| {
+                        super::run_command::inline_presentation(href, label, &command_appearance)
+                    })
             })
             .on_link_click(move |href, event, _, cx| {
                 // Only a primary click opens a link; a right press opens the link menu below.
                 if !event.standard_click() {
+                    return;
+                }
+                if super::run_command::handle_link_press(href, &chat, cx) {
                     return;
                 }
                 let _ = chat.update(cx, |chat, cx| {

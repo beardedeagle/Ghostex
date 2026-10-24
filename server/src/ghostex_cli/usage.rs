@@ -349,6 +349,10 @@ pub fn usage() -> String {
             "run-action <commandId> --project-id id",
             "Run a Terminal action in a session or return a Browser action URL",
         ),
+        format_help_command(
+            "run-in-terminal --project-id id [--session-id id|--cwd path] [--paste] [--json] (--command text | -- command...)",
+            "Open a new terminal in the session's folder and run a command in it; --paste types it without pressing Enter",
+        ),
     ]
     .join("\n");
 
