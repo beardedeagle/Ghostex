@@ -281,6 +281,15 @@ impl GpuiAgentsHubModalWindow {
                         .child(SharedString::from(message.clone()))
                         .into_any_element(),
                 ));
+            } else if plan.groups.is_empty() {
+                body = body.child(
+                    div()
+                        .px(px(14.0))
+                        .py(px(12.0))
+                        .text_size(px(13.0))
+                        .text_color(hsla(hp.muted))
+                        .child("Everything is in sync. There is nothing to change."),
+                );
             } else {
                 let before = "Nothing is deleted. Anything in the way of a link is moved to ";
                 let code = plan.backup_dir.clone();
@@ -298,16 +307,6 @@ impl GpuiAgentsHubModalWindow {
                         .child(StyledText::new(text).with_runs(runs))
                         .into_any_element(),
                 ));
-                if plan.groups.is_empty() {
-                    body = body.child(
-                        div()
-                            .px(px(14.0))
-                            .py(px(12.0))
-                            .text_size(px(13.0))
-                            .text_color(hsla(hp.muted))
-                            .child("Everything is in sync. There is nothing to change."),
-                    );
-                }
                 for (index, group) in plan.groups.iter().enumerate() {
                     body = body.child(self.render_plan_group(hp, index, group, &enabled, cx));
                 }

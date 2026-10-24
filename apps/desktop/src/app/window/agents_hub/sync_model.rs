@@ -251,12 +251,26 @@ pub(crate) struct SyncPlan {
 impl SyncPlan {
     /// CDXC:AgentSync 2026-10-24 DECISION: "only show stuff that needs fixing, don't show stuff
     /// already fixed with 'nothing to do'". A group with nothing to change is dropped here, where
-    /// the plan becomes the sheet's state, so the drawing, "Copy as shell script", the Apply count
-    /// and the groups sent to Apply all see the same list.
+    /// the plan becomes the sheet's state, so the drawing, "Copy as shell script", the Apply count,
+    /// the header pills and the groups sent to Apply all see the same list.
     pub(crate) fn from_json(value: serde_json::Value) -> Option<Self> {
         let mut plan: Self = serde_json::from_value(value).ok()?;
         plan.groups
             .retain(|group| group.change_count > 0 || group.ops.iter().any(|op| op.verb != "keep"));
+        // The header pills count the operations the sheet lists, so an empty plan shows zeros.
+        let count = |verb: &str| {
+            plan.groups
+                .iter()
+                .flat_map(|group| &group.ops)
+                .filter(|op| op.verb == verb)
+                .count()
+        };
+        plan.summary = SyncPlanSummary {
+            backups: count("backup"),
+            links: count("link"),
+            unlinks: count("unlink"),
+            writes: count("write"),
+        };
         Some(plan)
     }
 }
