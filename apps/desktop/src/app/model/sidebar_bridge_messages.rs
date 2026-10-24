@@ -84,6 +84,13 @@ impl GpuiPreferredAgentInterface {
             _ => None,
         }
     }
+
+    pub(crate) fn as_str(self) -> &'static str {
+        match self {
+            Self::Chat => "chat",
+            Self::Terminal => "terminal",
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

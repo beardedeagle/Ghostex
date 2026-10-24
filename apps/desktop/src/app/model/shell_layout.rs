@@ -20,6 +20,8 @@ pub(crate) struct GpuiShellLayoutState {
         HashMap<GpuiLocalWorkspaceSessionKey, TerminalSessionId>,
     pub(crate) remote_attach_sessions: HashMap<GpuiRemoteAttachSessionKey, TerminalSessionId>,
     pub(crate) agents_chat_mode_sessions: HashSet<TerminalSessionId>,
+    pub(crate) agents_chat_view_observations:
+        HashMap<TerminalSessionId, GpuiPreferredAgentInterface>,
     pub(crate) command_pane: CommandPaneModel,
     pub(crate) command_pane_project_id: Option<String>,
     pub(crate) parked_command_panes_by_project: HashMap<String, serde_json::Value>,
@@ -80,6 +82,7 @@ impl GpuiShellLayoutState {
             local_workspace_session_mappings: HashMap::new(),
             remote_attach_sessions: HashMap::new(),
             agents_chat_mode_sessions: HashSet::new(),
+            agents_chat_view_observations: HashMap::new(),
             command_pane: CommandPaneModel::shell_default_with_default_height_px(
                 content_height,
                 command_default_height_px,
@@ -242,6 +245,10 @@ impl GpuiShellLayoutState {
                     .collect::<HashSet<_>>()
             })
             .unwrap_or_default();
+        let agents_chat_view_observations = agents_chat_view_observations_from_shell_state(
+            object.get("agentsChatViewObservations"),
+            &agents_workspace,
+        );
         let mut parked_agents_workspaces_by_project = object
             .get("agentsWorkspacesByProject")
             .and_then(serde_json::Value::as_object)
@@ -458,6 +465,7 @@ impl GpuiShellLayoutState {
             local_workspace_session_mappings,
             remote_attach_sessions,
             agents_chat_mode_sessions,
+            agents_chat_view_observations,
             command_pane,
             command_pane_project_id,
             parked_command_panes_by_project,

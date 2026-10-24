@@ -117,6 +117,10 @@ pub(crate) fn gpui_workspace_shell_state_json(app: &GhostexGpuiApp) -> serde_jso
             app.agents_workspace_project_id.as_deref(),
         ),
         "agentsChatModeSessions": agents_chat_mode_session_ids,
+        "agentsChatViewObservations": agents_chat_view_observations_to_shell_state_json(
+            &app.agents_chat_auto_switch_observed_sessions,
+            &app.agents_workspace,
+        ),
         "agentsDelayedSends": agents_delayed_sends_to_shell_state_json(
             &app.local_workspace_session_mappings,
             &app.agents_workspace,
@@ -327,6 +331,7 @@ pub(crate) fn agents_workspace_project_state_to_shell_state_json(
     mappings: &HashMap<GpuiLocalWorkspaceSessionKey, TerminalSessionId>,
     remote_mappings: &HashMap<GpuiRemoteAttachSessionKey, TerminalSessionId>,
     chat_mode_sessions: &HashSet<TerminalSessionId>,
+    chat_view_observations: &HashMap<TerminalSessionId, GpuiPreferredAgentInterface>,
     timers: &HashMap<TerminalSessionId, GpuiCommandDelayedSendTimer>,
     watchers: &HashMap<TerminalSessionId, GpuiAgentsSendWhenStoppedWatcher>,
     now: SystemTime,
@@ -344,6 +349,10 @@ pub(crate) fn agents_workspace_project_state_to_shell_state_json(
         ),
         "chatModeSessions": agents_chat_mode_sessions_to_shell_state_json(
             chat_mode_sessions,
+            workspace,
+        ),
+        "chatViewObservations": agents_chat_view_observations_to_shell_state_json(
+            chat_view_observations,
             workspace,
         ),
         "delayedSends": agents_delayed_sends_to_shell_state_json(
@@ -364,6 +373,7 @@ pub(crate) fn agents_workspace_project_state_from_shell_state(
     HashMap<GpuiLocalWorkspaceSessionKey, TerminalSessionId>,
     HashMap<GpuiRemoteAttachSessionKey, TerminalSessionId>,
     HashSet<TerminalSessionId>,
+    HashMap<TerminalSessionId, GpuiPreferredAgentInterface>,
     Vec<GpuiAgentsDelayedSendRestoreIntent>,
 )> {
     let object = value.as_object()?;
@@ -374,6 +384,7 @@ pub(crate) fn agents_workspace_project_state_from_shell_state(
                 | "sessionMappings"
                 | "remoteSessionMappings"
                 | "chatModeSessions"
+                | "chatViewObservations"
                 | "delayedSends"
         )
     }) {
@@ -395,6 +406,10 @@ pub(crate) fn agents_workspace_project_state_from_shell_state(
     };
     let chat_mode_sessions =
         agents_chat_mode_sessions_from_shell_state(object.get("chatModeSessions"), &workspace);
+    let chat_view_observations = agents_chat_view_observations_from_shell_state(
+        object.get("chatViewObservations"),
+        &workspace,
+    );
     let delayed_sends = match object.get("delayedSends") {
         Some(value) => agents_delayed_send_restore_intents_from_shell_state(value, &mappings)?,
         None => Vec::new(),
@@ -404,6 +419,7 @@ pub(crate) fn agents_workspace_project_state_from_shell_state(
         mappings,
         remote_mappings,
         chat_mode_sessions,
+        chat_view_observations,
         delayed_sends,
     ))
 }
@@ -432,6 +448,44 @@ pub(crate) fn agents_chat_mode_sessions_from_shell_state(
         .filter_map(serde_json::Value::as_u64)
         .map(TerminalSessionId)
         .filter(|session_id| workspace.has_session(*session_id))
+        .collect()
+}
+
+/// CDXC:SessionChat 2026-10-24 DECISION:
+/// User chose to keep a view picked before a restart through the next wake too. The automatic Chat switch's record of which sessions it has already considered, and under which Default Agent View (`automatic_chat_switch_due` in apps/desktop/src/app/terminal_input/text_input_handoff.rs), is saved with the layout as `{"<shell session id>": "chat" | "terminal"}`, beside `agentsChatModeSessions` and in every parked project. Optional schema growth: a file written before it restores with an empty record; ids not in the restored workspace and unknown values drop.
+pub(crate) fn agents_chat_view_observations_to_shell_state_json(
+    observations: &HashMap<TerminalSessionId, GpuiPreferredAgentInterface>,
+    workspace: &WorkspaceModel,
+) -> serde_json::Value {
+    serde_json::Value::Object(
+        observations
+            .iter()
+            .filter(|(session_id, _)| workspace.has_session(**session_id))
+            .map(|(session_id, interface)| {
+                (
+                    session_id.0.to_string(),
+                    serde_json::json!(interface.as_str()),
+                )
+            })
+            .collect(),
+    )
+}
+
+pub(crate) fn agents_chat_view_observations_from_shell_state(
+    value: Option<&serde_json::Value>,
+    workspace: &WorkspaceModel,
+) -> HashMap<TerminalSessionId, GpuiPreferredAgentInterface> {
+    value
+        .and_then(serde_json::Value::as_object)
+        .into_iter()
+        .flatten()
+        .filter_map(|(session_id, interface)| {
+            Some((
+                TerminalSessionId(session_id.parse().ok()?),
+                GpuiPreferredAgentInterface::from_str(interface.as_str()?)?,
+            ))
+        })
+        .filter(|(session_id, _)| workspace.has_session(*session_id))
         .collect()
 }
 
@@ -907,5 +961,47 @@ pub(crate) fn collect_workspace_split_ids(
             collect_workspace_split_ids(&split.first, split_ids);
             collect_workspace_split_ids(&split.second, split_ids);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_picked_view_record_survives_the_restart() {
+        use GpuiPreferredAgentInterface::{Chat, Terminal};
+        let mut workspace = WorkspaceModel::empty_default();
+        for id in [1, 2] {
+            workspace
+                .terminal_sessions
+                .push(TerminalSession::placeholder(
+                    TerminalSessionId(id),
+                    format!("Session {id}"),
+                    TerminalSessionPresentationState::Sleeping,
+                ));
+        }
+        // Session 1 was moved to Terminal under a Chat default; session 9 is gone from the workspace.
+        let observations = HashMap::from([
+            (TerminalSessionId(1), Chat),
+            (TerminalSessionId(2), Terminal),
+            (TerminalSessionId(9), Chat),
+        ]);
+        let saved = agents_chat_view_observations_to_shell_state_json(&observations, &workspace);
+        assert_eq!(saved, serde_json::json!({"1": "chat", "2": "terminal"}));
+        let restored = agents_chat_view_observations_from_shell_state(Some(&saved), &workspace);
+        assert_eq!(
+            restored,
+            HashMap::from([
+                (TerminalSessionId(1), Chat),
+                (TerminalSessionId(2), Terminal)
+            ])
+        );
+        // A file written before the record restores with none, and bad entries drop.
+        assert!(agents_chat_view_observations_from_shell_state(None, &workspace).is_empty());
+        let malformed = serde_json::json!({"1": "web", "x": "chat", "2": 3});
+        assert!(
+            agents_chat_view_observations_from_shell_state(Some(&malformed), &workspace).is_empty()
+        );
     }
 }

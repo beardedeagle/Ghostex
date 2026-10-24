@@ -301,6 +301,7 @@ impl GhostexGpuiApp {
             &self.local_workspace_session_mappings,
             &self.remote_attach_sessions,
             &self.agents_chat_mode_sessions,
+            &self.agents_chat_auto_switch_observed_sessions,
             &self.agents_delayed_send_timers,
             &self.agents_send_when_stopped_watchers,
             SystemTime::now(),
@@ -387,7 +388,7 @@ impl GhostexGpuiApp {
                 .and_then(|state| {
                     agents_workspace_project_state_from_shell_state(&state, Some(project_id))
                 })
-                .filter(|(_, mappings, _, _, _)| {
+                .filter(|(_, mappings, _, _, _, _)| {
                     mappings.keys().all(|key| key.project_id == *project_id)
                 })
         });
@@ -396,6 +397,7 @@ impl GhostexGpuiApp {
             mappings,
             remote_mappings,
             chat_mode_sessions,
+            chat_view_observations,
             delayed_send_restore_intents,
         ) = restored_state.unwrap_or_else(|| {
             (
@@ -403,6 +405,7 @@ impl GhostexGpuiApp {
                 HashMap::new(),
                 HashMap::new(),
                 HashSet::new(),
+                HashMap::new(),
                 Vec::new(),
             )
         });
@@ -442,6 +445,13 @@ impl GhostexGpuiApp {
             })
             .unwrap_or_default();
         self.restore_parked_agents_chat_surfaces(restored_chat_runtime);
+        // A project first visited since the restart has no parked chat runtime; its saved
+        // record keeps the views picked before the restart (`agents_chat_view_observations_from_shell_state`).
+        for (session_id, interface) in chat_view_observations {
+            self.agents_chat_auto_switch_observed_sessions
+                .entry(session_id)
+                .or_insert(interface);
+        }
 
         /*
         Shell, pane, and runtime ids are intentionally project-local. Tear down
