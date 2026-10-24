@@ -89,6 +89,24 @@ pub(super) async fn route_chat_http(
             )
             .await
         }
+        "/api/readSessionDetails" => {
+            crate::session_details::handle_read_session_details_http(
+                &state,
+                endpoint.path,
+                request_id,
+                &body_json,
+            )
+            .await
+        }
+        "/api/stopSessionBackgroundTask" => {
+            crate::session_details::handle_stop_session_background_task_http(
+                &state,
+                endpoint.path,
+                request_id,
+                &body_json,
+            )
+            .await
+        }
         "/api/readSessionFilesLinks" => {
             crate::session_files_links::handle_read_session_files_links_http(
                 &state,

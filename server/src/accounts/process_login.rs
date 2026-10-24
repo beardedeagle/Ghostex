@@ -61,6 +61,12 @@ fn process_environment(process_id: i64) -> Option<Vec<u8>> {
 
 #[cfg(target_os = "macos")]
 fn process_environment(process_id: i64) -> Option<Vec<u8>> {
+    process_arguments_and_environment(process_id).map(|(_, environment)| environment)
+}
+
+/// The process's argv and its NUL-separated environment, both from one `KERN_PROCARGS2` read.
+#[cfg(target_os = "macos")]
+fn process_arguments_and_environment(process_id: i64) -> Option<(Vec<String>, Vec<u8>)> {
     let pid = i32::try_from(process_id).ok().filter(|pid| *pid > 0)?;
     let mut argmax = 0_i32;
     let mut size = std::mem::size_of_val(&argmax);
@@ -106,10 +112,59 @@ fn process_environment(process_id: i64) -> Option<Vec<u8>> {
     while bytes.get(offset) == Some(&0) {
         offset += 1;
     }
+    let mut arguments = Vec::with_capacity(argc as usize);
     for _ in 0..argc {
-        offset += bytes.get(offset..)?.iter().position(|byte| *byte == 0)? + 1;
+        let length = bytes.get(offset..)?.iter().position(|byte| *byte == 0)?;
+        arguments.push(String::from_utf8_lossy(&bytes[offset..offset + length]).into_owned());
+        offset += length + 1;
     }
-    Some(bytes.get(offset..)?.to_vec())
+    Some((arguments, bytes.get(offset..)?.to_vec()))
+}
+
+#[cfg(target_os = "linux")]
+fn process_arguments_and_environment(process_id: i64) -> Option<(Vec<String>, Vec<u8>)> {
+    let arguments = std::fs::read(format!("/proc/{process_id}/cmdline"))
+        .ok()?
+        .split(|byte| *byte == 0)
+        .filter(|argument| !argument.is_empty())
+        .map(|argument| String::from_utf8_lossy(argument).into_owned())
+        .collect();
+    Some((arguments, process_environment(process_id)?))
+}
+
+/// Windows gives no other process's argv here, so only the environment is returned.
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+fn process_arguments_and_environment(process_id: i64) -> Option<(Vec<String>, Vec<u8>)> {
+    Some((Vec::new(), process_environment(process_id)?))
+}
+
+/// What a running process was started with: its argv (empty where the platform does not say) and
+/// its environment.
+pub(crate) struct ProcessLaunch {
+    pub arguments: Vec<String>,
+    pub environment: Vec<(String, String)>,
+}
+
+/// The argv and environment of `process_id`, or `None` when it cannot be read. The Session details
+/// panel starts a read-only copy of a session's Claude with them (server/src/session_details/probe.rs).
+pub(crate) fn process_launch(process_id: i64) -> Option<ProcessLaunch> {
+    let (arguments, environment) = process_arguments_and_environment(process_id)?;
+    let environment = environment
+        .split(|byte| *byte == 0)
+        .filter_map(|entry| {
+            let split = entry.iter().position(|byte| *byte == b'=')?;
+            (split > 0).then(|| {
+                (
+                    String::from_utf8_lossy(&entry[..split]).into_owned(),
+                    String::from_utf8_lossy(&entry[split + 1..]).into_owned(),
+                )
+            })
+        })
+        .collect();
+    Some(ProcessLaunch {
+        arguments,
+        environment,
+    })
 }
 
 /// CDXC:AgentProviders 2026-10-04 WHY:

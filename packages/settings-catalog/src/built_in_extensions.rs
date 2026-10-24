@@ -37,6 +37,9 @@ pub const READ_ALOUD: &str = "readAloud";
 /// Connectors (Settings > Connectors, the `ghostex connectors` verbs and routes). Gated by Enable
 /// Experimental Features as well as its switch.
 pub const CONNECTORS: &str = "connectors";
+/// The Session details panel (the panel beside a Claude chat, its context ring in the header, its
+/// Claude task-list row on Settings > Chat). Beta, off by default.
+pub const SESSION_DETAILS: &str = "sessionDetailsPanel";
 /// OS Integration (Settings > OS Integration). Gated by Enable Experimental Features.
 pub const OS_INTEGRATION: &str = "osIntegration";
 /// Debugging (Settings > Debugging). Gated by Show Advanced.

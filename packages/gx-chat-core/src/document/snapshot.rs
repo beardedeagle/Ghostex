@@ -221,6 +221,9 @@ pub struct Document {
     pub fork_branches: Tri<Value>,
     /// The Save to Markdown sheet, or `null` when closed. Family f.
     pub save_markdown: Tri<Value>,
+    /// The Session details panel (`extras/session_details/document.rs`), or `null` while it does
+    /// not apply to this chat. Family f.
+    pub session_details: Value,
     /// The card of the failed API call nothing has answered yet, with gxserver's retry, or
     /// `null` (`transcript/api_errors.rs`). Family b.
     pub api_error_card: Value,

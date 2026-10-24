@@ -33,6 +33,11 @@ pub(crate) fn set_computer_features(features: Vec<String>) {
     COMPUTER_FEATURES.with(|current| *current.borrow_mut() = features);
 }
 
+/// Whether built-in feature `id` is on for the computer serving the page (`builtInFeatures`).
+pub(crate) fn computer_feature_on(id: &str) -> bool {
+    COMPUTER_FEATURES.with(|features| features.borrow().iter().any(|known| known == id))
+}
+
 /// Read aloud is on for the computer serving the page and this browser has a speaker
 /// (`window.speechSynthesis`); contract section 2.
 pub(crate) fn available() -> bool {

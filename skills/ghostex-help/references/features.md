@@ -1684,6 +1684,34 @@ button again closes it. Nothing is sent to the session's own agent. If the
 Title Generation Agent is not installed, the card says so; pick another one in
 Settings > Agents. Setting: `chatCatchMeUp`.
 
+Session details panel (beta): a built-in extension, off by default; turn it on
+in Settings > Extensions > Store. While it is on, a Claude chat shows a small
+context ring with its percentage at the top right of the window, next to the ⋯
+menu; click it to show or hide the panel of the chat you are in (one switch for
+the whole app, remembered across restarts). When the chat is wide enough the
+panel sits beside it as its own column and the conversation moves over to make
+room; when it is too narrow the panel opens as a floating card under the ring,
+and a click on the chat closes it. Its cards: Environment (this computer or the
+box the session runs in, its folder, branch and account); Context (how full the
+context window is, with Claude's own breakdown into messages, memory files,
+skills, tools and free space; Ghostex asks a silent read-only copy of the
+session, so nothing is typed into it and no tokens are spent, and it counts
+again after a turn ends at most every ten minutes, or when you press the
+refresh button); Tasks (Claude's task list); Connectors (your workspace's
+connected apps and every MCP server the session loaded, green when ready, amber
+while connecting or needing a sign-in; Manage opens Settings > Connectors);
+Skills (the ones the session used, then all of them; click one to open it in
+Agents Hub); Memory files (the CLAUDE.md and AGENTS.md files Claude loaded;
+click to open); Changes (lines changed on the branch against main, uncommitted
+edits included, with Commit, Create PR or View PR); and Background tasks (each
+running command with its time and a stop button, then the finished ones). A
+card's title folds it. Claude task list (Settings > Chat, shown while the
+extension is on, on by default) starts Claude with its task list tools, which
+recent Claude models only get when Ghostex asks; it applies to Claude sessions
+started or woken afterwards. Claude only for now. Settings:
+`sessionDetailsPanelHidden`, `sessionDetailsClaudeTaskTools`. Command:
+`ghostex read-session-details <selector> [--refresh] --json`.
+
 Files and links: More actions > Files and links (or its shortcut, Option+Ctrl+L
 on macOS and Ctrl+Alt+Shift+L on Windows and Linux, changeable in Settings >
 Hotkeys) opens a menu that floats above the chat box, without pushing the
@@ -3584,12 +3612,13 @@ backend: `ghostex team deploy|join|invite|identity|status|ping|leave`. Slack:
   simple: Actions (off by default), Open In (on by default), Spaces (off by
   default), Cloud Boxes (off by default; macOS and Linux only, not listed on
   Windows), Workspaces (off by default; it brings workspaces and the team's
-  Slack flow) and Read aloud (off by default, and
-  listed only while Enable Experimental Features is on). Turning one off removes it everywhere at once (its header button,
+  Slack flow), Read aloud (off by default, and
+  listed only while Enable Experimental Features is on) and the Session details
+  panel (beta, off by default). Turning one off removes it everywhere at once (its header button,
   Settings pages and rows, hotkeys, Quick Access rows and menus) and turning it
   back on restores everything you had set up. Settings: `actionsHidden`,
   `openInTitlebarButtonHidden`, `sidebarSpacesEnabled`, `cloudBoxesHidden`,
-  `workspacesHidden`, `readAloudHidden`.
+  `workspacesHidden`, `readAloudHidden`, `sessionDetailsPanelHidden`.
   The Edit (pencil) button on a card chooses where that view, header button, or
   extension appears. Pick **Everywhere** or **Only in selected places**, then
   choose projects and spaces from the dropdown next to **Except in** (or

@@ -63,6 +63,7 @@ pub fn document(state: &ChatState, context: &ChatContext, into: &mut Document) {
     into.subagent = Tri::Value(subagent::project(state));
     into.transcript_search = Tri::Value(search::project(&extras.search));
     into.save_markdown = Tri::Value(save_markdown::project(&extras.save_markdown));
+    into.session_details = crate::extras::session_details::document::document(state, context);
 
     // The copy comes from the view, not the agent status, as React picked it.
     let view_kind = into.view.kind.as_str();

@@ -255,6 +255,9 @@ pub fn apply_draft_agent_carriage(state: &mut ChatState, result: &ReadSessionCha
     if let Some(catch_up) = result.catch_up {
         state.core.catch_up_enabled = catch_up;
     }
+    if let Some(session_details) = result.session_details {
+        state.core.session_details_enabled = session_details;
+    }
     if let Some(send_on_pick) = result.send_on_pick {
         state.core.send_on_pick_enabled = send_on_pick;
     }

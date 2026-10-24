@@ -576,6 +576,12 @@ pub(crate) async fn handle_read_session_chat_http(
         "catchUp".to_string(),
         json!(crate::session_chat_catch_up::catch_up_enabled(&state.paths)),
     );
+    result.insert(
+        "sessionDetails".to_string(),
+        json!(crate::session_details::session_details_enabled(
+            &state.paths
+        )),
+    );
     // The Send when you pick an answer switch rides every read too, so the phone follows the computer's value.
     result.insert(
         "sendOnPick".to_string(),

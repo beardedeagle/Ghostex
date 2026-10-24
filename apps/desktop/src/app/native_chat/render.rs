@@ -113,6 +113,8 @@ impl Render for NativeChatView {
         );
         let s = p.scale;
         self.hold_text_width_while_sliding(&p);
+        // Docked, floating or none: decided before anything measures the transcript's width.
+        self.sync_session_details(&p, window, cx);
         self.sync_search_scroll();
         self.sync_files_links_jump();
         self.sync_open_question_jump(window);
@@ -215,7 +217,9 @@ impl Render for NativeChatView {
         }
         let subagent_viewer = self.render_subagent_viewer(&p, window, cx);
         let edit_menu = self.edit_menu(window, cx);
-        div()
+        let session_details_dock = self.render_session_details_dock(&p, cx);
+        let pane_bounds = self.session_details_pane_bounds();
+        let chat = div()
             .id("native-session-chat")
             .role(gpui::Role::Group)
             .aria_label("Session chat")
@@ -345,6 +349,21 @@ impl Render for NativeChatView {
             )
             .when_some(account_switch_card, |this, card| this.child(card))
             // The subagent transcript is a modal over the whole pane, like the account-switch card.
-            .when_some(subagent_viewer, |this, viewer| this.child(viewer))
+            .when_some(subagent_viewer, |this, viewer| this.child(viewer));
+        // The Session details panel docks beside the chat as its own column (session_details/).
+        div()
+            .id("native-session-chat-pane")
+            .relative()
+            .size_full()
+            .min_w_0()
+            .min_h_0()
+            .flex()
+            .child(chat)
+            .children(session_details_dock)
+            .child(
+                gpui::canvas(move |rect, _, _| pane_bounds.set(rect), |_, _, _, _| {})
+                    .absolute()
+                    .size_full(),
+            )
     }
 }

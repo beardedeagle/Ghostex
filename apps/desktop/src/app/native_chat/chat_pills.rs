@@ -436,6 +436,9 @@ impl NativeChatView {
     /// The menu's content height (unscaled) for `id`, or `None` when its panel is gone. The Files
     /// and links menu is capped at 60% of the pane; its list scrolls inside.
     pub(super) fn pill_menu_height(&self, id: &str) -> Option<f32> {
+        if id == super::session_details::SESSION_DETAILS_MENU {
+            return self.session_details_menu_height();
+        }
         if id == "filesLinks" {
             let scale = ChatAppearance::current(&self.snapshot).scale;
             let pane = f32::from(self.bounds.get().size.height) / scale;
@@ -462,6 +465,7 @@ impl NativeChatView {
             "tasks" => self.tasks_menu_body(p, cx),
             "subagents" => self.fleet_menu_body(p, cx),
             "background" => self.background_menu_body(p),
+            super::session_details::SESSION_DETAILS_MENU => self.session_details_menu_body(p, cx),
             _ => None,
         }
     }
@@ -481,6 +485,9 @@ impl NativeChatView {
         }
         if trigger == super::files_links::FILES_LINKS_TRIGGER {
             self.files_links_menu_closed(cx);
+        }
+        if trigger == super::session_details::SESSION_DETAILS_TRIGGER {
+            self.session_details_menu_closed(cx);
         }
     }
 }

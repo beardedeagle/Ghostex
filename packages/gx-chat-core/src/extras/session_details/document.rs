@@ -1,0 +1,679 @@
+//! The `sessionDetails` document value: every section of the panel, worded.
+//!
+//! `null` while the panel does not apply (the extension is off, or the session is not Claude's).
+//! Otherwise `{enabled, visible, ring, loading, error, sections}`, where `sections` is the ordered
+//! list the renderers draw as cards, each `{id, title, meta, collapsed, …}` with its own rows. A row
+//! that opens something carries the action to send back (`sessionDetailsOpen`, `…Stop`, …).
+
+use serde_json::{json, Map, Value};
+
+use crate::extras::activity::format_activity_elapsed;
+use crate::extras::session_details::settle::enabled;
+use crate::extras::time::parse_iso_millis;
+use crate::menus::context::usage::{format_context_percentage, format_context_tokens};
+use crate::state::{ChatContext, ChatState};
+
+/// The live context use: `(used tokens, window size, used percentage)`.
+struct Usage {
+    used: Option<f64>,
+    window: Option<f64>,
+    percent: Option<f64>,
+}
+
+fn number(value: Option<&Value>) -> Option<f64> {
+    value
+        .and_then(Value::as_f64)
+        .filter(|value| value.is_finite())
+}
+
+/// The statusline's numbers the context meter shows, else the ones the panel's read carried.
+fn live_usage(state: &ChatState, data: Option<&Value>) -> Usage {
+    let reported = state
+        .session
+        .selected_options
+        .as_ref()
+        .and_then(|options| options.get("contextUsage"));
+    let served = data.and_then(|data| data.pointer("/context/live"));
+    let pick = |key: &str| {
+        number(reported.and_then(|usage| usage.get(key)))
+            .or_else(|| number(served.and_then(|usage| usage.get(key))))
+    };
+    let used = pick("usedTokens");
+    let window = pick("windowSize");
+    let percent = match (used, window) {
+        (Some(used), Some(window)) if window > 0.0 => Some(used / window * 100.0),
+        _ => pick("usedPercentage"),
+    };
+    Usage {
+        used,
+        window,
+        percent,
+    }
+}
+
+fn percent_label(tokens: f64, window: Option<f64>) -> Option<String> {
+    let window = window.filter(|window| *window > 0.0)?;
+    let percent = tokens / window * 100.0;
+    if tokens > 0.0 && percent < 0.05 {
+        return Some("<0.1%".to_string());
+    }
+    format_context_percentage(Some(percent))
+}
+
+fn ago(now_ms: f64, at_ms: f64) -> String {
+    let seconds = ((now_ms - at_ms) / 1_000.0).max(0.0);
+    if seconds < 10.0 {
+        "just now".to_string()
+    } else if seconds < 60.0 {
+        format!("{}s ago", seconds as i64)
+    } else if seconds < 3_600.0 {
+        format!("{}m ago", (seconds / 60.0) as i64)
+    } else if seconds < 86_400.0 {
+        format!("{}h ago", (seconds / 3_600.0) as i64)
+    } else {
+        format!("{}d ago", (seconds / 86_400.0) as i64)
+    }
+}
+
+fn text(value: &Value, pointer: &str) -> Option<String> {
+    value
+        .pointer(pointer)
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|text| !text.is_empty())
+        .map(str::to_string)
+}
+
+fn open_action(target: &str, extra: Value) -> Value {
+    let mut action = Map::new();
+    action.insert("type".into(), json!("sessionDetailsOpen"));
+    action.insert("target".into(), json!(target));
+    if let Value::Object(extra) = extra {
+        action.extend(extra);
+    }
+    Value::Object(action)
+}
+
+fn section(id: &str, title: &str, collapsed: &[String], body: Value) -> Value {
+    let mut section = Map::new();
+    section.insert("id".into(), json!(id));
+    section.insert("title".into(), json!(title));
+    section.insert(
+        "collapsed".into(),
+        json!(collapsed.iter().any(|known| known == id)),
+    );
+    if let Value::Object(body) = body {
+        section.extend(body);
+    }
+    Value::Object(section)
+}
+
+fn environment(data: &Value) -> Option<Value> {
+    let environment = data.get("environment")?;
+    let mut rows = Vec::new();
+    let location = text(environment, "/location/label").unwrap_or_else(|| "This computer".into());
+    let boxed = environment
+        .pointer("/location/kind")
+        .and_then(Value::as_str)
+        == Some("box");
+    rows.push(json!({"icon": if boxed { "box" } else { "laptop" }, "text": location}));
+    if let Some(folder) = text(environment, "/folderLabel") {
+        let project = text(environment, "/project");
+        rows.push(json!({
+            "icon": "folder",
+            "text": match project { Some(project) => format!("{project} · {folder}"), None => folder },
+            "tooltip": text(environment, "/folder"),
+            "badge": (environment.get("worktree") == Some(&Value::Bool(true))).then_some("worktree"),
+        }));
+    }
+    if let Some(branch) = text(data, "/changes/branch") {
+        rows.push(json!({"icon": "branch", "text": branch}));
+    }
+    if let Some(account) = text(environment, "/account") {
+        rows.push(json!({"icon": "user", "text": account}));
+    }
+    Some(json!({ "rows": rows }))
+}
+
+/// The colour key of a breakdown category, which the renderers map to their palette.
+fn category_color(id: &str) -> &'static str {
+    match id {
+        "messages" => "messages",
+        "memory_files" => "memory",
+        "skills" => "skills",
+        "mcp_instructions" | "mcp_tools" => "mcp",
+        "custom_agents" => "agents",
+        "autocompact_buffer" => "buffer",
+        "free_space" => "free",
+        _ => "system",
+    }
+}
+
+/// Used categories first in the panel's order, then whatever else Claude counted.
+fn category_rank(id: &str) -> usize {
+    [
+        "messages",
+        "memory_files",
+        "skills",
+        "system_tools",
+        "system_prompt",
+        "custom_agents",
+        "mcp_instructions",
+        "mcp_tools",
+    ]
+    .iter()
+    .position(|known| *known == id)
+    .unwrap_or(50)
+}
+
+fn context_card(
+    state: &ChatState,
+    data: Option<&Value>,
+    usage: &Usage,
+    now_ms: f64,
+    utc_offset_minutes: i32,
+) -> Value {
+    let details = &state.extras.session_details;
+    let served = data.and_then(|data| data.get("context"));
+    let breakdown = served
+        .and_then(|context| context.get("breakdown"))
+        .filter(|breakdown| breakdown.is_object());
+    let window = usage
+        .window
+        .or_else(|| number(breakdown.and_then(|breakdown| breakdown.get("maxTokens"))));
+    let used = usage
+        .used
+        .or_else(|| number(breakdown.and_then(|breakdown| breakdown.get("totalTokens"))));
+    let percent = usage.percent.or_else(|| match (used, window) {
+        (Some(used), Some(window)) if window > 0.0 => Some(used / window * 100.0),
+        _ => None,
+    });
+    let fraction = |tokens: f64| match window {
+        Some(window) if window > 0.0 => (tokens / window).clamp(0.0, 1.0),
+        _ => 0.0,
+    };
+    let mut rows = Vec::new();
+    let mut deferred = Vec::new();
+    let mut segments = Vec::new();
+    let mut messages = Vec::new();
+    if let Some(breakdown) = breakdown {
+        let mut categories: Vec<&Value> = breakdown["categories"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .collect();
+        categories
+            .sort_by_key(|category| category_rank(category["id"].as_str().unwrap_or_default()));
+        let counted = number(breakdown.get("totalTokens")).unwrap_or(0.0);
+        // What the conversation added since Claude last counted, from the live total.
+        let since = used
+            .map(|used| used - counted)
+            .filter(|since| *since >= 500.0);
+        let mut tail = Vec::new();
+        for category in categories {
+            let id = category["id"].as_str().unwrap_or_default();
+            let tokens = number(category.get("tokens")).unwrap_or(0.0);
+            let name = category["name"].as_str().unwrap_or(id);
+            let row = json!({
+                "id": id,
+                "label": name,
+                "tokens": format_context_tokens(Some(tokens)),
+                "percent": percent_label(tokens, window),
+                "color": category_color(id),
+            });
+            match category["kind"].as_str() {
+                Some("used") => {
+                    if tokens > 0.0 {
+                        segments.push(
+                            json!({"color": category_color(id), "fraction": fraction(tokens)}),
+                        );
+                    }
+                    rows.push(row);
+                }
+                Some("deferred") => deferred.push(row),
+                // The buffer and the free space close the list, dimmed.
+                _ => {
+                    let mut row = row;
+                    row["dim"] = json!(true);
+                    if id == "free_space" {
+                        if let Some(since) = since {
+                            let free = (tokens - since).max(0.0);
+                            row["tokens"] = json!(format_context_tokens(Some(free)));
+                            row["percent"] = json!(percent_label(free, window));
+                        }
+                    }
+                    tail.push(row);
+                }
+            }
+        }
+        if let Some(since) = since {
+            segments.push(json!({"color": "since", "fraction": fraction(since)}));
+            rows.push(json!({
+                "id": "since_last_count",
+                "label": "Since last update",
+                "tokens": format_context_tokens(Some(since)),
+                "percent": percent_label(since, window),
+                "color": "since",
+            }));
+        }
+        rows.extend(tail);
+        let parts = &breakdown["messages"];
+        let mut tools: Vec<(String, f64)> = parts["toolCalls"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|tool| {
+                Some((
+                    tool["name"].as_str()?.to_string(),
+                    number(tool.get("tokens")).unwrap_or(0.0),
+                ))
+            })
+            .collect();
+        tools.sort_by(|a, b| b.1.total_cmp(&a.1));
+        for (name, tokens) in tools.into_iter().take(5) {
+            messages.push(json!({"label": format!("{name} calls"), "tokens": format_context_tokens(Some(tokens))}));
+        }
+        for (label, key) in [
+            ("Claude's replies", "assistantTokens"),
+            ("Your messages", "userTokens"),
+            ("Attachments", "attachmentTokens"),
+        ] {
+            if let Some(tokens) = number(parts.get(key)).filter(|tokens| *tokens > 0.0) {
+                messages
+                    .push(json!({"label": label, "tokens": format_context_tokens(Some(tokens))}));
+            }
+        }
+    } else if let Some(used) = used {
+        segments.push(json!({"color": "messages", "fraction": fraction(used)}));
+    }
+    let running =
+        served.and_then(|context| context.get("breakdownRunning")) == Some(&Value::Bool(true));
+    let error = served.and_then(|context| text(context, "/breakdownError"));
+    let counted_at = served
+        .and_then(|context| text(context, "/breakdownAt"))
+        .and_then(|at| parse_iso_millis(&at, utc_offset_minutes));
+    let status = if running || details.refreshing {
+        "Counting with Claude…".to_string()
+    } else if let Some(error) = error.as_ref().filter(|_| breakdown.is_none()) {
+        format!("Couldn't count: {error}")
+    } else if let Some(at) = counted_at {
+        format!("Breakdown from {}", ago(now_ms, at))
+    } else if data.is_some() {
+        "Breakdown not counted yet".to_string()
+    } else {
+        String::new()
+    };
+    json!({
+        "percentLabel": format_context_percentage(percent).map(|percent| format!("{percent} used")),
+        "tokensLabel": match (used, window) {
+            (Some(used), Some(window)) => Some(format!("{} / {}", format_context_tokens(Some(used)), format_context_tokens(Some(window)))),
+            (Some(used), None) => Some(format_context_tokens(Some(used))),
+            _ => None,
+        },
+        "segments": segments,
+        "rows": rows,
+        "deferred": deferred,
+        "messages": messages,
+        "messagesOpen": details.open_lists.iter().any(|list| list == "messages"),
+        "status": status,
+        "statusError": error.is_some() && breakdown.is_none() && !running,
+        "refreshing": running || details.refreshing,
+        "refresh": json!({"type": "sessionDetailsRefresh"}),
+    })
+}
+
+fn tasks(state: &ChatState) -> Option<Value> {
+    let list = state
+        .session
+        .agent_tasks
+        .as_ref()?
+        .get("tasks")?
+        .as_array()?;
+    if list.is_empty() {
+        return None;
+    }
+    let rows: Vec<Value> = list
+        .iter()
+        .map(|task| {
+            let status = match task["status"].as_str() {
+                Some("completed") => "done",
+                Some("in_progress") => "running",
+                _ => "todo",
+            };
+            json!({
+                "id": task["id"],
+                "text": task["subject"].as_str().unwrap_or_default(),
+                "status": status,
+                "detail": (status == "running").then(|| task["activeForm"].as_str()).flatten(),
+            })
+        })
+        .collect();
+    let done = rows.iter().filter(|row| row["status"] == "done").count();
+    Some(json!({ "meta": format!("{done}/{}", rows.len()), "rows": rows }))
+}
+
+fn connectors(data: &Value) -> Option<Value> {
+    let connectors = data.get("connectors")?;
+    let mut groups = Vec::new();
+    if let Some(workspace) = connectors
+        .get("workspace")
+        .filter(|workspace| workspace.is_object())
+    {
+        let rows: Vec<Value> = workspace["apps"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .map(|app| {
+                json!({
+                    "text": app["name"].as_str().unwrap_or_default(),
+                    "detail": app["detail"].as_str(),
+                    "status": "connected",
+                    "action": open_action("connectors", Value::Null),
+                })
+            })
+            .collect();
+        let name = workspace["name"].as_str().unwrap_or("Personal");
+        groups.push(json!({
+            "title": format!("{name} workspace"),
+            "rows": rows,
+            "empty": "No apps connected",
+        }));
+    }
+    let servers: Vec<Value> = connectors["servers"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .map(|server| {
+            let status = match server["status"].as_str() {
+                Some("pending") => "pending",
+                Some("needsAuth" | "needs-auth") => "needsAuth",
+                Some("failed") => "failed",
+                _ => "connected",
+            };
+            let tools = server["tools"].as_u64().unwrap_or(0);
+            let detail = match status {
+                "pending" => "connecting".to_string(),
+                "needsAuth" => "needs sign-in".to_string(),
+                "failed" => "failed".to_string(),
+                _ if tools == 1 => "1 tool".to_string(),
+                _ => format!("{tools} tools"),
+            };
+            json!({
+                "text": server["name"].as_str().unwrap_or_default(),
+                "detail": detail,
+                "status": status,
+            })
+        })
+        .collect();
+    if !servers.is_empty() {
+        groups.push(json!({"title": "MCP servers", "rows": servers}));
+    }
+    if groups.is_empty() {
+        return None;
+    }
+    Some(json!({
+        "groups": groups,
+        "manage": open_action("connectors", Value::Null),
+    }))
+}
+
+fn skills(state: &ChatState, data: &Value) -> Option<Value> {
+    let skills = data.get("skills")?;
+    let available: Vec<&Value> = skills["available"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .collect();
+    let row = |name: &str, description: Option<&str>| {
+        json!({
+            "text": name,
+            "tooltip": description,
+            "link": true,
+            "action": open_action("skill", json!({"name": name})),
+        })
+    };
+    let used: Vec<Value> = skills["used"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_str)
+        .map(|name| {
+            let description = available
+                .iter()
+                .find(|skill| skill["name"] == name)
+                .and_then(|skill| skill["description"].as_str());
+            row(name, description)
+        })
+        .collect();
+    if used.is_empty() && available.is_empty() {
+        return None;
+    }
+    let all: Vec<Value> = available
+        .iter()
+        .map(|skill| {
+            row(
+                skill["name"].as_str().unwrap_or_default(),
+                skill["description"].as_str(),
+            )
+        })
+        .collect();
+    let tokens = number(data.pointer("/context/breakdown/skills/tokens"));
+    let count = all.len();
+    Some(json!({
+        "meta": format!("{count} available"),
+        "used": used,
+        "usedEmpty": "None used in this session yet",
+        "all": all,
+        "allLabel": match tokens {
+            Some(tokens) => format!("All {count} skills · {} tokens", format_context_tokens(Some(tokens))),
+            None => format!("All {count} skills"),
+        },
+        "allOpen": state.extras.session_details.open_lists.iter().any(|list| list == "skills"),
+        "allToggle": json!({"type": "sessionDetailsList", "list": "skills"}),
+    }))
+}
+
+/// `AGENTS.md` for a file in the session's folder; else its name and whose it is (`CLAUDE.md
+/// (user)`), the whole path being the row's tooltip.
+fn memory_label(path: &str, kind: &str, folder: Option<&str>) -> String {
+    if let Some(relative) = folder
+        .and_then(|folder| path.strip_prefix(folder))
+        .and_then(|rest| rest.strip_prefix('/'))
+    {
+        return relative.to_string();
+    }
+    let name = path.rsplit(['/', '\\']).next().unwrap_or(path);
+    match kind {
+        "" | "Project" => name.to_string(),
+        kind => format!("{name} ({})", kind.to_lowercase()),
+    }
+}
+
+fn memory(data: &Value) -> Option<Value> {
+    let files = data.get("memoryFiles")?.as_array()?;
+    if files.is_empty() {
+        return None;
+    }
+    let folder = data.pointer("/environment/folder").and_then(Value::as_str);
+    let rows: Vec<Value> = files
+        .iter()
+        .filter_map(|file| {
+            let path = file["path"].as_str()?;
+            let detail = match number(file.get("tokens")) {
+                Some(tokens) => format_context_tokens(Some(tokens)),
+                None => file["kind"].as_str().unwrap_or_default().to_string(),
+            };
+            Some(json!({
+                "text": memory_label(path, file["kind"].as_str().unwrap_or_default(), folder),
+                "link": true,
+                "detail": detail,
+                "tooltip": path,
+                "action": open_action("file", json!({"path": path})),
+            }))
+        })
+        .collect();
+    Some(json!({ "rows": rows }))
+}
+
+fn changes(data: &Value) -> Option<Value> {
+    let changes = data.get("changes").filter(|changes| changes.is_object())?;
+    let additions = changes["additions"].as_i64().unwrap_or(0);
+    let deletions = changes["deletions"].as_i64().unwrap_or(0);
+    let on_default = changes["onDefaultBranch"] == true;
+    let default = changes["defaultBranch"].as_str().unwrap_or("main");
+    let pull_request = changes.get("pullRequest").filter(|pr| pr.is_object());
+    let open_pr = pull_request.filter(|pr| pr["open"] == true);
+    let button = if let Some(pr) = open_pr {
+        Some(json!({
+            "label": format!("View PR #{}", pr["number"]),
+            "action": open_action("url", json!({"url": pr["url"]})),
+        }))
+    } else if on_default {
+        (additions + deletions > 0)
+            .then(|| json!({"label": "Commit", "action": open_action("commit", Value::Null)}))
+    } else {
+        Some(json!({"label": "Create PR", "action": open_action("createPullRequest", Value::Null)}))
+    };
+    Some(json!({
+        "additions": format!("+{additions}"),
+        "deletions": format!("\u{2212}{deletions}"),
+        "empty": additions + deletions == 0,
+        "detail": if additions + deletions == 0 {
+            "No changes".to_string()
+        } else if on_default {
+            "uncommitted".to_string()
+        } else {
+            format!("vs {default}")
+        },
+        "action": open_action("changes", Value::Null),
+        "button": button,
+    }))
+}
+
+fn background(
+    state: &ChatState,
+    data: Option<&Value>,
+    now_ms: f64,
+    utc_offset_minutes: i32,
+) -> Option<Value> {
+    let details = &state.extras.session_details;
+    let running: Vec<Value> = state
+        .session
+        .terminal_activity
+        .as_ref()
+        .and_then(|activity| activity.pointer("/background/tasks"))
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .map(|task| {
+            let id = task["id"].as_str().unwrap_or_default();
+            let started = task["startedAt"]
+                .as_str()
+                .and_then(|at| parse_iso_millis(at, utc_offset_minutes));
+            let monitor = task["kind"] == "monitor";
+            json!({
+                "id": id,
+                "text": task["title"].as_str().unwrap_or_default(),
+                "kind": if monitor { "monitor" } else { "shell" },
+                "tooltip": task["command"].as_str(),
+                "elapsed": started.map(|started| format_activity_elapsed(((now_ms - started) / 1_000.0).max(0.0))),
+                "stopping": details.stopping.iter().any(|known| known == id),
+                "stop": (!id.is_empty()).then(|| json!({"type": "sessionDetailsStop", "id": id})),
+            })
+        })
+        .collect();
+    let finished: Vec<Value> = data
+        .and_then(|data| data.pointer("/background/finished"))
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter(|task| {
+            !running
+                .iter()
+                .any(|row| row["id"] == task["id"])
+        })
+        .map(|task| {
+            let status = task["status"].as_str().unwrap_or("completed");
+            let ended = task["endedAt"]
+                .as_str()
+                .and_then(|at| parse_iso_millis(at, utc_offset_minutes));
+            let word = match status {
+                "completed" => "done",
+                "killed" | "stopped" | "cancelled" | "canceled" => "stopped",
+                other => other,
+            };
+            json!({
+                "text": task["title"].as_str().unwrap_or_default(),
+                "detail": match ended {
+                    Some(ended) => format!("{word} {}", ago(now_ms, ended)),
+                    None => word.to_string(),
+                },
+                "status": if status == "completed" { "done" } else if status == "failed" { "failed" } else { "stopped" },
+                "tooltip": task["summary"].as_str().or_else(|| task["command"].as_str()),
+            })
+        })
+        .collect();
+    if running.is_empty() && finished.is_empty() {
+        return None;
+    }
+    Some(json!({
+        "meta": (!running.is_empty()).then(|| format!("{} running", running.len())),
+        "running": running,
+        "finished": finished,
+        "finishedLabel": (!finished.is_empty()).then(|| format!("{} finished", finished.len())),
+        "finishedOpen": details.open_lists.iter().any(|list| list == "finished"),
+        "finishedToggle": json!({"type": "sessionDetailsList", "list": "finished"}),
+    }))
+}
+
+/// The `sessionDetails` value, or `null` while the panel does not apply to this chat.
+pub fn document(state: &ChatState, context: &ChatContext) -> Value {
+    if !enabled(state) {
+        return Value::Null;
+    }
+    let details = &state.extras.session_details;
+    let data = details.data.as_ref();
+    let usage = live_usage(state, data);
+    let collapsed = &details.collapsed;
+    let now_ms = context.now_ms;
+    let offset = context.utc_offset_minutes;
+    let mut sections = Vec::new();
+    if let Some(body) = data.and_then(environment) {
+        sections.push(section("environment", "Environment", collapsed, body));
+    }
+    sections.push(section(
+        "context",
+        "Context",
+        collapsed,
+        context_card(state, data, &usage, now_ms, offset),
+    ));
+    if let Some(body) = tasks(state) {
+        sections.push(section("tasks", "Tasks", collapsed, body));
+    }
+    if let Some(body) = data.and_then(connectors) {
+        sections.push(section("connectors", "Connectors", collapsed, body));
+    }
+    if let Some(body) = data.and_then(|data| skills(state, data)) {
+        sections.push(section("skills", "Skills", collapsed, body));
+    }
+    if let Some(body) = data.and_then(memory) {
+        sections.push(section("memory", "Memory files", collapsed, body));
+    }
+    if let Some(body) = data.and_then(changes) {
+        sections.push(section("changes", "Changes", collapsed, body));
+    }
+    if let Some(body) = background(state, data, now_ms, offset) {
+        sections.push(section("background", "Background tasks", collapsed, body));
+    }
+    json!({
+        "enabled": true,
+        "visible": details.visible,
+        "ring": {
+            "percent": usage.percent,
+            "label": format_context_percentage(usage.percent).unwrap_or_default(),
+        },
+        "loading": data.is_none() && details.request.is_some(),
+        "error": details.error,
+        "sections": sections,
+    })
+}

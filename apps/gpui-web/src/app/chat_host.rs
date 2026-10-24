@@ -208,6 +208,27 @@ impl GhostexGpuiApp {
                 "Save it from the Ghostex app.",
                 cx,
             ),
+            // The Session details panel's card closed by a click on the chat (shell.rs).
+            Some("sessionDetailsDismissed") => {
+                self.session_details_dismissed_at = Some(web_time::Instant::now());
+                self.session_details_open = false;
+                cx.notify();
+            }
+            Some("openAgentsHubSkill") => self.web_chat_needs_app_toast(
+                "Agents Hub is in the Ghostex app",
+                "Open the skill from the Ghostex app's Agents Hub.",
+                cx,
+            ),
+            Some("openSettingsPage") => self.web_chat_needs_app_toast(
+                "Settings are in the Ghostex app",
+                "Open Settings > Connectors in the Ghostex app.",
+                cx,
+            ),
+            Some("gitAction") => self.web_chat_needs_app_toast(
+                "Use the Commit button above",
+                "The header's Commit menu commits and opens pull requests here.",
+                cx,
+            ),
             Some("reviewChanges" | "openFile" | "locateFile" | "annotateReply") => self
                 .web_chat_needs_app_toast(
                     "Files open in the Ghostex app",

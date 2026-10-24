@@ -514,6 +514,8 @@ pub struct GhostexGpuiApp {
     pub(crate) agents_chat_reconcile_scheduled: bool,
     pub(crate) native_chat_views:
         HashMap<TerminalSessionId, Entity<super::native_chat::state::NativeChatView>>,
+    /// The header's Session details button (session_chat/session_details.rs).
+    pub(crate) session_details: super::session_chat::session_details::SessionDetailsSwitch,
     /// The gxserver endpoint each machine's chat socket was last given.
     pub(crate) session_chat_broker_endpoints: HashMap<String, (String, String)>,
     pub(crate) session_chat_presentations:

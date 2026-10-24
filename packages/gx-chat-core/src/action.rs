@@ -221,6 +221,14 @@ action_kinds! {
     MarkdownSaveCancel => "markdownSaveCancel",
     MarkdownSaveSubmit => "markdownSaveSubmit",
 
+    // The Session details panel (`extras/session_details/actions.rs`).
+    SessionDetailsVisible => "sessionDetailsVisible",
+    SessionDetailsRefresh => "sessionDetailsRefresh",
+    SessionDetailsSection => "sessionDetailsSection",
+    SessionDetailsList => "sessionDetailsList",
+    SessionDetailsStop => "sessionDetailsStop",
+    SessionDetailsOpen => "sessionDetailsOpen",
+
     // Per-message actions.
     RewindOpen => "rewindOpen",
     RewindCancel => "rewindCancel",

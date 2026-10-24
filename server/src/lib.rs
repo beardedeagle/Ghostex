@@ -211,6 +211,7 @@ pub mod session_chat_watchdog;
 pub mod session_chat_workspace_trust;
 pub mod session_chat_zcode;
 pub mod session_chat_zcode_question;
+pub(crate) mod session_details;
 pub(crate) mod session_files_links;
 pub(crate) mod session_links;
 pub mod session_git_status;

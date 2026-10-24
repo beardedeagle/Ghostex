@@ -123,6 +123,8 @@ fn rpc_method_name(wire: &str) -> &'static str {
         ChatRpcMethod::TakeBackSessionChatQueuedMessage => "takeBackSessionChatQueuedMessage",
         ChatRpcMethod::CatchUpSession => "catchUpSession",
         ChatRpcMethod::ReadSessionFilesLinks => "readSessionFilesLinks",
+        ChatRpcMethod::ReadSessionDetails => "readSessionDetails",
+        ChatRpcMethod::StopSessionBackgroundTask => "stopSessionBackgroundTask",
         ChatRpcMethod::Other(_) => "other",
     }
 }

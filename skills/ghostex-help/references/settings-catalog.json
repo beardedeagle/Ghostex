@@ -1389,6 +1389,20 @@
       "availability": "Only on Windows and Linux."
     },
     {
+      "key": "sessionDetailsClaudeTaskTools",
+      "title": "Claude task list",
+      "subtitle": "Turn on Claude's task list tools, so Claude can keep a checklist that the Session details panel shows. Recent Claude models only get them when Ghostex asks. Applies to Claude sessions started or woken after you change it. Shown while the Session details panel extension is on.",
+      "tab": "settings",
+      "tabTitle": "General",
+      "group": "chat",
+      "groupTitle": "Chat",
+      "section": "chat",
+      "sectionTitle": "Chat",
+      "type": "boolean",
+      "default": true,
+      "agentWritable": true
+    },
+    {
       "key": "webLinkOpenTarget",
       "title": "Open links in",
       "subtitle": "Open web links from terminal output (Command-click), session chat, and detected dev servers in the project Browser view or the system default browser.",
@@ -10359,6 +10373,18 @@
       "key": "readAloudHidden",
       "title": "Turn off Read aloud",
       "subtitle": "Turn off Read aloud everywhere: Read aloud on replies, Auto-read in the chat's ⋯ menu, the Read aloud rows on Settings > Chat and the Read aloud hotkeys, on this computer and in the phone app and browser connected to it. Off by default, and shown only while Enable Experimental Features is on; your Voice and Speed are kept.",
+      "tab": "extensions",
+      "tabTitle": "Store",
+      "section": "official",
+      "sectionTitle": "Built-in",
+      "type": "boolean",
+      "default": true,
+      "agentWritable": true
+    },
+    {
+      "key": "sessionDetailsPanelHidden",
+      "title": "Turn off the Session details panel",
+      "subtitle": "Turn off the Session details panel (beta): the context ring at the top right of the window, the panel beside Claude chats, and the Claude task list row on Settings > Chat. Off by default.",
       "tab": "extensions",
       "tabTitle": "Store",
       "section": "official",

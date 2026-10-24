@@ -69,6 +69,8 @@ pub(crate) type AgentsHubModalHost = Rc<dyn Fn(AgentsHubModalCommand, &mut App)>
 pub(crate) struct AgentsHubModalConfig {
     pub(crate) palette: ModalPalette,
     pub(crate) initial_tab: AgentsHubTab,
+    /// A skill to select once the catalog arrives (the Session details panel's skill rows).
+    pub(crate) initial_skill: Option<String>,
     /// The remembered wrap choice the Files view shares (`ghostex.manage.wordWrap`).
     pub(crate) word_wrap: bool,
 }
@@ -208,6 +210,8 @@ pub(crate) struct GpuiAgentsHubModalWindow {
     pub(crate) content_errors: HashMap<String, String>,
     pub(crate) pending_requests: HashMap<String, String>,
     pub(crate) selected_file_ids: [String; 4],
+    /// The skill to select when the next catalog arrives (`AgentsHubModalConfig::initial_skill`).
+    pending_skill: Option<String>,
     pub(crate) expanded_ids: HashSet<String>,
     pub(crate) search: gpui::Entity<InputState>,
     pub(crate) query: String,
@@ -295,6 +299,7 @@ impl GpuiAgentsHubModalWindow {
             content_errors: HashMap::new(),
             pending_requests: HashMap::new(),
             selected_file_ids: Default::default(),
+            pending_skill: config.initial_skill,
             expanded_ids: HashSet::new(),
             search,
             query: String::new(),
@@ -453,6 +458,18 @@ impl GpuiAgentsHubModalWindow {
     }
 
     fn after_catalog_change(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        // A Hub opened on one skill lands on that skill's first file.
+        if let Some(skill) = self.pending_skill.take()
+            && let Some(slot) = AgentsHubTab::Skills.file_slot()
+            && let Some(file) = self
+                .groups(slot)
+                .iter()
+                .find(|group| group.name == skill)
+                .and_then(|group| group.files.first())
+        {
+            self.selected_file_ids[slot] = file.id.clone();
+            self.active_tab = AgentsHubTab::Skills;
+        }
         for slot in 0..4 {
             let groups = self.groups(slot);
             if find_file(groups, &self.selected_file_ids[slot]).is_none() {

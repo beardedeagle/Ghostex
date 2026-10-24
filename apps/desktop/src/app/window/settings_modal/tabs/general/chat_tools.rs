@@ -131,6 +131,7 @@ fn chat_section(
     rows.extend(page.toggle(g, s, "orchestratorAllEfforts", "Show all effort levels", "Lists every effort level in the orchestrator effort pickers. Anything below High isn't recommended for orchestrators.", false, cx));
     rows.extend(orchestrator_playbook_row(page, g, s, cx));
     rows.extend(read_aloud_rows(page, g, s, window, cx));
+    rows.extend(page.toggle(g, s, "sessionDetailsClaudeTaskTools", "Claude task list", "Turn on Claude's task list tools, so Claude can keep a checklist that the Session details panel shows. Recent Claude models only get them when Ghostex asks. Applies to Claude sessions started or woken after you change it.", false, cx));
     settings_section(&g.p, "Chat", None, None, rows)
         .map(|section| PageBlock::section("chat", section))
 }

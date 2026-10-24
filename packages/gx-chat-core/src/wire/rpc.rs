@@ -60,6 +60,10 @@ pub enum ChatRpcMethod {
     /// Every attachment, file and link the session and its threads mentioned
     /// (`composer/files_links.rs`).
     ReadSessionFilesLinks,
+    /// What the Session details panel shows (`extras/session_details/`).
+    ReadSessionDetails,
+    /// Ends one of the session's background commands (the Session details panel's stop button).
+    StopSessionBackgroundTask,
     /// A method this build does not know; kept verbatim.
     Other(String),
 }
@@ -102,6 +106,8 @@ impl ChatRpcMethod {
             Self::TakeBackSessionChatQueuedMessage => "takeBackSessionChatQueuedMessage",
             Self::CatchUpSession => "catchUpSession",
             Self::ReadSessionFilesLinks => "readSessionFilesLinks",
+            Self::ReadSessionDetails => "readSessionDetails",
+            Self::StopSessionBackgroundTask => "stopSessionBackgroundTask",
             Self::Other(name) => name.as_str(),
         }
     }
@@ -143,6 +149,8 @@ impl ChatRpcMethod {
             "takeBackSessionChatQueuedMessage" => Self::TakeBackSessionChatQueuedMessage,
             "catchUpSession" => Self::CatchUpSession,
             "readSessionFilesLinks" => Self::ReadSessionFilesLinks,
+            "readSessionDetails" => Self::ReadSessionDetails,
+            "stopSessionBackgroundTask" => Self::StopSessionBackgroundTask,
             other => Self::Other(other.to_string()),
         }
     }

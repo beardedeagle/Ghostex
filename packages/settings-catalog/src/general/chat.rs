@@ -39,6 +39,7 @@ pub(crate) fn chat() -> Section {
                 num_opt("0.75×", 0.75), num_opt("1×", 1.0), num_opt("1.25×", 1.25), num_opt("1.5×", 1.5), num_opt("2×", 2.0),
             ]),
             row("readAloudUnavailable", "Read aloud", "Read aloud can't speak on this computer, so it has no controls here. It works in the Ghostex phone app and in Ghostex in a browser connected to this computer."),
+            row("sessionDetailsClaudeTaskTools", "Claude task list", "Turn on Claude's task list tools, so Claude can keep a checklist that the Session details panel shows. Recent Claude models only get them when Ghostex asks. Applies to Claude sessions started or woken after you change it. Shown while the Session details panel extension is on."),
         ],
     )
 }

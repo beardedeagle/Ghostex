@@ -28,6 +28,12 @@ impl GhostexGpuiApp {
         let config = AgentsHubModalConfig {
             palette: self.gpui_native_modal_palette(),
             initial_tab,
+            initial_skill: message
+                .get("initialSkill")
+                .and_then(serde_json::Value::as_str)
+                .map(str::trim)
+                .filter(|skill| !skill.is_empty())
+                .map(str::to_string),
             word_wrap: crate::app::native_docs::storage::read_word_wrap(),
         };
         let host: AgentsHubModalHost = self.native_app_modal_host(cx, |app, command, cx| {

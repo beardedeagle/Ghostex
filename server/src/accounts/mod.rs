@@ -20,6 +20,7 @@ pub(crate) mod launch;
 pub(crate) mod limit_wait;
 pub(crate) mod model;
 mod process_login;
+pub(crate) use process_login::process_launch;
 pub(crate) mod recovery;
 mod reset_claim;
 mod reset_credits;

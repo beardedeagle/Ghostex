@@ -157,6 +157,13 @@ export const storageCatalog = Object.freeze({
     'ghostex.chat.coordinatorThreads.collapsed',
     binary
   ),
+  sessionDetailsCollapsed: define(
+    'sessionDetailsCollapsed',
+    'Session details panel folds',
+    'packages/gx-chat-core/src/extras/session_details/state.rs',
+    'ghostex.chat.sessionDetails.collapsed',
+    textCodec
+  ),
   terminalExpanded: define(
     'terminalExpanded',
     'Chat terminal output',

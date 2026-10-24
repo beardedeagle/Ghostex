@@ -242,6 +242,10 @@ pub struct ChatSettings {
     /// (the phone), which learns it from the chat read instead.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub catch_up: Option<bool>,
+    /// Whether the Session details panel built-in extension is on; absent from a host that has no
+    /// settings file.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub session_details: Option<bool>,
     /// The Send when you pick an answer setting (`chatSendOnPick`), the same way.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub send_on_pick: Option<bool>,

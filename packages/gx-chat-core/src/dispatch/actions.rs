@@ -179,7 +179,13 @@ pub fn owner(kind: &ActionKind) -> Option<Family> {
         | ActionKind::MarkdownSaveFolder
         | ActionKind::MarkdownSaveName
         | ActionKind::MarkdownSaveCancel
-        | ActionKind::MarkdownSaveSubmit => Family::Extras,
+        | ActionKind::MarkdownSaveSubmit
+        | ActionKind::SessionDetailsVisible
+        | ActionKind::SessionDetailsRefresh
+        | ActionKind::SessionDetailsSection
+        | ActionKind::SessionDetailsList
+        | ActionKind::SessionDetailsStop
+        | ActionKind::SessionDetailsOpen => Family::Extras,
 
         ActionKind::ReadAloudMessage
         | ActionKind::ReadAloudLastReply

@@ -15,6 +15,12 @@ pub(crate) fn build_gxserver_zmx_child_environment() -> HashMap<String, String> 
             .to_string_lossy()
             .into_owned(),
     );
+    // Claude's task list while the Session details panel asks for it (session_details/gate.rs).
+    if let Some((key, value)) = crate::session_details::claude_task_tools_environment(
+        &crate::paths::get_gxserver_paths(None),
+    ) {
+        environment.insert(key.to_string(), value.to_string());
+    }
     remove_gxserver_zmx_color_disabling_environment_values(&mut environment);
     environment.insert("COLORTERM".to_string(), "truecolor".to_string());
     environment.insert("TERM_PROGRAM".to_string(), "ghostty".to_string());

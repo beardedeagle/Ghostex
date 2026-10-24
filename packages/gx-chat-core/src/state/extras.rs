@@ -38,6 +38,8 @@ pub struct ExtrasState {
     pub subagent: SubagentState,
     /// The Save to Markdown sheet.
     pub save_markdown: SaveMarkdownState,
+    /// The Session details panel (`extras/session_details/`).
+    pub session_details: crate::extras::session_details::SessionDetailsState,
     /// When the current transcript read started, which is what the loading stage counts from.
     pub loading_started_at_ms: Option<f64>,
     /// The stage the empty region is showing while a read runs: `blank`, `indicator` or `retry`.

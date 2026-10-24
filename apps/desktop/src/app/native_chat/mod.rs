@@ -2,6 +2,7 @@ pub(crate) mod appearance;
 pub(crate) mod composer;
 pub(crate) mod diagnostics;
 pub(crate) mod render;
+pub(crate) mod session_details;
 pub(crate) mod state;
 pub(crate) mod transcript;
 

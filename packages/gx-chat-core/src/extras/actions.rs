@@ -25,6 +25,14 @@ pub fn handle_with_ids(
     mut next_request_id: impl FnMut() -> u64,
 ) -> Vec<Effect> {
     match action.kind {
+        ActionKind::SessionDetailsVisible
+        | ActionKind::SessionDetailsRefresh
+        | ActionKind::SessionDetailsSection
+        | ActionKind::SessionDetailsList
+        | ActionKind::SessionDetailsStop
+        | ActionKind::SessionDetailsOpen => {
+            crate::extras::session_details::actions::handle(state, action, next_request_id)
+        }
         ActionKind::ToggleAgentFleet => {
             state.extras.panels.fleet_open = Some(flag(action, "open"));
             Vec::new()

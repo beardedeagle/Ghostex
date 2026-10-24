@@ -129,6 +129,8 @@ pub const DEFAULT_GHOSTEX_SETTINGS: &[(&str, J)] = &[
     ("workspacesHidden", J::Bool(true)),
     // CDXC:VoiceMode 2026-10-21 DECISION: Read aloud is off by default (official_extensions.rs).
     ("readAloudHidden", J::Bool(true)),
+    // CDXC:SessionDetails 2026-10-25 DECISION: the Session details panel is a beta built-in extension, off by default (official_extensions.rs).
+    ("sessionDetailsPanelHidden", J::Bool(true)),
     // CDXC:Extensions 2026-10-19 DECISION: Connectors, OS Integration and Debugging are on by default; their old gates still apply (official_extensions.rs).
     ("connectorsHidden", J::Bool(false)),
     ("osIntegrationHidden", J::Bool(false)),
@@ -524,6 +526,7 @@ pub const DEFAULT_GHOSTEX_SETTINGS: &[(&str, J)] = &[
     ("sessionChatConfirmEscapeInterrupt", J::Bool(true)),
     // CDXC:CatchMeUp 2026-10-11 DECISION: User: "disable this feature by default. add a toggle to enable it under chat". The composer's Catch me up button shows only while this is on.
     ("chatCatchMeUp", J::Bool(false)),
+    ("sessionDetailsClaudeTaskTools", J::Bool(true)),
     // CDXC:VoiceMode 2026-10-20 WHY:
     // xAI is the default provider: Grok Voice is billed per minute at a known price, and Grok dictation already needs the xAI key. Each provider keeps its own voice; the API keys are not settings (gxserver seals them, see server/src/voice_agent/keys.rs).
     ("voiceAgentProvider", J::Str("xai")),

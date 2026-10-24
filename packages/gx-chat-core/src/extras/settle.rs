@@ -55,7 +55,15 @@ fn settle_with_ids(
                 RpcOutcome::Ok { result } => Ok(result),
                 RpcOutcome::Err { message, .. } => Err(message.clone()),
             };
-            if let Some(more) = subagent::settle_rpc(
+            if let Some(more) = crate::extras::session_details::settle::settle_rpc(
+                state,
+                *request_id,
+                outcome.as_ref(),
+                context,
+                &mut next_request_id,
+            ) {
+                effects.extend(more);
+            } else if let Some(more) = subagent::settle_rpc(
                 &mut state.extras.subagent,
                 *request_id,
                 answer.clone(),
@@ -86,6 +94,10 @@ fn settle_with_ids(
             }
         }
         Event::Tick => {
+            effects.extend(crate::extras::session_details::settle::settle_tick(
+                state,
+                &mut next_request_id,
+            ));
             advance_loading_stage(state, context);
             effects.extend(subagent::settle_tick(
                 &mut state.extras.subagent,
@@ -123,8 +135,14 @@ fn settle_with_ids(
         Event::StorageLoaded { key, value } if *key == panels::tasks_collapsed_key() => {
             state.extras.panels.tasks_collapsed = panels::read_tasks_collapsed(value.as_deref());
         }
+        Event::StorageLoaded { key, value }
+            if *key == crate::extras::session_details::state::collapsed_key() =>
+        {
+            crate::extras::session_details::settle::settle_collapsed(state, value.as_deref());
+        }
         _ => {}
     }
+    crate::extras::session_details::settle::prune_stopping(state);
     // The open "N more" list follows the threads: a new revision on a frame reads it again.
     effects.extend(coordinator_threads::read_all_threads(
         &mut state.extras.panels,

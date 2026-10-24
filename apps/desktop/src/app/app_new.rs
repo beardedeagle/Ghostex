@@ -314,6 +314,7 @@ impl GhostexGpuiApp {
                 untouched_agent_chats: Vec::new(),
                 agents_chat_reconcile_scheduled: false,
                 native_chat_views: HashMap::new(),
+                session_details: Default::default(),
                 session_chat_broker_endpoints: HashMap::new(),
                 session_chat_presentations: Vec::new(),
                 account_switch_progress: HashMap::new(),

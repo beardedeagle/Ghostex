@@ -4,6 +4,7 @@
 use gpui::{
     AnyElement, Context, Hsla, IntoElement, Render, SharedString, Window, div, prelude::*, px, rgb,
 };
+use gpui_component::ElementExt as _;
 use gpui_component::h_flex;
 use gpui_component::tooltip::Tooltip;
 
@@ -133,6 +134,7 @@ impl GhostexGpuiApp {
                 },
             )
             .child(self.render_web_git_button(cx))
+            .children(self.render_web_session_details_button(cx))
             .child(Self::render_disabled_header_button(
                 "web-header-more",
                 TITLEBAR_ICON_DOTS,
@@ -149,6 +151,78 @@ impl GhostexGpuiApp {
                 None,
             ))
             .into_any_element()
+    }
+
+    /// The Session details button, as the desktop header draws it
+    /// (`render/workarea_header/session_details_button.rs`): the open chat's context ring, which
+    /// shows and hides that chat's Session details panel.
+    fn render_web_session_details_button(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
+        // The page has no settings file; the handshake says what is on (`builtInFeatures`).
+        if !crate::app::read_aloud::computer_feature_on(
+            ghostex_settings_catalog::built_in_extensions::SESSION_DETAILS,
+        ) {
+            return None;
+        }
+        let session = self.open_session.as_ref()?;
+        if self.web_shows_terminal(session) {
+            return None;
+        }
+        let (percent, label) = {
+            let view = self.native_chats.get(session)?.1.read(cx);
+            if !view.session_details_available() {
+                return None;
+            }
+            view.session_details_ring()
+        };
+        let open = self.session_details_open;
+        let bounds = self.session_details_button_bounds.clone();
+        let text = titlebar_active_text_color();
+        Some(
+            div()
+                .id("web-header-session-details")
+                .flex()
+                .flex_none()
+                .items_center()
+                .gap(px(5.0))
+                .px(px(6.0))
+                .py(px(3.0))
+                .rounded(px(6.0))
+                .cursor_pointer()
+                .when(open, |button| button.bg(titlebar_popup_menu_hover_color()))
+                .hover(|button| button.bg(titlebar_popup_menu_hover_color()))
+                .child(
+                    crate::app::native_chat::session_details::session_details_ring(
+                        percent.unwrap_or(0.0) as f32,
+                        titlebar_popup_menu_border_color(),
+                        text,
+                        14.0,
+                    ),
+                )
+                .when(!label.is_empty(), |button| {
+                    button.child(div().text_size(px(12.0)).text_color(text).child(label))
+                })
+                .tooltip(move |window, cx| {
+                    gpui_component::tooltip::Tooltip::new(if open {
+                        "Hide session details"
+                    } else {
+                        "Show session details"
+                    })
+                    .build(window, cx)
+                })
+                .on_click(cx.listener(|app, _, _, cx| {
+                    // The click that just closed the floating card does not reopen it.
+                    let reopening = !app.session_details_open
+                        && app
+                            .session_details_dismissed_at
+                            .is_some_and(|at| at.elapsed() < std::time::Duration::from_millis(350));
+                    if !reopening {
+                        app.session_details_open = !app.session_details_open;
+                        cx.notify();
+                    }
+                }))
+                .on_prepaint(move |painted, _, _| bounds.set(painted))
+                .into_any_element(),
+        )
     }
 
     /// Commit opens the Git menu, as the desktop's Commit split button's main half does (`CDXC:Git 2026-09-20`).
@@ -240,6 +314,14 @@ impl Render for GhostexGpuiApp {
                 .session(session)
                 .is_some_and(|session| session.activity.as_str() == "attention")
         });
+        // The Session details panel belongs to the chat the page shows, while its button is on.
+        let anchor = self.session_details_button_bounds.clone();
+        for (key, (_, view)) in &self.native_chats {
+            let wanted = self.session_details_open && !shows_terminal && open.as_ref() == Some(key);
+            view.update(cx, |view, cx| {
+                view.set_session_details_wanted(wanted, Some(anchor.clone()), cx)
+            });
+        }
         let header = self.render_workarea_header(cx);
         let terminal_bar =
             (shows_terminal && surface.is_some()).then(|| self.render_terminal_action_bar(cx));

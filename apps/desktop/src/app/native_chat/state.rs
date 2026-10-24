@@ -177,6 +177,8 @@ pub(crate) struct NativeChatView {
     /// The Files and links menu is about to open, or its close has been sent to the core and the
     /// document still says open: either way the next render must not open it again.
     pub(super) files_links_menu_pending: bool,
+    /// The Session details panel: wanted, docked or floating (session_details/).
+    pub(crate) session_details: super::session_details::SessionDetailsView,
     pub(super) files_links_closing: bool,
     pub(super) files_links_jump_revision: u64,
     /// The question jump this pane last scrolled to (`None` before its first document), and the
@@ -450,6 +452,7 @@ impl NativeChatView {
             files_links_subscription: None,
             files_links_input_window: None,
             files_links_menu_pending: false,
+            session_details: Default::default(),
             files_links_closing: false,
             files_links_jump_revision: 0,
             open_question_jump_revision: None,

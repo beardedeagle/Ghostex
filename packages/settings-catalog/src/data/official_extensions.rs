@@ -288,6 +288,19 @@ pub const GHOSTEX_OFFICIAL_EXTENSIONS: J = J::Arr(&[
         ("settingKeys", J::Arr(&[J::Str("readAloudVoice"), J::Str("readAloudRate"), J::Str("readAloudUnavailable")])),
         ("hotkeys", J::Arr(&[J::Str("readAloudLastReply"), J::Str("readAloudStop")])),
     ]),
+    // CDXC:SessionDetails 2026-10-25 DECISION:
+    // User (Q18): "build all but please put this as an extension so i enable it and test it but others dont get it (add text that this is beta in the description for this in extensions)". A whole-feature entry like Read aloud, with a new key (`sessionDetailsPanelHidden`, default on = hidden) because the settings file stores every default; off hides the header's context ring, the panel and the Claude task list row, and gives Claude sessions no task-list variable. Not behind Enable Experimental Features, so the card shows (marked beta) and the switch stays off for everyone who does not turn it on.
+    // SEE-ALSO: server/src/session_details/ (the data and the gate), packages/gx-chat-core/src/extras/session_details/, apps/desktop/src/app/native_chat/session_details/.
+    J::Obj(&[
+        ("description", J::Str("Beta. A panel beside each Claude chat, opened from the context ring at the top right of the window: where the session runs, how full its context is with Claude's own breakdown, its connectors, skills and memory files, its changes, background commands and task list.")),
+        ("category", J::Str("features")),
+        ("id", J::Str("sessionDetailsPanel")),
+        ("placement", J::Str("feature")),
+        ("settingsKey", J::Str("sessionDetailsPanelHidden")),
+        ("appWide", J::Bool(true)),
+        ("title", J::Str("Session details panel")),
+        ("settingKeys", J::Arr(&[J::Str("sessionDetailsClaudeTaskTools")])),
+    ]),
     // CDXC:Extensions 2026-10-19 DECISION:
     // User (Q306): Connectors, OS Integration and Debugging join the Settings rail's Extensions group, and "for the ones that aren't in extensions already add them to extensions and allow disabling/enabling them". Q313: "Switch on top of the gate": each is on by default and its page shows only while its switch is on and its gate (`gatedBy`) is open: Enable Experimental Features for Connectors and OS Integration, Show Advanced for Debugging (a search still finds Debugging, CDXC:Settings 2026-09-26 in rail.rs). Its Store card is left out while the gate is closed. Turning Connectors off also turns off `ghostex connectors` and its gxserver routes (server/src/connectors/gate.rs, whose CDXC:Connectors 2026-10-15 decision still holds). New `…Hidden` keys default to false, so nobody's Settings changes.
     J::Obj(&[

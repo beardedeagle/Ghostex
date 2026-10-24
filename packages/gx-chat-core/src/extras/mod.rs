@@ -19,6 +19,7 @@ pub mod panels;
 pub mod save_markdown;
 pub mod save_markdown_paths;
 pub mod search;
+pub mod session_details;
 pub mod settle;
 pub mod subagent;
 pub mod subagent_rows;

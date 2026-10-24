@@ -420,6 +420,7 @@ pub fn usage() -> String {
         format_help_command("read-session-chat-skills <selector> --json", "List skills available to the session's agent"),
         format_help_command("read-session-chat-files <selector> --json", "List the session project's files for @ mentions"),
         format_help_command("read-session-files-links <selector> --json", "List every attachment, file and link the session mentioned, and for a coordinator its threads too, grouped by session"),
+        format_help_command("read-session-details <selector> [--refresh] --json", "Read what the Session details panel shows for a Claude session: where it runs, its context use and Claude's own breakdown of it, connectors, skills, memory files, changes and finished background commands; --refresh asks Claude for a fresh breakdown (needs the Session details panel extension)"),
         format_help_command("send-session-chat-message <selector> <text>", "Send a chat message into an agent session"),
         format_help_command("answer-session-chat-prompt <selector> --answer-json '<json>'", "Answer a pending question/approval prompt or an on-screen picker row"),
         format_help_command("rewind-session-chat <selector> --message-id <uuid> --json", "Drive Claude Code or Codex rewind to the point before a user prompt"),

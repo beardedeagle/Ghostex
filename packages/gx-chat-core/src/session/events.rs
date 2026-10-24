@@ -136,6 +136,9 @@ fn route(state: &mut ChatState, event: &Event, context: &ChatContext) -> Vec<Eff
             if let Some(catch_up) = settings.catch_up {
                 state.core.catch_up_enabled = catch_up;
             }
+            if let Some(session_details) = settings.session_details {
+                state.core.session_details_enabled = session_details;
+            }
             if let Some(send_on_pick) = settings.send_on_pick {
                 state.core.send_on_pick_enabled = send_on_pick;
             }
@@ -229,6 +232,9 @@ pub fn boot_read(
         state.core.title = settings.title;
         if let Some(catch_up) = settings.catch_up {
             state.core.catch_up_enabled = catch_up;
+        }
+        if let Some(session_details) = settings.session_details {
+            state.core.session_details_enabled = session_details;
         }
         if let Some(send_on_pick) = settings.send_on_pick {
             state.core.send_on_pick_enabled = send_on_pick;

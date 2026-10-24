@@ -137,6 +137,12 @@ pub const CATALOG: &[CatalogStore] = &[
         Local,
     ),
     store(
+        "sessionDetailsCollapsed",
+        "ghostex.chat.sessionDetails.collapsed",
+        false,
+        Local,
+    ),
+    store(
         "terminalExpanded",
         "ghostex.sessionChat.terminalToolExpanded",
         false,

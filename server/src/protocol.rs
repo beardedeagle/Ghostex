@@ -571,6 +571,9 @@ pub fn endpoint_for(path: &str) -> Option<EndpointDescriptor> {
         | "/api/catchUpSession"
         // CDXC:FilesAndLinks 2026-10-12 WHY: remote-allowed like readSessionChat: the transcripts it reads live on the machine that runs the sessions.
         | "/api/readSessionFilesLinks"
+        // CDXC:SessionDetails 2026-10-25 WHY: remote-allowed like readSessionChat: the transcript, the agent process and the checkout the panel reads live on the machine that runs the session.
+        | "/api/readSessionDetails"
+        | "/api/stopSessionBackgroundTask"
         | "/api/readSessionChatSkills"
         | "/api/readSessionChatFiles"
         | "/api/sendSessionChatMessage"

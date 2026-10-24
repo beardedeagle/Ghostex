@@ -85,6 +85,7 @@ impl GhostexGpuiApp {
                 chat.update(cx, |chat, cx| chat.set_under_workarea_header(under, cx));
             }
         }
+        self.sync_session_details_chats(cx);
         let top_inset = if floating {
             0.0
         } else {

@@ -172,6 +172,14 @@ fn start(
         ("GHOSTEX_ZMX_BIN", Some(program.to_string())),
         // CDXC:AgentScreenDetection 2026-10-07 WHY: sessions advertise TERM_PROGRAM=ghostty, so Empryo draws its chat avatars as Kitty image placeholders (U+10EEEE plus row and column diacritics). wmx's screen model does not place those cells the way Empryo does, so every capture of a window showing them came back shifted and overwritten (seen live 2026-10-07: "Empr̎pryo" rows, an input box missing its right border), and Empryo's chat could find no input box and held every send. Empryo is told not to draw them in wmx sessions until wmx models the placeholders. SEE-ALSO: .dependencies/wmx (its VT screen).
         ("EMPRYO_NO_KITTY_IMAGES", Some("1".to_string())),
+        // Claude's task list while the Session details panel asks for it (session_details/gate.rs).
+        (
+            "CLAUDE_CODE_ENABLE_TODO_TOOLS",
+            crate::session_details::claude_task_tools_environment(
+                &crate::paths::get_gxserver_paths(None),
+            )
+            .map(|(_, value)| value.to_string()),
+        ),
     ] {
         if let Some(value) = value {
             environment.insert(key.into(), value);
