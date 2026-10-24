@@ -53,9 +53,10 @@ impl RunningThinking {
             .then(|| self.live.as_deref() == Some(id))
     }
 
-    /// Adds `thinkingCard` to a projected reasoning row of the running turn.
-    pub fn mark(&self, message: &ChatMessage, row: &mut Value) {
-        if !self.ids.iter().any(|id| id == &message.id) {
+    /// Adds `thinkingCard` to a projected reasoning row of the running turn. Any other row keeps
+    /// the model it shares with the projection cache.
+    pub fn mark(&self, message: &ChatMessage, row: &mut std::sync::Arc<Value>) {
+        if !self.ids.iter().any(|id| id == &message.id) || !row.is_object() {
             return;
         }
         let text: String = message
@@ -67,7 +68,7 @@ impl RunningThinking {
             })
             .collect::<Vec<_>>()
             .join("\n");
-        if let Value::Object(fields) = row {
+        if let Value::Object(fields) = std::sync::Arc::make_mut(row) {
             fields.insert(
                 "thinkingCard".to_string(),
                 json!({

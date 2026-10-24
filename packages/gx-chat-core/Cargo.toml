@@ -24,7 +24,8 @@ ghostex-gx-visual = { path = "../gx-visual" }
 # walk the same tree with the same node offsets. It is pure Rust and builds for
 # wasm32-unknown-unknown.
 markdown = "1"
-serde = { version = "1", features = ["derive"] }
+# `rc` serializes a row's shared model (`Arc<Value>`, `document/transcript.rs`) as the bare value.
+serde = { version = "1", features = ["derive", "rc"] }
 # `preserve_order` keeps a parsed object's key order. A tool call's arguments are serialized back
 # into the document (the compact preview and the expanded body), and `JSON.stringify` writes an
 # object's keys in insertion order; without this they would come out alphabetised and every tool row

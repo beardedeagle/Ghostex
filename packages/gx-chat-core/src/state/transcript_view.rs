@@ -22,6 +22,7 @@
 //!    drains, and the batch is taken from the END of the queue, newest first.
 
 use std::collections::BTreeMap;
+use std::sync::Arc;
 
 use ghostex_gx_protocol::ChatMessage;
 use serde_json::Value;
@@ -156,10 +157,21 @@ pub struct TranscriptViewState {
 /// an open row's detail is read from: folding merges a tool-only message INTO the assistant turn
 /// above it, so the blocks a row's index points at are the anchor's merged blocks as projected, not
 /// the raw message's.
+///
+/// CDXC:SessionChat 2026-10-24 WHY: Every drawn row held a deep copy of its cached model, so a
+/// 3,400-message chat kept each model twice: 75.6 MB in this cache and 76.5 MB more in the row
+/// list. A row now shares the cached model and copies it only when it changes it
+/// (`Arc::make_mut`: a thinking card, the open tool call, a name on an agent-message card). Rows
+/// inside a turn's work fold all carry the fold's two marks (`list_tools_in_work_fold`), so the
+/// entry keeps its model the way its rows last drew it (`in_work_fold`) rather than have each of
+/// them change a copy.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ProjectedMessage {
     pub source: ChatMessage,
-    pub model: Value,
+    pub model: Arc<Value>,
+    /// Set while `model` carries the work-fold marks, with what they replaced, so a row drawn
+    /// outside a fold gets the model exactly as projected.
+    pub in_work_fold: Option<crate::transcript::tool_rows::WorkFoldMarks>,
     /// The line-break rule the model was projected under; a change of agent family re-projects.
     pub line_breaks: crate::transcript::line_breaks::AgentLineBreaks,
     /// The tag-shaped words of the reply's prose (`transcript/open_questions.rs`), and those of

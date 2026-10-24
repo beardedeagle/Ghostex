@@ -156,10 +156,10 @@ fn rows_newest_first(items: &[TranscriptItem]) -> Vec<(usize, Option<usize>, &Va
     let mut rows = Vec::new();
     for (item_index, item) in items.iter().enumerate().rev() {
         match item {
-            TranscriptItem::Message { message } => rows.push((item_index, None, message)),
+            TranscriptItem::Message { message } => rows.push((item_index, None, &**message)),
             TranscriptItem::Summary { work, .. } => {
                 for (work_index, message) in work.iter().enumerate().rev() {
-                    rows.push((item_index, Some(work_index), message));
+                    rows.push((item_index, Some(work_index), &**message));
                 }
             }
             // A finished turn's work holds no call an approval still waits on.
@@ -263,7 +263,7 @@ pub fn open_waiting_call_in(
     }
 }
 
-/// Opens the waiting call where [`locate`] found it.
+/// Opens the waiting call where [`locate`] found it, in the row's own copy of its model.
 fn mark_waiting_call(items: &mut [TranscriptItem], target: Target) {
     let message = match (&mut items[target.item], target.work) {
         (TranscriptItem::Message { message }, None) => message,
@@ -278,7 +278,11 @@ fn mark_waiting_call(items: &mut [TranscriptItem], target: Target) {
         }
         _ => return,
     };
-    let Value::Object(fields) = message else {
+    // A row with nothing to open keeps the model it shares with the projection cache.
+    if !message.is_object() || (target.place.files.is_empty() && target.place.tool.is_none()) {
+        return;
+    }
+    let Value::Object(fields) = std::sync::Arc::make_mut(message) else {
         return;
     };
     // A write waiting on its approval opens its file rows to the diff it asks to make.

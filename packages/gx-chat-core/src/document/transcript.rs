@@ -14,7 +14,10 @@ use serde_json::Value;
 /// Free-form for now. It is the single largest shape in the document (markdown marks, tool rows,
 /// file cards, question exchanges, images, system cards, reasoning, agent messages) and it belongs
 /// to family b, which types it as it ports the builders.
-pub type ProjectedMessage = Value;
+///
+/// Shared with the projection cache's model (`state::ProjectedMessage`): a row changes its own
+/// copy through `Arc::make_mut`, and it serializes as the bare object.
+pub type ProjectedMessage = std::sync::Arc<Value>;
 
 /// One row group in the transcript.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -93,3 +96,10 @@ pub enum TranscriptItem {
     #[serde(untagged)]
     Unknown(Value),
 }
+
+// A host may hand the rows to another thread, so a row stays `Send + Sync`, and cloning one shares
+// its models.
+const _: fn() = || {
+    fn send_sync<T: Send + Sync>() {}
+    send_sync::<TranscriptItem>();
+};

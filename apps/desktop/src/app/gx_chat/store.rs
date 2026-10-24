@@ -68,7 +68,8 @@ impl std::io::Write for Utf16Count {
 /// CDXC:SessionChat 2026-10-23 WHY: only the document used to be measured, which carries no
 /// transcript rows, so the cap never tripped. The transcript is held several times over: the
 /// authoritative list, the composed list, the retained fold, each message's projection and the
-/// built rows. All of them are counted.
+/// built rows. All of them are counted, except that a built row shares its message's cached model
+/// (2026-10-24, `ProjectedMessage` in gx-chat-core), so the cache's models are not counted twice.
 fn retained_past_limit(core: &ChatCore) -> bool {
     let state = core.state();
     let mut count = Utf16Count {
@@ -84,7 +85,6 @@ fn retained_past_limit(core: &ChatCore) -> bool {
         serde_json::to_writer(&mut count, &state.transcript_view.deferred)?;
         for projected in state.transcript_view.projected.values() {
             serde_json::to_writer(&mut count, &projected.source)?;
-            serde_json::to_writer(&mut count, &projected.model)?;
         }
         Ok(())
     })();

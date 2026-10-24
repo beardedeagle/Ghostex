@@ -3,6 +3,7 @@
 //! Ported from `packages/shared/session-chat-controller/native-presentation.ts`.
 
 use std::collections::BTreeMap;
+use std::sync::Arc;
 
 use ghostex_gx_protocol::{ChatBlock, ChatMessage, ChatRole};
 use serde_json::{Map, Value};
@@ -44,7 +45,9 @@ use crate::transcript::sent_message::{project_sent_messages, resolve_recipients}
 use crate::transcript::simple::{edit_label, tool_count_label};
 use crate::transcript::system_cards::classify_system_card;
 use crate::transcript::tool_fold::{pair_tool_blocks, split_blocks, ToolPair};
-use crate::transcript::tool_rows::{list_tools_in_work_fold, tool_run_shows_all_rows};
+use crate::transcript::tool_rows::{
+    list_tools_in_work_fold, mark_work_fold, tool_run_shows_all_rows, unmark_work_fold,
+};
 use crate::transcript::transcript::{
     completed_chat_work, project_chat_transcript, TranscriptProjection,
 };
@@ -565,15 +568,65 @@ pub fn project_cached(
     scope: &ProjectionScope<'_>,
     context: &ChatContext,
     message: &ChatMessage,
-) -> Value {
-    if let Some(entry) = cache.get(&message.id) {
-        if fresh(entry, message, scope) {
-            return entry.model.clone();
-        }
+) -> Arc<Value> {
+    Arc::clone(&cached_entry(cache, scope, context, message).model)
+}
+
+/// [`project_cached`]'s cache entry.
+fn cached_entry<'c>(
+    cache: &'c mut ProjectionCache,
+    scope: &ProjectionScope<'_>,
+    context: &ChatContext,
+    message: &ChatMessage,
+) -> &'c mut ProjectedMessage {
+    let stale = cache
+        .get(&message.id)
+        .is_none_or(|entry| !fresh(entry, message, scope));
+    if stale {
+        cache.insert(message.id.clone(), project_entry(scope, context, message));
     }
-    let entry = project_entry(scope, context, message);
-    let model = entry.model.clone();
-    cache.insert(message.id.clone(), entry);
+    cache
+        .get_mut(&message.id)
+        .expect("an entry just checked or cached")
+}
+
+/// How a row draws a model.
+#[derive(Clone, Copy, PartialEq)]
+enum Draw {
+    /// As projected.
+    Row,
+    /// Inside a turn's work fold, with the fold's marks (`list_tools_in_work_fold`).
+    InWorkFold,
+    /// Not drawn, only read for keys the work-fold marks never touch (`files`, `questions`,
+    /// `sentMessages`, `workflows`): either form does.
+    Read,
+}
+
+/// The cached model in the form `draw` asks for. A row turns the entry to its own form, so the rows
+/// that draw it share the cached model until one changes it (`ProjectedMessage::in_work_fold`).
+fn drawn_from(entry: &mut ProjectedMessage, draw: Draw) -> Arc<Value> {
+    match draw {
+        Draw::Row => {
+            if let Some(marks) = entry.in_work_fold.take() {
+                unmark_work_fold(Arc::make_mut(&mut entry.model), marks);
+            }
+        }
+        Draw::InWorkFold => {
+            if entry.in_work_fold.is_none() {
+                entry.in_work_fold = Some(mark_work_fold(Arc::make_mut(&mut entry.model)));
+            }
+        }
+        Draw::Read => {}
+    }
+    Arc::clone(&entry.model)
+}
+
+/// A model no cache entry holds (a placeholder, a row projected off the cache) in the form `draw`
+/// asks for.
+fn drawn(mut model: Arc<Value>, draw: Draw) -> Arc<Value> {
+    if draw == Draw::InWorkFold {
+        list_tools_in_work_fold(Arc::make_mut(&mut model));
+    }
     model
 }
 
@@ -606,7 +659,8 @@ fn project_entry(
     };
     ProjectedMessage {
         source: message.clone(),
-        model,
+        model: Arc::new(model),
+        in_work_fold: None,
         line_breaks: scope.line_breaks,
         linked_tags: linked_words(&words, &scope.question_tags),
         tag_words: words,
@@ -707,11 +761,12 @@ impl<'a> Builder<'a> {
     }
 
     /// `projected`: the cached model when the cache holds this exact message.
-    fn projected(&self, message: &ChatMessage) -> Option<Value> {
+    fn projected(&mut self, message: &ChatMessage, draw: Draw) -> Option<Arc<Value>> {
+        let scope = self.scope;
         self.cache
-            .get(&message.id)
-            .filter(|entry| fresh(entry, message, self.scope))
-            .map(|entry| entry.model.clone())
+            .get_mut(&message.id)
+            .filter(|entry| fresh(entry, message, scope))
+            .map(|entry| drawn_from(entry, draw))
     }
 
     /// The full projection when it is cheap or the row is near the tail; otherwise a stable
@@ -722,14 +777,19 @@ impl<'a> Builder<'a> {
     /// each other on every batch), or a row a batch of this run already projected and that is
     /// still out of date. Queuing either kept the zero-delay backfill re-running the whole
     /// projection for ever.
-    fn message_or_placeholder(&mut self, message: &ChatMessage, eager: bool) -> Value {
-        if let Some(model) = self.projected(message) {
+    fn message_or_placeholder(
+        &mut self,
+        message: &ChatMessage,
+        eager: bool,
+        draw: Draw,
+    ) -> Arc<Value> {
+        if let Some(model) = self.projected(message, draw) {
             self.used.insert(message.id.clone());
             return model;
         }
         if let Some(&at) = self.queued.get(&message.id) {
             if self.backfill[at] == *message {
-                return placeholder(message);
+                return drawn(Arc::new(placeholder(message)), draw);
             }
         }
         let drawn_before = self
@@ -739,15 +799,16 @@ impl<'a> Builder<'a> {
         let first = self.used.insert(message.id.clone()) && !drawn_before;
         if !first || self.scope.backfilled.contains(&message.id) {
             self.off_cache = true;
-            return project_entry(self.scope, self.context, message).model;
+            return drawn(project_entry(self.scope, self.context, message).model, draw);
         }
         if eager {
-            return project_cached(self.cache, self.scope, self.context, message);
+            let entry = cached_entry(self.cache, self.scope, self.context, message);
+            return drawn_from(entry, draw);
         }
         self.queued.insert(message.id.clone(), self.backfill.len());
         self.backfill.push(message.clone());
         self.last_queued = Some(self.current);
-        placeholder(message)
+        drawn(Arc::new(placeholder(message)), draw)
     }
 
     fn eager(&self, index: usize) -> bool {
@@ -905,15 +966,15 @@ pub(crate) fn build_items(
                 let eager = builder.eager(index);
                 TranscriptItem::Summary {
                     id: turn.user.id.clone(),
-                    user: builder.message_or_placeholder(&turn.user, eager),
+                    user: builder.message_or_placeholder(&turn.user, eager, Draw::Row),
                     final_message: turn
                         .final_message
                         .as_ref()
-                        .map(|message| builder.message_or_placeholder(message, eager)),
+                        .map(|message| builder.message_or_placeholder(message, eager, Draw::Row)),
                     earlier_replies: turn
                         .earlier_replies
                         .iter()
-                        .map(|message| builder.message_or_placeholder(message, eager))
+                        .map(|message| builder.message_or_placeholder(message, eager, Draw::Row))
                         .collect(),
                     active: turn.active,
                     work_open: turn.active && turn.final_message.is_none(),
@@ -922,11 +983,13 @@ pub(crate) fn build_items(
                         .active_work
                         .iter()
                         .map(|message| {
-                            let mut row = builder.message_or_placeholder(message, eager);
-                            list_tools_in_work_fold(&mut row);
+                            let mut row =
+                                builder.message_or_placeholder(message, eager, Draw::InWorkFold);
                             running_thinking.mark(message, &mut row);
-                            if turn.running_row.as_deref() == Some(message.id.as_str()) {
-                                if let Value::Object(fields) = &mut row {
+                            if turn.running_row.as_deref() == Some(message.id.as_str())
+                                && row.is_object()
+                            {
+                                if let Value::Object(fields) = Arc::make_mut(&mut row) {
                                     fields.insert("toolsOpen".to_string(), Value::Bool(true));
                                 }
                             }
@@ -936,7 +999,7 @@ pub(crate) fn build_items(
                     outcome: turn
                         .outcome
                         .iter()
-                        .map(|message| builder.message_or_placeholder(message, eager))
+                        .map(|message| builder.message_or_placeholder(message, eager, Draw::Row))
                         .collect(),
                     latest_reply: latest_reply == Some(index),
                 }
@@ -952,7 +1015,7 @@ pub(crate) fn build_items(
                 let eager = builder.eager(first + index);
                 let turn = match item {
                     RenderItem::Message(message) => {
-                        let mut row = builder.message_or_placeholder(message, eager);
+                        let mut row = builder.message_or_placeholder(message, eager, Draw::Row);
                         running_thinking.mark(message, &mut row);
                         return TranscriptItem::Message { message: row };
                     }
@@ -971,7 +1034,7 @@ pub(crate) fn build_items(
                     work.iter().chain(turn.final_message.iter()).collect();
                 for message in sources {
                     if let Value::Array(rows) = builder
-                        .message_or_placeholder(message, eager)
+                        .message_or_placeholder(message, eager, Draw::Read)
                         .get("files")
                         .cloned()
                         .unwrap_or(Value::Null)
@@ -1024,9 +1087,7 @@ pub(crate) fn build_items(
                     work: collapsed_work
                         .iter()
                         .map(|message| {
-                            let mut row = builder.message_or_placeholder(message, eager);
-                            list_tools_in_work_fold(&mut row);
-                            row
+                            builder.message_or_placeholder(message, eager, Draw::InWorkFold)
                         })
                         .collect(),
                     /* The turn's answered question cards, hoisted out of the fold. */
@@ -1034,7 +1095,7 @@ pub(crate) fn build_items(
                         .iter()
                         .flat_map(|row| {
                             match builder
-                                .message_or_placeholder(row, eager)
+                                .message_or_placeholder(row, eager, Draw::Read)
                                 .get("questions")
                                 .cloned()
                             {
@@ -1048,7 +1109,7 @@ pub(crate) fn build_items(
                         .iter()
                         .flat_map(|row| {
                             match builder
-                                .message_or_placeholder(row, eager)
+                                .message_or_placeholder(row, eager, Draw::Read)
                                 .get("sentMessages")
                                 .cloned()
                             {
@@ -1062,7 +1123,7 @@ pub(crate) fn build_items(
                         .iter()
                         .flat_map(|row| {
                             match builder
-                                .message_or_placeholder(row, eager)
+                                .message_or_placeholder(row, eager, Draw::Read)
                                 .get("workflows")
                                 .cloned()
                             {
@@ -1073,12 +1134,12 @@ pub(crate) fn build_items(
                         .collect(),
                     artifacts: visible_artifacts
                         .iter()
-                        .map(|message| builder.message_or_placeholder(message, eager))
+                        .map(|message| builder.message_or_placeholder(message, eager, Draw::Row))
                         .collect(),
                     final_message: turn
                         .final_message
                         .as_ref()
-                        .map(|message| builder.message_or_placeholder(message, eager)),
+                        .map(|message| builder.message_or_placeholder(message, eager, Draw::Row)),
                 }
             })
             .collect()
@@ -1090,7 +1151,7 @@ pub(crate) fn drop_hidden_rows(items: &mut Vec<TranscriptItem>, hidden: &[String
     if hidden.is_empty() {
         return;
     }
-    let shown = |row: &Value| {
+    let shown = |row: &Arc<Value>| {
         !row.get("id")
             .and_then(Value::as_str)
             .is_some_and(|id| hidden.iter().any(|hidden| hidden == id))

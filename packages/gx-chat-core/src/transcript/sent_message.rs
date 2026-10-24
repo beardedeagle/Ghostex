@@ -6,11 +6,12 @@
 //! SEE-ALSO: agent_message.rs parses the received side; sent_message_script.rs reads the message out of variables and decides NOT SENT; server/src/ghostex_cli/agents/delivery.rs prints the result JSON read here; apps/desktop/src/app/native_chat/inter_agent_message.rs and apps/mobile/app/src/chat/native/transcript/SystemRows.tsx draw both cards.
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use ghostex_gx_protocol::{ChatBlock, ChatMessage};
 use serde_json::{json, Value};
 
-use crate::document::TranscriptItem;
+use crate::document::{ProjectedMessage, TranscriptItem};
 use crate::event::KnownSession;
 use crate::transcript::agent_message_card::{
     agent_display_name, apply_live_delivery, dress_received, dress_sent, live_delivery_key,
@@ -824,7 +825,7 @@ fn complete(
     }
 }
 
-fn messages_mut(item: &mut TranscriptItem) -> Vec<&mut Value> {
+fn messages_mut(item: &mut TranscriptItem) -> Vec<&mut ProjectedMessage> {
     match item {
         TranscriptItem::Message { message } => vec![message],
         TranscriptItem::Summary {
@@ -902,13 +903,7 @@ pub fn resolve_recipients_after(
     let directory = &directory;
     for item in items.iter_mut() {
         for message in messages_mut(item) {
-            complete_received(directory, &hosts, message);
-            if let Some(cards) = message
-                .get_mut("sentMessages")
-                .and_then(Value::as_array_mut)
-            {
-                complete(directory, &hosts, deliveries, cards);
-            }
+            resolve_message(directory, &hosts, deliveries, message);
         }
         // A finished turn's hoisted cards are copies of its work rows' own.
         if let TranscriptItem::CompletedWork { sent_messages, .. } = item {
@@ -920,6 +915,44 @@ pub fn resolve_recipients_after(
         .as_ref()
         .map(|log| log.take())
         .unwrap_or_default()
+}
+
+/// Names one row's agent-message cards. Both passes run on a copy of what they rewrite, so a row
+/// they leave as it was keeps the model it shares with the projection cache, and only a row whose
+/// names moved gets its own.
+fn resolve_message(
+    directory: &Names,
+    hosts: &HostDirectory,
+    deliveries: Option<&Value>,
+    message: &mut ProjectedMessage,
+) {
+    match message.get("interAgentMessage").map(Value::is_object) {
+        Some(true) => {
+            let mut named = Value::clone(message);
+            complete_received(directory, hosts, &mut named);
+            if named != **message {
+                *message = Arc::new(named);
+            }
+        }
+        // `complete_received` reads the key through `IndexMut`, which writes `null` into a row that
+        // has none: a placeholder, which no cache entry shares.
+        None => complete_received(directory, hosts, Arc::make_mut(message)),
+        Some(false) => {}
+    }
+    let cards = message
+        .get("sentMessages")
+        .and_then(Value::as_array)
+        .filter(|cards| !cards.is_empty())
+        .and_then(|cards| {
+            let mut named = cards.clone();
+            complete(directory, hosts, deliveries, &mut named);
+            (named != *cards).then_some(named)
+        });
+    if let Some(cards) = cards {
+        if let Value::Object(fields) = Arc::make_mut(message) {
+            fields.insert("sentMessages".to_string(), Value::Array(cards));
+        }
+    }
 }
 
 impl LearnedNames {
@@ -971,7 +1004,7 @@ impl<'a> NameCheck<'a> {
 }
 
 /// [`messages_mut`] read-only.
-fn messages_of(item: &TranscriptItem) -> Vec<&Value> {
+fn messages_of(item: &TranscriptItem) -> Vec<&ProjectedMessage> {
     match item {
         TranscriptItem::Message { message } => vec![message],
         TranscriptItem::Summary {
