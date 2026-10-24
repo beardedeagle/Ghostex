@@ -21,6 +21,16 @@ pub(super) struct QuestionPing {
     hovered: bool,
     timer_for: Option<Instant>,
     timer: Option<Task<()>>,
+    /// The pill shows the count instead of the ?, flipped by `count_swap` every `countSwapMs`
+    /// while two or more questions wait (chat_pills.rs, where the user's decision lives).
+    showing_count: bool,
+    count_swap: Option<Task<()>>,
+}
+
+impl QuestionPing {
+    pub(super) fn showing_count(&self) -> bool {
+        self.showing_count
+    }
 }
 
 /// How far the ping on screen has played, 0 to 1.
@@ -55,6 +65,24 @@ impl NativeChatView {
         }
         ping.newest = newest;
         ping.count = count;
+        if count < 2 {
+            ping.showing_count = false;
+            ping.count_swap = None;
+        } else if ping.count_swap.is_none() {
+            let every = Duration::from_millis(super::scroll_bottom::question_count_swap_ms());
+            ping.count_swap = Some(cx.spawn(async move |this, cx| {
+                loop {
+                    cx.background_executor().timer(every).await;
+                    let flipped = this.update(cx, |chat, cx| {
+                        chat.question_ping.showing_count ^= true;
+                        cx.notify();
+                    });
+                    if flipped.is_err() {
+                        break;
+                    }
+                }
+            }));
+        }
         let next = *ping.next.get_or_insert(now + every);
         if now >= next {
             if !ping.hovered && !crate::app::helpers::gpui_macos_reduce_motion_enabled() {
@@ -111,19 +139,10 @@ pub(super) fn attention_dot(frame: Option<PingFrame>, p: &ChatAppearance) -> Vec
     let s = p.scale;
     let dot = super::scroll_bottom::question_ping_dot();
     let color = gpui::Hsla::from(rgb(super::chat_pills::ATTENTION_COLOR));
-    // The dot's corner offsets from the pill's padding box, and its centre.
-    let (top, right) = (1.0, 2.0);
-    let (center_top, center_right) = (top + dot / 2.0, right + dot / 2.0);
-    let mut parts = vec![
-        div()
-            .absolute()
-            .top(px(top * s))
-            .right(px(right * s))
-            .size(px(dot * s))
-            .rounded_full()
-            .bg(color)
-            .into_any_element(),
-    ];
+    // The dot's centre, which the ring spreads from.
+    let center_top = super::chat_pills::CORNER_DOT_TOP + dot / 2.0;
+    let center_right = super::chat_pills::CORNER_DOT_RIGHT + dot / 2.0;
+    let mut parts = vec![super::chat_pills::corner_dot(s).into_any_element()];
     if let Some(frame) = frame {
         // Eased out: it leaves fast and slows as it fades.
         let spread = 1.0 - (1.0 - frame.progress).powi(3);

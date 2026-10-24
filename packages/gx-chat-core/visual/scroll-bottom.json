@@ -16,5 +16,5 @@
   "pillGap": 8,
   "questionFlashMs": 1600,
   "questionJumpMargin": 12,
-  "questionPing": { "durationMs": 800, "everyMs": 30000, "dotSize": 6, "scale": 2.8, "alpha": 0.8 }
+  "questionPing": { "durationMs": 800, "everyMs": 30000, "dotSize": 6, "scale": 2.8, "alpha": 0.8, "countSwapMs": 2000 }
 }
