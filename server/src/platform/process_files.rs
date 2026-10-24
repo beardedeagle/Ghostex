@@ -1,16 +1,16 @@
-use std::{collections::HashMap, path::PathBuf, ptr, time::Duration};
-use windows_sys::Win32::{
-    Foundation::{
-        CloseHandle, DuplicateHandle, DUPLICATE_SAME_ACCESS, ERROR_NO_MORE_ITEMS, HANDLE,
-    },
-    Storage::FileSystem::{
-        GetFileType, GetFinalPathNameByHandleW, FILE_NAME_OPENED, FILE_TYPE_DISK,
-    },
-    System::{
-        Diagnostics::ProcessSnapshotting::*,
-        Threading::{
+use std::{collections::HashMap, mem::size_of, path::PathBuf, ptr, time::Duration};
+use windows_sys::{
+    Wdk::System::Threading::{NtQueryInformationProcess, ProcessHandleInformation},
+    Win32::{
+        Foundation::{
+            CloseHandle, DuplicateHandle, DUPLICATE_SAME_ACCESS, HANDLE,
+            STATUS_INFO_LENGTH_MISMATCH,
+        },
+        Storage::FileSystem::{
+            GetFileType, GetFinalPathNameByHandleW, FILE_NAME_OPENED, FILE_TYPE_DISK,
+        },
+        System::Threading::{
             GetCurrentProcess, OpenProcess, PROCESS_DUP_HANDLE, PROCESS_QUERY_INFORMATION,
-            PROCESS_VM_READ,
         },
     },
 };
@@ -22,8 +22,8 @@ const OPEN_PATHS_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// The open file paths of each process, read by a child gxserver (`process-open-files <pid>…`).
 ///
-/// CDXC:SessionIdentity 2026-10-24 WHY:
-/// The handle walk below duplicates every handle of another process into the caller and asks Windows about it, the only native work gxserver did in-process for one agent, and it ran right before the native Windows daemon died of an access violation on every Codex session start and restore on a reporter's computer (GitHub #289; not reproduced on Windows 11 26300). It now runs in a short-lived child, one per probe for all the pids, so a fault there ends only the child: the daemon logs its exit status and goes on without those paths, the way a process it may not open is skipped. `lsof` ran out of process on macOS for the same lookup until 2026-10-23.
+/// CDXC:SessionIdentity 2026-10-25 WHY:
+/// The handle walk below duplicates every handle of another process into the caller and asks Windows about it, the only native work gxserver does for one agent. Its old `PssCaptureSnapshot` call killed the native Windows daemon with an access violation on every Codex session start and restore (GitHub #289, #292; see `open_paths`), so it runs in a short-lived child, one per probe for all the pids, and a fault there ends only the child: the daemon logs its exit status and goes on without those paths, the way a process it may not open is skipped. `lsof` ran out of process on macOS for the same lookup until 2026-10-23. This supersedes the 2026-10-24 note that the crash was not reproduced.
 pub(crate) fn open_paths_isolated(process_ids: &[i64]) -> HashMap<i64, Vec<PathBuf>> {
     let pids: Vec<i64> = process_ids.iter().copied().filter(|pid| *pid > 0).collect();
     if pids.is_empty() {
@@ -123,52 +123,26 @@ pub(crate) fn print_open_paths(arguments: &[String]) -> anyhow::Result<()> {
 
 /// CDXC:SessionIdentity 2026-09-14 WHY:
 /// A newly started native Codex has no conversation ID in argv. Windows previously returned no open files, leaving chat at "starting" after the terminal had replied.
-/// Read the exact process-owned rollout through Windows process snapshotting, matching macOS lsof and Linux procfs without guessing from a shared project directory.
+/// Read the exact process-owned rollout from the process's handle table, matching macOS lsof and Linux procfs without guessing from a shared project directory.
+///
+/// CDXC:SessionIdentity 2026-10-25 WHY:
+/// The handle values come from `NtQueryInformationProcess(ProcessHandleInformation)`, not `PssCaptureSnapshot`. On Windows 11 22621 `PssCaptureSnapshot(PSS_CAPTURE_HANDLES)` raised an access violation inside Windows for every process it was pointed at (Codex, Explorer, wmx, PowerShell), while other capture flags and this query worked; that call was the gxserver crash on every Codex session start in GitHub #289 and #292. Do not bring the process-snapshot API back for this lookup.
 fn open_paths(process_id: i64) -> Vec<PathBuf> {
     let Some(pid) = u32::try_from(process_id).ok().filter(|pid| *pid != 0) else {
         return Vec::new();
     };
     unsafe {
-        let process = OpenProcess(
-            PROCESS_QUERY_INFORMATION | PROCESS_VM_READ | PROCESS_DUP_HANDLE,
-            0,
-            pid,
-        );
+        let process = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_DUP_HANDLE, 0, pid);
         if process.is_null() {
             return Vec::new();
         }
-        let mut snapshot = ptr::null_mut();
-        let status = PssCaptureSnapshot(process, PSS_CAPTURE_HANDLES, 0, &mut snapshot);
-        if status != 0 {
-            CloseHandle(process);
-            return Vec::new();
-        }
-        let mut marker = ptr::null_mut();
-        if PssWalkMarkerCreate(ptr::null(), &mut marker) != 0 {
-            PssFreeSnapshot(GetCurrentProcess(), snapshot);
-            CloseHandle(process);
-            return Vec::new();
-        }
+        let handles = handle_values(process).unwrap_or_default();
         let mut paths = Vec::new();
-        let mut complete = false;
-        // Each walk advances within this immutable snapshot. Bound the work for unusually large processes.
-        for _ in 0..65_536 {
-            let mut entry: PSS_HANDLE_ENTRY = std::mem::zeroed();
-            let status = PssWalkSnapshot(
-                snapshot,
-                PSS_WALK_HANDLES,
-                marker,
-                (&mut entry as *mut PSS_HANDLE_ENTRY).cast(),
-                std::mem::size_of::<PSS_HANDLE_ENTRY>() as u32,
-            );
-            if status != 0 {
-                complete = status == ERROR_NO_MORE_ITEMS;
-                break;
-            }
+        for handle in handles {
             let mut duplicate = ptr::null_mut();
             if DuplicateHandle(
                 process,
-                entry.Handle,
+                handle,
                 GetCurrentProcess(),
                 &mut duplicate,
                 0,
@@ -178,8 +152,7 @@ fn open_paths(process_id: i64) -> Vec<PathBuf> {
             {
                 continue;
             }
-            // Snapshot name information omits file objects. Query only duplicated disk handles;
-            // named pipes must never enter a potentially blocking path-name query.
+            // Query only duplicated disk handles; named pipes must never enter a potentially blocking path-name query.
             if GetFileType(duplicate) == FILE_TYPE_DISK {
                 if let Some(path) = file_path(duplicate) {
                     paths.push(path);
@@ -187,15 +160,70 @@ fn open_paths(process_id: i64) -> Vec<PathBuf> {
             }
             CloseHandle(duplicate);
         }
-        PssWalkMarkerFree(marker);
-        PssFreeSnapshot(GetCurrentProcess(), snapshot);
         CloseHandle(process);
-        if complete {
-            paths
-        } else {
-            Vec::new()
-        }
+        paths
     }
+}
+
+/// `PROCESS_HANDLE_SNAPSHOT_INFORMATION`, the head of the `ProcessHandleInformation` answer; windows-sys has the class but not its layout.
+#[repr(C)]
+#[allow(dead_code)]
+struct HandleSnapshotHeader {
+    number_of_handles: usize,
+    reserved: usize,
+}
+
+/// `PROCESS_HANDLE_TABLE_ENTRY_INFO`, one entry after the head.
+#[repr(C)]
+#[allow(dead_code)]
+struct HandleTableEntry {
+    handle_value: HANDLE,
+    handle_count: usize,
+    pointer_count: usize,
+    granted_access: u32,
+    object_type_index: u32,
+    handle_attributes: u32,
+    reserved: u32,
+}
+
+/// The handle values open in `process`, or `None` when Windows would not list them.
+unsafe fn handle_values(process: HANDLE) -> Option<Vec<HANDLE>> {
+    // usize elements keep the buffer aligned for both structs.
+    let mut buffer: Vec<usize> = vec![0; 8 * 1024];
+    // The table can grow between the size answer and the next call, so retry a few times.
+    for _ in 0..4 {
+        let byte_length = buffer.len() * size_of::<usize>();
+        let mut needed = 0_u32;
+        let status = NtQueryInformationProcess(
+            process,
+            ProcessHandleInformation,
+            buffer.as_mut_ptr().cast(),
+            u32::try_from(byte_length).ok()?,
+            &mut needed,
+        );
+        if status == STATUS_INFO_LENGTH_MISMATCH {
+            let wanted =
+                (needed as usize).max(byte_length * 2) + 64 * size_of::<HandleTableEntry>();
+            buffer.resize(wanted.div_ceil(size_of::<usize>()), 0);
+            continue;
+        }
+        if status < 0 {
+            return None;
+        }
+        let header = &*buffer.as_ptr().cast::<HandleSnapshotHeader>();
+        let room =
+            (byte_length - size_of::<HandleSnapshotHeader>()) / size_of::<HandleTableEntry>();
+        let entries = std::slice::from_raw_parts(
+            buffer
+                .as_ptr()
+                .cast::<u8>()
+                .add(size_of::<HandleSnapshotHeader>())
+                .cast::<HandleTableEntry>(),
+            header.number_of_handles.min(room),
+        );
+        return Some(entries.iter().map(|entry| entry.handle_value).collect());
+    }
+    None
 }
 
 fn file_path(handle: HANDLE) -> Option<PathBuf> {
