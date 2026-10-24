@@ -6,6 +6,7 @@
 //! CDXC:RemotePairing 2026-09-03 DECISION:
 //! User: "please add a toggle for tailscale. if tailscale is disabled …" (the sentence was cut off; the off behaviour below is the assumed reading).
 //! The header switch sits in the same spot as Easy Connect's, beside the header button, so toggling never expands the card. It writes Settings.remoteTailscaleEnabled; nothing is sent to gxserver because Tailscale itself is not managed by Ghostex. Off: the card is collapsed and cannot be expanded (no chevron), it is dimmed like a hidden machine tile, the status badge reads Off, and no QR is rendered because the body never mounts.
+//! (Revised 2026-10-24: the card has its own tab and is always open; switched off, its header shows the Off badge and the body is a one-line note instead of the checklist and code.)
 //!
 //! CDXC:RemotePairing 2026-10-24 DECISION:
 //! User (about Easy Connect, applied here too): "let's please not show the real qr here", "this is so when im in settings we dont show my real QR until i click on "Show QR" which opens it in a pop up".
@@ -35,7 +36,6 @@ pub(super) fn tailscale_card(
         .access
         .as_ref()
         .and_then(|access| access.tailscale.clone());
-    let open = enabled && tab.expanded == Some(PathCard::Tailscale);
     let detected = if !enabled {
         Some(("Off", BadgeTone::Disabled))
     } else {
@@ -60,10 +60,6 @@ pub(super) fn tailscale_card(
         false,
         "Tailscale",
         badges,
-        enabled.then_some(open),
-        open,
-        enabled.then_some(PathCard::Tailscale),
-        cx,
     );
     let switch = switch_control(
         &t.p,
@@ -75,7 +71,17 @@ pub(super) fn tailscale_card(
         |tab: &mut RemoteTab, checked, _window, cx| tab.set_tailscale_enabled(checked, cx),
         cx,
     );
-    let body = open.then(|| tailscale_body(tab, t, window, cx));
+    let body = Some(if enabled {
+        tailscale_body(tab, t, window, cx)
+    } else {
+        div()
+            .w_full()
+            .text_size(px(13.0))
+            .line_height(px(19.5))
+            .text_color(hsla(t.muted))
+            .child("Tailscale is off. Turn it on to connect your phone over your tailnet; nothing is installed or changed on this computer.")
+            .into_any_element()
+    });
     path_card(t, "remote-tailscale-card", head, switch, body)
 }
 

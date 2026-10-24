@@ -3,7 +3,7 @@
 //!
 //! CDXC:RemotePairing 2026-09-03 DECISION:
 //! User: show Easy Connect and Tailscale "as expandible cards so the user clicks to expand the one they want to use. i dont want the user confused by seeing 2 qr codes in front of themselves".
-//! The card is collapsed to its header row (icon, title, badges, the enable switch, a chevron) until expanded; the QR, SSH row, and paired devices only render inside the open body. The switch sits beside the header button, not inside it, so toggling Easy Connect never expands or collapses the card.
+//! The card is collapsed to its header row (icon, title, badges, the enable switch, a chevron) until expanded; the QR, SSH row, and paired devices only render inside the open body. (Superseded 2026-10-24: the card has its own tab on the Remote page and is always open; see CDXC:RemotePairing 2026-10-24 in mod.rs.) The switch sits beside the header button, not inside it, so toggling Easy Connect never expands or collapses the card.
 //!
 //! CDXC:RemotePairing 2026-09-05 DECISION:
 //! User: explain why the Tailcat CLI is needed and install it with one click; separate Connect a Phone (compact QR) from Connect a Remote machine (copy button only), and explain the SSH login on the other device.
@@ -27,9 +27,9 @@ use super::style::*;
 use super::{PathCard, RemoteTab, paired_devices, ssh_row};
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
-    AnyElement, ClickEvent, Context, FontWeight, InteractiveElement as _, IntoElement,
-    KeyDownEvent, ParentElement as _, SharedString, StatefulInteractiveElement as _, Styled as _,
-    Window, div, px,
+    AnyElement, Context, FontWeight, InteractiveElement as _, IntoElement, KeyDownEvent,
+    ParentElement as _, SharedString, StatefulInteractiveElement as _, Styled as _, Window, div,
+    px,
 };
 use gpui_component::{h_flex, v_flex};
 use serde_json::json;
@@ -77,9 +77,8 @@ pub(super) fn path_card(
         .into_any_element()
 }
 
-/// `.settings-remote-path-toggle`: icon, title, badges and the chevron; `on_toggle` is `None` for
-/// a card that cannot open (Tailscale switched off).
-#[allow(clippy::too_many_arguments)]
+/// `.settings-remote-path-toggle`: the card's icon, title and badges. The cards sit in their own
+/// tabs and are always open, so the row no longer expands anything.
 pub(super) fn path_head(
     t: &RemoteTokens,
     id: &'static str,
@@ -87,12 +86,7 @@ pub(super) fn path_head(
     accent: bool,
     title: &'static str,
     badges: Vec<AnyElement>,
-    chevron_open: Option<bool>,
-    expanded: bool,
-    on_toggle: Option<PathCard>,
-    cx: &mut Context<RemoteTab>,
 ) -> AnyElement {
-    let hover = t.card(0.30);
     h_flex()
         .id(id)
         .flex_1()
@@ -103,15 +97,6 @@ pub(super) fn path_head(
         .gap(px(10.0))
         .items_center()
         .rounded_tl(px(7.0))
-        .when(!expanded, |this| this.rounded_bl(px(7.0)))
-        .when(on_toggle.is_none(), |this| this.opacity(0.55))
-        .when_some(on_toggle, |this, card| {
-            this.cursor_pointer()
-                .hover(move |this| this.bg(hsla(hover)))
-                .on_click(cx.listener(move |tab, _: &ClickEvent, _window, cx| {
-                    tab.toggle_path_card(card, cx);
-                }))
-        })
         .child(path_icon(t, icon_path, accent))
         .child(
             div()
@@ -130,12 +115,6 @@ pub(super) fn path_head(
                 .gap(px(6.0))
                 .children(badges),
         )
-        .children(chevron_open.map(|open| {
-            div()
-                .ml_auto()
-                .flex_shrink_0()
-                .child(chevron(open, 16.0, t.muted))
-        }))
         .into_any_element()
 }
 
@@ -150,7 +129,6 @@ pub(super) fn easy_connect_card(
     let (badge_label, badge_tone) = easy_connect_status_badge(status.as_ref());
     let binary_found = status.as_ref().is_some_and(|status| status.binary_found);
     let is_on = status.as_ref().is_some_and(|status| status.enabled);
-    let expanded = tab.expanded == Some(PathCard::EasyConnect);
     let head = path_head(
         t,
         "remote-easy-connect-toggle",
@@ -161,10 +139,6 @@ pub(super) fn easy_connect_card(
             badge(t, "Recommended", super::model::BadgeTone::Plain, true),
             badge(t, badge_label, badge_tone, false),
         ],
-        Some(expanded),
-        expanded,
-        Some(PathCard::EasyConnect),
-        cx,
     );
     let switch_disabled = !rpc || status.is_none() || !binary_found;
     let switch = switch_control(
@@ -179,7 +153,7 @@ pub(super) fn easy_connect_card(
         },
         cx,
     );
-    let body = expanded.then(|| easy_connect_body(tab, t, rpc, window, cx));
+    let body = Some(easy_connect_body(tab, t, rpc, window, cx));
     path_card(t, "remote-easy-connect-card", head, switch, body)
 }
 

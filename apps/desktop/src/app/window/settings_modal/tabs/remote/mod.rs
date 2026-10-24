@@ -10,6 +10,10 @@
 //! CDXC:RemotePairing 2026-10-16 DECISION:
 //! User: "i want reopening settings to always reopen to the exact same spot i was in before (same scroll pos too and same open modals if possible)", and asked whether the open path card should be remembered too, picked "Remember it too" (supersedes the 2026-09-03 "The open card is plain UI state and is not persisted"). The expanded card (Easy Connect or Tailscale) is saved with the page's open machine dialog (`open_form`, CDXC:Settings 2026-10-16 in settings_modal/restore.rs) and reopens with Settings; an `initialRemoteSection` deep link still picks the card, and a machine dialog that open keeps closed is carried to the next open instead of being forgotten.
 //!
+//! CDXC:RemotePairing 2026-10-24 DECISION:
+//! User: "pls make tailscale and easy connect 2 tabs here instead of 2 collapsible areas cuz it's easier to switch between the 2 that way. also the already connected machines needs to be a 3rd tab there. i don't like scrolling so much in this page to get to stuff".
+//! Supersedes the 2026-09-03 expandable cards. The page opens with one tab strip (the shared `modal_bordered_segmented_control`): Easy Connect, Tailscale and Remote machines. Each tab shows its content straight away (the card's header row with its switch and badges, then its body; the saved machines and the Add tile), with Advanced below whichever tab is open. The "Connect to this computer" heading is folded into the tabs. Easy Connect is the default; the last tab is remembered the way the open card was (`open_form`'s `card`, now also `remoteMachines`). A Settings search that matches nothing on the open tab switches to the first tab with a match; deep links pick their tab.
+//!
 //! One owner (this page) reads everything the Remote page shows from the daemon, so the Easy
 //! Connect card, the Tailscale card and Advanced render the same snapshot: while Remote is the
 //! active page, a fast poll (4s: the Easy Connect status and the pairing code, which rotates after
@@ -26,7 +30,9 @@ mod ssh_row;
 mod style;
 mod tailscale;
 
-use super::super::super::native_modal_kit::capture_child_bounds;
+use super::super::super::native_modal_kit::{
+    ModalRailItem, capture_child_bounds, modal_bordered_segmented_control,
+};
 use super::super::fields::{FieldStates, QrGrid, SettingsPage};
 use super::super::model::SettingsTabId;
 use super::super::page::{PageBlock, settings_page};
@@ -89,11 +95,59 @@ impl PathCard {
             _ => None,
         }
     }
+}
 
+/// The Remote page's tabs: the two ways in (`SettingsRemoteSection`) and the saved machines.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(super) enum RemoteSection {
+    #[default]
+    EasyConnect,
+    Tailscale,
+    Machines,
+}
+
+impl RemoteSection {
+    const ALL: [Self; 3] = [Self::EasyConnect, Self::Tailscale, Self::Machines];
+
+    fn from_section(section: &str) -> Option<Self> {
+        match section {
+            "easyConnect" => Some(Self::EasyConnect),
+            "tailscale" => Some(Self::Tailscale),
+            "remoteMachines" => Some(Self::Machines),
+            _ => None,
+        }
+    }
+
+    /// The tab's id, which is also its Settings search section.
     fn anchor(self) -> &'static str {
         match self {
             Self::EasyConnect => "easyConnect",
             Self::Tailscale => "tailscale",
+            Self::Machines => "remoteMachines",
+        }
+    }
+
+    fn label(self) -> &'static str {
+        match self {
+            Self::EasyConnect => "Easy Connect",
+            Self::Tailscale => "Tailscale",
+            Self::Machines => "Remote machines",
+        }
+    }
+
+    fn index(self) -> usize {
+        Self::ALL
+            .iter()
+            .position(|section| *section == self)
+            .unwrap_or(0)
+    }
+}
+
+impl From<PathCard> for RemoteSection {
+    fn from(card: PathCard) -> Self {
+        match card {
+            PathCard::EasyConnect => Self::EasyConnect,
+            PathCard::Tailscale => Self::Tailscale,
         }
     }
 }
@@ -125,7 +179,8 @@ pub(crate) struct RemoteTab {
     clock: Option<Task<()>>,
     pub(super) now: i64,
     // ---- page state -----------------------------------------------------------------------------
-    pub(super) expanded: Option<PathCard>,
+    /// The open tab.
+    pub(super) section: RemoteSection,
     /// `phone` or `computer` (the Connect segmented control).
     pub(super) connection_device: &'static str,
     /// The Show QR dialog open, and which card's pairing code it shows.
@@ -173,13 +228,13 @@ impl super::HoldsUnsavedInput for RemoteTab {
 }
 
 impl super::open_forms::RemembersOpenForm for RemoteTab {
-    /// The expanded path card and the Add a machine / edit dialog (or the one a deep link kept
-    /// closed on this open).
+    /// The open tab (when it isn't the default Easy Connect) and the Add a machine / edit dialog
+    /// (or the one a deep link kept closed on this open).
     fn open_form(&self, _cx: &gpui::App) -> Option<Value> {
         let machine = self
             .open_machine_form()
             .or_else(|| self.kept_machine_form.clone());
-        let card = self.expanded.map(PathCard::anchor);
+        let card = (self.section != RemoteSection::EasyConnect).then(|| self.section.anchor());
         if machine.is_none() && card.is_none() {
             return None;
         }
@@ -243,7 +298,7 @@ impl RemoteTab {
             polling: None,
             clock: None,
             now: now_ms(),
-            expanded: None,
+            section: RemoteSection::default(),
             connection_device: "phone",
             qr_preview: None,
             qr_preview_focus: cx.focus_handle(),
@@ -277,7 +332,7 @@ impl RemoteTab {
         tab
     }
 
-    /// The path card and machine dialog the last visit left open (settings_modal/restore.rs).
+    /// The tab and machine dialog the last visit left open (settings_modal/restore.rs).
     /// An open that deep-links into Remote picks its own card and keeps the dialog closed, carrying
     /// it to the next open.
     fn restore_open_form(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -301,10 +356,13 @@ impl RemoteTab {
             self.kept_machine_form = machine;
             return;
         }
-        self.expanded = form
+        if let Some(section) = form
             .get("card")
             .and_then(Value::as_str)
-            .and_then(PathCard::from_section);
+            .and_then(RemoteSection::from_section)
+        {
+            self.section = section;
+        }
         if let Some(machine) = machine {
             self.restore_machine_dialog(&machine, window, cx);
         }
@@ -632,13 +690,8 @@ impl RemoteTab {
         );
     }
 
-    /// Opening one path card closes the other; clicking the open one closes it.
-    pub(super) fn toggle_path_card(&mut self, card: PathCard, cx: &mut Context<Self>) {
-        self.expanded = if self.expanded == Some(card) {
-            None
-        } else {
-            Some(card)
-        };
+    pub(super) fn select_section(&mut self, section: RemoteSection, cx: &mut Context<Self>) {
+        self.section = section;
         cx.notify();
     }
 
@@ -766,7 +819,7 @@ impl RemoteTab {
 
     // ---- deep links and preview states --------------------------------------------------------------
 
-    /// `initialRemoteSection` expands and scrolls to its card, `initialRemoteMachineId` opens that
+    /// `initialRemoteSection` opens its tab and scrolls to its card, `initialRemoteMachineId` opens that
     /// machine's edit dialog; each applies once per visit to the page.
     fn apply_deep_links(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if !self.is_active(cx) {
@@ -784,8 +837,8 @@ impl RemoteTab {
             && let Some(card) = PathCard::from_section(&section)
         {
             self.targeted_section = Some(section);
-            self.expanded = Some(card);
-            // Measured again after the card opens.
+            self.section = card.into();
+            // Measured again after the tab opens.
             self.card_bounds[match card {
                 PathCard::EasyConnect => 0,
                 PathCard::Tailscale => 1,
@@ -801,6 +854,7 @@ impl RemoteTab {
             });
             if let Some(machine) = machine {
                 self.targeted_machine = Some(machine_id);
+                self.section = RemoteSection::Machines;
                 self.open_machine_dialog(Some(&machine), window, cx);
                 self.pending_scroll = Some(ScrollTarget::Machines);
             }
@@ -826,13 +880,19 @@ impl RemoteTab {
                 | "remote-ec-off"
                 | "remote-paired-confirm"
         ) {
-            self.expanded = Some(PathCard::EasyConnect);
+            self.section = RemoteSection::EasyConnect;
         }
         if matches!(
             state,
             "remote-tailscale" | "remote-tailscale-manual" | "remote-tailscale-qr"
         ) {
-            self.expanded = Some(PathCard::Tailscale);
+            self.section = RemoteSection::Tailscale;
+        }
+        if matches!(
+            state,
+            "remote-machines" | "remote-add-machine" | "remote-add-ec" | "remote-edit-machine"
+        ) {
+            self.section = RemoteSection::Machines;
         }
         match state {
             "remote-computer" => self.connection_device = "computer",
@@ -893,36 +953,42 @@ impl Render for RemoteTab {
                 },
             )));
         } else {
-            // Each section answers the Settings search on its own.
-            let show_easy_connect = should_show_section(&search.section("easyConnect"), true);
-            let show_tailscale = should_show_section(&search.section("tailscale"), true);
-            let show_machines = should_show_section(&search.section("remoteMachines"), true);
+            // Each tab answers the Settings search on its own; a search that matches nothing on the
+            // open tab lands on the first tab that has a match.
+            let shown = RemoteSection::ALL
+                .map(|section| should_show_section(&search.section(section.anchor()), true));
+            if searching
+                && !shown[self.section.index()]
+                && let Some(first) = RemoteSection::ALL
+                    .into_iter()
+                    .find(|section| shown[section.index()])
+            {
+                self.section = first;
+            }
             let show_advanced = should_show_section(&search.section("remoteAdvanced"), true);
             let rpc = self.rpc_available(cx);
             // `.settings-management-layout`: the sections 16px apart in one column.
-            let mut layout = v_flex().w_full().min_w_0().gap(px(SECTION_GAP));
-            if show_easy_connect || show_tailscale {
-                layout = layout.child(self.from_phone_section(
-                    &t,
-                    show_easy_connect,
-                    show_tailscale,
-                    rpc,
-                    window,
-                    cx,
-                ));
-            }
-            if show_machines {
-                let section = machines::machines_section(self, &t, window, cx);
-                layout = layout.child(
+            let mut layout = v_flex()
+                .w_full()
+                .min_w_0()
+                .gap(px(SECTION_GAP))
+                .child(self.section_tabs(&t, cx));
+            layout = layout.child(match self.section {
+                RemoteSection::EasyConnect | RemoteSection::Tailscale => {
+                    self.connect_section(&t, rpc, window, cx)
+                }
+                RemoteSection::Machines => {
+                    let section = machines::machines_section(self, &t, window, cx);
                     div()
                         .w_full()
                         .on_children_prepainted(capture_child_bounds(
                             self.machines_bounds.clone(),
                             0,
                         ))
-                        .child(section),
-                );
-            }
+                        .child(section)
+                        .into_any_element()
+                }
+            });
             if show_advanced && rpc {
                 layout = layout.child(advanced::advanced_section(self, &t, window, cx));
             }
@@ -957,8 +1023,6 @@ impl Render for RemoteTab {
 const SECTION_GAP: f32 = 16.0;
 /// `.settings-remote-from-phone { gap: 12px }` (and the machines section's).
 const HEADER_GAP: f32 = 12.0;
-/// `.settings-remote-path-cards { gap: 8px }`.
-const CARD_GAP: f32 = 8.0;
 /// The space above the page's column (`.settings-tab-scroll`'s top padding).
 const FIRST_BLOCK_MARGIN: f32 = 12.0;
 
@@ -972,25 +1036,44 @@ pub(super) enum ScrollTarget {
 }
 
 impl RemoteTab {
-    /// "Connect to this computer": the header, the two path cards and the request error.
-    fn from_phone_section(
+    /// The tab strip: Easy Connect, Tailscale and Remote machines (with how many are saved).
+    fn section_tabs(&mut self, t: &RemoteTokens, cx: &mut Context<Self>) -> gpui::AnyElement {
+        let machine_count = self.remote_machines(cx).len();
+        let items: Vec<ModalRailItem> = RemoteSection::ALL
+            .iter()
+            .map(|section| ModalRailItem {
+                label: section.label().into(),
+                trailing: (*section == RemoteSection::Machines && machine_count > 0)
+                    .then(|| machine_count.to_string().into()),
+            })
+            .collect();
+        modal_bordered_segmented_control(
+            t.foreground,
+            t.edge(0.90),
+            t.muted,
+            "remote-section-tabs",
+            &items,
+            self.section.index(),
+            |tab: &mut Self, index, _window, cx| {
+                if let Some(section) = RemoteSection::ALL.get(index) {
+                    tab.select_section(*section, cx);
+                }
+            },
+            cx,
+        )
+        .w_full()
+        .into_any_element()
+    }
+
+    /// The Easy Connect or Tailscale tab: its card, open, and the request error.
+    fn connect_section(
         &mut self,
         t: &RemoteTokens,
-        show_easy_connect: bool,
-        show_tailscale: bool,
         rpc: bool,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> gpui::AnyElement {
-        let mut section = v_flex()
-            .w_full()
-            .min_w_0()
-            .gap(px(HEADER_GAP))
-            .child(management_header(
-                t,
-                "Connect to this computer",
-                "Use Ghostex from your phone or another computer. Most people only need Easy Connect.",
-            ));
+        let mut section = v_flex().w_full().min_w_0().gap(px(HEADER_GAP));
         if !rpc {
             section = section.child(
                 div()
@@ -1003,32 +1086,23 @@ impl RemoteTab {
                     ),
             );
         } else {
-            let mut cards = v_flex().w_full().min_w_0().gap(px(CARD_GAP));
-            if show_easy_connect {
-                let card = easy_connect::easy_connect_card(self, t, window, cx);
-                cards = cards.child(
-                    div()
-                        .w_full()
-                        .on_children_prepainted(capture_child_bounds(
-                            self.card_bounds[0].clone(),
-                            0,
-                        ))
-                        .child(card),
-                );
-            }
-            if show_tailscale {
-                let card = tailscale::tailscale_card(self, t, window, cx);
-                cards = cards.child(
-                    div()
-                        .w_full()
-                        .on_children_prepainted(capture_child_bounds(
-                            self.card_bounds[1].clone(),
-                            0,
-                        ))
-                        .child(card),
-                );
-            }
-            section = section.child(cards);
+            let (card, bounds) = if self.section == RemoteSection::Tailscale {
+                (
+                    tailscale::tailscale_card(self, t, window, cx),
+                    self.card_bounds[1].clone(),
+                )
+            } else {
+                (
+                    easy_connect::easy_connect_card(self, t, window, cx),
+                    self.card_bounds[0].clone(),
+                )
+            };
+            section = section.child(
+                div()
+                    .w_full()
+                    .on_children_prepainted(capture_child_bounds(bounds, 0))
+                    .child(card),
+            );
         }
         if let Some(error) = self.request_error.clone() {
             section = section.child(style::error_line(t, error));
