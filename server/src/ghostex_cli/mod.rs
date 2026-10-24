@@ -391,7 +391,10 @@ fn is_known_command(name: &str) -> bool {
 }
 
 fn run_command(name: &str, args: &[String]) -> CliResult<()> {
-    use actions::{run_bridge_action, run_resolved_session_bridge_action, BridgeOptions, Parser};
+    use actions::{
+        run_bridge_action, run_message_bridge_action, run_resolved_session_bridge_action,
+        BridgeOptions, Parser,
+    };
     let plain = BridgeOptions {
         fail_on_not_ok: false,
         assert_ok: false,
@@ -780,7 +783,7 @@ fn run_command(name: &str, args: &[String]) -> CliResult<()> {
             plain,
             args,
         ),
-        "send-session-chat-message" => run_bridge_action(
+        "send-session-chat-message" => run_message_bridge_action(
             "sendSessionChatMessage",
             Parser::SendText,
             fail_on_not_ok,
@@ -824,7 +827,7 @@ fn run_command(name: &str, args: &[String]) -> CliResult<()> {
         "read-session-chat-queue" => {
             run_bridge_action("readSessionChatQueue", Parser::SessionSelector, plain, args)
         }
-        "queue-session-chat-prompt" => run_bridge_action(
+        "queue-session-chat-prompt" => run_message_bridge_action(
             "queueSessionChatPrompt",
             Parser::SendText,
             fail_on_not_ok,

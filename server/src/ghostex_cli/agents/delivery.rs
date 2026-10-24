@@ -14,7 +14,11 @@ use std::time::{Duration, Instant};
 /// The rename reminder gxserver adds when `sender` is the orchestrator of the thread `recipient`
 /// (server/src/coordinators/rename.rs `thread_title_reminder`); `None` for any other message,
 /// and from a gxserver too old to answer.
-fn thread_title_reminder(sender: &Value, recipient: &Value, flags: &Flags) -> Option<String> {
+pub(super) fn thread_title_reminder(
+    sender: &Value,
+    recipient: &Value,
+    flags: &Flags,
+) -> Option<String> {
     call_gxserver_rpc(
         "/api/coordinatorThreadTitleReminder",
         &json!({
@@ -50,6 +54,7 @@ pub(super) fn send(args: &Arguments) -> CliResult<Value> {
             "The recipient is not an agent session. Run ghostex agents list --all.".into(),
         ));
     }
+    super::outbound::check_agent_session_write(&sender, &recipient, &flags)?;
     let message = identity::message(
         &sender,
         &match thread_title_reminder(&sender, &recipient, &flags) {

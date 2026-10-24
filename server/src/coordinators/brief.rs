@@ -135,6 +135,8 @@ pub fn strip_agent_message_header(text: &str) -> &str {
 /// Claude's projects send "the project's instructions" to every new thread so a rule stated once reaches all of them. Here the goal, the standing instructions and the memory notes ride under the coordinator's task, followed by the reporting rules the supervisor depends on: the thread's final message is its report, so it must not message the coordinator itself.
 /// CDXC:Coordinators 2026-10-05 DECISION:
 /// User chose to drop the coordinator's name from the brief's "You are a thread started by…" line: with a short task it was the only name in the first message, and Claude named the thread after its coordinator (thread G9c61, 2026-10-05). The sender block below the brief still names the coordinator.
+/// CDXC:Coordinators 2026-10-24 DECISION:
+/// User, after a thread handed over a finished part of a two-part task by messaging its orchestrator mid-turn (plain user bubbles, no sender block, no handover markers): "we agreed on a format and he didn't follow it pls fix this in the root cause so it doesn't happen again for any user using agent messaging/orchestrator sessions". The rules name the verbs a thread must not use on its orchestrator (gxserver refuses them, coordinators/thread_messages.rs) and say what to do with several tasks in one message: finish all, then one report, or report after the first and wait when asked to.
 /// CDXC:MarkedHandovers 2026-10-11 WHY:
 /// A thread's final message goes to its orchestrator, not to the user, and threads always mark their handovers, so the brief says that report is a handover too and gets the markers, which the orchestrator can keep when it passes the report on.
 pub fn thread_brief(coordinator: &BriefContext<'_>, task: &str) -> String {
@@ -164,7 +166,8 @@ pub fn thread_brief(coordinator: &BriefContext<'_>, task: &str) -> String {
     );
     brief.push_str(
         "\n\nWhen you are done:\n\
-- End your turn with a final report: what you did, where (files, branch, pull request), how you verified it, and anything left or blocked. Ghostex forwards your final message to the orchestrator automatically, so do not message the orchestrator yourself.\n\
+- End your turn with a final report: what you did, where (files, branch, pull request), how you verified it, and anything left or blocked. Ghostex forwards your final message to the orchestrator automatically. Your final message is the only way to report: never message or type into the orchestrator's session yourself (`ghostex agents send`, `send-session-chat-message`, `send-text` and the like), not even for a progress update or a patch that is ready; Ghostex refuses it.\n\
+- When a message gives you several tasks, finish them all and then end your turn with one report on all of them, unless it asks you to report after each one; then end your turn after the first with its report, and wait for the orchestrator to tell you to go on.\n\
 - If you need a decision you cannot make, ask it plainly in your final message and stop. The orchestrator answers in this chat.\n\
 - The user talks only to the orchestrator. Never ask the user directly or publish a page for them (`ghostex show`): put questions, mockups and the path of any page file in your final report, and the orchestrator shows them to the user and sends you the answers.\n\
 - Do not merge, push, or delete anything unless this brief asks for it.",

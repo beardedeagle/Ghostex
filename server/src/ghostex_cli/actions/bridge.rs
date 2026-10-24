@@ -113,18 +113,52 @@ pub fn run_bridge_action(
 ) -> CliResult<()> {
     let parsed = parse_args(args);
     let payload = evaluate_parser(parser, &parsed.rest, &parsed.flags)?;
+    finish_bridge_action(action, payload, &parsed.flags, options)
+}
+
+/// `run_bridge_action` for a verb that hands another session a message
+/// (`send-session-chat-message`, `queue-session-chat-prompt`): run from inside an agent session,
+/// the text carries that agent's sender block and gxserver may refuse the write
+/// (agents/outbound.rs).
+pub fn run_message_bridge_action(
+    action: &str,
+    parser: Parser,
+    options: BridgeOptions,
+    args: &[String],
+) -> CliResult<()> {
+    let parsed = parse_args(args);
+    let mut payload = evaluate_parser(parser, &parsed.rest, &parsed.flags)?;
+    if let Some(selector_text) = payload["sessionId"].as_str().map(str::to_string) {
+        if let Some(write) =
+            crate::ghostex_cli::agents::outbound::agent_write(&selector_text, &parsed.flags)?
+        {
+            crate::ghostex_cli::agents::outbound::sign_message_payload(&mut payload, |body| {
+                write.signed(body)
+            });
+        }
+    }
+    finish_bridge_action(action, payload, &parsed.flags, options)
+}
+
+fn finish_bridge_action(
+    action: &str,
+    payload: Value,
+    flags: &Flags,
+    options: BridgeOptions,
+) -> CliResult<()> {
+    let parsed_flags = flags;
     /*
     Long-running bridge commands (`edit --wait`) disable the CLI timeout when
     the caller did not pass one, exactly like the JS
     `payload.wait === true && flags.timeout === undefined` special case.
     */
     let bridge_flags =
-        if payload.get("wait") == Some(&Value::Bool(true)) && !parsed.flags.contains("timeout") {
-            let mut flags = parsed.flags.clone();
+        if payload.get("wait") == Some(&Value::Bool(true)) && !parsed_flags.contains("timeout") {
+            let mut flags = parsed_flags.clone();
             flags.insert_text("timeout", "0");
             flags
         } else {
-            parsed.flags.clone()
+            parsed_flags.clone()
         };
     let result = send_gxserver_cli_action(action, &payload, &bridge_flags)?;
     /*
@@ -166,6 +200,20 @@ pub fn run_resolved_session_bridge_action(
     clients reconnect through the same S/P/G zmx route instead of addressing
     a bare G id.
     */
+    // From inside an agent session, gxserver may refuse typing into this session
+    // (agents/outbound.rs: a thread never types into its own orchestrator).
+    if let Some(session) = resolved_session
+        .as_ref()
+        .filter(|_| matches!(action, "sendText" | "sendEnter" | "sendKey"))
+    {
+        if let Some(sender) = crate::ghostex_cli::agents::identity::agent_caller()? {
+            crate::ghostex_cli::agents::outbound::check_agent_session_write(
+                &sender,
+                session,
+                &parsed.flags,
+            )?;
+        }
+    }
     let resolved_payload = if let Some(session) = &resolved_session {
         let mut object = payload.as_object().cloned().unwrap_or_default();
         let project_id = match payload.get("projectId") {

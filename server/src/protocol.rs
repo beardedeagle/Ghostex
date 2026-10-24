@@ -519,6 +519,7 @@ pub fn endpoint_for(path: &str) -> Option<EndpointDescriptor> {
         | "/api/setCoordinatorThreadResolved"
         | "/api/renameCoordinatorThread"
         | "/api/coordinatorThreadTitleReminder"
+        | "/api/checkAgentSessionWrite"
         // CDXC:Coordinators 2026-10-19 WHY: an orchestrator reads its playbook from the machine that runs it, so a client looking at a remote machine reads and edits that machine's. They carry a project id, a session id and bounded text.
         | "/api/readCoordinatorPlaybook"
         | "/api/setCoordinatorPlaybook"

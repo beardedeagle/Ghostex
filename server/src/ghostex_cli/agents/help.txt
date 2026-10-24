@@ -70,6 +70,14 @@ SENDER BLOCK
   body. Queued messages retain the original sender block. A body that starts
   with / or ! keeps the block first instead, so the recipient never runs your
   first line as a slash or shell command; agents send has no way to send one.
+  Run from an agent session, send-session-chat-message, queue-session-chat-prompt
+  and send-message to another session attach the same block, so a message
+  between agents never reads as the user's own words.
+
+THREADS AND THEIR ORCHESTRATOR
+  A thread reports by ending its turn: Ghostex forwards its final message to
+  its orchestrator. Ghostex refuses a thread's send, send-session-chat-message,
+  send-text, send-key or send-enter into its own orchestrator's session.
 
   <message body>
 

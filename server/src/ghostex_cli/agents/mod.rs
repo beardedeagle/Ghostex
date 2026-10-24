@@ -1,8 +1,9 @@
 mod arguments;
 mod command;
 mod delivery;
-mod identity;
+pub(super) mod identity;
 mod lifecycle;
+pub(super) mod outbound;
 mod visibility;
 
 pub(super) use command::run;

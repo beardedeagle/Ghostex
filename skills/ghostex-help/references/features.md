@@ -2317,7 +2317,9 @@ Settings > Agents is not listed, and `agents create`, `create-agent`,
 --agent` refuse it, naming the agents to use instead, unless `--allow-hidden` is
 passed. `agents list` finds
 sessions, and `agents send <session-ref> "<text>"` attaches the sender's identity
-and reply reference automatically. A normal send reaches a busy agent at its
+and reply reference automatically; an agent that sends with
+`send-session-chat-message`, `queue-session-chat-prompt` or `send-message`
+instead gets the same identity attached, so its message never shows as yours. A normal send reaches a busy agent at its
 next input boundary and wakes a sleeping one, so it is right for almost every
 message. Use `--body-file` for multiline messages, `--interrupt` for an urgent
 correction, or `--queue` to leave the message waiting until the current turn
@@ -2493,7 +2495,9 @@ version of the Projects features in Cursor and Claude Code.
   folder trust or an expired login, the orchestrator is told what it is asking.
   The orchestrator then checks the work, commits it (only that thread's files,
   and it never pushes unless you ask), starts the next step, and tells you
-  what needs you. Nobody has to poll.
+  what needs you. Nobody has to poll. A thread reports only this way: Ghostex
+  refuses a thread's messages to its own orchestrator in the middle of a turn
+  and tells it to end its turn with its report.
 - **Work that never arrives is caught**: when the orchestrator starts a thread,
   it waits until the thread has actually taken its brief before saying it is
   under way, and says "pending" with the reason when it has not yet. Ghostex

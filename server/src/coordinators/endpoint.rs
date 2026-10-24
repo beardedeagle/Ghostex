@@ -34,6 +34,7 @@ pub const COORDINATOR_ENDPOINTS: &[&str] = &[
     "/api/setCoordinatorThreadResolved",
     "/api/renameCoordinatorThread",
     "/api/coordinatorThreadTitleReminder",
+    "/api/checkAgentSessionWrite",
 ];
 
 fn text(params: &Map<String, Value>, key: &str) -> Option<String> {
@@ -268,6 +269,10 @@ pub fn handle_coordinator_endpoint(
         }
         "/api/coordinatorThreadTitleReminder" => Ok(CoordinatorEndpointOutput {
             result: super::rename::read_thread_title_reminder(repository, db, params)?,
+            changed_sessions: Vec::new(),
+        }),
+        "/api/checkAgentSessionWrite" => Ok(CoordinatorEndpointOutput {
+            result: super::thread_messages::read_agent_session_write_check(db, params)?,
             changed_sessions: Vec::new(),
         }),
         _ => Err(DomainStateError::not_found(format!(

@@ -444,7 +444,8 @@ pub(super) async fn route_sessions_http(
         | "/api/unlinkCoordinatorThread"
         | "/api/setCoordinatorThreadResolved"
         | "/api/renameCoordinatorThread"
-        | "/api/coordinatorThreadTitleReminder" => {
+        | "/api/coordinatorThreadTitleReminder"
+        | "/api/checkAgentSessionWrite" => {
             let path = endpoint.path.clone();
             handle_domain_http(
                 &state,

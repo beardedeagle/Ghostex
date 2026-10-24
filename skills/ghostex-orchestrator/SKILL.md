@@ -42,6 +42,10 @@ compacted, and whenever you are unsure what is running.
   next step of its task): send it to that thread with `ghostex agents send <thread ref> "<message>"`
   instead of starting a new one. It keeps its context, even after you closed it: the message
   resumes the same conversation and puts the thread back under you.
+- Give a thread one task per message. When several belong together, say how to report: "finish
+  all of them, then report" or "report after the first and wait for me". A thread reports only by
+  ending its turn (Ghostex refuses its messages to you), so a message like "after this patch, one
+  more task" without that line leaves it guessing when to hand over.
 - Everything else that takes real work (code changes, debugging, investigations, reviews, long
   research, builds, test runs): start a thread. Several unrelated tasks become several threads.
 - When a request is large or ambiguous, propose the split in two or three lines and ask before

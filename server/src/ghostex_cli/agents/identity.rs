@@ -42,6 +42,32 @@ pub(crate) fn inventory_flags(flags: &Flags, reference: &str) -> CliResult<Flags
 /// CDXC:Coordinators 2026-10-06 WHY:
 /// Empryo 3.9.0-beta's shell tool runs commands without any GHOSTEX_* or ZMX_* variable (probed 2026-10-06: `env` printed none of them), so an Empryo coordinator or thread running `ghostex coordinator status` or `ghostex agents send` had no identity. With none of the variables set, the caller is read from the process tree the way Empryo's hooks find their session: the `zmx run` daemon above the `empryo` process names it. Anything else still fails rather than guessing.
 pub(crate) fn caller() -> CliResult<Value> {
+    match lookup_caller()? {
+        CallerLookup::Agent(caller) => Ok(caller),
+        CallerLookup::NoSession => Err(CliError::Other("Cannot identify the caller. Run inside a Ghostex agent session with GHOSTEX_GLOBAL_SESSION_REF or GHOSTEX_SESSION_ID set.".into())),
+        CallerLookup::NotOneAgent { key, reference } => Err(CliError::Other(format!("Cannot identify one agent session from {key}={reference}. Run ghostex sessions --json to inspect the session; identity was not guessed."))),
+    }
+}
+
+/// The calling agent session, or `None` when the command does not run inside one (a person's own
+/// terminal, a plain shell pane, the phone over SSH).
+pub(crate) fn agent_caller() -> CliResult<Option<Value>> {
+    Ok(match lookup_caller()? {
+        CallerLookup::Agent(caller) => Some(caller),
+        CallerLookup::NoSession | CallerLookup::NotOneAgent { .. } => None,
+    })
+}
+
+enum CallerLookup {
+    NoSession,
+    NotOneAgent {
+        key: &'static str,
+        reference: String,
+    },
+    Agent(Value),
+}
+
+fn lookup_caller() -> CliResult<CallerLookup> {
     let from_environment = || {
         [
             "GHOSTEX_GLOBAL_SESSION_REF",
@@ -57,12 +83,12 @@ pub(crate) fn caller() -> CliResult<Value> {
                 .map(|value| (key, value.trim().to_owned()))
         })
     };
-    let (key, reference) = from_environment()
-        .or_else(|| {
-            crate::agent_hooks::adopt_ancestor_session_routing();
-            from_environment()
-        })
-        .ok_or_else(|| CliError::Other("Cannot identify the caller. Run inside a Ghostex agent session with GHOSTEX_GLOBAL_SESSION_REF or GHOSTEX_SESSION_ID set.".into()))?;
+    let Some((key, reference)) = from_environment().or_else(|| {
+        crate::agent_hooks::adopt_ancestor_session_routing();
+        from_environment()
+    }) else {
+        return Ok(CallerLookup::NoSession);
+    };
     let flags = inventory_flags(&Flags::default(), &reference)?;
     let rows = live_session_rows(&flags)?;
     let matches: Vec<_> = rows
@@ -80,11 +106,11 @@ pub(crate) fn caller() -> CliResult<Value> {
         })
         .collect();
     if matches.len() != 1 || !is_agent(matches[0]) || text(matches[0], "globalRef").is_empty() {
-        return Err(CliError::Other(format!("Cannot identify one agent session from {key}={reference}. Run ghostex sessions --json to inspect the session; identity was not guessed.")));
+        return Ok(CallerLookup::NotOneAgent { key, reference });
     }
     let mut caller = matches[0].clone();
     resolve_names(std::slice::from_mut(&mut caller), &flags);
-    Ok(caller)
+    Ok(CallerLookup::Agent(caller))
 }
 
 /// How long the caller lookup waits for gxserver to answer, which covers a gxserver restart.

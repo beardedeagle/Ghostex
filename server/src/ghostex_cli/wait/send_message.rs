@@ -68,6 +68,13 @@ pub fn send_message_command(args: &[String]) -> CliResult<()> {
     );
     payload.insert("text".to_string(), Value::String(text));
     if !selector_text.is_empty() {
+        // From inside an agent session the message carries its sender block (agents/outbound.rs).
+        if let Some(write) =
+            crate::ghostex_cli::agents::outbound::agent_write(&selector_text, &flags)?
+        {
+            let signed = write.signed(payload["text"].as_str().unwrap_or_default());
+            payload.insert("text".to_string(), Value::String(signed));
+        }
         let session = selector::resolve_cli_session_selector(&selector_text, &flags)?;
         insert_session_field(&mut payload, "projectId", &session);
         insert_session_field(&mut payload, "sessionId", &session);

@@ -17,6 +17,7 @@ mod role;
 mod seen_threads;
 mod sleep_threads;
 mod state;
+mod thread_messages;
 mod title;
 
 pub use auto_sleep::*;
@@ -35,4 +36,5 @@ pub use role::*;
 pub(crate) use seen_threads::*;
 pub use sleep_threads::*;
 pub use state::*;
+pub use thread_messages::*;
 pub use title::*;
