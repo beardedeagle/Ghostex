@@ -147,6 +147,27 @@ pub(crate) fn unsupported_selection(message: impl Into<String>) -> DomainStateEr
     }
 }
 
+/// What a pick fails with while the agent's input box is not drawn at all; the queue gives up on
+/// it after a while (session_chat_model_selection.rs `MISSING_INPUT_BOX_LIMIT_MS`).
+pub(crate) const INPUT_BOX_MISSING_CODE: &str = "composerNotReady";
+
+/// The refusal for a screen without a usable input box: `composerNotReady` when nothing of the
+/// agent is drawn (CDXC:SessionChat 2026-10-24 in session_chat_composer.rs), `agentBusy` when a
+/// dialog or panel stands in its place.
+fn input_box_refusal(
+    readiness: &crate::session_chat_composer::SessionChatComposerReadiness,
+    message: &str,
+) -> DomainStateError {
+    DomainStateError {
+        code: if readiness.input_box_missing() {
+            INPUT_BOX_MISSING_CODE
+        } else {
+            "agentBusy"
+        },
+        message: message.to_string(),
+    }
+}
+
 fn picker_timeout(step: &str) -> DomainStateError {
     DomainStateError {
         code: "timeout",
@@ -737,7 +758,10 @@ impl PickerDriver<'_> {
                 None,
             );
             if composer.state != crate::session_chat_composer::SessionChatComposerState::Ready {
-                return Err(agent_busy("Waiting for Claude's input box."));
+                return Err(input_box_refusal(
+                    &composer,
+                    "Waiting for Claude's input box.",
+                ));
             }
             // CDXC:SessionChat 2026-09-15 WHY:
             // The effort picker sends the model too. Reapplying an unchanged model added a complete command/confirmation round trip before every effort change, and retries repeated already-applied work.
@@ -896,7 +920,8 @@ impl PickerDriver<'_> {
             None,
         );
         if composer.state != crate::session_chat_composer::SessionChatComposerState::Ready {
-            return Err(agent_busy(
+            return Err(input_box_refusal(
+                &composer,
                 "Codex is not showing its input box, so the model was not changed.",
             ));
         }
@@ -1332,6 +1357,12 @@ pub(crate) async fn select_session_chat_model(
             &model,
             &effort,
         )?;
+    }
+    if let Some(refusal) = crate::session_chat_model_selection::foreign_model_refusal(
+        agent.as_deref().unwrap_or_default(),
+        &model,
+    ) {
+        return Err(unsupported_selection(refusal));
     }
     if !model.is_empty() && agent.as_deref() == Some("codex") && effort_row_label(&effort).is_none()
     {

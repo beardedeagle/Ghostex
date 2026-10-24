@@ -510,15 +510,16 @@ impl PickerDriver<'_> {
             .capture()
             .await
             .ok_or_else(|| session_not_running("The agent's input could not be read."))?;
-        if crate::session_chat_composer::detect_session_chat_composer_readiness(
+        let composer = crate::session_chat_composer::detect_session_chat_composer_readiness(
             Some("claude"),
             &screen,
             None,
-        )
-        .state
-            != crate::session_chat_composer::SessionChatComposerState::Ready
-        {
-            return Err(agent_busy("Waiting for Claude's input box."));
+        );
+        if composer.state != crate::session_chat_composer::SessionChatComposerState::Ready {
+            return Err(super::input_box_refusal(
+                &composer,
+                "Waiting for Claude's input box.",
+            ));
         }
         let over_draft = crate::session_chat_composer::claude_composer_input_text(&screen)
             .is_some_and(|text| !text.trim().is_empty())

@@ -26,11 +26,12 @@ pub(crate) async fn interrupt_until_exited(
     let keys = [SESSION_CHAT_INTERRUPT, "\u{3}", "\u{3}", "\u{3}", "\u{3}"];
     let mut next_key = 0;
     let mut shell_ready_since = None;
+    let mut shell_starting_since = None;
     loop {
         if cancelled() {
             return Err(error(
                 SessionChatSendFailure::NotAttempted,
-                "The account switch was cancelled.",
+                "The switch was cancelled.",
             ));
         }
         let name = zmx_name.to_string();
@@ -40,19 +41,31 @@ pub(crate) async fn interrupt_until_exited(
                 .map_err(|_| ())
                 .and_then(|identities| {
                     let running = identities.contains_key(&name);
-                    Ok((running, !running && shell_owns_terminal(&name)?))
+                    let owner = if running {
+                        TerminalOwner::Command
+                    } else {
+                        terminal_owner(&name)?
+                    };
+                    Ok((running, owner))
                 })
         })
         .await;
-        let (running, shell_ready) = match running {
+        let (running, owner) = match running {
             Ok(Ok(observation)) => observation,
             _ => {
                 return Err(error(
                     SessionChatSendFailure::ComposerNotReady,
-                    "Could not inspect the agent while exiting it. Retry the account switch.",
+                    "Could not inspect the agent while exiting it. Retry the switch.",
                 ))
             }
         };
+        if owner == TerminalOwner::ShellStarting {
+            shell_starting_since.get_or_insert_with(Instant::now);
+        } else {
+            shell_starting_since = None;
+        }
+        let shell_ready = owner == TerminalOwner::ShellPrompt
+            || shell_starting_since.is_some_and(|since| since.elapsed() >= SHELL_STARTING_LIMIT);
         if shell_ready {
             if shell_ready_since.get_or_insert_with(Instant::now).elapsed()
                 >= Duration::from_millis(300)
@@ -77,7 +90,7 @@ pub(crate) async fn interrupt_until_exited(
         if cancelled() {
             return Err(error(
                 SessionChatSendFailure::NotAttempted,
-                "The account switch was cancelled.",
+                "The switch was cancelled.",
             ));
         }
         if running {
@@ -90,13 +103,76 @@ pub(crate) async fn interrupt_until_exited(
     }
 }
 
+/// Who holds a session's terminal.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum TerminalOwner {
+    /// The session's shell, reading a line at its prompt (or a shell whose terminal mode could not
+    /// be read, which is how every shell counted before the mode was read).
+    ShellPrompt,
+    /// The session's shell with its terminal in line mode: it is still running its startup files,
+    /// where an agent session's start command has not run yet (zmx/zsh_startup.rs).
+    ShellStarting,
+    /// A command the shell started: an agent, its launcher, a resume lookup.
+    Command,
+}
+
+/// How long a shell may hold its terminal in line mode before it counts as idle anyway: a shell
+/// without a line editor reads its prompt that way.
+const SHELL_STARTING_LIMIT: Duration = Duration::from_secs(8);
+
+/// CDXC:AgentProviders 2026-10-24 WHY:
+/// A shell holding its terminal is not yet a shell at its prompt. Until its startup files finish, zsh holds the terminal in line mode and an agent session's start command is still to run from the first prompt (zmx/zsh_startup.rs), so a resume or switch command typed then sits in the terminal's input until that start command reads it. A draft switched from Claude to Codex in its first seconds could do that, or its command could be left unrun at the prompt (GitHub #290). The shell counts as at its prompt only once its line editor has taken the terminal out of line mode (zsh, bash and fish all do); the mode is read from the terminal itself.
+pub(crate) fn terminal_owner(zmx_name: &str) -> Result<TerminalOwner, ()> {
+    let Some(tty) = shell_owning_terminal(zmx_name)? else {
+        return Ok(TerminalOwner::Command);
+    };
+    Ok(match line_mode(&tty) {
+        Some(true) => TerminalOwner::ShellStarting,
+        Some(false) | None => TerminalOwner::ShellPrompt,
+    })
+}
+
+/// Whether the terminal device `tty` (as `ps` prints it) is in line mode, `None` when unreadable.
+#[cfg(not(windows))]
+fn line_mode(tty: &str) -> Option<bool> {
+    if tty.is_empty() || tty.starts_with('?') {
+        return None;
+    }
+    let path = if tty.starts_with('/') {
+        tty.to_string()
+    } else {
+        format!("/dev/{tty}")
+    };
+    let path = std::ffi::CString::new(path).ok()?;
+    // SAFETY: a plain open/tcgetattr/close on a NUL-terminated path; the fd never escapes.
+    unsafe {
+        let fd = libc::open(
+            path.as_ptr(),
+            libc::O_RDONLY | libc::O_NOCTTY | libc::O_NONBLOCK,
+        );
+        if fd < 0 {
+            return None;
+        }
+        let mut termios: libc::termios = std::mem::zeroed();
+        let read = libc::tcgetattr(fd, &mut termios) == 0;
+        libc::close(fd);
+        read.then_some(termios.c_lflag & libc::ICANON != 0)
+    }
+}
+
+#[cfg(windows)]
+fn line_mode(_: &str) -> Option<bool> {
+    None
+}
+
 /// CDXC:AgentProviders 2026-09-22 WHY:
 /// A missing agent PID can be a gap inside an older shell restore script, with a resume lookup or account wrapper still running. Only an idle foreground shell may receive the new account's command.
 /// The process capture must drain stdout while ps runs; waiting for exit before reading fills the pipe on machines with many sessions and falsely times out.
+/// Answers the shell's terminal device while the shell holds the terminal.
 #[cfg(not(windows))]
-fn shell_owns_terminal(zmx_name: &str) -> Result<bool, ()> {
+fn shell_owning_terminal(zmx_name: &str) -> Result<Option<String>, ()> {
     let output = crate::zmx::run_zmx_probe_script(
-        "ps -axo pid=,ppid=,pgid=,tpgid=,command=".to_string(),
+        "ps -axo pid=,ppid=,pgid=,tpgid=,tty=,command=".to_string(),
         crate::zmx::ZmxCommandOptions {
             stdout_limit_bytes: Some(crate::zmx::GXSERVER_ZMX_PROCESS_SNAPSHOT_STDOUT_LIMIT_BYTES),
             timeout_ms: Some(3_000),
@@ -117,12 +193,13 @@ fn shell_owns_terminal(zmx_name: &str) -> Result<bool, ()> {
         else {
             return Err(());
         };
+        let tty = fields.next().ok_or(())?.to_string();
         let command = fields.collect::<Vec<_>>().join(" ");
         identity_rows.push_str(&format!("{pid} {ppid} {command}\n"));
-        rows.push((pid, ppid, pgid, tpgid, command));
+        rows.push((pid, ppid, pgid, tpgid, tty, command));
     }
     let root = crate::zmx::find_zmx_daemon_process_id(&identity_rows, zmx_name).ok_or(())?;
-    Ok(rows.iter().any(|(pid, ppid, pgid, tpgid, command)| {
+    let shell = rows.iter().find(|(pid, ppid, pgid, tpgid, _, command)| {
         *ppid == root
             && *pgid > 0
             && pgid == tpgid
@@ -139,14 +216,15 @@ fn shell_owns_terminal(zmx_name: &str) -> Result<bool, ()> {
                 })
             && !rows
                 .iter()
-                .any(|(other_pid, _, other_group, _, _)| other_pid != pid && other_group == pgid)
-    }))
+                .any(|(other_pid, _, other_group, _, _, _)| other_pid != pid && other_group == pgid)
+    });
+    Ok(shell.map(|(_, _, _, _, tty, _)| tty.clone()))
 }
 
 // Native Windows has no POSIX foreground process groups. It retains the agent-process exit check above.
 #[cfg(windows)]
-fn shell_owns_terminal(_: &str) -> Result<bool, ()> {
-    Ok(true)
+fn shell_owning_terminal(_: &str) -> Result<Option<String>, ()> {
+    Ok(Some(String::new()))
 }
 
 fn error(failure: SessionChatSendFailure, message: &str) -> SessionChatSendError {

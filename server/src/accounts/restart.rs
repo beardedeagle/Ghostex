@@ -48,7 +48,7 @@ fn apply_account_settings(runtime: &mut Map<String, Value>, settings: &Value) {
 /// The daemon and every attached terminal stay alive. The old agent is stopped, its terminal client is confirmed gone, and one exact account-specific resume command captured before stopping is typed into that same shell.
 /// Nothing closes on the desktop or the web, so the chat page and the terminal tab survive the switch, and the cycle that took a minute on a session with running subagents is gone.
 /// The sleep-and-wake cycle remains for a running session whose daemon is already gone: there is no CLI to exit there.
-/// SEE-ALSO: server/src/accounts/endpoint.rs (select), server/src/accounts/continuation.rs (the dot after automatic switches), server/src/agents/drafts.rs (the draft variant of the same in-place switch), server/src/session_chat_send/steps.rs (WaitForAgentExit).
+/// SEE-ALSO: server/src/accounts/endpoint.rs (select), server/src/accounts/continuation.rs (the dot after automatic switches), server/src/agents/drafts.rs (the draft variant of the same in-place switch), server/src/accounts/exit.rs (interrupt_until_exited), server/src/session_chat_send/launch_command.rs (RunShellCommand).
 pub(crate) struct RestartPlan {
     agent: String,
     resume_command: String,
@@ -242,16 +242,11 @@ pub(crate) fn start(
         home_dir: state.paths.home_dir.clone(),
         timeout_ms: EXIT_TO_SHELL_TIMEOUT_MS,
     });
-    steps.push(SessionChatSendStep::Write(format!(
-        " {}",
-        plan.resume_command
-    )));
-    steps.push(SessionChatSendStep::SleepMs(
-        crate::session_chat_send::SESSION_CHAT_SUBMIT_DELAY_MS,
-    ));
-    steps.push(SessionChatSendStep::Write(
-        crate::session_chat_send::SESSION_CHAT_SUBMIT.to_string(),
-    ));
+    steps.push(SessionChatSendStep::RunShellCommand {
+        command: format!(" {}", plan.resume_command),
+        home_dir: state.paths.home_dir.clone(),
+        timeout_ms: 10_000,
+    });
     steps.push(SessionChatSendStep::WaitForAccountReady {
         agent: plan.agent,
         expected_identity: plan.expected_identity,

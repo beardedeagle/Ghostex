@@ -141,22 +141,18 @@ pub enum SessionChatSendStep {
         settle_ms: u64,
         timeout_ms: u64,
     },
-    /// Hold the sequence until no agent CLI process is left in the session's
-    /// process tree (the account switch's "/exit, then resume" restart). The
-    /// process snapshot is the proof, not the screen: a shell prompt is whatever
-    /// the user configured (powerline glyphs included), and the agent's own
-    /// composer line ends in the same `❯` a zsh prompt does. A CLI that never
-    /// exits aborts the sequence, so the resume command can never be typed into
-    /// a CLI that is still running.
-    WaitForAgentExit {
-        home_dir: PathBuf,
-        timeout_ms: u64,
-    },
     StopClaudeBackground {
         background: crate::accounts::claude_background::BackgroundSession,
         home_dir: PathBuf,
     },
     InterruptAgentForAccountSwitch {
+        home_dir: PathBuf,
+        timeout_ms: u64,
+    },
+    /// Type a start command at the shell prompt, submit it, and make sure it ran
+    /// (session_chat_send/launch_command.rs).
+    RunShellCommand {
+        command: String,
         home_dir: PathBuf,
         timeout_ms: u64,
     },

@@ -192,6 +192,47 @@ pub(crate) fn validate_selection(
     Ok(())
 }
 
+/// Drops the session's queued, applying or failed model pick when a draft switches agent: it was
+/// made for the agent being replaced (CDXC:SessionChat 2026-10-24 at `foreign_model_refusal`), and
+/// the switch carries a pick for the new agent on its launch line.
+pub(crate) fn discard_for_agent_switch(db: &Connection, project: &str, session: &str) {
+    let _ = db.execute(
+        "DELETE FROM session_chat_model_selections WHERE projectId = ?1 AND sessionId = ?2",
+        params![project, session],
+    );
+}
+
+/// The agents that run only their own vendor's models, with the name chat uses for them.
+const FIRST_PARTY_AGENTS: [(&str, &str); 2] = [("claude", "Claude Code"), ("codex", "Codex")];
+
+/// CDXC:SessionChat 2026-10-24 WHY:
+/// A model is only sent to the agent it belongs to. A Codex pick queued while a new chat was still a Codex draft stayed queued when the draft switched to Claude Code, and `/model gpt-6.1-sol` was typed into Claude three times ("Model 'gpt-6.1-sol' not found", GitHub #290). The switch now drops the old agent's pick (agents/drafts.rs), and a pick the catalog lists for the other first-party agent but not for this one is refused before anything is typed. Agents that run several vendors' models (Cursor, Antigravity) are never refused here.
+/// Returns the message to refuse with.
+pub(crate) fn foreign_model_refusal(provider: &str, model: &str) -> Option<String> {
+    foreign_model_owner(provider, model, |agent, model| {
+        crate::agent_model_catalog::catalog_model(agent, model).is_some()
+    })
+}
+
+fn foreign_model_owner(
+    provider: &str,
+    model: &str,
+    listed: impl Fn(&str, &str) -> bool,
+) -> Option<String> {
+    let (_, agent_name) = FIRST_PARTY_AGENTS
+        .iter()
+        .find(|(agent, _)| *agent == provider)?;
+    if model.is_empty() || listed(provider, model) {
+        return None;
+    }
+    let (_, owner_name) = FIRST_PARTY_AGENTS
+        .iter()
+        .find(|(agent, _)| *agent != provider && listed(agent, model))?;
+    Some(format!(
+        "{model} is a {owner_name} model, so it was not sent to {agent_name}. Pick a {agent_name} model, or pick {model} again to move this chat to {owner_name}."
+    ))
+}
+
 pub(crate) fn enqueue(
     state: &AppState,
     params: &Map<String, Value>,
@@ -343,8 +384,32 @@ fn enqueue_selection(
 }
 
 /// CDXC:SessionChat 2026-10-17 WHY:
-/// A pick whose command was typed but never confirmed on screen (a timeout) is retried only this many times before it counts as failed. One footer the reader could not parse (omp 18.11's compact model segment) retyped `/switch` every ~12s for over 13 minutes; only closing the session ended it. A busy agent or a missing input box is not counted and keeps retrying.
+/// A pick whose command was typed but never confirmed on screen (a timeout) is retried only this many times before it counts as failed. One footer the reader could not parse (omp 18.11's compact model segment) retyped `/switch` every ~12s for over 13 minutes; only closing the session ended it. A busy agent (a dialog in front of its input box) is not counted and keeps retrying.
 const MAX_UNCONFIRMED_ATTEMPTS: u32 = 3;
+
+/// CDXC:SessionChat 2026-10-24 WHY:
+/// A pick that keeps finding no input box at all (a blank screen, a CLI that never came up, a shell prompt) types nothing, but it retried every ~6 seconds for minutes with nothing in the chat to say why (GitHub #290, a Codex that never drew its input box). After this long without the agent's input box it fails with the reason, which the chat and the sidebar's red dot show; picking the model again retries it. A dialog standing in front of the input box is not counted: answering it lets the pick through.
+const MISSING_INPUT_BOX_LIMIT_MS: i64 = 120_000;
+
+/// When each pick first found no input box, until it finds one.
+fn missing_input_box_since() -> &'static Mutex<HashMap<String, i64>> {
+    static SINCE: OnceLock<Mutex<HashMap<String, i64>>> = OnceLock::new();
+    SINCE.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+/// Notes this failure and answers whether the pick has now gone `MISSING_INPUT_BOX_LIMIT_MS`
+/// without seeing the agent's input box.
+fn missing_input_box_exhausted(selection_id: &str, error: &DomainStateError, now_ms: i64) -> bool {
+    let Ok(mut since) = missing_input_box_since().lock() else {
+        return false;
+    };
+    if error.code != crate::session_chat_codex_picker::INPUT_BOX_MISSING_CODE {
+        since.remove(selection_id);
+        return false;
+    }
+    let first = *since.entry(selection_id.to_string()).or_insert(now_ms);
+    now_ms - first >= MISSING_INPUT_BOX_LIMIT_MS
+}
 
 fn unconfirmed_attempts() -> &'static Mutex<HashMap<String, u32>> {
     static ATTEMPTS: OnceLock<Mutex<HashMap<String, u32>>> = OnceLock::new();
@@ -385,11 +450,17 @@ pub(crate) fn sender(state: &Arc<AppState>) -> ModelSelectionSender {
                 params.as_object().unwrap(),
             )
             .await;
+            let now_ms = chrono::Utc::now().timestamp_millis();
             let result = result.map_err(|error| {
                 if unconfirmed_attempts_exhausted(&pending.id, &error) {
                     crate::session_chat_codex_picker::unsupported_selection(format!(
                         "The agent never confirmed this change after {MAX_UNCONFIRMED_ATTEMPTS} tries, so Ghostex stopped retrying it. {}",
                         error.message
+                    ))
+                } else if missing_input_box_exhausted(&pending.id, &error, now_ms) {
+                    crate::session_chat_codex_picker::unsupported_selection(format!(
+                        "The agent has not shown its input box for {} minutes, so Ghostex stopped trying to change the model. Open the terminal to see what it is showing, then pick the model again.",
+                        MISSING_INPUT_BOX_LIMIT_MS / 60_000
                     ))
                 } else {
                     error
@@ -401,6 +472,9 @@ pub(crate) fn sender(state: &Arc<AppState>) -> ModelSelectionSender {
             if result.is_ok() || final_failure {
                 if let Ok(mut attempts) = unconfirmed_attempts().lock() {
                     attempts.remove(&pending.id);
+                }
+                if let Ok(mut since) = missing_input_box_since().lock() {
+                    since.remove(&pending.id);
                 }
             }
             if let Ok(db) = open_gxserver_database(&state.paths) {
@@ -442,4 +516,101 @@ pub(crate) fn sender(state: &Arc<AppState>) -> ModelSelectionSender {
             );
         })
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The bundled catalog's first-party lineups, without the live catalog.
+    fn listed(agent: &str, model: &str) -> bool {
+        match agent {
+            "claude" => ["fable", "opus[1m]", "sonnet", "haiku"].contains(&model),
+            "codex" => ["gpt-6.1-sol", "gpt-6-luna", "gpt-6-sol"].contains(&model),
+            _ => false,
+        }
+    }
+
+    #[test]
+    fn a_codex_model_is_refused_for_claude_code() {
+        let refusal = foreign_model_owner("claude", "gpt-6.1-sol", listed).unwrap();
+        assert!(
+            refusal.starts_with("gpt-6.1-sol is a Codex model, so it was not sent to Claude Code.")
+        );
+    }
+
+    #[test]
+    fn a_claude_model_is_refused_for_codex() {
+        let refusal = foreign_model_owner("codex", "opus[1m]", listed).unwrap();
+        assert!(
+            refusal.starts_with("opus[1m] is a Claude Code model, so it was not sent to Codex.")
+        );
+    }
+
+    #[test]
+    fn an_agents_own_or_unlisted_model_goes_through() {
+        assert_eq!(foreign_model_owner("claude", "sonnet", listed), None);
+        assert_eq!(foreign_model_owner("codex", "gpt-6-luna", listed), None);
+        // A full id the catalog does not list is the terminal's to judge.
+        assert_eq!(
+            foreign_model_owner("claude", "claude-haiku-4-5-20251001", listed),
+            None
+        );
+        assert_eq!(foreign_model_owner("claude", "", listed), None);
+    }
+
+    #[test]
+    fn agents_that_run_several_vendors_models_are_never_refused() {
+        assert_eq!(foreign_model_owner("cursor", "gpt-6.1-sol", listed), None);
+        assert_eq!(foreign_model_owner("antigravity", "sonnet", listed), None);
+    }
+
+    #[test]
+    fn the_bundled_catalog_owns_the_reported_model() {
+        assert!(foreign_model_refusal("claude", "gpt-6.1-sol").is_some());
+        assert_eq!(foreign_model_refusal("codex", "gpt-6.1-sol"), None);
+    }
+
+    fn missing() -> DomainStateError {
+        DomainStateError {
+            code: crate::session_chat_codex_picker::INPUT_BOX_MISSING_CODE,
+            message: "Codex is not showing its input box, so the model was not changed.".into(),
+        }
+    }
+
+    #[test]
+    fn a_pick_without_an_input_box_gives_up_after_the_limit() {
+        let id = "missing-input-box-limit";
+        assert!(!missing_input_box_exhausted(id, &missing(), 1_000));
+        assert!(!missing_input_box_exhausted(
+            id,
+            &missing(),
+            1_000 + MISSING_INPUT_BOX_LIMIT_MS - 1
+        ));
+        assert!(missing_input_box_exhausted(
+            id,
+            &missing(),
+            1_000 + MISSING_INPUT_BOX_LIMIT_MS
+        ));
+    }
+
+    #[test]
+    fn a_dialog_in_front_of_the_input_box_restarts_the_count() {
+        let id = "missing-input-box-dialog";
+        let busy = DomainStateError {
+            code: "agentBusy",
+            message: "Codex is not showing its input box, so the model was not changed.".into(),
+        };
+        assert!(!missing_input_box_exhausted(id, &missing(), 0));
+        assert!(!missing_input_box_exhausted(
+            id,
+            &busy,
+            MISSING_INPUT_BOX_LIMIT_MS / 2
+        ));
+        assert!(!missing_input_box_exhausted(
+            id,
+            &missing(),
+            MISSING_INPUT_BOX_LIMIT_MS + 1
+        ));
+    }
 }

@@ -60,12 +60,18 @@ fn session_chat_agent_command_is_user_hop(session: &Value) -> bool {
 
 /// CDXC:Drafts 2026-10-16 WHY:
 /// With the agent gone and its terminal back at a shell prompt (a start command that failed, an agent that quit), nothing answers the prompt-editor handshake: the capture typed its editor key into the user's shell, waited out its 16 seconds and answered HTTP 500 on every switch to Chat (a customer's Windows log, 2026-10-16). A shell holds no agent draft, so the switch transfers nothing.
-async fn terminal_at_shell_prompt(zmx_name: &str) -> bool {
-    capture_session_terminal_text(zmx_name)
-        .await
-        .is_some_and(|screen| {
-            crate::session_chat_notice::session_chat_screen_ends_with_shell_prompt(&screen)
-        })
+/// CDXC:Drafts 2026-10-24 WHY:
+/// A bare prompt was not enough: a Codex whose start command sat unrun at the prompt, and one that never drew anything, got the editor key typed into the shell (`^G^G` after `codex`) and failed after 16 seconds the same way (GitHub #290). An agent whose input box Ghostex can recognise must be showing it, or there is no draft to move.
+async fn terminal_holds_no_agent_draft(zmx_name: &str, agent: Option<&str>) -> bool {
+    let Some(screen) = capture_session_terminal_text(zmx_name).await else {
+        return false;
+    };
+    crate::session_chat_notice::session_chat_screen_ends_with_shell_prompt(&screen)
+        || (crate::session_chat_composer::has_session_chat_composer_signature(agent)
+            && crate::session_chat_composer::detect_session_chat_composer_readiness(
+                agent, &screen, None,
+            )
+            .input_box_missing())
 }
 
 fn claim_pending_first_user_input_draft_for_chat(
@@ -144,8 +150,10 @@ pub(crate) async fn handle_handoff_session_chat_draft_http(
         Ok(None) => {}
         Err(error) => return domain_error_response(endpoint_path, request_id, error),
     }
+    let composer_agent =
+        crate::session_chat_composer::session_chat_composer_agent_id(&target.session);
     if session_chat_agent_command_is_user_hop(&target.session)
-        || terminal_at_shell_prompt(&target.zmx_name).await
+        || terminal_holds_no_agent_draft(&target.zmx_name, composer_agent.as_deref()).await
     {
         return routed_json(
             Some(endpoint_path),

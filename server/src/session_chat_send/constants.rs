@@ -81,12 +81,6 @@ pub(super) const SESSION_CHAT_PASTING_INDICATOR_NEEDLE: &str = "Pastingtext";
 /// describes the terminal, not the network: nothing was submitted.
 pub const SESSION_CHAT_PASTE_NOT_ACCEPTED: &str = "The terminal did not accept the pasted message.";
 /// Fallback for a composer wait that timed out without a per-agent reason.
-/// How often `WaitForAgentExit` re-reads the process snapshot.
-pub(super) const SESSION_CHAT_AGENT_EXIT_POLL_MS: u64 = 400;
-/// Pause after the agent process is gone so the shell has painted its prompt.
-pub(super) const SESSION_CHAT_AGENT_EXIT_SETTLE_MS: u64 = 300;
-pub(super) const SESSION_CHAT_SHELL_PROMPT_NOT_REACHED: &str =
-    "The agent did not exit back to the shell, so the resume command was not typed.";
 pub const SESSION_CHAT_COMPOSER_NOT_READY: &str =
     "The agent's input box is not on screen, so nothing was sent.";
 /// Empryo's input box shows text this terminal's screen capture cannot tell apart from its tip

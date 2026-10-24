@@ -93,3 +93,69 @@ async fn live_zmx_effort_round_trip() {
         );
     }
 }
+
+/// GitHub #290: no model pick may type into a screen without the agent's input box, and a screen
+/// that shows nothing of the agent (blank, a shell prompt with its start command unrun) must read
+/// as a missing input box, which the queue gives up on, rather than as a dialog it waits behind.
+#[test]
+fn a_shell_prompt_or_blank_screen_is_a_missing_input_box() {
+    use crate::session_chat_composer::{
+        detect_session_chat_composer_readiness, SessionChatComposerState,
+    };
+    let unrun = "Last login: Fri Oct 24 12:59:01 on ttys004\n~/dev/app ❯  codex --no-daemon --model gpt-6.1-sol -c model_reasoning_effort=low^G^G";
+    for (agent, screen) in [
+        ("codex", unrun),
+        ("codex", ""),
+        ("claude", "~/dev/app ❯  claude --model sonnet --effort high"),
+        ("claude", "~/dev/app ❯"),
+    ] {
+        let readiness = detect_session_chat_composer_readiness(Some(agent), screen, None);
+        assert_ne!(
+            readiness.state,
+            SessionChatComposerState::Ready,
+            "{agent}: {screen}"
+        );
+        assert!(readiness.input_box_missing(), "{agent}: {screen}");
+        assert_eq!(
+            input_box_refusal(&readiness, "no input box").code,
+            INPUT_BOX_MISSING_CODE
+        );
+    }
+}
+
+#[test]
+fn a_dialog_in_front_of_the_input_box_is_busy_not_missing() {
+    use crate::session_chat_composer::{
+        detect_session_chat_composer_readiness, SessionChatComposerState,
+    };
+    const RULE: &str = "────────────────────────────────────────";
+    let dashboard = [
+        RULE,
+        "❯ describe a task for a new session",
+        RULE,
+        "  ⏵⏵ auto mode · enter to return · space to reply · ctrl+x to delete · ? for shortcuts",
+    ]
+    .join("\n");
+    let readiness = detect_session_chat_composer_readiness(Some("claude"), &dashboard, None);
+    assert_eq!(readiness.state, SessionChatComposerState::NotReady);
+    assert!(!readiness.input_box_missing());
+    assert_eq!(input_box_refusal(&readiness, "busy").code, "agentBusy");
+}
+
+#[test]
+fn the_agents_own_input_box_is_ready() {
+    use crate::session_chat_composer::{
+        detect_session_chat_composer_readiness, SessionChatComposerState,
+    };
+    let codex = ">_ OpenAI Codex (v0.164.0)\n\n› Ask Codex to do anything\n\n  GPT-6.1-Sol low · 01a16e25 · Ghostex · main · Context 0% used\n  ? for shortcuts";
+    assert_eq!(
+        detect_session_chat_composer_readiness(Some("codex"), codex, None).state,
+        SessionChatComposerState::Ready
+    );
+    const RULE: &str = "────────────────────────────────────────";
+    let claude = [RULE, "❯ ", RULE, "  Sonnet 5.5 | medium"].join("\n");
+    assert_eq!(
+        detect_session_chat_composer_readiness(Some("claude"), &claude, None).state,
+        SessionChatComposerState::Ready
+    );
+}

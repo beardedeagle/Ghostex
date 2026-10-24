@@ -224,53 +224,24 @@ pub(super) async fn run_session_chat_send_worker(
                         break;
                     }
                 }
-                SessionChatSendStep::WaitForAgentExit {
+                SessionChatSendStep::RunShellCommand {
+                    command,
                     home_dir,
                     timeout_ms,
                 } => {
-                    let deadline = Instant::now() + Duration::from_millis(timeout_ms);
-                    let mut at_prompt = false;
-                    loop {
-                        if job_generation != generation.load(Ordering::SeqCst) {
-                            outcome = Err(SessionChatSendError::not_attempted(
-                                SESSION_CHAT_SEND_CANCELLED.to_string(),
-                            ));
-                            break;
-                        }
-                        if !session_agent_process_running(&zmx_name, &home_dir).await {
-                            // Give the shell one moment to paint its prompt before the resume command lands on it.
-                            tokio::time::sleep(Duration::from_millis(
-                                SESSION_CHAT_AGENT_EXIT_SETTLE_MS,
-                            ))
-                            .await;
-                            at_prompt = true;
-                            break;
-                        }
-                        if Instant::now() >= deadline {
-                            break;
-                        }
-                        tokio::time::sleep(Duration::from_millis(SESSION_CHAT_AGENT_EXIT_POLL_MS))
-                            .await;
-                    }
-                    if outcome.is_err() {
-                        break;
-                    }
-                    if !at_prompt {
-                        log_session_chat_paste_verification(
-                            LogLevel::Error,
-                            "sessionChatAgentExitNotObserved",
-                            &project_id,
-                            &session_id,
-                            &zmx_name,
-                            &source,
-                            0,
-                            timeout_ms,
-                            SESSION_CHAT_SHELL_PROMPT_NOT_REACHED,
-                        );
-                        outcome = Err(SessionChatSendError::new(
-                            SessionChatSendFailure::ComposerNotReady,
-                            SESSION_CHAT_SHELL_PROMPT_NOT_REACHED.to_string(),
-                        ));
+                    if let Err(error) = super::launch_command::run_shell_command(
+                        &project_id,
+                        &session_id,
+                        &zmx_name,
+                        &source,
+                        &command,
+                        &home_dir,
+                        timeout_ms,
+                        &|| job_generation != generation.load(Ordering::SeqCst),
+                    )
+                    .await
+                    {
+                        outcome = Err(error);
                         break;
                     }
                 }

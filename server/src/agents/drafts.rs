@@ -484,6 +484,7 @@ pub(crate) fn switch_draft_agent(
         "agentCommand",
         "launchAgentId",
         "agentName",
+        crate::session_chat_model_selection_alert::MODEL_SELECTION_FAILURE_KEY,
     ] {
         runtime_settings.remove(key);
     }
@@ -602,6 +603,11 @@ pub(crate) fn switch_draft_agent(
         update.insert("title".to_string(), json!(title));
     }
     let updated = repository.update_session(&update)?;
+    crate::session_chat_model_selection::discard_for_agent_switch(
+        db,
+        &lifecycle.project_id,
+        &lifecycle.session_id,
+    );
 
     if let Some(command) = reuse_command {
         /*
@@ -666,13 +672,10 @@ pub(crate) fn switch_draft_agent(
 /// diagnostic input logs separate them from a user's own keystrokes and from
 /// chat sends.
 const DRAFT_AGENT_SWITCH_SEND_SOURCE: &str = "draft-agent-switch";
-/// Ctrl+C. Three of these inside one second is the exit gesture the chat-
-/// supported CLIs measure (a single one only cancels the current turn).
-const DRAFT_SWITCH_INTERRUPT: &str = "\u{3}";
-/// Spacing between the interrupts. Wide enough that each is its own stdin
-/// chunk, narrow enough that all three land inside the CLIs' one-second window.
-const DRAFT_SWITCH_INTERRUPT_SPACING_MS: u64 = 150;
-const DRAFT_SWITCH_EXIT_TIMEOUT_MS: u64 = 15_000;
+/// How long the old CLI gets to start (when the switch came in its first seconds) and exit.
+const DRAFT_SWITCH_EXIT_TIMEOUT_MS: u64 = 30_000;
+/// How long the new CLI's start command gets to run once typed.
+const DRAFT_SWITCH_LAUNCH_TIMEOUT_MS: u64 = 10_000;
 
 /// The new agent's launch line, taken from the rebuilt plan's `startupText` —
 /// already leading-space prefixed so the login shell keeps it out of atuin
@@ -701,56 +704,35 @@ pub(crate) fn draft_switch_reuse_command(
 
 /*
 The keystrokes an agent switch types into a draft's LIVE pane, in the order a
-person sitting at that pane would type them, as one indivisible job.
-
-Three interrupts, not one: every chat-supported CLI reads a single Ctrl+C as
-"cancel this turn" and only a repeat inside its own short window as "exit", so
-one would be swallowed. The burst spans 300ms, inside the second those CLIs
-measure, then the process check waits for the old CLI to exit.
-
-The command and its Enter are separate writes for the reason every server-side
-writer of an agent pty keeps them separate (see SESSION_CHAT_CLEAR_INPUT_SETTLE_MS
-in `session_chat_send`): a submit that coalesces into the body's stdin chunk is
-inserted as literal text instead of running it.
+person sitting at that pane would type them, as one indivisible job: exit the
+old CLI, then type the new one's start command and make sure it ran.
 */
 pub(crate) fn build_draft_agent_switch_steps(
     command: &str,
 ) -> Vec<crate::session_chat_send::SessionChatSendStep> {
     use crate::session_chat_send::SessionChatSendStep;
     let mut steps = build_draft_agent_exit_steps();
-    steps.push(SessionChatSendStep::Write(command.to_string()));
-    steps.push(SessionChatSendStep::SleepMs(
-        crate::session_chat_send::SESSION_CHAT_SUBMIT_DELAY_MS,
-    ));
-    steps.push(SessionChatSendStep::Write(
-        crate::session_chat_send::SESSION_CHAT_SUBMIT.to_string(),
-    ));
+    steps.push(SessionChatSendStep::RunShellCommand {
+        command: command.to_string(),
+        home_dir: crate::paths::get_gxserver_paths(None).home_dir,
+        timeout_ms: DRAFT_SWITCH_LAUNCH_TIMEOUT_MS,
+    });
     steps
 }
 
 /// The first half of [`build_draft_agent_switch_steps`]: exit the draft's CLI and wait for its
 /// login shell. On its own it stops a draft whose Run on row picked a box, which starts nothing
 /// until the first message (agents/draft_run_location.rs).
+///
+/// CDXC:Drafts 2026-10-24 WHY:
+/// One burst of three Ctrl+C presses followed by a wait for the CLI to exit failed with "The agent did not exit back to the shell" whenever the burst did not end the CLI (GitHub #290): Claude asks again when background tasks run, and a switch made in a new chat's first seconds reached a shell still loading its startup files, before the old CLI had even started. The draft switch now uses the account switch's exit: it presses Escape and Ctrl+C until the CLI's process is gone, waits for a CLI that has not started yet, and types nothing until the shell is at its prompt (accounts/exit.rs).
 pub(crate) fn build_draft_agent_exit_steps() -> Vec<crate::session_chat_send::SessionChatSendStep> {
-    use crate::session_chat_send::SessionChatSendStep;
-    let mut steps = Vec::new();
-    for interrupt in 0..3 {
-        steps.push(SessionChatSendStep::Write(
-            DRAFT_SWITCH_INTERRUPT.to_string(),
-        ));
-        if interrupt < 2 {
-            steps.push(SessionChatSendStep::SleepMs(
-                DRAFT_SWITCH_INTERRUPT_SPACING_MS,
-            ));
-        }
-    }
-    // CDXC:Drafts 2026-09-16 WHY:
-    // A fixed 800ms delay both held up fast exits and typed the launch command into slow CLIs. Reuse the account-switch process check so the command follows the actual exit.
-    steps.push(SessionChatSendStep::WaitForAgentExit {
-        home_dir: crate::paths::get_gxserver_paths(None).home_dir,
-        timeout_ms: DRAFT_SWITCH_EXIT_TIMEOUT_MS,
-    });
-    steps
+    vec![
+        crate::session_chat_send::SessionChatSendStep::InterruptAgentForAccountSwitch {
+            home_dir: crate::paths::get_gxserver_paths(None).home_dir,
+            timeout_ms: DRAFT_SWITCH_EXIT_TIMEOUT_MS,
+        },
+    ]
 }
 
 fn next_draft_agent_title(

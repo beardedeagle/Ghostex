@@ -66,6 +66,7 @@ mod draft_capture;
 mod grok_queue_pull;
 mod handoff_http;
 mod input_bytes;
+mod launch_command;
 mod paste_verification;
 mod queue;
 mod queued_prompt_escape;

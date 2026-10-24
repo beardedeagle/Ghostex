@@ -132,6 +132,8 @@ pub struct SessionChatComposerReadiness {
     /// closes (Escape for Claude's panels, Ctrl+C for Codex's side
     /// conversation), rather than a question or decision the user must answer.
     dismissible: bool,
+    /// The agent's input box is not drawn at all: no dialog, panel or notice stands in its place.
+    input_box_absent: bool,
 }
 
 impl SessionChatComposerReadiness {
@@ -153,12 +155,21 @@ impl SessionChatComposerReadiness {
         self.dismissible
     }
 
+    /// CDXC:SessionChat 2026-10-24 WHY:
+    /// A blank screen, a booting CLI or a shell prompt (the agent never started, or its start command sits unrun at the prompt) is not a dialog the user can answer: nothing of the agent is on screen. A model pick or draft handoff waiting on it must not type into the shell, and a pick that waits on it for minutes stops and says why (GitHub #290), while a pick waiting behind an open dialog keeps waiting.
+    /// Only meaningful for an agent with a composer signature.
+    pub fn input_box_missing(&self) -> bool {
+        self.input_box_absent
+            || (self.state == SessionChatComposerState::Unknown && self.screen_tail.is_empty())
+    }
+
     fn unknown(screen_tail: Vec<String>) -> Self {
         Self {
             state: SessionChatComposerState::Unknown,
             reason: None,
             screen_tail,
             dismissible: false,
+            input_box_absent: false,
         }
     }
 
@@ -168,6 +179,7 @@ impl SessionChatComposerReadiness {
             reason: None,
             screen_tail,
             dismissible: false,
+            input_box_absent: false,
         }
     }
 
@@ -177,6 +189,7 @@ impl SessionChatComposerReadiness {
             reason: Some(reason),
             screen_tail,
             dismissible: false,
+            input_box_absent: false,
         }
     }
 
@@ -186,6 +199,14 @@ impl SessionChatComposerReadiness {
             reason: Some(reason),
             screen_tail,
             dismissible: true,
+            input_box_absent: false,
+        }
+    }
+
+    fn not_on_screen(reason: String, screen_tail: Vec<String>) -> Self {
+        Self {
+            input_box_absent: true,
+            ..Self::not_ready(reason, screen_tail)
         }
     }
 }
@@ -883,7 +904,7 @@ pub fn detect_session_chat_composer_ready(
     } else if matches {
         SessionChatComposerReadiness::ready(screen_tail)
     } else {
-        SessionChatComposerReadiness::not_ready(
+        SessionChatComposerReadiness::not_on_screen(
             format!("The {agent} input box is not on screen yet."),
             screen_tail,
         )
