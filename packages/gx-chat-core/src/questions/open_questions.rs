@@ -5,7 +5,10 @@
 //! highlight `jump.target` briefly.
 //!
 //! CDXC:SessionChat 2026-10-14 DECISION:
-//! User (Q81 = C): a "Previous question ↑" pill next to Scroll to bottom while the chat has unanswered questions; each click scrolls to the next older unanswered one, wrapping, and highlights it briefly. A form whose answers are queued or sending is no longer waiting on the reader. Then: "I don't like the emoji in the Previous question thing. Remove that icon and remove the number." and "Disable this feature by default unless the user has it enabled in Settings, since I want to test it more.": the pill reads "Previous question ↑" and shows only while Settings > Chat > Previous question button (`chatPreviousQuestion`) is on. Supersedes the same day's "❓ 2 · Previous question ↑" pill shown to everyone. Q-tag links stay on either way: they only appear where the agent names a question and do nothing until clicked.
+//! User (Q81 = C): a "Previous question ↑" pill next to Scroll to bottom while the chat has unanswered questions; each click scrolls to the next older unanswered one, wrapping, and highlights it briefly. A form whose answers are queued or sending is no longer waiting on the reader. Then: "I don't like the emoji in the Previous question thing. Remove that icon and remove the number." Supersedes the same day's "❓ 2 · Previous question ↑" pill. Q-tag links only appear where the agent names a question and do nothing until clicked.
+//!
+//! CDXC:SessionChat 2026-10-24 DECISION:
+//! User: "please remove the setting that alows disabling/enabling previous questions button". The pill always shows while a question is unanswered; the `chatPreviousQuestion` setting (off by default since 2026-10-14, for testing) is gone, and a value saved in an old settings file is ignored. Supersedes the 2026-10-14 off-by-default switch.
 
 use serde::{Deserialize, Serialize};
 
@@ -114,11 +117,7 @@ pub fn answers_on_the_way(state: &ChatState) -> Vec<PageAnswers> {
 
 /// The document's `openQuestions`.
 pub fn project(state: &ChatState) -> OpenQuestions {
-    let open = if state.core.previous_question_enabled {
-        unanswered(state)
-    } else {
-        Vec::new()
-    };
+    let open = unanswered(state);
     let count = open.len() as u32;
     OpenQuestions {
         count,
@@ -231,7 +230,7 @@ mod tests {
     }
 
     #[test]
-    fn the_pill_shows_only_while_the_setting_is_on() {
+    fn the_pill_shows_while_a_question_is_unanswered() {
         let mut state = ChatState::default();
         state.transcript_view.askers.push(Asker {
             id: "form".to_string(),
@@ -246,8 +245,6 @@ mod tests {
             superseded: Vec::new(),
             inherited: false,
         });
-        assert_eq!(project(&state).count, 0, "off by default");
-        state.core.previous_question_enabled = true;
         let pill = project(&state);
         assert_eq!(pill.count, 1);
         assert_eq!(pill.text, "Previous question \u{2191}");

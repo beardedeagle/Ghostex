@@ -242,9 +242,6 @@ pub struct ChatSettings {
     /// (the phone), which learns it from the chat read instead.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub catch_up: Option<bool>,
-    /// The Previous question setting (`chatPreviousQuestion`), the same way as `catch_up`.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub previous_question: Option<bool>,
     /// The Send when you pick an answer setting (`chatSendOnPick`), the same way.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub send_on_pick: Option<bool>,

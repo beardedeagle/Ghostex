@@ -1,14 +1,5 @@
 use crate::json::J;
 
-/// Settings whose own value cannot show whether anyone chose it, paired with the key that records
-/// that someone did: Settings sets the companion to `true` whenever the setting is changed, in
-/// either direction, and it is never cleared.
-///
-/// CDXC:SessionChat 2026-10-14 DECISION:
-/// User: "Store if someone toggles it on then off, so we keep that in mind later when we switch it to be enabled by default for everyone." The settings file stores every default, so a saved `false` reads the same whether it was chosen or never touched; a later default flip turns the setting on only where its companion is still `false`.
-pub const USER_SET_COMPANIONS: &[(&str, &str)] =
-    &[("chatPreviousQuestion", "chatPreviousQuestionUserSet")];
-
 pub const DEFAULT_GHOSTEX_SETTINGS: &[(&str, J)] = &[
     // CDXC:Notifications 2026-05-29-12:00:
     // Action-completion feedback should use the plain shamisen sound by default;
@@ -539,10 +530,6 @@ pub const DEFAULT_GHOSTEX_SETTINGS: &[(&str, J)] = &[
     // saved value: CDXC:VoiceMode 2026-10-21 DECISION in packages/gx-chat-core/src/read_aloud/events.rs.
     ("readAloudVoice", J::Str("")),
     ("readAloudRate", J::Num(1.0)),
-    // CDXC:SessionChat 2026-10-14 DECISION: User: "Disable this feature by default unless the user has it enabled in Settings, since I want to test it more." The chat's Previous question button shows only while this is on.
-    ("chatPreviousQuestion", J::Bool(false)),
-    // Whether someone flipped Previous question themselves (`USER_SET_COMPANIONS`).
-    ("chatPreviousQuestionUserSet", J::Bool(false)),
     // CDXC:SessionChat 2026-10-16 DECISION: User: "please add a setting to enable the behavior ... but keep it disabled by default" and "make it an advanced setting". Picking an answer sends a one-question card only while this is on.
     ("chatSendOnPick", J::Bool(false)),
     ("chatPageOpenTarget", J::Str("popup")),

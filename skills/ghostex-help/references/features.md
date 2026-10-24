@@ -1304,8 +1304,7 @@ page works the same way: its card reads Answered once you send, and opening it
 again shows what you sent. The desktop's floating page window and the mobile page close once your answers are
 sent, and stay open with the error if they could not be; in the Files view or your browser the page stays open. Until you send,
 what you picked and typed is kept, in a form and on a page alike, even when
-you close the page or the chat, switch sessions, or restart. With Settings >
-Chat > Previous question button turned on (it is off by default), a small "?"
+you close the page or the chat, switch sessions, or restart. A small "?"
 button sits on the working card just above the chat box, left of the other
 pills (after Scroll to bottom when that shows), while a form or
 question page in the chat is still waiting for your answers (desktop, web and
@@ -1320,7 +1319,7 @@ with a check once you answered it, grey once you skipped it, and grey and
 struck through once the agent withdrew it. When you answer a question another
 way, by telling the agent in the chat or by doing what it asked, the agent
 withdraws it so it stops counting as open. Settings: `chatPageOpenTarget` (`popup`,
-`files` or `system-browser`), `chatPreviousQuestion`, and
+`files` or `system-browser`) and
 (under Show Advanced) `chatSendOnPick`, which makes picking an answer send a
 card that asks a single choice question right away, without Send answers
 (off by default; cards with several questions, multiple choice, Other or text

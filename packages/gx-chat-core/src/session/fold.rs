@@ -550,7 +550,6 @@ fn empty_result() -> ReadSessionChatResult {
         switchable_agents: None,
         uses_own_login: None,
         catch_up: None,
-        previous_question: None,
         send_on_pick: None,
         all_orchestrator_efforts: None,
         marked_heading_strength: None,

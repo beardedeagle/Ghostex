@@ -150,13 +150,6 @@ impl GhostexGpuiApp {
             .object()
             .clone();
         for (key, value) in patch_object {
-            // A setting whose default may flip later records that someone changed it themselves
-            // (CDXC:SessionChat 2026-10-14 on `USER_SET_COMPANIONS` in packages/settings-catalog).
-            if let Some(companion) = ghostex_settings_catalog::user_set_companion(key)
-                && merged_settings.get(key) != Some(value)
-            {
-                merged_settings.insert(companion.to_string(), serde_json::Value::Bool(true));
-            }
             merged_settings.insert(key.clone(), value.clone());
         }
         let merged_message = serde_json::json!({

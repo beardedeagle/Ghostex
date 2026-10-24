@@ -55,9 +55,6 @@ pub struct CoreState {
     pub hide_account_emails: bool,
     /// The Catch me up setting (`chatCatchMeUp`), from the chat settings or the latest read.
     pub catch_up_enabled: bool,
-    /// The Previous question setting (`chatPreviousQuestion`), from the chat settings or the
-    /// latest read; off by default.
-    pub previous_question_enabled: bool,
     /// The Send when you pick an answer setting (`chatSendOnPick`), from the chat settings or the
     /// latest read; off by default.
     pub send_on_pick_enabled: bool,

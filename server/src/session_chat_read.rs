@@ -576,15 +576,6 @@ pub(crate) async fn handle_read_session_chat_http(
         "catchUp".to_string(),
         json!(crate::session_chat_catch_up::catch_up_enabled(&state.paths)),
     );
-    // The Previous question switch rides every read the same way (CDXC:SessionChat 2026-10-14 in
-    // packages/gx-chat-core/src/questions/open_questions.rs).
-    result.insert(
-        "previousQuestion".to_string(),
-        json!(crate::session_chat_catch_up::chat_setting_enabled(
-            &state.paths,
-            "chatPreviousQuestion"
-        )),
-    );
     // The Send when you pick an answer switch rides every read too, so the phone follows the computer's value.
     result.insert(
         "sendOnPick".to_string(),
