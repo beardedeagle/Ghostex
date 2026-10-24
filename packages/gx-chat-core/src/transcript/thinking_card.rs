@@ -102,7 +102,13 @@ fn preview(text: &str) -> String {
         .replace('`', "")
 }
 
+/// The longest one-line thought that stays closed: a short headline fits the row on a phone, a
+/// longer line is cut with an ellipsis and has to open to be read.
+const CLOSED_LINE_CHARS: usize = 48;
+
 /// A thought's one line: its first plain line, and whether its full text says more than that.
+///
+/// CDXC:SessionChat 2026-10-25 WHY: Renderers draw the line truncated to one row, so a one-line thought longer than a headline (OpenCode writes a whole sentence of reasoning on one line) must open too, or its end is never readable.
 pub fn thinking_row(body: &str) -> Value {
     let preview = crate::transcript::message_text::plain_reasoning_teaser(body);
     let plain = crate::transcript::message_text::plain_reasoning_text(body);
@@ -111,8 +117,10 @@ pub fn thinking_row(body: &str) -> Value {
         .filter(|line| !line.trim().is_empty())
         .count();
     json!({
+        "expandable": lines > 1
+            || body.contains("```")
+            || preview.chars().count() > CLOSED_LINE_CHARS,
         "preview": preview,
-        "expandable": lines > 1 || body.contains("```"),
     })
 }
 
