@@ -415,6 +415,9 @@ pub(crate) async fn run_zmx_title_observer(
                 continue;
             }
         };
+        if let Some(pid) = child.id() {
+            crate::platform::process::end_with_server(pid);
+        }
         let Some(stdout) = child.stdout.take() else {
             return;
         };

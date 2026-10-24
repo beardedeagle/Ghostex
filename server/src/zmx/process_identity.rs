@@ -522,7 +522,23 @@ pub(crate) fn process_open_file_paths(process_id: i64) -> Vec<PathBuf> {
 
 #[cfg(windows)]
 pub(crate) fn process_open_file_paths(process_id: i64) -> Vec<PathBuf> {
-    crate::platform::process_files::open_paths(process_id)
+    crate::platform::process_files::open_paths_isolated(&[process_id])
+        .remove(&process_id)
+        .unwrap_or_default()
+}
+
+/// `process_open_file_paths` for several processes; on Windows one helper reads them all.
+#[cfg(windows)]
+pub(crate) fn process_open_file_paths_many(process_ids: &[i64]) -> HashMap<i64, Vec<PathBuf>> {
+    crate::platform::process_files::open_paths_isolated(process_ids)
+}
+
+#[cfg(not(windows))]
+pub(crate) fn process_open_file_paths_many(process_ids: &[i64]) -> HashMap<i64, Vec<PathBuf>> {
+    process_ids
+        .iter()
+        .map(|pid| (*pid, process_open_file_paths(*pid)))
+        .collect()
 }
 
 #[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]

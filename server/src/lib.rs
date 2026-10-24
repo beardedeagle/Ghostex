@@ -25,6 +25,7 @@ pub(crate) mod cloud_runner;
 pub mod config;
 pub(crate) mod connectors;
 pub mod constants;
+pub(crate) mod crash_report;
 pub mod coordinators;
 pub mod custom_session_tags;
 pub mod delayed_sends;

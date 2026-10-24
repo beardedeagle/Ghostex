@@ -530,3 +530,161 @@ fn zmx_endpoint_error_message(error: ZmxEndpointError) -> String {
         ZmxEndpointError::Domain(error) => error.message,
     }
 }
+
+/// Ends every live session daemon named for this gxserver that no session row owns, before any client can attach. Runs beside the wire-generation pass at startup.
+///
+/// CDXC:Resources 2026-10-24 WHY:
+/// The user's rule is "we shouldn't have orphaned ones" (`resource_session_owners`). A daemon whose row is gone (a create the previous gxserver died in the middle of, or a row removed while gxserver was down) was never ended: nothing restores it and nothing lists it but Resources, so it kept its agent, its endpoint record and, on Windows, its `windows-sessions` lock forever, and the reporter of GitHub #289 had to end them by hand. Only daemons with this server's name prefix are touched, a name counts as owned when it is a row's derived name, its stored `zmxName` or its provider state's `zmxName`, and the pass reads the live list once, so a row that exists is never ended.
+pub(crate) fn end_unowned_zmx_session_daemons(
+    repository: &DomainRepository<'_>,
+    logger: &GxserverLogger,
+    server_id: &str,
+) {
+    let Ok(live) = read_zmx_existing_session_names() else {
+        return;
+    };
+    let Ok(owned) = owned_zmx_session_names(repository, server_id) else {
+        return;
+    };
+    let unowned = unowned_zmx_session_names(live, &owned, server_id);
+    if unowned.is_empty() {
+        return;
+    }
+    let Ok(zmx) = require_zmx() else {
+        return;
+    };
+    for zmx_name in unowned {
+        let kill = kill_zmx_session(&zmx_name, &zmx.executable_path);
+        let outcome = if kill.killed && zmx_session_daemon_socket_present(&zmx_name) != Some(true) {
+            Ok("killed".to_string())
+        } else {
+            terminate_zmx_session_daemon_process(&zmx_name).map(|()| "terminated".to_string())
+        };
+        let _ = logger.log(GxserverLogInput {
+            level: LogLevel::Warn,
+            event: match outcome {
+                Ok(_) => "unownedSessionDaemonEnded",
+                Err(_) => "unownedSessionDaemonEndFailed",
+            }
+            .to_string(),
+            server_id: Some(server_id.to_string()),
+            request_id: None,
+            client: None,
+            duration_ms: None,
+            error: Some(match &outcome {
+                Ok(_) => "A session terminal was still running for a session Ghostex no longer has, so it was ended.".to_string(),
+                Err(error) => format!("A session terminal is still running for a session Ghostex no longer has and could not be ended: {error}"),
+            }),
+            details: Some(json!({
+                "providerSessionId": zmx_name,
+                "termination": outcome.as_deref().unwrap_or("failed"),
+            })),
+        });
+    }
+}
+
+/// Every zmx name a session row of this server can own.
+fn owned_zmx_session_names(
+    repository: &DomainRepository<'_>,
+    server_id: &str,
+) -> Result<std::collections::HashSet<String>, DomainStateError> {
+    let mut statement = repository
+        .db
+        .prepare(
+            "SELECT projectId, sessionId, zmxName,
+                    CASE WHEN json_type(providerStateJson, '$.zmxName') = 'text'
+                         THEN json_extract(providerStateJson, '$.zmxName') END
+             FROM sessions",
+        )
+        .map_err(crate::domain::sql_error)?;
+    let rows = statement
+        .query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, Option<String>>(2)?,
+                row.get::<_, Option<String>>(3)?,
+            ))
+        })
+        .map_err(crate::domain::sql_error)?;
+    let mut owned = std::collections::HashSet::new();
+    for row in rows {
+        let (project_id, session_id, stored, provider_state) =
+            row.map_err(crate::domain::sql_error)?;
+        owned.insert(crate::ids::create_zmx_session_name(
+            server_id,
+            &project_id,
+            &session_id,
+        ));
+        owned.extend(stored.into_iter().chain(provider_state));
+    }
+    Ok(owned)
+}
+
+/// The live names with this server's prefix that no row owns, sorted.
+pub(crate) fn unowned_zmx_session_names(
+    live: impl IntoIterator<Item = String>,
+    owned: &std::collections::HashSet<String>,
+    server_id: &str,
+) -> Vec<String> {
+    let prefix = format!("{server_id}-");
+    let mut unowned: Vec<String> = live
+        .into_iter()
+        .map(|name| name.trim().to_string())
+        .filter(|name| name.len() > prefix.len() && name.starts_with(&prefix))
+        .filter(|name| !owned.contains(name))
+        .collect();
+    unowned.sort();
+    unowned.dedup();
+    unowned
+}
+
+#[cfg(test)]
+mod unowned_daemon_tests {
+    use super::*;
+
+    #[test]
+    fn only_this_servers_daemons_without_a_row_are_ended() {
+        let owned: std::collections::HashSet<String> =
+            ["S1b-P1-G1".to_string(), "S1b-P1-G2".to_string()].into();
+        let live = [
+            "S1b-P1-G1",
+            "S1b-P1-G9",
+            "S2c-P1-G9",
+            "S1b-",
+            "S1bx-P1-G3",
+            " S1b-P2-G4 ",
+            "S1b-P1-G9",
+        ]
+        .map(str::to_string);
+        assert_eq!(
+            unowned_zmx_session_names(live, &owned, "S1b"),
+            vec!["S1b-P1-G9".to_string(), "S1b-P2-G4".to_string()]
+        );
+    }
+
+    #[test]
+    fn a_stored_name_keeps_its_daemon() {
+        let db = rusqlite::Connection::open_in_memory().expect("db");
+        db.execute_batch(
+            "CREATE TABLE sessions (projectId TEXT, sessionId TEXT, zmxName TEXT, providerStateJson TEXT);
+             INSERT INTO sessions VALUES ('P1', 'G1', 'S1b-P0-G1', '{}');
+             INSERT INTO sessions VALUES ('P2', 'G2', '', '{\"zmxName\":\"S1b-P9-G2\"}');",
+        )
+        .expect("rows");
+        let repository = DomainRepository::new(&db, "S1b");
+        let owned = owned_zmx_session_names(&repository, "S1b").expect("owned");
+        let live = [
+            "S1b-P1-G1",
+            "S1b-P0-G1",
+            "S1b-P9-G2",
+            "S1b-P2-G2",
+            "S1b-P3-G3",
+        ]
+        .map(str::to_string);
+        assert_eq!(
+            unowned_zmx_session_names(live, &owned, "S1b"),
+            vec!["S1b-P3-G3".to_string()]
+        );
+    }
+}

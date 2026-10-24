@@ -52,6 +52,62 @@ pub(crate) fn suppress_helper_error_dialogs() {
     }
 }
 
+/// Ends the helper `pid` when this process ends, however it ends; a no-op outside Windows.
+///
+/// CDXC:PlatformSupport 2026-10-24 WHY:
+/// Windows does not end a child with its parent, so every gxserver that died left its `wmx watch-title` helpers running (they exit only when a title write fails), and with each start adding more, a reporter counted 26 wmx processes (GitHub #289). A helper that must die with the daemon joins a kill-on-close job that only this process holds: when the daemon exits or crashes, Windows closes the job and ends its members. Only helpers that start nothing that must outlive the daemon join it; session hosts never do, so agents keep running across restarts.
+pub(crate) fn end_with_server(pid: u32) {
+    #[cfg(windows)]
+    {
+        use std::sync::OnceLock;
+        use windows_sys::Win32::{
+            Foundation::CloseHandle,
+            System::{
+                JobObjects::{
+                    AssignProcessToJobObject, CreateJobObjectW, JobObjectExtendedLimitInformation,
+                    SetInformationJobObject, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
+                    JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+                },
+                Threading::{OpenProcess, PROCESS_SET_QUOTA, PROCESS_TERMINATE},
+            },
+        };
+        // The handle is never closed: the kernel closes it when this process ends.
+        static HELPER_JOB: OnceLock<usize> = OnceLock::new();
+        let job = *HELPER_JOB.get_or_init(|| unsafe {
+            let job = CreateJobObjectW(std::ptr::null(), std::ptr::null());
+            if job.is_null() {
+                return 0;
+            }
+            let mut limits: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = std::mem::zeroed();
+            limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+            if SetInformationJobObject(
+                job,
+                JobObjectExtendedLimitInformation,
+                (&limits as *const JOBOBJECT_EXTENDED_LIMIT_INFORMATION).cast(),
+                std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+            ) == 0
+            {
+                CloseHandle(job);
+                return 0;
+            }
+            job as usize
+        });
+        if job == 0 || pid == 0 {
+            return;
+        }
+        unsafe {
+            let process = OpenProcess(PROCESS_SET_QUOTA | PROCESS_TERMINATE, 0, pid);
+            if process.is_null() {
+                return;
+            }
+            AssignProcessToJobObject(job as _, process);
+            CloseHandle(process);
+        }
+    }
+    #[cfg(not(windows))]
+    let _ = pid;
+}
+
 /// The process's creation time as a Windows FILETIME (100ns ticks since 1601), or `None` once it has exited or cannot be opened.
 #[cfg(windows)]
 pub(crate) fn process_creation_filetime(process_id: i64) -> Option<u64> {
