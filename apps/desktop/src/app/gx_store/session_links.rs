@@ -21,6 +21,49 @@ impl GhostexGpuiApp {
         cx: &mut gpui::Context<Self>,
     ) -> bool {
         match command.get("type").and_then(Value::as_str) {
+            Some("setSessionLinksFolded") => {
+                let (Some(section), Some(folded)) = (
+                    command.get("section").and_then(Value::as_str),
+                    command.get("folded").and_then(Value::as_bool),
+                ) else {
+                    return true;
+                };
+                let settings = crate::shared_settings::shared_sidebar_settings_snapshot();
+                let mut sections: Vec<String> = match settings
+                    .object()
+                    .get("sessionLinksFoldedSections")
+                    .and_then(Value::as_array)
+                {
+                    Some(sections) => sections
+                        .iter()
+                        .filter_map(Value::as_str)
+                        .map(str::to_string)
+                        .collect(),
+                    None => vec!["removed".to_string()],
+                };
+                sections.retain(|known| known != section);
+                if folded {
+                    sections.push(section.to_string());
+                }
+                // A browser page has no settings write (its Settings patch answers with a toast),
+                // so its folds live in the page's own copy of the settings until it reloads.
+                #[cfg(target_arch = "wasm32")]
+                {
+                    let mut object = settings.object().clone();
+                    object.insert("sessionLinksFoldedSections".to_string(), json!(sections));
+                    crate::shared_settings::install(object);
+                    cx.notify();
+                }
+                #[cfg(not(target_arch = "wasm32"))]
+                self.handle_gpui_app_modal_update_settings_patch_message(
+                    &json!({
+                        "patch": { "sessionLinksFoldedSections": sections },
+                        "source": "sessionLinks:fold",
+                    }),
+                    cx,
+                );
+                true
+            }
             Some("openSessionLink") => {
                 if let Some(url) = command
                     .get("url")

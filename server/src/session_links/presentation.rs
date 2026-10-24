@@ -257,11 +257,14 @@ fn entry_value(
             let info = pull_request_info(link, cwd);
             if let Some(info) = &info {
                 output.insert("state".to_string(), json!(info.state.as_wire()));
-                insert_text(&mut output, "checks", info.checks);
-                insert_text(&mut output, "review", info.review);
-                insert_text(&mut output, "title", info.title.as_deref());
                 finished = info.state.disposition()
                     == crate::session_git_status::PullRequestDisposition::Finished;
+                // CDXC:SessionLinks 2026-10-24 WHY: A merged PR read "Checks running" (a bot's check still pending after the merge), so a merged or closed PR shows no checks and no review; only open work says where its checks and review stand.
+                if !finished {
+                    insert_text(&mut output, "checks", info.checks);
+                    insert_text(&mut output, "review", info.review);
+                }
+                insert_text(&mut output, "title", info.title.as_deref());
             }
             let url = info
                 .and_then(|info| info.url)

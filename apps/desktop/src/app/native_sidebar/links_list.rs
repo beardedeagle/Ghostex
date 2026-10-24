@@ -9,6 +9,8 @@
 //! User: a PR or issue URL the chat only mentioned is offered under Suggested ("suggest") with a Link button, rather than linked by itself.
 //! CDXC:SessionLinks 2026-10-24 DECISION:
 //! User: "when a link is gone i see that i can't bring it back why not?", "i mean when i hit x button twice on it". Right after the second click the row reads "Removed · Undo" for a few seconds (this app's toasts have no buttons, so the undo stays in the row), and a collapsed "Removed (N)" group at the bottom lists every removed link with Restore (`/api/restoreSessionLink`).
+//! CDXC:SessionLinks 2026-10-24 DECISION:
+//! User: "can u pls make all the sections in these cards colapsible with chevron? please add this for pr and github issues etc (the headers there". Every section header (Pull requests, GitHub issues, Linear, Suggested, Removed) has the same chevron and folds on a click, keeping its count. The folded sections are one app-wide choice per section kind (`sessionLinksFoldedSections`, Removed folded until opened), kept across sessions and restarts in the settings file the way the chat keeps its zoom; the phone keeps its own (SessionLinksSheet.tsx).
 //! CDXC:SessionLinks 2026-10-24 WHY:
 //! The list opens from a click or a hover the app is still handling, and opening a window draws it at once, so a list that read the app while drawing crashed Ghostex ("cannot read GhostexGpuiApp while it is already being updated"). The opener hands the list in, and later changes arrive through the observer, which runs after the app's update.
 
@@ -80,8 +82,9 @@ pub(crate) struct SessionLinksList {
     armed: Option<String>,
     /// The entry just removed, which reads "Removed · Undo" for a few seconds.
     undo: Option<SessionLink>,
-    /// The "Removed (N)" group is open.
-    removed_open: bool,
+    /// The sections folded shut, by id (`pullRequests`, `issues`, `linear`, `suggested`,
+    /// `removed`), as `sessionLinksFoldedSections` says.
+    folded: Vec<String>,
     scroll: ScrollHandle,
     /// The list this draws, kept here rather than read from the app while drawing.
     links: Option<SessionLinks>,
@@ -102,8 +105,10 @@ impl SessionLinksList {
         let observe = main_app.upgrade().map(|app| {
             cx.observe(&app, |list: &mut Self, app, cx| {
                 let links = app.read(cx).session_links_of(&list.key);
-                if links != list.links {
+                let folded = folded_session_link_sections();
+                if links != list.links || folded != list.folded {
                     list.links = links;
+                    list.folded = folded;
                     cx.notify();
                 }
             })
@@ -114,7 +119,7 @@ impl SessionLinksList {
             host,
             armed: None,
             undo: None,
-            removed_open: false,
+            folded: folded_session_link_sections(),
             scroll: ScrollHandle::new(),
             links,
             _observe: observe,
@@ -391,31 +396,13 @@ impl SessionLinksList {
         if removed.is_empty() {
             return None;
         }
-        let open = self.removed_open;
-        let mut group = v_flex().w_full().gap(px(2.0)).child(
-            h_flex()
-                .id("session-links-removed")
-                .h(px(SECTION_HEIGHT))
-                .px(px(8.0))
-                .gap(px(6.0))
-                .items_end()
-                .pb(px(4.0))
-                .text_size(px(11.0))
-                .text_color(chrome_ink().opacity(0.55))
-                .cursor_pointer()
-                .hover(|header| header.text_color(chrome_ink().opacity(0.85)))
-                .child(if open { "▾" } else { "▸" })
-                .child(format!("Removed ({})", removed.len()))
-                .on_click(cx.listener(|list, _, _, cx| {
-                    list.removed_open = !list.removed_open;
-                    // The group sits at the bottom of a list the window does not grow for, so
-                    // opening it scrolls its rows into view.
-                    if list.removed_open {
-                        list.scroll.scroll_to_bottom();
-                    }
-                    cx.notify();
-                })),
-        );
+        let open = !self.is_folded("removed");
+        let mut group = v_flex().w_full().gap(px(2.0)).child(self.section_header(
+            "removed",
+            "Removed",
+            removed.len(),
+            cx,
+        ));
         if open {
             for link in removed {
                 let (glyph, _) = link.glyph();
@@ -459,17 +446,65 @@ impl SessionLinksList {
         Some(group.into_any_element())
     }
 
-    fn section(title: &str, count: usize) -> AnyElement {
+    fn is_folded(&self, section: &str) -> bool {
+        self.folded.iter().any(|folded| folded == section)
+    }
+
+    fn toggle_section(&mut self, section: &'static str, cx: &mut Context<Self>) {
+        let fold = !self.is_folded(section);
+        if fold {
+            self.folded.push(section.to_string());
+        } else {
+            self.folded.retain(|folded| folded != section);
+            // The last sections sit at the bottom of a list the window does not grow for, so
+            // opening one scrolls its rows into view.
+            if matches!(section, "suggested" | "removed") {
+                self.scroll.scroll_to_bottom();
+            }
+        }
+        self.send(
+            json!({ "type": "setSessionLinksFolded", "section": section, "folded": fold }),
+            cx,
+        );
+        cx.notify();
+    }
+
+    /// A section's header: the chevron, its title and its count, folding the section on a click.
+    fn section_header(
+        &self,
+        section: &'static str,
+        title: &str,
+        count: usize,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let folded = self.is_folded(section);
         h_flex()
+            .id(gpui::SharedString::from(format!(
+                "session-links-section-{section}"
+            )))
             .h(px(SECTION_HEIGHT))
             .px(px(8.0))
-            .gap(px(6.0))
+            .gap(px(5.0))
             .items_end()
             .pb(px(4.0))
             .text_size(px(11.0))
             .text_color(chrome_ink().opacity(0.55))
+            .cursor_pointer()
+            .hover(|header| header.text_color(chrome_ink().opacity(0.85)))
+            .role(gpui::Role::Button)
+            .aria_label(format!("{title} {count}"))
+            .child(div().pb(px(1.0)).child(titlebar_svg_icon(
+                if folded {
+                    "titlebar/chevron-right.svg"
+                } else {
+                    "titlebar/chevron-down.svg"
+                },
+                11.0,
+                chrome_ink().opacity(0.55).into(),
+            )))
             .child(title.to_string())
             .child(count.to_string())
+            .on_click(cx.listener(move |list, _, _, cx| list.toggle_section(section, cx)))
             .into_any_element()
     }
 
@@ -572,10 +607,14 @@ impl Render for SessionLinksList {
         .collect::<Vec<_>>()
         .join(" · ");
         let mut body = v_flex().w_full().gap(px(2.0));
-        for (kind, title) in [
-            (SessionLinkKind::PullRequest, "Pull requests"),
-            (SessionLinkKind::Issue, "GitHub issues"),
-            (SessionLinkKind::Linear, "Linear"),
+        for (kind, section, title) in [
+            (
+                SessionLinkKind::PullRequest,
+                "pullRequests",
+                "Pull requests",
+            ),
+            (SessionLinkKind::Issue, "issues", "GitHub issues"),
+            (SessionLinkKind::Linear, "linear", "Linear"),
         ] {
             let undo = self.undo.clone().filter(|undo| undo.kind == kind);
             let items: Vec<&SessionLink> = links
@@ -587,18 +626,28 @@ impl Render for SessionLinksList {
             if items.is_empty() && undo.is_none() {
                 continue;
             }
-            body = body.child(Self::section(title, items.len()));
+            body = body.child(self.section_header(section, title, items.len(), cx));
+            // A just-removed row keeps its Undo even while its section is folded.
             if let Some(undo) = &undo {
                 body = body.child(self.render_undo_row(undo, cx));
             }
-            for item in items {
-                body = body.child(self.render_row(item, cx));
+            if !self.is_folded(section) {
+                for item in items {
+                    body = body.child(self.render_row(item, cx));
+                }
             }
         }
         if !links.suggested.is_empty() {
-            body = body.child(Self::section("Suggested", links.suggested.len()));
-            for suggestion in &links.suggested {
-                body = body.child(self.render_suggestion(suggestion, cx));
+            body = body.child(self.section_header(
+                "suggested",
+                "Suggested",
+                links.suggested.len(),
+                cx,
+            ));
+            if !self.is_folded("suggested") {
+                for suggestion in &links.suggested {
+                    body = body.child(self.render_suggestion(suggestion, cx));
+                }
             }
         }
         if let Some(removed) = self.render_removed(&links, cx) {
@@ -673,5 +722,22 @@ impl Render for SessionLinksList {
                         ),
                     ),
             )
+    }
+}
+
+/// The sections folded shut, from `sessionLinksFoldedSections`; Removed starts folded.
+fn folded_session_link_sections() -> Vec<String> {
+    let settings = crate::shared_settings::shared_sidebar_settings_snapshot();
+    match settings
+        .object()
+        .get("sessionLinksFoldedSections")
+        .and_then(serde_json::Value::as_array)
+    {
+        Some(sections) => sections
+            .iter()
+            .filter_map(serde_json::Value::as_str)
+            .map(str::to_string)
+            .collect(),
+        None => vec!["removed".to_string()],
     }
 }

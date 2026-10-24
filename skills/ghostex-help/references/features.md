@@ -3330,13 +3330,16 @@ offered under Suggested instead, with a Link button. The work area header shows 
 to three of them after the session's title, open work first, each with its number,
 state and checks, then +N for the rest (or a List pill when they all fit), which
 opens the whole list: each link on two lines, its number, title and state, then
-its checks (passing, failing or running), its review (review requested, approved
-or changes requested) and where it came from. Click a link to open it; **Open
+its checks (passing, failing or running, shown only while it is open), its review
+(review requested, approved or changes requested) and where it came from. Each
+section (Pull requests, GitHub issues, Linear, Suggested, Removed) folds with the
+chevron on its header and keeps its count; what you fold stays folded in every
+session and after a restart (the phone keeps its own). Click a link to open it; **Open
 session links in** (Settings > General > Browser) opens them in the internal
 browser (the default) or your default browser. Click a link's × and then Remove?
 within three seconds to remove it; a removed link never comes back by itself.
 Right after a removal its row reads Removed · Undo for a few seconds, and every
-removed link stays under a collapsed Removed (N) group at the bottom of the list
+removed link stays under a Removed section, folded until you open it, at the bottom of the list
 (on the phone's sheet too) with Restore, which puts it back as it was and lets it
 join by itself again. In the sidebar, **Session links in the sidebar**
 (Settings > Session Cards) picks how a card shows them: Always (a line of chips

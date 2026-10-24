@@ -3498,6 +3498,20 @@
       "agentWritable": false
     },
     {
+      "key": "sessionLinksFoldedSections",
+      "title": "sessionLinksFoldedSections",
+      "subtitle": "App-managed state saved with the settings; not a user preference.",
+      "tab": "settings",
+      "tabTitle": "General",
+      "section": "internalState",
+      "sectionTitle": "Internal state (not user settings)",
+      "type": "json",
+      "default": [
+        "removed"
+      ],
+      "agentWritable": false
+    },
+    {
       "key": "settingsModalNavigation",
       "title": "settingsModalNavigation",
       "subtitle": "App-managed state saved with the settings; not a user preference.",
