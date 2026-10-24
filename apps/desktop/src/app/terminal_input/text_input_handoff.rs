@@ -65,9 +65,7 @@ impl GhostexGpuiApp {
                 .agents_chat_auto_switch_observed_sessions
                 .get(&session_id)
                 .copied();
-            if effective_interface == GpuiPreferredAgentInterface::Chat
-                && previous_interface != Some(effective_interface)
-            {
+            if automatic_chat_switch_due(previous_interface, effective_interface) {
                 newly_eligible.push(session_id);
             }
             self.agents_chat_auto_switch_observed_sessions
@@ -105,6 +103,21 @@ impl GhostexGpuiApp {
         self.reconcile_agents_pane_surfaces(cx);
         self.persist_shell_layout_state();
         cx.notify();
+    }
+
+    /// Records the view a session was just switched to as the one the automatic Chat switch has
+    /// considered under the session's current Default Agent View, so `reconcile_automatic_agents_chat_modes`
+    /// and `adopt_preferred_chat_view_on_selection` leave it alone until that default changes.
+    pub(crate) fn record_agents_session_view_choice(&mut self, session_id: TerminalSessionId) {
+        let settings = shared_settings::shared_sidebar_settings_snapshot();
+        let effective_interface = gpui_effective_preferred_agent_interface_for_agent_icon(
+            settings.object(),
+            self.agents_workspace
+                .session(session_id)
+                .and_then(|session| session.agent_icon),
+        );
+        self.agents_chat_auto_switch_observed_sessions
+            .insert(session_id, effective_interface);
     }
 
     pub(crate) fn gpui_engine_terminal_view_for_target(
@@ -306,5 +319,34 @@ impl GhostexGpuiApp {
         &self,
     ) -> Option<FocusedTerminalTextMountTarget> {
         None
+    }
+}
+
+/// CDXC:SessionChat 2026-10-24 DECISION:
+/// User: "i just switched to terminal view on a sleeping session and then clikced here and it switched me back to chat view (it shouldn't do this)". Resuming a session keeps the view the user picked for it: Terminal View stays Terminal View, Chat View stays Chat View. The automatic Chat switch fires only for a session it has not yet considered under its current Default Agent View, and a session that slept since the app started had never been considered (it only counts once its terminal is live), so the wake made it look new and pulled it into Chat. Every view switch now records the session as considered (`record_agents_session_view_choice`), so only a change to its Default Agent View moves it again.
+pub(crate) fn automatic_chat_switch_due(
+    previous_interface: Option<GpuiPreferredAgentInterface>,
+    effective_interface: GpuiPreferredAgentInterface,
+) -> bool {
+    effective_interface == GpuiPreferredAgentInterface::Chat
+        && previous_interface != Some(effective_interface)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_picked_view_survives_the_wake() {
+        use GpuiPreferredAgentInterface::{Chat, Terminal};
+        // A session first seen live under a Chat default switches once.
+        assert!(automatic_chat_switch_due(None, Chat));
+        // A sleeping session the user moved to Terminal was recorded under Chat, so its wake keeps Terminal.
+        assert!(!automatic_chat_switch_due(Some(Chat), Chat));
+        // A Terminal default never switches, recorded or not.
+        assert!(!automatic_chat_switch_due(None, Terminal));
+        assert!(!automatic_chat_switch_due(Some(Terminal), Terminal));
+        // Changing the session's Default Agent View to Chat afterwards still moves it.
+        assert!(automatic_chat_switch_due(Some(Terminal), Chat));
     }
 }

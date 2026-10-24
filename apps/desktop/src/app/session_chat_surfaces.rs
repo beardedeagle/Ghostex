@@ -177,6 +177,8 @@ impl GhostexGpuiApp {
         session_id: TerminalSessionId,
         cx: &mut gpui::Context<Self>,
     ) {
+        // A switch either way is the view the session keeps (see `automatic_chat_switch_due`).
+        self.record_agents_session_view_choice(session_id);
         // Toggling back to the terminal must always work, even if eligibility
         // inputs (agent icon, session mapping) changed while chat was showing.
         if self.agents_chat_mode_sessions.remove(&session_id) {
