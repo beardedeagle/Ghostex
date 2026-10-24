@@ -4,6 +4,8 @@ use gpui::{
     ParentElement as _, Pixels, Render, Stateful, StatefulInteractiveElement as _, Styled as _,
     Window, div, px, size,
 };
+use gpui::IntoElement as _;
+use gpui::prelude::FluentBuilder as _;
 use gpui_component::v_flex;
 use std::cell::Cell;
 use std::rc::Rc;
@@ -15,10 +17,15 @@ use std::rc::Rc;
 /// them exactly; later prepaints only grow it (a validation or failure line
 /// appearing) and never shrink it, so a shorter follow-up state keeps the frame
 /// the opening layout established, like the React fit-height pass did.
+///
+/// CDXC:AppModal 2026-10-25 WHY:
+/// User: "cant' scroll in this pls fx this case and all similar ones" (an orchestrator's Memory with many notes ran off the bottom of its window). A fitted window grew to its whole content with no limit, so a long dialog went past the screen, and the content column could never be shorter than its content, so a fixed frame's own scrolling list never got a height to scroll in. Now a fitted window stops at the display's visible bottom (as `ModalScrollFit` does), a fixed frame's column may shrink so a body's own list scrolls, and whenever the content still does not fit, the whole content becomes one scroll area (`scrolls`). A dialog that fits is laid out exactly as before.
 pub(crate) struct ModalFit {
     requested: Rc<Cell<Option<f32>>>,
     /// A fixed-frame modal (the editors that fill their window) never resizes.
     fixed: bool,
+    /// The content is taller than the window can be: it is drawn inside one scroll area.
+    scrolls: Rc<Cell<bool>>,
 }
 
 impl ModalFit {
@@ -26,6 +33,7 @@ impl ModalFit {
         Self {
             requested: Rc::new(Cell::new(None)),
             fixed: false,
+            scrolls: Rc::new(Cell::new(false)),
         }
     }
 
@@ -35,7 +43,13 @@ impl ModalFit {
         Self {
             requested: Rc::new(Cell::new(None)),
             fixed: true,
+            scrolls: Rc::new(Cell::new(false)),
         }
+    }
+
+    /// Whether the content no longer fits and scrolls as a whole.
+    pub(crate) fn scrolls(&self) -> bool {
+        self.scrolls.get()
     }
 
     /// Fits the window to its content again on the next paint, shrinking it too: for a dialog
@@ -51,16 +65,42 @@ impl ModalFit {
     ) -> impl Fn(Vec<Bounds<Pixels>>, &mut Window, &mut App) + 'static {
         let requested = self.requested.clone();
         let fixed = self.fixed;
+        let scrolls = self.scrolls.clone();
         move |bounds, window, cx| {
-            if fixed || bounds.is_empty() {
+            if bounds.is_empty() {
                 return;
             }
             let content: f32 = bounds
                 .iter()
                 .map(|bounds| f32::from(bounds.size.height))
                 .sum();
-            let needed = (content + extra_height).round();
+            let mut needed = (content + extra_height).round();
             let current = f32::from(window.viewport_size().height).round();
+            // gpui can resize a window but not move it, and the resize keeps the top edge, so the
+            // tallest a fitted window may grow is the room below its top.
+            let limit = window.display(cx).and_then(|display| {
+                let visible = display.visible_bounds();
+                let visible_bottom = f32::from(visible.origin.y + visible.size.height);
+                let top = f32::from(window.bounds().origin.y);
+                let limit = (visible_bottom - top - MODAL_SCROLL_FIT_SCREEN_MARGIN).round();
+                (limit > 0.0).then_some(limit)
+            });
+            let room = if fixed {
+                current
+            } else {
+                limit.unwrap_or(f32::MAX)
+            };
+            let overflows = needed > room + 1.0;
+            if scrolls.get() != overflows {
+                scrolls.set(overflows);
+                window.refresh();
+            }
+            if fixed {
+                return;
+            }
+            if let Some(limit) = limit {
+                needed = needed.min(limit);
+            }
             let first = requested.get().is_none();
             if !first && needed <= current {
                 return;
@@ -81,6 +121,37 @@ impl ModalFit {
             });
         }
     }
+}
+
+/// The header and body column of [`modal_shell`] and [`modal_shell_inset`]. While the content
+/// fits it is the plain column it always was (a fixed frame's may also shrink, so a body's own
+/// list scrolls); once it does not, it sits in one scroll area at its natural height
+/// (`ModalFit::scrolls`), which is also what the fit measures then.
+fn fitted_content(
+    id: &'static str,
+    fit: &ModalFit,
+    listener: impl Fn(Vec<Bounds<Pixels>>, &mut Window, &mut App) + 'static,
+    content: Vec<AnyElement>,
+) -> AnyElement {
+    let column = v_flex()
+        .w_full()
+        .gap(px(MODAL_SECTION_GAP))
+        .on_children_prepainted(listener)
+        .children(content);
+    if fit.scrolls() {
+        return div()
+            .id((id, 0usize))
+            .flex_1()
+            .min_h_0()
+            .w_full()
+            .overflow_y_scroll()
+            .child(column)
+            .into_any_element();
+    }
+    column
+        .flex_1()
+        .when(fit.fixed, |column| column.min_h_0())
+        .into_any_element()
 }
 
 /// The dialog frame: the window surface, the platform UI font, 24px padding,
@@ -113,14 +184,12 @@ pub(crate) fn modal_shell<V: Render>(
                 .size_full()
                 .p(px(MODAL_WINDOW_PADDING))
                 .gap(px(MODAL_SECTION_GAP))
-                .child(
-                    v_flex()
-                        .flex_1()
-                        .w_full()
-                        .gap(px(MODAL_SECTION_GAP))
-                        .on_children_prepainted(fit.listener(MODAL_FIT_EXTRA_HEIGHT))
-                        .children(content),
-                )
+                .child(fitted_content(
+                    id,
+                    fit,
+                    fit.listener(MODAL_FIT_EXTRA_HEIGHT),
+                    content,
+                ))
                 .child(footer),
         )
         .children(overlay)
@@ -158,14 +227,7 @@ pub(crate) fn modal_shell_inset<V: Render>(
                 .size_full()
                 .p(px(padding))
                 .gap(px(MODAL_SECTION_GAP))
-                .child(
-                    v_flex()
-                        .flex_1()
-                        .w_full()
-                        .gap(px(MODAL_SECTION_GAP))
-                        .on_children_prepainted(fit.listener(extra_height))
-                        .children(content),
-                )
+                .child(fitted_content(id, fit, fit.listener(extra_height), content))
                 .child(footer),
         )
         .children(overlay)

@@ -27,10 +27,6 @@ mod native_modal_kit;
 #[path = "../ui_fonts.rs"]
 mod ui_fonts;
 // DEMO-MODULES: one `#[path]` include per converted modal, plus its demo module under native_modal_demo/.
-#[path = "native_modal_demo/voice_panel.rs"]
-mod voice_panel_demo;
-#[path = "../app/voice_agent/panel_controls.rs"]
-mod voice_panel_controls;
 #[path = "native_modal_demo/add_project.rs"]
 mod add_project_demo;
 #[path = "../app/window/add_project_modal/mod.rs"]
@@ -43,6 +39,10 @@ mod agent_hooks_required_modal;
 mod agents_hub_demo;
 #[path = "../app/window/agents_hub/mod.rs"]
 mod agents_hub_modal;
+#[path = "native_modal_demo/coordinator_details.rs"]
+mod coordinator_details_demo;
+#[path = "../app/window/coordinator_details_modal.rs"]
+mod coordinator_details_modal;
 #[path = "native_modal_demo/create_worktree.rs"]
 mod create_worktree_demo;
 #[path = "../app/window/create_worktree_modal.rs"]
@@ -113,6 +113,10 @@ mod space_editor_modal;
 mod update_available_demo;
 #[path = "../app/window/update_available_modal.rs"]
 mod update_available_modal;
+#[path = "../app/voice_agent/panel_controls.rs"]
+mod voice_panel_controls;
+#[path = "native_modal_demo/voice_panel.rs"]
+mod voice_panel_demo;
 #[path = "native_modal_demo/web_runtime_prompt.rs"]
 mod web_runtime_prompt_demo;
 #[path = "../app/window/web_runtime_prompt_modal.rs"]
@@ -361,6 +365,7 @@ fn main() {
                 "missing-project-folder" => missing_project_folder_demo::open(&demo, cx),
                 "rename-session" => rename_session_demo::open(&demo, cx),
                 "new-orchestrator" => new_coordinator_demo::open(&demo, cx),
+                "orchestrator-memory" => coordinator_details_demo::open(&demo, cx),
                 "session-note" => session_note_demo::open(&demo, cx),
                 "voice-panel" => voice_panel_demo::open(&demo, cx),
                 "permission-guide" => permission_guide_demo::open(&demo, cx),
