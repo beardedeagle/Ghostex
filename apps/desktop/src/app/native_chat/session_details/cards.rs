@@ -288,7 +288,7 @@ impl NativeChatView {
             .when(!refreshing, |button| {
                 button
                     .chat_cursor_pointer()
-                    .hover(|button| button.bg(p.accent))
+                    .hover(|button| button.bg(p.foreground.opacity(0.06)))
             })
             .child(glyph)
             .tooltip(move |window, cx| {
@@ -327,7 +327,11 @@ impl NativeChatView {
             .text_size(px(11.5 * s))
             .text_color(p.card_muted)
             .chat_cursor_pointer()
-            .hover(|button| button.bg(p.accent).text_color(p.foreground))
+            .hover(|button| {
+                button
+                    .bg(p.foreground.opacity(0.06))
+                    .text_color(p.foreground)
+            })
             .child(label)
             .on_click(cx.listener(move |this, _, _, cx| {
                 cx.stop_propagation();
@@ -391,7 +395,7 @@ impl NativeChatView {
                 .role(gpui::Role::Button)
                 .aria_label(text)
                 .chat_cursor_pointer()
-                .hover(|row| row.bg(p.accent))
+                .hover(|row| row.bg(p.foreground.opacity(0.06)))
                 .on_click(cx.listener(move |this, _, _, cx| {
                     cx.stop_propagation();
                     this.session_details_action(&action, cx);
@@ -802,7 +806,7 @@ impl NativeChatView {
             .px(px(2.0 * s))
             .rounded(px(5.0 * s))
             .chat_cursor_pointer()
-            .hover(|row| row.bg(p.accent))
+            .hover(|row| row.bg(p.foreground.opacity(0.06)))
             .child(
                 svg()
                     .path("titlebar/file-diff.svg")
@@ -856,7 +860,7 @@ impl NativeChatView {
                 .text_size(px(11.5 * s))
                 .text_color(p.foreground)
                 .chat_cursor_pointer()
-                .hover(|button| button.bg(p.accent))
+                .hover(|button| button.bg(p.foreground.opacity(0.06)))
                 .child(label)
                 .on_click(cx.listener(move |this, _, _, cx| {
                     cx.stop_propagation();
@@ -927,7 +931,7 @@ impl NativeChatView {
                     .when(!stopping, |button| {
                         button
                             .chat_cursor_pointer()
-                            .hover(|button| button.bg(p.accent))
+                            .hover(|button| button.bg(p.foreground.opacity(0.06)))
                     })
                     .child(
                         div()

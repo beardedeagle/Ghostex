@@ -207,7 +207,10 @@ impl NativeChatView {
         if !self.session_details_available() {
             return None;
         }
-        let body = self.session_details_cards(p, cx);
+        // The cards sit on the popup's menu tone, not on the chat: they take the light washes they
+        // take over window glass, since the chat's own solid fill draws them as black slabs.
+        let p = p.clone().on_window_glass(true);
+        let body = self.session_details_cards(&p, cx);
         Some(
             div()
                 .id("chat-session-details-menu")
