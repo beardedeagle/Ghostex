@@ -14,9 +14,11 @@ use super::super::super::fields::{
     settings_switch, tooltip_text,
 };
 use super::super::super::model::SettingsTabId;
+use super::easy_connect::{path_card, path_head};
+use super::model::BadgeTone;
 use super::model::*;
 use super::style::*;
-use super::{HEADER_GAP, RemoteTab, management_header};
+use super::{HEADER_GAP, RemoteTab};
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
     AnyElement, AppContext as _, ClickEvent, Context, Entity, FocusHandle, FontWeight,
@@ -568,17 +570,51 @@ pub(super) fn machines_section(
         }
         rows.push(row);
     }
-    v_flex()
+    // The same path card as the Easy Connect and Tailscale tabs.
+    let (connected, saved) = tab.connected_machine_count(cx);
+    let status = if saved == 0 {
+        badge(t, "None saved", BadgeTone::Plain, false)
+    } else {
+        badge(
+            t,
+            format!("{connected}/{saved} connected"),
+            if connected > 0 {
+                BadgeTone::Active
+            } else {
+                BadgeTone::Disabled
+            },
+            false,
+        )
+    };
+    let head = path_head(
+        t,
+        "remote-machines-head",
+        ICON_DEVICE_DESKTOP,
+        connected > 0,
+        "Remote machines",
+        vec![status],
+    );
+    let body = v_flex()
         .w_full()
         .min_w_0()
         .gap(px(HEADER_GAP))
-        .child(management_header(
-            t,
-            "Remote machines",
-            "Other computers this one connects to, over SSH or with an Easy Connect code. Their projects show up as separate sidebar sections; the switch hides a machine from the sidebar without deleting it.",
-        ))
+        .child(
+            div()
+                .w_full()
+                .text_size(px(13.0))
+                .line_height(px(19.5))
+                .text_color(hsla(t.muted))
+                .child("Other computers this one connects to, over SSH or with an Easy Connect code. Their projects show up as separate sidebar sections; the switch hides a machine from the sidebar without deleting it."),
+        )
         .child(v_flex().w_full().gap(px(8.0)).children(rows))
-        .into_any_element()
+        .into_any_element();
+    path_card(
+        t,
+        "remote-machines-card",
+        head,
+        div().into_any_element(),
+        Some(body),
+    )
 }
 
 /// The 32px icon tile of a machine tile.

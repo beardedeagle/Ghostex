@@ -25,6 +25,25 @@ use gpui::{
 };
 use gpui_component::{h_flex, v_flex};
 
+/// The card's status badge (Off, Detected, Not running, Not installed), also shown on its tab;
+/// `None` until the first status read.
+pub(super) fn tailscale_status_badge(
+    tab: &RemoteTab,
+    cx: &gpui::App,
+) -> Option<(&'static str, BadgeTone)> {
+    if !tab.store.read(cx).bool("remoteTailscaleEnabled") {
+        return Some(("Off", BadgeTone::Disabled));
+    }
+    let status = tab.access.as_ref()?.tailscale.as_ref()?;
+    Some(if status.running {
+        ("Detected", BadgeTone::Active)
+    } else if status.installed {
+        ("Not running", BadgeTone::NeedsSetup)
+    } else {
+        ("Not installed", BadgeTone::Disabled)
+    })
+}
+
 pub(super) fn tailscale_card(
     tab: &mut RemoteTab,
     t: &RemoteTokens,
@@ -32,23 +51,7 @@ pub(super) fn tailscale_card(
     cx: &mut Context<RemoteTab>,
 ) -> AnyElement {
     let enabled = tab.store.read(cx).bool("remoteTailscaleEnabled");
-    let tailscale = tab
-        .access
-        .as_ref()
-        .and_then(|access| access.tailscale.clone());
-    let detected = if !enabled {
-        Some(("Off", BadgeTone::Disabled))
-    } else {
-        tailscale.as_ref().map(|status| {
-            if status.running {
-                ("Detected", BadgeTone::Active)
-            } else if status.installed {
-                ("Not running", BadgeTone::NeedsSetup)
-            } else {
-                ("Not installed", BadgeTone::Disabled)
-            }
-        })
-    };
+    let detected = tailscale_status_badge(tab, cx);
     let mut badges = vec![badge(t, "If you already use it", BadgeTone::Plain, false)];
     if let Some((label, tone)) = detected {
         badges.push(badge(t, label, tone, false));

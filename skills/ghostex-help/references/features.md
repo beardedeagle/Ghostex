@@ -2848,8 +2848,10 @@ Ghostex is a client/server system: gxserver runs on each computer and owns its
 sessions, so any client can control agents on any machine.
 
 - **From a phone**: sidebar More Options > Mobile & Remote (Settings >
-  Remote, which has three tabs: Easy Connect, Tailscale and Remote machines,
-  the computers this one connects to; it reopens on the last tab). Easy Connect installs the Tailcat helper, turns on SSH access with
+  Remote, which has four tabs: Easy Connect, Tailscale, Remote machines (the
+  computers this one connects to) and Advanced; each tab shows its status, such
+  as Running or how many machines are connected, and the page reopens on the
+  last tab). Easy Connect installs the Tailcat helper, turns on SSH access with
   one admin prompt, and gives a pairing QR code: under Connect a phone, click
   Show QR to open it in a popup (Settings never shows the code until you ask)
   and scan it with the Ghostex mobile app (Android ships today). A Tailscale path is offered for tailnets; its code sits behind the same Show QR button.

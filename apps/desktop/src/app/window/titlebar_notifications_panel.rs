@@ -384,6 +384,7 @@ impl GpuiTitlebarReadingPanel {
             .map(|tab| ModalRailItem {
                 label: tab.label().into(),
                 trailing: Some(feed.tab_unread_count(*tab).to_string().into()),
+                dot: None,
             })
             .collect();
         let selected = NotificationFeedTab::TABS

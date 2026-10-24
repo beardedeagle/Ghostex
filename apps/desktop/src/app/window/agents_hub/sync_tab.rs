@@ -310,14 +310,17 @@ impl GpuiAgentsHubModalWindow {
                 ModalRailItem {
                     label: "To fix".into(),
                     trailing: Some(needs_fixing.to_string().into()),
+                    dot: None,
                 },
                 ModalRailItem {
                     label: "In sync".into(),
                     trailing: Some(in_sync.to_string().into()),
+                    dot: None,
                 },
                 ModalRailItem {
                     label: "All".into(),
                     trailing: Some(installed.len().to_string().into()),
+                    dot: None,
                 },
             ];
             let selected_filter = match filter {

@@ -782,6 +782,7 @@ impl GpuiOnboardingWindow {
         let items = ["Keep default", "Skip permissions"].map(|label| ModalRailItem {
             label: label.into(),
             trailing: None,
+            dot: None,
         });
         let control = modal_bordered_segmented_control(
             gpui::rgb(0xeef1f7),

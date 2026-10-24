@@ -91,16 +91,24 @@ fn sidebar_state(settings: &serde_json::Map<String, Value>) -> Value {
     message
 }
 
+thread_local! {
+    /// Answers to posts sent while the window was still opening (Settings > Remote asks for the
+    /// machines' connection states on its first frame); `open` hands them over once it has the window.
+    static EARLY_PAYLOADS: RefCell<Vec<Value>> = const { RefCell::new(Vec::new()) };
+}
+
 /// Hands a host payload (`agentHookStatus`, `remoteGxserverInstallState`, ...) to the open modal.
 fn deliver(slot: &Slot, payload: Value, cx: &mut App) {
     let target = slot.borrow().clone();
-    if let Some((window, view)) = target {
-        cx.defer(move |cx| {
-            let _ = window.update(cx, |_, _, cx| {
-                view.update(cx, |modal, cx| modal.receive_host_payload(payload, cx));
-            });
+    let Some((window, view)) = target else {
+        EARLY_PAYLOADS.with(|early| early.borrow_mut().push(payload));
+        return;
+    };
+    cx.defer(move |cx| {
+        let _ = window.update(cx, |_, _, cx| {
+            view.update(cx, |modal, cx| modal.receive_host_payload(payload, cx));
         });
-    }
+    });
 }
 
 pub(super) fn open(demo: &super::DemoEnv, cx: &mut App) {
@@ -268,6 +276,9 @@ pub(super) fn open(demo: &super::DemoEnv, cx: &mut App) {
     );
     settings_f2::after_open(window, cx);
     *slot.borrow_mut() = Some((window, view));
+    for payload in EARLY_PAYLOADS.with(|early| std::mem::take(&mut *early.borrow_mut())) {
+        deliver(&slot, payload, cx);
+    }
 }
 
 /// The playbook Ghostex ships, as the scripted gxserver serves it: the skill's body.

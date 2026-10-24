@@ -180,6 +180,8 @@ impl GhostexGpuiApp {
         */
         self.remote_machine_connect_states
             .insert(remote_machine_id.to_string(), state.to_string());
+        // Settings > Remote counts connected machines on its Remote machines tab.
+        self.publish_remote_machine_connect_states(cx);
         // The sanitized summary of THIS transition, which the machine tab and the sidebar's
         // machine notice draw (gx_store/remote_clients.rs). A transition without a message leaves
         // the last failure's standing, but a new attempt or a connection clears it so a later

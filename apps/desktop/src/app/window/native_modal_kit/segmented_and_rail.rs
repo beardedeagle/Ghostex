@@ -111,6 +111,8 @@ pub(crate) fn modal_segmented_control<V: 'static>(
 pub(crate) struct ModalRailItem {
     pub(crate) label: SharedString,
     pub(crate) trailing: Option<SharedString>,
+    /// A small status dot drawn after the label, in this colour (the bordered control only).
+    pub(crate) dot: Option<Rgba>,
 }
 
 /// The `.raised-tab-rail` tokens (packages/components/ui/raised-tab-rail.css, deleted 2026-10-01) shared by every
@@ -334,6 +336,13 @@ pub(crate) fn modal_bordered_segmented_control<V: 'static>(
                 on_select(this, index, window, cx);
             })
             .child(item.label.clone())
+            .children(item.dot.map(|dot| {
+                div()
+                    .flex_shrink_0()
+                    .size(px(6.0))
+                    .rounded_full()
+                    .bg(hsla(dot))
+            }))
             .children(
                 item.trailing
                     .clone()

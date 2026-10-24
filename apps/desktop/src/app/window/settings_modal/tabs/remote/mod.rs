@@ -14,6 +14,10 @@
 //! User: "pls make tailscale and easy connect 2 tabs here instead of 2 collapsible areas cuz it's easier to switch between the 2 that way. also the already connected machines needs to be a 3rd tab there. i don't like scrolling so much in this page to get to stuff".
 //! Supersedes the 2026-09-03 expandable cards. The page opens with one tab strip (the shared `modal_bordered_segmented_control`): Easy Connect, Tailscale and Remote machines. Each tab shows its content straight away (the card's header row with its switch and badges, then its body; the saved machines and the Add tile), with Advanced below whichever tab is open. The "Connect to this computer" heading is folded into the tabs. Easy Connect is the default; the last tab is remembered the way the open card was (`open_form`'s `card`, now also `remoteMachines`). A Settings search that matches nothing on the open tab switches to the first tab with a match; deep links pick their tab.
 //!
+//! CDXC:RemotePairing 2026-10-24 DECISION:
+//! User: "for remote tab please move advanced to a new tab", "please make the machines tab show similar card as the 2 other tabs (make it styled the same)" and "also please show the status for each on the tabs bar".
+//! Advanced is a fourth tab (always open inside it, no disclosure) instead of sitting under every tab, and a search for one of its rows lands on it. The Remote machines tab draws the same path card as Easy Connect and Tailscale (icon, title, a connected-count badge, then the description and the tiles). Each tab in the strip carries its status: Easy Connect and Tailscale a dot in their card badge's colour plus the badge's word, Remote machines "connected/saved" from the connection states the app sends (`remoteMachineConnectStates`), Advanced an amber dot and "Unsaved" only while a ports or keys edit is pending.
+//!
 //! One owner (this page) reads everything the Remote page shows from the daemon, so the Easy
 //! Connect card, the Tailscale card and Advanced render the same snapshot: while Remote is the
 //! active page, a fast poll (4s: the Easy Connect status and the pairing code, which rotates after
@@ -104,16 +108,23 @@ pub(super) enum RemoteSection {
     EasyConnect,
     Tailscale,
     Machines,
+    Advanced,
 }
 
 impl RemoteSection {
-    const ALL: [Self; 3] = [Self::EasyConnect, Self::Tailscale, Self::Machines];
+    const ALL: [Self; 4] = [
+        Self::EasyConnect,
+        Self::Tailscale,
+        Self::Machines,
+        Self::Advanced,
+    ];
 
     fn from_section(section: &str) -> Option<Self> {
         match section {
             "easyConnect" => Some(Self::EasyConnect),
             "tailscale" => Some(Self::Tailscale),
             "remoteMachines" => Some(Self::Machines),
+            "remoteAdvanced" => Some(Self::Advanced),
             _ => None,
         }
     }
@@ -124,6 +135,7 @@ impl RemoteSection {
             Self::EasyConnect => "easyConnect",
             Self::Tailscale => "tailscale",
             Self::Machines => "remoteMachines",
+            Self::Advanced => "remoteAdvanced",
         }
     }
 
@@ -132,6 +144,7 @@ impl RemoteSection {
             Self::EasyConnect => "Easy Connect",
             Self::Tailscale => "Tailscale",
             Self::Machines => "Remote machines",
+            Self::Advanced => "Advanced",
         }
     }
 
@@ -206,6 +219,8 @@ pub(crate) struct RemoteTab {
     pub(super) installs: HashMap<String, GxserverInstall>,
     /// Each connected machine's Ghostex version and update row (`remoteAppUpdateState`).
     pub(super) app_updates: HashMap<String, Value>,
+    /// Each saved machine's connection state from the app (`remoteMachineConnectStates`).
+    pub(super) connect_states: HashMap<String, String>,
     probed_keys: HashSet<String>,
     probe_task: Option<Task<()>>,
     probed_list: Option<Value>,
@@ -277,6 +292,23 @@ impl RemoteTab {
                 {
                     tab.receive_app_update_state(&message, cx);
                 }
+                if kind == "remoteMachineConnectStates"
+                    && let Some(message) = store.read(cx).host_payload(kind).cloned()
+                {
+                    tab.connect_states = message
+                        .get("states")
+                        .and_then(Value::as_object)
+                        .map(|states| {
+                            states
+                                .iter()
+                                .filter_map(|(id, state)| {
+                                    Some((id.clone(), state.as_str()?.to_string()))
+                                })
+                                .collect()
+                        })
+                        .unwrap_or_default();
+                    cx.notify();
+                }
             },
         )
         .detach();
@@ -317,6 +349,7 @@ impl RemoteTab {
             pending_scroll: None,
             installs: HashMap::new(),
             app_updates: HashMap::new(),
+            connect_states: HashMap::new(),
             probed_keys: HashSet::new(),
             probe_task: None,
             probed_list: None,
@@ -910,7 +943,7 @@ impl RemoteTab {
             "remote-tailscale-manual" => self.manual_open = true,
             "remote-paired-confirm" => self.confirming_device = Some("dev-1".to_string()),
             "remote-advanced" => {
-                self.advanced.open = true;
+                self.section = RemoteSection::Advanced;
                 self.advanced.raw_open = true;
             }
             "remote-add-machine" => self.open_machine_dialog(None, window, cx),
@@ -965,7 +998,6 @@ impl Render for RemoteTab {
             {
                 self.section = first;
             }
-            let show_advanced = should_show_section(&search.section("remoteAdvanced"), true);
             let rpc = self.rpc_available(cx);
             // `.settings-management-layout`: the sections 16px apart in one column.
             let mut layout = v_flex()
@@ -988,10 +1020,9 @@ impl Render for RemoteTab {
                         .child(section)
                         .into_any_element()
                 }
+                RemoteSection::Advanced if rpc => advanced::advanced_card(self, &t, window, cx),
+                RemoteSection::Advanced => no_server_line(&t),
             });
-            if show_advanced && rpc {
-                layout = layout.child(advanced::advanced_section(self, &t, window, cx));
-            }
             blocks.push(PageBlock {
                 anchor: Some("remote".to_string()),
                 element: layout.into_any_element(),
@@ -1036,15 +1067,51 @@ pub(super) enum ScrollTarget {
 }
 
 impl RemoteTab {
-    /// The tab strip: Easy Connect, Tailscale and Remote machines (with how many are saved).
+    /// How many saved machines are connected right now, and how many are saved.
+    pub(super) fn connected_machine_count(&self, cx: &App) -> (usize, usize) {
+        let machines = self.remote_machines(cx);
+        let connected = machines
+            .iter()
+            .filter_map(|machine| machine.get("id").and_then(Value::as_str))
+            .filter(|id| self.connect_states.get(*id).map(String::as_str) == Some("connected"))
+            .count();
+        (connected, machines.len())
+    }
+
+    /// The tab strip: each tab's name and its status (the card badge's dot and word for Easy
+    /// Connect and Tailscale, "connected/saved" for Remote machines, "Unsaved" for Advanced while an
+    /// edit is pending).
     fn section_tabs(&mut self, t: &RemoteTokens, cx: &mut Context<Self>) -> gpui::AnyElement {
-        let machine_count = self.remote_machines(cx).len();
+        let (connected, saved) = self.connected_machine_count(cx);
+        let tailscale = tailscale::tailscale_status_badge(self, cx);
+        let easy_connect = easy_connect_status_badge(self.easy_connect.as_ref());
         let items: Vec<ModalRailItem> = RemoteSection::ALL
             .iter()
-            .map(|section| ModalRailItem {
-                label: section.label().into(),
-                trailing: (*section == RemoteSection::Machines && machine_count > 0)
-                    .then(|| machine_count.to_string().into()),
+            .map(|section| {
+                let (trailing, dot): (Option<SharedString>, Option<gpui::Rgba>) = match section {
+                    RemoteSection::EasyConnect => {
+                        (Some(easy_connect.0.into()), Some(t.tone(easy_connect.1)))
+                    }
+                    RemoteSection::Tailscale => tailscale
+                        .map(|(label, tone)| (Some(label.into()), Some(t.tone(tone))))
+                        .unwrap_or((None, None)),
+                    RemoteSection::Machines => (
+                        (saved > 0).then(|| format!("{connected}/{saved}").into()),
+                        None,
+                    ),
+                    RemoteSection::Advanced => {
+                        if self.advanced.has_draft() {
+                            (Some("Unsaved".into()), Some(t.tone(BadgeTone::NeedsSetup)))
+                        } else {
+                            (None, None)
+                        }
+                    }
+                };
+                ModalRailItem {
+                    label: section.label().into(),
+                    trailing,
+                    dot,
+                }
             })
             .collect();
         modal_bordered_segmented_control(
@@ -1075,16 +1142,7 @@ impl RemoteTab {
     ) -> gpui::AnyElement {
         let mut section = v_flex().w_full().min_w_0().gap(px(HEADER_GAP));
         if !rpc {
-            section = section.child(
-                div()
-                    .w_full()
-                    .text_size(px(13.0))
-                    .line_height(px(19.5))
-                    .text_color(gpui::Hsla::from(t.muted))
-                    .child(
-                        "Pairing needs the Ghostex server on this computer. Open Settings from the Ghostex app to set up your devices.",
-                    ),
-            );
+            section = section.child(no_server_line(t));
         } else {
             let (card, bounds) = if self.section == RemoteSection::Tailscale {
                 (
@@ -1147,28 +1205,15 @@ impl RemoteTab {
     }
 }
 
-/// `.settings-management-header`: a 16px heading over a 13px muted description.
-pub(super) fn management_header(
-    t: &RemoteTokens,
-    title: &str,
-    description: &str,
-) -> gpui::AnyElement {
-    gpui_component::v_flex()
+/// The line a pairing tab shows when the page has no gxserver to talk to.
+fn no_server_line(t: &RemoteTokens) -> gpui::AnyElement {
+    div()
         .w_full()
-        .gap(px(4.0))
+        .text_size(px(13.0))
+        .line_height(px(19.5))
+        .text_color(gpui::Hsla::from(t.muted))
         .child(
-            div()
-                .text_size(px(16.0))
-                .line_height(px(20.8))
-                .text_color(gpui::Hsla::from(t.foreground))
-                .child(title.to_string()),
-        )
-        .child(
-            div()
-                .text_size(px(13.0))
-                .line_height(px(19.5))
-                .text_color(gpui::Hsla::from(t.muted))
-                .child(description.to_string()),
+            "Pairing needs the Ghostex server on this computer. Open Settings from the Ghostex app to set up your devices.",
         )
         .into_any_element()
 }

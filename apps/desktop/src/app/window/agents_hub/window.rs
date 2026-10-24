@@ -943,6 +943,7 @@ impl Render for GpuiAgentsHubModalWindow {
                 trailing: Some(SharedString::from(
                     crate::hotkey_label::terminal_overlay_hotkey_chord_label(tab.hotkey()),
                 )),
+                dot: None,
             })
             .collect();
         let rail = modal_raised_tab_rail(

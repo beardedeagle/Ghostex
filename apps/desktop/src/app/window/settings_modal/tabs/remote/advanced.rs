@@ -1,10 +1,13 @@
 //! The Advanced collapsible at the bottom of Settings > Remote (remote-advanced.tsx (deleted 2026-10-01)).
 //!
+//! (Since 2026-10-24 it is the page's Advanced tab, always open; see CDXC:RemotePairing 2026-10-24 in mod.rs.)
+//!
 //! CDXC:RemotePairing 2026-09-03:
 //! One collapsible for the controls a regular user never needs: the ports Easy Connect serves, the raw allowed client key list (Paired devices above is its friendly face), the bare pairing address for pasting by hand, the binary, the local gxserver endpoint, and the raw sidecar status for bug reports.
 use super::super::super::super::native_modal_kit::*;
-use super::super::super::fields::{FieldStates, settings_textarea};
+use super::super::super::fields::{FieldStates, icon, settings_textarea};
 use super::RemoteTab;
+use super::easy_connect::{path_card, path_head};
 use super::model::*;
 use super::paired_devices::{remote_row, rows_frame};
 use super::style::*;
@@ -21,7 +24,6 @@ use serde_json::json;
 
 #[derive(Default)]
 pub(crate) struct AdvancedState {
-    pub(super) open: bool,
     pub(super) raw_open: bool,
     keys_open: bool,
     /// The ports text while it differs from the status (`portsDraft`).
@@ -167,52 +169,44 @@ fn row_value(t: &RemoteTokens, mono: bool) -> gpui::Div {
         .when(mono, |this| this.font_family(MODAL_MONO_FONT))
 }
 
-pub(super) fn advanced_section(
+/// The Advanced tab: the same path card as the other tabs, always open.
+pub(super) fn advanced_card(
     tab: &mut RemoteTab,
     t: &RemoteTokens,
     window: &mut Window,
     cx: &mut Context<RemoteTab>,
 ) -> AnyElement {
-    let open = tab.advanced.open;
-    let toggle_hover = if t.p.light {
-        gpui::rgb(0xf1f1f1)
-    } else {
-        gpui::rgb(0x2a2a2a)
-    };
-    let toggle = h_flex()
-        .id("remote-advanced-toggle")
-        .h(px(32.0))
-        .px(px(6.0))
-        .gap(px(6.0))
-        .items_center()
-        .rounded(px(MODAL_RADIUS_CONTROL))
-        .cursor_pointer()
-        .hover(move |this| this.bg(hsla(toggle_hover)))
-        .text_size(px(14.0))
-        .line_height(px(20.0))
-        .text_color(hsla(t.foreground))
-        .whitespace_nowrap()
-        .on_click(cx.listener(|tab, _: &gpui::ClickEvent, _window, cx| {
-            tab.advanced.open = !tab.advanced.open;
-            cx.notify();
-        }))
-        .child(chevron(open, 16.0, t.foreground))
-        .child("Advanced")
-        .child(
-            div()
-                .ml(px(4.0))
-                .text_color(hsla(t.muted))
-                .child("Easy Connect ports and keys, gxserver, raw status"),
-        );
-    let mut section = v_flex()
+    let head = path_head(
+        t,
+        "remote-advanced-head",
+        icon::INFO_CIRCLE,
+        false,
+        "Advanced",
+        Vec::new(),
+    );
+    let body = v_flex()
         .w_full()
         .min_w_0()
-        .gap(px(8.0))
-        .child(div().flex().child(toggle));
-    if open {
-        section = section.child(advanced_rows(tab, t, window, cx));
-    }
-    section.into_any_element()
+        .gap(px(10.0))
+        .child(
+            div()
+                .w_full()
+                .text_size(px(13.0))
+                .line_height(px(19.5))
+                .text_color(hsla(t.muted))
+                .child(
+                    "Easy Connect ports and keys, gxserver, and the raw status for bug reports.",
+                ),
+        )
+        .child(advanced_rows(tab, t, window, cx))
+        .into_any_element();
+    path_card(
+        t,
+        "remote-advanced-card",
+        head,
+        div().into_any_element(),
+        Some(body),
+    )
 }
 
 fn advanced_rows(
@@ -277,7 +271,7 @@ fn advanced_rows(
         row_main(
             t,
             "Allowed client keys",
-            Some("Empty allows any device that scanned the code. Paired devices are listed above."),
+            Some("Empty allows any device that scanned the code. Paired devices are listed on the Easy Connect tab."),
         ),
         Some(compact_button(
             &t.p,

@@ -228,8 +228,23 @@ impl GhostexGpuiApp {
         );
     }
 
+    /// Hands an open Settings window every saved machine's connection state (the wire slug, e.g.
+    /// `connected`), which Settings > Remote counts on its Remote machines tab.
+    pub(crate) fn publish_remote_machine_connect_states(&mut self, cx: &mut gpui::Context<Self>) {
+        let states: serde_json::Map<String, Value> = self
+            .remote_machine_connect_states
+            .iter()
+            .map(|(machine_id, state)| (machine_id.clone(), json!(state)))
+            .collect();
+        self.dispatch_open_gpui_app_modal_message(
+            json!({ "type": "remoteMachineConnectStates", "states": states }),
+            cx,
+        );
+    }
+
     /// Settings > Remote opened: every connected machine read once more if its answer is old.
     pub(crate) fn refresh_stale_remote_app_updates(&mut self, cx: &mut gpui::Context<Self>) {
+        self.publish_remote_machine_connect_states(cx);
         let machine_ids: Vec<String> = self.remote_gxserver_connections.keys().cloned().collect();
         for machine_id in machine_ids {
             let fresh = remote_app_update(&machine_id).is_some_and(|update| {
