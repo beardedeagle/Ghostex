@@ -719,3 +719,48 @@ fn a_missing_key_on_another_computer_is_said_in_general_words() {
         "Add your xAI API key in Settings > Voice agent."
     );
 }
+
+#[tokio::test]
+async fn a_long_reply_comes_in_paragraphs_and_a_run_of_one_tool_is_one_row() {
+    let mut call = Call::start(None, false).await;
+    call.client_frame("ready").await;
+    let reply = "One is still working: Cap CLI demo video cleanup, which is scanning a video for QR codes right now, so leave that one. Of the twenty sleeping, five have no messages at all, so those are safe to close, and the rest finished cleanly with nothing pending.";
+    let (first, rest) = reply.split_at(60);
+    for delta in [first, rest] {
+        call.provider_events
+            .send(json!({"type": "response.output_audio_transcript.delta", "item_id": "i1", "delta": delta}))
+            .unwrap();
+    }
+    call.provider_events
+        .send(json!({"type": "response.output_audio_transcript.done", "item_id": "i1", "transcript": reply}))
+        .unwrap();
+    let captions = call
+        .client_frames("caption", Duration::from_millis(300))
+        .await;
+    let last = captions.last().expect("captions");
+    assert_eq!(last["final"], true);
+    assert_eq!(last["text"], reply, "the caption text stays one string");
+    assert_eq!(last["paragraphs"].as_array().map(Vec::len), Some(2));
+    assert!(
+        captions[0].get("paragraphs").is_none(),
+        "a short caption has none"
+    );
+
+    for id in ["c1", "c2"] {
+        call.provider_events
+            .send(json!({"type": "response.function_call_arguments.done", "call_id": id, "name": "list_projects", "arguments": "{}"}))
+            .unwrap();
+    }
+    let tools = call.client_frames("tool", Duration::from_millis(500)).await;
+    let started: Vec<&Value> = tools
+        .iter()
+        .filter(|frame| frame["phase"] == "started")
+        .collect();
+    assert!(started[0].get("run").is_none());
+    assert_eq!(started[1]["run"]["id"], "c1");
+    assert_eq!(
+        started[1]["run"]["label"],
+        "Checking your projects (2 times)"
+    );
+    call.end();
+}

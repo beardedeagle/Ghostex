@@ -68,10 +68,13 @@ pub(crate) enum VoiceRow {
         role: VoiceRole,
         item_id: String,
         text: String,
+        /// gxserver's paragraphs of a long agent reply (`rows.rs`); empty: `text` is one.
+        paragraphs: Vec<String>,
         /// The agent was talked over: the caption ends where its audio was cut.
         cut: bool,
     },
     Tool {
+        /// The call's id, or its run's (the run's first call) when gxserver groups the calls.
         call_id: String,
         label: String,
         /// `None` while it runs.
@@ -566,6 +569,7 @@ impl GhostexGpuiApp {
                 };
                 let item_id = text("itemId");
                 let caption = text("text");
+                let paragraphs = super::rows::caption_paragraphs(event);
                 let cut = event["cut"].as_bool().unwrap_or(false);
                 if role == VoiceRole::User && !caption.trim().is_empty() {
                     self.voice_agent_memory_user_spoke();
@@ -582,15 +586,19 @@ impl GhostexGpuiApp {
                     let existing =
                         position.and_then(|position| match &mut self.voice_agent.rows[position] {
                             VoiceRow::Caption {
-                                text, cut: was_cut, ..
-                            } => Some((text, was_cut)),
+                                text,
+                                paragraphs,
+                                cut: was_cut,
+                                ..
+                            } => Some((text, paragraphs, was_cut)),
                             _ => None,
                         });
                     match existing {
                         // A reply that was cut keeps the cut caption.
-                        Some((_, was_cut)) if *was_cut && !cut => {}
-                        Some((existing_text, was_cut)) => {
+                        Some((_, _, was_cut)) if *was_cut && !cut => {}
+                        Some((existing_text, existing_paragraphs, was_cut)) => {
                             *existing_text = caption;
+                            *existing_paragraphs = paragraphs;
                             *was_cut = cut;
                         }
                         None if !caption.trim().is_empty() => {
@@ -598,6 +606,7 @@ impl GhostexGpuiApp {
                                 role,
                                 item_id,
                                 text: caption,
+                                paragraphs,
                                 cut,
                             })
                         }
@@ -647,21 +656,22 @@ impl GhostexGpuiApp {
                 }
             }
             "tool" => {
-                let call_id = text("callId");
-                let label = text("label");
-                if event["phase"].as_str() == Some("started") {
-                    self.voice_agent.tool_label = Some(label.clone());
+                let frame = super::rows::tool_row_frame(event);
+                if frame.started {
+                    self.voice_agent.tool_label = Some(text("label"));
+                }
+                let existing = self.voice_agent.rows.iter_mut().rev().find(
+                    |row| matches!(row, VoiceRow::Tool { call_id: id, .. } if *id == frame.key),
+                );
+                if let Some(VoiceRow::Tool { label, ok, .. }) = existing {
+                    *label = frame.label;
+                    *ok = frame.ok;
+                } else if frame.started {
                     self.push_voice_agent_row(VoiceRow::Tool {
-                        call_id,
-                        label,
-                        ok: None,
+                        call_id: frame.key,
+                        label: frame.label,
+                        ok: frame.ok,
                     });
-                } else if let Some(VoiceRow::Tool { ok, .. }) =
-                    self.voice_agent.rows.iter_mut().rev().find(
-                        |row| matches!(row, VoiceRow::Tool { call_id: id, .. } if *id == call_id),
-                    )
-                {
-                    *ok = Some(event["ok"].as_bool().unwrap_or(true));
                 }
                 if event["phase"].as_str() == Some("finished") {
                     self.follow_remote_voice_call_tool(event, cx);

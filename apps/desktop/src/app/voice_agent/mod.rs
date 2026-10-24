@@ -11,7 +11,8 @@
 //!   `audio_cpal.rs` on Windows and Linux with `aec.rs` (echo cancellation) and `stretch.rs` (speed);
 //!   `test_mic.rs` the developer-only WAV feed that stands in for the microphone.
 //! - `conversation.rs`: the conversation the work area header's Voice button starts and ends.
-//! - `panel.rs`: the panel that shows it; `header_button.rs`: the Voice button.
+//! - `panel.rs`: the panel that shows it, `rows.rs` what gxserver's frames make of its rows;
+//!   `header_button.rs`: the Voice button.
 //! - `memory.rs`: the remembered last conversation the panel offers to continue.
 //! - `typing.rs`: whether the user is typing, which keeps the agent's follow from switching sessions.
 //! - `dictation.rs`: the chat box's and the terminal bar's Dictate: `recorder.rs` records to a
@@ -33,6 +34,7 @@ pub(crate) mod header_button;
 pub(crate) mod memory;
 pub(crate) mod panel;
 pub(crate) mod recorder;
+pub(crate) mod rows;
 pub(crate) mod sidebar_badge;
 #[cfg(any(target_os = "linux", target_os = "windows"))]
 mod stretch;

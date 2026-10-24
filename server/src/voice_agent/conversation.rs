@@ -16,10 +16,12 @@ use tokio_tungstenite::tungstenite::Message as WsMessage;
 
 use super::focus::{self, FocusScope};
 use super::memory;
+use super::paragraphs;
 use super::prompt;
 use super::provider::{Provider, ProviderSocket, BYTES_PER_MS};
 use super::registry;
 use super::sessions::SessionInfo;
+use super::tool_runs::ToolRuns;
 use super::tools::{self, ToolOutcome};
 use crate::server::AppState;
 
@@ -197,6 +199,8 @@ pub(super) struct Conversation {
     client: Option<(u64, mpsc::UnboundedSender<ClientFrame>)>,
     detached_since: Option<Instant>,
     replay: VecDeque<Value>,
+    /// Which tool calls clients draw as one row (`tool_runs.rs`).
+    tool_runs: ToolRuns,
     last_talk: Instant,
     client_state: &'static str,
     response_active: bool,
@@ -275,6 +279,7 @@ impl Conversation {
             client: None,
             detached_since: Some(now),
             replay: VecDeque::new(),
+            tool_runs: ToolRuns::default(),
             last_talk: now,
             client_state: "listening",
             response_active: false,
@@ -353,7 +358,16 @@ impl Conversation {
 
     /// Sends a JSON frame to the attached client; captions and announcements are kept for a
     /// client that reattaches.
-    fn to_client(&mut self, frame: Value) {
+    fn to_client(&mut self, mut frame: Value) {
+        self.tool_runs.frame(&mut frame);
+        if frame.get("type").and_then(Value::as_str) == Some("caption")
+            && frame.get("role").and_then(Value::as_str) == Some("agent")
+        {
+            let parts = paragraphs::paragraphs(frame["text"].as_str().unwrap_or_default());
+            if parts.len() > 1 {
+                frame["paragraphs"] = json!(parts);
+            }
+        }
         let kind = frame
             .get("type")
             .and_then(Value::as_str)

@@ -1180,11 +1180,21 @@ impl VoicePanelWindow {
     fn row(row: &VoiceRow, colors: &PanelColors) -> AnyElement {
         match row {
             VoiceRow::Caption {
-                role, text, cut, ..
+                role,
+                text,
+                paragraphs,
+                cut,
+                ..
             } => {
                 let you = *role == VoiceRole::User;
+                let parts = if paragraphs.len() > 1 {
+                    paragraphs.clone()
+                } else {
+                    vec![text.clone()]
+                };
+                let last = parts.len() - 1;
                 v_flex()
-                    .gap(px(1.0))
+                    .gap(px(2.0))
                     .child(
                         div()
                             .text_size(px(10.5))
@@ -1193,7 +1203,8 @@ impl VoicePanelWindow {
                             .child(if you { "You" } else { "Agent" }),
                     )
                     .child(
-                        div()
+                        v_flex()
+                            .gap(px(7.0))
                             .text_size(px(12.5))
                             .line_height(px(17.0))
                             .text_color(if you {
@@ -1201,11 +1212,13 @@ impl VoicePanelWindow {
                             } else {
                                 colors.text
                             })
-                            .child(if *cut {
-                                format!("{text}…")
-                            } else {
-                                text.clone()
-                            }),
+                            .children(parts.into_iter().enumerate().map(|(at, part)| {
+                                div().child(if *cut && at == last {
+                                    format!("{part}…")
+                                } else {
+                                    part
+                                })
+                            })),
                     )
                     .into_any_element()
             }
@@ -1249,7 +1262,8 @@ impl VoicePanelWindow {
             .min_h_0()
             .overflow_y_scroll()
             .track_scroll(&self.scroll)
-            .gap(px(8.0))
+            // CDXC:VoiceMode 2026-10-24 WHY: more room between rows so a reply, its tool row and an announcement read as separate lines; the user's decision is in gxserver's `paragraphs.rs`.
+            .gap(px(14.0))
             .px(px(12.0))
             .py(px(10.0))
             .children(snapshot.rows.iter().map(|row| Self::row(row, colors)));
