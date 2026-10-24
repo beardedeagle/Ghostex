@@ -168,6 +168,8 @@ pub(crate) struct VoiceAgent {
     pub(crate) focus_supported: bool,
     /// The session the call was started about, which Start again repeats.
     pub(crate) requested: Option<VoiceCallTarget>,
+    /// "Hang up and call" (`focus.rs`): the call to start once the open one is over.
+    pub(crate) call_after_hang_up: Option<VoiceCallTarget>,
     /// Where the header's Voice button last painted, for its arrow's menu.
     pub(crate) menu_anchor: std::rc::Rc<std::cell::Cell<Option<gpui::Bounds<Pixels>>>>,
     link: Option<VoiceLink>,
@@ -723,6 +725,11 @@ impl GhostexGpuiApp {
         self.voice_agent.phase = VoicePhase::Idle;
         self.voice_agent.problem = None;
         self.voice_agent.focus = None;
+        // Every way a hang-up ends comes here (`ended`, the socket closing, `HANG_UP_GRACE`).
+        if let Some(next) = self.voice_agent.call_after_hang_up.take() {
+            self.start_voice_agent_call(Some(next), cx);
+            return;
+        }
         self.sync_voice_agent_panel(cx);
     }
 

@@ -1008,7 +1008,7 @@ impl Render for GhostexGpuiApp {
                 this.voice_call_all_sessions(cx);
             }))
             .on_action(
-                cx.listener(|this, action: &VoiceCallAboutSession, _window, cx| {
+                cx.listener(|this, action: &VoiceCallAboutSession, window, cx| {
                     let key = ghostex_gx_core::SessionKey {
                         machine: action.remote_machine.clone().map_or(
                             ghostex_gx_core::MachineId::Local,
@@ -1018,7 +1018,7 @@ impl Render for GhostexGpuiApp {
                         session_id: action.session_id.clone(),
                     };
                     if let Some(target) = this.voice_call_target_for(key) {
-                        this.voice_call_about(target, cx);
+                        this.voice_call_about(target, window, cx);
                     }
                 }),
             )

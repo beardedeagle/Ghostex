@@ -162,14 +162,12 @@ pub(crate) struct VoiceMenuRow {
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct OpenCall<'a> {
     pub(crate) machine: &'a MachineId,
-    pub(crate) machine_name: Option<&'a str>,
     pub(crate) focus: Option<&'a SessionKey>,
 }
 
 /// The arrow menu: "All sessions" and "This session: <title>", the call's scope ticked.
-/// `all_label` is "All sessions" with its hotkey.
-///
-/// CDXC:VoiceMode 2026-10-23 WHY: a call can't move computers: its provider session, captions and tools live in the gxserver it was opened on. "This session" for a session of another computer than the open call's is shown disabled, with a line saying to hang up first, rather than silently ending the call and billing a new one on the other computer.
+/// `all_label` is "All sessions" with its hotkey. "This session" stays enabled for a session of
+/// another computer than the open call's: picking it asks first (`hang_up_and_call_question`).
 pub(crate) fn voice_menu_rows(
     call: Option<OpenCall<'_>>,
     target: Option<&VoiceCallTarget>,
@@ -190,25 +188,24 @@ pub(crate) fn voice_menu_rows(
         });
         return rows;
     };
-    let elsewhere = call.filter(|call| *call.machine != target.key.machine);
     rows.push(VoiceMenuRow {
         label: format!("This session: {}", menu_title(&target.title)),
         checked: call.is_some_and(|call| call.focus == Some(&target.key)),
-        disabled: elsewhere.is_some(),
+        disabled: false,
         pick: VoiceMenuPick::ThisSession,
     });
-    if let Some(call) = elsewhere {
-        rows.push(VoiceMenuRow {
-            label: format!(
-                "Hang up first: this call runs on {}",
-                call.machine_name.unwrap_or(THIS_COMPUTER)
-            ),
-            checked: false,
-            disabled: true,
-            pick: VoiceMenuPick::ThisSession,
-        });
-    }
     rows
+}
+
+/// The question "This session" asks while a call is open on another computer than the session's:
+/// its title and its detail. `here` runs the open call; `there` runs the session.
+pub(crate) fn hang_up_and_call_question(here: &str, title: &str, there: &str) -> (String, String) {
+    (
+        format!("A voice call is open on {here}"),
+        format!(
+            "A call stays on the computer it started on. Hang up and start a voice call about {title} on {there}?"
+        ),
+    )
 }
 
 fn menu_title(title: &str) -> String {
@@ -229,7 +226,8 @@ pub(crate) enum ThisSessionStep {
     Nothing,
     /// Send `{"type":"focus","session":<ref>}` on the open call.
     Refocus,
-    /// The open call runs on another computer than the session's.
+    /// The open call runs on another computer than the session's: ask to keep it or hang up and
+    /// call.
     OtherComputer,
     /// The open call's gxserver is older than focused calls.
     Outdated,
@@ -307,7 +305,6 @@ impl GhostexGpuiApp {
         let agent = &self.voice_agent;
         agent.active().then(|| OpenCall {
             machine: &agent.machine,
-            machine_name: agent.machine_name.as_deref(),
             focus: agent.focus.as_ref().map(|focus| &focus.key),
         })
     }
@@ -348,9 +345,13 @@ impl GhostexGpuiApp {
 
     /// The arrow menu's "This session" and the "Voice call about this session" hotkey: starts a call
     /// about the session the work area shows, or moves the open call to it.
-    pub(crate) fn voice_call_about_this_session(&mut self, cx: &mut gpui::Context<Self>) {
+    pub(crate) fn voice_call_about_this_session(
+        &mut self,
+        window: &mut gpui::Window,
+        cx: &mut gpui::Context<Self>,
+    ) {
         if let Some(target) = self.voice_call_target() {
-            self.voice_call_about(target, cx);
+            self.voice_call_about(target, window, cx);
         }
     }
 
@@ -358,6 +359,7 @@ impl GhostexGpuiApp {
     pub(crate) fn voice_call_about(
         &mut self,
         target: VoiceCallTarget,
+        window: &mut gpui::Window,
         cx: &mut gpui::Context<Self>,
     ) {
         // Until `ready` it isn't known whether the call's gxserver can change scope; while hanging
@@ -377,23 +379,61 @@ impl GhostexGpuiApp {
             ThisSessionStep::Start => self.start_voice_agent_call(Some(target), cx),
             ThisSessionStep::Nothing => {}
             ThisSessionStep::Refocus => self.send_voice_agent_focus(Some(&target.key), cx),
-            ThisSessionStep::OtherComputer => {
-                let here = self
-                    .voice_agent
-                    .machine_name
-                    .clone()
-                    .unwrap_or_else(|| THIS_COMPUTER.to_string());
-                let text = format!(
-                    "This call runs on {here}. Hang up to start one about {} on {}.",
-                    target.title,
-                    target.machine_name.as_deref().unwrap_or(THIS_COMPUTER)
-                );
-                self.push_voice_agent_announcement(text, cx);
-            }
+            ThisSessionStep::OtherComputer => self.ask_to_hang_up_and_call(target, window, cx),
             ThisSessionStep::Outdated => {
                 let text = outdated_sentence(self.voice_agent.machine_name.as_deref());
                 self.push_voice_agent_announcement(text, cx);
             }
+        }
+    }
+
+    /// A call can't move computers: its provider session, captions and tools live in the gxserver
+    /// it was opened on. So a call about a session of another computer than the open call's asks
+    /// first.
+    ///
+    /// CDXC:VoiceMode 2026-10-24 DECISION: User picked "Both ask Keep or Hang up" (Q484): with a call open on another computer, starting a call about a session here asks the same as the phone, "Keep the call" or "Hang up and call", instead of greying out "This session". Hang up and call ends the open call and starts the call about the session on its own computer once the hang-up is through (`call_after_hang_up`). SEE-ALSO: the phone's `apps/mobile/app/src/voice/callAbout.ts`.
+    fn ask_to_hang_up_and_call(
+        &mut self,
+        target: VoiceCallTarget,
+        window: &mut gpui::Window,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        let here = self
+            .voice_agent
+            .machine_name
+            .clone()
+            .unwrap_or_else(|| THIS_COMPUTER.to_string());
+        let there = target.machine_name.as_deref().unwrap_or(THIS_COMPUTER);
+        let (title, detail) = hang_up_and_call_question(&here, &target.title, there);
+        // Keep the call is the cancel choice (Escape keeps the call), as on the phone.
+        let answer = window.prompt(
+            gpui::PromptLevel::Info,
+            &title,
+            Some(&detail),
+            &[
+                gpui::PromptButton::cancel("Keep the call"),
+                gpui::PromptButton::new("Hang up and call"),
+            ],
+            cx,
+        );
+        cx.spawn(async move |this, cx| {
+            if answer.await == Ok(1) {
+                let _ = this.update(cx, |this, cx| this.hang_up_and_call(target, cx));
+            }
+        })
+        .detach();
+    }
+
+    /// Hangs up the open call and starts the call about `target` once it is over.
+    fn hang_up_and_call(&mut self, target: VoiceCallTarget, cx: &mut gpui::Context<Self>) {
+        // The call may have ended while the question was open.
+        if !self.voice_agent.active() {
+            self.start_voice_agent_call(Some(target), cx);
+            return;
+        }
+        self.voice_agent.call_after_hang_up = Some(target);
+        if self.voice_agent.phase != VoicePhase::Ending {
+            self.hang_up_voice_agent(cx);
         }
     }
 
@@ -555,7 +595,6 @@ mod tests {
         let machine = MachineId::Local;
         let all = OpenCall {
             machine: &machine,
-            machine_name: None,
             focus: None,
         };
         let rows = voice_menu_rows(Some(all), Some(&shown), "All sessions");
@@ -563,7 +602,6 @@ mod tests {
         let key = local("G1");
         let focused = OpenCall {
             machine: &machine,
-            machine_name: None,
             focus: Some(&key),
         };
         let rows = voice_menu_rows(Some(focused), Some(&shown), "All sessions");
@@ -571,7 +609,6 @@ mod tests {
         let other = local("G2");
         let elsewhere = OpenCall {
             machine: &machine,
-            machine_name: None,
             focus: Some(&other),
         };
         let rows = voice_menu_rows(Some(elsewhere), Some(&shown), "All sessions");
@@ -579,23 +616,32 @@ mod tests {
     }
 
     #[test]
-    fn menu_disables_a_session_of_another_computer_than_the_calls() {
+    fn menu_offers_a_session_of_another_computer_than_the_calls() {
         let mut shown = target(SessionKey::remote("remote-ab12", "P9", "G9"), "Build");
         shown.machine_name = Some("studio".to_string());
         let machine = MachineId::Local;
         let call = OpenCall {
             machine: &machine,
-            machine_name: None,
             focus: None,
         };
         let rows = voice_menu_rows(Some(call), Some(&shown), "All sessions");
-        assert_eq!(rows.len(), 3);
-        assert!(rows[1].disabled);
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[1].label, "This session: Build");
+        assert!(!rows[1].disabled && !rows[1].checked);
         assert_eq!(
-            rows[2].label,
-            "Hang up first: this call runs on this computer"
+            this_session_step(Some(call), true, &shown.key),
+            ThisSessionStep::OtherComputer
         );
-        assert!(rows[2].disabled);
+    }
+
+    #[test]
+    fn another_computers_session_asks_like_the_phone() {
+        let (title, detail) = hang_up_and_call_question("this computer", "Build", "studio");
+        assert_eq!(title, "A voice call is open on this computer");
+        assert_eq!(
+            detail,
+            "A call stays on the computer it started on. Hang up and start a voice call about Build on studio?"
+        );
     }
 
     #[test]
@@ -627,7 +673,6 @@ mod tests {
         let machine = MachineId::Local;
         let all = OpenCall {
             machine: &machine,
-            machine_name: None,
             focus: None,
         };
         assert_eq!(
@@ -640,7 +685,6 @@ mod tests {
         );
         let focused = OpenCall {
             machine: &machine,
-            machine_name: None,
             focus: Some(&shown),
         };
         assert_eq!(

@@ -2703,8 +2703,10 @@ during the call, the strip says Closed and the call goes on. A call about one
 session doesn't offer or replace the remembered last conversation. For a
 session on another computer you are connected to, the call runs on that
 computer with its own voice key (add one in Settings > Voice agent on that
-computer); the strip says which computer, and a session of a different computer
-than the open call's needs a new call, so hang up first. A computer whose
+computer); the strip says which computer. A call stays on the computer it
+started on, so picking a session of another computer while a call is open asks
+whether to keep the call or hang up and call, on the computer and the phone
+alike. A computer whose
 Ghostex is too old for it says "Update Ghostex on <computer> to have a voice
 call about one session." On the phone, "Voice call about this chat" in a chat's
 ⋯ menu and "Voice Call" when you long-press a session start the same call, and

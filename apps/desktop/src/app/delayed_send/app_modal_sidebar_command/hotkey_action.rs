@@ -178,7 +178,7 @@ impl GhostexGpuiApp {
                 }
                 // The headset arrow's "This session" row (CDXC:VoiceMode in voice_agent/header_button.rs).
                 if action_id == "voiceCallAboutSession" {
-                    self.voice_call_about_this_session(cx);
+                    self.voice_call_about_this_session(window, cx);
                     return;
                 }
                 if action_id == "expandViewPanel" {
