@@ -4,6 +4,8 @@ pub mod env;
 #[cfg(not(windows))]
 mod fish_startup;
 mod grok_startup;
+#[cfg(unix)]
+pub(crate) mod ipc_frame;
 pub mod launch;
 #[cfg(test)]
 mod omp_identity_tests;
