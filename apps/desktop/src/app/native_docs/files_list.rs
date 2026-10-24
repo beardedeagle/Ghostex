@@ -23,7 +23,10 @@ use crate::app::consts::{
     TITLEBAR_BUTTON_RADIUS, TITLEBAR_CONTROL_HEIGHT, TITLEBAR_SIDEBAR_COLLAPSE_ICON_SIZE,
     WORKAREA_HEADER_EDGE_PADDING,
 };
-use crate::app::helpers::{titlebar_svg_icon, titlebar_tooltip};
+use crate::app::helpers::titlebar_svg_icon;
+// Every Files sidebar tooltip is the sidebar's bubble (CDXC:Tooltips 2026-10-25 DECISION in
+// project_search_view.rs).
+use crate::app::native_sidebar::link_chips::{sidebar_style_card_tooltip, sidebar_style_tooltip};
 
 /// The header row, the search row and the document header share this height.
 pub(crate) const ROW_STRIP_HEIGHT: f32 = 35.0;
@@ -253,7 +256,7 @@ impl GhostexGpuiApp {
                     p,
                 )
                 .tooltip(|window, cx| {
-                    titlebar_tooltip(
+                    sidebar_style_tooltip(
                         crate::app::helpers::titlebar_tooltip_label(
                             "Search in files",
                             "searchProjectFiles",
@@ -276,7 +279,9 @@ impl GhostexGpuiApp {
                     !can_toggle_all,
                     p,
                 )
-                .tooltip(move |window, cx| titlebar_tooltip(collapse_label, window, cx))
+                .tooltip(move |window, cx| {
+                    sidebar_style_tooltip(collapse_label.to_string(), window, cx)
+                })
                 .when(can_toggle_all, |this| {
                     this.on_click(cx.listener(move |this, _, _, cx| {
                         this.native_docs_toggle_all_folders(any_open, cx);
@@ -293,7 +298,9 @@ impl GhostexGpuiApp {
                     !active_listed,
                     p,
                 )
-                .tooltip(|window, cx| titlebar_tooltip("Reveal open file in sidebar", window, cx))
+                .tooltip(|window, cx| {
+                    sidebar_style_tooltip("Reveal open file in sidebar".to_string(), window, cx)
+                })
                 .when(active_listed, |this| {
                     this.on_click(cx.listener(|this, _, window, cx| {
                         this.native_docs_reveal_open_file(window, cx);
@@ -309,7 +316,9 @@ impl GhostexGpuiApp {
                     p,
                 )
                 .child(anchor(&CREATE_MENU_ANCHOR))
-                .tooltip(|window, cx| titlebar_tooltip("Create docs item", window, cx))
+                .tooltip(|window, cx| {
+                    sidebar_style_tooltip("Create docs item".to_string(), window, cx)
+                })
                 .when(!creating, |this| {
                     this.on_click(cx.listener(|this, _, window, cx| {
                         this.show_native_docs_create_menu("docs", window, cx);
@@ -325,7 +334,9 @@ impl GhostexGpuiApp {
                     p,
                 )
                 .child(anchor(&OVERFLOW_MENU_ANCHOR))
-                .tooltip(|window, cx| titlebar_tooltip("Files sidebar menu", window, cx))
+                .tooltip(|window, cx| {
+                    sidebar_style_tooltip("Files sidebar menu".to_string(), window, cx)
+                })
                 .on_click(cx.listener(|this, _, window, cx| {
                     this.show_native_docs_overflow_menu(window, cx);
                 })),
@@ -370,7 +381,7 @@ impl GhostexGpuiApp {
                 false,
                 p,
             )
-            .tooltip(move |window, cx| titlebar_tooltip(label, window, cx))
+            .tooltip(move |window, cx| sidebar_style_tooltip(label.to_string(), window, cx))
             .on_click(cx.listener(move |this, _, _, cx| match kind {
                 "hide" => this.native_docs_hide_sidebar(cx),
                 "pin" => this.native_docs_pin_peek(cx),
@@ -501,7 +512,7 @@ impl GhostexGpuiApp {
                         this.hover(move |style| style.bg(hover_bg).text_color(strong))
                     })
                     .tooltip(move |window, cx| {
-                        crate::app::helpers::list_row_tooltip(display_path.clone(), window, cx)
+                        sidebar_style_card_tooltip(display_path.to_string(), 20.0, 0.0, window, cx)
                     })
                     .child(
                         div()
@@ -534,7 +545,9 @@ impl GhostexGpuiApp {
                             .size(px(20.0))
                             .rounded(px(4.0))
                             .hover(move |style| style.bg(hover_bg))
-                            .tooltip(move |window, cx| titlebar_tooltip(close_label, window, cx))
+                            .tooltip(move |window, cx| {
+                                sidebar_style_tooltip(close_label.to_string(), window, cx)
+                            })
                             .child(
                                 div()
                                     .absolute()
@@ -640,7 +653,9 @@ impl GhostexGpuiApp {
                     .group_hover(group, |style| style.visible())
                     .hover(move |style| style.bg(hover))
                     .child(titlebar_svg_icon("titlebar/x.svg", 11.0, p.row_text))
-                    .tooltip(|window, cx| titlebar_tooltip("Close all open files", window, cx))
+                    .tooltip(|window, cx| {
+                        sidebar_style_tooltip("Close all open files".to_string(), window, cx)
+                    })
                     .on_click(cx.listener(|this, _, window, cx| {
                         cx.stop_propagation();
                         this.native_docs_request_close_all(window, cx);
@@ -869,8 +884,10 @@ impl GhostexGpuiApp {
                                     .text_color(p.muted)
                                     .child(badge)
                                     .tooltip(move |window, cx| {
-                                        crate::app::helpers::list_row_tooltip(
-                                            tooltip.clone(),
+                                        sidebar_style_card_tooltip(
+                                            tooltip.to_string(),
+                                            20.0,
+                                            0.0,
                                             window,
                                             cx,
                                         )
