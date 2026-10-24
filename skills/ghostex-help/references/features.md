@@ -385,9 +385,10 @@ view from the strip.
   back, and hovering that button peeks the list without pinning it. Hidden or pinned is remembered. When the Files view is narrower than 800px the list opens as a
   temporary drawer over the document and closes when you open a file, press
   Escape, or click outside it. Cmd+F, or Ctrl+F on Windows and Linux, opens the
-  search: inside a Markdown document it shows Find and Replace with the caret
-  ready, and anywhere else it reveals the files list and focuses its search.
-  Escape closes the document search. To search the text of every file in the
+  search: inside a Markdown, code or text file it shows Find and Replace with the
+  caret ready (starting from the selected text), marking every match and moving
+  through them with Enter and Shift+Enter, and anywhere else it reveals the files
+  list and focuses its search. Escape closes the document search. To search the text of every file in the
   project, press Cmd+Shift+F (Ctrl+Shift+F on Windows and Linux) while Files has
   focus, or click the search button at the top of the files list: the sidebar
   turns into a Search view like VS Code's. Results appear as you type, grouped by

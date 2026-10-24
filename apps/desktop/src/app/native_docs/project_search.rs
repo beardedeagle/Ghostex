@@ -1004,9 +1004,13 @@ impl GhostexGpuiApp {
         } else if let Some(live) = document.live.clone() {
             let scroll = document.scroll.clone();
             let range = line_range(live.read(cx).text(), line, start, end);
+            // The document's own find panel keeps its matches while it is open.
+            let find_open = self.native_docs_find_visible();
             live.update(cx, |editor, cx| {
                 editor.select_range(range.clone(), cx);
-                editor.set_search(vec![range.clone()], Some(0), cx);
+                if !find_open {
+                    editor.set_search(vec![range.clone()], Some(0), cx);
+                }
                 if focus_editor {
                     editor.focus(window, cx);
                 }

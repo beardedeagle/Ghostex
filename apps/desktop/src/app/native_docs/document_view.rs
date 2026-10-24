@@ -716,7 +716,9 @@ impl GhostexGpuiApp {
         let Some(editor) = document.editor.clone() else {
             return notice("files-view/t-refresh-2.svg", "Loading file".to_string());
         };
+        let find = self.render_native_docs_code_find(p, cx);
         div()
+            .relative()
             .size_full()
             .flex()
             .flex_col()
@@ -749,6 +751,7 @@ impl GhostexGpuiApp {
                             .line_height(rems(1.25)),
                     ),
             )
+            .children(find)
             .into_any_element()
     }
 

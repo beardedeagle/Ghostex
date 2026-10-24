@@ -1,5 +1,9 @@
-//! Find & Replace in the open Markdown document: the panel 8px above the formatting bar, with
-//! Whole Word and Case Sensitive, previous and next, Replace and Replace All.
+//! Find & Replace in the open file: the panel 8px above the formatting bar in a Markdown document,
+//! and at the bottom right of a code or text file's editor, with Whole Word and Case Sensitive,
+//! previous and next, Replace and Replace All.
+//!
+//! CDXC:Docs 2026-10-25 DECISION:
+//! User: "i want to keep the old search in 1 file thingy that i had in markdown files and bring it to all other code files. should be just cmd + f to search a file and cmd + shift + f to search all files". Code and text files get the Markdown find panel itself (same look, keys, count and toggles), with every match marked in the editor and the current one marked brighter; the editor's own search panel is off so Cmd+F reaches this one.
 //!
 //! Adapted from the Docs prototype (`docs/2026-09-24/docs-gpui-editor-research/demo/src/find.rs`).
 
@@ -11,7 +15,9 @@ use gpui::{
     ParentElement as _, StatefulInteractiveElement as _, Styled as _, Subscription, Window, div,
     px, svg,
 };
-use gpui_component::input::{Input, InputEvent, InputState};
+use gpui_component::input::{
+    EditorState, Input, InputEvent, InputState, TextDecoration, TextDecorationCollection,
+};
 
 use super::palette::DocsPalette;
 use crate::GhostexGpuiApp;
@@ -28,7 +34,24 @@ pub(crate) struct DocsFind {
     /// What the last step or replace reported (text, error), shown until the query changes; the
     /// match count shows otherwise (the Docs page's find status).
     pub(crate) status: Option<(String, bool)>,
+    /// A code or text file's match marks, and which file they are on.
+    code_marks: Option<(String, TextDecorationCollection)>,
     _subscriptions: Vec<Subscription>,
+}
+
+/// The editor the find panel works on: a Markdown document's live editor, or a code or text
+/// file's editor.
+enum FindTarget {
+    Live(Entity<zorite_editor::EditorState>),
+    Code(Entity<EditorState>),
+}
+
+/// The Markdown editor's own match fills (zorite `element.rs`), so both kinds of file look alike.
+fn match_highlight(active: bool) -> gpui::HighlightStyle {
+    gpui::HighlightStyle {
+        background_color: Some(gpui::rgba(if active { 0x9BBCE052 } else { 0x9BBCE02E }).into()),
+        ..Default::default()
+    }
 }
 
 /// Every match of `needle` in `text` (byte ranges), honouring the case and whole-word options.
@@ -75,6 +98,82 @@ impl GhostexGpuiApp {
         self.native_docs.active_document()?.live.clone()
     }
 
+    fn native_docs_find_target(&self) -> Option<FindTarget> {
+        self.native_docs_live_editor()
+            .map(FindTarget::Live)
+            .or_else(|| self.native_docs_code_find_editor().map(FindTarget::Code))
+    }
+
+    /// The matches in a code or text file, marked in its editor (the current one brighter), and
+    /// the marks taken off a file the panel no longer works on.
+    fn native_docs_refresh_code_find(&mut self, cx: &mut Context<Self>) {
+        let code = self.native_docs_code_find_editor();
+        let path = self.native_docs.active.clone();
+        let Some(find) = self.native_docs.find.as_mut() else {
+            return;
+        };
+        let keep = find.visible && code.is_some();
+        if let Some((marked, marks)) = find.code_marks.clone()
+            && (!keep || path.as_ref() != Some(&marked))
+        {
+            marks.clear(cx);
+            find.code_marks = None;
+        }
+        let (Some(editor), Some(path), true) = (code, path, keep) else {
+            return;
+        };
+        let needle = find.query.read(cx).value().to_string();
+        find.matches = find_all(
+            &editor.read(cx).value(),
+            &needle,
+            find.case_sensitive,
+            find.whole_word,
+        );
+        if find.active >= find.matches.len() {
+            find.active = 0;
+        }
+        let decorations = find
+            .matches
+            .iter()
+            .enumerate()
+            .map(|(index, range)| {
+                TextDecoration::new(range.clone(), match_highlight(index == find.active))
+            })
+            .collect();
+        match &find.code_marks {
+            Some((_, marks)) => marks.set(decorations, cx),
+            None => {
+                let marks = editor.update(cx, |state, cx| {
+                    state.create_decorations_collection(decorations, cx)
+                });
+                find.code_marks = Some((path, marks));
+            }
+        }
+    }
+
+    /// The panel is open on a code or text file whose marks are for another file (the open file
+    /// changed): mark this one.
+    pub(crate) fn native_docs_sync_code_find(&mut self, cx: &mut Context<Self>) {
+        let stale = self.native_docs.find.as_ref().is_some_and(|find| {
+            find.visible
+                && find.code_marks.as_ref().map(|(path, _)| path)
+                    != self.native_docs.active.as_ref()
+        });
+        if stale && self.native_docs_code_find_editor().is_some() {
+            self.native_docs_refresh_find(cx);
+        }
+    }
+
+    /// The open code or text file's editor, when it is what the view shows (not a CSV table or a
+    /// JSON tree standing in for it).
+    pub(crate) fn native_docs_code_find_editor(&self) -> Option<Entity<EditorState>> {
+        let document = self.native_docs.active_document()?;
+        if document.live.is_some() || document.data_view_open {
+            return None;
+        }
+        document.editor.clone()
+    }
+
     fn native_docs_ensure_find(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.native_docs.find.is_some() {
             return;
@@ -103,9 +202,9 @@ impl GhostexGpuiApp {
             cx.subscribe_in(
                 &replace,
                 window,
-                |this: &mut Self, _, event: &InputEvent, _, cx| {
+                |this: &mut Self, _, event: &InputEvent, window, cx| {
                     if let InputEvent::PressEnter { .. } = event {
-                        this.native_docs_replace_current(cx);
+                        this.native_docs_replace_current(window, cx);
                     }
                 },
             ),
@@ -119,6 +218,7 @@ impl GhostexGpuiApp {
             matches: Vec::new(),
             active: 0,
             status: None,
+            code_marks: None,
             _subscriptions: subscriptions,
         });
     }
@@ -131,17 +231,23 @@ impl GhostexGpuiApp {
     pub(crate) fn native_docs_show_find(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.native_docs_ensure_find(window, cx);
         let editor = self.native_docs_live_editor();
+        let code = self.native_docs_code_find_editor();
         let Some(find) = self.native_docs.find.as_mut() else {
             return;
         };
         find.visible = true;
         let query = find.query.clone();
-        if let Some(editor) = editor {
+        let selected = if let Some(editor) = editor {
             let selection = editor.read(cx).selected_range();
-            let selected = editor.read(cx).text()[selection].to_string();
-            if !selected.is_empty() && !selected.contains('\n') {
-                query.update(cx, |query, cx| query.set_value(selected, window, cx));
-            }
+            Some(editor.read(cx).text()[selection].to_string())
+        } else {
+            code.map(|code| code.read(cx).selected_text().to_string())
+        };
+        if let Some(selected) = selected
+            && !selected.is_empty()
+            && !selected.contains('\n')
+        {
+            query.update(cx, |query, cx| query.set_value(selected, window, cx));
         }
         super::actions::focus_and_select_all(&query, window);
         self.native_docs_refresh_find(cx);
@@ -164,6 +270,11 @@ impl GhostexGpuiApp {
         self.native_docs_refresh_find(cx);
         if let Some(editor) = self.native_docs_live_editor() {
             editor.update(cx, |editor, cx| editor.focus(window, cx));
+        } else if let Some(code) = self.native_docs_code_find_editor() {
+            code.update(cx, |state, cx| {
+                state.set_selection_focus(None, cx);
+                state.focus(window, cx);
+            });
         }
         self.native_docs_notify(cx);
     }
@@ -177,6 +288,7 @@ impl GhostexGpuiApp {
 
     /// Recomputes the matches in the open editor and paints them.
     pub(crate) fn native_docs_refresh_find(&mut self, cx: &mut Context<Self>) {
+        self.native_docs_refresh_code_find(cx);
         let Some(editor) = self.native_docs_live_editor() else {
             return;
         };
@@ -232,6 +344,22 @@ impl GhostexGpuiApp {
 
     /// Scrolls so the active match sits a third of the way down the document.
     fn native_docs_reveal_match(&mut self, _window: &mut Window, cx: &mut Context<Self>) {
+        // A code or text file: select the match, which scrolls the editor to it, and keep the
+        // selection showing while the caret stays in the find field.
+        if let Some(code) = self.native_docs_code_find_editor() {
+            let Some(find) = self.native_docs.find.as_ref() else {
+                return;
+            };
+            let Some(range) = find.matches.get(find.active).cloned() else {
+                return;
+            };
+            let focus = gpui::Focusable::focus_handle(find.query.read(cx), cx);
+            code.update(cx, |state, cx| {
+                state.set_selection_focus(Some(focus), cx);
+                state.set_selected_range(range, cx);
+            });
+            return;
+        }
         let Some(document) = self.native_docs.active_document() else {
             return;
         };
@@ -255,8 +383,8 @@ impl GhostexGpuiApp {
         }
     }
 
-    fn native_docs_replace_current(&mut self, cx: &mut Context<Self>) {
-        let Some(editor) = self.native_docs_live_editor() else {
+    fn native_docs_replace_current(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(target) = self.native_docs_find_target() else {
             return;
         };
         let Some(find) = self.native_docs.find.as_mut() else {
@@ -273,10 +401,16 @@ impl GhostexGpuiApp {
             return;
         };
         let replacement = find.replace.read(cx).value().to_string();
-        editor.update(cx, |editor, cx| {
-            editor.replace_range(range, &replacement, cx);
-            cx.emit(zorite_editor::EditorEvent::Changed);
-        });
+        match &target {
+            FindTarget::Live(editor) => editor.update(cx, |editor, cx| {
+                editor.replace_range(range, &replacement, cx);
+                cx.emit(zorite_editor::EditorEvent::Changed);
+            }),
+            FindTarget::Code(code) => code.update(cx, |state, cx| {
+                state.set_selected_range(range, cx);
+                state.replace(replacement, window, cx);
+            }),
+        }
         self.native_docs_refresh_find(cx);
         if let Some(find) = self.native_docs.find.as_mut() {
             find.status = Some((
@@ -291,8 +425,8 @@ impl GhostexGpuiApp {
         self.native_docs_notify(cx);
     }
 
-    fn native_docs_replace_all(&mut self, cx: &mut Context<Self>) {
-        let Some(editor) = self.native_docs_live_editor() else {
+    fn native_docs_replace_all(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(target) = self.native_docs_find_target() else {
             return;
         };
         let Some(find) = self.native_docs.find.as_mut() else {
@@ -312,12 +446,20 @@ impl GhostexGpuiApp {
         let matches = find.matches.clone();
         find.active = 0;
         find.status = Some((format!("Replaced {} matches", matches.len()), false));
-        editor.update(cx, |editor, cx| {
-            for range in matches.into_iter().rev() {
-                editor.replace_range(range, &replacement, cx);
-            }
-            cx.emit(zorite_editor::EditorEvent::Changed);
-        });
+        match &target {
+            FindTarget::Live(editor) => editor.update(cx, |editor, cx| {
+                for range in matches.into_iter().rev() {
+                    editor.replace_range(range, &replacement, cx);
+                }
+                cx.emit(zorite_editor::EditorEvent::Changed);
+            }),
+            FindTarget::Code(code) => code.update(cx, |state, cx| {
+                for range in matches.into_iter().rev() {
+                    state.set_selected_range(range, cx);
+                    state.replace(replacement.clone(), window, cx);
+                }
+            }),
+        }
         self.native_docs_refresh_find(cx);
     }
 
@@ -328,6 +470,38 @@ impl GhostexGpuiApp {
         p: &DocsPalette,
         cx: &mut Context<Self>,
     ) -> Option<AnyElement> {
+        Some(
+            self.native_docs_find_panel(p, cx)?
+                .absolute()
+                .bottom(px(45.0))
+                .right(px(0.0))
+                .into_any_element(),
+        )
+    }
+
+    /// The same panel over a code or text file, at the editor's bottom right (clear of its
+    /// scrollbar), where a Markdown document has its formatting bar.
+    pub(crate) fn render_native_docs_code_find(
+        &mut self,
+        p: &DocsPalette,
+        cx: &mut Context<Self>,
+    ) -> Option<AnyElement> {
+        self.native_docs_code_find_editor()?;
+        self.native_docs_sync_code_find(cx);
+        Some(
+            self.native_docs_find_panel(p, cx)?
+                .absolute()
+                .bottom(px(14.0))
+                .right(px(20.0))
+                .into_any_element(),
+        )
+    }
+
+    fn native_docs_find_panel(
+        &mut self,
+        p: &DocsPalette,
+        cx: &mut Context<Self>,
+    ) -> Option<gpui::Stateful<gpui::Div>> {
         let find = self.native_docs.find.as_ref().filter(|find| find.visible)?;
         let needle_empty = find.query.read(cx).value().is_empty();
         // The find status, worded as the former React Docs page worded it.
@@ -381,9 +555,6 @@ impl GhostexGpuiApp {
         Some(
             div()
                 .id("native-docs-find")
-                .absolute()
-                .bottom(px(45.0))
-                .right(px(0.0))
                 .p(px(8.0))
                 .flex()
                 .flex_col()
@@ -475,9 +646,9 @@ impl GhostexGpuiApp {
                                 "Replace Current Match",
                                 None,
                             )
-                            .on_click(
-                                cx.listener(|this, _, _, cx| this.native_docs_replace_current(cx)),
-                            ),
+                            .on_click(cx.listener(
+                                |this, _, window, cx| this.native_docs_replace_current(window, cx),
+                            )),
                         )
                         .child(
                             button(
@@ -486,9 +657,9 @@ impl GhostexGpuiApp {
                                 "Replace All Matches",
                                 None,
                             )
-                            .on_click(
-                                cx.listener(|this, _, _, cx| this.native_docs_replace_all(cx)),
-                            ),
+                            .on_click(cx.listener(
+                                |this, _, window, cx| this.native_docs_replace_all(window, cx),
+                            )),
                         )
                         .child(div().w(px(24.0)))
                         .child(
@@ -502,8 +673,7 @@ impl GhostexGpuiApp {
                                 |this, _, window, cx| this.native_docs_hide_find(window, cx),
                             )),
                         ),
-                )
-                .into_any_element(),
+                ),
         )
     }
 }

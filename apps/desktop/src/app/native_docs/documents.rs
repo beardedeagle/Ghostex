@@ -288,7 +288,8 @@ impl GhostexGpuiApp {
                     .soft_wrap(word_wrap)
                     // The formatting bar floats over the bottom lines; let them scroll out from under it.
                     .scroll_beyond_last_line(Some(4))
-                    .searchable(true)
+                    // Files' own find panel answers Cmd+F (find.rs), not the editor's.
+                    .searchable(false)
                     .default_value(initial)
             });
             let watched_path = path.clone();
@@ -308,6 +309,9 @@ impl GhostexGpuiApp {
                             }
                         }
                         this.native_docs.highlights_stale = true;
+                        if this.native_docs_find_visible() {
+                            this.native_docs_refresh_find(cx);
+                        }
                         this.native_docs_schedule_draft_write(&watched_path, cx);
                     }
                 },

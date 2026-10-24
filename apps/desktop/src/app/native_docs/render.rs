@@ -334,9 +334,8 @@ impl GhostexGpuiApp {
         }
     }
 
-    /// Cmd+F (Ctrl+F on Windows and Linux) in the Files view. An open Markdown document claims it
-    /// for its own Find and Replace; otherwise it shows the files search. A text or code file's
-    /// editor answers it first with its own search panel.
+    /// Cmd+F (Ctrl+F on Windows and Linux) in the Files view. An open Markdown, code or text file
+    /// claims it for the find panel (`find.rs`); otherwise it shows the files search.
     ///
     /// CDXC:Docs 2026-10-09 WHY:
     /// The app binds Cmd/Ctrl+F globally to its find action (`FindInFocusedTerminal`, main.rs), and GPUI dispatches a matched binding before any key-down listener. The root's handler finds in a browser, a chat or a terminal and otherwise swallows the key, so the Files view's own Ctrl+F handler never ran ("cmd/ctrl + f does nothing"). The Files view therefore answers the action itself, below the root; the key-down path stays for the floating files list's window, which has no handler for the action.
@@ -345,11 +344,12 @@ impl GhostexGpuiApp {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let markdown = self
+        let findable = self
             .native_docs
             .active_document()
-            .is_some_and(|document| document.live.is_some());
-        if markdown && !self.native_docs_search_focused(window, cx) {
+            .is_some_and(|document| document.live.is_some())
+            || self.native_docs_code_find_editor().is_some();
+        if findable && !self.native_docs_search_focused(window, cx) {
             self.native_docs_show_find(window, cx);
         } else {
             self.native_docs_show_search(window, cx);
