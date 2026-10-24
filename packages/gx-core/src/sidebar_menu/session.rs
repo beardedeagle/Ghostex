@@ -59,6 +59,26 @@ pub struct SessionMenuInput<'a> {
     /// An orchestrator row with at least one thread its Sleep Inactive Threads would sleep.
     pub has_inactive_threads: bool,
     pub now_ms: u64,
+    /// Where Move to Group can send the row. `None` for the per-publish build, which never offers
+    /// it, and for a row outside a project and its user-made groups.
+    pub group_moves: Option<&'a SessionGroupMoves>,
+}
+
+/// The groups a session row can move between: its project's user-made groups and the project's
+/// own list, which Remove from Group moves it back to.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SessionGroupMoves {
+    pub project_list_id: String,
+    pub groups: Vec<SessionGroupTarget>,
+}
+
+/// One of the project's user-made groups.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SessionGroupTarget {
+    pub group_id: String,
+    pub title: String,
+    /// The group holding the row now.
+    pub is_current: bool,
 }
 
 /// The rows the hover strip and the context menu both pick from.
@@ -405,6 +425,46 @@ fn set_session_tag_value(message: &serde_json::Value) -> Option<Option<String>> 
     )
 }
 
+/// Move to New Group, or the Move to Group page once the project has a group to move to or the row
+/// is in one.
+///
+/// CDXC:ContextMenus 2026-10-23 WHY:
+/// Move to New Group was the only way into a user-made group and nothing led back out: the drag
+/// that does it was refused on the desktop, and Close Group closes the sessions it holds. The page
+/// mirrors a project's Add to Group (New Project Group, the groups, Remove from Group) and sends
+/// the drag's own `moveSessionToGroup`, so the menu and a drop make the same edit.
+fn move_to_group_item(id: &str, moves: Option<&SessionGroupMoves>, stale: bool) -> MenuItem {
+    let new_group = |label: &str| {
+        MenuItem::row(
+            label,
+            "layout-sidebar-right-expand",
+            MenuCommand::command(message::create_group_from_session(id)),
+        )
+    };
+    let Some(moves) = moves.filter(|moves| !stale && !moves.groups.is_empty()) else {
+        return new_group("Move to New Group");
+    };
+    let mut children = vec![new_group("New Group")];
+    for group in &moves.groups {
+        children.push(MenuItem {
+            label: Some(group.title.clone()),
+            checked: group.is_current,
+            command: (!group.is_current)
+                .then(|| MenuCommand::command(message::move_session_to_group(id, &group.group_id))),
+            ..MenuItem::default()
+        });
+    }
+    if moves.groups.iter().any(|group| group.is_current) {
+        children.push(MenuItem::separator());
+        children.push(MenuItem::row(
+            "Remove from Group",
+            "x",
+            MenuCommand::command(message::move_session_to_group(id, &moves.project_list_id)),
+        ));
+    }
+    MenuItem::submenu("Move to Group", "layout-sidebar-right-expand", children).with_page()
+}
+
 /// An orchestrator's Goal & Instructions and Memory editors, and a thread's Mark Thread Done or
 /// Reopen Thread, after a separator. An orchestrator's block goes on with Sleep Inactive Threads.
 ///
@@ -715,11 +775,7 @@ fn full_menu(
         ));
     }
     if group.can_create_session_group {
-        advanced.push(MenuItem::row(
-            "Move to New Group",
-            "layout-sidebar-right-expand",
-            MenuCommand::command(message::create_group_from_session(id)),
-        ));
+        advanced.push(move_to_group_item(id, input.group_moves, group.is_stale));
     }
     if group.can_focus_mode {
         advanced.push(MenuItem::row(

@@ -7,7 +7,7 @@
 use std::collections::BTreeSet;
 
 use crate::core::Core;
-use crate::keys::{MachineId, SessionKey};
+use crate::keys::{parse_workspace_subgroup_id, MachineId, SessionKey};
 use crate::sidebar_view::collections::CollectionsState;
 use crate::sidebar_view::machine_spaces::spaces_enabled_on;
 use crate::sidebar_view::spaces::SpacesState;
@@ -219,7 +219,7 @@ impl<'a> SidebarMenus<'a> {
     /// The hover buttons and the placeholder menu a row publishes.
     pub fn row_actions(&self, group: &GroupView, session: &SessionView) -> SessionActions {
         let menu_group = self.menu_group(group);
-        session::session_hover_actions(&self.session_input(&menu_group, &session.row, &[]))
+        session::session_hover_actions(&self.session_input(&menu_group, &session.row, &[], None))
     }
 
     /// The whole context menu of one row: the bulk menu when the row is part of a multi-selection,
@@ -240,10 +240,12 @@ impl<'a> SidebarMenus<'a> {
         let below = self.rows_below(group, &session.row);
         let below: Vec<&SessionRow> = below.iter().map(|session| &*session.row).collect();
         let menu_group = self.menu_group(group);
+        let group_moves = self.group_moves(group, &session.row);
         Some(session::session_menu(&self.session_input(
             &menu_group,
             &session.row,
             &below,
+            group_moves.as_ref(),
         )))
     }
 
@@ -256,7 +258,7 @@ impl<'a> SidebarMenus<'a> {
         let (group, session) = self.find_row(sidebar_session_id)?;
         let menu_group = self.menu_group(group);
         Some(session::session_hover_submenu(
-            &self.session_input(&menu_group, &session.row, &[]),
+            &self.session_input(&menu_group, &session.row, &[], None),
             action,
         ))
     }
@@ -390,6 +392,7 @@ impl<'a> SidebarMenus<'a> {
         group: &'b MenuGroup<'b>,
         row: &'b SessionRow,
         below: &'b [&'b SessionRow],
+        group_moves: Option<&'b session::SessionGroupMoves>,
     ) -> session::SessionMenuInput<'b> {
         session::SessionMenuInput {
             row,
@@ -403,7 +406,42 @@ impl<'a> SidebarMenus<'a> {
                     .as_ref()
                     .is_some_and(|key| self.coordinators_with_inactive_threads.contains(key)),
             now_ms: self.now_ms,
+            group_moves,
         }
+    }
+
+    /// Where Move to Group can send this row: the user-made groups of its project that the list
+    /// draws, and the project's own list. `None` for a row outside a project and its user-made
+    /// groups (a bot's sessions).
+    fn group_moves(
+        &self,
+        current: &GroupView,
+        row: &SessionRow,
+    ) -> Option<session::SessionGroupMoves> {
+        let project = row.key.as_ref()?.project_key();
+        let project_list_id = project.to_sidebar_group_id();
+        let current_id = current.core.group_id.as_str();
+        let of_project = |group_id: &str| {
+            parse_workspace_subgroup_id(group_id).is_some_and(|(owner, _)| owner == project)
+        };
+        if current_id != project_list_id && !of_project(current_id) {
+            return None;
+        }
+        let groups = self
+            .view
+            .groups
+            .iter()
+            .filter(|group| of_project(&group.core.group_id))
+            .map(|group| session::SessionGroupTarget {
+                group_id: group.core.group_id.clone(),
+                title: group.core.title.clone(),
+                is_current: group.core.group_id == current_id,
+            })
+            .collect();
+        Some(session::SessionGroupMoves {
+            project_list_id,
+            groups,
+        })
     }
 
     fn find_row(&self, sidebar_session_id: &str) -> Option<(&'a GroupView, &'a SessionView)> {

@@ -393,6 +393,12 @@ pub(crate) mod message {
         json!({ "type": "createGroupFromSession", "sessionId": session_id })
     }
 
+    /// The drag's own `moveSessionToGroup` (sidebar_drag/order_write.rs): a user-made group's id
+    /// moves the row into it, the project's own group id takes it out of every user-made group.
+    pub(crate) fn move_session_to_group(session_id: &str, group_id: &str) -> Value {
+        json!({ "type": "moveSessionToGroup", "sessionId": session_id, "groupId": group_id })
+    }
+
     pub(crate) fn focus_session_mode(session_id: &str) -> Value {
         json!({ "type": "focusSessionMode", "sessionId": session_id })
     }
