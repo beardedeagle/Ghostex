@@ -1028,7 +1028,7 @@ impl NativeChatView {
         let label = text(image, "label");
         let alt = text(image, "alt");
         let source = self.chat_image_tile(image, p, cx);
-        let open = images.to_vec();
+        let open = image.clone();
         let tile = div()
             .id(gpui::SharedString::from(format!(
                 "chat-image:{message_id}:{index}"
@@ -1042,7 +1042,7 @@ impl NativeChatView {
             .flex_shrink_0()
             .chat_cursor_pointer()
             .on_click(
-                cx.listener(move |chat, _, _, cx| chat.open_image_viewer(open.clone(), index, cx)),
+                cx.listener(move |chat, _, _, cx| chat.open_transcript_picture(&open, cx)),
             )
             .file_menu(image_file_path(image), cx);
         let failure = match &source {
@@ -1116,7 +1116,7 @@ impl NativeChatView {
         let label = text(image, "label");
         let alt = text(image, "alt");
         let source = self.chat_image_tile(image, p, cx);
-        let open = vec![image.clone()];
+        let open = image.clone();
         match thumbnail(&source, p) {
             // React leaves 4px either side and 2px above and below a picture written into prose
             // (`.ghostex-chat-markdown .ghostex-chat-inline-image-frame`), so the words beside it
@@ -1137,7 +1137,7 @@ impl NativeChatView {
                 // button, which its row's click handler skips over.
                 .on_click(cx.listener(move |chat, _, _, cx| {
                     cx.stop_propagation();
-                    chat.open_image_viewer(open.clone(), 0, cx);
+                    chat.open_transcript_picture(&open, cx);
                 }))
                 .file_menu(image_file_path(image), cx)
                 .child(picture)
@@ -1178,7 +1178,7 @@ impl NativeChatView {
                     })
                     .on_click(cx.listener(move |chat, _, _, cx| {
                         cx.stop_propagation();
-                        chat.open_image_viewer(open.clone(), 0, cx);
+                        chat.open_transcript_picture(&open, cx);
                     }))
                     .file_menu(image_file_path(image), cx)
                     .child(
@@ -1345,7 +1345,7 @@ impl NativeChatView {
             file_name_of(&label)
         };
         let (source, size) = self.chat_strip_picture(image, height * s, max_width * s, cx);
-        let open = images.to_vec();
+        let open = image.clone();
         let tile = div()
             .id(gpui::SharedString::from(format!(
                 "chat-strip-image:{id}:{index}"
@@ -1360,7 +1360,7 @@ impl NativeChatView {
             .chat_cursor_pointer()
             .on_click(cx.listener(move |chat, _, _, cx| {
                 cx.stop_propagation();
-                chat.open_image_viewer(open.clone(), index, cx);
+                chat.open_transcript_picture(&open, cx);
             }))
             .file_menu(image_file_path(image), cx);
         if let ChatImageTile::Unavailable(failure) = &source {

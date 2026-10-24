@@ -36,6 +36,7 @@ pub mod noise;
 pub mod open_questions;
 pub mod page_answers;
 pub mod page_thumbnails;
+pub mod pictures;
 pub mod presentation;
 pub mod prose;
 pub mod question_exchange;

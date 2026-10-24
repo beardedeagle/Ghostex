@@ -63,6 +63,10 @@ pub fn answer_query(
         Query::SpeakableMarkdown => to_json(&crate::read_aloud::speakable_segments(
             first.and_then(Value::as_str)?,
         )),
+        Query::TranscriptPictures => to_json(&crate::transcript::pictures::picture_gallery(
+            state.transcript_view.items.iter(),
+            first?,
+        )),
     })
 }
 
@@ -149,6 +153,9 @@ pub enum Query {
     SpeakableSegments,
     /// `speakableMarkdown(markdown)`: the same for any Markdown (the voice agent, tests).
     SpeakableMarkdown,
+    /// `transcriptPictures(picture)`: every picture the transcript shows, opened on this one
+    /// (`{images, index}`), for the picture viewer's next and previous.
+    TranscriptPictures,
 }
 
 impl Query {
@@ -165,6 +172,7 @@ impl Query {
             Self::RenderVisual => "renderVisual",
             Self::SpeakableSegments => "speakableSegments",
             Self::SpeakableMarkdown => "speakableMarkdown",
+            Self::TranscriptPictures => "transcriptPictures",
         }
     }
 
@@ -181,6 +189,7 @@ impl Query {
             "renderVisual" => Self::RenderVisual,
             "speakableSegments" => Self::SpeakableSegments,
             "speakableMarkdown" => Self::SpeakableMarkdown,
+            "transcriptPictures" => Self::TranscriptPictures,
             _ => return None,
         })
     }

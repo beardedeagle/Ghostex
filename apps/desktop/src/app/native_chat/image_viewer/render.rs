@@ -193,7 +193,7 @@ impl Render for ImageViewerWindow {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let snapshot = self.chat.read(cx).snapshot.clone();
         let p = ChatAppearance::current(&snapshot);
-        let Some((image, zoom, completed, count)) = self
+        let Some((image, zoom, completed, index, count)) = self
             .chat
             .read(cx)
             .image_viewer
@@ -204,6 +204,7 @@ impl Render for ImageViewerWindow {
                     request.current().clone(),
                     request.zoom,
                     request.completed,
+                    request.index,
                     request.images.len(),
                 )
             })
@@ -214,6 +215,12 @@ impl Render for ImageViewerWindow {
         // nothing, which is how a viewer can look stuck open.
         if window.focused(cx).is_none() {
             self.focus.focus(window, cx);
+        }
+        // Another picture starts unscrolled, like the fitted size it opens at.
+        if index != self.shown_index {
+            self.shown_index = index;
+            self.scroll.set_offset(gpui::point(px(0.0), px(0.0)));
+            self.zoom_anchor = None;
         }
         let copyable = !text(&image, "copyPath").is_empty();
         let source = self.chat.update(cx, |chat, cx| chat.chat_image(&image, cx));
@@ -491,7 +498,7 @@ impl Render for ImageViewerWindow {
                 }
             }))
             .child(body)
-            .children(self.step_arrows(count, &p, cx))
+            .children(self.step_arrows(index, count, &p, cx))
             .when(failure.is_none(), |viewer| viewer.child(toolbar))
             .child(close)
             .child(self.pan_listeners(cx))

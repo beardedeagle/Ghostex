@@ -989,6 +989,13 @@ skills (the phone says to install them there on the computer).
 Use the paperclip to attach images, files, or folders. On Linux, choose
 **Images or files…** or **Folders…** before selecting items in the system picker;
 the terminal's attachment action offers the same choices.
+Click a picture in the chat (a thumbnail, or a picture in a reply) to open it
+full size. The viewer goes through every picture in the chat, in order: on the
+computer press the Left and Right arrow keys, or move the pointer near the left
+or right edge for a round previous or next button; on the phone swipe sideways
+(when not zoomed in) or tap the buttons at the sides. A counter such as 3 / 6
+shows where you are, each picture opens fitted to the window, and Escape (or a
+click beside the picture) closes it.
 Dictate is the microphone button in the chat box (always shown, right next to
 Send) and on the terminal bar, on a Mac, Windows and Linux: press it, talk, and press it
 again to stop. In the chat session you are in, Option+Ctrl+D (Ctrl+Alt+Shift+D on

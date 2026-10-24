@@ -49,6 +49,13 @@ pub(super) struct ImageViewerWindow {
     pub(super) painted: Option<gpui::Size<gpui::Pixels>>,
     /// The side the pointer is near, whose step arrow shows: -1 left, 1 right, 0 neither.
     pub(super) edge: isize,
+    /// The side whose arrow is fading out since the pointer left it.
+    pub(super) fading: Option<isize>,
+    /// Bumped whenever the pointer changes side, naming the arrows' fade animations so each change
+    /// fades from the start.
+    pub(super) arrow_generation: u64,
+    /// The picture painted last, so stepping to another one starts it unscrolled.
+    pub(super) shown_index: usize,
     _subscription: Subscription,
 }
 
@@ -74,6 +81,22 @@ impl NativeChatView {
             self.release_replaced_viewer_pictures(replaced, cx);
         }
         cx.notify();
+    }
+
+    /// Opens a picture the transcript shows on the whole transcript's pictures, so next and
+    /// previous move through the chat (CDXC:SessionChat 2026-10-24 in gx-chat-core's
+    /// transcript/pictures.rs). A picture only the subagent viewer shows steps through that one's.
+    pub(in crate::app::native_chat) fn open_transcript_picture(
+        &mut self,
+        picture: &Value,
+        cx: &mut Context<Self>,
+    ) {
+        use ghostex_gx_chat_core::transcript::pictures::picture_gallery;
+        let mut gallery = picture_gallery(self.items.iter(), picture);
+        if gallery.images.len() < 2 && !self.subagent_items.is_empty() {
+            gallery = picture_gallery(self.subagent_items.iter(), picture);
+        }
+        self.open_image_viewer(gallery.images, gallery.index, cx);
     }
 
     pub(in crate::app::native_chat) fn close_image_viewer(&mut self, cx: &mut Context<Self>) {
@@ -104,17 +127,16 @@ impl NativeChatView {
         self.release_viewed_pictures(&gone, cx);
     }
 
-    /// Next or previous picture across the message this one came from.
+    /// Next or previous picture in the list the viewer opened on; nothing past either end.
     pub(super) fn step_image_viewer(&mut self, delta: isize, cx: &mut Context<Self>) {
         let Some(request) = &mut self.image_viewer.request else {
             return;
         };
-        let count = request.images.len();
-        if count < 2 {
+        let next = request.index as isize + delta;
+        if next < 0 || next >= request.images.len() as isize || next == request.index as isize {
             return;
         }
-        let next = (request.index as isize + delta).rem_euclid(count as isize) as usize;
-        request.index = next;
+        request.index = next as usize;
         request.zoom = 0;
         request.completed = None;
         cx.notify();
@@ -245,6 +267,9 @@ impl NativeChatView {
                                         zoom_anchor: None,
                                         painted: None,
                                         edge: 0,
+                                        fading: None,
+                                        arrow_generation: 0,
+                                        shown_index: 0,
                                         _subscription: subscription,
                                     }
                                 });
