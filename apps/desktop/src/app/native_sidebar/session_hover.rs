@@ -135,10 +135,54 @@ impl GhostexGpuiApp {
     ) {
         let hovered = &mut self.native_sidebar.hovered_session;
         match change {
-            SessionHoverChange::Claim(id) if hovered.as_deref() != Some(&id) => *hovered = Some(id),
+            SessionHoverChange::Claim(id) if hovered.as_deref() != Some(&id) => {
+                *hovered = Some(id.clone());
+                self.schedule_native_session_link_line(id, cx);
+            }
             SessionHoverChange::Release(id) if hovered.as_deref() == Some(&id) => *hovered = None,
             _ => return,
         }
+        if self.native_sidebar.link_line_session.is_some()
+            && self.native_sidebar.link_line_session != self.native_sidebar.hovered_session
+        {
+            self.native_sidebar.link_line_session = None;
+        }
         cx.notify();
+    }
+
+    /// Opens the hovered card's links line once the pointer has rested on it a little (link_chips.rs),
+    /// so sweeping over the list does not make every card jump.
+    /// It opens a little before the title's tooltip would, so the card has grown by the time the
+    /// tooltip shows beside it (link_chips.rs `session_title_tooltip_placement`).
+    fn schedule_native_session_link_line(&mut self, id: String, cx: &mut gpui::Context<Self>) {
+        let has_links = self
+            .native_sidebar
+            .snapshot
+            .as_ref()
+            .is_some_and(|snapshot| {
+                snapshot.groups.iter().any(|group| {
+                    group.sessions.iter().any(|session| {
+                        session.session_id == id
+                            && session.links.is_some()
+                            && session.work.is_none()
+                    })
+                })
+            });
+        if !has_links {
+            return;
+        }
+        let delay = self.configured_tooltip_delay() * 3 / 5;
+        cx.spawn(async move |app, cx| {
+            cx.background_executor().timer(delay).await;
+            let _ = app.update(cx, |app, cx| {
+                if app.native_sidebar.hovered_session.as_deref() == Some(&id)
+                    && app.native_sidebar.link_line_session.as_deref() != Some(&id)
+                {
+                    app.native_sidebar.link_line_session = Some(id);
+                    cx.notify();
+                }
+            });
+        })
+        .detach();
     }
 }

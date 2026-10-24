@@ -37,6 +37,7 @@ pub mod selector;
 mod session_chat_model;
 mod session_chat_rpc;
 pub(crate) mod session_chat_transcript;
+mod session_links;
 mod session_parking;
 pub mod sessions;
 mod sessions_brief;
@@ -292,6 +293,7 @@ fn is_known_command(name: &str) -> bool {
         "team",
         "slack",
         "link-session",
+        "link",
         "delayed-send",
         "close-after-done",
         "send-text",
@@ -684,6 +686,7 @@ fn run_command(name: &str, args: &[String]) -> CliResult<()> {
             require_built_in(ghostex_settings_catalog::built_in_extensions::WORKSPACES)?;
             work_mode::link_session_command(args)
         }
+        "link" => session_links::link_command(args),
         "delayed-send" => {
             // `--cancel` clears the armed automation; otherwise the parser
             // accepts the timer and both agent-completion trigger modes.

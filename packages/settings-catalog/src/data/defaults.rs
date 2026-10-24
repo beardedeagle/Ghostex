@@ -49,6 +49,8 @@ pub const DEFAULT_GHOSTEX_SETTINGS: &[(&str, J)] = &[
     // every web link the same way instead of splitting chat and terminal links
     // from dev-server links.
     ("webLinkOpenTarget", J::Str("internal-browser")),
+    // CDXC:SessionLinks 2026-10-24 DECISION: User: "user can pick to open in embedded or external browser in settings (default to embedded)".
+    ("sessionLinkOpenTarget", J::Str("embedded")),
     // CDXC:Navigation 2026-10-17 SEE-ALSO: these replace markdownFileOpenView, htmlFileOpenView and imageFileOpenTarget, which still decide until documentFileOpenTarget is saved (file_opening.rs).
     ("documentFileOpenTarget", J::Str("files")),
     ("otherFileOpenTarget", J::Str("files")),

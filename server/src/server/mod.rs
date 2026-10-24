@@ -155,6 +155,7 @@ pub mod title_generation;
 pub(crate) mod title_job_recovery;
 pub mod typed_operation_http;
 mod work_mode_sync;
+mod session_links_sync;
 mod workspaces_switch;
 pub mod worktree_ops;
 pub mod ws;

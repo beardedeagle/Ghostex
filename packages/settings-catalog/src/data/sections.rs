@@ -497,6 +497,7 @@ pub const MAIN_SETTINGS_SCROLL_TARGET_SETTING_KEYS: &[(&str, &[&str])] = &[
         "tools",
         &[
             "webLinkOpenTarget",
+            "sessionLinkOpenTarget",
             "codeServerLinkVscodeUserConfig",
             "codeServerUseVscodeInsidersUserConfig",
             "showUntrackedProjectDiffWhenNoTrackedChanges",
@@ -632,7 +633,7 @@ pub const MAIN_SETTINGS_SCROLL_TARGET_SETTING_KEYS: &[(&str, &[&str])] = &[
             "audioFileOpenTarget",
         ],
     ),
-    ("browser", &["webLinkOpenTarget"]),
+    ("browser", &["webLinkOpenTarget", "sessionLinkOpenTarget"]),
     (
         "editor",
         &[
@@ -839,6 +840,7 @@ pub const MAIN_SETTINGS_SECTION_SETTING_KEYS: &[(&str, &[&str])] = &[
         "tools",
         &[
             "webLinkOpenTarget",
+            "sessionLinkOpenTarget",
             "codeServerLinkVscodeUserConfig",
             "codeServerUseVscodeInsidersUserConfig",
             "showUntrackedProjectDiffWhenNoTrackedChanges",

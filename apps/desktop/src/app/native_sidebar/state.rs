@@ -49,6 +49,11 @@ pub(crate) struct NativeSidebarState {
     /// This frame's project header probes; `hovered_group` follows them.
     pub(crate) header_hover: super::project_hover::ProjectHeaderHoverProbes,
     pub(crate) hovered_session: Option<String>,
+    /// The hovered card that has opened its links line, once the pointer rested on it for the
+    /// tooltip delay (link_chips.rs).
+    pub(crate) link_line_session: Option<String>,
+    /// The session whose links list is open in the header dropdown (window/session_links_panel.rs).
+    pub(crate) links_list_session: Option<ghostex_gx_core::SessionKey>,
     /// The pointer is on the Commands row's account-usage pin (usage.rs); the unpinned strip peeks while it is.
     pub(crate) usage_pin_hovered: bool,
     /// The pointer is on the peeking usage strip itself, so leaving the pin for a card keeps it up.

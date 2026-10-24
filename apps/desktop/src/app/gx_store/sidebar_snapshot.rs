@@ -959,6 +959,11 @@ fn build_session(
             .as_ref()
             .filter(|work| work.has_links())
             .map(|work| Arc::new(work.clone())),
+        links: row
+            .links
+            .as_ref()
+            .filter(|links| !links.items.is_empty())
+            .map(|links| Arc::new(links.clone())),
         details,
     }
 }

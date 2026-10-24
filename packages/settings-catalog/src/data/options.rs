@@ -666,6 +666,12 @@ pub const WEB_LINK_OPEN_TARGET_OPTIONS: &[Opt] = &[
     opt("System Default Browser", "system-default-browser"),
 ];
 
+/// Where a session's PR, issue or Linear link opens (the header's chips and the links list).
+pub const SESSION_LINK_OPEN_TARGET_OPTIONS: &[Opt] = &[
+    opt("Internal Browser", "embedded"),
+    opt("System Default Browser", "external"),
+];
+
 /// How Windows blurs Desktop and windows behind the glass; Windows draws that blur and has no radius to set.
 pub const WINDOW_GLASS_WINDOWS_BLUR_OPTIONS: &[Opt] = &[
     opt("Acrylic", "acrylic"),

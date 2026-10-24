@@ -123,6 +123,19 @@ pub(super) fn to_mobile_session_list(result: &Value) -> Value {
         json!(result.get("ok") != Some(&Value::Bool(false))),
     );
     insert_present(&mut map, "product", result.get("product"));
+    // CDXC:SessionLinks 2026-10-24 DECISION: User: "user can pick to open in embedded or external browser in settings (default to embedded)". The phone has no copy of the computer's settings, so the summary carries this one: `embedded` opens a session link in the phone's own browser view, `external` in its default browser.
+    // Sent only when it is not the default, which the phone assumes when the key is absent.
+    let opens_externally = crate::ghostex_cli::settings::read_settings_file()
+        .ok()
+        .is_some_and(|settings| {
+            settings
+                .get("sessionLinkOpenTarget")
+                .and_then(Value::as_str)
+                == Some("external")
+        });
+    if opens_externally {
+        map.insert("sessionLinkOpenTarget".to_string(), json!("external"));
+    }
     if let Some(projects) = &projects {
         map.insert(
             "projects".to_string(),
@@ -627,6 +640,8 @@ fn to_mobile_session_summary(session: &Value) -> Value {
     insert_js(&mut map, "gitStatus", &[s("gitStatus")]);
     // CDXC:WorkMode 2026-10-09 WHY: the same second-whitelist trap as the keys around it: the phone's Copy submenu needs the session's PR, Linear and issue links, and `to_cli_session` forwarding `work` is not enough because this compactor drops everything it does not name.
     insert_non_null(&mut map, "work", s("work"));
+    // CDXC:SessionLinks 2026-10-24 WHY: the same second-whitelist trap: the phone's chat strip and its links sheet read the session's links from here.
+    insert_non_null(&mut map, "links", s("links"));
     // CDXC:ClaudeCloud 2026-10-23 WHY: the same second-whitelist trap: the phone's row needs the Claude cloud record (state, claude.ai link, attach) to mark the row and open the session's page on a tap.
     insert_non_null(&mut map, "claudeCloud", s("claudeCloud"));
     /*

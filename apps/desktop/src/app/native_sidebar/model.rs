@@ -125,6 +125,10 @@ pub(crate) struct NativeSidebarSession {
     /// line (native_sidebar/work_chips.rs).
     #[serde(skip)]
     pub(crate) work: Option<Arc<ghostex_gx_core::SessionWork>>,
+    /// Every PR, GitHub issue and Linear ticket the session is linked to, present only when it has
+    /// one: the line a hovered card opens (native_sidebar/link_chips.rs).
+    #[serde(skip)]
+    pub(crate) links: Option<Arc<ghostex_gx_core::SessionLinks>>,
     #[serde(flatten)]
     pub(crate) details: serde_json::Map<String, Value>,
 }

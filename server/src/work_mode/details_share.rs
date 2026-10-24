@@ -74,5 +74,11 @@ fn pull_request_info(pull_request: &Value) -> Option<WorkPullRequestInfo> {
             .and_then(Value::as_str)
             .map(str::to_string),
         checks,
+        title: pull_request
+            .get("title")
+            .and_then(Value::as_str)
+            .map(str::to_string),
+        review: None,
+        closing_issues: Vec::new(),
     })
 }

@@ -312,6 +312,15 @@ pub(crate) fn spawn_session_git_status_refresh_task(
                         &error.message,
                     );
                 }
+                // Every session's PR, issue and Linear links, after work mode's pass whose caches it shares.
+                if let Err(error) =
+                    super::session_links_sync::run_session_links_refresh_once(&pass_state)
+                {
+                    super::session_links_sync::log_session_links_refresh_failure(
+                        &pass_state,
+                        &error.message,
+                    );
+                }
                 // Bot gateway dots and today's run counts: small file reads per bot and no spawn,
                 // so they ride here too.
                 if let Err(error) = super::bot_sync::run_bot_refresh_once(&pass_state) {

@@ -25,6 +25,7 @@ pub(crate) enum GpuiTitlebarPopupKind {
     OpenTargets,
     Resources,
     RemoteSites,
+    SessionLinks,
     Tips,
 }
 
@@ -44,6 +45,7 @@ impl GpuiTitlebarPopupKind {
             Self::OpenTargets => "openTargets",
             Self::Resources => "resources",
             Self::RemoteSites => "remoteSites",
+            Self::SessionLinks => "sessionLinks",
             Self::Tips => "tips",
         }
     }
@@ -66,6 +68,7 @@ pub(crate) enum GpuiTitlebarPopupContent {
     Menu(Entity<PopupMenu>),
     Reading(Entity<GpuiTitlebarReadingPanel>),
     RemoteSites(Entity<crate::app::window::remote_sites::RemoteSitesPanel>),
+    SessionLinks(Entity<crate::app::window::session_links_panel::SessionLinksPanel>),
 }
 
 pub(crate) struct GpuiTitlebarPopupWindow {
@@ -100,6 +103,7 @@ impl GpuiTitlebarPopupWindow {
             GpuiTitlebarPopupKind::OpenTargets => "Ghostex Open",
             GpuiTitlebarPopupKind::Resources => "Ghostex Resources",
             GpuiTitlebarPopupKind::RemoteSites => "Ghostex Remote Sites",
+            GpuiTitlebarPopupKind::SessionLinks => "Ghostex Session Links",
             GpuiTitlebarPopupKind::Tips => "Ghostex Tips",
         });
         /*
@@ -126,6 +130,7 @@ impl GpuiTitlebarPopupWindow {
                 )),
                 GpuiTitlebarPopupContent::Reading(_) => None,
                 GpuiTitlebarPopupContent::RemoteSites(_) => None,
+                GpuiTitlebarPopupContent::SessionLinks(_) => None,
                 GpuiTitlebarPopupContent::AccountUsage(_) => None,
             };
             Self {
@@ -468,6 +473,7 @@ impl Render for GpuiTitlebarPopupWindow {
                 GpuiTitlebarPopupContent::Menu(menu) => menu.clone().into_any_element(),
                 GpuiTitlebarPopupContent::Reading(panel) => panel.clone().into_any_element(),
                 GpuiTitlebarPopupContent::RemoteSites(panel) => panel.clone().into_any_element(),
+                GpuiTitlebarPopupContent::SessionLinks(panel) => panel.clone().into_any_element(),
             })
     }
 }

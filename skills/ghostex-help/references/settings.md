@@ -90,6 +90,7 @@ How to use this file:
 #### Browser
 
 - **Open links in** `webLinkOpenTarget` (one of internal-browser | system-default-browser; default internal-browser): Open web links from terminal output (Command-click), session chat, and detected dev servers in the project Browser view or the system default browser. Option labels: internal-browser = Internal Browser, system-default-browser = System Default Browser.
+- **Open session links in** `sessionLinkOpenTarget` (one of embedded | external; default embedded): Open a session's pull requests, issues and Linear tickets (the chips after its title and its links list) in the project Browser view or the system default browser. The phone follows this setting too. Option labels: embedded = Internal Browser, external = System Default Browser.
 #### Dev Servers
 
 - **Detect running servers in terminals** `terminalDevServerDetectionEnabled` (boolean, default true): Detect localhost dev server URLs from terminal output.

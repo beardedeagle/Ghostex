@@ -115,6 +115,8 @@ pub(super) fn to_cli_session(
     insert_js(&mut map, "gitStatus", &[p("gitStatus")]);
     // CDXC:WorkMode 2026-10-09 SEE-ALSO: mobile_summary.rs forwards `work` too; the phone's Copy submenu (apps/mobile/app/src/screens/sessions-screen/sidebar-menus.ts) copies the PR, Linear and issue links from it. Present only for a session of a work-mode project.
     insert_non_null(&mut map, "work", p("work"));
+    // CDXC:SessionLinks 2026-10-24 SEE-ALSO: mobile_summary.rs forwards `links` too; the phone's chat strip draws the session's PR, issue and Linear chips from it.
+    insert_non_null(&mut map, "links", p("links"));
     // CDXC:ClaudeCloud 2026-10-23 SEE-ALSO: mobile_summary.rs forwards it too; the phone marks a Claude cloud session's row and opens its claude.ai page from it (apps/mobile/app/src/sessions/claudeCloud.ts).
     insert_non_null(&mut map, "claudeCloud", p("claudeCloud"));
     // Host-timer chrome for the mobile session menus; absent when the

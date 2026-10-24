@@ -456,6 +456,9 @@ pub struct SessionRow {
     /// What the session is linked to; present only for a session of a project with work mode on
     /// (server/src/work_mode/).
     pub work: Option<super::work::SessionWork>,
+    /// Every PR, GitHub issue and Linear ticket the session is linked to, in every project
+    /// (server/src/session_links/); `None` when it has none and nothing to suggest.
+    pub links: Option<super::links::SessionLinks>,
 }
 
 /// What a row's context menu, hover actions and Copy Details need beyond what it draws.

@@ -16,9 +16,10 @@ pub(super) const SESSION_SPACING: f32 = 1.0;
 /// Horizontal gap between the list edge and a session card's rounded body.
 pub(super) const SESSION_INSET_X: f32 = 3.0;
 
-/// A card's height before scaling: taller only when it draws a line of work chips.
-pub(super) fn session_card_height(session: &NativeSidebarSession) -> f32 {
-    if session.work.is_some() {
+/// A card's height before scaling: taller only when it draws a line of work chips, or the links
+/// line it opens while the pointer rests on it (link_chips.rs).
+pub(super) fn session_card_height(session: &NativeSidebarSession, link_line: bool) -> f32 {
+    if session.work.is_some() || link_line {
         WORK_SESSION_HEIGHT
     } else {
         SESSION_HEIGHT
@@ -48,7 +49,9 @@ impl GhostexGpuiApp {
         let scale = appearance.scale;
         let card_heights: Vec<f32> = sessions
             .iter()
-            .map(|session| session_card_height(session))
+            .map(|session| {
+                session_card_height(session, self.native_session_shows_link_line(session))
+            })
             .collect();
         // Each row's top in unscaled pixels, plus the list's total height as the last entry.
         let mut tops: Vec<f32> = Vec::with_capacity(sessions.len() + 1);

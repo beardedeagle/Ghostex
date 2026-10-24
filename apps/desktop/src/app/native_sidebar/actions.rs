@@ -171,6 +171,10 @@ impl GhostexGpuiApp {
         if self.gx_store_run_work_links(&command, cx) {
             return;
         }
+        // A session link's chip, its list's remove and Link buttons (gx_store/session_links.rs).
+        if self.gx_store_run_session_links(&command, cx) {
+            return;
+        }
         // A row on a REMOTE machine: its sleep, wake, close, fork, flags, snooze and Full Reload
         // are calls down that machine's tunnel, sent through the same function the old runtime's
         // bridge message reaches, and nothing local moves (gx_store/sidebar_remote.rs).

@@ -1,0 +1,218 @@
+//! A session's links (crate::session_links): adding one by hand or from an agent, removing one,
+//! and reading the list.
+//!
+//! SEE-ALSO: server/src/session_links/ (the rules), server/src/server/session_links_sync.rs (the
+//! pass these kick), server/src/ghostex_cli/session_links.rs (`ghostex link`).
+
+use serde_json::{json, Map, Value};
+
+use crate::domain::DomainStateError;
+use crate::session_links::{
+    parse_link_input, presentation_session_links, session_link_entries, session_repo,
+    stored_session_links, write_session_links, SessionLinkKind, SessionLinkRef, SessionLinkSource,
+    StoredSessionLink,
+};
+
+use super::super::session_links_sync::spawn_session_links_refresh;
+use super::*;
+
+pub(super) async fn route_session_links_http(
+    request: RouteHttpRequest,
+) -> Result<RoutedResponse, RouteHttpRequest> {
+    let RouteHttpRequest {
+        state,
+        endpoint,
+        request_id,
+        body_json,
+        token_extension_id,
+    } = request;
+    Ok(match endpoint.path.as_str() {
+        "/api/addSessionLink" => {
+            let response = handle_domain_http(
+                &state,
+                endpoint.path,
+                request_id,
+                &body_json,
+                |repository, db, params, _| {
+                    let (project, session) = session_of(repository, params)?;
+                    let text = text_param(params, "link")?;
+                    let kind =
+                        params
+                            .get("kind")
+                            .and_then(Value::as_str)
+                            .and_then(|kind| match kind {
+                                "pullRequest" => Some(SessionLinkKind::PullRequest),
+                                "issue" => Some(SessionLinkKind::Issue),
+                                "linear" => Some(SessionLinkKind::Linear),
+                                _ => None,
+                            });
+                    let repo = session_repo(&project, &session).or_else(|| {
+                        crate::session_git_status::effective_session_git_cwd(
+                            &session,
+                            Some(&project),
+                        )
+                        .and_then(|cwd| crate::work_mode::work_repo_of(&cwd))
+                    });
+                    let link = parse_link_input(&text, repo.as_deref(), kind).ok_or_else(|| {
+                        DomainStateError::bad_request(format!(
+                            "\"{text}\" is not a GitHub PR or issue (a URL, #123 or owner/repo#123) or a Linear ID like ABC-123."
+                        ))
+                    })?;
+                    let source = match params.get("source").and_then(Value::as_str) {
+                        Some("agent") => SessionLinkSource::AgentReported,
+                        _ => SessionLinkSource::User,
+                    };
+                    let url = match &link {
+                        SessionLinkRef::Linear { .. } if text.starts_with("http") => {
+                            Some(text.clone())
+                        }
+                        _ => None,
+                    };
+                    let (project_id, session_id) = ids_of(params)?;
+                    let mut stored = stored_session_links(&session);
+                    let added = stored.add_by_hand(StoredSessionLink {
+                        link: link.clone(),
+                        source,
+                        via: None,
+                        url,
+                        added_at: Some(crate::session_links::now_iso()),
+                    });
+                    if added {
+                        write_session_links(db, &project_id, &session_id, &stored)?;
+                        schedule_presentation_session_delta(
+                            &state,
+                            db,
+                            repository,
+                            &project_id,
+                            &session_id,
+                        )?;
+                    }
+                    Ok(json!({
+                        "projectId": project_id,
+                        "sessionId": session_id,
+                        "key": link.key(),
+                        "added": added,
+                    }))
+                },
+            );
+            spawn_session_links_refresh(&state);
+            response
+        }
+        "/api/removeSessionLink" => handle_domain_http(
+            &state,
+            endpoint.path,
+            request_id,
+            &body_json,
+            |repository, db, params, _| {
+                let (project, session) = session_of(repository, params)?;
+                let text = text_param(params, "key")?;
+                // A key as clients send it, or the link as a person typed it: `#283` is whichever
+                // of the session's links has that number, a PR or an issue.
+                let key = match SessionLinkRef::from_key(&text) {
+                    Some(link) => link.key(),
+                    None => {
+                        let repo = session_repo(&project, &session);
+                        let linked: Vec<String> = session_link_entries(&project, &session)
+                            .into_iter()
+                            .map(|entry| entry.link.key())
+                            .collect();
+                        let candidates: Vec<String> = [
+                            None,
+                            Some(SessionLinkKind::Issue),
+                            Some(SessionLinkKind::Linear),
+                        ]
+                        .into_iter()
+                        .filter_map(|kind| parse_link_input(&text, repo.as_deref(), kind))
+                        .map(|link| link.key())
+                        .collect();
+                        candidates
+                            .iter()
+                            .find(|key| linked.contains(key))
+                            .cloned()
+                            .ok_or_else(|| {
+                                DomainStateError::bad_request(format!(
+                                    "\"{text}\" names none of this session's links."
+                                ))
+                            })?
+                    }
+                };
+                let (project_id, session_id) = ids_of(params)?;
+                let mut stored = stored_session_links(&session);
+                let removed = stored.remove(&key);
+                if removed {
+                    write_session_links(db, &project_id, &session_id, &stored)?;
+                    schedule_presentation_session_delta(
+                        &state,
+                        db,
+                        repository,
+                        &project_id,
+                        &session_id,
+                    )?;
+                }
+                Ok(json!({
+                    "projectId": project_id,
+                    "sessionId": session_id,
+                    "key": key,
+                    "removed": removed,
+                }))
+            },
+        ),
+        "/api/readSessionLinks" => handle_domain_http(
+            &state,
+            endpoint.path,
+            request_id,
+            &body_json,
+            |repository, _, params, _| {
+                let (project, session) = session_of(repository, params)?;
+                let (project_id, session_id) = ids_of(params)?;
+                let links = presentation_session_links(&project, &session)
+                    .unwrap_or_else(|| json!({ "items": [] }));
+                Ok(json!({
+                    "projectId": project_id,
+                    "sessionId": session_id,
+                    "links": links,
+                }))
+            },
+        ),
+        _ => {
+            return Err(RouteHttpRequest {
+                state,
+                endpoint,
+                request_id,
+                body_json,
+                token_extension_id,
+            })
+        }
+    })
+}
+
+fn text_param(params: &Map<String, Value>, key: &str) -> Result<String, DomainStateError> {
+    params
+        .get(key)
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+        .ok_or_else(|| DomainStateError::bad_request(format!("Pass {key}.")))
+}
+
+fn ids_of(params: &Map<String, Value>) -> Result<(String, String), DomainStateError> {
+    Ok((
+        text_param(params, "projectId")?,
+        text_param(params, "sessionId")?,
+    ))
+}
+
+fn session_of(
+    repository: &DomainRepository<'_>,
+    params: &Map<String, Value>,
+) -> Result<(Value, Value), DomainStateError> {
+    let (project_id, session_id) = ids_of(params)?;
+    let project = repository
+        .get_project(&project_id)?
+        .ok_or_else(|| DomainStateError::bad_request("No such project."))?;
+    let session = repository
+        .get_session(&project_id, &session_id)?
+        .ok_or_else(|| DomainStateError::bad_request("No such session."))?;
+    Ok((project, session))
+}

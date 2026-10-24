@@ -67,7 +67,7 @@ impl GhostexGpuiApp {
             == Some(true);
         let drop_position = self.native_sidebar_session_drop_line(&session_id);
         let scale = appearance.scale;
-        let card_height = session_card_height(session);
+        let card_height = session_card_height(session, self.native_session_shows_link_line(session));
         // The row's left padding before its icon: the card inset plus its depth in a coordinator's tree.
         let indent = 5.0 + super::threads::thread_depth(session) * super::threads::THREAD_INDENT;
         let hovered = self.native_sidebar.hovered_session.as_deref() == Some(&session_id);
@@ -177,7 +177,7 @@ impl GhostexGpuiApp {
                 // decorations above keep their tops because it starts at the card's top.
                 .child(h_flex().h(px(SESSION_HEIGHT * scale)).flex_shrink_0().w_full().min_w_0().pl(px(indent * scale)).pr(px(6.0 * scale)).gap(px(6.0 * scale))
                 .child(self.render_native_session_identity(session, icon, hovered, appearance, cx))
-                .child(div().id(format!("native-session-title-{session_id}")).flex_1().min_w_0().h_full().flex().items_center().child(title_with_rename_shake(div().min_w_0().truncate().child(session.title().to_owned()), &session_id, session.rename_failed_at.as_deref(), scale)).when(self.native_sidebar.pointer_inside && self.native_sidebar.menu.is_none() && !cx.has_active_drag(), |row| row.managed_discrete_tooltip_with_placement(tooltip_span.placement(), appearance.tooltip_delay, move |window, cx| super::tooltips::sidebar_tooltip(tooltip.clone(), tooltip_span, scale, window, cx))))
+                .child(div().id(format!("native-session-title-{session_id}")).flex_1().min_w_0().h_full().flex().items_center().child(title_with_rename_shake(div().min_w_0().truncate().child(session.title().to_owned()), &session_id, session.rename_failed_at.as_deref(), scale)).when(self.native_sidebar.pointer_inside && self.native_sidebar.menu.is_none() && !cx.has_active_drag(), |row| row.managed_discrete_tooltip_with_placement(super::link_chips::session_title_tooltip_placement(session, tooltip_span), appearance.tooltip_delay, move |window, cx| super::tooltips::sidebar_tooltip(tooltip.clone(), tooltip_span, scale, window, cx))))
                 .when(!hovered, |row| row.children(super::threads::coordinator_badge(session, appearance)))
                 .when(!hovered, |row| row.children(self.render_voice_call_badge(&session.session_id, appearance)))
                 .when(!hovered, |row| row.children(super::agentbox::agentbox_badge(session, appearance, tooltip_span, self.native_sidebar.pointer_inside && self.native_sidebar.menu.is_none() && !cx.has_active_drag())))
@@ -189,6 +189,7 @@ impl GhostexGpuiApp {
                 .when(question, |row| row.child(super::status::question_indicator(&session.activity, scale, super::status::session_row_ring(appearance, highlighted, visible, question_fill, hovered))))
                 .children(folded_dots))
                 .children(self.render_native_session_work_chips(session, indent, tooltip_span, appearance, cx))
+                .children(self.render_native_session_link_line(session, indent, tooltip_span, appearance, cx))
                 .when(can_drag && self.native_sidebar.menu.is_none(), |row| row.sidebar_drag_source(dragged, cx))
 .sidebar_drop_target("session", drag_id, Some(drag_group_id), cx)
                 .on_mouse_down(MouseButton::Middle, |_, window, _| {

@@ -282,6 +282,32 @@ export interface GxserverPresentationSessionWork {
   offerCleanup?: true;
 }
 
+/** One PR, GitHub issue or Linear ticket a session is linked to (`PresentationSessionLink` in gx-protocol). */
+export interface GxserverPresentationSessionLink {
+  /** `pr:owner/repo#318`, `issue:owner/repo#305` or `linear:GHX-142`. */
+  key: string;
+  kind: 'pullRequest' | 'issue' | 'linear';
+  /** `#318`, `repo#12` (another repo) or `GHX-142`. */
+  label: string;
+  title?: string;
+  /** A PR's `open|draft|merged|closed`, an issue's `open|closed`, a Linear ticket's state type. */
+  state?: string;
+  stateName?: string;
+  checks?: 'passing' | 'failing' | 'pending';
+  review?: 'reviewRequired' | 'approved' | 'changesRequested';
+  url?: string;
+  source: string;
+  /** "From branch", "Agent opened", "Closed by #318"… */
+  sourceLabel: string;
+  finished?: true;
+}
+
+/** Every link of a session, open work first, and the PR and issue URLs its chat only mentioned (`PresentationSessionLinks`). */
+export interface GxserverPresentationSessionLinks {
+  items: GxserverPresentationSessionLink[];
+  suggested?: Array<{ key: string; kind: 'pullRequest' | 'issue'; label: string; url?: string; title?: string }>;
+}
+
 /** A Claude cloud session (`PresentationClaudeCloud` in gx-protocol). */
 export interface GxserverPresentationClaudeCloud {
   /** `draft` (no task yet), `starting`, `running`, `failed` or `moved` (brought to this computer). */
@@ -400,6 +426,8 @@ export interface GxserverPresentationSession {
   gitStatus?: GxserverPresentationSessionGitStatus;
   /** Present only for a session of a project with work mode on. */
   work?: GxserverPresentationSessionWork;
+  /** Every session's PR, issue and Linear links; absent when it has none and nothing to suggest. */
+  links?: GxserverPresentationSessionLinks;
   groupId: string;
   /**
    * CDXC:SessionSleep 2026-08-22:

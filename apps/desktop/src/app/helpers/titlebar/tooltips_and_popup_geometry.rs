@@ -63,6 +63,9 @@ pub(crate) fn titlebar_popup_menu_width(kind: GpuiTitlebarPopupKind) -> f32 {
     match kind {
         GpuiTitlebarPopupKind::AccountUsage(_) => 380.0,
         GpuiTitlebarPopupKind::RemoteSites => TITLEBAR_POPUP_RESOURCES_WIDTH,
+        GpuiTitlebarPopupKind::SessionLinks => {
+            crate::app::window::session_links_panel::SESSION_LINKS_PANEL_WIDTH
+        }
         GpuiTitlebarPopupKind::Actions
         | GpuiTitlebarPopupKind::ContextMenu
         | GpuiTitlebarPopupKind::BrowserActions(_)
@@ -140,6 +143,7 @@ pub(crate) fn titlebar_popup_window_bounds_for_trigger_bounds(
             GpuiTitlebarPopupKind::AccountUsage(_)
                 | GpuiTitlebarPopupKind::ContextMenu
                 | GpuiTitlebarPopupKind::Notifications
+                | GpuiTitlebarPopupKind::SessionLinks
         ) {
             trigger_bounds.left().as_f32()
         } else {

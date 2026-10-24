@@ -249,21 +249,31 @@ fn browser_section(
     if !g.search.subsection_visible("browser", g.power_visible) {
         return None;
     }
-    let rows: Vec<AnyElement> = page
-        .select(
-            g,
-            "browser",
-            "webLinkOpenTarget",
-            "Open links in",
-            "Open web links from terminal output (Command-click), session chat, and detected dev servers in the project Browser view or the system default browser.",
-            g.options("WEB_LINK_OPEN_TARGET_OPTIONS"),
-            None,
-            false,
-            window,
-            cx,
-        )
-        .into_iter()
-        .collect();
+    let mut rows: Vec<AnyElement> = Vec::new();
+    rows.extend(page.select(
+        g,
+        "browser",
+        "webLinkOpenTarget",
+        "Open links in",
+        "Open web links from terminal output (Command-click), session chat, and detected dev servers in the project Browser view or the system default browser.",
+        g.options("WEB_LINK_OPEN_TARGET_OPTIONS"),
+        None,
+        false,
+        window,
+        cx,
+    ));
+    rows.extend(page.select(
+        g,
+        "browser",
+        "sessionLinkOpenTarget",
+        "Open session links in",
+        "Open a session's pull requests, issues and Linear tickets (the chips after its title and its links list) in the project Browser view or the system default browser. The phone follows this setting too.",
+        g.options("SESSION_LINK_OPEN_TARGET_OPTIONS"),
+        None,
+        false,
+        window,
+        cx,
+    ));
     settings_section(&g.p, "Browser", None, None, rows)
         .map(|section| PageBlock::section("browser", section))
 }

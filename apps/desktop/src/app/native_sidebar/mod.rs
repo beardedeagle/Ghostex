@@ -13,6 +13,7 @@ mod drag_source;
 mod empty;
 mod host;
 pub(crate) mod hover_actions;
+pub(crate) mod link_chips;
 pub(crate) mod icons;
 pub(crate) mod images;
 mod machines;

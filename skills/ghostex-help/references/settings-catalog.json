@@ -1363,6 +1363,30 @@
       "agentWritable": true
     },
     {
+      "key": "sessionLinkOpenTarget",
+      "title": "Open session links in",
+      "subtitle": "Open a session's pull requests, issues and Linear tickets (the chips after its title and its links list) in the project Browser view or the system default browser. The phone follows this setting too.",
+      "tab": "settings",
+      "tabTitle": "General",
+      "group": "tools",
+      "groupTitle": "Tools",
+      "section": "browser",
+      "sectionTitle": "Browser",
+      "type": "enum",
+      "default": "embedded",
+      "options": [
+        {
+          "label": "Internal Browser",
+          "value": "embedded"
+        },
+        {
+          "label": "System Default Browser",
+          "value": "external"
+        }
+      ],
+      "agentWritable": true
+    },
+    {
       "key": "terminalDevServerDetectionEnabled",
       "title": "Detect running servers in terminals",
       "subtitle": "Detect localhost dev server URLs from terminal output.",

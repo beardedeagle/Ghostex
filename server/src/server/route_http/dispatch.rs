@@ -324,6 +324,10 @@ pub(in crate::server) async fn route_http(
         Ok(response) => return response,
         Err(request) => request,
     };
+    let request = match route_session_links_http(request).await {
+        Ok(response) => return response,
+        Err(request) => request,
+    };
     let request = match route_workspaces_http(request).await {
         Ok(response) => return response,
         Err(request) => request,

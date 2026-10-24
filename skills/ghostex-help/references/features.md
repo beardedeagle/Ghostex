@@ -3279,6 +3279,35 @@ its own uses; `--project-id <id>` sets one for a single project, `--clear`
 removes it). GitHub status comes from `gh`, so sign in
 with `gh auth login`. `ghostex work-mode status` says what is set up.
 
+Every session, in any project, keeps a list of the pull requests, GitHub issues
+and Linear tickets it is linked to, and gathers them by itself: the PR of the
+branch it is on (and of branches it worked on before, when it has a worktree of
+its own), the issue or Linear ticket its branch names, the PRs and issues the
+agent opened (`gh pr create`, `gh issue create`), the issues a linked PR closes,
+and the Linear tickets the chat mentions (with a Linear API key set; only IDs of
+your Linear teams count). An agent adds one with `ghostex link add <url|#123|ABC-123>`
+from its own terminal. A PR or issue link that was only pasted into the chat is
+offered under Suggested instead, with a Link button. The work area header shows up
+to three of them after the session's title, open work first, each with its number,
+state and checks, then +N for the rest (or a List pill when they all fit), which
+opens the whole list: each link on two lines, its number, title and state, then
+its checks (passing, failing or running), its review (review requested, approved
+or changes requested) and where it came from. Click a link to open it; **Open
+session links in** (Settings > General > Browser) opens them in the internal
+browser (the default) or your default browser. Click a link's × and then Remove?
+within three seconds to remove it; a removed link never comes back by itself
+(adding it again by hand does). In the sidebar, rest the pointer on a session's
+card for a moment and it opens a line with its links, number and state, with +N
+for the ones that do not fit; a Work mode card keeps its own second line instead.
+A red dot on +N means a link behind it has failing checks; Ghostex sends no
+notifications for link changes. On the phone, the chat shows the same chips under
+its header: tap one to open it, touch and hold to copy its link, and tap +N or
+List for the whole list (× twice removes a link, Link adds a suggestion). States
+refresh about once a minute, and merged or closed ones stop being checked.
+`ghostex link list [--session <session>]` prints a session's links and
+`ghostex link remove <link>` removes one. Setting: `sessionLinkOpenTarget`
+(`embedded` or `external`).
+
 To start a piece of work from a new ticket, open the project's "…" menu and choose
 Create Linear Ticket… (it shows once the project is in work mode and has a Linear
 key; in a workspace whose primary tracker is GitHub it is Create GitHub Issue…,

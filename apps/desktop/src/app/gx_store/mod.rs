@@ -138,6 +138,7 @@ mod space_editor;
 mod space_sleep;
 mod space_switch;
 pub(crate) mod terminal_lifecycle;
+mod session_links;
 mod work_links;
 mod work_mode;
 mod workspace_groups;

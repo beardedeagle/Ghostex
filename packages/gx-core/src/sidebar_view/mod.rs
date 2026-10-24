@@ -42,6 +42,7 @@ pub(crate) mod tags;
 pub(crate) mod text;
 mod threads;
 pub(crate) mod view;
+mod links;
 mod work;
 pub(crate) mod workspaces;
 
@@ -86,6 +87,10 @@ pub use view::{
     MachineSummary, MachineTabView, OrderItem, OrderKind, ProjectContextView, RemoteMachineView,
     RowNesting, SectionView, SessionMenuFacts, SessionRow, SessionTiming, SessionView, SidebarView,
     SpaceView, ThreadTally, WorktreeView, RENAME_SHAKE_FRESH_MS,
+};
+pub use links::{
+    SessionLink, SessionLinkGlyph, SessionLinkKind, SessionLinkTone, SessionLinks,
+    SuggestedSessionLink,
 };
 pub use work::{SessionWork, WorkGithubIssue, WorkLinearIssue, WorkLinearProject, WorkPullRequest};
 pub use workspaces::{
