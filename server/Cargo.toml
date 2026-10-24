@@ -45,6 +45,8 @@ rand = "0.8"
 tungstenite = { version = "0.24", default-features = false, features = ["handshake"] }
 ureq = { version = "2", features = ["json"] }
 rusqlite = "0.32"
+# Codex compresses week-old rollouts to `.jsonl.zst` (crate::codex_rollout_archive); decode only, pure Rust.
+ruzstd = { version = "0.9", default-features = false, features = ["std"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha1 = "0.10"

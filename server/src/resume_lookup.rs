@@ -626,6 +626,8 @@ pub(crate) fn codex_transcript_paths(
             } else {
                 codex_home.join(expanded)
             };
+            let transcript_path = crate::codex_rollout_archive::readable_rollout(&transcript_path)
+                .unwrap_or(transcript_path);
             if seen.insert(transcript_path.clone()) {
                 paths.push(transcript_path);
             }
@@ -646,12 +648,18 @@ pub(crate) fn codex_transcript_paths(
                 continue;
             }
             let name = entry.file_name().to_string_lossy().to_string();
-            if kind.is_file()
-                && name.contains(session_id)
-                && name.ends_with(".jsonl")
-                && seen.insert(entry_path.clone())
+            if !kind.is_file()
+                || !name.contains(session_id)
+                || !(name.ends_with(".jsonl") || name.ends_with(".jsonl.zst"))
             {
-                paths.push(entry_path);
+                continue;
+            }
+            // A compressed rollout is offered as its plain twin or mirror, once.
+            let Some(readable) = crate::codex_rollout_archive::readable_rollout(&entry_path) else {
+                continue;
+            };
+            if seen.insert(readable.clone()) {
+                paths.push(readable);
             }
         }
     }

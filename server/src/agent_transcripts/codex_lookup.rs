@@ -65,7 +65,11 @@ pub(super) fn find(session_id: &str) -> Option<PathBuf> {
                 FOUND_TTL
             }
     }) {
-        if entry.candidates.iter().all(|path| path.is_file()) {
+        if entry
+            .candidates
+            .iter()
+            .all(|path| path.is_file() && !crate::codex_rollout_archive::is_superseded_mirror(path))
+        {
             return super::newest_file(entry.candidates.clone());
         }
     }

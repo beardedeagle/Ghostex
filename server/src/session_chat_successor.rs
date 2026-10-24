@@ -819,7 +819,8 @@ pub fn find_codex_successor_transcript(
     stale_last_record_ms: i64,
     owned_session_ids: &[String],
 ) -> SessionChatSuccessorOutcome {
-    let Some(day_directory) = stale_path.parent() else {
+    let source_path = crate::codex_rollout_archive::source_rollout_path(stale_path);
+    let Some(day_directory) = source_path.parent() else {
         return SessionChatSuccessorOutcome::NotFound;
     };
     let Some(sessions_root) = day_directory
