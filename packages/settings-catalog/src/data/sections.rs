@@ -190,6 +190,7 @@ pub const HOTKEY_SETTINGS_SECTIONS: J = J::Arr(&[
                 J::Str("openExtensions"),
                 J::Str("openGhostexHelp"),
                 J::Str("openFileInFiles"),
+                J::Str("searchProjectFiles"),
                 J::Str("openHotkeys"),
                 J::Str("toggleSidebarCollapsed"),
                 J::Str("toggleViewPanel"),

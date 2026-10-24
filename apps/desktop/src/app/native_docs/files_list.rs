@@ -140,10 +140,20 @@ impl GhostexGpuiApp {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> AnyElement {
-        let header = self.render_native_docs_files_header(p, layout, cx);
-        let search = self.render_native_docs_search_row(p, window, cx);
-        let open_files = self.render_native_docs_open_files(p, cx);
-        let tree = self.render_native_docs_tree(p, window, cx);
+        // The Search view (Cmd+Shift+F) takes the list's place, inside the same frame.
+        let body: Vec<AnyElement> = if self.native_docs.search_panel {
+            vec![self.render_native_docs_project_search(p, layout, window, cx)]
+        } else {
+            let header = self.render_native_docs_files_header(p, layout, cx);
+            let search = self.render_native_docs_search_row(p, window, cx);
+            let open_files = self.render_native_docs_open_files(p, cx);
+            let tree = self.render_native_docs_tree(p, window, cx);
+            [header, search]
+                .into_iter()
+                .chain(open_files)
+                .chain([section_label("Project Docs", p).into_any_element(), tree])
+                .collect()
+        };
         div()
             .id("native-docs-files")
             .relative()
@@ -178,11 +188,7 @@ impl GhostexGpuiApp {
                         .bg(p.chrome),
                 )
             })
-            .child(header)
-            .child(search)
-            .children(open_files)
-            .child(section_label("Project Docs", p))
-            .child(tree)
+            .children(body)
             .into_any_element()
     }
 
@@ -227,26 +233,7 @@ impl GhostexGpuiApp {
         } else {
             "Expand All"
         };
-        let peek = self.native_docs.transient == Some(DocsTransient::Peek);
-        // CDXC:Docs 2026-09-16 DECISION:
-        // User: show the pin icon only when the list can actually be pinned. A narrow pane cannot dock the list, so a peek there offers the close control instead of a pin that appears to do nothing.
-        let edge = (!layout.forced).then_some({
-            if layout.docked {
-                (
-                    "files-view/t-layout-sidebar-right-collapse-2.svg",
-                    "Hide files",
-                    "hide",
-                )
-            } else if peek && !layout.narrow {
-                ("files-view/t-pin-2.svg", "Pin files", "pin")
-            } else {
-                (
-                    "files-view/t-layout-sidebar-right-collapse-2.svg",
-                    "Close files",
-                    "close",
-                )
-            }
-        });
+        let edge = self.render_native_docs_edge_tile(p, layout, cx);
         div()
             .flex()
             .flex_none()
@@ -257,6 +244,29 @@ impl GhostexGpuiApp {
             .px(px(WORKAREA_HEADER_EDGE_PADDING))
             .border_b_1()
             .border_color(p.border)
+            .child(
+                header_tile(
+                    "native-docs-show-search",
+                    header_icon("files-view/t-search-18.svg", false, p),
+                    false,
+                    false,
+                    p,
+                )
+                .tooltip(|window, cx| {
+                    titlebar_tooltip(
+                        crate::app::helpers::titlebar_tooltip_label(
+                            "Search in files",
+                            "searchProjectFiles",
+                        )
+                        .to_string(),
+                        window,
+                        cx,
+                    )
+                })
+                .on_click(cx.listener(|this, _, window, cx| {
+                    this.native_docs_show_project_search(window, cx);
+                })),
+            )
             // CDXC:Docs 2026-10-09 DECISION: User: "remove this button in files list top bar" (the Open file button, which only focused the "Search or paste a path" box under it). The box is still reached by clicking it, by Cmd/Ctrl+F in Files and by the Open File hotkey.
             .child(
                 header_tile(
@@ -320,24 +330,54 @@ impl GhostexGpuiApp {
                     this.show_native_docs_overflow_menu(window, cx);
                 })),
             )
-            .when_some(edge, |this, (icon, label, kind)| {
-                this.child(
-                    header_tile(
-                        "native-docs-edge",
-                        header_icon(icon, false, p),
-                        false,
-                        false,
-                        p,
-                    )
-                    .tooltip(move |window, cx| titlebar_tooltip(label, window, cx))
-                    .on_click(cx.listener(move |this, _, _, cx| match kind {
-                        "hide" => this.native_docs_hide_sidebar(cx),
-                        "pin" => this.native_docs_pin_peek(cx),
-                        _ => this.native_docs_close_transient(cx),
-                    })),
-                )
-            })
+            .children(edge)
             .into_any_element()
+    }
+
+    /// The header's rightmost button: hide the docked list, pin a peek, or close a drawer. The
+    /// files header and the Search view's header both end with it.
+    pub(crate) fn render_native_docs_edge_tile(
+        &mut self,
+        p: &DocsPalette,
+        layout: DocsSidebarLayout,
+        cx: &mut Context<Self>,
+    ) -> Option<AnyElement> {
+        let peek = self.native_docs.transient == Some(DocsTransient::Peek);
+        // CDXC:Docs 2026-09-16 DECISION:
+        // User: show the pin icon only when the list can actually be pinned. A narrow pane cannot dock the list, so a peek there offers the close control instead of a pin that appears to do nothing.
+        let edge = (!layout.forced).then_some({
+            if layout.docked {
+                (
+                    "files-view/t-layout-sidebar-right-collapse-2.svg",
+                    "Hide files",
+                    "hide",
+                )
+            } else if peek && !layout.narrow {
+                ("files-view/t-pin-2.svg", "Pin files", "pin")
+            } else {
+                (
+                    "files-view/t-layout-sidebar-right-collapse-2.svg",
+                    "Close files",
+                    "close",
+                )
+            }
+        });
+        edge.map(|(icon, label, kind)| {
+            header_tile(
+                "native-docs-edge",
+                header_icon(icon, false, p),
+                false,
+                false,
+                p,
+            )
+            .tooltip(move |window, cx| titlebar_tooltip(label, window, cx))
+            .on_click(cx.listener(move |this, _, _, cx| match kind {
+                "hide" => this.native_docs_hide_sidebar(cx),
+                "pin" => this.native_docs_pin_peek(cx),
+                _ => this.native_docs_close_transient(cx),
+            }))
+            .into_any_element()
+        })
     }
 
     /// CDXC:Docs 2026-09-06 DECISION:

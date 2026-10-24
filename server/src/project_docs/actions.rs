@@ -51,6 +51,9 @@ pub(super) fn run_action(
     if context.project_scope && action == "search" {
         return project_scope::search_project(context, params);
     }
+    if context.project_scope && action == "searchContent" {
+        return project_scope::search_content(context, params);
+    }
     if action == "list" && params.get("directoryOnly").and_then(Value::as_bool) == Some(true) {
         return listing::list_directory(context, params);
     }

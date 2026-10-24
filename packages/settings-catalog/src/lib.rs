@@ -29,7 +29,10 @@ pub mod platform_text;
 pub mod rows;
 
 pub use hotkey_label::hotkey_label;
-pub use hotkeys::{default_hotkeys, hotkey_definition, hotkey_definitions, HotkeyDefinition};
+pub use hotkeys::{
+    default_hotkeys, hotkey_definition, hotkey_definitions, HotkeyDefinition,
+    VIEW_SCOPED_HOTKEY_IDS,
+};
 pub use json::{Json, ToJson, J};
 pub use layout::{general_group, general_navigation, GeneralGroup, NavItem, GENERAL_GROUPS};
 pub use rows::{Page, RuntimeOptions, Section, SettingOption, SettingRow};

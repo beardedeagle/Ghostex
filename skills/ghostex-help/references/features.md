@@ -387,7 +387,26 @@ view from the strip.
   Escape, or click outside it. Cmd+F, or Ctrl+F on Windows and Linux, opens the
   search: inside a Markdown document it shows Find and Replace with the caret
   ready, and anywhere else it reveals the files list and focuses its search.
-  Escape closes the document search. To open an HTML, Markdown, or Excalidraw
+  Escape closes the document search. To search the text of every file in the
+  project, press Cmd+Shift+F (Ctrl+Shift+F on Windows and Linux) while Files has
+  focus, or click the search button at the top of the files list: the sidebar
+  turns into a Search view like VS Code's. Results appear as you type, grouped by
+  file with a count of matches; the toggles in the box match case, whole words or
+  a regular expression, and the … button adds "files to include" and "files to
+  exclude" boxes (comma-separated patterns such as `*.ts, src`). Search skips
+  what `.gitignore` ignores, dependency and build folders (node_modules, target,
+  build, dist and the like), nested repositories inside dot-folders (such as git
+  submodules under `.dependencies/`), binary files and files over 2 MB; turn off "Use Exclude Settings and Ignore Files"
+  beside the exclude box to search those too, or name a submodule's folder in
+  "files to include" to search just it. At most 10,000 results are shown. Click a
+  result to open the file with the match highlighted (double-click to also move
+  the cursor there), press Enter or F4 for the next result and Shift+F4 for the
+  previous, hover a row and click × to drop it from the list, and press Escape to
+  go back to the editor. The header switches between a list and a folder tree,
+  folds or unfolds every file, runs the search again, clears it, or goes back to
+  the files list; your search stays there for next time. With text selected in
+  the editor, Cmd+Shift+F searches for it. Outside Files, Cmd+Shift+F still opens
+  Find Prompts. To open an HTML, Markdown, or Excalidraw
   file in your web browser, use the open-in-browser button in the file's header
   or Open Externally at the top right of the view: HTML pages open as they are,
   Markdown opens as a formatted page, and drawings open in an Excalidraw editor
@@ -447,7 +466,8 @@ view from the strip.
 Related settings: `terminalViewWidthMode`, `webLinkOpenTarget`,
 `documentFileOpenTarget`, `otherFileOpenTarget`, `videoFileOpenTarget`,
 `audioFileOpenTarget`, the Auto Sleep rows
-(`autoSleep*IdleMinutes`), and Settings > Extensions > Store.
+(`autoSleep*IdleMinutes`), the Search in Files hotkey (`searchProjectFiles`), and
+Settings > Extensions > Store.
 
 ## Sidebar
 

@@ -52,6 +52,10 @@ impl HotkeyDefinition {
     }
 }
 
+/// Hotkeys that act only while one view has focus, so their chord may also belong to an app-wide
+/// hotkey without the two clashing (Settings marks no duplicate for them).
+pub const VIEW_SCOPED_HOTKEY_IDS: &[&str] = &["searchProjectFiles"];
+
 pub fn hotkey_definitions() -> &'static [HotkeyDefinition] {
     HOTKEY_DEFINITIONS
 }

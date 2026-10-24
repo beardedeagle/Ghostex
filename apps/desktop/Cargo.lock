@@ -2583,6 +2583,8 @@ dependencies = [
 name = "ghostex-docs"
 version = "0.1.0"
 dependencies = [
+ "ignore",
+ "regex",
  "rusqlite",
  "serde_json",
 ]

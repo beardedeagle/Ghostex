@@ -69,6 +69,7 @@ Default bindings are listed for macOS (`cmd`) with the Windows/Linux default whe
 | Toggle Agent Actions | `cmd+alt+a` |  | Show or hide the focused terminal's Agent Actions buttons. | `toggleAgentActions` |
 | Toggle Chat View | `alt+g` |  | Toggle between the terminal and chat view for the focused agent session. | `toggleChatView` |
 | Find Prompts | `cmd+shift+f` |  | Search every prompt you have sent to an agent, then resume or fork it. | `openFindPrompts` |
+| Search in Files | `cmd+shift+f` |  | While the Files view has focus, search the text of every file in the project, like VS Code's Search. Elsewhere the same keys open Find Prompts. | `searchProjectFiles` |
 | Scroll Terminal to Top | unassigned |  | Scroll the focused terminal to the top. | `scrollTerminalToTop` |
 | Scroll Terminal to Bottom | unassigned |  | Scroll the focused terminal to the bottom. | `scrollTerminalToBottom` |
 | Split Right | `alt+shift+d` |  | Move the focused session into a pane to the right. | `splitSessionRight` |

@@ -3637,6 +3637,7 @@
         "toggleAgentActions": "cmd+alt+a",
         "toggleChatView": "alt+g",
         "openFindPrompts": "cmd+shift+f",
+        "searchProjectFiles": "cmd+shift+f",
         "scrollTerminalToTop": "",
         "scrollTerminalToBottom": "",
         "splitSessionRight": "alt+shift+d",
@@ -12295,6 +12296,12 @@
       "retiredDefaultKeys": [
         "alt+f"
       ]
+    },
+    {
+      "id": "searchProjectFiles",
+      "title": "Search in Files",
+      "description": "While the Files view has focus, search the text of every file in the project, like VS Code's Search. Elsewhere the same keys open Find Prompts.",
+      "defaultKey": "cmd+shift+f"
     },
     {
       "id": "scrollTerminalToTop",

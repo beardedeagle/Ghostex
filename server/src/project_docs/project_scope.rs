@@ -189,3 +189,19 @@ pub(super) fn search_project(
         "incomplete": incomplete,
     }))
 }
+
+/// The Files view's Search sidebar for a remote project: every matching line of the project's
+/// files, answered whole (the desktop streams a local project's search itself).
+///
+/// SEE-ALSO: packages/project-docs/src/content_search.rs (the engine and its file rules).
+pub(super) fn search_content(
+    context: DocsContext<'_>,
+    params: &Map<String, Value>,
+) -> Result<Value, String> {
+    let options = ghostex_docs::content_search::options_from_json(&Value::Object(params.clone()));
+    let mut response =
+        ghostex_docs::content_search::search_content_json(&context.roots.project, &options)?;
+    response["action"] = json!("searchContent");
+    response["requestId"] = params.get("requestId").cloned().unwrap_or(Value::Null);
+    Ok(response)
+}

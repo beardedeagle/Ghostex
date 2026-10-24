@@ -36,6 +36,8 @@ pub(crate) mod open_file;
 pub(crate) mod palette;
 pub(crate) mod picture_viewer;
 pub(crate) mod picture_zoom;
+pub(crate) mod project_search;
+pub(crate) mod project_search_view;
 pub(crate) mod published_page;
 pub(crate) mod rename_dialog;
 pub(crate) mod render;

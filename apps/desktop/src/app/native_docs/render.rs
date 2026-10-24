@@ -110,6 +110,7 @@ impl GhostexGpuiApp {
         }
         self.native_docs_ensure_watch(cx);
         self.native_docs_materialize_editors(window, cx);
+        self.native_docs_apply_search_reveal(window, cx);
         if self.native_docs.active != self.native_docs.highlighted_path {
             self.native_docs.highlighted_path = self.native_docs.active.clone();
             self.native_docs.highlights_stale = true;
@@ -174,6 +175,18 @@ impl GhostexGpuiApp {
                 .on_action(cx.listener(
                     |this, _: &crate::app::actions::FindInFocusedTerminal, window, cx| {
                         this.native_docs_find_shortcut(window, cx);
+                    },
+                ))
+                // Search in Files (Cmd+Shift+F) shares its chord with Find Prompts; the root lets it
+                // through, and here, below the root, Files claims the chord (CDXC:Docs 2026-10-25
+                // DECISION in packages/settings-catalog/src/hotkey_definitions.rs).
+                .on_action(cx.listener(
+                    |this, action: &crate::app::hotkeys::RunConfiguredGhostexHotkey, window, cx| {
+                        if super::project_search::claims_hotkey(&action.action_id) {
+                            this.native_docs_show_project_search(window, cx);
+                        } else {
+                            cx.propagate();
+                        }
                     },
                 ))
                 // CDXC:Docs 2026-10-24 WHY: Cmd+= / Cmd+- / Cmd+0 (Ctrl on Windows and Linux) are bound app-wide to zoom the focused surface (main.rs), and a matched binding is dispatched before any key-down listener, so an open picture answers those actions here, below the root, and lets them go on when no picture is showing.
@@ -264,6 +277,17 @@ impl GhostexGpuiApp {
             && self.native_docs_find_visible()
         {
             self.native_docs_step_find(if modifiers.shift { -1 } else { 1 }, window, cx);
+            cx.stop_propagation();
+            return;
+        }
+        // F4 and Shift+F4 step through the Search view's results from anywhere in Files.
+        if event.keystroke.key == "f4"
+            && !modifiers.control
+            && !modifiers.platform
+            && !modifiers.alt
+            && self.native_docs_has_search_results()
+        {
+            self.native_docs_search_step(if modifiers.shift { -1 } else { 1 }, window, cx);
             cx.stop_propagation();
             return;
         }

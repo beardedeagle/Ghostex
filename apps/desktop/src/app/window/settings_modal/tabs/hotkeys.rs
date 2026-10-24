@@ -136,7 +136,10 @@ fn duplicate_ids(hotkeys: &[(String, String)]) -> Vec<String> {
     let mut by_chord: HashMap<String, Vec<String>> = HashMap::new();
     for (id, chord) in hotkeys {
         let chord = normalize_hotkey_text(chord);
-        if chord.is_empty() {
+        // A view-scoped hotkey (Search in Files) may share an app-wide chord on purpose.
+        if chord.is_empty()
+            || ghostex_settings_catalog::VIEW_SCOPED_HOTKEY_IDS.contains(&id.as_str())
+        {
             continue;
         }
         by_chord.entry(chord).or_default().push(id.clone());

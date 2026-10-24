@@ -521,6 +521,10 @@ pub(crate) struct NativeDocsState {
     pub(crate) table_hover: (usize, usize),
     /// Find and Replace, once opened.
     pub(crate) find: Option<super::find::DocsFind>,
+    /// The sidebar shows the Search view (Cmd+Shift+F) instead of the files list.
+    pub(crate) search_panel: bool,
+    /// The Search view's fields, options and results, once opened (`project_search.rs`).
+    pub(crate) project_search: Option<super::project_search::DocsProjectSearch>,
     /// The formatting bar is folded to one pill (remembered).
     pub(crate) format_bar_collapsed: bool,
     /// The selection toolbar shows Meo-style formatting buttons instead of the note buttons.
@@ -632,6 +636,8 @@ impl NativeDocsState {
         self.word_wrap = from.word_wrap;
         self.constrain_width = from.constrain_width;
         self.find = from.find.take();
+        self.search_panel = from.search_panel;
+        self.project_search = from.project_search.take();
         self.tree_scroll = from.tree_scroll.clone();
         self.pending_open = from.pending_open.take();
         self.pending_page = from.pending_page.take();

@@ -142,6 +142,13 @@ pub(crate) fn gpui_chat_owned_hotkey_action_id(action_id: &str) -> bool {
     matches!(action_id, "scrollChatToBottom")
 }
 
+/// Hotkeys the Files view answers itself while it has focus (`native_docs/render.rs`), so the root
+/// and the native key router pass them by: outside Files their chord reaches whatever else binds it
+/// (Search in Files shares Cmd+Shift+F with Find Prompts).
+pub(crate) fn gpui_files_owned_hotkey_action_id(action_id: &str) -> bool {
+    action_id == "searchProjectFiles"
+}
+
 /// The hotkeys that act on the focused session's chat (`focused_chat_hotkeys.rs`).
 pub(crate) fn gpui_focused_chat_hotkey_action_id(action_id: &str) -> bool {
     matches!(
@@ -381,6 +388,9 @@ pub(crate) const GPUI_DEFAULT_GHOSTEX_HOTKEYS: &[(&str, &str)] = &[
     ("openModelPicker", "alt+p"),
     // CDXC:PromptSearch 2026-08-24: mirrors packages/settings-catalog/src/hotkey_definitions.rs.
     ("openFindPrompts", "cmd+shift+f"),
+    // CDXC:Docs 2026-10-25: Files' Search sidebar shares the chord while Files has focus
+    // (`gpui_files_owned_hotkey_action_id`); mirrors packages/settings-catalog/src/hotkey_definitions.rs.
+    ("searchProjectFiles", "cmd+shift+f"),
     ("scrollTerminalToTop", ""),
     ("scrollTerminalToBottom", ""),
     /*
@@ -613,7 +623,10 @@ pub(crate) fn gpui_configured_hotkey_action_id_for_native_text(
     for (action_id, default_key) in GPUI_DEFAULT_GHOSTEX_HOTKEYS {
         // Chat owns these chords (see GPUI_DEFAULT_GHOSTEX_HOTKEYS), so the key
         // travels onward to the page instead of resolving to a native action.
-        if gpui_chat_owned_hotkey_action_id(action_id) || !gpui_hotkey_feature_enabled(action_id) {
+        if gpui_chat_owned_hotkey_action_id(action_id)
+            || gpui_files_owned_hotkey_action_id(action_id)
+            || !gpui_hotkey_feature_enabled(action_id)
+        {
             continue;
         }
         let key = match persisted_hotkeys
@@ -990,7 +1003,7 @@ impl GhostexGpuiApp {
         window: &mut gpui::Window,
         cx: &mut gpui::Context<Self>,
     ) -> bool {
-        if !gpui_hotkey_feature_enabled(action_id) {
+        if !gpui_hotkey_feature_enabled(action_id) || gpui_files_owned_hotkey_action_id(action_id) {
             return false;
         }
         if action_id == "openModelPicker" {

@@ -743,6 +743,19 @@ pub const HOTKEY_DEFINITIONS: &[HotkeyDefinition] = &[
         retired_default_keys: &["alt+f"],
         action: J::Obj(&[("id", J::Str("openFindPrompts")), ("kind", J::Str("openFindPrompts"))]),
     },
+    // CDXC:Docs 2026-10-25 DECISION:
+    // User: "please add cmd + shift + f so i can search in all files in the project". Cmd+Shift+F already opens Find Prompts, so this one belongs to the Files view: while Files has focus the shared chord opens its Search sidebar, and everywhere else it stays Find Prompts, the way a focused Code editor keeps Cmd+Shift+F for its own search. Settings does not mark the pair as a clash (`VIEW_SCOPED_HOTKEY_IDS`).
+    // SEE-ALSO: apps/desktop/src/app/hotkeys.rs (`gpui_files_owned_hotkey_action_id`), apps/desktop/src/app/native_docs/project_search.rs.
+    HotkeyDefinition {
+        id: "searchProjectFiles",
+        title: "Search in Files",
+        description: "While the Files view has focus, search the text of every file in the project, like VS Code's Search. Elsewhere the same keys open Find Prompts.",
+        default_key: "cmd+shift+f",
+        windows_linux_default_key: None,
+        alternate_default_keys: &[],
+        retired_default_keys: &[],
+        action: J::Obj(&[("id", J::Str("searchProjectFiles")), ("kind", J::Str("searchProjectFiles"))]),
+    },
     HotkeyDefinition {
         id: "scrollTerminalToTop",
         title: "Scroll Terminal to Top",
