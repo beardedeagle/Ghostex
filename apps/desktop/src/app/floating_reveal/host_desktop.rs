@@ -111,7 +111,7 @@ impl GhostexGpuiApp {
         content: FloatingRevealContent,
         width: f32,
         sticky: bool,
-        _cx: &mut gpui::Context<Self>,
+        cx: &mut gpui::Context<Self>,
     ) -> bool {
         self.floating_reveal.panel = Some(FloatingRevealPanel {
             window,
@@ -119,6 +119,10 @@ impl GhostexGpuiApp {
             content,
             width,
         });
+        // A links card opened from the docked sidebar does not stay up over the floating one.
+        if content.sidebar {
+            self.close_session_links_card(cx);
+        }
         self.floating_reveal.outside_since = None;
         self.floating_reveal.slide = FloatingRevealSlide {
             // A panel kept under the pointer by a layout change never slides; only the hover

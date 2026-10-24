@@ -147,7 +147,13 @@ impl GhostexGpuiApp {
 
     /// Opens the floating links card beside a row the pointer rests on, after the tooltip delay,
     /// so sweeping over the list opens nothing (link_chips.rs, window/session_links_card.rs).
+    ///
+    /// User: "No links card from the floating sidebar". The floating sidebar never opens it, so the
+    /// hover neither starts the timer nor asks for a links refresh; the "+N" press still opens it.
     fn schedule_session_links_card_open(&mut self, id: String, cx: &mut gpui::Context<Self>) {
+        if self.floating_sidebar_shown() {
+            return;
+        }
         let opens_card = self
             .native_sidebar
             .snapshot
@@ -168,6 +174,7 @@ impl GhostexGpuiApp {
             cx.background_executor().timer(delay).await;
             let _ = app.update(cx, |app, cx| {
                 if app.native_sidebar.hovered_session.as_deref() == Some(&id)
+                    && !app.floating_sidebar_shown()
                     && app.native_sidebar.links_card_session.as_deref() != Some(&id)
                 {
                     app.open_session_links_card(id, cx);

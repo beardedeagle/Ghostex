@@ -130,6 +130,10 @@ impl GhostexGpuiApp {
             content,
             width,
         });
+        // A links card opened from the docked sidebar does not stay up over the floating one.
+        if content.sidebar {
+            self.close_session_links_card(cx);
+        }
         let visible = unsafe {
             GhostexGpuiNativeSidebarRevealUpdate(
                 self.parent_ns_view,

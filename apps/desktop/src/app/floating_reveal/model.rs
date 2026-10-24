@@ -264,6 +264,16 @@ impl GhostexGpuiApp {
         (sidebar + rail + column).clamp(1.0, span)
     }
 
+    /// True while the sidebar is shown as the floating panel (the collapsed sidebar revealed from
+    /// the left edge). A panel carrying only the sessions column sits beside a docked sidebar, so
+    /// it does not count.
+    pub(crate) fn floating_sidebar_shown(&self) -> bool {
+        self.floating_reveal
+            .panel
+            .as_ref()
+            .is_some_and(|panel| panel.content.sidebar)
+    }
+
     /// True while the open panel is the only place the Agents workspace is rendered. Every terminal,
     /// chat and focus gate reads `agents_workspace_visible()`, which folds this in, so a session
     /// whose pane moved into the panel counts as on screen rather than as hidden.
