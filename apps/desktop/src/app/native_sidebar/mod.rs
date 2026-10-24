@@ -17,6 +17,7 @@ pub(crate) mod link_chips;
 pub(crate) mod links_list;
 pub(crate) mod icons;
 pub(crate) mod images;
+mod machine_notice;
 mod machines;
 mod menu_state;
 pub(crate) mod menus;

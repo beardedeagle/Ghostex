@@ -238,13 +238,6 @@ impl GhostexGpuiApp {
                                             cx,
                                         ))
                                     })
-                                    .when_some(content.machine_notice.as_ref(), |column, notice| {
-                                        column.child(self.render_native_sidebar_machine_notice(
-                                            notice,
-                                            &appearance,
-                                            cx,
-                                        ))
-                                    })
                                     .when(
                                         content.order.is_empty()
                                             && content.machine_notice.is_none(),
@@ -313,7 +306,14 @@ impl GhostexGpuiApp {
                                     ),
                             ),
                     ))
-                    .child(self.render_native_sidebar_list_fade(&appearance)),
+                    .child(self.render_native_sidebar_list_fade(&appearance))
+                    .when_some(content.machine_notice.as_ref(), |list, notice| {
+                        list.child(self.render_native_sidebar_machine_notice(
+                            notice,
+                            &appearance,
+                            cx,
+                        ))
+                    }),
             )
             /*
             The usage strip and the Commands row are one footer child on purpose:

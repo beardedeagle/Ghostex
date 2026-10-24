@@ -54,7 +54,9 @@ pub struct MachineNotice {
     pub machine_id: String,
     pub title: String,
     pub detail: Option<String>,
-    /// A connect attempt is running: the notice draws a spinner and no buttons.
+    /// A connect attempt is running: the notice is a one-line pill floating over the top of the
+    /// list, with no buttons. Otherwise it is a card floating there with Reconnect (Connect
+    /// when the machine never failed) and Remote Settings.
     pub busy: bool,
     /// The last attempt failed, so the notice draws in the error colour and offers Reconnect.
     pub failed: bool,
