@@ -12,9 +12,9 @@ use std::time::{Duration, Instant};
 
 use gpui::prelude::*;
 use gpui::{
-    App, Context, ImageSource, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent,
-    RenderImage, Subscription, WeakEntity, Window, WindowBackgroundAppearance, WindowBounds,
-    WindowKind, WindowOptions, div, img, px, rgb, rgba,
+    App, Context, DispatchPhase, ImageSource, MouseButton, MouseDownEvent, MouseMoveEvent,
+    MouseUpEvent, RenderImage, Subscription, WeakEntity, Window, WindowBackgroundAppearance,
+    WindowBounds, WindowKind, WindowOptions, canvas, div, img, px, rgb, rgba,
 };
 
 use super::model::*;
@@ -387,6 +387,36 @@ impl CaptureIconView {
     }
 }
 
+/// Moves the button with a held left button, wherever the pointer is.
+///
+/// CDXC:GhostexCapture 2026-10-24 WHY:
+/// The drag listens window-wide instead of through the button's own `on_mouse_move`: GPUI calls an
+/// element's move listener only while the pointer is over its hitbox, so a fast drag left the
+/// small window behind and it stopped until the pointer came back over it. Every backend keeps
+/// sending a held drag to the window it started in (AppKit routes `mouseDragged:` to the pressed
+/// view, Windows has GPUI's `SetCapture`, X11 its implicit grab), and the frame is computed from
+/// the OS pointer, so the button stays under the pointer at any speed until the release. A canvas
+/// registers no hitbox, so nothing under it loses input.
+fn drag_tracker(view: WeakEntity<CaptureIconView>) -> impl IntoElement {
+    canvas(
+        |_, _, _| (),
+        move |_, _, window, _| {
+            window.on_mouse_event(move |event: &MouseMoveEvent, phase, _, cx| {
+                if phase != DispatchPhase::Capture
+                    || event.pressed_button != Some(MouseButton::Left)
+                {
+                    return;
+                }
+                let _ = view.update(cx, |this, cx| {
+                    this.with_app(cx, |app, cx| app.ghostex_capture_icon_dragged(cx));
+                });
+            });
+        },
+    )
+    .absolute()
+    .inset_0()
+}
+
 impl Render for CaptureIconView {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let root = div()
@@ -400,11 +430,6 @@ impl Render for CaptureIconView {
                     this.with_app(cx, |app, cx| app.ghostex_capture_icon_pressed(cx));
                 }),
             )
-            .on_mouse_move(cx.listener(|this, event: &MouseMoveEvent, _, cx| {
-                if event.pressed_button == Some(MouseButton::Left) {
-                    this.with_app(cx, |app, cx| app.ghostex_capture_icon_dragged(cx));
-                }
-            }))
             .on_mouse_up(
                 MouseButton::Left,
                 cx.listener(|this, _: &MouseUpEvent, _, cx| {
@@ -422,7 +447,8 @@ impl Render for CaptureIconView {
                 this.with_app(cx, move |app, cx| {
                     app.ghostex_capture_icon_hover(hovered, cx)
                 });
-            }));
+            }))
+            .child(drag_tracker(cx.weak_entity()));
         let Some(app) = self.app.upgrade() else {
             return root;
         };
