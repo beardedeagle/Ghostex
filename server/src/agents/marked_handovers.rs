@@ -17,14 +17,16 @@ use crate::paths::{get_gxserver_paths, GxserverPaths};
 /// User: "please never ever do this where the line is right next to the title, always should be bullet below it". A marker's title stands alone on its line and the section's content goes in bullets below it; the note's example shows that shape.
 /// CDXC:MarkedHandovers 2026-10-14 DECISION:
 /// User: "change our skill/instructions/memory so that we capitalize bullets". Every bullet and sub-bullet starts with a capital letter, even when it continues a lead-in sentence, so no lowercase starts and no list-ending semicolons or "and" chains; the note, the orchestrator playbook (coordinators/role.md) and the thread brief (coordinators/brief.rs) all say it.
+/// CDXC:MarkedHandovers 2026-10-24 DECISION:
+/// User: "this shouldn't have been \"waiting for you\" it should've been under Needs you ... I didn't know u needed me here". Anything that waits on the user (a check only they can do, a sign-in, a thread kept open until they try something) goes under ❓ Needs you with what to do, never under 🔄 In progress or 🧪 Untested; In progress is only work that carries on without them. The orchestrator playbook (skills/ghostex-orchestrator/SKILL.md) says the same.
 /// SEE-ALSO: packages/settings-catalog/src/data/defaults.rs (`markedHandovers`), server/src/coordinators/role.rs (the orchestrator's role carries the note), server/src/coordinators/brief.rs (`thread_brief`), server/src/agents/activity.rs (ZCode's SessionStart context).
 pub const MARKED_HANDOVERS_NOTE: &str = "Marked handovers: a format rule the user turned on in Ghostex. It applies in every project, on top of any CLAUDE.md or AGENTS.md, and allows these emoji even where you would otherwise avoid them.
 In the final message of each turn (the one that hands back to the user), put the matching marker first, before any bold, in front of every section, heading or bold label that is one of these:
-❓ Needs you: a question, a decision, anything waiting on the user
+❓ Needs you: a question, a decision, anything waiting on the user (a check or test only they can do, a sign-in, an approval, something kept open until they try it), saying exactly what to do
 ✅ Done: work you finished or pushed
 ⚠️ Read this: risks, caveats, anything important or changed
 🛫 Kicked off: work started this turn that carries on after it (threads or jobs you just started)
-🔄 In progress: work still under way or left to do
+🔄 In progress: work still under way that needs nothing from the user (anything waiting on them goes under ❓ instead)
 🧪 Untested: anything you did not run, test or verify for real, changed or not
 🚀 Shipped: released or published to users
 🛑 Blocked: stuck until something happens

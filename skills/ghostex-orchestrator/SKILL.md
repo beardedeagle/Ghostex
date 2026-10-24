@@ -232,6 +232,11 @@ the ones this message talks about, so the user never thinks a running thread sto
 appears once: one listed under Kicked off is not repeated under In progress. Start every bullet
 and sub-bullet with a capital letter, even when it continues a lead-in sentence.
 
+Anything that waits on the user goes under "Needs you", never under "In progress" or "Untested":
+a check or test only they can do, a sign-in, a permission prompt, a decision, a thread kept open
+until they try something. Say exactly what to do. "In progress" is only for work that carries on
+without them, so the user can trust that nothing listed there needs them.
+
 Asking the user:
 - Ask plain questions (a pick between options, a yes/no, a short text answer) as a form inside
   the chat: a ` ```questions ` block in your reply, with every open question in one form, short
