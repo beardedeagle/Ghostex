@@ -47,6 +47,9 @@
 //! User: the picked mockup's outline must never be cut off and needs more padding so it is not tight on the design: a tagged option gets 14px of room and a 2px ring inside its own box (content-box, so a fixed-width mockup keeps its width), because an outline drawn outside the box is clipped by a scrolling wrapper such as an `overflow-x:auto` frame.
 //! User: every question page offers "Other / none of these" with a note box, consistently, instead of each agent hand-rolling it, and the reader may leave a question unanswered. No choice is ever preselected; an agent marks the one it recommends with a Recommended badge and the reader picks. Mockups can use the full width of the page between or above the questions, and the Answered note is as wide as the question cards.
 //!
+//! CDXC:SessionChat 2026-10-24 DECISION:
+//! User, after an agent's page showed its variants A, B, C but listed the question's choices C, B, A (recommended first): "some agent gave me the options flipped in the selection area below!! ... the order of the options above, has to match their order below!" The kit enforces it instead of trusting every agent: before lettering, a question's choices are sorted into the order their `data-question` / `data-choice` mockups appear in the document (matched by the choice's value or label; a bare letter cannot rank because letters come from the order). Choices no mockup names keep their relative order after the matched ones, "Other / none of these" stays last, and a question with no mockups is left as written. skills/ghostex-visuals/SKILL.md teaches the same rule.
+//!
 //! CDXC:SessionChat 2026-10-11 SEE-ALSO:
 //! The answers card folds the `"<key> (note)"` entries into their question's row (packages/gx-chat-core/src/transcript/page_answers.rs); skills/ghostex-visuals/SKILL.md teaches agents this markup. Change them together.
 
@@ -152,6 +155,23 @@ var TILE_ICON='<svg class="gx-q-wait" viewBox="0 0 16 16" aria-hidden="true"><pa
 function el(tag,cls,text){var e=document.createElement(tag);if(cls)e.className=cls;if(text!=null)e.textContent=text;return e;}
 function kids(node){return Array.prototype.slice.call(node.childNodes);}
 function labelText(node){var c=node.cloneNode(true);c.querySelectorAll("small").forEach(function(s){s.remove();});return c.textContent.replace(/\s+/g," ").trim();}
+/* The choices of a question that has mockups tied to it, in the order those mockups appear on the page, so the list below always reads like the variants above it. A mockup matches a choice by its value or label (a bare letter is only known once the choices are lettered, so it cannot rank); choices no mockup names keep their order after the matched ones. */
+function inVariantOrder(els,key,tag){
+  var wanted=[];
+  Array.prototype.forEach.call(document.querySelectorAll("[data-question][data-choice]"),function(node){
+    if(node.closest("gx-question"))return;
+    var asked=(node.getAttribute("data-question")||"").trim();
+    if(asked===key||(tag&&asked===tag))wanted.push((node.getAttribute("data-choice")||"").trim());
+  });
+  if(!wanted.length)return els;
+  var ranked=els.map(function(ce,i){
+    var label=labelText(ce),value=(ce.getAttribute("value")||"").trim()||label,rank=Infinity;
+    for(var w=0;w<wanted.length;w++)if(wanted[w]===value||wanted[w]===label){rank=w;break;}
+    return{ce:ce,i:i,rank:rank};
+  });
+  ranked.sort(function(a,b){return a.rank===b.rank?a.i-b.i:a.rank<b.rank?-1:1;});
+  return ranked.map(function(r){return r.ce;});
+}
 function question(qe,index,used,changed){
   var title=(qe.getAttribute("title")||"").trim(),key=(qe.getAttribute("name")||"").trim()||title||"Question "+(index+1);
   for(var n=2;used[key];n++)key=key.replace(/ \(\d+\)$/,"")+" ("+n+")";
@@ -169,6 +189,7 @@ function question(qe,index,used,changed){
   function answered(given){if(given)qe.classList.add("gx-answered");else qe.classList.add("gx-unanswered");}
   var choiceEls=[],desc=el("div","gx-q-desc");
   kids(qe).forEach(function(node){if(node.nodeName==="GX-CHOICE")choiceEls.push(node);else desc.append(node);});
+  choiceEls=inVariantOrder(choiceEls,key,(tag||"").trim());
   qe.textContent="";qe.append(head);
   if(desc.textContent.trim()||desc.querySelector("img,svg,canvas,table"))qe.append(desc);
   if(text){
