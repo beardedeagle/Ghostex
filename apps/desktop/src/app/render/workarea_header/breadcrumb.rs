@@ -11,7 +11,6 @@ use gpui::div;
 use gpui::img;
 use gpui::prelude::FluentBuilder as _;
 use gpui::px;
-use gpui_component::ElementExt as _;
 use gpui_component::h_flex;
 
 use crate::app::consts::*;
@@ -192,11 +191,7 @@ impl GhostexGpuiApp {
                                 .child(title),
                         )
                     })
-                    // The label's left edge is where the links line under the title starts
-                    // (session_links.rs).
-                    .on_prepaint(|bounds, _window, _cx| {
-                        super::anchor::record_workarea_header_title_left_x(bounds.left().as_f32());
-                    }),
+                    .children(self.render_workarea_header_session_links(compact, cx)),
             )
     }
 }

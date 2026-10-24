@@ -188,7 +188,7 @@ impl NativeChatView {
             // The header is window chrome and does not zoom with the chat, so its height is unscaled.
             .when(index == 0, |this| {
                 let header = if main && self.under_workarea_header {
-                    self.workarea_header_band_height
+                    crate::app::consts::WORKAREA_HEADER_HEIGHT
                 } else {
                     0.0
                 };

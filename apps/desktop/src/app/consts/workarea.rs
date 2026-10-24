@@ -38,8 +38,6 @@ pub(crate) const PROJECT_EDITOR_AWAKE_MODE_CAP: usize = 3;
 /// CDXC:Workarea 2026-09-23 DECISION:
 /// User: the views tab strip is 1px shorter than the work area header. The view panel's content, its rail and the strip's half of the header band all start and end at this height, so the panel moves up with it.
 pub(crate) const WORKAREA_VIEW_TAB_STRIP_HEIGHT: f32 = WORKAREA_HEADER_HEIGHT - 1.0;
-/// The line under the header's title with the session's link chips (render/workarea_header/session_links.rs).
-pub(crate) const WORKAREA_HEADER_LINKS_STRIP_HEIGHT: f32 = 26.0;
 
 /// CDXC:Titlebar 2026-09-24 DECISION:
 /// User: the bottom panel and side panel toggles stay in exactly the same spot whether the side panel is collapsed or expanded, at the collapsed position. The collapsed header ends the pair this gap short of its edge padding (the gap after it in the pinned group), so the view tab strip ends it the same gap short and drops it by the strip's 1px of lost height, and the Browser address bar under the strip ends its buttons the same distance in to stay lined up with them.

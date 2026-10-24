@@ -266,9 +266,6 @@ pub(crate) struct NativeChatView {
     /// The transcript starts at the window's top edge under the floating work area header, so its
     /// first row reserves the header's height (`set_under_workarea_header`).
     pub(crate) under_workarea_header: bool,
-    /// How tall the header is over the transcript while `under_workarea_header`: its row, plus the
-    /// links line under its title when the session has one. Set by the app each frame.
-    pub(crate) workarea_header_band_height: f32,
     /// CDXC:SessionChat 2026-09-27 WHY:
     /// The phone (`packages/gpui-mobile`) draws this view inside its React Native chat screen, where the composer and the cards above it (working strip, questions, approvals, notices) are native React Native views fed by the same core. Set there through `set_transcript_only`, the view draws only the transcript region: no composer, no composer inset, no composer field, and toasts go to the host as a `toast` host action. Off everywhere else, so the desktop and the web build are unchanged.
     pub(crate) transcript_only: bool,
@@ -501,7 +498,6 @@ impl NativeChatView {
             notify_scheduled: false,
             api_error_tick: std::cell::Cell::new(false),
             under_workarea_header: false,
-            workarea_header_band_height: crate::app::consts::WORKAREA_HEADER_HEIGHT,
             transcript_only: false,
             host_composer: false,
         }

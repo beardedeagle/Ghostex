@@ -25,23 +25,3 @@ pub(crate) fn record_workarea_header_bottom_y(bottom_y: f32) {
 pub(crate) fn workarea_header_bottom_y() -> f32 {
     f32::from_bits(WORKAREA_HEADER_BOTTOM_Y.load(Ordering::Relaxed))
 }
-
-static WORKAREA_HEADER_LEFT_X: AtomicU32 = AtomicU32::new(0.0f32.to_bits());
-static WORKAREA_HEADER_TITLE_LEFT_X: AtomicU32 =
-    AtomicU32::new(WORKAREA_HEADER_EDGE_PADDING.to_bits());
-
-pub(crate) fn record_workarea_header_left_x(left_x: f32) {
-    WORKAREA_HEADER_LEFT_X.store(left_x.to_bits(), Ordering::Relaxed);
-}
-
-pub(crate) fn record_workarea_header_title_left_x(left_x: f32) {
-    WORKAREA_HEADER_TITLE_LEFT_X.store(left_x.to_bits(), Ordering::Relaxed);
-}
-
-/// How far the breadcrumb's label (project icon, name, session title) starts from the header
-/// row's left edge, as the last frame painted it: the links line under the title starts there.
-pub(crate) fn workarea_header_title_offset_x() -> f32 {
-    let header = f32::from_bits(WORKAREA_HEADER_LEFT_X.load(Ordering::Relaxed));
-    let title = f32::from_bits(WORKAREA_HEADER_TITLE_LEFT_X.load(Ordering::Relaxed));
-    (title - header).max(0.0)
-}
