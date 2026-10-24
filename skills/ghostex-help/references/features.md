@@ -2221,7 +2221,9 @@ its name, command, permission mode and default view, duplicate it as a custom
 agent, install or update its CLI, see its installed version (and the newer one
 when available) and command output, or open its Install docs link. Claude Code, Codex, Cursor Agent
 and Grok Build install through their official installers (PowerShell on
-Windows). When an installer leaves its folder off PATH (Claude Code's does), Ghostex
+Windows). OpenCode's official installer on Windows runs its install script with
+Git for Windows' Bash, so it needs Git for Windows; without Git, install
+OpenCode with mise or npm instead. When an installer leaves its folder off PATH (Claude Code's does), Ghostex
 adds it to your user PATH so new terminals find the command; Add to PATH
 does the same for a CLI installed earlier. Installs run one at a time and wait
 their turn. Ghostex updates a CLI the way it was installed; when it cannot tell,
