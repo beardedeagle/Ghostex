@@ -43,8 +43,11 @@ pub(crate) fn gpui_prepare_local_workspace_attach_terminal_plan_with_code(
     it is not stored in launchSettings or used as the terminal process command.
     */
     let attach_params = gpui_local_workspace_attach_rpc_params(reference, startup_text);
-    let mut result =
-        gpui_gxserver_rpc_result_with_code(intent.rpc_path(), &attach_params, Duration::from_secs(15))?;
+    let mut result = gpui_gxserver_rpc_result_with_code(
+        intent.rpc_path(),
+        &attach_params,
+        Duration::from_secs(15),
+    )?;
     let mut attach = gpui_local_workspace_attach_object(&result)?;
     gpui_validate_local_workspace_attach_not_restore_blocked(attach)?;
     let mut startup_text_for_plan =

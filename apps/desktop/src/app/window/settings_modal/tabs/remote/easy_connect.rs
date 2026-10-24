@@ -540,7 +540,9 @@ fn phone_panel(tab: &mut RemoteTab, t: &RemoteTokens, cx: &mut Context<RemoteTab
                 .border_color(hsla(t.edge(0.60)))
                 .text_size(px(12.0))
                 .line_height(px(17.0))
-                .child("The QR refreshes after pairing. Remove a paired phone below to disconnect it."),
+                .child(
+                    "The QR refreshes after pairing. Remove a paired phone below to disconnect it.",
+                ),
         );
     qr_block(t, left, meta.into_any_element())
 }
@@ -885,11 +887,7 @@ pub(super) fn qr_preview_dialog(
                 .items_center()
                 .gap(px(4.0))
                 .text_center()
-                .child(
-                    div()
-                        .text_color(hsla(colors.foreground))
-                        .child(name),
-                )
+                .child(div().text_color(hsla(colors.foreground)).child(name))
                 .child(
                     div()
                         .text_size(px(13.0))

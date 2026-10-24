@@ -752,45 +752,39 @@ impl Render for GpuiAppToastWindow {
                                                         .child(description),
                                                 )
                                             })
-                                            .when_some(
-                                                toast.copy_text.clone(),
-                                                |column, report| {
-                                                    column.child(
-                                                        div()
-                                                            .id(format!(
-                                                                "toast-copy-diagnostics-{}",
-                                                                toast.id
-                                                            ))
-                                                            .mt(px(6.0))
-                                                            .h(px(26.0))
-                                                            .px(px(8.0))
-                                                            .flex()
-                                                            .items_center()
-                                                            .rounded(px(4.0))
-                                                            .border_1()
-                                                            .border_color(
-                                                                colors.title.opacity(0.25),
-                                                            )
-                                                            .text_size(px(12.0))
-                                                            .text_color(colors.title)
-                                                            .cursor_pointer()
-                                                            .hover(move |button| {
-                                                                button
-                                                                    .bg(colors.title.opacity(0.094))
-                                                            })
-                                                            .on_click(move |_, _, cx| {
-                                                                cx.stop_propagation();
-                                                                gpui_copy_to_clipboard(
-                                                                    ClipboardItem::new_string(
-                                                                        report.clone(),
-                                                                    ),
-                                                                    cx,
-                                                                );
-                                                            })
-                                                            .child("Copy diagnostics"),
-                                                    )
-                                                },
-                                            )
+                                            .when_some(toast.copy_text.clone(), |column, report| {
+                                                column.child(
+                                                    div()
+                                                        .id(format!(
+                                                            "toast-copy-diagnostics-{}",
+                                                            toast.id
+                                                        ))
+                                                        .mt(px(6.0))
+                                                        .h(px(26.0))
+                                                        .px(px(8.0))
+                                                        .flex()
+                                                        .items_center()
+                                                        .rounded(px(4.0))
+                                                        .border_1()
+                                                        .border_color(colors.title.opacity(0.25))
+                                                        .text_size(px(12.0))
+                                                        .text_color(colors.title)
+                                                        .cursor_pointer()
+                                                        .hover(move |button| {
+                                                            button.bg(colors.title.opacity(0.094))
+                                                        })
+                                                        .on_click(move |_, _, cx| {
+                                                            cx.stop_propagation();
+                                                            gpui_copy_to_clipboard(
+                                                                ClipboardItem::new_string(
+                                                                    report.clone(),
+                                                                ),
+                                                                cx,
+                                                            );
+                                                        })
+                                                        .child("Copy diagnostics"),
+                                                )
+                                            })
                                             .when_some(toast.action.clone(), |column, action| {
                                                 column.child(self.render_action_button(
                                                     toast.id.clone(),
@@ -853,7 +847,8 @@ mod repeat_tests {
     }
 
     const TITLE: &str = "Account unavailable";
-    const TEXT: &str = "“Fix login” (Claude) is on Claude account 3 (Work), which was removed from Ghostex.";
+    const TEXT: &str =
+        "“Fix login” (Claude) is on Claude account 3 (Work), which was removed from Ghostex.";
 
     #[test]
     fn the_same_warning_raised_while_shown_takes_the_shown_card() {
@@ -870,11 +865,19 @@ mod repeat_tests {
         let repeat = gpui_app_toast_without_repeats_at(
             &mut recent,
             &shown,
-            toast("b", GpuiAppToastLevel::Warning, TITLE, &format!("  {TEXT} ")),
+            toast(
+                "b",
+                GpuiAppToastLevel::Warning,
+                TITLE,
+                &format!("  {TEXT} "),
+            ),
             start + std::time::Duration::from_secs(2),
         )
         .expect("a repeat refreshes the card");
-        assert_eq!(repeat.id, "a", "it replaces the shown toast instead of stacking");
+        assert_eq!(
+            repeat.id, "a",
+            "it replaces the shown toast instead of stacking"
+        );
     }
 
     #[test]
@@ -905,7 +908,12 @@ mod repeat_tests {
             gpui_app_toast_without_repeats_at(
                 &mut recent,
                 &[],
-                toast("other", GpuiAppToastLevel::Warning, TITLE, "Something else."),
+                toast(
+                    "other",
+                    GpuiAppToastLevel::Warning,
+                    TITLE,
+                    "Something else."
+                ),
                 at(61),
             )
             .is_some()
