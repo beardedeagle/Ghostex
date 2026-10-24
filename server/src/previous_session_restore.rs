@@ -35,6 +35,9 @@ const RESTORED_RUNTIME_KEYS: &[&str] = &[
     "agentSessionPath",
     "firstUserMessage",
     "launchAgentId",
+    // CDXC:SessionLinks 2026-10-24 DECISION: User: "when i close a session in the sidebar then i restore it it should keep the links". The restored session is a new row, so its links come along with it: `sessionLinks` (the links that joined by themselves or by hand, the pins, the removed ones, which stay removed, and what was last read about each) and work mode's hand-set `workLinks`. Before this the restored session started with none, and only what its branch or transcript named came back.
+    "sessionLinks",
+    "workLinks",
 ];
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -236,4 +239,115 @@ fn non_empty(value: Option<&Value>, key: &str) -> Option<String> {
         .map(str::trim)
         .filter(|text| !text.is_empty())
         .map(str::to_string)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::paths::get_gxserver_paths;
+    use crate::storage::{initialize_gxserver_storage, open_gxserver_database};
+
+    fn params(value: Value) -> Map<String, Value> {
+        value.as_object().cloned().expect("params object")
+    }
+
+    #[test]
+    fn a_closed_session_comes_back_with_its_links() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let paths = get_gxserver_paths(Some(temp.path().to_path_buf()));
+        initialize_gxserver_storage(&paths).expect("storage init");
+        let db = open_gxserver_database(&paths).expect("open db");
+        let repository = DomainRepository::new(&db, "S1");
+        let project = repository
+            .create_project(&params(
+                json!({ "name": "Links", "path": std::env::temp_dir() }),
+            ))
+            .expect("create project");
+        let project_id = project["projectId"]
+            .as_str()
+            .expect("projectId")
+            .to_string();
+        let links = json!({
+            "items": [
+                { "key": "pr:maddada/ghostex#286", "source": "user" },
+                { "key": "issue:maddada/ghostex#283", "source": "closes", "via": "#284" },
+                { "key": "linear:GHX-7", "source": "mentioned" },
+            ],
+            "removed": ["pr:maddada/ghostex#279"],
+            "removedItems": [{ "key": "pr:maddada/ghostex#279", "source": "agentOpened" }],
+            "pinned": ["issue:maddada/ghostex#283"],
+            "read": { "pr:maddada/ghostex#286": { "state": "merged", "title": "feat", "readAt": 1 } },
+        });
+        let work_links = json!({ "pullRequest": "286" });
+        let session = repository
+            .create_session(
+                &params(json!({
+                    "projectId": project_id,
+                    "kind": "agent",
+                    "agentId": "codex",
+                    "title": "Linked session",
+                    "lifecycleState": "running",
+                    "runtimeSettings": { "sessionLinks": links, "workLinks": work_links },
+                })),
+                false,
+            )
+            .expect("create session");
+        let session_id = session["sessionId"]
+            .as_str()
+            .expect("sessionId")
+            .to_string();
+
+        // Closed the way the sidebar's Close leaves it: the row stays, stopped.
+        repository
+            .update_session_for_lifecycle(&params(json!({
+                "projectId": project_id,
+                "sessionId": session_id,
+                "lifecycleState": "stopped",
+            })))
+            .expect("close session");
+
+        let call = |path: &str, body: Value| -> Result<Value, DomainStateError> {
+            match path {
+                "/api/listPreviousSessions" => Ok(json!({ "results": [{
+                    "projectId": project_id,
+                    "sessionId": session_id,
+                    "title": "Linked session",
+                    "agentId": "codex",
+                    "lifecycleState": "stopped",
+                }] })),
+                "/api/createSession" => Ok(json!({
+                    "session": repository.create_session(&params(body), false)?,
+                })),
+                "/api/removeSession" => Ok(json!({})),
+                other => panic!("unexpected call {other}"),
+            }
+        };
+        let request = RestorePreviousSessionRequest {
+            project_id: project_id.clone(),
+            session_id: session_id.clone(),
+            reason: "test".to_string(),
+        };
+        let answer = restore_previous_session(&request, &repository, &db, &call).expect("restore");
+        let restored_id = answer["sessionId"].as_str().expect("restored id");
+        assert_ne!(restored_id, session_id);
+        let restored = repository
+            .get_session(&project_id, restored_id)
+            .expect("read restored")
+            .expect("restored row");
+
+        assert_eq!(
+            restored.pointer("/runtimeSettings/sessionLinks"),
+            Some(&links)
+        );
+        assert_eq!(
+            restored.pointer("/runtimeSettings/workLinks"),
+            Some(&work_links)
+        );
+        let stored = crate::session_links::stored_session_links(&restored);
+        assert_eq!(stored.items.len(), 3);
+        assert!(stored.is_pinned("issue:maddada/ghostex#283"));
+        // A link the person removed stays removed.
+        assert!(stored.is_removed("pr:maddada/ghostex#279"));
+        assert!(stored.read.contains_key("pr:maddada/ghostex#286"));
+    }
 }
