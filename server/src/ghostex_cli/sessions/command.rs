@@ -24,7 +24,8 @@ pub fn sessions_command(args: &[String]) -> CliResult<()> {
     if flags.truthy("json") && flags.truthy("mobileSummary") {
         let result = fetch_session_list_result(flags, true)?;
         let hud = fetch_mobile_sidebar_hud(flags).ok();
-        let mut merged = match to_mobile_session_list(&result) {
+        let settings = crate::ghostex_cli::settings::read_settings_file().unwrap_or_default();
+        let mut merged = match to_mobile_session_list(&result, &settings) {
             Value::Object(map) => map,
             _ => Map::new(),
         };

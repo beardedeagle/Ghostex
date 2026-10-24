@@ -128,6 +128,36 @@ fn run_git_probe_command_counted(
 }
 
 pub(crate) fn run_gh_command(cwd: Option<&str>, args: &[&str]) -> Option<String> {
+    run_command_with_timeout(
+        gh_command(cwd, args),
+        GH_COMMAND_TIMEOUT,
+        &ABANDONED_COMMAND_READERS,
+    )
+}
+
+/// `gh` whose output matters even when it exits non-zero: `gh api` exits 1 on a 304 Not Modified
+/// (the headers `-i` prints still say so) and on a GraphQL answer that carries errors beside its
+/// data. `None` only when it could not run or timed out.
+pub(crate) fn run_gh_command_any_status(cwd: Option<&str>, args: &[&str]) -> Option<String> {
+    run_command_bounded_keeping_output(
+        gh_command(cwd, args),
+        GH_COMMAND_TIMEOUT,
+        COMMAND_READER_GRACE,
+        &ABANDONED_COMMAND_READERS,
+        true,
+    )
+}
+
+/// `gh` processes started since the last `take_gh_command_count`: what the links and work mode
+/// passes log per pass.
+static GH_COMMANDS: AtomicUsize = AtomicUsize::new(0);
+
+pub(crate) fn take_gh_command_count() -> usize {
+    GH_COMMANDS.swap(0, Ordering::Relaxed)
+}
+
+fn gh_command(cwd: Option<&str>, args: &[&str]) -> Command {
+    GH_COMMANDS.fetch_add(1, Ordering::Relaxed);
     let mut command = Command::new("gh");
     command
         .args(args)
@@ -139,7 +169,7 @@ pub(crate) fn run_gh_command(cwd: Option<&str>, args: &[&str]) -> Option<String>
     if let Some(cwd) = cwd {
         command.current_dir(cwd);
     }
-    run_command_with_timeout(command, GH_COMMAND_TIMEOUT, &ABANDONED_COMMAND_READERS)
+    command
 }
 
 /*
@@ -169,10 +199,20 @@ fn run_command_with_timeout(
 }
 
 pub(super) fn run_command_bounded(
+    command: Command,
+    timeout: Duration,
+    reader_grace: Duration,
+    abandoned_readers: &'static AtomicUsize,
+) -> Option<String> {
+    run_command_bounded_keeping_output(command, timeout, reader_grace, abandoned_readers, false)
+}
+
+fn run_command_bounded_keeping_output(
     mut command: Command,
     timeout: Duration,
     reader_grace: Duration,
     abandoned_readers: &'static AtomicUsize,
+    keep_failed_output: bool,
 ) -> Option<String> {
     command
         .stdin(Stdio::null())
@@ -215,7 +255,7 @@ pub(super) fn run_command_bounded(
     receiver is dropped here: the draining thread ends with the pipe the group
     kill just closed, and nothing blocks in the meantime.
     */
-    if !status?.success() {
+    if !status?.success() && !keep_failed_output {
         return None;
     }
     let Ok(output) = output_rx.recv_timeout(reader_grace) else {

@@ -3,7 +3,7 @@
 
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 
 use serde_json::Value;
 
@@ -40,26 +40,41 @@ pub(crate) struct WorkGithubIssueInfo {
     pub(crate) url: Option<String>,
 }
 
-struct Cached<T> {
-    value: T,
-    fetched_at: Instant,
+pub(super) struct Cached<T> {
+    pub(super) value: T,
+    pub(super) fetched_at: Instant,
+    /// When it was read, as a wall clock, which survives a restart in `sessionLinks.read`.
+    pub(super) read_at: SystemTime,
+    /// The REST ETag of the last read, sent back as `If-None-Match` (github_batch.rs).
+    pub(super) etag: Option<String>,
+}
+
+impl<T> Cached<T> {
+    pub(super) fn now(value: T) -> Self {
+        Self {
+            value,
+            fetched_at: Instant::now(),
+            read_at: SystemTime::now(),
+            etag: None,
+        }
+    }
 }
 
 #[derive(Default)]
-struct GithubCache {
-    pull_requests: HashMap<String, Cached<Option<WorkPullRequestInfo>>>,
-    issues: HashMap<String, Cached<Option<WorkGithubIssueInfo>>>,
+pub(super) struct GithubCache {
+    pub(super) pull_requests: HashMap<String, Cached<Option<WorkPullRequestInfo>>>,
+    pub(super) issues: HashMap<String, Cached<Option<WorkGithubIssueInfo>>>,
     /// `owner/repo` (lowercase) of each checkout's `origin`.
     repos: HashMap<String, Cached<Option<String>>>,
 }
 
-fn cache() -> &'static Mutex<GithubCache> {
+pub(super) fn cache() -> &'static Mutex<GithubCache> {
     static CACHE: OnceLock<Mutex<GithubCache>> = OnceLock::new();
     CACHE.get_or_init(|| Mutex::new(GithubCache::default()))
 }
 
 /// A PR is asked about by number from the session's checkout, or by URL from anywhere.
-fn cache_key(cwd: &str, selector: &str) -> String {
+pub(crate) fn cache_key(cwd: &str, selector: &str) -> String {
     if selector.starts_with("http") {
         selector.to_string()
     } else {
@@ -101,13 +116,7 @@ pub(crate) fn refresh_work_repo(cwd: &str) {
     }
     let repo = super::work_repo_of(cwd);
     if let Ok(mut cache) = cache().lock() {
-        cache.repos.insert(
-            cwd.to_string(),
-            Cached {
-                value: repo,
-                fetched_at: Instant::now(),
-            },
-        );
+        cache.repos.insert(cwd.to_string(), Cached::now(repo));
     }
 }
 
@@ -127,13 +136,7 @@ pub(crate) fn remember_work_pull_request(info: WorkPullRequestInfo) -> bool {
     {
         return false;
     }
-    cache.pull_requests.insert(
-        url,
-        Cached {
-            value: Some(info),
-            fetched_at: Instant::now(),
-        },
-    );
+    cache.pull_requests.insert(url, Cached::now(Some(info)));
     true
 }
 
@@ -161,13 +164,7 @@ pub(crate) fn refresh_work_pull_request(cwd: &str, selector: &str) -> bool {
     )
     .and_then(|output| parse_pull_request(&output));
     if let Ok(mut cache) = cache().lock() {
-        cache.pull_requests.insert(
-            key,
-            Cached {
-                value: info,
-                fetched_at: Instant::now(),
-            },
-        );
+        cache.pull_requests.insert(key, Cached::now(info));
     }
     true
 }
@@ -224,19 +221,18 @@ pub(crate) fn refresh_work_github_issue_selector(cwd: &str, selector: &str) -> b
         })
     });
     if let Ok(mut cache) = cache().lock() {
-        cache.issues.insert(
-            key,
-            Cached {
-                value: info,
-                fetched_at: Instant::now(),
-            },
-        );
+        cache.issues.insert(key, Cached::now(info));
     }
     true
 }
 
 fn parse_pull_request(output: &str) -> Option<WorkPullRequestInfo> {
-    let value: Value = serde_json::from_str(output.trim()).ok()?;
+    parse_pull_request_value(&serde_json::from_str(output.trim()).ok()?)
+}
+
+/// A PR as `gh pr view --json` names its fields; the GraphQL batch maps its answer onto the same
+/// shape (github_batch.rs).
+pub(super) fn parse_pull_request_value(value: &Value) -> Option<WorkPullRequestInfo> {
     let number = value.get("number").and_then(Value::as_u64)?;
     let is_draft = value
         .get("isDraft")

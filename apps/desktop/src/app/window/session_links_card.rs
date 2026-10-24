@@ -56,6 +56,7 @@ impl GhostexGpuiApp {
         let Some(links) = self.session_links_of(&key) else {
             return;
         };
+        self.want_session_links_now(&key, cx);
         let Some(row) = self
             .native_sidebar
             .session_card_bounds

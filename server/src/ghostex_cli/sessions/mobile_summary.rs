@@ -60,7 +60,9 @@ pub(super) fn fetch_session_list_result(flags: &Flags, write_cache: bool) -> Cli
     Ok(Value::Object(merged))
 }
 
-pub(super) fn to_mobile_session_list(result: &Value) -> Value {
+/// `settings` is the computer's settings file, which carries the two session-links choices the
+/// phone follows; the caller reads it, so this stays a pure reshaping of `result`.
+pub(super) fn to_mobile_session_list(result: &Value, settings: &Map<String, Value>) -> Value {
     /*
      * CDXC:Mobile 2026-06-30-04:37:
      * The mobile summary JSON keeps only row/action identity fields so the
@@ -125,7 +127,6 @@ pub(super) fn to_mobile_session_list(result: &Value) -> Value {
     insert_present(&mut map, "product", result.get("product"));
     // CDXC:SessionLinks 2026-10-24 DECISION: User: "user can pick to open in embedded or external browser in settings (default to embedded)". The phone has no copy of the computer's settings, so the summary carries this one: `embedded` opens a session link in the phone's own browser view, `external` in its default browser.
     // Sent only when it is not the default, which the phone assumes when the key is absent.
-    let settings = crate::ghostex_cli::settings::read_settings_file().unwrap_or_default();
     if settings
         .get("sessionLinkOpenTarget")
         .and_then(Value::as_str)

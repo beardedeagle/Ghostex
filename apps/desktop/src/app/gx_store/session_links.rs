@@ -145,6 +145,20 @@ impl GhostexGpuiApp {
     ///
     /// CDXC:SessionLinks 2026-10-24 DECISION:
     /// User: "user can pick to open in embedded or external browser in settings (default to embedded)" (`sessionLinkOpenTarget`: `embedded` or `external`). A Work mode card's own chips keep opening the ticket in the Work view (CDXC:WorkMode 2026-10-09).
+    /// A session's links list just opened (its card, the header's "+N" list): gxserver reads its
+    /// links now instead of on their usual schedule (`/api/refreshSessionLinks`,
+    /// server/src/server/session_links_sync.rs `want_session_links_now`).
+    pub(crate) fn want_session_links_now(&self, key: &SessionKey, cx: &mut gpui::Context<Self>) {
+        if !key.machine.is_local() {
+            return;
+        }
+        let params = json!({ "projectId": key.project_id, "sessionId": key.session_id });
+        cx.spawn(async move |_, _| {
+            let _ = gx_rpc(None, "/api/refreshSessionLinks", params).await;
+        })
+        .detach();
+    }
+
     pub(crate) fn open_session_link(&mut self, url: String, cx: &mut gpui::Context<Self>) {
         let external = crate::shared_settings::shared_sidebar_settings_snapshot()
             .object()

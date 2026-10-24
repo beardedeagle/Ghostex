@@ -139,29 +139,54 @@ pub(crate) fn refresh_work_caches(paths: &GxserverPaths, projects: &[Value], ses
     if !gh_cli_is_available() {
         return;
     }
-    // Resolved again: an issue Linear just answered for can bring its PR along.
-    let mut gh_budget = MAX_GH_CALLS_PER_PASS;
-    for targets in session_targets(sessions) {
-        if gh_budget == 0 {
-            break;
-        }
+    // Resolved again: an issue Linear just answered for can bring its PR along. Due PRs and issues
+    // are read one GraphQL call per repo, a session idle for more than a day every 30 minutes
+    // (CDXC:SessionLinks 2026-10-24 in work_mode/github_batch.rs).
+    let now = std::time::SystemTime::now();
+    let mut due: Vec<GithubRead> = Vec::new();
+    for session in sessions {
+        let Some(project) = session
+            .get("projectId")
+            .and_then(Value::as_str)
+            .and_then(|project_id| projects_by_id.get(project_id))
+        else {
+            continue;
+        };
+        let targets = work_targets(project, session);
         let Some(cwd) = targets.cwd.as_deref() else {
             continue;
         };
+        let idle = session_is_idle(session, now);
+        let repo = cached_work_repo(cwd);
+        let read_of = |selector: &str, pull_request: bool| -> Option<GithubRead> {
+            let (repo, number) = match selector.parse::<u64>() {
+                Ok(number) => (repo.clone()?, number),
+                Err(_) => repo_and_number_of_url(selector)?,
+            };
+            Some(GithubRead {
+                repo,
+                number,
+                pull_request,
+                cwd: cwd.to_string(),
+                selector: selector.to_string(),
+            })
+        };
+        let mut wanted: Vec<GithubRead> = Vec::new();
         if let Some(selector) = targets.pull_request.as_deref() {
-            if refresh_work_pull_request(cwd, selector) {
-                gh_budget -= 1;
-            }
+            wanted.extend(read_of(selector, true));
         }
         for number in &targets.github_issues {
-            if gh_budget == 0 {
-                break;
-            }
-            if refresh_work_github_issue(cwd, *number) {
-                gh_budget -= 1;
+            wanted.extend(read_of(&number.to_string(), false));
+        }
+        for read in wanted {
+            let max_age = github_read_max_age(read.pull_request, idle, false);
+            if github_read_due(&read, max_age) && !due.contains(&read) {
+                due.push(read);
             }
         }
     }
+    let mut gh_budget =
+        MAX_GH_CALLS_PER_PASS.saturating_sub(refresh_github_reads(&due, MAX_GH_CALLS_PER_PASS));
 
     // GitHub Projects, only for projects whose tracker is GitHub and while `gh` may read them.
     if github_tracker_projects.is_empty() {

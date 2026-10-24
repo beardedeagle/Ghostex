@@ -9,6 +9,7 @@
 
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex, OnceLock};
+use std::time::{Duration, Instant, SystemTime};
 
 use serde_json::Value;
 
@@ -28,9 +29,10 @@ use crate::session_links::{
 use crate::storage::open_gxserver_database;
 use crate::work_mode::{
     cached_linear_team_keys, cached_work_github_issue_url, cached_work_pull_request,
-    cached_work_repo, linear_api_key, linear_key_fingerprint, refresh_linear_issues,
-    refresh_linear_team_keys, refresh_work_github_issue_selector, refresh_work_pull_request,
-    refresh_work_repo, remember_project_linear_key, work_branch,
+    cached_work_repo, github_read_due, github_read_known, github_read_max_age, linear_api_key,
+    linear_key_fingerprint, refresh_github_reads, refresh_linear_issues, refresh_linear_team_keys,
+    refresh_work_repo, remember_project_linear_key, seed_github_read, session_is_idle, work_branch,
+    GithubRead,
 };
 
 /// `gh` calls one pass may make (work mode's pass has its own).
@@ -227,7 +229,13 @@ pub(crate) fn run_session_links_refresh_once(
     for project_id in projects_by_id.keys() {
         sessions.extend(repository.list_sessions_excluding_stopped(Some(project_id))?);
     }
-    refresh_link_caches(&projects_by_id, &sessions, &linear_keys, linear_budget);
+    refresh_link_caches(
+        state,
+        &projects_by_id,
+        &sessions,
+        &linear_keys,
+        linear_budget,
+    );
 
     let mut changed = Vec::new();
     if let Ok(mut published) = published_links().lock() {
@@ -300,14 +308,19 @@ fn session_transcript(
     ))
 }
 
-/// Reads what is stale among every open session's links, within the pass's budgets: open PRs and
-/// issues and unfinished Linear tickets; a finished one is read once.
+/// Reads what is due among every open session's links, within the pass's budgets: a link of a
+/// session in use every 2 (PR) or 5 (issue) minutes, of a session idle for more than a day every
+/// 30, of a session whose links list was just opened at once; a finished one is read once. GitHub
+/// reads go through one GraphQL call per repo (work_mode/github_batch.rs).
 fn refresh_link_caches(
+    state: &AppState,
     projects_by_id: &HashMap<String, &Value>,
     sessions: &[Value],
     linear_keys: &HashMap<u64, String>,
     mut linear_budget: usize,
 ) {
+    let now = SystemTime::now();
+    let wanted = wanted_sessions();
     // The sessions used most recently first, so the ones in use get their links read first.
     let mut sessions: Vec<&Value> = sessions.iter().collect();
     sessions.sort_by(|a, b| {
@@ -320,10 +333,21 @@ fn refresh_link_caches(
         };
         at(b).cmp(&at(a))
     });
-    let mut pull_requests: Vec<String> = Vec::new();
-    let mut issues: Vec<String> = Vec::new();
-    // Every PR and issue to read, in session order: `true` for a PR.
-    let mut in_order: Vec<(bool, String)> = Vec::new();
+    // Every PR and issue to read, in session order, with the shortest max age any session gives
+    // it; `None` for a link only suggested, which is read once.
+    let mut reads: Vec<(GithubRead, Option<Duration>)> = Vec::new();
+    let mut want = |read: GithubRead, max_age: Option<Duration>| match reads
+        .iter_mut()
+        .find(|(known, _)| known.selector == read.selector)
+    {
+        Some((_, known_age)) => {
+            *known_age = match (*known_age, max_age) {
+                (Some(a), Some(b)) => Some(a.min(b)),
+                (a, b) => a.or(b),
+            };
+        }
+        None => reads.push((read, max_age)),
+    };
     let mut linear: HashMap<u64, Vec<String>> = HashMap::new();
     for session in &sessions {
         let Some(project) = session
@@ -337,33 +361,39 @@ fn refresh_link_caches(
             .get("projectId")
             .and_then(Value::as_str)
             .unwrap_or_default();
+        let session_id = session
+            .get("sessionId")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        let idle = session_is_idle(session, now);
+        let is_wanted = wanted.contains(&(project_id.to_string(), session_id.to_string()));
+        // What a restart forgot comes back from what the session kept (`sessionLinks.read`).
+        let kept = stored_session_links(session).read;
         for entry in session_link_entries(project, session) {
             match &entry.link {
-                SessionLinkRef::Github {
-                    kind: SessionLinkKind::PullRequest,
-                    ..
-                } => {
-                    let Some(url) = entry.link.github_url() else {
+                SessionLinkRef::Github { kind, .. } => {
+                    let pull_request = *kind == SessionLinkKind::PullRequest;
+                    let Some(read) = entry
+                        .link
+                        .github_url()
+                        .and_then(|url| GithubRead::of_url(&url, pull_request))
+                    else {
                         continue;
                     };
-                    let finished = cached_work_pull_request("", &url).is_some_and(|info| {
-                        info.state.disposition() == PullRequestDisposition::Finished
-                    });
-                    if !finished && !pull_requests.contains(&url) {
-                        in_order.push((true, url.clone()));
-                        pull_requests.push(url);
+                    if let Some(snapshot) = kept.get(&entry.link.key()).and_then(Value::as_object) {
+                        seed_github_read(&read, snapshot);
                     }
-                }
-                SessionLinkRef::Github { .. } => {
-                    let Some(url) = entry.link.github_url() else {
-                        continue;
+                    let finished = if pull_request {
+                        cached_work_pull_request("", &read.selector).is_some_and(|info| {
+                            info.state.disposition() == PullRequestDisposition::Finished
+                        })
+                    } else {
+                        cached_work_github_issue_url(&read.selector)
+                            .is_some_and(|info| info.state.as_deref() == Some("closed"))
                     };
-                    let finished = cached_work_github_issue_url(&url)
-                        .is_some_and(|info| info.state.as_deref() == Some("closed"));
-                    if !finished && !issues.contains(&url) {
-                        in_order.push((false, url.clone()));
-                        issues.push(url);
-                    }
+                    let max_age =
+                        (!finished).then(|| github_read_max_age(pull_request, idle, is_wanted));
+                    want(read, max_age);
                 }
                 SessionLinkRef::Linear { identifier } => {
                     if let Some(key) = crate::work_mode::project_linear_key(project_id) {
@@ -384,17 +414,13 @@ fn refresh_link_caches(
         }
         // The PR and issue URLs this session's chat only mentioned, for the Suggested rows'
         // titles: read once, right after the session's own links.
-        let session_id = session
-            .get("sessionId")
-            .and_then(Value::as_str)
-            .unwrap_or_default();
         for link in crate::session_links::session_link_mentions(project_id, session_id) {
-            let Some(url) = link.github_url() else {
-                continue;
-            };
             let pull_request = link.kind() == SessionLinkKind::PullRequest;
-            if !in_order.iter().any(|(_, known)| known == &url) {
-                in_order.push((pull_request, url));
+            if let Some(read) = link
+                .github_url()
+                .and_then(|url| GithubRead::of_url(&url, pull_request))
+            {
+                want(read, None);
             }
         }
     }
@@ -411,54 +437,99 @@ fn refresh_link_caches(
             ));
         }
     }
-    let unread_pull_request = |url: &String| cached_work_pull_request("", url).is_none();
-    let unread_issue = |url: &String| cached_work_github_issue_url(url).is_none();
     // CDXC:SessionLinks 2026-10-24 WHY:
-    // Every open session's PRs used to be read before any issue, so with a dozen open PRs across sessions the pass spent its whole `gh` budget on them and issues (and the Suggested rows) never got a title or a state: the user saw "#283" with nothing after it, counted as open while it was closed. Links never read come first now, issues and suggestions included, then the stale open ones.
-    let unread = |(pull_request, url): &(bool, String)| {
-        if *pull_request {
-            unread_pull_request(url)
-        } else {
-            unread_issue(url)
-        }
-    };
-    let mut ordered: Vec<(bool, String)> = in_order
+    // Every open session's PRs used to be read before any issue, so with a dozen open PRs across sessions the pass spent its whole `gh` budget on them and issues (and the Suggested rows) never got a title or a state: the user saw "#283" with nothing after it, counted as open while it was closed. Links never read come first now, issues and suggestions included, then the due open ones.
+    let mut due: Vec<GithubRead> = reads
         .iter()
-        .filter(|read| unread(read))
-        .cloned()
+        .filter(|(read, _)| !github_read_known(read) && github_read_due(read, Duration::ZERO))
+        .map(|(read, _)| read.clone())
         .collect();
-    ordered.extend(
-        in_order
+    due.extend(
+        reads
             .iter()
-            // A URL only suggested is read once; one linked anywhere is kept current.
-            .filter(|read| {
-                !unread(read) && (pull_requests.contains(&read.1) || issues.contains(&read.1))
+            .filter(|(read, max_age)| {
+                github_read_known(read)
+                    && max_age.is_some_and(|max_age| github_read_due(read, max_age))
             })
-            .cloned(),
+            .map(|(read, _)| read.clone()),
     );
-    let mut seen: Vec<String> = Vec::new();
-    ordered.retain(|(_, url)| {
-        let fresh = !seen.contains(url);
-        seen.push(url.clone());
-        fresh
-    });
-    if ordered.is_empty() || !gh_cli_is_available() {
-        return;
+    // What the earlier rules would have read this pass: every link past 2 (PR) or 5 (issue)
+    // minutes, whatever its session's activity, one `gh` call each.
+    let due_before = reads
+        .iter()
+        .filter(|(read, max_age)| {
+            !github_read_known(read)
+                || (max_age.is_some()
+                    && github_read_due(read, github_read_max_age(read.pull_request, false, false)))
+        })
+        .count();
+    let calls = if due.is_empty() || !gh_cli_is_available() {
+        0
+    } else {
+        refresh_github_reads(&due, MAX_GH_CALLS_PER_PASS)
+    };
+    log_session_link_reads(state, reads.len(), due_before, due.len(), calls);
+}
+
+/// The sessions whose links list was opened in the last minute (`want_session_links_now`).
+fn wanted_links() -> &'static Mutex<HashMap<(String, String), Instant>> {
+    static WANTED: OnceLock<Mutex<HashMap<(String, String), Instant>>> = OnceLock::new();
+    WANTED.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+fn wanted_sessions() -> HashSet<(String, String)> {
+    let Ok(mut wanted) = wanted_links().lock() else {
+        return HashSet::new();
+    };
+    wanted.retain(|_, at| at.elapsed() < Duration::from_secs(60));
+    wanted.keys().cloned().collect()
+}
+
+/// A session's links list (its card, the header's "+N" list, the phone's sheet) just opened: its
+/// links are read on the next pass, which this starts now, whatever their age (within the pass's
+/// budget and at most every 20 seconds).
+pub(crate) fn want_session_links_now(state: &Arc<AppState>, project_id: &str, session_id: &str) {
+    if let Ok(mut wanted) = wanted_links().lock() {
+        wanted.insert(
+            (project_id.to_string(), session_id.to_string()),
+            Instant::now(),
+        );
     }
-    let mut gh_budget = MAX_GH_CALLS_PER_PASS;
-    for (pull_request, url) in &ordered {
-        if gh_budget == 0 {
-            return;
-        }
-        let ran = if *pull_request {
-            refresh_work_pull_request("", url)
-        } else {
-            refresh_work_github_issue_selector("", url)
-        };
-        if ran {
-            gh_budget -= 1;
-        }
-    }
+    spawn_session_links_refresh(state);
+}
+
+/// What one pass read, for the Session links diagnostic log: the links it follows, what the
+/// earlier rules would have read (one `gh` call each, at most 20), what was due under the new ones,
+/// and the `gh` calls it made.
+fn log_session_link_reads(
+    state: &AppState,
+    followed: usize,
+    due_before: usize,
+    due: usize,
+    calls: usize,
+) {
+    let _ = state.logger.log_routine(
+        crate::logging::DiagnosticLogScenario::SessionLinkReads,
+        GxserverLogInput {
+            level: LogLevel::Info,
+            event: "sessionLinksReadPass".to_string(),
+            server_id: Some(state.metadata.server_id.clone()),
+            request_id: None,
+            client: None,
+            duration_ms: None,
+            error: None,
+            details: Some(serde_json::json!({
+                "followed": followed,
+                "dueBefore": due_before,
+                "callsBefore": due_before.min(MAX_GH_CALLS_PER_PASS),
+                "due": due,
+                "ghCalls": calls,
+                // Every `gh` gxserver started since the last pass that logged (work mode's pass
+                // and the branch PR probes included).
+                "ghProcessesSinceLast": crate::session_git_status::take_gh_command_count(),
+            })),
+        },
+    );
 }
 
 /// Runs a pass right away (off the request path), so a link someone just added shows its state

@@ -35,6 +35,7 @@ pub enum DiagnosticLogScenario {
     TerminalFocus,
     TypedOperations,
     ProgramStatusMismatch,
+    SessionLinkReads,
 }
 
 impl DiagnosticLogScenario {
@@ -54,6 +55,7 @@ impl DiagnosticLogScenario {
             Self::ServerLifecycle => "native.host.lifecycle",
             Self::TerminalFocus => "native.terminal.focus",
             Self::ProgramStatusMismatch => "gxserver.programStatusMismatch",
+            Self::SessionLinkReads => "gxserver.sessionLinks",
         }
     }
 }

@@ -1,4 +1,4 @@
-//! `ghostex link add|remove|restore|pin|unpin|list` (crate::session_links): the PRs, GitHub issues and Linear tickets
+//! `ghostex link add|remove|restore|pin|unpin|refresh|list` (crate::session_links): the PRs, GitHub issues and Linear tickets
 //! a session is linked to. An agent reports the PR or issue it is working on with `ghostex link
 //! add`; without `--session` it names the session the command runs in.
 //!
@@ -62,6 +62,14 @@ pub(super) fn link_command(args: &[String]) -> CliResult<()> {
             print_json(&result);
             Ok(())
         }
+        // Reads the session's links now (what opening its links list does), within the pass's
+        // budget; `ghostex link list` afterwards shows what was read.
+        "refresh" => {
+            let result =
+                rpc::call_gxserver_rpc("/api/refreshSessionLinks", &Value::Object(params), flags)?;
+            print_json(&result);
+            Ok(())
+        }
         "pin" | "unpin" => {
             let key = target.ok_or_else(|| {
                 CliError::Other(format!(
@@ -86,7 +94,7 @@ pub(super) fn link_command(args: &[String]) -> CliResult<()> {
             Ok(())
         }
         other => Err(CliError::Other(format!(
-            "Unknown link command \"{other}\". Use add, remove, restore, pin, unpin or list."
+            "Unknown link command \"{other}\". Use add, remove, restore, pin, unpin, refresh or list."
         ))),
     }
 }

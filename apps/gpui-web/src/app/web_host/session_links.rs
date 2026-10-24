@@ -23,6 +23,7 @@ impl GhostexGpuiApp {
         let Some(links) = self.session_links_of(&key) else {
             return;
         };
+        self.want_session_links_now(&key, cx);
         let main_app = cx.weak_entity();
         // Past half the page's height the list scrolls inside the card; the sidebar runs the
         // page's full height.

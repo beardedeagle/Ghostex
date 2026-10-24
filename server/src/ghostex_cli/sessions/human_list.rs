@@ -382,7 +382,7 @@ mod tests {
                 },
             },
         });
-        let mobile = to_mobile_session_list(&result);
+        let mobile = to_mobile_session_list(&result, &serde_json::Map::new());
         assert_eq!(
             mobile,
             json!({
@@ -694,17 +694,20 @@ mod tests {
 
     #[test]
     fn mobile_summary_keeps_active_and_recent_project_contracts_separate() {
-        let summary = to_mobile_session_list(&json!({
-            "ok": true,
-            "projects": [
-                { "projectId": "P1", "name": "Empty", "path": "/repo/empty" },
-                { "projectId": "PC", "name": "Chat", "path": "/Users/me/.ghostex/chats/c1" }
-            ],
-            "recentProjects": [
-                { "projectId": "PR", "title": "Parked", "path": "/repo/parked", "sessionCount": 2 }
-            ],
-            "sessions": []
-        }));
+        let summary = to_mobile_session_list(
+            &json!({
+                "ok": true,
+                "projects": [
+                    { "projectId": "P1", "name": "Empty", "path": "/repo/empty" },
+                    { "projectId": "PC", "name": "Chat", "path": "/Users/me/.ghostex/chats/c1" }
+                ],
+                "recentProjects": [
+                    { "projectId": "PR", "title": "Parked", "path": "/repo/parked", "sessionCount": 2 }
+                ],
+                "sessions": []
+            }),
+            &serde_json::Map::new(),
+        );
         let projects = summary["projects"].as_array().unwrap();
         assert_eq!(projects.len(), 2);
         assert_eq!(projects[0]["projectId"], "P1");

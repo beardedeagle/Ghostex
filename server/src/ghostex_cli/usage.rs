@@ -526,8 +526,8 @@ pub fn usage() -> String {
             "Link a session to a PR, Linear or GitHub issues, a Linear project or a GitHub Project; --auto goes back to what its branch says; --candidates lists what the Link to picker suggests",
         ),
         format_help_command(
-            "link add|remove|restore|pin|unpin|list [<url|#123|owner/repo#123|ABC-123>] [--session <session>] [--issue] [--json]",
-            "Add, remove, restore, pin, unpin or list the PRs, GitHub issues and Linear tickets a session is linked to; restore brings back a link you removed, pin keeps one at the top of every list and in the sidebar; without --session it is the session the command runs in, so an agent can report the PR or issue it opened",
+            "link add|remove|restore|pin|unpin|refresh|list [<url|#123|owner/repo#123|ABC-123>] [--session <session>] [--issue] [--json]",
+            "Add, remove, restore, pin, unpin or list the PRs, GitHub issues and Linear tickets a session is linked to; restore brings back a link you removed, pin keeps one at the top of every list and in the sidebar, refresh reads them now; without --session it is the session the command runs in, so an agent can report the PR or issue it opened",
         ),
         format_help_command(
             "tag-session <id> <tag|none>",

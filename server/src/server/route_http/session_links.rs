@@ -13,7 +13,7 @@ use crate::session_links::{
     StoredSessionLink,
 };
 
-use super::super::session_links_sync::spawn_session_links_refresh;
+use super::super::session_links_sync::{spawn_session_links_refresh, want_session_links_now};
 use super::*;
 
 pub(super) async fn route_session_links_http(
@@ -242,6 +242,28 @@ pub(super) async fn route_session_links_http(
                 }))
             },
         ),
+        // A session's links list opened (its card, the header's "+N" list, the phone's sheet):
+        // its links are read at once, within the pass's budget (work_mode/github_batch.rs).
+        "/api/refreshSessionLinks" => {
+            let asked = std::sync::Mutex::new(None);
+            let response = handle_domain_http(
+                &state,
+                endpoint.path,
+                request_id,
+                &body_json,
+                |_, _, params, _| {
+                    let (project_id, session_id) = ids_of(params)?;
+                    if let Ok(mut asked) = asked.lock() {
+                        *asked = Some((project_id.clone(), session_id.clone()));
+                    }
+                    Ok(json!({ "projectId": project_id, "sessionId": session_id }))
+                },
+            );
+            if let Some((project_id, session_id)) = asked.into_inner().ok().flatten() {
+                want_session_links_now(&state, &project_id, &session_id);
+            }
+            response
+        }
         "/api/readSessionLinks" => handle_domain_http(
             &state,
             endpoint.path,

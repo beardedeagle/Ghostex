@@ -741,6 +741,7 @@ pub fn endpoint_for(path: &str) -> Option<EndpointDescriptor> {
         | "/api/removeSessionLink"
         | "/api/restoreSessionLink"
         | "/api/pinSessionLink"
+        | "/api/refreshSessionLinks"
         | "/api/readSessionLinks"
         /*
         CDXC:WorkMode 2026-10-09 WHY:

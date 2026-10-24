@@ -309,7 +309,9 @@ fn entry_value(
         match read.get(&link.key()).and_then(Value::as_object) {
             Some(snapshot) => {
                 for (field, value) in snapshot {
-                    output.entry(field.clone()).or_insert_with(|| value.clone());
+                    if field != "readAt" && field != "etag" {
+                        output.entry(field.clone()).or_insert_with(|| value.clone());
+                    }
                 }
             }
             None => {
@@ -354,6 +356,19 @@ pub(crate) fn session_links_read_snapshot(links: &Value) -> Map<String, Value> {
         ] {
             if let Some(value) = item.get(field) {
                 read.insert(field.to_string(), value.clone());
+            }
+        }
+        // When it was read and its ETag, so a restart reads it only once it is due
+        // (work_mode/github_batch.rs `seed_github_read`).
+        let github = SessionLinkRef::from_key(key).and_then(|link| {
+            let pull_request = link.kind() == SessionLinkKind::PullRequest;
+            crate::work_mode::GithubRead::of_url(&link.github_url()?, pull_request)
+        });
+        if let Some((read_at, etag)) = github.as_ref().and_then(crate::work_mode::github_read_meta)
+        {
+            read.insert("readAt".to_string(), json!(read_at));
+            if let Some(etag) = etag {
+                read.insert("etag".to_string(), json!(etag));
             }
         }
         snapshot.insert(key.to_string(), Value::Object(read));

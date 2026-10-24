@@ -65,4 +65,9 @@ pub const DIAGNOSTIC_LOGGING_SCENARIOS: J = J::Arr(&[
         ("id", J::Str("gxserver.requests")),
         ("label", J::Str("Server requests")),
     ]),
+    J::Obj(&[
+        ("description", J::Str("Background reads of the PRs and issues sessions link to: how many links each pass follows, how many were due, and the gh calls it made.")),
+        ("id", J::Str("gxserver.sessionLinks")),
+        ("label", J::Str("Session links")),
+    ]),
 ]);

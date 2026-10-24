@@ -8592,6 +8592,10 @@
         {
           "label": "Server requests",
           "value": "gxserver.requests"
+        },
+        {
+          "label": "Session links",
+          "value": "gxserver.sessionLinks"
         }
       ],
       "agentWritable": false

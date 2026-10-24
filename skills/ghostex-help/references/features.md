@@ -3405,8 +3405,11 @@ its header: tap one to open it, touch and hold to copy its link, and tap +N or
 List for the whole list (touch and hold a link for Copy link, Pin or Unpin and Remove, which asks
 Remove? first; Link adds a suggestion). The
 phone's session list follows the computer's Session links in the sidebar, and a
-session's long-press menu has a Links row that opens the same list. States
-refresh about once a minute, and merged or closed ones stop being checked.
+session's long-press menu has a Links row that opens the same list. Open links
+are checked again every few minutes while their session is in use and every half hour
+once it has been idle for a day; opening a session's links list (or running
+`ghostex link refresh`) checks its links at once. Merged or closed ones stop being
+checked.
 `ghostex link list [--session <session>]` prints a session's links and
 `ghostex link remove <link>` removes one and `ghostex link restore <link>` brings it back. Settings: `sessionLinkOpenTarget`
 (`embedded` or `external`), `sidebarSessionLinks` (`always`, `selected`, `badge`,
