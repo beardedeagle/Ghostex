@@ -426,6 +426,37 @@ impl SessionLinks {
     }
 }
 
+/// How many of a links line's chips fit in `available`, in order: the most that fit together with
+/// the "+N" pill (sized by `pill_width` for its own count) whenever any link is left out. Links the
+/// line never shows (`never_shown`, the finished ones under Open work only) count into "+N" too.
+/// Widths are the renderer's own measurements, in one unit.
+///
+/// CDXC:SessionLinks 2026-10-24 WHY:
+/// The line once guessed the room from the sidebar's width and a fixed 34px pill, and its "+11" ran past the card's edge ("stuff is cut off here fam"). Every renderer now measures its chips, its pill and the line's real width, and drops chips until both fit.
+pub fn link_chips_that_fit(
+    chip_widths: &[f32],
+    never_shown: usize,
+    available: f32,
+    gap: f32,
+    pill_width: impl Fn(usize) -> f32,
+) -> usize {
+    let total = chip_widths.len();
+    (0..=total)
+        .rev()
+        .find(|&shown| {
+            let chips =
+                chip_widths[..shown].iter().sum::<f32>() + gap * shown.saturating_sub(1) as f32;
+            let hidden = total - shown + never_shown;
+            let pill = if hidden == 0 {
+                0.0
+            } else {
+                pill_width(hidden) + if shown > 0 { gap } else { 0.0 }
+            };
+            chips + pill <= available
+        })
+        .unwrap_or(0)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -536,5 +567,24 @@ mod tests {
             links().row(SessionLinksDisplay::Off, true),
             SessionLinksRow::default()
         );
+    }
+
+    #[test]
+    fn chips_fit_with_room_for_their_pill() {
+        // "+N" grows by a digit's width per digit.
+        let pill = |hidden: usize| 20.0 + hidden.to_string().len() as f32 * 6.0;
+        let chips = [40.0; 5];
+        // Everything fits: no pill.
+        assert_eq!(link_chips_that_fit(&chips, 0, 240.0, 10.0, pill), 5);
+        // Five chips need 240; at 239 the fifth gives way to "+1" (four chips 190 + 10 + 26).
+        assert_eq!(link_chips_that_fit(&chips, 0, 239.0, 10.0, pill), 4);
+        // The pill's room is reserved: four chips alone fit 190, but not with "+1".
+        assert_eq!(link_chips_that_fit(&chips, 0, 225.0, 10.0, pill), 3);
+        // Links the line never shows go into "+N" even when every chip fits.
+        assert_eq!(link_chips_that_fit(&chips, 2, 240.0, 10.0, pill), 4);
+        // A pill sized for "+11" needs more room than one sized for "+1".
+        assert_eq!(link_chips_that_fit(&chips, 10, 230.0, 10.0, pill), 3);
+        // Nothing fits but the pill.
+        assert_eq!(link_chips_that_fit(&chips, 0, 30.0, 10.0, pill), 0);
     }
 }

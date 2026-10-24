@@ -13,7 +13,7 @@
 use gpui::prelude::FluentBuilder;
 use gpui::{
     AnyElement, Hsla, InteractiveElement, IntoElement, MouseButton, ParentElement,
-    StatefulInteractiveElement, Styled, div, px, rgb,
+    StatefulInteractiveElement, Styled, TextRun, WindowTextSystem, div, px, rgb,
 };
 use gpui_component::h_flex;
 use gpui_component::tooltip::ManagedTooltipExt as _;
@@ -31,35 +31,43 @@ use ghostex_gx_core::{
 
 /// The line's height, the Work mode card's chip line's (work_chips.rs).
 pub(crate) const LINK_LINE_HEIGHT: f32 = 16.0;
-/// Roughly how wide a chip draws at 11.5px, unscaled: glyph, gap, label, checks mark.
-fn chip_width(link: &SessionLink) -> f32 {
-    12.0 + 3.0
-        + link.label.chars().count() as f32 * 6.6
-        + if link.checks.is_some() { 15.0 } else { 0.0 }
+/// A text's width in the sidebar's UI font at `size`, unscaled.
+fn ui_text_width(text_system: &WindowTextSystem, text: &str, size: f32) -> f32 {
+    let run = TextRun {
+        len: text.len(),
+        font: gpui::font(crate::ui_fonts::UI_FONT),
+        ..Default::default()
+    };
+    f32::from(
+        text_system
+            .shape_line(text.to_owned().into(), px(size), &[run], None)
+            .width,
+    )
 }
 
-/// How many chips fit in `available` unscaled pixels, keeping room for the "+N" pill when some
-/// are left out.
-pub(crate) fn session_link_chips_that_fit(
-    items: &[SessionLink],
-    available: f32,
-    gap: f32,
-) -> usize {
-    const PILL: f32 = 34.0;
-    let mut used = 0.0;
-    for (index, link) in items.iter().enumerate() {
-        let width = chip_width(link) + if index > 0 { gap } else { 0.0 };
-        let pill = if index + 1 < items.len() {
-            gap + PILL
+/// How wide `session_link_chip_body` draws, unscaled: glyph, gap, label, and a PR's checks mark.
+fn link_chip_width(text_system: &WindowTextSystem, link: &SessionLink, text_size: f32) -> f32 {
+    12.0 + 3.0
+        + ui_text_width(text_system, &link.label, text_size)
+        + if link.checks.is_some() {
+            3.0 + 12.0
         } else {
             0.0
-        };
-        if used + width + pill > available {
-            return index;
         }
-        used += width;
-    }
-    items.len()
+}
+
+/// How wide `session_links_overflow_pill` draws for `hidden`, unscaled: its padding and border,
+/// "+N", and the failing dot.
+fn overflow_pill_width(
+    text_system: &WindowTextSystem,
+    hidden: usize,
+    failing: bool,
+    text_size: f32,
+) -> f32 {
+    2.0 * 6.0
+        + 2.0
+        + ui_text_width(text_system, &format!("+{hidden}"), text_size)
+        + if failing { 4.0 + 5.0 } else { 0.0 }
 }
 
 pub(crate) fn session_link_glyph_icon(glyph: SessionLinkGlyph) -> &'static str {
@@ -271,9 +279,50 @@ impl GhostexGpuiApp {
             .filter_map(|index| links.items.get(*index).cloned())
             .collect();
         let scale = appearance.scale;
-        // The card's width less its insets and the indent under the title.
-        let available = self.sidebar_width / scale - 2.0 * 3.0 - (indent + 15.0 + 6.0) - 6.0 - 8.0;
-        let shown = session_link_chips_that_fit(&items, available, 10.0);
+        // The card's width as it last painted, kept in step with the sidebar's width (the card's
+        // inset from the sidebar's edges does not change while the sidebar is dragged wider),
+        // less the line's indent under the title and its right padding.
+        let card_width = match self
+            .native_sidebar
+            .session_card_bounds
+            .get(&session.session_id)
+        {
+            Some(card) => {
+                let inset =
+                    f32::from(self.native_sidebar.bounds.size.width) - f32::from(card.size.width);
+                self.sidebar_width - inset
+            }
+            None => {
+                // The row has not painted yet: draw once with the sidebar's own width less the
+                // usual insets, then again with the card's.
+                let app = cx.entity();
+                cx.defer(move |cx| app.update(cx, |_, cx| cx.notify()));
+                self.sidebar_width - 40.0 * scale
+            }
+        };
+        let available = card_width / scale - (indent + 15.0 + 6.0) - 6.0;
+        let text_system = WindowTextSystem::new(cx.text_system().clone());
+        let chip_widths: Vec<f32> = items
+            .iter()
+            .map(|link| link_chip_width(&text_system, link, 11.5))
+            .collect();
+        let never_shown = links.items.len() - items.len();
+        let failing_beyond = |shown: usize| {
+            links.items.iter().any(|link| {
+                link.checks.as_deref() == Some("failing")
+                    && !items.iter().take(shown).any(|item| item.key == link.key)
+            })
+        };
+        let shown = ghostex_gx_core::link_chips_that_fit(
+            &chip_widths,
+            never_shown,
+            available,
+            10.0,
+            |hidden| {
+                let shown = (items.len() + never_shown).saturating_sub(hidden);
+                overflow_pill_width(&text_system, hidden, failing_beyond(shown), 11.0)
+            },
+        );
         let hidden = links.items.len() - shown;
         let show_tooltips = self.native_sidebar.pointer_inside
             && self.native_sidebar.menu.is_none()

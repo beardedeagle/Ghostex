@@ -89,7 +89,7 @@ pub use view::{
     SpaceView, ThreadTally, WorktreeView, RENAME_SHAKE_FRESH_MS,
 };
 pub use links::{
-    SessionLink, SessionLinkGlyph, SessionLinkKind, SessionLinkTone, SessionLinks,
+    link_chips_that_fit, SessionLink, SessionLinkGlyph, SessionLinkKind, SessionLinkTone, SessionLinks,
     SessionLinksBadge, SessionLinksDisplay, SessionLinksRow, SuggestedSessionLink,
 };
 pub use work::{SessionWork, WorkGithubIssue, WorkLinearIssue, WorkLinearProject, WorkPullRequest};
