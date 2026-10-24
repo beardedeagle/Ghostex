@@ -323,10 +323,15 @@ pub(crate) fn to_agent_resume_input(
     } else {
         (agent_session_id, agent_session_path)
     };
+    // The session-list lookup must read the same OpenCode 2 the resumed terminal runs.
+    let agent_lookup_command = base_command.map(|command| match agent_id.as_deref() {
+        Some(id) => crate::agent_cli::opencode::with_opencode2(id, None, &command),
+        None => command,
+    });
     AgentResumeInput {
         agent_command: runtime_command,
         agent_id,
-        agent_lookup_command: base_command,
+        agent_lookup_command,
         agent_session_id,
         agent_session_path,
         first_user_message: read_text_from_map(&runtime_settings, "firstUserMessage")

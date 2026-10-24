@@ -196,17 +196,17 @@ pub(crate) fn detect(session: &Value) -> SessionChatTerminalDetection {
     let id = match super::session_id(session) {
         Ok(id) => id,
         Err(_) if just_created(session) => {
-            return SessionChatTerminalDetection {
+            return problem(session).unwrap_or(SessionChatTerminalDetection {
                 attempted: true,
                 captured: true,
                 ..Default::default()
-            }
+            })
         }
-        Err(e) => return unavailable(&e.message),
+        Err(e) => return problem(session).unwrap_or_else(|| unavailable(&e.message)),
     };
     let snapshot = match snapshot(&id) {
         Ok(snapshot) => snapshot,
-        Err(e) => return unavailable(&e.message),
+        Err(e) => return problem(session).unwrap_or_else(|| unavailable(&e.message)),
     };
     let choice = |value: &str, label: &str| SessionChatDetectedChoice {
         value: value.into(),
@@ -221,22 +221,12 @@ pub(crate) fn detect(session: &Value) -> SessionChatTerminalDetection {
         .iter()
         .rev()
         .find(|message| message["type"] == "assistant");
-    let model = snapshot
-        .info
-        .get("model")
-        .or_else(|| last_reply.and_then(|m| m.get("model")))
-        .unwrap_or(&Value::Null);
+    let model = detected_model(&snapshot.info, &snapshot.messages, catalog.as_ref());
     let mut context_usage = super::usage(&snapshot);
     if let Some(usage) = context_usage.as_mut() {
-        let value = format!(
-            "{}/{}",
-            model["providerID"].as_str().unwrap_or(""),
-            model["id"].as_str().unwrap_or("")
-        );
-        usage.window_size = catalog
+        usage.window_size = model
             .as_ref()
-            .and_then(|c| c["agents"]["opencode"]["models"].as_array())
-            .and_then(|rows| rows.iter().find(|row| row["value"] == value))
+            .and_then(|model| catalog_row(catalog.as_ref(), &model.value))
             .and_then(|row| row["contextWindow"].as_u64())
             .filter(|size| *size > 0);
         usage.used_percentage = usage
@@ -249,13 +239,11 @@ pub(crate) fn detect(session: &Value) -> SessionChatTerminalDetection {
     let selection = SessionChatDetectedSelection {
         model_catalog: catalog,
         context_usage,
-        model: model["providerID"]
-            .as_str()
-            .zip(model["id"].as_str())
-            .map(|(provider, id)| choice(&format!("{provider}/{id}"), id)),
-        effort: model["variant"]
-            .as_str()
+        effort: model
+            .as_ref()
+            .and_then(|model| model.variant.as_deref())
             .map(|variant| choice(variant, variant)),
+        model: model.map(|model| choice(&model.value, &model.label)),
         mode: snapshot.info["agent"]
             .as_str()
             .or_else(|| last_reply.and_then(|m| m["agent"].as_str()))
@@ -283,6 +271,58 @@ pub(crate) fn detect(session: &Value) -> SessionChatTerminalDetection {
         composer: composer(&snapshot),
         ..Default::default()
     }
+}
+
+pub(crate) struct DetectedModel {
+    /// `provider/model`, the value the picker and `select` use.
+    pub(crate) value: String,
+    pub(crate) label: String,
+    pub(crate) variant: Option<String>,
+}
+
+fn catalog_row<'a>(catalog: Option<&'a Value>, value: &str) -> Option<&'a Value> {
+    catalog?["agents"]["opencode"]["models"]
+        .as_array()?
+        .iter()
+        .find(|row| row["value"] == value)
+}
+
+/// CDXC:SessionChat 2026-10-25 WHY:
+/// User: "im using opencode and im using deepseek model but it's saying a different model in the chat view composer". The model is the conversation's own selection (`session.model`, set by every switch from the TUI, the picker or `/model`), else the model of its latest reply; a session that has neither has no model yet and the pill names OpenCode instead of guessing a default. Only an object counts, so a `null` selection falls through to the reply. The label is the catalog's display name for that exact provider and model; a model the catalog does not list (another provider's DeepSeek, a local model) shows its own id rather than any other model's name.
+pub(crate) fn detected_model(
+    info: &Value,
+    messages: &[Value],
+    catalog: Option<&Value>,
+) -> Option<DetectedModel> {
+    let reference = |model: &Value| -> Option<(String, String, Option<String>)> {
+        let provider = model["providerID"].as_str().filter(|s| !s.is_empty())?;
+        let id = model["id"]
+            .as_str()
+            .or_else(|| model["modelID"].as_str())
+            .filter(|s| !s.is_empty())?;
+        Some((
+            format!("{provider}/{id}"),
+            id.to_string(),
+            model["variant"].as_str().map(str::to_string),
+        ))
+    };
+    let (value, id, variant) = reference(&info["model"]).or_else(|| {
+        messages
+            .iter()
+            .rev()
+            .filter(|message| message["type"] == "assistant")
+            .find_map(|message| reference(&message["model"]))
+    })?;
+    let label = catalog_row(catalog, &value)
+        .and_then(|row| row["label"].as_str())
+        .filter(|label| !label.trim().is_empty())
+        .map(str::to_string)
+        .unwrap_or(id);
+    Some(DetectedModel {
+        value,
+        label,
+        variant: variant.filter(|variant| variant != "default"),
+    })
 }
 
 /// CDXC:SessionChat 2026-10-20 WHY:
@@ -320,6 +360,87 @@ fn handoff(title: &str, detail: &str) -> crate::session_chat_notice::SessionChat
     .with_actions(vec![SessionChatTerminalNoticeAction::switch_to_terminal(
         "Open terminal",
     )])
+}
+
+/// Why this session's chat cannot connect, when Ghostex can tell (agent_cli/opencode.rs): an OpenCode
+/// before 2, an install that cannot start, none at all, or the OpenCode 2 install it started.
+fn problem(session: &Value) -> Option<SessionChatTerminalDetection> {
+    use crate::agent_cli::opencode::{self, InstallState, Problem};
+    use crate::session_chat_notice::{
+        SessionChatTerminalNoticeAction, SessionChatTerminalNoticeActionKind,
+    };
+    let action = |id: &str, label: &str| SessionChatTerminalNoticeAction {
+        id: id.into(),
+        label: label.into(),
+        // Rides the answer every chat client already sends (session_chat_agent_restart.rs).
+        kind: SessionChatTerminalNoticeActionKind::RestartAgent,
+        send: None,
+    };
+    let installable = opencode::install_command().is_some();
+    let install = |label: &str| {
+        installable
+            .then(|| action(opencode::ACTION_INSTALL, label))
+            .into_iter()
+            .collect::<Vec<_>>()
+    };
+    let no_installer = if installable {
+        ""
+    } else {
+        " Install OpenCode 2 from Settings > Agents, then restart this session."
+    };
+    let (title, detail, actions) = match opencode::install_state() {
+        Some(InstallState::Running) => (
+            "Installing OpenCode 2…".to_string(),
+            "Ghostex is running OpenCode's official installer and restarts this session on OpenCode 2 when it finishes.".to_string(),
+            Vec::new(),
+        ),
+        state => {
+            let home = crate::resume_lookup::home_dir();
+            let zmx_name = session["zmxName"].as_str();
+            let problem = opencode::diagnose_cached(zmx_name, &home)?;
+            let restart = opencode::launch_executable(&home).is_ok();
+            let mut found = match &problem {
+                Problem::Older { version, path } if restart => (
+                    format!("OpenCode {version} isn't supported"),
+                    format!("This session runs OpenCode {version} ({path}). Ghostex's chat works with OpenCode 2, which is installed too. Restart this session on OpenCode 2 to use the chat."),
+                    vec![action(opencode::ACTION_RESTART, "Restart on OpenCode 2")],
+                ),
+                Problem::Older { version, path } => (
+                    format!("OpenCode {version} isn't supported"),
+                    format!("This session runs OpenCode {version} ({path}). Ghostex's chat works with OpenCode 2 only. Install OpenCode 2 and Ghostex restarts this session on it; OpenCode {version} stays installed.{no_installer}"),
+                    install("Install OpenCode 2"),
+                ),
+                Problem::Unusable { path } => (
+                    "OpenCode can't start".to_string(),
+                    format!("{path} is installed but doesn't start. An npm install with ignore-scripts turned on skips the step that downloads OpenCode 2's program. Install OpenCode 2 with its official installer and Ghostex restarts this session on it.{no_installer}"),
+                    install("Install OpenCode 2"),
+                ),
+                Problem::Missing => (
+                    "OpenCode 2 isn't installed".to_string(),
+                    format!("Install OpenCode 2 and Ghostex restarts this session on it.{no_installer}"),
+                    install("Install OpenCode 2"),
+                ),
+            };
+            if let Some(InstallState::Failed(error)) = state {
+                found = (
+                    "OpenCode 2 could not be installed".to_string(),
+                    format!("The official installer failed: {error}"),
+                    install("Try again"),
+                );
+            }
+            found
+        }
+    };
+    let mut actions = actions;
+    actions.push(SessionChatTerminalNoticeAction::switch_to_terminal(
+        "Open terminal",
+    ));
+    Some(SessionChatTerminalDetection {
+        attempted: true,
+        captured: true,
+        notice: Some(handoff(&title, &detail).with_actions(actions)),
+        ..Default::default()
+    })
 }
 
 fn unavailable(detail: &str) -> SessionChatTerminalDetection {

@@ -180,6 +180,38 @@ fn model_config_edits_preserve_comments_and_other_settings() {
 }
 
 #[test]
+fn composer_model_follows_the_conversation_not_a_default() {
+    let catalog = json!({"agents":{"opencode":{"models":[
+        {"value":"opencode/big-pickle","label":"Big Pickle"},
+        {"value":"deepseek/deepseek-flash","label":"DeepSeek Flash"}
+    ]}}});
+    let reply = |provider: &str, id: &str| json!({"type":"assistant","model":{"providerID":provider,"id":id}});
+    let messages = vec![
+        reply("opencode", "big-pickle"),
+        json!({"type":"user"}),
+        reply("deepseek", "deepseek-flash"),
+        json!({"type":"idle"}),
+    ];
+    // No selection on the session (OpenCode leaves it unset, or null): the latest reply's model.
+    for info in [json!({}), json!({"model":null})] {
+        let model = mirror::detected_model(&info, &messages, Some(&catalog)).unwrap();
+        assert_eq!(
+            (model.value.as_str(), model.label.as_str()),
+            ("deepseek/deepseek-flash", "DeepSeek Flash")
+        );
+    }
+    // A switch made in the TUI or the picker is the session's selection and wins over older replies.
+    let info = json!({"model":{"providerID":"openrouter","id":"deepseek/deepseek-v4.1-flash-1017","variant":"high"}});
+    let model = mirror::detected_model(&info, &messages, Some(&catalog)).unwrap();
+    assert_eq!(model.value, "openrouter/deepseek/deepseek-v4.1-flash-1017");
+    // A model the catalog does not list keeps its own id, never another model's name.
+    assert_eq!(model.label, "deepseek/deepseek-v4.1-flash-1017");
+    assert_eq!(model.variant.as_deref(), Some("high"));
+    // A new conversation with no selection and no reply has no model yet.
+    assert!(mirror::detected_model(&json!({}), &[], Some(&catalog)).is_none());
+}
+
+#[test]
 fn token_usage_and_tasks_follow_latest_assistant_state() {
     let mut snapshot = form(json!([]));
     snapshot.messages = vec![

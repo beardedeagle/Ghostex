@@ -111,6 +111,11 @@ impl Definition {
             .or(self.self_update.as_deref())
     }
 
+    /// The official installer for this platform family (unix: `native.install`).
+    pub(crate) fn native_install(&self) -> Option<&str> {
+        self.native.as_ref().map(|native| native.install.as_str())
+    }
+
     pub(crate) fn native_env(&self) -> BTreeMap<String, String> {
         self.native
             .as_ref()

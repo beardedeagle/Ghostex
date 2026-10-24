@@ -56,6 +56,15 @@ pub(crate) fn installation(
     })
 }
 
+/// The install a mise shim runs for `binary`, or `None` when `path` is not a mise shim.
+pub(crate) fn shim_target(path: &str, binary: &str, home: &Path) -> Option<String> {
+    let mise = process::resolve("mise", home)?;
+    if !is_shim(path, &mise) {
+        return None;
+    }
+    query(&mise, &["which", binary], home)
+}
+
 fn canonical(path: &str) -> PathBuf {
     std::fs::canonicalize(path).unwrap_or_else(|_| path.into())
 }

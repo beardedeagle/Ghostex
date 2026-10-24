@@ -24,6 +24,42 @@ export default {
         if (!closed && ctx.ui.router.current().type === "home") ctx.ui.router.navigate({type:"session",sessionID:info.id});
       } catch { /* The TUI's connection and provider setup remain available. */ }
     }, 1500);
+    // CDXC:SessionChat 2026-10-25 WHY:
+    // User: "even when opencode is on v2+ it still shows wrong model in the chat view (doesnt show same model that's in the terminal view)".
+    // The TUI keeps a model picked in its switcher (and the model a new conversation starts on) as its own
+    // draft until its next submit, while the conversation itself has no model or the previous one, so
+    // the chat showed another model and a prompt sent from the chat ran on OpenCode's default instead
+    // (seen live: the TUI said Gemini 3.1 Pro, the chat's prompt ran on Kimi K3.1 Pro). Once the TUI's
+    // pick has stood for a second while idle, it becomes the conversation's model, the way the TUI's own
+    // submit commits it. A model chosen elsewhere (Ghostex's picker) is never pushed back over.
+    const selectedModel = () => {
+      try {
+        const model = ctx.ui.model?.current?.();
+        if (!model?.providerID || !model.modelID) return;
+        return { providerID: model.providerID, id: model.modelID, ...(model.variant ? { variant: model.variant } : {}) };
+      } catch { return; }
+    };
+    const modelKey = model => model?.providerID ? JSON.stringify([model.providerID, model.id, model.variant ?? "default"]) : "";
+    const modelSync = { session: "", durable: "", selected: "", since: 0, skip: "", busy: false };
+    const syncModel = (id, info, running) => {
+      if (modelSync.busy || typeof ctx.client.session?.switchModel !== "function") return;
+      const model = selectedModel();
+      const selected = modelKey(model);
+      const durable = modelKey(info.model);
+      if (modelSync.session !== id) Object.assign(modelSync, { session: id, durable, selected, since: Date.now(), skip: "" });
+      if (durable !== modelSync.durable) {
+        // Changed outside this TUI while its pick stayed put: that pick is stale, not a new choice.
+        if (selected === modelSync.selected) modelSync.skip = selected;
+        modelSync.durable = durable;
+      }
+      if (selected !== modelSync.selected) Object.assign(modelSync, { selected, since: Date.now(), skip: "" });
+      if (!model || selected === durable || selected === modelSync.skip || running || Date.now() - modelSync.since < 1000) return;
+      modelSync.busy = true;
+      Promise.resolve(ctx.client.session.switchModel({ sessionID: id, model }))
+        // A model this conversation cannot use (another location's provider) is left to the TUI's own submit.
+        .then(() => { modelSync.durable = selected; }, () => { modelSync.skip = selected; })
+        .finally(() => { modelSync.busy = false; });
+    };
     let pending = false;
     let activeChild;
     let timeout;
@@ -45,6 +81,7 @@ export default {
       const permissions = ctx.data.session.permission.list(id) ?? [];
       const forms = ctx.data.session.form.list(id) ?? [];
       const running = ctx.data.session.status(id) === "running";
+      syncModel(id, info, running);
       const event = id !== currentSession ? "SessionStart" : permissions.length ? "PermissionRequest" : forms.length ? "AskUserQuestion" : running ? "SessionBusy" : "Stop";
       const identity = JSON.stringify([id, event, info.title, info.time.updated]);
       if (identity === previous) return;

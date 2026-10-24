@@ -250,12 +250,23 @@ pub(crate) fn normalize_optional_startup_text(value: Option<&Value>) -> Option<S
 }
 
 fn get_agent_launch_startup_text_for_session(session: &Value) -> Option<String> {
-    session
+    let plan = session
         .get("launchSettings")
         .and_then(Value::as_object)
         .and_then(|settings| settings.get("agentLaunchPlan"))
-        .and_then(Value::as_object)
-        .and_then(|plan| plan.get("startupText"))
+        .and_then(Value::as_object)?;
+    // The plan froze the OpenCode the PATH named when the session was created; a session restarted
+    // after OpenCode 2 was installed beside OpenCode 1 must start the OpenCode 2 (agent_cli/opencode.rs).
+    if let (Some(agent), Some(command)) = (
+        crate::session_chat_follower::session_chat_agent_for_session(session),
+        plan.get("command").and_then(Value::as_str),
+    ) {
+        let current = crate::agent_cli::opencode::with_opencode2(&agent, None, command);
+        if current != command {
+            return Some(crate::agents::as_atuin_ignored_shell_input(&current));
+        }
+    }
+    plan.get("startupText")
         .and_then(Value::as_str)
         .map(str::to_string)
         .filter(|value| !value.trim().is_empty())

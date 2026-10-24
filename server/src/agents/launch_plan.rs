@@ -850,8 +850,9 @@ pub(crate) fn resolve_agent_launch_command(
         Some("disabled") => false,
         _ => global_accept_all_enabled,
     };
+    let command = crate::agent_cli::opencode::with_opencode2(agent_id, icon, command);
     let command = apply_accept_all_spec(
-        command,
+        &command,
         agent_id,
         enabled,
         icon,

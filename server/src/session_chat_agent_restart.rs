@@ -34,8 +34,15 @@ pub(crate) async fn restart(
     if let Some(fixed) = fix_refused_send(state, params).await {
         return fixed;
     }
-    if params.get("actionId").and_then(Value::as_str) == Some(SESSION_CHAT_NOTICE_ACTION_SIGN_IN) {
-        return sign_in(state, params).await;
+    match params.get("actionId").and_then(Value::as_str) {
+        Some(SESSION_CHAT_NOTICE_ACTION_SIGN_IN) => return sign_in(state, params).await,
+        Some(crate::agent_cli::opencode::ACTION_INSTALL) => {
+            return install_opencode2(state, params).await
+        }
+        Some(crate::agent_cli::opencode::ACTION_RESTART) => {
+            return restart_on_opencode2(state, params).await
+        }
+        _ => {}
     }
     let state = state.clone();
     let params = params.clone();
@@ -76,6 +83,53 @@ pub(crate) async fn restart(
     })
     .await
     .map_err(|error| invalid(error.to_string()))?
+}
+
+/// Install OpenCode 2 on the card of an OpenCode chat that cannot connect (session_chat_opencode/mirror.rs):
+/// runs the catalog's official installer in the background, then restarts the session, whose new
+/// terminal runs the OpenCode 2 just installed (agent_cli/opencode.rs). The card shows the install
+/// while it runs and its error if it fails.
+async fn install_opencode2(
+    state: &AppState,
+    params: &Map<String, Value>,
+) -> Result<(), DomainStateError> {
+    let target = resolve_session_chat_send_target(state, params, "installOpenCode2")?;
+    crate::agent_cli::opencode::begin_install().map_err(invalid)?;
+    let state = state.clone();
+    tokio::spawn(async move {
+        let home = crate::resume_lookup::home_dir();
+        if crate::agent_cli::opencode::install(&home).await.is_ok() {
+            let _ = crate::session_chat_queue_runtime::cycle_session(
+                &state,
+                &target.project_id,
+                &target.session_id,
+            )
+            .await;
+        }
+    });
+    Ok(())
+}
+
+/// Restart on OpenCode 2: a session still running OpenCode 1 while OpenCode 2 is installed too.
+async fn restart_on_opencode2(
+    state: &AppState,
+    params: &Map<String, Value>,
+) -> Result<(), DomainStateError> {
+    let target = resolve_session_chat_send_target(state, params, "restartOnOpenCode2")?;
+    let home = crate::resume_lookup::home_dir();
+    let found = tokio::task::spawn_blocking(move || {
+        crate::agent_cli::opencode::launch_executable(&home).is_ok()
+    })
+    .await
+    .unwrap_or(false);
+    if !found {
+        return Err(invalid(
+            "OpenCode 2 is no longer installed, so the session was not restarted.",
+        ));
+    }
+    crate::session_chat_queue_runtime::cycle_session(state, &target.project_id, &target.session_id)
+        .await
+        .map_err(|reason| invalid(format!("Ghostex could not restart this session: {reason}.")))
 }
 
 /// Fix it on the card a failed send recovery left (session_chat_queue_runtime/send_heal.rs): the

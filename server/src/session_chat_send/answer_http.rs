@@ -68,7 +68,11 @@ pub(crate) async fn handle_answer_session_chat_prompt_http(
             Err(error) => domain_error_response(endpoint_path, request_id, error),
         };
     }
-    if session_chat_agent_for_session(&target.session).as_deref() == Some("opencode") {
+    // A notice action (Install OpenCode 2, Restart) is answered by gxserver, not by the OpenCode
+    // conversation, which may not exist yet (session_chat_agent_restart.rs).
+    if session_chat_agent_for_session(&target.session).as_deref() == Some("opencode")
+        && kind != "restartAgent"
+    {
         let id = match crate::session_chat_opencode::session_id(&target.session) {
             Ok(id) => id,
             Err(error) => return domain_error_response(endpoint_path, request_id, error),
