@@ -112,6 +112,18 @@ pub const HOTKEY_DEFINITIONS: &[HotkeyDefinition] = &[
         retired_default_keys: &[],
         action: J::Obj(&[("id", J::Str("voiceCallAboutSession")), ("kind", J::Str("voiceCallAboutSession"))]),
     },
+    // CDXC:VoiceMode 2026-10-24 DECISION:
+    // User, asked "Which keys hold Talk on the computer?", picked "Space, plus a "Hold to Talk" hotkey that works anywhere in the window" ("Listed in Settings › Hotkeys with no default key (like Voice Call About This Session). Held, it talks even while the chat box or a terminal has the keyboard, and the key never reaches them"). Space alone holds Talk only while no text field has the keyboard (apps/desktop/src/app/voice_agent/hold_to_talk.rs).
+    HotkeyDefinition {
+        id: "holdToTalk",
+        title: "Hold to Talk",
+        description: "During a voice call, hold to talk to the voice agent and let go to send; in a muted Regular call, hold to unmute. Works even while you're typing.",
+        default_key: "",
+        windows_linux_default_key: None,
+        alternate_default_keys: &[],
+        retired_default_keys: &[],
+        action: J::Obj(&[("id", J::Str("holdToTalk")), ("kind", J::Str("holdToTalk"))]),
+    },
     HotkeyDefinition {
         id: "toggleDictation",
         title: "Dictate",

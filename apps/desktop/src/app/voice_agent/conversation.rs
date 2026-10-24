@@ -150,8 +150,15 @@ pub(crate) struct VoiceAgent {
     pub(crate) push_to_talk_setting: bool,
     /// This call is push-to-talk (`ready` said so): the microphone streams only while Talk is held.
     pub(crate) push_to_talk: bool,
-    /// Talk is held.
+    /// Talk is held (gxserver was sent `talkStart`).
     pub(crate) talking: bool,
+    /// What holds it: the panel's button, Space or the Hold to Talk hotkey (`hold_to_talk.rs`).
+    pub(crate) hold: Option<super::hold_to_talk::HoldSource>,
+    /// Space would hold Talk now (the main window's keyboard is free), for the panel's keycap.
+    pub(crate) space_free: bool,
+    /// A short note in the strip above the panel's buttons, and the timer that clears it.
+    pub(crate) hint: Option<String>,
+    pub(super) hint_timer: Option<Task<()>>,
     /// Where the user dragged the panel: its gap to the window's trailing edge and its top, kept
     /// for the rest of the app's run.
     pub(crate) panel_place: Option<gpui::Point<Pixels>>,
@@ -295,6 +302,9 @@ impl GhostexGpuiApp {
         agent.push_to_talk_setting = push_to_talk_setting(settings.object());
         agent.push_to_talk = false;
         agent.talking = false;
+        agent.hold = None;
+        agent.hint = None;
+        agent.hint_timer = None;
         agent.muted = false;
         agent.state = "connecting".to_string();
         agent.hang_up_timer = None;
@@ -377,11 +387,25 @@ impl GhostexGpuiApp {
         self.sync_voice_agent_panel(cx);
     }
 
+    /// Mute, told to gxserver too (it drops the microphone's audio and refuses a push-to-talk hold
+    /// while muted, `talk.rs`). Muting a push-to-talk call mid-hold ends the hold with nothing sent.
     pub(crate) fn toggle_voice_agent_mute(&mut self, cx: &mut gpui::Context<Self>) {
         let muted = !self.voice_agent.muted;
         self.voice_agent.muted = muted;
+        let cancel_hold = muted && self.voice_agent.push_to_talk && self.voice_agent.talking;
+        if cancel_hold {
+            self.voice_agent.talking = false;
+            self.voice_agent.hold = None;
+        }
         if let Some(link) = &self.voice_agent.link {
             link.shared.muted.store(muted, Ordering::SeqCst);
+            if cancel_hold {
+                link.shared.talking.store(false, Ordering::SeqCst);
+            }
+            if self.voice_agent.phase == VoicePhase::Live {
+                link.socket
+                    .send_json(&json!({ "type": "mute", "muted": muted }));
+            }
         }
         self.sync_voice_agent_panel(cx);
     }
@@ -547,6 +571,11 @@ impl GhostexGpuiApp {
                         "type": "playbackRate",
                         "rate": self.voice_agent.speed,
                     }));
+                    // Muted while connecting: gxserver starts every client unmuted.
+                    if self.voice_agent.muted {
+                        link.socket
+                            .send_json(&json!({ "type": "mute", "muted": true }));
+                    }
                 }
                 let push_to_talk = event["callMode"].as_str() == Some("pushToTalk");
                 self.voice_agent.push_to_talk = push_to_talk;
@@ -640,6 +669,20 @@ impl GhostexGpuiApp {
                 }
             }
             "memory" => self.apply_voice_agent_memory_event(event),
+            // gxserver's word on a hold (server/src/voice_agent/talk.rs).
+            "talk" => match event["event"].as_str().unwrap_or_default() {
+                "tooShort" => self.flash_voice_agent_hint(super::hold_to_talk::HINT_TOO_SHORT, cx),
+                "refused" => {
+                    self.voice_agent.talking = false;
+                    self.voice_agent.hold = None;
+                    if let Some(link) = &self.voice_agent.link {
+                        link.shared.talking.store(false, Ordering::SeqCst);
+                    }
+                    self.flash_voice_agent_hint(super::hold_to_talk::HINT_UNMUTE, cx);
+                }
+                "cancelled" => self.flash_voice_agent_hint(super::hold_to_talk::HINT_CANCELLED, cx),
+                _ => {}
+            },
             "focus" => {
                 let focus = parse_focus(&event["focus"], &self.voice_agent.machine);
                 self.apply_voice_agent_focus(focus);
@@ -762,12 +805,13 @@ impl GhostexGpuiApp {
         self.save_voice_agent_setting(CALL_MODE_SETTING, json!(value), cx);
     }
 
-    /// Push-to-talk's Talk button, pressed (`down`) or released. Pressing it while the agent
-    /// speaks cuts the reply (gxserver answers `interrupted`, as for Stop); the microphone streams
-    /// only while it is held, and releasing it sends what was said as the turn.
-    pub(crate) fn set_voice_agent_talking(&mut self, down: bool, cx: &mut gpui::Context<Self>) {
+    /// Tells gxserver a hold started (`down`) or ended (`hold_to_talk.rs` decides when). In a
+    /// push-to-talk call pressing cuts a reply the agent is speaking (gxserver answers
+    /// `interrupted`, as for Stop) and releasing sends what was said; in a muted Regular call the
+    /// microphone streams for as long as the hold lasts.
+    pub(super) fn set_voice_agent_talking(&mut self, down: bool, cx: &mut gpui::Context<Self>) {
         let agent = &mut self.voice_agent;
-        if !agent.push_to_talk || agent.phase != VoicePhase::Live || agent.talking == down {
+        if agent.phase != VoicePhase::Live || agent.talking == down {
             return;
         }
         agent.talking = down;
@@ -947,10 +991,11 @@ fn start_audio(socket: Arc<VoiceSocket>, shared: Arc<LinkShared>) {
                 true,
                 true,
                 Box::new(move |samples| {
+                    // A hold unmutes a muted Regular call; a push-to-talk call streams only while held.
+                    let talking = capture_shared.talking.load(Ordering::Relaxed);
                     if capture_shared.streaming.load(Ordering::Relaxed)
-                        && !capture_shared.muted.load(Ordering::Relaxed)
-                        && (!capture_shared.push_to_talk.load(Ordering::Relaxed)
-                            || capture_shared.talking.load(Ordering::Relaxed))
+                        && (!capture_shared.muted.load(Ordering::Relaxed) || talking)
+                        && (!capture_shared.push_to_talk.load(Ordering::Relaxed) || talking)
                     {
                         let bytes = samples
                             .iter()

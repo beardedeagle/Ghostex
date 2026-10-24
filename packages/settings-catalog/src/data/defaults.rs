@@ -689,6 +689,7 @@ pub const DEFAULT_GHOSTEX_SETTINGS: &[(&str, J)] = &[
             ("toggleChatFilesLinks", J::Str("ctrl+alt+l")),
             ("toggleVoiceAgent", J::Str("ctrl+alt+v")),
             ("voiceCallAboutSession", J::Str("")),
+            ("holdToTalk", J::Str("")),
             ("toggleDictation", J::Str("ctrl+alt+d")),
             ("createAgentSession", J::Str("cmd+shift+o")),
             ("createSession", J::Str("cmd+shift+t")),

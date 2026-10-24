@@ -30,8 +30,12 @@ use crate::app::window::settings_modal::catalog::settings_catalog;
 use crate::app::window::*;
 use crate::*;
 
+#[path = "panel_controls.rs"]
+pub(crate) mod controls;
 #[path = "panel_focus_strip.rs"]
 mod focus_strip;
+
+use controls::{ControlColors, HoldLook, StripContent};
 
 const PANEL_WIDTH: f32 = 340.0;
 const PANEL_HEIGHT: f32 = 360.0;
@@ -53,7 +57,6 @@ const REPOSITION_DELAY: std::time::Duration = std::time::Duration::from_millis(1
 const ICON_MIC: &str = "titlebar/microphone.svg";
 const ICON_MIC_OFF: &str = "titlebar/microphone-off.svg";
 const ICON_HANG_UP: &str = "titlebar/phone-off.svg";
-const ICON_STOP: &str = "titlebar/player-stop.svg";
 const ICON_TOOL: &str = "titlebar/tool.svg";
 const ICON_CHECK: &str = "titlebar/check.svg";
 const ICON_ALERT: &str = "titlebar/alert-triangle.svg";
@@ -77,6 +80,16 @@ struct PanelColors {
 }
 
 impl PanelColors {
+    fn controls(&self) -> ControlColors {
+        ControlColors {
+            ink: self.ink,
+            text: self.text,
+            muted: self.muted,
+            border: self.border,
+            background: self.background,
+        }
+    }
+
     fn resolve() -> Self {
         let light = chrome_uses_light_appearance();
         let ink: Hsla = if light { gpui::black() } else { gpui::white() };
@@ -119,6 +132,13 @@ struct PanelSnapshot {
     /// A push-to-talk call, and whether Talk is held.
     push_to_talk: bool,
     talking: bool,
+    /// The hold button's look and tooltip (`hold_to_talk.rs`).
+    hold_look: HoldLook,
+    hold_tooltip: SharedString,
+    /// The header's Space keycap: `Some(lit)` while Space would hold Talk (lit while it does).
+    space_key: Option<bool>,
+    /// What the strip above the buttons shows: Stop talking while the agent speaks, else a hint.
+    strip: StripContent,
     problem: Option<VoiceProblem>,
     provider: Option<String>,
     voice: Option<String>,
@@ -147,7 +167,7 @@ pub(crate) struct VoicePanelWindow {
     snapshot: PanelSnapshot,
     scroll: ScrollHandle,
     drag: Option<PanelDrag>,
-    /// Push-to-talk's Talk button is held down; releasing the mouse anywhere ends the turn.
+    /// The hold button is held down; releasing the mouse anywhere in the panel ends the hold.
     holding_talk: bool,
     /// Where the speed button last painted, for its menu.
     speed_trigger: std::rc::Rc<std::cell::Cell<Option<Bounds<Pixels>>>>,
@@ -373,7 +393,7 @@ impl GhostexGpuiApp {
             .separator()
             .menu_with_check("Push-to-talk", push_to_talk, mode(true))
             .menu_with_disabled(
-                "Hold Talk to speak. Grok bills only audio sent and heard",
+                "Hold to talk. Grok bills only audio sent and heard",
                 true,
                 mode(true),
             )
@@ -457,6 +477,17 @@ impl GhostexGpuiApp {
             muted: agent.muted,
             push_to_talk: agent.push_to_talk,
             talking: agent.talking,
+            hold_look: self.voice_agent_hold_look(),
+            hold_tooltip: self.voice_agent_hold_tooltip(),
+            space_key: self.voice_agent_space_keycap(),
+            strip: if agent.phase == VoicePhase::Live && agent.state == "speaking" {
+                StripContent::StopTalking
+            } else {
+                agent
+                    .hint
+                    .clone()
+                    .map_or(StripContent::Empty, |hint| StripContent::Hint(hint.into()))
+            },
             problem: agent.problem.clone(),
             provider: agent.provider.clone(),
             voice: agent.voice.clone(),
@@ -593,7 +624,7 @@ impl VoicePanelWindow {
             let _ = app.update(cx, |app, cx| match action {
                 PanelAction::ToggleVoicePicker => app.toggle_voice_agent_voice_picker(cx),
                 PanelAction::PickVoice(voice) => app.pick_voice_agent_voice(voice, cx),
-                PanelAction::Talk(down) => app.set_voice_agent_talking(down, cx),
+                PanelAction::Talk(down) => app.voice_agent_button_hold(down, cx),
                 PanelAction::ToggleSettingsMenu(trigger) => {
                     app.toggle_voice_agent_settings_menu(trigger, cx)
                 }
@@ -715,7 +746,7 @@ impl VoicePanelWindow {
             VoicePhase::Live if snapshot.talking => ("Hearing you".to_string(), false),
             VoicePhase::Idle | VoicePhase::Live => match snapshot.state.as_str() {
                 "listening" if snapshot.muted => ("Muted".to_string(), false),
-                "listening" if snapshot.push_to_talk => ("Hold Talk to speak".to_string(), false),
+                "listening" if snapshot.push_to_talk => ("Hold to talk".to_string(), false),
                 "listening" => ("Listening".to_string(), false),
                 "userSpeaking" => ("Hearing you".to_string(), false),
                 "thinking" => ("Thinking…".to_string(), true),
@@ -788,14 +819,25 @@ impl VoicePanelWindow {
                     .child(indicator),
             )
             .child(
-                div()
+                h_flex()
                     .flex_1()
                     .min_w_0()
-                    .truncate()
-                    .text_size(px(13.0))
-                    .font_weight(gpui::FontWeight::SEMIBOLD)
-                    .text_color(colors.text)
-                    .child(label),
+                    .gap(px(6.0))
+                    .items_center()
+                    .child(
+                        div()
+                            .min_w_0()
+                            .truncate()
+                            .text_size(px(13.0))
+                            .font_weight(gpui::FontWeight::SEMIBOLD)
+                            .text_color(colors.text)
+                            .child(label),
+                    )
+                    .children(
+                        snapshot
+                            .space_key
+                            .map(|lit| controls::keycap("Space", lit, colors.controls())),
+                    ),
             )
             .child(self.voice_button(snapshot, colors, cx))
             .when(
@@ -1086,46 +1128,41 @@ impl VoicePanelWindow {
         .into_any_element()
     }
 
-    /// Push-to-talk's Talk: hold it to speak; pressing it while the agent talks cuts the reply.
-    fn talk_button(&self, snapshot: &PanelSnapshot, cx: &mut Context<Self>) -> AnyElement {
-        let talking = snapshot.talking;
-        let (fill, hover): (Hsla, Hsla) = if talking {
-            (rgba(0x38bdf8ff).into(), rgba(0x38bdf8ff).into())
-        } else {
-            (rgba(0x2563ebff).into(), rgba(0x3b82f6ff).into())
-        };
-        h_flex()
-            .id("voice-panel-talk")
-            .role(gpui::Role::Button)
-            .aria_label(SharedString::new_static("Hold to talk"))
-            .h(px(28.0))
-            .px(px(12.0))
-            .gap(px(6.0))
-            .items_center()
-            .rounded(px(8.0))
-            .bg(fill)
-            .text_color(gpui::white())
-            .text_size(px(12.5))
-            .font_weight(gpui::FontWeight::SEMIBOLD)
-            .cursor_default()
-            .hover(move |this| this.bg(hover))
-            .on_mouse_down(
-                MouseButton::Left,
-                cx.listener(|this, _: &MouseDownEvent, window, cx| {
-                    window.prevent_default();
-                    cx.stop_propagation();
+    /// The icon-only hold button beside Mute (`panel_controls.rs`); pressing it while the agent
+    /// talks cuts the reply in a push-to-talk call.
+    fn hold_button(
+        &self,
+        snapshot: &PanelSnapshot,
+        colors: &PanelColors,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let panel = cx.entity().downgrade();
+        controls::hold_button(
+            snapshot.hold_look,
+            snapshot.hold_tooltip.clone(),
+            colors.controls(),
+            move |_, cx| {
+                let _ = panel.update(cx, |this, cx| {
                     this.holding_talk = true;
                     this.run(PanelAction::Talk(true), cx);
                     cx.notify();
-                }),
-            )
-            .child(titlebar_svg_icon(ICON_MIC, 14.0, gpui::white()))
-            .child(if talking {
-                "Listening…"
-            } else {
-                "Hold to talk"
-            })
-            .into_any_element()
+                });
+            },
+        )
+    }
+
+    /// The strip between the transcript and the buttons: Stop talking while the agent speaks, a
+    /// hint after a tap or a refused press.
+    fn status_strip(
+        &self,
+        snapshot: &PanelSnapshot,
+        colors: &PanelColors,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let panel = cx.entity().downgrade();
+        controls::status_strip(snapshot.strip.clone(), colors.controls(), move |_, cx| {
+            let _ = panel.update(cx, |this, cx| this.run(PanelAction::StopTalking, cx));
+        })
     }
 
     /// Ends a held Talk when the mouse is released anywhere, the button or not.
@@ -1572,19 +1609,7 @@ impl VoicePanelWindow {
                     false,
                     cx,
                 ));
-                if snapshot.push_to_talk && snapshot.phase == VoicePhase::Live {
-                    left.push(self.talk_button(snapshot, cx));
-                } else if snapshot.state == "speaking" {
-                    left.push(self.button(
-                        "voice-panel-stop-talking",
-                        ICON_STOP,
-                        Some("Stop talking"),
-                        PanelAction::StopTalking,
-                        colors,
-                        false,
-                        cx,
-                    ));
-                }
+                left.push(self.hold_button(snapshot, colors, cx));
                 right.push(self.button(
                     "voice-panel-hang-up",
                     ICON_HANG_UP,
@@ -1670,6 +1695,10 @@ impl Render for VoicePanelWindow {
             .child(self.header(snapshot, &colors, cx))
             .children(self.focus_strip(snapshot, &colors, cx))
             .child(self.body(snapshot, &colors, cx))
+            .when(
+                matches!(snapshot.phase, VoicePhase::Starting | VoicePhase::Live),
+                |this| this.child(self.status_strip(snapshot, &colors, cx)),
+            )
             .child(self.footer(snapshot, &colors, cx))
             .when(self.holding_talk, |this| {
                 this.child(self.talk_release_listener(cx))

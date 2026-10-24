@@ -21,6 +21,7 @@ use super::prompt;
 use super::provider::{Provider, ProviderSocket, BYTES_PER_MS};
 use super::registry;
 use super::sessions::SessionInfo;
+use super::talk::{Cancel, Press, Release, Talk};
 use super::tool_runs::ToolRuns;
 use super::tools::{self, ToolOutcome};
 use crate::server::AppState;
@@ -45,8 +46,6 @@ const CUT_CAPTION_WAIT: Duration = Duration::from_millis(1_200);
 /// How long gxserver waits for the provider to accept a voice change before it keeps the voice
 /// for the next conversation.
 const VOICE_CHANGE_WAIT: Duration = Duration::from_secs(5);
-/// A held Talk shorter than this sent nothing worth answering.
-const MIN_TALK_AUDIO_MS: u64 = 200;
 /// The words of `focusNotFound`, at the start and for a move.
 pub(super) const FOCUS_NOT_FOUND: &str = "That session isn't open on this computer anymore.";
 /// The client playback rates gxserver accepts (the desktop offers 1x to 2x).
@@ -91,10 +90,15 @@ pub(super) enum Input {
     Voice(String),
     /// How fast the attached client plays the agent's audio (1.0 is as the provider sent it).
     PlaybackRate(f64),
-    /// Push-to-talk: the user pressed Talk (the microphone streams until `TalkEnd`).
+    /// The user pressed the hold button (or Space, or the Hold to Talk hotkey): a push-to-talk
+    /// turn starts, or a muted Regular call listens until `TalkEnd` (`talk.rs`).
     TalkStart,
-    /// Push-to-talk: the user released Talk; what they said is the turn.
+    /// The user let go: a push-to-talk turn is sent, a Regular call's hold ends.
     TalkEnd,
+    /// The user slid off the button: the hold is dropped and nothing is sent.
+    TalkCancel,
+    /// The client's Mute; gxserver drops the microphone's audio while it is on.
+    Mute(bool),
     /// Hand the remembered last conversation to the agent (Continue).
     ContinueMemory,
     /// The user forgot the remembered conversation.
@@ -186,9 +190,8 @@ pub(super) struct Conversation {
     audio_sent: bool,
     /// A push-to-talk call (no turn detection), fixed when the call started.
     push_to_talk: bool,
-    /// Push-to-talk: Talk is held, and how much audio came while it was.
-    talking: bool,
-    talk_audio_ms: u64,
+    /// The hold to talk and the client's Mute (`talk.rs`).
+    talk: Talk,
     /// CDXC:VoiceMode 2026-10-20 WHY:
     /// The speed buttons stretch the agent's audio on the client (pitch kept), so a reply plays in less time than the provider's audio lasts. gxserver's playback clock (when the reply ends, how much was heard at an interruption, when a tool follow-up may start) runs at this rate; `playedMs` and `audio_end_ms` stay in the provider's audio time.
     playback_rate: f64,
@@ -269,8 +272,7 @@ impl Conversation {
             voice_changes: 0,
             audio_sent: false,
             push_to_talk,
-            talking: false,
-            talk_audio_ms: 0,
+            talk: Talk::new(push_to_talk),
             playback_rate: 1.0,
             sink,
             stream,
@@ -461,6 +463,7 @@ impl Conversation {
                 ));
                 self.client = Some((attach_id, out));
                 self.detached_since = None;
+                self.talk.attached();
                 if std::mem::take(&mut self.briefing_pending) {
                     self.read_briefing();
                 }
@@ -475,13 +478,16 @@ impl Conversation {
                     registry::set_attached(&self.id, false);
                     // Nobody can hear the rest of the reply.
                     self.playback_end = Instant::now();
+                    if let Some(release) = self.talk.detached(Instant::now()) {
+                        self.apply_talk_release(release).await?;
+                    }
                 }
             }
             Input::Audio(bytes) => {
-                // Push-to-talk listens only while Talk is held.
-                if bytes.len() >= 2 && (!self.push_to_talk || self.talking) {
-                    if self.talking {
-                        self.talk_audio_ms += (bytes.len() / BYTES_PER_MS) as u64;
+                // Push-to-talk listens only while Talk is held, and nobody while muted.
+                if bytes.len() >= 2 && self.talk.passes_audio((bytes.len() / BYTES_PER_MS) as u64) {
+                    if self.talk.held() {
+                        self.last_talk = Instant::now();
                     }
                     let even = &bytes[..bytes.len() - bytes.len() % 2];
                     let audio = base64::engine::general_purpose::STANDARD.encode(even);
@@ -536,6 +542,12 @@ impl Conversation {
             Input::Voice(voice) => self.change_voice(voice).await?,
             Input::TalkStart => self.talk_start().await?,
             Input::TalkEnd => self.talk_end().await?,
+            Input::TalkCancel => self.talk_cancel().await?,
+            Input::Mute(muted) => {
+                if self.talk.set_muted(muted) == Cancel::Cleared {
+                    self.drop_held_turn().await?;
+                }
+            }
             Input::PlaybackRate(rate) => {
                 let rate = rate.clamp(*PLAYBACK_RATE_RANGE.start(), *PLAYBACK_RATE_RANGE.end());
                 let now = Instant::now();
@@ -744,6 +756,13 @@ impl Conversation {
 
     async fn on_tick(&mut self) -> Result<(), Ended> {
         let now = Instant::now();
+        if self.talk.wants_silence(now) {
+            // A muted Regular call's hold ended: the provider hears the quiet it needs to end the turn.
+            let silence = vec![0u8; TICK.as_millis() as usize * BYTES_PER_MS];
+            let audio = base64::engine::general_purpose::STANDARD.encode(silence);
+            self.provider_send(json!({"type": "input_audio_buffer.append", "audio": audio}))
+                .await?;
+        }
         if self
             .cut_pending
             .as_ref()
@@ -835,6 +854,7 @@ impl Conversation {
                 self.set_state("userSpeaking");
             }
             "input_audio_buffer.speech_stopped" => {
+                self.talk.speech_stopped();
                 self.user_speaking = false;
                 self.last_talk = Instant::now();
                 self.set_state("thinking");
@@ -1288,52 +1308,94 @@ impl Conversation {
         }));
     }
 
-    /// Push-to-talk: Talk pressed. Talking over the agent cuts its reply, as Stop does, then the
-    /// microphone's audio collects in the provider's buffer until Talk is released.
+    /// Talk pressed. In a push-to-talk call, talking over the agent cuts its reply, as Stop does,
+    /// then the microphone's audio collects in the provider's buffer until Talk is released. In a
+    /// muted Regular call the hold only opens the microphone; the provider's turn detection does
+    /// the rest (`talk.rs`).
     ///
     /// CDXC:VoiceMode 2026-10-21 DECISION:
-    /// User: "I feel we're overcomplicating things. Let's just have two modes: push-to-talk and regular, and mention the pricing difference between the two in settings for the mobile app and for the desktop app. No need to switch when I'm muted, and only any of that. Let's just keep it simple: two modes in the settings, please." `voiceAgentCallMode` (`regular` default, `pushToTalk`) is read when a call starts and never switched mid-call; mute is a plain microphone mute in both modes. Supersedes the 2026-10-21 "Push-to-talk while muted" switch, which xAI kept billing for connected time.
+    /// User: "I feel we're overcomplicating things. Let's just have two modes: push-to-talk and regular, and mention the pricing difference between the two in settings for the mobile app and for the desktop app. No need to switch when I'm muted, and only any of that. Let's just keep it simple: two modes in the settings, please." `voiceAgentCallMode` (`regular` default, `pushToTalk`) is read when a call starts and never switched mid-call; mute is a plain microphone mute in both modes. Supersedes the 2026-10-21 "Push-to-talk while muted" switch, which xAI kept billing for connected time. The 2026-10-24 hold to unmute in talk.rs leaves the mode alone.
     async fn talk_start(&mut self) -> Result<(), Ended> {
-        if !self.push_to_talk {
-            return Ok(());
+        match self.talk.press() {
+            Press::Ignored => Ok(()),
+            Press::RefusedMuted => {
+                self.to_client(json!({"type": "talk", "event": "refused", "reason": "muted"}));
+                Ok(())
+            }
+            Press::Unmute => {
+                self.last_talk = Instant::now();
+                Ok(())
+            }
+            Press::Talk => {
+                if self.response_active {
+                    self.provider_send(json!({"type": "response.cancel"}))
+                        .await?;
+                }
+                self.stop_playback(true).await?;
+                // The reply to this turn will see any tool results; a separate one would repeat it.
+                if self.create_at.take().is_some() {
+                    self.outputs_waiting = false;
+                }
+                self.provider_send(json!({"type": "input_audio_buffer.clear"}))
+                    .await?;
+                self.user_speaking = true;
+                self.last_talk = Instant::now();
+                self.set_state("userSpeaking");
+                Ok(())
+            }
         }
-        if self.response_active {
-            self.provider_send(json!({"type": "response.cancel"}))
-                .await?;
+    }
+
+    /// Talk released: a push-to-talk turn is committed and answered; a hold too short to hold any
+    /// speech is dropped and the client told (`tooShort`).
+    async fn talk_end(&mut self) -> Result<(), Ended> {
+        let release = self.talk.release(Instant::now());
+        self.apply_talk_release(release).await
+    }
+
+    async fn apply_talk_release(&mut self, release: Release) -> Result<(), Ended> {
+        match release {
+            Release::Ignored => Ok(()),
+            Release::TooShort { clear } => {
+                self.last_talk = Instant::now();
+                if clear {
+                    self.drop_held_turn().await?;
+                }
+                self.to_client(json!({"type": "talk", "event": "tooShort"}));
+                Ok(())
+            }
+            Release::Unmuted => {
+                self.last_talk = Instant::now();
+                Ok(())
+            }
+            Release::Commit => {
+                self.user_speaking = false;
+                self.last_talk = Instant::now();
+                self.provider_send(json!({"type": "input_audio_buffer.commit"}))
+                    .await?;
+                self.create_response_now().await
+            }
         }
-        self.stop_playback(true).await?;
-        // The reply to this turn will see any tool results; a separate one would repeat it.
-        if self.create_at.take().is_some() {
-            self.outputs_waiting = false;
+    }
+
+    /// The user slid off the hold button: nothing they said is sent.
+    async fn talk_cancel(&mut self) -> Result<(), Ended> {
+        if self.talk.cancel() == Cancel::Cleared {
+            self.drop_held_turn().await?;
+            self.to_client(json!({"type": "talk", "event": "cancelled"}));
         }
-        self.provider_send(json!({"type": "input_audio_buffer.clear"}))
-            .await?;
-        self.talking = true;
-        self.talk_audio_ms = 0;
-        self.user_speaking = true;
-        self.last_talk = Instant::now();
-        self.set_state("userSpeaking");
         Ok(())
     }
 
-    /// Push-to-talk: Talk released. What was said is committed as the user's turn and answered; a
-    /// press too short to hold any speech is dropped.
-    async fn talk_end(&mut self) -> Result<(), Ended> {
-        if !self.talking {
-            return Ok(());
-        }
-        self.talking = false;
-        self.user_speaking = false;
-        self.last_talk = Instant::now();
-        if self.talk_audio_ms < MIN_TALK_AUDIO_MS {
-            self.provider_send(json!({"type": "input_audio_buffer.clear"}))
-                .await?;
-            self.set_state("listening");
-            return Ok(());
-        }
-        self.provider_send(json!({"type": "input_audio_buffer.commit"}))
+    /// Forgets the audio of a hold that will not be answered.
+    async fn drop_held_turn(&mut self) -> Result<(), Ended> {
+        self.provider_send(json!({"type": "input_audio_buffer.clear"}))
             .await?;
-        self.create_response_now().await
+        if self.push_to_talk {
+            self.user_speaking = false;
+            self.set_state("listening");
+        }
+        Ok(())
     }
 
     fn start_tool(&mut self, call_id: String, name: String, arguments: String) {

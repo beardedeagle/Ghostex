@@ -26,6 +26,9 @@ mod sessions;
 mod settings_http;
 mod show;
 mod socket;
+mod talk;
+#[cfg(test)]
+mod talk_tests;
 mod tool_runs;
 mod tools;
 mod transcribe;

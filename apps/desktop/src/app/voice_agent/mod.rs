@@ -11,7 +11,9 @@
 //!   `audio_cpal.rs` on Windows and Linux with `aec.rs` (echo cancellation) and `stretch.rs` (speed);
 //!   `test_mic.rs` the developer-only WAV feed that stands in for the microphone.
 //! - `conversation.rs`: the conversation the work area header's Voice button starts and ends.
-//! - `panel.rs`: the panel that shows it, `rows.rs` what gxserver's frames make of its rows;
+//! - `panel.rs`: the panel that shows it (`panel_controls.rs` its hold button and Stop talking
+//!   pill), `rows.rs` what gxserver's frames make of its rows;
+//! - `hold_to_talk.rs`: holding to talk with the panel's button, Space or the Hold to Talk hotkey.
 //!   `header_button.rs`: the Voice button.
 //! - `memory.rs`: the remembered last conversation the panel offers to continue.
 //! - `typing.rs`: whether the user is typing, which keeps the agent's follow from switching sessions.
@@ -31,6 +33,7 @@ pub(crate) mod dictation;
 pub(crate) mod endpoint;
 pub(crate) mod focus;
 pub(crate) mod header_button;
+pub(crate) mod hold_to_talk;
 pub(crate) mod memory;
 pub(crate) mod panel;
 pub(crate) mod recorder;

@@ -184,6 +184,7 @@ impl Render for GhostexGpuiApp {
         self.sync_terminal_model_picker_keyboard_scope();
         self.main_window_bounds = window.bounds();
         self.voice_agent_follow_main_window(cx);
+        self.note_voice_agent_space_free(window, cx);
         self.sync_read_aloud_on_screen(window, cx);
         self.main_window_handle = Some(gpui::Window::window_handle(window));
         crate::app::workspace_windows::sync_workspace_window_title(window, &self.project_name, cx);
@@ -350,6 +351,20 @@ impl Render for GhostexGpuiApp {
             CDXC:Terminal 2026-07-04-08:20:
             Root key-down forwarding derives its terminal target from app-level shell focus, which intentionally stays on the terminal pane while the Cmd+F search bar is open. If a terminal search input holds GPUI keyboard focus, forwarding here would write every typed character into the focused terminal PTY and consume the event, so macOS never runs the insertText path that feeds the focused input. Keyboard focus on a search input therefore ends root terminal key forwarding (and placeholder wake) for the keystroke; the search input's own dispatch path owns it.
             */
+            // Space holds Talk in a voice call while nothing has the keyboard, and the hold's key coming
+            // up ends it (voice_agent/hold_to_talk.rs); both run before any field or terminal sees the key.
+            .capture_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
+                if this.voice_agent_space_down(event, window, cx) {
+                    window.prevent_default();
+                    cx.stop_propagation();
+                }
+            }))
+            .capture_key_up(cx.listener(|this, event: &gpui::KeyUpEvent, window, cx| {
+                if this.voice_agent_key_up(event, cx) {
+                    window.prevent_default();
+                    cx.stop_propagation();
+                }
+            }))
             .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
                 if this.native_sidebar_input_owns_focus(window, cx)
                     || this.terminal_search_input_owns_keyboard_focus(window, cx)

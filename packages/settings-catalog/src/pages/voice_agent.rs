@@ -8,6 +8,8 @@ use crate::rows::{row, section, Page, Section};
 /// User: the voice agent is built into the app, not an extension, so it is a plain Settings page and not a built-in extension card with an on/off switch.
 /// CDXC:VoiceMode 2026-10-20 DECISION:
 /// User: "on the voice mode screen, the user should be able to click on Eve to change the voice, and click buttons to change the voice agent's speed, with options 1, 1.2, 1.4, 1.6, 1.8, and 2." `voiceAgentSpeed` (default 1) is that speed; the voice panel's speed menu, the phone's speed buttons and this row save the same setting.
+/// CDXC:VoiceMode 2026-10-24 DECISION:
+/// User, asked "Should Push-to-talk become the default call mode?", picked "No, keep Regular as the default" ("The voice agent is built for talking while you drive or walk, and that wants hands-free. Push-to-talk stays one tap away in the gear menu"). `voiceAgentCallMode` stays `regular` by default.
 /// CDXC:VoiceMode 2026-10-20 SEE-ALSO:
 /// gxserver reads `voiceAgentProvider` and the two voice keys (server/src/voice_agent/keys.rs, which seals the API keys in its vault), and answers `/api/readVoiceAgent` and `/api/setVoiceAgentKey`; the key rows are UI rows with no stored value. Client contract: docs/2026-10-20/voice-mode/voice-agent-client-contract.md.
 pub(crate) fn page() -> Page {
@@ -41,7 +43,7 @@ pub(crate) fn provider() -> Section {
             row("voiceAgentSpeed", "Speaking speed", "How fast the voice agent talks, from normal speed to twice as fast. The voice keeps its pitch, and the speed menu next to the voice in the voice panel changes it too, even mid-sentence.").options(&[
                 opt("1×", "1"), opt("1.2×", "1.2"), opt("1.4×", "1.4"), opt("1.6×", "1.6"), opt("1.8×", "1.8"), opt("2×", "2"),
             ]),
-            row("voiceAgentCallMode", "Call mode", "Regular calls listen hands-free; on Grok they're billed for the whole time the call is connected, quiet and muted time included (about $0.08 a minute). Push-to-talk calls listen only while you hold Talk; on Grok you pay only for the audio you send and the agent's replies. GPT Realtime bills only audio in both modes. A change applies to your next call; the gear in the voice panel changes it too.").options(&[
+            row("voiceAgentCallMode", "Call mode", "Regular calls listen hands-free; on Grok they're billed for the whole time the call is connected, quiet and muted time included (about $0.08 a minute). Push-to-talk calls listen only while you hold the talk button next to Mute (or Space, or the Hold to Talk hotkey); on Grok you pay only for the audio you send and the agent's replies. In a muted Regular call, holding it unmutes you for as long as you hold. GPT Realtime bills only audio in both modes. A change applies to your next call; the gear in the voice panel changes it too.").options(&[
                 opt("Regular", "regular"), opt("Push-to-talk", "pushToTalk"),
             ]),
         ],

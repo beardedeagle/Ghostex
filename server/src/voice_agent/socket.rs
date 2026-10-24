@@ -233,6 +233,11 @@ async fn run_conversation_socket(
                     "voice" => Input::Voice(field("voice")),
                     "talkStart" => Input::TalkStart,
                     "talkEnd" => Input::TalkEnd,
+                    "talkCancel" => Input::TalkCancel,
+                    "mute" => match value.get("muted").and_then(Value::as_bool) {
+                        Some(muted) => Input::Mute(muted),
+                        None => Input::BadRequest("mute needs muted: true or false.".to_string()),
+                    },
                     "focus" => match value.get("session") {
                         Some(Value::Null) => Input::Focus(None),
                         Some(Value::String(session))

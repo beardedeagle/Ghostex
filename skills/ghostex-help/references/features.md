@@ -2689,8 +2689,9 @@ popup thread doing"). While the
 conversation is open it tells you when a session finishes its turn or starts
 waiting on a question or an approval. The conversation keeps going while you
 switch projects and chats. A small panel under the header shows what it is
-doing, live captions of both sides and the tools it runs, with Mute, Stop
-talking and Hang up; talking over it also stops it. Drag the panel by its top
+doing, live captions of both sides and the tools it runs, with Mute, a small
+talk button beside it and Hang up; while the agent speaks, a Stop talking pill
+shows above the buttons (talking over it also stops it in a Regular call). Drag the panel by its top
 bar to put it anywhere in the window (it stays there until you quit Ghostex),
 and scroll it to read back the conversation. Click the voice name ("Grok ·
 Eve") to pick another voice: Grok switches right away when it can, and GPT
@@ -2702,12 +2703,20 @@ mid-sentence. Calls come in two modes, chosen in Settings > Voice agent > Call
 mode or with the gear beside the speed button. Regular (the default) is
 hands-free: the agent listens all call and you can talk over it; on Grok you
 pay for the whole time the call is connected, quiet and muted time included
-(about $0.08 a minute). Push-to-talk listens only while you hold the Talk
-button (pressing it while the agent speaks stops it, and releasing it sends
-what you said); on Grok you pay only for the audio you send and the agent's
-replies. GPT Realtime bills only audio in both modes. A change applies to your
-next call. Mute simply turns your microphone off in either mode. It hangs up by
-itself after 5 minutes with nobody talking.
+(about $0.08 a minute). Push-to-talk listens only while you hold the talk
+button (the waveform right of Mute): pressing it while the agent speaks stops
+it, and letting go sends what you said; a quick tap sends nothing and says
+"Hold to talk, then let go to send". You can also hold Space while you aren't
+typing anywhere (the panel shows a Space key when it works), or hold the
+"Hold to Talk" hotkey, which works even while you type in a chat or a terminal
+(no key is set; give it one in Settings > Hotkeys). If the window loses focus
+while you hold Space, what you said so far is sent. On Grok push-to-talk
+calls you pay only for the audio you send and the agent's replies. GPT
+Realtime bills only audio in both modes. A change applies to your next call;
+Regular stays the default. Mute turns your microphone off; in a push-to-talk
+call it also locks the talk button ("Unmute to talk"), and in a muted Regular
+call holding the talk button, Space or the hotkey unmutes you for as long as
+you hold. It hangs up by itself after 5 minutes with nobody talking.
 
 A call can also be about just one session. Click the small arrow on the
 headset button and pick "This session: <title>" (the session you are looking
@@ -2786,18 +2795,22 @@ stores one. When the agent shows a session, the voice screen offers an
 going, and the computer's window switches to it too unless someone is typing
 there. The conversation keeps going while you move around the app, switch
 apps or lock the phone, with a "Voice mode on" notification that has Mute and
-Hang up, and it reconnects by itself after a short network drop. It talks
+Hang up (in a push-to-talk call, Talk instead of Mute: tap it to start talking
+and tap it again, now Send, to send), and it reconnects by itself after a
+short network drop. It talks
 through the phone's speaker, or a Bluetooth headset or car hands-free link
 when one is connected, and pauses while a call or a navigation prompt plays.
 The phone's voice screen has the same voice picker (tap the voice name under
 the computer's name) and a small speed button beside it that opens the list of
-speeds, the same gear for the call mode, and a Hold to talk button in
-push-to-talk calls; the call mode is also in the phone's Settings > Voice
-agent. They save the computer's settings, so the desktop and the phone talk
+speeds, the same gear for the call mode, and the same talk button between
+Mute and Hang up: press and hold it to talk and let go to send, or slide your
+finger off it ("Release to cancel") and let go to send nothing; slide back on
+to keep talking. Stop talking is a pill above the buttons while the agent
+speaks. The call mode is also in the phone's Settings > Voice agent. They save the computer's settings, so the desktop and the phone talk
 with the same voice at the same speed and in the same mode. It shows
 the same "Last conversation" card with Continue, Start fresh and Forget.
 
-Settings: `voiceAgentProvider`, `voiceAgentXaiVoice`, `voiceAgentOpenaiVoice`, `voiceAgentSpeed`, `voiceAgentCallMode`; the Memory row (`voiceAgentMemory`) forgets the remembered conversation.
+Settings: `voiceAgentProvider`, `voiceAgentXaiVoice`, `voiceAgentOpenaiVoice`, `voiceAgentSpeed`, `voiceAgentCallMode`; the Memory row (`voiceAgentMemory`) forgets the remembered conversation. Hotkeys: Toggle Voice Agent, Voice Call About This Session, Hold to Talk (`holdToTalk`).
 
 ## Remote machines, web, and mobile
 

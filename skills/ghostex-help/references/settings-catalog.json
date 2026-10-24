@@ -3532,6 +3532,7 @@
         "toggleChatFilesLinks": "ctrl+alt+l",
         "toggleVoiceAgent": "ctrl+alt+v",
         "voiceCallAboutSession": "",
+        "holdToTalk": "",
         "toggleDictation": "ctrl+alt+d",
         "createAgentSession": "cmd+shift+o",
         "createSession": "cmd+shift+t",
@@ -11712,7 +11713,7 @@
     {
       "key": "voiceAgentCallMode",
       "title": "Call mode",
-      "subtitle": "Regular calls listen hands-free; on Grok they're billed for the whole time the call is connected, quiet and muted time included (about $0.08 a minute). Push-to-talk calls listen only while you hold Talk; on Grok you pay only for the audio you send and the agent's replies. GPT Realtime bills only audio in both modes. A change applies to your next call; the gear in the voice panel changes it too.",
+      "subtitle": "Regular calls listen hands-free; on Grok they're billed for the whole time the call is connected, quiet and muted time included (about $0.08 a minute). Push-to-talk calls listen only while you hold the talk button next to Mute (or Space, or the Hold to Talk hotkey); on Grok you pay only for the audio you send and the agent's replies. In a muted Regular call, holding it unmutes you for as long as you hold. GPT Realtime bills only audio in both modes. A change applies to your next call; the gear in the voice panel changes it too.",
       "tab": "voiceAgent",
       "tabTitle": "Voice agent",
       "section": "provider",
@@ -11864,6 +11865,12 @@
       "id": "voiceCallAboutSession",
       "title": "Voice Call About This Session",
       "description": "Start a voice call about the session you are looking at, or move the open call to it.",
+      "defaultKey": ""
+    },
+    {
+      "id": "holdToTalk",
+      "title": "Hold to Talk",
+      "description": "During a voice call, hold to talk to the voice agent and let go to send; in a muted Regular call, hold to unmute. Works even while you're typing.",
       "defaultKey": ""
     },
     {
