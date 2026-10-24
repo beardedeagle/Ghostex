@@ -3342,13 +3342,16 @@ agent opened (`gh pr create`, `gh issue create`), the issues a linked PR closes,
 and the Linear tickets the chat mentions (with a Linear API key set; only IDs of
 your Linear teams count). An agent adds one with `ghostex link add <url|#123|ABC-123>`
 from its own terminal. A PR or issue link that was only pasted into the chat is
-offered under Suggested instead, with a Link button. The work area header shows up
+offered under Suggested instead, to link with one click. The work area header shows up
 to three of them after the session's title, open work first, each with its number,
 state and checks, then +N for the rest (or a List pill when they all fit), which
-opens the whole list: each link on two lines, its number, title and state, then
-its kind (Pull request, Issue or Linear), its checks (passing, failing or running,
-shown only while it is open), its review
-(review requested, approved or changes requested) and where it came from. The list
+opens the whole list: each link with its icon (a branch for a pull request, the
+GitHub mark for an issue, the Linear logo for a Linear ticket, coloured by its
+state), number, title and state, and under it, only when there is something to act
+on, an open pull request's checks (passing, failing or running) and review (review
+requested, approved or changes requested) or the pull request that closes an issue.
+Suggested and Removed links look the same, with a link button (Link) or a restore
+button (Restore) where a linked one has its ×. The list
 leads with Open, the links that still need something, then Merged or closed
 (folded until you open it), Suggested and Removed, each listing pull requests,
 then issues, then Linear tickets. Each group folds with the

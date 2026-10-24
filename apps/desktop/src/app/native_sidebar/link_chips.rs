@@ -64,22 +64,11 @@ pub(crate) fn session_link_chips_that_fit(
 
 pub(crate) fn session_link_glyph_icon(glyph: SessionLinkGlyph) -> &'static str {
     match glyph {
-        SessionLinkGlyph::PullRequest => "titlebar/git-pull-request.svg",
-        SessionLinkGlyph::PullRequestDraft => "titlebar/git-pull-request-draft.svg",
-        SessionLinkGlyph::PullRequestClosed => "titlebar/git-pull-request-closed.svg",
-        SessionLinkGlyph::Merged => "titlebar/git-merge.svg",
-        SessionLinkGlyph::IssueOpen => "titlebar/circle-dot.svg",
-        SessionLinkGlyph::IssueClosed | SessionLinkGlyph::ChecksPassing => {
-            "titlebar/circle-check.svg"
-        }
-        SessionLinkGlyph::LinearBacklog => "titlebar/circle-dashed.svg",
-        SessionLinkGlyph::LinearTodo => "titlebar/circle.svg",
-        SessionLinkGlyph::LinearStarted => "titlebar/work-issue-started.svg",
-        SessionLinkGlyph::LinearReview => "titlebar/work-issue-review.svg",
-        SessionLinkGlyph::LinearDone => "titlebar/circle-check-filled.svg",
-        SessionLinkGlyph::LinearCanceled | SessionLinkGlyph::ChecksFailing => {
-            "titlebar/circle-x.svg"
-        }
+        SessionLinkGlyph::Branch => "titlebar/git-branch.svg",
+        SessionLinkGlyph::Github => "titlebar/brand-github.svg",
+        SessionLinkGlyph::Linear => "titlebar/brand-linear.svg",
+        SessionLinkGlyph::ChecksPassing => "titlebar/circle-check.svg",
+        SessionLinkGlyph::ChecksFailing => "titlebar/circle-x.svg",
         SessionLinkGlyph::ChecksPending => "titlebar/loader2.svg",
     }
 }
@@ -292,7 +281,11 @@ impl GhostexGpuiApp {
         let session_id = session.session_id.clone();
         let chips = items.iter().take(shown).enumerate().map(|(index, link)| {
             let click = open_session_link_command(link);
-            let tooltip = format!("{}\n{}", link.summary(), link.detail_line());
+            let tooltip = [link.summary(), link.detail_line()]
+                .into_iter()
+                .filter(|line| !line.is_empty())
+                .collect::<Vec<_>>()
+                .join("\n");
             let foreground = appearance.foreground;
             session_link_chip_body(link, scale, 11.5, appearance.muted)
                 .id(format!("native-session-link-{index}-{session_id}"))

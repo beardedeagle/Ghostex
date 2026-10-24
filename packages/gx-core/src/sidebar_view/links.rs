@@ -39,6 +39,8 @@ pub struct SessionLink {
     pub checks: Option<String>,
     pub review: Option<String>,
     pub url: Option<String>,
+    /// Where it came from (`branch`, `closes`, `user`…); only `closes` shows, as `source_label`.
+    pub source: String,
     /// "From branch", "Agent opened", "Closed by #318"…
     pub source_label: String,
     pub finished: bool,
@@ -61,18 +63,12 @@ pub struct SuggestedSessionLink {
 /// The icon an entry draws; each renderer maps it to its own SVG.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SessionLinkGlyph {
-    PullRequest,
-    PullRequestDraft,
-    PullRequestClosed,
-    Merged,
-    IssueOpen,
-    IssueClosed,
-    LinearBacklog,
-    LinearTodo,
-    LinearStarted,
-    LinearReview,
-    LinearDone,
-    LinearCanceled,
+    /// Every pull request: a branch.
+    Branch,
+    /// Every GitHub issue: the GitHub mark.
+    Github,
+    /// Every Linear ticket: the Linear logo.
+    Linear,
     ChecksPassing,
     ChecksFailing,
     ChecksPending,
@@ -133,6 +129,7 @@ impl SessionLinks {
                     checks: item.checks.clone(),
                     review: item.review.clone(),
                     url: item.url.clone(),
+                    source: item.source.clone(),
                     source_label: item.source_label.clone(),
                     finished: item.finished,
                 })
@@ -157,39 +154,47 @@ impl SessionLinks {
 }
 
 impl SessionLink {
+    /// The icon says the kind (a branch for a PR, the GitHub mark for an issue, the Linear logo
+    /// for a ticket) and its colour the state.
+    ///
+    /// CDXC:SessionLinks 2026-10-24 DECISION:
+    /// User: "Let's please not show text for issue and for Pull Request I think it's better to just show branch icon for PRs and show github icon for issues and a linear icon for linear issues." Each icon keeps its state colour (open green, merged purple, closed red, a closed issue purple, draft grey, Linear's state colours). This supersedes the same day's kind word at the start of the second line and the per-state PR and issue icons.
     pub fn glyph(&self) -> (SessionLinkGlyph, SessionLinkTone) {
         let state = self.state.as_deref();
         match self.kind {
-            SessionLinkKind::PullRequest => match state {
-                Some("draft") => (SessionLinkGlyph::PullRequestDraft, SessionLinkTone::Draft),
-                Some("merged") => (SessionLinkGlyph::Merged, SessionLinkTone::Merged),
-                Some("closed") => (SessionLinkGlyph::PullRequestClosed, SessionLinkTone::Closed),
-                Some(_) => (SessionLinkGlyph::PullRequest, SessionLinkTone::Open),
-                None => (SessionLinkGlyph::PullRequest, SessionLinkTone::Draft),
-            },
-            SessionLinkKind::Issue => match state {
-                Some("closed") => (SessionLinkGlyph::IssueClosed, SessionLinkTone::Merged),
-                Some(_) => (SessionLinkGlyph::IssueOpen, SessionLinkTone::Open),
-                None => (SessionLinkGlyph::IssueOpen, SessionLinkTone::Draft),
-            },
+            SessionLinkKind::PullRequest => (
+                SessionLinkGlyph::Branch,
+                match state {
+                    Some("draft") => SessionLinkTone::Draft,
+                    Some("merged") => SessionLinkTone::Merged,
+                    Some("closed") => SessionLinkTone::Closed,
+                    Some(_) => SessionLinkTone::Open,
+                    None => SessionLinkTone::Draft,
+                },
+            ),
+            SessionLinkKind::Issue => (
+                SessionLinkGlyph::Github,
+                match state {
+                    Some("closed") => SessionLinkTone::Merged,
+                    Some(_) => SessionLinkTone::Open,
+                    None => SessionLinkTone::Draft,
+                },
+            ),
             SessionLinkKind::Linear => {
                 let in_review = self
                     .state_name
                     .as_deref()
                     .is_some_and(|name| name.to_ascii_lowercase().contains("review"));
-                match state {
-                    Some("started") if in_review => {
-                        (SessionLinkGlyph::LinearReview, SessionLinkTone::Review)
-                    }
-                    Some("started") => (SessionLinkGlyph::LinearStarted, SessionLinkTone::Started),
-                    Some("completed") => (SessionLinkGlyph::LinearDone, SessionLinkTone::Done),
-                    Some("canceled") => (SessionLinkGlyph::LinearCanceled, SessionLinkTone::Draft),
-                    Some("backlog") | Some("triage") => {
-                        (SessionLinkGlyph::LinearBacklog, SessionLinkTone::Draft)
-                    }
-                    Some(_) => (SessionLinkGlyph::LinearTodo, SessionLinkTone::Draft),
-                    None => (SessionLinkGlyph::LinearTodo, SessionLinkTone::Linear),
-                }
+                (
+                    SessionLinkGlyph::Linear,
+                    match state {
+                        Some("started") if in_review => SessionLinkTone::Review,
+                        Some("started") => SessionLinkTone::Started,
+                        Some("completed") => SessionLinkTone::Done,
+                        Some(_) => SessionLinkTone::Draft,
+                        None => SessionLinkTone::Linear,
+                    },
+                )
             }
         }
     }
@@ -215,19 +220,11 @@ impl SessionLink {
         Some(std::iter::once(first).chain(chars).collect())
     }
 
-    /// What kind of link it is, in words: the start of its second line.
-    pub fn kind_label(&self) -> &'static str {
-        match self.kind {
-            SessionLinkKind::PullRequest => "Pull request",
-            SessionLinkKind::Issue => "Issue",
-            SessionLinkKind::Linear => "Linear",
-        }
-    }
-
-    /// The second line: the kind, checks, review and where the link came from.
+    /// The second line: only what is worth acting on, an open PR's checks and review and the PR
+    /// that closes an issue ("Closed by #284"); empty draws a one-line row.
     ///
     /// CDXC:SessionLinks 2026-10-24 DECISION:
-    /// User: "i don't like that i can't diffrentiate issues vs prs anymore" (once Open / Merged or closed replaced the per-kind sections). Every entry's second line starts with its kind ("Pull request · Mentioned in the chat", "Issue · Closed by #284", "Linear · You added"), each group lists pull requests, then issues, then Linear, and closed and draft PRs get GitHub's own closed and draft PR icons so no PR shares a shape with an issue.
+    /// User: "i dont like the "You added"/"mentioned in chat" text there i think no need for that". Where a link came from ("You added", "Agent added", "From branch", "Mentioned in the chat") is not shown; only "Closed by #284" stays, with an open PR's checks and review.
     pub fn detail_line(&self) -> String {
         let checks = match self.checks.as_deref() {
             Some("passing") => Some("Checks passing"),
@@ -241,17 +238,13 @@ impl SessionLink {
             Some("changesRequested") => Some("Changes requested"),
             _ => None,
         };
-        [
-            Some(self.kind_label()),
-            checks,
-            review,
-            Some(self.source_label.as_str()),
-        ]
-        .into_iter()
-        .flatten()
-        .filter(|part| !part.trim().is_empty())
-        .collect::<Vec<_>>()
-        .join(" · ")
+        let closed_by = (self.source == "closes").then_some(self.source_label.as_str());
+        [checks, review, closed_by]
+            .into_iter()
+            .flatten()
+            .filter(|part| !part.trim().is_empty())
+            .collect::<Vec<_>>()
+            .join(" · ")
     }
 
     /// The tooltip and the list's title fallback: `#318 · Port the Find screen · Open`.
@@ -269,8 +262,8 @@ impl SessionLink {
 }
 
 impl SuggestedSessionLink {
-    /// The entry as a linked one, which the lists draw with the same two-line row: its glyph and
-    /// state come from what was read about it, its second line is `source_label`.
+    /// The entry as a linked one, which the lists draw with the same row: its glyph and state come
+    /// from what was read about it, and it has no second line.
     pub fn as_link(&self) -> SessionLink {
         SessionLink {
             key: self.key.clone(),
@@ -282,6 +275,7 @@ impl SuggestedSessionLink {
             checks: None,
             review: None,
             url: self.url.clone(),
+            source: String::new(),
             source_label: self.source_label.clone(),
             finished: self.finished,
         }
@@ -447,6 +441,7 @@ mod tests {
             checks: None,
             review: None,
             url: None,
+            source: String::new(),
             source_label: String::new(),
             finished,
         }

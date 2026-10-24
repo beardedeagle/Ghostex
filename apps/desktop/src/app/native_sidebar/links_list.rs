@@ -45,6 +45,8 @@ pub(crate) const SESSION_LINKS_CARD_WIDTH: f32 = 380.0;
 const HEADER_HEIGHT: f32 = 38.0;
 const SECTION_HEIGHT: f32 = 24.0;
 const ROW_HEIGHT: f32 = 46.0;
+/// A row with nothing on its second line.
+const ONE_LINE_ROW_HEIGHT: f32 = 30.0;
 /// "This session has no links."
 const EMPTY_HEIGHT: f32 = 40.0;
 
@@ -72,13 +74,14 @@ pub(crate) fn session_links_list_height(
     let mut children: Vec<f32> = Vec::new();
     for (group, _, finished) in SESSION_LINK_GROUPS {
         let undone = undo.filter(|undo| undo.finished == finished);
-        let rows = links
+        let rows: Vec<f32> = links
             .items
             .iter()
             .filter(|item| item.finished == finished)
             .filter(|item| undone.is_none_or(|undo| undo.key != item.key))
-            .count();
-        if rows == 0 && undone.is_none() {
+            .map(entry_height)
+            .collect();
+        if rows.is_empty() && undone.is_none() {
             continue;
         }
         children.push(SECTION_HEIGHT);
@@ -86,23 +89,29 @@ pub(crate) fn session_links_list_height(
             children.push(ROW_HEIGHT);
         }
         if open(group) {
-            children.extend(std::iter::repeat_n(ROW_HEIGHT, rows));
+            children.extend(rows);
         }
     }
     if !links.suggested.is_empty() {
         children.push(SECTION_HEIGHT);
         if open("suggested") {
-            children.extend(std::iter::repeat_n(ROW_HEIGHT, links.suggested.len()));
+            children.extend(
+                links
+                    .suggested
+                    .iter()
+                    .map(|suggestion| entry_height(&suggestion.as_link())),
+            );
         }
     }
-    let removed = links
+    let removed: Vec<f32> = links
         .removed
         .iter()
         .filter(|link| undo.is_none_or(|undo| undo.key != link.key))
-        .count();
-    if removed > 0 {
+        .map(|link| entry_height(&link.as_link()))
+        .collect();
+    if !removed.is_empty() {
         children.push(if open("removed") {
-            SECTION_HEIGHT + removed as f32 * (ROW_HEIGHT + 2.0)
+            SECTION_HEIGHT + removed.iter().map(|row| row + 2.0).sum::<f32>()
         } else {
             SECTION_HEIGHT
         });
@@ -119,6 +128,15 @@ pub(crate) fn session_links_list_height(
 /// under its fixed header.
 pub(crate) fn session_links_max_height(window_height: f32) -> f32 {
     (window_height / 2.0).max(80.0)
+}
+
+/// An entry's row: two lines, or one when its second line has nothing to say.
+fn entry_height(link: &SessionLink) -> f32 {
+    if link.detail_line().is_empty() {
+        ONE_LINE_ROW_HEIGHT
+    } else {
+        ROW_HEIGHT
+    }
 }
 
 /// The link groups in list order: id, title, and whether they hold finished (merged or closed)
@@ -244,8 +262,8 @@ impl SessionLinksList {
         self.render_entry(link, remove, cx)
     }
 
-    /// Every entry's two lines (a linked link, a suggestion, a removed link): icon, number, title
-    /// and state, then its second line, with its own action on the right.
+    /// Every entry's row (a linked link, a suggestion, a removed link): icon, number, title and
+    /// state, then its second line when it has one, with its own action on the right.
     fn render_entry(
         &self,
         link: &SessionLink,
@@ -264,7 +282,7 @@ impl SessionLinksList {
                 "session-link-{}",
                 link.key
             )))
-            .h(px(ROW_HEIGHT))
+            .h(px(entry_height(link)))
             .w_full()
             .flex_shrink_0()
             .items_start()
@@ -313,17 +331,19 @@ impl SessionLinksList {
                                 )
                             }),
                     )
-                    .child(
-                        div()
-                            .truncate()
-                            .text_size(px(11.5))
-                            .text_color(if failing {
-                                red
-                            } else {
-                                chrome_ink().opacity(0.55).into()
-                            })
-                            .child(detail),
-                    ),
+                    .when(!detail.is_empty(), |lines| {
+                        lines.child(
+                            div()
+                                .truncate()
+                                .text_size(px(11.5))
+                                .text_color(if failing {
+                                    red
+                                } else {
+                                    chrome_ink().opacity(0.55).into()
+                                })
+                                .child(detail),
+                        )
+                    }),
             )
             .child(action)
             .when_some(open, |row, open| {
@@ -384,6 +404,42 @@ impl SessionLinksList {
             .into_any_element()
     }
 
+    /// A suggestion's Link or a removed link's Restore: a small icon button where a linked entry's
+    /// × sits, named by its tooltip.
+    ///
+    /// CDXC:SessionLinks 2026-10-24 DECISION:
+    /// User: "for suggested i want the row to look just like the regular rows we have there". Suggested and Removed rows are drawn like linked ones; only their action differs, an icon button (link-plus "Link", arrow-back "Restore") instead of a bordered text button.
+    fn icon_button(
+        id: String,
+        icon: &'static str,
+        tooltip: &'static str,
+        on_click: impl Fn(&mut Self, &gpui::ClickEvent, &mut Window, &mut Context<Self>) + 'static,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        h_flex()
+            .id(gpui::SharedString::from(id))
+            .flex_shrink_0()
+            .h(px(20.0))
+            .px(px(4.0))
+            .items_center()
+            .rounded(px(5.0))
+            .cursor_pointer()
+            .hover(|button| button.bg(chrome_ink().opacity(0.12)))
+            .role(gpui::Role::Button)
+            .aria_label(tooltip)
+            .child(titlebar_svg_icon(
+                icon,
+                13.0,
+                chrome_ink().opacity(0.7).into(),
+            ))
+            .tooltip(move |window, cx| Tooltip::new(tooltip).build(window, cx))
+            .on_click(cx.listener(move |list, event, window, cx| {
+                cx.stop_propagation();
+                on_click(list, event, window, cx);
+            }))
+            .into_any_element()
+    }
+
     fn restore(&mut self, key: String, cx: &mut Context<Self>) {
         if self.undo.as_ref().is_some_and(|undo| undo.key == key) {
             self.undo = None;
@@ -396,7 +452,7 @@ impl SessionLinksList {
         cx.notify();
     }
 
-    /// A small text button: Undo, Restore.
+    /// A small text button: a removed row's Undo.
     fn text_button(
         id: String,
         label: &'static str,
@@ -485,8 +541,9 @@ impl SessionLinksList {
         if open {
             for link in removed {
                 let key = link.key.clone();
-                let restore = Self::text_button(
+                let restore = Self::icon_button(
                     format!("session-link-restore-{}", link.key),
+                    "titlebar/arrow-back-up.svg",
                     "Restore",
                     move |list, _, _, cx| list.restore(key.clone(), cx),
                     cx,
@@ -581,8 +638,9 @@ impl SessionLinksList {
     ) -> AnyElement {
         let link = suggestion.url.clone().unwrap_or_default();
         let sidebar_id = self.key.to_sidebar_session_id();
-        let add = Self::text_button(
+        let add = Self::icon_button(
             format!("session-link-add-{}", suggestion.key),
+            "titlebar/link-plus.svg",
             "Link",
             move |list, _, _, cx| {
                 list.send(

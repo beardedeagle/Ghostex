@@ -101,7 +101,11 @@ impl GhostexGpuiApp {
             .enumerate()
             .map(|(index, link)| {
                 let open = open_session_link_command(link);
-                let tooltip = format!("{}\n{}", link.summary(), link.detail_line());
+                let tooltip = [link.summary(), link.detail_line()]
+                    .into_iter()
+                    .filter(|line| !line.is_empty())
+                    .collect::<Vec<_>>()
+                    .join("\n");
                 h_flex()
                     .id(format!("workarea-header-session-link-{index}"))
                     .flex_shrink_0()
