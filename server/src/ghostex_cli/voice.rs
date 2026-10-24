@@ -29,7 +29,10 @@ const USAGE: &str = "Usage:
   --rate <1.0-2.0> (report a client playback rate, as the desktop's speed buttons do),
   --continue (a turn that hands the remembered last conversation to the agent, as Continue does),
   --mode pushToTalk|regular (the call mode for this call; push-to-talk sends each --wav as a held
-  Talk and no audio in between), --wait <seconds> (a quiet turn: nothing is said or sent).
+  Talk and no audio in between), --wait <seconds> (a quiet turn: nothing is said or sent),
+  --focus <projectId:sessionId> (a call about one session), --refocus <projectId:sessionId>|all
+  (a turn that moves the call to a session or to all sessions), --client-remote (as the desktop
+  app of another computer: sessions are shown by the client).
   Push-to-talk also prints [usage] with the seconds the provider has billed so far.
 
 Runs a voice-agent conversation (or, with --dictate, a Grok dictation) against this computer's
@@ -51,6 +54,9 @@ struct Options {
     resume: Option<String>,
     rate: Option<f64>,
     push_to_talk: Option<bool>,
+    /// `--focus <projectId:sessionId>`: a call about one session.
+    focus: Option<String>,
+    client_remote: bool,
 }
 
 enum Turn {
@@ -59,6 +65,8 @@ enum Turn {
     Voice(String),
     Continue,
     Wait(u64),
+    /// A `focus` frame: move the call to a session (`Some(ref)`) or to all sessions.
+    Refocus(Option<String>),
 }
 
 fn parse(args: &[String]) -> CliResult<Options> {
@@ -76,6 +84,8 @@ fn parse(args: &[String]) -> CliResult<Options> {
         resume: None,
         rate: None,
         push_to_talk: None,
+        focus: None,
+        client_remote: false,
     };
     let mut index = 0;
     let value = |index: usize, flag: &str| -> CliResult<String> {
@@ -89,6 +99,18 @@ fn parse(args: &[String]) -> CliResult<Options> {
             "--text" => options.turns.push(Turn::Text(value(index, flag)?)),
             "--wav" => options.turns.push(Turn::Wav(value(index, flag)?)),
             "--voice" => options.turns.push(Turn::Voice(value(index, flag)?)),
+            "--focus" => options.focus = Some(value(index, flag)?),
+            "--refocus" => {
+                let target = value(index, flag)?;
+                options
+                    .turns
+                    .push(Turn::Refocus((target != "all").then_some(target)));
+            }
+            "--client-remote" => {
+                options.client_remote = true;
+                index += 1;
+                continue;
+            }
             "--mode" => {
                 options.push_to_talk = match value(index, flag)?.as_str() {
                     "pushToTalk" => Some(true),
@@ -195,6 +217,12 @@ fn connect(mode: &str, options: &Options) -> CliResult<WebSocket<TcpStream>> {
     }
     if let Some(id) = &options.resume {
         url.push_str(&format!("&conversationId={id}"));
+    }
+    if let Some(focus) = &options.focus {
+        url.push_str(&format!("&focus={focus}"));
+    }
+    if options.client_remote {
+        url.push_str("&clientRemote=1");
     }
     let mut request = url
         .into_client_request()
@@ -363,15 +391,17 @@ fn handle_frame(message: Message, start: Instant, watch: &mut TurnWatch, audio: 
                     // gxserver says which kind of call this is (the setting or `--mode`).
                     watch.push_to_talk = field("callMode") == "pushToTalk";
                     println!(
-                        "{at}  [ready] conversation {} · {} · voice {} · {} call · resumed {} · memory {}",
+                        "{at}  [ready] conversation {} · {} · voice {} · {} call · resumed {} · memory {} · focus {}",
                         field("conversationId"),
                         field("provider"),
                         field("voice"),
                         field("callMode"),
                         frame["resumed"],
-                        frame["memory"]["gist"]
+                        frame["memory"]["gist"],
+                        frame.get("focus").map_or("(not supported)".to_string(), Value::to_string)
                     )
                 }
+                "focus" => println!("{at}  [focus] {}", frame["focus"]),
                 "memory" => println!(
                     "{at}  [memory] {} {}",
                     field("state"),
@@ -636,6 +666,14 @@ fn converse(socket: &mut WebSocket<TcpStream>, options: &Options) -> CliResult<(
             Turn::Continue => {
                 println!("{}  (continue the last conversation)", elapsed(start));
                 send_json(socket, json!({"type": "continueMemory"}))?;
+            }
+            Turn::Refocus(target) => {
+                println!(
+                    "{}  (move the call to {})",
+                    elapsed(start),
+                    target.as_deref().unwrap_or("all sessions")
+                );
+                send_json(socket, json!({"type": "focus", "session": target}))?;
             }
             Turn::Voice(_) | Turn::Wait(_) => {}
         }

@@ -1004,6 +1004,24 @@ impl Render for GhostexGpuiApp {
                     this.set_voice_agent_call_mode(action.push_to_talk, cx);
                 }),
             )
+            .on_action(cx.listener(|this, _: &VoiceCallAllSessions, _window, cx| {
+                this.voice_call_all_sessions(cx);
+            }))
+            .on_action(
+                cx.listener(|this, action: &VoiceCallAboutSession, _window, cx| {
+                    let key = ghostex_gx_core::SessionKey {
+                        machine: action.remote_machine.clone().map_or(
+                            ghostex_gx_core::MachineId::Local,
+                            ghostex_gx_core::MachineId::Remote,
+                        ),
+                        project_id: action.project_id.clone(),
+                        session_id: action.session_id.clone(),
+                    };
+                    if let Some(target) = this.voice_call_target_for(key) {
+                        this.voice_call_about(target, cx);
+                    }
+                }),
+            )
             .on_action(
                 cx.listener(|this, action: &SetVoiceAgentSpeed, _window, cx| {
                     this.set_voice_agent_speed(f32::from(action.hundredths) / 100.0, cx);

@@ -100,6 +100,18 @@ pub const HOTKEY_DEFINITIONS: &[HotkeyDefinition] = &[
         retired_default_keys: &[],
         action: J::Obj(&[("id", J::Str("toggleVoiceAgent")), ("kind", J::Str("toggleVoiceAgent"))]),
     },
+    // CDXC:VoiceMode 2026-10-23 DECISION:
+    // User, asked "Where do you start a voice call about one session on the computer?", picked the header headset's arrow; every entry point also gets a hotkey with no key set (the question's note). Voice Call About This Session starts a voice call limited to the session the work area shows, or moves the open call to it.
+    HotkeyDefinition {
+        id: "voiceCallAboutSession",
+        title: "Voice Call About This Session",
+        description: "Start a voice call about the session you are looking at, or move the open call to it.",
+        default_key: "",
+        windows_linux_default_key: None,
+        alternate_default_keys: &[],
+        retired_default_keys: &[],
+        action: J::Obj(&[("id", J::Str("voiceCallAboutSession")), ("kind", J::Str("voiceCallAboutSession"))]),
+    },
     HotkeyDefinition {
         id: "toggleDictation",
         title: "Dictate",

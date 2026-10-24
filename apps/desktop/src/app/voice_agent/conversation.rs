@@ -11,7 +11,10 @@ use gpui::{Pixels, Task, WindowHandle};
 use serde_json::{Value, json};
 
 use super::audio::{AudioStartError, MICROPHONE_KEPT_STOPPING, SILENT_MICROPHONE, VoiceAudio};
-use super::endpoint::local_voice_endpoint;
+use super::focus::{
+    CallMachine, ReadyFocus, VoiceCallTarget, VoiceFocus, focus_ref, outdated_sentence,
+    parse_focus, ready_focus, remote_key_sentence,
+};
 use super::memory::{VoiceMemory, VoiceMemoryState};
 use super::panel::VoicePanelWindow;
 use crate::*;
@@ -83,9 +86,11 @@ pub(crate) enum VoiceRow {
 #[derive(Clone, Debug)]
 pub(crate) struct VoiceProblem {
     /// gxserver's error code (`noKey`, `badKey`, `providerUnavailable`, ...), or `microphone`,
-    /// `connection`, `idle` for what the app itself noticed.
+    /// `connection`, `idle`, `outdated` for what the app itself noticed.
     pub(crate) code: String,
     pub(crate) message: String,
+    /// It happened on another computer the call ran on, whose own Settings hold its key.
+    pub(crate) elsewhere: bool,
 }
 
 impl VoiceProblem {
@@ -93,12 +98,23 @@ impl VoiceProblem {
         Self {
             code: code.to_string(),
             message: message.into(),
+            elsewhere: false,
         }
     }
 
-    /// Whether Settings › Voice agent is where the user fixes it.
-    pub(crate) fn wants_settings(&self) -> bool {
+    fn is_key(&self) -> bool {
         matches!(self.code.as_str(), "noKey" | "badKey")
+    }
+
+    /// Whether this computer's Settings › Voice agent is where the user fixes it.
+    pub(crate) fn wants_settings(&self) -> bool {
+        self.is_key() && !self.elsewhere
+    }
+
+    /// Whether starting the same call again can work: not on a computer too old for it, nor on
+    /// another computer that has no usable key.
+    pub(crate) fn can_start_again(&self) -> bool {
+        self.code != "outdated" && !(self.elsewhere && self.is_key())
     }
 }
 
@@ -143,6 +159,17 @@ pub(crate) struct VoiceAgent {
     pub(crate) memory_state: VoiceMemoryState,
     /// The "Remembering" line shows the whole summary.
     pub(crate) memory_details_open: bool,
+    /// The computer the call runs on, and its name when it isn't this one.
+    pub(crate) machine: CallMachine,
+    pub(crate) machine_name: Option<String>,
+    /// The session the call is about now (`None`: all sessions), as gxserver last said.
+    pub(crate) focus: Option<VoiceFocus>,
+    /// The call's gxserver knows focused calls (its `ready` carried `focus`).
+    pub(crate) focus_supported: bool,
+    /// The session the call was started about, which Start again repeats.
+    pub(crate) requested: Option<VoiceCallTarget>,
+    /// Where the header's Voice button last painted, for its arrow's menu.
+    pub(crate) menu_anchor: std::rc::Rc<std::cell::Cell<Option<gpui::Bounds<Pixels>>>>,
     link: Option<VoiceLink>,
     /// Bumped per conversation, so a late message of an earlier one is ignored.
     generation: u64,
@@ -214,11 +241,37 @@ impl GhostexGpuiApp {
         }
     }
 
+    /// The headset: a call about all sessions, on this computer.
     pub(crate) fn start_voice_agent_conversation(&mut self, cx: &mut gpui::Context<Self>) {
+        self.start_voice_agent_call(None, cx);
+    }
+
+    /// Starts a call about all sessions on this computer, or about `about`, on that session's own
+    /// computer (`focus=<projectId>:<sessionId>`).
+    ///
+    /// The call about another computer's session runs on that computer (CDXC:VoiceMode 2026-10-23
+    /// DECISION in `endpoint.rs`); `clientRemote=1` asks it to leave its own screen alone, and this
+    /// app shows what the agent shows (`focus.rs`).
+    pub(crate) fn start_voice_agent_call(
+        &mut self,
+        about: Option<VoiceCallTarget>,
+        cx: &mut gpui::Context<Self>,
+    ) {
         if !VOICE_AGENT_AVAILABLE || self.voice_agent.active() {
             return;
         }
+        let machine = about
+            .as_ref()
+            .map_or(ghostex_gx_core::MachineId::Local, |about| {
+                about.key.machine.clone()
+            });
+        let endpoint = self.voice_agent_endpoint(&machine);
         let agent = &mut self.voice_agent;
+        agent.machine = CallMachine(machine);
+        agent.machine_name = about.as_ref().and_then(|about| about.machine_name.clone());
+        agent.focus = None;
+        agent.focus_supported = false;
+        agent.requested = about.clone();
         agent.generation = agent.generation.wrapping_add(1);
         agent.rows.clear();
         agent.problem = None;
@@ -240,14 +293,14 @@ impl GhostexGpuiApp {
         agent.muted = false;
         agent.state = "connecting".to_string();
         agent.hang_up_timer = None;
-        let Some(endpoint) = local_voice_endpoint() else {
-            agent.phase = VoicePhase::Ended;
-            agent.problem = Some(VoiceProblem::new(
-                "connection",
-                "Ghostex's service is not running yet. Try again in a moment.",
-            ));
-            self.sync_voice_agent_panel(cx);
-            return;
+        let endpoint = match endpoint {
+            Ok(endpoint) => endpoint,
+            Err(message) => {
+                agent.phase = VoicePhase::Ended;
+                agent.problem = Some(VoiceProblem::new("connection", message));
+                self.sync_voice_agent_panel(cx);
+                return;
+            }
         };
         agent.phase = VoicePhase::Starting;
         let generation = agent.generation;
@@ -261,9 +314,17 @@ impl GhostexGpuiApp {
             playback: Mutex::new(Playback::default()),
             sender,
         });
+        let focus = about.as_ref().map(|about| focus_ref(&about.key));
+        let mut query = vec![("mode", "conversation"), ("client", "desktop")];
+        if let Some(focus) = focus.as_deref() {
+            query.push(("focus", focus));
+        }
+        if !self.voice_agent.machine.is_local() {
+            query.push(("clientRemote", "1"));
+        }
         let socket = Arc::new(VoiceSocket::open(
             &endpoint,
-            &[("mode", "conversation"), ("client", "desktop")],
+            &query,
             socket_sink(shared.clone()),
         ));
         start_audio(socket.clone(), shared.clone());
@@ -440,6 +501,32 @@ impl GhostexGpuiApp {
                 if self.voice_agent.phase == VoicePhase::Starting {
                     self.voice_agent.phase = VoicePhase::Live;
                 }
+                // A call asked about one session must hear back which one: a `ready` without
+                // `focus` comes from a gxserver older than focused calls, which would have opened
+                // a call about all sessions instead.
+                match ready_focus(event, &self.voice_agent.machine) {
+                    ReadyFocus::Unsupported if self.voice_agent.requested.is_some() => {
+                        if let Some(link) = &self.voice_agent.link {
+                            link.socket.send_json(&json!({ "type": "end" }));
+                        }
+                        self.end_voice_agent_link();
+                        self.voice_agent.phase = VoicePhase::Ended;
+                        self.voice_agent.problem = Some(VoiceProblem::new(
+                            "outdated",
+                            outdated_sentence(self.voice_agent.machine_name.as_deref()),
+                        ));
+                        return;
+                    }
+                    ReadyFocus::Unsupported => self.voice_agent.focus_supported = false,
+                    ReadyFocus::All => {
+                        self.voice_agent.focus_supported = true;
+                        self.apply_voice_agent_focus(None);
+                    }
+                    ReadyFocus::Session(focus) => {
+                        self.voice_agent.focus_supported = true;
+                        self.apply_voice_agent_focus(Some(focus));
+                    }
+                }
                 self.voice_agent.provider = Some(text("provider"));
                 self.voice_agent.voice = Some(text("voice"));
                 self.voice_agent.voice_options = event["voiceOptions"]
@@ -542,6 +629,10 @@ impl GhostexGpuiApp {
                 }
             }
             "memory" => self.apply_voice_agent_memory_event(event),
+            "focus" => {
+                let focus = parse_focus(&event["focus"], &self.voice_agent.machine);
+                self.apply_voice_agent_focus(focus);
+            }
             "interrupted" => {
                 if let Some(link) = &self.voice_agent.link
                     && let Some(played_ms) = event["playedMs"].as_u64()
@@ -570,6 +661,9 @@ impl GhostexGpuiApp {
                 {
                     *ok = Some(event["ok"].as_bool().unwrap_or(true));
                 }
+                if event["phase"].as_str() == Some("finished") {
+                    self.follow_remote_voice_call_tool(event, cx);
+                }
             }
             "announcement" => {
                 let announcement = text("text");
@@ -578,7 +672,14 @@ impl GhostexGpuiApp {
                 }
             }
             "error" => {
-                let problem = VoiceProblem::new(&text("code"), error_sentence(event));
+                let mut problem = VoiceProblem::new(&text("code"), error_sentence(event));
+                if !self.voice_agent.machine.is_local() {
+                    problem.elsewhere = true;
+                    if problem.is_key() && event["message"].as_str().is_none_or(str::is_empty) {
+                        let name = self.voice_agent.machine_name.as_deref();
+                        problem.message = remote_key_sentence(&problem.code, name);
+                    }
+                }
                 if event["fatal"].as_bool() == Some(false) {
                     self.push_voice_agent_row(VoiceRow::Announcement {
                         text: problem.message,
@@ -621,6 +722,7 @@ impl GhostexGpuiApp {
         self.end_voice_agent_link();
         self.voice_agent.phase = VoicePhase::Idle;
         self.voice_agent.problem = None;
+        self.voice_agent.focus = None;
         self.sync_voice_agent_panel(cx);
     }
 

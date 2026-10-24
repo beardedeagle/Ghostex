@@ -3479,6 +3479,7 @@
         "toggleChatComposerMaximized": "ctrl+alt+m",
         "toggleChatFilesLinks": "ctrl+alt+l",
         "toggleVoiceAgent": "ctrl+alt+v",
+        "voiceCallAboutSession": "",
         "toggleDictation": "ctrl+alt+d",
         "createAgentSession": "cmd+shift+o",
         "createSession": "cmd+shift+t",
@@ -11806,6 +11807,12 @@
       "description": "Start a spoken conversation with the voice agent, or end the one that is running.",
       "defaultKey": "ctrl+alt+v",
       "windowsLinuxDefaultKey": "cmd+alt+shift+v"
+    },
+    {
+      "id": "voiceCallAboutSession",
+      "title": "Voice Call About This Session",
+      "description": "Start a voice call about the session you are looking at, or move the open call to it.",
+      "defaultKey": ""
     },
     {
       "id": "toggleDictation",

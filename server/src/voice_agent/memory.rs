@@ -64,6 +64,12 @@ fn pending_dir(paths: &GxserverPaths) -> PathBuf {
     memory_dir(paths).join("pending")
 }
 
+/// Where a call's transcript waits for its summary (tests check what a call recorded).
+#[cfg(test)]
+pub(super) fn pending_path(paths: &GxserverPaths, conversation_id: &str) -> PathBuf {
+    pending_dir(paths).join(format!("{conversation_id}.json"))
+}
+
 /// The remembered conversation.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

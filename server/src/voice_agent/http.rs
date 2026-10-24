@@ -61,6 +61,8 @@ pub(crate) async fn handle_read_voice_agent_http(
         "keys": {"xai": key_view(Provider::Xai), "openai": key_view(Provider::OpenAi)},
         "secretsSealedWith": crate::vault::vault_backend(paths),
         "conversations": registry::summary(),
+        // Calls about one session (`focus` on `/api/voice`) are understood here.
+        "focusedCalls": true,
         "idleHangupMs": super::conversation::IDLE_HANGUP.as_millis() as u64,
         "speed": keys::selected_speed(paths),
         "callMode": if keys::push_to_talk_calls(paths) { "pushToTalk" } else { "regular" },

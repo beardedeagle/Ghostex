@@ -7,6 +7,9 @@
 mod announcements;
 mod conversation;
 mod dictation;
+mod focus;
+#[cfg(test)]
+mod focus_tests;
 mod http;
 mod keys;
 mod loopback;

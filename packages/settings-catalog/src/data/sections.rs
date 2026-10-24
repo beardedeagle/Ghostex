@@ -172,6 +172,7 @@ pub const HOTKEY_SETTINGS_SECTIONS: J = J::Arr(&[
                 J::Str("toggleChatComposerMaximized"),
                 J::Str("toggleChatFilesLinks"),
                 J::Str("toggleVoiceAgent"),
+                J::Str("voiceCallAboutSession"),
                 J::Str("toggleDictation"),
                 J::Str("readAloudLastReply"),
                 J::Str("readAloudStop"),

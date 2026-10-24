@@ -3,7 +3,9 @@
 //! microphone in, plays the agent's audio and draws state and captions.
 //! Client contract: docs/2026-10-20/voice-mode/voice-agent-client-contract.md.
 //!
-//! - `endpoint.rs`: this computer's gxserver, which every voice socket talks to.
+//! - `endpoint.rs`: this computer's gxserver, which Dictate and the all-sessions call talk to.
+//! - `focus.rs`: a call about one session, on that session's computer; `panel_focus_strip.rs` its
+//!   strip in the panel, `sidebar_badge.rs` the headset on its sidebar row.
 //! - `audio.rs`: the microphone and speaker, one front over a `VoiceAudioBackend`
 //!   (`audio_backend.rs`): `audio_mac.rs` (AVAudioEngine with voice-processing I/O) on macOS,
 //!   `audio_cpal.rs` on Windows and Linux with `aec.rs` (echo cancellation) and `stretch.rs` (speed);
@@ -26,10 +28,12 @@ mod audio_mac;
 pub(crate) mod conversation;
 pub(crate) mod dictation;
 pub(crate) mod endpoint;
+pub(crate) mod focus;
 pub(crate) mod header_button;
 pub(crate) mod memory;
 pub(crate) mod panel;
 pub(crate) mod recorder;
+pub(crate) mod sidebar_badge;
 #[cfg(any(target_os = "linux", target_os = "windows"))]
 mod stretch;
 mod test_mic;

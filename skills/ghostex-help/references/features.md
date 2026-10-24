@@ -2682,6 +2682,35 @@ replies. GPT Realtime bills only audio in both modes. A change applies to your
 next call. Mute simply turns your microphone off in either mode. It hangs up by
 itself after 5 minutes with nobody talking.
 
+A call can also be about just one session. Click the small arrow on the
+headset button and pick "This session: <title>" (the session you are looking
+at), or press the "Voice Call About This Session" hotkey (no key is set; give it
+one in Settings > Hotkeys). The agent starts by saying where that session
+stands, tells you when it finishes its turn with the gist of its reply in a
+sentence or two, and mentions no other sessions; asked about another one, it
+says "This call is about <title> only. Say "all sessions" or press All sessions
+to talk about the others." It can send that session prompts, draft in its chat
+box and answer its questions and approvals; in a call about an orchestrator it
+can also read its threads and answer their questions, but sends prompts only to
+the orchestrator. A strip under the panel's top bar names the session, its
+project and its orchestrator; click the name to show the session. All sessions
+on the strip (or saying "all sessions") widens the same call without hanging
+up, and picking the other row of the arrow's menu switches an open call either
+way; the menu ticks what the call is about now. While the call runs, that
+session's sidebar row shows a small headset. Reading the session doesn't
+switch your window to it; asking to see it does. If the session is closed
+during the call, the strip says Closed and the call goes on. A call about one
+session doesn't offer or replace the remembered last conversation. For a
+session on another computer you are connected to, the call runs on that
+computer with its own voice key (add one in Settings > Voice agent on that
+computer); the strip says which computer, and a session of a different computer
+than the open call's needs a new call, so hang up first. A computer whose
+Ghostex is too old for it says "Update Ghostex on <computer> to have a voice
+call about one session." On the phone, "Voice call about this chat" in a chat's
+⋯ menu and "Voice Call" when you long-press a session start the same call, and
+the voice screen shows "Only about <title> (<project>)" with an All sessions
+button.
+
 It remembers your last conversation as a short summary, kept on your computer
 until the next conversation replaces it. When you start a new conversation, the
 panel shows a "Last conversation" card: press Continue and the agent says in a

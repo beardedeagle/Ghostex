@@ -14,10 +14,12 @@ use serde_json::{json, Value};
 use tokio::sync::mpsc;
 use tokio_tungstenite::tungstenite::Message as WsMessage;
 
+use super::focus::{self, FocusScope};
 use super::memory;
 use super::prompt;
 use super::provider::{Provider, ProviderSocket, BYTES_PER_MS};
 use super::registry;
+use super::sessions::SessionInfo;
 use super::tools::{self, ToolOutcome};
 use crate::server::AppState;
 
@@ -43,6 +45,8 @@ const CUT_CAPTION_WAIT: Duration = Duration::from_millis(1_200);
 const VOICE_CHANGE_WAIT: Duration = Duration::from_secs(5);
 /// A held Talk shorter than this sent nothing worth answering.
 const MIN_TALK_AUDIO_MS: u64 = 200;
+/// The words of `focusNotFound`, at the start and for a move.
+pub(super) const FOCUS_NOT_FOUND: &str = "That session isn't open on this computer anymore.";
 /// The client playback rates gxserver accepts (the desktop offers 1x to 2x).
 const PLAYBACK_RATE_RANGE: std::ops::RangeInclusive<f64> = 0.5..=3.0;
 
@@ -59,6 +63,9 @@ pub(super) struct Announcement {
     pub(super) kind: &'static str,
     pub(super) project_id: String,
     pub(super) session_id: String,
+    /// What the model is told instead of `text`, when it needs more (a focused call's finished
+    /// turn carries the reply).
+    pub(super) model_text: Option<String>,
 }
 
 pub(super) enum Input {
@@ -91,6 +98,19 @@ pub(super) enum Input {
     /// The user forgot the remembered conversation.
     MemoryForgotten,
     Announce(Vec<Announcement>),
+    /// A focused session's finished turn, with the reply the model retells (`model_text`).
+    AnnounceReady(Announcement),
+    /// The announcement watcher's fresh session list (a focused call follows its session in it).
+    Sessions(Arc<Vec<SessionInfo>>),
+    /// The client asked to move the call to a session (`Some(ref)`) or to all sessions (`None`).
+    Focus(Option<String>),
+    /// A move the client asked for, looked up: the new scope and its briefing, or the ref that
+    /// names no open session.
+    FocusResolved(Result<(FocusScope, String), String>),
+    /// The briefing of the session a focused call started about, read once a client attached.
+    Briefing(String),
+    /// A client frame gxserver could not read; answered with a non-fatal `badRequest`.
+    BadRequest(String),
     ToolDone {
         call_id: String,
         name: String,
@@ -202,6 +222,13 @@ pub(super) struct Conversation {
     announcing: bool,
     /// What was said and done, for the summary made when the call ends.
     call_log: memory::CallLog,
+    /// The session the call is about now (`focus.rs`), `None` for all sessions.
+    focus: Option<FocusScope>,
+    /// The call started about one session: it never offers the remembered conversation.
+    started_focused: bool,
+    /// The start's briefing is still to be read (on the first attach).
+    briefing_pending: bool,
+    scope_changes: u64,
 }
 
 enum Ended {
@@ -216,6 +243,8 @@ impl Conversation {
         voice: String,
         session_update: Value,
         push_to_talk: bool,
+        focus: Option<FocusScope>,
+        client_remote: bool,
         socket: ProviderSocket,
         tx: mpsc::UnboundedSender<Input>,
         rx: mpsc::UnboundedReceiver<Input>,
@@ -223,6 +252,9 @@ impl Conversation {
         let (sink, stream) = socket.split();
         let now = Instant::now();
         let call_log = memory::CallLog::new(&state.paths, &id, provider);
+        let memory = tools::ToolMemory::new(client_remote);
+        memory.set_scope(focus.clone());
+        registry::set_focus(&id, focus::client_view(focus.as_ref()));
         Self {
             id,
             state,
@@ -261,9 +293,13 @@ impl Conversation {
             user_speaking: false,
             announcements: Vec::new(),
             typed_turns: 0,
-            memory: Arc::new(tools::ToolMemory::default()),
+            memory: Arc::new(memory),
             announcing: false,
             call_log,
+            started_focused: focus.is_some(),
+            briefing_pending: focus.is_some(),
+            focus,
+            scope_changes: 0,
         }
     }
 
@@ -325,7 +361,11 @@ impl Conversation {
         let keep = matches!(kind, "caption" | "announcement" | "tool")
             && (kind != "caption" || frame.get("final").and_then(Value::as_bool) == Some(true));
         if keep {
-            self.call_log.record(&frame);
+            // CDXC:VoiceMode 2026-10-23 DECISION: User, asked "What should a call about one session do with the voice agent's memory of your last call?", picked "Leave it alone: no Continue card, and it does not replace the remembered call". Nothing said while the call is about one session goes into the summary.
+            // CDXC:VoiceMode 2026-10-23 WHY: a call widened to all sessions partway is an all-sessions call from then on, so what is said after widening is recorded and may replace the remembered call; a call about one session the whole time records nothing and leaves it as it was. The session's own chat is the memory of the focused part.
+            if self.focus.is_none() {
+                self.call_log.record(&frame);
+            }
             self.replay.push_back(frame.clone());
             while self.replay.len() > REPLAY_LIMIT {
                 self.replay.pop_front();
@@ -391,8 +431,9 @@ impl Conversation {
                     "voiceOptions": self.provider.voices(),
                     "callMode": if self.push_to_talk { "pushToTalk" } else { "regular" },
                     "resumed": resumed,
-                    "memory": memory::client_view(&self.state.paths),
-                    "memoryContinued": self.call_log.continued(),
+                    "memory": if self.started_focused { Value::Null } else { memory::client_view(&self.state.paths) },
+                    "memoryContinued": !self.started_focused && self.call_log.continued(),
+                    "focus": focus::client_view(self.focus.as_ref()),
                     "idleHangupMs": IDLE_HANGUP.as_millis() as u64,
                     "audio": {"encoding": "pcm16", "sampleRate": super::provider::SAMPLE_RATE, "channels": 1},
                 })));
@@ -406,6 +447,9 @@ impl Conversation {
                 ));
                 self.client = Some((attach_id, out));
                 self.detached_since = None;
+                if std::mem::take(&mut self.briefing_pending) {
+                    self.read_briefing();
+                }
                 // Each client reports its own playback rate after `ready`.
                 self.playback_rate = 1.0;
                 registry::set_attached(&self.id, true);
@@ -489,6 +533,9 @@ impl Conversation {
                 }
                 self.playback_rate = rate;
             }
+            Input::ContinueMemory if self.started_focused || self.focus.is_some() => {
+                self.to_client(json!({"type": "memory", "state": "none"}));
+            }
             Input::ContinueMemory => self.continue_memory().await?,
             Input::MemoryForgotten => {
                 self.call_log.set_continued(false);
@@ -502,6 +549,16 @@ impl Conversation {
             }
             Input::Announce(announcements) => {
                 for announcement in announcements {
+                    if let Some(scope) = &self.focus {
+                        if !scope.wants(&announcement) {
+                            continue;
+                        }
+                    }
+                    let finished_focus = announcement.kind == "turnFinished"
+                        && self.focus.as_ref().is_some_and(|scope| {
+                            scope.project_id == announcement.project_id
+                                && scope.session_id == announcement.session_id
+                        });
                     self.to_client(json!({
                         "type": "announcement",
                         "text": announcement.text,
@@ -509,8 +566,38 @@ impl Conversation {
                         "projectId": announcement.project_id,
                         "sessionId": announcement.session_id,
                     }));
-                    self.announcements.push(announcement);
+                    if finished_focus {
+                        self.read_finished_reply(announcement);
+                    } else {
+                        self.announcements.push(announcement);
+                    }
                 }
+            }
+            Input::AnnounceReady(announcement) => self.announcements.push(announcement),
+            Input::Sessions(sessions) => self.follow_focus(&sessions),
+            Input::Focus(None) if self.focus.is_some() => {
+                let previous = self.focus.as_ref().map(|scope| scope.title.clone());
+                self.last_talk = Instant::now();
+                self.apply_scope(None, focus::widened_message(previous.as_deref()), true)
+                    .await?;
+            }
+            Input::Focus(request) => self.request_focus(request),
+            Input::FocusResolved(Ok((scope, briefing))) => {
+                self.last_talk = Instant::now();
+                self.apply_scope(Some(scope), briefing, true).await?;
+            }
+            Input::FocusResolved(Err(reference)) => {
+                self.to_client(json!({
+                    "type": "error",
+                    "code": "focusNotFound",
+                    "message": FOCUS_NOT_FOUND,
+                    "fatal": false,
+                    "session": reference,
+                }));
+            }
+            Input::Briefing(briefing) => self.add_scope_message(briefing, true).await?,
+            Input::BadRequest(message) => {
+                self.to_client(json!({"type": "error", "code": "badRequest", "message": message, "fatal": false}));
             }
             Input::ToolDone {
                 call_id,
@@ -529,7 +616,22 @@ impl Conversation {
                 if outcome.ok {
                     if let Some(session) = super::show::shown_session(&name, &outcome.output) {
                         finished["session"] = session;
+                        // A client on another computer shows the session itself.
+                        if self.memory.client_remote() {
+                            if name == "show_session" {
+                                finished["show"] = json!("now");
+                            } else if self.focus.is_none() {
+                                finished["show"] = json!("follow");
+                            }
+                        }
                     }
+                }
+                if name == "widen_call"
+                    && outcome.output.get("widened").and_then(Value::as_bool) == Some(true)
+                {
+                    let previous = self.focus.as_ref().map(|scope| scope.title.clone());
+                    self.apply_scope(None, focus::widened_message(previous.as_deref()), false)
+                        .await?;
                 }
                 self.to_client(finished);
                 if name == "recall_last_conversation" && outcome.ok {
@@ -662,7 +764,11 @@ impl Conversation {
             self.set_state(next);
         }
         if !self.announcements.is_empty() && self.quiet() {
-            let lines: Vec<String> = self.announcements.drain(..).map(|a| a.text).collect();
+            let lines: Vec<String> = self
+                .announcements
+                .drain(..)
+                .map(|a| a.model_text.unwrap_or(a.text))
+                .collect();
             self.provider_send(json!({
                 "type": "conversation.item.create",
                 "item": {"type": "message", "role": "user", "content": [{"type": "input_text", "text": prompt::announcement_message(&lines)}]},
@@ -980,6 +1086,144 @@ impl Conversation {
         );
     }
 
+    /// Reads the focused session's briefing in the background; it arrives as `Input::Briefing`.
+    fn read_briefing(&self) {
+        let Some(scope) = self.focus.clone() else {
+            return;
+        };
+        let (state, tx) = (self.state.clone(), self.tx.clone());
+        tokio::spawn(async move {
+            let facts = tools::briefing(&state, &scope).await;
+            let _ = tx.send(Input::Briefing(focus::briefing_message(
+                &scope, &facts, false,
+            )));
+        });
+    }
+
+    /// The focused session finished its turn: reads its reply, which the model retells, and
+    /// queues the announcement with it (`Input::AnnounceReady`). A chat that can't be read still
+    /// announces the finished turn.
+    fn read_finished_reply(&self, mut announcement: Announcement) {
+        let Some(scope) = self.focus.clone() else {
+            return;
+        };
+        let (state, tx) = (self.state.clone(), self.tx.clone());
+        tokio::spawn(async move {
+            let reply = tools::finished_reply(&state, &scope).await;
+            announcement.model_text =
+                Some(focus::turn_finished_message(&scope.title, reply.as_deref()));
+            let _ = tx.send(Input::AnnounceReady(announcement));
+        });
+    }
+
+    /// A fresh session list: a focused call follows its session's title and threads, and tells
+    /// the client and the model once when the session was closed. The call keeps going.
+    fn follow_focus(&mut self, sessions: &[SessionInfo]) {
+        let Some(scope) = self.focus.as_mut() else {
+            return;
+        };
+        let was_closed = scope.closed;
+        let changed = scope.refresh(sessions);
+        let scope = scope.clone();
+        self.memory.set_scope(Some(scope.clone()));
+        if !changed {
+            return;
+        }
+        registry::set_focus(&self.id, scope.to_client());
+        self.to_client(json!({"type": "focus", "focus": scope.to_client()}));
+        if scope.closed && !was_closed {
+            self.to_client(json!({
+                "type": "announcement",
+                "text": format!("\"{}\" was closed.", scope.title),
+                "kind": "sessionClosed",
+                "projectId": scope.project_id,
+                "sessionId": scope.session_id,
+            }));
+            self.announcements.push(Announcement {
+                text: format!("\"{}\" was closed.", scope.title),
+                kind: "sessionClosed",
+                project_id: scope.project_id.clone(),
+                session_id: scope.session_id.clone(),
+                model_text: Some(focus::closed_message(&scope.title)),
+            });
+        }
+    }
+
+    /// The client's `focus` frame for a move (widening is applied in `on_input`): looks the
+    /// session up and reads its briefing in the background, then arrives as
+    /// `Input::FocusResolved`. Asking for the scope the call already has just answers it again.
+    fn request_focus(&mut self, request: Option<String>) {
+        let current = self.focus.as_ref().map(FocusScope::reference);
+        let Some(reference) = request.filter(|reference| Some(reference) != current.as_ref())
+        else {
+            self.to_client(
+                json!({"type": "focus", "focus": focus::client_view(self.focus.as_ref())}),
+            );
+            return;
+        };
+        let (state, tx) = (self.state.clone(), self.tx.clone());
+        tokio::spawn(async move {
+            let sessions = super::sessions::list_sessions_async(&state)
+                .await
+                .unwrap_or_default();
+            let resolved = match FocusScope::from_sessions(&sessions, &reference) {
+                Some(scope) => {
+                    let facts = tools::briefing(&state, &scope).await;
+                    let briefing = focus::briefing_message(&scope, &facts, true);
+                    Ok((scope, briefing))
+                }
+                None => Err(reference),
+            };
+            let _ = tx.send(Input::FocusResolved(resolved));
+        });
+    }
+
+    /// Sets the call's scope: resends the session configuration with the scope's instructions and
+    /// tools (the way a voice change resends it), tells the client, and hands the model `message`
+    /// (the briefing, or that the call is about all sessions now). `respond` asks for a reply when
+    /// nothing else is going on; a tool's own follow-up reply covers it otherwise.
+    async fn apply_scope(
+        &mut self,
+        scope: Option<FocusScope>,
+        message: String,
+        respond: bool,
+    ) -> Result<(), Ended> {
+        self.focus = scope;
+        self.memory.set_scope(self.focus.clone());
+        let view = focus::client_view(self.focus.as_ref());
+        registry::set_focus(&self.id, view.clone());
+        self.scope_changes += 1;
+        let mut update = self.session_update.clone();
+        update["session"]["instructions"] = json!(prompt::instructions(self.focus.as_ref()));
+        update["session"]["tools"] = tools::definitions(self.focus.as_ref());
+        self.session_update = update.clone();
+        // A voice change still waiting for its answer keeps its voice.
+        if let Some(change) = &self.voice_change {
+            update = self
+                .provider
+                .with_voice(&update, &change.voice, &change.event_id);
+        } else {
+            update["event_id"] = json!(format!("ghostex-scope-{}", self.scope_changes));
+        }
+        self.provider_send(update).await?;
+        self.to_client(json!({"type": "focus", "focus": view}));
+        self.add_scope_message(message, respond).await
+    }
+
+    /// Adds a `[Ghostex focus]` message to the conversation, and asks for a reply when `respond`
+    /// and nobody is talking.
+    async fn add_scope_message(&mut self, message: String, respond: bool) -> Result<(), Ended> {
+        self.provider_send(json!({
+            "type": "conversation.item.create",
+            "item": {"type": "message", "role": "user", "content": [{"type": "input_text", "text": message}]},
+        }))
+        .await?;
+        if respond && self.quiet() {
+            self.create_response_now().await?;
+        }
+        Ok(())
+    }
+
     /// Switches the conversation to `voice` when the provider can, else keeps it for the next
     /// conversation (the client saved it as the setting). Answers with a `voice` frame.
     async fn change_voice(&mut self, voice: String) -> Result<(), Ended> {
@@ -1083,7 +1327,11 @@ impl Conversation {
             return;
         }
         let args: Value = serde_json::from_str(&arguments).unwrap_or_else(|_| json!({}));
-        let label = tools::label(&name, &args);
+        let label = tools::label(
+            &name,
+            &args,
+            self.focus.as_ref().map(|scope| scope.title.as_str()),
+        );
         self.pending_calls.insert(call_id.clone());
         self.to_client(json!({"type": "tool", "phase": "started", "callId": call_id, "name": name, "label": label}));
         if !self.playing() {

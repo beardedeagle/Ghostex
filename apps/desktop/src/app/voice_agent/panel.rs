@@ -19,6 +19,7 @@ use gpui_component::{ElementExt as _, h_flex, v_flex};
 use super::conversation::{
     VOICE_AGENT_SPEEDS, VoicePhase, VoiceProblem, VoiceRole, VoiceRow, provider_name, voice_name,
 };
+use super::focus::VoiceFocus;
 use super::memory::{VoiceMemory, VoiceMemoryState};
 use crate::app::context_menu::GpuiContextMenu;
 use crate::app::helpers::*;
@@ -28,6 +29,9 @@ use crate::app::render::workarea_header::workarea_header_bottom_y;
 use crate::app::window::settings_modal::catalog::settings_catalog;
 use crate::app::window::*;
 use crate::*;
+
+#[path = "panel_focus_strip.rs"]
+mod focus_strip;
 
 const PANEL_WIDTH: f32 = 340.0;
 const PANEL_HEIGHT: f32 = 360.0;
@@ -126,6 +130,10 @@ struct PanelSnapshot {
     memory: Option<VoiceMemory>,
     memory_state: VoiceMemoryState,
     memory_details_open: bool,
+    /// The session the call is about (`None`: all sessions), and the computer it runs on when it
+    /// isn't this one.
+    focus: Option<VoiceFocus>,
+    machine_name: Option<String>,
 }
 
 /// A drag of the panel by its header: where the mouse went down, in screen points.
@@ -462,6 +470,11 @@ impl GhostexGpuiApp {
             memory: agent.memory.clone(),
             memory_state: agent.memory_state,
             memory_details_open: agent.memory_details_open,
+            focus: agent.focus.clone(),
+            machine_name: agent
+                .machine_name
+                .clone()
+                .filter(|_| !agent.machine.is_local()),
         }
     }
 }
@@ -554,6 +567,10 @@ enum PanelAction {
     StartFresh,
     ForgetMemory,
     ToggleMemoryDetails,
+    /// The focus strip's All sessions: widens the call.
+    AllSessions,
+    /// The focus strip's title: shows the session.
+    ShowFocus,
 }
 
 impl VoicePanelWindow {
@@ -595,8 +612,20 @@ impl VoicePanelWindow {
                 PanelAction::HangUp => app.hang_up_voice_agent(cx),
                 PanelAction::Close => app.close_voice_agent_panel(cx),
                 PanelAction::StartAgain => {
+                    let about = app.voice_agent.requested.clone();
                     app.close_voice_agent_panel(cx);
-                    app.start_voice_agent_conversation(cx);
+                    app.start_voice_agent_call(about, cx);
+                }
+                PanelAction::AllSessions => app.voice_call_all_sessions(cx),
+                PanelAction::ShowFocus => {
+                    if let Some(key) = app
+                        .voice_agent
+                        .focus
+                        .as_ref()
+                        .map(|focus| focus.key.clone())
+                    {
+                        app.show_voice_call_session(&key, cx);
+                    }
                 }
                 PanelAction::OpenSettings => {
                     app.close_voice_agent_panel(cx);
@@ -1568,7 +1597,11 @@ impl VoicePanelWindow {
                         false,
                         cx,
                     ));
-                } else {
+                } else if snapshot
+                    .problem
+                    .as_ref()
+                    .is_none_or(VoiceProblem::can_start_again)
+                {
                     left.push(self.button(
                         "voice-panel-start-again",
                         ICON_MIC,
@@ -1621,6 +1654,7 @@ impl Render for VoicePanelWindow {
             .bg(colors.background)
             .font_family(crate::ui_fonts::UI_FONT)
             .child(self.header(snapshot, &colors, cx))
+            .children(self.focus_strip(snapshot, &colors, cx))
             .child(self.body(snapshot, &colors, cx))
             .child(self.footer(snapshot, &colors, cx))
             .when(self.holding_talk, |this| {
