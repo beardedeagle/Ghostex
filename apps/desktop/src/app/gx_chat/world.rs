@@ -36,7 +36,7 @@ use super::transport::{self, Transport};
 /// What a drained chat hands its view. The desktop's `native_chat` knows it as `ChatRuntimeOutput`,
 /// the name the web build's own runtime uses for the same two cases.
 pub(crate) enum ChatHostOutput {
-    Drained(Value),
+    Drained(frame::DrainedFrame),
     /// The host failed in a way the view should draw instead of the chat. One thing raises it: a
     /// panic inside the Rust brain, which disables that ONE chat (see [`disable_chat`]). A storage
     /// refusal is counted rather than fatal.
@@ -1081,9 +1081,7 @@ pub(super) fn publish(world: &mut World, key: &str, requests: Vec<HostRequest>) 
                 .frame_for(&mut view.sent, view.sink.last_revision, now_millis() as f64);
         let revision = drained.revision;
         let envelope = frame::envelope(drained, view_requests);
-        let carries = envelope
-            .as_object()
-            .is_some_and(frame::envelope_carries_change);
+        let carries = frame::envelope_carries_change(&envelope);
         view.sink.last_revision = revision;
         if !carries {
             continue;

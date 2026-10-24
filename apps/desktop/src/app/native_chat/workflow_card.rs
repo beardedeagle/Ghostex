@@ -34,12 +34,11 @@ impl NativeChatView {
     /// The card of every Workflow call `ids` names that the document has a run for.
     pub(super) fn workflow_cards(
         &self,
-        ids: &Value,
+        ids: &[Value],
         p: &ChatAppearance,
         cx: &Context<Self>,
     ) -> Option<AnyElement> {
         let cards: Vec<AnyElement> = ids
-            .as_array()?
             .iter()
             .filter_map(Value::as_str)
             .filter_map(|id| {

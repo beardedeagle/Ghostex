@@ -1,6 +1,7 @@
 use super::disclosure_body::{DisclosureRail, disclosure_body};
 use super::{appearance::ChatAppearance, state::NativeChatView};
 use crate::app::native_chat::cursor::ChatCursor as _;
+use ghostex_gx_chat_core::TranscriptItem;
 use gpui::StatefulInteractiveElement;
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
@@ -11,6 +12,11 @@ use serde_json::Value;
 
 pub(crate) fn text(value: &Value, key: &str) -> String {
     value[key].as_str().unwrap_or_default().to_string()
+}
+
+/// `value[key]` as a slice, empty when it is not an array.
+fn list<'a>(value: &'a Value, key: &str) -> &'a [Value] {
+    value[key].as_array().map_or(&[], Vec::as_slice)
 }
 
 impl NativeChatView {
@@ -64,7 +70,7 @@ impl NativeChatView {
     /// only one the search tints and the only one a rewind may act on.
     pub(crate) fn transcript_item_row(
         &mut self,
-        items: &[Value],
+        items: &[TranscriptItem],
         index: usize,
         main: bool,
         window: &mut Window,
@@ -88,79 +94,84 @@ impl NativeChatView {
         let p = p;
         let s = p.scale;
         self.begin_row_find(index, main, &p);
-        let content = if item["kind"] == "summary" {
-            // A running turn's "Active work" fold starts open and has a key of its own, so closing
-            // it holds for that turn without closing the reply fold that replaces it
-            // (gx-chat-core `summary_mode_turns`).
-            let id = if item["final"].is_object() {
-                format!("summary:{}", text(item, "id"))
-            } else {
-                format!("active-work:{}", text(item, "id"))
-            };
-            let expanded =
-                self.is_expanded(&id, item["latestReply"] == true || item["workOpen"] == true);
-            let motion = self.disclosure_frame(&id, expanded, cx);
-            let mut row = div()
-                .flex()
-                .flex_col()
-                .w_full()
-                .gap(px(8.0 * s))
-                .child(self.message_row(&item["user"], &p, window, cx));
-            for output in item["outcome"].as_array().into_iter().flatten() {
-                row = row.child(self.message_row(output, &p, window, cx));
-            }
-            if item["final"].is_object() || item["active"] == true {
-                row = row.child(
-                    self.disclosure(
-                        id.clone(),
-                        if item["final"].is_object() {
-                            "Agent reply"
-                        } else {
-                            "Active work"
-                        }
-                        .into(),
-                        expanded,
-                        None,
-                        &p,
-                        cx,
-                    ),
-                );
-                if expanded || motion.is_some() {
-                    let mut body = div().flex().flex_col().w_full().gap(px(8.0 * s));
-                    if item["final"].is_object() {
-                        for reply in item["earlierReplies"].as_array().into_iter().flatten() {
-                            body = body.child(self.message_row(reply, &p, window, cx));
-                        }
-                        body = body.child(self.message_row(&item["final"], &p, window, cx));
-                    } else {
-                        for message in item["work"].as_array().into_iter().flatten() {
-                            body = body.child(self.message_row(message, &p, window, cx));
-                        }
-                    }
-                    row = row.child(self.disclosure_body_motion(
-                        &id,
-                        motion,
-                        8.0 * s,
-                        body.into_any_element(),
-                    ));
+        let content = match item {
+            TranscriptItem::Summary {
+                id,
+                user,
+                final_message,
+                earlier_replies,
+                active,
+                work_open,
+                work,
+                outcome,
+                latest_reply,
+            } => {
+                let reply = final_message.as_deref().filter(|reply| reply.is_object());
+                // A running turn's "Active work" fold starts open and has a key of its own, so
+                // closing it holds for that turn without closing the reply fold that replaces it
+                // (gx-chat-core `summary_mode_turns`).
+                let key = if reply.is_some() {
+                    format!("summary:{id}")
+                } else {
+                    format!("active-work:{id}")
+                };
+                let expanded = self.is_expanded(&key, *latest_reply || *work_open);
+                let motion = self.disclosure_frame(&key, expanded, cx);
+                let mut row = div()
+                    .flex()
+                    .flex_col()
+                    .w_full()
+                    .gap(px(8.0 * s))
+                    .child(self.message_row(user, &p, window, cx));
+                for output in outcome {
+                    row = row.child(self.message_row(output, &p, window, cx));
                 }
+                if reply.is_some() || *active {
+                    row = row.child(
+                        self.disclosure(
+                            key.clone(),
+                            if reply.is_some() {
+                                "Agent reply"
+                            } else {
+                                "Active work"
+                            }
+                            .into(),
+                            expanded,
+                            None,
+                            &p,
+                            cx,
+                        ),
+                    );
+                    if expanded || motion.is_some() {
+                        let mut body = div().flex().flex_col().w_full().gap(px(8.0 * s));
+                        if let Some(reply) = reply {
+                            for earlier in earlier_replies {
+                                body = body.child(self.message_row(earlier, &p, window, cx));
+                            }
+                            body = body.child(self.message_row(reply, &p, window, cx));
+                        } else {
+                            for message in work {
+                                body = body.child(self.message_row(message, &p, window, cx));
+                            }
+                        }
+                        row = row.child(self.disclosure_body_motion(
+                            &key,
+                            motion,
+                            8.0 * s,
+                            body.into_any_element(),
+                        ));
+                    }
+                }
+                row.into_any_element()
             }
-            row.into_any_element()
-        } else if item["kind"] == "completed-work" {
-            self.completed_work_row(item, &p, window, cx)
-        } else {
-            // A prompt drawn with its turn's rows still open below it; when the same turn comes
-            // back folded, `disclosure_motion.rs` folds those rows away instead of swapping them.
-            if item["message"]["role"] == "user"
-                && !items.get(index + 1).is_some_and(|next| {
-                    next["kind"] == "completed-work" && next["id"] == item["message"]["id"]
-                })
-            {
-                self.disclosure_motion
-                    .borrow_mut()
-                    .saw_live(&format!("work:{}", text(&item["message"], "id")));
+            TranscriptItem::CompletedWork { .. } => self.completed_work_row(item, &p, window, cx),
+            TranscriptItem::Message { message } => {
+                self.message_item_row(message, items.get(index + 1), &p, window, cx)
             }
-            self.message_row(&item["message"], &p, window, cx)
+            // A kind this build does not know draws its `message`, as every unknown kind did.
+            TranscriptItem::Unknown(row) => {
+                self.message_item_row(&row["message"], items.get(index + 1), &p, window, cx)
+            }
         };
         self.detail_rows.end_row();
         self.row_find = None;
@@ -199,6 +210,29 @@ impl NativeChatView {
                     .child(content),
             )
             .into_any_element()
+    }
+
+    /// A message row of the list, `next` the row below it.
+    fn message_item_row(
+        &mut self,
+        message: &Value,
+        next: Option<&TranscriptItem>,
+        p: &ChatAppearance,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        // A prompt drawn with its turn's rows still open below it; when the same turn comes
+        // back folded, `disclosure_motion.rs` folds those rows away instead of swapping them.
+        if message["role"] == "user"
+            && !next.is_some_and(|next| {
+                matches!(next, TranscriptItem::CompletedWork { id, .. } if message["id"] == *id)
+            })
+        {
+            self.disclosure_motion
+                .borrow_mut()
+                .saw_live(&format!("work:{}", text(message, "id")));
+        }
+        self.message_row(message, p, window, cx)
     }
 
     /// The chevron a disclosure puts in the transcript's marker column, in place of the dot a plain
@@ -590,18 +624,22 @@ impl NativeChatView {
         // Inside a turn's work fold the raw tool pairs stay plain rows and the cards are hoisted
         // onto the turn instead, so an answer is never rendered twice (the core's questions/hoisting.rs).
         if !self.in_work_fold
-            && let Some(cards) =
-                self.question_exchange_cards(&format!("message:{id}"), &message["questions"], p, cx)
+            && let Some(cards) = self.question_exchange_cards(
+                &format!("message:{id}"),
+                list(message, "questions"),
+                p,
+                cx,
+            )
         {
             row = row.child(cards);
         }
         if !self.in_work_fold
-            && let Some(cards) = self.sent_agent_message_cards(&message["sentMessages"], p, cx)
+            && let Some(cards) = self.sent_agent_message_cards(list(message, "sentMessages"), p, cx)
         {
             row = row.child(cards);
         }
         if !self.in_work_fold
-            && let Some(cards) = self.workflow_cards(&message["workflows"], p, cx)
+            && let Some(cards) = self.workflow_cards(list(message, "workflows"), p, cx)
         {
             row = row.child(cards);
         }

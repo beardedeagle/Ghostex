@@ -112,11 +112,13 @@ impl NativeChatView {
     /// User: a message this session's agent sends another agent gets "a small card that shows the message being sent when expanded", "collapsed by default", in the received card's shape.
     pub(super) fn sent_agent_message_cards(
         &self,
-        cards: &Value,
+        cards: &[Value],
         p: &ChatAppearance,
         cx: &Context<Self>,
     ) -> Option<AnyElement> {
-        let cards = cards.as_array().filter(|cards| !cards.is_empty())?;
+        if cards.is_empty() {
+            return None;
+        }
         Some(
             div()
                 .flex()

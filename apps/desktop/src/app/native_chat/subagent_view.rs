@@ -9,6 +9,7 @@
 use super::{appearance::ChatAppearance, state::NativeChatView, transcript::text};
 use crate::app::helpers::ThrottledAnimationExt as _;
 use crate::app::native_chat::cursor::ChatCursor as _;
+use ghostex_gx_chat_core::ItemsSplice;
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
     AnyElement, Context, InteractiveElement as _, IntoElement, MouseButton, ParentElement as _,
@@ -19,19 +20,12 @@ use std::sync::Arc;
 
 impl NativeChatView {
     /// The viewer's transcript window, spliced exactly like the main list (the core frame's `subagent_splice`).
-    pub(super) fn apply_subagent_splice(&mut self, splice: &mut Value) {
-        let inserted = splice
-            .get_mut("items")
-            .and_then(Value::as_array_mut)
-            .map(std::mem::take)
-            .unwrap_or_default();
+    pub(super) fn apply_subagent_splice(&mut self, splice: ItemsSplice) {
         let items = Arc::make_mut(&mut self.subagent_items);
-        let start = (splice["start"].as_u64().unwrap_or(0) as usize).min(items.len());
-        let end = start
-            .saturating_add(splice["deleteCount"].as_u64().unwrap_or(0) as usize)
-            .min(items.len());
-        let inserted_len = inserted.len();
-        items.splice(start..end, inserted);
+        let start = splice.start.min(items.len());
+        let end = start.saturating_add(splice.delete_count).min(items.len());
+        let inserted_len = splice.items.len();
+        items.splice(start..end, splice.items);
         self.subagent_list.splice(start..end, inserted_len);
     }
 

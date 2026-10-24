@@ -5,6 +5,7 @@
 //! SEE-ALSO: packages/settings-catalog/src/hotkey_definitions.rs (CDXC:Hotkeys 2026-09-25 on createAgentSession).
 
 use super::state::NativeChatView;
+use ghostex_gx_chat_core::TranscriptItem;
 use gpui::{Context, Window};
 use serde_json::Value;
 
@@ -22,11 +23,58 @@ fn collect_messages<'a>(value: &'a Value, out: &mut Vec<&'a Value>) {
 
 /// The agent's replies, newest first: the rows whose Copy button copies `copyText`. Within one
 /// row, the turn's final reply comes ahead of its work messages.
-fn replies_newest_first<'a>(items: &'a [Value], final_ids: &[Value]) -> Vec<&'a str> {
+fn replies_newest_first<'a>(items: &'a [TranscriptItem], final_ids: &[Value]) -> Vec<&'a str> {
     let mut replies = Vec::new();
     for item in items.iter().rev() {
+        // The row's fields that can hold messages, in the order its JSON listed them: each
+        // variant's field order (serde_json's `preserve_order`). A field left out of the JSON
+        // when empty holds nothing either way.
+        let fields: Vec<&Value> = match item {
+            TranscriptItem::Message { message } => vec![message],
+            TranscriptItem::Summary {
+                user,
+                final_message,
+                earlier_replies,
+                work,
+                outcome,
+                ..
+            } => std::iter::once(user)
+                .chain(final_message)
+                .chain(earlier_replies)
+                .chain(work)
+                .chain(outcome)
+                .map(|model| &**model)
+                .collect(),
+            TranscriptItem::CompletedWork {
+                stats,
+                files_card,
+                files,
+                deferred,
+                work,
+                questions,
+                sent_messages,
+                workflows,
+                artifacts,
+                final_message,
+                ..
+            } => stats
+                .iter()
+                .chain([files_card])
+                .chain(files)
+                .chain(deferred)
+                .chain(work.iter().map(|model| &**model))
+                .chain(questions)
+                .chain(sent_messages)
+                .chain(workflows)
+                .chain(artifacts.iter().map(|model| &**model))
+                .chain(final_message.iter().map(|model| &**model))
+                .collect(),
+            TranscriptItem::Unknown(row) => vec![row],
+        };
         let mut messages = Vec::new();
-        collect_messages(item, &mut messages);
+        for value in fields {
+            collect_messages(value, &mut messages);
+        }
         messages.retain(|message| {
             message["role"] == "assistant"
                 && message["actionContent"]["copyable"] == true

@@ -14,11 +14,12 @@ use super::disclosure_motion::{FoldFrame, FoldMotionKind, motion_clip};
 use super::transcript::text;
 use super::{appearance::ChatAppearance, state::NativeChatView};
 use crate::app::native_chat::cursor::ChatCursor as _;
+use ghostex_gx_chat_core::TranscriptItem;
 use gpui::{
     AnyElement, Context, InteractiveElement as _, IntoElement, ParentElement as _, SharedString,
     StatefulInteractiveElement as _, Styled as _, Window, div, px,
 };
-use serde_json::{Value, json};
+use serde_json::json;
 use std::{cell::Cell, rc::Rc};
 
 /// Space between the parts of a finished turn.
@@ -48,13 +49,27 @@ fn eased_part(height: Rc<Cell<f32>>, factor: f32, content: AnyElement) -> AnyEle
 impl NativeChatView {
     pub(super) fn completed_work_row(
         &mut self,
-        item: &Value,
+        item: &TranscriptItem,
         p: &ChatAppearance,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> AnyElement {
+        // Only a finished turn is drawn here (transcript.rs).
+        let TranscriptItem::CompletedWork {
+            id: turn,
+            work,
+            questions,
+            sent_messages,
+            workflows,
+            artifacts,
+            final_message,
+            ..
+        } = item
+        else {
+            return div().into_any_element();
+        };
         let s = p.scale;
-        let id = format!("work:{}", text(item, "id"));
+        let id = format!("work:{turn}");
         let expanded = self.is_expanded(&id, p.work_open);
         self.disclosure_motion
             .borrow_mut()
@@ -67,7 +82,7 @@ impl NativeChatView {
         let folding = motion.is_some_and(|frame| frame.kind == FoldMotionKind::Fold);
         let log = if folding {
             let mut rows: Vec<AnyElement> = Vec::new();
-            for message in item["work"].as_array().into_iter().flatten() {
+            for message in work {
                 rows.push(self.message_row(message, p, window, cx));
             }
             (!rows.is_empty()).then_some(rows)
@@ -80,7 +95,7 @@ impl NativeChatView {
                 log.push(notice);
             }
             self.in_work_fold = true;
-            for message in item["work"].as_array().into_iter().flatten() {
+            for message in work {
                 log.push(self.message_row(message, p, window, cx));
             }
             self.in_work_fold = false;
@@ -101,22 +116,22 @@ impl NativeChatView {
         self.hide_file_changes = true;
         let files = self.completed_files_fold(item, p, cx);
         let mut tail: Vec<AnyElement> = Vec::new();
-        for message in item["artifacts"].as_array().into_iter().flatten() {
+        for message in artifacts {
             tail.push(self.message_row(message, p, window, cx));
         }
         // The turn's answered questions, lifted out of the fold so an exchange the reader took
         // part in is never buried by a collapsed "Worked for Xs" section.
-        if let Some(cards) = self.question_exchange_cards(&id, &item["questions"], p, cx) {
+        if let Some(cards) = self.question_exchange_cards(&id, questions, p, cx) {
             tail.push(cards);
         }
-        if let Some(cards) = self.sent_agent_message_cards(&item["sentMessages"], p, cx) {
+        if let Some(cards) = self.sent_agent_message_cards(sent_messages, p, cx) {
             tail.push(cards);
         }
-        if let Some(cards) = self.workflow_cards(&item["workflows"], p, cx) {
+        if let Some(cards) = self.workflow_cards(workflows, p, cx) {
             tail.push(cards);
         }
-        if item["final"].is_object() {
-            tail.push(self.message_row(&item["final"], p, window, cx));
+        if let Some(reply) = final_message.as_deref().filter(|reply| reply.is_object()) {
+            tail.push(self.message_row(reply, p, window, cx));
         }
         self.hide_file_changes = false;
 
@@ -145,19 +160,28 @@ impl NativeChatView {
     /// CDXC:SessionChat 2026-10-11 DECISION: User: move the count pills to the right side of the "Worked …" row and give them fully rounded (pill) corners. They wrap among themselves, right-aligned, when the row is narrow; the phone's `TranscriptItemRow.tsx` lays them out the same way.
     fn work_summary(
         &self,
-        item: &Value,
+        item: &TranscriptItem,
         id: &str,
         expanded: bool,
         p: &ChatAppearance,
         cx: &Context<Self>,
     ) -> AnyElement {
+        let TranscriptItem::CompletedWork {
+            id: turn,
+            label,
+            stats,
+            expandable,
+            deferred,
+            ..
+        } = item
+        else {
+            return div().into_any_element();
+        };
         let s = p.scale;
-        let expandable = item["expandable"] == true;
-        let label = text(item, "label");
-        let stats: Vec<(String, String)> = item["stats"]
-            .as_array()
-            .into_iter()
-            .flatten()
+        let expandable = *expandable;
+        let label = label.clone();
+        let stats: Vec<(String, String)> = stats
+            .iter()
             .map(|stat| (text(stat, "kind"), text(stat, "label")))
             .collect();
         let spoken = std::iter::once(label.clone())
@@ -210,8 +234,10 @@ impl NativeChatView {
             );
         if expandable {
             let id = id.to_string();
-            let action = Some(json!({"type":"loadWork","id":item["id"],"work":item["deferred"]}))
-                .filter(|_| item["deferred"].is_object());
+            let action = deferred
+                .as_ref()
+                .filter(|work| work.is_object())
+                .map(|work| json!({"type":"loadWork","id":turn,"work":work}));
             bar = bar
                 .chat_cursor_pointer()
                 .hover(|style| style.bg(card_hover_fill(p)))
