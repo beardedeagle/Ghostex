@@ -3364,7 +3364,9 @@ under every card that has links), Selected session (that line only under the
 session you have open), Badge (the default: a small count on the card, coloured by
 the most pressing link: red for failing checks or changes asked for, amber for a
 review asked for or checks still running), Open work only (a line of the ones
-still open, none once they are all merged or closed), or Off. Rest the pointer on a
+still open, none once they are all merged or closed), or Off. A session with no
+links yet but links the chat mentioned shows a muted, dashed badge counting those
+suggestions with every choice but Off. Rest the pointer on a
 card that has links and, after the tooltip delay, a card opens beside the sidebar
 listing them the same way, with the same open, ×, Remove? and Link as the
 header's list. It is as tall as what it shows and grows or shrinks when you fold a

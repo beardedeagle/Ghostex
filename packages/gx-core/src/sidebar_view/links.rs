@@ -313,6 +313,9 @@ impl SessionLinksDisplay {
 pub struct SessionLinksBadge {
     pub count: usize,
     pub tone: SessionLinkTone,
+    /// The session has no links yet, only suggestions: the badge counts those and is drawn
+    /// quietly (muted, dashed).
+    pub suggested: bool,
 }
 
 /// What one sidebar row shows of its links.
@@ -357,9 +360,26 @@ impl SessionLinks {
 
     /// What a row shows under `display`; `selected` is whether the row is the session the window
     /// shows.
+    ///
+    /// CDXC:SessionLinks 2026-10-24 DECISION:
+    /// User: "why didn't we suggest #263 here for this session?" A session whose only links are suggestions shows a quiet badge (muted and dashed, counting the suggestions) that opens the floating card on hover, under every option but Off, instead of nothing.
     pub fn row(&self, display: SessionLinksDisplay, selected: bool) -> SessionLinksRow {
-        if self.items.is_empty() || display == SessionLinksDisplay::Off {
+        if display == SessionLinksDisplay::Off {
             return SessionLinksRow::default();
+        }
+        if self.items.is_empty() {
+            if self.suggested.is_empty() {
+                return SessionLinksRow::default();
+            }
+            return SessionLinksRow {
+                line: Vec::new(),
+                badge: Some(SessionLinksBadge {
+                    count: self.suggested.len(),
+                    tone: SessionLinkTone::Draft,
+                    suggested: true,
+                }),
+                hover_card: true,
+            };
         }
         let all = || (0..self.items.len()).collect::<Vec<_>>();
         let (line, badge) = match display {
@@ -371,6 +391,7 @@ impl SessionLinks {
                 Some(SessionLinksBadge {
                     count: self.items.len(),
                     tone: self.most_pressing_tone(),
+                    suggested: false,
                 }),
             ),
             SessionLinksDisplay::OpenOnly => (
@@ -468,7 +489,8 @@ mod tests {
             row.badge,
             Some(SessionLinksBadge {
                 count: 3,
-                tone: SessionLinkTone::Closed
+                tone: SessionLinkTone::Closed,
+                suggested: false,
             })
         );
         let finished = SessionLinks {

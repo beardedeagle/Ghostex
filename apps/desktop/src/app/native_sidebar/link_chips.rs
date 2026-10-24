@@ -222,7 +222,8 @@ impl GhostexGpuiApp {
     }
 
     /// The badge a row shows with the Badge option: the number of links, coloured by the most
-    /// pressing one. Hidden while the row is hovered, like the row's other badges.
+    /// pressing one; or, under every option, a session's suggestions while it has no links, muted
+    /// and dashed. Hidden while the row is hovered, like the row's other badges.
     pub(super) fn render_native_session_links_badge(
         &self,
         session: &NativeSidebarSession,
@@ -230,7 +231,11 @@ impl GhostexGpuiApp {
     ) -> Option<AnyElement> {
         let badge = self.native_session_links_row(session).badge?;
         let scale = appearance.scale;
-        let color = session_link_tone_color(badge.tone);
+        let color = if badge.suggested {
+            appearance.muted
+        } else {
+            session_link_tone_color(badge.tone)
+        };
         Some(
             div()
                 .flex()
@@ -241,6 +246,7 @@ impl GhostexGpuiApp {
                 .px(px(5.0 * scale))
                 .rounded_full()
                 .border_1()
+                .when(badge.suggested, |badge| badge.border_dashed())
                 .border_color(color.opacity(0.45))
                 .text_size(px(10.5 * scale))
                 .text_color(color)

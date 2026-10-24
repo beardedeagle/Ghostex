@@ -959,10 +959,12 @@ fn build_session(
             .as_ref()
             .filter(|work| work.has_links())
             .map(|work| Arc::new(work.clone())),
+        // A session with only suggestions keeps them: its row shows a quiet badge for them
+        // (gx-core `SessionLinks::row`).
         links: row
             .links
             .as_ref()
-            .filter(|links| !links.items.is_empty())
+            .filter(|links| !links.is_empty())
             .map(|links| Arc::new(links.clone())),
         details,
     }
