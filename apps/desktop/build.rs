@@ -867,6 +867,14 @@ fn main() {
         .file(gpui_terminal_mouse_cursor)
         .compile("ghostex_gpui_terminal_mouse_cursor");
 
+    // Uncaught Objective-C exceptions into gpui-crash-reports.log (see the file's
+    // CDXC:CrashReports note).
+    let gpui_crash_reports = manifest_dir.join("native/macos/GpuiCrashReports.m");
+    println!("cargo:rerun-if-changed={}", gpui_crash_reports.display());
+    gpui_macos_objc_build()
+        .file(gpui_crash_reports)
+        .compile("ghostex_gpui_crash_reports");
+
     /*
     CDXC:Notifications 2026-06-24-12:44:
     Compile the GPUI Settings notification shim separately from CEF and terminal AppKit adapters. It owns only UserNotifications permission/status/test-banner calls, requests alert authorization, emits no notification sound, and must not grow into session attention routing or persistent logging.

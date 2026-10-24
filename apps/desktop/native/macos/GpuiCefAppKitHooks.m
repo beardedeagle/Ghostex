@@ -113,6 +113,7 @@ static void GhostexGpuiCEFBrowserViewDidChangeEffectiveAppearance(id self,
                                                                   SEL _cmd);
 static void GhostexGpuiCEFInstallBrowserViewFocusSubclass(NSView *view);
 static void GhostexGpuiCEFInstallBrowserViewFocusSubclassInTree(NSView *view);
+static Class GhostexGpuiCEFFocusSuperclass(id self);
 static void GhostexGpuiCEFBrowserViewCut(id self, SEL _cmd, id sender);
 static void GhostexGpuiCEFBrowserViewCopy(id self, SEL _cmd, id sender);
 static void GhostexGpuiCEFBrowserViewPaste(id self, SEL _cmd, id sender);
@@ -1273,7 +1274,7 @@ static int GhostexGpuiCEFBrowserViewHoverAcceptance(id self, SEL _cmd) {
   }
   struct objc_super superInfo = {
       .receiver = self,
-      .super_class = class_getSuperclass(object_getClass(self)),
+      .super_class = GhostexGpuiCEFFocusSuperclass(self),
   };
   int (*sendSuper)(struct objc_super *, SEL) = (void *)objc_msgSendSuper;
   return sendSuper(&superInfo, _cmd);
@@ -1306,26 +1307,77 @@ static void GhostexGpuiCEFBrowserViewMagnify(id self, SEL _cmd, NSEvent *event) 
   }
   struct objc_super superInfo = {
       .receiver = self,
-      .super_class = class_getSuperclass(object_getClass(self)),
+      .super_class = GhostexGpuiCEFFocusSuperclass(self),
   };
   void (*sendSuper)(struct objc_super *, SEL, NSEvent *) =
       (void *)objc_msgSendSuper;
   sendSuper(&superInfo, _cmd, event);
 }
 
+/*
+ CDXC:CefRuntime 2026-10-24 WHY:
+ GitHub #291: the app quit on an uncaught "Cannot remove an observer <_NSTouchBarFinderObservation> for the key path nextResponder" exception. AppKit's Touch Bar finder (it runs on Macs without a Touch Bar too) KVO-observes nextResponder on every responder from the key window's first responder up, and KVO does that by switching the view's class to NSKVONotifying_<class>. The focus subclass below switches the class too, so running it on a view the finder was observing put our class on top of KVO's: KVO lost its own class info (`-class` returned nil), and the finder's next removal of that observer, when focus moved (a chat menu or the feedback window closing), threw or crashed.
+ So a view whose hierarchy already holds the focus subclass is left alone, even under KVO's class (the old prefix check compared one byte too many and never matched, so every repeat swizzled again), and a view KVO currently owns is swizzled once KVO has let go. The forwarding calls take their superclass from the focus subclass, not from the object's class: with KVO's class on top, the class above the focus subclass is the focus subclass itself, so every forwarded call looped back into the same hook.
+*/
+static const char GhostexGpuiCEFFocusClassPrefix[] = "GhostexGpuiCEFFocus_";
+static const void *GhostexGpuiCEFFocusSubclassRetryKey =
+    &GhostexGpuiCEFFocusSubclassRetryKey;
+static const int64_t GhostexGpuiCEFFocusSubclassRetryDelay =
+    500 * NSEC_PER_MSEC;
+
+static Class GhostexGpuiCEFFocusSubclassInHierarchy(Class cls) {
+  size_t prefixLength = sizeof(GhostexGpuiCEFFocusClassPrefix) - 1;
+  for (; cls; cls = class_getSuperclass(cls)) {
+    if (strncmp(class_getName(cls), GhostexGpuiCEFFocusClassPrefix,
+                prefixLength) == 0) {
+      return cls;
+    }
+  }
+  return Nil;
+}
+
+static Class GhostexGpuiCEFFocusSuperclass(id self) {
+  Class objectClass = object_getClass(self);
+  Class focusClass = GhostexGpuiCEFFocusSubclassInHierarchy(objectClass);
+  return class_getSuperclass(focusClass ?: objectClass);
+}
+
+static void GhostexGpuiCEFRetryBrowserViewFocusSubclass(NSView *view) {
+  if (objc_getAssociatedObject(view, GhostexGpuiCEFFocusSubclassRetryKey)) {
+    return;
+  }
+  objc_setAssociatedObject(view, GhostexGpuiCEFFocusSubclassRetryKey, @YES,
+                           OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+  __weak NSView *weakView = view;
+  dispatch_after(
+      dispatch_time(DISPATCH_TIME_NOW, GhostexGpuiCEFFocusSubclassRetryDelay),
+      dispatch_get_main_queue(), ^{
+        NSView *retryView = weakView;
+        if (!retryView) {
+          return;
+        }
+        objc_setAssociatedObject(retryView,
+                                 GhostexGpuiCEFFocusSubclassRetryKey, nil,
+                                 OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        GhostexGpuiCEFInstallBrowserViewFocusSubclass(retryView);
+      });
+}
+
 static void GhostexGpuiCEFInstallBrowserViewFocusSubclass(NSView *view) {
   Class originalClass = object_getClass(view);
-  if (!originalClass) {
+  if (!originalClass ||
+      GhostexGpuiCEFFocusSubclassInHierarchy(originalClass)) {
+    return;
+  }
+  if (originalClass != [view class]) {
+    GhostexGpuiCEFRetryBrowserViewFocusSubclass(view);
     return;
   }
 
   const char *originalName = class_getName(originalClass);
-  if (strncmp(originalName, "GhostexGpuiCEFFocus_", 21) == 0) {
-    return;
-  }
-
   NSString *subclassName =
-      [NSString stringWithFormat:@"GhostexGpuiCEFFocus_%s", originalName];
+      [NSString stringWithFormat:@"%s%s", GhostexGpuiCEFFocusClassPrefix,
+                                 originalName];
   Class subclass = NSClassFromString(subclassName);
   if (!subclass) {
     subclass =
@@ -1410,7 +1462,7 @@ static void GhostexGpuiCEFBrowserViewMouseDown(id self, SEL _cmd,
 
   struct objc_super superInfo = {
       .receiver = self,
-      .super_class = class_getSuperclass(object_getClass(self)),
+      .super_class = GhostexGpuiCEFFocusSuperclass(self),
   };
   void (*sendSuper)(struct objc_super *, SEL, NSEvent *) =
       (void *)objc_msgSendSuper;
@@ -1448,7 +1500,7 @@ static void GhostexGpuiCEFBrowserViewSelectAll(id self, SEL _cmd, id sender) {
 
 static void GhostexGpuiCEFBrowserViewForwardEditActionToSuper(id self, SEL _cmd,
                                                               id sender) {
-  Class superClass = class_getSuperclass(object_getClass(self));
+  Class superClass = GhostexGpuiCEFFocusSuperclass(self);
   if (superClass && class_getInstanceMethod(superClass, _cmd)) {
     struct objc_super superInfo = {
         .receiver = self,
@@ -1510,7 +1562,7 @@ static BOOL GhostexGpuiCEFBrowserViewPerformKeyEquivalent(id self, SEL _cmd,
 
   struct objc_super superInfo = {
       .receiver = self,
-      .super_class = class_getSuperclass(object_getClass(self)),
+      .super_class = GhostexGpuiCEFFocusSuperclass(self),
   };
   BOOL (*sendSuper)(struct objc_super *, SEL, NSEvent *) =
       (void *)objc_msgSendSuper;
@@ -1535,7 +1587,7 @@ static void GhostexGpuiCEFBrowserViewAddSubview(id self, SEL _cmd,
                                                 NSView *subview) {
   struct objc_super superInfo = {
       .receiver = self,
-      .super_class = class_getSuperclass(object_getClass(self)),
+      .super_class = GhostexGpuiCEFFocusSuperclass(self),
   };
   void (*sendSuper)(struct objc_super *, SEL, NSView *) =
       (void *)objc_msgSendSuper;
@@ -1547,7 +1599,7 @@ static void GhostexGpuiCEFBrowserViewDidChangeEffectiveAppearance(id self,
                                                                   SEL _cmd) {
   struct objc_super superInfo = {
       .receiver = self,
-      .super_class = class_getSuperclass(object_getClass(self)),
+      .super_class = GhostexGpuiCEFFocusSuperclass(self),
   };
   void (*sendSuper)(struct objc_super *, SEL) = (void *)objc_msgSendSuper;
   sendSuper(&superInfo, _cmd);

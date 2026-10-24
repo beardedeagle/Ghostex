@@ -27,6 +27,10 @@ const MAX_RETAINED_LOG_LINES: usize = 25_000;
 pub const RETENTION_STARTUP_DELAY: Duration = Duration::from_secs(60);
 const MAX_SANITIZED_STRING_CHARS: usize = 120;
 const MAX_CRASH_MESSAGE_CHARS: usize = 1_000;
+#[cfg(target_os = "macos")]
+const MAX_CRASH_STACK_FRAMES: usize = 64;
+#[cfg(target_os = "macos")]
+const MAX_CRASH_FRAME_CHARS: usize = 300;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum GpuiSupportLog {
@@ -239,9 +243,14 @@ fn diagnostic_value_present(value: &serde_json::Value) -> bool {
 }
 
 fn append_unconditionally(log: GpuiSupportLog, event: &str, details: serde_json::Value) {
+    write_entry(log, event, sanitize_json_value(details, 0));
+}
+
+/// Writes `details` as given: callers have already made them safe to keep.
+fn write_entry(log: GpuiSupportLog, event: &str, details: serde_json::Value) {
     let payload = serde_json::json!({
         "event": sanitize_string_value(event),
-        "details": sanitize_json_value(details, 0),
+        "details": details,
     });
     let line = format!("[{}] {}\n", timestamp_now(), payload);
     let logs_directory = logs_directory();
@@ -348,6 +357,88 @@ pub fn install_panic_hook() {
         );
         previous_hook(panic_info);
     }));
+}
+
+#[cfg(target_os = "macos")]
+unsafe extern "C" {
+    fn GhostexGpuiInstallUncaughtExceptionHandler();
+}
+
+/// Installs the uncaught Objective-C exception handler (native/macos/GpuiCrashReports.m), the
+/// [`install_panic_hook`] counterpart for exceptions AppKit or other Objective-C code throws
+/// and nothing catches. It records them in `gpui-crash-reports.log` and lets the process end.
+pub fn install_uncaught_exception_handler() {
+    #[cfg(target_os = "macos")]
+    unsafe {
+        GhostexGpuiInstallUncaughtExceptionHandler()
+    };
+}
+
+/// Called by GpuiCrashReports.m right before an uncaught Objective-C exception ends the process.
+/// The generic sanitizer would replace the reason and every frame whole (each is longer than a
+/// bounded id), so this keeps the text and replaces only path-like words.
+#[cfg(target_os = "macos")]
+#[unsafe(no_mangle)]
+pub extern "C" fn GhostexGpuiRecordUncaughtException(
+    name: *const std::ffi::c_char,
+    reason: *const std::ffi::c_char,
+    call_stack: *const std::ffi::c_char,
+    executable_load_address: u64,
+) {
+    let text = |value: *const std::ffi::c_char| {
+        if value.is_null() {
+            String::new()
+        } else {
+            // SAFETY: GpuiCrashReports.m passes NUL-terminated UTF-8 strings (or null) that live
+            // for the duration of this call.
+            unsafe { std::ffi::CStr::from_ptr(value) }
+                .to_string_lossy()
+                .into_owned()
+        }
+    };
+    let call_stack: Vec<serde_json::Value> = text(call_stack)
+        .lines()
+        .take(MAX_CRASH_STACK_FRAMES)
+        .map(|frame| redact_crash_text(frame, MAX_CRASH_FRAME_CHARS).into())
+        .collect();
+    write_entry(
+        GpuiSupportLog::CrashReports,
+        "gpui.uncaughtException",
+        serde_json::json!({
+            "name": redact_crash_text(&text(name), MAX_SANITIZED_STRING_CHARS),
+            "reason": redact_crash_text(&text(reason), MAX_CRASH_MESSAGE_CHARS),
+            "callStack": call_stack,
+            "executableLoadAddress": format!("{executable_load_address:#x}"),
+            "pid": std::process::id(),
+        }),
+    );
+}
+
+/// Replaces every whitespace-separated word holding a path separator with `[path]`, turns control
+/// characters into spaces and caps the length.
+#[cfg(target_os = "macos")]
+fn redact_crash_text(text: &str, max_chars: usize) -> String {
+    let mut redacted = String::with_capacity(text.len());
+    for word in text.split_inclusive(char::is_whitespace) {
+        let trimmed = word.trim_end();
+        if trimmed.contains('/') || trimmed.contains('\\') {
+            redacted.push_str("[path]");
+            redacted.push_str(&word[trimmed.len()..]);
+        } else {
+            redacted.push_str(word);
+        }
+    }
+    redacted
+        .chars()
+        .map(|character| {
+            if character.is_control() {
+                ' '
+            } else {
+                character
+            }
+        })
+        .take(max_chars)
+        .collect()
 }
 
 /// One-minute-after-startup retention pass (macOS
@@ -526,4 +617,21 @@ fn civil_from_epoch(epoch_seconds: i64) -> (i64, u32, u32, u32, u32, u32) {
         ((seconds_of_day % 3_600) / 60) as u32,
         (seconds_of_day % 60) as u32,
     )
+}
+
+#[cfg(all(test, target_os = "macos"))]
+mod crash_text_tests {
+    use super::redact_crash_text;
+
+    #[test]
+    fn an_exception_reason_survives_and_paths_do_not() {
+        // GitHub #291's reason is longer than the generic sanitizer's 120 characters.
+        let reason = "Cannot remove an observer <_NSTouchBarFinderObservation 0x600> for the key path \"nextResponder\" from <NSView 0x700> because it is not registered as an observer.";
+        assert_eq!(redact_crash_text(reason, 1_000), reason);
+        assert_eq!(
+            redact_crash_text("open /Users/someone/notes.txt\tC:\\Users\\x failed", 1_000),
+            "open [path] [path] failed"
+        );
+        assert_eq!(redact_crash_text("abcdef", 3), "abc");
+    }
 }
