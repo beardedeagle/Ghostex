@@ -2808,6 +2808,12 @@ sessions, so any client can control agents on any machine.
   one admin prompt, and gives a pairing QR code: under Connect a phone, click
   Show QR to open it in a popup (Settings never shows the code until you ask)
   and scan it with the Ghostex mobile app (Android ships today). A Tailscale path is offered for tailnets; its code sits behind the same Show QR button.
+  The phone's own camera can scan the code too: the QR is a ghostex.dev link,
+  so with an up-to-date Ghostex app installed the camera opens the app and it
+  pairs straight away, on Android and iPhone.
+  Without the app, the link opens a ghostex.dev page that says how to install
+  it. An older phone app can't read the new code with its own scanner: update
+  the app first.
   The Android app is the `ghostex-android.apk` on the GitHub release, built
   for 64-bit (arm64) phones. If Android says "App not installed as package
   appears to be invalid", uninstall any other Ghostex build first (one you

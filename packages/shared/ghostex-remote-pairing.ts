@@ -1,9 +1,9 @@
 /*
 CDXC:RemotePairing 2026-09-03:
 The two pairing QR payloads the desktop shows (Settings → Remote) and the
-mobile app scans. Both are `<prefix><base64url(JSON)>` with no URL wrapper and
-no whitespace, so a paste field can validate inline and a foreign QR is
-rejected by its prefix before anything is decoded.
+mobile app scans. Both are `<prefix><base64url(JSON)>` with no whitespace, so
+a paste field can validate inline and a foreign QR is rejected by its prefix
+before anything is decoded.
 
 This file is deliberately dependency-free (no Buffer, no TextEncoder, no
 base64 library) because the React Native app does not import
@@ -13,6 +13,19 @@ base64 library) because the React Native app does not import
 
 export const EASY_CONNECT_CODE_PREFIX = 'ghostex-ec1:';
 export const TAILSCALE_CODE_PREFIX = 'ghostex-ts1:';
+
+/*
+CDXC:RemotePairing 2026-10-24 DECISION:
+User: "even tho i have ghostex installed on my phone it says there aren't any
+apps that can open this link when i open it (this is on android when i use
+default camera, pls fix, i want same on ios also if possible)". gxserver now
+wraps each code in this link (`https://ghostex.dev/pair#ghostex-ec1:…`), which
+the phone app claims as an Android App Link and an iOS Universal Link, so the
+system camera opens the app. The code rides in the fragment, which a browser
+never sends to ghostex.dev. `readPairingCode` reads the link and the bare code
+alike, so a phone and a computer of either age still pair.
+*/
+export const PAIRING_LINK_PREFIX = 'https://ghostex.dev/pair#';
 
 /** Prefix of the raw Easy Connect address blob (the Advanced "Pairing address"). */
 export const LEGACY_EASY_CONNECT_ADDRESS_PREFIX = 'tc';
@@ -60,14 +73,27 @@ export function encodeTailscaleCode(code: TailscaleCode): string {
   return TAILSCALE_CODE_PREFIX + encodeBase64UrlJson(code);
 }
 
+/** The QR payload: an encoded code wrapped in the ghostex.dev link that opens the phone app. */
+export function pairingLink(code: string): string {
+  return PAIRING_LINK_PREFIX + code;
+}
+
 /**
- * Decodes a scanned or pasted payload. A bare `tc…` address (what the
- * Advanced "Pairing address" row shows) is reported as `legacyAddress` so it
- * still pastes; the caller then asks for name, user and password.
+ * Decodes a scanned or pasted payload: a pairing link or a bare code. A bare
+ * `tc…` address (what the Advanced "Pairing address" row shows) is reported as
+ * `legacyAddress` so it still pastes; the caller then asks for name, user and
+ * password.
  */
 export function readPairingCode(payload: string): ReadPairingCodeResult {
   const trimmed = payload.trim();
   if (trimmed.length === 0 || /\s/u.test(trimmed)) return null;
+  const fragment = readPairingLinkFragment(trimmed);
+  if (fragment !== undefined) {
+    // A link carries a whole code, never a bare address.
+    if (fragment === null) return null;
+    if (!fragment.startsWith(EASY_CONNECT_CODE_PREFIX) && !fragment.startsWith(TAILSCALE_CODE_PREFIX)) return null;
+    return readPairingCode(fragment);
+  }
   if (trimmed.startsWith(EASY_CONNECT_CODE_PREFIX)) {
     const code = readEasyConnectCode(decodeBase64UrlJson(trimmed.slice(EASY_CONNECT_CODE_PREFIX.length)));
     return code ? { kind: 'easyConnect', code } : null;
@@ -83,6 +109,22 @@ export function readPairingCode(payload: string): ReadPairingCodeResult {
     return { kind: 'legacyAddress', address: trimmed };
   }
   return null;
+}
+
+/**
+ * The fragment of a ghostex.dev pairing link (`null` when it does not decode),
+ * or `undefined` when `text` is not one. Lenient about what a camera or a
+ * browser may change on the way: `http`, `www.`, the host's case, a trailing
+ * slash and a query.
+ */
+function readPairingLinkFragment(text: string): string | null | undefined {
+  const match = /^https?:\/\/(?:www\.)?ghostex\.dev\/pair\/?(?:\?[^#]*)?#(.*)$/iu.exec(text);
+  if (!match) return undefined;
+  try {
+    return decodeURIComponent(match[1]!);
+  } catch {
+    return null;
+  }
 }
 
 function readEasyConnectCode(value: unknown): EasyConnectCode | null {

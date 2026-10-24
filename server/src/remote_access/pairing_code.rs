@@ -19,6 +19,26 @@ names are the wire names; keep them identical to the TS interfaces.
 pub const EASY_CONNECT_CODE_PREFIX: &str = "ghostex-ec1:";
 pub const TAILSCALE_CODE_PREFIX: &str = "ghostex-ts1:";
 
+/*
+CDXC:RemotePairing 2026-10-24 DECISION:
+User: "even tho i have ghostex installed on my phone it says there aren't any
+apps that can open this link when i open it (this is on android when i use
+default camera, pls fix, i want same on ios also if possible)". A bare
+`ghostex-ec1:…` code reads to a system camera as a link with the unknown
+scheme `ghostex-ec1`, which no app claims. The QR now carries the code as the
+fragment of an https link on ghostex.dev, which the phone app claims as an
+Android App Link and an iOS Universal Link, so the system camera opens the
+app straight into pairing. Without the app, the link opens ghostex.dev/pair,
+a page that says to install Ghostex. The code stays after `#` because a
+browser never sends the fragment to the server, so the one-time secret
+cannot reach ghostex.dev's logs; its lifetime and one-time use are unchanged.
+The app's scanner and the desktop's code field read the link and the bare
+code alike.
+SEE-ALSO: apps/mobile/app/app.json (intentFilters, associatedDomains),
+maddada-com/public/.well-known/ (assetlinks.json, apple-app-site-association).
+*/
+pub const PAIRING_LINK_PREFIX: &str = "https://ghostex.dev/pair#";
+
 pub const REMOTE_PAIRING_SECRET_TTL: Duration = Duration::minutes(15);
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
@@ -55,6 +75,12 @@ pub fn encode_easy_connect_code(code: &EasyConnectCode) -> String {
 
 pub fn encode_tailscale_code(code: &TailscaleCode) -> String {
     format!("{TAILSCALE_CODE_PREFIX}{}", encode_base64url_json(code))
+}
+
+/// The QR payload: an encoded pairing code wrapped in the ghostex.dev link that
+/// opens the phone app.
+pub fn pairing_link(code: &str) -> String {
+    format!("{PAIRING_LINK_PREFIX}{code}")
 }
 
 fn encode_base64url_json<T: Serialize>(value: &T) -> String {
@@ -132,4 +158,59 @@ fn mint_remote_pairing_secret(expires_at: DateTime<Utc>) -> RemotePairingSecret 
 
 pub fn hash_remote_pairing_secret(secret: &str) -> String {
     format!("{:x}", Sha256::digest(secret.as_bytes()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn easy_connect_code() -> EasyConnectCode {
+        EasyConnectCode {
+            v: 1,
+            address: "tc1qexampleaddress".to_string(),
+            name: "Studio".to_string(),
+            user: "madda".to_string(),
+            port: 58744,
+            ssh_port: 22,
+            secret: Some("s3cr3t-pairing-secret".to_string()),
+            expires_at: Some("2026-10-24T07:15:00.000Z".to_string()),
+        }
+    }
+
+    #[test]
+    fn easy_connect_code_keeps_its_bare_format() {
+        let encoded = encode_easy_connect_code(&easy_connect_code());
+        let body = encoded.strip_prefix("ghostex-ec1:").expect("bare prefix");
+        let json: serde_json::Value =
+            serde_json::from_slice(&URL_SAFE_NO_PAD.decode(body).expect("base64url")).unwrap();
+        assert_eq!(json["secret"], "s3cr3t-pairing-secret");
+        assert_eq!(json["sshPort"], 22);
+    }
+
+    #[test]
+    fn pairing_link_wraps_the_code_in_the_fragment() {
+        let code = encode_easy_connect_code(&easy_connect_code());
+        let link = pairing_link(&code);
+        assert_eq!(link, format!("https://ghostex.dev/pair#{code}"));
+        let (before_fragment, fragment) = link.split_once('#').expect("fragment");
+        assert_eq!(before_fragment, "https://ghostex.dev/pair");
+        assert_eq!(fragment, code);
+        // Nothing a web server sees (scheme, host, path, query) carries the code.
+        assert!(!before_fragment.contains("ghostex-ec1"));
+        assert!(!before_fragment.contains('?'));
+    }
+
+    #[test]
+    fn tailscale_link_uses_the_same_wrapper() {
+        let code = encode_tailscale_code(&TailscaleCode {
+            v: 1,
+            name: "Studio".to_string(),
+            host: Some("studio.tail1234.ts.net".to_string()),
+            ip: None,
+            port: 22,
+            user: "madda".to_string(),
+        });
+        assert!(code.starts_with("ghostex-ts1:"));
+        assert_eq!(pairing_link(&code), format!("https://ghostex.dev/pair#{code}"));
+    }
 }

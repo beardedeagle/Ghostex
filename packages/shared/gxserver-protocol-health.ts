@@ -91,6 +91,11 @@ export interface GxserverEnableSshAccessResult {
 }
 
 export interface GxserverRemotePairingCodeResult {
+  /*
+   * `payload` is what the QR and the copy button carry: the encoded code wrapped in
+   * `PAIRING_LINK_PREFIX` (`https://ghostex.dev/pair#ghostex-ec1:…`) so a phone's system camera
+   * opens the app. `readPairingCode` reads it and the bare code alike.
+   */
   /** Present only while Easy Connect is running with a published address. */
   easyConnect?: { payload: string; code: EasyConnectCode };
   /** Present only while Tailscale is running with a MagicDNS name or IP. */
