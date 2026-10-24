@@ -44,6 +44,9 @@ pub(crate) struct Native {
     install: String,
     update: Option<String>,
     windows_install: Option<String>,
+    /// CDXC:AgentProviders 2026-10-25 WHY:
+    /// The Windows update when the CLI's own updater breaks there: OpenCode 2.0.16's `opencode upgrade` hands bash a Windows path with its backslashes stripped (`/bin/bash: C:Usersmadda.cacheopencode…install: No such file`), so on Windows OpenCode updates by running its install script again, which installs the latest release over `~/.opencode/bin`.
+    windows_update: Option<String>,
     /// Variables the official installer and updater need, such as `CODEX_NON_INTERACTIVE`.
     #[serde(default)]
     pub env: BTreeMap<String, String>,
@@ -70,6 +73,16 @@ pub(crate) struct InstallDirs {
     unix: Vec<String>,
 }
 
+impl Native {
+    /// The update command on this platform: `windowsUpdate` on Windows when the catalog has one.
+    fn update_command(&self) -> Option<&str> {
+        cfg!(windows)
+            .then_some(self.windows_update.as_deref())
+            .flatten()
+            .or(self.update.as_deref())
+    }
+}
+
 /// Where the newest published version is read: a plain-text version, or one field of a JSON reply.
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -94,7 +107,7 @@ impl Definition {
     pub(crate) fn self_updater(&self) -> Option<&str> {
         self.native
             .as_ref()
-            .and_then(|native| native.update.as_deref())
+            .and_then(Native::update_command)
             .or(self.self_update.as_deref())
     }
 
@@ -223,7 +236,7 @@ pub(crate) fn methods(
         };
         if let Some(install) = install {
             let command = if installed {
-                native.update.as_deref().unwrap_or(install)
+                native.update_command().unwrap_or(install)
             } else {
                 install
             };
@@ -236,7 +249,11 @@ pub(crate) fn methods(
                     None => format!("Runs the official installer: {command}. No password needed."),
                 }),
             );
-            if installed && !command.starts_with("curl ") && !command.contains("irm ") {
+            if installed
+                && command != install
+                && !command.starts_with("curl ")
+                && !command.contains("irm ")
+            {
                 // The CLI's own updater.
                 method.unavailable_reason = None;
             } else {

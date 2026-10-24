@@ -86,6 +86,7 @@
       "install": "curl -fsSL https://opencode.ai/v2/install | bash",
       "update": "opencode upgrade",
       "windowsInstall": "$gitRoot = Split-Path (Split-Path (Split-Path (git --exec-path))); & (Join-Path $gitRoot 'bin\\bash.exe') -lc 'set -o pipefail; curl -fsSL https://opencode.ai/v2/install | bash'",
+      "windowsUpdate": "$gitRoot = Split-Path (Split-Path (Split-Path (git --exec-path))); & (Join-Path $gitRoot 'bin\\bash.exe') -lc 'set -o pipefail; curl -fsSL https://opencode.ai/v2/install | bash'",
       "requires": {
         "windows": ["git"]
       }
