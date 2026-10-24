@@ -44,7 +44,7 @@ pub const DEFAULT_GHOSTEX_SETTINGS: &[(&str, J)] = &[
     ("sessionLinkOpenTarget", J::Str("embedded")),
     // CDXC:SessionLinks 2026-10-24 SEE-ALSO: `SessionLinksDisplay` in packages/gx-core/src/sidebar_view/links.rs (what each value shows, and why Badge is the default).
     ("sidebarSessionLinks", J::Str("badge")),
-    // CDXC:WorkMode 2026-10-24 DECISION: User: Issues Workflow has "No switch; Linear parts appear once you add a Linear key, GitHub parts once gh is signed in. Branch titles and the Clean up offer become their own settings." Both are global, one value for every project. Branch titles default to off because most users never saw them (they needed Workspaces, off by default, and a project in Work mode), and turning them on renames every session that sits on a branch. The Clean up offer defaults to on: it changes nothing until it is answered, and it is the end of the start-from-ticket flow.
+    // CDXC:WorkMode 2026-10-24 DECISION: User: Issues Workflow has "No switch; Linear parts appear once you add a Linear key, GitHub parts once gh is signed in. Branch titles and the Clean up offer become their own settings." Both are global, one value for every project. Asked to keep branch titles off (most users never saw them, and turning them on renames every session on a branch) and the Clean up offer on (it changes nothing until answered), the user answered "Yes, keep those defaults".
     // SEE-ALSO: server/src/work_mode/settings.rs (gxserver reads both), server/src/work_mode/presentation.rs (`work_display_title`, `offerCleanup`).
     ("titleSessionsByBranch", J::Bool(false)),
     ("offerCleanupWhenPrMerges", J::Bool(true)),

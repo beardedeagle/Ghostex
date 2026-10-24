@@ -2,7 +2,7 @@
 //! names.
 //!
 //! CDXC:WorkMode 2026-10-24 DECISION:
-//! User: Work mode is renamed "Issues Workflow", and it is "On everywhere once set up": "No switch; Linear parts appear once you add a Linear key, GitHub parts once gh is signed in." This supersedes the per-project switch (right-click the project → Work Mode, the Settings > Projects switch, `ghostex work-mode on|off`) and the Work-workspace default; a project that had it on or off keeps nothing special, and the stored `launchSettings.workMode` is left alone and no longer read. Issues Workflow does not need the Workspaces extension either. Internal names (`workMode`, `work_mode`, `/api/*Work*`) stay, so older clients keep working: they read `workMode` as "on".
+//! User: Work mode is renamed "Issues Workflow", and it is "On everywhere once set up": "No switch; Linear parts appear once you add a Linear key, GitHub parts once gh is signed in." This supersedes the per-project switch (right-click the project → Work Mode, the Settings > Projects switch, `ghostex work-mode on|off`) and the Work-workspace default; a project that had it on or off keeps nothing special, and the stored `launchSettings.workMode` is left alone and no longer read. Asked whether it should still need the Workspaces extension, the user answered "Yes, no Workspaces needed" (replacing CDXC:Workspaces 2026-10-09 in packages/settings-catalog/src/data/official_extensions.rs). Internal names (`workMode`, `work_mode`, `/api/*Work*`) stay, so older clients keep working: they read `workMode` as "on".
 
 use serde_json::{Map, Value};
 
