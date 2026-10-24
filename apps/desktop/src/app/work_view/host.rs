@@ -31,7 +31,8 @@ impl GhostexGpuiApp {
 
     /// CDXC:WorkMode 2026-10-09 DECISION:
     /// User: Personal work-mode projects get the Work list too, so the view is there whenever the
-    /// window shows any project with Work mode on, in any workspace.
+    /// window shows any project with Work mode on, in any workspace. (Since 2026-10-24: any project
+    /// with Issues Workflow set up, CDXC:WorkMode 2026-10-24 in server/src/work_mode/project.rs.)
     pub(crate) fn work_view_available(&self) -> bool {
         !self.work_view_project_ids().is_empty()
     }
@@ -147,16 +148,16 @@ impl GhostexGpuiApp {
             return self.render_project_workarea_runtime_cef_surface(slot_key, surface, cx);
         }
         let message = if !self.work_view_available() {
-            "Turn on Work mode for a project (right-click it → Work Mode) to see its tickets here."
+            "Add a Linear API key (Settings > Projects) or sign in to GitHub with gh auth login to see your tickets here."
         } else if self.work_view_page_url().is_none() {
-            "This build of Ghostex has no Work page."
+            "This build of Ghostex has no Issues view."
         } else {
             return self.render_view_skeleton(TitlebarMode::Work);
         };
         self.render_project_editor_placeholder(
             ProjectEditorPlaceholderSignature {
                 mode: TitlebarMode::Work,
-                title: Some("Work".to_string()),
+                title: Some("Issues".to_string()),
                 message: message.to_string(),
                 actions: Vec::new(),
             },

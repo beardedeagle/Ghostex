@@ -1,50 +1,49 @@
-//! The per-project Work mode switch, stored as `launchSettings.workMode` on the project.
+//! Which parts of Issues Workflow (formerly Work mode) a project has, and the project a request
+//! names.
+//!
+//! CDXC:WorkMode 2026-10-24 DECISION:
+//! User: Work mode is renamed "Issues Workflow", and it is "On everywhere once set up": "No switch; Linear parts appear once you add a Linear key, GitHub parts once gh is signed in." This supersedes the per-project switch (right-click the project → Work Mode, the Settings > Projects switch, `ghostex work-mode on|off`) and the Work-workspace default; a project that had it on or off keeps nothing special, and the stored `launchSettings.workMode` is left alone and no longer read. Issues Workflow does not need the Workspaces extension either. Internal names (`workMode`, `work_mode`, `/api/*Work*`) stay, so older clients keep working: they read `workMode` as "on".
 
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value};
 
 use crate::domain::{DomainRepository, DomainStateError};
 
-/// Whether work mode is on for `project`: its switch, while the Workspaces built-in extension is
-/// on (`crate::workspaces::workspaces_feature_enabled`); off for every project otherwise.
+/// The parts of Issues Workflow a project has right now.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct IssuesWorkflowParts {
+    /// A Linear key applies to the project: Create Linear Ticket, Linear statuses, Link to Linear.
+    pub(crate) linear: bool,
+    /// `gh` is signed in: pull requests, GitHub issues and GitHub Projects.
+    pub(crate) github: bool,
+}
+
+impl IssuesWorkflowParts {
+    pub(crate) fn from_setup(has_linear_key: bool, gh_signed_in: bool) -> Self {
+        Self {
+            linear: has_linear_key,
+            github: gh_signed_in,
+        }
+    }
+
+    /// Issues Workflow is on for the project: something is set up.
+    pub(crate) fn any(self) -> bool {
+        self.linear || self.github
+    }
+}
+
+/// The parts `project` has, from what the background passes last found (the project's Linear key
+/// and `gh auth status`); never blocks.
+pub(crate) fn issues_workflow_parts(project: &Value) -> IssuesWorkflowParts {
+    IssuesWorkflowParts::from_setup(
+        super::project_has_linear_key(project),
+        crate::session_git_status::cached_gh_cli_available(),
+    )
+}
+
+/// Whether Issues Workflow is on for `project`: a Linear key applies to it or `gh` is signed in.
+/// The name stays from the per-project switch it replaced.
 pub(crate) fn project_work_mode(project: &Value) -> bool {
-    stored_project_work_mode(project) && crate::workspaces::workspaces_feature_enabled()
-}
-
-/// The project's own Work mode switch as stored, whether or not Workspaces is on.
-pub(crate) fn stored_project_work_mode(project: &Value) -> bool {
-    project
-        .get("launchSettings")
-        .and_then(|settings| settings.get("workMode"))
-        .and_then(Value::as_bool)
-        .unwrap_or(false)
-}
-
-/// Turns work mode on or off by hand. `launchSettings` is replaced whole on update, so the rest of
-/// it is read first and written back unchanged.
-///
-/// CDXC:WorkMode 2026-10-09 WHY:
-/// A hand-set value is stored even when it is `false` and loses `workModeFromWorkspace`, so moving
-/// the project or changing its workspace's kind keeps it (`crate::workspaces::place_project_in_workspace`).
-pub(crate) fn set_project_work_mode(
-    repository: &DomainRepository<'_>,
-    project: &Value,
-    enabled: bool,
-) -> Result<Value, DomainStateError> {
-    let project_id = project
-        .get("projectId")
-        .and_then(Value::as_str)
-        .unwrap_or_default();
-    let mut launch_settings = project
-        .get("launchSettings")
-        .and_then(Value::as_object)
-        .cloned()
-        .unwrap_or_default();
-    launch_settings.insert("workMode".to_string(), Value::Bool(enabled));
-    launch_settings.remove("workModeFromWorkspace");
-    let mut update = Map::new();
-    update.insert("projectId".to_string(), json!(project_id));
-    update.insert("launchSettings".to_string(), Value::Object(launch_settings));
-    repository.update_project(&update)
+    issues_workflow_parts(project).any()
 }
 
 /// The project a request names: `projectId`, else the project whose folder holds `path`
@@ -97,5 +96,20 @@ fn comparable_path(path: &str) -> String {
         path.to_lowercase()
     } else {
         path
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn on_once_a_linear_key_or_gh_is_set_up() {
+        assert!(!IssuesWorkflowParts::from_setup(false, false).any());
+        let linear = IssuesWorkflowParts::from_setup(true, false);
+        assert!(linear.any() && linear.linear && !linear.github);
+        let github = IssuesWorkflowParts::from_setup(false, true);
+        assert!(github.any() && github.github && !github.linear);
+        assert!(IssuesWorkflowParts::from_setup(true, true).any());
     }
 }

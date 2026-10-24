@@ -3,7 +3,7 @@
 //! the PR, so the offer never comes back for that PR on any client.
 //!
 //! CDXC:WorkMode 2026-10-09 DECISION:
-//! User: when a linked PR is merged, Ghostex offers to remove the worktree and park the session, not just put it to sleep. The offer is shown once per PR: after "Clean up" or "Keep" it does not come back for the same PR.
+//! User: when a linked PR is merged, Ghostex offers to remove the worktree and park the session, not just put it to sleep. The offer is shown once per PR: after "Clean up" or "Keep" it does not come back for the same PR. Since 2026-10-24 the **Offer Clean up when a PR merges** setting (on by default) can turn it off (CDXC:WorkMode 2026-10-24 in packages/settings-catalog/src/data/defaults.rs).
 //!
 //! CDXC:WorkMode 2026-10-09 WHY:
 //! "Already offered" lives on the session in gxserver, not in a client, so the desktop, the web

@@ -188,10 +188,14 @@ pub(super) fn to_mobile_session_list(result: &Value) -> Value {
                                 .get("worktreeJson")
                                 .or_else(|| project.get("worktree")),
                         );
-                        // CDXC:WorkMode 2026-10-09 WHY: the phone's project menu ticks its Work Mode row from this; the inventory rows are raw project rows, so the switch is read with the same rule the presentation snapshot uses and sent only when true, like the snapshot's own `workMode`.
-                        if crate::work_mode::project_work_mode(project) {
+                        // Issues Workflow's parts, folded in from the daemon's snapshot (inventory.rs) under the snapshot's own keys: `workMode` (on), `workLinear`, `workGithubOff` and `workTracker`, which pick the phone's Link to rows.
+                        if project.get("workMode").and_then(Value::as_bool) == Some(true) {
                             project_map.insert("workMode".to_string(), json!(true));
-                            // The workspace's primary tracker (`linear` or `github`), which picks the phone's Link to rows.
+                            for key in ["workLinear", "workGithubOff"] {
+                                if project.get(key).and_then(Value::as_bool) == Some(true) {
+                                    project_map.insert(key.to_string(), json!(true));
+                                }
+                            }
                             insert_present(
                                 &mut project_map,
                                 "workTracker",

@@ -159,7 +159,7 @@ impl GhostexGpuiApp {
         if self.gx_store_run_sidebar_git(&command, cx) {
             return;
         }
-        // A project's Work Mode switch and a session card's work chips (gx_store/work_mode.rs).
+        // The Issues view's briefcase and a session card's work chips (gx_store/work_mode.rs).
         if self.gx_store_run_work_mode(&command, cx) {
             return;
         }

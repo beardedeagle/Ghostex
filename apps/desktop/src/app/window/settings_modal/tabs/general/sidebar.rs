@@ -502,6 +502,24 @@ fn session_cards_section(
     rows.extend(page.toggle(
         g,
         s,
+        "titleSessionsByBranch",
+        "Title sessions by their branch",
+        "Name a session after the branch it works on, without your name and the ticket number (yahia/spx-1245-copy-link shows as copy-link), until you rename it yourself. Sessions on main keep their own title.",
+        false,
+        cx,
+    ));
+    rows.extend(page.toggle(
+        g,
+        s,
+        "offerCleanupWhenPrMerges",
+        "Offer Clean up when a PR merges",
+        "When a session's pull request is merged, its card asks once whether to clean up (remove the session's worktree and park the session; a worktree with uncommitted changes is kept) or keep it.",
+        false,
+        cx,
+    ));
+    rows.extend(page.toggle(
+        g,
+        s,
         "showSessionCardHoverButtonsInContextMenu",
         "Hover buttons also in context menu",
         "Also list the enabled hover buttons in the session right-click menu, in their usual place in the menu. Close is never listed while it is on the card. Turn off to leave every button out of the menu once it is on the card.",

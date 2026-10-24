@@ -108,7 +108,7 @@ impl TitlebarMode {
             Self::Manage => "Files",
             Self::Terminal => "Terminal",
             Self::BotFeed => "Automations",
-            Self::Work => "Work",
+            Self::Work => "Issues",
             Self::Extension(id) => id.as_str(),
         }
     }
@@ -226,7 +226,7 @@ impl TitlebarMode {
             Self::Manage => "Files is unavailable for the current project context.",
             Self::Terminal => "",
             Self::BotFeed => "",
-            Self::Work => "Work shows the tickets of projects with Work mode on.",
+            Self::Work => "Issues shows your tickets once a Linear key is set or gh is signed in.",
             Self::Extension(_) => "This extension is unavailable for the current project context.",
         }
     }

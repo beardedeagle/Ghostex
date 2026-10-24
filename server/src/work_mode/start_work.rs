@@ -282,7 +282,7 @@ fn plan_ticket_work(
         WorkTicket::Linear(identifier) => {
             let api_key = project_linear_api_key(state, &project).ok_or_else(|| {
                 DomainStateError::bad_request(
-                    "Set a Linear API key first (Settings, or ghostex work-mode linear-key).",
+                    "Set a Linear API key first (Settings, or ghostex issues linear-key).",
                 )
             })?;
             linear_issue_ticket(&api_key, identifier)

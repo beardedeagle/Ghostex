@@ -1,6 +1,7 @@
 //! Work tracker routes (crate::work_mode::tracker): which tracker a workspace or project uses and
 //! changing it, creating a GitHub issue for a GitHub workspace, and closing a work-mode notice.
-//! All of them answer "turned off" while the Workspaces built-in extension is off.
+//! They answer with Workspaces off too: Issues Workflow does not need it (a project then uses the
+//! workspace it is stored in, Personal for most).
 
 use serde_json::{json, Map, Value};
 
@@ -13,7 +14,7 @@ use crate::work_mode::{
 };
 use crate::workspaces::{
     find_workspace_id, project_workspace_id, read_sidebar_workspaces, update_workspace_in,
-    workspaces_feature_enabled, write_sidebar_workspaces,
+    write_sidebar_workspaces,
 };
 
 use super::super::work_mode_sync::spawn_work_mode_refresh;
@@ -50,26 +51,17 @@ pub(super) async fn route_work_tracker_http(
             path,
             worker_request_id,
             &body_json,
-            |repository, db, params, _| {
-                if !workspaces_feature_enabled() {
-                    return Err(DomainStateError::bad_request(
-                        "Workspaces is turned off (Settings > Extensions > Store).",
-                    ));
-                }
-                match route.as_str() {
-                    "/api/readWorkTracker" => {
-                        read_work_tracker(&worker_state, repository, db, params)
-                    }
-                    "/api/setWorkTracker" => set_work_tracker(&worker_state, db, params),
-                    "/api/createGithubIssue" => create_issue(repository, params),
-                    _ => {
-                        let notice = params
-                            .get("notice")
-                            .and_then(Value::as_str)
-                            .unwrap_or_default();
-                        dismiss_work_notice(db, notice)?;
-                        Ok(json!({ "notice": notice, "dismissed": true }))
-                    }
+            |repository, db, params, _| match route.as_str() {
+                "/api/readWorkTracker" => read_work_tracker(&worker_state, repository, db, params),
+                "/api/setWorkTracker" => set_work_tracker(&worker_state, db, params),
+                "/api/createGithubIssue" => create_issue(repository, params),
+                _ => {
+                    let notice = params
+                        .get("notice")
+                        .and_then(Value::as_str)
+                        .unwrap_or_default();
+                    dismiss_work_notice(db, notice)?;
+                    Ok(json!({ "notice": notice, "dismissed": true }))
                 }
             },
         )

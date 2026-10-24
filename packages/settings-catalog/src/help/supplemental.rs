@@ -449,7 +449,7 @@ pub(crate) const SUPPLEMENTAL_ROWS: &[Supplemental] = &[
         section: "official",
         section_title: "Built-in",
         title: "Turn off Workspaces",
-        subtitle: "Turn off Workspaces and work mode everywhere: the workspace button, the Workspaces page in Settings, Work mode on projects, the Work view, Linear and GitHub links on sessions and the workspace commands. Off by default; your workspaces, links, keys and team connections are kept.",
+        subtitle: "Turn off Workspaces everywhere: the workspace button, Move to workspace, the Workspaces page in Settings, the team backend and Slack, and the workspace, team and slack commands. Issues Workflow stays on without it. Off by default; your workspaces, keys and team connections are kept.",
         options: &[],
         user_only: false,
     },

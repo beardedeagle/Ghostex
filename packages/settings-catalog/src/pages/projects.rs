@@ -42,8 +42,7 @@ pub(crate) fn project_settings() -> Section {
             row("ticketKey", "Ticket key", "Three-letter prefix used for Linear-style ticket numbers on the Project board."),
             row("beadsDirectory", "Beads directory", "Absolute path the Project board reads its Beads workspace (.beads) from."),
             row("docsDirectory", "Docs directory", "Extra folder this project's Files view shows, in addition to its own docs."),
-            row("projectWorkMode", "Work mode", "Turn work mode on or off for this project: Linear tickets, GitHub pull requests and the Work view."),
-            row("projectLinearApiKey", "Project Linear API key", "A Linear key for this project only, used instead of its workspace's or the shared key."),
+            row("projectLinearApiKey", "Project Linear API key", "A Linear key for this project only, used instead of its workspace's or the shared key. Issues Workflow shows Linear tickets once a key applies to the project."),
         ],
     )
 }

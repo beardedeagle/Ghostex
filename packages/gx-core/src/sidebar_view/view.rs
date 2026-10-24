@@ -184,13 +184,20 @@ pub struct ProjectContextView {
     pub bot_profile: Option<String>,
     /// Whether that bot's Hermes gateway runs (the row's dot); false for every ordinary project.
     pub bot_gateway_running: bool,
-    /// Work mode is on for this project (server/src/work_mode/), which ticks its menu item.
+    /// Issues Workflow is on for this project (server/src/work_mode/project.rs): its sessions get
+    /// Link to.
     pub work_mode: bool,
-    /// Work mode is on and a Linear key is set, so its menu offers Create Linear ticket.
+    /// Issues Workflow's Linear parts are on (a Linear key applies), so a project whose tracker is
+    /// Linear offers Create Linear ticket and Link to offers Linear issues and projects.
     pub work_linear: bool,
-    /// Work mode is on and the workspace's primary tracker is GitHub (issues and GitHub Projects),
-    /// so its menu offers Create GitHub issue and Link to offers GitHub issues and projects.
+    /// Issues Workflow's GitHub parts are on (`gh` is signed in), so Link to offers pull requests.
+    pub work_pull_requests: bool,
+    /// The GitHub parts are on and the workspace's primary tracker is GitHub (issues and GitHub
+    /// Projects), so its menu offers Create GitHub issue and Link to offers GitHub issues and
+    /// projects.
     pub work_github: bool,
+    /// The workspace's primary tracker is GitHub, so the Linear parts stay hidden even with a key.
+    pub work_tracker_github: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]

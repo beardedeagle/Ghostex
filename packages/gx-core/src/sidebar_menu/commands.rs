@@ -474,11 +474,6 @@ pub(crate) mod message {
         json!({ "type": "setSessionWorkLinks", "sessionId": session_id, "links": links })
     }
 
-    /// Answered by `/api/setProjectWorkMode` (server/src/work_mode/).
-    pub(crate) fn set_project_work_mode(project_id: &str, enabled: bool) -> Value {
-        json!({ "type": "setProjectWorkMode", "projectId": project_id, "enabled": enabled })
-    }
-
     pub(crate) fn wake_project_sleeping_sessions(group_id: &str) -> Value {
         json!({ "type": "wakeProjectSleepingSessions", "groupId": group_id })
     }

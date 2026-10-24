@@ -470,19 +470,19 @@ pub fn usage() -> String {
             "Park or unpark a session, honoring Sleep session when parking",
         ),
         format_help_command(
-            "work-mode on|off [--project-id id|--path path] | status | linear-key [--project-id id] [--clear]",
-            "Turn work mode on or off for a project (default: the current folder), or save the Linear API key from stdin",
+            "issues status | linear-key [--project-id id] [--clear]",
+            "Issues Workflow (formerly work-mode, which still works as an alias): say what is set up (it is on for every project once a Linear key applies or gh is signed in), or save the Linear API key from stdin",
         ),
         format_help_command(
-            "work-mode create-ticket --title t [--description d] [--team-id id] [--linear-project-id id] [--no-assign] [--start] | start <SPX-1245|#218|PR link> [--pr 412] [--agent id] [--model m] [--effort e] [--cloud [--provider claude-code] [--prompt-file path]]",
+            "issues create-ticket --title t [--description d] [--team-id id] [--linear-project-id id] [--no-assign] [--start] | start <SPX-1245|#218|PR link> [--pr 412] [--agent id] [--model m] [--effort e] [--cloud [--provider claude-code] [--prompt-file path]]",
             "Create a ticket assigned to you (a Linear ticket, or a GitHub issue when the workspace's tracker is GitHub), or start an agent on a ticket in a worktree on its branch, linked to it; nothing is sent to the agent. --cloud starts a Claude Code cloud session on the ticket's branch instead, with the file's task or one drafted from the ticket, and prints its link",
         ),
         format_help_command(
-            "work-mode tracker [linear|github] [--workspace name|id | --project-id id | --path path]",
+            "issues tracker [linear|github] [--workspace name|id | --project-id id | --path path]",
             "Show or set the workspace's primary tracker: Linear tickets & projects, or GitHub issues & projects (a team workspace's owners set it for the whole team)",
         ),
         format_help_command(
-            "work-mode cleanup <session> clean-up|keep",
+            "issues cleanup <session> clean-up|keep",
             "Answer the offer a session gets when its linked PR is merged: remove its worktree and park it, or keep both",
         ),
         format_help_command(

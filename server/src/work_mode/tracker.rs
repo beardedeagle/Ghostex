@@ -129,7 +129,10 @@ pub(crate) fn refresh_team_work_tracker(paths: &GxserverPaths, workspace_id: &st
             .get(workspace_id)
             .is_some_and(|cached| cached.fetched_at.elapsed() < TEAM_TRACKER_TTL)
     });
-    if !crate::team_sync::workspace_has_team(paths, workspace_id) {
+    // The team backend is part of Workspaces: with it off, a team's choice does not apply.
+    if !crate::workspaces::workspaces_feature_enabled()
+        || !crate::team_sync::workspace_has_team(paths, workspace_id)
+    {
         // Left the team (or never joined): the team's choice no longer applies here.
         forget_team_work_tracker(workspace_id);
         return false;

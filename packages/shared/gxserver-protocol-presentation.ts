@@ -124,10 +124,12 @@ export interface GxserverPresentationProject {
   botGatewayRunning?: boolean;
   /** How many runs that bot's cron jobs delivered since local midnight; absent for every other project. */
   botRunsToday?: number;
-  /** Work mode is on for this project (server/src/work_mode/); present only when true. */
+  /** Issues Workflow (formerly Work mode) is on for this project: a Linear key applies or `gh` is signed in (server/src/work_mode/project.rs); present only when true. */
   workMode?: true;
-  /** Work mode is on and a Linear key is set for this project; present only when true. */
+  /** Issues Workflow is on and a Linear key applies to this project; present only when true. */
   workLinear?: true;
+  /** Issues Workflow is on but `gh` is not signed in, so its GitHub parts are hidden; present only when true. */
+  workGithubOff?: true;
   /** The primary tracker of the project's workspace (server/src/work_mode/tracker.rs); present only with work mode on. */
   workTracker?: 'linear' | 'github';
   /** The workspace this project belongs to (server/src/workspaces/); absent = the default workspace. */

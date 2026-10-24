@@ -534,8 +534,7 @@ pub(crate) fn work_ticket_detail(
     match ticket {
         WorkTicket::Linear(identifier) => {
             let api_key = linear_api_key.ok_or_else(|| {
-                "Set a Linear API key first (Settings, or ghostex work-mode linear-key)."
-                    .to_string()
+                "Set a Linear API key first (Settings, or ghostex issues linear-key).".to_string()
             })?;
             cached_detail(
                 format!("linear:{}:{identifier}", linear_key_fingerprint(api_key)),

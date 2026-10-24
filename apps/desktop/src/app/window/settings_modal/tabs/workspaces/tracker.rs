@@ -127,7 +127,7 @@ impl WorkspacesTab {
         let can_edit = answer["canEdit"].as_bool() != Some(false);
         let source = answer["source"].as_str().unwrap_or_default();
         let mut description = String::from(
-            "Pick one. Create ticket, the Work page, Link to and the cards use it, and so does the Slack flow for a team.",
+            "Pick one. Create ticket, the Issues view, Link to and the cards use it, and so does the Slack flow for a team.",
         );
         if team && !can_edit {
             description.push_str(" Only the team's owners can change it.");

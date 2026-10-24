@@ -289,6 +289,7 @@ fn is_known_command(name: &str) -> bool {
         "paired-device-seen",
         "pin-session",
         "park-session",
+        "issues",
         "work-mode",
         "workspace",
         "connectors",
@@ -662,10 +663,8 @@ fn run_command(name: &str, args: &[String]) -> CliResult<()> {
             fail_on_not_ok,
             args,
         ),
-        "work-mode" => {
-            require_built_in(ghostex_settings_catalog::built_in_extensions::WORKSPACES)?;
-            work_mode::work_mode_command(args)
-        }
+        // CDXC:WorkMode 2026-10-24 DECISION: User: Work mode is renamed "Issues Workflow"; `ghostex issues …` is its name in help and `ghostex work-mode …` keeps working as an alias, because older skills and scripts call it. Neither needs Workspaces any more.
+        "issues" | "work-mode" => work_mode::work_mode_command(args),
         "workspace" => {
             require_built_in(ghostex_settings_catalog::built_in_extensions::WORKSPACES)?;
             workspace::workspace_command(args)
@@ -685,10 +684,7 @@ fn run_command(name: &str, args: &[String]) -> CliResult<()> {
             require_built_in(ghostex_settings_catalog::built_in_extensions::WORKSPACES)?;
             team_slack::slack_command(args)
         }
-        "link-session" => {
-            require_built_in(ghostex_settings_catalog::built_in_extensions::WORKSPACES)?;
-            work_mode::link_session_command(args)
-        }
+        "link-session" => work_mode::link_session_command(args),
         "link" => session_links::link_command(args),
         "delayed-send" => {
             // `--cancel` clears the armed automation; otherwise the parser

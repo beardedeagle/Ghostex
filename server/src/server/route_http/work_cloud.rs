@@ -5,7 +5,6 @@
 use crate::domain::DomainStateError;
 use crate::protocol::rpc_success;
 use crate::work_mode::{draft_cloud_work, start_cloud_work};
-use crate::workspaces::workspaces_feature_enabled;
 
 use super::super::work_mode_sync::spawn_work_mode_refresh;
 use super::*;
@@ -34,11 +33,6 @@ pub(super) async fn route_work_cloud_http(
     let worker_state = state.clone();
     // Off the async runtime: Linear, `gh`, `git ls-remote` and the cloud start are slow.
     let result = tokio::task::spawn_blocking(move || {
-        if !workspaces_feature_enabled() {
-            return Err(DomainStateError::bad_request(
-                "Workspaces is turned off (Settings > Extensions > Store).",
-            ));
-        }
         if start {
             start_cloud_work(&worker_state, &params)
         } else {

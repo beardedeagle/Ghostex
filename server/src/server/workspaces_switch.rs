@@ -1,8 +1,10 @@
 //! Follows the Workspaces built-in extension's switch (`crate::workspaces::workspaces_feature_enabled`)
 //! so turning it on or off reaches every connected client within seconds: the team subscriptions
 //! start or stop, a work-mode pass runs when it comes on, and every client gets one fresh
-//! presentation snapshot (with or without the workspaces document, project workspace ids, work
-//! mode and session work).
+//! presentation snapshot (with or without the workspaces document and project workspace ids).
+//! It also follows the two Issues Workflow settings (`crate::work_mode::issues_workflow_settings`):
+//! a flip runs a work pass, which republishes the open sessions whose title or Clean up offer
+//! changed.
 //!
 //! CDXC:Workspaces 2026-10-09 WHY:
 //! The switch lives in the settings file, which the desktop's Settings page and `ghostex settings`
@@ -21,11 +23,20 @@ pub(crate) fn start_workspaces_switch_watch(state: Arc<AppState>) {
     tokio::spawn(async move {
         let mut published = crate::workspaces::read_workspaces_feature_enabled(&state.paths);
         crate::workspaces::remember_workspaces_feature_enabled(published);
+        let mut issues_settings = crate::work_mode::read_issues_workflow_settings(&state.paths);
+        crate::work_mode::remember_issues_workflow_settings(issues_settings);
         let mut poll = tokio::time::interval(SETTINGS_POLL);
         loop {
             tokio::select! {
                 _ = shutdown.recv() => break,
                 _ = poll.tick() => {}
+            }
+            let next_issues_settings =
+                crate::work_mode::read_issues_workflow_settings(&state.paths);
+            if next_issues_settings != issues_settings {
+                issues_settings = next_issues_settings;
+                crate::work_mode::remember_issues_workflow_settings(issues_settings);
+                super::work_mode_sync::spawn_work_mode_refresh(&state);
             }
             let enabled = crate::workspaces::read_workspaces_feature_enabled(&state.paths);
             if enabled == published {

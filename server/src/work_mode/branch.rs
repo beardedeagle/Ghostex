@@ -26,9 +26,7 @@ pub(crate) fn work_branch(branch: Option<&str>) -> Option<&str> {
 /// `arabic-plan-cards`.
 ///
 /// CDXC:WorkMode 2026-10-09 DECISION:
-/// User: in work mode a session's title is its branch name by default, without the user prefix
-/// and without the ticket ID, because the ID already shows on the card's second line; renaming
-/// the session still wins.
+/// User: a session's title is its branch name, without the user prefix and without the ticket ID, because the ID already shows on the card; renaming the session still wins. Since 2026-10-24 it is the global **Title sessions by their branch** setting (off by default) instead of on by default in work mode (CDXC:WorkMode 2026-10-24 in packages/settings-catalog/src/data/defaults.rs).
 pub(crate) fn branch_title(branch: &str) -> Option<String> {
     let segment = branch.trim().rsplit('/').next()?.trim();
     if segment.is_empty() {

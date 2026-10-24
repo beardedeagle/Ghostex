@@ -129,7 +129,9 @@ pub(crate) fn presentation_session_work(project: &Value, session: &Value) -> Opt
                     .unwrap_or_default(),
                 pull_request.get("url").and_then(Value::as_str),
             );
-            if offers_work_cleanup(session, &key) {
+            if issues_workflow_settings().offer_cleanup_when_pr_merges
+                && offers_work_cleanup(session, &key)
+            {
                 output.insert("offerCleanup".to_string(), json!(true));
             }
         }
@@ -307,13 +309,14 @@ fn presentation_pull_request(targets: &WorkTargets) -> Option<Value> {
     Some(Value::Object(pull_request))
 }
 
-/// The title a work-mode session shows: its branch title, unless the person renamed it.
+/// The title a session shows while **Title sessions by their branch** is on: its branch title,
+/// unless the person renamed it. Any project: a branch title needs only git.
 pub(crate) fn work_display_title(
     project: &Value,
     session: &Value,
     title_source: Option<&str>,
 ) -> Option<String> {
-    if !project_work_mode(project) || title_source == Some("user") {
+    if !issues_workflow_settings().title_sessions_by_branch || title_source == Some("user") {
         return None;
     }
     let cwd = effective_session_git_cwd(session, Some(project))?;

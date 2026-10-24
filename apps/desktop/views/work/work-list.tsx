@@ -169,7 +169,7 @@ export function WorkListView({
     <div className='w-page work-list-page'>
       <div className='w-headrow'>
         <div>
-          <div className='w-eyebrow'>Work{workspaceLabel ? ` · ${workspaceLabel}` : ''}</div>
+          <div className='w-eyebrow'>Issues{workspaceLabel ? ` · ${workspaceLabel}` : ''}</div>
           <h1 className='w-title'>Ongoing work</h1>
         </div>
         <div className='w-headrow-spacer' />
@@ -322,7 +322,7 @@ function Notices({ data, error }: { data: WorkListData | null; error: string | n
   if (error) notices.push(error);
   if (data && !data.linearConfigured && data.tracker !== 'github') {
     notices.push(
-      'Add a Linear API key to see Linear tickets: run "ghostex work-mode linear-key" or set it in Settings.'
+      'Add a Linear API key to see Linear tickets: run "ghostex issues linear-key" or set it in Settings > Projects.'
     );
   }
   if (data && !data.ghAvailable)

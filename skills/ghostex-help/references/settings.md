@@ -52,6 +52,8 @@ How to use this file:
 
 - **Session hover buttons (click to toggle, drag to reorder)** `sessionCardHoverButtons` (structured value; change it in Settings, not with `ghostex settings set`) [advanced]: Buttons a session card shows when you hover it. Click an icon to turn it on or off; drag icons to reorder them. Buttons to the right of the chevron always show, buttons to its left hide until the chevron is clicked. By default the strip is Tag, Park, Sleep, chevron, Close.
 - **Session links in the sidebar** `sidebarSessionLinks` (one of always | selected | badge | open | off; default badge): How a session card shows the pull requests, issues and Linear tickets it is linked to. Always: a line of them under every card that has any. Selected session: that line only under the session you have open. Badge: a small count on the card, coloured by the most pressing one. Open work only: a line of the ones still open, none once they are all merged or closed. Hovering a card with links shows them all in a card beside the sidebar, except with Off, which shows nothing. Option labels: always = Always, selected = Selected session, badge = Badge, open = Open work only, off = Off.
+- **Title sessions by their branch** `titleSessionsByBranch` (boolean, default false): Name a session after the branch it works on, without your name and the ticket number (yahia/spx-1245-copy-link shows as copy-link), until you rename it yourself. Sessions on main keep their own title.
+- **Offer Clean up when a PR merges** `offerCleanupWhenPrMerges` (boolean, default true): When a session's pull request is merged, its card asks once whether to clean up (remove the session's worktree and park the session; a worktree with uncommitted changes is kept) or keep it.
 - **Hover buttons also in context menu** `showSessionCardHoverButtonsInContextMenu` (boolean, default true) [advanced]: Also list the enabled hover buttons in the session right-click menu, in their usual place in the menu. Close is never listed while it is on the card. Turn off to leave every button out of the menu once it is on the card.
 #### Sidebar Tags
 
@@ -419,7 +421,7 @@ How to use this file:
 - **Open In** `openIn` (Settings UI row without a settings key; use `ghostex settings open`): Open the active project or a session's folder in your editor, terminal or file manager from the Open button and the Open In menus.
 - **Spaces** `spaces` (Settings UI row without a settings key; use `ghostex settings open`): Group projects into Spaces and switch between them from a row of icons at the top of the sidebar, or by swiping.
 - **Cloud Boxes** `cloudBoxes` (Settings UI row without a settings key; use `ghostex settings open`): Run agent sessions in isolated boxes, in Docker on this computer or in the cloud, from New Thread's Run on choice or Run in a Box in the Select Agent menu.
-- **Workspaces** `workspaces` (Settings UI row without a settings key; use `ghostex settings open`): Keep each company's projects, Spaces, browser sign-ins and Claude account in its own workspace, and turn on work mode: Linear tickets and GitHub pull requests on your sessions, the Work view and your team's Slack flow.
+- **Workspaces** `workspaces` (Settings UI row without a settings key; use `ghostex settings open`): Keep each company's projects, Spaces, browser sign-ins, Linear key and Claude account in its own workspace, pick each one's primary tracker, and share a team backend for your team's Slack flow.
 - **Connectors** `connectors` (Settings UI row without a settings key; use `ghostex settings open`): Connect Gmail, Slack, Linear and more apps to a workspace so its agents can use them, from the Connectors page and the ghostex connectors commands.
 - **OS Integration** `osIntegration` (Settings UI row without a settings key; use `ghostex settings open`): Make Ghostex your default editor, terminal-link handler and script runner, and check how this computer opens its files and links.
 - **Debugging** `debugging` (Settings UI row without a settings key; use `ghostex settings open`): The Debugging page in Settings: debug UI controls and the diagnostic logs you turn on while reproducing an issue.
@@ -431,7 +433,7 @@ How to use this file:
 - **Turn off Open In** `openInTitlebarButtonHidden` (boolean, default false): Turn off Open In everywhere: the Open button, the Open In page in Settings and the Open In menus. Your apps and custom commands are kept.
 - **Spaces** `sidebarSpacesEnabled` (boolean, default false): Turn on Spaces: a row of Space icons at the top of the sidebar, Space menus, and the Space settings. Off by default; your saved Spaces are kept while it is off.
 - **Turn off Cloud Boxes** `cloudBoxesHidden` (boolean, default true): Turn off Cloud Boxes everywhere: the Cloud Boxes page in Settings, the Run on choice of a new thread, Run in a Box in the Select Agent menu and the agentbox commands. Off by default; your boxes and box settings are kept. Only on macOS and Linux.
-- **Turn off Workspaces** `workspacesHidden` (boolean, default true): Turn off Workspaces and work mode everywhere: the workspace button, the Workspaces page in Settings, Work mode on projects, the Work view, Linear and GitHub links on sessions and the workspace commands. Off by default; your workspaces, links, keys and team connections are kept.
+- **Turn off Workspaces** `workspacesHidden` (boolean, default true): Turn off Workspaces everywhere: the workspace button, Move to workspace, the Workspaces page in Settings, the team backend and Slack, and the workspace, team and slack commands. Issues Workflow stays on without it. Off by default; your workspaces, keys and team connections are kept.
 - **Turn off Read aloud** `readAloudHidden` (boolean, default true): Turn off Read aloud everywhere: Read aloud on replies, Auto-read in the chat's ⋯ menu, the Read aloud rows on Settings > Chat and the Read aloud hotkeys, on this computer and in the phone app and browser connected to it. Off by default, and shown only while Enable Experimental Features is on; your Voice and Speed are kept.
 - **Turn off Connectors** `connectorsHidden` (boolean, default false): Turn off Connectors everywhere: the Connectors page in Settings, the apps your agents get and the ghostex connectors commands. On by default, and shown only while Enable Experimental Features is on; your sign-ins and connected apps are kept.
 - **Turn off OS Integration** `osIntegrationHidden` (boolean, default false): Leave the OS Integration page out of Settings. On by default, and shown only while Enable Experimental Features is on.
@@ -507,8 +509,7 @@ How to use this file:
 - **Ticket key** `ticketKey` (Settings UI row without a settings key; use `ghostex settings open`): Three-letter prefix used for Linear-style ticket numbers on the Project board.
 - **Beads directory** `beadsDirectory` (Settings UI row without a settings key; use `ghostex settings open`): Absolute path the Project board reads its Beads workspace (.beads) from.
 - **Docs directory** `docsDirectory` (Settings UI row without a settings key; use `ghostex settings open`): Extra folder this project's Files view shows, in addition to its own docs.
-- **Work mode** `projectWorkMode` (Settings UI row without a settings key; use `ghostex settings open`): Turn work mode on or off for this project: Linear tickets, GitHub pull requests and the Work view.
-- **Project Linear API key** `projectLinearApiKey` (Settings UI row without a settings key; use `ghostex settings open`): A Linear key for this project only, used instead of its workspace's or the shared key.
+- **Project Linear API key** `projectLinearApiKey` (Settings UI row without a settings key; use `ghostex settings open`): A Linear key for this project only, used instead of its workspace's or the shared key. Issues Workflow shows Linear tickets once a key applies to the project.
 ## Remote (tab `remote`)
 
 ### Easy Connect
@@ -547,8 +548,8 @@ How to use this file:
 
 - **Workspace name** `workspaceName` (Settings UI row without a settings key; use `ghostex settings open`): The name and letter shown on the workspace button left of your Spaces.
 - **Workspace color** `workspaceColor` (Settings UI row without a settings key; use `ghostex settings open`): The color of the workspace button.
-- **Work or Personal** `workspaceKind` (Settings UI row without a settings key; use `ghostex settings open`): Work turns work mode on for the workspace's projects by default; Personal leaves it off.
-- **Primary tracker** `workspaceTracker` (Settings UI row without a settings key; use `ghostex settings open`): Linear tickets & projects, or GitHub issues & projects: what Create ticket, the Work view, Link to and Slack use. Shows the command that lets Ghostex read GitHub Projects when it can't yet.
+- **Work or Personal** `workspaceKind` (Settings UI row without a settings key; use `ghostex settings open`): A Work workspace can share a team backend with your team (requests from Slack, the team's Linear key); a Personal one is just yours.
+- **Primary tracker** `workspaceTracker` (Settings UI row without a settings key; use `ghostex settings open`): Linear tickets & projects, or GitHub issues & projects: what Create ticket, the Issues view, Link to and Slack use. Shows the command that lets Ghostex read GitHub Projects when it can't yet.
 - **Linear API key** `workspaceLinearApiKey` (Settings UI row without a settings key; use `ghostex settings open`): The Linear key this workspace's projects use, unless a project sets its own.
 - **Claude account** `workspaceClaudeAccount` (Settings UI row without a settings key; use `ghostex settings open`): Which of your Claude accounts agents in this workspace's projects use.
 - **Browser sign-ins** `workspaceBrowserSignins` (Settings UI row without a settings key; use `ghostex settings open`): Each workspace's Browser keeps its own cookies; sign out of every site here.
@@ -571,7 +572,7 @@ How to use this file:
 - **Where new work runs** `teamDefaultRunPlace` (Settings UI row without a settings key; use `ghostex settings open`): Cloud or this computer, for @Ghostex in Slack without cloud or local.
 - **Never work without a ticket** `teamNeverWithoutTicket` (Settings UI row without a settings key; use `ghostex settings open`): Ghostex finds the ticket in the thread or creates one in Linear before any session starts. Always on.
 - **Team instructions** `teamInstructions` (Settings UI row without a settings key; use `ghostex settings open`): Your team's rules, added to every session Ghostex starts from Slack.
-- **Team-flow steps** `teamFlowSteps` (Settings UI row without a settings key; use `ghostex settings open`): The steps each ticket shows on the Work page, shared by the whole team: reorder, rename, remove or add them, or reset to the default. Only the team's owners can change them.
+- **Team-flow steps** `teamFlowSteps` (Settings UI row without a settings key; use `ghostex settings open`): The steps each ticket shows in the Issues view, shared by the whole team: reorder, rename, remove or add them, or reset to the default. Only the team's owners can change them.
 ## Connectors (tab `connectors`)
 
 ### Composio

@@ -46,13 +46,6 @@ impl WorkspaceKind {
             _ => None,
         }
     }
-
-    /// CDXC:WorkMode 2026-10-09 DECISION:
-    /// User: work mode is on by default for every project in a Work workspace and off in
-    /// Personal.
-    pub fn default_work_mode(self) -> bool {
-        self == Self::Work
-    }
 }
 
 pub fn read_sidebar_workspaces(db: &Connection) -> Result<Value, DomainStateError> {

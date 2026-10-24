@@ -1,17 +1,16 @@
-//! The selected project's Work mode rows on the Projects page: the Work mode switch (saved with
-//! `/api/setProjectWorkMode`, the call the sidebar's Work Mode row makes) and, while work mode is
-//! on, this project's own Linear API key (`/api/setLinearApiKey` with `projectId`), with a status
-//! line saying which key the project uses now (`/api/readWorkModeStatus` says which keys exist,
-//! never their values; `/api/readWorkspaces` names the workspace whose key it falls back to).
+//! The selected project's Issues Workflow row on the Projects page: this project's own Linear API
+//! key (`/api/setLinearApiKey` with `projectId`), with a status line saying which key the project
+//! uses now (`/api/readWorkModeStatus` says which keys exist, never their values;
+//! `/api/readWorkspaces` names the workspace whose key it falls back to). Every project shows it:
+//! Issues Workflow has no per-project switch and does not need Workspaces (CDXC:WorkMode
+//! 2026-10-24 in server/src/work_mode/project.rs).
 //!
 //! CDXC:WorkMode 2026-10-09 DECISION:
-//! User: "Right-click the project → Work mode, with the same switch in the project's settings", and
-//! the Linear key is a "shared key, overridable per project". The switch here is a hand-set value
-//! like the sidebar's, so moving the project to another workspace keeps it.
+//! User: the Linear key is a "shared key, overridable per project".
 //! SEE-ALSO: server/src/server/route_http/work_mode.rs, server/src/work_mode/credentials.rs
 //! (project → workspace → shared lookup), settings_modal/tabs/workspaces.rs (the workspace key row).
 use super::super::super::fields::{
-    ButtonVariant, FieldStates, settings_button, settings_text_input, switch_control,
+    ButtonVariant, FieldStates, settings_button, settings_text_input,
 };
 use super::super::super::palette::SettingsPalette;
 use super::super::super::store::store_gxserver_rpc;
@@ -32,7 +31,7 @@ const LINEAR_KEY_TIMEOUT: Duration = Duration::from_secs(30);
 const DEFAULT_WORKSPACE_ID: &str = "personal";
 const LINEAR_KEY_HELP: &str = "Linear → Settings → Security & access → Personal API keys.";
 
-/// What the Work mode rows read from gxserver and what they are saving.
+/// What the Linear key row reads from gxserver and what it is saving.
 #[derive(Default)]
 pub(super) struct ProjectWorkModeState {
     requested: bool,
@@ -40,9 +39,6 @@ pub(super) struct ProjectWorkModeState {
     linear_keys: Option<Value>,
     /// Workspace names by id, from `/api/readWorkspaces`.
     workspace_names: HashMap<String, String>,
-    /// Switches flipped here, shown until the projects list the page was opened with catches up.
-    switched: HashMap<String, bool>,
-    saving_switch: HashSet<String>,
     /// A key typed but not saved yet, per project.
     key_drafts: HashMap<String, String>,
     saving_keys: HashSet<String>,
@@ -51,21 +47,20 @@ pub(super) struct ProjectWorkModeState {
     masked: HashMap<SharedString, bool>,
 }
 
-/// `workMode` and `workspaceId` of each project the page lists (projectSettingsProjects).
-pub(super) fn project_work_facts(hud: Option<&Value>) -> HashMap<String, (bool, Option<String>)> {
+/// `workspaceId` of each project the page lists (projectSettingsProjects).
+pub(super) fn project_workspace_ids(hud: Option<&Value>) -> HashMap<String, Option<String>> {
     hud.and_then(|hud| hud.get("projectSettingsProjects"))
         .and_then(Value::as_array)
         .into_iter()
         .flatten()
         .filter_map(|project| {
             let project_id = project.get("projectId")?.as_str()?.to_string();
-            let work_mode = project.get("workMode").and_then(Value::as_bool) == Some(true);
             let workspace_id = project
                 .get("workspaceId")
                 .and_then(Value::as_str)
                 .filter(|id| !id.is_empty())
                 .map(str::to_string);
-            Some((project_id, (work_mode, workspace_id)))
+            Some((project_id, workspace_id))
         })
         .collect()
 }
@@ -126,33 +121,6 @@ impl ProjectsTab {
                             .unwrap_or_default();
                         cx.notify();
                     }
-                });
-            },
-            cx,
-        );
-    }
-
-    fn set_work_mode(&mut self, project_id: String, enabled: bool, cx: &mut Context<Self>) {
-        if self.work.saving_switch.contains(&project_id) {
-            return;
-        }
-        self.work.switched.insert(project_id.clone(), enabled);
-        self.work.saving_switch.insert(project_id.clone());
-        cx.notify();
-        let this = cx.weak_entity();
-        store_gxserver_rpc(
-            &self.store.clone(),
-            "/api/setProjectWorkMode",
-            json!({ "projectId": project_id, "enabled": enabled }),
-            RPC_TIMEOUT,
-            move |result, cx| {
-                let _ = this.update(cx, |page, cx| {
-                    page.work.saving_switch.remove(&project_id);
-                    if let Err(error) = result {
-                        page.work.switched.remove(&project_id);
-                        page.work_toast("Couldn't change Work Mode", &error, cx);
-                    }
-                    cx.notify();
                 });
             },
             cx,
@@ -274,12 +242,12 @@ impl ProjectsTab {
                 format!("Uses {fallback}. Paste a key to give this project its own.")
             }
             None => format!(
-                "No key yet: paste one for this project, or set one for the workspace on the Workspaces page. {LINEAR_KEY_HELP}"
+                "No key yet: paste one for this project, or set one for every project with ghostex issues linear-key (or per workspace on the Workspaces page). Linear tickets show once a key applies. {LINEAR_KEY_HELP}"
             ),
         }
     }
 
-    /// The Work mode switch and, while it is on, this project's Linear key.
+    /// This project's Linear key, with the status line under it.
     pub(super) fn work_mode_rows(
         &mut self,
         p: &SettingsPalette,
@@ -288,74 +256,24 @@ impl ProjectsTab {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Vec<AnyElement> {
-        // Both rows belong to the Workspaces built-in extension (its `settingKeys`), hidden while
-        // it is off like Spaces' rows on the General page.
-        let values = self.store.read(cx).values();
-        if !ghostex_settings_catalog::built_in_extensions::enabled_with(
-            ghostex_settings_catalog::built_in_extensions::WORKSPACES,
-            |key| Some(values.bool(key)),
-        ) {
-            return Vec::new();
-        }
         if !self.work.requested {
             self.reload_work_mode_status(cx);
         }
-        let facts = project_work_facts(self.store.read(cx).hud());
+        let workspace_ids = project_workspace_ids(self.store.read(cx).hud());
         let project_id = project.project_id.clone();
-        let (saved, own_workspace) = facts.get(&project_id).cloned().unwrap_or_default();
-        // The page's projects list can lag a switch flipped here; drop the local value once it
-        // matches.
-        if self.work.switched.get(&project_id) == Some(&saved)
-            && !self.work.saving_switch.contains(&project_id)
-        {
-            self.work.switched.remove(&project_id);
-        }
-        let enabled = self
-            .work
-            .switched
-            .get(&project_id)
-            .copied()
-            .unwrap_or(saved);
         // A worktree project uses its parent checkout's workspace, as gxserver does.
         let workspace_id = project
             .worktree_parent_project_id
             .as_ref()
             .filter(|parent| projects.iter().any(|item| &item.project_id == *parent))
-            .and_then(|parent| facts.get(parent).and_then(|(_, id)| id.clone()))
-            .or(own_workspace)
+            .and_then(|parent| workspace_ids.get(parent).cloned().flatten())
+            .or_else(|| workspace_ids.get(&project_id).cloned().flatten())
             .filter(|id| {
                 self.work.workspace_names.is_empty() || self.work.workspace_names.contains_key(id)
             })
             .unwrap_or_else(|| DEFAULT_WORKSPACE_ID.to_string());
-
         let rpc = self.work_rpc_available(cx);
-        let switch_project = project_id.clone();
-        let mut rows = vec![plain_row(
-            p,
-            &SharedString::from("project-work-mode-row"),
-            "Work mode",
-            Some(
-                "Shows this project's Linear tickets and GitHub pull requests and issues on session cards and in the Work view, and gives each ticket its own worktree. The same switch as right-clicking the project → Work Mode.",
-            ),
-            None,
-            false,
-            switch_control(
-                p,
-                "project-work-mode",
-                "Work mode",
-                enabled,
-                !rpc || self.work.saving_switch.contains(&project_id),
-                (!rpc).then(|| "Ghostex's background service is not reachable.".into()),
-                move |page: &mut Self, value, _window, cx| {
-                    page.set_work_mode(switch_project.clone(), value, cx)
-                },
-                cx,
-            ),
-            cx,
-        )];
-        if !enabled {
-            return rows;
-        }
+        let mut rows = Vec::new();
 
         let input_id = SharedString::from(key_input_id(&project_id));
         let draft = self

@@ -1,5 +1,5 @@
-//! Work mode routes (crate::work_mode): the per-project switch, a session's hand-set links, the
-//! Linear API key, and a status read for the CLI.
+//! Issues Workflow routes (crate::work_mode): a session's hand-set links, the Linear API key, a
+//! status read for the CLI, and the retired per-project switch.
 
 use axum::http::StatusCode;
 use serde_json::{json, Map, Value};
@@ -8,11 +8,11 @@ use crate::domain::DomainStateError;
 use crate::protocol::rpc_success;
 use crate::work_mode::{
     expand_added_work_links, linear_api_key_summary, merge_work_links, resolve_work_mode_project,
-    set_project_work_mode, store_linear_api_key, verify_linear_api_key, write_work_links,
+    store_linear_api_key, verify_linear_api_key, write_work_links, IssuesWorkflowParts,
     LinearKeyScope,
 };
 
-use super::super::work_mode_sync::{publish_project_work_mode_change, spawn_work_mode_refresh};
+use super::super::work_mode_sync::spawn_work_mode_refresh;
 use super::*;
 
 pub(super) async fn route_work_mode_http(
@@ -26,40 +26,23 @@ pub(super) async fn route_work_mode_http(
         token_extension_id,
     } = request;
     Ok(match endpoint.path.as_str() {
-        "/api/setProjectWorkMode" => {
-            let response = handle_domain_http(
-                &state,
-                endpoint.path,
-                request_id,
-                &body_json,
-                |repository, db, params, _| {
-                    let enabled =
-                        params
-                            .get("enabled")
-                            .and_then(Value::as_bool)
-                            .ok_or_else(|| {
-                                DomainStateError::bad_request("Pass enabled: true or false.")
-                            })?;
-                    let project = resolve_work_mode_project(repository, params)?;
-                    let project_id = value_text(&project, "projectId")?;
-                    let project = if crate::work_mode::stored_project_work_mode(&project) == enabled
-                        && crate::workspaces::project_work_mode_set_by_hand(&project)
-                    {
-                        project
-                    } else {
-                        set_project_work_mode(repository, &project, enabled)?
-                    };
-                    publish_project_work_mode_change(&state, db, repository, &project_id)?;
-                    Ok(json!({
-                        "projectId": project_id,
-                        "projectName": project.get("name").cloned().unwrap_or(Value::Null),
-                        "workMode": enabled,
-                    }))
-                },
-            );
-            spawn_work_mode_refresh(&state);
-            response
-        }
+        // CDXC:WorkMode 2026-10-24 WHY: Issues Workflow has no per-project switch any more (project.rs). Older clients (the phone's Work Mode row, `ghostex work-mode on|off` in old scripts) still call this, so it answers with what the project has now and stores nothing.
+        "/api/setProjectWorkMode" => handle_domain_http(
+            &state,
+            endpoint.path,
+            request_id,
+            &body_json,
+            |repository, _, params, _| {
+                let project = resolve_work_mode_project(repository, params)?;
+                let parts = crate::work_mode::issues_workflow_parts(&project);
+                Ok(json!({
+                    "projectId": value_text(&project, "projectId")?,
+                    "projectName": project.get("name").cloned().unwrap_or(Value::Null),
+                    "workMode": parts.any(),
+                    "note": issues_workflow_note(parts),
+                }))
+            },
+        ),
         "/api/setSessionWorkLinks" => {
             let response = handle_domain_http(
                 &state,
@@ -142,9 +125,19 @@ pub(super) async fn route_work_mode_http(
         "/api/readWorkModeStatus" => {
             let worker_state = state.clone();
             match tokio::task::spawn_blocking(move || {
+                let gh = crate::session_git_status::gh_cli_is_available();
+                let linear_keys = linear_api_key_summary(&worker_state.paths);
+                let any_linear_key = linear_keys
+                    .as_object()
+                    .is_some_and(|keys| keys.values().any(|value| match value {
+                        Value::Bool(set) => *set,
+                        Value::Array(ids) => !ids.is_empty(),
+                        _ => false,
+                    }));
                 json!({
-                    "linearKeys": linear_api_key_summary(&worker_state.paths),
-                    "gh": crate::session_git_status::gh_cli_is_available(),
+                    "linearKeys": linear_keys,
+                    "gh": gh,
+                    "note": issues_workflow_note(IssuesWorkflowParts::from_setup(any_linear_key, gh)),
                 })
             })
             .await
@@ -157,7 +150,9 @@ pub(super) async fn route_work_mode_http(
                 Err(error) => domain_error_response(
                     endpoint.path,
                     request_id,
-                    DomainStateError::corrupt_state(format!("Work mode status failed: {error}")),
+                    DomainStateError::corrupt_state(format!(
+                        "Issues Workflow status failed: {error}"
+                    )),
                 ),
             }
         }
@@ -171,6 +166,16 @@ pub(super) async fn route_work_mode_http(
             })
         }
     })
+}
+
+/// One line for the CLI on what Issues Workflow shows with this setup.
+fn issues_workflow_note(parts: IssuesWorkflowParts) -> &'static str {
+    match (parts.linear, parts.github) {
+        (true, true) => "Issues Workflow is on: Linear and GitHub parts both show.",
+        (true, false) => "Issues Workflow is on with Linear only; sign in with `gh auth login` for pull requests and GitHub issues.",
+        (false, true) => "Issues Workflow is on with GitHub only; add a Linear key (`ghostex issues linear-key`) for Linear tickets.",
+        (false, false) => "Issues Workflow is off until you add a Linear key (`ghostex issues linear-key`) or sign in with `gh auth login`.",
+    }
 }
 
 /// Checks a key with Linear before storing it, so a typo fails here instead of as empty cards.

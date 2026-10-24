@@ -205,12 +205,12 @@ pub fn project_header_menu_rows(
         .with_hotkey("createSession"),
     );
     // CDXC:WorkMode 2026-10-09 DECISION:
-    // User: "We need a button to create a linear ticket to start work in the ... dropdown in the project header" (also from the Work page). Only a work-mode project of this computer with a Linear key has it; New session itself stays on main with no worktree.
+    // User: "We need a button to create a linear ticket to start work in the ... dropdown in the project header" (also from the Work page). Only a project of this computer with a Linear key has it (with GitHub as the tracker, one where `gh` is signed in); New session itself stays on main with no worktree.
     // CDXC:WorkMode 2026-10-09 DECISION:
     // User: the workspace's primary tracker is "Linear Tickets & Projects or Github Issues & Projects"; with GitHub the same item and dialog create a GitHub issue in the project's repo instead.
     let create_ticket = if project.work_github {
         Some(("Create GitHub Issue…", "brand-github"))
-    } else if project.work_linear {
+    } else if project.work_linear && !project.work_tracker_github {
         Some(("Create Linear Ticket…", "brand-linear"))
     } else {
         None

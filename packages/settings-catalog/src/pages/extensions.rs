@@ -59,7 +59,7 @@ pub(crate) fn official(platform: Platform) -> Section {
         row("openIn", "Open In", "Open the active project or a session's folder in your editor, terminal or file manager from the Open button and the Open In menus."),
         row("spaces", "Spaces", "Group projects into Spaces and switch between them from a row of icons at the top of the sidebar, or by swiping."),
         row("cloudBoxes", "Cloud Boxes", "Run agent sessions in isolated boxes, in Docker on this computer or in the cloud, from New Thread's Run on choice or Run in a Box in the Select Agent menu."),
-        row("workspaces", "Workspaces", "Keep each company's projects, Spaces, browser sign-ins and Claude account in its own workspace, and turn on work mode: Linear tickets and GitHub pull requests on your sessions, the Work view and your team's Slack flow."),
+        row("workspaces", "Workspaces", "Keep each company's projects, Spaces, browser sign-ins, Linear key and Claude account in its own workspace, pick each one's primary tracker, and share a team backend for your team's Slack flow."),
         row("connectors", "Connectors", "Connect Gmail, Slack, Linear and more apps to a workspace so its agents can use them, from the Connectors page and the ghostex connectors commands."),
         row("osIntegration", "OS Integration", "Make Ghostex your default editor, terminal-link handler and script runner, and check how this computer opens its files and links."),
         row("debugging", "Debugging", "The Debugging page in Settings: debug UI controls and the diagnostic logs you turn on while reproducing an issue."),

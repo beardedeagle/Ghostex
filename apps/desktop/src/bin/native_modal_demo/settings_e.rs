@@ -127,6 +127,10 @@ pub(super) fn extend_sidebar_state(message: &mut Value) {
 
 /// The `open` message fields of a page state, when the state is one of these pages'.
 pub(super) fn open_message(state: &str) -> Option<Value> {
+    // General > Session Cards, where the Issues Workflow switches sit.
+    if state == "session-cards" {
+        return Some(json!({ "initialTab": "settings", "initialSection": "sessionCards" }));
+    }
     let tab = match state {
         "about" => "about",
         "debugging" => "debugging",

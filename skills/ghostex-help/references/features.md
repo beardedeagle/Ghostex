@@ -78,7 +78,7 @@ them as installed by another Ghostex) instead of rewriting them.
 **Open a view** is the picker the panel shows when nothing is open in it. It
 lists every view you can open here: the built-in views first, then your own views
 and extensions. Press a view's letter to open it (C for Code, B for Browser, K for
-Kanban, U for Automate, D for Files, T for Terminal, W for Work) while the picker is in front. Views you hid
+Kanban, U for Automate, D for Files, T for Terminal, W for Issues) while the picker is in front. Views you hid
 for this project are not in the list; **Manage views and where they appear…** at
 the bottom opens their settings, and **Hidden here** on the `+` menu brings one
 back. Closing the panel's last tab closes the whole panel; to bring the picker
@@ -91,12 +91,11 @@ Previous/Next Tab in Pane (Cmd+Option+[ and ]) steps through the panel's tabs,
 Sleep and Reload sleep or reload the view, Cmd+F searches in Files or Kanban, and
 Cmd+R renames the file open in Files.
 
-**Work** lists the tickets and pull requests of every work-mode project in the
-window (Linear tickets or GitHub issues, whichever the workspace's primary
-tracker is), Personal ones too (see Work mode under Git and
-worktrees). Like work mode, it is part of Workspaces, which you turn on in
-Settings > Extensions > Store (Features). Open it with the briefcase at the top of the sidebar, which shows
-while the window has a work-mode project, or from **Open a view**. It is one list,
+**Issues** (called Work before) lists the tickets and pull requests of the
+window's projects (Linear tickets or GitHub issues, whichever the workspace's
+primary tracker is; see Issues Workflow under Git and worktrees). Open it with
+the briefcase at the top of the sidebar, which shows once Issues Workflow is
+set up (a Linear API key, or `gh` signed in), or from **Open a view**. It is one list,
 newest change first, and it opens with **Assigned to me** on (**Mine** on a narrow
 panel). Under the search box, **All | Linear issues (or GitHub issues) | PRs**
 picks what the list shows. **Filter** on the right (a number shows how many are
@@ -160,9 +159,9 @@ project's last cloud session used, otherwise your account for new sessions),
 gets a sidebar row like any Claude cloud session (see Claude cloud sessions)
 with the ticket's chip, and shows under **Conversations** as yours, with **Open
 in Claude** and **Open in terminal**. The project needs a GitHub remote. From a
-terminal: `ghostex work-mode start SPX-1245 --cloud [--prompt-file task.md]`. **New ticket** at
+terminal: `ghostex issues start SPX-1245 --cloud [--prompt-file task.md]`. **New ticket** at
 the top creates a Linear ticket or a GitHub issue (see Create Linear Ticket
-under Git and worktrees) and the list picks it up right away. The Work view is
+under Git and worktrees) and the list picks it up right away. The Issues view is
 part of the desktop app; the web version opens a chip's link instead.
 
 Right-click a view tab to choose where that view appears and what happens to it.
@@ -499,12 +498,11 @@ sessions keep their own sections (`groupWorkingSessions`).
 Workspaces keep different parts of your work apart, for example one per company
 you work for and a Personal one. Workspaces is a built-in extension, off by
 default: turn it on with its switch in Settings > Extensions > Store (Features). It also
-brings work mode, the Work view and the team backend (see Git and worktrees).
+brings the team backend (see Git and worktrees); Issues Workflow works without it.
 While it is off there is no workspace button, every window shows every project,
-the project menu (on the computer and on the phone) has no Work Mode row, and the
-`ghostex workspace`, `work-mode`, `link-session`, `team` and `slack`
-commands say it is turned off; your workspaces, links, Linear keys and team
-connections are kept and come back when you turn it on (`workspacesHidden`).
+the project menu has no Move to workspace, and the `ghostex workspace`, `team`
+and `slack` commands say it is turned off; your workspaces, their Linear keys
+and team connections are kept and come back when you turn it on (`workspacesHidden`).
 Each workspace has its own projects, Spaces,
 Linear API key, Claude account and Browser sign-ins (cookies), and a window
 shows one workspace at a time. Every install starts with one workspace,
@@ -541,7 +539,7 @@ notification, the session search or Search Prompts switches the list to that
 session's workspace, and a project added from the phone joins the workspace it
 shows. Settings >
 Workspaces names each workspace, sets its color, makes it Work or Personal
-(Work turns work mode on by default for its projects), picks its **Primary
+(a Work workspace can share a team backend), picks its **Primary
 tracker** (Linear tickets & projects or GitHub issues & projects), and sets its
 Linear API key and the Claude account its agents use (an account you pick when you start a
 session still wins, and the agent launcher and New Thread picker mark the
@@ -3266,17 +3264,16 @@ deleted from the sidebar. When a worktree's folder is deleted, the sessions that
 worked in it continue in the project's folder with the same conversation, so a
 finished session or thread still opens and can be messaged.
 
-Work mode links a project's sessions to the work they belong to. It comes with
-Workspaces: turn Workspaces on in Settings > Extensions > Store (Features) first; while
-it is off no project is in work mode and sessions show no work links. It is on by
-default for projects in a Work workspace and off in a Personal one; right-click
-a project and choose Work Mode, turn on **Work mode** for the project in Settings >
-Projects, or run `ghostex work-mode on` in its folder, to set it yourself, and a project keeps a choice you made when it moves to another
-workspace (otherwise it takes the new workspace's default). In a
-work-mode project a session is linked to its GitHub pull request, its GitHub or
-Linear issues and a Linear project; its card shows its pull requests and issues the
-way every session's links show (the **Session links in the sidebar** setting,
-below), and the Work view (see Views) shows a ticket's details. Links come from the session's branch on their own (a branch named like
+Issues Workflow (called Work mode before) ties your sessions to the tickets they
+work on. There is no switch: it is on for every project once it is set up. Its
+Linear parts (Create Linear Ticket, Linear statuses, Link to Linear issue or
+project) appear once a Linear API key applies to the project, and its GitHub parts
+(pull requests, GitHub issues and GitHub Projects) once `gh` is signed in on this
+computer (`gh auth login`). It does not need Workspaces. A session is linked to
+its GitHub pull request, its GitHub or Linear issues and a Linear project; its
+card shows them the way every session's links show (the **Session links in the
+sidebar** setting, below), and the Issues view (see Views) shows a ticket's
+details. Links come from the session's branch on their own (a branch named like
 `yahia/spx-1245-copy-link` or `yahia/218-arabic-plan-cards`), from the PR Linear
 attached to the issue, or by hand: right-click the session, choose Link to, then
 Pull request…, Linear issue…, Linear project… or GitHub issue…, and pick from the
@@ -3285,7 +3282,7 @@ session can link several Linear issues shipped in one PR; tick them in the list.
 Something already linked shows its ID in the menu, Unlink removes it, and Back to
 automatic lets the branch decide again. Each workspace picks one **Primary
 tracker** in Settings > Workspaces: Linear tickets & projects, or GitHub issues &
-projects (`ghostex work-mode tracker linear|github`; a workspace that never
+projects (`ghostex issues tracker linear|github`; a workspace that never
 picked uses Linear when it has a Linear key, otherwise GitHub, and a team's
 owners pick it for the whole team). With GitHub, Link to offers GitHub issue…
 and GitHub project… instead of the Linear ones, and the card shows the GitHub
@@ -3298,21 +3295,24 @@ missing). From a terminal, `ghostex link-session
 goes back to what the branch says; `--candidates linearIssue --query text` (or
 `pullRequest`, `linearProject`, `githubIssue`, `githubProject`) lists what the Link
 to list would suggest. The phone's session menu has the same Link to, with the
-GitHub rows in a workspace whose primary tracker is GitHub. When a linked PR is merged, its card offers
+same rows. When a linked PR is merged, its card offers
 Clean up (remove the session's worktree and park the session; a worktree with
-uncommitted changes is kept) or Keep, once per PR; `ghostex work-mode cleanup
+uncommitted changes is kept) or Keep, once per PR; `ghostex issues cleanup
 <session> clean-up|keep` answers it from a terminal. The offer takes the card's
-second line until you answer; on the phone's session list, tap Clean up or Keep. A
-session on a branch other than main is titled by that branch, without your name
-and the ticket ID, until you rename it. Linear status needs a Linear API key: set
-one per workspace in Settings > Workspaces; a project that needs a different key
-gets its own under **Linear API key** in Settings > Projects once its Work mode is
-on (the line under it says whether the project uses its own key, its workspace's
-or the shared one, and Remove goes back to the workspace's). Or run `ghostex work-mode linear-key`
+second line until you answer; on the phone's session list, tap Clean up or Keep.
+Turn **Offer Clean up when a PR merges** off in Settings > Session Cards to never
+get it (on by default). With **Title sessions by their branch** on (same page, off
+by default), a session on a branch other than main is titled by that branch,
+without your name and the ticket ID, until you rename it. Linear status needs a
+Linear API key: set one per workspace in Settings > Workspaces, or for one
+project under **Linear API key** in Settings > Projects (the line under it says
+whether the project uses its own key, its workspace's or the shared one, and
+Remove goes back to the workspace's). Or run `ghostex issues linear-key`
 and paste it (that sets the Personal workspace's key, which a workspace without
 its own uses; `--project-id <id>` sets one for a single project, `--clear`
 removes it). GitHub status comes from `gh`, so sign in
-with `gh auth login`. `ghostex work-mode status` says what is set up.
+with `gh auth login`. `ghostex issues status` says what is set up.
+`ghostex work-mode …`, the old name, still works for every one of these commands.
 
 Every session, in any project, keeps a list of the pull requests, GitHub issues
 and Linear tickets it is linked to, and gathers them by itself: the PR of the
@@ -3354,25 +3354,26 @@ refresh about once a minute, and merged or closed ones stop being checked.
 `open` or `off`).
 
 To start a piece of work from a new ticket, open the project's "…" menu and choose
-Create Linear Ticket… (it shows once the project is in work mode and has a Linear
-key; in a workspace whose primary tracker is GitHub it is Create GitHub Issue…,
+Create Linear Ticket… (it shows once a Linear key applies to the project; in a
+workspace whose primary tracker is GitHub it is Create GitHub Issue…, once `gh` is
+signed in,
 which makes the issue in the project's repo and works on
 `<your GitHub name>/<number>-<title>`), or click **New ticket** at the top of the
-Work view, which opens the same
+Issues view, which opens the same
 dialog for the repo the list is filtered to and otherwise lets you pick the
 project. Give it a title and, if you like, a description, a team and a Linear
 project; it is assigned to you unless you turn that off. With Start work now on,
 Ghostex creates the ticket and starts the agent you pick in a new worktree on the
 branch Linear suggests for it, linked to the ticket. Nothing is sent to the agent:
 you type the first message. To start on a ticket that already exists, run
-`ghostex work-mode start SPX-1245` (or `#218` for a GitHub issue, which works on
+`ghostex issues start SPX-1245` (or `#218` for a GitHub issue, which works on
 `<your GitHub name>/218-<title>`, or a PR link or `--pr 412` for a pull request,
 which works on the PR's own branch and links the session to the PR and the issues
 it closes); a second session on the same ticket joins the first one's worktree and
 branch. Add `--cloud` to start a Claude Code cloud session on the ticket's branch
 instead (with the task from `--prompt-file`, or the one Ghostex writes from the
-ticket); it prints the session's link. `ghostex work-mode create-ticket --title "…"
---start` does both from a terminal (a GitHub issue in a GitHub workspace). New session in a work-mode project still
+ticket); it prints the session's link. `ghostex issues create-ticket --title "…"
+--start` does both from a terminal (a GitHub issue in a GitHub workspace). New session still
 starts on main with no worktree.
 
 A Work workspace can share a team backend (part of Workspaces, so turn that on
@@ -3421,7 +3422,7 @@ forwards the request to the ticket's working thread. Sessions started from Slack
 post milestones with `ghostex slack post --session <session> "<text>"` (`--final`
 for the result). Setup: create the Slack app from `ghostex team slack-manifest`
 (an app made from an older manifest needs the `channels:read` and `groups:read`
-scopes added and the app reinstalled before the Work view can show channel names),
+scopes added and the app reinstalled before the Issues view can show channel names),
 store its token and signing secret with `ghostex team slack-connect` (read from
 stdin, on the computer that deployed the team), then set the flow with `ghostex team flow set
 --working-channel <channel ID> --watch-only <IDs> --default-run cloud|local
@@ -3452,10 +3453,12 @@ Linear user from your workspace's Linear key, so tickets created from your Slack
 requests are assigned to you.
 
 Related settings: Settings > Projects > Global Defaults (worktree command,
-docs directory), Settings > Projects > Work mode and Linear API key, `hideProjectHeaderDiffStats`,
+docs directory), Settings > Projects > Linear API key, `hideProjectHeaderDiffStats`,
 `showProjectEditorDiffFileCount`,
-`showUntrackedProjectDiffWhenNoTrackedChanges`. Work mode: `ghostex work-mode
-on|off|status|linear-key|create-ticket|start`, `ghostex link-session`. Team
+`showUntrackedProjectDiffWhenNoTrackedChanges`. Issues Workflow:
+`titleSessionsByBranch`, `offerCleanupWhenPrMerges`, `ghostex issues
+status|linear-key|tracker|create-ticket|start|cleanup` (old name `ghostex
+work-mode`), `ghostex link-session`. Team
 backend: `ghostex team deploy|join|invite|identity|status|ping|leave`. Slack:
 `ghostex team flow|slack-manifest|slack-connect|linear-connect|own-linear-key`,
 `ghostex slack post`.
@@ -3494,8 +3497,8 @@ backend: `ghostex team deploy|join|invite|identity|status|ping|leave`. Slack:
   Features are whole parts of Ghostex you can switch off to keep the app
   simple: Actions (off by default), Open In (on by default), Spaces (off by
   default), Cloud Boxes (off by default; macOS and Linux only, not listed on
-  Windows), Workspaces (off by default; it brings workspaces, work mode, the
-  Work view and the team's Slack flow) and Read aloud (off by default, and
+  Windows), Workspaces (off by default; it brings workspaces and the team's
+  Slack flow) and Read aloud (off by default, and
   listed only while Enable Experimental Features is on). Turning one off removes it everywhere at once (its header button,
   Settings pages and rows, hotkeys, Quick Access rows and menus) and turning it
   back on restores everything you had set up. Settings: `actionsHidden`,
@@ -3785,7 +3788,7 @@ windows at once: its chat stays live in both, and its terminal takes the size of
 the window you last typed in or showed it in. Clicking a notification or a
 session in the menu bar status menu goes to the window already showing that
 session. Opening a session or project of another workspace from anywhere (Search,
-Quick Access, a notification, the menu bar, a chat link, the Work page,
+Quick Access, a notification, the menu bar, a chat link, the Issues view,
 `ghostex focus`) brings forward the window showing that workspace, or switches
 this window to it when no window does. The Code view works in every window at once, all on the same
 editor. The menu bar status icon, notifications, completion sounds and Keep

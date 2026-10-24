@@ -1,5 +1,5 @@
-//! A work-mode session's Link to submenu: pick the PR, Linear issues, Linear project or GitHub
-//! issue the session is about, unlink one kind, or hand the links back to the branch.
+//! A session's Link to submenu (Issues Workflow): pick the PR, Linear issues, Linear project or
+//! GitHub issue the session is about, unlink one kind, or hand the links back to the branch.
 //!
 //! CDXC:WorkMode 2026-10-09 DECISION:
 //! User: start any session the normal way and link it later: right-click → Link to → Pull request…, Linear issue…, Linear project…, GitHub issue…. Something already linked shows its ID in the menu; picking another one replaces it and Unlink removes it. Only sessions of projects with work mode on get the submenu. Slack threads come later and get no row yet.
@@ -16,8 +16,9 @@ use super::commands::{message, MenuCommand};
 use super::group::MenuGroup;
 use super::item::MenuItem;
 
-/// The submenu, or `None` for a session outside work mode, a remote machine's row or a faded one
-/// (`/api/setSessionWorkLinks` and the picker answer for this computer's gxserver).
+/// The submenu, or `None` for a session of a project with nothing set up (no Linear key, `gh` not
+/// signed in), a remote machine's row or a faded one (`/api/setSessionWorkLinks` and the picker
+/// answer for this computer's gxserver).
 pub(crate) fn link_submenu(id: &str, row: &SessionRow, group: &MenuGroup<'_>) -> Option<MenuItem> {
     let project = group.project?;
     if !project.work_mode || group.is_remote || group.is_stale || row.key.is_none() {
@@ -55,12 +56,16 @@ pub(crate) fn link_submenu(id: &str, row: &SessionRow, group: &MenuGroup<'_>) ->
     };
     // CDXC:WorkMode 2026-10-09 DECISION:
     // User: Link to offers the primary tracker's tickets and projects ("Linear Tickets & Projects or Github Issues & Projects - Need to pick just 1"); links of the other kind that are already set can still be unlinked below.
-    let mut children = vec![pick(
-        "Pull request…",
-        "git-pull-request",
-        "pullRequest",
-        &pull_request,
-    )];
+    // CDXC:WorkMode 2026-10-24 DECISION: User: "Linear parts appear once you add a Linear key, GitHub parts once gh is signed in": Pull request… and the GitHub rows need `gh`, the Linear rows a Linear key.
+    let mut children = Vec::new();
+    if project.work_pull_requests {
+        children.push(pick(
+            "Pull request…",
+            "git-pull-request",
+            "pullRequest",
+            &pull_request,
+        ));
+    }
     if project.work_github {
         children.push(pick(
             "GitHub issue…",
@@ -74,7 +79,7 @@ pub(crate) fn link_submenu(id: &str, row: &SessionRow, group: &MenuGroup<'_>) ->
             "githubProject",
             &github_project,
         ));
-    } else {
+    } else if project.work_linear && !project.work_tracker_github {
         children.push(pick("Linear issue…", "hash", "linearIssue", &linear_issues));
         children.push(pick(
             "Linear project…",
@@ -131,11 +136,15 @@ pub(crate) fn link_submenu(id: &str, row: &SessionRow, group: &MenuGroup<'_>) ->
     })
     .collect();
     if !unlink_rows.is_empty() {
-        children.push(MenuItem::separator());
+        if !children.is_empty() {
+            children.push(MenuItem::separator());
+        }
         children.extend(unlink_rows);
     }
     if work.hand_set {
-        children.push(MenuItem::separator());
+        if !children.is_empty() {
+            children.push(MenuItem::separator());
+        }
         children.push(MenuItem::row(
             "Back to automatic",
             "refresh",
@@ -145,5 +154,98 @@ pub(crate) fn link_submenu(id: &str, row: &SessionRow, group: &MenuGroup<'_>) ->
             )),
         ));
     }
-    Some(MenuItem::submenu("Link to", "link", children))
+    (!children.is_empty()).then(|| MenuItem::submenu("Link to", "link", children))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::keys::{MachineId, SessionKey};
+    use crate::sidebar_view::view::ProjectContextView;
+
+    fn row() -> SessionRow {
+        SessionRow {
+            key: Some(SessionKey {
+                machine: MachineId::Local,
+                project_id: "P1".to_string(),
+                session_id: "S1".to_string(),
+            }),
+            ..SessionRow::default()
+        }
+    }
+
+    fn labels(project: &ProjectContextView) -> Option<Vec<String>> {
+        let group = MenuGroup {
+            group_id: "P1",
+            storage_id: "P1",
+            title: "Project",
+            is_remote: false,
+            remote_machine_name: None,
+            is_stale: false,
+            can_create_session_group: false,
+            can_focus_mode: false,
+            project: Some(project),
+            can_remove_project: false,
+            git_remote_origin_url: None,
+            server_id: None,
+        };
+        link_submenu("S1", &row(), &group).map(|menu| {
+            menu.children
+                .unwrap_or_default()
+                .into_iter()
+                .filter_map(|child| child.label)
+                .collect()
+        })
+    }
+
+    #[test]
+    fn nothing_set_up_has_no_link_to() {
+        assert_eq!(labels(&ProjectContextView::default()), None);
+    }
+
+    #[test]
+    fn gh_signed_in_without_a_linear_key_offers_no_linear_rows() {
+        let project = ProjectContextView {
+            work_mode: true,
+            work_pull_requests: true,
+            ..ProjectContextView::default()
+        };
+        assert_eq!(labels(&project), Some(vec!["Pull request…".to_string()]));
+    }
+
+    #[test]
+    fn a_linear_key_without_gh_offers_only_linear_rows() {
+        let project = ProjectContextView {
+            work_mode: true,
+            work_linear: true,
+            ..ProjectContextView::default()
+        };
+        assert_eq!(
+            labels(&project),
+            Some(vec![
+                "Linear issue…".to_string(),
+                "Linear project…".to_string()
+            ])
+        );
+    }
+
+    #[test]
+    fn a_github_tracker_offers_github_rows_and_hides_linear_ones() {
+        let project = ProjectContextView {
+            work_mode: true,
+            work_linear: true,
+            work_pull_requests: true,
+            work_github: true,
+            work_tracker_github: true,
+            ..ProjectContextView::default()
+        };
+        assert_eq!(
+            labels(&project),
+            Some(vec![
+                "Pull request…".to_string(),
+                "GitHub issue…".to_string(),
+                "GitHub project…".to_string(),
+            ])
+        );
+    }
 }

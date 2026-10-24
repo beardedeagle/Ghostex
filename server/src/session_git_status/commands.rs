@@ -54,9 +54,24 @@ question ("installed" and "logged in") and it exits non-zero for either failure,
 so a machine without `gh` degrades to no PR badges with one cheap spawn every
 `GH_AVAILABILITY_TTL`.
 */
-pub(crate) fn gh_cli_is_available() -> bool {
+fn gh_availability_cache() -> &'static Mutex<Option<(Instant, bool)>> {
     static CACHE: OnceLock<Mutex<Option<(Instant, bool)>>> = OnceLock::new();
-    let cache = CACHE.get_or_init(|| Mutex::new(None));
+    CACHE.get_or_init(|| Mutex::new(None))
+}
+
+/// What the last `gh auth status` answered, without running it: for projections, which must not
+/// spawn. `false` until something has asked [`gh_cli_is_available`] once (the background passes do
+/// within a minute of start).
+pub(crate) fn cached_gh_cli_available() -> bool {
+    gh_availability_cache()
+        .lock()
+        .ok()
+        .and_then(|cache| cache.map(|(_, is_available)| is_available))
+        .unwrap_or(false)
+}
+
+pub(crate) fn gh_cli_is_available() -> bool {
+    let cache = gh_availability_cache();
     if let Ok(cache) = cache.lock() {
         if let Some((probed_at, is_available)) = *cache {
             if probed_at.elapsed() < GH_AVAILABILITY_TTL {

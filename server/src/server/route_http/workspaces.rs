@@ -15,7 +15,7 @@ use crate::{
     workspaces::{
         assign_machine_workspace_in, create_workspace_in, delete_workspace_in, find_workspace_id,
         move_project_to_workspace, read_sidebar_workspaces, reapply_workspace_defaults,
-        resolve_project_reference, update_workspace_in, workspace_kind, write_sidebar_workspaces,
+        resolve_project_reference, update_workspace_in, write_sidebar_workspaces,
         DEFAULT_WORKSPACE_ID,
     },
 };
@@ -64,24 +64,14 @@ pub(super) async fn route_workspaces_http(
                 endpoint.path,
                 request_id,
                 &body_json,
-                |repository, db, params, _| {
-                    let (workspaces, kind_changed, workspace_id) = {
-                        let _event_sequence = lock_presentation_event_sequence(&state)?;
-                        let current = read_sidebar_workspaces(db)?;
-                        let workspace_id = required_workspace(&current, params)?;
-                        let next = update_workspace_in(&current, &workspace_id, params)?;
-                        let workspaces = write_sidebar_workspaces(db, &next)?;
-                        if workspaces != current {
-                            broadcast_workspaces(&state, db, &workspaces)?;
-                        }
-                        let kind_changed = workspace_kind(&current, &workspace_id)
-                            != workspace_kind(&workspaces, &workspace_id);
-                        (workspaces, kind_changed, workspace_id)
-                    };
-                    if kind_changed {
-                        let changed =
-                            reapply_workspace_defaults(repository, &workspaces, &workspace_id)?;
-                        publish_projects(&state, db, repository, &changed)?;
+                |_, db, params, _| {
+                    let _event_sequence = lock_presentation_event_sequence(&state)?;
+                    let current = read_sidebar_workspaces(db)?;
+                    let workspace_id = required_workspace(&current, params)?;
+                    let next = update_workspace_in(&current, &workspace_id, params)?;
+                    let workspaces = write_sidebar_workspaces(db, &next)?;
+                    if workspaces != current {
+                        broadcast_workspaces(&state, db, &workspaces)?;
                     }
                     Ok(json!({ "workspaceId": workspace_id, "sidebarWorkspaces": workspaces }))
                 },

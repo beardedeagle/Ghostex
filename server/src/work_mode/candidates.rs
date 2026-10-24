@@ -176,7 +176,7 @@ pub(crate) fn list_work_link_candidates(
                 None => (
                     Vec::new(),
                     Some(
-                        "Add a Linear API key (ghostex work-mode linear-key) to see suggestions."
+                        "Add a Linear API key (ghostex issues linear-key) to see suggestions."
                             .to_string(),
                     ),
                 ),

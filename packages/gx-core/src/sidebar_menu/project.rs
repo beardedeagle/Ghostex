@@ -160,11 +160,9 @@ pub fn project_menu(input: &ProjectMenuInput<'_>) -> Vec<MenuItem> {
             input.spaces,
         ));
     }
-    // CDXC:WorkMode 2026-10-09 DECISION:
-    // User: work mode is a per-project switch: right-click the project → Work mode, on by default for Work-workspace projects (later) and off in Personal. Only this computer's projects: `/api/setProjectWorkMode` answers for the gxserver the app talks to.
-    //
     // CDXC:Workspaces 2026-10-09 WHY:
-    // Both rows belong to the Workspaces built-in extension. A daemon with it off publishes no workspaces document, so `input.workspace` is `None` and neither row shows, on the desktop and the web build alike.
+    // Move to workspace belongs to the Workspaces built-in extension. A daemon with it off publishes no workspaces document, so `input.workspace` is `None` and the row does not show, on the desktop and the web build alike.
+    // CDXC:WorkMode 2026-10-24 DECISION: User: Issues Workflow has "No switch", so the Work Mode row that sat here is gone (supersedes the 2026-10-09 "right-click the project → Work mode" decision).
     if let Some((workspaces, project_workspace_id)) = input
         .workspace
         .filter(|_| project.bot_profile.is_none() && !group.is_remote && !group.is_stale)
@@ -174,17 +172,6 @@ pub fn project_menu(input: &ProjectMenuInput<'_>) -> Vec<MenuItem> {
             project.project_id.as_str(),
             project_workspace_id,
         ));
-        menu.push(
-            MenuItem::row(
-                "Work Mode",
-                "briefcase",
-                MenuCommand::command(message::set_project_work_mode(
-                    project.project_id.as_str(),
-                    !project.work_mode,
-                )),
-            )
-            .with_checked(project.work_mode),
-        );
     }
     menu.push(MenuItem::separator());
     // CDXC:ContextMenus 2026-09-29 DECISION:

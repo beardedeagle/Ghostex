@@ -79,7 +79,7 @@ fn view_picker_description(mode: TitlebarMode) -> (gpui::SharedString, Option<gp
         TitlebarMode::Terminal => "Shell commands beside your agents..",
         TitlebarMode::Manage => "Notes, plans and reference files.",
         TitlebarMode::BotFeed => "Every Hermes cron run, one channel per job.",
-        TitlebarMode::Work => "Tickets, PRs and issues of your work.",
+        TitlebarMode::Work => "Your tickets, issues and PRs.",
         TitlebarMode::Extension(id) => {
             let Some(view) = gpui_custom_view(id).filter(|view| !view.url.is_empty()) else {
                 return ("".into(), None);

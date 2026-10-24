@@ -700,6 +700,34 @@
       "agentWritable": true
     },
     {
+      "key": "titleSessionsByBranch",
+      "title": "Title sessions by their branch",
+      "subtitle": "Name a session after the branch it works on, without your name and the ticket number (yahia/spx-1245-copy-link shows as copy-link), until you rename it yourself. Sessions on main keep their own title.",
+      "tab": "settings",
+      "tabTitle": "General",
+      "group": "sidebar",
+      "groupTitle": "Sidebar",
+      "section": "sessionCards",
+      "sectionTitle": "Session Cards",
+      "type": "boolean",
+      "default": false,
+      "agentWritable": true
+    },
+    {
+      "key": "offerCleanupWhenPrMerges",
+      "title": "Offer Clean up when a PR merges",
+      "subtitle": "When a session's pull request is merged, its card asks once whether to clean up (remove the session's worktree and park the session; a worktree with uncommitted changes is kept) or keep it.",
+      "tab": "settings",
+      "tabTitle": "General",
+      "group": "sidebar",
+      "groupTitle": "Sidebar",
+      "section": "sessionCards",
+      "sectionTitle": "Session Cards",
+      "type": "boolean",
+      "default": true,
+      "agentWritable": true
+    },
+    {
       "key": "showSessionCardHoverButtonsInContextMenu",
       "title": "Hover buttons also in context menu",
       "subtitle": "Also list the enabled hover buttons in the session right-click menu, in their usual place in the menu. Close is never listed while it is on the card. Turn off to leave every button out of the menu once it is on the card.",
@@ -10185,7 +10213,7 @@
     {
       "key": "workspaces",
       "title": "Workspaces",
-      "subtitle": "Keep each company's projects, Spaces, browser sign-ins and Claude account in its own workspace, and turn on work mode: Linear tickets and GitHub pull requests on your sessions, the Work view and your team's Slack flow.",
+      "subtitle": "Keep each company's projects, Spaces, browser sign-ins, Linear key and Claude account in its own workspace, pick each one's primary tracker, and share a team backend for your team's Slack flow.",
       "tab": "extensions",
       "tabTitle": "Store",
       "section": "official",
@@ -10324,7 +10352,7 @@
     {
       "key": "workspacesHidden",
       "title": "Turn off Workspaces",
-      "subtitle": "Turn off Workspaces and work mode everywhere: the workspace button, the Workspaces page in Settings, Work mode on projects, the Work view, Linear and GitHub links on sessions and the workspace commands. Off by default; your workspaces, links, keys and team connections are kept.",
+      "subtitle": "Turn off Workspaces everywhere: the workspace button, Move to workspace, the Workspaces page in Settings, the team backend and Slack, and the workspace, team and slack commands. Issues Workflow stays on without it. Off by default; your workspaces, keys and team connections are kept.",
       "tab": "extensions",
       "tabTitle": "Store",
       "section": "official",
@@ -10901,20 +10929,9 @@
       "agentWritable": false
     },
     {
-      "key": "projectWorkMode",
-      "title": "Work mode",
-      "subtitle": "Turn work mode on or off for this project: Linear tickets, GitHub pull requests and the Work view.",
-      "tab": "projects",
-      "tabTitle": "Projects",
-      "section": "projectSettings",
-      "sectionTitle": "Project settings",
-      "type": "ui",
-      "agentWritable": false
-    },
-    {
       "key": "projectLinearApiKey",
       "title": "Project Linear API key",
-      "subtitle": "A Linear key for this project only, used instead of its workspace's or the shared key.",
+      "subtitle": "A Linear key for this project only, used instead of its workspace's or the shared key. Issues Workflow shows Linear tickets once a key applies to the project.",
       "tab": "projects",
       "tabTitle": "Projects",
       "section": "projectSettings",
@@ -11190,7 +11207,7 @@
     {
       "key": "workspaceKind",
       "title": "Work or Personal",
-      "subtitle": "Work turns work mode on for the workspace's projects by default; Personal leaves it off.",
+      "subtitle": "A Work workspace can share a team backend with your team (requests from Slack, the team's Linear key); a Personal one is just yours.",
       "tab": "workspaces",
       "tabTitle": "Workspaces",
       "section": "workspaces",
@@ -11201,7 +11218,7 @@
     {
       "key": "workspaceTracker",
       "title": "Primary tracker",
-      "subtitle": "Linear tickets & projects, or GitHub issues & projects: what Create ticket, the Work view, Link to and Slack use. Shows the command that lets Ghostex read GitHub Projects when it can't yet.",
+      "subtitle": "Linear tickets & projects, or GitHub issues & projects: what Create ticket, the Issues view, Link to and Slack use. Shows the command that lets Ghostex read GitHub Projects when it can't yet.",
       "tab": "workspaces",
       "tabTitle": "Workspaces",
       "section": "workspaces",
@@ -11410,7 +11427,7 @@
     {
       "key": "teamFlowSteps",
       "title": "Team-flow steps",
-      "subtitle": "The steps each ticket shows on the Work page, shared by the whole team: reorder, rename, remove or add them, or reset to the default. Only the team's owners can change them.",
+      "subtitle": "The steps each ticket shows in the Issues view, shared by the whole team: reorder, rename, remove or add them, or reset to the default. Only the team's owners can change them.",
       "tab": "workspaces",
       "tabTitle": "Workspaces",
       "section": "teamFlow",

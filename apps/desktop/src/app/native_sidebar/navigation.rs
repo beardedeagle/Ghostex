@@ -169,14 +169,14 @@ impl GhostexGpuiApp {
                 row.child(self.render_native_sidebar_bots_toggle(bots_mode, appearance, cx))
             })
             // CDXC:WorkMode 2026-10-09 DECISION:
-            // User: a briefcase button at the top of the sidebar opens the Work list as a tab in the side panel; it shows only while the window has a project with Work mode on, Personal ones included.
+            // User: a briefcase button at the top of the sidebar opens the Work list as a tab in the side panel; it shows only while the window has a project with Work mode on, Personal ones included. (Since 2026-10-24 the view is called Issues and a project has Issues Workflow on once a Linear key or `gh` is set up; CDXC:WorkMode 2026-10-24 in server/src/work_mode/project.rs.)
             .when(work_visible, |row| {
                 let showing = self.work_view_showing();
                 row.child(
                     div()
                         .id("native-sidebar-work")
                         .role(gpui::Role::Button)
-                        .aria_label("Work")
+                        .aria_label("Issues")
                         .aria_selected(showing)
                         .when(cfg!(target_os = "windows"), |button| button.occlude())
                         .h(px(28.0 * scale))
@@ -206,7 +206,7 @@ impl GhostexGpuiApp {
                         .managed_discrete_tooltip_with_placement(
                             ManagedTooltipPlacement::Right,
                             tooltip_delay,
-                            |window, cx| titlebar_tooltip("Work", window, cx),
+                            |window, cx| titlebar_tooltip("Issues", window, cx),
                         ),
                 )
             })

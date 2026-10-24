@@ -217,7 +217,7 @@ impl GhostexGpuiApp {
                         .any(|project| project["projectId"] == *wanted)
                 });
                 let answer = if projects.is_empty() {
-                    Err("Turn on Work mode for a project to create tickets from here.".to_string())
+                    Err("Add a Linear API key (Settings > Projects) or sign in with gh auth login to create tickets from here.".to_string())
                 } else {
                     let message = match wanted {
                         Some(project_id) => {
@@ -266,7 +266,7 @@ impl GhostexGpuiApp {
                         });
                         Ok(json!({ "opened": true }))
                     }
-                    None => Err("Only web links open from the Work page.".to_string()),
+                    None => Err("Only web links open from the Issues view.".to_string()),
                 };
                 self.answer_work_view_request(&request_id, answer, cx);
             }
@@ -274,7 +274,7 @@ impl GhostexGpuiApp {
                 self.answer_work_view_request(
                     &request_id,
                     Err(format!(
-                        "The Work page asked for \"{action}\", which this app does not know."
+                        "The Issues view asked for \"{action}\", which this app does not know."
                     )),
                     cx,
                 );

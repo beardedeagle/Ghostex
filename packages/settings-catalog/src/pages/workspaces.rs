@@ -30,12 +30,12 @@ pub(crate) fn workspaces() -> Section {
             row(
                 "workspaceKind",
                 "Work or Personal",
-                "Work turns work mode on for the workspace's projects by default; Personal leaves it off.",
+                "A Work workspace can share a team backend with your team (requests from Slack, the team's Linear key); a Personal one is just yours.",
             ),
             row(
                 "workspaceTracker",
                 "Primary tracker",
-                "Linear tickets & projects, or GitHub issues & projects: what Create ticket, the Work view, Link to and Slack use. Shows the command that lets Ghostex read GitHub Projects when it can't yet.",
+                "Linear tickets & projects, or GitHub issues & projects: what Create ticket, the Issues view, Link to and Slack use. Shows the command that lets Ghostex read GitHub Projects when it can't yet.",
             ),
             row(
                 "workspaceLinearApiKey",
@@ -152,7 +152,7 @@ pub(crate) fn team_flow() -> Section {
             row(
                 "teamFlowSteps",
                 "Team-flow steps",
-                "The steps each ticket shows on the Work page, shared by the whole team: reorder, rename, remove or add them, or reset to the default. Only the team's owners can change them.",
+                "The steps each ticket shows in the Issues view, shared by the whole team: reorder, rename, remove or add them, or reset to the default. Only the team's owners can change them.",
             ),
         ],
     )

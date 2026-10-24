@@ -10,6 +10,21 @@ use crate::session_git_status::gh_cli_is_available;
 
 use super::*;
 
+/// Reads which Linear key applies to every project (a local file, no network) and whether `gh` is
+/// signed in, the two facts Issues Workflow being on depends on (`issues_workflow_parts`), so the
+/// pass that follows knows which projects are on.
+pub(crate) fn refresh_issues_workflow_setup(paths: &GxserverPaths, projects: &[Value]) {
+    gh_cli_is_available();
+    for project in projects {
+        let Some(project_id) = project.get("projectId").and_then(Value::as_str) else {
+            continue;
+        };
+        let workspace_id = crate::workspaces::stored_project_workspace_id(project);
+        let key = linear_api_key(paths, Some(project_id), workspace_id);
+        remember_project_linear_key(project_id, key.as_deref().map(linear_key_fingerprint));
+    }
+}
+
 /// Refreshes what the given sessions of work-mode projects link to, within the per-pass budgets.
 pub(crate) fn refresh_work_caches(paths: &GxserverPaths, projects: &[Value], sessions: &[Value]) {
     let projects_by_id: HashMap<&str, &Value> = projects

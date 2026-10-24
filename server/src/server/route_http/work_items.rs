@@ -87,7 +87,7 @@ fn project_ids(params: &Map<String, Value>) -> Option<Vec<String>> {
 }
 
 fn task_error(error: impl std::fmt::Display) -> DomainStateError {
-    DomainStateError::corrupt_state(format!("Work page request failed: {error}"))
+    DomainStateError::corrupt_state(format!("Issues view request failed: {error}"))
 }
 
 async fn run_blocking(

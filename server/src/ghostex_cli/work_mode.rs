@@ -1,5 +1,6 @@
-//! `ghostex work-mode` and `ghostex link-session` (crate::work_mode): the per-project switch, the
-//! Linear key, creating a Linear ticket, starting work on a ticket, and a session's hand-set links.
+//! `ghostex issues` (Issues Workflow; `ghostex work-mode` is its old name and still works) and
+//! `ghostex link-session` (crate::work_mode): the Linear key, the primary tracker, creating a
+//! ticket, starting work on a ticket, the Clean up answer, and a session's hand-set links.
 
 use std::io::{BufRead, IsTerminal, Write};
 
@@ -10,7 +11,8 @@ use super::args::parse_args;
 use super::output::print_json;
 use super::rpc::{self, CliError, CliResult};
 
-/// `ghostex work-mode on|off|status|linear-key …`.
+/// `ghostex issues status|linear-key|tracker|create-ticket|start|cleanup …`. `on|off` are left from
+/// the retired per-project switch: they change nothing and print what the project has.
 pub(super) fn work_mode_command(args: &[String]) -> CliResult<()> {
     let parsed = parse_args(args);
     let flags = &parsed.flags;
@@ -53,7 +55,7 @@ pub(super) fn work_mode_command(args: &[String]) -> CliResult<()> {
                 // `start --cloud SPX-1245`: the parser gave the ticket to the flag.
                 .or_else(|| flags.string_value("cloud"))
                 .ok_or_else(|| {
-                    CliError::Other("Pass the ticket: ghostex work-mode start SPX-1245 (or #218, or --pr 412).".to_string())
+                    CliError::Other("Pass the ticket: ghostex issues start SPX-1245 (or #218, or --pr 412).".to_string())
                 })?;
             let ticket = if flags.contains("pr") && !ticket.contains("/pull/") {
                 format!("pr:{}", ticket.trim_start_matches('#'))
@@ -66,12 +68,12 @@ pub(super) fn work_mode_command(args: &[String]) -> CliResult<()> {
         }
         "cleanup" => answer_cleanup(&parsed.rest[1..], flags),
         other => Err(CliError::Other(format!(
-            "Unknown work-mode command \"{other}\". Use on, off, status, linear-key, tracker, create-ticket, start or cleanup."
+            "Unknown issues command \"{other}\". Use status, linear-key, tracker, create-ticket, start or cleanup."
         ))),
     }
 }
 
-/// `ghostex work-mode tracker [linear|github] [--workspace W | --project-id id | --path p]`: the
+/// `ghostex issues tracker [linear|github] [--workspace W | --project-id id | --path p]`: the
 /// workspace's primary tracker (Linear tickets & projects, or GitHub issues & projects), or sets
 /// it. A team workspace's choice is the team's, which only its owners can change.
 fn tracker_command(value: Option<&str>, flags: &super::args::Flags) -> CliResult<()> {
@@ -94,7 +96,7 @@ fn tracker_command(value: Option<&str>, flags: &super::args::Flags) -> CliResult
     };
     if !matches!(value, "linear" | "github") {
         return Err(CliError::Other(
-            "Pass linear or github: ghostex work-mode tracker github".to_string(),
+            "Pass linear or github: ghostex issues tracker github".to_string(),
         ));
     }
     params.clear();
@@ -112,7 +114,7 @@ fn tracker_command(value: Option<&str>, flags: &super::args::Flags) -> CliResult
     Ok(())
 }
 
-/// `ghostex work-mode create-ticket --title T [--description D] [--team-id id]
+/// `ghostex issues create-ticket --title T [--description D] [--team-id id]
 /// [--linear-project-id id] [--no-assign] [--start [--agent id] [--model m] [--effort e]]`. In a
 /// workspace whose primary tracker is GitHub it creates a GitHub issue in the project's repo
 /// instead (the Linear flags are ignored).
@@ -234,17 +236,18 @@ fn start_work(ticket: &str, flags: &super::args::Flags) -> CliResult<Value> {
     )
 }
 
-/// `ghostex work-mode cleanup <session> clean-up|keep`: answers the Clean up / Keep offer a
+/// `ghostex issues cleanup <session> clean-up|keep`: answers the Clean up / Keep offer a
 /// session gets when its linked PR is merged, as the card's chips do (`/api/answerWorkCleanup`).
 fn answer_cleanup(rest: &[String], flags: &super::args::Flags) -> CliResult<()> {
-    let (selector, answer) = match rest {
-        [answer] => (None, answer),
-        [selector, answer] => (Some(selector), answer),
-        _ => return Err(CliError::Other(
-            "Pass the session and the answer: ghostex work-mode cleanup <session> clean-up|keep."
-                .to_string(),
-        )),
-    };
+    let (selector, answer) =
+        match rest {
+            [answer] => (None, answer),
+            [selector, answer] => (Some(selector), answer),
+            _ => return Err(CliError::Other(
+                "Pass the session and the answer: ghostex issues cleanup <session> clean-up|keep."
+                    .to_string(),
+            )),
+        };
     let answer = match answer.trim().to_ascii_lowercase().as_str() {
         "clean-up" | "cleanup" => "cleanUp",
         "keep" => "keep",

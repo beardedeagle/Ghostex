@@ -443,7 +443,7 @@ impl WorkspacesTab {
             p,
             format!("workspace-kind-{workspace_id}"),
             RowSpec::new("Work or Personal").description(
-                "Work turns work mode on for this workspace's projects by default; Personal leaves it off. A project where you set work mode yourself keeps it.",
+                "A Work workspace can share a team backend with your team (requests from Slack, the team's Linear key); a Personal one is just yours.",
             ),
             None,
             settings_segmented(

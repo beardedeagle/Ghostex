@@ -185,21 +185,31 @@ pub struct PresentationProject {
     /// project and from an older daemon.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bot_runs_today: Option<u64>,
-    /// Work mode is on for this project (server/src/work_mode/). Present only when true.
+    /// Issues Workflow (formerly Work mode) is on for this project: a Linear key applies to it or
+    /// `gh` is signed in (server/src/work_mode/project.rs). Present only when true.
     #[serde(
         default,
         deserialize_with = "crate::de::null_as_default",
         skip_serializing_if = "is_false"
     )]
     pub work_mode: bool,
-    /// Work mode is on and a Linear key is set for this project, so it can create Linear tickets.
-    /// Present only when true.
+    /// Issues Workflow is on and a Linear key applies to this project, so it shows its Linear parts
+    /// (Create Linear Ticket, Link to Linear). Present only when true.
     #[serde(
         default,
         deserialize_with = "crate::de::null_as_default",
         skip_serializing_if = "is_false"
     )]
     pub work_linear: bool,
+    /// Issues Workflow is on but `gh` is not signed in, so its GitHub parts (pull requests, GitHub
+    /// issues and projects) are hidden. Present only when true; absent from an older daemon, whose
+    /// work mode had no such rule (read as signed in).
+    #[serde(
+        default,
+        deserialize_with = "crate::de::null_as_default",
+        skip_serializing_if = "is_false"
+    )]
+    pub work_github_off: bool,
     /// `linear` or `github`: the primary tracker of the project's workspace (server/src/work_mode/
     /// tracker.rs), which decides what Create ticket makes and what Link to offers. Present only
     /// with work mode on; absent from an older daemon (read as Linear).

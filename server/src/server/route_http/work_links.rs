@@ -95,7 +95,7 @@ pub(super) async fn route_work_links_http(
     })
 }
 
-/// The project and session a request names; the project must have work mode on.
+/// The project and session a request names; the project must have Issues Workflow on.
 fn work_mode_session(
     repository: &DomainRepository<'_>,
     params: &Map<String, Value>,
@@ -107,7 +107,7 @@ fn work_mode_session(
         .ok_or_else(|| DomainStateError::bad_request("No such project."))?;
     if !project_work_mode(&project) {
         return Err(DomainStateError::bad_request(
-            "Work mode is off for this project.",
+            "Issues Workflow is off for this project: add a Linear key (ghostex issues linear-key) or sign in with gh auth login.",
         ));
     }
     let session = repository

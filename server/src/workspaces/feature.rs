@@ -1,10 +1,10 @@
 //! Whether the Workspaces built-in extension is on for this machine (`workspacesHidden` on
-//! Settings > Extensions). While it is off gxserver behaves as if workspaces and work mode did not
-//! exist: work mode reads as off for every project (no refresh pass, no `gh` or Linear calls, no
-//! `work` on sessions, no `workMode` on projects, no branch titles), the workspaces document and
-//! the projects' workspace ids are not published (so every client shows every project, as a
-//! daemon without workspaces does), the team subscriptions stop, added projects stay where they
-//! are stored, and launches get no workspace Claude account. Nothing saved is touched.
+//! Settings > Extensions). While it is off gxserver behaves as if workspaces did not exist: the
+//! workspaces document and the projects' workspace ids are not published (so every client shows
+//! every project, as a daemon without workspaces does), the team subscriptions stop and a team's
+//! tracker choice does not apply, added projects stay where they are stored, and launches get no
+//! workspace Claude account. Issues Workflow stays on (CDXC:WorkMode 2026-10-24 in
+//! server/src/work_mode/project.rs). Nothing saved is touched.
 //!
 //! CDXC:Workspaces 2026-10-09 SEE-ALSO: packages/settings-catalog/src/data/official_extensions.rs (the user decision), server/src/server/workspaces_switch.rs (republishing when it flips).
 

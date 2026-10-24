@@ -77,7 +77,7 @@ export function workRequest<T>(action: string, params: Record<string, unknown> =
       if (Date.now() - startedAt > BRIDGE_WAIT_MS) {
         if (pending.delete(requestId)) {
           window.clearTimeout(timer);
-          reject(new Error('The Work page only runs inside the Ghostex app.'));
+          reject(new Error('The Issues view only runs inside the Ghostex app.'));
         }
         return;
       }

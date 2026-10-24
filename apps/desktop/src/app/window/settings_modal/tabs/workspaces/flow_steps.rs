@@ -314,9 +314,9 @@ impl WorkspacesTab {
             p,
             title,
             Some(SharedString::from(if team {
-                "The steps each ticket shows on the Work page, in order, shared by your whole team. A step whose data Ghostex can't see yet shows as unknown, never as done."
+                "The steps each ticket shows in the Issues view, in order, shared by your whole team. A step whose data Ghostex can't see yet shows as unknown, never as done."
             } else {
-                "The steps each ticket shows on the Work page, in order. A step whose data Ghostex can't see yet shows as unknown, never as done."
+                "The steps each ticket shows in the Issues view, in order. A step whose data Ghostex can't see yet shows as unknown, never as done."
             })),
             None,
             rows,
@@ -403,7 +403,7 @@ impl WorkspacesTab {
         } else if needs_data {
             "Done when this rule holds. Shows as unknown until that data reaches Ghostex from Slack."
         } else {
-            "Done when this rule holds. The field is the step's name on the Work page."
+            "Done when this rule holds. The field is the step's name in the Issues view."
         };
         let input_id = SharedString::from(format!("flow-step-label-{workspace_id}-{step_id}"));
         let rename_workspace = workspace_id.to_string();

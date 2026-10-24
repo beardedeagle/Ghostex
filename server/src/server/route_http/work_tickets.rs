@@ -99,7 +99,7 @@ fn project_linear_key(
     let project_id = value_text(&project, "projectId")?;
     let api_key = project_linear_api_key(state, &project).ok_or_else(|| {
         DomainStateError::bad_request(
-            "Set a Linear API key first (Settings, or ghostex work-mode linear-key).",
+            "Set a Linear API key first (Settings, or ghostex issues linear-key).",
         )
     })?;
     Ok((project_id, api_key))

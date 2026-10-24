@@ -259,10 +259,11 @@ pub const GHOSTEX_OFFICIAL_EXTENSIONS: J = J::Arr(&[
         ("platforms", J::Arr(&[J::Str("macos"), J::Str("linux")])),
     ]),
     // CDXC:Workspaces 2026-10-09 DECISION:
-    // User: "Please make the workspaces feature as a built in extension in the app: when enabled we show the workspaces page in settings and we show the switcher and we allow enabling work mode etc." A whole-feature entry like Cloud Boxes, off by default, with a new key (`workspacesHidden`, default on = hidden) because the settings file stores every default. Off hides the workspace tile, Move to workspace, the Work Mode row, Link to, Create Linear ticket, the briefcase button, the Work view, work chips, the Workspaces page and the work-mode rows on Settings > Projects; gxserver treats work mode as off for every project, publishes no workspaces, runs no team sync and applies no workspace Claude account, so every window shows every project as before workspaces. Saved workspaces, links, Linear keys and team connections are kept, so turning it on restores everything.
+    // User: "Please make the workspaces feature as a built in extension in the app: when enabled we show the workspaces page in settings and we show the switcher and we allow enabling work mode etc." A whole-feature entry like Cloud Boxes, off by default, with a new key (`workspacesHidden`, default on = hidden) because the settings file stores every default. Off hides the workspace tile, Move to workspace and the Workspaces page; gxserver publishes no workspaces, runs no team sync and applies no workspace Claude account, so every window shows every project as before workspaces. Saved workspaces, Linear keys and team connections are kept, so turning it on restores everything.
+    // CDXC:WorkMode 2026-10-24 DECISION: User: Issues Workflow (formerly Work mode) is "On everywhere once set up", which supersedes "we allow enabling work mode" here: Link to, Create ticket, the Issues view and branch titles no longer need Workspaces. Workspaces keeps what is per company: its Linear key and primary tracker (a project outside one uses the Personal workspace's), the team backend and Slack.
     // SEE-ALSO: server/src/workspaces/feature.rs (gxserver's gate), packages/gx-core/src/sidebar_view/inputs.rs (`workspaces_enabled`).
     J::Obj(&[
-        ("description", J::Str("Keep each company's projects, Spaces, browser sign-ins and Claude account in its own workspace, and turn on work mode: Linear tickets and GitHub pull requests on your sessions, the Work view and your team's Slack flow.")),
+        ("description", J::Str("Keep each company's projects, Spaces, browser sign-ins, Linear key and Claude account in its own workspace, pick each one's primary tracker, and share a team backend for your team's Slack flow.")),
         ("category", J::Str("features")),
         ("id", J::Str("workspaces")),
         ("placement", J::Str("feature")),
@@ -270,7 +271,6 @@ pub const GHOSTEX_OFFICIAL_EXTENSIONS: J = J::Arr(&[
         ("appWide", J::Bool(true)),
         ("title", J::Str("Workspaces")),
         ("settingsPages", J::Arr(&[J::Str("workspaces")])),
-        ("settingKeys", J::Arr(&[J::Str("projectWorkMode"), J::Str("projectLinearApiKey")])),
     ]),
     // CDXC:VoiceMode 2026-10-21 DECISION:
     // User: Read aloud ships as a Ghostex extension, disabled by default (2026-10-20), and (Q23) as a built-in extension, not a Store extension: a Store extension cannot reach the chat composer, a message's actions or the phone. A whole-feature entry like Workspaces, with a new key (`readAloudHidden`, default on = hidden) because the settings file stores every default; off hides the reply action, the ⋯ menu rows, the Voice and Speed rows and the two hotkeys, and keeps their saved values. No `platforms` list: the switch also governs the phone and Ghostex in a browser that talk to this computer, so it exists on Linux too, where the desktop draws no controls (Q25; `readAloudUnavailable` says why).

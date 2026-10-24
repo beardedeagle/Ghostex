@@ -1,6 +1,6 @@
-//! Running work mode (crate::work_mode): the background pass that refreshes Linear and `gh`
-//! status for work-mode sessions and publishes the rows whose links changed, and publishing a
-//! project whose Work mode switch flipped.
+//! Running Issues Workflow (crate::work_mode): the background pass that finds which projects have
+//! it on, refreshes Linear and `gh` status for their sessions and publishes the rows whose links,
+//! titles or parts changed.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
@@ -12,15 +12,25 @@ use crate::domain::{DomainRepository, DomainStateError};
 use crate::logging::{GxserverLogInput, LogLevel};
 use crate::storage::open_gxserver_database;
 use crate::work_mode::{
-    cached_project_work_tracker, presentation_session_work, project_has_linear_key,
-    project_work_mode, refresh_work_caches, work_display_title, WorkTracker,
+    cached_project_work_tracker, issues_workflow_parts, issues_workflow_settings,
+    presentation_session_work, project_work_mode, refresh_issues_workflow_setup,
+    refresh_work_caches, work_display_title, IssuesWorkflowParts, WorkTracker,
 };
 
-/// What each work-mode project last published as `workLinear` and `workTracker`, so a pass
-/// republishes a project whose Linear key was set or removed or whose tracker changed.
-fn published_linear_projects() -> &'static Mutex<HashMap<String, (bool, WorkTracker)>> {
-    static PUBLISHED: OnceLock<Mutex<HashMap<String, (bool, WorkTracker)>>> = OnceLock::new();
+/// What each project last published of Issues Workflow (which parts it has, and its tracker), so a
+/// pass republishes a project whose Linear key was set or removed, whose tracker changed, or every
+/// project once `gh` is signed in or out.
+fn published_linear_projects() -> &'static Mutex<HashMap<String, (IssuesWorkflowParts, WorkTracker)>>
+{
+    static PUBLISHED: OnceLock<Mutex<HashMap<String, (IssuesWorkflowParts, WorkTracker)>>> =
+        OnceLock::new();
     PUBLISHED.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+/// The Title sessions by their branch setting the last pass ran with.
+fn published_titles() -> &'static Mutex<Option<bool>> {
+    static PUBLISHED: Mutex<Option<bool>> = Mutex::new(None);
+    &PUBLISHED
 }
 
 /// What each work-mode session last published, so a pass only sends the rows that changed.
@@ -52,40 +62,62 @@ pub(crate) fn run_work_mode_refresh_once(state: &Arc<AppState>) -> Result<(), Do
         message: format!("SQLite gxserver state error: {error}"),
     })?;
     let repository = DomainRepository::new(&db, state.metadata.server_id.as_str());
-    let projects: Vec<Value> = repository
-        .list_projects()?
-        .into_iter()
-        .filter(project_work_mode)
-        .collect();
-    if projects.is_empty() {
-        if let Ok(mut published) = published_work().lock() {
-            published.clear();
+    let all_projects = repository.list_projects()?;
+    refresh_issues_workflow_setup(&state.paths, &all_projects);
+
+    let mut linear_changed = Vec::new();
+    if let Ok(mut published) = published_linear_projects().lock() {
+        let mut seen = std::collections::HashSet::new();
+        for project in &all_projects {
+            let Some(project_id) = project.get("projectId").and_then(Value::as_str) else {
+                continue;
+            };
+            seen.insert(project_id);
+            let parts = (
+                issues_workflow_parts(project),
+                cached_project_work_tracker(project_id),
+            );
+            let previous = published.insert(project_id.to_string(), parts);
+            // A project not published by a pass yet went out in the snapshot with nothing set up
+            // (the caches start empty), so it only needs a delta once something is.
+            if previous.map_or(parts.0.any(), |previous| previous != parts) {
+                linear_changed.push(project_id.to_string());
+            }
         }
-        return Ok(());
+        published.retain(|project_id, _| seen.contains(project_id.as_str()));
     }
+
+    // Branch titles need only git, so with the setting on every project's open sessions are read;
+    // a project whose parts just changed is read once more so its cards drop what it lost.
+    let titles = issues_workflow_settings().title_sessions_by_branch;
+    // The pass after the setting was turned off reads them all once more to take the titles back.
+    let titles_turned_off = published_titles()
+        .lock()
+        .ok()
+        .and_then(|mut published| published.replace(titles))
+        .is_some_and(|before| before && !titles);
+    let projects: Vec<Value> = all_projects
+        .iter()
+        .filter(|project| {
+            titles
+                || titles_turned_off
+                || project_work_mode(project)
+                || project
+                    .get("projectId")
+                    .and_then(Value::as_str)
+                    .is_some_and(|id| linear_changed.iter().any(|changed| changed == id))
+        })
+        .cloned()
+        .collect();
     let mut sessions = Vec::new();
     for project in &projects {
         if let Some(project_id) = project.get("projectId").and_then(Value::as_str) {
             sessions.extend(repository.list_sessions_excluding_stopped(Some(project_id))?);
         }
     }
+    // Only projects with Issues Workflow on are refreshed (it filters them itself).
     refresh_work_caches(&state.paths, &projects, &sessions);
 
-    let mut linear_changed = Vec::new();
-    if let Ok(mut published) = published_linear_projects().lock() {
-        for project in &projects {
-            let Some(project_id) = project.get("projectId").and_then(Value::as_str) else {
-                continue;
-            };
-            let has_key = (
-                project_has_linear_key(project),
-                cached_project_work_tracker(project_id),
-            );
-            if published.insert(project_id.to_string(), has_key) != Some(has_key) {
-                linear_changed.push(project_id.to_string());
-            }
-        }
-    }
     for project_id in linear_changed {
         schedule_presentation_project_delta(
             state,
@@ -138,8 +170,8 @@ pub(crate) fn run_work_mode_refresh_once(state: &Arc<AppState>) -> Result<(), Do
     Ok(())
 }
 
-/// Publishes a project whose Work mode switch flipped, and every one of its sessions, whose cards
-/// gain or lose their links and branch titles with it.
+/// Publishes a project whose Issues Workflow parts may have changed (it moved to another workspace,
+/// with another Linear key and tracker), and every one of its sessions, whose cards follow it.
 pub(crate) fn publish_project_work_mode_change(
     state: &AppState,
     db: &rusqlite::Connection,

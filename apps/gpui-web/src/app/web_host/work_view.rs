@@ -16,7 +16,7 @@ impl GhostexGpuiApp {
         self.dispatch_gpui_workspace_action_toast(
             "info",
             "Work opens in the Ghostex app",
-            "The Work page (tickets, issues and PRs) is part of the desktop app.",
+            "The Issues view (tickets, issues and PRs) is part of the desktop app.",
             cx,
         );
     }

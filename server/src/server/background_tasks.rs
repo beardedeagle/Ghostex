@@ -376,13 +376,15 @@ pub(crate) fn run_session_git_status_refresh_once(
     let repository = DomainRepository::new(&db, state.metadata.server_id.as_str());
     /*
     CDXC:WorkMode 2026-10-09 WHY:
-    Work mode reads each session's branch and PR from this same probe, so a project with work mode
-    on is probed on a V1 machine too; every other project still waits for Sidebar V2.
+    Issues Workflow reads each session's branch and PR from this same probe, so a project with it
+    on (or every project while Title sessions by their branch is on) is probed on a V1 machine
+    too; every other project still waits for Sidebar V2.
     */
+    let branch_titles = crate::work_mode::issues_workflow_settings().title_sessions_by_branch;
     let work_mode_projects: HashSet<String> = repository
         .list_projects()?
         .iter()
-        .filter(|project| crate::work_mode::project_work_mode(project))
+        .filter(|project| branch_titles || crate::work_mode::project_work_mode(project))
         .filter_map(|project| {
             project
                 .get("projectId")

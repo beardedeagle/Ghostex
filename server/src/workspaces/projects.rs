@@ -1,5 +1,5 @@
-//! Which workspace a project belongs to (`launchSettings.workspaceId`), moving a project between
-//! workspaces, and the work-mode default a workspace gives its projects.
+//! Which workspace a project belongs to (`launchSettings.workspaceId`) and moving a project between
+//! workspaces.
 
 use serde_json::{json, Map, Value};
 
@@ -75,35 +75,12 @@ pub(crate) fn project_workspace_id(
     }
 }
 
-/// Whether the person set this project's Work mode switch by hand. A value the workspace's
-/// default wrote carries `workModeFromWorkspace`; a `workMode` without it was set by hand
-/// (every switch set before workspaces existed was).
-pub(crate) fn project_work_mode_set_by_hand(project: &Value) -> bool {
-    let settings = project.get("launchSettings");
-    settings
-        .and_then(|settings| settings.get("workMode"))
-        .is_some_and(Value::is_boolean)
-        && settings
-            .and_then(|settings| settings.get("workModeFromWorkspace"))
-            .and_then(Value::as_bool)
-            != Some(true)
-}
-
-/// Writes `workspaceId` (dropped for the default workspace) and, unless the person set Work mode
-/// by hand, the workspace's work-mode default into the project's `launchSettings`. Returns the
-/// updated project, or `None` when nothing changed.
-///
-/// CDXC:WorkMode 2026-10-09 DECISION:
-/// User: moving a project to another workspace follows that workspace's default (Work on,
-/// Personal off) unless the work mode was set by hand on that project.
-///
-/// CDXC:WorkMode 2026-10-09 WHY:
-/// The default is written into `launchSettings.workMode` (marked `workModeFromWorkspace`) instead
-/// of being looked up on every read, because `project_work_mode` runs in projections that only
-/// hold the project row; every move, kind change and new project rewrites it here.
+/// Writes `workspaceId` (dropped for the default workspace) into the project's `launchSettings`.
+/// Returns the updated project, or `None` when nothing changed. The Work-workspace default for
+/// Work mode it used to write is gone with the switch (CDXC:WorkMode 2026-10-24 in
+/// server/src/work_mode/project.rs); a stored `workMode` is left as it is.
 pub(crate) fn place_project_in_workspace(
     repository: &DomainRepository<'_>,
-    workspaces: &Value,
     project: &Value,
     workspace_id: &str,
 ) -> Result<Option<Value>, DomainStateError> {
@@ -121,15 +98,6 @@ pub(crate) fn place_project_in_workspace(
         launch_settings.remove("workspaceId");
     } else {
         launch_settings.insert("workspaceId".into(), json!(workspace_id));
-    }
-    if !project_work_mode_set_by_hand(project) {
-        if workspace_kind(workspaces, workspace_id).default_work_mode() {
-            launch_settings.insert("workMode".into(), Value::Bool(true));
-            launch_settings.insert("workModeFromWorkspace".into(), Value::Bool(true));
-        } else {
-            launch_settings.remove("workMode");
-            launch_settings.remove("workModeFromWorkspace");
-        }
     }
     if launch_settings == before {
         return Ok(None);
@@ -167,7 +135,7 @@ pub(crate) fn move_project_to_workspace(
             == Some(project_id)
     });
     for moving in std::iter::once(project).chain(worktrees) {
-        if place_project_in_workspace(repository, workspaces, moving, workspace_id)?.is_some() {
+        if place_project_in_workspace(repository, moving, workspace_id)?.is_some() {
             if let Some(id) = moving.get("projectId").and_then(Value::as_str) {
                 changed.push(id.to_string());
             }
@@ -176,9 +144,9 @@ pub(crate) fn move_project_to_workspace(
     Ok(changed)
 }
 
-/// Re-applies a workspace's work-mode default to every project in it (after its kind changed or
-/// after it was deleted and its projects fell back to the default workspace). Returns the ids of
-/// the project rows that changed.
+/// Re-places every project in a workspace (after it was deleted and its projects fell back to the
+/// default workspace), which drops their stale workspace ids. Returns the ids of the project rows
+/// that changed.
 pub(crate) fn reapply_workspace_defaults(
     repository: &DomainRepository<'_>,
     workspaces: &Value,
@@ -192,7 +160,7 @@ pub(crate) fn reapply_workspace_defaults(
         if project_workspace_id(workspaces, project, &projects) != workspace_id {
             continue;
         }
-        if place_project_in_workspace(repository, workspaces, project, workspace_id)?.is_some() {
+        if place_project_in_workspace(repository, project, workspace_id)?.is_some() {
             if let Some(id) = project.get("projectId").and_then(Value::as_str) {
                 changed.push(id.to_string());
             }
@@ -236,10 +204,7 @@ pub(crate) fn place_added_project(
     let Some(workspace_id) = find_workspace_id(&workspaces, reference) else {
         return Ok(project);
     };
-    Ok(
-        place_project_in_workspace(repository, &workspaces, &project, &workspace_id)?
-            .unwrap_or(project),
-    )
+    Ok(place_project_in_workspace(repository, &project, &workspace_id)?.unwrap_or(project))
 }
 
 fn project_parent_id(project: &Value) -> Option<&str> {
@@ -250,15 +215,7 @@ fn project_parent_id(project: &Value) -> Option<&str> {
         .filter(|id| !id.is_empty())
 }
 
-/// A worktree project takes its parent checkout's workspace and Work mode (as the parent has it:
-/// from its workspace or set by hand), unless its own switch was set by hand. Returns the project
-/// as it is now.
-///
-/// CDXC:WorkMode 2026-10-09 WHY:
-/// Work mode is read from the project's own row (`project_work_mode`), and work happens in
-/// worktree projects, so a ticket's worktree in a Work workspace (or under a Personal project with
-/// Work mode turned on by hand) needs the parent's value written on it or its cards lose their
-/// work chips.
+/// A worktree project takes its parent checkout's workspace. Returns the project as it is now.
 pub(crate) fn place_worktree_project(
     repository: &DomainRepository<'_>,
     db: &rusqlite::Connection,
@@ -286,19 +243,6 @@ pub(crate) fn place_worktree_project(
         launch_settings.remove("workspaceId");
     } else {
         launch_settings.insert("workspaceId".into(), json!(workspace_id));
-    }
-    if !project_work_mode_set_by_hand(&project) {
-        let parent_settings = parent.get("launchSettings");
-        for key in ["workMode", "workModeFromWorkspace"] {
-            match parent_settings.and_then(|settings| settings.get(key)) {
-                Some(value) => {
-                    launch_settings.insert(key.into(), value.clone());
-                }
-                None => {
-                    launch_settings.remove(key);
-                }
-            }
-        }
     }
     if launch_settings == before {
         return Ok(project);

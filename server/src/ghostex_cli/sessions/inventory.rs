@@ -136,11 +136,20 @@ pub fn fetch_live_gxserver_session_list(flags: &Flags) -> CliResult<Value> {
         snapshot.and_then(|snapshot| snapshot.get("projects")),
         "discoveredIconDataUrl",
     );
-    // CDXC:WorkMode 2026-10-09 WHY: a work-mode project's primary tracker is remembered only in gxserver's memory by its background pass, so it is folded in from the snapshot the same way; the phone picks the GitHub or Linear rows of Link to from it.
-    let project_work_trackers = presentation_project_field_map(
-        snapshot.and_then(|snapshot| snapshot.get("projects")),
-        "workTracker",
-    );
+    // CDXC:WorkMode 2026-10-24 WHY: whether Issues Workflow is on for a project, its Linear and GitHub parts and its primary tracker are worked out from what gxserver's background passes keep in memory (its Linear key, `gh auth status`), which this separate process does not have, so they are folded in from the snapshot; the phone picks its Link to rows from them.
+    let project_work_fields: Vec<(&str, HashMap<String, &Value>)> =
+        ["workMode", "workLinear", "workGithubOff", "workTracker"]
+            .into_iter()
+            .map(|field| {
+                (
+                    field,
+                    presentation_project_field_map(
+                        snapshot.and_then(|snapshot| snapshot.get("projects")),
+                        field,
+                    ),
+                )
+            })
+            .collect();
     result.insert(
         "projects".to_string(),
         Value::Array(
@@ -153,16 +162,17 @@ pub fn fetch_live_gxserver_session_list(flags: &Flags) -> CliResult<Value> {
                         .as_ref()
                         .and_then(|project_id| discovered_project_icons.get(project_id))
                         .map(|value| (*value).clone());
-                    let work_tracker = project_id
-                        .as_ref()
-                        .and_then(|project_id| project_work_trackers.get(project_id))
-                        .map(|value| (*value).clone());
                     if let Some(map) = merged.as_object_mut() {
                         if let Some(discovered) = discovered {
                             map.insert("discoveredIconDataUrl".to_string(), discovered);
                         }
-                        if let Some(work_tracker) = work_tracker {
-                            map.insert("workTracker".to_string(), work_tracker);
+                        for (field, values) in &project_work_fields {
+                            if let Some(value) = project_id
+                                .as_ref()
+                                .and_then(|project_id| values.get(project_id))
+                            {
+                                map.insert((*field).to_string(), (*value).clone());
+                            }
                         }
                     }
                     merged

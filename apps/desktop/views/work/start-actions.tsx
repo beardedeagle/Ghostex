@@ -60,7 +60,7 @@ export function linkOffer(item: WorkItem, current: CurrentSession | null): LinkO
   if (!current.workMode)
     return {
       session: current,
-      disabledReason: `‘${current.title}’ is in ${current.projectName ?? 'a project'}, which has Work mode off.`,
+      disabledReason: `‘${current.title}’ is in ${current.projectName ?? 'a project'}, where Issues Workflow is off (no Linear key, and gh is not signed in).`,
     };
   if (item.kind === 'pullRequest' && links.pullRequest && links.pullRequest.number !== prNumber)
     return {

@@ -103,17 +103,12 @@ pub(crate) fn project_presentation_project(project: &Value) -> Value {
             Value::from(crate::bot_feed::published_bot_runs_today(profile)),
         );
     }
-    if crate::work_mode::project_work_mode(project) {
-        output.insert("workMode".to_string(), Value::Bool(true));
-        if crate::work_mode::project_has_linear_key(project) {
-            output.insert("workLinear".to_string(), Value::Bool(true));
-        }
-        if let Some(project_id) = project.get("projectId").and_then(Value::as_str) {
-            output.insert(
-                "workTracker".to_string(),
-                json!(crate::work_mode::cached_project_work_tracker(project_id).as_wire()),
-            );
-        }
+    if let Some(project_id) = project.get("projectId").and_then(Value::as_str) {
+        insert_issues_workflow_fields(
+            &mut output,
+            crate::work_mode::issues_workflow_parts(project),
+            crate::work_mode::cached_project_work_tracker(project_id),
+        );
     }
     if crate::workspaces::workspaces_feature_enabled() {
         if let Some(workspace_id) = crate::workspaces::stored_project_workspace_id(project) {
@@ -124,6 +119,29 @@ pub(crate) fn project_presentation_project(project: &Value) -> Value {
         }
     }
     Value::Object(output)
+}
+
+/// `workMode`, `workLinear`, `workGithubOff` and `workTracker` on a project row
+/// (`PresentationProject` in packages/gx-protocol/src/presentation.rs): Issues Workflow is on once
+/// a Linear key applies or `gh` is signed in (CDXC:WorkMode 2026-10-24 in
+/// server/src/work_mode/project.rs). `workGithubOff` is sent only when false would mislead: a
+/// daemon too old to send it had no such rule, so its absence means GitHub's parts are on.
+pub(crate) fn insert_issues_workflow_fields(
+    output: &mut Map<String, Value>,
+    parts: crate::work_mode::IssuesWorkflowParts,
+    tracker: crate::work_mode::WorkTracker,
+) {
+    if !parts.any() {
+        return;
+    }
+    output.insert("workMode".to_string(), Value::Bool(true));
+    if parts.linear {
+        output.insert("workLinear".to_string(), Value::Bool(true));
+    }
+    if !parts.github {
+        output.insert("workGithubOff".to_string(), Value::Bool(true));
+    }
+    output.insert("workTracker".to_string(), json!(tracker.as_wire()));
 }
 
 pub(crate) fn project_presentation_git_config(project: &Value) -> Option<Value> {

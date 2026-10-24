@@ -1,13 +1,9 @@
-//! Per-project work mode: a project's sessions are linked to a GitHub PR, GitHub issues, Linear
-//! issues and a Linear project, and every client shows those links on the session's card.
-//! Split by concern; every submodule is re-exported here.
+//! Issues Workflow (formerly Work mode; the code keeps the old name): starting work from a ticket,
+//! a session's hand-set links (Link to), the Issues view's tickets, branch titles and the Clean up
+//! offer when a linked PR merges. Split by concern; every submodule is re-exported here.
 //!
 //! CDXC:WorkMode 2026-10-09 DECISION:
-//! User: work mode is a per-project switch (right-click the project → Work mode). Outside a Work
-//! workspace it needs no Slack and no Convex: it is just Linear (an API key) and GitHub (`gh`),
-//! and Linear already ties its issues to their GitHub PRs. A session links to one PR, one Linear
-//! project, and its Linear or GitHub issues; it is linked automatically from its branch name and
-//! by hand with `ghostex link-session`.
+//! User: outside a Work workspace work mode needs no Slack and no Convex: it is just Linear (an API key) and GitHub (`gh`), and Linear already ties its issues to their GitHub PRs. A session links to one PR, one Linear project, and its Linear or GitHub issues; it is linked automatically from its branch name and by hand with `ghostex link-session`. (Its per-project switch is superseded by CDXC:WorkMode 2026-10-24 in project.rs.)
 //!
 //! CDXC:WorkMode 2026-10-09 WHY:
 //! Everything slow (Linear's API, `gh`) runs in the background pass (`refresh.rs`) and lands in
@@ -40,6 +36,7 @@ mod presentation;
 mod project;
 mod pull_request_tickets;
 mod refresh;
+mod settings;
 mod start_pull_request;
 mod start_work;
 mod team_flow;
@@ -66,6 +63,7 @@ pub(crate) use presentation::*;
 pub(crate) use project::*;
 pub(crate) use pull_request_tickets::*;
 pub(crate) use refresh::*;
+pub(crate) use settings::*;
 pub(crate) use start_pull_request::*;
 pub(crate) use start_work::*;
 pub(crate) use team_flow::*;
