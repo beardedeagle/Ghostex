@@ -452,7 +452,7 @@ jobs:
       # binaries, seal the CEF / code-server components, verify the staged
       # tree, vpk pack, bundle the launcher, and write manifest.json. Same env
       # as phase 1. Unsigned builds run it as the single `package` phase.
-      - name: Stage and package the unsigned installer and portable package
+      - name: Stage and package the unsigned installer and update packages
         if: ${{ steps.signpath.outputs.enabled != 'true' }}
         shell: pwsh
         env:
