@@ -2,6 +2,51 @@
 
 ## Unreleased
 
+## 10.34.0 - 2026-10-25
+
+**Ghostex 10.34.0 is out.** Updating no longer stalls when every session has to restart, Files searches the whole project with Cmd+Shift+F and finds text in any file with Cmd+F, session links stay within the project's own repositories, OpenCode chats follow the terminal's model, and Claude sessions get a Session details panel in beta.
+
+### 🔄 Updating
+
+- **Updating no longer stalls when every session has to restart:** after the 10.33.0 update, a few dozen sessions could hold Ghostex at "starting" for minutes, and now the switch-over takes a couple of seconds, on macOS, Linux and Windows with WSL.
+
+### 📂 Files
+
+- **Cmd+Shift+F searches every file in the project in a Search view like VS Code's** (Ctrl+Shift+F on Windows and Linux), with match case, whole word and regex, files to include and exclude, results grouped by file, F4 to step through them and Esc back to the editor.
+- **Project search skips what isn't your code:** it follows .gitignore, leaves out dependencies, build output, vendored code and large or binary files, and keeps its notes behind an info icon so the results get more room.
+- **Cmd+F finds text in code and text files** with the same panel Markdown files have: whole word, match case, replace and a match count, with every match highlighted.
+- **Long Markdown files scroll smoothly,** several times faster per frame than before.
+
+### 🔗 Session links
+
+- **Ghostex only suggests and adds links from the project's own repositories** (its origin, plus upstream for a fork), and links from other repositories added earlier are dropped unless you pinned or added them yourself; Linear tickets are unaffected.
+- **Hovering a link shows the sidebar's see-through tooltip right under it,** with the link's title and a pull request's branch, never cut off by the links card.
+
+### 💡 Tooltips
+
+- **Tooltips across the sidebar and Files use the same see-through bubble and stay inside the window,** from session card and project header buttons to the Search view's info note.
+
+### 🧩 Session details panel
+
+- **A Session details panel shows what a Claude session is working with,** beside the chat when there is room and as a floating card when there isn't: where it runs, how full its context is with Claude's own breakdown, its task list, connectors, skills, memory files, changes against main with Commit or Create PR, and background commands with a stop button.
+- **It is a beta, off by default:** turn it on in Settings > Extensions > Store, then click the context ring at the top right of the window to show or hide it. Claude sessions only for now.
+
+### 🤖 OpenCode
+
+- **An OpenCode chat shows the same model as its terminal,** and messages sent from the chat use it.
+- **Ghostex starts OpenCode 2 even when an older OpenCode comes first on your PATH,** and when OpenCode 2 is missing or can't start, the chat says why and offers Install OpenCode 2 or Restart on OpenCode 2.
+- **OpenCode's long thoughts open in full** instead of being cut off on one line, on the computer, in the browser and on the phone.
+- **Windows: OpenCode installs and updates from Settings,** using Git for Windows.
+
+### 🌐 Remote machines
+
+- **A remote machine's connection notice floats over the top of its list,** so the rows never move: a failed machine shows its reason with Reconnect and Remote Settings and turns only the tab's cloud icon red, and connecting shows a spinner and a one-line pill.
+- **The notice's × shrinks it to a pill that keeps the red mark** and opens the card again on click, and the phone shows the same notice.
+
+### 🩹 Fixes and polish
+
+- **macOS: Option and Shift with the arrows, Delete and Forward Delete edit text in web page fields** instead of typing a blank.
+
 ## 10.33.0 - 2026-10-24
 
 **Ghostex 10.33.0 is out.** Sessions keep their pull requests, issues and Linear tickets at hand as links, a voice call can focus on one session with a push-to-talk button, shell commands in chat run in a terminal with one click, and new sessions start reliably while crashes on Windows and macOS are fixed.
