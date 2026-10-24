@@ -29,8 +29,8 @@ const MAX_SANITIZED_STRING_CHARS: usize = 120;
 const MAX_CRASH_MESSAGE_CHARS: usize = 1_000;
 #[cfg(target_os = "macos")]
 const MAX_CRASH_STACK_FRAMES: usize = 64;
-#[cfg(target_os = "macos")]
 const MAX_CRASH_FRAME_CHARS: usize = 300;
+const MAX_CRASH_BACKTRACE_LINES: usize = 160;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum GpuiSupportLog {
@@ -329,31 +329,23 @@ pub fn append_session_chat_send_failure(details: serde_json::Value) {
 pub fn install_panic_hook() {
     let previous_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |panic_info| {
-        let location = panic_info
-            .location()
-            .map(|location| format!("{}:{}", location.file(), location.line()))
-            .unwrap_or_else(|| "unknown".to_string());
         let message = panic_info
             .payload()
             .downcast_ref::<&str>()
             .map(|value| (*value).to_string())
             .or_else(|| panic_info.payload().downcast_ref::<String>().cloned())
             .unwrap_or_else(|| "non-string panic payload".to_string());
-        let message: String = message.chars().take(MAX_CRASH_MESSAGE_CHARS).collect();
         let backtrace = std::backtrace::Backtrace::force_capture().to_string();
-        // Crash payloads carry code locations and developer-authored panic
-        // text plus frame symbols; user paths inside frames are redacted by
-        // keeping only the first frames and capping total size.
-        let backtrace: String = backtrace.chars().take(8_000).collect();
-        append_unconditionally(
+        write_entry(
             GpuiSupportLog::CrashReports,
             "gpui.panic",
-            serde_json::json!({
-                "location": location,
-                "message": message,
-                "backtrace": backtrace,
-                "pid": std::process::id(),
-            }),
+            panic_crash_details(
+                panic_info
+                    .location()
+                    .map(|location| (location.file(), location.line())),
+                &message,
+                &backtrace,
+            ),
         );
         previous_hook(panic_info);
     }));
@@ -414,9 +406,57 @@ pub extern "C" fn GhostexGpuiRecordUncaughtException(
     );
 }
 
+/// CDXC:CrashReports 2026-10-24 WHY:
+/// The generic sanitizer replaced the panic message, location and backtrace whole (each holds a
+/// slash or runs past 120 characters), so every panic was saved as `[redacted]`. Panics now keep
+/// them: path-like words in the message and frames become `[path]`, and source locations keep a
+/// relative source path (this repository's crates) but only the file name of an absolute one
+/// (dependencies and the standard library, whose paths name the build machine's home folder).
+fn panic_crash_details(
+    location: Option<(&str, u32)>,
+    message: &str,
+    backtrace: &str,
+) -> serde_json::Value {
+    let backtrace: Vec<serde_json::Value> = backtrace
+        .lines()
+        .take(MAX_CRASH_BACKTRACE_LINES)
+        .map(|line| {
+            let line = line.trim_end();
+            let indent = &line[..line.len() - line.trim_start().len()];
+            match line.trim_start().strip_prefix("at ") {
+                Some(source) => format!("{indent}at {}", redact_source_location(source)),
+                None => redact_crash_text(line, MAX_CRASH_FRAME_CHARS),
+            }
+            .into()
+        })
+        .collect();
+    serde_json::json!({
+        "location": location
+            .map(|(file, line)| format!("{}:{line}", redact_source_location(file)))
+            .unwrap_or_else(|| "unknown".to_string()),
+        "message": redact_crash_text(message, MAX_CRASH_MESSAGE_CHARS),
+        "backtrace": backtrace,
+        "pid": std::process::id(),
+    })
+}
+
+/// A source file (optionally followed by `:line:column`): kept when relative, reduced to its file
+/// name when absolute.
+fn redact_source_location(source: &str) -> String {
+    let absolute = source.starts_with(['/', '\\', '~']) || source.as_bytes().get(1) == Some(&b':');
+    let kept = if absolute {
+        source.rsplit(['/', '\\']).next().unwrap_or_default()
+    } else {
+        source
+    };
+    kept.chars()
+        .filter(|character| !character.is_control())
+        .take(MAX_CRASH_FRAME_CHARS)
+        .collect()
+}
+
 /// Replaces every whitespace-separated word holding a path separator with `[path]`, turns control
 /// characters into spaces and caps the length.
-#[cfg(target_os = "macos")]
 fn redact_crash_text(text: &str, max_chars: usize) -> String {
     let mut redacted = String::with_capacity(text.len());
     for word in text.split_inclusive(char::is_whitespace) {
@@ -619,9 +659,9 @@ fn civil_from_epoch(epoch_seconds: i64) -> (i64, u32, u32, u32, u32, u32) {
     )
 }
 
-#[cfg(all(test, target_os = "macos"))]
+#[cfg(test)]
 mod crash_text_tests {
-    use super::redact_crash_text;
+    use super::{panic_crash_details, redact_crash_text};
 
     #[test]
     fn an_exception_reason_survives_and_paths_do_not() {
@@ -633,5 +673,50 @@ mod crash_text_tests {
             "open [path] [path] failed"
         );
         assert_eq!(redact_crash_text("abcdef", 3), "abc");
+    }
+
+    #[test]
+    fn a_panic_keeps_its_message_location_and_backtrace() {
+        let message = format!(
+            "called `Option::unwrap()` on a `None` value while reading /Users/someone/.ghostex/state.json {}",
+            "x".repeat(200)
+        );
+        let backtrace = "   0: std::backtrace::Backtrace::create\n             at /rustc/abc123/library/std/src/backtrace.rs:331:13\n   1: ghostex_gpui::app::render\n             at ./apps/desktop/src/app/render/root.rs:42:9\n   2: <unknown>";
+        let details = panic_crash_details(
+            Some(("apps/desktop/src/app/render/root.rs", 42)),
+            &message,
+            backtrace,
+        );
+        assert_eq!(
+            details["location"],
+            "apps/desktop/src/app/render/root.rs:42"
+        );
+        let saved = details["message"].as_str().unwrap_or_default();
+        assert!(
+            saved.starts_with(
+                "called `Option::unwrap()` on a `None` value while reading [path] xxx"
+            )
+        );
+        assert!(!saved.contains("someone"));
+        assert_eq!(
+            details["backtrace"],
+            serde_json::json!([
+                "   0: std::backtrace::Backtrace::create",
+                "             at backtrace.rs:331:13",
+                "   1: ghostex_gpui::app::render",
+                "             at ./apps/desktop/src/app/render/root.rs:42:9",
+                "   2: <unknown>",
+            ])
+        );
+        let dependency = panic_crash_details(
+            Some((
+                "/Users/someone/.cargo/registry/src/gpui-0.2/src/window.rs",
+                7,
+            )),
+            "boom",
+            "",
+        );
+        assert_eq!(dependency["location"], "window.rs:7");
+        assert_eq!(panic_crash_details(None, "boom", "")["location"], "unknown");
     }
 }
