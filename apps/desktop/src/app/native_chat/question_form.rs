@@ -236,6 +236,12 @@ impl NativeChatView {
                     let overflow = bounds.bottom() - visible_bottom;
                     if overflow > px(0.0) && bounds.top() < viewport.bottom() {
                         list.scroll_by(overflow);
+                        #[cfg(target_arch = "wasm32")]
+                        crate::app::helpers::indicator_animation::redraw_probe(format!(
+                            "raf {}:{}",
+                            file!(),
+                            line!()
+                        ));
                         window.request_animation_frame();
                     }
                 }
@@ -389,7 +395,9 @@ impl NativeChatView {
                 .line_height(px(18.0 * s))
                 .text_color(status_color)
                 .when(!status.is_empty(), |slot| slot.child(status))
-                .when(status_is_hint, |slot| slot.child(ask_info_hint(SKIPPED_HINT, p)))
+                .when(status_is_hint, |slot| {
+                    slot.child(ask_info_hint(SKIPPED_HINT, p))
+                })
                 .into_any_element(),
             self.skip_all_button(id, enabled, p, cx),
             self.ask_primary_button(

@@ -199,6 +199,8 @@ impl GhostexGpuiApp {
 
 impl Render for GhostexGpuiApp {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        #[cfg(target_arch = "wasm32")]
+        crate::app::helpers::indicator_animation::redraw_probe("render web-root".into());
         self.web_sync_terminal_zmx_visibility(cx);
         self.web_report_chat_grid_claims(cx);
         let sidebar = (!self.sidebar_collapsed).then(|| self.render_native_sidebar(window, cx));

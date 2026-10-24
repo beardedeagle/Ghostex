@@ -67,7 +67,8 @@ impl GhostexGpuiApp {
             == Some(true);
         let drop_position = self.native_sidebar_session_drop_line(&session_id);
         let scale = appearance.scale;
-        let card_height = session_card_height(session, self.native_session_has_second_line(session));
+        let card_height =
+            session_card_height(session, self.native_session_has_second_line(session));
         // The row's left padding before its icon: the card inset plus its depth in a coordinator's tree.
         let indent = 5.0 + super::threads::thread_depth(session) * super::threads::THREAD_INDENT;
         let hovered = self.native_sidebar.hovered_session.as_deref() == Some(&session_id);
@@ -118,7 +119,21 @@ impl GhostexGpuiApp {
             > 0;
         let question_fill = super::status::pending_question_fill(&hud["settings"], question);
         let failed = session.model_selection_failed || session.program_status_failed;
-        let folded_dots = (!failed).then(|| super::threads::folded_status_indicator(session, scale, super::status::session_row_ring(appearance, highlighted, visible, question_fill, hovered))).flatten();
+        let folded_dots = (!failed)
+            .then(|| {
+                super::threads::folded_status_indicator(
+                    session,
+                    scale,
+                    super::status::session_row_ring(
+                        appearance,
+                        highlighted,
+                        visible,
+                        question_fill,
+                        hovered,
+                    ),
+                )
+            })
+            .flatten();
         let question = question && folded_dots.is_none();
         let timer = session.details.get("timerLabel").and_then(Value::as_str);
         let show_time = hud
@@ -148,7 +163,7 @@ impl GhostexGpuiApp {
         .filter(|part| !part.is_empty())
         .collect::<Vec<_>>()
         .join(", ");
-        div().on_children_prepainted(move |bounds, window, cx| { if completion.is_some_and(|start| start.elapsed().as_secs_f32() < 3.0) { window.request_animation_frame(); cx.notify(view.entity_id()); } if let Some(bounds) = bounds.first() { view.update(cx, |app, cx| { if app.native_sidebar.session_card_bounds.get(&reveal_id) != Some(bounds) { app.native_sidebar.session_card_bounds.insert(reveal_id.clone(), *bounds); } app.reveal_native_session_bounds(&reveal_id, *bounds, scale, window, cx) }); } }).w_full().pb(px(SESSION_SPACING * scale)).px(px(SESSION_INSET_X * scale))
+        div().on_children_prepainted(move |bounds, window, cx| { if completion.is_some_and(|start| start.elapsed().as_secs_f32() < 3.0) { #[cfg(target_arch = "wasm32")] crate::app::helpers::indicator_animation::redraw_probe("raf sessions.rs completion".into()); window.request_animation_frame(); cx.notify(view.entity_id()); } if let Some(bounds) = bounds.first() { view.update(cx, |app, cx| { if app.native_sidebar.session_card_bounds.get(&reveal_id) != Some(bounds) { app.native_sidebar.session_card_bounds.insert(reveal_id.clone(), *bounds); } app.reveal_native_session_bounds(&reveal_id, *bounds, scale, window, cx) }); } }).w_full().pb(px(SESSION_SPACING * scale)).px(px(SESSION_INSET_X * scale))
             .child(div()
                 .id(format!("native-sidebar-session-{session_id}"))
                 .role(gpui::Role::TreeItem)

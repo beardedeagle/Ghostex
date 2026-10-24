@@ -177,6 +177,12 @@ impl NativeChatView {
         self.row_find = None;
         self.row_label_find = None;
         if self.disclosure_motion.borrow().running() {
+            #[cfg(target_arch = "wasm32")]
+            crate::app::helpers::indicator_animation::redraw_probe(format!(
+                "raf {}:{}",
+                file!(),
+                line!()
+            ));
             window.request_animation_frame();
         }
         let question_marker = main.then(|| self.question_row_marker(index)).flatten();

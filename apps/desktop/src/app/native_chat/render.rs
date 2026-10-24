@@ -91,6 +91,11 @@ impl NativeChatView {
 
 impl Render for NativeChatView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        #[cfg(target_arch = "wasm32")]
+        crate::app::helpers::indicator_animation::redraw_probe(format!(
+            "render chat {:?}",
+            cx.entity_id()
+        ));
         super::scroll_bottom::register(cx);
         super::search::register(cx);
         super::zoom::register(cx);
@@ -115,6 +120,12 @@ impl Render for NativeChatView {
         // A card above the composer that is opening or closing needs the next frame; the
         // transcript's rows ask for theirs as they are drawn.
         if self.disclosure_motion.borrow().running() {
+            #[cfg(target_arch = "wasm32")]
+            crate::app::helpers::indicator_animation::redraw_probe(format!(
+                "raf {}:{}",
+                file!(),
+                line!()
+            ));
             window.request_animation_frame();
         }
         self.sync_disclosure_anchor(window);

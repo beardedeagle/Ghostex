@@ -601,6 +601,12 @@ impl NativeChatView {
                     );
                     // The transcript is a cached view: a chart drawing in asks for its own frames.
                     if drawing_in.is_some() {
+                        #[cfg(target_arch = "wasm32")]
+                        crate::app::helpers::indicator_animation::redraw_probe(format!(
+                            "raf {}:{}",
+                            file!(),
+                            line!()
+                        ));
                         window.request_animation_frame();
                     }
                 }
