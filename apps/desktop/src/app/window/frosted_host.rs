@@ -572,6 +572,20 @@ fn set_visible(_: AnyWindowHandle, _: Option<AnyWindowHandle>, _: bool, _: &mut 
 thread_local! {
     static TOOLTIPS_ALWAYS_HOSTED: RefCell<std::collections::HashSet<gpui::WindowId>> =
         RefCell::default();
+    /// The tooltip that opens right under an element rather than at the pointer, and that
+    /// element's bounds in its window (`anchor_tooltip_below`).
+    static TOOLTIP_ANCHOR: RefCell<Option<(EntityId, Bounds<Pixels>)>> = RefCell::default();
+}
+
+/// Shows the tooltip `view` (once it is handed to the tooltip host) right under `element`, left
+/// edges aligned, at the size it laid out at: how a link row's card sits under its row the way
+/// the sidebar's session card sits under its card. Only one tooltip is up at a time, so the last
+/// anchor is the one that counts.
+///
+/// CDXC:SessionLinks 2026-10-25 DECISION:
+/// User: "also please make this tooltip width and placement aligned right below the link card". A link row's card opens directly below the row, as wide as it and left-aligned with it, in the tooltip host window so it is never cut off by the links card's window.
+pub(crate) fn anchor_tooltip_below(view: EntityId, element: Bounds<Pixels>) {
+    TOOLTIP_ANCHOR.with(|anchor| *anchor.borrow_mut() = Some((view, element)));
 }
 
 /// Hands `window`'s tooltips to the tooltip host window with glass on or off: for small pop-up
@@ -618,6 +632,12 @@ pub(crate) fn sync_frosted_tooltip_presenter(window: &mut Window, cx: &mut App) 
         move |presentation, cx: &mut App| match presentation {
             Some((view, bounds)) => {
                 let key = view.entity_id();
+                let bounds = TOOLTIP_ANCHOR.with(|anchor| match *anchor.borrow() {
+                    Some((anchored, below)) if anchored == key => {
+                        Bounds::new(gpui::point(below.left(), below.bottom()), bounds.size)
+                    }
+                    _ => bounds,
+                });
                 show_frosted_host(
                     FrostedHostKind::Tooltip,
                     parent,

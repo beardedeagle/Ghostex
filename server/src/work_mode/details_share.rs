@@ -80,5 +80,9 @@ fn pull_request_info(pull_request: &Value) -> Option<WorkPullRequestInfo> {
             .map(str::to_string),
         review: None,
         closing_issues: Vec::new(),
+        head_ref: pull_request
+            .get("headBranch")
+            .and_then(Value::as_str)
+            .map(str::to_string),
     })
 }

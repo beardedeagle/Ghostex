@@ -214,7 +214,7 @@ pub(crate) fn batch_query(owner: &str, name: &str, reads: &[&GithubRead]) -> Str
         let alias = alias(index);
         if read.pull_request {
             fields.push_str(&format!(
-                "{alias}: pullRequest(number: {}) {{ number state isDraft url title reviewDecision \
+                "{alias}: pullRequest(number: {}) {{ number state isDraft url title reviewDecision headRefName \
                  closingIssuesReferences(first: 20) {{ nodes {{ url }} }} \
                  commits(last: 1) {{ nodes {{ commit {{ statusCheckRollup {{ contexts(first: 100) \
                  {{ nodes {{ __typename ... on CheckRun {{ status conclusion }} \
@@ -256,6 +256,7 @@ pub(crate) fn pull_request_value_of_node(node: &Value) -> Value {
         "url": node.get("url"),
         "title": node.get("title"),
         "reviewDecision": node.get("reviewDecision"),
+        "headRefName": node.get("headRefName"),
         "statusCheckRollup": rollup,
         "closingIssuesReferences": node
             .pointer("/closingIssuesReferences/nodes")
@@ -453,6 +454,7 @@ pub(crate) fn seed_github_read(read: &GithubRead, snapshot: &Map<String, Value>)
                 _ => None,
             },
             closing_issues: Vec::new(),
+            head_ref: text("branch"),
         };
         cache.pull_requests.insert(
             key,
@@ -555,6 +557,7 @@ mod tests {
             "number": 286, "state": "OPEN", "isDraft": false,
             "url": "https://github.com/maddada/Ghostex/pull/286", "title": "feat: x",
             "reviewDecision": "CHANGES_REQUESTED",
+            "headRefName": "feat/turn-orchestrator",
             "closingIssuesReferences": { "nodes": [{ "url": "https://github.com/maddada/Ghostex/issues/283" }] },
             "commits": { "nodes": [{ "commit": { "statusCheckRollup": { "contexts": { "nodes": [
                 { "__typename": "CheckRun", "status": "COMPLETED", "conclusion": "SUCCESS" },
@@ -565,6 +568,7 @@ mod tests {
         assert_eq!(info.state, PullRequestState::Open);
         assert_eq!(info.checks, Some("pending"));
         assert_eq!(info.review, Some("changesRequested"));
+        assert_eq!(info.head_ref.as_deref(), Some("feat/turn-orchestrator"));
         assert_eq!(info.title.as_deref(), Some("feat: x"));
         assert_eq!(
             info.closing_issues,

@@ -735,6 +735,9 @@ pub struct PresentationSessionLink {
         skip_serializing_if = "is_false"
     )]
     pub loading: bool,
+    /// A PR's branch (`headRefName`), for its hover card.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub branch: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -769,6 +772,8 @@ pub struct PresentationSuggestedLink {
         skip_serializing_if = "is_false"
     )]
     pub loading: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub branch: Option<String>,
 }
 
 /// One session row. Unique only together with `project_id`.

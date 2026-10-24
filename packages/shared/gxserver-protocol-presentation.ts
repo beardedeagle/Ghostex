@@ -306,6 +306,8 @@ export interface GxserverPresentationSessionLink {
   pinned?: true;
   /** Never read yet, and a read is on its way: no title or state to show. */
   loading?: true;
+  /** A PR's branch (`headRefName`), for its hover card. */
+  branch?: string;
 }
 
 /** Every link of a session, open work first, and the PR and issue URLs its chat only mentioned (`PresentationSessionLinks`). */
@@ -329,6 +331,7 @@ export interface GxserverPresentationSuggestedLink {
   sourceLabel?: string;
   finished?: true;
   loading?: true;
+  branch?: string;
 }
 
 /** A Claude cloud session (`PresentationClaudeCloud` in gx-protocol). */

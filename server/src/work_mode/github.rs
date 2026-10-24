@@ -29,6 +29,8 @@ pub(crate) struct WorkPullRequestInfo {
     pub(crate) review: Option<&'static str>,
     /// URLs of the issues the PR closes when merged (`closingIssuesReferences`).
     pub(crate) closing_issues: Vec<String>,
+    /// The PR's branch (`headRefName`), which a link's hover card names under its title.
+    pub(crate) head_ref: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -181,7 +183,7 @@ pub(crate) fn refresh_work_pull_request(cwd: &str, selector: &str) -> bool {
             selector,
             "--json",
             // CDXC:SessionLinks 2026-10-24 DECISION: User answered "yes" to reading review status (review requested, approved, changes requested); it comes in the same call, and so do the issues the PR closes, which join the session's links.
-            "number,state,url,isDraft,statusCheckRollup,title,reviewDecision,closingIssuesReferences",
+            "number,state,url,isDraft,statusCheckRollup,title,reviewDecision,closingIssuesReferences,headRefName",
         ],
     )
     .and_then(|output| parse_pull_request(&output));
@@ -289,6 +291,12 @@ pub(super) fn parse_pull_request_value(value: &Value) -> Option<WorkPullRequestI
                     .collect()
             })
             .unwrap_or_default(),
+        head_ref: value
+            .get("headRefName")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|branch| !branch.is_empty())
+            .map(str::to_string),
     })
 }
 

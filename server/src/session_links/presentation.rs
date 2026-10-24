@@ -266,6 +266,7 @@ fn entry_value(
                     insert_text(&mut output, "review", info.review);
                 }
                 insert_text(&mut output, "title", info.title.as_deref());
+                insert_text(&mut output, "branch", info.head_ref.as_deref());
             }
             let url = info
                 .and_then(|info| info.url)
@@ -353,6 +354,7 @@ pub(crate) fn session_links_read_snapshot(links: &Value) -> Map<String, Value> {
             "review",
             "url",
             "finished",
+            "branch",
         ] {
             if let Some(value) = item.get(field) {
                 read.insert(field.to_string(), value.clone());
@@ -414,6 +416,7 @@ fn other_entry_value(
                 | "stateName"
                 | "finished"
                 | "loading"
+                | "branch"
         )
     });
     output.insert("sourceLabel".to_string(), json!(source));

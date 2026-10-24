@@ -36,7 +36,7 @@ use super::link_chips::{
     open_session_link_command, session_link_glyph_icon, session_link_tone_color,
     sidebar_style_tooltip,
 };
-use super::tooltips::sidebar_style_card_tooltip;
+use super::tooltips::{SidebarTooltipSpan, sidebar_tooltip, tooltip_with_gap};
 use crate::GhostexGpuiApp;
 use crate::app::helpers::*;
 use ghostex_gx_core::{SessionKey, SessionLink, SessionLinkTone, SessionLinks};
@@ -399,8 +399,22 @@ impl SessionLinksList {
             // The row's card, under the buttons' and the icon's own tooltips, which win where the
             // pointer is on them.
             .tooltip(move |window, cx| {
-                let (top_gap, bottom_gap) = row_card_gaps(row_bounds.get(), &card_text, window);
-                sidebar_style_card_tooltip(card_text.clone(), top_gap, bottom_gap, window, cx)
+                // The sidebar's session card, spanning the row: the same bubble, look and fonts.
+                let row = row_bounds.get();
+                let span = SidebarTooltipSpan {
+                    left: f32::from(row.left()),
+                    right: f32::from(row.right()),
+                };
+                let card = sidebar_tooltip(card_text.clone(), span, 1.0, window, cx);
+                if window.tooltip_presenter_active() {
+                    // Drawn in the tooltip host window, right under the row.
+                    crate::app::window::frosted_host::anchor_tooltip_below(card.entity_id(), row);
+                    card
+                } else {
+                    // Drawn in this window at the pointer (Linux): opened beyond the row's edge.
+                    let (top_gap, bottom_gap) = row_card_gaps(row, &card_text, window);
+                    tooltip_with_gap(card, top_gap, bottom_gap, cx)
+                }
             })
             .on_hover(cx.listener(move |list, hovered: &bool, _, cx| {
                 if *hovered {

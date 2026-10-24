@@ -130,15 +130,15 @@ pub(crate) fn sidebar_style_card_tooltip(
         window,
         cx,
     );
-    if top_gap <= 0.0 && bottom_gap <= 0.0 {
+    tooltip_with_gap(card, top_gap, bottom_gap, cx)
+}
+
+/// `card` with clear space above or below it (see `TooltipGap`); the card itself when both are 0.
+pub(super) fn tooltip_with_gap(card: AnyView, top: f32, bottom: f32, cx: &mut App) -> AnyView {
+    if top <= 0.0 && bottom <= 0.0 {
         return card;
     }
-    cx.new(|_| TooltipGap {
-        card,
-        top: top_gap,
-        bottom: bottom_gap,
-    })
-    .into()
+    cx.new(|_| TooltipGap { card, top, bottom }).into()
 }
 
 /// A line's width in the UI font at `size`.
@@ -187,8 +187,9 @@ fn sidebar_tooltip_bubble(
     let menu = titlebar_popup_menu_background();
     // Under glass the tooltip draws in the frosted tooltip host, so it takes the frosted menus' fill
     // and the host's bubble corners (see app/window/frosted_host.rs).
-    let frosted = window_glass_active_in(window)
-        && crate::app::window::frosted_host::frosted_hosting_active();
+    // CDXC:SessionLinks 2026-10-25 WHY: Frosted whenever the bubble is handed to the frosted host, whichever window built it: the links card beside the sidebar is not a glass window itself, so its link cards came out "too dark" (the user) while the sidebar's session card above it was glass.
+    let frosted = crate::app::window::frosted_host::frosted_hosting_active()
+        && window.tooltip_presenter_active();
     // Without glass dark mode darkens it (`tooltip_background`); under glass it is the frosted
     // menus' material (CDXC:Tooltips 2026-10-15).
     let background = if frosted {

@@ -46,6 +46,8 @@ pub struct SessionLink {
     pub finished: bool,
     /// A person pinned it: gxserver lists it first, and every sidebar option but Off shows it.
     pub pinned: bool,
+    /// A PR's branch (`headRefName`).
+    pub branch: Option<String>,
     /// Never read yet, with a read on its way: the lists say "Loading…" and keep it out of Open.
     pub loading: bool,
 }
@@ -63,6 +65,7 @@ pub struct SuggestedSessionLink {
     pub source_label: String,
     pub finished: bool,
     pub loading: bool,
+    pub branch: Option<String>,
 }
 
 /// The icon an entry draws; each renderer maps it to its own SVG.
@@ -116,6 +119,7 @@ fn other_link(
         source_label: item.source_label.clone(),
         finished: item.finished,
         loading: item.loading,
+        branch: item.branch.clone(),
     }
 }
 
@@ -140,6 +144,7 @@ impl SessionLinks {
                     finished: item.finished,
                     pinned: item.pinned,
                     loading: item.loading,
+                    branch: item.branch.clone(),
                 })
                 .collect(),
             suggested: links.suggested.iter().map(other_link).collect(),
@@ -278,48 +283,26 @@ impl SessionLink {
             .join(" · ")
     }
 
-    /// What hovering a link says, one line per row of the sidebar's session hover card: the full
-    /// title, then `#283 · GitHub issue`, `State: Open`, an open PR's checks and review (or the PR
-    /// that closes an issue), and the repo when it is not the session's own.
+    /// What hovering a link says: its full title, and under it a PR's branch; nothing else (the
+    /// row already shows the number, and the icon the state).
     ///
-    /// SEE-ALSO: `sidebar_style_card_tooltip` (apps/desktop/src/app/native_sidebar/tooltips.rs)
-    /// draws these lines and holds the user's decision on them.
+    /// CDXC:SessionLinks 2026-10-25 DECISION:
+    /// User: "please make the tooltip just show the title and branch, nothing else, no need to show the #123 again or show the state 'merged' thing". The card is the title (wrapping), then the branch for a pull request; an issue or a Linear ticket shows its title alone. This supersedes the same day's card with the number, kind, state, checks and repo lines.
     pub fn hover_card_text(&self) -> String {
         let title = match (&self.title, self.loading) {
             (Some(title), _) => title.clone(),
             (None, true) => "Loading…".to_string(),
             (None, false) => self.label.clone(),
         };
-        let kind = match self.kind {
-            SessionLinkKind::PullRequest => "Pull request",
-            SessionLinkKind::Issue => "GitHub issue",
-            SessionLinkKind::Linear => "Linear",
-        };
-        let state = self
-            .state_label()
-            .or_else(|| self.loading.then(|| "Loading…".to_string()))
-            .map(|state| format!("State: {state}"));
-        // A GitHub link's label is `#318` in the session's own repo and `repo#318` elsewhere; its
-        // key names the whole `owner/repo`.
-        let repo = (self.kind != SessionLinkKind::Linear && !self.label.starts_with('#'))
-            .then(|| {
-                let (_, rest) = self.key.split_once(':')?;
-                let (repo, _) = rest.rsplit_once('#')?;
-                Some(format!("Repo: {repo}"))
-            })
+        let branch = (self.kind == SessionLinkKind::PullRequest)
+            .then(|| self.branch.clone())
             .flatten();
-        [
-            Some(title),
-            Some(format!("{} · {kind}", self.label)),
-            state,
-            Some(self.detail_line()),
-            repo,
-        ]
-        .into_iter()
-        .flatten()
-        .filter(|line| !line.trim().is_empty())
-        .collect::<Vec<_>>()
-        .join("\n")
+        [Some(title), branch]
+            .into_iter()
+            .flatten()
+            .filter(|line| !line.trim().is_empty())
+            .collect::<Vec<_>>()
+            .join("\n")
     }
 
     /// The tooltip and the list's title fallback: `#318 · Port the Find screen · Open`.
@@ -355,6 +338,7 @@ impl SuggestedSessionLink {
             finished: self.finished,
             pinned: false,
             loading: self.loading,
+            branch: self.branch.clone(),
         }
     }
 }
@@ -573,6 +557,7 @@ mod tests {
             finished,
             pinned: false,
             loading: false,
+            branch: None,
         }
     }
 
