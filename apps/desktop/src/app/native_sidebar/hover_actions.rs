@@ -99,7 +99,13 @@ impl GhostexGpuiApp {
                             row.managed_discrete_tooltip_with_placement(
                                 ManagedTooltipPlacement::BelowLeft,
                                 appearance.tooltip_delay,
-                                move |window, cx| titlebar_tooltip(label.clone(), window, cx),
+                                move |window, cx| {
+                                    super::tooltips::sidebar_style_tooltip(
+                                        label.to_string(),
+                                        window,
+                                        cx,
+                                    )
+                                },
                             )
                         },
                     )

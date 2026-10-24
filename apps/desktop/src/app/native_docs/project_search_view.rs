@@ -19,7 +19,8 @@ use super::project_search::{DocsProjectSearch, SearchRow};
 use super::sidebar::DocsSidebarLayout;
 use crate::GhostexGpuiApp;
 use crate::app::consts::{TITLEBAR_SIDEBAR_COLLAPSE_ICON_SIZE, WORKAREA_HEADER_EDGE_PADDING};
-use crate::app::helpers::{titlebar_svg_icon, titlebar_tooltip};
+use crate::app::helpers::titlebar_svg_icon;
+use crate::app::native_sidebar::link_chips::{sidebar_style_card_tooltip, sidebar_style_tooltip};
 
 /// The Open Files rows' height, for every result row (the list is virtualized, one height).
 const RESULT_ROW_HEIGHT: f32 = 28.0;
@@ -32,6 +33,28 @@ const TOGGLE_SIZE: f32 = 22.0;
 /// VS Code's find-match highlight, orange at a third, readable on both appearances.
 fn match_highlight() -> Hsla {
     gpui::rgba(0xea5c0055).into()
+}
+
+/// How far below the pointer a row's card starts, clear of the pointer's arrow (the gap the
+/// files list's row tooltips keep, CDXC:Tooltips 2026-10-09 in `list_row_tooltip`).
+const ROW_TOOLTIP_GAP: f32 = 20.0;
+
+/// A button's or toggle's tooltip: the sidebar's frosted bubble.
+///
+/// CDXC:Tooltips 2026-10-25 DECISION:
+/// User, of the frosted link tooltip: "amazing tooltip bg/style pls use it for the sidebar and find in files extension more", and the Search summary's (i) tooltip ran off the window. Every Search view tooltip is the sidebar's bubble (`native_sidebar/tooltips.rs`), frosted when the tooltip host draws it; a row's or note's text uses its card, which sizes itself to its measured text (wrapping at 340px), so the tooltip's placement keeps it inside the window. Plain wrapping tooltips were measured at their narrowest and drawn wider, so they ran past the window's edge.
+fn search_tooltip(text: &str, window: &mut Window, cx: &mut App) -> gpui::AnyView {
+    sidebar_style_tooltip(text.to_string(), window, cx)
+}
+
+/// A row's path or a note: the sidebar's card, `top_gap` below the pointer.
+fn search_card_tooltip(
+    text: &str,
+    top_gap: f32,
+    window: &mut Window,
+    cx: &mut App,
+) -> gpui::AnyView {
+    sidebar_style_card_tooltip(text.to_string(), top_gap, 0.0, window, cx)
 }
 
 /// `1,234 results`, `1 file`.
@@ -210,7 +233,7 @@ impl GhostexGpuiApp {
                     !has_query,
                     p,
                 )
-                .tooltip(|window, cx| titlebar_tooltip("Refresh", window, cx))
+                .tooltip(|window, cx| search_tooltip("Refresh", window, cx))
                 .when(has_query, |this| {
                     this.on_click(cx.listener(|this, _, _, cx| {
                         this.native_docs_schedule_project_search(true, cx);
@@ -225,7 +248,7 @@ impl GhostexGpuiApp {
                     !has_query && !has_results,
                     p,
                 )
-                .tooltip(|window, cx| titlebar_tooltip("Clear Search Results", window, cx))
+                .tooltip(|window, cx| search_tooltip("Clear Search Results", window, cx))
                 .when(has_query || has_results, |this| {
                     this.on_click(cx.listener(|this, _, window, cx| {
                         this.native_docs_clear_project_search(window, cx);
@@ -240,7 +263,7 @@ impl GhostexGpuiApp {
                     !has_results,
                     p,
                 )
-                .tooltip(move |window, cx| titlebar_tooltip(collapse_label, window, cx))
+                .tooltip(move |window, cx| search_tooltip(collapse_label, window, cx))
                 .when(has_results, |this| {
                     this.on_click(cx.listener(|this, _, _, cx| {
                         this.native_docs_toggle_search_collapse_all(cx);
@@ -263,7 +286,7 @@ impl GhostexGpuiApp {
                     false,
                     p,
                 )
-                .tooltip(move |window, cx| titlebar_tooltip(view_label, window, cx))
+                .tooltip(move |window, cx| search_tooltip(view_label, window, cx))
                 .on_click(cx.listener(|this, _, _, cx| {
                     if let Some(search) = this.native_docs.project_search.as_mut() {
                         search.view_as_tree = !search.view_as_tree;
@@ -280,7 +303,7 @@ impl GhostexGpuiApp {
                     false,
                     p,
                 )
-                .tooltip(|window, cx| titlebar_tooltip("Show files", window, cx))
+                .tooltip(|window, cx| search_tooltip("Show files", window, cx))
                 .on_click(cx.listener(|this, _, _, cx| this.native_docs_show_files_tree(cx))),
             )
             .children(edge)
@@ -365,7 +388,7 @@ impl GhostexGpuiApp {
                 15.0,
                 if active { p.text } else { p.muted },
             ))
-            .tooltip(move |window, cx| titlebar_tooltip(label, window, cx))
+            .tooltip(move |window, cx| search_tooltip(label, window, cx))
             .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
     }
 
@@ -482,7 +505,7 @@ impl GhostexGpuiApp {
                             15.0,
                             p.muted,
                         ))
-                        .tooltip(|window, cx| titlebar_tooltip("Toggle Search Details", window, cx))
+                        .tooltip(|window, cx| search_tooltip("Toggle Search Details", window, cx))
                         .on_click(cx.listener(|this, _, _, cx| {
                             if let Some(search) = this.native_docs.project_search.as_mut() {
                                 search.details_open = !search.details_open;
@@ -550,9 +573,7 @@ impl GhostexGpuiApp {
                                 13.0,
                                 p.subtle,
                             ))
-                            .tooltip(move |window, cx| {
-                                crate::app::helpers::list_row_tooltip(note, window, cx)
-                            }),
+                            .tooltip(move |window, cx| search_card_tooltip(note, 6.0, window, cx)),
                     )
                 })
                 .into_any_element()
@@ -669,7 +690,7 @@ impl GhostexGpuiApp {
             .group_hover(group.clone(), |style| style.visible())
             .hover(move |style| style.bg(hover_bg))
             .child(titlebar_svg_icon("titlebar/x.svg", 13.0, p.row_text))
-            .tooltip(|window, cx| titlebar_tooltip("Dismiss", window, cx))
+            .tooltip(|window, cx| search_tooltip("Dismiss", window, cx))
             .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
             .on_click(cx.listener(move |this, _, _, cx| {
                 cx.stop_propagation();
@@ -752,11 +773,7 @@ impl GhostexGpuiApp {
                         this.native_docs_toggle_search_collapsed(toggle_key.clone(), cx);
                     }))
                     .tooltip(move |window, cx| {
-                        crate::app::helpers::list_row_tooltip(
-                            SharedString::from(path.clone()),
-                            window,
-                            cx,
-                        )
+                        search_card_tooltip(&path, ROW_TOOLTIP_GAP, window, cx)
                     })
                     .into_any_element()
             }
@@ -830,11 +847,7 @@ impl GhostexGpuiApp {
                         this.native_docs_toggle_search_collapsed(toggle_key.clone(), cx);
                     }))
                     .tooltip(move |window, cx| {
-                        crate::app::helpers::list_row_tooltip(
-                            SharedString::from(path.clone()),
-                            window,
-                            cx,
-                        )
+                        search_card_tooltip(&path, ROW_TOOLTIP_GAP, window, cx)
                     })
                     .into_any_element()
             }
@@ -878,7 +891,7 @@ impl GhostexGpuiApp {
                         }),
                     )
                     .tooltip(move |window, cx| {
-                        crate::app::helpers::list_row_tooltip(line_label.clone(), window, cx)
+                        search_card_tooltip(&line_label, ROW_TOOLTIP_GAP, window, cx)
                     })
                     .into_any_element()
             }

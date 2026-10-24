@@ -301,7 +301,11 @@ impl GhostexGpuiApp {
                                             ManagedTooltipPlacement::BelowLeft,
                                             appearance.tooltip_delay,
                                             move |window, cx| {
-                                                titlebar_tooltip(tooltip.clone(), window, cx)
+                                                super::tooltips::sidebar_style_tooltip(
+                                                    tooltip.clone(),
+                                                    window,
+                                                    cx,
+                                                )
                                             },
                                         )
                                     },

@@ -161,7 +161,9 @@ impl GhostexGpuiApp {
             .managed_discrete_tooltip_with_placement(
                 ManagedTooltipPlacement::Right,
                 appearance.tooltip_delay,
-                move |window, cx| titlebar_tooltip(gpui::SharedString::from(tooltip), window, cx),
+                move |window, cx| {
+                    super::tooltips::sidebar_style_tooltip(tooltip.to_string(), window, cx)
+                },
             )
     }
 }

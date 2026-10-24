@@ -396,7 +396,15 @@ impl GhostexGpuiApp {
                             app.set_native_sidebar_menu_info_hover(*hovered, window, cx);
                         }))
                         .tooltip_show_delay(tooltip_delay)
-                        .tooltip(move |window, cx| list_row_tooltip(info.clone(), window, cx)),
+                        .tooltip(move |window, cx| {
+                            super::tooltips::sidebar_style_card_tooltip(
+                                info.to_string(),
+                                20.0,
+                                0.0,
+                                window,
+                                cx,
+                            )
+                        }),
                 )
             })
             .when_some(item.get("secondary"), |row, secondary| {

@@ -452,12 +452,13 @@ impl GhostexGpuiApp {
                             ManagedTooltipPlacement::AboveLeft,
                             tooltip_delay,
                             move |window, cx| {
-                                titlebar_tooltip(
+                                super::tooltips::sidebar_style_tooltip(
                                     if visible {
                                         "Unpin account usage"
                                     } else {
                                         "Pin account usage"
-                                    },
+                                    }
+                                    .to_string(),
                                     window,
                                     cx,
                                 )

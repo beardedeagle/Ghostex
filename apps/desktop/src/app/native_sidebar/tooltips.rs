@@ -95,6 +95,8 @@ fn sidebar_tooltip_sized(
 ///
 /// CDXC:SessionLinks 2026-10-24 DECISION:
 /// User: "please make tooltips that show there more blurred bg so text in tooltip is more readable (like we did for tooltips for session in sidebar)". The links' tooltips are the sidebar session tooltip's bubble (`sidebar_tooltip_bubble`), not the plain one.
+///
+/// CDXC:Tooltips 2026-10-25 SEE-ALSO: every sidebar button, icon and menu tooltip uses this bubble now, and so does the Files Search view (the DECISION is in apps/desktop/src/app/native_docs/project_search_view.rs).
 pub(crate) fn sidebar_style_tooltip(text: String, window: &mut Window, cx: &mut App) -> AnyView {
     // One line each, cut short at 320px: a bubble sized to its text with nothing to fill would
     // otherwise wrap after every letter.

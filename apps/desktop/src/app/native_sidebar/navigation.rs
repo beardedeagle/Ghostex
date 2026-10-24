@@ -206,7 +206,13 @@ impl GhostexGpuiApp {
                         .managed_discrete_tooltip_with_placement(
                             ManagedTooltipPlacement::Right,
                             tooltip_delay,
-                            |window, cx| titlebar_tooltip("Issues", window, cx),
+                            |window, cx| {
+                                super::tooltips::sidebar_style_tooltip(
+                                    "Issues".to_string(),
+                                    window,
+                                    cx,
+                                )
+                            },
                         ),
                 )
             })
@@ -247,7 +253,13 @@ impl GhostexGpuiApp {
                     .managed_discrete_tooltip_with_placement(
                         ManagedTooltipPlacement::Right,
                         tooltip_delay,
-                        move |window, cx| titlebar_tooltip(tooltip_label.clone(), window, cx),
+                        move |window, cx| {
+                            super::tooltips::sidebar_style_tooltip(
+                                tooltip_label.to_string(),
+                                window,
+                                cx,
+                            )
+                        },
                     ),
             )
             // CDXC:Notifications 2026-09-20 DECISION:
@@ -355,8 +367,8 @@ impl GhostexGpuiApp {
                             ManagedTooltipPlacement::Right,
                             appearance.tooltip_delay,
                             |window, cx| {
-                                titlebar_tooltip(
-                                    titlebar_tooltip_label("Settings", "openSettings"),
+                                super::tooltips::sidebar_style_tooltip(
+                                    titlebar_tooltip_label("Settings", "openSettings").to_string(),
                                     window,
                                     cx,
                                 )
