@@ -3398,7 +3398,8 @@ group; past half the window's height the list scrolls inside it. It stays while 
 card). A red dot on +N means a link behind it has failing checks; Ghostex sends no
 notifications for link changes. On the phone, the chat shows the same chips under
 its header: tap one to open it, touch and hold to copy its link, and tap +N or
-List for the whole list (× twice removes a link, Link adds a suggestion). The
+List for the whole list (touch and hold a link for Copy link, Pin or Unpin and Remove, which asks
+Remove? first; Link adds a suggestion). The
 phone's session list follows the computer's Session links in the sidebar, and a
 session's long-press menu has a Links row that opens the same list. States
 refresh about once a minute, and merged or closed ones stop being checked.
