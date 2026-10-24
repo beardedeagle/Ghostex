@@ -654,6 +654,13 @@ pub const MARKED_HANDOVERS_STYLE_OPTIONS: &[Opt] = &[
     opt("Coloured badge", "badge"),
 ];
 
+/// Where a page an agent published in chat (`ghostex show`) opens when its card is clicked, in the Settings control's order.
+pub const CHAT_PAGE_OPEN_TARGET_OPTIONS: &[Opt] = &[
+    opt("Popup", "popup"),
+    opt("Files", "files"),
+    opt("System browser", "system-browser"),
+];
+
 pub const WEB_LINK_OPEN_TARGET_OPTIONS: &[Opt] = &[
     opt("Internal Browser", "internal-browser"),
     opt("System Default Browser", "system-default-browser"),

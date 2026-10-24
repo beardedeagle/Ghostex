@@ -1244,7 +1244,12 @@ writes an HTML page and the chat shows a card for it with a small preview
 picture of the page, the same on desktop, web, and mobile. The picture is taken
 the first time you open the page in the Ghostex desktop app (and again after you
 answer it); until then the card shows the page's file name. On desktop the card opens
-the page in a floating window over the chat. Clicking outside it once only
+the page where Settings > Chat > Open chat pages in says: Popup (the default), a
+floating window over the chat; Files, a page tab in the Files view, whose header
+can open it in your browser or close it; or System browser, your default web
+browser. Your answers reach the agent the same way from all three, and the
+picture viewer and the remembered scroll position below work in all three. In the
+floating window, clicking outside it once only
 arms it ("Click outside again to close"); a second click outside within two
 seconds closes it, as do Escape and its close button. Its header can open the
 page in your browser instead. Clicking a picture in the page opens it in a
@@ -1283,8 +1288,8 @@ shows them as a card, and the form then reads Answered. Questions that need a pi
 such as choosing between two mockups, come as a page instead, where you can
 also pick an option right at its mockup and add a note under each mockup. A
 page works the same way: its card reads Answered once you send, and opening it
-again shows what you sent. On desktop and mobile the page closes once your answers are
-sent, and stays open with the error if they could not be. Until you send,
+again shows what you sent. The desktop's floating page window and the mobile page close once your answers are
+sent, and stay open with the error if they could not be; in the Files view or your browser the page stays open. Until you send,
 what you picked and typed is kept, in a form and on a page alike, even when
 you close the page or the chat, switch sessions, or restart. With Settings >
 Chat > Previous question button turned on (it is off by default), a small "?"
@@ -1301,14 +1306,15 @@ question stands: amber with a ? while it still waits for your answer, green
 with a check once you answered it, grey once you skipped it, and grey and
 struck through once the agent withdrew it. When you answer a question another
 way, by telling the agent in the chat or by doing what it asked, the agent
-withdraws it so it stops counting as open. Settings: `chatPreviousQuestion`, and
+withdraws it so it stops counting as open. Settings: `chatPageOpenTarget` (`popup`,
+`files` or `system-browser`), `chatPreviousQuestion`, and
 (under Show Advanced) `chatSendOnPick`, which makes picking an answer send a
 card that asks a single choice question right away, without Send answers
 (off by default; cards with several questions, multiple choice, Other or text
 answers still wait for Send). Commands:
 `ghostex show <file.html>`
 publishes a page and prints the block that shows its card (`--browser` opens it
-in the browser instead of floating), and
+in the browser whatever Open chat pages in says), and
 `ghostex visual check <file.json>` draws a chart block to an image, or lists a
 question form's questions, so the agent can check it before replying.
 

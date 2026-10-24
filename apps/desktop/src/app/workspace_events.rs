@@ -179,6 +179,13 @@ impl GhostexGpuiApp {
         json: &str,
         cx: &mut gpui::Context<Self>,
     ) {
+        // A page an agent published may be showing in the Files slot (native_docs/published_page.rs);
+        // a Files answer still on its way to the embed page it replaced must not reach it.
+        if slot_key == ProjectWorkareaCefSurfaceSlotKey::Manage
+            && self.native_docs_active_page().is_some()
+        {
+            return;
+        }
         let Some(runtime_url) = self.project_workarea_runtime_url_for_slot(slot_key) else {
             return;
         };

@@ -468,6 +468,10 @@ pub fn exports(module: &str, platform: Platform) -> Vec<(&'static str, Json)> {
                 MARKED_HANDOVERS_STYLE_OPTIONS.to_json(),
             ),
             (
+                "CHAT_PAGE_OPEN_TARGET_OPTIONS",
+                CHAT_PAGE_OPEN_TARGET_OPTIONS.to_json(),
+            ),
+            (
                 "SESSION_STATUS_SOURCE_OPTIONS",
                 SESSION_STATUS_SOURCE_OPTIONS.to_json(),
             ),

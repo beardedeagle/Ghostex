@@ -184,6 +184,9 @@ impl GhostexGpuiApp {
             if let Some(path) = this.native_docs.pending_open.take() {
                 this.native_docs_open_external(path, cx);
             }
+            if let Some(page) = this.native_docs.pending_page.take() {
+                this.native_docs_open_page(page, cx);
+            }
             this.native_docs_refresh(cx);
         });
         true

@@ -64,7 +64,8 @@ pub(in crate::server) async fn route_http(
             .get(axum::http::header::HOST)
             .and_then(|value| value.to_str().ok())
             .map(str::to_string);
-        return crate::visual_pages::serve(state.paths.root_dir.clone(), path, host).await;
+        let query = parts.uri.query().map(str::to_string);
+        return crate::visual_pages::serve(state.paths.root_dir.clone(), path, query, host).await;
     }
 
     if method == Method::POST && crate::visual_pages::is_answers_route(&path) {

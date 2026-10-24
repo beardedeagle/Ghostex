@@ -97,12 +97,17 @@ impl GhostexGpuiApp {
         let svg = kind == DocsFileKind::Image && DocsFileKind::is_svg(&path);
         let svg_source = document.svg_source;
         let media = kind.is_viewer();
+        let published_page = kind == DocsFileKind::Page;
+        let page_url = document.page.as_ref().map(|page| page.url.clone());
         // CDXC:Docs 2026-10-01 WHY: the Show files button is the header row's last control, not a corner overlay drawn over the row's right end; a guessed reserve for the overlay let it cover the actions (the Open With arrow and Reload) whenever the row and the overlay disagreed.
         // CDXC:Docs 2026-10-09 DECISION: User: "when i hover the button to show files list pls keep the bar behind to not change". The button stays in the row while the list floats over it (a peek or a drawer) and goes only once the list is docked, so opening the floating list never re-lays out the bar: the title, the meta strip and the other buttons stay exactly where they were.
         let restore = (!layout.docked).then(|| self.render_native_docs_restore_button(p, cx));
         // CDXC:Docs 2026-10-08 DECISION:
         // User: "when i click here please lets copy the whole path not the file name". Clicking the top bar's file name copies the file's full path on its computer (the project folder joined with a project-relative path), supersedes the 2026-09-07 rule of copying the displayed name.
-        let copy_title: SharedString = {
+        let copy_title: SharedString = if let Some(page_url) = page_url {
+            // A published page has no file; its title copies the page's address.
+            page_url
+        } else {
             let file = std::path::Path::new(&path);
             if file.is_absolute() {
                 path.clone()
@@ -130,6 +135,8 @@ impl GhostexGpuiApp {
                 "Unsaved changes. Press Ctrl+S to save. Click to copy the full path"
             }
             .into()
+        } else if published_page {
+            "Copy page address".into()
         } else {
             "Copy full path".into()
         };
@@ -186,6 +193,8 @@ impl GhostexGpuiApp {
                         titlebar_svg_icon(
                             if kind == DocsFileKind::Excalidraw {
                                 "files-view/t-edit-175.svg"
+                            } else if published_page {
+                                "files-view/t-file-type-html-175.svg"
                             } else if media {
                                 super::files_list::file_icon(&path)
                             } else {
@@ -237,6 +246,7 @@ impl GhostexGpuiApp {
                     .text_size(px(WORKAREA_HEADER_TITLE_TEXT_SIZE))
                     .text_color(p.subtle)
                     .when(review.is_some(), |this| this.child("Agent reply"))
+                    .when(published_page, |this| this.child("Interactive page"))
                     .children(review.clone().filter(|title| !title.is_empty()))
                     .when(deleted, |this| this.child("Deleted"))
                     .when(dirty, |this| this.child("Edited"))
@@ -386,6 +396,38 @@ impl GhostexGpuiApp {
                             .on_click(cx.listener(
                                 move |this, _, _, cx| {
                                     this.native_docs_open_with_system_app(&open_path, cx);
+                                },
+                            )),
+                        )
+                    })
+                    // CDXC:SessionChat 2026-10-24 WHY: a page an agent published (Settings > Chat > Open chat pages in: Files) has no file, so its header offers what the floating page window's does: open it in the browser, and close it.
+                    .when(published_page, |this| {
+                        let close_path = path.clone();
+                        this.child(
+                            header_tile(
+                                "native-docs-page-open-in-browser",
+                                header_icon("titlebar/external-link.svg", false, p),
+                                false,
+                                false,
+                                p,
+                            )
+                            .tooltip(|window, cx| titlebar_tooltip("Open in browser", window, cx))
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                this.native_docs_open_page_in_browser(cx);
+                            })),
+                        )
+                        .child(
+                            header_tile(
+                                "native-docs-close-page",
+                                header_icon("titlebar/x.svg", false, p),
+                                false,
+                                false,
+                                p,
+                            )
+                            .tooltip(|window, cx| titlebar_tooltip("Close page", window, cx))
+                            .on_click(cx.listener(
+                                move |this, _, _, cx| {
+                                    this.native_docs_close(&close_path, cx);
                                 },
                             )),
                         )
@@ -584,17 +626,23 @@ impl GhostexGpuiApp {
             | DocsFileKind::Audio
             | DocsFileKind::Pdf
             | DocsFileKind::BrowserImage
-            | DocsFileKind::Font => {
+            | DocsFileKind::Font
+            | DocsFileKind::Page => {
                 // The web runtime prompt (app/render/web_runtime_prompt.rs) with this file's Open
-                // in system app beside Install.
-                if let Some(prompt) =
-                    crate::app::helpers::web_runtime::web_runtime_install_prompt("This file")
-                {
-                    let path = document.path.clone();
+                // in system app beside Install (a published page has no file to open).
+                let published_page = document.kind == DocsFileKind::Page;
+                if let Some(prompt) = crate::app::helpers::web_runtime::web_runtime_install_prompt(
+                    if published_page {
+                        "This page"
+                    } else {
+                        "This file"
+                    },
+                ) {
+                    let path = (!published_page).then(|| document.path.clone());
                     return self.render_web_runtime_prompt_card(
                         "native-docs-web-runtime-prompt",
                         prompt,
-                        Some(path),
+                        path,
                         cx,
                     );
                 }

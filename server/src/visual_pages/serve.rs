@@ -16,6 +16,18 @@ use super::{
 
 pub(crate) const VISUAL_PAGE_ROUTE_PREFIX: &str = "/visual/";
 
+/// The query that asks for [`PAGE_SCRIPT`] in the page: `/visual/<id>?gx-page-script=1`.
+pub(crate) const PAGE_SCRIPT_QUERY: &str = "gx-page-script=1";
+
+/// The floating page window's own script (its picture viewer and its scroll memory), put into the
+/// page for a reader that cannot add it itself.
+///
+/// CDXC:SessionChat 2026-10-24 WHY:
+/// The floating window adds this script through CEF; the Files view and the reader's own browser, where Settings > Chat > Open chat pages in can send a page instead, have no way to. They load the page with `?gx-page-script=1`, so the same file gives them the same viewer and the same scroll position on gxserver (`/visual/<id>/scroll`). The phone keeps its own page sheet script (user decision) and never asks for it.
+/// SEE-ALSO: apps/desktop/src/app/window/visual_page_modal/page_script.js (the script), apps/desktop/src/app/visual_page_modal_lifecycle.rs (the setting).
+const PAGE_SCRIPT: &str =
+    include_str!("../../../apps/desktop/src/app/window/visual_page_modal/page_script.js");
+
 /// `GET /visual/<id>`: a page `ghostex show` published, answered before the auth gate.
 ///
 /// CDXC:ServerApi 2026-10-06 WHY:
@@ -26,6 +38,7 @@ pub(crate) const VISUAL_PAGE_ROUTE_PREFIX: &str = "/visual/";
 pub(crate) async fn serve(
     gxserver_state_dir: PathBuf,
     path: String,
+    query: Option<String>,
     host: Option<String>,
 ) -> RoutedResponse {
     let Some(id) = path
@@ -36,9 +49,12 @@ pub(crate) async fn serve(
         return status(StatusCode::NOT_FOUND);
     };
     let page_id = id.clone();
+    let page_script = query
+        .as_deref()
+        .is_some_and(|query| query.split('&').any(|pair| pair == PAGE_SCRIPT_QUERY));
     let page = tokio::task::spawn_blocking(move || {
         read_page(&gxserver_state_dir, &id)
-            .map(|page| with_page_state(page, read_record(&gxserver_state_dir, &id)))
+            .map(|page| with_page_state(page, read_record(&gxserver_state_dir, &id), page_script))
     })
     .await
     .ok()
@@ -102,14 +118,28 @@ fn header_policy(id: &str, host: Option<&str>) -> String {
 
 /// The page with its answered state where `PAGE_API` reads it: whether the reader already sent
 /// answers, what they were, and when, or else the draft they left. A page published before
-/// answering existed has no marker.
-fn with_page_state(page: Vec<u8>, record: Option<serde_json::Value>) -> Vec<u8> {
+/// answering existed has no marker. `page_script` adds [`PAGE_SCRIPT`] there too, or before
+/// `</head>` in a page without the marker.
+fn with_page_state(page: Vec<u8>, record: Option<serde_json::Value>, page_script: bool) -> Vec<u8> {
     let html = match String::from_utf8(page) {
         Ok(html) => html,
         Err(error) => return error.into_bytes(),
     };
+    let script = if page_script {
+        // `</` never appears raw inside the script, so nothing in it can close the element.
+        format!("<script>{}</script>", PAGE_SCRIPT.replace("</", "<\\/"))
+    } else {
+        String::new()
+    };
     let Some(at) = html.find(PAGE_STATE_MARKER) else {
-        return html.into_bytes();
+        return match html.find("</head>").filter(|_| page_script) {
+            Some(head_end) => {
+                let mut out = html;
+                out.insert_str(head_end, &script);
+                out.into_bytes()
+            }
+            None => html.into_bytes(),
+        };
     };
     let answered_at = record
         .as_ref()
@@ -128,11 +158,12 @@ fn with_page_state(page: Vec<u8>, record: Option<serde_json::Value>) -> Vec<u8> 
     };
     // `<` never appears raw inside the script, so no value can close it.
     let state = state.to_string().replace('<', "\\u003c");
-    let mut out = String::with_capacity(html.len() + state.len() + 64);
+    let mut out = String::with_capacity(html.len() + state.len() + script.len() + 64);
     out.push_str(&html[..at]);
     out.push_str("<script>window.ghostex&&ghostex.__state(");
     out.push_str(&state);
     out.push_str(");</script>");
+    out.push_str(&script);
     out.push_str(&html[at + PAGE_STATE_MARKER.len()..]);
     out.into_bytes()
 }

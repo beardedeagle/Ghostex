@@ -9,7 +9,7 @@
 pub(super) const PAGE_SCRIPT: &str = include_str!("page_script.js");
 
 /// The page's id when `url` is a page gxserver serves (`…/visual/<32 hex>`).
-pub(super) fn page_id(url: &str) -> Option<String> {
+pub(crate) fn page_id(url: &str) -> Option<String> {
     let path = url.split(['?', '#']).next().unwrap_or_default();
     let id = path.trim_end_matches('/').rsplit_once("/visual/")?.1;
     (id.len() == 32 && id.bytes().all(|byte| byte.is_ascii_hexdigit()))

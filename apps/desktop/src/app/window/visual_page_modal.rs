@@ -17,6 +17,8 @@ pub(crate) mod open_timing;
 mod page;
 mod source;
 
+pub(crate) use page::page_id;
+
 use super::native_modal_kit::*;
 use crate::app::helpers::web_runtime::{WebRuntimeState, web_runtime_state};
 use crate::app::helpers::*;
@@ -42,7 +44,7 @@ const CLICK_AWAY_ARMED_FOR: Duration = Duration::from_secs(2);
 const SAME_CLICK: Duration = Duration::from_millis(400);
 /// Its own browser profile, so a page's storage never mixes with the Browser's or an
 /// extension's.
-const VISUAL_PAGE_CEF_PROFILE_ID: &str = "visual-pages";
+pub(crate) const VISUAL_PAGE_CEF_PROFILE_ID: &str = "visual-pages";
 
 pub(crate) enum VisualPageModalCommand {
     /// A click away, Escape or the close button.
