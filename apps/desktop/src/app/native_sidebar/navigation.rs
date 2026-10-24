@@ -15,6 +15,10 @@ use crate::app::helpers::*;
 use crate::app::render::window_drag_region::window_drag_region;
 use crate::*;
 
+/// The narrowest a top-row button gets when the sidebar is too narrow for the full 34pt slots:
+/// its 15pt icon plus a little room, so every button stays visible.
+pub(crate) const SIDEBAR_TOP_ROW_BUTTON_MIN_WIDTH: f32 = 20.0;
+
 impl GhostexGpuiApp {
     /// CDXC:Sidebar 2026-09-19 DECISION:
     /// User: the Search row and the Commands row are each one pixel taller.
@@ -112,7 +116,16 @@ impl GhostexGpuiApp {
             .pb(px((if footer { 6.0 } else { 3.0 }) * scale))
             .px(px(5.0 * scale))
             .gap(px(4.0 * scale))
-            .justify_end()
+            /*
+            CDXC:Sidebar 2026-10-24 WHY:
+            GitHub #288: a right-aligned row that is wider than the sidebar overflows at its start,
+            which slid the Toggle sidebar button left by the shortfall and under the macOS green
+            window button (about 37pt at a 241pt sidebar with Search, the bell and the menu). The
+            corner row therefore starts at the left, its spacer right-aligns the buttons, and the
+            buttons right of the spacer narrow to `SIDEBAR_TOP_ROW_BUTTON_MIN_WIDTH` before
+            anything overflows, so the toggle keeps its reserved x at every width.
+            */
+            .when(!owns_window_corner, |row| row.justify_end())
             .when(owns_window_corner, |row| {
                 window_drag_region(row.pl(px(SIDEBAR_TOGGLE_LEADING_X)))
             })
@@ -170,7 +183,8 @@ impl GhostexGpuiApp {
                         .w(px(34.0 * scale))
                         .rounded(px(5.0 * scale))
                         .flex()
-                        .flex_shrink_0()
+                        .flex_shrink(1.0)
+                        .min_w(px(SIDEBAR_TOP_ROW_BUTTON_MIN_WIDTH * scale))
                         .items_center()
                         .justify_center()
                         .cursor_default()
@@ -212,7 +226,8 @@ impl GhostexGpuiApp {
                     .w(px(34.0 * scale))
                     .rounded(px(5.0 * scale))
                     .flex()
-                    .flex_shrink_0()
+                    .flex_shrink(1.0)
+                    .min_w(px(SIDEBAR_TOP_ROW_BUTTON_MIN_WIDTH * scale))
                     .items_center()
                     .justify_center()
                     .cursor_default()
@@ -257,7 +272,8 @@ impl GhostexGpuiApp {
                         .w(px(34.0 * scale))
                         .rounded(px(5.0 * scale))
                         .flex()
-                        .flex_shrink_0()
+                        .flex_shrink(1.0)
+                        .min_w(px(SIDEBAR_TOP_ROW_BUTTON_MIN_WIDTH * scale))
                         .items_center()
                         .justify_center()
                         .cursor_default()

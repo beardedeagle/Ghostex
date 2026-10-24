@@ -34,6 +34,7 @@ use gpui::{
 use gpui_component::ElementExt as _;
 use gpui_component::tooltip::{ManagedTooltipExt as _, ManagedTooltipPlacement};
 
+use crate::app::native_sidebar::navigation::SIDEBAR_TOP_ROW_BUTTON_MIN_WIDTH;
 use crate::{
     GhostexGpuiApp, GpuiTitlebarPopupKind, NOTIFICATIONS_TITLEBAR_BUTTON_HIDDEN_SETTINGS_KEY,
     shared_settings, titlebar_active_text_color, titlebar_background, titlebar_svg_icon,
@@ -540,7 +541,8 @@ impl GhostexGpuiApp {
             .h_full()
             .w(px(34.0 * scale))
             .rounded(px(5.0 * scale))
-            .flex_shrink_0()
+            .flex_shrink(1.0)
+            .min_w(px(SIDEBAR_TOP_ROW_BUTTON_MIN_WIDTH * scale))
             .items_center()
             .justify_center()
             .cursor_default()
