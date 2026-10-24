@@ -160,7 +160,7 @@ pub fn thread_brief(coordinator: &BriefContext<'_>, task: &str) -> String {
         );
     }
     brief.push_str(
-        "\n\nYour session title names the area of your current task in 3 to 6 words (`ghostex agents whoami` shows it). When a message from your orchestrator starts a task in a different area than your title says, rename yourself before you start: `ghostex orchestrator rename-self \"<area>\"`. If it answers that the user renamed you, keep that name.",
+        "\n\nYour session title names your latest task in 3 to 6 words (`ghostex agents whoami` shows it). Whenever a message from your orchestrator starts a task your title does not describe, rename yourself before you start: `ghostex orchestrator rename-self \"<3 to 6 words>\"` (each of its messages ends with a reminder naming your current title). If it answers that the user renamed you, keep that name.",
     );
     brief.push_str(
         "\n\nWhen you are done:\n\

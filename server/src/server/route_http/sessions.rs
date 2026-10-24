@@ -443,7 +443,8 @@ pub(super) async fn route_sessions_http(
         | "/api/linkCoordinatorThread"
         | "/api/unlinkCoordinatorThread"
         | "/api/setCoordinatorThreadResolved"
-        | "/api/renameCoordinatorThread" => {
+        | "/api/renameCoordinatorThread"
+        | "/api/coordinatorThreadTitleReminder" => {
             let path = endpoint.path.clone();
             handle_domain_http(
                 &state,

@@ -343,7 +343,7 @@ pub(super) fn rename(parsed: &ParsedArgs) -> CliResult<()> {
 }
 
 /// `rename-self` is a thread renaming its own session when its orchestrator starts it on a task
-/// in another area; gxserver refuses it when the user renamed the thread
+/// its title does not describe; gxserver refuses it when the user renamed the thread
 /// (server/src/coordinators/rename.rs).
 pub(super) fn rename_self(parsed: &ParsedArgs) -> CliResult<()> {
     let [title] = parsed.rest.as_slice() else {

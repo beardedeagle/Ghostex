@@ -50,14 +50,15 @@ compacted, and whenever you are unsure what is running.
 ## Starting a thread
 
 ```
-ghostex orchestrator start-thread --title "<the area it owns, 3 to 6 words>" --task "<brief>" [--worktree]
+ghostex orchestrator start-thread --title "<its task, 3 to 6 words>" --task "<brief>" [--worktree]
     [--agent <agent id>] [--model <model>] [--effort <level>]
 ```
 
-- Name a thread after the area it owns ("Accounts settings", "Agent skills", "Sidebar drag and
-  drop"), not its first task, so its follow-ups still fit the name. Threads rename themselves:
-  when your follow-up starts a task in another area, the thread renames itself before it starts
-  (its brief tells it how), and never when the user renamed it. Never rename a thread with
+- Name a thread after its task in 3 to 6 words ("Accounts page redesign", "Sidebar drag and
+  drop fix"). Threads keep their names current themselves: when your follow-up starts a task the
+  title does not describe, the thread renames itself before it starts (its brief tells it how,
+  and Ghostex adds a one-line reminder naming its current title under every message you send it),
+  and never when the user renamed it. Never rename a thread with
   `ghostex rename-command` (it records the user's rename and locks the name) or
   `ghostex rename-session` (it skips the user's-rename check).
 

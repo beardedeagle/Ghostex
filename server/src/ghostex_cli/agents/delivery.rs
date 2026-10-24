@@ -11,6 +11,23 @@ use serde_json::{json, Value};
 use std::collections::HashSet;
 use std::time::{Duration, Instant};
 
+/// The rename reminder gxserver adds when `sender` is the orchestrator of the thread `recipient`
+/// (server/src/coordinators/rename.rs `thread_title_reminder`); `None` for any other message,
+/// and from a gxserver too old to answer.
+fn thread_title_reminder(sender: &Value, recipient: &Value, flags: &Flags) -> Option<String> {
+    call_gxserver_rpc(
+        "/api/coordinatorThreadTitleReminder",
+        &json!({
+            "senderProjectId": sender["projectId"], "senderSessionId": sender["sessionId"],
+            "projectId": recipient["projectId"], "sessionId": recipient["sessionId"],
+        }),
+        flags,
+    )
+    .ok()?["reminder"]
+        .as_str()
+        .map(str::to_string)
+}
+
 /// CDXC:Cli 2026-09-26 DECISION:
 /// User: messages between agents "shouldn't be added to the queue and stuck there, they should be just sent as normal, except if the agent intentionally queues". A default or interrupt send to a sleeping recipient goes to `/api/sendSessionChatMessage` like Enter in chat, which wakes the session and types the message once its agent is ready (SessionChat 2026-09-25 decision); only `--queue` holds a message for the recipient's next stop.
 /// WHY: the old refusal for a sleeping recipient told the sender to use `--queue`, and agents kept reaching for `--queue` afterwards, even for running recipients, so their messages waited behind whole turns.
@@ -25,13 +42,6 @@ pub(super) fn send(args: &Arguments) -> CliResult<Value> {
         return Err(CliError::Other("Message body must not be empty.".into()));
     }
     let sender = identity::caller()?;
-    let message = identity::message(&sender, &body);
-    if message.len() > crate::zmx::GXSERVER_ZMX_SEND_TEXT_LIMIT_BYTES {
-        return Err(CliError::Other(format!(
-            "Message including sender header exceeds the {}-byte send limit.",
-            crate::zmx::GXSERVER_ZMX_SEND_TEXT_LIMIT_BYTES
-        )));
-    }
     let reference = &args.positional[0];
     let flags = identity::inventory_flags(&args.flags, reference)?;
     let recipient = selector::resolve_live_or_closed_session(reference, &flags)?;
@@ -39,6 +49,19 @@ pub(super) fn send(args: &Arguments) -> CliResult<Value> {
         return Err(CliError::Other(
             "The recipient is not an agent session. Run ghostex agents list --all.".into(),
         ));
+    }
+    let message = identity::message(
+        &sender,
+        &match thread_title_reminder(&sender, &recipient, &flags) {
+            Some(reminder) => format!("{}\n\n{reminder}", body.trim_end()),
+            None => body.clone(),
+        },
+    );
+    if message.len() > crate::zmx::GXSERVER_ZMX_SEND_TEXT_LIMIT_BYTES {
+        return Err(CliError::Other(format!(
+            "Message including sender header exceeds the {}-byte send limit.",
+            crate::zmx::GXSERVER_ZMX_SEND_TEXT_LIMIT_BYTES
+        )));
     }
     // A sleeping or closed recipient has nothing to interrupt; the send itself wakes it and
     // resumes its conversation.

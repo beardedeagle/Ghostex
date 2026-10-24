@@ -2414,9 +2414,10 @@ version of the Projects features in Cursor and Claude Code.
   its chat leaves the fold and the older threads as you set them; opening one of its threads
   unfolds the orchestrator so the thread shows. Click a thread to watch it or
   talk to it directly; answer its questions and approvals there. A thread is
-  named after the area it works on and keeps the name its orchestrator gave it,
-  like the orchestrator keeps its own; when its orchestrator starts it on work
-  in another area, the thread renames itself to match. Your own Rename in the
+  named after its latest task and keeps that name, like the orchestrator keeps
+  its own (the agent's automatic naming never replaces it); when its
+  orchestrator starts it on a new task the name does not describe, the thread
+  renames itself to match, so the names stay current. Your own Rename in the
   sidebar always wins: a thread you renamed keeps your name. Pinning the
   orchestrator takes its threads along. Right-click the orchestrator and choose
   **Sleep Inactive Threads** to put its idle threads to sleep in one go: threads
