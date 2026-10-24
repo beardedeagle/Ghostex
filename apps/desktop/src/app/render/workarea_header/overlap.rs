@@ -133,12 +133,13 @@ impl GhostexGpuiApp {
     }
 
     /// How far below the window's top edge a column starts: nothing when its content really does
-    /// pass under the header, the header's own height when it must stay clear of it.
+    /// pass under the header, the header's own height (and the links line under its title) when
+    /// it must stay clear of it.
     pub(crate) fn workarea_header_column_top_inset(&self, flows_under_header: bool) -> f32 {
         if flows_under_header {
             0.0
         } else {
-            WORKAREA_HEADER_HEIGHT
+            WORKAREA_HEADER_HEIGHT + self.workarea_header_links_strip_height()
         }
     }
 
@@ -152,7 +153,9 @@ impl GhostexGpuiApp {
         let background = gpui_session_chat_background_color();
         div()
             .absolute()
-            .top(px(WORKAREA_HEADER_HEIGHT))
+            .top(px(
+                WORKAREA_HEADER_HEIGHT + self.workarea_header_links_strip_height()
+            ))
             .left_0()
             .right_0()
             .h(px(WORKAREA_HEADER_FADE_HEIGHT))

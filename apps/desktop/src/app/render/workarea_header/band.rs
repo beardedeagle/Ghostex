@@ -49,11 +49,16 @@ impl GhostexGpuiApp {
         let trailing_reserve = self.workarea_header_trailing_dock_reserve(window);
         let strip_mode = self.open_view_mode().unwrap_or(TitlebarMode::Agents);
         // An expanded panel runs under the header row too, so the whole band shrinks to the strip.
-        let band_height = if hosts_tab_strip && self.view_panel_maximized() {
+        let row_height = if hosts_tab_strip && self.view_panel_maximized() {
             WORKAREA_VIEW_TAB_STRIP_HEIGHT
         } else {
             WORKAREA_HEADER_HEIGHT
         };
+        // The links line under the title adds its height to the header's half of the band only;
+        // the tab strip, its divider and a right dock's reserve keep the row's height.
+        let links_strip =
+            self.render_workarea_header_links_strip(self.workarea_header_compact(window), cx);
+        let band_height = row_height + self.workarea_header_links_strip_height();
         #[cfg(any(target_os = "windows", target_os = "linux"))]
         let mut window_controls = (cfg!(target_os = "windows")
             || matches!(
@@ -76,6 +81,7 @@ impl GhostexGpuiApp {
             .child(
                 div()
                     .flex()
+                    .flex_col()
                     .h_full()
                     .min_h_0()
                     .when(!hosts_tab_strip, |region| region.flex_1().min_w_0())
@@ -92,12 +98,20 @@ impl GhostexGpuiApp {
                             .flex_basis(relative(0.0))
                             .min_w(px(WORKAREA_AGENTS_COLUMN_MIN_WIDTH))
                     })
-                    .child(self.render_workarea_header_row(window, cx))
-                    .children(if !hosts_tab_strip && trailing_reserve == 0.0 {
-                        window_controls.take()
-                    } else {
-                        None
-                    }),
+                    .child(
+                        div()
+                            .flex()
+                            .w_full()
+                            .h(px(row_height))
+                            .flex_shrink_0()
+                            .child(self.render_workarea_header_row(window, cx))
+                            .children(if !hosts_tab_strip && trailing_reserve == 0.0 {
+                                window_controls.take()
+                            } else {
+                                None
+                            }),
+                    )
+                    .children(links_strip),
             )
             .when(hosts_tab_strip, |band| {
                 band.child(
@@ -169,7 +183,7 @@ impl GhostexGpuiApp {
                 band.child(
                     h_flex()
                         .flex_shrink_0()
-                        .h_full()
+                        .h(px(row_height))
                         .w(px(trailing_reserve))
                         .bg(workspace_nested_background())
                         .justify_end()

@@ -14,7 +14,7 @@ use gpui::px;
 use gpui_component::ElementExt as _;
 use gpui_component::h_flex;
 
-use super::anchor::record_workarea_header_bottom_y;
+use super::anchor::{record_workarea_header_bottom_y, record_workarea_header_left_x};
 use crate::app::consts::*;
 use crate::app::helpers::*;
 use crate::app::render::window_drag_region::window_drag_region;
@@ -98,6 +98,7 @@ impl GhostexGpuiApp {
             .line_height(px(TITLEBAR_CONTROL_HEIGHT))
             .on_prepaint(|bounds, _window, _cx| {
                 record_workarea_header_bottom_y(bounds.bottom().as_f32());
+                record_workarea_header_left_x(bounds.left().as_f32());
             });
 
         let header = window_drag_region(header);

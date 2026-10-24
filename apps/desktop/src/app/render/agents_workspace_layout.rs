@@ -79,10 +79,19 @@ impl GhostexGpuiApp {
             .agents_column_solo_gpui_chat()
             .filter(|_| flows_under_header)
             .map(|chat| chat.entity_id());
+        // The header row and the links line under its title, which a chat passing under the
+        // header keeps its first message below.
+        let header_band = WORKAREA_HEADER_HEIGHT + self.workarea_header_links_strip_height();
         for chat in self.native_chat_views.values() {
             let under = solo_chat == Some(chat.entity_id());
             if chat.read(cx).under_workarea_header != under {
                 chat.update(cx, |chat, cx| chat.set_under_workarea_header(under, cx));
+            }
+            if chat.read(cx).workarea_header_band_height != header_band {
+                chat.update(cx, |chat, cx| {
+                    chat.workarea_header_band_height = header_band;
+                    cx.notify();
+                });
             }
         }
         let top_inset = if floating {

@@ -1,8 +1,10 @@
-//! The work area header's link chips: after the session's title, its PRs, issues and Linear
-//! tickets, then "+N" (or a list button) that opens the whole list.
+//! The work area header's link chips: on a line under the session's title, its PRs, issues and
+//! Linear tickets, then "+N" (or a list button) that opens the whole list.
 //!
 //! CDXC:SessionLinks 2026-10-24 DECISION:
-//! User, of the chips in the work area header: "yes yes yes love this". Up to three chips (one when the header is compact) follow the title, open work first; the title gives way before them. The chips show for every session, not only in Work mode (the user's "everywhere").
+//! User, of the chips in the work area header: "yes yes yes love this". Up to three chips (one when the header is compact), open work first. The chips show for every session, not only in Work mode (the user's "everywhere").
+//! CDXC:SessionLinks 2026-10-24 DECISION:
+//! User: "let's please show the option to link a thread with issues/prs etc under the name of the thread instead of on the same thread title row". The chips and their "+N" / "N suggested" / "List" pill sit on a slim line right under the header row, starting where the title starts, only while the session has links or suggestions; the header row keeps its height and the title no longer gives way to them. The column below starts under that line (overlap.rs), as the phone's chip strip sits under its chat header. This supersedes the same day's chips after the title on the header row.
 //!
 //! SEE-ALSO: apps/desktop/src/app/native_sidebar/link_chips.rs (the chip drawing),
 //! apps/desktop/src/app/native_sidebar/links_list.rs (the list).
@@ -183,9 +185,57 @@ impl GhostexGpuiApp {
                 .flex_shrink_0()
                 .items_center()
                 .gap(px(5.0))
-                .ml(px(10.0))
                 .children(chips)
                 .child(more)
+                .into_any_element(),
+        )
+    }
+
+    /// The links line's height: its own while the header's session has links or suggestions, else
+    /// nothing, so a session without any draws no empty strip. An expanded view panel shrinks the
+    /// band to its tab strip, which leaves no header row to sit under.
+    pub(crate) fn workarea_header_links_strip_height(&self) -> f32 {
+        if self.workarea_header_hosts_view_tab_strip() && self.view_panel_maximized() {
+            return 0.0;
+        }
+        let has_links = self
+            .workarea_header_session_key()
+            .and_then(|key| self.session_links_of(&key))
+            .is_some_and(|links| !links.items.is_empty() || !links.suggested.is_empty());
+        if has_links {
+            WORKAREA_HEADER_LINKS_STRIP_HEIGHT
+        } else {
+            0.0
+        }
+    }
+
+    /// The line under the header row: the chips from where the title starts. It paints the
+    /// header's colour and takes the mouse like the row, so a transcript passing under the header
+    /// passes under it too.
+    pub(crate) fn render_workarea_header_links_strip(
+        &self,
+        compact: bool,
+        cx: &mut gpui::Context<Self>,
+    ) -> Option<AnyElement> {
+        if self.workarea_header_links_strip_height() == 0.0 {
+            return None;
+        }
+        let chips = self.render_workarea_header_session_links(compact, cx)?;
+        Some(
+            h_flex()
+                .id("ghostex-gpui-workarea-header-links")
+                .w_full()
+                .h(px(WORKAREA_HEADER_LINKS_STRIP_HEIGHT))
+                .flex_shrink_0()
+                .items_start()
+                .overflow_hidden()
+                .bg(self.workarea_header_surface_color())
+                .when(self.workarea_header_blocks_mouse(), |strip| strip.occlude())
+                .font_family(crate::ui_fonts::UI_FONT)
+                // The breadcrumb label's own 3px inset puts the project icon, and the title, here.
+                .pl(px(super::anchor::workarea_header_title_offset_x() + 3.0))
+                .pr(px(WORKAREA_HEADER_EDGE_PADDING))
+                .child(chips)
                 .into_any_element(),
         )
     }
