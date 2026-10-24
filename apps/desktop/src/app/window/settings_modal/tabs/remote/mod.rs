@@ -128,7 +128,8 @@ pub(crate) struct RemoteTab {
     pub(super) expanded: Option<PathCard>,
     /// `phone` or `computer` (the Connect segmented control).
     pub(super) connection_device: &'static str,
-    pub(super) qr_preview_open: bool,
+    /// The Show QR dialog open, and which card's pairing code it shows.
+    pub(super) qr_preview: Option<PathCard>,
     pub(super) qr_preview_focus: FocusHandle,
     pub(super) manual_open: bool,
     pub(super) confirming_device: Option<String>,
@@ -244,7 +245,7 @@ impl RemoteTab {
             now: now_ms(),
             expanded: None,
             connection_device: "phone",
-            qr_preview_open: false,
+            qr_preview: None,
             qr_preview_focus: cx.focus_handle(),
             manual_open: false,
             confirming_device: None,
@@ -827,13 +828,20 @@ impl RemoteTab {
         ) {
             self.expanded = Some(PathCard::EasyConnect);
         }
-        if matches!(state, "remote-tailscale" | "remote-tailscale-manual") {
+        if matches!(
+            state,
+            "remote-tailscale" | "remote-tailscale-manual" | "remote-tailscale-qr"
+        ) {
             self.expanded = Some(PathCard::Tailscale);
         }
         match state {
             "remote-computer" => self.connection_device = "computer",
-            "remote-qr" => {
-                self.qr_preview_open = true;
+            "remote-qr" | "remote-tailscale-qr" => {
+                self.qr_preview = Some(if state == "remote-qr" {
+                    PathCard::EasyConnect
+                } else {
+                    PathCard::Tailscale
+                });
                 self.qr_preview_focus.focus(window, cx);
             }
             "remote-ssh-popover" => {

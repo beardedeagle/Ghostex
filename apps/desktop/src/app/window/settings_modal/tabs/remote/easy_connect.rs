@@ -16,7 +16,7 @@
 //!
 //! CDXC:RemotePairing 2026-10-24 DECISION:
 //! User: "let's please not show the real qr here", "this is so when im in settings we dont show my real QR until i click on "Show QR" which opens it in a pop up", "also pls make that pop up that shows qr bigger by 20%", "make qr 20% bigger more so text above it is 1 line pls and qr is bigger", and "I want this area to look better also please".
-//! The Connect a phone panel never encodes or draws the pairing payload: it shows a placeholder tile drawn without the data (corner markers and a hidden-eye badge) and a Show QR button. The popup is the only place the real QR renders, now at 360px (250px grown 20% twice), drawn at that size rather than scaled, in a sheet wide enough that the instruction above it stays on one line. The panel's explanation is a short numbered list beside the tile.
+//! The Connect a phone panel never encodes or draws the pairing payload: it shows a placeholder tile drawn without the data (corner markers and a hidden-eye badge) and a Show QR button. The popup is the only place the real QR renders (the Tailscale card uses the same tile, button and popup for its code), now at 360px (250px grown 20% twice), drawn at that size rather than scaled, in a sheet wide enough that the instruction above it stays on one line. The panel's explanation is a short numbered list beside the tile.
 use super::super::super::super::native_modal_kit::*;
 use super::super::super::fields::{
     ButtonSize, ButtonVariant, icon, qr_code, settings_button_sized, settings_icon,
@@ -425,7 +425,7 @@ pub(super) fn qr_pending(t: &RemoteTokens, size: f32, message: &'static str) -> 
 }
 
 /// Side of the placeholder tile in the Connect a phone panel.
-const QR_PLACEHOLDER_SIZE: f32 = 132.0;
+pub(super) const QR_PLACEHOLDER_SIZE: f32 = 132.0;
 /// Side of the real QR in the Show QR dialog: the old 250px grown 20% twice (250 × 1.2 × 1.2).
 const QR_PREVIEW_SIZE: f32 = 360.0;
 /// Width of the Show QR dialog: wide enough for the scan instruction on one line.
@@ -485,34 +485,45 @@ fn qr_placeholder(t: &RemoteTokens) -> AnyElement {
         .into_any_element()
 }
 
+/// The placeholder tile with its Show QR button, which opens `card`'s pairing code in the Show QR
+/// dialog. Shared by the Easy Connect phone panel and the Tailscale card.
+pub(super) fn hidden_qr(
+    t: &RemoteTokens,
+    id: &'static str,
+    card: PathCard,
+    cx: &mut Context<RemoteTab>,
+) -> AnyElement {
+    v_flex()
+        .w(px(QR_PLACEHOLDER_SIZE))
+        .items_center()
+        .gap(px(10.0))
+        .child(qr_placeholder(t))
+        .child(settings_button_sized(
+            &t.p,
+            id,
+            "Show QR",
+            Some(icon::EYE),
+            ButtonVariant::Outline,
+            ButtonSize::Sm,
+            false,
+            None,
+            move |tab: &mut RemoteTab, window, cx| {
+                tab.qr_preview = Some(card);
+                tab.qr_preview_focus.focus(window, cx);
+                cx.notify();
+            },
+            cx,
+        ))
+        .into_any_element()
+}
+
 fn phone_panel(tab: &mut RemoteTab, t: &RemoteTokens, cx: &mut Context<RemoteTab>) -> AnyElement {
     let code = tab
         .pairing
         .as_ref()
         .and_then(|pairing| pairing.easy_connect.clone());
     let left = match &code {
-        Some(_) => v_flex()
-            .w(px(QR_PLACEHOLDER_SIZE))
-            .items_center()
-            .gap(px(10.0))
-            .child(qr_placeholder(t))
-            .child(settings_button_sized(
-                &t.p,
-                "remote-show-qr",
-                "Show QR",
-                Some(icon::EYE),
-                ButtonVariant::Outline,
-                ButtonSize::Sm,
-                false,
-                None,
-                |tab: &mut RemoteTab, window, cx| {
-                    tab.qr_preview_open = true;
-                    tab.qr_preview_focus.focus(window, cx);
-                    cx.notify();
-                },
-                cx,
-            ))
-            .into_any_element(),
+        Some(_) => hidden_qr(t, "remote-show-qr", PathCard::EasyConnect, cx),
         None => qr_pending(t, QR_PLACEHOLDER_SIZE, "Waiting for the address…"),
     };
     let mut steps: Vec<Vec<(&str, Emph)>> = vec![
@@ -781,17 +792,37 @@ pub(super) fn qr_preview_dialog(
     window: &mut Window,
     cx: &mut Context<RemoteTab>,
 ) -> Option<AnyElement> {
-    if !tab.qr_preview_open {
-        return None;
-    }
-    let code = tab
-        .pairing
-        .as_ref()
-        .and_then(|pairing| pairing.easy_connect.clone())?;
-    let grid = tab.qr_for(false, &code.payload);
+    let card = tab.qr_preview?;
+    let pairing = tab.pairing.as_ref()?;
+    // The name under the QR and its footnote; Tailscale codes carry the tailnet address instead of
+    // a computer name and do not rotate after pairing.
+    let (tailscale, payload, name, footnote) = match card {
+        PathCard::EasyConnect => {
+            let code = pairing.easy_connect.as_ref()?;
+            (
+                false,
+                code.payload.clone(),
+                code.name.clone(),
+                "The QR refreshes automatically after pairing.",
+            )
+        }
+        PathCard::Tailscale => {
+            let code = pairing.tailscale.as_ref()?;
+            (
+                true,
+                code.payload.clone(),
+                code.host
+                    .clone()
+                    .or_else(|| code.ip.clone())
+                    .unwrap_or_else(|| "This computer".to_string()),
+                "The app recognizes this as a Tailscale code.",
+            )
+        }
+    };
+    let grid = tab.qr_for(tailscale, &payload);
     let colors = dialog_colors(t);
     let close = |tab: &mut RemoteTab, _window: &mut Window, cx: &mut Context<RemoteTab>| {
-        tab.qr_preview_open = false;
+        tab.qr_preview = None;
         cx.notify();
     };
     let heading = h_flex()
@@ -883,14 +914,14 @@ pub(super) fn qr_preview_dialog(
                 .child(
                     div()
                         .text_color(hsla(colors.foreground))
-                        .child(code.name.clone()),
+                        .child(name),
                 )
                 .child(
                     div()
                         .text_size(px(13.0))
                         .line_height(px(18.57))
                         .text_color(hsla(colors.muted))
-                        .child("The QR refreshes automatically after pairing."),
+                        .child(footnote),
                 ),
         )
         .into_any_element();

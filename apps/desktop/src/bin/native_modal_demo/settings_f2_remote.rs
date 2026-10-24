@@ -4,11 +4,12 @@
 //! Remove behave like the real daemon.
 //!
 //! States: `remote` (the Remote story), `remote-easy-connect` (Easy Connect expanded),
-//! `remote-computer` (its Connect a computer tab), `remote-qr` (the Enlarge QR dialog),
+//! `remote-computer` (its Connect a computer tab), `remote-qr` (the Show QR dialog),
 //! `remote-paired-confirm` (a paired device's Remove confirmation), `remote-ssh-off`
 //! (RemoteSshAccessOff, Easy Connect expanded), `remote-ssh-popover` (SSH off with the Windows
 //! instructions open), `remote-ec-off` (RemoteEasyConnectOff, expanded), `remote-tailscale`,
-//! `remote-tailscale-manual` (Tailscale expanded, typed values shown), `remote-add-machine`,
+//! `remote-tailscale-manual` (Tailscale expanded, typed values shown), `remote-tailscale-qr`
+//! (Tailscale's code in the Show QR dialog), `remote-add-machine`,
 //! `remote-add-ec` (Add a machine in Easy Connect code mode with a code pasted),
 //! `remote-edit-machine` (the saved machine's dialog through `initialRemoteMachineId`),
 //! `remote-advanced` (Advanced open with the raw JSON), `remote-no-server` (no gxserver
