@@ -120,6 +120,11 @@ pub(crate) fn titlebar_popup_window_bounds_for_trigger_bounds(
     let max_height = match kind {
         GpuiTitlebarPopupKind::ContextMenu => f32::INFINITY,
         GpuiTitlebarPopupKind::AccountUsage(_) => 640.0,
+        GpuiTitlebarPopupKind::SessionLinks => {
+            crate::app::native_sidebar::links_list::session_links_max_height(
+                main_window_bounds.size.height.as_f32(),
+            )
+        }
         GpuiTitlebarPopupKind::Notifications => TITLEBAR_POPUP_NOTIFICATIONS_MAX_HEIGHT,
         GpuiTitlebarPopupKind::Resources
         | GpuiTitlebarPopupKind::Tips

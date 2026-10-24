@@ -388,9 +388,11 @@ impl GhostexGpuiApp {
                     .clone()
                     .expect("session chosen before opening its links list");
                 let links = self.session_links_of(&key);
-                // The dropdown follows what the list shows, up to the height it could open at.
-                let max_height = TITLEBAR_POPUP_MENU_MAX_HEIGHT
-                    .min((window.bounds().size.height.as_f32() - 28.0).max(180.0));
+                // The dropdown follows what the list shows, up to half the window like the card.
+                let max_height = crate::app::native_sidebar::links_list::session_links_max_height(
+                    window.bounds().size.height.as_f32(),
+                )
+                .min((window.bounds().size.height.as_f32() - 28.0).max(180.0));
                 GpuiTitlebarPopupContent::SessionLinks(cx.new(|cx| {
                     crate::app::native_sidebar::links_list::SessionLinksList::new(
                         main_app,

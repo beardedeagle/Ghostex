@@ -16,7 +16,7 @@ use crate::GhostexGpuiApp;
 use crate::app::helpers::*;
 use crate::app::native_sidebar::links_list::{
     SESSION_LINKS_CARD_WIDTH, SessionLinksList, SessionLinksListHost, folded_session_link_groups,
-    session_links_list_height,
+    session_links_list_height, session_links_max_height,
 };
 use crate::app::window::GpuiTitlebarPopupKind;
 use ghostex_gx_core::SessionKey;
@@ -70,7 +70,7 @@ impl GhostexGpuiApp {
         let sidebar = self.native_sidebar.bounds;
         let width = SESSION_LINKS_CARD_WIDTH;
         // Past half the window's height the list scrolls inside the card.
-        let half_window = (main.size.height.as_f32() / 2.0).max(80.0);
+        let half_window = session_links_max_height(main.size.height.as_f32());
         let height = session_links_list_height(Some(&links), &folded_session_link_groups(), None)
             .min(half_window)
             .max(80.0);

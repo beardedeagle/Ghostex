@@ -115,6 +115,12 @@ pub(crate) fn session_links_list_height(
     HEADER_HEIGHT + 12.0 + 2.0 + children.iter().sum::<f32>() + gaps
 }
 
+/// The tallest the card or the "+N" dropdown grows: half the window, past which the list scrolls
+/// under its fixed header.
+pub(crate) fn session_links_max_height(window_height: f32) -> f32 {
+    (window_height / 2.0).max(80.0)
+}
+
 /// The link groups in list order: id, title, and whether they hold finished (merged or closed)
 /// links.
 const SESSION_LINK_GROUPS: [(&str, &str, bool); 2] = [
