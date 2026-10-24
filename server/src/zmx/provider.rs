@@ -54,11 +54,13 @@ pub(crate) fn create_attach_session_metadata_with_observed_state(
     let cwd = string_field(&existing_session, "cwd").or_else(|| string_field(&project, "path"));
     let (probe, probed_session, zmx, zmx_name) =
         probe_and_cache_session_provider_with_observed_state(repository, &lifecycle, observed)?;
-    if probe.lifecycle_state == "missing" {
-        crate::accounts::launch::validate_session(repository, &probed_session)?;
-    }
+    // The account check reads the row after the move, so a session on a removed or unusable account is
+    // refused only when no other account can take it (CDXC:AgentProviders 2026-10-24 in wake_account.rs).
     let probed_session = if probe.lifecycle_state == "missing" {
-        crate::accounts::wake_account::rebind_exhausted(repository, &project, probed_session)?
+        let session =
+            crate::accounts::wake_account::rebind_exhausted(repository, &project, probed_session)?;
+        crate::accounts::launch::validate_session(repository, &session)?;
+        session
     } else {
         probed_session
     };
@@ -225,11 +227,13 @@ pub(crate) fn start_session_provider_with_observed_state(
     )?;
     let (probe, probed_session, zmx, zmx_name) =
         probe_and_cache_session_provider_with_observed_state(repository, &lifecycle, observed)?;
-    if probe.lifecycle_state == "missing" {
-        crate::accounts::launch::validate_session(repository, &probed_session)?;
-    }
+    // The account check reads the row after the move, so a session on a removed or unusable account is
+    // refused only when no other account can take it (CDXC:AgentProviders 2026-10-24 in wake_account.rs).
     let probed_session = if probe.lifecycle_state == "missing" {
-        crate::accounts::wake_account::rebind_exhausted(repository, &project, probed_session)?
+        let session =
+            crate::accounts::wake_account::rebind_exhausted(repository, &project, probed_session)?;
+        crate::accounts::launch::validate_session(repository, &session)?;
+        session
     } else {
         probed_session
     };
