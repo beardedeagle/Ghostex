@@ -484,7 +484,6 @@ impl SessionLinksList {
             )))
             .h(px(SECTION_HEIGHT))
             .px(px(8.0))
-            .gap(px(5.0))
             .items_end()
             .pb(px(4.0))
             .text_size(px(11.0))
@@ -493,17 +492,25 @@ impl SessionLinksList {
             .hover(|header| header.text_color(chrome_ink().opacity(0.85)))
             .role(gpui::Role::Button)
             .aria_label(format!("{title} {count}"))
-            .child(div().pb(px(1.0)).child(titlebar_svg_icon(
-                if folded {
-                    "titlebar/chevron-right.svg"
-                } else {
-                    "titlebar/chevron-down.svg"
-                },
-                11.0,
-                chrome_ink().opacity(0.55).into(),
-            )))
-            .child(title.to_string())
-            .child(count.to_string())
+            // The chevron centres on the text's own line: aligned to the bottom of the header it
+            // sat on the line box's bottom, below the letters.
+            .child(
+                h_flex()
+                    .gap(px(5.0))
+                    .items_center()
+                    .line_height(px(14.0))
+                    .child(titlebar_svg_icon(
+                        if folded {
+                            "titlebar/chevron-right.svg"
+                        } else {
+                            "titlebar/chevron-down.svg"
+                        },
+                        11.0,
+                        chrome_ink().opacity(0.55).into(),
+                    ))
+                    .child(title.to_string())
+                    .child(count.to_string()),
+            )
             .on_click(cx.listener(move |list, _, _, cx| list.toggle_section(section, cx)))
             .into_any_element()
     }
