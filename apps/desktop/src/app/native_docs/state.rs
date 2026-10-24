@@ -311,6 +311,8 @@ pub(crate) struct DocsDocument {
     pub(crate) pending_text: Option<String>,
     /// An image file's picture, once read.
     pub(crate) image: Option<std::sync::Arc<gpui::Image>>,
+    /// The picture's zoom and position (`picture_zoom.rs`).
+    pub(crate) picture: super::picture_zoom::DocsPictureView,
     /// Plain text and HTML source: the code editor.
     pub(crate) editor: Option<Entity<EditorState>>,
     /// Markdown: the live editor.
@@ -382,6 +384,7 @@ impl DocsDocument {
             saved_text: String::new(),
             pending_text: None,
             image: None,
+            picture: Default::default(),
             editor: None,
             live: None,
             _live_subscription: None,
@@ -535,6 +538,8 @@ pub(crate) struct NativeDocsState {
     pub(crate) drafts: BTreeMap<String, super::storage::DocsDraft>,
     /// The pending debounced draft write.
     pub(crate) draft_write: Option<Task<()>>,
+    /// The full-window picture viewer, while it is open (`picture_viewer.rs`).
+    pub(crate) picture_viewer: Option<gpui::WindowHandle<gpui_component::Root>>,
     /// The floating files list's own window, while it is out (`drawer.rs`).
     pub(crate) drawer: Option<super::drawer::DocsDrawerHost>,
     /// Where the floating list sits, in the main window's content coordinates, as last synced.

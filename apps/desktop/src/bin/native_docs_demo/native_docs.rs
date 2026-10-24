@@ -20,6 +20,10 @@ pub(crate) mod markdown_body;
 pub(crate) mod mermaid_widget;
 #[path = "../../app/native_docs/palette.rs"]
 pub(crate) mod palette;
+#[path = "../../app/native_docs/picture_zoom.rs"]
+pub(crate) mod picture_zoom;
+#[path = "files_list.rs"]
+pub(crate) mod files_list;
 #[path = "state.rs"]
 pub(crate) mod state;
 #[path = "../../app/native_docs/table_tools.rs"]

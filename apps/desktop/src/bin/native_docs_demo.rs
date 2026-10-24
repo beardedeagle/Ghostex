@@ -3,7 +3,7 @@
 //! overlays the app draws, in a window of its own, so the look can be compared with the React
 //! Files page without launching Ghostex.
 //!
-//!     GHOSTEX_NATIVE_DOCS_DEMO_FILE=<absolute path>       (default: native_docs_demo/parity.md; a CSV, JSON or code file opens the views in native_docs_demo/data.rs)
+//!     GHOSTEX_NATIVE_DOCS_DEMO_FILE=<absolute path>       (default: native_docs_demo/parity.md; a CSV, JSON or code file opens the views in native_docs_demo/data.rs, a picture the zoomable picture in native_docs_demo/picture.rs)
 //!     GHOSTEX_NATIVE_DOCS_DEMO_THEME=dark|light           (default dark)
 //!     GHOSTEX_NATIVE_DOCS_DEMO_MODE=live|source           (default live)
 //!     GHOSTEX_NATIVE_DOCS_DEMO_SIZE=<w>x<h>               (logical px, default 1100x900)
@@ -28,6 +28,8 @@ mod ui_fonts;
 mod app;
 #[path = "native_docs_demo/data.rs"]
 mod data;
+#[path = "native_docs_demo/picture.rs"]
+mod picture;
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -44,8 +46,17 @@ use gpui::{
 use gpui_component::Root;
 use zorite_editor::{EditorEvent, EditorState};
 
+/// The settings above, read from the environment or from `NAME=value` launch arguments (a
+/// launcher such as SpaceO passes arguments but no environment).
 fn env(name: &str) -> String {
-    std::env::var(name).unwrap_or_default().trim().to_string()
+    let prefix = format!("{name}=");
+    std::env::args()
+        .skip(1)
+        .find_map(|argument| argument.strip_prefix(&prefix).map(str::to_string))
+        .or_else(|| std::env::var(name).ok())
+        .unwrap_or_default()
+        .trim()
+        .to_string()
 }
 
 struct DocsDemo {
@@ -161,11 +172,22 @@ fn main() {
         path if !path.is_empty() => PathBuf::from(path),
         _ => demo_dir.join("parity.md"),
     };
-    let text = std::fs::read_to_string(&file).expect("read the demo document");
     let (width, height) = env("GHOSTEX_NATIVE_DOCS_DEMO_SIZE")
         .split_once('x')
         .and_then(|(w, h)| Some((w.parse::<f32>().ok()?, h.parse::<f32>().ok()?)))
         .unwrap_or((1100.0, 900.0));
+    // A picture opens in the Files view's zoomable picture (picture.rs).
+    if matches!(
+        file.extension()
+            .and_then(|e| e.to_str())
+            .map(str::to_ascii_lowercase)
+            .as_deref(),
+        Some("png" | "jpg" | "jpeg" | "gif" | "webp" | "svg")
+    ) {
+        picture::run(&file, light, width, height);
+        return;
+    }
+    let text = std::fs::read_to_string(&file).expect("read the demo document");
     // Anything but Markdown: the CSV table, the JSON tree or the code editor (data.rs).
     if !matches!(
         file.extension()

@@ -10,6 +10,7 @@ use gpui::{
 };
 
 use super::palette::DocsPalette;
+use super::picture_zoom::DocsPictureHost as _;
 use super::state::DocsProjectKey;
 use crate::GhostexGpuiApp;
 use crate::app::model::TitlebarMode;
@@ -173,6 +174,37 @@ impl GhostexGpuiApp {
                 .on_action(cx.listener(
                     |this, _: &crate::app::actions::FindInFocusedTerminal, window, cx| {
                         this.native_docs_find_shortcut(window, cx);
+                    },
+                ))
+                // CDXC:Docs 2026-10-24 WHY: Cmd+= / Cmd+- / Cmd+0 (Ctrl on Windows and Linux) are bound app-wide to zoom the focused surface (main.rs), and a matched binding is dispatched before any key-down listener, so an open picture answers those actions here, below the root, and lets them go on when no picture is showing.
+                .on_action(cx.listener(
+                    |this, _: &crate::app::actions::ZoomInFocusedSurface, _, cx| {
+                        if !this.native_docs_zoom_picture(
+                            super::picture_zoom::PictureZoomCommand::In,
+                            cx,
+                        ) {
+                            cx.propagate();
+                        }
+                    },
+                ))
+                .on_action(cx.listener(
+                    |this, _: &crate::app::actions::ZoomOutFocusedSurface, _, cx| {
+                        if !this.native_docs_zoom_picture(
+                            super::picture_zoom::PictureZoomCommand::Out,
+                            cx,
+                        ) {
+                            cx.propagate();
+                        }
+                    },
+                ))
+                .on_action(cx.listener(
+                    |this, _: &crate::app::actions::ResetFocusedSurfaceZoom, _, cx| {
+                        if !this.native_docs_zoom_picture(
+                            super::picture_zoom::PictureZoomCommand::Opening,
+                            cx,
+                        ) {
+                            cx.propagate();
+                        }
                     },
                 ))
                 .on_mouse_down(

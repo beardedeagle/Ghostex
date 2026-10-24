@@ -1,6 +1,6 @@
 mod actions;
-mod pan;
-mod render;
+pub(crate) mod pan;
+pub(crate) mod render;
 mod step_arrows;
 mod unavailable;
 mod window;

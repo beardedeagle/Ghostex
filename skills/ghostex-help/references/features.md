@@ -421,6 +421,19 @@ view from the strip.
   Files never writes to the database, and a query that runs longer than a few
   seconds is stopped. In a remote project these work too, with PDFs, pictures
   and fonts up to 12 MB.
+  A picture taller than the view opens at the view's width (never larger than
+  its real size) and scrolls down like a page; a wide or small picture fits
+  whole. To zoom, pinch on a trackpad, hold Cmd (Ctrl on Windows and Linux)
+  and turn the mouse wheel, or press Cmd+= and Cmd+- (Ctrl on Windows and
+  Linux); Cmd+0 goes back to how the picture opened. Zooming keeps the spot
+  under the pointer in place. Drag or scroll to move around, and double-click
+  to switch between the opening size and the actual size. The buttons in the
+  file's header do the same: zoom out, the current percentage, zoom in, Fit to
+  width (tall pictures), Fit or Fit all for the whole picture, and 1:1 for the
+  actual size. Clicking the picture, or the expand button at the end of those
+  buttons, opens it in the chat's full-window picture viewer: click to zoom in
+  steps, drag to pan, and Escape or a click beside the picture closes it. Every
+  picture opens at its opening size; the zoom isn't kept for the next one.
 - **Terminal**: a command terminal in the view panel that works like the
   Commands pane, only on the right beside your sessions instead of below them.
   It has its own tab bar with a **+** for new terminals, Cmd+Shift+T for another
@@ -2904,6 +2917,8 @@ sessions, so any client can control agents on any machine.
   Tapping a link to a file on the computer in a chat or terminal opens it in
   the same reader: Markdown, HTML, text and code files, and pictures (other
   files show their path, copied, since the phone cannot preview them).
+  A picture opens at the screen's width and scrolls down like a page; pinch to
+  zoom, and double-tap to switch between that and its actual size.
 - **From another computer**: Settings > Remote > Remote machines > Add a
   machine with SSH details or an Easy Connect code, then Install / Connect
   gxserver on it. What you type in that dialog (except the password) stays

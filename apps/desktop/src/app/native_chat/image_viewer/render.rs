@@ -14,7 +14,7 @@ use serde_json::Value;
  * Three steps between the fitted size and the picture's own pixels, spaced geometrically so the
  * first click is a modest zoom and the last one is exactly 1:1: React's `zoomWidthsForImage`.
  */
-pub(super) const ZOOM_LEVEL_COUNT: usize = 3;
+pub(crate) const ZOOM_LEVEL_COUNT: usize = 3;
 /// What a zoom step enlarges the fitted box by when the picture itself cannot be measured.
 const UNMEASURED_ZOOM_STEPS: [f32; ZOOM_LEVEL_COUNT] = [1.5, 2.25, 3.375];
 /// React caps the fitted picture at 75% of the window height; the same cap keeps the toolbar clear.
@@ -27,7 +27,7 @@ const FIT_WIDTH: f32 = 0.9;
  * GPUI has the decoded frame but does not hand it out, and the pixels are not wanted here anyway:
  * only the width and height decide the box the picture is painted in.
  */
-fn header_size(picture: &gpui::Image) -> Option<gpui::Size<gpui::Pixels>> {
+pub(crate) fn header_size(picture: &gpui::Image) -> Option<gpui::Size<gpui::Pixels>> {
     let reader = image::ImageReader::new(std::io::Cursor::new(picture.bytes.as_slice()))
         .with_guessed_format()
         .ok()?;
@@ -39,7 +39,7 @@ fn header_size(picture: &gpui::Image) -> Option<gpui::Size<gpui::Pixels>> {
  * The whole picture, capped at the window box and never enlarged past its own pixels, which is
  * what React's `max-height` and `max-width` caps do to an `<img>`.
  */
-fn fitted_size(
+pub(crate) fn fitted_size(
     natural: gpui::Size<gpui::Pixels>,
     viewport: gpui::Size<gpui::Pixels>,
 ) -> gpui::Size<gpui::Pixels> {
@@ -55,7 +55,7 @@ fn fitted_size(
  * or `None` when 1:1 shows no more than the fitted size already does and clicking is therefore
  * pretending to zoom. React's `zoomWidthsForImage`, step for step.
  */
-fn zoom_widths(
+pub(crate) fn zoom_widths(
     natural: gpui::Size<gpui::Pixels>,
     viewport: gpui::Size<gpui::Pixels>,
 ) -> Option<[f32; ZOOM_LEVEL_COUNT]> {
@@ -74,7 +74,7 @@ fn zoom_widths(
 }
 
 /// The size this zoom level paints the picture at.
-fn painted_size(
+pub(crate) fn painted_size(
     natural: gpui::Size<gpui::Pixels>,
     viewport: gpui::Size<gpui::Pixels>,
     zoom: usize,

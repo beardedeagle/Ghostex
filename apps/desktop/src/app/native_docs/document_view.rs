@@ -2,7 +2,6 @@
 
 use std::time::{Duration, Instant};
 
-use gpui::StyledImage as _;
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
     AnyElement, ClipboardItem, Context, FontWeight, InteractiveElement as _, IntoElement,
@@ -14,6 +13,7 @@ use gpui_component::scroll::ScrollbarMode;
 
 use super::files_list::{ROW_STRIP_HEIGHT, header_icon, header_tile};
 use super::palette::DocsPalette;
+use super::picture_zoom::DocsPictureHost as _;
 use super::sidebar::DocsSidebarLayout;
 use super::state::{DocsDocumentLoad, DocsFileKind, DocsMarkdownMode};
 use crate::GhostexGpuiApp;
@@ -147,6 +147,7 @@ impl GhostexGpuiApp {
             Vec::new()
         };
         let data_tiles = self.render_native_docs_data_tiles(p, cx);
+        let picture_tiles = self.render_native_docs_picture_tiles(p, cx);
         div()
             .flex()
             .flex_none()
@@ -261,6 +262,7 @@ impl GhostexGpuiApp {
                     .gap(px(2.0))
                     .children(note_actions)
                     .children(data_tiles)
+                    .children(picture_tiles)
                     .when(kind.opens_externally() && review.is_none(), |this| {
                         let (open_path, menu_path) = (path.clone(), path.clone());
                         this.child(
@@ -604,21 +606,8 @@ impl GhostexGpuiApp {
                 let Some(image) = document.image.clone() else {
                     return notice("files-view/t-refresh-2.svg", "Loading file".to_string());
                 };
-                return div()
-                    .id("native-docs-image")
-                    .size_full()
-                    .overflow_scroll()
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .p(px(24.0))
-                    .child(
-                        gpui::img(image)
-                            .max_w_full()
-                            .max_h_full()
-                            .object_fit(gpui::ObjectFit::Contain),
-                    )
-                    .into_any_element();
+                let path = document.path.clone();
+                return self.render_native_docs_picture(&path, image, cx);
             }
             DocsFileKind::Html
             | DocsFileKind::Excalidraw

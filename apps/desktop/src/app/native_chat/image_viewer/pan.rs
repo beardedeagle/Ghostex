@@ -34,7 +34,7 @@ pub(super) struct ZoomAnchor {
 
 /// Where the stage puts a picture of `painted` size inside the scroll box at offset zero: centred
 /// while it is smaller than the box, at the edge once it is bigger.
-fn stage_inset(scroll: Bounds<Pixels>, painted: Size<Pixels>) -> Point<Pixels> {
+pub(crate) fn stage_inset(scroll: Bounds<Pixels>, painted: Size<Pixels>) -> Point<Pixels> {
     let inset = |free: Pixels| (free / 2.0).max(px(0.0));
     point(
         inset(scroll.size.width - painted.width),
