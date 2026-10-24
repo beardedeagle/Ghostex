@@ -75,6 +75,40 @@ fn sidebar_tooltip_sized(
 ) -> AnyView {
     let card_width = (span.right - span.left).max(0.0);
     let content_width = px((card_width - 16.0 * scale - 2.0).max(0.0));
+    sidebar_tooltip_bubble(
+        text,
+        fill_span.then_some(card_width),
+        content_width,
+        false,
+        scale,
+        window,
+        cx,
+    )
+}
+
+/// The session tooltip's look for any short text: the links lists' tooltips (icon states, Link,
+/// Restore, the pin) and the header's link chips use it, so they are as readable over busy
+/// content as the sidebar's.
+///
+/// CDXC:SessionLinks 2026-10-24 DECISION:
+/// User: "please make tooltips that show there more blurred bg so text in tooltip is more readable (like we did for tooltips for session in sidebar)". The links' tooltips are the sidebar session tooltip's bubble (`sidebar_tooltip_bubble`), not the plain one.
+pub(crate) fn sidebar_style_tooltip(text: String, window: &mut Window, cx: &mut App) -> AnyView {
+    // One line each, cut short at 320px: a bubble sized to its text with nothing to fill would
+    // otherwise wrap after every letter.
+    sidebar_tooltip_bubble(text, None, px(320.0), true, 1.0, window, cx)
+}
+
+/// The bubble: `fill_width` sizes it to a card, else it fits its text up to `content_width`.
+fn sidebar_tooltip_bubble(
+    text: String,
+    fill_width: Option<f32>,
+    content_width: gpui::Pixels,
+    single_lines: bool,
+    scale: f32,
+    window: &mut Window,
+    cx: &mut App,
+) -> AnyView {
+    let fill_span = fill_width.is_some();
     let menu = titlebar_popup_menu_background();
     // Under glass the tooltip draws in the frosted tooltip host, so it takes the frosted menus' fill
     // and the host's bubble corners (see app/window/frosted_host.rs).
@@ -103,7 +137,9 @@ fn sidebar_tooltip_sized(
             })
             .gap(px(2.0 * scale))
             .children(lines.enumerate().map(|(index, line)| {
-                let row = div().min_w_0();
+                let row = div()
+                    .min_w_0()
+                    .when(single_lines, |row| row.whitespace_nowrap().truncate());
                 if index == 0 {
                     row.pb(px(1.0 * scale))
                         .text_size(px(12.5 * scale))
@@ -119,7 +155,7 @@ fn sidebar_tooltip_sized(
                 }
             }))
     })
-    .when(fill_span, |bubble| bubble.w(px(card_width)))
+    .when_some(fill_width, |bubble, width| bubble.w(px(width)))
     .mx_0()
     .mt(px(2.0 * scale))
     .mb_0()

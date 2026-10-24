@@ -12,7 +12,7 @@
 //! CDXC:SessionLinks 2026-10-24 DECISION:
 //! User: "can u pls make all the sections in these cards colapsible with chevron? please add this for pr and github issues etc (the headers there". Every group header has the same chevron and folds on a click, keeping its count. The folded groups are one app-wide choice per group (`sessionLinksFoldedGroups`), kept across sessions and restarts in the settings file the way the chat keeps its zoom; the phone keeps its own (SessionLinksSheet.tsx).
 //! CDXC:SessionLinks 2026-10-24 DECISION:
-//! User picked "B. Open work first, finished work folded" for the links card's height: the list leads with an "Open N" group of the links that still need something, merged and closed links sit in one "Merged or closed N" group folded until opened, then Suggested and Removed (folded) as before. This replaces the Pull requests / GitHub issues / Linear sections, in the card, the header's "+N" dropdown and the phone's sheet alike. With it came "Fit what's shown": the list measures what is actually shown (a folded group is its header line) and its window resizes when a group folds or opens. And "Half the window's height": past half the window's height the list scrolls inside the card under its fixed header.
+//! User picked "B. Open work first, finished work folded" for the links card's height: the list leads with an "Open N" group of the links that still need something, merged and closed links sit in one group folded until opened, named "Merged / Closed N" (the user's "also please make it "Merged / Closed" like that"), then Suggested and Removed (folded) as before. This replaces the Pull requests / GitHub issues / Linear sections, in the card, the header's "+N" dropdown and the phone's sheet alike. With it came "Fit what's shown": the list measures what is actually shown (a folded group is its header line) and its window resizes when a group folds or opens. And "Half the window's height": past half the window's height the list scrolls inside the card under its fixed header.
 //! CDXC:SessionLinks 2026-10-24 DECISION:
 //! User: "make suggested and removed also have the same look as other ones (2 rows)". Suggested and Removed entries use the same two-line row as linked ones (number, title and state, then "Mentioned in the chat" or where a removed link came from, server/src/session_links/presentation.rs), with Link or Restore where the × sits and no dashed box.
 //! CDXC:SessionLinks 2026-10-24 DECISION:
@@ -25,13 +25,13 @@ use gpui::{
     AnyElement, Context, FontWeight, InteractiveElement as _, IntoElement, ParentElement as _,
     Render, ScrollHandle, StatefulInteractiveElement as _, Styled as _, Window, div, px,
 };
-use gpui_component::tooltip::Tooltip;
 use gpui_component::{h_flex, v_flex};
 use serde_json::json;
 use std::time::Duration;
 
 use super::link_chips::{
     open_session_link_command, session_link_glyph_icon, session_link_tone_color,
+    sidebar_style_tooltip,
 };
 use crate::GhostexGpuiApp;
 use crate::app::helpers::*;
@@ -142,14 +142,14 @@ fn entry_height(link: &SessionLink) -> f32 {
 }
 
 /// The link groups in list order: id and title. Pinned leads (CDXC:SessionLinks 2026-10-24 in
-/// server/src/session_links/store.rs); Open, Loading and Merged or closed hold the rest. A link
+/// server/src/session_links/store.rs); Open, Loading and Merged / Closed hold the rest. A link
 /// never read yet waits under Loading, so Open only lists what is known to be open and agrees
 /// with the header's "N open" (server/src/session_links/presentation.rs `entry_value`).
 const SESSION_LINK_GROUPS: [(&str, &str); 4] = [
     ("pinned", "Pinned"),
     ("open", "Open"),
     ("loading", "Loading"),
-    ("finished", "Merged or closed"),
+    ("finished", "Merged / Closed"),
 ];
 
 /// Whether a link belongs to the group `group` of `SESSION_LINK_GROUPS`.
@@ -310,7 +310,9 @@ impl SessionLinksList {
             },
             cx,
         );
-        let remove = (hovered || armed).then(|| self.render_remove_button(link, cx));
+        // CDXC:SessionLinks 2026-10-24 DECISION: User: "please don't show x to remove link that's pinned". A pinned link has no ×; unpin it first to remove it.
+        let remove =
+            (!link.pinned && (hovered || armed)).then(|| self.render_remove_button(link, cx));
         let actions = h_flex()
             .flex_shrink_0()
             .gap(px(2.0))
@@ -382,7 +384,7 @@ impl SessionLinksList {
                     ))
                     .when(!tooltip.is_empty(), |icon| {
                         icon.tooltip(move |window, cx| {
-                            Tooltip::new(tooltip.clone()).build(window, cx)
+                            sidebar_style_tooltip(tooltip.clone(), window, cx)
                         })
                     })
             })
@@ -474,12 +476,16 @@ impl SessionLinksList {
                     ))
             })
             .tooltip(move |window, cx| {
-                Tooltip::new(if armed {
-                    "Click again to remove the link"
-                } else {
-                    "Remove from this session"
-                })
-                .build(window, cx)
+                sidebar_style_tooltip(
+                    if armed {
+                        "Click again to remove the link"
+                    } else {
+                        "Remove from this session"
+                    }
+                    .to_string(),
+                    window,
+                    cx,
+                )
             })
             .on_click(cx.listener(move |list, _, _, cx| {
                 cx.stop_propagation();
@@ -492,7 +498,7 @@ impl SessionLinksList {
     /// × sits, named by its tooltip.
     ///
     /// CDXC:SessionLinks 2026-10-24 DECISION:
-    /// User: "for suggested i want the row to look just like the regular rows we have there". Suggested and Removed rows are drawn like linked ones; only their action differs, an icon button (link-plus "Link", arrow-back "Restore") instead of a bordered text button.
+    /// User: "for suggested i want the row to look just like the regular rows we have there". Suggested and Removed rows are drawn like linked ones; only their action differs, an icon button (link "Link", arrow-back "Restore") instead of a bordered text button.
     fn icon_button(
         id: String,
         icon: &'static str,
@@ -516,7 +522,7 @@ impl SessionLinksList {
                 13.0,
                 chrome_ink().opacity(0.7).into(),
             ))
-            .tooltip(move |window, cx| Tooltip::new(tooltip).build(window, cx))
+            .tooltip(move |window, cx| sidebar_style_tooltip(tooltip.to_string(), window, cx))
             .on_click(cx.listener(move |list, event, window, cx| {
                 cx.stop_propagation();
                 on_click(list, event, window, cx);
@@ -724,7 +730,7 @@ impl SessionLinksList {
         let sidebar_id = self.key.to_sidebar_session_id();
         let add = Self::icon_button(
             format!("session-link-add-{}", suggestion.key),
-            "titlebar/link-plus.svg",
+            "titlebar/link.svg",
             "Link",
             move |list, _, _, cx| {
                 list.send(
@@ -890,7 +896,7 @@ impl Render for SessionLinksList {
     }
 }
 
-/// The groups folded shut, from `sessionLinksFoldedGroups`; Merged or closed and Removed start
+/// The groups folded shut, from `sessionLinksFoldedGroups`; Merged / Closed and Removed start
 /// folded.
 pub(crate) fn folded_session_link_groups() -> Vec<String> {
     let settings = crate::shared_settings::shared_sidebar_settings_snapshot();

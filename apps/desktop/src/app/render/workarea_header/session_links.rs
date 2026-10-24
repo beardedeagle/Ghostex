@@ -15,11 +15,11 @@ use gpui::{
     StatefulInteractiveElement as _, Styled as _, div, px,
 };
 use gpui_component::h_flex;
-use gpui_component::tooltip::Tooltip;
 
 use crate::app::helpers::*;
 use crate::app::native_sidebar::link_chips::{
     open_session_link_command, session_link_chip_body, session_links_overflow_pill,
+    sidebar_style_tooltip,
 };
 use crate::*;
 use ghostex_gx_core::SessionKey;
@@ -123,7 +123,7 @@ impl GhostexGpuiApp {
                         11.5,
                         titlebar_text_color().into(),
                     ))
-                    .tooltip(move |window, cx| Tooltip::new(tooltip.clone()).build(window, cx))
+                    .tooltip(move |window, cx| sidebar_style_tooltip(tooltip.clone(), window, cx))
                     .when_some(open, |chip, open| {
                         chip.cursor_pointer()
                             .on_click(cx.listener(move |app, _, _, cx| {
@@ -171,7 +171,9 @@ impl GhostexGpuiApp {
             pill.id("workarea-header-session-links-more")
                 .cursor_pointer()
                 .hover(|pill| pill.bg(chrome_ink().opacity(0.08)))
-                .tooltip(|window, cx| Tooltip::new("All links of this session").build(window, cx))
+                .tooltip(|window, cx| {
+                    sidebar_style_tooltip("All links of this session".to_string(), window, cx)
+                })
                 .on_click(
                     cx.listener(move |app, event: &gpui::ClickEvent, window, cx| {
                         let anchor = Bounds::new(event.position(), gpui::size(px(1.0), px(1.0)));

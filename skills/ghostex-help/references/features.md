@@ -3362,7 +3362,7 @@ on, an open pull request's checks (passing, failing or running) and review (revi
 requested, approved or changes requested) or the pull request that closes an issue.
 Suggested and Removed links look the same, with a link button (Link) or a restore
 button (Restore) where a linked one has its ×. The list
-leads with Open, the links that still need something, then Merged or closed
+leads with Open, the links that still need something, then Merged / Closed
 (folded until you open it), Suggested and Removed, each listing pull requests,
 then issues, then Linear tickets. Each group folds with the
 chevron on its header and keeps its count; what you fold stays folded in every
