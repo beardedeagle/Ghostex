@@ -27,6 +27,8 @@ use super::{
 
 /// Suggestions a session shows at most.
 const MAX_SUGGESTED: usize = 5;
+/// Removed links the "Removed (N)" group lists at most.
+const MAX_REMOVED: usize = 30;
 
 /// One link of a session, before it is read from the caches.
 #[derive(Clone, Debug, PartialEq)]
@@ -158,6 +160,11 @@ pub(crate) fn forget_session_link_mentions_except(open: &HashSet<(String, String
     if let Ok(mut suggestions) = suggestions().lock() {
         suggestions.retain(|key, _| open.contains(key));
     }
+}
+
+/// The GitHub URLs a session's chat mentioned, newest last (the background pass reads their titles).
+pub(crate) fn session_link_mentions(project_id: &str, session_id: &str) -> Vec<SessionLinkRef> {
+    mentioned_links(project_id, session_id)
 }
 
 fn mentioned_links(project_id: &str, session_id: &str) -> Vec<SessionLinkRef> {
@@ -311,7 +318,8 @@ pub(crate) fn presentation_session_links(project: &Value, session: &Value) -> Op
         .and_then(Value::as_str)
         .unwrap_or_default();
     let mentioned = mentioned_links(project_id, session_id);
-    if entries.is_empty() && mentioned.is_empty() {
+    let stored = stored_session_links(session);
+    if entries.is_empty() && mentioned.is_empty() && stored.removed.is_empty() {
         return None;
     }
     let cwd = effective_session_git_cwd(session, Some(project));
@@ -336,7 +344,6 @@ pub(crate) fn presentation_session_links(project: &Value, session: &Value) -> Op
         };
         (finished, kind, *index)
     });
-    let stored = stored_session_links(session);
     let linked: HashSet<String> = entries.iter().map(|entry| entry.link.key()).collect();
     let suggested: Vec<Value> = mentioned
         .iter()
@@ -362,7 +369,49 @@ pub(crate) fn presentation_session_links(project: &Value, session: &Value) -> Op
             Value::Object(output)
         })
         .collect();
-    if items.is_empty() && suggested.is_empty() {
+    // The links a person removed, newest first, for the lists' "Removed (N)" group and its Restore.
+    let removed: Vec<Value> = stored
+        .removed
+        .iter()
+        .rev()
+        .take(MAX_REMOVED)
+        .filter_map(|key| SessionLinkRef::from_key(key))
+        .map(|link| {
+            let mut output = Map::new();
+            output.insert("key".to_string(), json!(link.key()));
+            output.insert("kind".to_string(), json!(link.kind().as_wire()));
+            output.insert("label".to_string(), json!(link.label(repo.as_deref())));
+            let (title, url) = match &link {
+                SessionLinkRef::Linear { identifier } => {
+                    let info = linear_key.and_then(|key| cached_linear_issue(key, identifier));
+                    let stored_url = stored
+                        .removed_items
+                        .iter()
+                        .find(|item| item.link == link)
+                        .and_then(|item| item.url.clone());
+                    (
+                        info.as_ref().and_then(|info| info.title.clone()),
+                        info.and_then(|info| info.url).or(stored_url),
+                    )
+                }
+                SessionLinkRef::Github {
+                    kind: SessionLinkKind::PullRequest,
+                    ..
+                } => (
+                    pull_request_info(&link, cwd.as_deref()).and_then(|info| info.title),
+                    link.github_url(),
+                ),
+                SessionLinkRef::Github { .. } => (
+                    issue_info(&link, cwd.as_deref()).and_then(|info| info.title),
+                    link.github_url(),
+                ),
+            };
+            insert_text(&mut output, "url", url.as_deref());
+            insert_text(&mut output, "title", title.as_deref());
+            Value::Object(output)
+        })
+        .collect();
+    if items.is_empty() && suggested.is_empty() && removed.is_empty() {
         return None;
     }
     let mut output = Map::new();
@@ -372,6 +421,9 @@ pub(crate) fn presentation_session_links(project: &Value, session: &Value) -> Op
     );
     if !suggested.is_empty() {
         output.insert("suggested".to_string(), Value::Array(suggested));
+    }
+    if !removed.is_empty() {
+        output.insert("removed".to_string(), Value::Array(removed));
     }
     Some(Value::Object(output))
 }

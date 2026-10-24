@@ -673,6 +673,13 @@ pub struct PresentationSessionLinks {
         skip_serializing_if = "Vec::is_empty"
     )]
     pub suggested: Vec<PresentationSuggestedLink>,
+    /// Links a person removed, newest first, which the lists offer to restore.
+    #[serde(
+        default,
+        deserialize_with = "crate::de::null_as_default",
+        skip_serializing_if = "Vec::is_empty"
+    )]
+    pub removed: Vec<PresentationSuggestedLink>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

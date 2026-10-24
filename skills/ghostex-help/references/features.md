@@ -3334,8 +3334,11 @@ its checks (passing, failing or running), its review (review requested, approved
 or changes requested) and where it came from. Click a link to open it; **Open
 session links in** (Settings > General > Browser) opens them in the internal
 browser (the default) or your default browser. Click a link's × and then Remove?
-within three seconds to remove it; a removed link never comes back by itself
-(adding it again by hand does). In the sidebar, **Session links in the sidebar**
+within three seconds to remove it; a removed link never comes back by itself.
+Right after a removal its row reads Removed · Undo for a few seconds, and every
+removed link stays under a collapsed Removed (N) group at the bottom of the list
+(on the phone's sheet too) with Restore, which puts it back as it was and lets it
+join by itself again. In the sidebar, **Session links in the sidebar**
 (Settings > Session Cards) picks how a card shows them: Always (a line of chips
 under every card that has links), Selected session (that line only under the
 session you have open), Badge (the default: a small count on the card, coloured by
@@ -3353,7 +3356,7 @@ phone's session list follows the computer's Session links in the sidebar, and a
 session's long-press menu has a Links row that opens the same list. States
 refresh about once a minute, and merged or closed ones stop being checked.
 `ghostex link list [--session <session>]` prints a session's links and
-`ghostex link remove <link>` removes one. Settings: `sessionLinkOpenTarget`
+`ghostex link remove <link>` removes one and `ghostex link restore <link>` brings it back. Settings: `sessionLinkOpenTarget`
 (`embedded` or `external`), `sidebarSessionLinks` (`always`, `selected`, `badge`,
 `open` or `off`).
 

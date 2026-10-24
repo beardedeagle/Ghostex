@@ -50,6 +50,18 @@ pub(super) fn link_command(args: &[String]) -> CliResult<()> {
             print_json(&result);
             Ok(())
         }
+        "restore" => {
+            let key = target.ok_or_else(|| {
+                CliError::Other(
+                    "Pass the removed link to restore (its key, URL, #123 or ID).".to_string(),
+                )
+            })?;
+            params.insert("key".to_string(), json!(key));
+            let result =
+                rpc::call_gxserver_rpc("/api/restoreSessionLink", &Value::Object(params), flags)?;
+            print_json(&result);
+            Ok(())
+        }
         "list" => {
             let result =
                 rpc::call_gxserver_rpc("/api/readSessionLinks", &Value::Object(params), flags)?;
@@ -61,7 +73,7 @@ pub(super) fn link_command(args: &[String]) -> CliResult<()> {
             Ok(())
         }
         other => Err(CliError::Other(format!(
-            "Unknown link command \"{other}\". Use add, remove or list."
+            "Unknown link command \"{other}\". Use add, remove, restore or list."
         ))),
     }
 }
@@ -143,7 +155,28 @@ fn print_links(result: &Value) {
     if !suggested.is_empty() {
         println!("\nSuggested (mentioned in the chat):");
         for item in &suggested {
-            println!("{:<18} {}", text(item, "label"), text(item, "url"));
+            println!(
+                "{:<18} {}  {}",
+                text(item, "label"),
+                text(item, "title"),
+                text(item, "url")
+            );
+        }
+    }
+    let removed = links
+        .get("removed")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    if !removed.is_empty() {
+        println!("\nRemoved (ghostex link restore <key> brings one back):");
+        for item in &removed {
+            println!(
+                "{:<18} {:<40} {}",
+                text(item, "label"),
+                text(item, "key"),
+                text(item, "title")
+            );
         }
     }
 }

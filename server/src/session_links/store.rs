@@ -3,7 +3,9 @@
 //! the chat mentioned, the ones a person added) and the links a person removed.
 //!
 //! CDXC:SessionLinks 2026-10-24 DECISION:
-//! User: "x on an entry, need to click twice to remove it (to confirm removal)", "also if removed": a removed link goes onto `removed` and never joins the session again by itself, whatever names it later (the branch, the agent, the chat). Only adding it again by hand (or `ghostex link add`) takes it off the list.
+//! User: "x on an entry, need to click twice to remove it (to confirm removal)", "also if removed": a removed link goes onto `removed` and never joins the session again by itself, whatever names it later (the branch, the agent, the chat). Only adding it again by hand (or `ghostex link add`), or restoring it, takes it off the list.
+//! CDXC:SessionLinks 2026-10-24 DECISION:
+//! User: "when a link is gone i see that i can't bring it back why not?", "i mean when i hit x button twice on it". A removed link keeps what it was (`removedItems`: where it came from), the lists show it under a collapsed "Removed (N)" group with Restore, and right after a removal its row reads "Removed · Undo" for a few seconds. Restoring takes it off `removed`, puts it back as it was, and from then on it can join by itself again.
 
 use rusqlite::{params, Connection};
 use serde_json::{json, Map, Value};
@@ -71,6 +73,8 @@ pub(crate) struct StoredSessionLinks {
     pub(crate) items: Vec<StoredSessionLink>,
     /// Keys of links a person removed.
     pub(crate) removed: Vec<String>,
+    /// What a removed stored link was, so Restore puts it back with its source.
+    pub(crate) removed_items: Vec<StoredSessionLink>,
 }
 
 impl StoredSessionLinks {
@@ -105,10 +109,15 @@ impl StoredSessionLinks {
         true
     }
 
-    /// Drops a link and remembers that it was removed.
+    /// Drops a link and remembers that it was removed, and what it was.
     pub(crate) fn remove(&mut self, key: &str) -> bool {
         let before = self.items.len();
-        self.items.retain(|item| item.link.key() != key);
+        let (gone, kept): (Vec<_>, Vec<_>) = std::mem::take(&mut self.items)
+            .into_iter()
+            .partition(|item| item.link.key() == key);
+        self.items = kept;
+        self.removed_items.retain(|item| item.link.key() != key);
+        self.removed_items.extend(gone);
         let newly_removed = !self.is_removed(key);
         if newly_removed {
             self.removed.push(key.to_string());
@@ -116,7 +125,42 @@ impl StoredSessionLinks {
         newly_removed || self.items.len() != before
     }
 
+    /// Takes a link off the removed list and puts back the stored link it was, when it had one.
+    /// Returns whether anything changed.
+    pub(crate) fn restore(&mut self, key: &str) -> bool {
+        let was_removed = self.is_removed(key);
+        self.removed.retain(|removed| removed != key);
+        let (back, kept): (Vec<_>, Vec<_>) = std::mem::take(&mut self.removed_items)
+            .into_iter()
+            .partition(|item| item.link.key() == key);
+        self.removed_items = kept;
+        let mut changed = was_removed;
+        for item in back {
+            if !self.contains(key) {
+                self.items.push(item);
+                changed = true;
+            }
+        }
+        changed
+    }
+
     fn to_value(&self) -> Value {
+        let item_value = |item: &StoredSessionLink| {
+            let mut object = Map::new();
+            object.insert("key".to_string(), json!(item.link.key()));
+            object.insert("source".to_string(), json!(item.source.as_wire()));
+            if let Some(via) = &item.via {
+                object.insert("via".to_string(), json!(via));
+            }
+            if let Some(url) = &item.url {
+                object.insert("url".to_string(), json!(url));
+            }
+            if let Some(added_at) = &item.added_at {
+                object.insert("addedAt".to_string(), json!(added_at));
+            }
+            Value::Object(object)
+        };
+        let removed_items: Vec<Value> = self.removed_items.iter().map(item_value).collect();
         let items: Vec<Value> = self
             .items
             .iter()
@@ -136,7 +180,7 @@ impl StoredSessionLinks {
                 Value::Object(object)
             })
             .collect();
-        json!({ "items": items, "removed": self.removed })
+        json!({ "items": items, "removed": self.removed, "removedItems": removed_items })
     }
 }
 
@@ -147,34 +191,38 @@ pub(crate) fn stored_session_links(session: &Value) -> StoredSessionLinks {
     else {
         return StoredSessionLinks::default();
     };
-    let items = links
-        .get("items")
-        .and_then(Value::as_array)
-        .map(|items| {
-            items
-                .iter()
-                .filter_map(|item| {
-                    let text = |key: &str| {
-                        item.get(key)
-                            .and_then(Value::as_str)
-                            .map(str::trim)
-                            .filter(|text| !text.is_empty())
-                            .map(str::to_string)
-                    };
-                    Some(StoredSessionLink {
-                        link: SessionLinkRef::from_key(&text("key")?)?,
-                        source: text("source")
-                            .as_deref()
-                            .and_then(SessionLinkSource::from_wire)
-                            .unwrap_or(SessionLinkSource::User),
-                        via: text("via"),
-                        url: text("url"),
-                        added_at: text("addedAt"),
+    let parse_items = |field: &str| -> Vec<StoredSessionLink> {
+        links
+            .get(field)
+            .and_then(Value::as_array)
+            .map(|items| {
+                items
+                    .iter()
+                    .filter_map(|item| {
+                        let text = |key: &str| {
+                            item.get(key)
+                                .and_then(Value::as_str)
+                                .map(str::trim)
+                                .filter(|text| !text.is_empty())
+                                .map(str::to_string)
+                        };
+                        Some(StoredSessionLink {
+                            link: SessionLinkRef::from_key(&text("key")?)?,
+                            source: text("source")
+                                .as_deref()
+                                .and_then(SessionLinkSource::from_wire)
+                                .unwrap_or(SessionLinkSource::User),
+                            via: text("via"),
+                            url: text("url"),
+                            added_at: text("addedAt"),
+                        })
                     })
-                })
-                .collect()
-        })
-        .unwrap_or_default();
+                    .collect()
+            })
+            .unwrap_or_default()
+    };
+    let items = parse_items("items");
+    let removed_items = parse_items("removedItems");
     let removed = links
         .get("removed")
         .and_then(Value::as_array)
@@ -185,7 +233,11 @@ pub(crate) fn stored_session_links(session: &Value) -> StoredSessionLinks {
                 .collect()
         })
         .unwrap_or_default();
-    StoredSessionLinks { items, removed }
+    StoredSessionLinks {
+        items,
+        removed,
+        removed_items,
+    }
 }
 
 /// Writes `runtimeSettings.sessionLinks` in one statement, patched in place like `workLinks`

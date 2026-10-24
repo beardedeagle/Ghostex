@@ -15,6 +15,8 @@ use ghostex_gx_protocol::presentation::PresentationSessionLinks;
 pub struct SessionLinks {
     pub items: Vec<SessionLink>,
     pub suggested: Vec<SuggestedSessionLink>,
+    /// Links a person removed, newest first: the lists' "Removed (N)" group, each with Restore.
+    pub removed: Vec<SuggestedSessionLink>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -92,6 +94,18 @@ fn kind_of(text: &str) -> SessionLinkKind {
     }
 }
 
+fn other_link(
+    item: &ghostex_gx_protocol::presentation::PresentationSuggestedLink,
+) -> SuggestedSessionLink {
+    SuggestedSessionLink {
+        key: item.key.clone(),
+        kind: kind_of(&item.kind),
+        label: item.label.clone(),
+        url: item.url.clone(),
+        title: item.title.clone().filter(|title| !title.trim().is_empty()),
+    }
+}
+
 impl SessionLinks {
     pub fn from_presentation(links: &PresentationSessionLinks) -> Self {
         Self {
@@ -112,22 +126,13 @@ impl SessionLinks {
                     finished: item.finished,
                 })
                 .collect(),
-            suggested: links
-                .suggested
-                .iter()
-                .map(|item| SuggestedSessionLink {
-                    key: item.key.clone(),
-                    kind: kind_of(&item.kind),
-                    label: item.label.clone(),
-                    url: item.url.clone(),
-                    title: item.title.clone().filter(|title| !title.trim().is_empty()),
-                })
-                .collect(),
+            suggested: links.suggested.iter().map(other_link).collect(),
+            removed: links.removed.iter().map(other_link).collect(),
         }
     }
 
     pub fn is_empty(&self) -> bool {
-        self.items.is_empty() && self.suggested.is_empty()
+        self.items.is_empty() && self.suggested.is_empty() && self.removed.is_empty()
     }
 
     /// Whether a link left out of the first `shown` chips has failing checks: the "+N" chip then
@@ -238,6 +243,7 @@ impl SessionLink {
 impl SuggestedSessionLink {
     pub fn glyph(&self) -> (SessionLinkGlyph, SessionLinkTone) {
         match self.kind {
+            SessionLinkKind::Linear => (SessionLinkGlyph::LinearTodo, SessionLinkTone::Draft),
             SessionLinkKind::Issue => (SessionLinkGlyph::IssueOpen, SessionLinkTone::Draft),
             _ => (SessionLinkGlyph::PullRequest, SessionLinkTone::Draft),
         }
@@ -397,6 +403,7 @@ mod tests {
                 link("#3", "merged", true),
             ],
             suggested: Vec::new(),
+            removed: Vec::new(),
         }
     }
 
@@ -448,6 +455,7 @@ mod tests {
         let finished = SessionLinks {
             items: vec![link("#3", "merged", true)],
             suggested: Vec::new(),
+            removed: Vec::new(),
         };
         assert_eq!(finished.most_pressing_tone(), SessionLinkTone::Merged);
     }
@@ -461,6 +469,7 @@ mod tests {
         let done = SessionLinks {
             items: vec![link("#3", "merged", true)],
             suggested: Vec::new(),
+            removed: Vec::new(),
         };
         let row = done.row(SessionLinksDisplay::OpenOnly, false);
         assert!(row.line.is_empty() && row.hover_card);

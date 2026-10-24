@@ -12,8 +12,9 @@ use crate::GhostexGpuiApp;
 use crate::app::model::{GpuiBrowserRendererOpenReuse, GpuiSidebarOpenBrowserUrlMessage};
 
 impl GhostexGpuiApp {
-    /// Answers `openSessionLink {url}`, `removeSessionLink {sessionId, key}` and
-    /// `addSessionLink {sessionId, link}`; the session is named by its sidebar id.
+    /// Answers `openSessionLink {url}`, `removeSessionLink {sessionId, key}`,
+    /// `restoreSessionLink {sessionId, key}` and `addSessionLink {sessionId, link}`; the session is
+    /// named by its sidebar id.
     pub(crate) fn gx_store_run_session_links(
         &mut self,
         command: &Value,
@@ -31,7 +32,7 @@ impl GhostexGpuiApp {
                 }
                 true
             }
-            Some(kind @ ("removeSessionLink" | "addSessionLink")) => {
+            Some(kind @ ("removeSessionLink" | "addSessionLink" | "restoreSessionLink")) => {
                 let Some(session) = command
                     .get("sessionId")
                     .and_then(Value::as_str)
@@ -40,7 +41,17 @@ impl GhostexGpuiApp {
                 else {
                     return true;
                 };
-                let (path, params, failure) = if kind == "removeSessionLink" {
+                let (path, params, failure) = if kind == "restoreSessionLink" {
+                    (
+                        "/api/restoreSessionLink",
+                        json!({
+                            "projectId": session.project_id,
+                            "sessionId": session.session_id,
+                            "key": command.get("key").cloned().unwrap_or(Value::Null),
+                        }),
+                        "Couldn't restore the link",
+                    )
+                } else if kind == "removeSessionLink" {
                     (
                         "/api/removeSessionLink",
                         json!({

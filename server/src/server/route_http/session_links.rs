@@ -157,6 +157,82 @@ pub(super) async fn route_session_links_http(
                 }))
             },
         ),
+        // A removed link back in the session's links, as it was; from then on it can join by
+        // itself again (CDXC:SessionLinks 2026-10-24 in server/src/session_links/store.rs).
+        "/api/restoreSessionLink" => handle_domain_http(
+            &state,
+            endpoint.path,
+            request_id,
+            &body_json,
+            |repository, db, params, _| {
+                let (project, session) = session_of(repository, params)?;
+                let text = text_param(params, "key")?;
+                let stored = stored_session_links(&session);
+                // A key, or the link as a person typed it: `#283` is whichever removed link has
+                // that number.
+                let key = match SessionLinkRef::from_key(&text) {
+                    Some(link) => link.key(),
+                    None => {
+                        let repo = session_repo(&project, &session);
+                        [
+                            None,
+                            Some(SessionLinkKind::Issue),
+                            Some(SessionLinkKind::Linear),
+                        ]
+                        .into_iter()
+                        .filter_map(|kind| parse_link_input(&text, repo.as_deref(), kind))
+                        .map(|link| link.key())
+                        .find(|key| stored.is_removed(key))
+                        .ok_or_else(|| {
+                            DomainStateError::bad_request(format!(
+                                "\"{text}\" names none of this session's removed links."
+                            ))
+                        })?
+                    }
+                };
+                let (project_id, session_id) = ids_of(params)?;
+                let mut stored = stored;
+                let mut restored = stored.restore(&key);
+                if restored {
+                    write_session_links(db, &project_id, &session_id, &stored)?;
+                }
+                // A link that came only from the branch or the chat comes back by itself now; one
+                // that nothing names any more is put back as the person's own.
+                let session = repository
+                    .get_session(&project_id, &session_id)?
+                    .unwrap_or(session);
+                let present = session_link_entries(&project, &session)
+                    .iter()
+                    .any(|entry| entry.link.key() == key);
+                if !present {
+                    if let Some(link) = SessionLinkRef::from_key(&key) {
+                        restored |= stored.add_by_hand(StoredSessionLink {
+                            link,
+                            source: SessionLinkSource::User,
+                            via: None,
+                            url: None,
+                            added_at: Some(crate::session_links::now_iso()),
+                        });
+                        write_session_links(db, &project_id, &session_id, &stored)?;
+                    }
+                }
+                if restored {
+                    schedule_presentation_session_delta(
+                        &state,
+                        db,
+                        repository,
+                        &project_id,
+                        &session_id,
+                    )?;
+                }
+                Ok(json!({
+                    "projectId": project_id,
+                    "sessionId": session_id,
+                    "key": key,
+                    "restored": restored,
+                }))
+            },
+        ),
         "/api/readSessionLinks" => handle_domain_http(
             &state,
             endpoint.path,

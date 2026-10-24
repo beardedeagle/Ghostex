@@ -738,6 +738,7 @@ pub fn endpoint_for(path: &str) -> Option<EndpointDescriptor> {
         // CDXC:SessionLinks 2026-10-24 WHY: a sidebar or phone showing a remote machine's sessions adds, removes and reads their links like work links: opaque ids and a link's text.
         | "/api/addSessionLink"
         | "/api/removeSessionLink"
+        | "/api/restoreSessionLink"
         | "/api/readSessionLinks"
         /*
         CDXC:WorkMode 2026-10-09 WHY:

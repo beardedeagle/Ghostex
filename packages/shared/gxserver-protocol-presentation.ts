@@ -308,6 +308,14 @@ export interface GxserverPresentationSessionLink {
 export interface GxserverPresentationSessionLinks {
   items: GxserverPresentationSessionLink[];
   suggested?: Array<{ key: string; kind: 'pullRequest' | 'issue'; label: string; url?: string; title?: string }>;
+  /** Links a person removed, newest first, which the lists offer to restore. */
+  removed?: Array<{
+    key: string;
+    kind: 'pullRequest' | 'issue' | 'linear';
+    label: string;
+    url?: string;
+    title?: string;
+  }>;
 }
 
 /** A Claude cloud session (`PresentationClaudeCloud` in gx-protocol). */

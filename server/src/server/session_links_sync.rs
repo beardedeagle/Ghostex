@@ -34,7 +34,7 @@ use crate::work_mode::{
 };
 
 /// `gh` calls one pass may make (work mode's pass has its own).
-const MAX_GH_CALLS_PER_PASS: usize = 12;
+const MAX_GH_CALLS_PER_PASS: usize = 20;
 /// Requests one pass may send to Linear.
 const MAX_LINEAR_REQUESTS_PER_PASS: usize = 3;
 /// Transcripts one pass may read in full (a first read); later reads only add what is new.
@@ -282,10 +282,24 @@ fn refresh_link_caches(
     linear_keys: &HashMap<u64, String>,
     mut linear_budget: usize,
 ) {
+    // The sessions used most recently first, so the ones in use get their links read first.
+    let mut sessions: Vec<&Value> = sessions.iter().collect();
+    sessions.sort_by(|a, b| {
+        let at = |session: &Value| {
+            session
+                .get("lastActiveAt")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string()
+        };
+        at(b).cmp(&at(a))
+    });
     let mut pull_requests: Vec<String> = Vec::new();
     let mut issues: Vec<String> = Vec::new();
+    // Every PR and issue to read, in session order: `true` for a PR.
+    let mut in_order: Vec<(bool, String)> = Vec::new();
     let mut linear: HashMap<u64, Vec<String>> = HashMap::new();
-    for session in sessions {
+    for session in &sessions {
         let Some(project) = session
             .get("projectId")
             .and_then(Value::as_str)
@@ -310,6 +324,7 @@ fn refresh_link_caches(
                         info.state.disposition() == PullRequestDisposition::Finished
                     });
                     if !finished && !pull_requests.contains(&url) {
+                        in_order.push((true, url.clone()));
                         pull_requests.push(url);
                     }
                 }
@@ -320,6 +335,7 @@ fn refresh_link_caches(
                     let finished = cached_work_github_issue_url(&url)
                         .is_some_and(|info| info.state.as_deref() == Some("closed"));
                     if !finished && !issues.contains(&url) {
+                        in_order.push((false, url.clone()));
                         issues.push(url);
                     }
                 }
@@ -340,6 +356,21 @@ fn refresh_link_caches(
                 }
             }
         }
+        // The PR and issue URLs this session's chat only mentioned, for the Suggested rows'
+        // titles: read once, right after the session's own links.
+        let session_id = session
+            .get("sessionId")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        for link in crate::session_links::session_link_mentions(project_id, session_id) {
+            let Some(url) = link.github_url() else {
+                continue;
+            };
+            let pull_request = link.kind() == SessionLinkKind::PullRequest;
+            if !in_order.iter().any(|(_, known)| known == &url) {
+                in_order.push((pull_request, url));
+            }
+        }
     }
     for (fingerprint, identifiers) in &linear {
         if linear_budget == 0 {
@@ -354,23 +385,51 @@ fn refresh_link_caches(
             ));
         }
     }
-    if (pull_requests.is_empty() && issues.is_empty()) || !gh_cli_is_available() {
+    let unread_pull_request = |url: &String| cached_work_pull_request("", url).is_none();
+    let unread_issue = |url: &String| cached_work_github_issue_url(url).is_none();
+    // CDXC:SessionLinks 2026-10-24 WHY:
+    // Every open session's PRs used to be read before any issue, so with a dozen open PRs across sessions the pass spent its whole `gh` budget on them and issues (and the Suggested rows) never got a title or a state: the user saw "#283" with nothing after it, counted as open while it was closed. Links never read come first now, issues and suggestions included, then the stale open ones.
+    let unread = |(pull_request, url): &(bool, String)| {
+        if *pull_request {
+            unread_pull_request(url)
+        } else {
+            unread_issue(url)
+        }
+    };
+    let mut ordered: Vec<(bool, String)> = in_order
+        .iter()
+        .filter(|read| unread(read))
+        .cloned()
+        .collect();
+    ordered.extend(
+        in_order
+            .iter()
+            // A URL only suggested is read once; one linked anywhere is kept current.
+            .filter(|read| {
+                !unread(read) && (pull_requests.contains(&read.1) || issues.contains(&read.1))
+            })
+            .cloned(),
+    );
+    let mut seen: Vec<String> = Vec::new();
+    ordered.retain(|(_, url)| {
+        let fresh = !seen.contains(url);
+        seen.push(url.clone());
+        fresh
+    });
+    if ordered.is_empty() || !gh_cli_is_available() {
         return;
     }
     let mut gh_budget = MAX_GH_CALLS_PER_PASS;
-    for url in &pull_requests {
+    for (pull_request, url) in &ordered {
         if gh_budget == 0 {
             return;
         }
-        if refresh_work_pull_request("", url) {
-            gh_budget -= 1;
-        }
-    }
-    for url in &issues {
-        if gh_budget == 0 {
-            return;
-        }
-        if refresh_work_github_issue_selector("", url) {
+        let ran = if *pull_request {
+            refresh_work_pull_request("", url)
+        } else {
+            refresh_work_github_issue_selector("", url)
+        };
+        if ran {
             gh_budget -= 1;
         }
     }
