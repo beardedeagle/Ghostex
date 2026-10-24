@@ -116,11 +116,9 @@ impl GhostexGpuiApp {
                 machine_id: storage_id,
                 // Its projects only: a project's session groups, which follow it in the
                 // collection's ids, keep their own collapse.
-                group_ids: self
-                    .sidebar_collection_group_ids(collection_id)
-                    .into_iter()
-                    .filter(|group_id| ghostex_gx_core::owner_project_group_id(group_id).is_none())
-                    .collect(),
+                group_ids: ghostex_gx_core::toggle_all_project_ids(
+                    &self.sidebar_collection_group_ids(collection_id),
+                ),
             })),
             _ => None,
         }
@@ -186,15 +184,16 @@ impl GhostexGpuiApp {
 
 /// The rows and ids the intents above are resolved against: the list that is on screen.
 impl GhostexGpuiApp {
-    /// Every project group the machine draws.
+    /// The projects the machine draws, which Collapse All and Expand Previous act on, without their session groups.
     fn sidebar_drawn_project_group_ids(&self) -> Vec<String> {
-        self.gx_store
-            .sidebar_list
-            .view()
-            .groups
-            .iter()
-            .map(|group| group.core.group_id.clone())
-            .collect()
+        ghostex_gx_core::toggle_all_project_ids(
+            self.gx_store
+                .sidebar_list
+                .view()
+                .groups
+                .iter()
+                .map(|group| &group.core.group_id),
+        )
     }
 
     /// The `<section key>:<collection id>` a collection's own state is stored under.

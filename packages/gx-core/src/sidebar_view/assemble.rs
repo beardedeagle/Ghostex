@@ -270,6 +270,7 @@ pub(crate) fn assemble(input: AssembleInput<'_>) -> SidebarView {
             collection_id: project_of_group(&plan.group_id)
                 .and_then(|project_id| collection_id_by_project.get(&project_id).cloned()),
             space_project: space_project_of_group(&plan.group_id),
+            holds_active_session_group: false,
         });
     }
 
@@ -282,6 +283,7 @@ pub(crate) fn assemble(input: AssembleInput<'_>) -> SidebarView {
         .filter(|group_id| !owner_project_collapsed(group_id, input.ui))
         .collect();
     fold_hidden_group_summaries(&mut groups, input.ui);
+    mark_projects_holding_active_session_group(&mut groups);
     let mut collections: Vec<CollectionView> = Vec::new();
     let mut order: Vec<OrderItem> = Vec::new();
     // Collections group projects; the bots are one flat list.
@@ -551,6 +553,34 @@ pub fn owner_project_group_id(group_id: &str) -> Option<String> {
     parse_workspace_subgroup_id(group_id).map(|(project, _)| project.to_sidebar_group_id())
 }
 
+/// The groups Collapse All and Expand Previous act on, out of `group_ids`: the projects without
+/// their session groups, which keep their own collapse inside their project.
+///
+/// CDXC:Projects 2026-10-24 WHY:
+/// Counted with the projects, the session groups a collapsed project hides read as expanded. With every project collapsed by hand, the More menu still offered Collapse All, which then collapsed only those hidden groups, and Expand Previous reopened only them, so the projects never opened and the button looked dead. A project group's own Collapse Projects leaves them out for the same reason.
+pub fn toggle_all_project_ids<'a>(group_ids: impl IntoIterator<Item = &'a String>) -> Vec<String> {
+    group_ids
+        .into_iter()
+        .filter(|group_id| owner_project_group_id(group_id).is_none())
+        .cloned()
+        .collect()
+}
+
+/// Marks the project whose session group holds the focused session, so a collapsed project, which
+/// hides its session groups, still draws as active.
+fn mark_projects_holding_active_session_group(groups: &mut [GroupView]) {
+    let Some(owner) = groups
+        .iter()
+        .find(|group| group.core.is_active)
+        .and_then(|group| owner_project_group_id(&group.core.group_id))
+    else {
+        return;
+    };
+    if let Some(project) = groups.iter_mut().find(|group| group.core.group_id == owner) {
+        project.holds_active_session_group = true;
+    }
+}
+
 /// The groups a collection holds, `group_ids` being its ids: its projects and their session
 /// groups, including those a collapsed project hides and leaves out of the ids, so the
 /// collection's header counts their sessions and its menu and Select All act on them too.
@@ -619,5 +649,45 @@ fn machine_key(machine_id: &str) -> MachineId {
         MachineId::Local
     } else {
         MachineId::Remote(machine_id.to_string())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::toggle_all_project_ids;
+    use crate::keys::{encode_workspace_subgroup_id, ProjectKey};
+    use crate::sidebar_ui::{SidebarUiIntent, SidebarUiStore, ToggleAllProjectsInput};
+
+    /// Every project collapsed by hand while a session group inside one is still open: the toggle
+    /// sees only projects, so its first press expands them instead of collapsing the hidden group.
+    #[test]
+    fn toggle_all_projects_leaves_out_the_session_groups_a_collapsed_project_hides() {
+        let project = ProjectKey::local("p1");
+        let project_id = project.to_sidebar_group_id();
+        let other_id = ProjectKey::local("p2").to_sidebar_group_id();
+        let session_group_id = encode_workspace_subgroup_id(&project, "g1");
+        let drawn = vec![
+            project_id.clone(),
+            session_group_id.clone(),
+            other_id.clone(),
+        ];
+
+        let group_ids = toggle_all_project_ids(&drawn);
+        assert_eq!(group_ids, vec![project_id.clone(), other_id.clone()]);
+
+        let mut store = SidebarUiStore::new();
+        for group_id in [&project_id, &other_id] {
+            store.apply(SidebarUiIntent::ToggleGroupCollapsed {
+                group_id: group_id.clone(),
+            });
+        }
+        store.apply(SidebarUiIntent::ToggleAllProjects(ToggleAllProjectsInput {
+            machine_id: "local".to_string(),
+            group_ids,
+        }));
+        let collapsed = &store.state().collapse.collapsed_groups;
+        assert!(!collapsed.contains(&project_id));
+        assert!(!collapsed.contains(&other_id));
+        assert!(!collapsed.contains(&session_group_id));
     }
 }

@@ -450,6 +450,20 @@ project's sessions only; its browser tabs are slept and closed from the tab
 strip above the view, where they live.
 Click a project header (or the chevron beside it) or a group header to expand
 or collapse it; rename a group from its right-click menu.
+Session groups gather some of a project's sessions under a header of their
+own, with a folder icon. To make one, right-click a session and choose
+Advanced > Move to New Group. Once the project has a session group, the
+session menu's Advanced > Move to Group page lists the project's groups: pick
+one to move the session there, or Remove from Group to put it back in the
+project's own list. Dragging a session onto another of its project's groups,
+or onto the project's list, does the same, and dropping it in the empty space
+at the bottom of the sidebar puts it in the last session group when that group
+belongs to the session's project; the group that would take it lights up while
+you drag. A session stays within its own project's groups. A project's session
+groups sit indented under it with a guide line and hide while the project is
+collapsed; the collapsed project still shows when one of their agents is
+working or needs you. Collapse All in the More menu folds the projects and
+leaves each session group open or closed as it was.
 Close Project parks the project in Recent Projects (a remote machine's project
 goes to that machine's Recent Projects, which Quick Access lists); when it held
 the active session, Ghostex stays in the current Space and switches to an awake
@@ -566,14 +580,7 @@ of a group (Remove from Group, Ungroup, or dragging it out) stays in that
 group's Space. Adding a project to an existing group in another Space moves it
 to that group's Space, and the sidebar switches there with the project focused.
 A session group made with a session's Move to New Group shows in the project's
-Space. Once the project has a session group, the session menu's Advanced >
-Move to Group page lists them: pick one to move the session there, or Remove
-from Group to put it back in the project's list. Dragging a session onto
-another group or onto its project's list does the same, and so does dropping
-it in the empty space under the last group in the list; the group that would
-take it lights up while you drag. A project's groups sit indented under it
-with a guide line, and hide while the project is collapsed; the collapsed
-project still shows when one of their agents is working or needs you.
+Space.
 In Add Project, select the computer whose folders you want to browse. Local
 folder starts in your home folder, and External drives and other folders shows
 that computer's filesystem root. On a computer running native Windows

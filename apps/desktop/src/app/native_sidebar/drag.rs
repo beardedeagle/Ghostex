@@ -166,7 +166,7 @@ impl GhostexGpuiApp {
                 ),
                 // CDXC:Sidebar 2026-10-23 WHY:
                 // The empty list space under the last block is that block's for a session: a session dropped below a session group (often an empty one, whose header is its only row) joins it at the end. This zone took no session before, so a release there under an empty group moved nothing. A collection as the last block takes nothing, as before.
-                "ungroup" => self.native_sidebar_last_group_id().map(|group_id| {
+                "ungroup" => self.gx_store.sidebar_list.view().last_drawn_group_id().map(|group_id| {
                     json!({"type": "moveSession", "sessionId": source.id, "groupId": group_id, "position": "after"})
                 }),
                 _ => None,
@@ -214,30 +214,6 @@ impl GhostexGpuiApp {
             self.native_sidebar.drop_command = command;
             cx.notify();
         }
-    }
-
-    /// The group drawn last in the list, which the empty space under it takes a session into: an
-    /// open project's last session group, drawn inside the project's block (session_group_tree.rs),
-    /// or else the project itself. `None` when the list ends with a collection.
-    fn native_sidebar_last_group_id(&self) -> Option<String> {
-        let snapshot = self.native_sidebar.snapshot.as_ref()?;
-        let tree = super::session_group_tree::SessionGroupTree::new(snapshot);
-        let group = |id: &str| snapshot.groups.iter().find(|group| group.group_id == id);
-        let last = snapshot.order.iter().rev().find(|item| {
-            item.kind == "collection" || !group(&item.id).is_some_and(|group| tree.nests(group))
-        })?;
-        if last.kind == "collection" {
-            return None;
-        }
-        let Some(project) = group(&last.id) else {
-            return Some(last.id.clone());
-        };
-        if !project.collapsed
-            && let Some(session_group) = tree.children(&project.group_id).last()
-        {
-            return Some(session_group.group_id.clone());
-        }
-        Some(project.group_id.clone())
     }
 
     /// `land` for this target, or what it answered the last time the pointer was over it.

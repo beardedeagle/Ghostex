@@ -369,12 +369,9 @@ impl<'a> SidebarMenus<'a> {
 
     /// The sidebar's own "more" menu.
     pub fn more_menu(&self) -> Vec<MenuItem> {
-        let drawn: Vec<String> = self
-            .view
-            .groups
-            .iter()
-            .map(|group| group.core.group_id.clone())
-            .collect();
+        let drawn = crate::sidebar_view::toggle_all_project_ids(
+            self.view.groups.iter().map(|group| &group.core.group_id),
+        );
         navigation::more_menu(&navigation::MoreMenuInput {
             ui: &self.inputs.ui,
             settings: &self.inputs.settings,

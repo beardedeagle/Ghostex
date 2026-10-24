@@ -1,8 +1,8 @@
 //! A project's user-made session groups, drawn inside the project's block: after its own rows,
 //! indented, with a tree line from under the project's chevron down to the last group's header.
 //!
-//! CDXC:Projects 2026-10-23 WHY:
-//! A session group used to be drawn at its project's level with the same header and the same letter tile, so with a few projects it was not clear which group belonged to which project. Indenting the groups under the project with a tree line (the line a coordinator's threads hang from, threads.rs) makes them read as part of it. They sit inside the project's fold rather than as list blocks of their own, so collapsing or expanding the project moves them in the same motion instead of making them vanish or appear at once. A framed look, a project-name label and a setting to pick between them were tried and dropped: one look is less to maintain, and a frame clashes with projects that sit in a project group.
+//! CDXC:Projects 2026-10-23 DECISION:
+//! Agreed with the user on a call (PR #286): one look for session groups, indented under their project, with no setting. A session group used to be drawn at its project's level with the same header and the same letter tile, so with a few projects it was not clear which group belonged to which project. Indenting the groups under the project with a tree line (the line a coordinator's threads hang from, threads.rs) makes them read as part of it. They sit inside the project's fold rather than as list blocks of their own, so collapsing or expanding the project moves them in the same motion instead of making them vanish or appear at once. A framed look, a project-name label and a setting to pick between them were tried and dropped: one look is less to maintain, and a frame clashes with projects that sit in a project group.
 
 use std::collections::{HashMap, HashSet};
 

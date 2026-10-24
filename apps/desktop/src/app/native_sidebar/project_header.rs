@@ -59,8 +59,8 @@ impl GhostexGpuiApp {
             .and_then(super::images::sidebar_image);
         // Set only on a bot's row, which draws a gateway dot instead of git stats and counts.
         let bot_gateway_running = group.bot_gateway_running();
-        // A user-made session group draws a folder instead of its title's first letter, which made
-        // "Group 6" and a project named "g…" look alike.
+        // CDXC:Icons 2026-10-24 DECISION:
+        // User chose "Keep the folder": a user-made session group's header draws a folder instead of its title's first letter, which made "Group 6" and a project named "g…" look alike. The letter tile (CDXC:Icons 2026-09-24 below) stays for projects only.
         let folder_icon = group.owner_group_id.is_some();
         // A collapsed project draws as active when the focused session is in it, its session
         // groups included, which fold away with it.
@@ -194,7 +194,7 @@ impl GhostexGpuiApp {
                             .size(px(16.0 * scale))
                             .flex_shrink_0()
                             .into_any_element(),
-                        // CDXC:Icons 2026-09-24 DECISION: User: when a project has no favicon, show a square with the first letter of its name instead of the folder icon.
+                        // CDXC:Icons 2026-09-24 DECISION: User: when a project has no favicon, show a square with the first letter of its name instead of the folder icon. Projects only: since 2026-10-24 a session group's header keeps the folder (CDXC:Icons 2026-10-24 above).
                         None => letter_tile(
                             &group.title,
                             appearance.muted.opacity(0.12),

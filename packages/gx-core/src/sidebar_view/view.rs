@@ -66,6 +66,19 @@ impl SidebarView {
             .iter()
             .find(|group| group.core.group_id == group_id)
     }
+
+    /// The group drawn last in the list, which the empty space under the list takes a dropped
+    /// session into: an open project's last session group, or else the project itself. `None`
+    /// when the list ends with a collection.
+    ///
+    /// That is the last entry of `order`: an open project's session groups follow it there, and
+    /// a collapsed project's are left out (assemble.rs).
+    pub fn last_drawn_group_id(&self) -> Option<&str> {
+        self.order
+            .last()
+            .filter(|item| item.kind == OrderKind::Project)
+            .map(|item| item.id.as_str())
+    }
 }
 
 /// The working and attention counts of a machine tab.
@@ -115,6 +128,9 @@ pub struct GroupView {
     /// The project whose Space shows this group: its own for a project group, the project it was
     /// made in for a user-made session group.
     pub space_project: Option<SpaceProject>,
+    /// One of this project's session groups holds the focused session, so the project draws as
+    /// active while it is collapsed and hides them.
+    pub holds_active_session_group: bool,
 }
 
 /// The facts a Space decides a group's visibility from (`space_claims_project`).
