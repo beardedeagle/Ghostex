@@ -122,7 +122,7 @@ static BOOL GhostexGpuiCEFEventIsCommandF(NSEvent *event);
 static BOOL GhostexGpuiCEFEventIsCommandOptionF(NSEvent *event);
 static BOOL GhostexGpuiCEFEventIsCommandY(NSEvent *event);
 static BOOL GhostexGpuiCEFEventIsHistoryChord(NSEvent *event);
-static BOOL GhostexGpuiCEFEventIsBareNavigationKey(NSEvent *event);
+static BOOL GhostexGpuiCEFEventIsWebTextEditingKey(NSEvent *event);
 static GhostexGpuiCEFEditCommand
 GhostexGpuiCEFClipboardEditCommandForEvent(NSEvent *event);
 static GhostexGpuiCEFZoomCommand
@@ -594,11 +594,11 @@ GhostexGpuiEditHistoryMenuTargetShared(void) {
   }
 
   /*
-   CDXC:Hotkeys 2026-10-24 WHY:
-   AppKit offers an arrow, Home/End, PageUp/PageDown or Forward Delete press (macOS flags them Fn) to performKeyEquivalent: first, and the window's GPUIView, the parent of every CEF view, hands an unbound one to its own input context, which reports it handled. Chromium's keyDown never ran, and the input method committed the key's raw character (0x1C-0x1F for the arrows, 0x7F for Forward Delete) into the focused web text field as a blank character: in the page window a question form's note box got a space for every arrow instead of a moved caret. With a Chromium view as first responder these keys go straight to its keyDown, the path a key that is no key equivalent takes, so Chromium and any input method composing in the page edit as usual. The router above has already claimed any configured Ghostex hotkey; Shift, Option, Control and Command variants never reach GPUIView's input context and keep their normal path.
+   CDXC:Hotkeys 2026-10-25 WHY:
+   AppKit offers an arrow, Home/End, PageUp/PageDown, Delete or Forward Delete press to performKeyEquivalent: first, and the window's GPUIView, the parent of every CEF view, hands any key that types no text and has no Control or Command to its own input context, which reports it handled. Chromium's keyDown never ran, and the input method committed the key as a blank character into the focused web text field: in the page window a question form's note box got a space for every arrow, Option+Left or Option+Delete instead of moving the caret or deleting a word. With a Chromium view as first responder these keys, bare or with Shift and Option, go straight to its keyDown, the path a key that is no key equivalent takes, so Chromium and any input method composing in the page edit as usual. This supersedes the 2026-10-24 fix that covered only the bare keys. The router above has already claimed any configured Ghostex hotkey; Control and Command variants never reach GPUIView's input context and keep their normal path, and Escape and the F-keys stay with GPUI, which binds them.
    */
   NSWindow *navigationWindow = event.window ?: NSApp.keyWindow;
-  if (GhostexGpuiCEFEventIsBareNavigationKey(event) &&
+  if (GhostexGpuiCEFEventIsWebTextEditingKey(event) &&
       GhostexGpuiResponderIsChromiumContent(navigationWindow.firstResponder)) {
     [navigationWindow.firstResponder keyDown:event];
     return;
@@ -1857,21 +1857,23 @@ static BOOL GhostexGpuiCEFEventIsHistoryChord(NSEvent *event) {
           isEqualToString:@"z"];
 }
 
-static BOOL GhostexGpuiCEFEventIsBareNavigationKey(NSEvent *event) {
+static BOOL GhostexGpuiCEFEventIsWebTextEditingKey(NSEvent *event) {
   if (!event || event.type != NSEventTypeKeyDown) {
     return NO;
   }
 
+  // Shift and Option are the modifiers GPUIView still feeds to its input
+  // context (Option+Left moves by word, Option+Delete deletes a word).
   NSEventModifierFlags modifiers =
       event.modifierFlags &
       (NSEventModifierFlagShift | NSEventModifierFlagControl |
        NSEventModifierFlagOption | NSEventModifierFlagCommand);
-  if (modifiers != 0) {
+  if ((modifiers & (NSEventModifierFlagControl | NSEventModifierFlagCommand)) !=
+      0) {
     return NO;
   }
 
-  // Arrows, Home, End, PageUp, PageDown and Forward Delete. F-keys keep the
-  // GPUI path: F5 and F12 are GPUI bindings.
+  // Arrows, Home, End, PageUp, PageDown, Delete and Forward Delete.
   switch (event.keyCode) {
   case 123:
   case 124:
@@ -1881,6 +1883,7 @@ static BOOL GhostexGpuiCEFEventIsBareNavigationKey(NSEvent *event) {
   case 119:
   case 116:
   case 121:
+  case 51:
   case 117:
     return YES;
   default:
