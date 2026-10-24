@@ -340,6 +340,11 @@ chat instead.
 - `<gx-choice>`: its text is the choice and a `<small>` inside is a one-line
   detail. `value` is what you receive (the text without the `<small>` when
   there is none). `recommended` adds a Recommended badge.
+- List a question's choices in exactly the order its variants appear above
+  it: the first variant on the page is the first choice, and a variant
+  lettered "A." is choice a. Never move the recommended choice to the top;
+  mark it with `recommended` where it already sits. A question whose choices
+  run C, B, A under mockups A, B, C makes the reader pick the wrong one.
 - Write only that markup. The kit letters the choices, ends every choice
   question with "Other / none of these" and a note box, and adds the send
   button. Nothing is ever preselected (the reader can also click a pick again
