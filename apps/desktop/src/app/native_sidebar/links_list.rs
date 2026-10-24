@@ -22,17 +22,21 @@
 
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
-    AnyElement, Context, FontWeight, InteractiveElement as _, IntoElement, ParentElement as _,
-    Render, ScrollHandle, StatefulInteractiveElement as _, Styled as _, Window, div, px,
+    AnyElement, Bounds, Context, FontWeight, InteractiveElement as _, IntoElement,
+    ParentElement as _, Pixels, Render, ScrollHandle, StatefulInteractiveElement as _, Styled as _,
+    Window, div, px,
 };
-use gpui_component::{h_flex, v_flex};
+use gpui_component::{ElementExt as _, h_flex, v_flex};
 use serde_json::json;
+use std::cell::Cell;
+use std::rc::Rc;
 use std::time::Duration;
 
 use super::link_chips::{
     open_session_link_command, session_link_glyph_icon, session_link_tone_color,
     sidebar_style_tooltip,
 };
+use super::tooltips::sidebar_style_card_tooltip;
 use crate::GhostexGpuiApp;
 use crate::app::helpers::*;
 use ghostex_gx_core::{SessionKey, SessionLink, SessionLinkTone, SessionLinks};
@@ -126,6 +130,37 @@ pub(crate) fn session_links_list_height(
     HEADER_HEIGHT + 12.0 + 2.0 + children.iter().sum::<f32>() + gaps
 }
 
+/// The clear space a row's card needs so it opens beyond the row rather than over its buttons:
+/// `(top, bottom)` padding for the card, one of them the distance from the pointer to the row's
+/// near edge and the other zero. The card opens below the row when the window has room for it
+/// there, else above.
+///
+/// CDXC:SessionLinks 2026-10-24 WHY:
+/// A GPUI tooltip opens at the pointer, which on a row sits level with the row's own pin and ×, so the card started over them. The gap moves the card's start past the row's edge; the room is estimated from the text because the card's size is only known once it is laid out.
+fn row_card_gaps(row: Bounds<Pixels>, text: &str, window: &Window) -> (f32, f32) {
+    let pointer = f32::from(window.mouse_position().y);
+    let (top, bottom) = (f32::from(row.top()), f32::from(row.bottom()));
+    // About 40 characters to a line of the 340px card at 12.5px, 17px a line, its padding.
+    let estimated: f32 = text
+        .lines()
+        .enumerate()
+        .map(|(index, line)| {
+            if index == 0 {
+                (line.chars().count() as f32 / 40.0).ceil().max(1.0) * 17.0
+            } else {
+                15.0
+            }
+        })
+        .sum::<f32>()
+        + 24.0;
+    let window_height = f32::from(window.viewport_size().height);
+    if bottom + estimated + 6.0 <= window_height || top < estimated + 6.0 {
+        ((bottom - pointer + 2.0).max(0.0), 0.0)
+    } else {
+        (0.0, (pointer - top + 2.0).max(0.0))
+    }
+}
+
 /// The tallest the card or the "+N" dropdown grows: half the window, past which the list scrolls
 /// under its fixed header.
 pub(crate) fn session_links_max_height(window_height: f32) -> f32 {
@@ -180,6 +215,9 @@ pub(crate) struct SessionLinksList {
     /// The height the list last gave its window.
     fitted_height: Option<f32>,
     scroll: ScrollHandle,
+    /// The user's Tooltip Delay, which the rows' cards wait as the sidebar's tooltips do. Read
+    /// from the app by the observer, never while drawing.
+    tooltip_delay: Duration,
     /// The list this draws, kept here rather than read from the app while drawing.
     links: Option<SessionLinks>,
     _observe: Option<gpui::Subscription>,
@@ -201,9 +239,11 @@ impl SessionLinksList {
             cx.observe(&app, |list: &mut Self, app, cx| {
                 let links = app.read(cx).session_links_of(&list.key);
                 let folded = folded_session_link_groups();
-                if links != list.links || folded != list.folded {
+                let delay = app.read(cx).configured_tooltip_delay();
+                if links != list.links || folded != list.folded || delay != list.tooltip_delay {
                     list.links = links;
                     list.folded = folded;
+                    list.tooltip_delay = delay;
                     cx.notify();
                 }
             })
@@ -219,6 +259,7 @@ impl SessionLinksList {
             max_height,
             fitted_height: None,
             scroll: ScrollHandle::new(),
+            tooltip_delay: Duration::from_millis(500),
             links,
             _observe: observe,
         }
@@ -345,11 +386,22 @@ impl SessionLinksList {
         let detail = link.detail_line();
         let failing = link.checks.as_deref() == Some("failing");
         let row_key = link.key.clone();
+        let card_text = link.hover_card_text();
+        let row_bounds = Rc::new(Cell::new(Bounds::<Pixels>::default()));
+        let row_bounds_writer = row_bounds.clone();
         h_flex()
             .id(gpui::SharedString::from(format!(
                 "session-link-{}",
                 link.key
             )))
+            .on_prepaint(move |bounds, _, _| row_bounds_writer.set(bounds))
+            .tooltip_show_delay(self.tooltip_delay)
+            // The row's card, under the buttons' and the icon's own tooltips, which win where the
+            // pointer is on them.
+            .tooltip(move |window, cx| {
+                let (top_gap, bottom_gap) = row_card_gaps(row_bounds.get(), &card_text, window);
+                sidebar_style_card_tooltip(card_text.clone(), top_gap, bottom_gap, window, cx)
+            })
             .on_hover(cx.listener(move |list, hovered: &bool, _, cx| {
                 if *hovered {
                     list.hovered = Some(row_key.clone());

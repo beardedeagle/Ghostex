@@ -278,6 +278,50 @@ impl SessionLink {
             .join(" · ")
     }
 
+    /// What hovering a link says, one line per row of the sidebar's session hover card: the full
+    /// title, then `#283 · GitHub issue`, `State: Open`, an open PR's checks and review (or the PR
+    /// that closes an issue), and the repo when it is not the session's own.
+    ///
+    /// SEE-ALSO: `sidebar_style_card_tooltip` (apps/desktop/src/app/native_sidebar/tooltips.rs)
+    /// draws these lines and holds the user's decision on them.
+    pub fn hover_card_text(&self) -> String {
+        let title = match (&self.title, self.loading) {
+            (Some(title), _) => title.clone(),
+            (None, true) => "Loading…".to_string(),
+            (None, false) => self.label.clone(),
+        };
+        let kind = match self.kind {
+            SessionLinkKind::PullRequest => "Pull request",
+            SessionLinkKind::Issue => "GitHub issue",
+            SessionLinkKind::Linear => "Linear",
+        };
+        let state = self
+            .state_label()
+            .or_else(|| self.loading.then(|| "Loading…".to_string()))
+            .map(|state| format!("State: {state}"));
+        // A GitHub link's label is `#318` in the session's own repo and `repo#318` elsewhere; its
+        // key names the whole `owner/repo`.
+        let repo = (self.kind != SessionLinkKind::Linear && !self.label.starts_with('#'))
+            .then(|| {
+                let (_, rest) = self.key.split_once(':')?;
+                let (repo, _) = rest.rsplit_once('#')?;
+                Some(format!("Repo: {repo}"))
+            })
+            .flatten();
+        [
+            Some(title),
+            Some(format!("{} · {kind}", self.label)),
+            state,
+            Some(self.detail_line()),
+            repo,
+        ]
+        .into_iter()
+        .flatten()
+        .filter(|line| !line.trim().is_empty())
+        .collect::<Vec<_>>()
+        .join("\n")
+    }
+
     /// The tooltip and the list's title fallback: `#318 · Port the Find screen · Open`.
     pub fn summary(&self) -> String {
         [

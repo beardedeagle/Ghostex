@@ -1,5 +1,8 @@
 use gpui::prelude::FluentBuilder as _;
-use gpui::{AnyView, App, FontWeight, ParentElement, Styled, Window, div, px};
+use gpui::{
+    AnyView, App, AppContext as _, Context, FontWeight, IntoElement, ParentElement, Render, Styled,
+    Window, div, px,
+};
 use gpui_component::{
     tooltip::{ManagedTooltipPlacement, Tooltip},
     v_flex,
@@ -96,6 +99,78 @@ pub(crate) fn sidebar_style_tooltip(text: String, window: &mut Window, cx: &mut 
     // One line each, cut short at 320px: a bubble sized to its text with nothing to fill would
     // otherwise wrap after every letter.
     sidebar_tooltip_bubble(text, None, px(320.0), true, 1.0, window, cx)
+}
+
+/// The session tooltip's card for a link: the sidebar's bubble with the link's title in bold,
+/// wrapping, and its muted lines under it (`SessionLink::hover_card_text`), up to 340px wide.
+///
+/// CDXC:SessionLinks 2026-10-24 DECISION:
+/// User: "when i hover over the title of a link in the floating thingy pls make it show the full title of that link (issue/pr/etc)", "also please make the tooltip look like this one which we have in the sidebar". A link's row (in the floating card and the header's list) and the header's chips show this card, reusing the sidebar session card's bubble rather than a lookalike.
+pub(crate) fn sidebar_style_card_tooltip(
+    text: String,
+    top_gap: f32,
+    bottom_gap: f32,
+    window: &mut Window,
+    cx: &mut App,
+) -> AnyView {
+    // A bubble sized to its text collapses to its narrowest wrap, so the card is as wide as its
+    // longest line (up to 340px, where the title wraps).
+    let widest = text
+        .lines()
+        .enumerate()
+        .map(|(index, line)| text_width(window, line, if index == 0 { 12.5 } else { 11.0 }))
+        .fold(0.0_f32, f32::max);
+    let content = (widest + 2.0).clamp(120.0, 340.0);
+    let card = sidebar_tooltip_bubble(
+        text,
+        Some(content + 2.0 * 9.0 + 2.0),
+        px(content),
+        false,
+        1.0,
+        window,
+        cx,
+    );
+    if top_gap <= 0.0 && bottom_gap <= 0.0 {
+        return card;
+    }
+    cx.new(|_| TooltipGap {
+        card,
+        top: top_gap,
+        bottom: bottom_gap,
+    })
+    .into()
+}
+
+/// A line's width in the UI font at `size`.
+fn text_width(window: &Window, text: &str, size: f32) -> f32 {
+    let run = gpui::TextRun {
+        len: text.len(),
+        font: gpui::font(crate::ui_fonts::UI_FONT),
+        ..Default::default()
+    };
+    f32::from(
+        window
+            .text_system()
+            .shape_line(text.to_owned().into(), px(size), &[run], None)
+            .width,
+    )
+}
+
+/// A card with clear space above or below it, so a tooltip that opens at the pointer starts
+/// beyond the row's edge and leaves the row's own buttons uncovered.
+struct TooltipGap {
+    card: AnyView,
+    top: f32,
+    bottom: f32,
+}
+
+impl Render for TooltipGap {
+    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        div()
+            .pt(px(self.top))
+            .pb(px(self.bottom))
+            .child(self.card.clone())
+    }
 }
 
 /// The bubble: `fill_width` sizes it to a card, else it fits its text up to `content_width`.

@@ -22,7 +22,7 @@ use serde_json::json;
 use super::appearance::SidebarAppearance;
 use super::model::NativeSidebarSession;
 use super::tooltips::SidebarTooltipSpan;
-pub(crate) use super::tooltips::sidebar_style_tooltip;
+pub(crate) use super::tooltips::{sidebar_style_card_tooltip, sidebar_style_tooltip};
 use crate::GhostexGpuiApp;
 use crate::app::helpers::*;
 use ghostex_gx_core::{
@@ -370,11 +370,7 @@ impl GhostexGpuiApp {
         let session_id = session.session_id.clone();
         let chips = items.iter().take(shown).enumerate().map(|(index, link)| {
             let click = open_session_link_command(link);
-            let tooltip = [link.summary(), link.detail_line()]
-                .into_iter()
-                .filter(|line| !line.is_empty())
-                .collect::<Vec<_>>()
-                .join("\n");
+            let tooltip = link.hover_card_text();
             let foreground = appearance.foreground;
             session_link_chip_body(link, scale, 11.5, appearance.muted)
                 .id(format!("native-session-link-{index}-{session_id}"))

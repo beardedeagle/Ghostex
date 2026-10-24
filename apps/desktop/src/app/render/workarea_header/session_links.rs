@@ -19,7 +19,7 @@ use gpui_component::h_flex;
 use crate::app::helpers::*;
 use crate::app::native_sidebar::link_chips::{
     open_session_link_command, session_link_chip_body, session_links_overflow_pill,
-    sidebar_style_tooltip,
+    sidebar_style_card_tooltip, sidebar_style_tooltip,
 };
 use crate::*;
 use ghostex_gx_core::SessionKey;
@@ -72,6 +72,7 @@ impl GhostexGpuiApp {
                 cx,
             );
         }
+        self.want_session_links_now(&key, cx);
         self.native_sidebar.links_list_session = Some(key);
         self.set_gpui_titlebar_popup_open(
             GpuiTitlebarPopupKind::SessionLinks,
@@ -103,11 +104,7 @@ impl GhostexGpuiApp {
             .enumerate()
             .map(|(index, link)| {
                 let open = open_session_link_command(link);
-                let tooltip = [link.summary(), link.detail_line()]
-                    .into_iter()
-                    .filter(|line| !line.is_empty())
-                    .collect::<Vec<_>>()
-                    .join("\n");
+                let tooltip = link.hover_card_text();
                 h_flex()
                     .id(format!("workarea-header-session-link-{index}"))
                     .flex_shrink_0()
@@ -123,7 +120,9 @@ impl GhostexGpuiApp {
                         11.5,
                         titlebar_text_color().into(),
                     ))
-                    .tooltip(move |window, cx| sidebar_style_tooltip(tooltip.clone(), window, cx))
+                    .tooltip(move |window, cx| {
+                        sidebar_style_card_tooltip(tooltip.clone(), 0.0, 0.0, window, cx)
+                    })
                     .when_some(open, |chip, open| {
                         chip.cursor_pointer()
                             .on_click(cx.listener(move |app, _, _, cx| {
