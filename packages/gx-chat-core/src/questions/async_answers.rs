@@ -55,7 +55,12 @@ pub fn pending_async_questions(messages: &[ChatMessage]) -> Vec<PendingAsyncQues
                     key,
                 });
             }
-        } else if message.role == ChatRole::User && message.source == ChatSource::Transcript {
+        } else if message.role == ChatRole::User
+            && message.source == ChatSource::Transcript
+            // With no question waiting, a user row has nothing to answer, and its text is not
+            // read: this runs on every document, over the whole transcript.
+            && !pending.is_empty()
+        {
             let text = message
                 .blocks
                 .iter()

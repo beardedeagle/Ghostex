@@ -1,5 +1,5 @@
-//! A work-mode session card's second line: the PR, the Linear or GitHub issue and the Linear
-//! project the session is linked to, each a small chip the user can click.
+//! A work-mode session card's Clean up / Keep offer for its merged PR, on the card's second line
+//! with the PR chip. The card's links themselves show as every other card's do (link_chips.rs).
 //!
 //! SEE-ALSO: packages/gx-core/src/sidebar_view/work.rs (what the chips read),
 //! server/src/work_mode/ (where the links and their states come from),
@@ -51,8 +51,8 @@ struct Chip {
 }
 
 impl GhostexGpuiApp {
-    /// CDXC:WorkMode 2026-10-09 DECISION:
-    /// User: in work mode a session linked to a PR, issue or Linear project gets a second line of borderless chips (PR with state and checks, issue with status); hovering one underlines it and clicking it opens it; sessions with no links stay one line.
+    /// CDXC:SessionLinks 2026-10-24 DECISION:
+    /// User: "i think i we don't need a separate thing called "work mode" and instead we can just do this". A Work mode card no longer draws its own permanent line of links (CDXC:WorkMode 2026-10-09, superseded): its links follow "Session links in the sidebar" like every card's. Only the merged-PR Clean up / Keep offer still takes a second line, with the PR chip, while it waits for an answer.
     pub(super) fn render_native_session_work_chips(
         &self,
         session: &NativeSidebarSession,
@@ -61,7 +61,7 @@ impl GhostexGpuiApp {
         appearance: &SidebarAppearance,
         cx: &mut gpui::Context<Self>,
     ) -> Option<AnyElement> {
-        let work = session.work.as_ref()?;
+        let work = session.work.as_ref().filter(|work| work.offer_cleanup)?;
         let scale = appearance.scale;
         let project_id = ghostex_gx_core::SessionKey::parse_sidebar_session_id(&session.session_id)
             .filter(|key| key.machine.is_local())

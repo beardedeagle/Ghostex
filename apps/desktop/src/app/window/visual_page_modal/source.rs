@@ -1,7 +1,7 @@
 //! The page window's Refresh: while the window is open it asks the page's gxserver every few
 //! seconds whether the HTML file the page was published from changed on disk, shows a refresh
 //! button at the top right when it did, and on a click has gxserver publish the file again under
-//! the same address and reloads the page at the scroll offset it was at.
+//! the same address and reloads the page, whose script returns to the scroll offset it was at.
 //!
 //! CDXC:SessionChat 2026-10-22 DECISION:
 //! User: "when the page's file changes on disk while the window is open, show a refresh button at the top right; clicking it reloads the page (and keeps the scroll position where it can). Don't reload on its own." gxserver owns the file and the check (server/src/visual_pages/source.rs), so a remote machine's page is checked on that machine.
@@ -76,7 +76,8 @@ impl GpuiVisualPageModalWindow {
                 match refreshed {
                     Ok(_) => {
                         this.source_changed = false;
-                        this.restore_scroll.set(Some(this.scroll));
+                        // The page's script saves its scroll as it goes and puts it back once the
+                        // page has loaded again (page.rs).
                         if let Some(surface) = &this.surface {
                             surface.update(cx, |surface, _| surface.reload());
                         }

@@ -218,7 +218,18 @@ fn apply_detection(state: &mut ChatState) {
         .apply_detected(catalog.as_ref(), Some(&detected));
 }
 
-/// `persistence.write(key, state)`: one `composer('optionWrite', …)` per publish of the store.
+/// `persistence.write(key, state)`: one `composer('optionWrite', …)` per publish of the store that
+/// changed what is stored.
+///
+/// CDXC:SessionChat 2026-10-23 WHY: The store publishes on every detection fold, and gxserver
+/// republishes the options whenever the status line moves (while subagents run, Claude's footer
+/// ticks on every probe), each time with a fresh `detectedAt`, so most publishes change nothing but
+/// that stamp. Each was a durable write and one more event back into the core, every two seconds per
+/// working chat. A publish whose choices have the same value, label and source as the record last
+/// written for the key writes nothing; the store keeps the fresh stamp in memory, where the rules
+/// that read it run (the grace window after a pick in `apply_detected_choice`, the pending-change
+/// release in `OptionStore::apply_detected`). The record is read back only by
+/// `seed_option_state`, which keeps a still-pending pick and drops every detected value.
 fn persist_options(state: &mut ChatState) -> Vec<Effect> {
     let published = state.menus.options.take_published();
     // `write: (key, state) => { if (!key) return; … }`.
@@ -227,14 +238,39 @@ fn persist_options(state: &mut ChatState) -> Vec<Effect> {
     };
     let mut effects = Vec::with_capacity(published.len());
     for next in published {
+        let value = option_state_to_value(&next);
+        if state
+            .menus
+            .stored_options
+            .get(&option_key)
+            .is_some_and(|stored| {
+                without_detection_times(stored) == without_detection_times(&value)
+            })
+        {
+            continue;
+        }
         remember_option_state(&mut state.menus.stored_options, &option_key, &next);
         effects.push(Effect::WriteStorage {
             key: session_options_key(&option_key),
-            value: Some(option_state_to_value(&next).to_string()),
+            value: Some(value.to_string()),
             durable: true,
         });
     }
     effects
+}
+
+/// A stored option state with each choice's `detectedAt` left out, which is what decides whether
+/// it needs writing again.
+fn without_detection_times(state: &serde_json::Value) -> serde_json::Value {
+    let mut state = state.clone();
+    if let Some(choices) = state.as_object_mut() {
+        for choice in choices.values_mut() {
+            if let Some(fields) = choice.as_object_mut() {
+                fields.shift_remove("detectedAt");
+            }
+        }
+    }
+    state
 }
 
 /// The key of the switch card's 30 second `setInterval`.

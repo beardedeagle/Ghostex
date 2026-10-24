@@ -121,6 +121,7 @@ static BOOL GhostexGpuiCEFEventIsCommandF(NSEvent *event);
 static BOOL GhostexGpuiCEFEventIsCommandOptionF(NSEvent *event);
 static BOOL GhostexGpuiCEFEventIsCommandY(NSEvent *event);
 static BOOL GhostexGpuiCEFEventIsHistoryChord(NSEvent *event);
+static BOOL GhostexGpuiCEFEventIsBareNavigationKey(NSEvent *event);
 static GhostexGpuiCEFEditCommand
 GhostexGpuiCEFClipboardEditCommandForEvent(NSEvent *event);
 static GhostexGpuiCEFZoomCommand
@@ -588,6 +589,17 @@ GhostexGpuiEditHistoryMenuTargetShared(void) {
   if (GhostexGpuiCEFEventIsHistoryChord(event) &&
       GhostexGpuiResponderIsChromiumContent(historyWindow.firstResponder)) {
     [historyWindow.firstResponder keyDown:event];
+    return;
+  }
+
+  /*
+   CDXC:Hotkeys 2026-10-24 WHY:
+   AppKit offers an arrow, Home/End, PageUp/PageDown or Forward Delete press (macOS flags them Fn) to performKeyEquivalent: first, and the window's GPUIView, the parent of every CEF view, hands an unbound one to its own input context, which reports it handled. Chromium's keyDown never ran, and the input method committed the key's raw character (0x1C-0x1F for the arrows, 0x7F for Forward Delete) into the focused web text field as a blank character: in the page window a question form's note box got a space for every arrow instead of a moved caret. With a Chromium view as first responder these keys go straight to its keyDown, the path a key that is no key equivalent takes, so Chromium and any input method composing in the page edit as usual. The router above has already claimed any configured Ghostex hotkey; Shift, Option, Control and Command variants never reach GPUIView's input context and keep their normal path.
+   */
+  NSWindow *navigationWindow = event.window ?: NSApp.keyWindow;
+  if (GhostexGpuiCEFEventIsBareNavigationKey(event) &&
+      GhostexGpuiResponderIsChromiumContent(navigationWindow.firstResponder)) {
+    [navigationWindow.firstResponder keyDown:event];
     return;
   }
 
@@ -1791,6 +1803,37 @@ static BOOL GhostexGpuiCEFEventIsHistoryChord(NSEvent *event) {
   return
       [GhostexGpuiShortcutCharactersForEvent(event).lowercaseString
           isEqualToString:@"z"];
+}
+
+static BOOL GhostexGpuiCEFEventIsBareNavigationKey(NSEvent *event) {
+  if (!event || event.type != NSEventTypeKeyDown) {
+    return NO;
+  }
+
+  NSEventModifierFlags modifiers =
+      event.modifierFlags &
+      (NSEventModifierFlagShift | NSEventModifierFlagControl |
+       NSEventModifierFlagOption | NSEventModifierFlagCommand);
+  if (modifiers != 0) {
+    return NO;
+  }
+
+  // Arrows, Home, End, PageUp, PageDown and Forward Delete. F-keys keep the
+  // GPUI path: F5 and F12 are GPUI bindings.
+  switch (event.keyCode) {
+  case 123:
+  case 124:
+  case 125:
+  case 126:
+  case 115:
+  case 119:
+  case 116:
+  case 121:
+  case 117:
+    return YES;
+  default:
+    return NO;
+  }
 }
 
 static BOOL GhostexGpuiCEFEventIsCommandY(NSEvent *event) {

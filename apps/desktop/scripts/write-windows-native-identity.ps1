@@ -9,7 +9,8 @@ $ErrorActionPreference = "Stop"
 
 # CDXC:PlatformSupport 2026-09-14 WHY:
 # Native gxserver survives app exit. Seal its runtime identity so an updated app replaces an older control plane while preserving session hosts.
-$NativeHashes = @("gxserver.exe", "ghostex.exe", "wmx.exe") | ForEach-Object {
+# ghostex.exe is not staged: the app links it to gxserver.exe on the PC (apps/desktop/src/windows_cli_link.rs).
+$NativeHashes = @("gxserver.exe", "wmx.exe") | ForEach-Object {
     (Get-FileHash (Join-Path (Join-Path $AppDir "resources/native") $_) -Algorithm SHA256).Hash.ToLowerInvariant()
 }
 $NativeHasher = [Security.Cryptography.SHA256]::Create()

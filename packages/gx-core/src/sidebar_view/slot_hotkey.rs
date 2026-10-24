@@ -71,8 +71,7 @@ impl ProjectSlotPlan {
 ///
 /// `None` for a slot outside 1 to 9 and for a slot with no project behind it, which is what the
 /// TypeScript's two early returns are: the Nth LOCAL group of the drawn list, and only when that
-/// group is a project (a user-made group is not, and a machine's Chats collection is never in the
-/// list the slot counts at all).
+/// group is a project (a user-made group is not).
 ///
 /// The cost is one pass over the drawn groups and one over the named group's rows; nothing is
 /// built.

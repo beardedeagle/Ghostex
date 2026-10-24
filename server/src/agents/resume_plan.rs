@@ -187,13 +187,17 @@ fn build_claude_fresh_invocation(agent_command: &str, shell_reference: &str) -> 
 }
 
 /// CDXC:SessionIdentity 2026-10-17 WHY:
-/// Codex shows a thread id from launch but writes its rollout only once the first prompt arrives (codex-cli 0.163.0), so waking or switching the account of a Codex session nobody had typed into resumed a thread Codex never saved: it printed "No saved session found", Ghostex added "Unable to restore Codex session", the pane fell back to the shell and the message that woke it was lost. Such a session starts Codex fresh (Codex takes no thread id at launch); its hooks then report the new thread id. A stored rollout path that exists, or a rollout found in any Codex home, still resumes.
+/// Codex shows a thread id from launch but writes its rollout only once the first prompt arrives (codex-cli 0.163.0), so waking or switching the account of a Codex session nobody had typed into resumed a thread Codex never saved: it printed "No saved session found", Ghostex added "Unable to restore Codex session", the pane fell back to the shell and the message that woke it was lost. Such a session starts Codex fresh (Codex takes no thread id at launch); its hooks then report the new thread id. A stored rollout path that exists, or a rollout found in any Codex home, still resumes, also once Codex has compressed it to `.jsonl.zst` (Codex decompresses it on resume).
 fn codex_rollout_written(input: &AgentResumeInput, id: &str) -> bool {
     input
         .agent_session_path
         .as_deref()
         .map(crate::resume_lookup::expand_home)
-        .is_some_and(|path| path.is_file())
+        .is_some_and(|path| {
+            let mut compressed = path.clone().into_os_string();
+            compressed.push(".zst");
+            path.is_file() || std::path::Path::new(&compressed).is_file()
+        })
         || crate::agent_transcripts::find_codex_transcript(id).is_some()
 }
 

@@ -71,6 +71,15 @@ impl GpuiAppToastLevel {
         }
     }
 
+    fn key(self) -> &'static str {
+        match self {
+            Self::Info => "info",
+            Self::Success => "success",
+            Self::Warning => "warning",
+            Self::Error => "error",
+        }
+    }
+
     fn indicator_color(self) -> gpui::Rgba {
         match self {
             Self::Info => rgba(0x60a5faff),
@@ -139,10 +148,101 @@ pub(crate) struct GpuiAppToast {
     pub(crate) title: String,
     pub(crate) description: Option<String>,
     pub(crate) copy_text: Option<String>,
+    /// A button that takes the user to where the toast's problem is fixed.
+    pub(crate) action: Option<GpuiAppToastAction>,
     pub(crate) loading: bool,
     pub(crate) persistent: bool,
     pub(crate) duration_ms: u64,
     pub(crate) epoch: u64,
+}
+
+/// What a toast's action button opens. The host runs it (`run_gpui_app_toast_action`) and the
+/// toast closes.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum GpuiAppToastAction {
+    /// Settings > Accounts, on this agent's accounts (`claude`, `codex`) when one is named.
+    OpenAccounts { provider: Option<String> },
+}
+
+impl GpuiAppToastAction {
+    pub(crate) fn label(&self) -> &'static str {
+        match self {
+            Self::OpenAccounts { .. } => "Open Accounts",
+        }
+    }
+}
+
+/// How long a warning or error toast stays quiet when the same one is raised again after it
+/// closed. Measured from the last time it was raised, so a refusal repeated every few seconds
+/// stays quiet for as long as it keeps repeating.
+pub(crate) const GPUI_APP_TOAST_REPEAT_QUIET: std::time::Duration =
+    std::time::Duration::from_secs(10);
+
+thread_local! {
+    /// The toasts raised in the last `GPUI_APP_TOAST_REPEAT_QUIET`, by `gpui_app_toast_repeat_key`.
+    static RECENT_APP_TOASTS: std::cell::RefCell<Vec<(String, web_time::Instant)>> =
+        const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// What the toast says, for telling a repeat from a new toast.
+fn gpui_app_toast_repeat_key(toast: &GpuiAppToast) -> String {
+    format!(
+        "{}\u{1f}{}\u{1f}{}",
+        toast.level.key(),
+        gpui_app_toast_comparable_text(&toast.title),
+        toast
+            .description
+            .as_deref()
+            .map(gpui_app_toast_comparable_text)
+            .unwrap_or_default(),
+    )
+}
+
+/// CDXC:AppModal 2026-10-24 DECISION:
+/// User: "i see this error appear a lot of times (should appear once, our errors in the app shouldn't keep spamming toasts like this)". A toast that says the same thing as one already on screen (same level, title and description) does not stack a second card: it takes the shown toast's place and restarts its timer. A warning or error raised again within `GPUI_APP_TOAST_REPEAT_QUIET` of the last time it was raised, after it closed or was dismissed, is not shown again. Toasts that update themselves by id (progress, Committing… then Committed) are unaffected. The desktop's toast window and the GPUI web build's toast overlay both pass every toast through here.
+/// SEE-ALSO: apps/desktop/src/app/modals/modal_messages_and_toasts.rs and apps/gpui-web/src/app/web_host/toasts.rs (`upsert_gpui_app_toast`).
+///
+/// The toast to show, with the id of the shown toast it repeats, or `None` when it stays quiet.
+pub(crate) fn gpui_app_toast_without_repeats(
+    shown: &[GpuiAppToast],
+    toast: GpuiAppToast,
+) -> Option<GpuiAppToast> {
+    RECENT_APP_TOASTS.with(|recent| {
+        gpui_app_toast_without_repeats_at(
+            &mut recent.borrow_mut(),
+            shown,
+            toast,
+            web_time::Instant::now(),
+        )
+    })
+}
+
+pub(crate) fn gpui_app_toast_without_repeats_at(
+    recent: &mut Vec<(String, web_time::Instant)>,
+    shown: &[GpuiAppToast],
+    mut toast: GpuiAppToast,
+    now: web_time::Instant,
+) -> Option<GpuiAppToast> {
+    if toast.in_progress() || shown.iter().any(|existing| existing.id == toast.id) {
+        return Some(toast);
+    }
+    recent.retain(|(_, at)| now.saturating_duration_since(*at) < GPUI_APP_TOAST_REPEAT_QUIET);
+    let key = gpui_app_toast_repeat_key(&toast);
+    let raised_recently = recent.iter().any(|(recent_key, _)| *recent_key == key);
+    recent.retain(|(recent_key, _)| *recent_key != key);
+    recent.push((key.clone(), now));
+    if let Some(existing) = shown
+        .iter()
+        .find(|existing| !existing.in_progress() && gpui_app_toast_repeat_key(existing) == key)
+    {
+        toast.id = existing.id.clone();
+        return Some(toast);
+    }
+    let quiet_level = matches!(
+        toast.level,
+        GpuiAppToastLevel::Warning | GpuiAppToastLevel::Error
+    );
+    (!(quiet_level && raised_recently)).then_some(toast)
 }
 
 impl GpuiAppToast {
@@ -203,6 +303,7 @@ pub(crate) fn gpui_app_toast_from_bridge_message(
         .unwrap_or(GPUI_APP_TOAST_DEFAULT_DURATION_MS);
     Some(GpuiAppToast {
         copy_text: None,
+        action: None,
         id: message
             .get("toastId")
             .and_then(serde_json::Value::as_str)
@@ -254,7 +355,11 @@ pub(crate) fn gpui_app_toast_estimated_height(toast: &GpuiAppToast) -> f32 {
     GPUI_APP_TOAST_VERTICAL_PADDING * 2.0
         + title_height
         + description_height
-        + if toast.copy_text.is_some() { 34.0 } else { 0.0 }
+        + if toast.copy_text.is_some() || toast.action.is_some() {
+            34.0
+        } else {
+            0.0
+        }
 }
 
 pub(crate) fn gpui_app_toast_stack_height(toasts: &[GpuiAppToast]) -> f32 {
@@ -431,6 +536,47 @@ impl GpuiAppToastWindow {
                     .size_full(),
                 )
             })
+            .into_any_element()
+    }
+}
+
+impl GpuiAppToastWindow {
+    /// The toast's action button (Open Accounts): runs the action in the app and closes the toast.
+    fn render_action_button(
+        &self,
+        toast_id: String,
+        action: GpuiAppToastAction,
+        ink: Hsla,
+    ) -> AnyElement {
+        let app = self.app.clone();
+        let label = action.label();
+        div()
+            .id(format!("toast-action-{toast_id}"))
+            .mt(px(6.0))
+            .h(px(26.0))
+            .px(px(8.0))
+            .flex()
+            .items_center()
+            .rounded(px(4.0))
+            .border_1()
+            .border_color(ink.opacity(0.25))
+            .text_size(px(12.0))
+            .text_color(ink)
+            .cursor_pointer()
+            .hover(move |button| button.bg(ink.opacity(0.094)))
+            .on_click(move |_, _, cx| {
+                cx.stop_propagation();
+                let app = app.clone();
+                let toast_id = toast_id.clone();
+                let action = action.clone();
+                cx.defer(move |cx| {
+                    let _ = app.update(cx, |app, cx| {
+                        app.remove_gpui_app_toast(&toast_id, cx);
+                        app.run_gpui_app_toast_action(&action, cx);
+                    });
+                });
+            })
+            .child(label)
             .into_any_element()
     }
 }
@@ -644,7 +790,14 @@ impl Render for GpuiAppToastWindow {
                                                             .child("Copy diagnostics"),
                                                     )
                                                 },
-                                            ),
+                                            )
+                                            .when_some(toast.action.clone(), |column, action| {
+                                                column.child(self.render_action_button(
+                                                    toast.id.clone(),
+                                                    action,
+                                                    colors.title,
+                                                ))
+                                            }),
                                     ),
                             ),
                     )
@@ -677,5 +830,119 @@ impl Render for GpuiAppToastWindow {
                     .size_0(),
                 )
             })
+    }
+}
+
+#[cfg(test)]
+mod repeat_tests {
+    use super::*;
+
+    fn toast(id: &str, level: GpuiAppToastLevel, title: &str, description: &str) -> GpuiAppToast {
+        GpuiAppToast {
+            id: id.to_string(),
+            level,
+            title: title.to_string(),
+            description: Some(description.to_string()),
+            copy_text: None,
+            action: None,
+            loading: false,
+            persistent: false,
+            duration_ms: GPUI_APP_TOAST_DEFAULT_DURATION_MS,
+            epoch: 0,
+        }
+    }
+
+    const TITLE: &str = "Account unavailable";
+    const TEXT: &str = "“Fix login” (Claude) is on Claude account 3 (Work), which was removed from Ghostex.";
+
+    #[test]
+    fn the_same_warning_raised_while_shown_takes_the_shown_card() {
+        let mut recent = Vec::new();
+        let start = web_time::Instant::now();
+        let first = gpui_app_toast_without_repeats_at(
+            &mut recent,
+            &[],
+            toast("a", GpuiAppToastLevel::Warning, TITLE, TEXT),
+            start,
+        )
+        .expect("the first one shows");
+        let shown = vec![first];
+        let repeat = gpui_app_toast_without_repeats_at(
+            &mut recent,
+            &shown,
+            toast("b", GpuiAppToastLevel::Warning, TITLE, &format!("  {TEXT} ")),
+            start + std::time::Duration::from_secs(2),
+        )
+        .expect("a repeat refreshes the card");
+        assert_eq!(repeat.id, "a", "it replaces the shown toast instead of stacking");
+    }
+
+    #[test]
+    fn a_warning_repeated_after_it_closed_stays_quiet_until_it_stops_repeating() {
+        let mut recent = Vec::new();
+        let start = web_time::Instant::now();
+        let at = |seconds| start + std::time::Duration::from_secs(seconds);
+        let raise = |recent: &mut Vec<_>, id: &str, seconds| {
+            gpui_app_toast_without_repeats_at(
+                recent,
+                &[],
+                toast(id, GpuiAppToastLevel::Warning, TITLE, TEXT),
+                at(seconds),
+            )
+        };
+        assert!(raise(&mut recent, "a", 0).is_some());
+        // Dismissed; the same refusal every 3 seconds stays quiet for as long as it repeats.
+        for (index, seconds) in [3, 6, 9, 12, 15, 18].into_iter().enumerate() {
+            assert!(
+                raise(&mut recent, &format!("r{index}"), seconds).is_none(),
+                "repeat at {seconds}s"
+            );
+        }
+        // Raised again long after the last repeat: the user sees it once more.
+        assert!(raise(&mut recent, "later", 60).is_some());
+        // A different message is never held back.
+        assert!(
+            gpui_app_toast_without_repeats_at(
+                &mut recent,
+                &[],
+                toast("other", GpuiAppToastLevel::Warning, TITLE, "Something else."),
+                at(61),
+            )
+            .is_some()
+        );
+    }
+
+    #[test]
+    fn info_and_progress_toasts_are_not_held_back() {
+        let mut recent = Vec::new();
+        let start = web_time::Instant::now();
+        let copied = || toast("c", GpuiAppToastLevel::Success, "Copied", "");
+        assert!(gpui_app_toast_without_repeats_at(&mut recent, &[], copied(), start).is_some());
+        assert!(
+            gpui_app_toast_without_repeats_at(
+                &mut recent,
+                &[],
+                GpuiAppToast {
+                    id: "c2".to_string(),
+                    ..copied()
+                },
+                start + std::time::Duration::from_secs(1),
+            )
+            .is_some()
+        );
+        let mut progress = toast("p", GpuiAppToastLevel::Info, "Committing", "");
+        progress.persistent = true;
+        let shown = vec![progress.clone()];
+        let again = gpui_app_toast_without_repeats_at(
+            &mut recent,
+            &shown,
+            GpuiAppToast {
+                id: "p2".to_string(),
+                ..progress
+            },
+            start,
+        )
+        .expect("progress toasts update by their own id");
+        assert_eq!(again.id, "p2");
     }
 }

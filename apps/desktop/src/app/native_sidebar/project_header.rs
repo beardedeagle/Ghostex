@@ -59,6 +59,13 @@ impl GhostexGpuiApp {
             .and_then(super::images::sidebar_image);
         // Set only on a bot's row, which draws a gateway dot instead of git stats and counts.
         let bot_gateway_running = group.bot_gateway_running();
+        // CDXC:Icons 2026-10-24 DECISION:
+        // User chose "Keep the folder": a user-made session group's header draws a folder instead of its title's first letter, which made "Group 6" and a project named "g…" look alike. The letter tile (CDXC:Icons 2026-09-24 below) stays for projects only.
+        let folder_icon = group.owner_group_id.is_some();
+        // A collapsed project draws as active when the focused session is in it, its session
+        // groups included, which fold away with it.
+        let collapsed_active =
+            group.collapsed && (group.is_active || group.holds_active_session_group);
         let dragged = SidebarDrag {
             kind: "group",
             preview: super::drag::SidebarDragPreview::Row(super::row_drag::RowDragPreview {
@@ -127,7 +134,8 @@ impl GhostexGpuiApp {
                 })
                 .into_any_element()
         };
-        let actions = (*group.header_actions).clone();
+        // Borrowed, not copied: the buttons are drawn only while the header is hovered.
+        let actions = &group.header_actions;
         // Where this header (or its pinned copy) was painted: its menus hang below it (menus.rs).
         let header_bounds = Rc::new(Cell::new(None::<gpui::Bounds<gpui::Pixels>>));
         // CDXC:Projects 2026-09-18 DECISION:
@@ -170,6 +178,12 @@ impl GhostexGpuiApp {
                 hud["settings"]["showProjectIcons"].as_bool() != Some(false),
                 |row| {
                     row.child(match icon_image {
+                        _ if folder_icon => gpui::svg()
+                            .path("titlebar/folder.svg")
+                            .size(px(16.0 * scale))
+                            .flex_shrink_0()
+                            .text_color(appearance.muted)
+                            .into_any_element(),
                         _ if bot_gateway_running.is_some() => letter_tile(
                             &group.title,
                             super::bots::hermes_color(),
@@ -180,7 +194,7 @@ impl GhostexGpuiApp {
                             .size(px(16.0 * scale))
                             .flex_shrink_0()
                             .into_any_element(),
-                        // CDXC:Icons 2026-09-24 DECISION: User: when a project has no favicon, show a square with the first letter of its name instead of the folder icon.
+                        // CDXC:Icons 2026-09-24 DECISION: User: when a project has no favicon, show a square with the first letter of its name instead of the folder icon. Projects only: since 2026-10-24 a session group's header keeps the folder (CDXC:Icons 2026-10-24 above).
                         None => letter_tile(
                             &group.title,
                             appearance.muted.opacity(0.12),
@@ -190,9 +204,12 @@ impl GhostexGpuiApp {
                     })
                 },
             )
-            .when(group.collapsed && group.is_active, |row| {
+            .when(collapsed_active, |row| {
                 row.bg(appearance.selected)
                     .child(super::decorations::selected_outline(appearance))
+            })
+            .when(self.native_sidebar_group_drop_target(&id), |row| {
+                super::sections::section_drop_highlight(row, scale)
             })
             .child(title)
             .when_some(bot_gateway_running, |row, running| {
@@ -216,7 +233,7 @@ impl GhostexGpuiApp {
                                 gpui_component::Root::hide_tooltip(window, cx);
                             }
                         })
-                        .children(actions.into_iter().enumerate().map(|(index, item)| {
+                        .children(actions.iter().enumerate().map(|(index, item)| {
                             let label = item["label"].as_str().unwrap_or("").to_owned();
                             let command = item.get("command").cloned();
                             let children = item.get("children").cloned();

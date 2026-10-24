@@ -63,22 +63,25 @@ fn sort_rank(message: &ChatMessage) -> u8 {
 /// in it, so the id decides, which is what this reproduces.
 pub fn order_messages(messages: &[ChatMessage]) -> Vec<ChatMessage> {
     let mut ordered = messages.to_vec();
-    ordered.sort_by(|left, right| {
-        sort_rank(left)
-            .cmp(&sort_rank(right))
-            .then_with(|| match (left.timestamp, right.timestamp) {
-                (Some(a), Some(b)) => a.cmp(&b),
-                (None, Some(_)) => std::cmp::Ordering::Less,
-                (Some(_), None) => std::cmp::Ordering::Greater,
-                (None, None) => std::cmp::Ordering::Equal,
-            })
-            .then_with(|| match (left.byte_offset, right.byte_offset) {
-                (Some(a), Some(b)) => a.cmp(&b),
-                _ => std::cmp::Ordering::Equal,
-            })
-            .then_with(|| left.id.cmp(&right.id))
-    });
+    ordered.sort_by(order_cmp);
     ordered
+}
+
+/// The order [`order_messages`] sorts by.
+pub fn order_cmp(left: &ChatMessage, right: &ChatMessage) -> std::cmp::Ordering {
+    order_key(left)
+        .cmp(&order_key(right))
+        .then_with(|| match (left.byte_offset, right.byte_offset) {
+            (Some(a), Some(b)) => a.cmp(&b),
+            _ => std::cmp::Ordering::Equal,
+        })
+        .then_with(|| left.id.cmp(&right.id))
+}
+
+/// The leading part of [`order_cmp`]: the rank, then the time, a row without one first. Rows that
+/// differ here are ordered by it alone, whatever their offsets and ids.
+pub fn order_key(message: &ChatMessage) -> (u8, Option<i64>) {
+    (sort_rank(message), message.timestamp)
 }
 
 /// Family a, `mergeSessionChatMessagesWith`, in the one shape family b uses it: an id already in

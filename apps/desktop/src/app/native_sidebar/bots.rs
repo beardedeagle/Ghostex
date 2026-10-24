@@ -18,6 +18,7 @@ use serde_json::json;
 
 use super::appearance::SidebarAppearance;
 use super::model::NativeSidebarGroup;
+use super::navigation::SIDEBAR_TOP_ROW_BUTTON_MIN_WIDTH;
 use crate::GhostexGpuiApp;
 use crate::app::helpers::*;
 
@@ -106,6 +107,8 @@ impl GhostexGpuiApp {
         .when(cfg!(target_os = "windows"), |button| button.occlude())
         .h(px(28.0 * scale))
         .w(px(BOTS_TOGGLE_WIDTH * scale))
+        .flex_shrink(1.0)
+        .min_w(px(SIDEBAR_TOP_ROW_BUTTON_MIN_WIDTH * scale))
         .rounded(px(5.0 * scale))
         .cursor_default()
         .when(bots_mode, |button| button.bg(appearance.selected))

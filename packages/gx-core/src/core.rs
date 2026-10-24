@@ -200,6 +200,9 @@ pub enum Effect {
         report: crate::attention::AgentActivityReport,
         agent_name: Option<String>,
     },
+    /// The user saw an orchestrator with threads that may have finished unseen: ask its machine
+    /// (`/api/acknowledgeCoordinatorThreads`) to mark their finished turns seen.
+    AcknowledgeCoordinatorThreads { session: SessionKey },
     /// A live delta moved a session of this computer into unacknowledged attention: play the
     /// completion sound unless the user turned it off.
     SessionAttentionRaised { session: SessionKey },
@@ -283,15 +286,9 @@ impl Core {
     }
 
     /// The workspace tabs of the active group. `NotLoaded` until the owning machine's first
-    /// snapshot arrived and while no group is active; never `Missing` after an event was handled,
-    /// because focus is re-homed when its project goes away.
-    ///
-    /// `Loaded(vec![])` is a real answer in two cases: a project that has no listed sessions, and
-    /// the Chats collection of a machine with no chat sessions, which is where focus is re-homed
-    /// when no code project exists (`active_project` is then `None`). A host must never reconcile
-    /// a PROJECT's tabs from the Chats list: check `focus().active_group` and `active_project`
-    /// first, and treat "Chats with no active project" as "no project workspace", not as "this
-    /// project has no sessions".
+    /// snapshot arrived and while no group is active (no local project exists); never `Missing`
+    /// after an event was handled, because focus is re-homed when its project goes away.
+    /// `Loaded(vec![])` is a project that has no listed sessions.
     pub fn active_tab_sessions(&self) -> Loadable<Vec<TabSession>> {
         match &self.focus.active_group {
             Some(group) => self.presentation.tab_sessions(group),
@@ -390,6 +387,13 @@ impl Core {
             Event::Tick => output.changes = self.presentation.expire_patches(now_ms),
         }
         self.settle_after_change(&mut output);
+        crate::attention::acknowledge_threads_of_focused_coordinator(
+            &self.attention,
+            &self.presentation,
+            self.focus.focused_session.as_ref(),
+            &output.changes,
+            &mut output.effects,
+        );
         self.attention.observe(
             &self.presentation,
             &output.changes,
@@ -625,9 +629,7 @@ impl Core {
                     output.changes = ChangeSummary::ignored(IgnoredReason::UnknownTarget);
                     return;
                 }
-                let focus = self
-                    .focus
-                    .focus_project(&self.presentation, project, now_ms);
+                let focus = self.focus.focus_project(project, now_ms);
                 self.note_focus(focus, output);
             }
             Intent::FocusSubgroup { project, group_id } => {
@@ -636,9 +638,7 @@ impl Core {
                     output.changes = ChangeSummary::ignored(IgnoredReason::UnknownTarget);
                     return;
                 }
-                let focus =
-                    self.focus
-                        .focus_subgroup(&self.presentation, project, group_id, now_ms);
+                let focus = self.focus.focus_subgroup(project, group_id, now_ms);
                 self.note_focus(focus, output);
             }
             Intent::SetSideState { machine, update } => {

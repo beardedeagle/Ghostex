@@ -1,15 +1,18 @@
-//! Open and close plumbing for the floating window a chat page card opens.
-//! SEE-ALSO: apps/desktop/src/app/window/visual_page_modal.rs (the window entity), apps/desktop/src/app/native_app_modal_lifecycle.rs (the shared window path), apps/desktop/src/app/cef_deferred_startup.rs (an open that waits for the web runtime).
+//! Where a chat page card opens its page (Settings > Chat > Open chat pages in), and the open and
+//! close plumbing for the floating window, the default.
+//! SEE-ALSO: apps/desktop/src/app/window/visual_page_modal.rs (the window entity), apps/desktop/src/app/native_docs/published_page.rs (the page in the Files view), apps/desktop/src/app/native_app_modal_lifecycle.rs (the shared window path), apps/desktop/src/app/cef_deferred_startup.rs (an open that waits for the web runtime).
+use crate::app::helpers::web_runtime::web_runtime_available;
 use crate::app::helpers::*;
 use crate::app::window::*;
 use crate::web_bridge_types::AppModalHostBridgeEvent;
 use crate::*;
 
 impl GhostexGpuiApp {
-    /// A chat page card's Open for the session `session_id`. A page a remote machine's session
-    /// published lives on that machine's gxserver, so its address is resolved for the machine
-    /// (`gpui_remote_machine_url`) before the window opens; the open message then carries the
-    /// machine (`remoteMachineId`, `remoteProjectId`) for the window's picture and its links.
+    /// A chat page card's Open for the session `session_id`, where Settings > Chat > Open chat
+    /// pages in says (`ChatPageOpenTarget`). A page a remote machine's session published lives on
+    /// that machine's gxserver, so its address is resolved for the machine
+    /// (`gpui_remote_machine_url`) first; the open message then carries the machine
+    /// (`remoteMachineId`, `remoteProjectId`) for the window's picture and its links.
     pub(crate) fn open_session_chat_visual_page(
         &mut self,
         session_id: TerminalSessionId,
@@ -17,21 +20,14 @@ impl GhostexGpuiApp {
         window: &mut Window,
         cx: &mut gpui::Context<Self>,
     ) {
-        // The chat whose card this is shows the page's pictures (`chatSessionId`).
-        let mut message = message.clone();
-        message["chatSessionId"] = session_id.0.into();
-        let message = &message;
-        let open = |app: &mut Self, message: &serde_json::Value, window: &mut Window, cx| {
-            app.receive_app_modal_host_bridge_event(
-                AppModalHostBridgeEvent::Message(message.to_string()),
-                window,
-                cx,
-            );
-        };
+        let target = ChatPageOpenTarget::from_settings();
+        if target == ChatPageOpenTarget::Popup {
+            visual_page_modal::open_timing::start(cef::context_initialized());
+        }
         let Some(remote_project) = self
             .remote_project_for_terminal_target(GpuiEngineTerminalEventTarget::Agents(session_id))
         else {
-            open(self, message, window, cx);
+            self.open_resolved_visual_page(target, session_id, message, window, cx);
             return;
         };
         let url = message["url"]
@@ -39,7 +35,7 @@ impl GhostexGpuiApp {
             .unwrap_or_default()
             .trim()
             .to_string();
-        let Some(target) =
+        let Some(request_target) =
             self.gpui_remote_gxserver_request_target(&remote_project.remote_machine_id)
         else {
             let machine = gpui_remote_machine_name_from_settings(&remote_project.remote_machine_id)
@@ -52,24 +48,146 @@ impl GhostexGpuiApp {
             );
             return;
         };
-        match gpui_remote_machine_url(&url, &target) {
+        match gpui_remote_machine_url(&url, &request_target) {
             GpuiRemoteMachineUrl::Gxserver(url) => {
                 let mut message = message.clone();
                 message["url"] = url.into();
                 message["remoteMachineId"] = remote_project.remote_machine_id.into();
                 message["remoteProjectId"] = remote_project.project_id.into();
-                open(self, &message, window, cx);
+                self.open_resolved_visual_page(target, session_id, &message, window, cx);
             }
             GpuiRemoteMachineUrl::MachineLoopback => {
                 self.open_remote_machine_loopback_link(&url, remote_project, cx);
             }
-            GpuiRemoteMachineUrl::AsWritten => open(self, message, window, cx),
+            GpuiRemoteMachineUrl::AsWritten => {
+                self.open_resolved_visual_page(target, session_id, message, window, cx)
+            }
         }
     }
 
+    /// Opens a page card's page, its address already resolved for this computer, in `target`.
+    ///
+    /// CDXC:SessionChat 2026-10-24 DECISION:
+    /// User: "Add a setting with 3 options for opening inline htmls (popup, embedded files, system browser)". Settings > Chat > Open chat pages in (`chatPageOpenTarget`) sends a page card's click to the floating page window (Popup, the default and the behaviour before), a page document in the Files view (Files, native_docs/published_page.rs) or the computer's default browser (System browser). Every mode reacts to the click at once, and a page's answers come back to the chat that published it in all three, because the page itself posts them to gxserver. A card the agent marked to open in the browser (`ghostex show --browser`) keeps opening there; the phone keeps its own page viewer.
+    fn open_resolved_visual_page(
+        &mut self,
+        target: ChatPageOpenTarget,
+        session_id: TerminalSessionId,
+        message: &serde_json::Value,
+        window: &mut Window,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        let text = |key: &str| {
+            message
+                .get(key)
+                .and_then(serde_json::Value::as_str)
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(str::to_string)
+        };
+        let remote_project =
+            text("remoteMachineId").map(|remote_machine_id| GpuiRemoteProjectReference {
+                remote_machine_id,
+                project_id: text("remoteProjectId").unwrap_or_default(),
+            });
+        match target {
+            ChatPageOpenTarget::Popup => self.receive_app_modal_host_bridge_event(
+                AppModalHostBridgeEvent::Message(message.to_string()),
+                window,
+                cx,
+            ),
+            ChatPageOpenTarget::SystemBrowser => {
+                let light = self.gpui_native_modal_palette().light;
+                let opened = text("url")
+                    .and_then(|url| visual_page_reader_url(&url, light))
+                    .ok_or_else(|| "The page's address is not valid.".to_string())
+                    .and_then(|url| gpui_open_external_http_url(&url));
+                if let Err(error) = opened {
+                    self.dispatch_gpui_app_modal_toast(
+                        "warning",
+                        "The page could not be opened in your browser",
+                        &error,
+                        cx,
+                    );
+                }
+            }
+            ChatPageOpenTarget::Files => {
+                let Some(url) = text("url")
+                    .filter(|url| crate::app::window::visual_page_modal::page_id(url).is_some())
+                else {
+                    // Only a page gxserver serves has an id to open in Files.
+                    return self.open_resolved_visual_page(
+                        ChatPageOpenTarget::Popup,
+                        session_id,
+                        message,
+                        window,
+                        cx,
+                    );
+                };
+                if gpui_titlebar_mode_hidden_from_settings(TitlebarMode::Manage)
+                    || !self.titlebar_mode_available(TitlebarMode::Manage)
+                {
+                    self.dispatch_gpui_app_modal_toast(
+                        "warning",
+                        "The Files view is turned off",
+                        "Turn the Files view on, or pick another place under Settings > Chat > Open chat pages in.",
+                        cx,
+                    );
+                    return;
+                }
+                self.switch_workarea_from_hotkey(TitlebarMode::Manage, window, cx);
+                self.mark_project_editor_mode_awake(TitlebarMode::Manage, cx);
+                self.focus_project_editor_surface(TitlebarMode::Manage, window, cx);
+                self.native_docs_open_page(
+                    crate::app::native_docs::published_page::DocsPendingPage {
+                        source: crate::app::native_docs::published_page::DocsPageSource {
+                            url,
+                            remote_project,
+                        },
+                        title: text("title").unwrap_or_else(|| "Page".to_string()),
+                        origin: Some(session_id),
+                    },
+                    cx,
+                );
+                if !cef::context_initialized() && web_runtime_available() {
+                    self.request_cef_runtime(cx);
+                }
+            }
+        }
+    }
+
+    /// A link a published page opened, shown outside the floating window (the Files view): it
+    /// goes to the reader's browser, unless it names the page's machine's own localhost, which only
+    /// the Browser on that machine's network reaches.
+    pub(crate) fn open_visual_page_link(
+        &mut self,
+        url: String,
+        remote_project: Option<GpuiRemoteProjectReference>,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        let target = remote_project.as_ref().and_then(|remote_project| {
+            self.gpui_remote_gxserver_request_target(&remote_project.remote_machine_id)
+        });
+        let url = match (remote_project, target) {
+            (Some(remote_project), Some(target)) => match gpui_remote_machine_url(&url, &target) {
+                GpuiRemoteMachineUrl::Gxserver(url) => url,
+                GpuiRemoteMachineUrl::MachineLoopback => {
+                    self.open_remote_machine_loopback_link(&url, remote_project, cx);
+                    return;
+                }
+                GpuiRemoteMachineUrl::AsWritten => url,
+            },
+            (Some(_), None) if gpui_remote_link_is_loopback(&url) => return,
+            _ => url,
+        };
+        let _ = gpui_open_external_http_url(&url);
+    }
+
     /// Opens the floating window for the `visualPage` open message the chat's page card sends
-    /// (`url`, `title`, and the published file's name as `file`). The page needs the web runtime:
-    /// until it runs, the open is held (and the install prompt shown when it is not installed).
+    /// (`url`, `title`, and the published file's name as `file`). The window opens at once; its
+    /// page needs the web runtime, so when the runtime is installed but not running yet it is
+    /// started and the page created once it is up (`sync_visual_page_modal_with_web_runtime`).
+    /// When it is not installed the open is held behind the install prompt instead.
     pub(crate) fn open_gpui_visual_page_modal(
         &mut self,
         message: &serde_json::Value,
@@ -89,7 +207,9 @@ impl GhostexGpuiApp {
         }) else {
             return;
         };
-        if !cef::context_initialized() {
+        let web_runtime_ready = cef::context_initialized();
+        if !web_runtime_ready && !web_runtime_available() {
+            visual_page_modal::open_timing::finish("webRuntimeNotInstalled");
             self.defer_gpui_app_modal_open_for_cef(
                 GpuiAppModalKind::VisualPage,
                 message.clone(),
@@ -110,17 +230,13 @@ impl GhostexGpuiApp {
         let remote = remote_project.as_ref().and_then(|remote_project| {
             self.gpui_remote_gxserver_request_target(&remote_project.remote_machine_id)
         });
-        let chat = message
-            .get("chatSessionId")
-            .and_then(serde_json::Value::as_u64)
-            .and_then(|session_id| self.native_chat_views.get(&TerminalSessionId(session_id)))
-            .map(|chat| chat.downgrade());
         let palette = self.gpui_native_modal_palette();
         let host = self.native_app_modal_host(cx, move |app, command, cx| {
             app.handle_gpui_visual_page_modal_command(command, remote_project.clone(), cx);
         });
         let kind = GpuiAppModalKind::VisualPage;
         let (width, height) = self.chat_preview_modal_size(cx);
+        let open_message = message.clone();
         self.open_native_app_modal(
             kind,
             width,
@@ -128,12 +244,44 @@ impl GhostexGpuiApp {
             move |window, cx| {
                 cx.new(|cx| {
                     GpuiVisualPageModalWindow::new(
-                        url, title, detail, palette, host, remote, chat, window, cx,
+                        url,
+                        title,
+                        detail,
+                        open_message,
+                        palette,
+                        host,
+                        remote,
+                        web_runtime_ready,
+                        window,
+                        cx,
                     )
                 })
             },
             cx,
         );
+        visual_page_modal::open_timing::mark("windowOpened");
+        if !web_runtime_ready {
+            self.request_cef_runtime(cx);
+        }
+    }
+
+    /// The web runtime changed (`refresh_web_runtime_views`): a page window opened before it was
+    /// up gets its page now, or says why it failed. A runtime that turned out not to be installed
+    /// closes the window for the install prompt, which opens the page once it is installed.
+    pub(crate) fn sync_visual_page_modal_with_web_runtime(&mut self, cx: &mut gpui::Context<Self>) {
+        let reopen = self
+            .update_native_app_modal(
+                GpuiAppModalKind::VisualPage,
+                cx,
+                |modal: &mut GpuiVisualPageModalWindow, window, cx| {
+                    modal.web_runtime_changed(window, cx)
+                },
+            )
+            .flatten();
+        if let Some(message) = reopen {
+            self.close_native_app_modal_from_bridge(cx);
+            self.defer_gpui_app_modal_open_for_cef(GpuiAppModalKind::VisualPage, message, cx);
+        }
     }
 
     /// `remote_project` is the machine whose session published the open page, `None` for this
@@ -191,4 +339,53 @@ impl GhostexGpuiApp {
         };
         let _ = gpui_open_external_http_url(&url);
     }
+}
+
+/// Where a chat page card opens its page: Settings > Chat > Open chat pages in
+/// (`chatPageOpenTarget`, the options in packages/settings-catalog `CHAT_PAGE_OPEN_TARGET_OPTIONS`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ChatPageOpenTarget {
+    /// The floating page window over the chat.
+    Popup,
+    /// A page document in the Files view.
+    Files,
+    /// The computer's default browser.
+    SystemBrowser,
+}
+
+impl ChatPageOpenTarget {
+    fn from_settings() -> Self {
+        match shared_settings::shared_sidebar_settings_snapshot()
+            .object()
+            .get("chatPageOpenTarget")
+            .and_then(serde_json::Value::as_str)
+        {
+            Some("files") => Self::Files,
+            Some("system-browser") => Self::SystemBrowser,
+            _ => Self::Popup,
+        }
+    }
+}
+
+/// A page's address for a reader that loads it by itself (the Files view, the reader's browser):
+/// asking gxserver for the floating window's page script (`?gx-page-script=1`,
+/// server/src/visual_pages/serve.rs) and carrying the app's theme (`#gx-theme=`), which the page
+/// reads before its first paint as it does in the floating window.
+pub(crate) fn visual_page_reader_url(url: &str, light: bool) -> Option<String> {
+    let mut url = gpui::http_client::Url::parse(url.trim()).ok()?;
+    if !matches!(url.scheme(), "http" | "https") {
+        return None;
+    }
+    if !url
+        .query_pairs()
+        .any(|(key, value)| key == "gx-page-script" && value == "1")
+    {
+        url.query_pairs_mut().append_pair("gx-page-script", "1");
+    }
+    url.set_fragment(Some(if light {
+        "gx-theme=light"
+    } else {
+        "gx-theme=dark"
+    }));
+    Some(url.into())
 }

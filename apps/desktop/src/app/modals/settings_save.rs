@@ -1,11 +1,44 @@
 //! The shared-settings save fan-out: Ghostty config, gxserver agent settings, sidebar state messages and live terminal config reloads.
 
+use std::cell::RefCell;
 use std::time::SystemTime;
+
+use serde_json::{Map, Value};
 
 use crate::app::helpers::*;
 use crate::app::hotkeys::*;
 use crate::app::model::*;
 use crate::*;
+
+/// Settings keys only the Settings window reads back: where it reopens, which
+/// window/settings_modal/store.rs saves as the reader scrolls and changes pages.
+const SETTINGS_WINDOW_MEMORY_KEYS: &[&str] = &["settingsModalNavigation"];
+
+thread_local! {
+    /// The settings the last consumer refresh was given; process-wide, like the settings.
+    static LAST_REFRESHED_SETTINGS: RefCell<Option<shared_settings::SharedSidebarSettingsSnapshot>> =
+        const { RefCell::new(None) };
+}
+
+/// Whether `next` differs from `previous` in the Settings window's own memory and in nothing else.
+/// An identical save is not one: a caller may save unchanged settings to have the refresh re-read
+/// something kept outside them (the terminal config an import just wrote).
+fn only_settings_window_memory_changed(
+    previous: &Map<String, Value>,
+    next: &Map<String, Value>,
+) -> bool {
+    let memory = |key: &String| SETTINGS_WINDOW_MEMORY_KEYS.contains(&key.as_str());
+    let rest_unchanged = next
+        .iter()
+        .all(|(key, value)| memory(key) || previous.get(key) == Some(value))
+        && previous
+            .keys()
+            .all(|key| memory(key) || next.contains_key(key));
+    rest_unchanged
+        && SETTINGS_WINDOW_MEMORY_KEYS
+            .iter()
+            .any(|key| previous.get(*key) != next.get(*key))
+}
 
 impl GhostexGpuiApp {
     pub(crate) fn sync_gpui_ghostty_config_file_after_settings_save(
@@ -121,18 +154,6 @@ impl GhostexGpuiApp {
         ))
     }
 
-    pub(crate) fn gpui_app_modal_sidebar_state_message_from_settings_snapshot(
-        &self,
-        settings_snapshot: &shared_settings::SharedSidebarSettingsSnapshot,
-    ) -> serde_json::Value {
-        self.with_gpui_command_pane_sidebar_indicators(
-            gpui_app_modal_sidebar_state_message_from_settings_snapshot(
-                settings_snapshot,
-                self.latest_sidebar_project_snapshot.as_ref(),
-            ),
-        )
-    }
-
     pub(crate) fn with_gpui_command_pane_sidebar_indicators(
         &self,
         mut message: serde_json::Value,
@@ -211,6 +232,21 @@ impl GhostexGpuiApp {
         CDXC:Settings 2026-06-24-11:19:
         After a successful Settings save or gxserver startup/open canonical sync, GPUI refreshes only the settings-dependent runtime state it owns today: app-modal hydrate/sidebarState, sidebar debug/beta booleans through the existing CEF runtime-settings path, project-workarea CEF visibility, project-editor auto-sleep scheduling, supported embedded Ghostty request-map settings, gxserver-owned agent-policy reconciliation, and central-service render reads such as the Browser feedback/profile toolbar controls. This is not full settings fan-out; many action bridges, code-server sync, live Ghostty config reloads, and broad future side effects remain outside this path.
         */
+        /*
+        CDXC:Settings 2026-10-23 WHY:
+        The Settings window saves where it is scrolled to (`settingsModalNavigation`) a moment after every scroll, so that it reopens there across restarts (CDXC:Settings 2026-10-16 in window/settings_modal/restore.rs). Each of those saves ran this whole refresh, which reads the app-modal hydrate from gxserver synchronously on the main thread, reloads every terminal's config and re-applies the theme, so scrolling Settings stalled the app. A save that changes nothing but the Settings window's own memory is now only written; everything that reads a real setting is refreshed as before.
+        */
+        let memory_only = LAST_REFRESHED_SETTINGS.with_borrow(|last| {
+            last.as_ref().is_some_and(|last| {
+                only_settings_window_memory_changed(last.object(), settings_snapshot.object())
+            })
+        });
+        LAST_REFRESHED_SETTINGS.with_borrow_mut(|last| *last = Some(settings_snapshot.clone()));
+        if memory_only {
+            // The save path unbound the previous chords before writing; they are the same chords.
+            cx.bind_keys(gpui_configured_hotkey_key_bindings_from_settings());
+            return;
+        }
         self.refresh_gpui_window_settings_consumers(settings_snapshot, cx);
         // Newly saved hotkey chords bind immediately. The save boundary first
         // adds targeted Unbind markers for the prior Ghostex action chords, so
@@ -258,15 +294,13 @@ impl GhostexGpuiApp {
         self.native_kanban_notify_appearance(cx);
         self.native_automate_notify_appearance(cx);
         self.native_bot_feed_notify_appearance(cx);
+        self.native_docs_notify_appearance(cx);
         self.refresh_sidebar_runtime_settings_from_shared_settings(settings_snapshot, cx);
         self.coerce_active_mode_to_available_project_context(cx);
         self.prune_project_workarea_runtime_cef_surfaces_for_current_gates(cx);
         self.ensure_project_workarea_runtime_cef_surfaces_for_current_context(cx);
         self.reload_live_gpui_engine_terminal_config(cx);
-        let sidebar_state_message =
-            self.gpui_app_modal_sidebar_state_message_from_settings_snapshot(settings_snapshot);
-        self.reset_open_git_commit_prompt_agent(&sidebar_state_message, cx);
-        self.refresh_open_gpui_app_modal_sidebar_state(sidebar_state_message, cx);
+        self.refresh_open_gpui_app_modals_after_settings_change(settings_snapshot, cx);
         self.sync_titlebar_account_privacy(cx);
         self.apply_voice_agent_settings(settings_snapshot.object(), cx);
     }

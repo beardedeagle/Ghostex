@@ -14,7 +14,8 @@
 //! **The renderer does not change.** `state.rs`'s `apply_output` destructures the exact object
 //! `nativeChat.take(lastRevision)` returned, so [`frame::envelope`] builds that same object from
 //! [`Frame`](ghostex_gx_chat_core::Frame) and turns the effects the UI thread must perform into the
-//! same `requests` entries the QuickJS brain pushed. Everything else the host performs itself.
+//! same `requests` entries the QuickJS brain pushed. Only the two transcript splices leave it: they
+//! reach the view typed, beside the object. Everything else the host performs itself.
 //!
 //! Per-concern files:
 //!
@@ -68,6 +69,7 @@ mod transport;
 mod worker;
 mod world;
 
+pub(crate) use frame::DrainedFrame;
 pub(crate) use identity::LOCAL_MACHINE_ID;
 /// Read aloud's inputs from the app; the web build has no Dictate or voice agent to report.
 #[allow(unused_imports)]

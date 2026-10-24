@@ -2153,13 +2153,20 @@ dependencies = [
 ]
 
 [[package]]
-name = "ghostex-gx-chat-mobile"
+name = "ghostex-gx-chat-json"
 version = "0.1.0"
 dependencies = [
  "getrandom 0.3.4",
  "ghostex-gx-chat-core",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "ghostex-gx-chat-mobile"
+version = "0.1.0"
+dependencies = [
+ "ghostex-gx-chat-json",
  "uniffi",
 ]
 

@@ -66,10 +66,7 @@ pub(crate) fn machine_tab_summary(
         return summary;
     };
     for project_id in drawn_project_ids(machine, parked) {
-        // A chat project's user-made groups are never drawn, so their members are claimed out of
-        // the project's own list and counted nowhere, exactly as `project_members` reports it.
-        let emit_subgroups = !machine.is_chat_project(project_id);
-        let members = project_members(store, machine, machine_id, project_id, emit_subgroups);
+        let members = project_members(store, machine, machine_id, project_id);
         let session_ids = members.session_ids.iter().chain(
             members
                 .subgroups
@@ -109,8 +106,6 @@ pub(crate) fn any_machine_draws_a_project(
     host: &SidebarHostInputs,
 ) -> bool {
     store.machines().any(|(machine_id, machine)| {
-        drawn_project_ids(machine, host.parked_project_ids(machine_id))
-            .into_iter()
-            .any(|project_id| !machine.is_chat_project(project_id))
+        !drawn_project_ids(machine, host.parked_project_ids(machine_id)).is_empty()
     })
 }

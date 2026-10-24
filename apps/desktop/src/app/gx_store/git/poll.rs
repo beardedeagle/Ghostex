@@ -9,7 +9,7 @@
 use std::time::Duration;
 
 use ghostex_gx_core::git_menu::{GitPollTarget, plan_git_poll_cycle};
-use ghostex_gx_core::{MachineId, ProjectDiffStats, ProjectKey, is_chat_project_path};
+use ghostex_gx_core::{MachineId, ProjectDiffStats, ProjectKey};
 
 use super::calls::{self, Remote};
 use super::hud::GitReadOptions;
@@ -34,9 +34,19 @@ impl GhostexGpuiApp {
 
     /// One cycle: every project that renders a header, spread over the cycle, then the next cycle
     /// (`scheduleGitPollingCycle`).
+    ///
+    /// CDXC:Git 2026-10-23 WHY:
+    /// The cycle probes about one project a second, and each probe runs `git diff --numstat` in
+    /// that repository, so a minimized or covered window kept a Git process a second running for
+    /// numbers nobody could see. While the window is not presented no cycle runs; the visibility
+    /// watch starts a fresh one the moment it shows again, so every header is re-read on return.
     fn git_schedule_poll_cycle(&mut self, cx: &mut gpui::Context<Self>) {
         self.gx_store.git.poll_generation += 1;
         let generation = self.gx_store.git.poll_generation;
+        self.git_watch_window_visibility(cx);
+        if self.gx_store.git.window_hidden {
+            return;
+        }
         self.gx_store.git.counters.poll_cycles += 1;
         let probes = self.git_poll_probes();
         let cycle = plan_git_poll_cycle(probes.iter().map(|probe| probe.target.clone()).collect());
@@ -53,7 +63,9 @@ impl GhostexGpuiApp {
                     .timer(Duration::from_millis(delay_ms))
                     .await;
                 let _ = this.update(cx, |this, cx| {
-                    if this.gx_store.git.poll_generation == generation {
+                    if this.gx_store.git.poll_generation == generation
+                        && !this.gx_store.git.window_hidden
+                    {
                         this.git_poll_probe(probe, cx);
                     }
                 });
@@ -73,9 +85,50 @@ impl GhostexGpuiApp {
         .detach();
     }
 
+    /// The window was presented or stopped being presented (`WindowVisibility`).
+    #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
+    fn git_window_visibility_changed(&mut self, visible: bool, cx: &mut gpui::Context<Self>) {
+        let hidden = !visible;
+        if self.gx_store.git.window_hidden == hidden {
+            return;
+        }
+        self.gx_store.git.window_hidden = hidden;
+        if visible && self.gx_store.git.poll_started {
+            self.git_schedule_poll_cycle(cx);
+        }
+    }
+
+    /// Follows this window's visibility once its handle is known (the first render records it).
+    #[cfg(not(target_arch = "wasm32"))]
+    fn git_watch_window_visibility(&mut self, cx: &mut gpui::Context<Self>) {
+        if self.gx_store.git.visibility_watch.is_some() {
+            return;
+        }
+        let Some(handle) = self.main_window_handle else {
+            return;
+        };
+        let app = cx.weak_entity();
+        let watch = handle.update(cx, |_, window, _| {
+            let watch = window.observe_window_visibility(move |visibility, _, cx| {
+                let _ = app.update(cx, |this, cx| {
+                    this.git_window_visibility_changed(visibility.is_visible(), cx);
+                });
+            });
+            (watch, !window.is_visible())
+        });
+        if let Ok((watch, hidden)) = watch {
+            self.gx_store.git.visibility_watch = Some(watch);
+            self.gx_store.git.window_hidden = hidden;
+        }
+    }
+
+    /// The page's tab visibility is not followed; the web build polls as before.
+    #[cfg(target_arch = "wasm32")]
+    fn git_watch_window_visibility(&mut self, _cx: &mut gpui::Context<Self>) {}
+
     /// The projects whose header the sidebar draws right now: this computer's projects with a
-    /// folder (not a Chats container or a Quick project), and a remote machine's while its stream
-    /// is live (`getVisibleProjectDiffStatsRefreshTargets`).
+    /// folder, and a remote machine's while its stream is live
+    /// (`getVisibleProjectDiffStatsRefreshTargets`).
     fn git_poll_probes(&self) -> Vec<PollProbe> {
         let view = self.gx_store.sidebar_list.view();
         let presentation = self.gx_store.core.presentation();
@@ -96,7 +149,7 @@ impl GhostexGpuiApp {
                     return None;
                 }
                 let path = context.path.trim().trim_end_matches('/');
-                if path.is_empty() || is_chat_project_path(path) {
+                if path.is_empty() {
                     return None;
                 }
                 let target = match key.machine {

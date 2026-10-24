@@ -14,10 +14,15 @@ use serde_json::{json, Value};
 use tokio::sync::mpsc;
 use tokio_tungstenite::tungstenite::Message as WsMessage;
 
+use super::focus::{self, FocusScope};
 use super::memory;
+use super::paragraphs;
 use super::prompt;
 use super::provider::{Provider, ProviderSocket, BYTES_PER_MS};
 use super::registry;
+use super::sessions::SessionInfo;
+use super::talk::{Cancel, Press, Release, Talk};
+use super::tool_runs::ToolRuns;
 use super::tools::{self, ToolOutcome};
 use crate::server::AppState;
 
@@ -41,8 +46,8 @@ const CUT_CAPTION_WAIT: Duration = Duration::from_millis(1_200);
 /// How long gxserver waits for the provider to accept a voice change before it keeps the voice
 /// for the next conversation.
 const VOICE_CHANGE_WAIT: Duration = Duration::from_secs(5);
-/// A held Talk shorter than this sent nothing worth answering.
-const MIN_TALK_AUDIO_MS: u64 = 200;
+/// The words of `focusNotFound`, at the start and for a move.
+pub(super) const FOCUS_NOT_FOUND: &str = "That session isn't open on this computer anymore.";
 /// The client playback rates gxserver accepts (the desktop offers 1x to 2x).
 const PLAYBACK_RATE_RANGE: std::ops::RangeInclusive<f64> = 0.5..=3.0;
 
@@ -59,6 +64,9 @@ pub(super) struct Announcement {
     pub(super) kind: &'static str,
     pub(super) project_id: String,
     pub(super) session_id: String,
+    /// What the model is told instead of `text`, when it needs more (a focused call's finished
+    /// turn carries the reply).
+    pub(super) model_text: Option<String>,
 }
 
 pub(super) enum Input {
@@ -82,15 +90,33 @@ pub(super) enum Input {
     Voice(String),
     /// How fast the attached client plays the agent's audio (1.0 is as the provider sent it).
     PlaybackRate(f64),
-    /// Push-to-talk: the user pressed Talk (the microphone streams until `TalkEnd`).
+    /// The user pressed the hold button (or Space, or the Hold to Talk hotkey): a push-to-talk
+    /// turn starts, or a muted Regular call listens until `TalkEnd` (`talk.rs`).
     TalkStart,
-    /// Push-to-talk: the user released Talk; what they said is the turn.
+    /// The user let go: a push-to-talk turn is sent, a Regular call's hold ends.
     TalkEnd,
+    /// The user slid off the button: the hold is dropped and nothing is sent.
+    TalkCancel,
+    /// The client's Mute; gxserver drops the microphone's audio while it is on.
+    Mute(bool),
     /// Hand the remembered last conversation to the agent (Continue).
     ContinueMemory,
     /// The user forgot the remembered conversation.
     MemoryForgotten,
     Announce(Vec<Announcement>),
+    /// A focused session's finished turn, with the reply the model retells (`model_text`).
+    AnnounceReady(Announcement),
+    /// The announcement watcher's fresh session list (a focused call follows its session in it).
+    Sessions(Arc<Vec<SessionInfo>>),
+    /// The client asked to move the call to a session (`Some(ref)`) or to all sessions (`None`).
+    Focus(Option<String>),
+    /// A move the client asked for, looked up: the new scope and its briefing, or the ref that
+    /// names no open session.
+    FocusResolved(Result<(FocusScope, String), String>),
+    /// The briefing of the session a focused call started about, read once a client attached.
+    Briefing(String),
+    /// A client frame gxserver could not read; answered with a non-fatal `badRequest`.
+    BadRequest(String),
     ToolDone {
         call_id: String,
         name: String,
@@ -164,9 +190,8 @@ pub(super) struct Conversation {
     audio_sent: bool,
     /// A push-to-talk call (no turn detection), fixed when the call started.
     push_to_talk: bool,
-    /// Push-to-talk: Talk is held, and how much audio came while it was.
-    talking: bool,
-    talk_audio_ms: u64,
+    /// The hold to talk and the client's Mute (`talk.rs`).
+    talk: Talk,
     /// CDXC:VoiceMode 2026-10-20 WHY:
     /// The speed buttons stretch the agent's audio on the client (pitch kept), so a reply plays in less time than the provider's audio lasts. gxserver's playback clock (when the reply ends, how much was heard at an interruption, when a tool follow-up may start) runs at this rate; `playedMs` and `audio_end_ms` stay in the provider's audio time.
     playback_rate: f64,
@@ -177,6 +202,8 @@ pub(super) struct Conversation {
     client: Option<(u64, mpsc::UnboundedSender<ClientFrame>)>,
     detached_since: Option<Instant>,
     replay: VecDeque<Value>,
+    /// Which tool calls clients draw as one row (`tool_runs.rs`).
+    tool_runs: ToolRuns,
     last_talk: Instant,
     client_state: &'static str,
     response_active: bool,
@@ -202,6 +229,13 @@ pub(super) struct Conversation {
     announcing: bool,
     /// What was said and done, for the summary made when the call ends.
     call_log: memory::CallLog,
+    /// The session the call is about now (`focus.rs`), `None` for all sessions.
+    focus: Option<FocusScope>,
+    /// The call started about one session: it never offers the remembered conversation.
+    started_focused: bool,
+    /// The start's briefing is still to be read (on the first attach).
+    briefing_pending: bool,
+    scope_changes: u64,
 }
 
 enum Ended {
@@ -216,6 +250,8 @@ impl Conversation {
         voice: String,
         session_update: Value,
         push_to_talk: bool,
+        focus: Option<FocusScope>,
+        client_remote: bool,
         socket: ProviderSocket,
         tx: mpsc::UnboundedSender<Input>,
         rx: mpsc::UnboundedReceiver<Input>,
@@ -223,6 +259,9 @@ impl Conversation {
         let (sink, stream) = socket.split();
         let now = Instant::now();
         let call_log = memory::CallLog::new(&state.paths, &id, provider);
+        let memory = tools::ToolMemory::new(client_remote);
+        memory.set_scope(focus.clone());
+        registry::set_focus(&id, focus::client_view(focus.as_ref()));
         Self {
             id,
             state,
@@ -233,8 +272,7 @@ impl Conversation {
             voice_changes: 0,
             audio_sent: false,
             push_to_talk,
-            talking: false,
-            talk_audio_ms: 0,
+            talk: Talk::new(push_to_talk),
             playback_rate: 1.0,
             sink,
             stream,
@@ -243,6 +281,7 @@ impl Conversation {
             client: None,
             detached_since: Some(now),
             replay: VecDeque::new(),
+            tool_runs: ToolRuns::default(),
             last_talk: now,
             client_state: "listening",
             response_active: false,
@@ -261,9 +300,13 @@ impl Conversation {
             user_speaking: false,
             announcements: Vec::new(),
             typed_turns: 0,
-            memory: Arc::new(tools::ToolMemory::default()),
+            memory: Arc::new(memory),
             announcing: false,
             call_log,
+            started_focused: focus.is_some(),
+            briefing_pending: focus.is_some(),
+            focus,
+            scope_changes: 0,
         }
     }
 
@@ -317,7 +360,16 @@ impl Conversation {
 
     /// Sends a JSON frame to the attached client; captions and announcements are kept for a
     /// client that reattaches.
-    fn to_client(&mut self, frame: Value) {
+    fn to_client(&mut self, mut frame: Value) {
+        self.tool_runs.frame(&mut frame);
+        if frame.get("type").and_then(Value::as_str) == Some("caption")
+            && frame.get("role").and_then(Value::as_str) == Some("agent")
+        {
+            let parts = paragraphs::paragraphs(frame["text"].as_str().unwrap_or_default());
+            if parts.len() > 1 {
+                frame["paragraphs"] = json!(parts);
+            }
+        }
         let kind = frame
             .get("type")
             .and_then(Value::as_str)
@@ -325,7 +377,11 @@ impl Conversation {
         let keep = matches!(kind, "caption" | "announcement" | "tool")
             && (kind != "caption" || frame.get("final").and_then(Value::as_bool) == Some(true));
         if keep {
-            self.call_log.record(&frame);
+            // CDXC:VoiceMode 2026-10-23 DECISION: User, asked "What should a call about one session do with the voice agent's memory of your last call?", picked "Leave it alone: no Continue card, and it does not replace the remembered call". Nothing said while the call is about one session goes into the summary.
+            // CDXC:VoiceMode 2026-10-23 WHY: a call widened to all sessions partway is an all-sessions call from then on, so what is said after widening is recorded and may replace the remembered call; a call about one session the whole time records nothing and leaves it as it was. The session's own chat is the memory of the focused part.
+            if self.focus.is_none() {
+                self.call_log.record(&frame);
+            }
             self.replay.push_back(frame.clone());
             while self.replay.len() > REPLAY_LIMIT {
                 self.replay.pop_front();
@@ -391,8 +447,9 @@ impl Conversation {
                     "voiceOptions": self.provider.voices(),
                     "callMode": if self.push_to_talk { "pushToTalk" } else { "regular" },
                     "resumed": resumed,
-                    "memory": memory::client_view(&self.state.paths),
-                    "memoryContinued": self.call_log.continued(),
+                    "memory": if self.started_focused { Value::Null } else { memory::client_view(&self.state.paths) },
+                    "memoryContinued": !self.started_focused && self.call_log.continued(),
+                    "focus": focus::client_view(self.focus.as_ref()),
                     "idleHangupMs": IDLE_HANGUP.as_millis() as u64,
                     "audio": {"encoding": "pcm16", "sampleRate": super::provider::SAMPLE_RATE, "channels": 1},
                 })));
@@ -406,6 +463,10 @@ impl Conversation {
                 ));
                 self.client = Some((attach_id, out));
                 self.detached_since = None;
+                self.talk.attached();
+                if std::mem::take(&mut self.briefing_pending) {
+                    self.read_briefing();
+                }
                 // Each client reports its own playback rate after `ready`.
                 self.playback_rate = 1.0;
                 registry::set_attached(&self.id, true);
@@ -417,13 +478,16 @@ impl Conversation {
                     registry::set_attached(&self.id, false);
                     // Nobody can hear the rest of the reply.
                     self.playback_end = Instant::now();
+                    if let Some(release) = self.talk.detached(Instant::now()) {
+                        self.apply_talk_release(release).await?;
+                    }
                 }
             }
             Input::Audio(bytes) => {
-                // Push-to-talk listens only while Talk is held.
-                if bytes.len() >= 2 && (!self.push_to_talk || self.talking) {
-                    if self.talking {
-                        self.talk_audio_ms += (bytes.len() / BYTES_PER_MS) as u64;
+                // Push-to-talk listens only while Talk is held, and nobody while muted.
+                if bytes.len() >= 2 && self.talk.passes_audio((bytes.len() / BYTES_PER_MS) as u64) {
+                    if self.talk.held() {
+                        self.last_talk = Instant::now();
                     }
                     let even = &bytes[..bytes.len() - bytes.len() % 2];
                     let audio = base64::engine::general_purpose::STANDARD.encode(even);
@@ -478,6 +542,12 @@ impl Conversation {
             Input::Voice(voice) => self.change_voice(voice).await?,
             Input::TalkStart => self.talk_start().await?,
             Input::TalkEnd => self.talk_end().await?,
+            Input::TalkCancel => self.talk_cancel().await?,
+            Input::Mute(muted) => {
+                if self.talk.set_muted(muted) == Cancel::Cleared {
+                    self.drop_held_turn().await?;
+                }
+            }
             Input::PlaybackRate(rate) => {
                 let rate = rate.clamp(*PLAYBACK_RATE_RANGE.start(), *PLAYBACK_RATE_RANGE.end());
                 let now = Instant::now();
@@ -488,6 +558,9 @@ impl Conversation {
                         now + Duration::from_secs_f64(left * self.playback_rate / rate);
                 }
                 self.playback_rate = rate;
+            }
+            Input::ContinueMemory if self.started_focused || self.focus.is_some() => {
+                self.to_client(json!({"type": "memory", "state": "none"}));
             }
             Input::ContinueMemory => self.continue_memory().await?,
             Input::MemoryForgotten => {
@@ -502,6 +575,16 @@ impl Conversation {
             }
             Input::Announce(announcements) => {
                 for announcement in announcements {
+                    if let Some(scope) = &self.focus {
+                        if !scope.wants(&announcement) {
+                            continue;
+                        }
+                    }
+                    let finished_focus = announcement.kind == "turnFinished"
+                        && self.focus.as_ref().is_some_and(|scope| {
+                            scope.project_id == announcement.project_id
+                                && scope.session_id == announcement.session_id
+                        });
                     self.to_client(json!({
                         "type": "announcement",
                         "text": announcement.text,
@@ -509,8 +592,38 @@ impl Conversation {
                         "projectId": announcement.project_id,
                         "sessionId": announcement.session_id,
                     }));
-                    self.announcements.push(announcement);
+                    if finished_focus {
+                        self.read_finished_reply(announcement);
+                    } else {
+                        self.announcements.push(announcement);
+                    }
                 }
+            }
+            Input::AnnounceReady(announcement) => self.announcements.push(announcement),
+            Input::Sessions(sessions) => self.follow_focus(&sessions),
+            Input::Focus(None) if self.focus.is_some() => {
+                let previous = self.focus.as_ref().map(|scope| scope.title.clone());
+                self.last_talk = Instant::now();
+                self.apply_scope(None, focus::widened_message(previous.as_deref()), true)
+                    .await?;
+            }
+            Input::Focus(request) => self.request_focus(request),
+            Input::FocusResolved(Ok((scope, briefing))) => {
+                self.last_talk = Instant::now();
+                self.apply_scope(Some(scope), briefing, true).await?;
+            }
+            Input::FocusResolved(Err(reference)) => {
+                self.to_client(json!({
+                    "type": "error",
+                    "code": "focusNotFound",
+                    "message": FOCUS_NOT_FOUND,
+                    "fatal": false,
+                    "session": reference,
+                }));
+            }
+            Input::Briefing(briefing) => self.add_scope_message(briefing, true).await?,
+            Input::BadRequest(message) => {
+                self.to_client(json!({"type": "error", "code": "badRequest", "message": message, "fatal": false}));
             }
             Input::ToolDone {
                 call_id,
@@ -529,7 +642,22 @@ impl Conversation {
                 if outcome.ok {
                     if let Some(session) = super::show::shown_session(&name, &outcome.output) {
                         finished["session"] = session;
+                        // A client on another computer shows the session itself.
+                        if self.memory.client_remote() {
+                            if name == "show_session" {
+                                finished["show"] = json!("now");
+                            } else if self.focus.is_none() {
+                                finished["show"] = json!("follow");
+                            }
+                        }
                     }
+                }
+                if name == "widen_call"
+                    && outcome.output.get("widened").and_then(Value::as_bool) == Some(true)
+                {
+                    let previous = self.focus.as_ref().map(|scope| scope.title.clone());
+                    self.apply_scope(None, focus::widened_message(previous.as_deref()), false)
+                        .await?;
                 }
                 self.to_client(finished);
                 if name == "recall_last_conversation" && outcome.ok {
@@ -628,6 +756,13 @@ impl Conversation {
 
     async fn on_tick(&mut self) -> Result<(), Ended> {
         let now = Instant::now();
+        if self.talk.wants_silence(now) {
+            // A muted Regular call's hold ended: the provider hears the quiet it needs to end the turn.
+            let silence = vec![0u8; TICK.as_millis() as usize * BYTES_PER_MS];
+            let audio = base64::engine::general_purpose::STANDARD.encode(silence);
+            self.provider_send(json!({"type": "input_audio_buffer.append", "audio": audio}))
+                .await?;
+        }
         if self
             .cut_pending
             .as_ref()
@@ -662,7 +797,11 @@ impl Conversation {
             self.set_state(next);
         }
         if !self.announcements.is_empty() && self.quiet() {
-            let lines: Vec<String> = self.announcements.drain(..).map(|a| a.text).collect();
+            let lines: Vec<String> = self
+                .announcements
+                .drain(..)
+                .map(|a| a.model_text.unwrap_or(a.text))
+                .collect();
             self.provider_send(json!({
                 "type": "conversation.item.create",
                 "item": {"type": "message", "role": "user", "content": [{"type": "input_text", "text": prompt::announcement_message(&lines)}]},
@@ -715,6 +854,7 @@ impl Conversation {
                 self.set_state("userSpeaking");
             }
             "input_audio_buffer.speech_stopped" => {
+                self.talk.speech_stopped();
                 self.user_speaking = false;
                 self.last_talk = Instant::now();
                 self.set_state("thinking");
@@ -980,6 +1120,144 @@ impl Conversation {
         );
     }
 
+    /// Reads the focused session's briefing in the background; it arrives as `Input::Briefing`.
+    fn read_briefing(&self) {
+        let Some(scope) = self.focus.clone() else {
+            return;
+        };
+        let (state, tx) = (self.state.clone(), self.tx.clone());
+        tokio::spawn(async move {
+            let facts = tools::briefing(&state, &scope).await;
+            let _ = tx.send(Input::Briefing(focus::briefing_message(
+                &scope, &facts, false,
+            )));
+        });
+    }
+
+    /// The focused session finished its turn: reads its reply, which the model retells, and
+    /// queues the announcement with it (`Input::AnnounceReady`). A chat that can't be read still
+    /// announces the finished turn.
+    fn read_finished_reply(&self, mut announcement: Announcement) {
+        let Some(scope) = self.focus.clone() else {
+            return;
+        };
+        let (state, tx) = (self.state.clone(), self.tx.clone());
+        tokio::spawn(async move {
+            let reply = tools::finished_reply(&state, &scope).await;
+            announcement.model_text =
+                Some(focus::turn_finished_message(&scope.title, reply.as_deref()));
+            let _ = tx.send(Input::AnnounceReady(announcement));
+        });
+    }
+
+    /// A fresh session list: a focused call follows its session's title and threads, and tells
+    /// the client and the model once when the session was closed. The call keeps going.
+    fn follow_focus(&mut self, sessions: &[SessionInfo]) {
+        let Some(scope) = self.focus.as_mut() else {
+            return;
+        };
+        let was_closed = scope.closed;
+        let changed = scope.refresh(sessions);
+        let scope = scope.clone();
+        self.memory.set_scope(Some(scope.clone()));
+        if !changed {
+            return;
+        }
+        registry::set_focus(&self.id, scope.to_client());
+        self.to_client(json!({"type": "focus", "focus": scope.to_client()}));
+        if scope.closed && !was_closed {
+            self.to_client(json!({
+                "type": "announcement",
+                "text": format!("\"{}\" was closed.", scope.title),
+                "kind": "sessionClosed",
+                "projectId": scope.project_id,
+                "sessionId": scope.session_id,
+            }));
+            self.announcements.push(Announcement {
+                text: format!("\"{}\" was closed.", scope.title),
+                kind: "sessionClosed",
+                project_id: scope.project_id.clone(),
+                session_id: scope.session_id.clone(),
+                model_text: Some(focus::closed_message(&scope.title)),
+            });
+        }
+    }
+
+    /// The client's `focus` frame for a move (widening is applied in `on_input`): looks the
+    /// session up and reads its briefing in the background, then arrives as
+    /// `Input::FocusResolved`. Asking for the scope the call already has just answers it again.
+    fn request_focus(&mut self, request: Option<String>) {
+        let current = self.focus.as_ref().map(FocusScope::reference);
+        let Some(reference) = request.filter(|reference| Some(reference) != current.as_ref())
+        else {
+            self.to_client(
+                json!({"type": "focus", "focus": focus::client_view(self.focus.as_ref())}),
+            );
+            return;
+        };
+        let (state, tx) = (self.state.clone(), self.tx.clone());
+        tokio::spawn(async move {
+            let sessions = super::sessions::list_sessions_async(&state)
+                .await
+                .unwrap_or_default();
+            let resolved = match FocusScope::from_sessions(&sessions, &reference) {
+                Some(scope) => {
+                    let facts = tools::briefing(&state, &scope).await;
+                    let briefing = focus::briefing_message(&scope, &facts, true);
+                    Ok((scope, briefing))
+                }
+                None => Err(reference),
+            };
+            let _ = tx.send(Input::FocusResolved(resolved));
+        });
+    }
+
+    /// Sets the call's scope: resends the session configuration with the scope's instructions and
+    /// tools (the way a voice change resends it), tells the client, and hands the model `message`
+    /// (the briefing, or that the call is about all sessions now). `respond` asks for a reply when
+    /// nothing else is going on; a tool's own follow-up reply covers it otherwise.
+    async fn apply_scope(
+        &mut self,
+        scope: Option<FocusScope>,
+        message: String,
+        respond: bool,
+    ) -> Result<(), Ended> {
+        self.focus = scope;
+        self.memory.set_scope(self.focus.clone());
+        let view = focus::client_view(self.focus.as_ref());
+        registry::set_focus(&self.id, view.clone());
+        self.scope_changes += 1;
+        let mut update = self.session_update.clone();
+        update["session"]["instructions"] = json!(prompt::instructions(self.focus.as_ref()));
+        update["session"]["tools"] = tools::definitions(self.focus.as_ref());
+        self.session_update = update.clone();
+        // A voice change still waiting for its answer keeps its voice.
+        if let Some(change) = &self.voice_change {
+            update = self
+                .provider
+                .with_voice(&update, &change.voice, &change.event_id);
+        } else {
+            update["event_id"] = json!(format!("ghostex-scope-{}", self.scope_changes));
+        }
+        self.provider_send(update).await?;
+        self.to_client(json!({"type": "focus", "focus": view}));
+        self.add_scope_message(message, respond).await
+    }
+
+    /// Adds a `[Ghostex focus]` message to the conversation, and asks for a reply when `respond`
+    /// and nobody is talking.
+    async fn add_scope_message(&mut self, message: String, respond: bool) -> Result<(), Ended> {
+        self.provider_send(json!({
+            "type": "conversation.item.create",
+            "item": {"type": "message", "role": "user", "content": [{"type": "input_text", "text": message}]},
+        }))
+        .await?;
+        if respond && self.quiet() {
+            self.create_response_now().await?;
+        }
+        Ok(())
+    }
+
     /// Switches the conversation to `voice` when the provider can, else keeps it for the next
     /// conversation (the client saved it as the setting). Answers with a `voice` frame.
     async fn change_voice(&mut self, voice: String) -> Result<(), Ended> {
@@ -1030,52 +1308,94 @@ impl Conversation {
         }));
     }
 
-    /// Push-to-talk: Talk pressed. Talking over the agent cuts its reply, as Stop does, then the
-    /// microphone's audio collects in the provider's buffer until Talk is released.
+    /// Talk pressed. In a push-to-talk call, talking over the agent cuts its reply, as Stop does,
+    /// then the microphone's audio collects in the provider's buffer until Talk is released. In a
+    /// muted Regular call the hold only opens the microphone; the provider's turn detection does
+    /// the rest (`talk.rs`).
     ///
     /// CDXC:VoiceMode 2026-10-21 DECISION:
-    /// User: "I feel we're overcomplicating things. Let's just have two modes: push-to-talk and regular, and mention the pricing difference between the two in settings for the mobile app and for the desktop app. No need to switch when I'm muted, and only any of that. Let's just keep it simple: two modes in the settings, please." `voiceAgentCallMode` (`regular` default, `pushToTalk`) is read when a call starts and never switched mid-call; mute is a plain microphone mute in both modes. Supersedes the 2026-10-21 "Push-to-talk while muted" switch, which xAI kept billing for connected time.
+    /// User: "I feel we're overcomplicating things. Let's just have two modes: push-to-talk and regular, and mention the pricing difference between the two in settings for the mobile app and for the desktop app. No need to switch when I'm muted, and only any of that. Let's just keep it simple: two modes in the settings, please." `voiceAgentCallMode` (`regular` default, `pushToTalk`) is read when a call starts and never switched mid-call; mute is a plain microphone mute in both modes. Supersedes the 2026-10-21 "Push-to-talk while muted" switch, which xAI kept billing for connected time. The 2026-10-24 hold to unmute in talk.rs leaves the mode alone.
     async fn talk_start(&mut self) -> Result<(), Ended> {
-        if !self.push_to_talk {
-            return Ok(());
+        match self.talk.press() {
+            Press::Ignored => Ok(()),
+            Press::RefusedMuted => {
+                self.to_client(json!({"type": "talk", "event": "refused", "reason": "muted"}));
+                Ok(())
+            }
+            Press::Unmute => {
+                self.last_talk = Instant::now();
+                Ok(())
+            }
+            Press::Talk => {
+                if self.response_active {
+                    self.provider_send(json!({"type": "response.cancel"}))
+                        .await?;
+                }
+                self.stop_playback(true).await?;
+                // The reply to this turn will see any tool results; a separate one would repeat it.
+                if self.create_at.take().is_some() {
+                    self.outputs_waiting = false;
+                }
+                self.provider_send(json!({"type": "input_audio_buffer.clear"}))
+                    .await?;
+                self.user_speaking = true;
+                self.last_talk = Instant::now();
+                self.set_state("userSpeaking");
+                Ok(())
+            }
         }
-        if self.response_active {
-            self.provider_send(json!({"type": "response.cancel"}))
-                .await?;
+    }
+
+    /// Talk released: a push-to-talk turn is committed and answered; a hold too short to hold any
+    /// speech is dropped and the client told (`tooShort`).
+    async fn talk_end(&mut self) -> Result<(), Ended> {
+        let release = self.talk.release(Instant::now());
+        self.apply_talk_release(release).await
+    }
+
+    async fn apply_talk_release(&mut self, release: Release) -> Result<(), Ended> {
+        match release {
+            Release::Ignored => Ok(()),
+            Release::TooShort { clear } => {
+                self.last_talk = Instant::now();
+                if clear {
+                    self.drop_held_turn().await?;
+                }
+                self.to_client(json!({"type": "talk", "event": "tooShort"}));
+                Ok(())
+            }
+            Release::Unmuted => {
+                self.last_talk = Instant::now();
+                Ok(())
+            }
+            Release::Commit => {
+                self.user_speaking = false;
+                self.last_talk = Instant::now();
+                self.provider_send(json!({"type": "input_audio_buffer.commit"}))
+                    .await?;
+                self.create_response_now().await
+            }
         }
-        self.stop_playback(true).await?;
-        // The reply to this turn will see any tool results; a separate one would repeat it.
-        if self.create_at.take().is_some() {
-            self.outputs_waiting = false;
+    }
+
+    /// The user slid off the hold button: nothing they said is sent.
+    async fn talk_cancel(&mut self) -> Result<(), Ended> {
+        if self.talk.cancel() == Cancel::Cleared {
+            self.drop_held_turn().await?;
+            self.to_client(json!({"type": "talk", "event": "cancelled"}));
         }
-        self.provider_send(json!({"type": "input_audio_buffer.clear"}))
-            .await?;
-        self.talking = true;
-        self.talk_audio_ms = 0;
-        self.user_speaking = true;
-        self.last_talk = Instant::now();
-        self.set_state("userSpeaking");
         Ok(())
     }
 
-    /// Push-to-talk: Talk released. What was said is committed as the user's turn and answered; a
-    /// press too short to hold any speech is dropped.
-    async fn talk_end(&mut self) -> Result<(), Ended> {
-        if !self.talking {
-            return Ok(());
-        }
-        self.talking = false;
-        self.user_speaking = false;
-        self.last_talk = Instant::now();
-        if self.talk_audio_ms < MIN_TALK_AUDIO_MS {
-            self.provider_send(json!({"type": "input_audio_buffer.clear"}))
-                .await?;
-            self.set_state("listening");
-            return Ok(());
-        }
-        self.provider_send(json!({"type": "input_audio_buffer.commit"}))
+    /// Forgets the audio of a hold that will not be answered.
+    async fn drop_held_turn(&mut self) -> Result<(), Ended> {
+        self.provider_send(json!({"type": "input_audio_buffer.clear"}))
             .await?;
-        self.create_response_now().await
+        if self.push_to_talk {
+            self.user_speaking = false;
+            self.set_state("listening");
+        }
+        Ok(())
     }
 
     fn start_tool(&mut self, call_id: String, name: String, arguments: String) {
@@ -1083,7 +1403,11 @@ impl Conversation {
             return;
         }
         let args: Value = serde_json::from_str(&arguments).unwrap_or_else(|_| json!({}));
-        let label = tools::label(&name, &args);
+        let label = tools::label(
+            &name,
+            &args,
+            self.focus.as_ref().map(|scope| scope.title.as_str()),
+        );
         self.pending_calls.insert(call_id.clone());
         self.to_client(json!({"type": "tool", "phase": "started", "callId": call_id, "name": name, "label": label}));
         if !self.playing() {

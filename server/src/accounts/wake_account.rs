@@ -88,20 +88,26 @@ fn refuse_turned_off(
     else {
         return Ok(());
     };
-    let provider = match account.provider {
+    let other = match account.provider {
         Provider::Claude => "Claude",
         Provider::Codex => "Codex",
     };
-    Err(DomainStateError::bad_request(format!(
-        "This session is on {provider} account {} ({}), which is turned off in Settings > Accounts, and no other {provider} account is ready to take it over. Turn an account on, or switch this session to another account.",
-        account.selector, account.name,
-    )))
+    Err(launch::account_refusal(
+        session,
+        Some(account.provider),
+        &format!(
+            "{}, which is turned off in Settings > Accounts, and no other {other} account is ready to take it over. Turn an account on, or switch this session to another account",
+            launch::account_label(&account.selector, &account.name),
+        ),
+    ))
 }
 
 /// CDXC:AgentProviders 2026-10-14 WHY:
 /// A wake on a cswap account with no saved login on this computer cannot start the CLI at all (the session G7v5a woke on slot 5 of a loaner Mac, printed "Account-5 has no stored credentials" twice and dropped to the shell with the user's message held). Like a disabled login (CDXC:AgentProviders 2026-10-08 in disabled.rs), waiting never brings it back, so the wake moves such a session to a working account even when the provider's rule waits at a limit. A session on its own login or one whose last account switch failed keeps its account and shows the sign-in card (session_chat_notice/start_failure.rs) instead.
 /// CDXC:AgentProviders 2026-10-21 DECISION:
 /// User (Q376, "Move sessions off an unusable account on resume"): a wake or restore never types a command that can only fail. Besides a signed-out login, an account the user turned off in Settings (`user_disabled`) or one whose organization disabled subscription access (`disabled`) moves the session too, whatever Continue automatically says (session G2nir restored on turned-off slot 3, cswap printed "Account-3 has no stored credentials"). The target is picked like a new session's account (default_account.rs), else the best Automatic account with room; never a Manual one unless the user pinned it for new sessions. The move is recorded as an automatic account switch, so the session shows which account it moved to. With no working account, a turned-off account refuses the wake with a message saying so (`rebind_exhausted`). Sessions still running on a turned-off account keep running (the 2026-10-14 DECISION on `SavedAccount::user_disabled`); only their next start moves.
+/// CDXC:AgentProviders 2026-10-24 DECISION:
+/// User (answer 1A to "move a session whose account was removed?"): a session whose account was removed from Ghostex moves the same way on its next wake or restore, so the "account was removed" refusal (`launch::validate_session`, run after this move) only shows when no account is usable.
 /// The account a wake of `session` should move to and its launch command, or `None` to keep the saved account.
 pub(crate) fn rebind_target(
     repository: &DomainRepository<'_>,
@@ -171,7 +177,7 @@ pub(crate) fn rebind_target(
     Ok(Some((account.clone(), command)))
 }
 
-/// Whether the session's account can never start the CLI as it is: signed out, turned off by the user, or refused by its organization.
+/// Whether the session's account can never start the CLI as it is: removed from Ghostex, signed out, turned off by the user, or refused by its organization.
 fn account_unusable(
     registry: &Registry,
     reading: Option<&DiscoveredAccount>,
@@ -182,7 +188,7 @@ fn account_unusable(
             .accounts
             .iter()
             .find(|a| a.id == current)
-            .is_some_and(|a| a.user_disabled || a.disabled.is_some())
+            .is_none_or(|a| a.user_disabled || a.disabled.is_some())
 }
 
 /// A reading cswap trusts for switching that shows a window this model uses at 100%, with its reset still ahead.

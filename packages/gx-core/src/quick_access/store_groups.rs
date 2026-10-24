@@ -3,7 +3,7 @@
 //!
 //! CDXC:AppModal 2026-09-25 WHY:
 //! The runtime fed Quick Access its whole group projection (`sessionIdsByGroup`): every machine,
-//! the Chats group, hidden projects and user-made groups, before any tag or Space filter. The
+//! hidden projects and user-made groups, before any tag or Space filter. The
 //! sidebar model builds exactly those groups for the machine it is asked about
 //! ([`SidebarViewModel::built_groups`]), so a host builds one per machine and hands the rows here.
 //! A user-made group carries no project, as the runtime's `spliceWorkspaceSubgroups` cleared it.

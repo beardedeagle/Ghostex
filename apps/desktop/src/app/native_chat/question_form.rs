@@ -11,8 +11,8 @@ use std::collections::HashSet;
 use std::rc::Rc;
 
 use super::ask_card::{
-    AskBodyMotion, AskOption, CHECKLIST_GLYPH, QuestionBadge, ask_color, question_ask_head,
-    single_line_ask_head, single_line_press_head,
+    AskBodyMotion, AskOption, CHECKLIST_GLYPH, QuestionBadge, SKIPPED_HINT, ask_color,
+    ask_info_hint, question_ask_head, single_line_ask_head, single_line_press_head,
 };
 use super::cards::SINGLE_LINE_CARD;
 use super::{appearance::ChatAppearance, state::NativeChatView, transcript::text};
@@ -75,7 +75,10 @@ impl NativeChatView {
     /// renderer has no window to make one), keeps their placeholders in step with the picks, and
     /// drops the inputs of forms that were answered or left the transcript.
     pub(super) fn sync_form_inputs(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let forms = self.snapshot["questionForms"].clone();
+        // Holding the document's `Arc` frees `self` for the inputs without copying the forms on
+        // every frame the chat draws.
+        let snapshot = self.snapshot.clone();
+        let forms = &snapshot["questionForms"];
         let mut wanted = HashSet::new();
         for (id, form) in forms.as_object().into_iter().flatten() {
             if form["state"] != "open" {
@@ -364,8 +367,10 @@ impl NativeChatView {
             }
             "sending" => "Sending…".to_string(),
             _ if !send_error.is_empty() => send_error.clone(),
-            _ => "Questions you leave blank are sent as skipped.".to_string(),
+            // Nothing to say: the (i) icon holds the sentence about blank questions (`ask_info_hint`).
+            _ => String::new(),
         };
+        let status_is_hint = status.is_empty();
         let status_color = if enabled && !send_error.is_empty() {
             error_color(p)
         } else {
@@ -383,7 +388,8 @@ impl NativeChatView {
                 .text_size(px(12.5 * s))
                 .line_height(px(18.0 * s))
                 .text_color(status_color)
-                .child(status)
+                .when(!status.is_empty(), |slot| slot.child(status))
+                .when(status_is_hint, |slot| slot.child(ask_info_hint(SKIPPED_HINT, p)))
                 .into_any_element(),
             self.skip_all_button(id, enabled, p, cx),
             self.ask_primary_button(

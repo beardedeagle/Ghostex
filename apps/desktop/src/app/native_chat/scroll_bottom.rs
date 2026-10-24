@@ -39,6 +39,7 @@ struct QuestionPingSpec {
     dot_size: f32,
     scale: f32,
     alpha: f32,
+    count_swap_ms: u64,
 }
 
 #[derive(Deserialize)]
@@ -101,6 +102,11 @@ pub(super) fn question_ping_scale() -> f32 {
 
 pub(super) fn question_ping_alpha() -> f32 {
     SPEC.question_ping.alpha
+}
+
+/// How long the ? pill shows the ? and then the count, each, while two or more questions wait.
+pub(super) fn question_count_swap_ms() -> u64 {
+    SPEC.question_ping.count_swap_ms
 }
 
 /// CDXC:SessionChat 2026-09-29 DECISION:

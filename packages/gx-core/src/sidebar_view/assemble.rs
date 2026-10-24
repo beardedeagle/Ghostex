@@ -8,7 +8,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use super::collections::{project_sidebar_collections, CollectionItem, CollectionsState};
 use super::daemon_wait::{DaemonWait, TRY_NOW_LABEL};
-use super::groups::{group_summary, GroupBuild, GroupKind, GroupPlan};
+use super::groups::{group_summary, GroupBuild, GroupPlan};
 use super::inputs::{
     effective_sidebar_mode, SidebarHostInputs, SidebarMode, SidebarSettings, SidebarUiState,
     UnavailableState, LOCAL_MACHINE_ID,
@@ -19,8 +19,8 @@ use super::spaces::{
     OTHER_SPACE_ICON, OTHER_SPACE_ID, OTHER_SPACE_LABEL,
 };
 use super::view::{
-    CollectionView, EmptyState, GroupView, MachineSummary, MachineTabView, OrderItem, OrderKind,
-    SidebarView, SpaceProject, SpaceView,
+    CollectionView, EmptyState, GroupSummary, GroupView, MachineSummary, MachineTabView, OrderItem,
+    OrderKind, SidebarView, SpaceProject, SpaceView,
 };
 use crate::keys::{parse_workspace_subgroup_id, MachineId};
 
@@ -247,9 +247,6 @@ pub(crate) fn assemble(input: AssembleInput<'_>) -> SidebarView {
 
     let mut groups: Vec<GroupView> = Vec::new();
     for plan in input.plans {
-        if plan.kind == GroupKind::Chats {
-            continue;
-        }
         let Some(build) = input.builds.get(&plan.group_id) else {
             continue;
         };
@@ -273,13 +270,20 @@ pub(crate) fn assemble(input: AssembleInput<'_>) -> SidebarView {
             collection_id: project_of_group(&plan.group_id)
                 .and_then(|project_id| collection_id_by_project.get(&project_id).cloned()),
             space_project: space_project_of_group(&plan.group_id),
+            holds_active_session_group: false,
         });
     }
 
+    // A session group is drawn as part of its project, so it is left out of the list while that
+    // project is collapsed. The group itself stays built, so a reveal still finds it and opens
+    // the project (reveal.rs).
     let rendered_ids: Vec<String> = groups
         .iter()
         .map(|group| group.core.group_id.clone())
+        .filter(|group_id| !owner_project_collapsed(group_id, input.ui))
         .collect();
+    fold_hidden_group_summaries(&mut groups, input.ui);
+    mark_projects_holding_active_session_group(&mut groups);
     let mut collections: Vec<CollectionView> = Vec::new();
     let mut order: Vec<OrderItem> = Vec::new();
     // Collections group projects; the bots are one flat list.
@@ -298,16 +302,48 @@ pub(crate) fn assemble(input: AssembleInput<'_>) -> SidebarView {
             &parent_project_of_group,
         )
     };
+    // A collection draws its projects' session groups under them (the desktop's
+    // session_group_tree.rs), so they join the collection's ids right after their project instead
+    // of standing at the top level: everything that walks the list in drawn order (the rows, the
+    // next/previous session, slots, the close successor) then meets them where they are drawn.
+    let session_groups_of = |project: &str| {
+        rendered_ids
+            .iter()
+            .filter(|group_id| owner_project_group_id(group_id).as_deref() == Some(project))
+            .cloned()
+            .collect::<Vec<_>>()
+    };
+    let nested_session_groups: BTreeSet<String> = collection_items
+        .iter()
+        .filter_map(|item| match item {
+            CollectionItem::Collection { group_ids, .. } => Some(group_ids),
+            CollectionItem::Project { .. } => None,
+        })
+        .flatten()
+        .flat_map(|project| session_groups_of(project))
+        .collect();
     for item in collection_items {
         match item {
-            CollectionItem::Project { group_id } => order.push(OrderItem {
-                kind: OrderKind::Project,
-                id: group_id,
-            }),
+            CollectionItem::Project { group_id } => {
+                if nested_session_groups.contains(&group_id) {
+                    continue;
+                }
+                order.push(OrderItem {
+                    kind: OrderKind::Project,
+                    id: group_id,
+                })
+            }
             CollectionItem::Collection {
                 collection,
                 group_ids,
             } => {
+                let group_ids: Vec<String> = group_ids
+                    .into_iter()
+                    .flat_map(|project| {
+                        let session_groups = session_groups_of(&project);
+                        std::iter::once(project).chain(session_groups)
+                    })
+                    .collect();
                 let storage_id = format!("{section_key}:{}", collection.collection_id);
                 if !input.ui.show_hidden
                     && input.ui.hidden_items.collection_keys.contains(&storage_id)
@@ -319,15 +355,8 @@ pub(crate) fn assemble(input: AssembleInput<'_>) -> SidebarView {
                         group.collection_color = Some(collection.color.clone());
                     }
                 }
-                let sessions: Vec<_> = group_ids
-                    .iter()
-                    .filter_map(|group_id| {
-                        groups
-                            .iter()
-                            .find(|group| group.core.group_id == *group_id)
-                            .map(|group| group.core.sessions.clone())
-                    })
-                    .flatten()
+                let sessions: Vec<_> = collection_groups(&groups, &group_ids)
+                    .flat_map(|group| group.core.sessions.clone())
                     .collect();
                 let summary = group_summary(&sessions);
                 collections.push(CollectionView {
@@ -488,7 +517,7 @@ fn empty_state(input: &AssembleInput<'_>, selection: Option<&SpaceSelection>) ->
     // user whose only projects are on a remote machine is not shown first-run copy.
     let known = input.meta.project_settings_count > 0
         || input.host.recent_project_count > 0
-        || input.plans.iter().any(|plan| plan.kind != GroupKind::Chats)
+        || !input.plans.is_empty()
         || (input.any_machine_draws_a_project)();
     let copy = if !known {
         "No projects added yet."
@@ -518,11 +547,147 @@ pub(crate) fn empty_state_deadline_ms(
         .flatten()
 }
 
+/// The project group that owns a user-made session group, `None` for any other group. The
+/// renderers draw a session group inside its project's block, so it folds with the project.
+pub fn owner_project_group_id(group_id: &str) -> Option<String> {
+    parse_workspace_subgroup_id(group_id).map(|(project, _)| project.to_sidebar_group_id())
+}
+
+/// The groups Collapse All and Expand Previous act on, out of `group_ids`: the projects without
+/// their session groups, which keep their own collapse inside their project.
+///
+/// CDXC:Projects 2026-10-24 WHY:
+/// Counted with the projects, the session groups a collapsed project hides read as expanded. With every project collapsed by hand, the More menu still offered Collapse All, which then collapsed only those hidden groups, and Expand Previous reopened only them, so the projects never opened and the button looked dead. A project group's own Collapse Projects leaves them out for the same reason.
+pub fn toggle_all_project_ids<'a>(group_ids: impl IntoIterator<Item = &'a String>) -> Vec<String> {
+    group_ids
+        .into_iter()
+        .filter(|group_id| owner_project_group_id(group_id).is_none())
+        .cloned()
+        .collect()
+}
+
+/// Marks the project whose session group holds the focused session, so a collapsed project, which
+/// hides its session groups, still draws as active.
+fn mark_projects_holding_active_session_group(groups: &mut [GroupView]) {
+    let Some(owner) = groups
+        .iter()
+        .find(|group| group.core.is_active)
+        .and_then(|group| owner_project_group_id(&group.core.group_id))
+    else {
+        return;
+    };
+    if let Some(project) = groups.iter_mut().find(|group| group.core.group_id == owner) {
+        project.holds_active_session_group = true;
+    }
+}
+
+/// The groups a collection holds, `group_ids` being its ids: its projects and their session
+/// groups, including those a collapsed project hides and leaves out of the ids, so the
+/// collection's header counts their sessions and its menu and Select All act on them too.
+pub fn collection_groups<'a>(
+    groups: &'a [GroupView],
+    group_ids: &'a [String],
+) -> impl Iterator<Item = &'a GroupView> + 'a {
+    groups.iter().filter(|group| {
+        group_ids.contains(&group.core.group_id)
+            || owner_project_group_id(&group.core.group_id)
+                .is_some_and(|owner| group_ids.contains(&owner))
+    })
+}
+
+/// Whether `group_id` is a session group whose project is collapsed.
+pub(crate) fn owner_project_collapsed(group_id: &str, ui: &SidebarUiState) -> bool {
+    owner_project_group_id(group_id)
+        .is_some_and(|owner| ui.collapse.collapsed_groups.contains(&owner))
+}
+
+/// A collapsed project counts the working, attention, question and awake rows of the session
+/// groups it hides, so its header's status still shows an agent working in one of them.
+fn fold_hidden_group_summaries(groups: &mut [GroupView], ui: &SidebarUiState) {
+    let mut hidden: BTreeMap<String, GroupSummary> = BTreeMap::new();
+    for group in groups.iter() {
+        if !owner_project_collapsed(&group.core.group_id, ui) {
+            continue;
+        }
+        let Some(owner) = owner_project_group_id(&group.core.group_id) else {
+            continue;
+        };
+        let total = hidden.entry(owner).or_default();
+        let summary = &group.core.summary;
+        total.working_count += summary.working_count;
+        total.attention_count += summary.attention_count;
+        total.background_work_count += summary.background_work_count;
+        total.question_count += summary.question_count;
+        total.awake_count += summary.awake_count;
+    }
+    if hidden
+        .values()
+        .all(|total| *total == GroupSummary::default())
+    {
+        return;
+    }
+    for group in groups.iter_mut() {
+        let Some(total) = hidden.get(&group.core.group_id) else {
+            continue;
+        };
+        if *total == GroupSummary::default() {
+            continue;
+        }
+        let mut core = (*group.core).clone();
+        core.summary.working_count += total.working_count;
+        core.summary.attention_count += total.attention_count;
+        core.summary.background_work_count += total.background_work_count;
+        core.summary.question_count += total.question_count;
+        core.summary.awake_count += total.awake_count;
+        group.core = std::sync::Arc::new(core);
+    }
+}
+
 /// The store's key for a machine tab id.
 fn machine_key(machine_id: &str) -> MachineId {
     if machine_id == LOCAL_MACHINE_ID {
         MachineId::Local
     } else {
         MachineId::Remote(machine_id.to_string())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::toggle_all_project_ids;
+    use crate::keys::{encode_workspace_subgroup_id, ProjectKey};
+    use crate::sidebar_ui::{SidebarUiIntent, SidebarUiStore, ToggleAllProjectsInput};
+
+    /// Every project collapsed by hand while a session group inside one is still open: the toggle
+    /// sees only projects, so its first press expands them instead of collapsing the hidden group.
+    #[test]
+    fn toggle_all_projects_leaves_out_the_session_groups_a_collapsed_project_hides() {
+        let project = ProjectKey::local("p1");
+        let project_id = project.to_sidebar_group_id();
+        let other_id = ProjectKey::local("p2").to_sidebar_group_id();
+        let session_group_id = encode_workspace_subgroup_id(&project, "g1");
+        let drawn = vec![
+            project_id.clone(),
+            session_group_id.clone(),
+            other_id.clone(),
+        ];
+
+        let group_ids = toggle_all_project_ids(&drawn);
+        assert_eq!(group_ids, vec![project_id.clone(), other_id.clone()]);
+
+        let mut store = SidebarUiStore::new();
+        for group_id in [&project_id, &other_id] {
+            store.apply(SidebarUiIntent::ToggleGroupCollapsed {
+                group_id: group_id.clone(),
+            });
+        }
+        store.apply(SidebarUiIntent::ToggleAllProjects(ToggleAllProjectsInput {
+            machine_id: "local".to_string(),
+            group_ids,
+        }));
+        let collapsed = &store.state().collapse.collapsed_groups;
+        assert!(!collapsed.contains(&project_id));
+        assert!(!collapsed.contains(&other_id));
+        assert!(!collapsed.contains(&session_group_id));
     }
 }

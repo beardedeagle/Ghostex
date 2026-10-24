@@ -7,10 +7,14 @@
 mod announcements;
 mod conversation;
 mod dictation;
+mod focus;
+#[cfg(test)]
+mod focus_tests;
 mod http;
 mod keys;
 mod loopback;
 mod memory;
+mod paragraphs;
 mod prompt;
 mod provider;
 mod question_forms;
@@ -22,6 +26,10 @@ mod sessions;
 mod settings_http;
 mod show;
 mod socket;
+mod talk;
+#[cfg(test)]
+mod talk_tests;
+mod tool_runs;
 mod tools;
 mod transcribe;
 mod when;

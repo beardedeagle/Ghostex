@@ -232,8 +232,12 @@ pub(crate) fn sync_session_chat_follower_for_session(
                     let db = open_gxserver_database(&child_paths).ok()?;
                     let repository = DomainRepository::new(&db, child_server_id.as_str());
                     // Forks are created in the parent's project, so the
-                    // project list is the whole candidate set.
-                    let sessions = repository.list_sessions(Some(&child_project_id)).ok()?;
+                    // project list is the whole candidate set. Stopped rows
+                    // never pass `is_active_identity_owner` below, so they are
+                    // not read at all.
+                    let sessions = repository
+                        .list_sessions_excluding_stopped(Some(&child_project_id))
+                        .ok()?;
                     sessions
                         .iter()
                         .filter(|candidate| {
@@ -270,7 +274,17 @@ pub(crate) fn sync_session_chat_follower_for_session(
                 let read = || -> Option<Vec<String>> {
                     let db = open_gxserver_database(&bound_paths).ok()?;
                     let repository = DomainRepository::new(&db, bound_server_id.as_str());
-                    let sessions = repository.list_sessions(None).ok()?;
+                    /*
+                    CDXC:SessionIdentity 2026-10-23 WHY:
+                    Every idle follower runs this every 30 seconds, and reading
+                    the whole registry here (10,000+ stopped rows, each with
+                    its JSON columns parsed) was the largest CPU and memory
+                    cost of an idle gxserver: concurrent scans after a start
+                    held several copies of the registry at once. Stopped rows
+                    never pass `is_active_identity_owner`, so they are left
+                    out of the query instead of filtered after hydration.
+                    */
+                    let sessions = repository.list_sessions_excluding_stopped(None).ok()?;
                     Some(
                         sessions
                             .iter()

@@ -8,11 +8,14 @@ use crate::domain::{
     find_project_by_path_in, merge_project_update, normalize_existing_directory_path,
     normalize_project_input, normalize_project_root_path, normalize_project_system_kind,
     normalize_project_visibility, now_iso, path_basename, project_from_row, project_insert_params,
-    project_row_from_sql, read_optional_text, read_string_field,
-    read_unvalidated_project_lookup_id, recent_project_from_project, sql_error, DomainRepository,
-    DomainResult, DomainStateError,
+    project_row_from_sql, project_row_without_session_history_from_sql, read_optional_text,
+    read_string_field, read_unvalidated_project_lookup_id, recent_project_from_project, sql_error,
+    DomainRepository, DomainResult, DomainStateError,
 };
 use crate::ids::create_project_id;
+
+/// Every `projects` column `project_row_without_session_history_from_sql` reads.
+const PROJECT_COLUMNS_WITHOUT_SESSION_HISTORY: &str = "projectId, name, path, identityIconJson, isPinned, isFavorite, isRecentProject, recentClosedAt, visibility, systemKind, defaultCommand, worktreeJson, customAgentsJson, customAgentOrderJson, customCommandsJson, customCommandOrderJson, deletedDefaultCommandIdsJson, launchSettingsJson, runtimeSettingsJson, completionRulesJson, attentionRulesJson, notificationRulesJson, gitConfigJson, projectBoardConfigJson, createdAt, updatedAt";
 
 pub(crate) const MAX_ID_GENERATION_ATTEMPTS: usize = 1024;
 
@@ -117,7 +120,7 @@ impl<'a> DomainRepository<'a> {
     pub fn list_projects(&self) -> DomainResult<Vec<Value>> {
         let mut statement = self
             .db
-            .prepare("SELECT * FROM projects ORDER BY updatedAt DESC, projectId ASC")
+            .prepare_cached("SELECT * FROM projects ORDER BY updatedAt DESC, projectId ASC")
             .map_err(sql_error)?;
         let rows = statement
             .query_map([], project_row_from_sql)
@@ -125,6 +128,44 @@ impl<'a> DomainRepository<'a> {
             .collect::<std::result::Result<Vec<_>, _>>()
             .map_err(sql_error)?;
         rows.into_iter().map(project_from_row).collect()
+    }
+
+    /// `list_projects` without each project's `previousSessionHistory`, for readers that never
+    /// look at it (the key is absent from every returned project).
+    ///
+    /// CDXC:StateSync 2026-10-23 WHY:
+    /// A project's restorable session history is its largest column (130 KB on the machine this was profiled on), and every full read parsed it, including the session deltas and the sidebar HUD reads that only want the project's settings. The history is still part of `get_project`/`list_projects`, which updates, trusted titles and the presentation's domain projects need.
+    pub fn list_projects_without_session_history(&self) -> DomainResult<Vec<Value>> {
+        let mut statement = self
+            .db
+            .prepare_cached(&format!(
+                "SELECT {PROJECT_COLUMNS_WITHOUT_SESSION_HISTORY} FROM projects ORDER BY updatedAt DESC, projectId ASC"
+            ))
+            .map_err(sql_error)?;
+        let rows = statement
+            .query_map([], project_row_without_session_history_from_sql)
+            .map_err(sql_error)?
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(sql_error)?;
+        rows.into_iter().map(project_from_row).collect()
+    }
+
+    /// `get_project` without the project's `previousSessionHistory` (see
+    /// `list_projects_without_session_history`).
+    pub fn get_project_without_session_history(
+        &self,
+        project_id: &str,
+    ) -> DomainResult<Option<Value>> {
+        let row = self
+            .db
+            .prepare_cached(&format!(
+                "SELECT {PROJECT_COLUMNS_WITHOUT_SESSION_HISTORY} FROM projects WHERE projectId = ?1"
+            ))
+            .map_err(sql_error)?
+            .query_row([project_id], project_row_without_session_history_from_sql)
+            .optional()
+            .map_err(sql_error)?;
+        row.map(project_from_row).transpose()
     }
 
     pub fn list_recent_projects(&self) -> DomainResult<Vec<Value>> {
@@ -174,11 +215,9 @@ impl<'a> DomainRepository<'a> {
     pub fn get_project(&self, project_id: &str) -> DomainResult<Option<Value>> {
         let row = self
             .db
-            .query_row(
-                "SELECT * FROM projects WHERE projectId = ?1",
-                [project_id],
-                project_row_from_sql,
-            )
+            .prepare_cached("SELECT * FROM projects WHERE projectId = ?1")
+            .map_err(sql_error)?
+            .query_row([project_id], project_row_from_sql)
             .optional()
             .map_err(sql_error)?;
         row.map(project_from_row).transpose()

@@ -154,6 +154,11 @@ pub(super) fn clamp_darkness(value: f64) -> f64 {
     round_half(value).clamp(MIN_DARKNESS, MAX_DARKNESS)
 }
 
+/// `CUSTOM_LIGHT_THEME_DEPTH_SHIFT` in helpers/titlebar/chrome_tints.rs: a custom light colour is
+/// drawn one point deeper than its saved depth, at the tinted presets' depth (this page is also
+/// compiled into the modal demo, which has no app helpers).
+const CUSTOM_LIGHT_THEME_DEPTH_SHIFT: f64 = -1.0;
+
 /// `clampSidebarTitlebarLightBackgroundLightnessPercent`.
 pub(super) fn clamp_lightness(value: f64) -> f64 {
     if !value.is_finite() {
@@ -482,7 +487,10 @@ fn chrome_controls(values: &SettingsValues, dark: bool) -> (f64, String) {
         )
     } else {
         (
-            clamp_lightness(values.f64("customSidebarTitlebarLightBackgroundLightnessPercent")),
+            clamp_lightness(
+                values.f64("customSidebarTitlebarLightBackgroundLightnessPercent")
+                    + CUSTOM_LIGHT_THEME_DEPTH_SHIFT,
+            ),
             normalize_hex(
                 &values.string("customSidebarTitlebarLightBackgroundTintColor"),
                 DEFAULT_TINT,
@@ -577,12 +585,11 @@ pub(super) fn colourfulness_patch(position: usize) -> Map<String, Value> {
 }
 
 /// `TRANSPARENCY_STRENGTH_*` and the anchor the strength-to-tint curve is drawn from: strength 20 is
-/// 88/93, and the shipped default is strength 10 (94/91/97/93 in the settings catalog).
+/// 88/93, and the shipped default is strength 10 (94 dark and 97 light for both areas in the settings catalog).
 pub(super) const STRENGTH_MIN: f64 = 0.0;
 pub(super) const STRENGTH_MAX: f64 = 100.0;
 pub(super) const STRENGTH_STEP: f64 = 5.0;
 const STRENGTH_DEFAULT: f64 = 20.0;
-const STRENGTH_WORK_AREA_GAP: f64 = 7.0;
 const SIDEBAR_AT_DEFAULT_DARK: f64 = 88.0;
 const SIDEBAR_AT_DEFAULT_LIGHT: f64 = 93.0;
 
@@ -593,26 +600,28 @@ fn strength_sidebar_tint(strength: f64, at_default: f64) -> f64 {
     (at_default * (STRENGTH_MAX - strength)) / (STRENGTH_MAX - STRENGTH_DEFAULT)
 }
 
-fn strength_work_area_gap(strength: f64) -> f64 {
-    let ramp = (strength / STRENGTH_DEFAULT)
-        .min((STRENGTH_MAX - strength) / STRENGTH_DEFAULT)
-        .min(1.0);
-    STRENGTH_WORK_AREA_GAP * ramp.max(0.0)
+/// How much more solid the work area is than the sidebar (work area tint minus sidebar tint) in
+/// dark and in light mode: 0 unless the tints were set apart by hand.
+pub(super) fn strength_gaps(values: &SettingsValues) -> (f64, f64) {
+    (
+        values.f64("windowGlassWorkAreaTintDark") - values.f64("windowGlassSidebarOpacityDark"),
+        values.f64("windowGlassWorkAreaTintLight") - values.f64("windowGlassSidebarOpacityLight"),
+    )
 }
 
-/// `transparencyStrengthPatch`: the four glass tints one strength sets.
+/// `transparencyStrengthPatch`: the four glass tints one strength sets, keeping each appearance's
+/// work-area gap (`strength_gaps`).
 ///
-/// CDXC:Theming 2026-09-27 DECISION:
-/// User: "add transparency strength selection" to the setup and the Theme page, then "it needs to make the sidebar darker than main not vice versa", "make it 7 point difference and make it a slider with more options", and then "Full range". Strength is one 0-100 slider in steps of 5 that sets the four tints at once: 0 fully solid, 100 fully clear, 20 the shipped default, the work area 7 points more see-through than the sidebar with the gap narrowing to 0 at both ends.
-pub(super) fn strength_patch(strength: f64) -> Map<String, Value> {
+/// CDXC:Theming 2026-10-23 DECISION:
+/// User: "add transparency strength selection" to the setup and the Theme page, then "make it a slider with more options" and "Full range"; then "pls make the sidebar and main area default to having the same strength for the transparency by default" and "but look if the user makes one darker than other and we just adjust the strength then we need to keep the difference between the 2 ok?". Strength is one 0-100 slider in steps of 5 (0 fully solid, 100 fully clear) that sets the sidebar's tint from its curve and gives the work area the same tint plus the difference the user set between them by hand under More transparency options, in dark and light mode separately; out of the box there is no difference, so both match. Each tint is clamped to 0-100, so near the ends the difference narrows as far as it has to (and stays narrowed). This supersedes the 2026-09-27 rule that kept the work area up to 7 points more see-through than the sidebar ("it needs to make the sidebar darker than main", "make it 7 point difference").
+pub(super) fn strength_patch(strength: f64, gaps: (f64, f64)) -> Map<String, Value> {
     let value = strength.clamp(STRENGTH_MIN, STRENGTH_MAX);
-    let gap = strength_work_area_gap(value);
-    let tints = |at_default: f64| {
-        let sidebar = strength_sidebar_tint(value, at_default);
-        (sidebar.round(), (sidebar - gap).round().max(0.0))
+    let tints = |at_default: f64, gap: f64| {
+        let sidebar = strength_sidebar_tint(value, at_default).round();
+        (sidebar, (sidebar + gap).round().clamp(0.0, 100.0))
     };
-    let (dark_sidebar, dark_work) = tints(SIDEBAR_AT_DEFAULT_DARK);
-    let (light_sidebar, light_work) = tints(SIDEBAR_AT_DEFAULT_LIGHT);
+    let (dark_sidebar, dark_work) = tints(SIDEBAR_AT_DEFAULT_DARK, gaps.0);
+    let (light_sidebar, light_work) = tints(SIDEBAR_AT_DEFAULT_LIGHT, gaps.1);
     let mut patch = Map::new();
     patch.insert(
         "windowGlassSidebarOpacityDark".into(),
@@ -627,8 +636,9 @@ pub(super) fn strength_patch(strength: f64) -> Map<String, Value> {
     patch
 }
 
-/// `transparencyStrengthFromSettings`: the exact strength the tints came from (or `None` once they
-/// were tuned by hand) and where the slider sits.
+/// `transparencyStrengthFromSettings`: the exact strength the tints came from (or `None` once a
+/// sidebar tint was tuned off the curve by hand; a hand-set work-area gap still counts as exact) and
+/// where the slider sits.
 pub(super) fn strength_from_settings(values: &SettingsValues) -> (Option<f64>, f64) {
     let sidebar = values.f64("windowGlassSidebarOpacityDark");
     let raw = if sidebar >= SIDEBAR_AT_DEFAULT_DARK {
@@ -637,7 +647,7 @@ pub(super) fn strength_from_settings(values: &SettingsValues) -> (Option<f64>, f
         STRENGTH_MAX - (sidebar * (STRENGTH_MAX - STRENGTH_DEFAULT)) / SIDEBAR_AT_DEFAULT_DARK
     };
     let nearest = ((raw / STRENGTH_STEP).round() * STRENGTH_STEP).clamp(STRENGTH_MIN, STRENGTH_MAX);
-    let patch = strength_patch(nearest);
+    let patch = strength_patch(nearest, strength_gaps(values));
     let matches = |key: &str| patch.get(key).and_then(Value::as_f64) == Some(values.f64(key));
     let exact = [
         "windowGlassSidebarOpacityDark",
@@ -665,4 +675,81 @@ pub(super) fn paired_preset(from_dark: bool, preset: &str) -> Option<String> {
 /// `#rrggbb` of a colour (for the swatch cache key).
 pub(super) fn hex_of(color: Rgb) -> String {
     color.hex()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const TINT_KEYS: [&str; 4] = [
+        "windowGlassSidebarOpacityDark",
+        "windowGlassWorkAreaTintDark",
+        "windowGlassSidebarOpacityLight",
+        "windowGlassWorkAreaTintLight",
+    ];
+
+    fn tints(patch: &Map<String, Value>) -> [f64; 4] {
+        TINT_KEYS.map(|key| patch[key].as_f64().unwrap())
+    }
+
+    fn values_of(tints: [f64; 4]) -> SettingsValues {
+        let mut map = Map::new();
+        for (key, tint) in TINT_KEYS.iter().zip(tints) {
+            map.insert((*key).into(), js_number(tint));
+        }
+        SettingsValues::from_map(map)
+    }
+
+    #[test]
+    fn equal_tints_stay_equal_at_every_strength() {
+        let mut strength = STRENGTH_MIN;
+        while strength <= STRENGTH_MAX {
+            let [dark_sidebar, dark_work, light_sidebar, light_work] =
+                tints(&strength_patch(strength, (0.0, 0.0)));
+            assert_eq!(dark_sidebar, dark_work);
+            assert_eq!(light_sidebar, light_work);
+            strength += STRENGTH_STEP;
+        }
+        assert_eq!(tints(&strength_patch(STRENGTH_MIN, (0.0, 0.0))), [100.0; 4]);
+        assert_eq!(tints(&strength_patch(STRENGTH_MAX, (0.0, 0.0))), [0.0; 4]);
+    }
+
+    #[test]
+    fn a_hand_set_gap_moves_with_the_slider() {
+        // Dark: work area 5 more see-through; light: work area 2 more solid.
+        let values = values_of([94.0, 89.0, 92.0, 94.0]);
+        assert_eq!(strength_gaps(&values), (-5.0, 2.0));
+        assert_eq!(
+            tints(&strength_patch(40.0, strength_gaps(&values))),
+            [66.0, 61.0, 70.0, 72.0]
+        );
+        // The slider reads the sidebar's stop, and a hand-set gap on a stop still counts as exact.
+        let on_stop = values_of([94.0, 89.0, 97.0, 99.0]);
+        assert_eq!(strength_from_settings(&on_stop), (Some(10.0), 10.0));
+    }
+
+    #[test]
+    fn the_ends_clamp_each_tint() {
+        let gaps = (-5.0, 3.0);
+        assert_eq!(
+            tints(&strength_patch(STRENGTH_MIN, gaps)),
+            [100.0, 95.0, 100.0, 100.0]
+        );
+        assert_eq!(
+            tints(&strength_patch(STRENGTH_MAX, gaps)),
+            [0.0, 0.0, 0.0, 3.0]
+        );
+    }
+
+    #[test]
+    fn catalog_defaults_are_strength_ten() {
+        let values = SettingsValues::from_map(Map::new());
+        let patch = strength_patch(10.0, strength_gaps(&values));
+        for key in TINT_KEYS {
+            let default = ghostex_settings_catalog::default_value(key)
+                .and_then(ghostex_settings_catalog::J::as_f64);
+            assert_eq!(patch[key].as_f64(), default, "{key}");
+        }
+        assert_eq!(strength_from_settings(&values), (Some(10.0), 10.0));
+    }
 }

@@ -55,6 +55,13 @@ pub(crate) struct NativeSidebarGroup {
     pub(crate) is_active: bool,
     #[serde(default)]
     pub(crate) is_stale: bool,
+    /// The project a user-made session group belongs to (gx-core `owner_project_group_id`); the
+    /// list draws the group inside that project's block.
+    #[serde(default)]
+    pub(crate) owner_group_id: Option<String>,
+    /// One of this project's session groups holds the focused session.
+    #[serde(default)]
+    pub(crate) holds_active_session_group: bool,
     pub(crate) project_context: Option<Value>,
     pub(crate) remote_machine_context: Option<Value>,
     #[serde(deserialize_with = "deserialize_sessions")]
@@ -118,6 +125,10 @@ pub(crate) struct NativeSidebarSession {
     /// line (native_sidebar/work_chips.rs).
     #[serde(skip)]
     pub(crate) work: Option<Arc<ghostex_gx_core::SessionWork>>,
+    /// Every PR, GitHub issue and Linear ticket the session is linked to, present only when it has
+    /// one: the line a hovered card opens (native_sidebar/link_chips.rs).
+    #[serde(skip)]
+    pub(crate) links: Option<Arc<ghostex_gx_core::SessionLinks>>,
     #[serde(flatten)]
     pub(crate) details: serde_json::Map<String, Value>,
 }

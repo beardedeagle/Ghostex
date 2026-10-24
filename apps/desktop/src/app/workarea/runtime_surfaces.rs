@@ -196,13 +196,18 @@ impl GhostexGpuiApp {
                 return None;
             }
         }
-        let themed_page = matches!(
-            slot_key,
-            ProjectWorkareaCefSurfaceSlotKey::Kanban
-                | ProjectWorkareaCefSurfaceSlotKey::Automate
-                | ProjectWorkareaCefSurfaceSlotKey::Manage
-                | ProjectWorkareaCefSurfaceSlotKey::Work
-        );
+        // The Files view showing a page an agent published: its own browser, without the
+        // Files bridge (native_docs/published_page.rs).
+        let published_page = slot_key == ProjectWorkareaCefSurfaceSlotKey::Manage
+            && self.native_docs_active_page().is_some();
+        let themed_page = !published_page
+            && matches!(
+                slot_key,
+                ProjectWorkareaCefSurfaceSlotKey::Kanban
+                    | ProjectWorkareaCefSurfaceSlotKey::Automate
+                    | ProjectWorkareaCefSurfaceSlotKey::Manage
+                    | ProjectWorkareaCefSurfaceSlotKey::Work
+            );
         let mut url = runtime_url.clone().into_cef_url();
         if themed_page {
             let separator = if url.contains('?') { '&' } else { '?' };
@@ -217,9 +222,9 @@ impl GhostexGpuiApp {
         // is the one trusted clipboard origin (macOS trustedClipboardOrigin).
         let trusted_clipboard_origin =
             (slot_key == ProjectWorkareaCefSurfaceSlotKey::Source).then(|| url.clone());
-        let project_workarea_bridge_event_handler =
-            (!matches!(slot_key, ProjectWorkareaCefSurfaceSlotKey::Extension(_)))
-                .then(|| self.project_workarea_bridge_event_handler(slot_key, cx));
+        let project_workarea_bridge_event_handler = (!published_page
+            && !matches!(slot_key, ProjectWorkareaCefSurfaceSlotKey::Extension(_)))
+        .then(|| self.project_workarea_bridge_event_handler(slot_key, cx));
         let surface_background =
             if CHROME_LIGHT_APPEARANCE.load(std::sync::atomic::Ordering::Relaxed) {
                 rgb(0xffffff).into()
@@ -228,14 +233,24 @@ impl GhostexGpuiApp {
             } else {
                 workspace_background_color()
             };
-        let manage_docs_resource_scope = if slot_key == ProjectWorkareaCefSurfaceSlotKey::Manage {
-            Some(self.manage_docs_resource_scope()?)
-        } else {
-            None
-        };
+        let manage_docs_resource_scope =
+            if slot_key == ProjectWorkareaCefSurfaceSlotKey::Manage && !published_page {
+                Some(self.manage_docs_resource_scope()?)
+            } else {
+                None
+            };
         let page_loaded = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
         let page_load_end_handler = self.project_workarea_page_load_end_handler(&page_loaded, cx);
         let creation_result = match slot_key {
+            ProjectWorkareaCefSurfaceSlotKey::Manage if published_page => self
+                .native_docs_create_page_surface(
+                    surface_id,
+                    parent_ns_view,
+                    url,
+                    surface_background,
+                    page_load_end_handler,
+                    cx,
+                ),
             ProjectWorkareaCefSurfaceSlotKey::Extension(id) => {
                 if gpui_custom_view(id).is_some() {
                     // CDXC:Browser 2026-09-22 DECISION:
@@ -506,6 +521,7 @@ impl GhostexGpuiApp {
                             loading: false,
                             persistent: false,
                             duration_ms: GPUI_APP_TOAST_DEFAULT_DURATION_MS,
+                            action: None,
                             epoch: 0,
                         },
                         cx,

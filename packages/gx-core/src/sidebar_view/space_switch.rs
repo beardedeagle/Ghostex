@@ -9,9 +9,9 @@
 //!
 //! **Declared difference from `switchNativeSidebarSpace`.** The rows are taken from the list the
 //! sidebar DRAWS for the newly selected Space, where the TypeScript takes `state.groupOrder`
-//! filtered by the Space alone. So a project the user HID, a row a tag filter removed, and the
-//! machine's Chats collection are not restore targets here, and the first of those three is the
-//! only one that can change what a user sees: the TypeScript could focus a session inside a project
+//! filtered by the Space alone. So a project the user HID and a row a tag filter removed are not
+//! restore targets here, and the first of those two is the only one that can change what a user
+//! sees: the TypeScript could focus a session inside a project
 //! the sidebar is not showing. The same "the rows the list draws" rule already decides
 //! `collectionAction:select` and `sidebarAction:toggleProjects`.
 //!

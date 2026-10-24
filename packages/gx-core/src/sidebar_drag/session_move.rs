@@ -6,8 +6,9 @@
 //! planner's whole job is the SET and the ORDER, computed against the projection's membership
 //! (`inventory.rs`) and not against the drawn list, plus the four guards the TypeScript applies
 //! before it: a pinned row may only be dropped next to another pinned row of its own group, an
-//! unpinned one only while the sort mode is Manual, a remote row not at all, and a browser row not
-//! at all.
+//! unpinned one may be reordered inside its group only while the sort mode is Manual, a remote row
+//! not at all, and a browser row not at all. A row moved to another group must stay in its own
+//! project, which the order write enforces too.
 //!
 //! **A no-op drop is not a no-op.** Dropping a row exactly where it already is leaves
 //! `moveSessionIdsByDropTarget` returning the map unchanged, and `reorderNativeSidebar` posts
@@ -22,6 +23,7 @@
 use serde_json::{json, Value};
 
 use crate::core::Core;
+use crate::keys::SessionKey;
 use crate::sidebar_view::SessionSortMode;
 use crate::sidebar_view::SidebarInputs;
 
@@ -140,10 +142,20 @@ pub fn plan_session_move(
             position,
         ));
     }
-    // `state.hud.activeSessionsSortMode !== 'manual'`: an unpinned row keeps the order the sort
-    // mode gives it, so a drag that cannot be saved is refused rather than shown and lost.
-    if inputs.settings.sort_mode != SessionSortMode::Manual {
+    // CDXC:Sessions 2026-10-23 WHY:
+    // An unpinned row keeps the order the sort mode gives it, so a reorder inside its own group that cannot be saved is refused rather than shown and lost. A drop on ANOTHER group is a different write: `moveSessionToGroup` changes which group holds the row, and that holds under any sort mode. Refusing it too left a session moved with Move to New Group with no way back out on the desktop, whose sort mode is always Last Activity (`DESKTOP_SORT_MODE` in apps/desktop/src/app/gx_store/sidebar_list_inputs.rs).
+    if inputs.settings.sort_mode != SessionSortMode::Manual && source.group_id == target.group_id {
         return Some(SessionMovePlan::refused("sortModeNotManual"));
+    }
+    // The order write takes a row only into its own project's list or one of that project's
+    // user-made groups (`plan_move_session_to_group` in order_write.rs); planning any other target
+    // would draw a drop line for a release that moves nothing.
+    let session_project =
+        SessionKey::parse_sidebar_session_id(session_id).map(|session| session.project_key());
+    if source.group_id != target.group_id
+        && (session_project.is_none() || target.project != session_project)
+    {
+        return Some(SessionMovePlan::refused("targetOfAnotherProject"));
     }
     Some(plan_unpinned_move(
         &source,

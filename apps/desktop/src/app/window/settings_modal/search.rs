@@ -467,7 +467,11 @@ impl GeneralSearch {
     }
 
     /// `mainSettingVisible(settingsSearch[section], key)`.
+    /// CDXC:Settings 2026-10-24 WHY: `hidden_keys` (a built-in extension that is off, a row this platform lacks) is checked here for every page, not only through the search filter: before, a page with no search typed drew those rows anyway, so a Mac with Read aloud off showed Voice, Speed and the Linux/Windows note that this computer can't speak.
     pub(crate) fn setting_visible(&self, section: &str, key: &str) -> bool {
+        if self.hidden_keys.contains(&key) {
+            return false;
+        }
         if key == "terminalShadersEnabled" && !(cfg!(target_os = "macos") && self.show_experimental)
         {
             return false;

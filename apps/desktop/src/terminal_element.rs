@@ -617,6 +617,11 @@ pub struct TerminalView {
     input_suppressed: bool,
     viewer_retired: bool,
     cursor_blink_visible: bool,
+    /// CDXC:Terminal 2026-10-23 WHY:
+    /// One blink loop per terminal used to wake every half second for as long as the terminal existed, and the focused one repainted the window on each wake even while the window sat in the background, minimized or covered, or the terminal was not on screen. The loop now runs only while the cursor can be seen blinking (`cursor_blink_wanted`): prepaint starts it and it ends itself on the first tick that finds the terminal unfocused, undrawn for two intervals, or its window inactive, and leaves the cursor drawn steadily until the next prepaint that finds it wanted again.
+    cursor_blink_driving: bool,
+    /// Whether the window this terminal was last drawn in was the active one at that prepaint; every activation change refreshes the window, so prepaint keeps it current.
+    cursor_blink_window_active: bool,
     /// Local selection drag in progress (left button held, no reporting).
     drag: Option<SelectionDrag>,
     /// The left press was routed to PTY mouse reporting; drag sends motion
@@ -738,32 +743,6 @@ impl TerminalView {
             }
         })
         .detach();
-        cx.spawn(async move |this, cx| {
-            loop {
-                cx.background_executor()
-                    .timer(TERMINAL_CURSOR_BLINK_INTERVAL)
-                    .await;
-                let Ok(keep_running) = this.update(cx, |view, cx| {
-                    if view.viewer_retired {
-                        return false;
-                    }
-                    if view.settings.cursor_blink && view.focused {
-                        view.cursor_blink_visible = !view.cursor_blink_visible;
-                        cx.notify();
-                    } else if !view.cursor_blink_visible {
-                        view.cursor_blink_visible = true;
-                        cx.notify();
-                    }
-                    true
-                }) else {
-                    break;
-                };
-                if !keep_running {
-                    break;
-                }
-            }
-        })
-        .detach();
 
         Self {
             context_menu_handler,
@@ -792,6 +771,8 @@ impl TerminalView {
             input_suppressed: false,
             viewer_retired: false,
             cursor_blink_visible: true,
+            cursor_blink_driving: false,
+            cursor_blink_window_active: false,
             drag: None,
             reporting_drag: false,
             left_button_down: false,
@@ -2553,6 +2534,59 @@ impl TerminalView {
         .detach();
     }
 
+    /// Whether the cursor is on screen blinking: the blink setting is on, the terminal has focus in
+    /// the active window and was drawn within the last two blink intervals (a terminal that is
+    /// hidden, parked, or in a minimized or covered window is not drawn, see `cursor_blink_driving`).
+    fn cursor_blink_wanted(&self) -> bool {
+        self.settings.cursor_blink
+            && self.focused
+            && self.cursor_blink_window_active
+            && self.displayed
+            && !self.viewer_retired
+            && self
+                .last_prepaint
+                .is_some_and(|at| at.elapsed() < TERMINAL_CURSOR_BLINK_INTERVAL * 2)
+    }
+
+    /// Called by prepaint: starts the blink loop when the cursor should blink, and otherwise shows
+    /// the cursor steadily.
+    fn sync_cursor_blink(&mut self, cx: &mut Context<Self>) {
+        if !self.cursor_blink_wanted() {
+            self.cursor_blink_visible = true;
+            return;
+        }
+        if self.cursor_blink_driving {
+            return;
+        }
+        self.cursor_blink_driving = true;
+        cx.spawn(async move |this, cx| {
+            loop {
+                cx.background_executor()
+                    .timer(TERMINAL_CURSOR_BLINK_INTERVAL)
+                    .await;
+                let Ok(keep_running) = this.update(cx, |view, cx| {
+                    if view.cursor_blink_wanted() {
+                        view.cursor_blink_visible = !view.cursor_blink_visible;
+                        cx.notify();
+                        return true;
+                    }
+                    view.cursor_blink_driving = false;
+                    view.cursor_blink_visible = true;
+                    // Marks a minimized or covered window dirty, so the frame it draws once it is
+                    // shown again restarts the blink from prepaint.
+                    cx.notify();
+                    false
+                }) else {
+                    break;
+                };
+                if !keep_running {
+                    break;
+                }
+            }
+        })
+        .detach();
+    }
+
     /// Pointer region that holds the bar open. The visible 5px track is the
     /// grab target; the few pixels of gutter beside it only keep the bar up
     /// long enough to aim at it.
@@ -2809,6 +2843,8 @@ impl TerminalView {
                 self.last_reported_ime_cursor = None;
             }
         }
+        self.cursor_blink_window_active = window.is_window_active();
+        self.sync_cursor_blink(cx);
 
         let metrics = compute_cell_metrics(&self.font, window);
         if self.cached_metrics != Some(metrics) {

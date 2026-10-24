@@ -177,21 +177,10 @@ impl PresentationStore {
             .map(|session| session.lifecycle_state.clone())
     }
 
-    /// Whether a project is a projectless Chats container: flagged as chat or quick on its domain
-    /// row, or stored under a Ghostex chats folder.
-    pub fn is_chat_project(&self, key: &ProjectKey) -> bool {
-        self.machine(&key.machine)
-            .is_some_and(|machine| machine.is_chat_project(&key.project_id))
-    }
-
-    /// The sidebar group a session's tab lives in: the Chats collection for a chat project, else
-    /// the user-made group that contains the session, else the project's own group. Chat projects
-    /// come first because they have no user-made groups.
+    /// The sidebar group a session's tab lives in: the user-made group that contains the session,
+    /// else the project's own group.
     pub fn group_of_session(&self, key: &SessionKey) -> ActiveGroup {
         let project = key.project_key();
-        if self.is_chat_project(&project) {
-            return ActiveGroup::Chats(key.machine.clone());
-        }
         match self
             .user_groups_of_project(&project)
             .iter()
@@ -211,13 +200,12 @@ impl PresentationStore {
     /// ids without a row, rows with `visibleInSidebarByDefault` false, command-pane rows
     /// (`surface == commands`), locally hidden rows, and rows that belong to one of the project's
     /// user-made groups (those are the tabs of that group instead). A user-made group lists its
-    /// member ids that still have a row, in its own order, with no further filter. The Chats
-    /// collection concatenates the project lists of every chat project of the machine. The
-    /// synthetic Quick Automations project is never a tab. Browser rows are host state, not
-    /// sessions, and are not part of this list.
+    /// member ids that still have a row, in its own order, with no further filter. The synthetic
+    /// Quick Automations project is never a tab. Browser rows are host state, not sessions, and are
+    /// not part of this list.
     ///
     /// `Missing` when the group's project does not exist or is hidden locally, or the user-made
-    /// group is unknown. The Chats collection always exists once its machine is loaded.
+    /// group is unknown.
     pub fn tab_sessions(&self, group: &ActiveGroup) -> Loadable<Vec<TabSession>> {
         let machine_id = group_machine(group);
         self.tab_refs(group).map(|refs| {
@@ -322,12 +310,6 @@ impl PresentationStore {
                     push_tab_ref(machine, loaded, &project.project_id, session_id, &mut refs);
                 }
             }
-            ActiveGroup::Chats(_) => {
-                for project_id in self.ordered_chat_project_ids(machine, loaded) {
-                    // Chat projects have no user-made groups.
-                    push_project_tab_refs(machine, loaded, project_id, &[], &mut refs);
-                }
-            }
         }
         Loadable::Loaded(refs)
     }
@@ -343,35 +325,15 @@ impl PresentationStore {
             .unwrap_or_default()
     }
 
-    /// Chat projects in sidebar order.
-    fn ordered_chat_project_ids<'a>(
-        &self,
-        machine: &MachinePresentation,
-        loaded: &'a LoadedPresentation,
-    ) -> Vec<&'a str> {
-        let mut projects: Vec<&PresentationProject> = loaded
-            .projects()
-            .iter()
-            .filter(|project| !machine.is_project_hidden(&project.project_id))
-            .filter(|project| machine.is_chat_project(&project.project_id))
-            .collect();
-        projects.sort_by(|left, right| sidebar_project_order(machine, left, right));
-        projects
-            .into_iter()
-            .map(|project| project.project_id.as_str())
-            .collect()
-    }
-
-    /// The first code (non-chat) project of a machine in sidebar order: where focus is re-homed
-    /// when the active project goes away. `None` when the machine is not loaded or has none.
-    pub fn first_code_project(&self, machine_id: &MachineId) -> Option<ProjectKey> {
+    /// The first project of a machine in sidebar order: where focus is re-homed when the active
+    /// project goes away. `None` when the machine is not loaded or has none.
+    pub fn first_project(&self, machine_id: &MachineId) -> Option<ProjectKey> {
         let machine = self.machine(machine_id)?;
         machine
             .loaded()?
             .projects()
             .iter()
             .filter(|project| !machine.is_project_hidden(&project.project_id))
-            .filter(|project| !machine.is_chat_project(&project.project_id))
             .min_by(|left, right| sidebar_project_order(machine, left, right))
             .map(|project| ProjectKey {
                 machine: machine_id.clone(),
@@ -414,7 +376,6 @@ fn sidebar_project_order(
 fn group_machine(group: &ActiveGroup) -> &MachineId {
     match group {
         ActiveGroup::Project(project) | ActiveGroup::Subgroup { project, .. } => &project.machine,
-        ActiveGroup::Chats(machine) => machine,
     }
 }
 
@@ -578,26 +539,4 @@ fn tab_title(session: &PresentationSession) -> String {
         bounded.push(character);
     }
     bounded
-}
-
-/// Chat-project detection by storage root, never by display title: `ghostex/chats`,
-/// `.ghostex[-variant]/chats`, and `.active/chats`, anywhere in the path. Arbitrary projects named
-/// "Chat ..." are not chat projects.
-pub fn is_chat_project_path(path: &str) -> bool {
-    let normalized = path.trim().replace('\\', "/");
-    let mut previous: Option<&str> = None;
-    for segment in normalized.trim_end_matches('/').split('/') {
-        if segment == "chats" {
-            if let Some(parent) = previous {
-                let variant = parent
-                    .strip_prefix(".ghostex-")
-                    .is_some_and(|rest| !rest.is_empty());
-                if parent == "ghostex" || parent == ".ghostex" || parent == ".active" || variant {
-                    return true;
-                }
-            }
-        }
-        previous = Some(segment);
-    }
-    false
 }

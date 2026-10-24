@@ -24,7 +24,7 @@ marked **(unverified)** were inferred and not confirmed from that evidence.
 2. `bun run release:actions -- X.Y.Z` dispatches `.github/workflows/release-gpui.yml`
    on `main`. Every build, signing, notarization and publish step runs on
    GitHub runners (macOS DMG + notarization + Sparkle, Linux deb/rpm/tar,
-   Windows x64/arm64 Velopack installer and update packages, Android APK, Linux ARM64
+   Windows x64/arm64 Velopack, Android APK, Linux ARM64
    deb/rpm/tar on `ubuntu-24.04-arm`, gxserver Linux and WSL runtimes).
 3. Each platform has its own publish stage. The first stage to finish creates
    tag `vX.Y.Z` (at the dispatched commit) and the GitHub release. Its body
@@ -424,7 +424,7 @@ Expect about 25 assets: `ghostex-X.Y.Z-arm64.dmg`, `ghostex_X.Y.Z_amd64.deb`,
 `ghostex-X.Y.Z-1.x86_64.rpm`, `ghostex-X.Y.Z-linux-x64.tar.zst`,
 `ghostex_X.Y.Z_arm64.deb`, `ghostex-X.Y.Z-1.aarch64.rpm`,
 `ghostex-X.Y.Z-linux-arm64.tar.zst`,
-`ghostex-X.Y.Z-windows-{x64,arm64}.exe` (there is no portable zip any more), the Velopack
+`ghostex-X.Y.Z-windows-{x64,arm64}.exe`, the Velopack
 files, `ghostex-android.apk`, `gxserver-linux-{x64,arm64}.tar.gz`,
 `gxserver-wsl-windows-{x64,arm64}.zip` and `release-provenance-X.Y.Z.json`.
 

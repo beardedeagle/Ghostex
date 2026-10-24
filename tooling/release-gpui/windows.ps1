@@ -34,7 +34,7 @@
 #                     generates) -> SignPath round 1.
 #   package-pack      the real `vpk pack`; its sign hook swaps each file for its
 #                     round-1 signed copy, matched by the SHA-256 of the
-#                     unsigned bytes, so the full and delta nupkgs hold
+#                     unsigned bytes, so the nupkg and delta hold
 #                     signed binaries. The inner Velopack Setup.exe is left for
 #                     SignPath round 2.
 #   package-bundle    bundle the signed inner setup behind the launcher and
@@ -233,6 +233,8 @@ $VpkOutput = Join-Path $Output "velopack"
 $Installer = Join-Path $Output "ghostex-$Version-windows-$Arch.exe"
 $InnerInstallerName = "Ghostex-Velopack-Setup.exe"
 $InnerInstaller = Join-Path $VpkOutput $InnerInstallerName
+# Stores Velopack's Setup.exe package uncompressed and bundles it LZMA-compressed (CDXC:Release 2026-10-23 in apps/desktop/src/bin/ghostex_windows_installer_pack.rs).
+$InstallerPackTool = Join-Path $RepoRoot "apps/desktop/target/release/ghostex-windows-installer-pack.exe"
 # Each SignPath round trip uploads one folder and downloads its signed copy
 # into the matching *-signed folder (release-gpui-windows.yml).
 $CollectDir = Join-Path $SigningRoot "collect"
@@ -260,10 +262,6 @@ function Assert-SignPathSignature([string]$Path) {
     }
 }
 
-# CDXC:Release 2026-10-23 DECISION:
-# The user stopped the Windows portable build: "let's stop building portable
-# ghostex please i dont wanna support that". Every pack runs with --noPortable,
-# so a Windows release ships only the installer and the Velopack update files.
 function Invoke-VelopackPack([string]$PackOutput, [bool]$WithSignHook) {
     $Changelog = Get-Content -Raw (Join-Path $RepoRoot "CHANGELOG.md")
     $ReleaseNotesMatch = [regex]::Match(
@@ -277,6 +275,7 @@ function Invoke-VelopackPack([string]$PackOutput, [bool]$WithSignHook) {
     $ReleaseNotesMatch.Value.Trim() | Set-Content -Encoding UTF8 $ReleaseNotesPath
     $SignArgs = @()
     if ($WithSignHook) { $SignArgs = @("--signTemplate", $VpkSignTemplate, "--signExclude", $VpkSignExclude) }
+    # CDXC:Release 2026-10-23 DECISION: the user stopped publishing the Windows portable zip ("i dont want portable anymore for any release"), so Velopack makes none. Copies people already unpacked keep updating in place from the same feed and update packages, so the app's portable-mode code stays; the release checks that read the zip read the full update package instead (assemble.mjs, amend-existing.mjs).
     & $Vpk.Source pack `
         --channel $Channel `
         --mainExe "Ghostex.exe" `
@@ -327,7 +326,7 @@ if ($RunPack) {
         foreach ($file in $SignedFiles) { Assert-SignPathSignature $file.FullName }
         # Put the signed binaries into the staged app before packing, then
         # re-seal build-identity.json: the app compares its fingerprint with
-        # the SHA-256 of the installed gxserver.exe, ghostex.exe and wmx.exe
+        # the SHA-256 of the installed gxserver.exe and wmx.exe
         # (windows_terminal_backend/native_package.rs), and signing changed them.
         $StagedBinaries = Get-ChildItem $AppDir -Recurse -File | Where-Object {
             $_.Extension -in @(".exe", ".dll", ".node") -and $_.FullName -notmatch $VpkSignExclude
@@ -379,6 +378,9 @@ if ($RunPack) {
     if (-not $GeneratedInstaller) {
         throw "Velopack did not produce Setup.exe"
     }
+    # Before SignPath signs it: rewriting the package afterwards would break the signature.
+    & $InstallerPackTool store $GeneratedInstaller.FullName
+    if ($LASTEXITCODE -ne 0) { throw "Storing the Velopack Setup.exe package uncompressed failed" }
     if ($SignedPhases) {
         New-Item -ItemType Directory -Force -Path $SetupDir | Out-Null
         Move-Item $GeneratedInstaller.FullName (Join-Path $SetupDir $InnerInstallerName)
@@ -390,8 +392,8 @@ if ($RunPack) {
 
 if ($RunBundle) {
     $InstallerLauncher = Join-Path $RepoRoot "apps/desktop/target/release/ghostex-windows-installer.exe"
-    if (-not (Test-Path $InstallerLauncher)) {
-        throw "Windows build did not produce the Ghostex installer launcher"
+    if (-not (Test-Path $InstallerLauncher) -or -not (Test-Path $InstallerPackTool)) {
+        throw "Windows build did not produce the Ghostex installer launcher and its packing tool"
     }
 
     # CDXC:PlatformSupport 2026-08-16:
@@ -403,7 +405,9 @@ if ($RunBundle) {
     # downloaded version it supplies Velopack's supported --silent confirmation,
     # waits for replacement, and relaunches the stable installed Ghostex.exe. When
     # release signing is enabled, the inner setup and final customer-facing
-    # executable retain independent Authenticode signatures.
+    # executable retain independent Authenticode signatures. The launcher carries
+    # the signed setup LZMA-compressed (CDXC:Release 2026-10-23 in
+    # apps/desktop/src/bin/ghostex_windows_installer_pack.rs).
     $InnerSource = $InnerInstaller
     $BundledInstaller = $Installer
     if ($SignedPhases) {
@@ -412,26 +416,9 @@ if ($RunBundle) {
         New-Item -ItemType Directory -Force -Path $InstallerDir | Out-Null
         $BundledInstaller = Join-Path $InstallerDir (Split-Path -Leaf $Installer)
     }
-    Copy-Item $InstallerLauncher $BundledInstaller
-    $InstallerStream = [IO.File]::Open($BundledInstaller, [IO.FileMode]::Append, [IO.FileAccess]::Write, [IO.FileShare]::None)
-    $InnerStream = [IO.File]::OpenRead($InnerSource)
-    try {
-        $InnerLength = [UInt64]$InnerStream.Length
-        $InnerStream.CopyTo($InstallerStream)
-        $Magic = [Text.Encoding]::ASCII.GetBytes("GXSETUP1TRAILER!")
-        $InstallerStream.Write($Magic, 0, $Magic.Length)
-        $LengthBytes = [BitConverter]::GetBytes($InnerLength)
-        if (-not [BitConverter]::IsLittleEndian) { [Array]::Reverse($LengthBytes) }
-        $InstallerStream.Write($LengthBytes, 0, $LengthBytes.Length)
-    }
-    finally {
-        $InnerStream.Dispose()
-        $InstallerStream.Dispose()
-    }
-    $ExpectedBundledLength = (Get-Item $InstallerLauncher).Length + [Int64]$InnerLength + 24
-    if ((Get-Item $BundledInstaller).Length -ne $ExpectedBundledLength) {
-        throw "Ghostex installer launcher did not bundle the complete Velopack setup payload"
-    }
+    # The tool unpacks what it wrote and compares it with the setup before it succeeds.
+    & $InstallerPackTool bundle $InstallerLauncher $InnerSource $BundledInstaller
+    if ($LASTEXITCODE -ne 0) { throw "Ghostex installer launcher did not bundle the complete Velopack setup payload" }
     Remove-Item $InnerSource
 
     $CurrentPackagePattern = "^$([regex]::Escape($PackId))-$EscapedVersion-$([regex]::Escape($Channel))-(full|delta)\.nupkg$"
@@ -473,7 +460,7 @@ try {
     $TailBytes = [byte[]]::new([int]$TailLength)
     $TailBytesRead = $InstallerCheckStream.Read($TailBytes, 0, $TailBytes.Length)
     $TailText = [Text.Encoding]::ASCII.GetString($TailBytes)
-    if ($TailBytesRead -ne $TailBytes.Length -or -not $TailText.Contains("GXSETUP1TRAILER!")) {
+    if ($TailBytesRead -ne $TailBytes.Length -or -not $TailText.Contains("GXSETUP2TRAILER!")) {
         throw "Ghostex installer signature step did not preserve the Velopack setup trailer"
     }
 }

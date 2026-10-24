@@ -27,6 +27,10 @@ mod native_modal_kit;
 #[path = "../ui_fonts.rs"]
 mod ui_fonts;
 // DEMO-MODULES: one `#[path]` include per converted modal, plus its demo module under native_modal_demo/.
+#[path = "native_modal_demo/voice_panel.rs"]
+mod voice_panel_demo;
+#[path = "../app/voice_agent/panel_controls.rs"]
+mod voice_panel_controls;
 #[path = "native_modal_demo/add_project.rs"]
 mod add_project_demo;
 #[path = "../app/window/add_project_modal/mod.rs"]
@@ -358,6 +362,7 @@ fn main() {
                 "rename-session" => rename_session_demo::open(&demo, cx),
                 "new-orchestrator" => new_coordinator_demo::open(&demo, cx),
                 "session-note" => session_note_demo::open(&demo, cx),
+                "voice-panel" => voice_panel_demo::open(&demo, cx),
                 "permission-guide" => permission_guide_demo::open(&demo, cx),
                 "install-hooks" => agent_hooks_required_demo::open(&demo, cx),
                 "agents-hub" => agents_hub_demo::open(&demo, cx),

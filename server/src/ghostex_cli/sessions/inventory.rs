@@ -324,41 +324,6 @@ pub(super) fn is_active_gxserver_inventory_project(project: &Value) -> bool {
         && project.get("systemKind").and_then(Value::as_str) != Some("remoteAttachCarrier")
 }
 
-pub(super) fn is_mobile_chats_collection_project(project: &Value) -> bool {
-    let explicit = |key: &str| project.get(key) == Some(&Value::Bool(true));
-    let launch_setting = |key: &str| {
-        project
-            .get("launchSettings")
-            .and_then(|settings| settings.get(key))
-            == Some(&Value::Bool(true))
-    };
-    explicit("isChat")
-        || explicit("isQuick")
-        || launch_setting("isChat")
-        || launch_setting("isQuick")
-        || project
-            .get("path")
-            .and_then(Value::as_str)
-            .map(is_mobile_chats_storage_path)
-            .unwrap_or(false)
-}
-
-fn is_mobile_chats_storage_path(value: &str) -> bool {
-    let normalized = value.replace('\\', "/");
-    let segments: Vec<&str> = normalized
-        .trim_end_matches('/')
-        .split('/')
-        .filter(|segment| !segment.is_empty() && *segment != "~")
-        .collect();
-    segments.windows(2).any(|pair| {
-        pair[1] == "chats"
-            && (pair[0] == "ghostex"
-                || pair[0] == ".active"
-                || pair[0] == ".ghostex"
-                || pair[0].starts_with(".ghostex-"))
-    })
-}
-
 pub(super) fn should_use_local_gxserver_state_fallback(flags: &Flags) -> bool {
     let server = flags
         .text("server")

@@ -172,6 +172,8 @@ pub const HOTKEY_SETTINGS_SECTIONS: J = J::Arr(&[
                 J::Str("toggleChatComposerMaximized"),
                 J::Str("toggleChatFilesLinks"),
                 J::Str("toggleVoiceAgent"),
+                J::Str("voiceCallAboutSession"),
+                J::Str("holdToTalk"),
                 J::Str("toggleDictation"),
                 J::Str("readAloudLastReply"),
                 J::Str("readAloudStop"),
@@ -401,6 +403,7 @@ pub const MAIN_SETTINGS_SCROLL_TARGET_SETTING_KEYS: &[(&str, &[&str])] = &[
             "chatCatchMeUp",
             "chatPreviousQuestion",
             "chatSendOnPick",
+            "chatPageOpenTarget",
             "markedHandovers",
             "markedHandoversEmoji",
             "markedHandoversStyle",
@@ -445,6 +448,7 @@ pub const MAIN_SETTINGS_SCROLL_TARGET_SETTING_KEYS: &[(&str, &[&str])] = &[
             "renameSessionOnDoubleClick",
             "sessionCardHoverButtons",
             "showSessionCardHoverButtonsInContextMenu",
+            "sidebarSessionLinks",
             "sidebarSessionTagListItems",
         ],
     ),
@@ -495,6 +499,7 @@ pub const MAIN_SETTINGS_SCROLL_TARGET_SETTING_KEYS: &[(&str, &[&str])] = &[
         "tools",
         &[
             "webLinkOpenTarget",
+            "sessionLinkOpenTarget",
             "codeServerLinkVscodeUserConfig",
             "codeServerUseVscodeInsidersUserConfig",
             "showUntrackedProjectDiffWhenNoTrackedChanges",
@@ -591,6 +596,7 @@ pub const MAIN_SETTINGS_SCROLL_TARGET_SETTING_KEYS: &[(&str, &[&str])] = &[
         &[
             "sessionCardHoverButtons",
             "showSessionCardHoverButtonsInContextMenu",
+            "sidebarSessionLinks",
         ],
     ),
     (
@@ -630,7 +636,7 @@ pub const MAIN_SETTINGS_SCROLL_TARGET_SETTING_KEYS: &[(&str, &[&str])] = &[
             "audioFileOpenTarget",
         ],
     ),
-    ("browser", &["webLinkOpenTarget"]),
+    ("browser", &["webLinkOpenTarget", "sessionLinkOpenTarget"]),
     (
         "editor",
         &[
@@ -742,6 +748,7 @@ pub const MAIN_SETTINGS_SECTION_SETTING_KEYS: &[(&str, &[&str])] = &[
             "chatCatchMeUp",
             "chatPreviousQuestion",
             "chatSendOnPick",
+            "chatPageOpenTarget",
             "markedHandovers",
             "markedHandoversEmoji",
             "markedHandoversStyle",
@@ -786,6 +793,7 @@ pub const MAIN_SETTINGS_SECTION_SETTING_KEYS: &[(&str, &[&str])] = &[
             "renameSessionOnDoubleClick",
             "sessionCardHoverButtons",
             "showSessionCardHoverButtonsInContextMenu",
+            "sidebarSessionLinks",
             "sidebarSessionTagListItems",
         ],
     ),
@@ -836,6 +844,7 @@ pub const MAIN_SETTINGS_SECTION_SETTING_KEYS: &[(&str, &[&str])] = &[
         "tools",
         &[
             "webLinkOpenTarget",
+            "sessionLinkOpenTarget",
             "codeServerLinkVscodeUserConfig",
             "codeServerUseVscodeInsidersUserConfig",
             "showUntrackedProjectDiffWhenNoTrackedChanges",

@@ -54,11 +54,13 @@ pub(crate) fn create_attach_session_metadata_with_observed_state(
     let cwd = string_field(&existing_session, "cwd").or_else(|| string_field(&project, "path"));
     let (probe, probed_session, zmx, zmx_name) =
         probe_and_cache_session_provider_with_observed_state(repository, &lifecycle, observed)?;
-    if probe.lifecycle_state == "missing" {
-        crate::accounts::launch::validate_session(repository, &probed_session)?;
-    }
+    // The account check reads the row after the move, so a session on a removed or unusable account is
+    // refused only when no other account can take it (CDXC:AgentProviders 2026-10-24 in wake_account.rs).
     let probed_session = if probe.lifecycle_state == "missing" {
-        crate::accounts::wake_account::rebind_exhausted(repository, &project, probed_session)?
+        let session =
+            crate::accounts::wake_account::rebind_exhausted(repository, &project, probed_session)?;
+        crate::accounts::launch::validate_session(repository, &session)?;
+        session
     } else {
         probed_session
     };
@@ -225,11 +227,13 @@ pub(crate) fn start_session_provider_with_observed_state(
     )?;
     let (probe, probed_session, zmx, zmx_name) =
         probe_and_cache_session_provider_with_observed_state(repository, &lifecycle, observed)?;
-    if probe.lifecycle_state == "missing" {
-        crate::accounts::launch::validate_session(repository, &probed_session)?;
-    }
+    // The account check reads the row after the move, so a session on a removed or unusable account is
+    // refused only when no other account can take it (CDXC:AgentProviders 2026-10-24 in wake_account.rs).
     let probed_session = if probe.lifecycle_state == "missing" {
-        crate::accounts::wake_account::rebind_exhausted(repository, &project, probed_session)?
+        let session =
+            crate::accounts::wake_account::rebind_exhausted(repository, &project, probed_session)?;
+        crate::accounts::launch::validate_session(repository, &session)?;
+        session
     } else {
         probed_session
     };
@@ -661,10 +665,19 @@ pub fn read_zmx_session_process_identities(
     let (ps_output, zmx_list_output) = parse_zmx_process_snapshot_sections(&result.stdout);
     let mut identities =
         parse_zmx_session_process_identities(&ps_output, session_names, &zmx_list_output);
-    for identity in identities.values_mut() {
-        if identity.agent_id.as_deref() == Some("codex")
+    let needs_open_files = |identity: &ZmxProcessIdentity| {
+        identity.agent_id.as_deref() == Some("codex")
             && (identity.agent_session_id.is_none() || identity.agent_session_path.is_none())
-        {
+    };
+    // One read for every Codex process of the probe (on Windows a single helper process).
+    let codex_pids: Vec<i64> = identities
+        .values()
+        .filter(|identity| needs_open_files(identity))
+        .filter_map(|identity| identity.process_id.filter(|pid| *pid > 0))
+        .collect();
+    let mut open_files_by_pid = process_open_file_paths_many(&codex_pids);
+    for identity in identities.values_mut() {
+        if needs_open_files(identity) {
             /*
             CDXC:SessionTitles 2026-08-11:
             A live Codex process started as plain `codex` can resume or switch
@@ -676,8 +689,7 @@ pub fn read_zmx_session_process_identities(
             */
             let paths = identity
                 .process_id
-                .filter(|pid| *pid > 0)
-                .map(process_open_file_paths)
+                .and_then(|pid| open_files_by_pid.remove(&pid))
                 .unwrap_or_default();
             if let Some((agent_session_id, agent_session_path)) =
                 codex_process_session_identity_from_paths(paths.iter().cloned())

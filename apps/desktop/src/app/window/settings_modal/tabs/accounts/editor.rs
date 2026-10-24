@@ -508,6 +508,10 @@ impl AccountsTab {
                 false,
             ),
         };
+        let waiting = super::claude_ai_wait::waiting(&id, signed_in);
+        if waiting {
+            self.watch_claude_ai_sign_ins(cx);
+        }
         let (name, email) = (account.name(), account.email());
         let button = if signed_in {
             let id = id.clone();
@@ -539,6 +543,8 @@ impl AccountsTab {
                 false,
                 None,
                 move |page: &mut Self, _window, cx| {
+                    super::claude_ai_wait::start(&id);
+                    page.watch_claude_ai_sign_ins(cx);
                     super::super::super::store::post_store_message(
                         &page.store,
                         json!({
@@ -560,7 +566,26 @@ impl AccountsTab {
                 .description(description)
                 .inset_x(0.0),
             None,
-            button,
+            h_flex()
+                .gap(px(8.0))
+                .items_center()
+                .when(waiting, |row| {
+                    row.child(
+                        div()
+                            .id(SharedString::from(format!(
+                                "account-editor-{}-claude-ai-waiting",
+                                account.id()
+                            )))
+                            .flex()
+                            .tooltip(tooltip_text(super::claude_ai_wait::WAITING_TOOLTIP))
+                            .child(super::connect::spinner(
+                                format!("account-editor-{}-claude-ai-spinner", account.id()),
+                                p.muted,
+                            )),
+                    )
+                })
+                .child(button)
+                .into_any_element(),
             cx,
         )
     }

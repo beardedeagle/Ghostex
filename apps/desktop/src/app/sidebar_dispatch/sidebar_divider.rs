@@ -1,5 +1,11 @@
 //! The sidebar resize divider, drag, width reset, collapse, hover reveal polling and the command pane side.
 
+use std::cell::Cell;
+use std::cell::RefCell;
+use std::rc::Rc;
+
+use futures::channel::oneshot;
+
 use crate::app::floating_reveal::model::SIDEBAR_HOVER_REVEAL_ACTIVE_POLL;
 use crate::app::floating_reveal::model::SIDEBAR_HOVER_REVEAL_IDLE_POLL;
 
@@ -284,32 +290,87 @@ impl GhostexGpuiApp {
     /// The gesture's clock. Pointer-leave is the only thing no element can report (the panel covers
     /// the strip that armed it), so one sweep owns the whole reveal. It tightens to a frame while a
     /// panel is on screen, because the backends that animate the slide themselves step it here.
+    ///
+    /// CDXC:Sidebar 2026-10-23 WHY:
+    /// The sweep used to wake the app every 60ms for as long as the window existed, although with
+    /// nothing folded away there is no edge to watch, and a minimized or covered window has no
+    /// pointer over it. It now parks after a sweep that finds neither a panel or armed edge nor
+    /// something folded away in a visible window, and wakes when the app changes (folding the
+    /// sidebar or maximizing a view always notifies it) or the window is shown again. The sweep
+    /// that parks has already hidden the macOS edge zone and closed any panel.
     pub(crate) fn start_sidebar_hover_reveal_polling(
         &self,
         window: &gpui::Window,
         cx: &mut gpui::Context<Self>,
     ) {
+        // Only the two observers own the slot a parked sweep waits on, so when the app and its
+        // window are gone the slot goes with them and the parked sweep ends.
+        let waker: Rc<RefCell<Option<oneshot::Sender<()>>>> = Rc::default();
+        let parked_slot = Rc::downgrade(&waker);
+        let window_visible = Rc::new(Cell::new(window.is_visible()));
+        cx.observe_self({
+            let waker = waker.clone();
+            let window_visible = window_visible.clone();
+            move |this, _cx| {
+                if window_visible.get() && this.floating_reveal_sweep_needed() {
+                    wake_floating_reveal_sweep(&waker);
+                }
+            }
+        })
+        .detach();
+        window
+            .observe_window_visibility(move |visibility, _window, _cx| {
+                window_visible.set(visibility.is_visible());
+                if visibility.is_visible() {
+                    wake_floating_reveal_sweep(&waker);
+                }
+            })
+            .detach();
         let window = window.window_handle();
         cx.spawn(async move |this, cx| {
-            let mut interval = SIDEBAR_HOVER_REVEAL_IDLE_POLL;
+            let mut interval = Some(SIDEBAR_HOVER_REVEAL_IDLE_POLL);
             loop {
-                cx.background_executor().timer(interval).await;
+                match interval {
+                    Some(interval) => cx.background_executor().timer(interval).await,
+                    None => {
+                        let Some(slot) = parked_slot.upgrade() else {
+                            break;
+                        };
+                        let (sender, receiver) = oneshot::channel();
+                        *slot.borrow_mut() = Some(sender);
+                        drop(slot);
+                        // Canceled when the observers holding the slot are dropped with the app
+                        // or its window, which the update below then reports.
+                        let _ = receiver.await;
+                    }
+                }
                 let result = window.update(cx, |_, window, cx| {
-                    this.update(cx, |this, cx| this.poll_floating_reveal(window, cx))
+                    this.update(cx, |this, cx| {
+                        if this.poll_floating_reveal(window, cx) {
+                            Some(SIDEBAR_HOVER_REVEAL_ACTIVE_POLL)
+                        } else if window.is_visible() && this.floating_reveal_eligible() {
+                            Some(SIDEBAR_HOVER_REVEAL_IDLE_POLL)
+                        } else {
+                            None
+                        }
+                    })
                 });
                 match result {
-                    Ok(Ok(panel_open)) => {
-                        interval = if panel_open {
-                            SIDEBAR_HOVER_REVEAL_ACTIVE_POLL
-                        } else {
-                            SIDEBAR_HOVER_REVEAL_IDLE_POLL
-                        };
-                    }
+                    Ok(Ok(next)) => interval = next,
                     _ => break,
                 }
             }
         })
         .detach();
+    }
+
+    /// Whether the reveal's sweep has anything to watch: something folded away that the edge
+    /// floats back, or a panel, an armed edge or a reveal asked for by name still pending.
+    fn floating_reveal_sweep_needed(&self) -> bool {
+        self.floating_reveal_eligible()
+            || self.floating_reveal.panel.is_some()
+            || self.floating_reveal.edge_hovered
+            || self.floating_reveal.requested_until.is_some()
     }
 
     pub(crate) fn apply_gpui_command_pane_side_from_saved_settings(
@@ -327,5 +388,12 @@ impl GhostexGpuiApp {
         self.command_pane_side = saved_side;
         self.command_pane.resize_drag = None;
         self.clear_command_resize_hover_state();
+    }
+}
+
+/// Resumes a parked reveal sweep; a sweep that is running has nothing stored here.
+fn wake_floating_reveal_sweep(waker: &RefCell<Option<oneshot::Sender<()>>>) {
+    if let Some(sender) = waker.borrow_mut().take() {
+        let _ = sender.send(());
     }
 }

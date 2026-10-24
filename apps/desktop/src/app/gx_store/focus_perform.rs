@@ -300,11 +300,6 @@ impl GhostexGpuiApp {
             ActiveGroup::Subgroup { project, group_id } => {
                 Intent::FocusSubgroup { project, group_id }
             }
-            // No sidebar draws a Chats group, so nothing names one to focus.
-            ActiveGroup::Chats(_) => {
-                self.gx_store.focus_perform.refused += 1;
-                return false;
-            }
         };
         let local_project_id = match &intent {
             Intent::FocusProject { project } | Intent::FocusSubgroup { project, .. }
@@ -425,15 +420,15 @@ impl GhostexGpuiApp {
     }
 
     /// The group a remote row's `keepView` is planned from: the one the runtime's `activeGroupId`
-    /// held, which the store's focus now is. A remote focus names its project's own group or its
-    /// machine's Chats (`setRemotePresentationSessionFocus`), never the user-made group its row
-    /// sits in, so that is what a focused remote session answers here.
+    /// held, which the store's focus now is. A remote focus names its project's own group
+    /// (`setRemotePresentationSessionFocus`), never the user-made group its row sits in, so that is
+    /// what a focused remote session answers here.
     pub(super) fn gx_store_remote_focus_group(&self) -> Option<String> {
         let focus = self.gx_store.core.focus();
         match &focus.focused_session {
-            Some(session) if !session.machine.is_local() => Some(
-                ghostex_gx_core::remote_focus_group(&self.gx_store.core, session),
-            ),
+            Some(session) if !session.machine.is_local() => {
+                Some(ghostex_gx_core::remote_focus_group(session))
+            }
             _ => focus
                 .active_group
                 .as_ref()

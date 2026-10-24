@@ -13,7 +13,6 @@ use super::loaded::LoadedPresentation;
 use crate::connection::ConnectionState;
 use crate::keys::MachineId;
 use crate::overlay::{Overlays, SessionPatch};
-use crate::selectors::is_chat_project_path;
 
 /// The side-state documents of one machine. `None` means the daemon never published that
 /// document (an older daemon), which is different from an empty document.
@@ -129,33 +128,6 @@ impl MachinePresentation {
             .session_patches
             .get(project_id, session_id)
             .map(|stored| &stored.patch)
-    }
-
-    /// Whether a project is a projectless Chats container: flagged as chat or quick on its domain
-    /// row, or stored under a Ghostex chats folder (domain row path or presentation path).
-    pub fn is_chat_project(&self, project_id: &str) -> bool {
-        let domain = self.domain_projects.get(project_id);
-        let domain_flag = |name: &str| {
-            domain.is_some_and(|project| {
-                project.get(name).and_then(Value::as_bool) == Some(true)
-                    || project
-                        .get("launchSettings")
-                        .and_then(|settings| settings.get(name))
-                        .and_then(Value::as_bool)
-                        == Some(true)
-            })
-        };
-        domain_flag("isChat")
-            || domain_flag("isQuick")
-            || domain
-                .and_then(|project| project.get("path"))
-                .and_then(Value::as_str)
-                .is_some_and(is_chat_project_path)
-            || self
-                .loaded()
-                .and_then(|loaded| loaded.project(project_id))
-                .and_then(|project| project.path.as_deref())
-                .is_some_and(is_chat_project_path)
     }
 
     pub fn connection(&self) -> &ConnectionState {

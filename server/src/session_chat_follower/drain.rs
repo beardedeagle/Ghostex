@@ -155,6 +155,10 @@ pub(crate) fn follower_drain_once(
             file_path,
         );
     }
+    // Codex restored the plain rollout of a compressed one this tails: resolve it again.
+    if crate::codex_rollout_archive::is_superseded_mirror(file_path) {
+        return FollowerDrainOutcome::Missing;
+    }
     let Ok(current) = read_transcript_file_version(file_path) else {
         return FollowerDrainOutcome::Missing;
     };

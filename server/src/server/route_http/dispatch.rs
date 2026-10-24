@@ -53,13 +53,19 @@ pub(in crate::server) async fn route_http(
         return crate::file_links::serve(method, path, query, parts.headers, body).await;
     }
 
+    // Before the page itself: `/visual/<id>/scroll` is the page's own scroll position.
+    if matches!(method, Method::GET | Method::POST) && crate::visual_pages::is_scroll_route(&path) {
+        return crate::visual_pages::page_scroll(state.clone(), method, path, body).await;
+    }
+
     if method == Method::GET && path.starts_with(crate::visual_pages::VISUAL_PAGE_ROUTE_PREFIX) {
         let host = parts
             .headers
             .get(axum::http::header::HOST)
             .and_then(|value| value.to_str().ok())
             .map(str::to_string);
-        return crate::visual_pages::serve(state.paths.root_dir.clone(), path, host).await;
+        let query = parts.uri.query().map(str::to_string);
+        return crate::visual_pages::serve(state.paths.root_dir.clone(), path, query, host).await;
     }
 
     if method == Method::POST && crate::visual_pages::is_answers_route(&path) {
@@ -315,6 +321,10 @@ pub(in crate::server) async fn route_http(
         Err(request) => request,
     };
     let request = match route_work_links_http(request).await {
+        Ok(response) => return response,
+        Err(request) => request,
+    };
+    let request = match route_session_links_http(request).await {
         Ok(response) => return response,
         Err(request) => request,
     };

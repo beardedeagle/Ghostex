@@ -22,12 +22,14 @@
 //!    drains, and the batch is taken from the END of the queue, newest first.
 
 use std::collections::BTreeMap;
+use std::sync::Arc;
 
 use ghostex_gx_protocol::ChatMessage;
 use serde_json::Value;
 
-use crate::document::{DeferredWorkRow, RowDetails, TranscriptItem};
+use crate::document::{DeferredWorkRow, RowDetails};
 use crate::transcript::deferred_work::{DeferredWalk, DeferredWorkCache};
+use crate::transcript::items::TranscriptItems;
 
 /// Items from the tail that are fully projected before the first publish; the rest backfill in
 /// batches of the same size.
@@ -68,6 +70,14 @@ pub struct TranscriptViewState {
     /// turn's work rows come from the `loadWork` reads and are in no list an id could be looked up
     /// in, and an id that never resolved kept the zero-delay timer firing on every tick.
     pub backfill: Vec<ChatMessage>,
+    /// The ids a backfill batch has projected since the queue was last empty.
+    ///
+    /// CDXC:SessionChat 2026-10-23 WHY: A row a batch has just projected that the next pass still
+    /// finds out of date cannot be settled by another batch, and re-queuing it kept the zero-delay
+    /// timer re-running the whole projection for as long as the chat was retained (a third of the
+    /// chat host thread in a real profile; one cause is in `prune_cache`). Such a row is projected
+    /// on the spot instead, so every batch makes progress and the queue always drains.
+    pub backfilled: std::collections::BTreeSet<String>,
     /// Bumped by every applied batch, so the next publish differs and the rows ship.
     pub backfill_revision: u64,
     /// The open-row set the renderer last reported, with the detail each row asks for.
@@ -80,7 +90,7 @@ pub struct TranscriptViewState {
     ///
     /// Shared with the frame parts and the record of what each renderer was sent, which would
     /// otherwise copy every row twice on each rebuild.
-    pub items: std::sync::Arc<Vec<TranscriptItem>>,
+    pub items: std::sync::Arc<TranscriptItems>,
     /// The newest finished turn's "Worked for 2m 13s", which the working card above the composer shows
     /// instead of that turn's fold (`extras::working_card`), or `None`.
     pub worked_line: Option<String>,
@@ -131,6 +141,10 @@ pub struct TranscriptViewState {
     /// `sentTranscriptItems === transcriptItems`, and a rebuilt list is a new array even when
     /// every row in it was reused.
     pub projection_revision: u64,
+    /// The turns before the newest accepted prompt (and the older rows of a long running turn),
+    /// built once and shared by every rebuild after them (`transcript/settled.rs`), or `None` until
+    /// a whole build could settle them.
+    pub settled: Option<crate::transcript::settled::SettledPrefix>,
     /// The host's session list, which names the other session on a message between agents.
     pub session_directory: Vec<crate::event::KnownSession>,
     /// Bumped whenever [`Self::session_directory`] changes, so the projection rebuilds.
@@ -143,10 +157,21 @@ pub struct TranscriptViewState {
 /// an open row's detail is read from: folding merges a tool-only message INTO the assistant turn
 /// above it, so the blocks a row's index points at are the anchor's merged blocks as projected, not
 /// the raw message's.
+///
+/// CDXC:SessionChat 2026-10-24 WHY: Every drawn row held a deep copy of its cached model, so a
+/// 3,400-message chat kept each model twice: 75.6 MB in this cache and 76.5 MB more in the row
+/// list. A row now shares the cached model and copies it only when it changes it
+/// (`Arc::make_mut`: a thinking card, the open tool call, a name on an agent-message card). Rows
+/// inside a turn's work fold all carry the fold's two marks (`list_tools_in_work_fold`), so the
+/// entry keeps its model the way its rows last drew it (`in_work_fold`) rather than have each of
+/// them change a copy.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ProjectedMessage {
     pub source: ChatMessage,
-    pub model: Value,
+    pub model: Arc<Value>,
+    /// Set while `model` carries the work-fold marks, with what they replaced, so a row drawn
+    /// outside a fold gets the model exactly as projected.
+    pub in_work_fold: Option<crate::transcript::tool_rows::WorkFoldMarks>,
     /// The line-break rule the model was projected under; a change of agent family re-projects.
     pub line_breaks: crate::transcript::line_breaks::AgentLineBreaks,
     /// The tag-shaped words of the reply's prose (`transcript/open_questions.rs`), and those of
@@ -197,6 +222,7 @@ impl Default for TranscriptViewState {
             deferred: BTreeMap::new(),
             projected: BTreeMap::new(),
             backfill: Vec::new(),
+            backfilled: std::collections::BTreeSet::new(),
             backfill_revision: 0,
             open_rows: Vec::new(),
             rewind: None,
@@ -223,6 +249,7 @@ impl Default for TranscriptViewState {
             fold_settled_at: None,
             projection_rebuilt: false,
             projection_revision: 0,
+            settled: None,
             session_directory: Vec::new(),
             session_directory_revision: 0,
         }
@@ -235,8 +262,10 @@ impl TranscriptViewState {
     pub fn invalidate(&mut self) {
         self.projected.clear();
         self.backfill.clear();
+        self.backfilled.clear();
         self.items = Default::default();
         self.projection_inputs = None;
+        self.settled = None;
     }
 
     /// Whether any row is still drawn as a plain-text placeholder, which is what keeps the 0 ms

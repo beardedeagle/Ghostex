@@ -62,6 +62,9 @@ pub(crate) enum DocsFileKind {
     Sqlite,
     /// Opened by the system's own app instead of in Files.
     SystemApp,
+    /// A page an agent published in chat (`ghostex show`), loaded straight from the gxserver
+    /// that serves it (`published_page.rs`); there is no file behind it.
+    Page,
 }
 
 /// CDXC:Docs 2026-09-27 DECISION:
@@ -158,6 +161,7 @@ impl DocsFileKind {
                 | Self::Pdf
                 | Self::BrowserImage
                 | Self::Font
+                | Self::Page
         )
     }
 
@@ -338,6 +342,8 @@ pub(crate) struct DocsDocument {
     pub(crate) embed_revision: u64,
     /// The agent session this document was opened from; its notes go back there.
     pub(crate) origin_session: Option<crate::TerminalSessionId>,
+    /// A published page (`DocsFileKind::Page`): where it is served from.
+    pub(crate) page: Option<super::published_page::DocsPageSource>,
     /// An agent reply under review: the session it came from, by title.
     pub(crate) review_session_title: Option<String>,
     /// The file on disk against this document: in step, changed under unsaved edits, or gone.
@@ -393,6 +399,7 @@ impl DocsDocument {
             html_annotate: true,
             svg_source: false,
             origin_session: None,
+            page: None,
             embed_revision: 0,
             review_session_title: None,
             disk: DocsDiskState::InSync,
@@ -460,6 +467,8 @@ pub(crate) struct NativeDocsState {
     pub(crate) pending_origin: Option<crate::TerminalSessionId>,
     /// A file asked for before Docs synced to the current project.
     pub(crate) pending_open: Option<String>,
+    /// A published page asked for before Docs synced to the current project.
+    pub(crate) pending_page: Option<super::published_page::DocsPendingPage>,
     /// Open File was asked for before Files drew; its next draw shows the search box.
     pub(crate) open_file_prompt: bool,
     /// The Rename item dialog, while open.
@@ -620,6 +629,7 @@ impl NativeDocsState {
         self.find = from.find.take();
         self.tree_scroll = from.tree_scroll.clone();
         self.pending_open = from.pending_open.take();
+        self.pending_page = from.pending_page.take();
         self.open_file_prompt = std::mem::take(&mut from.open_file_prompt);
         self.pending_origin = from.pending_origin.take();
         self.watch_task = from.watch_task.take();

@@ -6,7 +6,6 @@ use serde_json::{json, Map, Value};
 use std::{convert::Infallible, net::SocketAddr, sync::Arc, time::Instant};
 
 use crate::{
-    constants::GXSERVER_PROTOCOL_VERSION,
     domain::{read_domain_rpc_params, DomainRepository, DomainStateError},
     logging::{log_level_from_status, DiagnosticLogScenario, GxserverLogInput},
     protocol::rpc_success,
@@ -26,7 +25,7 @@ pub(super) async fn handle_http_request(
         .map(|address| address.ip().to_string());
     let headers = request.headers().clone();
     let request_id = request_id(&headers);
-    let mut routed = route_http(state.clone(), request, request_id.clone()).await;
+    let mut routed = route_http(state.clone(), request, request_id).await;
     apply_cors_headers(&headers, &mut routed.response, &state.config);
     let status = routed.response.status().as_u16();
     let _ = state.logger.log_routine(
@@ -53,15 +52,8 @@ pub(super) async fn handle_http_request(
             })),
         },
     );
-    if let Some(endpoint_path) = routed.endpoint_path.clone() {
-        state.event_hub.broadcast(json!({
-            "path": endpoint_path,
-            "protocolVersion": GXSERVER_PROTOCOL_VERSION,
-            "requestId": request_id,
-            "serverId": state.metadata.server_id.clone(),
-            "type": "apiRequestHandled",
-        }));
-    }
+    // CDXC:ServerApi 2026-10-23 DECISION:
+    // The user chose to stop broadcasting an `apiRequestHandled` frame for every HTTP request served, because no client reads it: the desktop, the web build and `gx-client` dropped it unparsed, nothing in the phone app, the `ghostex` CLI or the extensions reads it, and it was about five frames a second to every open event socket. Clients keep tolerating it (`ServerEvent::ApiRequestHandled`, the `gx-client` peek), because gxservers of older releases still send it.
     Ok(routed.response)
 }
 

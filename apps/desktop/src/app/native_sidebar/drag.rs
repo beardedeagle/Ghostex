@@ -164,6 +164,11 @@ impl GhostexGpuiApp {
                 "group" | "session-group" => Some(
                     json!({"type": "moveSession", "sessionId": source.id, "groupId": target_id, "position": "before"}),
                 ),
+                // CDXC:Sidebar 2026-10-23 WHY:
+                // The empty list space under the last block is that block's for a session: a session dropped below a session group (often an empty one, whose header is its only row) joins it at the end. This zone took no session before, so a release there under an empty group moved nothing. A collection as the last block takes nothing, as before.
+                "ungroup" => self.gx_store.sidebar_list.view().last_drawn_group_id().map(|group_id| {
+                    json!({"type": "moveSession", "sessionId": source.id, "groupId": group_id, "position": "after"})
+                }),
                 _ => None,
             };
             self.set_native_sidebar_session_drop(command, cx);
@@ -308,12 +313,17 @@ impl GhostexGpuiApp {
             if landing.unchanged {
                 return None;
             }
+            let joins_group = drop
+                .messages
+                .iter()
+                .any(|message| message["type"] == "moveSessionToGroup");
             command = drop.command;
             command["landing"] = json!({
                 "groupId": landing.group_id,
                 "section": landing.section,
                 "afterSessionId": landing.after_session_id,
                 "beforeSessionId": landing.before_session_id,
+                "joinsGroup": joins_group,
             });
             Some(command)
         }
@@ -332,6 +342,19 @@ impl GhostexGpuiApp {
         }
         (before.is_none() && landing["afterSessionId"].as_str() == Some(session_id))
             .then_some("after")
+    }
+
+    /// Whether a session drag would move the row into this group from another one, for the
+    /// header's highlight.
+    ///
+    /// CDXC:Sidebar 2026-10-23 WHY:
+    /// The drop line is drawn on session rows only, so a session aimed at an empty group (or at a collapsed one) showed nothing until it was released. The header lights up instead, like a section heading does for a section drop; it is read from the same plan as the line, so the two cannot disagree.
+    pub(crate) fn native_sidebar_group_drop_target(&self, group_id: &str) -> bool {
+        self.native_sidebar
+            .drop_command
+            .as_ref()
+            .and_then(|command| command.get("landing"))
+            .is_some_and(|landing| landing["joinsGroup"] == true && landing["groupId"] == group_id)
     }
 
     /// CDXC:Sidebar 2026-09-22 WHY:

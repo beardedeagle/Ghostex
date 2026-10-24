@@ -76,6 +76,16 @@ fn refresh(state: &AppState, reported: &mut HashMap<String, String>) {
         return;
     };
     let repository = DomainRepository::new(&db, &state.metadata.server_id);
+    // Every two seconds: with no ZCode session running there is nothing to watch, and one
+    // indexed column read says so without hydrating every running session.
+    match repository.has_running_session_with_agent("zcode") {
+        Ok(true) => {}
+        Ok(false) => {
+            reported.clear();
+            return;
+        }
+        Err(_) => return,
+    }
     let Ok(sessions) = repository.list_sessions_with_lifecycle_state("running") else {
         return;
     };

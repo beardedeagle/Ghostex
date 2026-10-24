@@ -29,7 +29,7 @@ enum Input {
 /// CDXC:Zmx 2026-09-13 WHY:
 /// Chat sizing and focus presence belong to a live zmx attach client, not to its emulator.
 /// Keep that lightweight client only while native layout displays Chat; dropping the claim closes the attach transport without touching the daemon or its agent.
-/// SEE-ALSO: .dependencies/zmx/src/main.zig attach raw-mode marker, .dependencies/zmx/src/loop.zig handleVisibility and last-client focus reporting.
+/// SEE-ALSO: .dependencies/zmx/src/client.zig attach raw-mode marker, .dependencies/zmx/src/loop.zig handleVisibility and last-client focus reporting.
 pub(crate) struct TerminalChatClaim {
     child: TerminalChild,
     master: Box<dyn MasterPty + Send>,

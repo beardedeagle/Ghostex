@@ -68,8 +68,12 @@ notes with an **Open download page** button instead of installing the update;
 install the new package the same way you installed Ghostex. Linux downloads come
 for x64 and for ARM64 (aarch64) computers, each as a .deb, an .rpm and a portable
 .tar.zst on the release page; pick the one that matches your computer's processor
-(`uname -m` prints x86_64 or aarch64). Windows downloads come as an installer
-for x64 and for ARM64 computers; there is no portable version.
+(`uname -m` prints x86_64 or aarch64). Windows comes as an installer only; the
+portable zip is no longer published. A portable copy you already unpacked keeps
+updating in place, keeps all its data in a `GhostexData` folder next to itself and
+runs beside an installed Ghostex without sharing its sessions, settings or
+projects. It uses the agent hooks the installed Ghostex set up (its Settings lists
+them as installed by another Ghostex) instead of rewriting them.
 
 **Open a view** is the picker the panel shows when nothing is open in it. It
 lists every view you can open here: the built-in views first, then your own views
@@ -253,10 +257,13 @@ view from the strip.
   Browser, the Code view, website and extension views, and HTML, drawing and
   media files in Files show an Install button instead of the page (or Hide tab
   to remove the view), and web links and saved Browser actions open in the
-  system browser. Nothing is downloaded until you press Install, and the runtime
-  starts only when one of those views is shown. Settings > Extensions > Store > Built-in
-  > Chromium runtime (CEF) installs, reinstalls or uninstalls it (uninstall
-  before opening a web view, right after starting Ghostex). Annotate the current page
+  system browser. Nothing is downloaded until you press Install; once installed,
+  the runtime starts quietly a few seconds after Ghostex opens, so pages open
+  fast. Settings > Extensions > Store > Built-in > Chromium runtime (CEF)
+  installs, reinstalls or uninstalls it. Uninstall while the runtime is running
+  removes it the next time Ghostex starts (Keep installed undoes that until
+  then); on Windows a Reinstall while it runs is done at the next start too.
+  Annotate the current page
   with Agentation in the Browser toolbar; GitHub pages disallow that tool.
   When a page shows its content inside a frame, such as a Storybook story,
   the Annotate toolbar opens inside that frame so the content itself can be
@@ -275,7 +282,13 @@ view from the strip.
   for an app on this computer (Okta FastPass looks for Okta Verify this way) asks
   "Allow … to connect to apps on this computer?"; Allow and Don't Allow are both
   remembered for that site in that workspace's Browser (Don't Allow on linear.app keeps
-  Linear pages in the Browser instead of sending them to the Linear desktop app). These
+  Linear pages in the Browser instead of sending them to the Linear desktop app). Any
+  other permission a site asks for (show notifications, know your location, use the
+  clipboard, camera or microphone, and the like) asks "… wants to show notifications."
+  with Allow and Block, remembered for that site in that workspace's Browser; a site you
+  allow to notify shows real system notifications, and clicking one brings its page back.
+  A sign-in window a site opens (Continue with Google, Apple or GitHub) opens as its own
+  small window and closes itself when you finish. These
   questions show as a bar at the top of the page that asked, under the Browser's address
   bar, one at a time; they never block the window, so you can keep working or close it.
   The × (or Escape) means "not now" and remembers nothing, and a question goes away by
@@ -437,6 +450,20 @@ project's sessions only; its browser tabs are slept and closed from the tab
 strip above the view, where they live.
 Click a project header (or the chevron beside it) or a group header to expand
 or collapse it; rename a group from its right-click menu.
+Session groups gather some of a project's sessions under a header of their
+own, with a folder icon. To make one, right-click a session and choose
+Advanced > Move to New Group. Once the project has a session group, the
+session menu's Advanced > Move to Group page lists the project's groups: pick
+one to move the session there, or Remove from Group to put it back in the
+project's own list. Dragging a session onto another of its project's groups,
+or onto the project's list, does the same, and dropping it in the empty space
+at the bottom of the sidebar puts it in the last session group when that group
+belongs to the session's project; the group that would take it lights up while
+you drag. A session stays within its own project's groups. A project's session
+groups sit indented under it with a guide line and hide while the project is
+collapsed; the collapsed project still shows when one of their agents is
+working or needs you. Collapse All in the More menu folds the projects and
+leaves each session group open or closed as it was.
 Close Project parks the project in Recent Projects (a remote machine's project
 goes to that machine's Recent Projects, which Quick Access lists); when it held
 the active session, Ghostex stays in the current Space and switches to an awake
@@ -459,8 +486,7 @@ sleeping sessions" (Settings > Hotkeys, under Next Session) to jump over them. T
 use Cmd+Alt+] and Cmd+Alt+[ (Ctrl+Alt+] and Ctrl+Alt+[ on Windows and Linux).
 Shortcuts: `focusNextSession`, `focusPreviousSession`, `focusNextPaneTab`,
 `focusPreviousPaneTab`; setting: `sidebarSessionCycleSkipsSleeping`.
-Top chrome holds the Quick section (projectless Quick chats and terminals),
-tag filters, Spaces, and More Options: Settings, Search by
+Top chrome holds tag filters, Spaces, and More Options: Settings, Search by
 Prompt, Previous Sessions, Mobile & Remote, Extensions, Tips.
 **Group working sessions** (in the More menu's Sort & Filter page, and in
 Settings > Sidebar; both switch the same setting, off by default) moves each
@@ -1008,6 +1034,21 @@ you to update it there (`showBetaFeatures`, `readAloudHidden`, `readAloudVoice`,
 `readAloudRate`).
 A long code block shows its first lines and scrolls inside the block; the arrows
 button in the block's header shows the whole block, and again collapses it.
+Run in terminal: when an agent's reply shows a shell command in a code block (a
+bash, sh, zsh, shell or console block, or a block that starts with `!`), the
+block's header has a Run button beside wrap and Copy. Run opens a new plain
+terminal in the session's own folder (its worktree when it has one), types the
+command, presses Enter and shows that terminal so you can answer login prompts
+or menus. A command written as inline code (such as `npm install` or
+`cd my-app && npx vercel login`) shows a small bar above it when you hover it:
+Copy, and Paste in terminal, which opens the same kind of terminal and types the
+command without pressing Enter. Neither ever types into the agent's terminal. A
+leading `!` (the agent's way of asking you to run it) is dropped; a console
+block runs only its `$ ` lines. A session on another computer opens the terminal
+on that computer. On the phone, a code block's Run sits beside its copy button,
+and holding a reply with one inline command offers Copy command and Paste in
+terminal. From a shell: `ghostex run-in-terminal --project-id <id> --session-id
+<id> --command "<command>"` (add `--paste` to type it without running it).
 A long message you sent (more than 20 lines or 2,000 characters, such as a
 pasted log) shows its first lines with Show more under them; Show less folds it
 again. Copy still copies the whole message.
@@ -1218,14 +1259,24 @@ writes an HTML page and the chat shows a card for it with a small preview
 picture of the page, the same on desktop, web, and mobile. The picture is taken
 the first time you open the page in the Ghostex desktop app (and again after you
 answer it); until then the card shows the page's file name. On desktop the card opens
-the page in a floating window over the chat. Clicking outside it once only
+the page where Settings > Chat > Open chat pages in says: Popup (the default), a
+floating window over the chat; Files, a page tab in the Files view, whose header
+can open it in your browser or close it; or System browser, your default web
+browser. Your answers reach the agent the same way from all three, and the
+picture viewer and the remembered scroll position below work in all three. In the
+floating window, clicking outside it once only
 arms it ("Click outside again to close"); a second click outside within two
 seconds closes it, as do Escape and its close button. Its header can open the
-page in your browser instead. Clicking a picture in the page opens the chat's
-image viewer inside that window, with arrows (and the Left and Right keys) to
-step through the page's pictures. A page you reopen comes back where you left
-it scrolled, and when the agent changes the page's file while the window is
-open, a Refresh button at the top right reloads it. On mobile the card opens
+page in your browser instead. Clicking a picture in the page opens it in a
+viewer inside the page, styled like the chat's image viewer: click or scroll to
+zoom, drag to pan, use the arrows near the edges (or the Left and Right keys) to
+step through the page's pictures, and Escape, the close button or a click beside
+the picture to close the viewer (the window stays open). Its buttons zoom, copy
+the picture, and open a picture from the web in your browser; a picture inside
+the page itself can't be saved from there. A page you reopen comes back where
+you left it scrolled, even after Ghostex restarts, and when the agent changes
+the page's file while the window is open, a Refresh button at the top right
+reloads it. On mobile the card opens
 the page full screen over the chat. Tapping a picture in it opens the chat's
 image viewer over the page (swipe or use the arrows to step through the page's
 pictures), the Close button at the top closes it, and Android's back closes it
@@ -1252,8 +1303,8 @@ shows them as a card, and the form then reads Answered. Questions that need a pi
 such as choosing between two mockups, come as a page instead, where you can
 also pick an option right at its mockup and add a note under each mockup. A
 page works the same way: its card reads Answered once you send, and opening it
-again shows what you sent. On desktop and mobile the page closes once your answers are
-sent, and stays open with the error if they could not be. Until you send,
+again shows what you sent. The desktop's floating page window and the mobile page close once your answers are
+sent, and stay open with the error if they could not be; in the Files view or your browser the page stays open. Until you send,
 what you picked and typed is kept, in a form and on a page alike, even when
 you close the page or the chat, switch sessions, or restart. With Settings >
 Chat > Previous question button turned on (it is off by default), a small "?"
@@ -1270,14 +1321,15 @@ question stands: amber with a ? while it still waits for your answer, green
 with a check once you answered it, grey once you skipped it, and grey and
 struck through once the agent withdrew it. When you answer a question another
 way, by telling the agent in the chat or by doing what it asked, the agent
-withdraws it so it stops counting as open. Settings: `chatPreviousQuestion`, and
+withdraws it so it stops counting as open. Settings: `chatPageOpenTarget` (`popup`,
+`files` or `system-browser`), `chatPreviousQuestion`, and
 (under Show Advanced) `chatSendOnPick`, which makes picking an answer send a
 card that asks a single choice question right away, without Send answers
 (off by default; cards with several questions, multiple choice, Other or text
 answers still wait for Send). Commands:
 `ghostex show <file.html>`
 publishes a page and prints the block that shows its card (`--browser` opens it
-in the browser instead of floating), and
+in the browser whatever Open chat pages in says), and
 `ghostex visual check <file.json>` draws a chart block to an image, or lists a
 question form's questions, so the agent can check it before replying.
 
@@ -2367,13 +2419,20 @@ version of the Projects features in Cursor and Claude Code.
   "N older threads" row at the end, which lists them all (and "Hide older
   threads" tucks them away again; both remembered across restarts). The chevron
   that replaces the crown when you hover the orchestrator folds its threads away
-  and back, and a folded orchestrator keeps its number and colour. Opening a
-  orchestrator's chat leaves both as you set them; opening one of its threads
+  and back, and a folded orchestrator keeps its number and colour. While its
+  threads are folded, the orchestrator's row shows their status dots (with its
+  own) overlapping in place of its time, like a computer tab's dots, so a thread
+  that is working, finished or asking something is never hidden (a thread
+  waiting on you, for a question or a permission, is the pink dot). Opening an
+  orchestrator marks its finished threads as seen, so their blue dots clear
+  (a thread waiting on a question or approval keeps its dot); otherwise opening
+  its chat leaves the fold and the older threads as you set them; opening one of its threads
   unfolds the orchestrator so the thread shows. Click a thread to watch it or
   talk to it directly; answer its questions and approvals there. A thread is
-  named after the area it works on and keeps the name its orchestrator gave it,
-  like the orchestrator keeps its own; when its orchestrator starts it on work
-  in another area, the thread renames itself to match. Your own Rename in the
+  named after its latest task and keeps that name, like the orchestrator keeps
+  its own (the agent's automatic naming never replaces it); when its
+  orchestrator starts it on a new task the name does not describe, the thread
+  renames itself to match, so the names stay current. Your own Rename in the
   sidebar always wins: a thread you renamed keeps your name. Pinning the
   orchestrator takes its threads along. Right-click the orchestrator and choose
   **Sleep Inactive Threads** to put its idle threads to sleep in one go: threads
@@ -2645,8 +2704,9 @@ popup thread doing"). While the
 conversation is open it tells you when a session finishes its turn or starts
 waiting on a question or an approval. The conversation keeps going while you
 switch projects and chats. A small panel under the header shows what it is
-doing, live captions of both sides and the tools it runs, with Mute, Stop
-talking and Hang up; talking over it also stops it. Drag the panel by its top
+doing, live captions of both sides and the tools it runs, with Mute, a small
+talk button beside it and Hang up; while the agent speaks, a Stop talking pill
+shows above the buttons (talking over it also stops it in a Regular call). Drag the panel by its top
 bar to put it anywhere in the window (it stays there until you quit Ghostex),
 and scroll it to read back the conversation. Click the voice name ("Grok ·
 Eve") to pick another voice: Grok switches right away when it can, and GPT
@@ -2658,12 +2718,51 @@ mid-sentence. Calls come in two modes, chosen in Settings > Voice agent > Call
 mode or with the gear beside the speed button. Regular (the default) is
 hands-free: the agent listens all call and you can talk over it; on Grok you
 pay for the whole time the call is connected, quiet and muted time included
-(about $0.08 a minute). Push-to-talk listens only while you hold the Talk
-button (pressing it while the agent speaks stops it, and releasing it sends
-what you said); on Grok you pay only for the audio you send and the agent's
-replies. GPT Realtime bills only audio in both modes. A change applies to your
-next call. Mute simply turns your microphone off in either mode. It hangs up by
-itself after 5 minutes with nobody talking.
+(about $0.08 a minute). Push-to-talk listens only while you hold the talk
+button (the waveform right of Mute): pressing it while the agent speaks stops
+it, and letting go sends what you said; a quick tap sends nothing and says
+"Hold to talk, then let go to send". You can also hold Space while you aren't
+typing anywhere (the panel shows a Space key when it works), or hold the
+"Hold to Talk" hotkey, which works even while you type in a chat or a terminal
+(no key is set; give it one in Settings > Hotkeys). If the window loses focus
+while you hold Space, what you said so far is sent. On Grok push-to-talk
+calls you pay only for the audio you send and the agent's replies. GPT
+Realtime bills only audio in both modes. A change applies to your next call;
+Regular stays the default. Mute turns your microphone off; in a push-to-talk
+call it also locks the talk button ("Unmute to talk"), and in a muted Regular
+call holding the talk button, Space or the hotkey unmutes you for as long as
+you hold. It hangs up by itself after 5 minutes with nobody talking.
+
+A call can also be about just one session. Click the small arrow on the
+headset button and pick "This session: <title>" (the session you are looking
+at), or press the "Voice Call About This Session" hotkey (no key is set; give it
+one in Settings > Hotkeys). The agent starts by saying where that session
+stands, tells you when it finishes its turn with the gist of its reply in a
+sentence or two, and mentions no other sessions; asked about another one, it
+says "This call is about <title> only. Say "all sessions" or press All sessions
+to talk about the others." It can send that session prompts, draft in its chat
+box and answer its questions and approvals; in a call about an orchestrator it
+can also read its threads and answer their questions, but sends prompts only to
+the orchestrator. A strip under the panel's top bar names the session, its
+project and its orchestrator; click the name to show the session. All sessions
+on the strip (or saying "all sessions") widens the same call without hanging
+up, and picking the other row of the arrow's menu switches an open call either
+way; the menu ticks what the call is about now. While the call runs, that
+session's sidebar row shows a small headset. Reading the session doesn't
+switch your window to it; asking to see it does. If the session is closed
+during the call, the strip says Closed and the call goes on. A call about one
+session doesn't offer or replace the remembered last conversation. For a
+session on another computer you are connected to, the call runs on that
+computer with its own voice key (add one in Settings > Voice agent on that
+computer); the strip says which computer. A call stays on the computer it
+started on, so picking a session of another computer while a call is open asks
+whether to keep the call or hang up and call, on the computer and the phone
+alike. A computer whose
+Ghostex is too old for it says "Update Ghostex on <computer> to have a voice
+call about one session." On the phone, "Voice call about this chat" in a chat's
+⋯ menu and "Voice Call" when you long-press a session start the same call, and
+the voice screen shows "Only about <title> (<project>)" with an All sessions
+button.
 
 It remembers your last conversation as a short summary, kept on your computer
 until the next conversation replaces it. When you start a new conversation, the
@@ -2711,18 +2810,22 @@ stores one. When the agent shows a session, the voice screen offers an
 going, and the computer's window switches to it too unless someone is typing
 there. The conversation keeps going while you move around the app, switch
 apps or lock the phone, with a "Voice mode on" notification that has Mute and
-Hang up, and it reconnects by itself after a short network drop. It talks
+Hang up (in a push-to-talk call, Talk instead of Mute: tap it to start talking
+and tap it again, now Send, to send), and it reconnects by itself after a
+short network drop. It talks
 through the phone's speaker, or a Bluetooth headset or car hands-free link
 when one is connected, and pauses while a call or a navigation prompt plays.
 The phone's voice screen has the same voice picker (tap the voice name under
 the computer's name) and a small speed button beside it that opens the list of
-speeds, the same gear for the call mode, and a Hold to talk button in
-push-to-talk calls; the call mode is also in the phone's Settings > Voice
-agent. They save the computer's settings, so the desktop and the phone talk
+speeds, the same gear for the call mode, and the same talk button between
+Mute and Hang up: press and hold it to talk and let go to send, or slide your
+finger off it ("Release to cancel") and let go to send nothing; slide back on
+to keep talking. Stop talking is a pill above the buttons while the agent
+speaks. The call mode is also in the phone's Settings > Voice agent. They save the computer's settings, so the desktop and the phone talk
 with the same voice at the same speed and in the same mode. It shows
 the same "Last conversation" card with Continue, Start fresh and Forget.
 
-Settings: `voiceAgentProvider`, `voiceAgentXaiVoice`, `voiceAgentOpenaiVoice`, `voiceAgentSpeed`, `voiceAgentCallMode`; the Memory row (`voiceAgentMemory`) forgets the remembered conversation.
+Settings: `voiceAgentProvider`, `voiceAgentXaiVoice`, `voiceAgentOpenaiVoice`, `voiceAgentSpeed`, `voiceAgentCallMode`; the Memory row (`voiceAgentMemory`) forgets the remembered conversation. Hotkeys: Toggle Voice Agent, Voice Call About This Session, Hold to Talk (`holdToTalk`).
 
 ## Remote machines, web, and mobile
 
@@ -2731,8 +2834,15 @@ sessions, so any client can control agents on any machine.
 
 - **From a phone**: sidebar More Options > Mobile & Remote (Settings >
   Remote). Easy Connect installs the Tailcat helper, turns on SSH access with
-  one admin prompt, and shows a pairing QR code; scan it with the Ghostex
-  mobile app (Android ships today). A Tailscale path is offered for tailnets.
+  one admin prompt, and gives a pairing QR code: under Connect a phone, click
+  Show QR to open it in a popup (Settings never shows the code until you ask)
+  and scan it with the Ghostex mobile app (Android ships today). A Tailscale path is offered for tailnets; its code sits behind the same Show QR button.
+  The phone's own camera can scan the code too: the QR is a ghostex.dev link,
+  so with an up-to-date Ghostex app installed the camera opens the app and it
+  pairs straight away, on Android and iPhone.
+  Without the app, the link opens a ghostex.dev page that says how to install
+  it. An older phone app can't read the new code with its own scanner: update
+  the app first.
   The Android app is the `ghostex-android.apk` on the GitHub release, built
   for 64-bit (arm64) phones. If Android says "App not installed as package
   appears to be invalid", uninstall any other Ghostex build first (one you
@@ -2888,16 +2998,26 @@ project of the repository's main folder, even when started from a worktree.
 - **The row**: a plain cloud icon after the title; hover it for the account,
   branch and latest status. Clicking it opens the session's claude.ai page in
   Ghostex's Browser. While that page is open, the row shows working (orange),
-  needs you (blue) and Done like any session; otherwise it says what reached
+  needs you (blue) and Done like any session (the page stays open through Browser
+  Auto Sleep while the session runs); otherwise it says what reached
   GitHub ("Pushed 3 commits to claude/…", "Pull request #12 opened") with a blue
   dot and a notification.
+- **Close keeps it, asleep**: Close on a cloud row that is running on claude.ai
+  (from the row, its tab, a project's Close Inactive, or the phone) puts it to
+  sleep instead, because the session goes on running there; the row stays with
+  its cloud icon and still opens the page. Close it again while it is asleep to
+  take it off the list. `ghostex kill` (and the phone's Kill Session) still
+  closes it straight away.
 - **Signing in**: each Claude account has its own claude.ai sign-in in Ghostex,
   kept in its own Browser profile and used only for its cloud pages (Google
   sign-in works there too). The first time a row needs it, the page says "Sign in
   to claude.ai as <email> to see this session"; or sign in ahead of time from
-  Settings > Accounts > the account > claude.ai in Ghostex. If a page is signed
-  in as someone else, it says so with a **Sign in as <account>** button; nothing
-  is signed out until you click it.
+  Settings > Accounts > the account > claude.ai in Ghostex: Settings steps aside
+  while claude.ai's login is open, a **Back to Settings** button at the bottom
+  right brings it back on that account, and a spinner beside the button waits
+  until the account shows as signed in. If a page is signed in as someone else,
+  it says so with a **Sign in as <account>** button; nothing is signed out until
+  you click it.
 - **Out of usage**: when the session's account hits a limit, the row and page say
   so with the reset time ("Work hit its 5h limit · resumes 4:10 pm") and offer
   **Start a copy on another account**: a new cloud session carries on from the
@@ -3153,11 +3273,10 @@ default for projects in a Work workspace and off in a Personal one; right-click
 a project and choose Work Mode, turn on **Work mode** for the project in Settings >
 Projects, or run `ghostex work-mode on` in its folder, to set it yourself, and a project keeps a choice you made when it moves to another
 workspace (otherwise it takes the new workspace's default). In a
-work-mode project, a session linked to a GitHub pull request, a GitHub issue, a
-Linear issue or a Linear project gets a second line on its card: the PR with its
-state and checks, the issue with its status, and the Linear project. Click a PR or
-issue chip to open its details in the Work view (see Views), or the Linear project
-chip to open it in the browser. Links come from the session's branch on their own (a branch named like
+work-mode project a session is linked to its GitHub pull request, its GitHub or
+Linear issues and a Linear project; its card shows its pull requests and issues the
+way every session's links show (the **Session links in the sidebar** setting,
+below), and the Work view (see Views) shows a ticket's details. Links come from the session's branch on their own (a branch named like
 `yahia/spx-1245-copy-link` or `yahia/218-arabic-plan-cards`), from the PR Linear
 attached to the issue, or by hand: right-click the session, choose Link to, then
 Pull request…, Linear issue…, Linear project… or GitHub issue…, and pick from the
@@ -3182,9 +3301,8 @@ to list would suggest. The phone's session menu has the same Link to, with the
 GitHub rows in a workspace whose primary tracker is GitHub. When a linked PR is merged, its card offers
 Clean up (remove the session's worktree and park the session; a worktree with
 uncommitted changes is kept) or Keep, once per PR; `ghostex work-mode cleanup
-<session> clean-up|keep` answers it from a terminal. The phone's session list
-shows the same second line (the GitHub Project chip included): tap a chip to open it in the browser, touch and hold
-it to copy its link, and tap Clean up or Keep to answer. A
+<session> clean-up|keep` answers it from a terminal. The offer takes the card's
+second line until you answer; on the phone's session list, tap Clean up or Keep. A
 session on a branch other than main is titled by that branch, without your name
 and the ticket ID, until you rename it. Linear status needs a Linear API key: set
 one per workspace in Settings > Workspaces; a project that needs a different key
@@ -3195,6 +3313,45 @@ and paste it (that sets the Personal workspace's key, which a workspace without
 its own uses; `--project-id <id>` sets one for a single project, `--clear`
 removes it). GitHub status comes from `gh`, so sign in
 with `gh auth login`. `ghostex work-mode status` says what is set up.
+
+Every session, in any project, keeps a list of the pull requests, GitHub issues
+and Linear tickets it is linked to, and gathers them by itself: the PR of the
+branch it is on (and of branches it worked on before, when it has a worktree of
+its own), the issue or Linear ticket its branch names, the PRs and issues the
+agent opened (`gh pr create`, `gh issue create`), the issues a linked PR closes,
+and the Linear tickets the chat mentions (with a Linear API key set; only IDs of
+your Linear teams count). An agent adds one with `ghostex link add <url|#123|ABC-123>`
+from its own terminal. A PR or issue link that was only pasted into the chat is
+offered under Suggested instead, with a Link button. The work area header shows up
+to three of them after the session's title, open work first, each with its number,
+state and checks, then +N for the rest (or a List pill when they all fit), which
+opens the whole list: each link on two lines, its number, title and state, then
+its checks (passing, failing or running), its review (review requested, approved
+or changes requested) and where it came from. Click a link to open it; **Open
+session links in** (Settings > General > Browser) opens them in the internal
+browser (the default) or your default browser. Click a link's × and then Remove?
+within three seconds to remove it; a removed link never comes back by itself
+(adding it again by hand does). In the sidebar, **Session links in the sidebar**
+(Settings > Session Cards) picks how a card shows them: Always (a line of chips
+under every card that has links), Selected session (that line only under the
+session you have open), Badge (the default: a small count on the card, coloured by
+the most pressing link: red for failing checks or changes asked for, amber for a
+review asked for or checks still running), Open work only (a line of the ones
+still open, none once they are all merged or closed), or Off. Rest the pointer on a
+card that has links and, after the tooltip delay, a card opens beside the sidebar
+listing them all, two lines each, with the same open, ×, Remove? and Link as the
+header's list; it stays while the pointer is on the card or its row (Off shows no
+card). A red dot on +N means a link behind it has failing checks; Ghostex sends no
+notifications for link changes. On the phone, the chat shows the same chips under
+its header: tap one to open it, touch and hold to copy its link, and tap +N or
+List for the whole list (× twice removes a link, Link adds a suggestion). The
+phone's session list follows the computer's Session links in the sidebar, and a
+session's long-press menu has a Links row that opens the same list. States
+refresh about once a minute, and merged or closed ones stop being checked.
+`ghostex link list [--session <session>]` prints a session's links and
+`ghostex link remove <link>` removes one. Settings: `sessionLinkOpenTarget`
+(`embedded` or `external`), `sidebarSessionLinks` (`always`, `selected`, `badge`,
+`open` or `off`).
 
 To start a piece of work from a new ticket, open the project's "…" menu and choose
 Create Linear Ticket… (it shows once the project is in work mode and has a Linear
@@ -3684,7 +3841,10 @@ control picks Off, Dark only or Always (Dark only, the default on macOS and Linu
 keeps light mode solid; Off, so the window is fast and solid, is the default on
 Windows), and
 Strength sets how see-through it is, from 0 (fully solid) to 100 (fully clear); the default
-is 10. Blur sets how soft what shows behind the window looks, from 0 (sharp) to 100 points;
+is 10, and out of the box the sidebar and the work area get the same tint. The four tint settings
+under More transparency options set them apart by hand, in dark and light mode separately; moving
+Strength afterwards moves both and keeps that difference (it narrows only where a tint reaches 0
+or 100). Blur sets how soft what shows behind the window looks, from 0 (sharp) to 100 points;
 the default is 60. On Windows, Desktop and windows uses Windows' own blur, which has no amount
 to set, so there Blur is a choice instead: Acrylic (the default, Windows' frosted blur, which stays
 blurred while Ghostex is in the background), Plain blur (the same blur without Windows' grey

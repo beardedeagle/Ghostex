@@ -220,18 +220,6 @@ impl GhostexGpuiApp {
         self.gx_store_edit_workspace_groups(next, cx);
     }
 
-    /// `createQuickTerminal()`: a new projectless chat workspace, then its first running terminal.
-    ///
-    /// CDXC:AgentLauncher 2026-07-11:
-    /// Match macOS createNativeChat: create and focus a new projectless chat workspace first, then
-    /// create its initial running terminal through the ordinary gxserver session path.
-    pub(super) fn gx_store_create_quick_terminal(&mut self, cx: &mut gpui::Context<Self>) {
-        self.gx_store_create_quick_project("terminal", cx, |this, project_id, cx| {
-            let group_id = ProjectKey::local(project_id).to_sidebar_group_id();
-            this.gx_store_create_terminal(Some(&group_id), cx).detach();
-        });
-    }
-
     /// `createProjectTerminal(message)`: a remote project's heading asks the machine for the
     /// terminal in one host operation, a Windows project's goes through the WSL create-and-attach,
     /// and every other one is an ordinary create.

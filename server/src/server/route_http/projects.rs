@@ -1,4 +1,4 @@
-//! Project routes: create, update, park and restore projects, project worktrees, quick and bot projects, the add-project folder browser, repository clones and source-control lookups, project docs and project views.
+//! Project routes: create, update, park and restore projects, project worktrees, bot projects, the add-project folder browser, repository clones and source-control lookups, project docs and project views.
 
 use axum::http::StatusCode;
 use serde_json::json;
@@ -10,6 +10,7 @@ use crate::{
 
 use super::*;
 
+/// CDXC:AgentLauncher 2026-10-23 DECISION: User: "we already agreed long time ago 'no more chats'". There are no projectless Chats: nothing creates `~/ghostex/chats` workspaces any more (Quick Terminal, `ghostex create-chat` and `/api/createQuickProject` were removed), and projects left in that folder are ordinary projects. A session that needs a folder of its own runs in the Ghostex config folder's project, as Help and Send Bug / Feedback do.
 pub(super) async fn route_projects_http(
     request: RouteHttpRequest,
 ) -> Result<RoutedResponse, RouteHttpRequest> {
@@ -188,31 +189,6 @@ pub(super) async fn route_projects_http(
                 Ok(json!({ "project": project }))
             },
         ),
-        "/api/createQuickProject" => {
-            let home_dir = state.paths.home_dir.clone();
-            let quick_project_state = state.clone();
-            handle_domain_http(
-                &state,
-                endpoint.path,
-                request_id,
-                &body_json,
-                move |repository, db, params, _| {
-                    let project_params = create_quick_project_params(&home_dir, params)?;
-                    let project = repository.add_project_path(&project_params)?;
-                    let project =
-                        crate::workspaces::place_added_project(repository, db, project, params)?;
-                    let project_id = value_text(&project, "projectId")?;
-                    schedule_presentation_project_delta(
-                        &quick_project_state,
-                        db,
-                        repository,
-                        &project_id,
-                        "projectAdded",
-                    )?;
-                    Ok(json!({ "project": project }))
-                },
-            )
-        }
         // Off the async runtime like the startup pass: the sync reads the profiles folder and
         // writes the database.
         "/api/syncBotProjects" => {

@@ -106,6 +106,8 @@ pub async fn run_gxserver_foreground(
     let identity = ensure_gxserver_identity(&paths)?;
     let auth = ensure_gxserver_auth_token(&paths)?;
     let logger = Arc::new(GxserverLogger::new(paths.clone()));
+    crate::crash_report::report_previous_crash(&paths, &logger, &version);
+    crate::crash_report::install(&paths);
     /*
     CDXC:AgentSkills 2026-08-24:
     Older Ghostex builds installed skills that are now folded into the CLI
@@ -381,6 +383,7 @@ pub async fn run_gxserver_foreground(
     if let Ok(db) = open_gxserver_database(&paths) {
         let repository = DomainRepository::new(&db, metadata.server_id.as_str());
         cycle_wire_incompatible_zmx_session_daemons(&repository, &logger, &metadata.server_id);
+        crate::zmx::end_unowned_zmx_session_daemons(&repository, &logger, &metadata.server_id);
     }
     /*
     CDXC:RemotePairing 2026-09-01:

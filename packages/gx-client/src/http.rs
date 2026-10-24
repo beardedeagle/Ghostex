@@ -23,8 +23,8 @@ pub(crate) fn agent(timeout: Duration) -> ureq::Agent {
         .into()
 }
 
-/// `POST /api/listProjects`: the full domain project rows, which carry the `isChat` and `isQuick`
-/// flags the presentation rows do not.
+/// `POST /api/listProjects`: the full domain project rows, which carry the fields (recent, worktree,
+/// icon) the presentation rows do not.
 pub(crate) fn list_projects(
     agent: &ureq::Agent,
     endpoint: &Endpoint,

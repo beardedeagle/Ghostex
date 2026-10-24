@@ -110,6 +110,22 @@ fn chat_section(
     rows.extend(page.toggle(g, s, "chatCatchMeUp", "Catch me up button", "Show a Catch me up button at the top right of the chat box while it is empty. It has your Title Generation Agent (a small, cheap model) read the session's last 30 agent messages and shows where the session stands: what needs you, what is done, in progress or untested.", false, cx));
     rows.extend(page.toggle(g, s, "chatPreviousQuestion", "Previous question button", "Show a Previous question button next to Scroll to bottom while the chat has questions you haven't answered yet. Each click goes to the next older one and briefly outlines it.", false, cx));
     rows.extend(page.toggle(g, s, "chatSendOnPick", "Send when you pick an answer", "When a question card asks one question, picking an answer sends it right away, without Send answers. Cards with several questions, multiple-choice questions, Other and text answers still wait for Send.", false, cx));
+    if g.visible(s, "chatPageOpenTarget") {
+        let spec = g.spec(
+            "chatPageOpenTarget",
+            "Open chat pages in",
+            "Where a page an agent shows in chat (a mockup, a question form, a comparison) opens when you click its card: a popup over the chat, the Files view, or your default web browser. Answers you send from the page reach the agent the same way in all three. The phone always opens pages in its own viewer.",
+        );
+        rows.extend(page.segmented(
+            g,
+            s,
+            "chatPageOpenTarget",
+            spec,
+            Some(reset_key::<GeneralTab>("chatPageOpenTarget")),
+            g.options("CHAT_PAGE_OPEN_TARGET_OPTIONS"),
+            cx,
+        ));
+    }
     rows.extend(page.toggle(g, s, "markedHandovers", "Marked handovers in every session", "Orchestrators and their threads start each part of the message they hand back with a marker such as ❓ Needs you, ✅ Done, ⚠️ Read this, 🧪 Untested or 🛑 Blocked, so a quick skim shows what needs you. Turn this on to have every other agent session do the same. Applies to sessions started or resumed after you change it.", false, cx));
     rows.extend(page.marked_sections_style_row(g, s, window, cx));
     rows.extend(page.toggle(g, s, "orchestratorPlainReplies", "Orchestrators answer without markers", "Orchestrators answer normally, without marking the sections of their handovers. Their threads still mark the reports they send to the orchestrator. Applies to orchestrators started or resumed after you change it.", false, cx));
@@ -233,21 +249,31 @@ fn browser_section(
     if !g.search.subsection_visible("browser", g.power_visible) {
         return None;
     }
-    let rows: Vec<AnyElement> = page
-        .select(
-            g,
-            "browser",
-            "webLinkOpenTarget",
-            "Open links in",
-            "Open web links from terminal output (Command-click), session chat, and detected dev servers in the project Browser view or the system default browser.",
-            g.options("WEB_LINK_OPEN_TARGET_OPTIONS"),
-            None,
-            false,
-            window,
-            cx,
-        )
-        .into_iter()
-        .collect();
+    let mut rows: Vec<AnyElement> = Vec::new();
+    rows.extend(page.select(
+        g,
+        "browser",
+        "webLinkOpenTarget",
+        "Open links in",
+        "Open web links from terminal output (Command-click), session chat, and detected dev servers in the project Browser view or the system default browser.",
+        g.options("WEB_LINK_OPEN_TARGET_OPTIONS"),
+        None,
+        false,
+        window,
+        cx,
+    ));
+    rows.extend(page.select(
+        g,
+        "browser",
+        "sessionLinkOpenTarget",
+        "Open session links in",
+        "Open a session's pull requests, issues and Linear tickets (the chips after its title and its links list) in the project Browser view or the system default browser. The phone follows this setting too.",
+        g.options("SESSION_LINK_OPEN_TARGET_OPTIONS"),
+        None,
+        false,
+        window,
+        cx,
+    ));
     settings_section(&g.p, "Browser", None, None, rows)
         .map(|section| PageBlock::section("browser", section))
 }

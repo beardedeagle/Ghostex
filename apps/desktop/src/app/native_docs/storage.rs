@@ -247,7 +247,9 @@ impl GhostexGpuiApp {
             .documents
             .iter()
             .map(|document| document.path.clone())
-            .filter(|path| !path.starts_with(".ghostex-review"))
+            .filter(|path| {
+                !path.starts_with(".ghostex-review") && !super::published_page::is_page_path(path)
+            })
             .collect();
         let active = self.native_docs.active.clone();
         cx.background_executor()

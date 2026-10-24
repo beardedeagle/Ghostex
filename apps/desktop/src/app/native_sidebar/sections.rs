@@ -169,8 +169,9 @@ impl GhostexGpuiApp {
     }
 }
 
-/// The accent a section heading takes while a dragged session would land in that section.
-fn section_drop_highlight<E: Styled>(row: E, _scale: f32) -> E {
+/// The accent a section heading (or a group header, `project_header.rs`) takes while a dragged
+/// session would land in it.
+pub(super) fn section_drop_highlight<E: Styled>(row: E, _scale: f32) -> E {
     row.bg(rgb(0x60a5fa).opacity(0.18))
         .text_color(chrome_color(0xd8d8d8, 0x292929).opacity(0.9))
 }

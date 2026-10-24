@@ -32,6 +32,16 @@ fn key(project: &str, session: &str) -> (String, String) {
     (project.to_string(), session.to_string())
 }
 
+/// The sessions with a wait in progress, for the recovery pass to settle the ones it does not plan.
+pub(super) fn waiting_sessions() -> Vec<(String, String)> {
+    waits()
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .keys()
+        .cloned()
+        .collect()
+}
+
 /// What the session's usage-limit notice carries while it waits: `limit`, `resetsAt` and `account`, each optional.
 pub(crate) fn notice_wait(project: &str, session: &str) -> Option<Value> {
     let waits = waits().lock().unwrap_or_else(|e| e.into_inner());

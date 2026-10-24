@@ -467,6 +467,10 @@ pub(super) fn ssh_access_instructions(platform: &str) -> SshAccessInstructions {
 const EASY_CONNECT_CODE_PREFIX: &str = "ghostex-ec1:";
 const TAILSCALE_CODE_PREFIX: &str = "ghostex-ts1:";
 const LEGACY_EASY_CONNECT_ADDRESS_PREFIX: &str = "tc";
+/// `PAIRING_LINK_PREFIX`: gxserver wraps each code in this link so a phone's system camera opens
+/// the app (server/src/remote_access/pairing_code.rs); the code field reads it and the bare code.
+const PAIRING_LINK_HOST: &str = "ghostex.dev";
+const PAIRING_LINK_PATH: &str = "/pair";
 
 /// A decoded Easy Connect code (`EasyConnectCode`), the fields the add form uses.
 #[derive(Clone, Debug, PartialEq)]
@@ -535,11 +539,47 @@ fn is_tailscale_code(value: &Value) -> bool {
         && (non_empty(value, "host").is_some() || non_empty(value, "ip").is_some())
 }
 
-/// `readPairingCode(payload)`.
+/// `readPairingLinkFragment(text)`: the fragment of a ghostex.dev pairing link (`Some(None)` when
+/// it does not decode), or `None` when `text` is not one. Accepts `http`, `www.`, any host case, a
+/// trailing slash and a query, like the TypeScript reader.
+fn read_pairing_link_fragment(text: &str) -> Option<Option<String>> {
+    let lower = text.to_ascii_lowercase();
+    let rest = lower
+        .strip_prefix("https://")
+        .or_else(|| lower.strip_prefix("http://"))?;
+    let rest = rest.strip_prefix("www.").unwrap_or(rest);
+    let rest = rest.strip_prefix(PAIRING_LINK_HOST)?;
+    let rest = rest.strip_prefix(PAIRING_LINK_PATH)?;
+    let rest = rest.strip_prefix('/').unwrap_or(rest);
+    let hash = rest.find('#')?;
+    if !rest[..hash].is_empty() && !rest.starts_with('?') {
+        return None;
+    }
+    // Lowercasing kept every byte offset, so the fragment comes from the original text.
+    let fragment = &text[text.len() - (rest.len() - hash - 1)..];
+    Some(
+        percent_encoding::percent_decode_str(fragment)
+            .decode_utf8()
+            .ok()
+            .map(|decoded| decoded.into_owned()),
+    )
+}
+
+/// `readPairingCode(payload)`: a pairing link or a bare code.
 pub(super) fn read_pairing_code(payload: &str) -> Option<PairingCode> {
     let trimmed = payload.trim();
     if trimmed.is_empty() || trimmed.chars().any(char::is_whitespace) {
         return None;
+    }
+    if let Some(fragment) = read_pairing_link_fragment(trimmed) {
+        // A link carries a whole code, never a bare address.
+        let fragment = fragment?;
+        if !fragment.starts_with(EASY_CONNECT_CODE_PREFIX)
+            && !fragment.starts_with(TAILSCALE_CODE_PREFIX)
+        {
+            return None;
+        }
+        return read_pairing_code(&fragment);
     }
     if let Some(rest) = trimmed.strip_prefix(EASY_CONNECT_CODE_PREFIX) {
         return read_easy_connect_code(&decode_base64_url_json(rest)?)
@@ -806,4 +846,67 @@ pub(super) fn machine_probe_key(machine: &Value) -> Option<String> {
         ]
         .join("|"),
     )
+}
+
+#[cfg(test)]
+mod pairing_code_tests {
+    use super::*;
+
+    const EASY_CONNECT_JSON: &str = r#"{"v":1,"address":"tc1qexampleaddress","name":"Studio","user":"madda","port":58744,"sshPort":22,"secret":"s3cr3t","expiresAt":"2026-10-24T07:15:00.000Z"}"#;
+
+    fn easy_connect_code() -> String {
+        use base64::Engine as _;
+        format!(
+            "ghostex-ec1:{}",
+            base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(EASY_CONNECT_JSON)
+        )
+    }
+
+    fn studio() -> PairingCode {
+        PairingCode::EasyConnect(EasyConnectCode {
+            address: "tc1qexampleaddress".to_string(),
+            name: "Studio".to_string(),
+            user: "madda".to_string(),
+            ssh_port: 22,
+        })
+    }
+
+    #[test]
+    fn reads_the_bare_code_older_computers_show() {
+        assert_eq!(read_pairing_code(&easy_connect_code()), Some(studio()));
+    }
+
+    #[test]
+    fn reads_the_pairing_link_newer_computers_show() {
+        let code = easy_connect_code();
+        for link in [
+            format!("https://ghostex.dev/pair#{code}"),
+            format!("  https://ghostex.dev/pair#{code}\n"),
+            format!("HTTPS://Ghostex.Dev/pair/#{code}"),
+            format!("https://www.ghostex.dev/pair?from=camera#{code}"),
+            format!("https://ghostex.dev/pair#{}", code.replace(':', "%3A")),
+        ] {
+            assert_eq!(read_pairing_code(&link), Some(studio()), "{link}");
+        }
+    }
+
+    #[test]
+    fn refuses_links_that_are_not_a_pairing_link() {
+        let code = easy_connect_code();
+        for link in [
+            format!("https://ghostex.dev/pairs#{code}"),
+            format!("https://ghostex.dev/pair/x#{code}"),
+            format!("https://evil.example/pair#{code}"),
+            format!("https://ghostex.dev.evil.example/pair#{code}"),
+            "https://ghostex.dev/pair".to_string(),
+            "https://ghostex.dev/pair#tc1qexampleaddress".to_string(),
+            "https://ghostex.dev/pair#ghostex-ec1:not-base64!".to_string(),
+        ] {
+            assert_eq!(read_pairing_code(&link), None, "{link}");
+        }
+        assert_eq!(
+            read_pairing_code("tc1qexampleaddress"),
+            Some(PairingCode::LegacyAddress("tc1qexampleaddress".to_string()))
+        );
+    }
 }

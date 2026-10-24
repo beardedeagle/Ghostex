@@ -29,8 +29,8 @@ const HEADER_PAD_Y: f32 = 6.0;
 /// The gap (unscaled) between the card's bottom edge and the chat box's top edge, when nothing else
 /// stacks between them (composer.rs).
 ///
-/// CDXC:SessionChat 2026-10-18 DECISION:
-/// User, pointing at the gap between the working card and the chat box: "reduce the margin here to 9px" (it was 16px: the stack's 8px gap plus the box's own 8px lead-in). Only that gap changes; a card or notice stacked between them keeps the usual spacing. The phone matches in apps/mobile/app/src/chat/native/cards/WorkingCard.tsx.
+/// CDXC:SessionChat 2026-10-23 DECISION:
+/// User, pointing at the gap between the working card and the chat box: "reduce the margin here to 9px" (2026-10-18; it was 16px: the stack's 8px gap plus the box's own 8px lead-in). User (2026-10-23): "please make the gap at B match the gap at A (for all similar cases also for cards that appear above the chat view composer": every gap in the stack above the composer is the stack's 8px gap (working card to a card, card to card, last card to the box); the box adds no lead-in under a card. Supersedes "a card or notice stacked between them keeps the usual spacing". The phone matches in apps/mobile/app/src/chat/native/cards/WorkingCard.tsx.
 pub(super) const WORKING_CARD_GAP: f32 = 9.0;
 
 /// A pill's height (unscaled): its 16px line, 2px above and below and a 1px edge (chat_pills.rs).
@@ -107,7 +107,8 @@ impl NativeChatView {
             // A capsule, like the pills it carries (the 2026-10-18 DECISION in the core's
             // extras/working_card.rs).
             .rounded_full()
-            .bg(p.card_panel)
+            // The composer's own fill, so the card and the chat box under it always match.
+            .bg(p.composer_background)
             .overflow_hidden()
             .text_color(p.card_muted)
             .when(left_bottom, |card| {

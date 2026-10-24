@@ -845,7 +845,7 @@ pub(crate) const BROWSER_FEEDBACK_TOOL_UNAVAILABLE_TOOLTIP: &str =
     "This site disallows using this tool";
 
 pub(crate) const BROWSER_FEEDBACK_AGENTATION_PACKAGE_MODULE_URL: &str =
-    "https://esm.sh/agentation@3.0.2?bundle&deps=react@18.2.0,react-dom@18.2.0";
+    "https://esm.sh/agentation@3.1.2?bundle&deps=react@18.2.0,react-dom@18.2.0";
 
 pub(crate) const BROWSER_FEEDBACK_AGENTATION_REACT_MODULE_URL: &str = "https://esm.sh/react@18.2.0";
 

@@ -83,6 +83,13 @@ pub fn run(args: &[String]) -> Res<i32> {
     if built_zmx != installed_zmx {
         bail!("the staged zmx ({built_zmx}) differs from the installed one ({installed_zmx}). A zmx change needs `cargo xtask start`.");
     }
+    let source_generation = source_zmx_wire_generation()?;
+    if !installed_zmx.split(", ").any(|line| {
+        line.split_whitespace()
+            .eq(["wire_generation", &source_generation])
+    }) {
+        bail!("the zmx source speaks wire generation {source_generation}, the installed zmx ({installed_zmx}) does not. A zmx change needs `cargo xtask start`.");
+    }
 
     let token = gxserver::read_token();
     let before = token
@@ -314,6 +321,24 @@ fn zmx_version(package_dir: &Path) -> Res<String> {
         })
         .collect::<Vec<_>>()
         .join(", "))
+}
+
+/// The `WIRE_GENERATION` the zmx source declares in `ipc.zig`.
+///
+/// CDXC:ZmxWireGeneration 2026-10-24 WHY:
+/// gxserver writes some zmx frames itself (screen capture, the chat claim), so it is built for the wire generation of the zmx source beside it. The gxserver-only build reuses the zmx staged by the last full start, so comparing staged with installed misses a zmx source whose generation moved, and the new gxserver would send the new framing to every live daemon of the old one, which drops those frames without an error.
+fn source_zmx_wire_generation() -> Res<String> {
+    let path = root().join(".dependencies/zmx/src/ipc.zig");
+    let source = fs::read_to_string(&path)
+        .map_err(|error| format!("could not read {}: {error}", path.display()))?;
+    match source.lines().find_map(|line| {
+        line.trim()
+            .strip_prefix("pub const WIRE_GENERATION: u32 = ")?
+            .strip_suffix(';')
+    }) {
+        Some(generation) => Ok(generation.to_string()),
+        None => bail!("{} declares no WIRE_GENERATION.", path.display()),
+    }
 }
 
 struct LaunchdJob {

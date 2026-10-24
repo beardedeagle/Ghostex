@@ -239,7 +239,7 @@ pub async fn run_session_chat_follower(
                         || statusline_changed
                         || live.working
                         || published_activity.is_some()
-                        || published_fleet.is_some()
+                        || fleet_is_working(published_fleet.as_ref())
                         || unresolved_last_probe.elapsed() >= UNRESOLVED_STEADY_PROBE_INTERVAL
                         || crate::session_chat_screen_watch::session_chat_screen_changed(
                             config.screen_change_watch.as_ref(),
@@ -336,7 +336,7 @@ pub async fn run_session_chat_follower(
                     INITIAL_RESOLVE_POLL
                 } else if live.working
                     || published_activity.is_some()
-                    || published_fleet.is_some()
+                    || fleet_is_working(published_fleet.as_ref())
                     || config.options_change_watch.is_some()
                 {
                     resolve_delay.min(config.tuning.reconcile_interval)
@@ -764,7 +764,7 @@ pub async fn run_session_chat_follower(
             .and_then(|notice| notice.dialog.as_ref())
             .is_some_and(|dialog| dialog.side_question.is_some());
         let probe_interval_ticks = if published_activity.is_some()
-            || published_fleet.is_some()
+            || fleet_is_working(published_fleet.as_ref())
             || transcript_pager_open
             || side_question_open
         {
@@ -1061,6 +1061,14 @@ pub async fn run_session_chat_follower(
         }
         heartbeat.unpark();
     }
+}
+
+/// CDXC:AgentScreenDetection 2026-10-23 WHY:
+/// The fast probe tiers used to key on a published fleet existing at all. Claude keeps idle resident children in its footer after their work ends, so a session that had ever run a subagent stayed on the 1s tier forever and every probe re-read every child transcript. Only a roster with a working child needs the per-second clock; an idle roster is still renewed on the idle tier (and on any screen change) well inside its 90s lease, and it stays published, so the strip does not change.
+fn fleet_is_working(
+    fleet: Option<&crate::session_chat_agent_fleet::SessionChatAgentFleet>,
+) -> bool {
+    fleet.is_some_and(|fleet| fleet.is_working())
 }
 
 /// Identity the follower is currently tailing. Seeded from the spawn config and

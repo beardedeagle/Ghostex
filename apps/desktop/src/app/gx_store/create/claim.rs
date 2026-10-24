@@ -116,12 +116,6 @@ impl GhostexGpuiApp {
                 self.gx_store_open_quick_browser_tab(cx);
                 true
             }
-            // Quick Access "Quick Terminal" and the command palette, dropped here before
-            // (ledger H009).
-            "createChat" => {
-                self.gx_store_create_quick_terminal(cx);
-                true
-            }
             _ => false,
         }
     }
@@ -159,10 +153,6 @@ impl GhostexGpuiApp {
             }
             Some("createProjectTerminal") => {
                 self.gx_store_create_project_terminal(message, cx);
-                true
-            }
-            Some("createChat") => {
-                self.gx_store_create_quick_terminal(cx);
                 true
             }
             // Every door makes the launched agent the last-used one, as the host message door does.

@@ -6,9 +6,15 @@
 //! CDXC:RemotePairing 2026-09-03 DECISION:
 //! User: "please add a toggle for tailscale. if tailscale is disabled …" (the sentence was cut off; the off behaviour below is the assumed reading).
 //! The header switch sits in the same spot as Easy Connect's, beside the header button, so toggling never expands the card. It writes Settings.remoteTailscaleEnabled; nothing is sent to gxserver because Tailscale itself is not managed by Ghostex. Off: the card is collapsed and cannot be expanded (no chevron), it is dimmed like a hidden machine tile, the status badge reads Off, and no QR is rendered because the body never mounts.
+//!
+//! CDXC:RemotePairing 2026-10-24 DECISION:
+//! User (about Easy Connect, applied here too): "let's please not show the real qr here", "this is so when im in settings we dont show my real QR until i click on "Show QR" which opens it in a pop up".
+//! The card never encodes or draws the Tailscale pairing payload: it reuses Easy Connect's placeholder tile and Show QR button (`easy_connect::hidden_qr`), which open the shared Show QR dialog with this card's code at 360px.
 use super::super::super::super::native_modal_kit::*;
-use super::super::super::fields::{qr_code, settings_icon, switch_control};
-use super::easy_connect::{path_card, path_head, qr_block, qr_meta, qr_pending};
+use super::super::super::fields::{settings_icon, switch_control};
+use super::easy_connect::{
+    QR_PLACEHOLDER_SIZE, hidden_qr, path_card, path_head, qr_block, qr_meta, qr_pending,
+};
 use super::model::BadgeTone;
 use super::style::*;
 use super::{PathCard, RemoteTab, ssh_row};
@@ -197,13 +203,10 @@ fn tailscale_body(
         )
     });
     let qr_left = match &code {
-        Some(code) => {
-            let grid = tab.qr_for(true, &code.payload);
-            qr_code(grid.as_ref(), 140.0)
-        }
+        Some(_) => hidden_qr(t, "remote-tailscale-show-qr", PathCard::Tailscale, cx),
         None => qr_pending(
             t,
-            140.0,
+            QR_PLACEHOLDER_SIZE,
             if running {
                 "Waiting for the address…"
             } else {
@@ -225,10 +228,9 @@ fn tailscale_body(
                         ("Connect your computer", Emph::Em),
                         (" → ", Emph::Plain),
                         ("Scan code", Emph::Em),
-                        (
-                            ". The app recognizes this as a Tailscale code.",
-                            Emph::Plain,
-                        ),
+                        (", then click ", Emph::Plain),
+                        ("Show QR", Emph::Strong),
+                        (".", Emph::Plain),
                     ],
                 )),
         )

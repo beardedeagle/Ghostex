@@ -103,27 +103,15 @@ pub(crate) fn discover(
         return Ok(());
     }
     let repository = DomainRepository::new(&transaction, server_id);
+    // Only the conversation ids every row records are needed, so no row is hydrated.
     let known: HashSet<String> = repository
-        .list_sessions(None)?
+        .list_recorded_agent_session_ids()?
         .iter()
-        .flat_map(|session| {
-            session
-                .pointer("/runtimeSettings/agentSessionId")
-                .and_then(Value::as_str)
-                .into_iter()
-                .chain(
-                    session
-                        .pointer("/runtimeSettings/previousAgentSessionIds")
-                        .and_then(Value::as_array)
-                        .into_iter()
-                        .flatten()
-                        .filter_map(Value::as_str),
-                )
-                .map(str::to_lowercase)
-        })
+        .map(|id| id.to_lowercase())
         .collect();
+    // A project is only matched by path and handed on by id, so its session history is not read.
     let mut projects: HashMap<String, Value> = repository
-        .list_projects()?
+        .list_projects_without_session_history()?
         .into_iter()
         .filter_map(|p| Some((project_key(p.get("path")?.as_str()?), p)))
         .collect();
@@ -190,8 +178,9 @@ fn reconcile_pending_codex_forks(
                 .as_str()
                 .is_none_or(|id| id.trim().is_empty())
     };
+    // `is_pending_fork` only accepts running rows.
     let pending = repository
-        .list_sessions(None)?
+        .list_sessions_with_lifecycle_state("running")?
         .into_iter()
         .filter(is_pending_fork)
         .collect::<Vec<_>>();

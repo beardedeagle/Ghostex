@@ -62,8 +62,11 @@ impl DocsPalette {
     /// CDXC:Docs 2026-09-24 DECISION:
     /// User: after the move to GPUI, Docs has transparency in the background because it is GPUI-based, not web-based anymore. Under glass the page paints no fill and its rows are washes of the text ink, like Kanban and Automate; this supersedes the 2026-09-23 Theming decision that drew the page as one solid card below the tab strip.
     ///
-    /// The values for one appearance. `font` and `background` are the chat's (Files follows the
-    /// workarea theme the chat resolves); `current` in `render.rs` reads them from the app.
+    /// CDXC:Docs 2026-10-23 DECISION:
+    /// User, in light mode with a tinted theme colour: "i see there's a pink color in the background in the files list this is wrong. pls fix." In light mode the opaque page behind a file is the neutral #f7f7f8 (the Graphite light work area, and the former Docs page's light fallback) instead of the theme's tinted work area colour; dark mode still takes the chat's work area colour, and under glass the page stays clear.
+    ///
+    /// The values for one appearance. `font` and `background` are the chat's (in dark mode Files
+    /// follows the workarea theme the chat resolves); `current` in `render.rs` reads them from the app.
     pub(crate) fn resolve(glass: bool, light: bool, font: String, background: Hsla) -> Self {
         let solid_chrome = pick(light, 0xf4f4f5, 0x0b0b0b);
         let wash = |light_alpha: f32, dark_alpha: f32| {
@@ -76,6 +79,8 @@ impl DocsPalette {
             mono_font: super::fonts::DOCS_MONO.to_string(),
             page: if glass {
                 gpui::transparent_black()
+            } else if light {
+                rgb(0xf7f7f8).into()
             } else {
                 background
             },

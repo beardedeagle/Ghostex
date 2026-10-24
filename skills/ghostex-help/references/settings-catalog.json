@@ -664,6 +664,42 @@
       "agentWritable": false
     },
     {
+      "key": "sidebarSessionLinks",
+      "title": "Session links in the sidebar",
+      "subtitle": "How a session card shows the pull requests, issues and Linear tickets it is linked to. Always: a line of them under every card that has any. Selected session: that line only under the session you have open. Badge: a small count on the card, coloured by the most pressing one. Open work only: a line of the ones still open, none once they are all merged or closed. Hovering a card with links shows them all in a card beside the sidebar, except with Off, which shows nothing.",
+      "tab": "settings",
+      "tabTitle": "General",
+      "group": "sidebar",
+      "groupTitle": "Sidebar",
+      "section": "sessionCards",
+      "sectionTitle": "Session Cards",
+      "type": "enum",
+      "default": "badge",
+      "options": [
+        {
+          "label": "Always",
+          "value": "always"
+        },
+        {
+          "label": "Selected session",
+          "value": "selected"
+        },
+        {
+          "label": "Badge",
+          "value": "badge"
+        },
+        {
+          "label": "Open work only",
+          "value": "open"
+        },
+        {
+          "label": "Off",
+          "value": "off"
+        }
+      ],
+      "agentWritable": true
+    },
+    {
       "key": "showSessionCardHoverButtonsInContextMenu",
       "title": "Hover buttons also in context menu",
       "subtitle": "Also list the enabled hover buttons in the session right-click menu, in their usual place in the menu. Close is never listed while it is on the card. Turn off to leave every button out of the menu once it is on the card.",
@@ -1110,6 +1146,34 @@
       "agentWritable": true
     },
     {
+      "key": "chatPageOpenTarget",
+      "title": "Open chat pages in",
+      "subtitle": "Where a page an agent shows in chat (a mockup, a question form, a comparison) opens when you click its card: a popup over the chat, the Files view, or your default web browser. Answers you send from the page reach the agent the same way in all three. The phone always opens pages in its own viewer.",
+      "tab": "settings",
+      "tabTitle": "General",
+      "group": "chat",
+      "groupTitle": "Chat",
+      "section": "chat",
+      "sectionTitle": "Chat",
+      "type": "enum",
+      "default": "popup",
+      "options": [
+        {
+          "label": "Popup",
+          "value": "popup"
+        },
+        {
+          "label": "Files",
+          "value": "files"
+        },
+        {
+          "label": "System browser",
+          "value": "system-browser"
+        }
+      ],
+      "agentWritable": true
+    },
+    {
       "key": "markedHandovers",
       "title": "Marked handovers in every session",
       "subtitle": "Orchestrators and their threads start each part of the message they hand back with a marker such as ❓ Needs you, ✅ Done, ⚠️ Read this, 🧪 Untested or 🛑 Blocked, so a quick skim shows what needs you. Turn this on to have every other agent session do the same. Applies to sessions started or resumed after you change it.",
@@ -1330,6 +1394,30 @@
         {
           "label": "System Default Browser",
           "value": "system-default-browser"
+        }
+      ],
+      "agentWritable": true
+    },
+    {
+      "key": "sessionLinkOpenTarget",
+      "title": "Open session links in",
+      "subtitle": "Open a session's pull requests, issues and Linear tickets (the chips after its title and its links list) in the project Browser view or the system default browser. The phone follows this setting too.",
+      "tab": "settings",
+      "tabTitle": "General",
+      "group": "tools",
+      "groupTitle": "Tools",
+      "section": "browser",
+      "sectionTitle": "Browser",
+      "type": "enum",
+      "default": "embedded",
+      "options": [
+        {
+          "label": "Internal Browser",
+          "value": "embedded"
+        },
+        {
+          "label": "System Default Browser",
+          "value": "external"
         }
       ],
       "agentWritable": true
@@ -3479,6 +3567,8 @@
         "toggleChatComposerMaximized": "ctrl+alt+m",
         "toggleChatFilesLinks": "ctrl+alt+l",
         "toggleVoiceAgent": "ctrl+alt+v",
+        "voiceCallAboutSession": "",
+        "holdToTalk": "",
         "toggleDictation": "ctrl+alt+d",
         "createAgentSession": "cmd+shift+o",
         "createSession": "cmd+shift+t",
@@ -8283,7 +8373,7 @@
       "section": "theming",
       "sectionTitle": "Theme",
       "type": "number",
-      "default": 91,
+      "default": 94,
       "agentWritable": true
     },
     {
@@ -8311,7 +8401,7 @@
       "section": "theming",
       "sectionTitle": "Theme",
       "type": "number",
-      "default": 93,
+      "default": 97,
       "agentWritable": true
     },
     {
@@ -11659,7 +11749,7 @@
     {
       "key": "voiceAgentCallMode",
       "title": "Call mode",
-      "subtitle": "Regular calls listen hands-free; on Grok they're billed for the whole time the call is connected, quiet and muted time included (about $0.08 a minute). Push-to-talk calls listen only while you hold Talk; on Grok you pay only for the audio you send and the agent's replies. GPT Realtime bills only audio in both modes. A change applies to your next call; the gear in the voice panel changes it too.",
+      "subtitle": "Regular calls listen hands-free; on Grok they're billed for the whole time the call is connected, quiet and muted time included (about $0.08 a minute). Push-to-talk calls listen only while you hold the talk button next to Mute (or Space, or the Hold to Talk hotkey); on Grok you pay only for the audio you send and the agent's replies. In a muted Regular call, holding it unmutes you for as long as you hold. GPT Realtime bills only audio in both modes. A change applies to your next call; the gear in the voice panel changes it too.",
       "tab": "voiceAgent",
       "tabTitle": "Voice agent",
       "section": "provider",
@@ -11806,6 +11896,18 @@
       "description": "Start a spoken conversation with the voice agent, or end the one that is running.",
       "defaultKey": "ctrl+alt+v",
       "windowsLinuxDefaultKey": "cmd+alt+shift+v"
+    },
+    {
+      "id": "voiceCallAboutSession",
+      "title": "Voice Call About This Session",
+      "description": "Start a voice call about the session you are looking at, or move the open call to it.",
+      "defaultKey": ""
+    },
+    {
+      "id": "holdToTalk",
+      "title": "Hold to Talk",
+      "description": "During a voice call, hold to talk to the voice agent and let go to send; in a muted Regular call, hold to unmute. Works even while you're typing.",
+      "defaultKey": ""
     },
     {
       "id": "toggleDictation",

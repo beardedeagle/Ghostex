@@ -495,11 +495,11 @@ wrap_life_span_handler! {
             _popup_id: c_int,
             target_url: Option<&CefString>,
             _target_frame_name: Option<&CefString>,
-            _target_disposition: WindowOpenDisposition,
+            target_disposition: WindowOpenDisposition,
             _user_gesture: c_int,
-            _popup_features: Option<&PopupFeatures>,
-            _window_info: Option<&mut WindowInfo>,
-            _client: Option<&mut Option<Client>>,
+            popup_features: Option<&PopupFeatures>,
+            window_info: Option<&mut WindowInfo>,
+            client: Option<&mut Option<Client>>,
             _settings: Option<&mut BrowserSettings>,
             _extra_info: Option<&mut Option<DictionaryValue>>,
             no_javascript_access: Option<&mut c_int>,
@@ -510,7 +510,18 @@ wrap_life_span_handler! {
 
             CDXC:Browser 2026-06-23-11:43:
             Match native macOS CEF popup policy: empty target URLs are handled here without dispatching a shell popup callback because there is no transferable URL/content and no fallback transfer path. Non-empty targets remain shell-owned Browser tab requests.
+
+            CDXC:Browser 2026-10-23 SEE-ALSO: sign-in popups are the one exception, opened as their own native window so the page keeps its opener (sign_in_popup.rs).
             */
+            // A sign-in popup (OAuth, Google sign-in) opens as its own native window with its
+            // opener intact (sign_in_popup.rs); only a Browser pane hands out popups.
+            if self.popup_open_handler.is_some()
+                && is_sign_in_popup(target_disposition, target_url)
+                && let (Some(window_info), Some(client)) = (window_info, client)
+            {
+                prepare_sign_in_popup(window_info, client, popup_features);
+                return 0;
+            }
             if let Some(no_javascript_access) = no_javascript_access {
                 *no_javascript_access = 1;
             }
@@ -707,23 +718,40 @@ wrap_permission_handler! {
                 return 1;
             }
             /*
-            macOS `GhostexCEFBrowserClient::OnShowPermissionPrompt` parity: only
-            clipboard prompts are decided here (anything else keeps CEF's
-            default handling), and clipboard is granted only when the request
-            carries no other permission bits and the requesting origin matches
-            this surface's trusted code-server origin. Embedded VS Code runs in
-            CEF Alloy, whose default permission handling ignores clipboard
-            prompts, so without this the code-server clipboard silently fails.
+            macOS `GhostexCEFBrowserClient::OnShowPermissionPrompt` parity: the
+            embedded code-server's clipboard prompts are decided here, granted
+            only when the request carries no other permission bits and the
+            requesting origin matches this surface's trusted code-server origin.
+            Embedded VS Code runs in CEF Alloy, whose default permission handling
+            ignores clipboard prompts, so without this the code-server clipboard
+            silently fails. Every other prompt is asked on the page
+            (CDXC:Browser 2026-10-23 in site_permissions.rs).
             */
-            let Some(trusted_clipboard_origin) = self.trusted_clipboard_origin.as_deref() else {
+            let Some(callback) = callback else {
                 return 0;
             };
             let clipboard_permission = PermissionRequestTypes::CLIPBOARD.get_raw() as u32;
-            if requested_permissions & clipboard_permission == 0 {
-                return 0;
-            }
-            let Some(callback) = callback else {
-                return 0;
+            let Some(trusted_clipboard_origin) = self
+                .trusted_clipboard_origin
+                .as_deref()
+                .filter(|_| requested_permissions & clipboard_permission != 0)
+            else {
+                let browser_id = browser.map(|browser| browser.identifier()).unwrap_or_default();
+                dispatch_browser_site_request(BrowserSiteRequest::Permission(
+                    BrowserSitePermissionRequest {
+                        origin: requesting_origin,
+                        profile: self.profile.clone(),
+                        kinds: site_permission_kinds(requested_permissions),
+                        browser_id,
+                        callback: Some(callback.clone()),
+                        page_watch: SitePromptPageWatch::register(
+                            browser_id,
+                            Some(prompt_id),
+                            None,
+                        ),
+                    },
+                ));
+                return 1;
             };
             let unsupported_permissions = requested_permissions & !clipboard_permission;
             let should_accept = unsupported_permissions == 0

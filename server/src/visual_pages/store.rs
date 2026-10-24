@@ -182,6 +182,24 @@ pub(super) fn store_draft(
     write_record(gxserver_state_dir, id, &record).map_err(StoreAnswersError::Io)
 }
 
+/// Keeps where the reader left the page (`scroll.rs`), in pixels from its top. An unchanged
+/// position is not written again.
+pub(super) fn store_scroll(
+    gxserver_state_dir: &Path,
+    id: &str,
+    y: u64,
+) -> Result<(), StoreAnswersError> {
+    let _guard = RECORD_WRITE_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let mut record = read_record(gxserver_state_dir, id).ok_or(StoreAnswersError::NotFound)?;
+    if record.get("scrollY").and_then(serde_json::Value::as_u64) == Some(y) {
+        return Ok(());
+    }
+    record["scrollY"] = json!(y);
+    write_record(gxserver_state_dir, id, &record).map_err(StoreAnswersError::Io)
+}
+
 /// Replaces the record whole (written beside it, then renamed), so a reader never sees half.
 fn write_record(
     gxserver_state_dir: &Path,

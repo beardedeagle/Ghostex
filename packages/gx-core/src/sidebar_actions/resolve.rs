@@ -51,9 +51,8 @@ pub(crate) fn native_project_path_action(action: &str, project_id: &str) -> Opti
 /// The TypeScript asks `latestGroups`, the full projected inventory, which is not the drawn list:
 /// it holds every group the projection built, filters and Spaces and collapse included. The same
 /// question here is asked of the project facts (`build_project_meta`), whose `grouped_project_ids`
-/// (code projects, then bots) is exactly the set of projects that get a `combined-project:` group:
-/// chat and quick projects go into the Chats group instead and parked, recent and locally hidden
-/// projects get none at all.
+/// (projects, then bots) is exactly the set of projects that get a `combined-project:` group:
+/// parked, recent and locally hidden projects get none at all.
 /// Asking the drawn `SidebarView` instead would answer `None` for a project the user has filtered
 /// off screen, which would turn Copy Path on a hidden project into a silent no-op.
 pub fn local_project_group_project_id(

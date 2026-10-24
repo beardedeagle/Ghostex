@@ -66,13 +66,14 @@ impl GhostexGpuiApp {
     pub(crate) fn render_native_sidebar_usage(
         &self,
         appearance: &SidebarAppearance,
+        meters: Vec<GpuiAccountUsageMeter>,
         window: &mut Window,
         cx: &mut gpui::Context<Self>,
     ) -> Option<AnyElement> {
         if !self.sidebar_usage_visible {
             return None;
         }
-        self.render_native_sidebar_usage_strip(appearance, None, window, cx)
+        self.render_native_sidebar_usage_strip(appearance, meters, None, window, cx)
     }
 
     /// The unpinned strip, floating over the bottom of the list while the pin or the strip
@@ -84,6 +85,7 @@ impl GhostexGpuiApp {
     pub(crate) fn render_native_sidebar_usage_peek(
         &self,
         appearance: &SidebarAppearance,
+        meters: Vec<GpuiAccountUsageMeter>,
         window: &mut Window,
         cx: &mut gpui::Context<Self>,
     ) -> Option<AnyElement> {
@@ -112,9 +114,10 @@ impl GhostexGpuiApp {
         let bridge = SIDEBAR_FOOTER_ROW_TOP_PADDING * scale;
         let bottom = SIDEBAR_FOOTER_ROW_HEIGHT * scale - bridge;
         let body = if frosted {
-            self.render_native_sidebar_usage_frosted_placeholder(appearance, cx)?
+            self.render_native_sidebar_usage_frosted_placeholder(appearance, meters.len(), cx)?
         } else {
-            let strip = self.render_native_sidebar_usage_strip(appearance, None, window, cx)?;
+            let strip =
+                self.render_native_sidebar_usage_strip(appearance, meters, None, window, cx)?;
             div()
                 .w_full()
                 .bg(titlebar_background())
@@ -150,10 +153,10 @@ impl GhostexGpuiApp {
     fn render_native_sidebar_usage_frosted_placeholder(
         &self,
         appearance: &SidebarAppearance,
+        count: usize,
         cx: &mut gpui::Context<Self>,
     ) -> Option<AnyElement> {
         use crate::app::window::frosted_host::{FrostedHostKind, show_frosted_host};
-        let count = self.account_usage_meters().len();
         if count == 0 {
             return None;
         }
@@ -223,7 +226,13 @@ impl GhostexGpuiApp {
     ) -> AnyElement {
         use crate::app::window::frosted_host::SIDEBAR_USAGE_HOST_RADIUS;
         let strip = self
-            .render_native_sidebar_usage_strip(appearance, Some(route), window, cx)
+            .render_native_sidebar_usage_strip(
+                appearance,
+                self.account_usage_meters(),
+                Some(route),
+                window,
+                cx,
+            )
             .unwrap_or_else(|| div().into_any_element());
         div()
             .id("native-sidebar-usage-frosted")
@@ -274,11 +283,11 @@ impl GhostexGpuiApp {
     fn render_native_sidebar_usage_strip(
         &self,
         appearance: &SidebarAppearance,
+        mut meters: Vec<GpuiAccountUsageMeter>,
         route: Option<GpuiAccountUsageMeterRoute>,
         window: &mut Window,
         cx: &mut gpui::Context<Self>,
     ) -> Option<AnyElement> {
-        let mut meters = self.account_usage_meters();
         if meters.is_empty() {
             return None;
         }
@@ -382,10 +391,11 @@ impl GhostexGpuiApp {
     pub(crate) fn render_native_sidebar_usage_toggle(
         &self,
         appearance: &SidebarAppearance,
+        meter_count: usize,
         cx: &mut gpui::Context<Self>,
     ) -> Option<AnyElement> {
         // The button exists only once an account is starred.
-        if self.account_usage_meters().is_empty() {
+        if meter_count == 0 {
             return None;
         }
         let scale = appearance.scale;

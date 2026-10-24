@@ -11,6 +11,7 @@ use std::time::Duration;
 
 use serde_json::{json, Map, Value};
 
+use super::focus::{self, FocusScope, Purpose};
 use super::loopback;
 use super::question_forms;
 use super::sessions::{self, Match, SessionInfo};
@@ -26,7 +27,7 @@ const MESSAGE_CHARS: usize = 1_500;
 /// Sessions `list_sessions` returns at most.
 const LIST_MAX: usize = 40;
 
-pub(super) fn definitions() -> Value {
+fn all_definitions() -> Value {
     let session = json!({
         "type": "string",
         "description": "Which session: its ref from list_sessions, or the user's words for it (\"the sidebar one\", \"Linear fix\")."
@@ -184,6 +185,51 @@ pub(super) fn definitions() -> Value {
     ])
 }
 
+/// The tools the model is given: every tool for a call about all sessions; for a call about one
+/// session only `FOCUSED_TOOLS`, whose session argument may be left out and means that session.
+pub(super) fn definitions(focus: Option<&FocusScope>) -> Value {
+    let all = all_definitions();
+    let Some(scope) = focus else {
+        return all;
+    };
+    let title = &scope.title;
+    let session_help = if scope.is_orchestrator {
+        format!("Leave it out for \"{title}\". Name one of its threads (its title or ref from the briefing) only to read it or answer its questions.")
+    } else {
+        format!("Leave it out: this call is about \"{title}\" only.")
+    };
+    let mut tools: Vec<Value> = all
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter(|tool| {
+            tool.get("name")
+                .and_then(Value::as_str)
+                .is_some_and(|name| FOCUSED_TOOLS.contains(&name))
+        })
+        .cloned()
+        .map(|mut tool| {
+            if let Some(parameters) = tool.get_mut("parameters") {
+                if let Some(session) = parameters.pointer_mut("/properties/session") {
+                    session["description"] = json!(session_help);
+                }
+                if let Some(required) = parameters.get_mut("required").and_then(Value::as_array_mut)
+                {
+                    required.retain(|key| key != "session");
+                }
+            }
+            tool
+        })
+        .collect();
+    tools.push(json!({
+        "type": "function",
+        "name": "widen_call",
+        "description": "Make this call about all of the user's sessions again. Call it when the user asks to talk about all their sessions or their other agents. It is the only way to leave this session; you can never move the call to another single session.",
+        "parameters": {"type": "object", "properties": {}}
+    }));
+    Value::Array(tools)
+}
+
 /// What a tool call did: the output for the model, and a short status line for the client.
 pub(super) struct ToolOutcome {
     pub(super) output: Value,
@@ -191,7 +237,8 @@ pub(super) struct ToolOutcome {
 }
 
 /// A short human line for the client's status while the tool runs.
-pub(super) fn label(name: &str, args: &Value) -> String {
+/// `focus_title` names the session a focused call's tools work on when they name none.
+pub(super) fn label(name: &str, args: &Value, focus_title: Option<&str>) -> String {
     // A ref ("P3lv0:G8lhp") means nothing to the user; name it only when it is their words.
     let target = args
         .get("session")
@@ -204,7 +251,8 @@ pub(super) fn label(name: &str, args: &Value) -> String {
             } else {
                 text.chars().take(40).collect::<String>()
             }
-        });
+        })
+        .or_else(|| focus_title.map(|title| title.chars().take(40).collect::<String>()));
     match (name, target) {
         ("list_sessions", _) => "Checking your sessions".to_string(),
         ("read_session", Some(target)) => format!("Reading {target}"),
@@ -219,6 +267,7 @@ pub(super) fn label(name: &str, args: &Value) -> String {
         ("show_session", Some(target)) => format!("Showing {target}"),
         ("get_active_session", _) => "Checking what's on screen".to_string(),
         ("recall_last_conversation", _) => "Remembering your last conversation".to_string(),
+        ("widen_call", _) => "Opening the call to all sessions".to_string(),
         (name, _) => name.replace('_', " "),
     }
 }
@@ -256,9 +305,35 @@ pub(super) struct ToolMemory {
     /// The unsent draft `draft_prompt` last told the model about, per session: `replace` swaps
     /// only that exact text, so the user heard what they are replacing.
     shown_drafts: std::sync::Mutex<std::collections::HashMap<String, String>>,
+    /// The session the call is about, when it is a focused call (`focus.rs`); the conversation
+    /// keeps it current.
+    scope: std::sync::Mutex<Option<FocusScope>>,
+    /// The call's client is not on this computer (`clientRemote=1`): sessions are shown there.
+    client_remote: bool,
 }
 
 impl ToolMemory {
+    pub(super) fn new(client_remote: bool) -> Self {
+        Self {
+            client_remote,
+            ..Self::default()
+        }
+    }
+
+    pub(super) fn set_scope(&self, scope: Option<FocusScope>) {
+        if let Ok(mut current) = self.scope.lock() {
+            *current = scope;
+        }
+    }
+
+    pub(super) fn scope(&self) -> Option<FocusScope> {
+        self.scope.lock().ok().and_then(|scope| scope.clone())
+    }
+
+    pub(super) fn client_remote(&self) -> bool {
+        self.client_remote
+    }
+
     fn key(name: &str) -> String {
         name.trim().to_lowercase()
     }
@@ -306,7 +381,12 @@ pub(super) async fn run(
     args: &Value,
 ) -> ToolOutcome {
     let mut outcome = run_tool(state, memory, name, args).await;
-    if outcome.ok && show::FOLLOWING_TOOLS.contains(&name) {
+    // CDXC:VoiceMode 2026-10-23 WHY: in a call about one session, reading, answering or sending no longer switches the app to it, while show_session (the user asked to see it) still shows it. The user picked the session to start the call and may be reading another one meanwhile. The user was asked about this and did not object. A client on another computer (`clientRemote`) shows sessions itself, from the tool frame's `show`.
+    if outcome.ok
+        && show::FOLLOWING_TOOLS.contains(&name)
+        && memory.scope().is_none()
+        && !memory.client_remote()
+    {
         show::follow(state, &mut outcome.output).await;
     }
     outcome
@@ -318,6 +398,17 @@ async fn run_tool(
     name: &str,
     args: &Value,
 ) -> ToolOutcome {
+    let scope = memory.scope();
+    // A focused call is offered only its own tools; one the model still names is refused.
+    if let Some(scope) = &scope {
+        if !FOCUSED_TOOLS.contains(&name) {
+            return failure(focus::refusal(&scope.title));
+        }
+    } else if name == "widen_call" {
+        return success(
+            json!({"ok": true, "widened": false, "note": "This call is already about all sessions."}),
+        );
+    }
     let result = match name {
         "list_sessions" => list_sessions(state, args).await,
         "read_session" => read_session(state, memory, args).await,
@@ -329,11 +420,19 @@ async fn run_tool(
         "list_projects" => list_projects(state).await,
         "list_agent_types" => list_agent_types(state).await,
         "start_agent" => return start_agent(state, args).await,
-        "get_active_session" => screen::get_active_session(state).await,
-        "show_session" => match resolve_session(state, memory, args).await {
+        "get_active_session" => screen::get_active_session(state, memory.client_remote()).await,
+        "show_session" => match resolve_session(state, memory, args, Purpose::Read).await {
+            Ok(session) if memory.client_remote() => Ok(json!({
+                "ok": true,
+                "shown": true,
+                "note": "Shown in the user's app.",
+                "session": session.brief(),
+            })),
             Ok(session) => show::show_session(state, &session).await,
             Err(error) => Err(error),
         },
+        // The conversation applies the change when it sees this result (`Conversation::tool_done`).
+        "widen_call" => Ok(json!({"ok": true, "widened": true})),
         "recall_last_conversation" => super::memory::recall(&state.paths),
         other => Err(format!("There is no tool called {other}.")),
     };
@@ -343,25 +442,75 @@ async fn run_tool(
     }
 }
 
+/// The tools a call about one session has (`definitions` offers only these).
+const FOCUSED_TOOLS: &[&str] = &[
+    "read_session",
+    "send_prompt",
+    "draft_prompt",
+    "send_draft",
+    "get_pending_prompt",
+    "answer_prompt",
+    "show_session",
+    "widen_call",
+];
+
 /// The session the user named, or an error the model can speak (with candidates when ambiguous).
+/// In a focused call, no name means the focused session, only it (and an orchestrator's threads)
+/// can be named, and any other session is refused with the words the user agreed on.
 async fn resolve_session(
     state: &Arc<AppState>,
     memory: &ToolMemory,
     args: &Value,
+    purpose: Purpose,
 ) -> Result<SessionInfo, String> {
     let query = arg_text(args, "session");
-    if query.is_empty() {
+    let scope = memory.scope();
+    if query.is_empty() && scope.is_none() {
         return Err("Say which session.".to_string());
     }
     let all = sessions::list_sessions_async(state).await?;
-    if let Some(reference) = memory.recall(&query) {
+    let session = match &scope {
+        None => named_session(memory, &all, &query, &all)?,
+        Some(scope) => {
+            let reference = scope.reference();
+            let focused = all.iter().find(|session| session.reference() == reference);
+            if query.is_empty() || query == reference || query.eq_ignore_ascii_case(&scope.title) {
+                focused.cloned().ok_or_else(|| {
+                    format!(
+                        "\"{}\" was closed, so it can't be reached anymore. Offer to talk about all sessions.",
+                        scope.title
+                    )
+                })?
+            } else {
+                let reachable: Vec<SessionInfo> =
+                    scope.reachable(&all).into_iter().cloned().collect();
+                named_session(memory, &reachable, &query, &all)
+                    .map_err(|_| focus::refusal(&scope.title))?
+            }
+        }
+    };
+    if let Some(scope) = &scope {
+        scope.allows(&session.reference(), purpose)?;
+    }
+    Ok(session)
+}
+
+/// The session among `candidates` that `query` names. A name remembered earlier in the call is
+/// looked up in `all`, so a renamed session keeps its name.
+fn named_session(
+    memory: &ToolMemory,
+    candidates: &[SessionInfo],
+    query: &str,
+    all: &[SessionInfo],
+) -> Result<SessionInfo, String> {
+    if let Some(reference) = memory.recall(query) {
         if let Some(session) = all.iter().find(|session| session.reference() == reference) {
             return Ok(session.clone());
         }
     }
-    match sessions::match_session(&all, &query) {
+    match sessions::match_session(candidates, query) {
         Match::One(session) => {
-            memory.remember(&query, &session);
+            memory.remember(query, &session);
             Ok(session)
         }
         Match::Ambiguous(candidates) => Err(format!(
@@ -504,7 +653,7 @@ async fn read_session(
     memory: &ToolMemory,
     args: &Value,
 ) -> Result<Value, String> {
-    let session = resolve_session(state, memory, args).await?;
+    let session = resolve_session(state, memory, args, Purpose::Read).await?;
     let count = args
         .get("count")
         .and_then(Value::as_u64)
@@ -530,7 +679,7 @@ async fn send_prompt(
     if text.is_empty() {
         return Err("The prompt is empty.".to_string());
     }
-    let session = resolve_session(state, memory, args).await?;
+    let session = resolve_session(state, memory, args, Purpose::Send).await?;
     loopback::call(
         state,
         "/api/sendSessionChatMessage",
@@ -586,7 +735,7 @@ async fn draft_prompt(
     if text.is_empty() {
         return Err("The draft is empty.".to_string());
     }
-    let session = resolve_session(state, memory, args).await?;
+    let session = resolve_session(state, memory, args, Purpose::Send).await?;
     if !session.has_chat {
         loopback::call(
             state,
@@ -665,7 +814,7 @@ async fn send_draft(
     memory: &ToolMemory,
     args: &Value,
 ) -> Result<Value, String> {
-    let session = resolve_session(state, memory, args).await?;
+    let session = resolve_session(state, memory, args, Purpose::Send).await?;
     if !session.has_chat {
         if !memory.take_terminal_draft(&session) {
             return Err("I have not drafted anything into that session's terminal in this conversation, so there is nothing of mine to send.".to_string());
@@ -849,11 +998,16 @@ async fn get_pending_prompt(
     memory: &ToolMemory,
     args: &Value,
 ) -> Result<Value, String> {
-    let session = resolve_session(state, memory, args).await?;
+    let session = resolve_session(state, memory, args, Purpose::Read).await?;
     let chat = read_chat(state, &session, 20).await?;
+    Ok(pending_view(state, &session, &chat).await)
+}
+
+/// What `session` waits on, read from its `chat`: `get_pending_prompt`'s answer.
+async fn pending_view(state: &Arc<AppState>, session: &SessionInfo, chat: &Value) -> Value {
     // The open questions in its chat (question forms and pages) ride every answer.
-    let forms = question_forms::listing(state, &session).await;
-    let mut result = match pending_prompt(&chat) {
+    let forms = question_forms::listing(state, session).await;
+    let mut result = match pending_prompt(chat) {
         PendingPrompt::None if !forms.is_empty() => json!({
             "ok": true,
             "session": session.to_tool_value(),
@@ -897,7 +1051,61 @@ async fn get_pending_prompt(
     if !forms.is_empty() {
         result["questionForms"] = json!(forms);
     }
-    Ok(result)
+    result
+}
+
+/// What a focused call's briefing says about its session (`focus::briefing_message`): its state
+/// and what it waits on, its last messages, its open questions and approvals, an unsent draft, and
+/// an orchestrator's threads. A part that can't be read is left out.
+pub(super) async fn briefing(state: &Arc<AppState>, scope: &FocusScope) -> Value {
+    let all = sessions::list_sessions_async(state)
+        .await
+        .unwrap_or_default();
+    let reference = scope.reference();
+    let Some(session) = all.iter().find(|session| session.reference() == reference) else {
+        return json!({"closed": true});
+    };
+    let mut facts = json!({"session": session.to_tool_value()});
+    if let Some(orchestrator) = &scope.orchestrator {
+        facts["threadOf"] = json!(orchestrator);
+    }
+    if let Ok(chat) = read_chat(state, session, (READ_DEFAULT * 12).clamp(60, 240)).await {
+        facts["working"] = json!(chat
+            .get("working")
+            .and_then(Value::as_bool)
+            .unwrap_or(false));
+        facts["messages"] = json!(spoken_messages(&chat, READ_DEFAULT, chrono::Local::now()));
+        let pending = pending_view(state, session, &chat).await;
+        if pending.get("kind").and_then(Value::as_str) != Some("none") {
+            let mut pending = pending;
+            if let Some(fields) = pending.as_object_mut() {
+                fields.remove("session");
+                fields.remove("ok");
+            }
+            facts["waitingOn"] = pending;
+        }
+    }
+    if let Ok(draft) = read_draft(state, session).await {
+        if let Some(draft) = unsent(draft.as_ref()) {
+            facts["unsentDraft"] = json!(short(draft.content.trim(), 600));
+        }
+    }
+    if scope.is_orchestrator {
+        facts["threads"] = json!(focus::thread_rows(scope, &all));
+    }
+    facts
+}
+
+/// The reply the focused session's turn just finished with, made speakable, when its chat ends
+/// on one.
+pub(super) async fn finished_reply(state: &Arc<AppState>, scope: &FocusScope) -> Option<String> {
+    let all = sessions::list_sessions_async(state).await.ok()?;
+    let reference = scope.reference();
+    let session = all
+        .iter()
+        .find(|session| session.reference() == reference)?;
+    let chat = read_chat(state, session, 60).await.ok()?;
+    focus::last_reply_markdown(&chat).map(|markdown| focus::speakable_reply(&markdown))
 }
 
 fn option_numbers(value: Option<&Value>) -> Vec<usize> {
@@ -916,7 +1124,7 @@ async fn answer_prompt(
     memory: &ToolMemory,
     args: &Value,
 ) -> Result<Value, String> {
-    let session = resolve_session(state, memory, args).await?;
+    let session = resolve_session(state, memory, args, Purpose::Answer).await?;
     // Answers that name questions by ref are for the question forms and pages in its chat.
     if question_forms::names_questions(args) {
         return question_forms::answer(state, &session, args).await;

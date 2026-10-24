@@ -20,7 +20,6 @@ pub fn send_gxserver_cli_action(action: &str, payload: &Value, flags: &Flags) ->
         "state" | "dumpState" => sessions::fetch_gxserver_state(flags),
         "createQuickTerminal" => create_gxserver_quick_terminal(payload, flags),
         "createSession" => create_gxserver_session(payload, flags),
-        "createChatSession" => create_gxserver_chat_session(payload, flags),
         "createAgentSession" | "runAgent" => create_gxserver_agent_session(payload, flags),
         "saveCommand" => save_gxserver_command(payload, flags),
         "addProject" => rpc::call_gxserver_rpc("/api/addProjectPath", payload, flags),

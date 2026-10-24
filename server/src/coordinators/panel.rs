@@ -14,18 +14,19 @@ use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::sync::{Mutex, OnceLock};
 
-use rusqlite::Connection;
+use rusqlite::types::ValueRef;
+use rusqlite::{Connection, OptionalExtension};
 use serde_json::{json, Map, Value};
 
 use super::brief::report_headline;
 use super::endpoint::session_title_of;
-use super::records::{list_coordinators, list_threads, SessionKey};
+use super::records::{list_coordinators, list_threads, SessionKey, ThreadRecord};
 use super::state::{
     classify_thread_session, thread_needs_user_approval, waiting_prompt, ThreadProgress,
     ThreadState,
 };
 use crate::domain::DomainRepository;
-use crate::presentation::now_iso;
+use crate::presentation::{effective_lifecycle_state, now_iso};
 
 /// How long after its last activity a thread that neither works nor waits is still listed.
 const RECENT_THREAD_MS: i64 = 2 * 60 * 60 * 1000;
@@ -58,7 +59,7 @@ fn panel_rank(row: &Value) -> u8 {
     }
 }
 
-fn cached_panel(mut threads: Vec<Value>) -> CachedPanel {
+fn cached_panel(mut threads: Vec<Value>, previous: Option<&CachedPanel>) -> CachedPanel {
     threads.sort_by(|left, right| {
         panel_rank(left).cmp(&panel_rank(right)).then_with(|| {
             right["activeAt"]
@@ -67,6 +68,14 @@ fn cached_panel(mut threads: Vec<Value>) -> CachedPanel {
                 .cmp(left["activeAt"].as_str().unwrap_or_default())
         })
     });
+    // The summary is a function of the sorted list alone, so an unchanged list keeps it without
+    // serialising every thread again for the revision.
+    if let Some(previous) = previous.filter(|previous| previous.threads == threads) {
+        return CachedPanel {
+            summary: previous.summary.clone(),
+            threads,
+        };
+    }
     let mut hasher = DefaultHasher::new();
     serde_json::to_string(&threads)
         .unwrap_or_default()
@@ -111,6 +120,133 @@ pub fn insert_coordinator_threads(
     }
 }
 
+/// One thread's panel row, kept while nothing it was built from has changed.
+struct CachedRow {
+    thread: ThreadRecord,
+    /// A hash of the session row's stored columns, `None` when the row is gone.
+    session: Option<u64>,
+    row: Value,
+    /// When the row's `recent` mark runs out, while it has one.
+    recent_until: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+fn rows() -> &'static Mutex<HashMap<SessionKey, CachedRow>> {
+    static ROWS: OnceLock<Mutex<HashMap<SessionKey, CachedRow>>> = OnceLock::new();
+    ROWS.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+/// The thread's session row as stored: a hash of its columns, and the row itself when `needs_row`
+/// says the hash does not match what is cached.
+fn read_session_row(
+    statement: &mut rusqlite::CachedStatement<'_>,
+    key: &SessionKey,
+    needs_row: impl Fn(u64) -> bool,
+) -> rusqlite::Result<Option<(u64, Option<crate::domain::SessionRow>)>> {
+    statement
+        .query_row([&key.0, &key.1], |row| {
+            let mut hasher = DefaultHasher::new();
+            for index in 0..row.as_ref().column_count() {
+                match row.get_ref(index)? {
+                    ValueRef::Null => 0_u8.hash(&mut hasher),
+                    ValueRef::Integer(value) => (1_u8, value).hash(&mut hasher),
+                    ValueRef::Real(value) => (2_u8, value.to_bits()).hash(&mut hasher),
+                    ValueRef::Text(bytes) => (3_u8, bytes).hash(&mut hasher),
+                    ValueRef::Blob(bytes) => (4_u8, bytes).hash(&mut hasher),
+                }
+            }
+            let hash = hasher.finish();
+            let stored = if needs_row(hash) {
+                Some(crate::domain::session_row_from_sql(row)?)
+            } else {
+                None
+            };
+            Ok((hash, stored))
+        })
+        .optional()
+}
+
+/// CDXC:Coordinators 2026-10-23 WHY:
+/// Every two seconds the supervisor rebuilt every thread's row (about 300 on a long-lived install), reading and parsing each session's JSON columns and working out its title, although nearly all of them are resolved or closed threads that cannot change by themselves. A row that depends on neither the clock nor the supervisor's in-memory screen readings (a resolved thread, a session that is gone or not running, with no rename waiting on its agent) is now kept until its thread record or any stored column of its session row changes, or its two-hour `recent` mark runs out. Rows of open running threads are rebuilt every tick as before, so nothing shows later than it did.
+fn row_is_stable(thread: &ThreadRecord, session: Option<&Value>) -> bool {
+    let Some(session) = session else {
+        return true;
+    };
+    // `project_session_title` shows a waiting rename for eight seconds from its request.
+    if crate::presentation::util::read_runtime_text(session, "pendingAgentTitleRequestStatus")
+        .as_deref()
+        == Some("pending")
+    {
+        return false;
+    }
+    thread.is_resolved() || effective_lifecycle_state(session) != "running"
+}
+
+fn build_row(
+    thread: &ThreadRecord,
+    session: Option<&Value>,
+    generated_at: &str,
+    now: chrono::DateTime<chrono::Utc>,
+) -> Value {
+    let state = classify_thread_session(session, ThreadProgress::of(thread), generated_at, false);
+    let detail = match state {
+        ThreadState::Waiting => session
+            .and_then(waiting_prompt)
+            .map(|prompt| report_headline(&prompt.summary, 140))
+            .unwrap_or_else(|| "Waiting for an answer".to_string()),
+        ThreadState::Working => report_headline(&thread.task, 140),
+        _ => thread
+            .last_report
+            .as_deref()
+            .map(|report| report_headline(report, 140))
+            .unwrap_or_default(),
+    };
+    // The session's own activity clock, as the sidebar's relative time reads it; a thread whose
+    // session is gone falls back to its record's last change.
+    let active_at = session
+        .and_then(|session| session.get("lastActiveAt"))
+        .and_then(Value::as_str)
+        .unwrap_or(thread.updated_at.as_str())
+        .to_string();
+    let mut row = json!({
+        "projectId": thread.project_id,
+        "sessionId": thread.session_id,
+        "title": session.map(session_title_of).unwrap_or_else(|| report_headline(&thread.task, 60)),
+        "state": state.as_str(),
+        "detail": detail,
+        "activeAt": active_at,
+    });
+    if is_recent(&active_at, now) {
+        row["recent"] = json!(true);
+    }
+    if state == ThreadState::Waiting && session.is_some_and(thread_needs_user_approval) {
+        row["needsApproval"] = json!(true);
+    }
+    if let Some(session) = session {
+        if let Some(lifecycle) = session.get("lifecycleState") {
+            row["lifecycleState"] = lifecycle.clone();
+        }
+        if let Some(marker) = crate::worktree_sessions::read_worktree_session_marker(session) {
+            row["branch"] = json!(marker.branch);
+        }
+    }
+    row
+}
+
+/// When `is_recent` turns false for this row, if it is true now.
+fn recent_until(row: &Value) -> Option<chrono::DateTime<chrono::Utc>> {
+    if row["recent"] != true {
+        return None;
+    }
+    let active_at = chrono::DateTime::parse_from_rfc3339(row["activeAt"].as_str()?).ok()?;
+    Some(active_at.with_timezone(&chrono::Utc) + chrono::Duration::milliseconds(RECENT_THREAD_MS))
+}
+
+fn session_exists(db: &Connection, key: &SessionKey) -> bool {
+    db.prepare_cached("SELECT 1 FROM sessions WHERE projectId = ?1 AND sessionId = ?2")
+        .and_then(|mut statement| statement.exists([&key.0, &key.1]))
+        .unwrap_or(false)
+}
+
 /// Rebuilds every coordinator's panel and returns the coordinators whose panel changed.
 pub fn refresh_coordinator_panels(
     db: &Connection,
@@ -122,86 +258,83 @@ pub fn refresh_coordinator_panels(
     let threads = list_threads(db).unwrap_or_default();
     let generated_at = now_iso();
     let now = chrono::Utc::now();
-    let mut next: HashMap<SessionKey, CachedPanel> = HashMap::new();
+    let mut session_rows = db
+        .prepare_cached("SELECT * FROM sessions WHERE projectId = ?1 AND sessionId = ?2")
+        .ok();
+    let mut previous_rows = rows()
+        .lock()
+        .map(|mut rows| std::mem::take(&mut *rows))
+        .unwrap_or_default();
+    let mut next_rows: HashMap<SessionKey, CachedRow> = HashMap::new();
+    let mut built: Vec<(SessionKey, Vec<Value>)> = Vec::new();
     for coordinator in coordinators {
         let key = coordinator.key();
-        if repository
-            .get_session(&key.0, &key.1)
-            .ok()
-            .flatten()
-            .is_none()
-        {
+        if !session_exists(db, &key) {
             continue;
         }
-        let mut rows = Vec::new();
+        let mut panel_rows = Vec::new();
         for thread in threads
             .iter()
             .filter(|thread| thread.coordinator_key() == key)
         {
-            let session = repository
-                .get_session(&thread.project_id, &thread.session_id)
-                .ok()
-                .flatten();
-            let state = classify_thread_session(
-                session.as_ref(),
-                ThreadProgress::of(thread),
-                &generated_at,
-                false,
-            );
-            let detail = match state {
-                ThreadState::Waiting => session
-                    .as_ref()
-                    .and_then(waiting_prompt)
-                    .map(|prompt| report_headline(&prompt.summary, 140))
-                    .unwrap_or_else(|| "Waiting for an answer".to_string()),
-                ThreadState::Working => report_headline(&thread.task, 140),
-                _ => thread
-                    .last_report
-                    .as_deref()
-                    .map(|report| report_headline(report, 140))
-                    .unwrap_or_default(),
-            };
-            // The session's own activity clock, as the sidebar's relative time reads it; a thread whose
-            // session is gone falls back to its record's last change.
-            let active_at = session
-                .as_ref()
-                .and_then(|session| session.get("lastActiveAt"))
-                .and_then(Value::as_str)
-                .unwrap_or(thread.updated_at.as_str())
-                .to_string();
-            let mut row = json!({
-                "projectId": thread.project_id,
-                "sessionId": thread.session_id,
-                "title": session.as_ref().map(session_title_of).unwrap_or_else(|| report_headline(&thread.task, 60)),
-                "state": state.as_str(),
-                "detail": detail,
-                "activeAt": active_at,
+            let thread_key = thread.key();
+            let cached = previous_rows.remove(&thread_key).filter(|cached| {
+                cached.thread == *thread && cached.recent_until.is_none_or(|until| now < until)
             });
-            if is_recent(&active_at, now) {
-                row["recent"] = json!(true);
-            }
-            if state == ThreadState::Waiting
-                && session.as_ref().is_some_and(thread_needs_user_approval)
-            {
-                row["needsApproval"] = json!(true);
-            }
-            if let Some(session) = session.as_ref() {
-                if let Some(lifecycle) = session.get("lifecycleState") {
-                    row["lifecycleState"] = lifecycle.clone();
+            // A read error leaves the row uncached and builds it from `None`, as before.
+            let stored = session_rows.as_mut().and_then(|statement| {
+                read_session_row(statement, &thread_key, |hash| {
+                    cached
+                        .as_ref()
+                        .is_none_or(|cached| cached.session != Some(hash))
+                })
+                .ok()
+            });
+            let fingerprint = stored
+                .as_ref()
+                .map(|row| row.as_ref().map(|(hash, _)| *hash));
+            if let (Some(fingerprint), Some(cached)) = (fingerprint, cached) {
+                if cached.session == fingerprint {
+                    panel_rows.push(cached.row.clone());
+                    next_rows.insert(thread_key, cached);
+                    continue;
                 }
-                if let Some(marker) =
-                    crate::worktree_sessions::read_worktree_session_marker(session)
-                {
-                    row["branch"] = json!(marker.branch);
+            }
+            let session = stored
+                .flatten()
+                .and_then(|(_, row)| row)
+                .and_then(|row| crate::domain::session_from_row(&repository.server_id, row).ok());
+            let row = build_row(thread, session.as_ref(), &generated_at, now);
+            if let Some(fingerprint) = fingerprint {
+                if row_is_stable(thread, session.as_ref()) {
+                    next_rows.insert(
+                        thread_key,
+                        CachedRow {
+                            thread: thread.clone(),
+                            session: fingerprint,
+                            recent_until: recent_until(&row),
+                            row: row.clone(),
+                        },
+                    );
                 }
             }
-            rows.push(row);
+            panel_rows.push(row);
         }
-        next.insert(key, cached_panel(rows));
+        built.push((key, panel_rows));
+    }
+    if let Ok(mut rows) = rows().lock() {
+        *rows = next_rows;
     }
     let Ok(mut panels) = panels().lock() else {
         return Vec::new();
     };
+    let next: HashMap<SessionKey, CachedPanel> = built
+        .into_iter()
+        .map(|(key, panel_rows)| {
+            let panel = cached_panel(panel_rows, panels.get(&key));
+            (key, panel)
+        })
+        .collect();
     let mut changed = next
         .iter()
         .filter(|(key, panel)| {

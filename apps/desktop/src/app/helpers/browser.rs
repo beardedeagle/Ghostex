@@ -902,14 +902,12 @@ pub(crate) fn browser_agentation_feedback_injection_script() -> String {
     window[stateKey] = state;
 
     const findStartButton = function() {
-      const root = state.container || document.getElementById(rootId);
-      return document.querySelector('[data-agentation-toolbar] [title="Start feedback mode"][role="button"]')
-        || document.querySelector('[data-agentation-toolbar][title="Start feedback mode"][role="button"]')
-        || document.querySelector('[title="Start feedback mode"][role="button"]')
-        || (root && root.querySelector('[title="Start feedback mode"][role="button"]'))
-        || document.querySelector('[data-agentation-toolbar][title="Start feedback mode"]')
-        || document.querySelector('[title="Start feedback mode"]')
-        || (root && root.querySelector('[title="Start feedback mode"]'));
+      // Only the collapsed launcher matches, so a click can never close an
+      // active toolbar (see CDXC:Docs 2026-10-23 in html-viewer.tsx).
+      const host = document.querySelector('agentation-toolbar');
+      return host && host.shadowRoot
+        ? host.shadowRoot.querySelector('[data-agentation-toolbar] button[aria-expanded="false"][aria-label="Start feedback mode"]')
+        : null;
     };
 
     const autoActivate = function(attempt) {

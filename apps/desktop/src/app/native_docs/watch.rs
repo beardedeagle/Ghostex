@@ -101,6 +101,7 @@ impl GhostexGpuiApp {
         };
         if is_review_path(&document.path)
             || document.kind == DocsFileKind::SystemApp
+            || document.kind == DocsFileKind::Page
             || document.load != super::state::DocsDocumentLoad::Ready
             || document.saving
             || self.native_docs.stat_in_flight

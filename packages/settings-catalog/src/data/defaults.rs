@@ -49,6 +49,10 @@ pub const DEFAULT_GHOSTEX_SETTINGS: &[(&str, J)] = &[
     // every web link the same way instead of splitting chat and terminal links
     // from dev-server links.
     ("webLinkOpenTarget", J::Str("internal-browser")),
+    // CDXC:SessionLinks 2026-10-24 DECISION: User: "user can pick to open in embedded or external browser in settings (default to embedded)".
+    ("sessionLinkOpenTarget", J::Str("embedded")),
+    // CDXC:SessionLinks 2026-10-24 SEE-ALSO: `SessionLinksDisplay` in packages/gx-core/src/sidebar_view/links.rs (what each value shows, and why Badge is the default).
+    ("sidebarSessionLinks", J::Str("badge")),
     // CDXC:Navigation 2026-10-17 SEE-ALSO: these replace markdownFileOpenView, htmlFileOpenView and imageFileOpenTarget, which still decide until documentFileOpenTarget is saved (file_opening.rs).
     ("documentFileOpenTarget", J::Str("files")),
     ("otherFileOpenTarget", J::Str("files")),
@@ -537,6 +541,7 @@ pub const DEFAULT_GHOSTEX_SETTINGS: &[(&str, J)] = &[
     ("chatPreviousQuestionUserSet", J::Bool(false)),
     // CDXC:SessionChat 2026-10-16 DECISION: User: "please add a setting to enable the behavior ... but keep it disabled by default" and "make it an advanced setting". Picking an answer sends a one-question card only while this is on.
     ("chatSendOnPick", J::Bool(false)),
+    ("chatPageOpenTarget", J::Str("popup")),
     // CDXC:MarkedHandovers 2026-10-11 DECISION: User: "force the marked handovers for coordinators/orchestrator threads and their children by default and make it disabled by default for non-orchestrator/child threads". This switch covers every other session and stays off by default; threads mark regardless, orchestrators unless `orchestratorPlainReplies` is on.
     ("markedHandovers", J::Bool(false)),
     // CDXC:MarkedHandovers 2026-10-17 DECISION: User: "please allow launching an orchestrator without the reply style so the orchestrator answers normally. but put "Not recommended" and make it an advanced setting". Off by default, so orchestrators keep marking their handovers; their threads mark their reports either way.
@@ -685,6 +690,8 @@ pub const DEFAULT_GHOSTEX_SETTINGS: &[(&str, J)] = &[
             ("toggleChatComposerMaximized", J::Str("ctrl+alt+m")),
             ("toggleChatFilesLinks", J::Str("ctrl+alt+l")),
             ("toggleVoiceAgent", J::Str("ctrl+alt+v")),
+            ("voiceCallAboutSession", J::Str("")),
+            ("holdToTalk", J::Str("")),
             ("toggleDictation", J::Str("ctrl+alt+d")),
             ("createAgentSession", J::Str("cmd+shift+o")),
             ("createSession", J::Str("cmd+shift+t")),
@@ -813,13 +820,13 @@ pub const DEFAULT_GHOSTEX_SETTINGS: &[(&str, J)] = &[
     ("windowGlassBlurRadius", J::Num(60.0)),
     ("windowGlassWindowsBlur", J::Str("acrylic")),
     ("windowGlassMenuBlurRadius", J::Num(20.0)),
-    // CDXC:Theming 2026-10-04 DECISION:
-    // User: "please make the app's transparency level 10 by default (the slider in settings)". The four tints are the ones Settings' Strength slider writes at 10 (`transparencyStrengthPatch`), so the slider opens on 10; they replace the strength-20 tints 88, 81, 93 and 86.
+    // CDXC:Theming 2026-10-23 DECISION:
+    // User: "please make the app's transparency level 10 by default (the slider in settings)" (2026-10-04), then "pls make the sidebar and main area default to having the same strength for the transparency by default". The four tints are the ones Settings' Strength slider writes at 10 (`transparencyStrengthPatch`), so the slider opens on 10, and the sidebar and the work area share one tint per appearance; they replace 94/91 (dark) and 97/93 (light), which kept the work area more see-through.
     // SEE-ALSO: apps/desktop/src/app/helpers/window_glass.rs, apps/desktop/src/app/window/onboarding/model.rs, apps/desktop/src/app/window/settings_modal/tabs/theme/colours.rs.
     ("windowGlassSidebarOpacityDark", J::Num(94.0)),
-    ("windowGlassWorkAreaTintDark", J::Num(91.0)),
+    ("windowGlassWorkAreaTintDark", J::Num(94.0)),
     ("windowGlassSidebarOpacityLight", J::Num(97.0)),
-    ("windowGlassWorkAreaTintLight", J::Num(93.0)),
+    ("windowGlassWorkAreaTintLight", J::Num(97.0)),
     ("terminalBackgroundMode", J::Str("pure")),
     ("workspaceBackgroundColor", J::Str("")),
     ("clickToWakeSleepingSessions", J::Bool(true)),

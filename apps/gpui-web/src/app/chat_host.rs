@@ -65,6 +65,33 @@ impl GhostexGpuiApp {
                     );
                 }
             }
+            // A command in a reply: a new terminal in the session's folder that runs it (or only
+            // types it, for Paste), the desktop's `run_session_chat_command_in_terminal`.
+            Some(action @ ("runInTerminal" | "pasteInTerminal")) => {
+                let command = message["command"]
+                    .as_str()
+                    .or_else(|| message["params"]["command"].as_str())
+                    .unwrap_or_default()
+                    .to_string();
+                if !command.trim().is_empty() {
+                    let cwd = self
+                        .gx_store
+                        .core
+                        .presentation()
+                        .session(session)
+                        .and_then(|row| row.cwd.clone());
+                    self.gx_store_create_command_terminal(
+                        ghostex_gx_core::ProjectKey {
+                            machine: session.machine.clone(),
+                            project_id: session.project_id.clone(),
+                        },
+                        cwd,
+                        command,
+                        action == "runInTerminal",
+                        cx,
+                    );
+                }
+            }
             // A fork picker branch: that branch's chat, woken first when it is stopped, as the
             // desktop's `select_session_chat_fork_branch` does.
             Some("selectForkBranch") => {

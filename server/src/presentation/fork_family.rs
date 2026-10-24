@@ -41,12 +41,40 @@ pub(crate) struct SessionForkFamilies {
     families: Vec<Vec<String>>,
 }
 
+/// What the family derivation reads of one session row, taken from it once by the same readers
+/// the derivation always used, so a registry's rows need not all stay hydrated while it runs.
+pub(crate) struct SessionForkFacts {
+    session_id: Option<String>,
+    agent_session_id: Option<String>,
+    claims: ParentClaims,
+    active: bool,
+}
+
+impl SessionForkFacts {
+    pub(crate) fn from_session(session: &Value) -> Self {
+        Self {
+            session_id: string_field(session, "sessionId"),
+            agent_session_id: read_runtime_text(session, "agentSessionId"),
+            claims: parent_claims(session),
+            active: is_active(session),
+        }
+    }
+}
+
 impl SessionForkFamilies {
     pub(crate) fn build(sessions: &[Value]) -> Self {
+        let facts: Vec<SessionForkFacts> = sessions
+            .iter()
+            .map(SessionForkFacts::from_session)
+            .collect();
+        Self::build_from_facts(&facts)
+    }
+
+    pub(crate) fn build_from_facts(sessions: &[SessionForkFacts]) -> Self {
         let mut known: HashSet<String> = HashSet::new();
         let mut order: Vec<String> = Vec::new();
         for session in sessions {
-            let Some(session_id) = string_field(session, "sessionId") else {
+            let Some(session_id) = session.session_id.clone() else {
                 continue;
             };
             if known.insert(session_id.clone()) {
@@ -62,10 +90,9 @@ impl SessionForkFamilies {
         */
         let mut agent_owners: HashMap<String, Vec<String>> = HashMap::new();
         for session in sessions {
-            let (Some(session_id), Some(agent_session_id)) = (
-                string_field(session, "sessionId"),
-                read_runtime_text(session, "agentSessionId"),
-            ) else {
+            let (Some(session_id), Some(agent_session_id)) =
+                (session.session_id.clone(), session.agent_session_id.clone())
+            else {
                 continue;
             };
             let owners = agent_owners.entry(agent_session_id).or_default();
@@ -79,10 +106,13 @@ impl SessionForkFamilies {
             .map(|(agent_session_id, mut owners)| (agent_session_id, owners.remove(0)))
             .collect();
 
-        let by_id: HashMap<String, &Value> = sessions
+        let by_id: HashMap<String, &SessionForkFacts> = sessions
             .iter()
             .filter_map(|session| {
-                string_field(session, "sessionId").map(|session_id| (session_id, session))
+                session
+                    .session_id
+                    .clone()
+                    .map(|session_id| (session_id, session))
             })
             .collect();
 
@@ -91,15 +121,16 @@ impl SessionForkFamilies {
             let Some(session) = by_id.get(session_id) else {
                 continue;
             };
-            let claims = parent_claims(session);
+            let claims = &session.claims;
             let resolved = claims
                 .registry_ids
-                .into_iter()
+                .iter()
+                .cloned()
                 .chain(
                     claims
                         .agent_session_ids
-                        .into_iter()
-                        .filter_map(|agent_session_id| agent_owner.get(&agent_session_id).cloned()),
+                        .iter()
+                        .filter_map(|agent_session_id| agent_owner.get(agent_session_id).cloned()),
                 )
                 .find(|candidate| {
                     candidate != session_id
@@ -117,7 +148,7 @@ impl SessionForkFamilies {
             .filter(|session_id| {
                 by_id
                     .get(*session_id)
-                    .is_some_and(|session| !is_active(session))
+                    .is_some_and(|session| !session.active)
             })
             .cloned()
             .collect();

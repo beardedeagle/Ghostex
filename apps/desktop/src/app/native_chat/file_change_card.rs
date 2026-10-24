@@ -15,6 +15,7 @@ use super::{
     transcript::text,
 };
 use crate::app::native_chat::cursor::ChatCursor as _;
+use ghostex_gx_chat_core::TranscriptItem;
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
     AnyElement, Context, FontWeight, Hsla, InteractiveElement as _, IntoElement,
@@ -193,34 +194,41 @@ impl NativeChatView {
     /// together in the core (`transcript/presentation.rs`), so the label counts the files drawn.
     pub(super) fn completed_files_fold(
         &mut self,
-        item: &Value,
+        item: &TranscriptItem,
         p: &ChatAppearance,
         cx: &mut Context<Self>,
     ) -> Option<AnyElement> {
-        let files = item["files"].as_array().cloned().unwrap_or_default();
+        let TranscriptItem::CompletedWork {
+            id,
+            files_card,
+            files,
+            files_label,
+            simple_files_label,
+            deferred,
+            ..
+        } = item
+        else {
+            return None;
+        };
         // An older turn arrives collapsed with only the paths its unread work changed; the row
         // stays and reads that work on open, as React's list did (`list.tsx`).
         let unread = files.is_empty()
-            && item["deferred"]["filePaths"]
-                .as_array()
+            && deferred
+                .as_ref()
+                .and_then(|work| work["filePaths"].as_array())
                 .is_some_and(|paths| !paths.is_empty());
         if files.is_empty() && !unread {
             return None;
         }
-        let id = text(item, "id");
         let key = format!("work-files:{id}");
         let expanded = self.is_expanded(&key, false);
         let motion = self.disclosure_frame(&key, expanded, cx);
-        let load =
-            unread.then(|| json!({"type":"loadWork","id":item["id"],"work":item["deferred"]}));
-        let label = text(
-            item,
-            if p.simple {
-                "simpleFilesLabel"
-            } else {
-                "filesLabel"
-            },
-        );
+        let load = unread.then(|| json!({"type":"loadWork","id":id,"work":deferred}));
+        let label = if p.simple {
+            simple_files_label.clone()
+        } else {
+            files_label.clone()
+        };
         let mut group = div()
             .flex()
             .flex_col()
@@ -232,13 +240,7 @@ impl NativeChatView {
             let body = if unread {
                 self.deferred_work_notice(item, p, cx)
             } else {
-                Some(self.file_change_card(
-                    &format!("work:{id}"),
-                    &item["filesCard"],
-                    &files,
-                    p,
-                    cx,
-                ))
+                Some(self.file_change_card(&format!("work:{id}"), files_card, files, p, cx))
             };
             if let Some(body) = body {
                 group = group.child(self.disclosure_body_motion(&key, motion, 8.0 * p.scale, body));

@@ -1,7 +1,7 @@
 use std::time::{Duration, Instant};
 
 use ghostex_gx_client::{ClientDiagnostic, StartError, redact_quoted_values};
-use ghostex_gx_core::{ConnectionUpdate, Core, Loadable, MachineId, ProjectKey, ResubscribeReason};
+use ghostex_gx_core::{ConnectionUpdate, Core, Loadable, MachineId, ResubscribeReason};
 use serde_json::json;
 
 use super::focus_perform::FocusPerformCounters;
@@ -21,13 +21,6 @@ impl GxStoreDiagnostics {
         let Some(loaded) = store.loaded(&MachineId::Local) else {
             return;
         };
-        let chat_projects = loaded
-            .projects()
-            .iter()
-            .filter(|project| {
-                store.is_chat_project(&ProjectKey::local(project.project_id.as_str()))
-            })
-            .count();
         append(
             "gxStore.loaded",
             json!({
@@ -36,7 +29,6 @@ impl GxStoreDiagnostics {
                 "projects": loaded.projects().len(),
                 "groups": loaded.groups().len(),
                 "sessions": loaded.session_count(),
-                "chatProjects": chat_projects,
                 "tabsGeneration": core.tabs_generation(),
                 "connectToLoadedMs": since_connect.map(|elapsed| elapsed.as_millis() as u64),
                 "clientStarts": counters.client_starts,

@@ -65,6 +65,13 @@ pub struct ItemsSplice {
     pub length: usize,
 }
 
+impl ItemsSplice {
+    /// Whether applying this splice leaves the receiver's list exactly as it was.
+    pub fn changes_nothing(&self) -> bool {
+        self.delete_count == 0 && self.items.is_empty()
+    }
+}
+
 /// One dash on the transcript minimap.
 ///
 /// Free-form for now: the marker shape is `crate::extras::minimap_rail`'s (ported from

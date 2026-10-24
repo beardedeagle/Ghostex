@@ -62,6 +62,8 @@ pub struct CoordinatorThreadsPanel {
     pub empty_label: String,
     /// Threads working or waiting on the user, what the first step lists and the Threads pill counts.
     pub in_flight: usize,
+    /// Threads working right now, which mark the Threads pill as running (extras/chat_pills.rs).
+    pub working: usize,
 }
 
 /// The rows each "N more" click adds.
@@ -336,6 +338,7 @@ pub fn coordinator_threads_panel(
             String::new()
         },
         in_flight: flying,
+        working,
         rows,
     })
 }

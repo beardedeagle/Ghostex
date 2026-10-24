@@ -1,4 +1,3 @@
-use rusqlite::Connection;
 use serde_json::{json, Value};
 
 use crate::{
@@ -85,7 +84,7 @@ pub(super) fn previous_session(
     })
 }
 
-pub(super) fn open_test_database() -> (tempfile::TempDir, Connection) {
+pub(super) fn open_test_database() -> (tempfile::TempDir, crate::storage::GxserverDatabase) {
     let temp = tempfile::tempdir().expect("tempdir");
     let paths = get_gxserver_paths(Some(temp.path().to_path_buf()));
     initialize_gxserver_storage(&paths).expect("storage init");

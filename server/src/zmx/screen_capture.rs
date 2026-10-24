@@ -6,6 +6,9 @@ use std::{
     time::Duration,
 };
 
+#[cfg(unix)]
+use super::ipc_frame::{parse_zmx_ipc_header, zmx_ipc_header, ZMX_IPC_HEADER_BYTES};
+
 #[cfg(not(unix))]
 use crate::toolchain::require_bundled_zmx;
 
@@ -26,7 +29,7 @@ CDXC:AgentScreenDetection 2026-09-06 DECISION:
 User: capture the actual active buffer, only the grid for alternate-screen TUIs and the grid plus bounded recent scrollback for scrolling CLIs, without changing polling or full-history APIs or restarting live sessions.
 Capture asks zmx to select rows before formatting and sending them; trimming the History reply here still made the daemon serialize and transfer its entire scrollback.
 An Info request follows Capture on the same connection as an ordering barrier: an Info reply without Capture means an old daemon ignored the optional tag, so only that daemon uses the existing History path.
-SEE-ALSO: .dependencies/zmx/src/ipc.zig (Capture), .dependencies/zmx/src/util.zig (serializeTerminalRange).
+SEE-ALSO: .dependencies/zmx/src/ipc.zig (Capture), .dependencies/zmx/src/terminal.zig (serializeTerminalRange).
 */
 
 /// Recent physical rows in addition to the entire live grid. Codex dialogs
@@ -35,20 +38,15 @@ SEE-ALSO: .dependencies/zmx/src/ipc.zig (Capture), .dependencies/zmx/src/util.zi
 const ZMX_SCREEN_CAPTURE_SCROLLBACK_ROWS: u32 = 512;
 /// `ipc.Tag.Capture` and the compatibility ordering barrier `ipc.Tag.Info`.
 #[cfg(unix)]
-const ZMX_IPC_TAG_CAPTURE: u8 = 209;
+const ZMX_IPC_TAG_CAPTURE: u8 = 22;
 #[cfg(unix)]
 const ZMX_IPC_TAG_INFO: u8 = 6;
 /// `ipc.Tag.History`.
 #[cfg(unix)]
 const ZMX_IPC_TAG_HISTORY: u8 = 8;
-/// `@sizeOf(ipc.Header)`: a packed `struct { u8, u32 }` backs to `u40`, which
-/// rounds up to 8 bytes. The top three bytes are padding on both ends.
-#[cfg(unix)]
-const ZMX_IPC_HEADER_BYTES: usize = 8;
-/// `@sizeOf(ipc.Capture)`: like the header, a packed `struct { format: u8,
-/// rows: u32 }` rounds up to 8 bytes, and the daemon rejects any other
-/// payload length. Bytes 1..5 are the little-endian row count; the last
-/// three bytes are padding the daemon ignores.
+/// `@sizeOf(ipc.Capture)`: an extern `struct { format: u8, _reserved: [3]u8,
+/// rows: u32 }`, so the row count sits at bytes 4..8 in host byte order. The
+/// daemon rejects any other payload length.
 #[cfg(unix)]
 const ZMX_IPC_CAPTURE_BYTES: usize = 8;
 /// `util.HistoryFormat.plain`.
@@ -187,12 +185,15 @@ fn read_zmx_session_screen_capture_format(
 
     // Send the capture and its ordering barrier in one write.
     let mut request = [0_u8; ZMX_IPC_HEADER_BYTES * 2 + ZMX_IPC_CAPTURE_BYTES];
-    request[0] = ZMX_IPC_TAG_CAPTURE;
-    request[1..5].copy_from_slice(&(ZMX_IPC_CAPTURE_BYTES as u32).to_le_bytes());
+    request[..ZMX_IPC_HEADER_BYTES].copy_from_slice(&zmx_ipc_header(
+        ZMX_IPC_TAG_CAPTURE,
+        ZMX_IPC_CAPTURE_BYTES as u32,
+    ));
     request[ZMX_IPC_HEADER_BYTES] = format;
-    request[ZMX_IPC_HEADER_BYTES + 1..ZMX_IPC_HEADER_BYTES + 5]
-        .copy_from_slice(&scrollback_rows.to_le_bytes());
-    request[ZMX_IPC_HEADER_BYTES + ZMX_IPC_CAPTURE_BYTES] = ZMX_IPC_TAG_INFO;
+    request[ZMX_IPC_HEADER_BYTES + 4..ZMX_IPC_HEADER_BYTES + 8]
+        .copy_from_slice(&scrollback_rows.to_ne_bytes());
+    request[ZMX_IPC_HEADER_BYTES + ZMX_IPC_CAPTURE_BYTES..]
+        .copy_from_slice(&zmx_ipc_header(ZMX_IPC_TAG_INFO, 0));
     stream
         .write_all(&request)
         .map_err(|error| format!("zmx session screen capture could not be requested: {error}"))?;
@@ -215,8 +216,7 @@ fn read_zmx_screen_capture_reply(
         stream.read_exact(&mut header).map_err(|error| {
             format!("zmx session screen capture reply header was unreadable: {error}")
         })?;
-        let tag = header[0];
-        let payload_len = u32::from_le_bytes([header[1], header[2], header[3], header[4]]) as usize;
+        let (tag, payload_len) = parse_zmx_ipc_header(&header);
 
         let mut remaining = payload_len;
         let mut tail: Vec<u8> = Vec::new();
@@ -248,8 +248,8 @@ fn read_zmx_screen_capture_reply(
         }
         if tag == ZMX_IPC_TAG_INFO && expected_tag == ZMX_IPC_TAG_CAPTURE {
             let mut request = [0_u8; ZMX_IPC_HEADER_BYTES + 1];
-            request[0] = ZMX_IPC_TAG_HISTORY;
-            request[1..5].copy_from_slice(&1_u32.to_le_bytes());
+            request[..ZMX_IPC_HEADER_BYTES]
+                .copy_from_slice(&zmx_ipc_header(ZMX_IPC_TAG_HISTORY, 1));
             request[ZMX_IPC_HEADER_BYTES] = format;
             stream.write_all(&request).map_err(|error| {
                 format!("zmx legacy screen capture could not be requested: {error}")
@@ -303,7 +303,7 @@ pub(crate) fn read_zmx_session_grid_capture(zmx_name: &str) -> Result<ZmxHistory
 
 /// CDXC:AgentScreenDetection 2026-09-22 SEE-ALSO:
 /// Every reader of this text strips all CSI sequences, so the provider must answer with physical rows: one line per grid row, real spaces, and SGR the only escapes. A serializer that replays the grid with cursor motion instead (`ESC[6;1H`, `ESC[3C`) merges rows and deletes spaces, which erases the `rule / marker / rule` composer sandwich and makes every chat send fail its verified clear with the input box on screen.
-/// SEE-ALSO: .dependencies/wmx/src/history.rs (`styled_row`, `plain_rows`), .dependencies/zmx/src/util.zig (`serializeTerminalRange`), server/src/session_chat_options/screen_text.rs (`strip_ansi_sgr`).
+/// SEE-ALSO: .dependencies/wmx/src/history.rs (`styled_row`, `plain_rows`), .dependencies/zmx/src/terminal.zig (`serializeTerminalRange`), server/src/session_chat_options/screen_text.rs (`strip_ansi_sgr`).
 #[cfg(not(unix))]
 fn read_zmx_session_screen_capture_format(
     zmx_name: &str,

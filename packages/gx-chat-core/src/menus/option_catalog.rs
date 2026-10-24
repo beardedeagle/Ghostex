@@ -290,6 +290,10 @@ pub struct SessionOptionCatalog {
 }
 
 /// How `optionsForModel` answers, per agent family.
+///
+/// Each family's `catalog` is read only for its effort labels, so it holds
+/// [`AgentModelCatalog::effort_labels_only`]: a copy of every agent's lineup per built catalog was
+/// most of what a document cost, because a menu builds one catalog per provider.
 #[derive(Clone, Debug, PartialEq)]
 enum CatalogOptions {
     Claude {
@@ -605,7 +609,7 @@ fn build_claude_catalog(catalog: &AgentModelCatalog, agent: &CatalogAgent) -> Se
         model_icon: "claude".to_string(),
         options: CatalogOptions::Claude {
             agent: Box::new(agent.clone()),
-            catalog: Box::new(catalog.clone()),
+            catalog: Box::new(catalog.effort_labels_only()),
         },
     }
 }
@@ -669,7 +673,7 @@ fn build_codex_catalog(catalog: &AgentModelCatalog, agent: &CatalogAgent) -> Ses
         model_icon: "codex".to_string(),
         options: CatalogOptions::Codex {
             agent: Box::new(agent.clone()),
-            catalog: Box::new(catalog.clone()),
+            catalog: Box::new(catalog.effort_labels_only()),
         },
     }
 }
@@ -687,7 +691,7 @@ fn build_opencode_catalog(
     result.model.dispatch = OptionDispatch::ModelPicker;
     result.options = CatalogOptions::OpenCode {
         agent: Box::new(agent.clone()),
-        catalog: Box::new(catalog.clone()),
+        catalog: Box::new(catalog.effort_labels_only()),
     };
     result
 }
@@ -749,7 +753,7 @@ fn build_cursor_catalog(catalog: &AgentModelCatalog, agent: &CatalogAgent) -> Se
         model_icon: "cursor-cli".to_string(),
         options: CatalogOptions::Cursor {
             agent: Box::new(agent.clone()),
-            catalog: Box::new(catalog.clone()),
+            catalog: Box::new(catalog.effort_labels_only()),
         },
     }
 }
@@ -775,7 +779,7 @@ fn build_grok_catalog(catalog: &AgentModelCatalog, agent: &CatalogAgent) -> Sess
         model_icon: "grok-build".to_string(),
         options: CatalogOptions::Grok {
             agent: Box::new(agent.clone()),
-            catalog: Box::new(catalog.clone()),
+            catalog: Box::new(catalog.effort_labels_only()),
         },
     }
 }
@@ -918,7 +922,7 @@ fn build_antigravity_catalog(
         model_icon: "antigravity-cli".to_string(),
         options: CatalogOptions::Antigravity {
             agent: Box::new(agent.clone()),
-            catalog: Box::new(catalog.clone()),
+            catalog: Box::new(catalog.effort_labels_only()),
         },
     }
 }
@@ -960,7 +964,7 @@ fn build_hermes_catalog(catalog: &AgentModelCatalog, agent: &CatalogAgent) -> Se
         model_icon: "hermes-agent".to_string(),
         options: CatalogOptions::Hermes {
             agent: Box::new(agent.clone()),
-            catalog: Box::new(catalog.clone()),
+            catalog: Box::new(catalog.effort_labels_only()),
         },
     }
 }
@@ -1048,7 +1052,7 @@ fn build_pi_family_catalog(
         model_icon: icon.to_string(),
         options: CatalogOptions::PiFamily {
             agent: Box::new(agent.clone()),
-            catalog: Box::new(catalog.clone()),
+            catalog: Box::new(catalog.effort_labels_only()),
         },
     }
 }

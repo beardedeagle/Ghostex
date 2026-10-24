@@ -61,6 +61,10 @@ impl GhostexGpuiApp {
                     cx.listener(|this, _, window, cx| {
                         if this.native_kanban_in_own_window(window) {
                             // The board is that window's only surface: no shell focus to route.
+                            // CDXC:ProjectBoard 2026-10-24 WHY: a text field under the press (search, a ticket's title, prompt, labels or team note) has already taken focus in this bubbling mouse-down and marked it default-prevented; focusing the board after it took the keyboard straight back out of the field, so a left click never let the user type (issue #287).
+                            if window.default_prevented() {
+                                return;
+                            }
                             if let Some(focus) = this.native_kanban.focus.clone() {
                                 window.focus(&focus, cx);
                             }

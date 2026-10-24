@@ -162,33 +162,6 @@ pub(crate) fn parse_zmx_wire_generation(version_output: &str) -> Option<u32> {
     })
 }
 
-/// Generation recorded on a session, or `None` for a daemon started before any
-/// stamp existed. A legacy binary-identity stamp resolves to generation 1.
-fn recorded_zmx_wire_generation(session: &Value) -> Option<u32> {
-    let provider_state = session.get("providerState").and_then(Value::as_object)?;
-    if let Some(generation) = provider_state
-        .get(ZMX_WIRE_GENERATION_KEY)
-        .and_then(Value::as_u64)
-    {
-        return u32::try_from(generation).ok();
-    }
-    // CDXC:ZmxWireGeneration 2026-09-14 WHY:
-    // The extracted Windows host and its predecessor share generation 1. Import the native protocol stamp so installing wmx preserves running agents.
-    #[cfg(windows)]
-    if provider_state
-        .get("nativeSessionProtocol")
-        .and_then(Value::as_u64)
-        == Some(1)
-    {
-        return Some(1);
-    }
-    provider_state
-        .get(LEGACY_ZMX_BINARY_STAMP_KEY)
-        .and_then(Value::as_str)
-        .filter(|stamp| !stamp.is_empty())
-        .map(|_| LEGACY_STAMP_WIRE_GENERATION)
-}
-
 /// Provider state for a session whose daemon this gxserver just started, with
 /// the spawning binary's wire generation recorded. Every provider start must go
 /// through here: an unstamped live daemon is cycled on the next startup.
@@ -218,6 +191,88 @@ pub(crate) fn started_provider_state_patch(
     Ok(provider_state)
 }
 
+/// What the wire cycle reads of one session row.
+struct WireCycleRow {
+    project_id: String,
+    session_id: String,
+    stopped: bool,
+    recorded_generation: Option<u32>,
+}
+
+/// Every session row's ids, whether it is closed, and its recorded wire generation, in
+/// `list_sessions` order, read without hydrating any row.
+///
+/// CDXC:ZmxWireGeneration 2026-10-23 WHY:
+/// The pass hydrated every session row (about 148 MB for 10,900 rows) at the same moment as the other startup passes, which made gxserver's startup peak 300 to 650 MB, to read three provider-state keys and the lifecycle of each. SQLite now reads just those, and the generation is decided exactly as the hydrated row's `providerState` decided it (`stored_zmx_wire_generation`; its zmx name is the derived `create_zmx_session_name`, as hydration makes it). Every row is still a candidate, closed ones included.
+fn list_wire_cycle_rows(
+    repository: &DomainRepository<'_>,
+) -> Result<Vec<WireCycleRow>, DomainStateError> {
+    let mut statement = repository
+        .db
+        .prepare(&format!(
+            "SELECT projectId, sessionId, lifecycleState,
+                    json_type(providerStateJson, '$.{ZMX_WIRE_GENERATION_KEY}'),
+                    CASE WHEN json_type(providerStateJson, '$.{ZMX_WIRE_GENERATION_KEY}') = 'integer'
+                         THEN json_extract(providerStateJson, '$.{ZMX_WIRE_GENERATION_KEY}') END,
+                    CASE WHEN json_type(providerStateJson, '$.{LEGACY_ZMX_BINARY_STAMP_KEY}') = 'text'
+                         THEN json_extract(providerStateJson, '$.{LEGACY_ZMX_BINARY_STAMP_KEY}') END,
+                    CASE WHEN json_type(providerStateJson, '$.nativeSessionProtocol') = 'integer'
+                         THEN json_extract(providerStateJson, '$.nativeSessionProtocol') END
+             FROM sessions
+             ORDER BY updatedAt DESC, projectId ASC, sessionId ASC"
+        ))
+        .map_err(crate::domain::sql_error)?;
+    let rows = statement
+        .query_map([], |row| {
+            let generation_type: Option<String> = row.get(3)?;
+            let generation: Option<i64> = row.get(4)?;
+            let legacy_stamp: Option<String> = row.get(5)?;
+            let native_protocol: Option<i64> = row.get(6)?;
+            Ok(WireCycleRow {
+                project_id: row.get(0)?,
+                session_id: row.get(1)?,
+                stopped: row.get::<_, String>(2)? == "stopped",
+                recorded_generation: stored_zmx_wire_generation(
+                    generation_type.as_deref(),
+                    generation,
+                    legacy_stamp.as_deref(),
+                    native_protocol,
+                ),
+            })
+        })
+        .map_err(crate::domain::sql_error)?;
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(crate::domain::sql_error)
+}
+
+/// Generation recorded on a session, or `None` for a daemon started before any stamp existed,
+/// from its stored provider-state values: a non-negative integer generation wins (or is unusable
+/// past `u32`), then Windows' native protocol 1, then a non-empty legacy binary-identity stamp,
+/// which resolves to generation 1.
+fn stored_zmx_wire_generation(
+    generation_type: Option<&str>,
+    generation: Option<i64>,
+    legacy_stamp: Option<&str>,
+    native_protocol: Option<i64>,
+) -> Option<u32> {
+    if generation_type == Some("integer") {
+        if let Some(generation) = generation.filter(|generation| *generation >= 0) {
+            return u32::try_from(generation).ok();
+        }
+    }
+    // CDXC:ZmxWireGeneration 2026-09-14 WHY:
+    // The extracted Windows host and its predecessor share generation 1. Import the native protocol stamp so installing wmx preserves running agents.
+    #[cfg(windows)]
+    if native_protocol == Some(1) {
+        return Some(1);
+    }
+    #[cfg(not(windows))]
+    let _ = native_protocol;
+    legacy_stamp
+        .filter(|stamp| !stamp.is_empty())
+        .map(|_| LEGACY_STAMP_WIRE_GENERATION)
+}
+
 /// Terminates every live daemon this gxserver owns that a zmx of a different
 /// wire generation spawned, and leaves its session sleeping so the ordinary
 /// wake path restores it. Runs before the listener starts serving so no client can attach to a
@@ -245,24 +300,23 @@ pub(crate) fn cycle_wire_incompatible_zmx_session_daemons(
         });
         return;
     };
-    let Ok(sessions) = repository.list_sessions(None) else {
+    let Ok(rows) = list_wire_cycle_rows(repository) else {
         return;
     };
     // A session stamped with the current generation is compatible whether or not its daemon lives, so only the others are probed.
-    let candidates: Vec<_> = sessions
-        .iter()
-        .filter_map(|session| {
-            let project_id = string_field(session, "projectId")?;
-            let session_id = string_field(session, "sessionId")?;
-            let zmx_name = provider_zmx_session_name(session).ok()?;
-            let recorded_generation = recorded_zmx_wire_generation(session);
-            (recorded_generation != Some(current_generation)).then_some((
-                project_id,
-                session_id,
+    let candidates: Vec<_> = rows
+        .into_iter()
+        .filter(|row| row.recorded_generation != Some(current_generation))
+        .map(|row| {
+            let zmx_name =
+                crate::ids::create_zmx_session_name(server_id, &row.project_id, &row.session_id);
+            (
+                row.project_id,
+                row.session_id,
                 zmx_name,
-                recorded_generation,
-                session,
-            ))
+                row.recorded_generation,
+                row.stopped,
+            )
         })
         .collect();
     let live = zmx_session_daemons_present(
@@ -271,7 +325,7 @@ pub(crate) fn cycle_wire_incompatible_zmx_session_daemons(
             .map(|(_, _, zmx_name, _, _)| zmx_name.as_str())
             .collect::<Vec<_>>(),
     );
-    for ((project_id, session_id, zmx_name, recorded_generation, session), live) in
+    for ((project_id, session_id, zmx_name, recorded_generation, stopped), live) in
         candidates.into_iter().zip(live)
     {
         if !live {
@@ -279,12 +333,7 @@ pub(crate) fn cycle_wire_incompatible_zmx_session_daemons(
         }
         // A closed session keeps its terminal state; only a session that can be
         // woken becomes sleeping.
-        let target_lifecycle =
-            if string_field(session, "lifecycleState").as_deref() == Some("stopped") {
-                "stopped"
-            } else {
-                "sleeping"
-            };
+        let target_lifecycle = if stopped { "stopped" } else { "sleeping" };
         let lifecycle = LifecycleParams {
             project_id: project_id.clone(),
             session_id: session_id.clone(),
@@ -479,5 +528,163 @@ fn zmx_endpoint_error_message(error: ZmxEndpointError) -> String {
     match error {
         ZmxEndpointError::DependencyUnavailable(message) => message,
         ZmxEndpointError::Domain(error) => error.message,
+    }
+}
+
+/// Ends every live session daemon named for this gxserver that no session row owns, before any client can attach. Runs beside the wire-generation pass at startup.
+///
+/// CDXC:Resources 2026-10-24 WHY:
+/// The user's rule is "we shouldn't have orphaned ones" (`resource_session_owners`). A daemon whose row is gone (a create the previous gxserver died in the middle of, or a row removed while gxserver was down) was never ended: nothing restores it and nothing lists it but Resources, so it kept its agent, its endpoint record and, on Windows, its `windows-sessions` lock forever, and the reporter of GitHub #289 had to end them by hand. Only daemons with this server's name prefix are touched, a name counts as owned when it is a row's derived name, its stored `zmxName` or its provider state's `zmxName`, and the pass reads the live list once, so a row that exists is never ended.
+pub(crate) fn end_unowned_zmx_session_daemons(
+    repository: &DomainRepository<'_>,
+    logger: &GxserverLogger,
+    server_id: &str,
+) {
+    let Ok(live) = read_zmx_existing_session_names() else {
+        return;
+    };
+    let Ok(owned) = owned_zmx_session_names(repository, server_id) else {
+        return;
+    };
+    let unowned = unowned_zmx_session_names(live, &owned, server_id);
+    if unowned.is_empty() {
+        return;
+    }
+    let Ok(zmx) = require_zmx() else {
+        return;
+    };
+    for zmx_name in unowned {
+        let kill = kill_zmx_session(&zmx_name, &zmx.executable_path);
+        let outcome = if kill.killed && zmx_session_daemon_socket_present(&zmx_name) != Some(true) {
+            Ok("killed".to_string())
+        } else {
+            terminate_zmx_session_daemon_process(&zmx_name).map(|()| "terminated".to_string())
+        };
+        let _ = logger.log(GxserverLogInput {
+            level: LogLevel::Warn,
+            event: match outcome {
+                Ok(_) => "unownedSessionDaemonEnded",
+                Err(_) => "unownedSessionDaemonEndFailed",
+            }
+            .to_string(),
+            server_id: Some(server_id.to_string()),
+            request_id: None,
+            client: None,
+            duration_ms: None,
+            error: Some(match &outcome {
+                Ok(_) => "A session terminal was still running for a session Ghostex no longer has, so it was ended.".to_string(),
+                Err(error) => format!("A session terminal is still running for a session Ghostex no longer has and could not be ended: {error}"),
+            }),
+            details: Some(json!({
+                "providerSessionId": zmx_name,
+                "termination": outcome.as_deref().unwrap_or("failed"),
+            })),
+        });
+    }
+}
+
+/// Every zmx name a session row of this server can own.
+fn owned_zmx_session_names(
+    repository: &DomainRepository<'_>,
+    server_id: &str,
+) -> Result<std::collections::HashSet<String>, DomainStateError> {
+    let mut statement = repository
+        .db
+        .prepare(
+            "SELECT projectId, sessionId, zmxName,
+                    CASE WHEN json_type(providerStateJson, '$.zmxName') = 'text'
+                         THEN json_extract(providerStateJson, '$.zmxName') END
+             FROM sessions",
+        )
+        .map_err(crate::domain::sql_error)?;
+    let rows = statement
+        .query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, Option<String>>(2)?,
+                row.get::<_, Option<String>>(3)?,
+            ))
+        })
+        .map_err(crate::domain::sql_error)?;
+    let mut owned = std::collections::HashSet::new();
+    for row in rows {
+        let (project_id, session_id, stored, provider_state) =
+            row.map_err(crate::domain::sql_error)?;
+        owned.insert(crate::ids::create_zmx_session_name(
+            server_id,
+            &project_id,
+            &session_id,
+        ));
+        owned.extend(stored.into_iter().chain(provider_state));
+    }
+    Ok(owned)
+}
+
+/// The live names with this server's prefix that no row owns, sorted.
+pub(crate) fn unowned_zmx_session_names(
+    live: impl IntoIterator<Item = String>,
+    owned: &std::collections::HashSet<String>,
+    server_id: &str,
+) -> Vec<String> {
+    let prefix = format!("{server_id}-");
+    let mut unowned: Vec<String> = live
+        .into_iter()
+        .map(|name| name.trim().to_string())
+        .filter(|name| name.len() > prefix.len() && name.starts_with(&prefix))
+        .filter(|name| !owned.contains(name))
+        .collect();
+    unowned.sort();
+    unowned.dedup();
+    unowned
+}
+
+#[cfg(test)]
+mod unowned_daemon_tests {
+    use super::*;
+
+    #[test]
+    fn only_this_servers_daemons_without_a_row_are_ended() {
+        let owned: std::collections::HashSet<String> =
+            ["S1b-P1-G1".to_string(), "S1b-P1-G2".to_string()].into();
+        let live = [
+            "S1b-P1-G1",
+            "S1b-P1-G9",
+            "S2c-P1-G9",
+            "S1b-",
+            "S1bx-P1-G3",
+            " S1b-P2-G4 ",
+            "S1b-P1-G9",
+        ]
+        .map(str::to_string);
+        assert_eq!(
+            unowned_zmx_session_names(live, &owned, "S1b"),
+            vec!["S1b-P1-G9".to_string(), "S1b-P2-G4".to_string()]
+        );
+    }
+
+    #[test]
+    fn a_stored_name_keeps_its_daemon() {
+        let db = rusqlite::Connection::open_in_memory().expect("db");
+        db.execute_batch(
+            "CREATE TABLE sessions (projectId TEXT, sessionId TEXT, zmxName TEXT, providerStateJson TEXT);
+             INSERT INTO sessions VALUES ('P1', 'G1', 'S1b-P0-G1', '{}');
+             INSERT INTO sessions VALUES ('P2', 'G2', '', '{\"zmxName\":\"S1b-P9-G2\"}');",
+        )
+        .expect("rows");
+        let repository = DomainRepository::new(&db, "S1b");
+        let owned = owned_zmx_session_names(&repository, "S1b").expect("owned");
+        let live = [
+            "S1b-P1-G1",
+            "S1b-P0-G1",
+            "S1b-P9-G2",
+            "S1b-P2-G2",
+            "S1b-P3-G3",
+        ]
+        .map(str::to_string);
+        assert_eq!(
+            unowned_zmx_session_names(live, &owned, "S1b"),
+            vec!["S1b-P3-G3".to_string()]
+        );
     }
 }

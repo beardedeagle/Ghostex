@@ -49,6 +49,21 @@ pub(crate) struct NativeSidebarState {
     /// This frame's project header probes; `hovered_group` follows them.
     pub(crate) header_hover: super::project_hover::ProjectHeaderHoverProbes,
     pub(crate) hovered_session: Option<String>,
+    /// The row whose floating links card is open (window/session_links_card.rs on the desktop,
+    /// web_host/session_links.rs in the web build).
+    pub(crate) links_card_session: Option<String>,
+    /// The pointer is on the floating links card.
+    pub(crate) links_card_hovered: bool,
+    /// Where the web build drew the card last, for telling whether the pointer is on it.
+    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+    pub(crate) links_card_bounds: std::cell::Cell<Option<gpui::Bounds<gpui::Pixels>>>,
+    /// The card's window on the desktop.
+    pub(crate) links_card_window: Option<gpui::AnyWindowHandle>,
+    /// The list the card shows (the web build draws it in its own page).
+    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+    pub(crate) links_card_list: Option<gpui::Entity<super::links_list::SessionLinksList>>,
+    /// The session whose links list is open in the header dropdown (native_sidebar/links_list.rs).
+    pub(crate) links_list_session: Option<ghostex_gx_core::SessionKey>,
     /// The pointer is on the Commands row's account-usage pin (usage.rs); the unpinned strip peeks while it is.
     pub(crate) usage_pin_hovered: bool,
     /// The pointer is on the peeking usage strip itself, so leaving the pin for a card keeps it up.

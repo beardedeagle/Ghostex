@@ -123,6 +123,24 @@ pub(super) fn to_mobile_session_list(result: &Value) -> Value {
         json!(result.get("ok") != Some(&Value::Bool(false))),
     );
     insert_present(&mut map, "product", result.get("product"));
+    // CDXC:SessionLinks 2026-10-24 DECISION: User: "user can pick to open in embedded or external browser in settings (default to embedded)". The phone has no copy of the computer's settings, so the summary carries this one: `embedded` opens a session link in the phone's own browser view, `external` in its default browser.
+    // Sent only when it is not the default, which the phone assumes when the key is absent.
+    let settings = crate::ghostex_cli::settings::read_settings_file().unwrap_or_default();
+    if settings
+        .get("sessionLinkOpenTarget")
+        .and_then(Value::as_str)
+        == Some("external")
+    {
+        map.insert("sessionLinkOpenTarget".to_string(), json!("external"));
+    }
+    // CDXC:SessionLinks 2026-10-24 SEE-ALSO: `SessionLinksDisplay` in packages/gx-core/src/sidebar_view/links.rs; the phone's session list draws its rows by the computer's "Session links in the sidebar" (apps/mobile/app/src/chat/native/sessionLinks.ts). Sent only when it is not the default (`badge`).
+    if let Some(display) = settings
+        .get("sidebarSessionLinks")
+        .and_then(Value::as_str)
+        .filter(|display| *display != "badge")
+    {
+        map.insert("sidebarSessionLinks".to_string(), json!(display));
+    }
     if let Some(projects) = &projects {
         map.insert(
             "projects".to_string(),
@@ -169,10 +187,6 @@ pub(super) fn to_mobile_session_list(result: &Value) -> Value {
                             project
                                 .get("worktreeJson")
                                 .or_else(|| project.get("worktree")),
-                        );
-                        project_map.insert(
-                            "isChat".to_string(),
-                            json!(is_mobile_chats_collection_project(project)),
                         );
                         // CDXC:WorkMode 2026-10-09 WHY: the phone's project menu ticks its Work Mode row from this; the inventory rows are raw project rows, so the switch is read with the same rule the presentation snapshot uses and sent only when true, like the snapshot's own `workMode`.
                         if crate::work_mode::project_work_mode(project) {
@@ -631,6 +645,10 @@ fn to_mobile_session_summary(session: &Value) -> Value {
     insert_js(&mut map, "gitStatus", &[s("gitStatus")]);
     // CDXC:WorkMode 2026-10-09 WHY: the same second-whitelist trap as the keys around it: the phone's Copy submenu needs the session's PR, Linear and issue links, and `to_cli_session` forwarding `work` is not enough because this compactor drops everything it does not name.
     insert_non_null(&mut map, "work", s("work"));
+    // CDXC:SessionLinks 2026-10-24 WHY: the same second-whitelist trap: the phone's chat strip and its links sheet read the session's links from here.
+    insert_non_null(&mut map, "links", s("links"));
+    // CDXC:ClaudeCloud 2026-10-23 WHY: the same second-whitelist trap: the phone's row needs the Claude cloud record (state, claude.ai link, attach) to mark the row and open the session's page on a tap.
+    insert_non_null(&mut map, "claudeCloud", s("claudeCloud"));
     /*
      * CDXC:SessionChat 2026-08-21-b:
      * The phone's session-row queue badge reads these two. This compactor is a

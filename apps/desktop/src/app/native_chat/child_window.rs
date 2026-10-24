@@ -39,6 +39,7 @@ impl NativeChatView {
         self.pending_model_menu = None;
         self.hide_frosted_overlays(cx);
         self.sync_pane_modal_windows(cx);
+        self.schedule_hidden_image_trim(cx);
     }
 
     /// Reopens the modals the session still owns, on the pane's current frame.
@@ -47,6 +48,7 @@ impl NativeChatView {
             return;
         }
         self.pane_hidden = false;
+        self.cancel_hidden_image_trim();
         self.sync_pane_modal_windows(cx);
     }
 
@@ -166,10 +168,8 @@ impl NativeChatView {
         let parent = self.child_window_parent(cx);
         let scale = super::appearance::ChatAppearance::current(&self.snapshot).scale;
         let windows: [Option<(gpui::AnyWindowHandle, Bounds<Pixels>)>; 6] = [
-            // A viewer over the page window stays where that window is.
             self.image_viewer
                 .handle
-                .filter(|_| self.image_viewer.host.is_none())
                 .map(|handle| (handle.into(), expanded)),
             self.table_preview.handle.map(|handle| {
                 (

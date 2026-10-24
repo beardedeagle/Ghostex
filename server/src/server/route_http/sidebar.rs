@@ -51,7 +51,9 @@ pub(super) async fn route_sidebar_http(
                 CDXC:AgentLauncher 2026-06-24-20:34:
                 GPUI Settings and SidebarApp read normalized launcher/action HUD rows through gxserver so app-modal Rust does not hand-mirror the shared TypeScript projection. The response is derived only from project domain metadata and carries no paths, project names, prompts, tokens, stdout/stderr, daemon bodies, or renderer payload authority.
                 */
-                let projects = repository.list_projects()?;
+                // The HUD reads launcher and action settings only; the session history column is
+                // left out of every project read on these routes (the mutations patch named fields).
+                let projects = repository.list_projects_without_session_history()?;
                 let active_project_id = params
                     .get("activeProjectId")
                     .and_then(Value::as_str)
@@ -109,7 +111,7 @@ pub(super) async fn route_sidebar_http(
                 CDXC:AgentLauncher 2026-06-24-20:54:
                 Settings mutation RPCs write through the production project repository after gxserver normalizes the narrow agent/action intent. Return refreshed HUD rows and updated project rows so GPUI clients do not reparse raw metadata or log command text, URLs, project names, paths, prompts, tokens, stdout/stderr, daemon bodies, or renderer payload contents.
                 */
-                let projects = repository.list_projects()?;
+                let projects = repository.list_projects_without_session_history()?;
                 let mutation = create_sidebar_hud_settings_mutation(&projects, params)?;
                 let hud_active_project_id = mutation.hud_active_project_id;
                 let mut item_ids = mutation.item_ids;
@@ -179,7 +181,7 @@ pub(super) async fn route_sidebar_http(
                         "type": "globalSidebarCommandsChanged",
                     }));
                 }
-                let projects = repository.list_projects()?;
+                let projects = repository.list_projects_without_session_history()?;
                 let mut hud = read_sidebar_hud(&projects, hud_active_project_id.as_deref());
                 let global_commands =
                     read_sidebar_hud_global_commands(&repository.list_global_sidebar_commands()?);

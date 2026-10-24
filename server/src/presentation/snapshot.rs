@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use rusqlite::{Connection, OptionalExtension};
 use serde_json::{json, Map, Value};
 
@@ -122,7 +124,9 @@ pub fn build_presentation_session_delta(
     project_id: &str,
     session_id: &str,
 ) -> Result<Value, DomainStateError> {
-    let project = repository.get_project(project_id)?;
+    // The session projection reads the project's settings, never its restorable session history
+    // (the 130 KB column only `domainProject` in a project delta carries).
+    let project = repository.get_project_without_session_history(project_id)?;
     let session = repository.get_session(project_id, session_id)?;
     let (Some(project), Some(session)) = (project, session) else {
         return Ok(json!({
@@ -266,6 +270,17 @@ pub(crate) fn project_snapshot_with_families(
     let generated_at = now_iso();
     let mut projects_sorted = projects;
     projects_sorted.sort_by_key(project_sort_key);
+    /*
+    CDXC:StateSync 2026-10-23 WHY:
+    Each project used to scan the whole session list and deep-copy its own rows out of it, so every connecting client's first snapshot held its hydrated rows twice (and walked them once per project). The rows are moved into their project's list once, in list order, which keeps each project's rows and their order exactly as the scan picked them.
+    */
+    let mut sessions_by_project: HashMap<Option<String>, Vec<Value>> = HashMap::new();
+    for session in sessions {
+        sessions_by_project
+            .entry(string_field(&session, "projectId"))
+            .or_default()
+            .push(session);
+    }
     let mut presentation_projects = Vec::new();
     let mut groups = Vec::new();
     let mut presentation_sessions = Vec::new();
@@ -282,13 +297,9 @@ pub(crate) fn project_snapshot_with_families(
         }
         let project_id = string_field(&project, "projectId").unwrap_or_default();
         let group_id = default_group_id(&project_id);
-        let mut project_sessions = sessions
-            .iter()
-            .filter(|session| {
-                string_field(session, "projectId").as_deref() == Some(project_id.as_str())
-            })
-            .cloned()
-            .collect::<Vec<_>>();
+        let mut project_sessions = sessions_by_project
+            .remove(&Some(project_id.clone()))
+            .unwrap_or_default();
         project_sessions = select_presentation_sessions(project_sessions);
         project_sessions.sort_by_key(session_sort_key);
         let project_presentation_sessions = project_sessions

@@ -34,9 +34,13 @@ pub struct RecordStoreUsage {
 /// few milliseconds in SQLite against tens in `serde_json`. A row whose value is not JSON fails the
 /// statement, which is what the parsing loop did too.
 ///
+/// The write path no longer calls this per write: since 2026-10-23 it keeps the numbers in a
+/// `RecordUsage` that scans once, rebuilds every row through [`apply_record_metadata`] on its first
+/// write after a scan, and rescans whenever anything else touched the table, which keeps this
+/// self-correcting property without the scan.
+///
 /// SEE-ALSO: packages/client-storage/adapters/database-transaction.ts (the incremental rules),
-/// packages/client-storage-native/src/storage_records.rs (the write path, which scans once and hands the
-/// result on rather than scanning a second time).
+/// packages/client-storage-native/src/storage_usage.rs (the write path's tallies and their stamp).
 pub fn recompute_record_metadata(connection: &Connection) -> Result<()> {
     apply_record_metadata(connection, &scan_record_usage(connection)?)
 }

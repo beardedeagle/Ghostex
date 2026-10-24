@@ -66,7 +66,7 @@ impl GhostexGpuiApp {
                         Some(Intent::FocusSubgroup { project, group_id })
                     }
                     Some(ActiveGroup::Project(project)) => Some(Intent::FocusProject { project }),
-                    Some(ActiveGroup::Chats(_)) | None => None,
+                    None => None,
                 };
                 if let Some(intent) = intent {
                     let output = self

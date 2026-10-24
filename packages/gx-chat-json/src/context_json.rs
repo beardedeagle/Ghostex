@@ -4,6 +4,8 @@
 //! cannot hold, so the boundary takes them as UUID strings. When the host leaves the random draws
 //! out, they are drawn here from the OS source, the same source the desktop host uses
 //! (`context()` in `apps/desktop/src/app/gx_chat/worker.rs`); Hermes has no `crypto.randomUUID`.
+//! wasm32-unknown-unknown has no OS source, so the wasm build (`packages/gx-chat-wasm`) draws from a
+//! splitmix64 stream its page seeds from `crypto.getRandomValues` through [`seed_entropy`].
 
 use ghostex_gx_chat_core::{ChatContext, FormattedTime};
 use serde::Deserialize;
@@ -48,9 +50,37 @@ pub(crate) fn parse(json: &str) -> Result<ChatContext, String> {
         .with_clock_reads(parsed.clock_reads))
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn entropy<const N: usize>() -> Result<[u8; N], String> {
     let mut bytes = [0u8; N];
     getrandom::fill(&mut bytes).map_err(|error| format!("OS random source: {error}"))?;
+    Ok(bytes)
+}
+
+#[cfg(target_arch = "wasm32")]
+thread_local!(static SPLITMIX: std::cell::Cell<u64> = const { std::cell::Cell::new(0x9E37_79B9_7F4A_7C15) });
+
+/// Seeds the wasm build's random stream; the page calls it once with 64 bits from
+/// `crypto.getRandomValues` before it creates a core.
+#[cfg(target_arch = "wasm32")]
+pub fn seed_entropy(seed: u64) {
+    SPLITMIX.with(|state| state.set(seed));
+}
+
+#[cfg(target_arch = "wasm32")]
+fn entropy<const N: usize>() -> Result<[u8; N], String> {
+    let mut bytes = [0u8; N];
+    for chunk in bytes.chunks_mut(8) {
+        let mut z = SPLITMIX.with(|state| {
+            let next = state.get().wrapping_add(0x9E37_79B9_7F4A_7C15);
+            state.set(next);
+            next
+        });
+        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+        z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+        z ^= z >> 31;
+        chunk.copy_from_slice(&z.to_le_bytes()[..chunk.len()]);
+    }
     Ok(bytes)
 }
 

@@ -22,6 +22,13 @@ impl GhostexGpuiApp {
         {
             return None;
         }
+        // A published page loads from its gxserver, not through the embed page
+        // (`published_page.rs`).
+        if document.kind == DocsFileKind::Page {
+            return ProjectWorkareaRealRuntimeUrl::from_authorized_runtime_url(
+                self.native_docs_page_browser_area_url()?,
+            );
+        }
         let media = match document.kind {
             DocsFileKind::Video => "video",
             DocsFileKind::Audio => "audio",

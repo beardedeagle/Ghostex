@@ -31,7 +31,7 @@ hotkeys Every shortcut and its default binding
   name. There is no line under the header: your chat fades out beneath it. Drag
   the header, or the sidebar's Search row, to move the window.
 - **Sidebar** (left by default): projects, their sessions, tags and filters,
-  remote machines, Quick chats, and the More Options menu under the button at
+  remote machines, and the More Options menu under the button at
   the top right (Add Project, Sort & Filter, Sessions, Import Sessions, Search by
   Prompt, Agents Hub, All Automations, Mobile & Remote, Join Discord, Send
   Bug / Feedback, then

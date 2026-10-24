@@ -49,35 +49,38 @@ fn served_page_id(url: &str, port: u16) -> Option<String> {
 
 /// The floating page window's page finished loading in `surface`, which shows `viewport` (logical
 /// pixels, which are CSS pixels at the page's default zoom). Pictures it when its card needs one;
-/// `remote` is the machine whose gxserver published it, `None` for this computer's. `done` runs
-/// once the picture is taken or not needed.
+/// `remote` is the machine whose gxserver published it, `None` for this computer's.
 ///
-/// CDXC:SessionChat 2026-10-22 WHY:
-/// The picture is the top of the page, and DevTools paints nothing for a clip outside the viewport, so a page the window had scrolled back to where the reader left it (window/visual_page_modal/page.rs) was pictured blank. The window puts the scroll back in `done`, after the picture. `captureBeyondViewport` would picture the top of a scrolled page too, but it lays the on-screen page out at its full height for the shot.
+/// CDXC:SessionChat 2026-10-23 WHY:
+/// The picture is the top of the page, and DevTools paints nothing for a clip outside the viewport, while the page's own script scrolls back to where the reader left it as soon as it loads (window/visual_page_modal/page_script.js). So only when a picture is about to be taken does the app ask the page to wait at its top (`HOLD_PAGE_TOP`), and lets it go back once the picture is taken (`RELEASE_PAGE_TOP`); both are one-way scripts, nothing is read back. `captureBeyondViewport` would picture the top of a scrolled page too, but it lays the on-screen page out at its full height for the shot.
 pub(crate) fn picture_opened_page(
     surface: gpui::WeakEntity<CefSurface>,
     url: &str,
     remote: Option<GpuiRemoteGxserverRequestTarget>,
     viewport: (f32, f32),
     cx: &mut gpui::App,
-    done: impl FnOnce(&mut gpui::App) + 'static,
 ) {
     let port = remote
         .as_ref()
         .map_or_else(gpui_local_gxserver_api_port, |remote| remote.local_port);
     let Some(page_id) = served_page_id(url, port) else {
-        return done(cx);
+        return;
     };
     if CAPTURING.swap(true, Ordering::AcqRel) {
-        return done(cx);
+        return;
     }
     cx.spawn(async move |cx| {
         let _ = picture_page(&surface, &page_id, remote, viewport, cx).await;
         CAPTURING.store(false, Ordering::Release);
-        cx.update(done);
     })
     .detach();
 }
+
+/// Asks the page's script to show its top until `RELEASE_PAGE_TOP`, which takes it back to where
+/// the reader was (window/visual_page_modal/page_script.js).
+const HOLD_PAGE_TOP: &str = "window.__ghostexPageScroll && window.__ghostexPageScroll.hold();";
+const RELEASE_PAGE_TOP: &str =
+    "window.__ghostexPageScroll && window.__ghostexPageScroll.release();";
 
 async fn picture_page(
     surface: &gpui::WeakEntity<CefSurface>,
@@ -97,8 +100,41 @@ async fn picture_page(
     if known["stale"] != true || known["gone"] == true {
         return None;
     }
+    surface
+        .update(cx, |surface, _| {
+            surface.execute_app_owned_script(HOLD_PAGE_TOP)
+        })
+        .ok()?;
+    let base64 = screenshot_page_top(surface, viewport, cx).await;
+    let _ = surface.update(cx, |surface, _| {
+        surface.execute_app_owned_script(RELEASE_PAGE_TOP)
+    });
+    let base64 = base64?;
+    let png = cx
+        .background_executor()
+        .spawn(async move { encode_picture(&base64) })
+        .await?;
+    gx_rpc(
+        remote,
+        "/api/storeVisualPageThumbnail",
+        json!({
+            "pageId": page_id,
+            "png": base64::engine::general_purpose::STANDARD.encode(png),
+        }),
+    )
+    .await
+    .ok()
+    .map(|_| ())
+}
+
+/// The top of the page in the picture's shape, as wide as the window allows (base64 PNG), once the
+/// page had `SETTLE` to lay itself out.
+async fn screenshot_page_top(
+    surface: &gpui::WeakEntity<CefSurface>,
+    viewport: (f32, f32),
+    cx: &mut gpui::AsyncApp,
+) -> Option<String> {
     cx.background_executor().timer(SETTLE).await;
-    // The top of the page in the picture's shape, as wide as the window allows.
     let aspect = PICTURE.0 as f64 / PICTURE.1 as f64;
     let (width, height) = (viewport.0 as f64, viewport.1 as f64);
     let (width, height) = if height >= width / aspect {
@@ -121,21 +157,7 @@ async fn picture_page(
     };
     // The observer is dropped here, on the main thread, once its answer is in.
     drop(screenshot);
-    let png = cx
-        .background_executor()
-        .spawn(async move { encode_picture(&base64) })
-        .await?;
-    gx_rpc(
-        remote,
-        "/api/storeVisualPageThumbnail",
-        json!({
-            "pageId": page_id,
-            "png": base64::engine::general_purpose::STANDARD.encode(png),
-        }),
-    )
-    .await
-    .ok()
-    .map(|_| ())
+    Some(base64)
 }
 
 /// The screenshot (base64 PNG) at exactly the stored size, as an opaque PNG small enough to store.

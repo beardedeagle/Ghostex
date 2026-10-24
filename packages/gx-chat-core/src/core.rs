@@ -13,6 +13,7 @@ use crate::document::{
 use crate::effect::Effect;
 use crate::event::Event;
 use crate::state::{ChatContext, ChatState};
+use crate::transcript::items::ItemRows;
 
 /// One chat's brain.
 ///
@@ -35,14 +36,17 @@ pub struct ChatCore {
     /// it republishes only when the STATE changed, so a label that merely counts seconds never
     /// ships a new snapshot on its own.
     published_context: ChatContext,
-    /// The wake the host was last told to arm, so a [`Effect::SetTimer`] is emitted only when the
-    /// earliest deadline actually moved.
+    /// The moment the host was last told to wake at, in its epoch milliseconds, so a
+    /// [`Effect::SetTimer`] is emitted only when the earliest deadline actually moved.
     ///
-    /// CDXC:SessionChat 2026-09-25 WHY: A `Tick` forgets it. The value is a delay, and the
-    /// backfill timer re-arms itself at 0 ms after every batch; compared with the 0 the host had
-    /// already spent, the re-arm looked unchanged, no `SetTimer` went out, and every row older than
-    /// the first batch stayed a placeholder skeleton until some unrelated event moved the wake.
-    armed_wake_ms: Option<u64>,
+    /// CDXC:SessionChat 2026-09-25 WHY: A `Tick` forgets it. The backfill timer re-arms itself at
+    /// 0 ms after every batch; compared with the wake the host had already spent, the re-arm looked
+    /// unchanged, no `SetTimer` went out, and every row older than the first batch stayed a
+    /// placeholder skeleton until some unrelated event moved the wake.
+    /// CDXC:SessionChat 2026-10-23 WHY: Kept as a moment rather than a delay. The delay to an
+    /// unchanged deadline shrinks as time passes, so every event re-sent the same wake and the
+    /// host's `setTimer` count followed the events it handled rather than the timers that moved.
+    armed_wake_at_ms: Option<f64>,
     /// What the host was last sent, so a frame carries only the changed window.
     sent: SentFrame,
     /// Bumped whenever `republish` rebuilds the frame parts, which stands in for the array
@@ -71,7 +75,7 @@ pub struct SentFrame {
     /// The parts counter the host was last sent, so a drain after a publish ships all four
     /// channels and a drain without one ships none.
     parts_revision: u64,
-    items: Option<std::sync::Arc<Vec<TranscriptItem>>>,
+    items: Option<std::sync::Arc<crate::transcript::items::TranscriptItems>>,
     item_identities: Vec<u64>,
     subagent_items: Option<Vec<TranscriptItem>>,
     minimap: Option<Vec<MinimapMarker>>,
@@ -103,7 +107,7 @@ impl ChatCore {
         // A tick is the host's timer firing, so the host holds no timer now: the wake it was told
         // is spent, and the next one must reach it even when it is the same delay.
         if matches!(event, Event::Tick) {
-            self.armed_wake_ms = None;
+            self.armed_wake_at_ms = None;
         }
         // `dispatch` routes the event to its owner and then runs the six per-family settle hooks
         // in a fixed order, which is where every `useMemo` and `useEffect` of the TypeScript lives.
@@ -113,8 +117,19 @@ impl ChatCore {
         // existing arm then serves it unchanged, and the whole batch still publishes once: the
         // republish below runs after the last of them.
         let mut effects = Vec::new();
+        // A hidden chat held its redraw clocks and its accounts poll; the tick right after the
+        // show fires whatever they owe, so the document this turn publishes is already current.
+        let shown_again =
+            self.state.core.hidden && matches!(event, Event::Visibility { shown: true });
         for expanded in expand(event) {
             effects.extend(events::dispatch(&mut self.state, &expanded, &self.context));
+        }
+        if shown_again {
+            effects.extend(events::dispatch(
+                &mut self.state,
+                &Event::Tick,
+                &self.context,
+            ));
         }
         self.republish();
         // Read aloud's speech rides after the publish that shows it (`read_aloud/playback.rs`).
@@ -122,8 +137,15 @@ impl ChatCore {
         // One wake for the whole core, not one per timer: the table knows which key is earliest,
         // and the host only has to be asked again when that answer changed.
         let wake = self.next_wake_ms();
-        if wake != self.armed_wake_ms {
-            self.armed_wake_ms = wake;
+        // The delay is rounded to a millisecond, so two reads of one deadline land within one.
+        let wake_at = wake.map(|delay| self.context.now_ms + delay as f64);
+        let moved = match (wake_at, self.armed_wake_at_ms) {
+            (Some(at), Some(armed)) => (at - armed).abs() >= 1.0,
+            (None, None) => false,
+            _ => true,
+        };
+        if moved {
+            self.armed_wake_at_ms = wake_at;
             effects.push(Effect::SetTimer { delay_ms: wake });
         }
         effects
@@ -131,7 +153,7 @@ impl ChatCore {
 
     /// Milliseconds until the core's earliest armed deadline, or `None` when nothing is armed.
     pub fn next_wake_ms(&self) -> Option<u64> {
-        self.state.core.timers.next_wake_ms(self.context.now_ms)
+        self.state.core.next_wake_ms(self.context.now_ms)
     }
 
     /// The state every family reads.
@@ -175,26 +197,28 @@ impl ChatCore {
     /// on a different turn from the one it last fed (which is every host: it ticks, then takes)
     /// would otherwise arm its timer that much too late.
     pub fn frame_at(&mut self, last_revision: u64, now_ms: f64) -> Frame {
-        // `take` compares its four channels by IDENTITY. `projection.items` is a new array
-        // whenever `NativeChatPresentation.update` rebuilt, even when every row in it was reused,
-        // so a rebuild ships the degenerate splice `{start: length, deleteCount: 0, items: []}`;
-        // an unchanged turn hands back the same result object and ships nothing. The core has no
-        // identities, so the projection's own revision stands in for it.
-        // The first drain always ships, whatever happened: `itemsSplice(undefined, next)` has no
-        // previous array to compare against.
+        // `take` compared its four channels by IDENTITY, so a rebuild that reused every row
+        // shipped the degenerate splice `{start: length, deleteCount: 0, items: []}`. The core's
+        // projection revision stands in for that identity, and a splice that moves nothing is then
+        // left out of the frame.
+        // CDXC:SessionChat 2026-10-23 WHY: A channel that changes nothing on the receiver is not
+        // sent: an empty splice, or an empty rail or row-detail map to a renderer that was never
+        // sent one (it starts empty). Each still woke the view, which copied its whole row list
+        // (desktop) or rebuilt it (phone) and redrew, and a backfill pass shipped one per pass.
         let rebuilt = self.sent.items.is_none() || self.parts_revision != self.sent.parts_revision;
         self.sent.parts_revision = self.parts_revision;
         let mut items_splice = None;
         if rebuilt {
-            items_splice = Some(splice(
+            let moved = splice(
                 self.sent
                     .items
                     .as_deref()
-                    .map(|items| (items.as_slice(), self.sent.item_identities.as_slice())),
-                (self.parts.items.as_slice(), &self.parts.item_identities),
-            ));
+                    .map(|items| (items, self.sent.item_identities.as_slice())),
+                (self.parts.items.as_ref(), &self.parts.item_identities),
+            );
             self.sent.items = Some(std::sync::Arc::clone(&self.parts.items));
             self.sent.item_identities = self.parts.item_identities.clone();
+            items_splice = (!moved.changes_nothing()).then_some(moved);
         }
         // The other three keep their identity when their content does: the minimap rail caches its
         // own projection, the subagent viewer hands back one stable list, and `rowDetails` is a
@@ -208,22 +232,24 @@ impl ChatCore {
                         .subagent_items
                         .as_deref()
                         .map(|items| (items, &[][..])),
-                    (&self.parts.subagent_items, &[]),
+                    (self.parts.subagent_items.as_slice(), &[]),
                 );
                 self.sent.subagent_items = Some(self.parts.subagent_items.clone());
-                Some(splice)
+                (!splice.changes_nothing()).then_some(splice)
             };
         let minimap = if self.sent.minimap.as_deref() == Some(self.parts.minimap.as_slice()) {
             None
         } else {
+            let first = self.sent.minimap.is_none();
             self.sent.minimap = Some(self.parts.minimap.clone());
-            Some(self.parts.minimap.clone())
+            (!(first && self.parts.minimap.is_empty())).then(|| self.parts.minimap.clone())
         };
         let row_details = if self.sent.row_details.as_ref() == Some(&self.parts.row_details) {
             None
         } else {
+            let first = self.sent.row_details.is_none();
             self.sent.row_details = Some(self.parts.row_details.clone());
-            Some(self.parts.row_details.clone())
+            (!(first && self.parts.row_details.is_empty())).then(|| self.parts.row_details.clone())
         };
         Frame {
             items_splice,
@@ -237,7 +263,7 @@ impl ChatCore {
                 Some(Box::new(self.document.clone()))
             },
             requests: Vec::new(),
-            next_wake_ms: self.state.core.timers.next_wake_ms(now_ms),
+            next_wake_ms: self.state.core.next_wake_ms(now_ms),
         }
     }
 
@@ -339,10 +365,17 @@ impl ChatCore {
         // The transcript items only move on a rebuild, so the probe compares the three small
         // channels and leaves the items alone: cloning every projected row twice per event was
         // most of a state frame's cost on a long chat.
+        // The minimap rail is written only by the projection rebuild, which is `rebuilt` itself,
+        // so it is not serialized again here to be compared on every other event; the subagent
+        // list is compared where it is stored instead of through a copy.
         let parts_moved = rebuilt
-            || crate::extras::subagent_rows(&self.state, &self.published_context)
-                != self.parts.subagent_items
-            || crate::extras::markers(&self.state, &self.published_context) != self.parts.minimap
+            || !self
+                .state
+                .extras
+                .subagent
+                .view
+                .items
+                .eq_slice(&self.parts.subagent_items)
             || crate::transcript::row_details(&self.state, &self.published_context)
                 != self.parts.row_details;
         // `probe.reactive() != self.document.reactive()` without copying both documents: the one
@@ -460,37 +493,45 @@ fn expand(event: Event) -> Vec<Event> {
 ///
 /// Each side is the items and their identities ([`FrameParts::item_identities`]): an item is the
 /// same object only when its value AND its identity are unchanged.
-fn splice(
-    previous: Option<(&[TranscriptItem], &[u64])>,
-    next: (&[TranscriptItem], &[u64]),
+///
+/// A row both lists hold from one shared chunk (the settled turns, `transcript/items.rs`) is the same
+/// value, so only its identity is compared.
+fn splice<Rows: ItemRows + ?Sized>(
+    previous: Option<(&Rows, &[u64])>,
+    next: (&Rows, &[u64]),
 ) -> ItemsSplice {
     let (next, next_identities) = next;
     let Some((previous, previous_identities)) = previous else {
         return ItemsSplice {
             start: 0,
             delete_count: 0,
-            items: next.to_vec(),
-            length: next.len(),
+            items: (0..next.row_count())
+                .map(|at| next.row(at).clone())
+                .collect(),
+            length: next.row_count(),
         };
     };
     let identity = |identities: &[u64], at: usize| identities.get(at).copied().unwrap_or_default();
     let same = |left: usize, right: usize| {
-        previous[left] == next[right]
-            && identity(previous_identities, left) == identity(next_identities, right)
+        identity(previous_identities, left) == identity(next_identities, right)
+            && (previous.same_row(left, next, right) || previous.row(left) == next.row(right))
     };
-    let limit = previous.len().min(next.len());
+    let (previous_len, next_len) = (previous.row_count(), next.row_count());
+    let limit = previous_len.min(next_len);
     let mut start = 0;
     while start < limit && same(start, start) {
         start += 1;
     }
     let mut end = 0;
-    while end < limit - start && same(previous.len() - 1 - end, next.len() - 1 - end) {
+    while end < limit - start && same(previous_len - 1 - end, next_len - 1 - end) {
         end += 1;
     }
     ItemsSplice {
         start,
-        delete_count: previous.len() - start - end,
-        items: next[start..next.len() - end].to_vec(),
-        length: next.len(),
+        delete_count: previous_len - start - end,
+        items: (start..next_len - end)
+            .map(|at| next.row(at).clone())
+            .collect(),
+        length: next_len,
     }
 }

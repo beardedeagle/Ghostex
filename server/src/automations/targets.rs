@@ -255,8 +255,7 @@ pub(super) fn resolve_agent_thread_session(
         }
     }
 
-    let matches = repository
-        .list_sessions(None)?
+    let matches = conversation_candidates(repository, agent_session_id)?
         .into_iter()
         .filter(|session| session_owns_agent_conversation(session, agent_id, agent_session_id))
         .filter_map(|session| {
@@ -276,6 +275,41 @@ pub(super) fn resolve_agent_thread_session(
             ),
         }),
     }
+}
+
+/// The rows that can own `agent_session_id`, in `list_sessions` order: a text
+/// `runtimeSettings.agentSessionId` that contains it. `session_owns_agent_conversation` makes the
+/// exact (trimmed, agent-matched) decision on each.
+///
+/// CDXC:Automations 2026-10-23 WHY:
+/// Resolving a thread by its conversation hydrated every session row (about 148 MB for 10,900 rows) to find the one or two that own it. SQLite now picks the rows whose stored id contains the conversation id, a superset of the trimmed match (SQLite's `trim` strips only spaces, Rust's every whitespace), and only those are read in full.
+fn conversation_candidates(
+    repository: &DomainRepository<'_>,
+    agent_session_id: &str,
+) -> Result<Vec<Value>, DomainStateError> {
+    let mut statement = repository
+        .db
+        .prepare_cached(
+            "SELECT projectId, sessionId FROM sessions
+             WHERE json_type(runtimeSettingsJson, '$.agentSessionId') = 'text'
+               AND instr(json_extract(runtimeSettingsJson, '$.agentSessionId'), ?1) > 0
+             ORDER BY updatedAt DESC, projectId ASC, sessionId ASC",
+        )
+        .map_err(crate::domain::sql_error)?;
+    let keys = statement
+        .query_map([agent_session_id], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })
+        .map_err(crate::domain::sql_error)?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(crate::domain::sql_error)?;
+    let mut sessions = Vec::with_capacity(keys.len());
+    for (project_id, session_id) in keys {
+        if let Some(session) = repository.get_session(&project_id, &session_id)? {
+            sessions.push(session);
+        }
+    }
+    Ok(sessions)
 }
 
 fn session_owns_agent_conversation(

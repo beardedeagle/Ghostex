@@ -59,6 +59,7 @@ pub fn settle(
     let inputs = crate::menus::picker::inputs::menu_inputs(state, context);
     state.pickers.model_menu_context = inputs.menu;
     state.pickers.catalogs = inputs.catalogs;
+    state.pickers.catalogs_key = Some(inputs.catalogs_key);
     match event {
         // The boot read's own copies (`native-host.ts:647`): `adoptAgentModelCatalog(
         // result.modelCatalog)` then `adoptNativeContextPreferences(result.contextPreferences)`,

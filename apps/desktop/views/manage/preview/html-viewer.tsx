@@ -3,7 +3,7 @@ import { installAppScrollbars } from '@/packages/components/ui/app-scrollbars';
 import scrollbarStyles from '@/packages/components/ui/app-scrollbars.css?inline';
 import { ManageWebKitWindow } from '../types';
 
-export const MANAGE_AGENTATION_VERSION = '3.0.2';
+export const MANAGE_AGENTATION_VERSION = '3.1.2';
 export const MANAGE_AGENTATION_REACT_VERSION = '18.2.0';
 export const MANAGE_AGENTATION_PACKAGE_URL = `https://esm.sh/agentation@${MANAGE_AGENTATION_VERSION}?bundle&deps=react@${MANAGE_AGENTATION_REACT_VERSION},react-dom@${MANAGE_AGENTATION_REACT_VERSION}`;
 export const MANAGE_AGENTATION_REACT_URL = `https://esm.sh/react@${MANAGE_AGENTATION_REACT_VERSION}`;
@@ -246,6 +246,10 @@ export function injectManageAgentationScript(documentValue: Document): void {
   (documentValue.body || documentValue.documentElement).appendChild(script);
 }
 
+/**
+ * CDXC:Docs 2026-10-23 DECISION: User (issue #280): turning on Annotate for an HTML file in Files goes straight into annotating mode and stays in it across the reloads Files does when the file changes on disk. agentation@3.1.2 mounts collapsed (`isActive` is component state that starts false, is never persisted, and has no prop or handle), so the bootstrap clicks Agentation's own launcher once it renders. It matches the launcher only while it reads `aria-expanded="false"` and `aria-label="Start feedback mode"` inside the open shadow root of its `<agentation-toolbar>` host (3.1.2 put the shortcut into the title, so the title is not matched, and a MutationObserver on the page cannot see into the shadow root, so it polls every 50ms for up to 5s), so it can never switch an active toolbar off; its Cmd/Ctrl+Shift+F shortcut was rejected because it toggles and the synthetic key would also reach the page's own listeners. Every srcdoc reload re-runs this bootstrap, which is what keeps it active.
+ * SEE-ALSO: apps/desktop/src/app/helpers/browser.rs (`autoActivate`, the Browser toolbar's Annotate does the same).
+ */
 export function buildManageAgentationBootstrapScript(): string {
   return `
 export const rootId = "ghostex-agentation-root";
@@ -264,6 +268,24 @@ rootEl.id = rootId;
 rootEl.setAttribute("data-agentation-html-root", "true");
 rootEl.setAttribute("data-agentation-root", "true");
 (document.body || document.documentElement).appendChild(rootEl);
+// Annotate means "annotate now": open Agentation's collapsed toolbar as soon
+// as it renders (see CDXC:Docs 2026-10-23 in html-viewer.tsx).
+const startManageAgentationFeedbackMode = () => {
+  const startSelector = '[data-agentation-toolbar] button[aria-expanded="false"][aria-label="Start feedback mode"]';
+  let attempts = 0;
+  const tryStart = () => {
+    const startButton = document.querySelector("agentation-toolbar")?.shadowRoot?.querySelector(startSelector);
+    if (startButton) {
+      startButton.click();
+      return;
+    }
+    attempts += 1;
+    if (attempts < 100) {
+      setTimeout(tryStart, 50);
+    }
+  };
+  tryStart();
+};
 Promise.all([
   import(${JSON.stringify(MANAGE_AGENTATION_REACT_URL)}),
   import(${JSON.stringify(MANAGE_AGENTATION_REACT_DOM_CLIENT_URL)}),
@@ -299,6 +321,7 @@ Promise.all([
   const root = ReactDOMClient.createRoot(rootEl);
   globalThis.__GHOSTEX_AGENTATION__ = { container: rootEl, root };
   root.render(React.createElement(Agentation));
+  startManageAgentationFeedbackMode();
 }).catch((error) => {
   console.warn("[Ghostex Docs Agentation] page injection failed", {
     message: error instanceof Error ? error.message : String(error)

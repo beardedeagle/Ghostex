@@ -80,7 +80,7 @@ fn strip_first_image_prompt_marker(blocks: &[ChatBlock]) -> Vec<ChatBlock> {
     next
 }
 
-fn image_prompt_marker_starts_message(message: &ChatMessage) -> bool {
+pub fn image_prompt_marker_starts_message(message: &ChatMessage) -> bool {
     message
         .blocks
         .iter()

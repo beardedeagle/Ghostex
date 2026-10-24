@@ -104,6 +104,45 @@ pub fn list_tools_in_work_fold(row: &mut Value) {
     }
 }
 
+/// What a model's two work-fold keys held before [`mark_work_fold`] set them.
+#[derive(Clone, Debug, PartialEq)]
+pub struct WorkFoldMarks {
+    shows_all_rows: Option<Value>,
+    flat: Option<Value>,
+}
+
+/// [`list_tools_in_work_fold`], remembering what it replaced, so [`unmark_work_fold`] can hand the
+/// model back exactly as it was (`state::ProjectedMessage::in_work_fold`).
+pub fn mark_work_fold(row: &mut Value) -> WorkFoldMarks {
+    let marks = WorkFoldMarks {
+        shows_all_rows: row.get("toolsShowAllRows").cloned(),
+        flat: row.get("toolsFlat").cloned(),
+    };
+    list_tools_in_work_fold(row);
+    marks
+}
+
+/// Takes [`mark_work_fold`]'s marks off again: a key it replaced gets its value back in its place,
+/// and a key it added goes without moving the others.
+pub fn unmark_work_fold(row: &mut Value, marks: WorkFoldMarks) {
+    let Value::Object(fields) = row else {
+        return;
+    };
+    for (key, before) in [
+        ("toolsFlat", marks.flat),
+        ("toolsShowAllRows", marks.shows_all_rows),
+    ] {
+        match before {
+            Some(value) => {
+                fields.insert(key.to_string(), value);
+            }
+            None => {
+                fields.shift_remove(key);
+            }
+        }
+    }
+}
+
 pub const TOOL_FOLD_EXPANDED_LABEL: &str = "Show fewer tool calls";
 
 pub fn tool_fold_label(hidden_count: usize) -> String {

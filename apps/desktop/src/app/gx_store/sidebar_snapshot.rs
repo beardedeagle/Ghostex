@@ -443,9 +443,6 @@ fn more_menu(
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     let mut any_expanded = false;
     for group in &view.groups {
-        if group.core.group_id == ghostex_gx_core::CHATS_GROUP_ID {
-            continue;
-        }
         group.core.group_id.hash(&mut hasher);
         any_expanded |= !input.collapsed_groups.contains(&group.core.group_id);
     }
@@ -513,6 +510,8 @@ fn native_group(
         title: core.title.clone(),
         is_active: core.is_active,
         is_stale: core.is_stale,
+        owner_group_id: ghostex_gx_core::owner_project_group_id(&core.group_id),
+        holds_active_session_group: group.holds_active_session_group,
         project_context: project_context(group),
         remote_machine_context: core.remote_machine.as_ref().map(|remote| {
             let mut context = json!({
@@ -904,6 +903,15 @@ fn build_session(
                 "containsActive": session.nesting.contains_active_session,
             }),
         );
+        let folded = session.nesting.folded_status;
+        if folded.any() {
+            details["coordinatorThreads"]["foldedStatus"] = json!({
+                "working": folded.working,
+                "attention": folded.attention,
+                "backgroundWork": folded.background_work,
+                "question": folded.question,
+            });
+        }
     }
     insert_optional(&mut details, "threadState", row.thread_state.clone());
     // The box an agentbox session runs in, drawn by native_sidebar/agentbox.rs.
@@ -951,6 +959,11 @@ fn build_session(
             .as_ref()
             .filter(|work| work.has_links())
             .map(|work| Arc::new(work.clone())),
+        links: row
+            .links
+            .as_ref()
+            .filter(|links| !links.items.is_empty())
+            .map(|links| Arc::new(links.clone())),
         details,
     }
 }

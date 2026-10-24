@@ -175,28 +175,27 @@ pub fn collect_domain_counts(repository: &DomainRepository<'_>) -> DomainCounts 
         .list_recent_projects()
         .map(|projects| projects.len())
         .unwrap_or(0);
-    let sessions = repository.list_sessions(None).unwrap_or_default();
+    // Three columns per row answer every count, so the registry is not hydrated.
+    let sessions = repository.list_session_agent_facts().unwrap_or_default();
     let session_count = sessions.len();
     let running_session_count = sessions
         .iter()
-        .filter(|session| {
-            session
-                .get("lifecycleState")
-                .and_then(Value::as_str)
-                .map(|state| state == "running")
-                .unwrap_or(false)
-        })
+        .filter(|session| session.lifecycle_state == "running")
         .count();
     let mut agents_used: BTreeSet<&'static str> = BTreeSet::new();
     let mut custom_agent_executables: BTreeSet<String> = BTreeSet::new();
     for session in &sessions {
-        let Some(agent_id) = session.get("agentId").and_then(Value::as_str) else {
+        let Some(agent_id) = session.agent_id.as_deref() else {
             continue;
         };
         if agent_id.trim().is_empty() {
             continue;
         }
-        let report = super::capture::session_agent_report(session);
+        // The two keys `session_agent_report` reads.
+        let report = super::capture::session_agent_report(&serde_json::json!({
+            "agentId": agent_id,
+            "runtimeSettings": { "agentCommand": session.agent_command },
+        }));
         agents_used.insert(report.agent);
         if let Some(executable) = report.executable {
             custom_agent_executables.insert(executable);

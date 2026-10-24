@@ -135,10 +135,99 @@ impl GhostexGpuiApp {
     ) {
         let hovered = &mut self.native_sidebar.hovered_session;
         match change {
-            SessionHoverChange::Claim(id) if hovered.as_deref() != Some(&id) => *hovered = Some(id),
+            SessionHoverChange::Claim(id) if hovered.as_deref() != Some(&id) => {
+                *hovered = Some(id.clone());
+                self.schedule_session_links_card_open(id, cx);
+            }
             SessionHoverChange::Release(id) if hovered.as_deref() == Some(&id) => *hovered = None,
             _ => return,
         }
         cx.notify();
+    }
+
+    /// Opens the floating links card beside a row the pointer rests on, after the tooltip delay,
+    /// so sweeping over the list opens nothing (link_chips.rs, window/session_links_card.rs).
+    fn schedule_session_links_card_open(&mut self, id: String, cx: &mut gpui::Context<Self>) {
+        let opens_card = self
+            .native_sidebar
+            .snapshot
+            .as_ref()
+            .is_some_and(|snapshot| {
+                snapshot.groups.iter().any(|group| {
+                    group.sessions.iter().any(|session| {
+                        session.session_id == id
+                            && self.native_session_links_row(session).hover_card
+                    })
+                })
+            });
+        if !opens_card {
+            return;
+        }
+        let delay = self.configured_tooltip_delay();
+        cx.spawn(async move |app, cx| {
+            cx.background_executor().timer(delay).await;
+            let _ = app.update(cx, |app, cx| {
+                if app.native_sidebar.hovered_session.as_deref() == Some(&id)
+                    && app.native_sidebar.links_card_session.as_deref() != Some(&id)
+                {
+                    app.open_session_links_card(id, cx);
+                }
+            });
+        })
+        .detach();
+    }
+
+    /// While the card is open, closes it once the pointer has been off both its row and the card
+    /// for two checks in a row (about half a second), so crossing the gap from the row into the
+    /// card keeps it open. Called when a card opens.
+    ///
+    /// CDXC:SessionLinks 2026-10-24 WHY:
+    /// A single close timer started when the pointer left the row relied on the card reporting the pointer entering it, and the web build's in-page card stopped receiving that once the sidebar redrew, so it closed under the pointer. The watch asks each time whether the pointer is on the row or the card (the card window's own hover on the desktop, the pointer's position in the page on the web).
+    pub(crate) fn watch_session_links_card(&mut self, cx: &mut gpui::Context<Self>) {
+        let Some(watched) = self.native_sidebar.links_card_session.clone() else {
+            return;
+        };
+        cx.spawn(async move |app, cx| {
+            let mut misses = 0;
+            loop {
+                cx.background_executor()
+                    .timer(std::time::Duration::from_millis(250))
+                    .await;
+                let Ok(keep) = app.update(cx, |app, cx| {
+                    if app.native_sidebar.links_card_session.as_deref() != Some(&watched) {
+                        return None;
+                    }
+                    let state = &app.native_sidebar;
+                    Some(
+                        state.hovered_session.as_deref() == Some(&watched)
+                            || state.links_card_hovered
+                            || app.session_links_card_holds_pointer(cx),
+                    )
+                }) else {
+                    return;
+                };
+                match keep {
+                    None => return,
+                    Some(true) => misses = 0,
+                    Some(false) => {
+                        misses += 1;
+                        if misses >= 2 {
+                            let _ = app.update(cx, |app, cx| app.close_session_links_card(cx));
+                            return;
+                        }
+                    }
+                }
+            }
+        })
+        .detach();
+    }
+
+    /// The pointer entered or left the card (native_sidebar/links_list.rs).
+    pub(crate) fn set_session_links_card_hovered(
+        &mut self,
+        hovered: bool,
+        _cx: &mut gpui::Context<Self>,
+    ) {
+        self.native_sidebar.links_card_hovered = hovered;
     }
 }

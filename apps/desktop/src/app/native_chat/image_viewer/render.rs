@@ -169,19 +169,17 @@ impl ImageViewerWindow {
                 measured
             }
             // An address GPUI fetches itself: its decoded frame carries the size, and asking the
-            // asset cache the `img` element reads fetches nothing twice.
+            // cache the `img` element reads (`use_render_image`) fetches nothing twice.
             ChatImageSource::Uri(url) => {
                 let path = url.split(['?', '#']).next().unwrap_or(url);
                 if path.to_ascii_lowercase().ends_with(".svg") {
                     return None;
                 }
-                let gpui::ImageSource::Resource(resource) = gpui::ImageSource::from(url.clone())
-                else {
+                let source = gpui::ImageSource::from(url.clone());
+                if !matches!(source, gpui::ImageSource::Resource(_)) {
                     return None;
-                };
-                let data = window
-                    .use_asset::<gpui::ImgResourceLoader>(&resource, cx)?
-                    .ok()?;
+                }
+                let data = source.use_render_image(window, cx)?.ok()?;
                 let size = data.size(0);
                 let (width, height) = (i32::from(size.width), i32::from(size.height));
                 (width > 0 && height > 0).then(|| gpui::size(px(width as f32), px(height as f32)))

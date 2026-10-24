@@ -21,6 +21,7 @@ use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
 };
+use web_time::Instant;
 
 pub(super) const OPEN: &str = "\u{E000}mermaid";
 pub(super) const CLOSE: &str = "\u{E000}/mermaid";
@@ -43,6 +44,9 @@ struct Diagram {
     /// The painted copy and the device width it was painted at.
     raster: Option<(u32, Arc<RenderImage>)>,
     raster_pending: bool,
+    /// When a row last drew the diagram, which is what the chat's picture budget lets go by
+    /// (`images.rs`, `trim`).
+    drawn_at: Instant,
 }
 
 enum Entry {
@@ -61,6 +65,51 @@ pub(crate) struct ChatMermaidCache {
     entries: RefCell<HashMap<(String, bool), Entry>>,
     /// The blocks the reader switched to their source.
     showing_source: HashSet<String>,
+}
+
+impl ChatMermaidCache {
+    /// Each painted copy, with when its diagram was last drawn and how many bytes it holds, for
+    /// the chat's picture budget (`images.rs`, `trim`).
+    pub(super) fn painted(&self) -> Vec<(Instant, (String, bool), usize)> {
+        self.entries
+            .borrow()
+            .iter()
+            .filter_map(|(key, entry)| match entry {
+                Entry::Ready(Diagram {
+                    raster: Some((_, raster)),
+                    drawn_at,
+                    ..
+                }) => Some((
+                    *drawn_at,
+                    key.clone(),
+                    super::images::rendered_bytes(raster),
+                )),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// Lets one painted copy go; the diagram keeps its drawing and is painted again the next
+    /// time a row draws it.
+    pub(super) fn take_painted(&self, key: &(String, bool)) -> Option<Arc<RenderImage>> {
+        match self.entries.borrow_mut().get_mut(key) {
+            Some(Entry::Ready(diagram)) => diagram.raster.take().map(|(_, raster)| raster),
+            _ => None,
+        }
+    }
+
+    /// Every painted diagram, for a chat view that is going away and must take its atlas tiles
+    /// with it (`images.rs`, `release_chat_images_with_view`).
+    pub(super) fn take_rasters(&self) -> Vec<Arc<RenderImage>> {
+        self.entries
+            .borrow_mut()
+            .drain()
+            .filter_map(|(_, entry)| match entry {
+                Entry::Ready(diagram) => diagram.raster.map(|(_, raster)| raster),
+                Entry::Rendering | Entry::Source(_) => None,
+            })
+            .collect()
+    }
 }
 
 /// The diagram's Mermaid text: the fence's lines without its opening and closing runs.
@@ -150,7 +199,10 @@ impl NativeChatView {
         read: impl FnOnce(&Entry) -> R,
     ) -> R {
         let key = (source.to_owned(), light);
-        if let Some(entry) = self.mermaid.entries.borrow().get(&key) {
+        if let Some(entry) = self.mermaid.entries.borrow_mut().get_mut(&key) {
+            if let Entry::Ready(diagram) = entry {
+                diagram.drawn_at = Instant::now();
+            }
             return read(entry);
         }
         self.mermaid
@@ -173,6 +225,7 @@ impl NativeChatView {
                             height,
                             raster: None,
                             raster_pending: false,
+                            drawn_at: Instant::now(),
                         }),
                         Err(note) => Entry::Source(note),
                     },
@@ -215,6 +268,7 @@ impl NativeChatView {
                     match (image, &mut *entry) {
                         (Some(image), Entry::Ready(diagram)) => {
                             diagram.raster_pending = false;
+                            diagram.drawn_at = Instant::now();
                             diagram.raster.replace((device, image)).map(|(_, old)| old)
                         }
                         _ => {
@@ -228,6 +282,7 @@ impl NativeChatView {
                 if let Some(old) = old {
                     cx.drop_image(old, None);
                 }
+                this.trim_chat_images(cx);
                 this.list.remeasure();
                 cx.notify();
             });

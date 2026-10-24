@@ -287,6 +287,7 @@ impl GhostexGpuiApp {
                 local_workspace_session_mappings: shell_layout_state
                     .local_workspace_session_mappings,
                 local_workspace_attach_pending: HashSet::new(),
+                local_workspace_attach_refused: HashMap::new(),
                 agents_chat_mode_sessions: shell_layout_state.agents_chat_mode_sessions,
                 agents_chat_notice_admitted_sessions: HashSet::new(),
                 agents_chat_notice_probe_in_flight: HashSet::new(),
@@ -433,6 +434,7 @@ impl GhostexGpuiApp {
                 app_modal_open_attempt_id: 0,
                 app_modal_gxserver_hydrate: None,
                 app_modal_gxserver_hydrate_refreshing: false,
+                app_modal_gxserver_hydrate_resend: GpuiAppModalHydrateResend::Idle,
                 app_modal_command_return_focus_target: None,
                 plugin_settings_action_progress: HashMap::new(),
                 plugin_settings_action_errors: HashMap::new(),

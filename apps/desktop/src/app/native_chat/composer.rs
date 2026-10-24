@@ -601,9 +601,16 @@ impl NativeChatView {
         if !maximized && let Some(run_location) = self.render_run_location(p, cx) {
             waiting.push(run_location.into_any_element());
         }
-        let card_above_box = card_above_box && waiting.is_empty();
+        // The box's own lead-in on top of the stack's 8px gap.
+        let lead_in = if !waiting.is_empty() {
+            0.0
+        } else if card_above_box {
+            super::working_card::WORKING_CARD_GAP - 8.0
+        } else {
+            8.0
+        };
         footer = footer.children(waiting);
-        // CDXC:SessionChat 2026-09-18 WHY: React's inline composer had a zero-height notification section before its field, contributing one grid gap even while idle. Reserve that same gap here, after any cards or note.
+        // CDXC:SessionChat 2026-09-18 WHY: React's inline composer had a zero-height notification section before its field, contributing one grid gap even while idle. Reserve that same gap here when nothing stacks above the box.
         footer = footer.child(
             div()
                 .relative()
@@ -611,13 +618,7 @@ impl NativeChatView {
                 .flex_col()
                 .w_full()
                 .min_w_0()
-                .when(!maximized, |this| {
-                    this.mt(px(if card_above_box {
-                        super::working_card::WORKING_CARD_GAP - 8.0
-                    } else {
-                        8.0
-                    } * s))
-                })
+                .when(!maximized, |this| this.mt(px(lead_in * s)))
                 .child(suggestion_anchor)
                 .rounded(px(22.0 * s))
                 .border_1()

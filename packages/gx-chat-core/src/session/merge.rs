@@ -50,6 +50,34 @@ fn apply_incoming(
     }
 }
 
+/// [`merge_messages`] into `list` itself. The index `apply_incoming` reads is a position per id,
+/// the last row holding it; for the few rows a frame carries that is found by searching back from
+/// the end rather than by indexing every row of a long list again. A frame carrying many rows
+/// searches once per row, so it is indexed after all.
+pub fn merge_messages_into(list: &mut Vec<ChatMessage>, incoming: &[ChatMessage]) {
+    if incoming.len() > 16 {
+        *list = merge_messages(list, incoming);
+        return;
+    }
+    for raw in incoming {
+        let mut message = raw.clone();
+        let last = |list: &[ChatMessage], id: &str| list.iter().rposition(|entry| entry.id == id);
+        if let Some(at) = last(list, &message.id) {
+            if id_collides(&list[at], &message) {
+                message.id = shadowed_id(&message);
+            }
+        }
+        match last(list, &message.id) {
+            None => list.push(message),
+            Some(at) => {
+                if source_priority(&message.source) >= source_priority(&list[at].source) {
+                    list[at] = message;
+                }
+            }
+        }
+    }
+}
+
 /// `mergeSessionChatMessagesWith`: `existing` with `incoming` folded in.
 pub fn merge_messages(existing: &[ChatMessage], incoming: &[ChatMessage]) -> Vec<ChatMessage> {
     if incoming.is_empty() {

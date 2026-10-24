@@ -70,7 +70,7 @@ pub fn plan_project_step(
             .loaded()
             .and_then(|loaded| loaded.project(project_id))
             .is_some_and(|project| project.bot_profile.is_some());
-        (machine.is_chat_project(project_id), is_bot, parent)
+        (is_bot, parent)
     };
     let own_kind = kind(project_id);
     let peers: Vec<&String> = order

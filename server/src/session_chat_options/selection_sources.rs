@@ -596,8 +596,95 @@ fn read_session_chat_transcript_selection(
         agent_session_id,
         agent_session_path,
     )?;
+    let stamp = TranscriptStamp::read(&path)?;
+    let catalog = crate::agent_model_catalog::current();
+    if let Some(selection) = cached_transcript_selection(&path, agent, &stamp, &catalog) {
+        return selection;
+    }
     let text = transcript_tail_text(&path).ok()?;
-    detect_session_chat_transcript_selection(agent, &text)
+    let selection = detect_session_chat_transcript_selection(agent, &text);
+    remember_transcript_selection(path, agent, stamp, catalog, selection.clone());
+    selection
+}
+
+/// What identifies one version of a transcript file: its size and modification time, and on Unix the file itself, so a file replaced at the same path is read again. Shared with `session_chat_notice_progress`.
+#[derive(Clone, PartialEq, Eq)]
+pub(crate) struct TranscriptStamp {
+    length: u64,
+    modified: Option<std::time::SystemTime>,
+    #[cfg(unix)]
+    file: (u64, u64),
+}
+
+impl TranscriptStamp {
+    pub(crate) fn read(path: &Path) -> Option<Self> {
+        let metadata = std::fs::metadata(path).ok()?;
+        Some(Self {
+            length: metadata.len(),
+            modified: metadata.modified().ok(),
+            #[cfg(unix)]
+            file: {
+                use std::os::unix::fs::MetadataExt;
+                (metadata.dev(), metadata.ino())
+            },
+        })
+    }
+}
+
+struct CachedTranscriptSelection {
+    agent: SessionChatOptionAgent,
+    stamp: TranscriptStamp,
+    /// The model catalog the reading was made with: a Claude model's 1M row depends on it.
+    catalog: Arc<Value>,
+    selection: Option<SessionChatDetectedSelection>,
+}
+
+/// More transcripts than any machine follows at once; past it the cache simply starts over.
+const TRANSCRIPT_SELECTION_CACHE_LIMIT: usize = 256;
+
+/// CDXC:AgentScreenDetection 2026-10-23 WHY:
+/// Every screen probe (once a second for a followed session that is working) read the last 6 MB of the session's transcript to find the model and effort it records, even when the file had not changed since the previous probe. The reading depends only on the file's bytes and the model catalog, so it is kept per transcript and reused until the file's stamp or the catalog changes. The stamp is taken before the read, so an append that lands during it only causes one more read.
+static TRANSCRIPT_SELECTION_CACHE: std::sync::OnceLock<
+    Mutex<HashMap<std::path::PathBuf, CachedTranscriptSelection>>,
+> = std::sync::OnceLock::new();
+
+fn cached_transcript_selection(
+    path: &Path,
+    agent: SessionChatOptionAgent,
+    stamp: &TranscriptStamp,
+    catalog: &Arc<Value>,
+) -> Option<Option<SessionChatDetectedSelection>> {
+    let cache = TRANSCRIPT_SELECTION_CACHE.get()?.lock().ok()?;
+    let entry = cache.get(path)?;
+    (entry.agent == agent && &entry.stamp == stamp && Arc::ptr_eq(&entry.catalog, catalog))
+        .then(|| entry.selection.clone())
+}
+
+fn remember_transcript_selection(
+    path: std::path::PathBuf,
+    agent: SessionChatOptionAgent,
+    stamp: TranscriptStamp,
+    catalog: Arc<Value>,
+    selection: Option<SessionChatDetectedSelection>,
+) {
+    let Ok(mut cache) = TRANSCRIPT_SELECTION_CACHE
+        .get_or_init(Mutex::default)
+        .lock()
+    else {
+        return;
+    };
+    if cache.len() >= TRANSCRIPT_SELECTION_CACHE_LIMIT && !cache.contains_key(&path) {
+        cache.clear();
+    }
+    cache.insert(
+        path,
+        CachedTranscriptSelection {
+            agent,
+            stamp,
+            catalog,
+            selection,
+        },
+    );
 }
 
 /// Every `Some` in `layer` replaces the value beneath it.

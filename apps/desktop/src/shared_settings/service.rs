@@ -5,7 +5,7 @@ use std::{
     path::{Path, PathBuf},
     process,
     sync::{Mutex, OnceLock},
-    time::{SystemTime, UNIX_EPOCH},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 use super::*;
@@ -35,11 +35,23 @@ impl SharedSettingsFileIdentity {
     }
 }
 
+/// How long a stat of the settings file vouches for the cached snapshot.
+///
+/// CDXC:Settings 2026-10-23 WHY:
+/// `read_snapshot` has about two hundred callers, several on per-frame and per-log paths, and each
+/// call used to stat the file. Writes made through this service update the snapshot themselves and
+/// drop the stat (`apply_observed_settings`), so only a write from another process (`ghostex
+/// settings`, gxserver) waits, at most this long; the app's own settings polls run every two
+/// seconds anyway.
+const SETTINGS_FILE_RECHECK_INTERVAL: Duration = Duration::from_secs(1);
+
 #[derive(Debug)]
 pub struct SharedSidebarSettingsService {
     path: PathBuf,
     snapshot: SharedSidebarSettingsSnapshot,
     cached_file_identity: Option<SharedSettingsFileIdentity>,
+    /// When `cached_file_identity` was last compared with the file.
+    file_identity_checked_at: Option<Instant>,
 }
 
 impl SharedSidebarSettingsService {
@@ -48,6 +60,7 @@ impl SharedSidebarSettingsService {
             path,
             snapshot: SharedSidebarSettingsSnapshot::empty(),
             cached_file_identity: None,
+            file_identity_checked_at: None,
         }
     }
 
@@ -58,6 +71,15 @@ impl SharedSidebarSettingsService {
     }
 
     pub fn read_snapshot(&mut self) -> SharedSidebarSettingsSnapshot {
+        let now = Instant::now();
+        if self.snapshot.revision > 0
+            && self.file_identity_checked_at.is_some_and(|at| {
+                now.saturating_duration_since(at) < SETTINGS_FILE_RECHECK_INTERVAL
+            })
+        {
+            return self.snapshot.clone();
+        }
+        self.file_identity_checked_at = Some(now);
         // Stat first: when the file identity is unchanged the cached snapshot
         // is current and the read+parse is skipped entirely. The stat is taken
         // before the read so a write racing between the two only leaves a
@@ -151,6 +173,7 @@ impl SharedSidebarSettingsService {
         // cached identity so a write-then-read never serves stale data; the
         // next read_snapshot re-reads once and re-establishes the cache.
         self.cached_file_identity = None;
+        self.file_identity_checked_at = None;
         if content_hash != self.snapshot.content_hash {
             self.snapshot = SharedSidebarSettingsSnapshot::with_signal(
                 object,

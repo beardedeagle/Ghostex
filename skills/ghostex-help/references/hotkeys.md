@@ -14,6 +14,8 @@ Default bindings are listed for macOS (`cmd`) with the Windows/Linux default whe
 | Maximize Chat Box | `ctrl+alt+m` | `cmd+alt+shift+m` | Maximize the chat box of the chat session you are in, or restore it. | `toggleChatComposerMaximized` |
 | Files and Links | `ctrl+alt+l` | `cmd+alt+shift+l` | Show or hide the files and links mentioned in the chat session you are in. | `toggleChatFilesLinks` |
 | Toggle Voice Agent | `ctrl+alt+v` | `cmd+alt+shift+v` | Start a spoken conversation with the voice agent, or end the one that is running. | `toggleVoiceAgent` |
+| Voice Call About This Session | unassigned |  | Start a voice call about the session you are looking at, or move the open call to it. | `voiceCallAboutSession` |
+| Hold to Talk | unassigned |  | During a voice call, hold to talk to the voice agent and let go to send; in a muted Regular call, hold to unmute. Works even while you're typing. | `holdToTalk` |
 | Dictate | `ctrl+alt+d` | `cmd+alt+shift+d` | Start dictating into the chat box of the chat session you are in; press again to stop and type what you said. | `toggleDictation` |
 | Read Last Reply Aloud | unassigned |  | Read the agent's newest reply in the chat you are looking at aloud, from the start. | `readAloudLastReply` |
 | Stop Reading | unassigned |  | Stop Read aloud, whichever reply it is reading. | `readAloudStop` |

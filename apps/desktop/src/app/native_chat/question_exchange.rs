@@ -22,11 +22,13 @@ impl NativeChatView {
     pub(super) fn question_exchange_cards(
         &self,
         key: &str,
-        exchanges: &Value,
+        exchanges: &[Value],
         p: &ChatAppearance,
         cx: &Context<Self>,
     ) -> Option<AnyElement> {
-        let exchanges = exchanges.as_array().filter(|list| !list.is_empty())?;
+        if exchanges.is_empty() {
+            return None;
+        }
         let mut column = div()
             .flex()
             .flex_col()

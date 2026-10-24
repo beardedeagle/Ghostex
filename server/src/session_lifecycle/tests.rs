@@ -3,7 +3,6 @@ use crate::{
     paths::get_gxserver_paths,
     storage::{initialize_gxserver_storage, open_gxserver_database},
 };
-use rusqlite::Connection;
 use serde_json::{json, Map};
 
 const NOW: &str = "2026-07-29T12:00:00.000Z";
@@ -22,7 +21,7 @@ fn ahead(hours: f64) -> String {
 
 struct TestDb {
     _temp: tempfile::TempDir,
-    db: Connection,
+    db: crate::storage::GxserverDatabase,
 }
 
 fn test_db() -> TestDb {

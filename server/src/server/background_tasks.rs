@@ -158,6 +158,17 @@ pub(crate) fn spawn_session_lifecycle_sweep_task(
                 if let Err(error) = run_session_lifecycle_sweep_once(&pass_state) {
                     log_session_lifecycle_sweep_failure(&pass_state, &error.message);
                 }
+                /*
+                CDXC:Drafts 2026-10-23 WHY:
+                Draft recovery pruning (closed and deleted sessions, 20 checkpoints per draft;
+                the DECISION in session_chat_draft_recovery.rs) rides this worker: the first pass
+                runs at startup, and later passes find nothing to prune unless a session closed or
+                a draft passed its cap, which costs two reads and no write lock. Independent
+                statement, so a failure in either pass never skips the other.
+                */
+                if let Err(error) = run_draft_recovery_prune_once(&pass_state) {
+                    log_draft_recovery_prune_failure(&pass_state, &error.message);
+                }
             })
             .await;
             if pass_result.is_err() {
@@ -301,6 +312,15 @@ pub(crate) fn spawn_session_git_status_refresh_task(
                         &error.message,
                     );
                 }
+                // Every session's PR, issue and Linear links, after work mode's pass whose caches it shares.
+                if let Err(error) =
+                    super::session_links_sync::run_session_links_refresh_once(&pass_state)
+                {
+                    super::session_links_sync::log_session_links_refresh_failure(
+                        &pass_state,
+                        &error.message,
+                    );
+                }
                 // Bot gateway dots and today's run counts: small file reads per bot and no spawn,
                 // so they ride here too.
                 if let Err(error) = super::bot_sync::run_bot_refresh_once(&pass_state) {
@@ -416,7 +436,9 @@ pub(crate) fn run_session_git_status_refresh_once(
             .and_then(Value::as_str)
             .and_then(|project_id| projects_by_id.get(project_id).copied())
     };
-    let sessions = repository.list_sessions(None)?;
+    // Both loops below skip every row that is not active, and a stopped row never is
+    // (`effective_lifecycle_state` refuses to promote it), so the stopped rows are left in SQL.
+    let sessions = repository.list_sessions_excluding_stopped(None)?;
     let mut cwds: Vec<String> = Vec::new();
     let mut seen: HashSet<String> = HashSet::new();
     for session in &sessions {
@@ -665,6 +687,29 @@ pub(crate) fn log_session_git_status_reader_abandoned(state: &Arc<AppState>, cou
     });
 }
 
+pub(crate) fn run_draft_recovery_prune_once(
+    state: &Arc<AppState>,
+) -> std::result::Result<usize, DomainStateError> {
+    let db = open_gxserver_database(&state.paths).map_err(|error| DomainStateError {
+        code: "internalError",
+        message: format!("SQLite gxserver state error: {error}"),
+    })?;
+    crate::session_chat_draft_recovery::prune(&db)
+}
+
+pub(crate) fn log_draft_recovery_prune_failure(state: &Arc<AppState>, message: &str) {
+    let _ = state.logger.log(GxserverLogInput {
+        level: LogLevel::Warn,
+        event: "draftRecoveryPruneFailed".to_string(),
+        server_id: Some(state.metadata.server_id.clone()),
+        request_id: None,
+        client: None,
+        duration_ms: None,
+        error: Some(message.to_string()),
+        details: None,
+    });
+}
+
 pub(crate) fn log_session_lifecycle_sweep_failure(state: &Arc<AppState>, message: &str) {
     let _ = state.logger.log(GxserverLogInput {
         level: LogLevel::Warn,
@@ -732,12 +777,18 @@ pub(crate) fn run_worktree_branch_rename_once(
         message: format!("SQLite gxserver state error: {error}"),
     })?;
     let repository = DomainRepository::new(&db, state.metadata.server_id.as_str());
-    let plans = repository
-        .list_sessions(None)?
-        .iter()
-        .filter_map(worktree_sessions::plan_worktree_branch_rename)
-        .take(worktree_sessions::WORKTREE_BRANCH_RENAME_MAX_PER_PASS)
-        .collect::<Vec<_>>();
+    let mut plans = Vec::new();
+    for (project_id, session_id) in worktree_branch_rename_candidates(&repository)? {
+        if plans.len() >= worktree_sessions::WORKTREE_BRANCH_RENAME_MAX_PER_PASS {
+            break;
+        }
+        let Some(session) = repository.get_session(&project_id, &session_id)? else {
+            continue;
+        };
+        if let Some(plan) = worktree_sessions::plan_worktree_branch_rename(&session) {
+            plans.push(plan);
+        }
+    }
     for plan in plans {
         /*
         Re-read the branch from the checkout itself: the marker says what
@@ -804,6 +855,46 @@ pub(crate) fn run_worktree_branch_rename_once(
         )?;
     }
     Ok(())
+}
+
+/// The sessions whose worktree marker could still be due a branch rename, in `list_sessions`
+/// order: a marker object whose `renamedAt` is missing or blank. `plan_worktree_branch_rename`
+/// still makes the whole decision on each one.
+///
+/// CDXC:Worktrees 2026-10-23 WHY:
+/// The pass hydrated every session row each minute (over ten thousand on a long-lived registry, six JSON columns each) to find the few that carry a worktree marker. SQLite now picks the marked rows and only those are read in full. The blank test on `renamedAt` runs here with Rust's `trim`, the one `read_worktree_session_marker` applies, because SQLite's `trim` only strips spaces.
+fn worktree_branch_rename_candidates(
+    repository: &DomainRepository<'_>,
+) -> std::result::Result<Vec<(String, String)>, DomainStateError> {
+    let mut statement = repository
+        .db
+        .prepare_cached(
+            "SELECT projectId, sessionId,
+                    CASE WHEN json_type(runtimeSettingsJson, '$.worktreeSession.renamedAt') = 'text'
+                         THEN json_extract(runtimeSettingsJson, '$.worktreeSession.renamedAt') END
+             FROM sessions
+             WHERE json_type(runtimeSettingsJson, '$.worktreeSession') = 'object'
+             ORDER BY updatedAt DESC, projectId ASC, sessionId ASC",
+        )
+        .map_err(crate::domain::sql_error)?;
+    let rows = statement
+        .query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, Option<String>>(2)?,
+            ))
+        })
+        .map_err(crate::domain::sql_error)?;
+    let mut candidates = Vec::new();
+    for row in rows {
+        let (project_id, session_id, renamed_at) = row.map_err(crate::domain::sql_error)?;
+        if renamed_at.is_some_and(|renamed_at| !renamed_at.trim().is_empty()) {
+            continue;
+        }
+        candidates.push((project_id, session_id));
+    }
+    Ok(candidates)
 }
 
 pub(crate) fn log_worktree_branch_rename_failure(state: &Arc<AppState>, message: &str) {

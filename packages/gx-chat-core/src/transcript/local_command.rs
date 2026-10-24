@@ -137,6 +137,11 @@ impl ShellOutput {
     }
 }
 
+/// Whether `text` is a `!` command's printed output, the row that folds into the command's card.
+pub fn is_shell_command_output(text: &str) -> bool {
+    shell_command_output(text).is_some()
+}
+
 fn shell_command_output(text: &str) -> Option<ShellOutput> {
     let trimmed = text.trim();
     if !trimmed.starts_with("<bash-stdout") && !trimmed.starts_with("<bash-stderr") {

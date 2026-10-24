@@ -7,7 +7,7 @@
 use std::collections::BTreeSet;
 
 use crate::core::Core;
-use crate::keys::{MachineId, SessionKey, CHATS_GROUP_ID};
+use crate::keys::{parse_workspace_subgroup_id, MachineId, SessionKey};
 use crate::sidebar_view::collections::CollectionsState;
 use crate::sidebar_view::machine_spaces::spaces_enabled_on;
 use crate::sidebar_view::spaces::SpacesState;
@@ -185,16 +185,15 @@ impl<'a> SidebarMenus<'a> {
                 .as_ref()
                 .map(|remote| remote.machine_name.as_str()),
             is_stale: core.is_stale,
-            // A project group and a user-made group can take a session into a new group; a
-            // machine's Chats collection cannot.
+            // A project group and a user-made group can take a session into a new group.
             //
             // CDXC:ContextMenus 2026-09-20 WHY:
             // Asked of the project row rather than of the group id, which is what
             // `createGpuiRemotePresentationSidebarGroups` does (`project !== undefined`). The id
             // test alone was written for this computer, where a project group always has a row;
             // a remote group whose project the machine did not publish is the case it was never
-            // asked about, and `!is_chats_group` would offer the item on a group with nothing to
-            // put in it.
+            // asked about, and a group-id test would offer the item on a group with nothing to put
+            // in it.
             //
             // A bot's sessions stay under the bot: Bots lists them flat, with no groups (the bot
             // row's own menu has no New Group, see sidebar_menu/project.rs), so a group made from
@@ -220,7 +219,7 @@ impl<'a> SidebarMenus<'a> {
     /// The hover buttons and the placeholder menu a row publishes.
     pub fn row_actions(&self, group: &GroupView, session: &SessionView) -> SessionActions {
         let menu_group = self.menu_group(group);
-        session::session_hover_actions(&self.session_input(&menu_group, &session.row, &[]))
+        session::session_hover_actions(&self.session_input(&menu_group, &session.row, &[], None))
     }
 
     /// The whole context menu of one row: the bulk menu when the row is part of a multi-selection,
@@ -241,10 +240,12 @@ impl<'a> SidebarMenus<'a> {
         let below = self.rows_below(group, &session.row);
         let below: Vec<&SessionRow> = below.iter().map(|session| &*session.row).collect();
         let menu_group = self.menu_group(group);
+        let group_moves = self.group_moves(group, &session.row);
         Some(session::session_menu(&self.session_input(
             &menu_group,
             &session.row,
             &below,
+            group_moves.as_ref(),
         )))
     }
 
@@ -257,7 +258,7 @@ impl<'a> SidebarMenus<'a> {
         let (group, session) = self.find_row(sidebar_session_id)?;
         let menu_group = self.menu_group(group);
         Some(session::session_hover_submenu(
-            &self.session_input(&menu_group, &session.row, &[]),
+            &self.session_input(&menu_group, &session.row, &[], None),
             action,
         ))
     }
@@ -346,12 +347,10 @@ impl<'a> SidebarMenus<'a> {
 
     /// A collection's context menu.
     pub fn collection_menu(&self, collection: &CollectionView) -> Vec<MenuItem> {
-        let sessions: Vec<&SessionView> = collection
-            .group_ids
-            .iter()
-            .filter_map(|group_id| self.view.group(group_id))
-            .flat_map(|group| group.core.sessions.iter())
-            .collect();
+        let sessions: Vec<&SessionView> =
+            crate::sidebar_view::collection_groups(&self.view.groups, &collection.group_ids)
+                .flat_map(|group| group.core.sessions.iter())
+                .collect();
         collection::collection_menu(&collection::CollectionMenuInput {
             collection_id: collection.collection_id.as_str(),
             color: collection.color.as_str(),
@@ -370,13 +369,9 @@ impl<'a> SidebarMenus<'a> {
 
     /// The sidebar's own "more" menu.
     pub fn more_menu(&self) -> Vec<MenuItem> {
-        let drawn: Vec<String> = self
-            .view
-            .groups
-            .iter()
-            .filter(|group| !is_chats_group(group.core.group_id.as_str()))
-            .map(|group| group.core.group_id.clone())
-            .collect();
+        let drawn = crate::sidebar_view::toggle_all_project_ids(
+            self.view.groups.iter().map(|group| &group.core.group_id),
+        );
         navigation::more_menu(&navigation::MoreMenuInput {
             ui: &self.inputs.ui,
             settings: &self.inputs.settings,
@@ -392,6 +387,7 @@ impl<'a> SidebarMenus<'a> {
         group: &'b MenuGroup<'b>,
         row: &'b SessionRow,
         below: &'b [&'b SessionRow],
+        group_moves: Option<&'b session::SessionGroupMoves>,
     ) -> session::SessionMenuInput<'b> {
         session::SessionMenuInput {
             row,
@@ -405,7 +401,42 @@ impl<'a> SidebarMenus<'a> {
                     .as_ref()
                     .is_some_and(|key| self.coordinators_with_inactive_threads.contains(key)),
             now_ms: self.now_ms,
+            group_moves,
         }
+    }
+
+    /// Where Move to Group can send this row: the user-made groups of its project that the list
+    /// draws, and the project's own list. `None` for a row outside a project and its user-made
+    /// groups (a bot's sessions).
+    fn group_moves(
+        &self,
+        current: &GroupView,
+        row: &SessionRow,
+    ) -> Option<session::SessionGroupMoves> {
+        let project = row.key.as_ref()?.project_key();
+        let project_list_id = project.to_sidebar_group_id();
+        let current_id = current.core.group_id.as_str();
+        let of_project = |group_id: &str| {
+            parse_workspace_subgroup_id(group_id).is_some_and(|(owner, _)| owner == project)
+        };
+        if current_id != project_list_id && !of_project(current_id) {
+            return None;
+        }
+        let groups = self
+            .view
+            .groups
+            .iter()
+            .filter(|group| of_project(&group.core.group_id))
+            .map(|group| session::SessionGroupTarget {
+                group_id: group.core.group_id.clone(),
+                title: group.core.title.clone(),
+                is_current: group.core.group_id == current_id,
+            })
+            .collect();
+        Some(session::SessionGroupMoves {
+            project_list_id,
+            groups,
+        })
     }
 
     fn find_row(&self, sidebar_session_id: &str) -> Option<(&'a GroupView, &'a SessionView)> {
@@ -445,24 +476,8 @@ impl<'a> SidebarMenus<'a> {
     }
 }
 
-/// Whether a sidebar group id is a machine's Chats collection. A remote machine's is
-/// `remote:<machine>:group:combined-chats`, so the id is not comparable as one string.
-///
-/// CDXC:ContextMenus 2026-09-20 WHY:
-/// Written as two string tests rather than through `ProjectKey::parse_sidebar_group_id`, which is
-/// the obvious way and is what this was first. `menu_group` runs once per ROW, not once per group,
-/// so parsing meant percent-decoding a project path out of every local group id for every row of
-/// every install: one allocation and one decode per row for a question that is answered by a
-/// prefix and a suffix. The two forms are the only ones the encoder produces.
 /// Whether a sidebar group id is a user-made session group, which has no project row of its own
 /// and can still take a session into a new group.
 fn is_user_made_group(group_id: &str) -> bool {
     group_id.starts_with("gpui-wsg:")
-}
-
-fn is_chats_group(group_id: &str) -> bool {
-    const REMOTE_PREFIX: &str = "remote:";
-    const REMOTE_CHATS_SUFFIX: &str = ":group:combined-chats";
-    group_id == CHATS_GROUP_ID
-        || (group_id.starts_with(REMOTE_PREFIX) && group_id.ends_with(REMOTE_CHATS_SUFFIX))
 }

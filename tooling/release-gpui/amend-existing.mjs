@@ -257,6 +257,7 @@ for (const arch of ['x64', 'arm64']) {
   }
   const windowsPlatform = `windows-${arch}`;
   if (byPlatform.has(windowsPlatform)) {
+    // The full update package holds the app under lib/app (Velopack's PackageBuilder).
     const fullPackage = artifactPath(windowsPlatform, `Ghostex-${version}-win-${arch}-stable-full.nupkg`);
     const velopackPayloadRoot = 'lib/app';
     const componentManifest = validateOnDemandManifestV2(

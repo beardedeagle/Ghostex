@@ -199,7 +199,7 @@ Built at most once per lineage resolution, and only for a rollout that actually
 declares a `forked_from_id`.
 */
 fn codex_rollout_index(rollout_path: &Path) -> Option<HashMap<String, PathBuf>> {
-    let sessions_root = rollout_path
+    let sessions_root = crate::codex_rollout_archive::source_rollout_path(rollout_path)
         .parent()?
         .parent()?
         .parent()?
@@ -212,6 +212,12 @@ fn codex_rollout_index(rollout_path: &Path) -> Option<HashMap<String, PathBuf>> 
         };
         for entry in entries.flatten() {
             let path = entry.path();
+            // A compressed rollout is indexed by its plain name; readers resolve it lazily.
+            let path = if crate::codex_rollout_archive::is_compressed_rollout(&path) {
+                path.with_extension("")
+            } else {
+                path
+            };
             if path.extension().and_then(|extension| extension.to_str()) != Some("jsonl") {
                 continue;
             }
@@ -261,7 +267,9 @@ fn resolve_codex_fork_lineage(rollout_path: &Path) -> Option<SessionChatForkLine
         if !visited.insert(next_session_id.clone()) {
             break;
         }
-        let candidate = index.get(&next_session_id).cloned();
+        let candidate = index
+            .get(&next_session_id)
+            .and_then(|path| crate::codex_rollout_archive::readable_rollout(path));
         // The ancestor must declare its OWN filename uuid, exactly like the
         // successor proof does, before its rows are stitched into this chat.
         let ancestor_meta = candidate
@@ -322,7 +330,9 @@ fn resolve_codex_fork_history(
             (Some(outer), Some(inner)) => Some(outer.min(inner)),
             (outer, inner) => outer.or(inner),
         };
-        let candidate = index.get(&source_id).cloned();
+        let candidate = index
+            .get(&source_id)
+            .and_then(|path| crate::codex_rollout_archive::readable_rollout(path));
         let source_meta = candidate
             .as_deref()
             .and_then(read_codex_session_meta)

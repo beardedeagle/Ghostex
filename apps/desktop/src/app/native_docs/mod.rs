@@ -34,6 +34,7 @@ pub(crate) mod notes_windows;
 pub(crate) mod open_externally;
 pub(crate) mod open_file;
 pub(crate) mod palette;
+pub(crate) mod published_page;
 pub(crate) mod rename_dialog;
 pub(crate) mod render;
 pub(crate) mod resources;

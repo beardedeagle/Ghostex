@@ -39,6 +39,11 @@ fn side_question(message: &ChatMessage) -> Option<String> {
         .then(|| envelope.args.trim().to_string())
 }
 
+/// Whether a row is a `/btw` command row asking a question.
+pub fn is_side_question_command(message: &ChatMessage) -> bool {
+    side_question(message).is_some()
+}
+
 /// The body of an output row's `<local-command-stdout>` marker.
 fn stdout_body(message: &ChatMessage) -> Option<String> {
     let text = text_of(message);
@@ -146,19 +151,34 @@ pub fn live_side_question(state: &crate::state::ChatState) -> Option<String> {
 /// CDXC:SessionChat 2026-09-27 DECISION:
 /// User: a sent side question showed twice, as the card above the composer and as the row in the transcript; only the card shows until the user clicks Close, then the row takes its place. The newest row asking the card's question is left out while the card is open. A question Claude cut short with `…` matches the full text it stands for.
 pub fn hide_live_side_question(messages: &mut Vec<ChatMessage>, question: &str) {
-    let asks = |message: &ChatMessage| {
-        let Some(ChatBlock::Text { text }) = message.blocks.first() else {
-            return false;
-        };
-        match question.strip_suffix('\u{2026}') {
-            Some(prefix) => text.starts_with(prefix.trim_end()),
-            None => text == question,
-        }
-    };
-    if let Some(at) = messages
+    hide_newest_side_question(messages, question);
+}
+
+/// [`hide_live_side_question`], saying whether `messages` held a row asking it.
+pub fn hide_newest_side_question(messages: &mut Vec<ChatMessage>, question: &str) -> bool {
+    match messages
         .iter()
-        .rposition(|message| is_side_question_message(message) && asks(message))
+        .rposition(|message| asks_side_question(message, question))
     {
-        messages.remove(at);
+        Some(at) => {
+            messages.remove(at);
+            true
+        }
+        None => false,
+    }
+}
+
+/// Whether a folded side-question row asks the card's question. A question Claude cut short with
+/// `…` matches the full text it stands for.
+pub fn asks_side_question(message: &ChatMessage, question: &str) -> bool {
+    if !is_side_question_message(message) {
+        return false;
+    }
+    let Some(ChatBlock::Text { text }) = message.blocks.first() else {
+        return false;
+    };
+    match question.strip_suffix('\u{2026}') {
+        Some(prefix) => text.starts_with(prefix.trim_end()),
+        None => text == question,
     }
 }

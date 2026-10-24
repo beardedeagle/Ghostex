@@ -15,7 +15,9 @@ use serde_json::{json, Value};
 use tokio::sync::mpsc;
 use tokio_tungstenite::tungstenite::Message as WsMessage;
 
+use super::conversation::FOCUS_NOT_FOUND;
 use super::conversation::{ClientFrame, Conversation, Input};
+use super::focus::FocusScope;
 use super::provider::{self, ConnectError, Provider};
 use super::{announcements, dictation, keys, prompt, registry, tools};
 use crate::auth::{is_authorized_headers, is_expected_gxserver_auth_token};
@@ -75,6 +77,10 @@ pub(crate) async fn handle_voice(
         "regular" => Some(false),
         _ => None,
     });
+    let focus = query_value(&uri, "focus")
+        .map(|focus| focus.trim().to_string())
+        .filter(|focus| !focus.is_empty());
+    let client_remote = query_value(&uri, "clientRemote").as_deref() == Some("1");
     let language = query_value(&uri, "language")
         .map(|language| language.trim().to_string())
         .filter(|language| {
@@ -88,8 +94,13 @@ pub(crate) async fn handle_voice(
         match mode.as_str() {
             "dictation" => dictation::run(&state, socket, language).await,
             "conversation" => {
-                run_conversation_socket(state, socket, conversation_id, provider, push_to_talk)
-                    .await
+                let start = Start {
+                    provider,
+                    push_to_talk,
+                    focus,
+                    client_remote,
+                };
+                run_conversation_socket(state, socket, conversation_id, start).await
             }
             _ => {
                 fail(
@@ -122,12 +133,21 @@ pub(super) async fn fail(socket: &mut WebSocket, code: &str, message: &str) {
     let _ = socket.send(Message::Close(None)).await;
 }
 
+/// How a new conversation starts, from the socket's query.
+struct Start {
+    provider: Option<Provider>,
+    push_to_talk: Option<bool>,
+    /// `focus=<projectId>:<sessionId>`: a call about one session (`focus.rs`).
+    focus: Option<String>,
+    /// `clientRemote=1`: the client is not on this computer.
+    client_remote: bool,
+}
+
 async fn run_conversation_socket(
     state: Arc<AppState>,
     mut socket: WebSocket,
     conversation_id: Option<String>,
-    provider: Option<Provider>,
-    push_to_talk: Option<bool>,
+    start: Start,
 ) {
     let (tx, resumed) = match conversation_id {
         Some(id) => match registry::sender(&id) {
@@ -142,7 +162,7 @@ async fn run_conversation_socket(
                 return;
             }
         },
-        None => match start_conversation(&state, &mut socket, provider, push_to_talk).await {
+        None => match start_conversation(&state, &mut socket, start).await {
             Some(tx) => (tx, false),
             None => return,
         },
@@ -213,6 +233,24 @@ async fn run_conversation_socket(
                     "voice" => Input::Voice(field("voice")),
                     "talkStart" => Input::TalkStart,
                     "talkEnd" => Input::TalkEnd,
+                    "talkCancel" => Input::TalkCancel,
+                    "mute" => match value.get("muted").and_then(Value::as_bool) {
+                        Some(muted) => Input::Mute(muted),
+                        None => Input::BadRequest("mute needs muted: true or false.".to_string()),
+                    },
+                    "focus" => match value.get("session") {
+                        Some(Value::Null) => Input::Focus(None),
+                        Some(Value::String(session))
+                            if session.trim().split_once(':').is_some_and(|(project, id)| {
+                                !project.is_empty() && !id.is_empty()
+                            }) =>
+                        {
+                            Input::Focus(Some(session.trim().to_string()))
+                        }
+                        _ => Input::BadRequest(
+                            "focus needs session: \"<projectId>:<sessionId>\" or null.".to_string(),
+                        ),
+                    },
                     "playbackRate" => match value.get("rate").and_then(Value::as_f64) {
                         Some(rate) if rate.is_finite() => Input::PlaybackRate(rate),
                         _ => continue,
@@ -236,21 +274,47 @@ async fn run_conversation_socket(
 async fn start_conversation(
     state: &Arc<AppState>,
     socket: &mut WebSocket,
-    provider: Option<Provider>,
-    push_to_talk: Option<bool>,
+    start: Start,
 ) -> Option<mpsc::UnboundedSender<Input>> {
+    let Start {
+        provider,
+        push_to_talk,
+        focus,
+        client_remote,
+    } = start;
     let provider = provider.unwrap_or_else(|| keys::selected_provider(&state.paths));
     let push_to_talk = push_to_talk.unwrap_or_else(|| keys::push_to_talk_calls(&state.paths));
+    // A call about a session that is not open fails before anything is billed.
+    let focus = match focus {
+        None => None,
+        Some(reference) => {
+            let sessions = super::sessions::list_sessions_async(state)
+                .await
+                .unwrap_or_default();
+            match FocusScope::from_sessions(&sessions, &reference) {
+                Some(scope) => Some(scope),
+                None => {
+                    fail(socket, "focusNotFound", FOCUS_NOT_FOUND).await;
+                    return None;
+                }
+            }
+        }
+    };
     let key = match keys::read_key(&state.paths, provider) {
         Ok(Some(key)) => key,
         Ok(None) => {
+            fail(socket, "noKey", &no_key_message(provider, client_remote)).await;
+            return None;
+        }
+        Err(message) if client_remote => {
+            let message = message.replace(
+                "Settings > Voice agent",
+                "Ghostex Settings > Voice agent on that computer",
+            );
             fail(
                 socket,
                 "noKey",
-                &format!(
-                    "Add your {} API key in Settings > Voice agent.",
-                    provider.label()
-                ),
+                &format!("On the computer this session runs on: {message}"),
             )
             .await;
             return None;
@@ -270,15 +334,7 @@ async fn start_conversation(
     let mut upstream = match provider::connect_realtime(provider, &key).await {
         Ok(upstream) => upstream,
         Err(ConnectError::BadKey) => {
-            fail(
-                socket,
-                "badKey",
-                &format!(
-                    "{} refused the API key. Check it in Settings > Voice agent.",
-                    provider.label()
-                ),
-            )
-            .await;
+            fail(socket, "badKey", &bad_key_message(provider, client_remote)).await;
             return None;
         }
         Err(ConnectError::Refused(message)) => {
@@ -310,8 +366,8 @@ async fn start_conversation(
     let keyterms = keyterms(state).await;
     let update = provider.session_update(
         &voice,
-        &prompt::instructions(),
-        &tools::definitions(),
+        &prompt::instructions(focus.as_ref()),
+        &tools::definitions(focus.as_ref()),
         &keyterms,
         push_to_talk,
     );
@@ -385,12 +441,43 @@ async fn start_conversation(
         voice,
         update,
         push_to_talk,
+        focus,
+        client_remote,
         upstream,
         tx.clone(),
         rx,
     );
     tokio::spawn(conversation.run());
     Some(tx)
+}
+
+/// CDXC:VoiceMode 2026-10-23 DECISION: User, asked "On the computer, what about sessions running on another computer you are connected to?", picked "Build it now: the call runs on that other computer instead (that computer needs its own voice key)". The desktop opens the call on that computer's gxserver with `clientRemote=1`, so a missing or refused key is that computer's, said in general words, and sessions are shown in the client's app, not on that computer's screen (the tool frame's `show`).
+pub(super) fn no_key_message(provider: Provider, client_remote: bool) -> String {
+    if client_remote {
+        format!(
+            "The computer this session runs on has no {} API key for the voice agent. Add it in Ghostex Settings > Voice agent on that computer.",
+            provider.label()
+        )
+    } else {
+        format!(
+            "Add your {} API key in Settings > Voice agent.",
+            provider.label()
+        )
+    }
+}
+
+pub(super) fn bad_key_message(provider: Provider, client_remote: bool) -> String {
+    if client_remote {
+        format!(
+            "The {label} API key on the computer this session runs on was refused by {label}. Check it in Ghostex Settings > Voice agent on that computer.",
+            label = provider.label()
+        )
+    } else {
+        format!(
+            "{} refused the API key. Check it in Settings > Voice agent.",
+            provider.label()
+        )
+    }
 }
 
 /// Names the recognizer should expect: Ghostex, the agents and the user's project names (xAI takes

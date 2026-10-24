@@ -32,11 +32,13 @@ pub mod ports;
 mod previous_sessions;
 pub mod resources;
 pub mod rpc;
+mod run_in_terminal;
 pub mod saved_prompts;
 pub mod selector;
 mod session_chat_model;
 mod session_chat_rpc;
 pub(crate) mod session_chat_transcript;
+mod session_links;
 mod session_parking;
 pub mod sessions;
 mod sessions_brief;
@@ -243,11 +245,11 @@ fn is_known_command(name: &str) -> bool {
         "terminal",
         "t",
         "create-session",
-        "create-chat",
         "create-agent",
         "run-agent",
         "run-command",
         "run-action",
+        "run-in-terminal",
         "quick-actions",
         "click-button",
         "save-command",
@@ -293,6 +295,7 @@ fn is_known_command(name: &str) -> bool {
         "team",
         "slack",
         "link-session",
+        "link",
         "delayed-send",
         "close-after-done",
         "send-text",
@@ -451,12 +454,6 @@ fn run_command(name: &str, args: &[String]) -> CliResult<()> {
         "create-session" => {
             run_bridge_action("createSession", Parser::CreateSession, fail_on_not_ok, args)
         }
-        "create-chat" => run_bridge_action(
-            "createChatSession",
-            Parser::CreateSession,
-            fail_on_not_ok,
-            args,
-        ),
         "create-agent" => run_bridge_action("createAgentSession", Parser::Agent, plain, args),
         "run-agent" => run_bridge_action("runAgent", Parser::Agent, plain, args),
         "run-command" => {
@@ -467,6 +464,7 @@ fn run_command(name: &str, args: &[String]) -> CliResult<()> {
             require_actions()?;
             sessions::run_quick_action_command(args)
         }
+        "run-in-terminal" => run_in_terminal::run_in_terminal_command(args),
         "quick-actions" => quick_actions_command(args),
         "click-button" => {
             // `click-button command <id>` runs an Action; `click-button agent <id>` does not.
@@ -691,6 +689,7 @@ fn run_command(name: &str, args: &[String]) -> CliResult<()> {
             require_built_in(ghostex_settings_catalog::built_in_extensions::WORKSPACES)?;
             work_mode::link_session_command(args)
         }
+        "link" => session_links::link_command(args),
         "delayed-send" => {
             // `--cancel` clears the armed automation; otherwise the parser
             // accepts the timer and both agent-completion trigger modes.

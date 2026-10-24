@@ -245,12 +245,14 @@ pub(crate) fn schedule_stale_activity_presentation_refresh(
     timers.insert(key, handle);
 }
 
+/// CDXC:StateSync 2026-10-23 WHY:
+/// This startup pass hydrated every session row (about 148 MB for 10,900 rows) at the same moment as the other startup passes, which made gxserver's startup peak 300 to 650 MB. Only a running row can be observed, so the rows that are not closed are read in full and a closed row is visited by its ids alone, getting exactly what the full walk gave it: its observer, if any, stopped and its program status forgotten.
 pub(crate) fn sync_zmx_title_observers_for_all_sessions(state: &AppState, reason: &str) {
     let Ok(db) = open_gxserver_database(&state.paths) else {
         return;
     };
     let repository = DomainRepository::new(&db, state.metadata.server_id.as_str());
-    let Ok(sessions) = repository.list_sessions(None) else {
+    let Ok(sessions) = repository.list_sessions_excluding_stopped(None) else {
         return;
     };
     let mut desired_keys = HashSet::new();
@@ -265,6 +267,7 @@ pub(crate) fn sync_zmx_title_observers_for_all_sessions(state: &AppState, reason
         }
         sync_zmx_title_observer_for_session(state, &session, reason);
     }
+    stop_zmx_title_observers_for_stopped_sessions(state, &db, reason);
     let existing_keys = state
         .zmx_title_observers
         .lock()
@@ -274,6 +277,32 @@ pub(crate) fn sync_zmx_title_observers_for_all_sessions(state: &AppState, reason
         if !desired_keys.contains(&key) {
             stop_zmx_title_observer_by_key(state, &key, "session-no-longer-observable");
         }
+    }
+}
+
+/// What `sync_zmx_title_observer_for_session` does for a closed row, which is never observable,
+/// visiting each closed row by its ids instead of hydrating it.
+fn stop_zmx_title_observers_for_stopped_sessions(
+    state: &AppState,
+    db: &rusqlite::Connection,
+    reason: &str,
+) {
+    let Ok(mut statement) =
+        db.prepare("SELECT projectId, sessionId FROM sessions WHERE lifecycleState = 'stopped'")
+    else {
+        return;
+    };
+    let Ok(rows) = statement.query_map([], |row| {
+        Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+    }) else {
+        return;
+    };
+    for (project_id, session_id) in rows.flatten() {
+        // `read_session_text` skips a blank id, and so does the hydrated walk.
+        if project_id.trim().is_empty() || session_id.trim().is_empty() {
+            continue;
+        }
+        stop_zmx_title_observer(state, project_id.trim(), session_id.trim(), reason);
     }
 }
 
@@ -386,6 +415,9 @@ pub(crate) async fn run_zmx_title_observer(
                 continue;
             }
         };
+        if let Some(pid) = child.id() {
+            crate::platform::process::end_with_server(pid);
+        }
         let Some(stdout) = child.stdout.take() else {
             return;
         };

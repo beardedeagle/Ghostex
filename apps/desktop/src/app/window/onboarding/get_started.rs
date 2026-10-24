@@ -361,7 +361,7 @@ impl GpuiOnboardingWindow {
                 if transparency_strength(&self.settings).0 == Some(value) {
                     return;
                 }
-                self.update_settings(transparency_strength_patch(value), cx);
+                self.update_settings(transparency_strength_patch(value, &self.settings), cx);
             }
         }
     }

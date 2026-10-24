@@ -32,7 +32,9 @@ pub struct MenuInputs {
     /// `modelMenuContext`, or `None` for an agent outside the model catalog.
     pub menu: Option<ModelMenuContext>,
     /// Every provider's model lineup, as `modelMenuEntries()` sweeps them.
-    pub catalogs: ModelMenuCatalogs,
+    pub catalogs: std::sync::Arc<ModelMenuCatalogs>,
+    /// What `catalogs` was built from ([`catalogs_key`]).
+    pub catalogs_key: (u64, bool),
 }
 
 /// Reads family e1's options and builds family e2's inputs.
@@ -46,11 +48,33 @@ pub fn menu_inputs_from(state: &ChatState, options: &NativeChatOptions) -> MenuI
         .catalog
         .as_ref()
         .map(|catalog| catalog.model_icon.clone());
+    let catalogs_key = catalogs_key(state, options.model_provider);
+    // CDXC:SessionChat 2026-10-23 WHY: Sweeping every provider's option catalog was most of a
+    // document's cost, and it ran three times per event (the picker settle and both assemblies of
+    // the publish test), on every timer tick of every retained chat. It depends only on the agent
+    // model catalog and on whether this is a Hermes chat, so the settle's sweep is reused while
+    // both are unchanged. Every write to the catalog after that sweep bumps its generation; the
+    // one that does not (the bundled seed in `picker::settle`) runs before it.
+    let catalogs = if state.pickers.catalogs_key == Some(catalogs_key) {
+        std::sync::Arc::clone(&state.pickers.catalogs)
+    } else {
+        std::sync::Arc::new(model_menu_catalogs(state, options.model_provider))
+    };
     MenuInputs {
         menu: model_menu_context(state, options),
-        catalogs: model_menu_catalogs(state, options.model_provider),
+        catalogs,
+        catalogs_key,
         agent_icon,
     }
+}
+
+/// What the provider sweep depends on: the agent model catalog's generation, and whether the
+/// session is a Hermes chat (whose picker shows its own tab alone).
+pub fn catalogs_key(state: &ChatState, session_provider: Option<&str>) -> (u64, bool) {
+    (
+        state.menus.model_catalog_generation,
+        session_provider == Some(ModelPickerProvider::Hermes.as_str()),
+    )
 }
 
 /// `sessionChatSessionOptionCatalog(provider)` for each provider in [`MODEL_MENU_PROVIDERS`].

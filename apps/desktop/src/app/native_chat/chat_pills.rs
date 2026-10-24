@@ -10,6 +10,7 @@
 //! The phone draws the same pills and menus in apps/mobile/app/src/chat/native/cards/ChatPills.tsx.
 
 use super::{appearance::ChatAppearance, state::NativeChatView, transcript::text};
+use crate::app::helpers::ThrottledAnimationExt as _;
 use crate::app::native_chat::cursor::ChatCursor as _;
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
@@ -18,7 +19,7 @@ use gpui::{
     px, rgb, svg,
 };
 use serde_json::{Value, json};
-use std::{cell::Cell, rc::Rc};
+use std::{cell::Cell, rc::Rc, time::Duration};
 
 /// A menu's header line, the gap between its sections and its footer line ("N more"), unscaled.
 pub(super) const MENU_HEADER_HEIGHT: f32 = 24.0;
@@ -27,6 +28,11 @@ pub(super) const MENU_FOOTER_HEIGHT: f32 = 22.0;
 
 /// The amber of a thread waiting on the user's approval (coordinator_threads.rs).
 pub(super) const ATTENTION_COLOR: u32 = 0xf5a524;
+
+/// The corner dot's offsets from a pill's padding box: inside its edge, in the top right corner,
+/// so the pills' scroller never cuts it.
+pub(super) const CORNER_DOT_TOP: f32 = 1.0;
+pub(super) const CORNER_DOT_RIGHT: f32 = 2.0;
 
 /// Each pill's frame at its last paint, which its menu opens against.
 #[derive(Default)]
@@ -46,6 +52,42 @@ impl ChatPillBounds {
             _ => self.subagents.clone(),
         }
     }
+}
+
+/// The amber dot in a pill's top right corner, the one shape for the ? pill's waiting questions
+/// (question_ping.rs) and a running pill (`running_dot`), so the two cannot drift apart again.
+pub(super) fn corner_dot(s: f32) -> gpui::Div {
+    let dot = super::scroll_bottom::question_ping_dot();
+    div()
+        .absolute()
+        .top(px(CORNER_DOT_TOP * s))
+        .right(px(CORNER_DOT_RIGHT * s))
+        .size(px(dot * s))
+        .rounded_full()
+        .bg(rgb(ATTENTION_COLOR))
+}
+
+/// A running pill's corner dot (`running`, extras/chat_pills.rs, where the user's decision lives).
+/// It fades on the 1.6 s beat of the Subagents menu's running dot (agent_fleet.rs), and stays still
+/// with Reduce motion on.
+fn running_dot(s: f32) -> AnyElement {
+    let dot = corner_dot(s);
+    if crate::app::helpers::gpui_macos_reduce_motion_enabled() {
+        return dot.into_any_element();
+    }
+    dot.with_throttled_animation(
+        "chat-pill-running-dot",
+        Duration::from_millis(1600),
+        |dot, phase| {
+            let progress = if phase < 0.5 {
+                phase * 2.0
+            } else {
+                (1.0 - phase) * 2.0
+            };
+            dot.opacity(1.0 - 0.65 * progress)
+        },
+    )
+    .into_any_element()
 }
 
 /// The menu-toggle key of a pill (menu_toggle.rs).
@@ -155,12 +197,21 @@ pub(super) fn pill_menu_column(
         .into_any_element()
 }
 
+/// An icon pill's glyph.
+fn pill_glyph(icon: &'static str, color: gpui::Hsla, s: f32) -> AnyElement {
+    svg()
+        .path(icon)
+        .size(px(14.0 * s))
+        .text_color(color)
+        .into_any_element()
+}
+
 /// An icon-only pill, the label pills' height: built the way they are (a 16px line, 2px above and
-/// below, a 1px edge), so the two never drift apart under a zoom.
+/// below, a 1px edge), so the two never drift apart under a zoom. Its width is fixed, so the ? pill
+/// swapping its glyph for a count never moves the pills beside it.
 fn icon_pill(
     id: &'static str,
-    icon: &'static str,
-    color: gpui::Hsla,
+    content: AnyElement,
     p: &ChatAppearance,
 ) -> gpui::Stateful<gpui::Div> {
     let s = p.scale;
@@ -178,13 +229,7 @@ fn icon_pill(
         .border(px(s))
         .chat_cursor_pointer()
         .focus_visible(|style| style.border_color(p.ring))
-        .child(
-            div()
-                .h(px(16.0 * s))
-                .flex()
-                .items_center()
-                .child(svg().path(icon).size(px(14.0 * s)).text_color(color)),
-        )
+        .child(div().h(px(16.0 * s)).flex().items_center().child(content))
 }
 
 impl NativeChatView {
@@ -194,6 +239,9 @@ impl NativeChatView {
     ///
     /// CDXC:SessionChat 2026-10-17 DECISION:
     /// User (2026-10-15): "make the Question pill and scroll to bottom pill not floating, make them appear as the leftmost in the pills row and they should both just be icons. (down arrow for scroll to bottom and ? icon for the question button) always leftmost pls", then "make the scroll to bottom appear left most so it doesn't push stuff when it appears", and "I also want the previous question pill to have same height as the threads and scroll to bottom pills (and same color)". So both are icon pills at the left end of the working row's pills, scroll-to-bottom first, built like the label pills, with the ? pill in the Threads pill's edge, icon colour and hover. Then (2026-10-17): "make the Previous question button animate every once in a while to indicate to the user that there's something there", picking the attention dot ping (Q236 G) every 30 s (Q237): the pill keeps that neutral look and adds the Threads pill's amber attention dot, which pings (question_ping.rs, where the cadence lives). Supersedes the 2026-10-15 pill with no dot; the floating spot over the transcript's bottom edge (2026-09-23, 2026-10-14) stays gone, the Escape and "Agent was interrupted" toasts keep it (scroll_bottom.rs). The pills now ride on the working card (working_card.rs, "on the pill", Q259). The phone does the same in ChatPills.tsx.
+    ///
+    /// CDXC:SessionChat 2026-10-24 DECISION:
+    /// User: "for questions if there's 2 or more questions i want to go between showing ? and showing the number pls (every x seconds)". With two or more unanswered questions the pill shows the ? for 2 s, then the count for 2 s, and so on (`countSwapMs` in packages/gx-chat-core/visual/scroll-bottom.json); with one it stays a ?. The swap is a plain cut, not a crossfade, because a GPUI fade redraws the whole chat for every frame of it. One timer per chat drives it (question_ping.rs), dropped when fewer than two wait, and the pill's fixed width keeps the row still. The phone does the same in ChatPills.tsx.
     pub(super) fn previous_question_icon_pill(
         &self,
         p: &ChatAppearance,
@@ -201,33 +249,40 @@ impl NativeChatView {
     ) -> Option<AnyElement> {
         self.open_question_pill_text()?;
         let color = p.card_muted;
-        let label = text(&self.snapshot["openQuestions"], "accessibilityLabel");
+        let open = &self.snapshot["openQuestions"];
+        let label = text(open, "accessibilityLabel");
+        let content = if self.question_ping.showing_count() {
+            div()
+                .text_size(px(11.5 * p.scale))
+                .line_height(px(16.0 * p.scale))
+                .font_features(FontFeatures(vec![("tnum".into(), 1)].into()))
+                .text_color(color)
+                .child(open["count"].as_u64().unwrap_or(0).to_string())
+                .into_any_element()
+        } else {
+            pill_glyph("titlebar/question-mark.svg", color, p.scale)
+        };
         Some(
-            icon_pill(
-                "chat-previous-question",
-                "titlebar/question-mark.svg",
-                color,
-                p,
-            )
-            .relative()
-            .aria_label(label)
-            .border_color(p.foreground.opacity(0.1))
-            .hover(|style| style.bg(p.foreground.opacity(0.06)))
-            .tooltip(|window, cx| {
-                gpui_component::tooltip::Tooltip::new("Previous question").build(window, cx)
-            })
-            .on_hover(
-                cx.listener(|chat, hovered: &bool, _, cx| chat.question_pill_hovered(*hovered, cx)),
-            )
-            .on_click(cx.listener(|chat, _, _, cx| {
-                cx.stop_propagation();
-                chat.previous_question(cx)
-            }))
-            .children(super::question_ping::attention_dot(
-                self.question_ping_frame(),
-                p,
-            ))
-            .into_any_element(),
+            icon_pill("chat-previous-question", content, p)
+                .relative()
+                .aria_label(label)
+                .border_color(p.foreground.opacity(0.1))
+                .hover(|style| style.bg(p.foreground.opacity(0.06)))
+                .tooltip(|window, cx| {
+                    gpui_component::tooltip::Tooltip::new("Previous question").build(window, cx)
+                })
+                .on_hover(cx.listener(|chat, hovered: &bool, _, cx| {
+                    chat.question_pill_hovered(*hovered, cx)
+                }))
+                .on_click(cx.listener(|chat, _, _, cx| {
+                    cx.stop_propagation();
+                    chat.previous_question(cx)
+                }))
+                .children(super::question_ping::attention_dot(
+                    self.question_ping_frame(),
+                    p,
+                ))
+                .into_any_element(),
         )
     }
 
@@ -250,8 +305,7 @@ impl NativeChatView {
         Some(
             icon_pill(
                 "chat-scroll-bottom",
-                "titlebar/arrow-down.svg",
-                p.primary,
+                pill_glyph("titlebar/arrow-down.svg", p.primary, p.scale),
                 p,
             )
             .aria_label(label)
@@ -307,6 +361,7 @@ impl NativeChatView {
             .chat_cursor_pointer()
             .when(open, |pill| pill.bg(p.foreground.opacity(0.08)))
             .hover(|style| style.bg(p.foreground.opacity(0.06)))
+            .when(pill["running"] == true, |pill| pill.child(running_dot(s)))
             .child(
                 svg()
                     .path(icon(&id))

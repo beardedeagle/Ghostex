@@ -464,6 +464,23 @@ impl GhostexGpuiApp {
             );
             return;
         }
+        // A command in a reply goes to a new terminal of the session's folder, run or only typed
+        // (`run_in_terminal.rs`).
+        if action == "runInTerminal" || action == "pasteInTerminal" {
+            if let Some(command) = message
+                .get("command")
+                .and_then(serde_json::Value::as_str)
+                .filter(|command| !command.trim().is_empty())
+            {
+                self.run_session_chat_command_in_terminal(
+                    session_id,
+                    command,
+                    action == "runInTerminal",
+                    cx,
+                );
+            }
+            return;
+        }
         // A file change card's Review all. Ghostex has no Git view, so the changes are reviewed in
         // the project's Code view, whose Source Control lists them.
         if action == "reviewChanges" {

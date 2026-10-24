@@ -296,6 +296,7 @@ impl GhostexGpuiApp {
         cx: &mut gpui::Context<Self>,
     ) {
         self.forget_parked_browser_tab_runtime(project_id, tab_id);
+        self.forget_claude_cloud_tab(Some(project_id), tab_id);
         let active_profile_id = self.browser_profiles.active_profile_id();
         let Some(parked_tabs) = self.parked_browser_tabs_by_project.get_mut(project_id) else {
             return;

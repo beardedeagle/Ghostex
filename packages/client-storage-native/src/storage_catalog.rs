@@ -1,7 +1,9 @@
 //! Which catalog store owns a client-storage key, as `definitionForKey` in
 //! `packages/client-storage/catalog.ts` answers it: the FIRST definition in catalog order whose key
-//! matches (a prefix for a collection, the whole key otherwise). Only the columns the start-up
-//! migrations need are copied: the id, the key, whether it is a collection, and the backend.
+//! matches (a prefix for a collection, the whole key otherwise). Only the columns the Rust side
+//! reads are copied: the id, the key, whether it is a collection and the backend for the start-up
+//! migrations, and whether the policy is `cache` for the records door's eviction. The parity script
+//! does not compare the policy yet, so check it by hand against `catalog.ts` when a policy changes.
 //!
 //! CDXC:Settings 2026-09-25 WHY:
 //! The start-up migrations moved out of the QuickJS runtime (`initializeClientStorage`) into Rust so
@@ -34,6 +36,10 @@ pub struct CatalogStore {
     pub backend: CatalogBackend,
     /// The catalog `version`. Every definition is at 1 and none has an `upgrade` today.
     pub version: i64,
+    /// The catalog `policy` is `cache`: the store's own expired and oldest rows give way to a write
+    /// that would break its bounds (`admission` in `packages/client-storage/budgets.ts`), where
+    /// every other policy refuses the write instead.
+    pub cache: bool,
 }
 
 const fn store(
@@ -48,6 +54,21 @@ const fn store(
         collection,
         backend,
         version: 1,
+        cache: false,
+    }
+}
+
+/// A definition whose `policy` is `cache`. The name ends in `store(` so the parity script, which
+/// matches that call shape, still compares its id, key, collection flag and backend.
+const fn cache_store(
+    id: &'static str,
+    key: &'static str,
+    collection: bool,
+    backend: CatalogBackend,
+) -> CatalogStore {
+    CatalogStore {
+        cache: true,
+        ..store(id, key, collection, backend)
     }
 }
 
@@ -163,7 +184,7 @@ pub const CATALOG: &[CatalogStore] = &[
         true,
         Records,
     ),
-    store(
+    cache_store(
         "sessionOptions",
         "ghostex.sessionChat.options.",
         true,
@@ -188,7 +209,7 @@ pub const CATALOG: &[CatalogStore] = &[
         true,
         Records,
     ),
-    store(
+    cache_store(
         "interactions",
         "ghostex.session-chat.interactions.v1:",
         true,
@@ -207,7 +228,7 @@ pub const CATALOG: &[CatalogStore] = &[
         false,
         Local,
     ),
-    store("sentHistory", "ghostex.sessionChat.sent.", true, Records),
+    cache_store("sentHistory", "ghostex.sessionChat.sent.", true, Records),
     store(
         "deliveryReceipts",
         "ghostex.sessionChat.delivered.",
@@ -223,7 +244,7 @@ pub const CATALOG: &[CatalogStore] = &[
         Records,
     ),
     store("draftOutbox", "ghostex.sessionChat.outbox.", true, Records),
-    store(
+    cache_store(
         "chatSnapshots",
         "ghostex.sessionChat.snapshot.",
         true,
@@ -259,13 +280,13 @@ pub const CATALOG: &[CatalogStore] = &[
         false,
         Local,
     ),
-    store(
+    cache_store(
         "remotePresentations",
         "ghostex-gpui-remote-last-seen-presentations",
         true,
         Records,
     ),
-    store("nativeSettings", "ghostex-native-settings", false, Local),
+    cache_store("nativeSettings", "ghostex-native-settings", false, Local),
     store("boardView", "ghostex-project-board-view", false, Local),
     store("boardCards", "ghostexProjectBoardCardView.v1", false, Local),
     store("botFeed", "ghostex.botFeed.v1", false, Local),
@@ -284,7 +305,7 @@ pub const CATALOG: &[CatalogStore] = &[
         Local,
     ),
     store("docsWordWrap", "ghostex.manage.wordWrap", false, Local),
-    store("docsIndex", "ghostex-docs-index-v1:", true, Session),
+    cache_store("docsIndex", "ghostex-docs-index-v1:", true, Session),
     store("docsOpenFiles", "ghostex.manage.openFiles.", true, Records),
     store("docsDrafts", "ghostex.manage.drafts.", true, Records),
     store(
@@ -312,7 +333,7 @@ pub const CATALOG: &[CatalogStore] = &[
         false,
         Local,
     ),
-    store(
+    cache_store(
         "modelCatalog",
         "ghostex.agentModelCatalog.v1",
         false,

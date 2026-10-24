@@ -354,12 +354,19 @@ impl ExtensionsTab {
                     extra: None,
                     scope_summary: None,
                     meta: runtime_meta(&cef).into(),
-                    actions: std::iter::once(self.reinstall_button(p, "cef", CEF_TITLE, &cef, cx))
-                        .chain(
-                            (cef["canUninstall"].as_bool() == Some(true))
-                                .then(|| self.uninstall_button(p, "cef", cx)),
-                        )
-                        .collect(),
+                    // A change waiting for the next launch offers only its Undo
+                    // (app/helpers/web_runtime_pending.rs).
+                    actions: match cef["pendingChange"].as_str() {
+                        Some(change) => vec![self.cancel_change_button(p, "cef", change, cx)],
+                        None => {
+                            std::iter::once(self.reinstall_button(p, "cef", CEF_TITLE, &cef, cx))
+                                .chain(
+                                    (cef["canUninstall"].as_bool() == Some(true))
+                                        .then(|| self.uninstall_button(p, "cef", cx)),
+                                )
+                                .collect()
+                        }
+                    },
                     editing: false,
                     enabled: true,
                     dragging: false,
@@ -455,6 +462,35 @@ impl ExtensionsTab {
             false,
             None,
             move |page: &mut Self, _window, cx| page.uninstall_plugin(plugin_id, cx),
+            cx,
+        )
+    }
+
+    /// Undoes a change to a runtime component that waits for the next launch: `change` is the
+    /// row's `pendingChange` (`uninstall` or `reinstall`).
+    fn cancel_change_button(
+        &self,
+        p: &SettingsPalette,
+        plugin_id: &'static str,
+        change: &str,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let label = if change == "reinstall" {
+            "Cancel reinstall"
+        } else {
+            "Keep installed"
+        };
+        settings_sized_button(
+            p,
+            SharedString::from(format!("official-{plugin_id}-cancel-change")),
+            label,
+            None,
+            None,
+            SizedButtonVariant::Outline,
+            SizedButtonSize::Xs,
+            false,
+            None,
+            move |page: &mut Self, _window, cx| page.cancel_plugin_change(plugin_id, cx),
             cx,
         )
     }
@@ -1106,6 +1142,11 @@ fn runtime_meta(runtime: &Value) -> String {
         .filter(|version| !version.is_empty())
     {
         parts.push(format!("v{version}"));
+    }
+    match runtime["pendingChange"].as_str() {
+        Some("uninstall") => parts.push("Removed when Ghostex next starts".to_string()),
+        Some("reinstall") => parts.push("Reinstalled when Ghostex next starts".to_string()),
+        _ => {}
     }
     if let Some(error) = runtime["errorMessage"]
         .as_str()

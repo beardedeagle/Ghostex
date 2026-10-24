@@ -1448,8 +1448,10 @@ fn cli_button_busy(
     cli_icon_button(p, id, label, icon, true, |_, _, _| {}, cx)
 }
 
-/// A muted text action with a leading refresh icon and a `title`, for offers that are not
-/// problems (an available CLI update).
+/// The filled neutral `size='sm'` action with a leading refresh icon and a `title`, for offers
+/// that are not problems (an available CLI update).
+///
+/// CDXC:AppModal 2026-10-23 DECISION: User: "the color of the bg of the button is the same as the bg behind it for this one. please fix." The 2026-10-06 muted link (no fill until hovered) read as plain text beside the agent's switch; every text button in Settings is filled (2026-10-14), so this one takes `neutral_button_fills` like its Install and Add to PATH neighbours. It stays a quieter size (12.5px) than they are, since an update is an offer, not a problem.
 fn cli_quiet_link(
     p: &SettingsPalette,
     id: SharedString,
@@ -1458,9 +1460,7 @@ fn cli_quiet_link(
     on_click: impl Fn(&mut AgentsTab, &mut Window, &mut Context<AgentsTab>) + 'static,
     cx: &mut Context<AgentsTab>,
 ) -> AnyElement {
-    let muted = p.muted;
-    let foreground = p.foreground;
-    let hover = muted_fill(p);
+    let fills = neutral_button_fills(p.light);
     h_flex()
         .id(id)
         .role(gpui::Role::Button)
@@ -1471,17 +1471,21 @@ fn cli_quiet_link(
         .gap(px(5.0))
         .items_center()
         .rounded(px(MODAL_RADIUS_CONTROL))
+        .border_1()
+        .border_color(transparent())
+        .bg(hsla(fills.rest))
         .cursor_pointer()
         .text_size(px(12.5))
         .line_height(px(16.0))
-        .text_color(hsla(muted))
+        .text_color(hsla(p.foreground))
         .whitespace_nowrap()
-        .hover(move |this| this.bg(hsla(hover)).text_color(hsla(foreground)))
+        .hover(move |this| this.bg(hsla(fills.hover)))
+        .active(move |this| this.bg(hsla(fills.pressed)))
         .tooltip(tooltip_text(title))
         .on_press(cx, move |page, window, cx| {
             on_click(page, window, cx);
         })
-        .child(settings_icon(icons::REFRESH, 14.0, muted))
+        .child(settings_icon(icons::REFRESH, 14.0, p.foreground))
         .child(label)
         .into_any_element()
 }

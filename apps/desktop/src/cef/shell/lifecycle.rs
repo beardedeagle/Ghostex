@@ -150,7 +150,6 @@ pub fn take_runtime_demand_receiver() -> Option<futures::channel::mpsc::Unbounde
 /// Adds `feature` to a comma-separated Chromium feature switch
 /// (`enable-features` / `disable-features`), keeping any features CEF or the
 /// caller already put there.
-#[cfg(not(target_os = "macos"))]
 pub(crate) fn append_chromium_feature(
     command_line: &mut CommandLine,
     switch_name: &str,
@@ -211,6 +210,15 @@ wrap_app! {
                 // behind the platform seam like every other OS-specific
                 // decision.
                 platform::append_platform_command_line_switches(command_line);
+                /*
+                CDXC:CefRuntime 2026-10-23 DECISION:
+                User: turn off Chromium's spare page process to save memory; a new site's first page may open slightly slower. Chromium otherwise keeps one idle renderer process (about 105 MB) started ahead of the next page that needs a new process. Added after the platform switches on every OS, so the features they disable (MacAppCodeSignClone on macOS) are kept. A page put to sleep by Auto Sleep (CDXC:SessionSleep in app/web_page_sleep.rs) also starts its process when it is selected again rather than taking the spare one.
+                */
+                append_chromium_feature(
+                    command_line,
+                    "disable-features",
+                    "SpareRendererForSitePerProcess",
+                );
             }
         }
     }

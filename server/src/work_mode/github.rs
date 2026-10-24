@@ -24,6 +24,11 @@ pub(crate) struct WorkPullRequestInfo {
     pub(crate) url: Option<String>,
     /// `passing`, `failing` or `pending`; `None` for a PR without checks.
     pub(crate) checks: Option<&'static str>,
+    pub(crate) title: Option<String>,
+    /// `reviewRequired`, `approved` or `changesRequested`; `None` when no review is asked for.
+    pub(crate) review: Option<&'static str>,
+    /// URLs of the issues the PR closes when merged (`closingIssuesReferences`).
+    pub(crate) closing_issues: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -144,13 +149,14 @@ pub(crate) fn refresh_work_pull_request(cwd: &str, selector: &str) -> bool {
         return false;
     }
     let info = run_gh_command(
-        Some(cwd),
+        (!cwd.is_empty()).then_some(cwd),
         &[
             "pr",
             "view",
             selector,
             "--json",
-            "number,state,url,isDraft,statusCheckRollup",
+            // CDXC:SessionLinks 2026-10-24 DECISION: User answered "yes" to reading review status (review requested, approved, changes requested); it comes in the same call, and so do the issues the PR closes, which join the session's links.
+            "number,state,url,isDraft,statusCheckRollup,title,reviewDecision,closingIssuesReferences",
         ],
     )
     .and_then(|output| parse_pull_request(&output));
@@ -168,7 +174,22 @@ pub(crate) fn refresh_work_pull_request(cwd: &str, selector: &str) -> bool {
 
 /// Re-reads an issue when stale. Returns whether `gh` ran.
 pub(crate) fn refresh_work_github_issue(cwd: &str, number: u64) -> bool {
-    let key = cache_key(cwd, &number.to_string());
+    refresh_work_github_issue_selector(cwd, &number.to_string())
+}
+
+/// An issue asked about by URL, from anywhere (the session links of any repo).
+pub(crate) fn cached_work_github_issue_url(url: &str) -> Option<WorkGithubIssueInfo> {
+    let cache = cache().lock().ok()?;
+    cache
+        .issues
+        .get(&cache_key("", url))
+        .and_then(|cached| cached.value.clone())
+}
+
+/// Re-reads an issue named by number (from `cwd`'s repo) or by URL when stale. Returns whether
+/// `gh` ran.
+pub(crate) fn refresh_work_github_issue_selector(cwd: &str, selector: &str) -> bool {
+    let key = cache_key(cwd, selector);
     if cache().lock().ok().is_some_and(|cache| {
         cache
             .issues
@@ -177,29 +198,30 @@ pub(crate) fn refresh_work_github_issue(cwd: &str, number: u64) -> bool {
     }) {
         return false;
     }
-    let number_text = number.to_string();
     let info = run_gh_command(
-        Some(cwd),
+        (!cwd.is_empty()).then_some(cwd),
         &[
             "issue",
             "view",
-            number_text.as_str(),
+            selector,
             "--json",
             "number,title,state,url",
         ],
     )
     .and_then(|output| serde_json::from_str::<Value>(output.trim()).ok())
-    .map(|value| WorkGithubIssueInfo {
-        number,
-        title: value
-            .get("title")
-            .and_then(Value::as_str)
-            .map(str::to_string),
-        state: value
-            .get("state")
-            .and_then(Value::as_str)
-            .map(|state| state.to_ascii_lowercase()),
-        url: value.get("url").and_then(Value::as_str).map(str::to_string),
+    .and_then(|value| {
+        Some(WorkGithubIssueInfo {
+            number: value.get("number").and_then(Value::as_u64)?,
+            title: value
+                .get("title")
+                .and_then(Value::as_str)
+                .map(str::to_string),
+            state: value
+                .get("state")
+                .and_then(Value::as_str)
+                .map(|state| state.to_ascii_lowercase()),
+            url: value.get("url").and_then(Value::as_str).map(str::to_string),
+        })
     });
     if let Ok(mut cache) = cache().lock() {
         cache.issues.insert(
@@ -226,6 +248,29 @@ fn parse_pull_request(output: &str) -> Option<WorkPullRequestInfo> {
         state,
         url: value.get("url").and_then(Value::as_str).map(str::to_string),
         checks: value.get("statusCheckRollup").and_then(checks_state),
+        title: value
+            .get("title")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|title| !title.is_empty())
+            .map(str::to_string),
+        review: match value.get("reviewDecision").and_then(Value::as_str) {
+            Some("REVIEW_REQUIRED") => Some("reviewRequired"),
+            Some("APPROVED") => Some("approved"),
+            Some("CHANGES_REQUESTED") => Some("changesRequested"),
+            _ => None,
+        },
+        closing_issues: value
+            .get("closingIssuesReferences")
+            .and_then(Value::as_array)
+            .map(|issues| {
+                issues
+                    .iter()
+                    .filter_map(|issue| issue.get("url").and_then(Value::as_str))
+                    .map(str::to_string)
+                    .collect()
+            })
+            .unwrap_or_default(),
     })
 }
 

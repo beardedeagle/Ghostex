@@ -38,6 +38,10 @@ pub fn run_hook_command(args: &[String]) -> Option<Result<()>> {
         Some("agent-hook-notify-native") => {
             Some(crate::agent_hooks::windows::notify(args[1..].to_vec()))
         }
+        #[cfg(windows)]
+        Some(crate::platform::process_files::OPEN_PATHS_COMMAND) => {
+            Some(crate::platform::process_files::print_open_paths(&args[1..]))
+        }
         Some("agent-hook-notify") => Some((|| {
             if let Some(answer) = run_notify_hook(args[1..].to_vec())? {
                 println!("{answer}");

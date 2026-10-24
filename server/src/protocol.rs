@@ -518,6 +518,7 @@ pub fn endpoint_for(path: &str) -> Option<EndpointDescriptor> {
         | "/api/unlinkCoordinatorThread"
         | "/api/setCoordinatorThreadResolved"
         | "/api/renameCoordinatorThread"
+        | "/api/coordinatorThreadTitleReminder"
         // CDXC:Coordinators 2026-10-19 WHY: an orchestrator reads its playbook from the machine that runs it, so a client looking at a remote machine reads and edits that machine's. They carry a project id, a session id and bounded text.
         | "/api/readCoordinatorPlaybook"
         | "/api/setCoordinatorPlaybook"
@@ -527,6 +528,7 @@ pub fn endpoint_for(path: &str) -> Option<EndpointDescriptor> {
         | "/api/watchAgentMessageDelivery"
         | "/api/openCoordinatorThread"
         | "/api/promoteCoordinator"
+        | "/api/acknowledgeCoordinatorThreads"
         | "/api/toggleCloseAfterDone"
         | "/api/openConversation"
         | "/api/restorePreviousSession"
@@ -733,6 +735,10 @@ pub fn endpoint_for(path: &str) -> Option<EndpointDescriptor> {
         // session by its ids, like the links themselves.
         | "/api/listWorkLinkCandidates"
         | "/api/answerWorkCleanup"
+        // CDXC:SessionLinks 2026-10-24 WHY: a sidebar or phone showing a remote machine's sessions adds, removes and reads their links like work links: opaque ids and a link's text.
+        | "/api/addSessionLink"
+        | "/api/removeSessionLink"
+        | "/api/readSessionLinks"
         /*
         CDXC:WorkMode 2026-10-09 WHY:
         Starting work on a ticket and creating a Linear ticket are remote-allowed like
@@ -851,7 +857,7 @@ pub fn endpoint_for(path: &str) -> Option<EndpointDescriptor> {
         | "/api/setSlackFlowSettings"
         | "/api/readSlackManifest"
         | "/api/postSlackWorkingThread" => full_local(path),
-        "/api/createQuickProject" | "/api/syncBotProjects" => full_local(path),
+        "/api/syncBotProjects" => full_local(path),
         /*
         CDXC:Bots 2026-09-27 WHY:
         The feed reads this computer's Hermes cron output, which holds whole

@@ -654,9 +654,32 @@ pub const MARKED_HANDOVERS_STYLE_OPTIONS: &[Opt] = &[
     opt("Coloured badge", "badge"),
 ];
 
+/// Where a page an agent published in chat (`ghostex show`) opens when its card is clicked, in the Settings control's order.
+pub const CHAT_PAGE_OPEN_TARGET_OPTIONS: &[Opt] = &[
+    opt("Popup", "popup"),
+    opt("Files", "files"),
+    opt("System browser", "system-browser"),
+];
+
 pub const WEB_LINK_OPEN_TARGET_OPTIONS: &[Opt] = &[
     opt("Internal Browser", "internal-browser"),
     opt("System Default Browser", "system-default-browser"),
+];
+
+/// What a sidebar row shows of its session's links, in the Settings control's order
+/// (`SessionLinksDisplay` in gx-core).
+pub const SIDEBAR_SESSION_LINKS_OPTIONS: &[Opt] = &[
+    opt("Always", "always"),
+    opt("Selected session", "selected"),
+    opt("Badge", "badge"),
+    opt("Open work only", "open"),
+    opt("Off", "off"),
+];
+
+/// Where a session's PR, issue or Linear link opens (the header's chips and the links list).
+pub const SESSION_LINK_OPEN_TARGET_OPTIONS: &[Opt] = &[
+    opt("Internal Browser", "embedded"),
+    opt("System Default Browser", "external"),
 ];
 
 /// How Windows blurs Desktop and windows behind the glass; Windows draws that blur and has no radius to set.

@@ -126,7 +126,9 @@ impl Asker {
     }
 }
 
-enum Found {
+/// One thing a reply's fences say about the questions: a form or page asking, or a withdrawal.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Found {
     Asker(Asker),
     Withdraw(Vec<String>),
 }
@@ -138,6 +140,13 @@ fn same_tag(a: &str, b: &str) -> bool {
 /// Every form and question page the agent's replies hold, oldest first, once each.
 /// `answered` lists the ids whose answers the transcript carries (`page_answers.rs`).
 pub fn askers(messages: &[ChatMessage], answered: &[String]) -> Vec<Asker> {
+    settle_askers(&asker_entries(messages, &[]), answered)
+}
+
+/// What the replies in `messages` ask and withdraw, in order: the reading half of [`askers`].
+/// `prior` is what the messages before these already held, so a form or page they asked first is
+/// not counted again here.
+pub fn asker_entries(messages: &[ChatMessage], prior: &[Found]) -> Vec<Found> {
     let mut found: Vec<Found> = Vec::new();
     for message in messages
         .iter()
@@ -208,14 +217,21 @@ pub fn askers(messages: &[ChatMessage], answered: &[String]) -> Vec<Asker> {
             } else {
                 continue;
             };
-            let seen = found
+            let seen = prior
                 .iter()
+                .chain(found.iter())
                 .any(|known| matches!(known, Found::Asker(known) if known.id == asker.id));
             if !seen {
                 found.push(Found::Asker(asker));
             }
         }
     }
+    found
+}
+
+/// The askers `found` holds, each marked answered, superseded, obsolete and withdrawn by what came
+/// after it: the deciding half of [`askers`].
+pub fn settle_askers(found: &[Found], answered: &[String]) -> Vec<Asker> {
     let mut askers = Vec::new();
     for (index, entry) in found.iter().enumerate() {
         let Found::Asker(asker) = entry else {

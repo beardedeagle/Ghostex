@@ -172,7 +172,7 @@ fn swatch_ring() -> gpui::Hsla {
 /// CDXC:SessionChat 2026-09-15 DECISION:
 /// User: show a small rounded square beside each color in shared desktop, mobile, and web chat messages.
 /// Every hex colour gets one, wherever it was written: inside a code span, and in running prose.
-fn inline_code(p: &ChatAppearance) -> InlineCodeStyle {
+pub(super) fn inline_code(p: &ChatAppearance) -> InlineCodeStyle {
     let visual = &VISUAL.inline_code;
     InlineCodeStyle {
         font_family: super::fonts::CHAT_MONO.into(),

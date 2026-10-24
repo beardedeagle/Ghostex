@@ -31,7 +31,10 @@ pub struct PickersState {
     /// reads it, publishes it and picks against it.
     pub model_menu_context: Option<ModelMenuContext>,
     /// Every provider's model lineup, as e1's session option catalog answers it.
-    pub catalogs: ModelMenuCatalogs,
+    pub catalogs: std::sync::Arc<ModelMenuCatalogs>,
+    /// What [`Self::catalogs`] was built from (`crate::menus::picker::inputs::catalogs_key`), so
+    /// the document reuses it instead of sweeping every provider's catalog again.
+    pub catalogs_key: Option<(u64, bool)>,
     /// The merged model pill's menu: which tab is open and what was typed into its search.
     ///
     /// `tab` of `None` is "not opened yet", which is what makes the opening tab the session's own

@@ -295,15 +295,6 @@ impl Report {
                     loaded.groups().len(),
                     loaded.session_count()
                 );
-                let chat_projects = loaded
-                    .projects()
-                    .iter()
-                    .filter(|project| {
-                        core.presentation()
-                            .is_chat_project(&ProjectKey::local(project.project_id.as_str()))
-                    })
-                    .count();
-                println!("  chat projects {chat_projects}");
             }
         }
         println!("  tabs generation {}", core.tabs_generation());
@@ -315,7 +306,6 @@ impl Report {
         let group = match &core.focus().active_group {
             None => "none",
             Some(ActiveGroup::Project(_)) => "project",
-            Some(ActiveGroup::Chats(_)) => "chats",
             Some(ActiveGroup::Subgroup { .. }) => "subgroup",
         };
         println!("  active group kind {group}, active tab list: {tabs}");

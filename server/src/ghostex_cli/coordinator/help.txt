@@ -20,6 +20,7 @@ USAGE
   ghostex orchestrator resolve <thread-ref> [--keep-open] [--json]
   ghostex orchestrator reopen <thread-ref> [--json]
   ghostex orchestrator sleep-inactive-threads [<orchestrator-ref>] [--orchestrator <ref>] [--json]
+  ghostex orchestrator acknowledge-threads [<orchestrator-ref>] [--orchestrator <ref>] [--json]
   ghostex orchestrator remember <note> [--orchestrator <ref>]
   ghostex orchestrator forget <number> [--orchestrator <ref>]
   ghostex orchestrator set-goal <text> [--orchestrator <ref>]
@@ -100,10 +101,11 @@ THREADS
   of its project, shown as its own sidebar row, with no more thread reports to
   the orchestrator. Its session is not closed, put to sleep or restarted, and
   unlink refuses a session that is not this orchestrator's thread.
-  Name a thread (--title) after the area it owns, not its first task.
-  Threads rename themselves: rename-self, run inside a thread, gives that
-  thread a new title when its orchestrator starts it on a task in another
-  area (its brief says so). rename does the same for one of the
+  Name a thread (--title) after its task in 3 to 6 words. Threads keep
+  their names current themselves: rename-self, run inside a thread, gives
+  that thread a new title when its orchestrator starts it on a task the
+  title does not describe (its brief says so, and every agents send from
+  its orchestrator ends with a reminder naming its current title). rename does the same for one of the
   orchestrator's threads, from the orchestrator. The sidebar, status and
   thread reports show the new title, and the agent's own naming never
   replaces it. Both refuse a thread the user renamed themselves; rename also
@@ -125,6 +127,9 @@ THREADS
   Sleep Inactive Threads on its sidebar menu: threads that are working, waiting
   on a question or approval, or running a background shell stay awake, and so
   does the orchestrator. Nothing is parked or closed.
+  acknowledge-threads marks the orchestrator's finished threads as seen, as
+  opening the orchestrator does: their blue dot clears, while a thread waiting
+  on a question or approval keeps its dot.
 
 MEMORY AND INSTRUCTIONS
   remember saves a one-line note (a preference, a decision, a pitfall); every

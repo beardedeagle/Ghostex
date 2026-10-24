@@ -110,3 +110,14 @@ pub(crate) fn dictation_clock(duration: Duration) -> String {
     let seconds = duration.as_secs();
     format!("{}:{:02}", seconds / 60, seconds % 60)
 }
+
+impl crate::GhostexGpuiApp {
+    /// The desktop's headset on the sidebar row a voice call is about; the page holds no calls.
+    pub(crate) fn render_voice_call_badge(
+        &self,
+        _sidebar_session_id: &str,
+        _appearance: &crate::app::native_sidebar::appearance::SidebarAppearance,
+    ) -> Option<gpui::AnyElement> {
+        None
+    }
+}

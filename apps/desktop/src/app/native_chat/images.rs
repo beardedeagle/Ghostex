@@ -24,6 +24,7 @@ use std::{
     collections::HashMap,
     sync::{Arc, LazyLock},
 };
+use web_time::Instant;
 
 /// The measurements React drew a transcript picture with, read from `image-visual.json`.
 #[derive(Deserialize)]
@@ -80,10 +81,118 @@ const THUMBNAIL_PIXEL_RATIO: f32 = 2.0;
 /// the sampling it saves.
 const THUMBNAIL_MAX_SOURCE_PIXELS: u64 = 64 * 1024 * 1024;
 
+/// CDXC:SessionChat 2026-10-23 WHY:
+/// Every picture a chat ever showed used to stay in memory until its chat view was dropped (its file bytes, every shrunk copy, GPUI's full-size decoded copy of each one opened in the preview, and every painted Mermaid diagram, up to 32 MB each), and up to 24 chat views stay warm (`session_chat_prewarm.rs`). The cache now keeps this many bytes per chat (file bytes, the shrunk copies' pixels and the painted diagrams, `mermaid.rs`) and lets the pictures drawn longest ago go first, so scrolling back to one reads and shrinks (or paints) it again. A tile is drawn from its shrunk copy without the file bytes, so those go first; a diagram let go keeps its drawing and is only painted again.
+const CHAT_IMAGE_BUDGET_BYTES: usize = 32 * 1024 * 1024;
+/// What a chat whose pane has been off screen for `HIDDEN_TRIM_DELAY` keeps: the pictures it drew
+/// last, so coming back to it shows them at once.
+#[cfg_attr(target_family = "wasm", allow(dead_code))] // the web page never hides a chat pane
+const HIDDEN_CHAT_IMAGE_BUDGET_BYTES: usize = 8 * 1024 * 1024;
+/// A picture drawn this recently is never let go: it is on screen, or was a moment ago, and a
+/// cached transcript can paint it again without asking the cache.
+const RECENTLY_DRAWN: std::time::Duration = std::time::Duration::from_secs(30);
+/// Clicking through sessions and back keeps every picture; a chat left for longer is trimmed. At
+/// least `RECENTLY_DRAWN`, so the trim spares only what was drawn after the pane went away.
+#[cfg_attr(target_family = "wasm", allow(dead_code))] // the web page never hides a chat pane
+const HIDDEN_TRIM_DELAY: std::time::Duration = RECENTLY_DRAWN;
+
 enum ChatImageEntry {
     Loading,
     Ready(Arc<gpui::Image>),
     Failed(ChatImageFailure),
+}
+
+impl ChatImageEntry {
+    fn bytes(&self) -> usize {
+        match self {
+            Self::Ready(picture) => picture.bytes.len(),
+            Self::Loading | Self::Failed(_) => 0,
+        }
+    }
+}
+
+/// The pixels a shrunk copy holds in memory (and again in the window's texture atlas).
+pub(super) fn rendered_bytes(picture: &RenderImage) -> usize {
+    (0..picture.frame_count())
+        .map(|frame| picture.as_bytes(frame).map_or(0, <[u8]>::len))
+        .sum()
+}
+
+/// One cached value and when a row last drew it.
+struct Kept<T> {
+    value: T,
+    drawn_at: Instant,
+}
+
+impl<T> Kept<T> {
+    fn new(value: T) -> Self {
+        Self {
+            value,
+            drawn_at: Instant::now(),
+        }
+    }
+}
+
+/// The value under `key`, read by a row being drawn, which makes it the most recently drawn.
+fn drawn<K: std::hash::Hash + Eq, T, R>(
+    map: &RefCell<HashMap<K, Kept<T>>>,
+    key: &K,
+    read: impl FnOnce(&T) -> R,
+) -> Option<R> {
+    let mut map = map.borrow_mut();
+    let kept = map.get_mut(key)?;
+    kept.drawn_at = Instant::now();
+    Some(read(&kept.value))
+}
+
+/// The cache's key for a picture the chat reads or decodes itself.
+///
+/// A `data:` address is the whole picture in base64, so the cache keeps its hash rather than a
+/// second copy of it, and hashes it in place rather than cloning it on every draw.
+fn source_id(transport: &str, source: &str) -> u64 {
+    use std::hash::{Hash as _, Hasher as _};
+    let mut hasher = std::hash::DefaultHasher::new();
+    transport.hash(&mut hasher);
+    source.hash(&mut hasher);
+    hasher.finish()
+}
+
+/// `source_id` for a projected image value, or `None` for one GPUI fetches itself (`url`) or one
+/// with nothing to read.
+fn image_source_id(image: &Value) -> Option<u64> {
+    let transport = image["transport"].as_str().unwrap_or("none");
+    let source = match transport {
+        "data" => image["url"].as_str(),
+        "read" => image["path"].as_str(),
+        _ => None,
+    }
+    .filter(|source| !source.is_empty())?;
+    Some(source_id(transport, source))
+}
+
+/// What a trim took out of the cache: GPUI still holds a decoded copy of each picture and an atlas
+/// tile of each shrunk copy until they are released (`release_chat_pictures`).
+#[derive(Default)]
+struct ReleasedPictures {
+    pictures: Vec<Arc<gpui::Image>>,
+    rendered: Vec<Arc<RenderImage>>,
+}
+
+/// Frees what GPUI keeps of pictures the chat has let go of, once the current update is over so
+/// no window is mid-draw: the decoded copy in the asset cache and the tiles in every window's
+/// atlas.
+fn release_chat_pictures(released: ReleasedPictures, cx: &mut gpui::App) {
+    if released.pictures.is_empty() && released.rendered.is_empty() {
+        return;
+    }
+    cx.defer(move |cx| {
+        for picture in released.pictures {
+            picture.remove_asset(cx);
+        }
+        for rendered in released.rendered {
+            cx.drop_image(rendered, None);
+        }
+    });
 }
 
 /// Why a picture cannot be shown: one of the core's `image_read_failure_reason` words, or
@@ -127,12 +236,167 @@ enum ChatImageThumbnail {
 /// borrowed shared, so the map is behind a cell rather than reachable only from `&mut self`.
 #[derive(Default)]
 pub(crate) struct ChatImageCache {
-    entries: RefCell<HashMap<String, ChatImageEntry>>,
-    /// Cover-cropped copies keyed by the picture and the device pixels it is painted at, so a zoom
-    /// change rasterizes once more and scrolling never resizes anything.
-    thumbnails: RefCell<HashMap<(u64, u32), ChatImageThumbnail>>,
-    /// Filmstrip copies at the picture's own shape, keyed like `thumbnails` by the strip's height.
-    strip: RefCell<HashMap<(u64, u32), ChatStripPicture>>,
+    /// Each picture's bytes, keyed by `source_id`.
+    entries: RefCell<HashMap<u64, Kept<ChatImageEntry>>>,
+    /// Cover-cropped copies keyed by the picture's `source_id` and the device pixels it is painted
+    /// at, so a zoom change rasterizes once more, scrolling never resizes anything, and a tile is
+    /// drawn from its copy even after the picture's bytes have been let go.
+    thumbnails: RefCell<HashMap<(u64, u32), Kept<ChatImageThumbnail>>>,
+    /// Filmstrip copies at the picture's own shape, keyed like `thumbnails` by the strip's height
+    /// and widest frame.
+    strip: RefCell<HashMap<(u64, u32, u32), Kept<ChatStripPicture>>>,
+    /// The trim a pane that went off screen waits for (`schedule_hidden_image_trim`); the web
+    /// page never hides a chat pane.
+    #[cfg_attr(target_family = "wasm", allow(dead_code))]
+    hidden_trim: Option<gpui::Task<()>>,
+    /// When the transcript's rows were last drawn. The transcript is a cached view
+    /// (transcript_host.rs) that can show the same rows for minutes without drawing them again,
+    /// so every picture drawn since then is still on screen however long ago that was.
+    rows_drawn_at: std::cell::Cell<Option<Instant>>,
+}
+
+impl ChatImageCache {
+    /// The transcript is drawing its rows now.
+    pub(super) fn note_transcript_rows_drawn(&self) {
+        self.rows_drawn_at.set(Some(Instant::now()));
+    }
+
+    /// Lets the pictures drawn longest ago go until the cache and the painted Mermaid diagrams
+    /// (`diagrams`) hold at most `budget` bytes, never one drawn within `RECENTLY_DRAWN`, one the
+    /// transcript's rows still show (when `on_screen`), or one of `pinned` (the preview's and the
+    /// composer's pictures).
+    fn trim(
+        &self,
+        budget: usize,
+        on_screen: bool,
+        pinned: &[u64],
+        diagrams: &super::mermaid::ChatMermaidCache,
+    ) -> ReleasedPictures {
+        let rows_drawn_at = self.rows_drawn_at.get().filter(|_| on_screen);
+        enum Slot {
+            Entry(u64),
+            Thumbnail((u64, u32)),
+            Strip((u64, u32, u32)),
+            Diagram((String, bool)),
+        }
+        let mut entries = self.entries.borrow_mut();
+        let mut thumbnails = self.thumbnails.borrow_mut();
+        let mut strip = self.strip.borrow_mut();
+        let mut total = 0;
+        let mut candidates = Vec::new();
+        for (key, kept) in entries.iter() {
+            let bytes = kept.value.bytes();
+            total += bytes;
+            if bytes > 0 && !pinned.contains(key) {
+                candidates.push((kept.drawn_at, Slot::Entry(*key), bytes));
+            }
+        }
+        for (key, kept) in thumbnails.iter() {
+            if let ChatImageThumbnail::Ready(shrunk) = &kept.value {
+                let bytes = rendered_bytes(shrunk);
+                total += bytes;
+                if !pinned.contains(&key.0) {
+                    candidates.push((kept.drawn_at, Slot::Thumbnail(*key), bytes));
+                }
+            }
+        }
+        for (key, kept) in strip.iter() {
+            if let ChatStripPicture::Ready(shrunk, _) = &kept.value {
+                let bytes = rendered_bytes(shrunk);
+                total += bytes;
+                if !pinned.contains(&key.0) {
+                    candidates.push((kept.drawn_at, Slot::Strip(*key), bytes));
+                }
+            }
+        }
+        for (drawn_at, key, bytes) in diagrams.painted() {
+            total += bytes;
+            candidates.push((drawn_at, Slot::Diagram(key), bytes));
+        }
+        let mut released = ReleasedPictures::default();
+        if total <= budget {
+            return released;
+        }
+        candidates.sort_by_key(|(drawn_at, ..)| *drawn_at);
+        for (drawn_at, slot, bytes) in candidates {
+            // Both rules spare everything drawn after the first picture they spare.
+            if total <= budget
+                || drawn_at.elapsed() < RECENTLY_DRAWN
+                || rows_drawn_at.is_some_and(|rows| drawn_at >= rows)
+            {
+                break;
+            }
+            total -= bytes;
+            match slot {
+                Slot::Entry(key) => {
+                    if let Some(Kept {
+                        value: ChatImageEntry::Ready(picture),
+                        ..
+                    }) = entries.remove(&key)
+                    {
+                        released.pictures.push(picture);
+                    }
+                }
+                Slot::Thumbnail(key) => {
+                    if let Some(Kept {
+                        value: ChatImageThumbnail::Ready(shrunk),
+                        ..
+                    }) = thumbnails.remove(&key)
+                    {
+                        released.rendered.push(shrunk);
+                    }
+                }
+                Slot::Strip(key) => {
+                    if let Some(Kept {
+                        value: ChatStripPicture::Ready(shrunk, _),
+                        ..
+                    }) = strip.remove(&key)
+                    {
+                        released.rendered.push(shrunk);
+                    }
+                }
+                Slot::Diagram(key) => released.rendered.extend(diagrams.take_painted(&key)),
+            }
+        }
+        released
+    }
+
+    /// Everything the cache holds, for a chat view that is going away.
+    fn take_all(&self) -> ReleasedPictures {
+        let mut released = ReleasedPictures::default();
+        for (_, kept) in self.entries.borrow_mut().drain() {
+            if let ChatImageEntry::Ready(picture) = kept.value {
+                released.pictures.push(picture);
+            }
+        }
+        for (_, kept) in self.thumbnails.borrow_mut().drain() {
+            if let ChatImageThumbnail::Ready(shrunk) = kept.value {
+                released.rendered.push(shrunk);
+            }
+        }
+        for (_, kept) in self.strip.borrow_mut().drain() {
+            if let ChatStripPicture::Ready(shrunk, _) = kept.value {
+                released.rendered.push(shrunk);
+            }
+        }
+        released
+    }
+
+    /// Whether a picture is painted from its own bytes somewhere in the transcript, which is what
+    /// GPUI's decoded copy of it is for.
+    fn painted_whole(&self, id: u64, picture: &gpui::Image) -> bool {
+        picture.format == ImageFormat::Svg
+            || self
+                .thumbnails
+                .borrow()
+                .iter()
+                .any(|(key, kept)| key.0 == id && matches!(kept.value, ChatImageThumbnail::Whole))
+            || self
+                .strip
+                .borrow()
+                .iter()
+                .any(|(key, kept)| key.0 == id && matches!(kept.value, ChatStripPicture::Whole(_)))
+    }
 }
 
 /// One picture shrunk to a filmstrip's height, never cropped.
@@ -154,7 +418,7 @@ pub(super) enum ChatImageSource {
 }
 
 /// What one transcript tile paints: the same picture, already shrunk to the size it is drawn at.
-enum ChatImageTile {
+pub(super) enum ChatImageTile {
     Uri(String),
     Thumbnail(Arc<RenderImage>),
     Whole(Arc<gpui::Image>),
@@ -299,6 +563,21 @@ fn thumbnail_pixels(p: &ChatAppearance) -> u32 {
         .max(1.0) as u32
 }
 
+/// A picture's pixels the way GPUI's own decoder shows them (the preview), turned by the file's
+/// EXIF orientation, so a shrunk copy of a phone photo stands the same way up as the photo.
+fn decode_upright(bytes: &[u8]) -> Option<image::DynamicImage> {
+    use image::ImageDecoder as _;
+    let mut decoder = image::ImageReader::new(std::io::Cursor::new(bytes))
+        .with_guessed_format()
+        .ok()?
+        .into_decoder()
+        .ok()?;
+    let orientation = decoder.orientation().ok()?;
+    let mut decoded = image::DynamicImage::from_decoder(decoder).ok()?;
+    decoded.apply_orientation(orientation);
+    Some(decoded)
+}
+
 /// Shrinks one picture to the square it is painted in, off the UI thread.
 ///
 /// The crop is centred, which is what React's `object-fit: cover` does, and the sampling averages
@@ -318,7 +597,8 @@ fn build_thumbnail(picture: &gpui::Image, pixels: u32) -> Option<RenderImage> {
     {
         return None;
     }
-    let decoded = image::load_from_memory(&picture.bytes).ok()?;
+    let decoded = decode_upright(&picture.bytes)?;
+    let (width, height) = (decoded.width(), decoded.height());
     let side = width.min(height);
     let square = decoded
         .crop_imm((width - side) / 2, (height - side) / 2, side, side)
@@ -340,11 +620,13 @@ fn build_thumbnail(picture: &gpui::Image, pixels: u32) -> Option<RenderImage> {
     Some(RenderImage::new(vec![image::Frame::new(data)]))
 }
 
-/// Shrinks one picture to `height` device pixels at its own shape, off the UI thread, with the
-/// source's size for the caption. `None` paints the original, as `build_thumbnail` does.
+/// Shrinks one picture to `height` device pixels at its own shape, and no wider than `max_width`
+/// (the widest frame the strip paints, which a wider picture is fitted into), off the UI thread,
+/// with the source's size for the caption. `None` paints the original, as `build_thumbnail` does.
 fn build_strip_picture(
     picture: &gpui::Image,
     height: u32,
+    max_width: u32,
 ) -> (Option<RenderImage>, Option<(u32, u32)>) {
     if picture.format == ImageFormat::Svg {
         return (None, None);
@@ -365,13 +647,21 @@ fn build_strip_picture(
     {
         return (None, size);
     }
-    let Ok(decoded) = image::load_from_memory(&picture.bytes) else {
+    let Some(decoded) = decode_upright(&picture.bytes) else {
         return (None, size);
     };
+    // The upright shape, which is the one the frame and its caption describe.
+    let (width, source_height) = (decoded.width(), decoded.height());
+    let size = Some((width, source_height));
     let decoded = decoded.into_rgba8();
-    let target_height = height.min(source_height).max(1);
-    let target_width =
+    let mut target_height = height.min(source_height).max(1);
+    let mut target_width =
         ((u64::from(width) * u64::from(target_height)) / u64::from(source_height)).max(1) as u32;
+    if target_width > max_width.max(1) {
+        target_width = max_width.max(1);
+        target_height =
+            ((u64::from(source_height) * u64::from(target_width)) / u64::from(width)).max(1) as u32;
+    }
     let mut data = if target_height < source_height {
         image::imageops::thumbnail(&decoded, target_width, target_height)
     } else {
@@ -403,42 +693,38 @@ impl NativeChatView {
                 ChatImageSource::Uri(url)
             };
         }
-        let key = match transport {
-            "data" => text(image, "url"),
-            "read" => text(image, "path"),
-            _ => String::new(),
-        };
-        if key.is_empty() {
+        let Some(id) = image_source_id(image) else {
             return ChatImageSource::Unavailable(ChatImageFailure::new("unavailable"));
-        }
-        match self.images.entries.borrow().get(&key) {
-            Some(ChatImageEntry::Ready(image)) => return ChatImageSource::Bytes(image.clone()),
-            Some(ChatImageEntry::Failed(failure)) => {
-                return ChatImageSource::Unavailable(failure.clone());
-            }
-            Some(ChatImageEntry::Loading) => return ChatImageSource::Loading,
-            None => {}
+        };
+        let known = drawn(&self.images.entries, &id, |entry| match entry {
+            ChatImageEntry::Ready(image) => ChatImageSource::Bytes(image.clone()),
+            ChatImageEntry::Failed(failure) => ChatImageSource::Unavailable(failure.clone()),
+            ChatImageEntry::Loading => ChatImageSource::Loading,
+        });
+        if let Some(known) = known {
+            return known;
         }
         self.images
             .entries
             .borrow_mut()
-            .insert(key.clone(), ChatImageEntry::Loading);
+            .insert(id, Kept::new(ChatImageEntry::Loading));
         if transport == "data" {
-            let decode_key = key.clone();
+            let url = image["url"].as_str().unwrap_or_default().to_string();
             let task = cx
                 .background_executor()
-                .spawn(async move { decode_data_url(&decode_key) });
+                .spawn(async move { decode_data_url(&url) });
             cx.spawn(async move |this, cx| {
                 let loaded = task.await;
-                let _ = this.update(cx, |this, cx| this.store_chat_image(key, loaded, cx));
+                let _ = this.update(cx, |this, cx| this.store_chat_image(id, loaded, cx));
             })
             .detach();
         } else {
             // The path is on the session's machine, so the read goes through the shared transport.
             // Asked for on the next turn of the loop, because this runs while the row is rendering.
+            let path = image["path"].as_str().unwrap_or_default().to_string();
             cx.spawn(async move |this, cx| {
                 let _ = this.update(cx, |this, cx| {
-                    this.invoke(json!({"type": "loadImage", "path": key}), cx)
+                    this.invoke(json!({"type": "loadImage", "path": path}), cx)
                 });
             })
             .detach();
@@ -450,12 +736,26 @@ impl NativeChatView {
     ///
     /// The viewer still opens the original; only the tile trades it for a copy the size of the
     /// tile, which is what keeps a transcript of screenshots readable and cheap to scroll.
-    fn chat_image_tile(
+    pub(super) fn chat_image_tile(
         &self,
         image: &Value,
         p: &ChatAppearance,
         cx: &Context<Self>,
     ) -> ChatImageTile {
+        // A shrunk copy is drawn without the picture's bytes, which the cache may have let go.
+        let key = image_source_id(image).map(|id| (id, thumbnail_pixels(p)));
+        let shrunk = key.and_then(|key| {
+            drawn(&self.images.thumbnails, &key, |thumbnail| match thumbnail {
+                ChatImageThumbnail::Ready(thumbnail) => {
+                    Some(ChatImageTile::Thumbnail(thumbnail.clone()))
+                }
+                ChatImageThumbnail::Loading => Some(ChatImageTile::Loading),
+                ChatImageThumbnail::Whole => None,
+            })
+        });
+        if let Some(Some(tile)) = shrunk {
+            return tile;
+        }
         let picture = match self.chat_image(image, cx) {
             // An address GPUI fetches and scales itself, as the browser does for React.
             ChatImageSource::Uri(url) => return ChatImageTile::Uri(url),
@@ -463,24 +763,16 @@ impl NativeChatView {
             ChatImageSource::Unavailable(failure) => return ChatImageTile::Unavailable(failure),
             ChatImageSource::Bytes(picture) => picture,
         };
-        if picture.format == ImageFormat::Svg {
-            // Drawn from its own shapes at whatever size it is given, so there is nothing to shrink
-            // and nothing to wait for.
+        // Drawn from its own shapes at whatever size it is given, so there is nothing to shrink
+        // and nothing to wait for; or too large to shrink (`shrunk` said so).
+        let Some(key) = key.filter(|_| picture.format != ImageFormat::Svg && shrunk.is_none())
+        else {
             return ChatImageTile::Whole(picture);
-        }
-        let key = (picture.id, thumbnail_pixels(p));
-        match self.images.thumbnails.borrow().get(&key) {
-            Some(ChatImageThumbnail::Ready(thumbnail)) => {
-                return ChatImageTile::Thumbnail(thumbnail.clone());
-            }
-            Some(ChatImageThumbnail::Whole) => return ChatImageTile::Whole(picture),
-            Some(ChatImageThumbnail::Loading) => return ChatImageTile::Loading,
-            None => {}
-        }
+        };
         self.images
             .thumbnails
             .borrow_mut()
-            .insert(key, ChatImageThumbnail::Loading);
+            .insert(key, Kept::new(ChatImageThumbnail::Loading));
         let source = picture.clone();
         let task = cx
             .background_executor()
@@ -488,13 +780,17 @@ impl NativeChatView {
         cx.spawn(async move |this, cx| {
             let thumbnail = task.await;
             let _ = this.update(cx, |this, cx| {
+                let ready = thumbnail.is_some();
                 this.images.thumbnails.borrow_mut().insert(
                     key,
-                    match thumbnail {
+                    Kept::new(match thumbnail {
                         Some(thumbnail) => ChatImageThumbnail::Ready(thumbnail),
                         None => ChatImageThumbnail::Whole,
-                    },
+                    }),
                 );
+                if ready {
+                    this.trim_chat_images(cx);
+                }
                 cx.notify();
             });
         })
@@ -502,12 +798,125 @@ impl NativeChatView {
         ChatImageTile::Loading
     }
 
+    /// Keeps the cache within its budget after it grew, sparing what is on screen.
+    ///
+    /// Every caller notifies the chat afterwards, so a surface showing a picture that was let go
+    /// is drawn again (and asks for it again) rather than replayed from before.
+    pub(super) fn trim_chat_images(&mut self, cx: &mut Context<Self>) {
+        let pinned = self.pinned_pictures();
+        let released = self
+            .images
+            .trim(CHAT_IMAGE_BUDGET_BYTES, true, &pinned, &self.mermaid);
+        release_chat_pictures(released, cx);
+    }
+
+    /// The pictures of the open preview (or the one owed to this pane when it is shown again) and
+    /// the composer's attachment tiles, which are drawn whenever the chat is.
+    fn pinned_pictures(&self) -> Vec<u64> {
+        let viewer = self
+            .image_viewer
+            .request
+            .iter()
+            .flat_map(|request| request.images.iter().filter_map(image_source_id));
+        let composer = self
+            .composer_references
+            .iter()
+            .filter(|reference| reference.kind == "image" && !reference.path.is_empty())
+            .map(|reference| source_id("read", &reference.path));
+        viewer.chain(composer).collect()
+    }
+
+    /// The pane went off screen: once it has stayed off screen for `HIDDEN_TRIM_DELAY`, the cache
+    /// keeps only what it drew last, up to `HIDDEN_CHAT_IMAGE_BUDGET_BYTES`.
+    #[cfg_attr(target_family = "wasm", allow(dead_code))] // the web page never hides a chat pane
+    pub(super) fn schedule_hidden_image_trim(&mut self, cx: &mut Context<Self>) {
+        self.images.hidden_trim = Some(cx.spawn(async move |this, cx| {
+            cx.background_executor().timer(HIDDEN_TRIM_DELAY).await;
+            let _ = this.update(cx, |this, cx| {
+                this.images.hidden_trim = None;
+                if this.pane_hidden {
+                    // Still sparing what was drawn lately: a view can be drawn while its pane
+                    // counts as hidden (the floating sessions panel).
+                    let pinned = this.pinned_pictures();
+                    let released = this.images.trim(
+                        HIDDEN_CHAT_IMAGE_BUDGET_BYTES,
+                        false,
+                        &pinned,
+                        &this.mermaid,
+                    );
+                    if !released.pictures.is_empty() || !released.rendered.is_empty() {
+                        release_chat_pictures(released, cx);
+                        cx.notify();
+                    }
+                }
+            });
+        }));
+    }
+
+    #[cfg_attr(target_family = "wasm", allow(dead_code))] // the web page never hides a chat pane
+    pub(super) fn cancel_hidden_image_trim(&mut self) {
+        self.images.hidden_trim = None;
+    }
+
+    /// Lets GPUI drop its full-size decoded copy of each picture a closed preview showed, unless
+    /// the transcript still paints that picture from its own bytes.
+    pub(super) fn release_viewed_pictures(&self, images: &[Value], cx: &mut Context<Self>) {
+        let entries = self.images.entries.borrow();
+        let pictures = images
+            .iter()
+            .filter_map(image_source_id)
+            .filter_map(|id| match entries.get(&id).map(|kept| &kept.value) {
+                Some(ChatImageEntry::Ready(picture)) if !self.images.painted_whole(id, picture) => {
+                    Some(picture.clone())
+                }
+                _ => None,
+            })
+            .collect();
+        release_chat_pictures(
+            ReleasedPictures {
+                pictures,
+                rendered: Vec::new(),
+            },
+            cx,
+        );
+    }
+
+    /// Registers the release of everything GPUI keeps of this chat's pictures when the view goes
+    /// away: a pooled-out chat view otherwise left its tiles in the window's atlas for good.
+    pub(super) fn release_chat_images_with_view(cx: &mut Context<Self>) {
+        cx.on_release(|chat, cx| {
+            let mut released = chat.images.take_all();
+            released.rendered.extend(chat.mermaid.take_rasters());
+            released
+                .pictures
+                .extend(chat.visual.page_thumbnails.take_pictures());
+            release_chat_pictures(released, cx);
+        })
+        .detach();
+    }
+
+    /// Page-card pictures a newer one replaced (`page_card.rs`).
+    pub(super) fn release_page_pictures(
+        &self,
+        pictures: Vec<Arc<gpui::Image>>,
+        cx: &mut Context<Self>,
+    ) {
+        release_chat_pictures(
+            ReleasedPictures {
+                pictures,
+                rendered: Vec::new(),
+            },
+            cx,
+        );
+    }
+
     /// The transport answered a `loadImage` ask (the core's `chatImage` request).
     pub(super) fn receive_chat_image(&mut self, request: &Value, cx: &mut Context<Self>) {
-        let path = text(&request["params"], "path");
+        let path = request["params"]["path"].as_str().unwrap_or_default();
         if path.is_empty() {
             return;
         }
+        let path = source_id("read", path);
         if request["method"] != "loaded" {
             let params = &request["params"];
             let reason = text(params, "reason");
@@ -535,17 +944,21 @@ impl NativeChatView {
 
     fn store_chat_image(
         &mut self,
-        key: String,
+        key: u64,
         loaded: Result<gpui::Image, ChatImageFailure>,
         cx: &mut Context<Self>,
     ) {
+        let ready = loaded.is_ok();
         self.images.entries.borrow_mut().insert(
             key,
-            match loaded {
+            Kept::new(match loaded {
                 Ok(image) => ChatImageEntry::Ready(Arc::new(image)),
                 Err(failure) => ChatImageEntry::Failed(failure),
-            },
+            }),
         );
+        if ready {
+            self.trim_chat_images(cx);
+        }
         self.list.remeasure();
         cx.notify();
     }
@@ -787,8 +1200,25 @@ impl NativeChatView {
         &self,
         image: &Value,
         height: f32,
+        max_width: f32,
         cx: &Context<Self>,
     ) -> (ChatImageTile, Option<(u32, u32)>) {
+        let device = |logical: f32| (logical * THUMBNAIL_PIXEL_RATIO).ceil().max(1.0) as u32;
+        // A shrunk copy is drawn without the picture's bytes, which the cache may have let go.
+        let key = image_source_id(image).map(|id| (id, device(height), device(max_width)));
+        let whole_size = match key.and_then(|key| {
+            drawn(&self.images.strip, &key, |picture| match picture {
+                ChatStripPicture::Ready(shrunk, size) => {
+                    Err((ChatImageTile::Thumbnail(shrunk.clone()), Some(*size)))
+                }
+                ChatStripPicture::Loading => Err((ChatImageTile::Loading, None)),
+                ChatStripPicture::Whole(size) => Ok(*size),
+            })
+        }) {
+            Some(Err(drawn)) => return drawn,
+            Some(Ok(size)) => Some(size),
+            None => None,
+        };
         let picture = match self.chat_image(image, cx) {
             ChatImageSource::Uri(url) => return (ChatImageTile::Uri(url), None),
             ChatImageSource::Loading => return (ChatImageTile::Loading, None),
@@ -797,38 +1227,36 @@ impl NativeChatView {
             }
             ChatImageSource::Bytes(picture) => picture,
         };
-        let key = (
-            picture.id,
-            (height * THUMBNAIL_PIXEL_RATIO).ceil().max(1.0) as u32,
-        );
-        match self.images.strip.borrow().get(&key) {
-            Some(ChatStripPicture::Ready(shrunk, size)) => {
-                return (ChatImageTile::Thumbnail(shrunk.clone()), Some(*size));
-            }
-            Some(ChatStripPicture::Whole(size)) => return (ChatImageTile::Whole(picture), *size),
-            Some(ChatStripPicture::Loading) => return (ChatImageTile::Loading, None),
-            None => {}
+        if let Some(size) = whole_size {
+            return (ChatImageTile::Whole(picture), size);
         }
+        let Some(key) = key else {
+            return (ChatImageTile::Whole(picture), None);
+        };
         self.images
             .strip
             .borrow_mut()
-            .insert(key, ChatStripPicture::Loading);
+            .insert(key, Kept::new(ChatStripPicture::Loading));
         let source = picture.clone();
         let task = cx
             .background_executor()
-            .spawn(async move { build_strip_picture(&source, key.1) });
+            .spawn(async move { build_strip_picture(&source, key.1, key.2) });
         cx.spawn(async move |this, cx| {
             let (shrunk, size) = task.await;
             let _ = this.update(cx, |this, cx| {
+                let ready = shrunk.is_some() && size.is_some();
                 this.images.strip.borrow_mut().insert(
                     key,
-                    match (shrunk, size) {
+                    Kept::new(match (shrunk, size) {
                         (Some(shrunk), Some(size)) => {
                             ChatStripPicture::Ready(Arc::new(shrunk), size)
                         }
                         (_, size) => ChatStripPicture::Whole(size),
-                    },
+                    }),
                 );
+                if ready {
+                    this.trim_chat_images(cx);
+                }
                 this.list.remeasure();
                 cx.notify();
             });
@@ -916,7 +1344,7 @@ impl NativeChatView {
         } else {
             file_name_of(&label)
         };
-        let (source, size) = self.chat_strip_picture(image, height * s, cx);
+        let (source, size) = self.chat_strip_picture(image, height * s, max_width * s, cx);
         let open = images.to_vec();
         let tile = div()
             .id(gpui::SharedString::from(format!(

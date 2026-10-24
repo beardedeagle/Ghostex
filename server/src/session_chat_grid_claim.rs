@@ -231,15 +231,14 @@ async fn hold_claim(zmx_name: String) {
     }
 }
 
-/// `ipc.Tag.ChatClaim` with an empty payload: an 8-byte header (`u8` tag, `u32` length, padding).
+/// `ipc.Tag.ChatClaim` with an empty payload: a bare frame header.
 #[cfg(unix)]
 async fn claim_once(zmx_name: &str) -> std::io::Result<()> {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     const ZMX_IPC_TAG_CHAT_CLAIM: u8 = 210;
     let mut stream =
         tokio::net::UnixStream::connect(crate::zmx::zmx_session_socket_path(zmx_name)).await?;
-    let mut request = [0_u8; 8];
-    request[0] = ZMX_IPC_TAG_CHAT_CLAIM;
+    let request = crate::zmx::ipc_frame::zmx_ipc_header(ZMX_IPC_TAG_CHAT_CLAIM, 0);
     stream.write_all(&request).await?;
     // The daemon never writes to a claim; a read returns when the session ends.
     let mut sink = [0_u8; 256];

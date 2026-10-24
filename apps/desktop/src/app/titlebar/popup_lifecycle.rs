@@ -381,6 +381,23 @@ impl GhostexGpuiApp {
                     crate::app::window::remote_sites::RemoteSitesPanel::new(main_app, cx)
                 }))
             }
+            GpuiTitlebarPopupKind::SessionLinks => {
+                let key = self
+                    .native_sidebar
+                    .links_list_session
+                    .clone()
+                    .expect("session chosen before opening its links list");
+                let links = self.session_links_of(&key);
+                GpuiTitlebarPopupContent::SessionLinks(cx.new(|cx| {
+                    crate::app::native_sidebar::links_list::SessionLinksList::new(
+                        main_app,
+                        key,
+                        crate::app::native_sidebar::links_list::SessionLinksListHost::Dropdown,
+                        links,
+                        cx,
+                    )
+                }))
+            }
             GpuiTitlebarPopupKind::Actions => {
                 GpuiTitlebarPopupContent::Menu(PopupMenu::build(window, cx, |menu, _, _| {
                     self.build_gpui_titlebar_actions_popup_menu(

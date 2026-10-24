@@ -650,6 +650,74 @@ pub struct PresentationWorkGithubProject {
     pub status: Option<String>,
 }
 
+/// `PresentationSession.links`: every PR, GitHub issue and Linear ticket a session is linked to,
+/// open work first, and the PR and issue URLs its chat only mentioned (server/src/session_links/).
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PresentationSessionLinks {
+    #[serde(default, deserialize_with = "crate::de::null_as_default")]
+    pub items: Vec<PresentationSessionLink>,
+    #[serde(
+        default,
+        deserialize_with = "crate::de::null_as_default",
+        skip_serializing_if = "Vec::is_empty"
+    )]
+    pub suggested: Vec<PresentationSuggestedLink>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PresentationSessionLink {
+    /// `pr:owner/repo#318`, `issue:owner/repo#305` or `linear:GHX-142`: what removing it sends.
+    pub key: String,
+    /// `pullRequest`, `issue` or `linear`.
+    pub kind: String,
+    /// `#318`, `repo#12` (another repo) or `GHX-142`.
+    pub label: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    /// A PR's `open`, `draft`, `merged` or `closed`; an issue's `open` or `closed`; a Linear
+    /// ticket's state type. Absent until it was read.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub state: Option<String>,
+    /// A Linear ticket's state as its team names it ("In Review").
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub state_name: Option<String>,
+    /// A PR's `passing`, `failing` or `pending`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub checks: Option<String>,
+    /// A PR's `reviewRequired`, `approved` or `changesRequested`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub review: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+    /// Where it came from: `branch`, `agentOpened`, `agentReported`, `closes`, `mentioned` or
+    /// `user`; `source_label` says it in words ("Closed by #318").
+    #[serde(default, deserialize_with = "crate::de::null_as_default")]
+    pub source: String,
+    #[serde(default, deserialize_with = "crate::de::null_as_default")]
+    pub source_label: String,
+    /// Merged, closed, done or canceled.
+    #[serde(
+        default,
+        deserialize_with = "crate::de::null_as_default",
+        skip_serializing_if = "is_false"
+    )]
+    pub finished: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PresentationSuggestedLink {
+    pub key: String,
+    pub kind: String,
+    pub label: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+}
+
 /// One session row. Unique only together with `project_id`.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -868,6 +936,9 @@ pub struct PresentationSession {
     /// Present only for a session of a project with work mode on.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub work: Option<PresentationSessionWork>,
+    /// Every session's PR, issue and Linear links; absent when it has none and nothing to suggest.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub links: Option<PresentationSessionLinks>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub delayed_send_deadline_at: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

@@ -219,3 +219,78 @@ pub(crate) fn write_cloud_record(
         })?;
     Ok(changed > 0)
 }
+
+/// Whether Close puts this session to sleep instead of closing it: a cloud session that is awake
+/// and exists (or is being created) on claude.ai. Close on it once it is asleep closes it as
+/// before, so the row can still be taken off the list.
+///
+/// CDXC:ClaudeCloud 2026-10-23 DECISION:
+/// User, asked whether a cloud session's row should survive Close since the session goes on running on claude.ai: "Keep it listed, asleep". So Close on an awake cloud row sleeps it (its terminal's cloud client stops, the claude.ai session does not), and the row stays in the list with its cloud mark, where a click still opens Claude's page. A draft, a failed start and a session brought to this computer have nothing left running on claude.ai, so their Close closes as every row's does. Kill (`/api/killSession`: the CLI's `kill` and `close-session`, an agent's `agents close`, the phone's Kill Session) is unchanged and still closes the row. Every client asks this one rule: gxserver applies it to `/api/transitionSession`'s close (zmx/endpoint.rs), and the clients whose Close sends something else ask it too.
+/// SEE-ALSO: packages/gx-core/src/claude_cloud.rs (`close_keeps_claude_cloud_row`, the desktop's sidebar Close), apps/mobile/app/src/screens/sessions-screen/session-actions.ts (`closeSessionAction`, the phone's Close).
+pub(crate) fn close_keeps_session_asleep(session: &Value) -> bool {
+    session_cloud_record(session)
+        .is_some_and(|record| matches!(record.state, CloudState::Starting | CloudState::Running))
+        && crate::presentation::effective_lifecycle_state(session) == "running"
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::{json, Value};
+
+    use super::close_keeps_session_asleep;
+
+    /// A session row as the repository returns it.
+    fn session(lifecycle: &str, provider: &str, cloud: Option<&str>) -> Value {
+        let mut session = json!({
+            "lifecycleState": lifecycle,
+            "providerState": { "lifecycleState": provider, "provider": "zmx" },
+            "runtimeSettings": {},
+        });
+        if let Some(state) = cloud {
+            session["runtimeSettings"]["claudeCloud"] = json!({
+                "state": state,
+                "url": "https://claude.ai/code/session_01Test",
+            });
+        }
+        session
+    }
+
+    #[test]
+    fn close_keeps_an_awake_cloud_session_asleep() {
+        assert!(close_keeps_session_asleep(&session(
+            "running",
+            "exists",
+            Some("running")
+        )));
+        assert!(close_keeps_session_asleep(&session(
+            "running",
+            "exists",
+            Some("starting")
+        )));
+        // A row the daemon still calls sleeping while its provider runs is awake.
+        assert!(close_keeps_session_asleep(&session(
+            "sleeping",
+            "exists",
+            Some("running")
+        )));
+    }
+
+    #[test]
+    fn close_closes_every_other_session() {
+        // Close on an asleep cloud row takes it off the list, as before.
+        assert!(!close_keeps_session_asleep(&session(
+            "sleeping",
+            "missing",
+            Some("running")
+        )));
+        for state in ["draft", "failed", "moved"] {
+            assert!(
+                !close_keeps_session_asleep(&session("running", "exists", Some(state))),
+                "{state}"
+            );
+        }
+        assert!(!close_keeps_session_asleep(&session(
+            "running", "exists", None
+        )));
+    }
+}

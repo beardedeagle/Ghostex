@@ -156,10 +156,10 @@ fn rows_newest_first(items: &[TranscriptItem]) -> Vec<(usize, Option<usize>, &Va
     let mut rows = Vec::new();
     for (item_index, item) in items.iter().enumerate().rev() {
         match item {
-            TranscriptItem::Message { message } => rows.push((item_index, None, message)),
+            TranscriptItem::Message { message } => rows.push((item_index, None, &**message)),
             TranscriptItem::Summary { work, .. } => {
                 for (work_index, message) in work.iter().enumerate().rev() {
-                    rows.push((item_index, Some(work_index), message));
+                    rows.push((item_index, Some(work_index), &**message));
                 }
             }
             // A finished turn's work holds no call an approval still waits on.
@@ -169,43 +169,52 @@ fn rows_newest_first(items: &[TranscriptItem]) -> Vec<(usize, Option<usize>, &Va
     rows
 }
 
-fn locate(
-    items: &[TranscriptItem],
+/// The rows newest first, until one of them answers `find`: `Some(target or none)` once the search
+/// ends, `None` when no row did. A target comes with the place in `rows` of the row it is in.
+fn search(
+    rows: &[(usize, Option<usize>, &Value)],
     cache: &ProjectionCache,
-    wait: &ApprovalWait,
-) -> Option<Target> {
-    let rows = rows_newest_first(items);
-    let search = |find: &dyn Fn(&ghostex_gx_protocol::ChatMessage) -> Search| {
-        for (item, work, message) in &rows {
-            let Some(entry) = message
-                .get("id")
-                .and_then(Value::as_str)
-                .and_then(|id| cache.get(id))
-            else {
-                continue;
-            };
-            match find(&entry.source) {
-                Search::Found(place) => {
-                    return Some(Some(Target {
+    find: &dyn Fn(&ghostex_gx_protocol::ChatMessage) -> Search,
+) -> Option<Option<(usize, Target)>> {
+    for (at, (item, work, message)) in rows.iter().enumerate() {
+        let Some(entry) = message
+            .get("id")
+            .and_then(Value::as_str)
+            .and_then(|id| cache.get(id))
+        else {
+            continue;
+        };
+        match find(&entry.source) {
+            Search::Found(place) => {
+                return Some(Some((
+                    at,
+                    Target {
                         item: *item,
                         work: *work,
                         place,
-                    }))
-                }
-                Search::Stop => return Some(None),
-                Search::NotHere => {}
+                    },
+                )))
             }
+            Search::Stop => return Some(None),
+            Search::NotHere => {}
         }
-        None
-    };
+    }
+    None
+}
+
+fn locate(
+    rows: &[(usize, Option<usize>, &Value)],
+    cache: &ProjectionCache,
+    wait: &ApprovalWait,
+) -> Option<(usize, Target)> {
     if let Some(id) = &wait.tool_use_id {
         // Claude's hook names the transcript's own call id; an agent whose approval id names no
         // call (OpenCode's permission ids) is matched like a screen dialog.
-        if let Some(found) = search(&|source| by_id(source, id)) {
+        if let Some(found) = search(rows, cache, &|source| by_id(source, id)) {
             return found;
         }
     }
-    search(&newest_open_call).flatten()
+    search(rows, cache, &newest_open_call).flatten()
 }
 
 /// CDXC:SessionChat 2026-10-15 DECISION: User (a Ghostex customer): "when I run Claude Code in manual Mode I always have to expand the bash commands to see what ghostex is asking permission for. (in chat view) It would be better if we expand to show the last command so i know what it needs approval for. (collapse after i approve)". While an agent waits on a tool approval, the call it waits on starts open (`awaitingApproval` on the tool row, `toolsOpen` on its message, and the run fold and a summary turn's work fold keep it in view), so the command shows beside the approval card without a click; a file edit or write waiting the same way (Edit, Write and the like, drawn as file cards) opens its file rows to the diff (`awaitingApproval` on each, user 2026-10-15). Once the approval is answered, from the chat, the terminal or anywhere, the mark goes and the row folds back to how it normally draws; a row the reader opened or closed by hand while it waited keeps their choice, because the renderers record that against this default.
@@ -215,9 +224,47 @@ pub fn open_waiting_call(
     wait: Option<&ApprovalWait>,
 ) {
     let Some(wait) = wait else { return };
-    let Some(target) = locate(items, cache, wait) else {
-        return;
-    };
+    if let Some((_, target)) = locate(&rows_newest_first(items), cache, wait) {
+        mark_waiting_call(items, target);
+    }
+}
+
+/// [`open_waiting_call`] over a list drawn as `before` (older rows, oldest first, drawn already)
+/// and then `items` (`transcript/settled.rs`). Marks the waiting call when it is among `items`;
+/// `false` when it is among `before`, which would have to be drawn again with the mark.
+pub fn open_waiting_call_in(
+    items: &mut [TranscriptItem],
+    before: &[&[TranscriptItem]],
+    cache: &ProjectionCache,
+    wait: Option<&ApprovalWait>,
+) -> bool {
+    let Some(wait) = wait else { return true };
+    let mut rows = rows_newest_first(items);
+    let newest = rows.len();
+    // The newest rows end most searches; the older rows are read only when they do not.
+    let ended = match &wait.tool_use_id {
+        Some(id) => search(&rows, cache, &|source| by_id(source, id)),
+        None => search(&rows, cache, &newest_open_call),
+    }
+    .is_some();
+    if !ended {
+        for older in before.iter().rev() {
+            rows.extend(rows_newest_first(older));
+        }
+    }
+    match locate(&rows, cache, wait) {
+        Some((at, _)) if at >= newest => false,
+        Some((_, target)) => {
+            drop(rows);
+            mark_waiting_call(items, target);
+            true
+        }
+        None => true,
+    }
+}
+
+/// Opens the waiting call where [`locate`] found it, in the row's own copy of its model.
+fn mark_waiting_call(items: &mut [TranscriptItem], target: Target) {
     let message = match (&mut items[target.item], target.work) {
         (TranscriptItem::Message { message }, None) => message,
         (
@@ -231,7 +278,11 @@ pub fn open_waiting_call(
         }
         _ => return,
     };
-    let Value::Object(fields) = message else {
+    // A row with nothing to open keeps the model it shares with the projection cache.
+    if !message.is_object() || (target.place.files.is_empty() && target.place.tool.is_none()) {
+        return;
+    }
+    let Value::Object(fields) = std::sync::Arc::make_mut(message) else {
         return;
     };
     // A write waiting on its approval opens its file rows to the diff it asks to make.

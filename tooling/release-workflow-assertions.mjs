@@ -609,8 +609,8 @@ const WINDOWS_RUNTIME_ARTIFACT = 'release-windows-native-runtime-${{ inputs.arch
 /* Each path build-windows-app.ps1's stage half copies from a runtime build. */
 const WINDOWS_RUNTIME_OUTPUTS = [
   {
-    literal: '"server/target/release/$binary"',
-    upload: ['server/target/release/gxserver.exe', 'server/target/release/ghostex.exe'],
+    literal: '"server/target/release/gxserver.exe"',
+    upload: ['server/target/release/gxserver.exe'],
   },
   { literal: '".dependencies/wmx/target/release/wmx.exe"', upload: ['.dependencies/wmx/target/release/wmx.exe'] },
   {

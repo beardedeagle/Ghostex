@@ -250,6 +250,16 @@ pub(crate) fn open_workspace_window(
         }
         let view_for_cef = view.clone();
         window.on_next_frame(move |window, cx| {
+            if lead {
+                support_logs::append(
+                    support_logs::GpuiSupportLog::HostLifecycle,
+                    "gpui.host.firstFrame",
+                    serde_json::json!({
+                        "pid": std::process::id(),
+                        "sinceLaunchMs": support_logs::ms_since_launch(),
+                    }),
+                );
+            }
             view_for_cef.update(cx, |app, cx| {
                 #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
                 app.begin_deferred_cef_startup(cx);
@@ -322,6 +332,7 @@ pub(crate) fn open_workspace_window(
             .detach();
             cx.observe_window_activation(window, |app, window, cx| {
                 if !window.is_window_active() {
+                    app.voice_agent_window_deactivated(cx);
                     app.close_gpui_titlebar_popup(None, window, cx);
                     /*
                     CDXC:Sidebar 2026-08-02:

@@ -217,10 +217,6 @@ pub fn usage() -> String {
             "Create a terminal session; --start materializes the live terminal immediately",
         ),
         format_help_command(
-            "create-chat [title] [--input text] [--start] --json",
-            "Create a Quick chat workspace with its first terminal session",
-        ),
-        format_help_command(
             "create-agent <agentId> --project-id id [--group-id id] [--model m] [--effort e] [--first-input-draft text] [--run-on location] [--defer-start] [--replace-empty-sessions] [--allow-hidden]",
             "Create and start a configured agent session; an agent turned off in Settings > Agents is refused unless --allow-hidden is passed (ghostex agents types lists the visible ones); --model/--effort (Claude, Codex, Antigravity CLI; Pi takes provider/model and a thinking level) apply to this session only; Empryo takes provider/model and starts on it without changing Empryo's default; --first-input-draft stages text in its input without sending; --run-on local|docker|hetzner|vercel|daytona|e2b|digitalocean|docker:<host> runs Claude, Codex, OpenCode or Pi in an agentbox box",
         ),
@@ -352,6 +348,10 @@ pub fn usage() -> String {
         format_help_command(
             "run-action <commandId> --project-id id",
             "Run a Terminal action in a session or return a Browser action URL",
+        ),
+        format_help_command(
+            "run-in-terminal --project-id id [--session-id id|--cwd path] [--paste] [--json] (--command text | -- command...)",
+            "Open a new terminal in the session's folder and run a command in it; --paste types it without pressing Enter",
         ),
     ]
     .join("\n");
@@ -524,6 +524,10 @@ pub fn usage() -> String {
         format_help_command(
             "link-session <selector> [--pr n|url|none] [--linear SPX-1,SPX-2|none] [--issue n|none] [--linear-project name|none] [--github-project owner/number|none] [--auto] | --candidates pullRequest|linearIssue|linearProject|githubIssue|githubProject [--query text]",
             "Link a session to a PR, Linear or GitHub issues, a Linear project or a GitHub Project; --auto goes back to what its branch says; --candidates lists what the Link to picker suggests",
+        ),
+        format_help_command(
+            "link add|remove|list [<url|#123|owner/repo#123|ABC-123>] [--session <session>] [--issue] [--json]",
+            "Add, remove or list the PRs, GitHub issues and Linear tickets a session is linked to; without --session it is the session the command runs in, so an agent can report the PR or issue it opened",
         ),
         format_help_command(
             "tag-session <id> <tag|none>",

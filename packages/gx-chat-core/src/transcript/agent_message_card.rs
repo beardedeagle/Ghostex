@@ -198,16 +198,10 @@ pub fn dress_received(message: &mut Value) {
 /// Asked "Should a sent message's card update once the other session actually receives it?", the user answered "yes, update it to Delivered". A card whose send answered `pending`, `accepted` or `queued` (seen: an orchestrator's sends to two busy threads kept "Waiting for agent" after both had arrived, and read as an error) changes to Delivered when the message reaches the other session, and to Not sent with the reason when Ghostex gives up on it; it stays so after a reload, a restart and on the phone. gxserver decides (server/src/agent_message_deliveries.rs); the card only applies its outcome, by the send's `sendRequestId`. A message sent to several sessions keeps one combined status, from each recipient's live one.
 /// SEE-ALSO: server/src/server/agent_message_delivery_runtime.rs (the watch), server/src/ghostex_cli/agents/delivery.rs (registers each waiting send).
 pub fn apply_live_delivery(recipient: &mut Value, deliveries: Option<&Value>) {
-    if recipient["failed"] == true
-        || !matches!(text(recipient, "status"), "pending" | "accepted" | "queued")
-    {
+    let Some(id) = live_delivery_key(recipient) else {
         return;
-    }
-    let id = text(recipient, "sendRequestId");
-    let Some(outcome) = deliveries
-        .filter(|_| !id.is_empty())
-        .and_then(|deliveries| deliveries.get(id))
-    else {
+    };
+    let Some(outcome) = deliveries.and_then(|deliveries| deliveries.get(id)) else {
         return;
     };
     match text(outcome, "state") {
@@ -218,6 +212,17 @@ pub fn apply_live_delivery(recipient: &mut Value, deliveries: Option<&Value>) {
         }
         _ => {}
     }
+}
+
+/// The send id [`apply_live_delivery`] looks a recipient up by, or `None` when its send already
+/// settled and the watch's word cannot change it.
+pub fn live_delivery_key(recipient: &Value) -> Option<&str> {
+    if recipient["failed"] == true
+        || !matches!(text(recipient, "status"), "pending" | "accepted" | "queued")
+    {
+        return None;
+    }
+    Some(text(recipient, "sendRequestId")).filter(|id| !id.is_empty())
 }
 
 /// Where one recipient's send left the message, as the result said; `Null` when nothing was read

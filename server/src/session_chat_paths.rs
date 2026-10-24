@@ -61,6 +61,11 @@ pub fn resolve_session_chat_transcript_path(
         );
     }
     if let Some(expanded) = supplied_path {
+        if agent == SessionChatTranscriptAgent::Codex && !expanded.is_file() {
+            if let Some(readable) = crate::codex_rollout_archive::readable_rollout(&expanded) {
+                return Some(readable);
+            }
+        }
         // CDXC:AgentScreenDetection 2026-09-15 WHY:
         // Claude's startup hook names its future transcript before the first prompt creates it. Searching every account's history for that same id on each screen probe delayed the model pills even after the terminal was ready.
         if agent == SessionChatTranscriptAgent::Claude

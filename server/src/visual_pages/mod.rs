@@ -9,6 +9,7 @@ mod kit;
 mod prepare;
 mod publish;
 mod questions;
+mod scroll;
 mod serve;
 mod source;
 mod store;
@@ -23,6 +24,7 @@ pub(crate) use publish::{
     PUBLISH_VISUAL_PAGE_ENDPOINT,
 };
 pub(crate) use questions::{page_answered, page_questions};
+pub(crate) use scroll::{handle as page_scroll, is_scroll_route};
 pub(crate) use serve::{serve, VISUAL_PAGE_ROUTE_PREFIX};
 pub(crate) use source::{
     handle_read_http as handle_read_visual_page_source_http,

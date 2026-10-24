@@ -18,6 +18,7 @@ use gpui::relative;
 use gpui_component::v_flex;
 
 use crate::app::consts::*;
+use crate::app::helpers::ThrottledAnimationExt as _;
 use crate::app::helpers::*;
 use crate::app::model::*;
 use crate::app::native_sidebar::drag::SidebarDrag;
@@ -204,16 +205,26 @@ impl GhostexGpuiApp {
                             )
                         })
                         .when(!bootstrap_missing, |this| {
+                            // The spinner reads the clock itself; the throttled animation
+                            // redraws it at the shared indicator rate instead of asking for every
+                            // display frame from its own paint.
                             this.child(
                                 canvas(
                                     move |_bounds, _window, _cx| {},
                                     move |bounds, _state: (), window, _cx| {
-                                        window.request_animation_frame();
                                         paint_agent_gui_loading_spinner(bounds, window);
                                     },
                                 )
                                 .size(px(18.0))
-                                .mt(px(10.0)),
+                                .mt(px(10.0))
+                                .with_throttled_animation(
+                                    format!(
+                                        "ghostex-gpui-session-chat-placeholder-spinner-{}",
+                                        session_id.0
+                                    ),
+                                    std::time::Duration::from_secs(1),
+                                    |spinner, _progress| spinner,
+                                ),
                             )
                         }),
                 )

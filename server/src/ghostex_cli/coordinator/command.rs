@@ -3,7 +3,7 @@ use ghostex_gx_chat_core::menus::orchestrator_effort::{
 };
 use serde_json::{json, Value};
 
-use super::{playbook, sleep_threads, threads};
+use super::{acknowledge_threads, playbook, sleep_threads, threads};
 use crate::ghostex_cli::{
     agents,
     args::{parse_args, Flags, ParsedArgs},
@@ -41,6 +41,7 @@ pub(crate) fn run(args: &[String]) -> CliResult<()> {
         "rename-self" => threads::rename_self(&parsed),
         "resolve" | "reopen" => threads::set_resolved(&parsed, command == "resolve"),
         "sleep-inactive-threads" => sleep_threads::sleep_inactive_threads(&parsed),
+        "acknowledge-threads" => acknowledge_threads::acknowledge_threads(&parsed),
         "remember" | "forget" | "set-goal" | "set-instructions" => update(command, &parsed),
         "edit" => edit(&parsed),
         "playbook" => playbook::show(&parsed),

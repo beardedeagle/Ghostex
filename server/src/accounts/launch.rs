@@ -457,17 +457,85 @@ pub(crate) fn validate_session(
         return Ok(());
     };
     let registry = store::read(repository.db)?;
-    let account = registry
-        .accounts
-        .iter()
-        .find(|a| a.id == id)
-        .ok_or_else(|| {
-            DomainStateError::bad_request(
-                "This account was removed from Ghostex. Select an account before resuming.",
-            )
-        })?;
-    validate_identity(&home()?, account)
+    let Some(account) = registry.accounts.iter().find(|a| a.id == id) else {
+        let runtime = &session["runtimeSettings"];
+        let provider = match runtime["accountProvider"].as_str() {
+            Some("codex") => Some(Provider::Codex),
+            Some("claude") => Some(Provider::Claude),
+            _ => None,
+        };
+        let label = account_label(
+            runtime["accountSlot"].as_str().unwrap_or(""),
+            runtime["accountName"].as_str().unwrap_or(""),
+        );
+        return Err(account_refusal(
+            session,
+            provider,
+            &format!("{label}, which was removed from Ghostex. Switch the session to another account before resuming it"),
+        ));
+    };
+    validate_identity(&home()?, account).map_err(|_| {
+        account_refusal(
+            session,
+            Some(account.provider),
+            &format!(
+                "{}, whose saved login changed or is unavailable. Refresh Accounts and reconnect it before resuming",
+                account_label(&account.selector, &account.name)
+            ),
+        )
+    })
 }
+
+/// `account 3 (Work)`: the number and name Settings > Accounts and the 5h/7d meters show.
+pub(crate) fn account_label(selector: &str, name: &str) -> String {
+    match (selector.trim(), name.trim()) {
+        ("", "") => "an account".to_string(),
+        (selector, "") => format!("account {selector}"),
+        ("", name) => format!("account {name}"),
+        (selector, name) => format!("account {selector} ({name})"),
+    }
+}
+
+/// CDXC:AgentProviders 2026-10-24 DECISION:
+/// User: "it's not saying which agent and which account it's talking about also should have an action button to take me to the place to fix this". A resume refused because of the session's account names the session (its title), the agent and the account (number and name, as Accounts and the 5h/7d meters show them) and carries the code `accountUnavailable`, which clients read to offer Open Accounts. `problem` continues "“<title>” (<Agent>) is on <Agent> ".
+/// SEE-ALSO: wake_account.rs (`refuse_turned_off`), apps/desktop/src/app/workspace_events.rs (the toast and its button), server/src/server/http_endpoints.rs (the status).
+pub(crate) fn account_refusal(
+    session: &Value,
+    provider: Option<Provider>,
+    problem: &str,
+) -> DomainStateError {
+    let title = session["title"]
+        .as_str()
+        .map(str::trim)
+        .filter(|title| !title.is_empty());
+    let title: String = match title {
+        Some(title) if title.chars().count() > 48 => {
+            format!(
+                "“{}…”",
+                title.chars().take(47).collect::<String>().trim_end()
+            )
+        }
+        Some(title) => format!("“{title}”"),
+        None => "This session".to_string(),
+    };
+    let agent = match provider {
+        Some(Provider::Claude) => "Claude",
+        Some(Provider::Codex) => "Codex",
+        None => "",
+    };
+    let message = if agent.is_empty() {
+        format!("{title} is on {problem}.")
+    } else {
+        format!("{title} ({agent}) is on {agent} {problem}.")
+    };
+    DomainStateError {
+        code: ACCOUNT_UNAVAILABLE,
+        message,
+    }
+}
+
+/// The error code of a resume the session's account refuses (`account_refusal`).
+pub(crate) const ACCOUNT_UNAVAILABLE: &str = "accountUnavailable";
 /// xswap's data folder: `XSWAP_HOME`, else `codex-swap` in its platform data folder. Its saved Codex accounts are `accounts/<slot>` inside it.
 pub(crate) fn xswap_root(home: &Path) -> PathBuf {
     let data_home = std::env::var_os("XDG_DATA_HOME")
@@ -544,6 +612,26 @@ pub(crate) fn effective_policy(registry: &Registry, provider: Provider, session:
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn an_account_refusal_names_the_session_agent_and_account() {
+        let session = json!({"title": "Fix login bug"});
+        let error = account_refusal(
+            &session,
+            Some(Provider::Claude),
+            &format!(
+                "{}, which was removed from Ghostex. Switch the session to another account before resuming it",
+                account_label("3", "Work")
+            ),
+        );
+        assert_eq!(error.code, ACCOUNT_UNAVAILABLE);
+        assert_eq!(
+            error.message,
+            "“Fix login bug” (Claude) is on Claude account 3 (Work), which was removed from Ghostex. Switch the session to another account before resuming it."
+        );
+        let untitled = account_refusal(&json!({}), None, &account_label("", ""));
+        assert_eq!(untitled.message, "This session is on an account.");
+    }
 
     /// Commands that name the provider CLI or its account helper, so they keep the account flow.
     const PROVIDER_COMMANDS: &[(Provider, &str)] = &[

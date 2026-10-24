@@ -5,29 +5,32 @@
 
 use super::{appearance::ChatAppearance, state::NativeChatView, transcript::text};
 use crate::app::native_chat::cursor::ChatCursor as _;
+use ghostex_gx_chat_core::TranscriptItem;
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
     AnyElement, Context, InteractiveElement as _, IntoElement, ParentElement as _,
     StatefulInteractiveElement as _, Styled as _, div, px,
 };
-use serde_json::{Value, json};
+use serde_json::json;
 
 impl NativeChatView {
     pub(super) fn deferred_work_notice(
         &self,
-        item: &Value,
+        item: &TranscriptItem,
         p: &ChatAppearance,
         cx: &Context<Self>,
     ) -> Option<AnyElement> {
-        let id = text(item, "id");
-        let state = &self.snapshot["deferredWork"][&id];
+        let TranscriptItem::CompletedWork { id, deferred, .. } = item else {
+            return None;
+        };
+        let state = &self.snapshot["deferredWork"][id];
         if !state.is_object() {
             return None;
         }
         let s = p.scale;
         let error = text(state, "error");
         let failed = !error.is_empty();
-        let retry = json!({"type":"loadWork","id":item["id"],"work":item["deferred"]});
+        let retry = json!({"type":"loadWork","id":id,"work":deferred});
         Some(
             div()
                 .flex()

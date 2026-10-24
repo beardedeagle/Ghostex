@@ -1,6 +1,7 @@
 //! Spoken announcements: while any voice conversation is open, every session's state is read every
 //! two seconds and a session that finishes its turn or starts waiting on a question or an approval
-//! is announced to every open conversation.
+//! is announced to every open conversation; a call about one session keeps only that session's
+//! (`focus.rs`).
 //!
 //! CDXC:VoiceMode 2026-10-20 DECISION:
 //! User: while a voice conversation is open it speaks up on its own with short announcements when a session finishes its turn or starts waiting on a question or an approval ("Sidebar fix finished").
@@ -63,6 +64,7 @@ pub(super) fn ensure_running(state: &Arc<AppState>) {
                             kind: "turnFinished",
                             project_id: row.project_id.clone(),
                             session_id: row.session_id.clone(),
+                            model_text: None,
                         });
                         continue;
                     }
@@ -98,14 +100,19 @@ pub(super) fn ensure_running(state: &Arc<AppState>) {
                         kind,
                         project_id: row.project_id.clone(),
                         session_id: row.session_id.clone(),
+                        model_text: None,
                     });
                 }
                 stable.retain(|key, _| present.contains(key));
                 turn_events.retain(|key, _| present.contains(key));
                 seen.retain(|key, _| present.contains(key));
                 seeded = true;
-                if !lines.is_empty() {
-                    for tx in registry::senders() {
+                // Each call keeps its own scope: a focused one learns from the list whether its
+                // session was renamed or closed, and drops the announcements it does not want.
+                let rows = Arc::new(rows);
+                for tx in registry::senders() {
+                    let _ = tx.send(Input::Sessions(rows.clone()));
+                    if !lines.is_empty() {
                         let _ = tx.send(Input::Announce(lines.clone()));
                     }
                 }

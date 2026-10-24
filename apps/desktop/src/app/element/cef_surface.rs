@@ -8,6 +8,25 @@ use crate::*;
 mod site_prompt;
 pub(crate) use site_prompt::{SitePromptContent, SitePromptIcon, cef_surface_for_browser};
 
+/// What a page's script posted through its bridge (`CefSurface::install_page_bridge`), while
+/// this is kept. Dropping it stops listening.
+///
+/// CDXC:SessionChat 2026-10-23 WHY: the fields stay private and messages are read with `next`. The page window and Browser notifications kept their bridge by moving it into an `async move` task that only touched `bridge.messages`; a Rust 2021 closure then captures that one field and drops the rest at once, which cancelled the driver here and, before it, dropped the DevTools observer registration of the binding bridge, so no message ever arrived (seen 2026-10-23).
+pub(crate) struct PageBridge {
+    messages: futures::channel::mpsc::UnboundedReceiver<String>,
+    _driver: gpui::Task<()>,
+}
+
+impl PageBridge {
+    /// The page's next message; `None` once the page is gone.
+    pub(crate) async fn next(&mut self) -> Option<String> {
+        futures::StreamExt::next(&mut self.messages).await
+    }
+}
+
+/// After a failed wait (the page navigated), how long before asking its next document.
+const PAGE_BRIDGE_RETRY: std::time::Duration = std::time::Duration::from_secs(1);
+
 pub(crate) struct CefSurface {
     background: Hsla,
     browser: Rc<CefBrowser>,
@@ -253,14 +272,6 @@ impl CefSurface {
         self.browser.capture_page_top(width, height, scale)
     }
 
-    /// The floating page window's line from its page (`cef/shell/floating_page_bridge.rs`).
-    pub(crate) fn install_floating_page_bridge(
-        &self,
-        script: &str,
-    ) -> Option<cef::FloatingPageBridge> {
-        self.browser.install_floating_page_bridge(script)
-    }
-
     pub(crate) fn browser_identifier(&self) -> i32 {
         self.browser.identifier()
     }
@@ -353,6 +364,74 @@ impl CefSurface {
 
     pub(crate) fn ask_page_keep_awake(&self) {
         self.browser.ask_page_keep_awake();
+    }
+
+    /// Puts `script` into every document of this page, the current one included; nothing comes
+    /// back from it (cef/shell/page_bridge.rs).
+    pub(crate) fn add_page_script(&self, script: &str) -> bool {
+        self.browser.add_page_script(script)
+    }
+
+    /// Puts `script` into every document of this page and hears what it posts with
+    /// `window.__ghostexPageBridge(json)` (cef/shell/page_bridge.rs), for as long as the bridge is
+    /// kept and the page lives. `None` when the page has no browser yet.
+    pub(crate) fn install_page_bridge(
+        surface: &Entity<Self>,
+        script: &str,
+        cx: &mut gpui::App,
+    ) -> Option<PageBridge> {
+        let installed = surface.read(cx).browser.install_page_bridge_script(script);
+        support_logs::append_for_scenario(
+            support_logs::GpuiSupportLog::SidebarRefresh,
+            "native.sidebar.refresh",
+            "gpui.pageBridge.install",
+            serde_json::json!({ "installed": installed }),
+        );
+        if !installed {
+            return None;
+        }
+        let (sender, messages) = futures::channel::mpsc::unbounded();
+        let surface = surface.downgrade();
+        let driver = cx.spawn(async move |cx| {
+            loop {
+                let Ok(Some(answer)) =
+                    surface.update(cx, |surface, _| surface.browser.wait_for_page_messages())
+                else {
+                    return;
+                };
+                let answer = answer.await;
+                support_logs::append_for_scenario(
+                    support_logs::GpuiSupportLog::SidebarRefresh,
+                    "native.sidebar.refresh",
+                    "gpui.pageBridge.answer",
+                    serde_json::json!({
+                        "answer": match &answer {
+                            Ok(Some(text)) => format!("{} bytes", text.len()),
+                            Ok(None) => "failed".to_string(),
+                            Err(_) => "pageGone".to_string(),
+                        }
+                    }),
+                );
+                match answer {
+                    Ok(Some(text)) => {
+                        let batch: Vec<String> = serde_json::from_str(&text).unwrap_or_default();
+                        for message in batch {
+                            if sender.unbounded_send(message).is_err() {
+                                return;
+                            }
+                        }
+                    }
+                    // The page navigated and its context went with the question; ask its next one.
+                    Ok(None) => cx.background_executor().timer(PAGE_BRIDGE_RETRY).await,
+                    // The page is gone.
+                    Err(_) => return,
+                }
+            }
+        });
+        Some(PageBridge {
+            messages,
+            _driver: driver,
+        })
     }
 
     /// The claude.ai page reader (cef/shell/claude_cloud_page.rs).

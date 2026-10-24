@@ -10,6 +10,7 @@
 //! (`/api/agentAccounts`) instead of the React page's `fetch` with the injected bootstrap, so it
 //! works without CEF. Only this computer is offered, as the desktop's React page did
 //! (`getAccountsConnections()` had one connection there).
+mod claude_ai_wait;
 pub(crate) mod client;
 mod connect;
 pub(crate) mod data;
@@ -91,6 +92,8 @@ pub(crate) struct AccountsTab {
     pub(crate) masked_inputs: HashMap<SharedString, bool>,
     /// The editor inputs that save when they lose focus or take Enter (`commit_on_blur`).
     pub(crate) commit_inputs: HashSet<SharedString>,
+    /// A Sign in to claude.ai is under way and the page re-reads it (`claude_ai_wait`).
+    claude_ai_polling: bool,
 }
 
 /// What the account manager's right-hand pane shows.
@@ -169,8 +172,24 @@ impl AccountsTab {
             preview_applied: false,
             masked_inputs: HashMap::new(),
             commit_inputs: HashSet::new(),
+            claude_ai_polling: false,
         };
         page.restore_open_form(cx);
+        // An account toast's Open Accounts opens on that agent's accounts and rules.
+        if let Some(provider) = page
+            .store
+            .read(cx)
+            .request()
+            .initial_accounts_provider
+            .as_deref()
+            .and_then(|provider| data::PROVIDERS.into_iter().find(|known| *known == provider))
+        {
+            page.pane = Some(Pane::Rules(provider));
+        }
+        // Back to Settings after a claude.ai sign-in returns to that account.
+        if let Some(account_id) = claude_ai_wait::take_reopen_account() {
+            page.pane = Some(Pane::Account(account_id));
+        }
         page
     }
 

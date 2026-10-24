@@ -83,7 +83,9 @@ impl DocsFileKind {
 /// CDXC:Docs 2026-10-13 DECISION:
 /// User chose (options 1A, 2A, 3A): HTML, Excalidraw and Markdown files pop out to the default browser through a gxserver link, so they work in a real browser and from remote projects; an Open With menu beside the header's pop-out button and in a file's right-click menu offers the other browsers for the link and the apps for the file; the view strip's Open Externally pops out the open file instead of staying disabled in Files. On 2026-10-13 the user added: "add file explorer here as top option please", so a local file's Open With menu starts with a row that shows the file selected in the system file manager, through the same reveal action as the entry menu; the user named it "Show in Folder" on every platform.
 pub(crate) fn file_opens_externally(path: &str) -> bool {
-    !is_review_path(path) && DocsFileKind::for_path(path).opens_externally()
+    !is_review_path(path)
+        && !super::published_page::is_page_path(path)
+        && DocsFileKind::for_path(path).opens_externally()
 }
 
 impl GhostexGpuiApp {

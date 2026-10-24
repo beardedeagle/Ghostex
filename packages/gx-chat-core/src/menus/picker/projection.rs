@@ -7,7 +7,7 @@
 use serde_json::{json, Value};
 
 use crate::menus::catalog::AgentModelCatalog;
-use crate::menus::option_catalog::session_option_catalog;
+use crate::menus::option_catalog::{session_option_catalog, SessionOptionCatalog};
 use crate::menus::picker::model_menu::{
     model_menu_empty_text, model_menu_entries, model_menu_legacy_count, model_menu_opening_tab,
     model_menu_pick_value, model_menu_rows, model_menu_tabs, ModelMenuCatalogs, ModelMenuCurrent,
@@ -115,10 +115,14 @@ pub fn model_menu_pick(
 /// on. For the session's own model the levels come from the session's live descriptor, so they
 /// match what the Reasoning button lists today; any other row asks its agent's catalog about the
 /// model the pick would run.
+///
+/// `provider_catalogs` holds each provider's session option catalog for the whole menu: building
+/// one per row was most of the document's cost on every publish.
 fn model_menu_row_efforts(
     row: &ModelMenuRow,
     context: &ModelMenuContext,
     catalog: &AgentModelCatalog,
+    provider_catalogs: &mut std::collections::BTreeMap<String, Option<SessionOptionCatalog>>,
 ) -> (Vec<ModelMenuEffort>, String) {
     let session_effort = context
         .descriptors
@@ -140,7 +144,12 @@ fn model_menu_row_efforts(
                 ModelMenuPick::Select { value, .. } => value,
                 ModelMenuPick::Handoff { model, .. } => model,
             };
-            session_option_catalog(catalog, Some(row.entry.provider.as_str()))
+            provider_catalogs
+                .entry(row.entry.provider.as_str().to_string())
+                .or_insert_with(|| {
+                    session_option_catalog(catalog, Some(row.entry.provider.as_str()))
+                })
+                .as_ref()
                 .and_then(|options| {
                     options
                         .options_for_model(&pick_value)
@@ -227,6 +236,7 @@ pub fn model_menu_projection(
             .map(|provider| provider.as_str().to_string()),
         model: context.model_value.clone(),
     };
+    let mut provider_catalogs = std::collections::BTreeMap::new();
     let rows: Vec<ModelMenuRow> = model_menu_rows(
         &entries,
         tab,
@@ -237,7 +247,8 @@ pub fn model_menu_projection(
     )
     .into_iter()
     .map(|mut row| {
-        (row.efforts, row.effort) = model_menu_row_efforts(&row, context, catalog);
+        (row.efforts, row.effort) =
+            model_menu_row_efforts(&row, context, catalog, &mut provider_catalogs);
         row
     })
     .collect();

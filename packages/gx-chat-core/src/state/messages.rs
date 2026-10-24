@@ -112,6 +112,8 @@ pub struct MessagesState {
     pub list_revision: u64,
     /// The dependencies the last composed list was built from (the `messages` memo's deps).
     pub compose_key: Option<crate::session::composition::ComposeKey>,
+    /// The composed list's head (the reconciled transcript) as the last composition built it.
+    pub transcript_part: Option<crate::session::composition::TranscriptPart>,
     /// Bumped every time the composed list is rebuilt: the memo's output is a new array whenever
     /// it re-ran, equal rows or not, and the projection compares that identity.
     pub compose_generation: u64,

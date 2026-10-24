@@ -100,7 +100,7 @@ fn login_command(provider: &str, account: Option<&Account>, email: &str) -> Stri
 }
 
 /// A spinning loader icon.
-fn spinner(id: impl Into<SharedString>, color: gpui::Rgba) -> AnyElement {
+pub(super) fn spinner(id: impl Into<SharedString>, color: gpui::Rgba) -> AnyElement {
     svg()
         .path("modals/settings/loader-2.svg")
         .size(px(16.0))

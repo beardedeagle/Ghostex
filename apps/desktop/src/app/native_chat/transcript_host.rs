@@ -41,6 +41,7 @@ impl NativeChatView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> AnyElement {
+        self.images.note_transcript_rows_drawn();
         let p = ChatAppearance::current(&self.snapshot).on_window_glass(
             crate::app::helpers::window_glass_active_for(self.main_window),
         );

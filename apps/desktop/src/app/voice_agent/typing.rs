@@ -54,7 +54,7 @@ fn typed_recently(last_typed: u64, now: u64) -> bool {
 }
 
 #[cfg(target_os = "macos")]
-fn composing_text() -> bool {
+pub(crate) fn composing_text() -> bool {
     unsafe extern "C" {
         fn GhostexVoiceKeyWindowIsComposingText() -> i32;
     }
@@ -62,7 +62,7 @@ fn composing_text() -> bool {
 }
 
 #[cfg(not(target_os = "macos"))]
-fn composing_text() -> bool {
+pub(crate) fn composing_text() -> bool {
     false
 }
 

@@ -1,6 +1,8 @@
 use super::runtime_worker::{ChatRuntimeOutput, ChatRuntimeWorker};
+use crate::app::gx_chat::DrainedFrame;
 use crate::app::model::*;
 use futures::StreamExt as _;
+use ghostex_gx_chat_core::TranscriptItem;
 use gpui::{AppContext as _, Context, Entity, EventEmitter, Focusable as _, Subscription, Window};
 use gpui_component::input::{InputEvent, InputState, TextareaState};
 use serde_json::{Value, json};
@@ -42,9 +44,10 @@ pub(crate) struct NativeChatView {
     pub(crate) config: NativeChatConfig,
     pub(crate) runtime: Option<ChatRuntimeWorker>,
     pub(crate) snapshot: Arc<Value>,
-    pub(crate) items: Arc<Vec<Value>>,
+    /// The transcript's rows, whose models the chat host's core holds too.
+    pub(crate) items: Arc<Vec<TranscriptItem>>,
     /// The open subagent transcript's items, projected and spliced on their own channel.
-    pub(crate) subagent_items: Arc<Vec<Value>>,
+    pub(crate) subagent_items: Arc<Vec<TranscriptItem>>,
     pub(crate) error: Option<String>,
     pub(crate) input: Option<Entity<TextareaState>>,
     input_subscription: Option<Subscription>,
@@ -315,6 +318,7 @@ impl NativeChatView {
         error: Option<String>,
         cx: &mut Context<Self>,
     ) -> Self {
+        Self::release_chat_images_with_view(cx);
         let list = gpui::ListState::new(0, gpui::ListAlignment::Top, gpui::px(400.0));
         list.set_follow_mode(gpui::FollowMode::Tail);
         let subagent_list = gpui::ListState::new(0, gpui::ListAlignment::Top, gpui::px(400.0));
@@ -808,25 +812,19 @@ impl NativeChatView {
         cx.notify();
     }
 
-    fn apply_output(&mut self, mut output: Value, cx: &mut Context<Self>) {
-        if let Some(mut splice) = output
-            .as_object_mut()
-            .and_then(|output| output.remove("itemsSplice"))
-            .filter(Value::is_object)
-        {
+    fn apply_output(&mut self, output: DrainedFrame, cx: &mut Context<Self>) {
+        let DrainedFrame {
+            envelope: mut output,
+            items_splice,
+            subagent_splice,
+        } = output;
+        if let Some(splice) = items_splice {
             // The host ships only the changed window of transcript items (see transcriptItemsSplice in native-host.ts).
-            let inserted = splice
-                .get_mut("items")
-                .and_then(Value::as_array_mut)
-                .map(std::mem::take)
-                .unwrap_or_default();
             let items = Arc::make_mut(&mut self.items);
-            let start = (splice["start"].as_u64().unwrap_or(0) as usize).min(items.len());
-            let end = start
-                .saturating_add(splice["deleteCount"].as_u64().unwrap_or(0) as usize)
-                .min(items.len());
-            let inserted_len = inserted.len();
-            items.splice(start..end, inserted);
+            let start = splice.start.min(items.len());
+            let end = start.saturating_add(splice.delete_count).min(items.len());
+            let inserted_len = splice.items.len();
+            items.splice(start..end, splice.items);
             self.splice_transcript(start, end, inserted_len);
             self.notify_if_shown(cx);
         }
@@ -837,12 +835,8 @@ impl NativeChatView {
             self.minimap.adopt(&markers);
             self.notify_if_shown(cx);
         }
-        if let Some(mut splice) = output
-            .as_object_mut()
-            .and_then(|output| output.remove("subagentSplice"))
-            .filter(Value::is_object)
-        {
-            self.apply_subagent_splice(&mut splice);
+        if let Some(splice) = subagent_splice {
+            self.apply_subagent_splice(splice);
             self.notify_if_shown(cx);
         }
         if let Some(details) = output

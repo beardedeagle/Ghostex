@@ -42,12 +42,14 @@ pub(crate) mod tags;
 pub(crate) mod text;
 mod threads;
 pub(crate) mod view;
+mod links;
 mod work;
 pub(crate) mod workspaces;
 
 pub use armed_actions::{
     armed_actions_by_session, ArmedAction, ARMED_ACTION_CLOSE_AFTER_DONE, ARMED_ACTION_DELAYED_SEND,
 };
+pub use assemble::{collection_groups, owner_project_group_id, toggle_all_project_ids};
 pub use close_successor::{
     close_project_group_is_active, close_project_successor_candidates,
     close_project_successor_group_order, first_awake_successor_session_id, is_awake_successor_row,
@@ -81,10 +83,14 @@ pub use spaces::{Space, SpacesState, OTHER_SPACE_ID};
 pub use tags::{TagListItem, TagListItemKind, TagPresentation, UNTAGGED_TAG_FILTER};
 pub use view::{
     rename_shake_key, CollectionView, CoordinatorBadge, CoordinatorBadgeTone, DelayedSendView,
-    EmptyState, GroupCore, GroupSummary, GroupView, LabelDeadline, MachineNotice, MachineSummary,
-    MachineTabView, OrderItem, OrderKind, ProjectContextView, RemoteMachineView, RowNesting,
-    SectionView, SessionMenuFacts, SessionRow, SessionTiming, SessionView, SidebarView, SpaceView,
-    ThreadTally, WorktreeView, RENAME_SHAKE_FRESH_MS,
+    EmptyState, FoldedStatus, GroupCore, GroupSummary, GroupView, LabelDeadline, MachineNotice,
+    MachineSummary, MachineTabView, OrderItem, OrderKind, ProjectContextView, RemoteMachineView,
+    RowNesting, SectionView, SessionMenuFacts, SessionRow, SessionTiming, SessionView, SidebarView,
+    SpaceView, ThreadTally, WorktreeView, RENAME_SHAKE_FRESH_MS,
+};
+pub use links::{
+    SessionLink, SessionLinkGlyph, SessionLinkKind, SessionLinkTone, SessionLinks,
+    SessionLinksBadge, SessionLinksDisplay, SessionLinksRow, SuggestedSessionLink,
 };
 pub use work::{SessionWork, WorkGithubIssue, WorkLinearIssue, WorkLinearProject, WorkPullRequest};
 pub use workspaces::{

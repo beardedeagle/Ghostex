@@ -96,6 +96,11 @@ enum EventJson {
     ReadAloud {
         event: ReadAloudEvent,
     },
+    /// `{"type": "visibility", "shown": false}` while the app is in the background: the chat's
+    /// clocks and accounts poll wait until it is shown again.
+    Visibility {
+        shown: bool,
+    },
 }
 
 #[derive(Deserialize)]
@@ -186,6 +191,7 @@ pub(crate) fn parse(json: &str) -> Result<Event, String> {
             Event::SessionDirectoryChanged { sessions }
         }
         EventJson::ReadAloud { event } => Event::ReadAloud(event),
+        EventJson::Visibility { shown } => Event::Visibility { shown },
     })
 }
 

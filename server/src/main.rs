@@ -1,5 +1,4 @@
 fn main() {
-    #[cfg(unix)]
     if invoked_as_cli() {
         std::process::exit(gxserver::ghostex_cli::run());
     }
@@ -28,8 +27,8 @@ fn main() {
 }
 
 /// CDXC:Release 2026-10-23 DECISION:
-/// The user chose to ship gxserver and the `ghostex` CLI as one program on macOS and Linux to shrink the downloads: the CLI was a second 3.9 MB (compressed) copy of mostly the same code (SQLite, networking, the shared server modules); merged, gxserver grows by 1.8 MB, so the DMG shrinks by about 2 MB and the installed app by about 6 MB (measured 2026-10-23). A CLI call starts about 0.35 ms slower. `ghostex` and `gx` are links to gxserver, and the name the program was started with picks the CLI. Windows WSL runs the Linux package, links included; native Windows still ships `ghostex.exe` as its own program because its installer package cannot hold links, so this check and the CLI code it pulls in are left out of gxserver.exe.
-/// SEE-ALSO: `current_cli_executable` in server/src/ghostex_cli/launchers.rs, `gpui_is_package_cli_link_target` in apps/desktop/src/app/helpers/os_cli/cli_install.rs, build-macos-app.sh and prepare-macos-runtime.sh (macOS bundle), server/package-remote-linux.mjs (Linux package), tooling/xtask/src/start_server.rs.
+/// The user chose to ship gxserver and the `ghostex` CLI as one program on every OS ("literally combine the 2 executables into 1 executable on all oses to trim duplicate stuff") to shrink the downloads: the CLI was a second copy of mostly the same code (SQLite, networking, the shared server modules). Measured 2026-10-23: the DMG shrinks by about 2 MB, the Linux server package by 4.2 MB and the Windows installer by about 3 MB, and every install by 6 to 8 MB. A CLI call starts about 0.35 ms slower on macOS and about 2 ms slower on Windows. `ghostex` and `gx` are links to gxserver, and the name the program was started with picks the CLI. The Windows installer package cannot hold links, so the desktop app makes `ghostex.exe` a hard link to gxserver.exe itself (apps/desktop/src/windows_cli_link.rs).
+/// SEE-ALSO: `current_cli_executable` in server/src/ghostex_cli/launchers.rs, `gpui_is_package_cli_link_target` in apps/desktop/src/app/helpers/os_cli/cli_install.rs, build-macos-app.sh and prepare-macos-runtime.sh (macOS bundle), server/package-remote-linux.mjs (Linux package), tooling/xtask/src/start_server.rs, apps/desktop/src/windows_cli_link.rs and tooling/install-windows-gpui.ps1 (Windows).
 #[cfg(unix)]
 fn invoked_as_cli() -> bool {
     std::env::args_os()
@@ -38,4 +37,15 @@ fn invoked_as_cli() -> bool {
         .map(std::path::Path::new)
         .and_then(std::path::Path::file_name)
         .is_some_and(|name| name == "ghostex" || name == "gx")
+}
+
+/// Windows file names ignore case and argv[0] may leave out `.exe`, so the CLI is told apart by the stem of the running executable's path, which keeps the name it was started under.
+#[cfg(windows)]
+fn invoked_as_cli() -> bool {
+    std::env::current_exe()
+        .ok()
+        .as_deref()
+        .and_then(std::path::Path::file_stem)
+        .and_then(std::ffi::OsStr::to_str)
+        .is_some_and(|stem| stem.eq_ignore_ascii_case("ghostex") || stem.eq_ignore_ascii_case("gx"))
 }

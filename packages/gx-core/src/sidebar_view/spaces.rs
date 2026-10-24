@@ -292,8 +292,8 @@ pub(crate) fn space_claims_project(
     }
 }
 
-/// Whether the selected view shows a group. A row whose project cannot be resolved (the Chats
-/// collection) is invisible in a Space and visible in Other; a user-made session group is asked
+/// Whether the selected view shows a group. A row whose project cannot be resolved is invisible in
+/// a Space and visible in Other; a user-made session group is asked
 /// with the project it was made in.
 pub(crate) fn selection_shows_project(
     selection: &SpaceSelection,

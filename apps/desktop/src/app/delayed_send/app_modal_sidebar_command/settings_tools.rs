@@ -250,6 +250,11 @@ impl GhostexGpuiApp {
                     self.uninstall_plugin_from_settings(plugin_id, cx);
                 }
             }
+            "cancelPluginChange" => {
+                if command.get("pluginId").and_then(serde_json::Value::as_str) == Some("cef") {
+                    self.cancel_web_runtime_pending_change(cx);
+                }
+            }
             "setOSIntegrationDefaults" => {
                 let target = command
                     .get("target")

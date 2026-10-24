@@ -99,6 +99,53 @@ pub fn project_chat_transcript(
     if let Some(question) = live_side_question {
         crate::transcript::side_question::hide_live_side_question(&mut normalized, question);
     }
+    project_normalized(normalized, hidden_rows, working, interacted_message_ids)
+}
+
+/// [`project_chat_transcript`] for one stretch of the list after a settled prefix
+/// (`transcript/settled.rs`), which the prefix's redone forms are stripped from as well. Hands back
+/// the forms this stretch itself redoes beside its projection: those strip the prefix too, so the
+/// caller can only use the stretch alone when there are none.
+pub(crate) fn project_chat_segment(
+    messages: &[ChatMessage],
+    working: bool,
+    prior_redone: &[(String, String)],
+) -> (TranscriptProjection, Vec<(String, String)>) {
+    let (projection, own, _) = project_chat_segment_with(messages, working, prior_redone, None);
+    (projection, own)
+}
+
+/// [`project_chat_segment`] with the side-question card open above the composer: the newest row of
+/// the stretch asking its question is left out, and the flag says whether there was one.
+pub(crate) fn project_chat_segment_with(
+    messages: &[ChatMessage],
+    working: bool,
+    prior_redone: &[(String, String)],
+    live_side_question: Option<&str>,
+) -> (TranscriptProjection, Vec<(String, String)>, bool) {
+    use crate::transcript::question_forms::{redone_forms, strip_redone_forms};
+    let mut normalized = normalize_chat_transcript(messages);
+    let own = redone_forms(&normalized);
+    let mut redone = prior_redone.to_vec();
+    redone.extend(own.iter().cloned());
+    strip_redone_forms(&mut normalized, &redone);
+    let hidden_rows = own.iter().map(|(_, resend)| resend.clone()).collect();
+    let hid = live_side_question.is_some_and(|question| {
+        crate::transcript::side_question::hide_newest_side_question(&mut normalized, question)
+    });
+    (
+        project_normalized(normalized, hidden_rows, working, &[]),
+        own,
+        hid,
+    )
+}
+
+fn project_normalized(
+    normalized: Vec<ChatMessage>,
+    hidden_rows: Vec<String>,
+    working: bool,
+    interacted_message_ids: &[String],
+) -> TranscriptProjection {
     let rendered = fold_chat_transcript(&normalized);
     let final_ids = final_assistant_message_ids(&rendered, working);
     TranscriptProjection {

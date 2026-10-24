@@ -64,6 +64,20 @@ pub fn is_claude_cloud_session(core: &Core, session: &SessionKey) -> bool {
         .is_some_and(|session| session.claude_cloud.is_some())
 }
 
+/// Whether Close on this row puts the session to sleep instead of closing it: an awake cloud
+/// session that exists (or is being created) on claude.ai. gxserver's rule, read from the row
+/// (server/src/claude_cloud/record.rs `close_keeps_session_asleep`, which holds the user's DECISION:
+/// "Keep it listed, asleep").
+pub fn close_keeps_claude_cloud_row(core: &Core, session: &SessionKey) -> bool {
+    core.presentation().session(session).is_some_and(|row| {
+        row.lifecycle_state == ghostex_gx_protocol::LifecycleState::Running
+            && row
+                .claude_cloud
+                .as_ref()
+                .is_some_and(|cloud| matches!(cloud.state.as_str(), "starting" | "running"))
+    })
+}
+
 /// The cloud session a claude.ai page belongs to on this computer, and the saved Claude account it
 /// runs on (`None` inside: the current CLI login). `None` for a page that is not one of them.
 pub fn claude_cloud_page_account(core: &Core, url: &str) -> Option<Option<String>> {
@@ -80,6 +94,28 @@ pub fn claude_cloud_page_account(core: &Core, url: &str) -> Option<Option<String
                 .is_some_and(|link| link == page)
         })
         .map(|cloud| cloud.account_id.clone())
+}
+
+/// Whether a claude.ai page is the page of a cloud session that is running on claude.ai right now.
+pub fn is_running_claude_cloud_page(core: &Core, url: &str) -> bool {
+    let Some(page) = claude_cloud_session_link(url) else {
+        return false;
+    };
+    core.presentation()
+        .loaded(&crate::MachineId::Local)
+        .is_some_and(|loaded| {
+            loaded
+                .server_sessions()
+                .filter_map(|session| session.claude_cloud.as_ref())
+                .any(|cloud| {
+                    cloud.state == "running"
+                        && cloud
+                            .url
+                            .as_deref()
+                            .and_then(claude_cloud_session_link)
+                            .is_some_and(|link| link == page)
+                })
+        })
 }
 
 /// `https://claude.ai/code/session_…` without its query or fragment, for any link into one.
@@ -109,4 +145,125 @@ pub fn project_last_cloud_account(core: &Core, project_id: &str) -> Option<Strin
         })
         .max_by(|a, b| a.0.cmp(&b.0))
         .map(|(_, account)| account)
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::{json, Value};
+
+    use crate::{close_as_claude_cloud_sleep, Core, MachineId, SessionKey};
+
+    /// One local project whose rows are the given `(session id, lifecycle, cloud state)`.
+    fn core(rows: &[(&str, &str, Option<&str>)]) -> Core {
+        let sessions: Vec<Value> = rows
+            .iter()
+            .map(|(session_id, lifecycle, cloud)| {
+                let mut session = json!({
+                    "sessionId": session_id,
+                    "projectId": "P1",
+                    "groupId": "P1:active",
+                    "kind": "agent",
+                    "surface": "workspace",
+                    "zmxName": format!("S90-P1-{session_id}"),
+                    "sortKey": format!("000000000000:0:1:{session_id}"),
+                    "visibleInSidebarByDefault": true,
+                    "alias": session_id,
+                    "activity": "idle",
+                    "lifecycleState": lifecycle,
+                    "createdAt": "2026-10-23T01:00:00.000Z",
+                    "updatedAt": "2026-10-23T01:00:00.000Z",
+                });
+                if let Some(state) = cloud {
+                    session["claudeCloud"] = json!({
+                        "state": state,
+                        "url": "https://claude.ai/code/session_01Test",
+                    });
+                }
+                session
+            })
+            .collect();
+        let snapshot = json!({
+            "type": "presentationSnapshot",
+            "protocolVersion": crate::protocol::GXSERVER_PROTOCOL_VERSION,
+            "serverId": "local",
+            "revision": 1,
+            "snapshot": {
+                "revision": 1,
+                "generatedAt": "2026-10-23T01:00:00.000Z",
+                "projects": [{
+                    "projectId": "P1",
+                    "title": "P1",
+                    "path": "/tmp/P1",
+                    "pathState": "available",
+                    "groupIds": ["P1:active"],
+                    "sortKey": "1:P1",
+                    "createdAt": "2026-10-23T01:00:00.000Z",
+                    "updatedAt": "2026-10-23T01:00:00.000Z",
+                }],
+                "groups": [{
+                    "groupId": "P1:active",
+                    "projectId": "P1",
+                    "title": "Active",
+                    "sessionIds": rows.iter().map(|row| row.0).collect::<Vec<_>>(),
+                    "sortKey": "1:P1:active",
+                }],
+                "sessions": sessions,
+            }
+        });
+        let mut core = Core::new();
+        core.handle_raw_frame(MachineId::Local, &snapshot.to_string(), 0)
+            .expect("the frame parses");
+        core
+    }
+
+    fn sidebar_id(session_id: &str) -> String {
+        SessionKey::local("P1", session_id).to_sidebar_session_id()
+    }
+
+    fn close(core: &Core, session_id: &str) -> Option<Value> {
+        close_as_claude_cloud_sleep(
+            core,
+            &json!({ "type": "closeSession", "sessionId": sidebar_id(session_id) }),
+        )
+    }
+
+    #[test]
+    fn close_sleeps_an_awake_cloud_row_that_lives_on_claude_ai() {
+        let core = core(&[
+            ("G1run", "running", Some("running")),
+            ("G2sta", "running", Some("starting")),
+        ]);
+        for session_id in ["G1run", "G2sta"] {
+            assert_eq!(
+                close(&core, session_id),
+                Some(json!({
+                    "type": "setSessionSleeping",
+                    "sessionId": sidebar_id(session_id),
+                    "sleeping": true,
+                })),
+                "{session_id}"
+            );
+        }
+    }
+
+    #[test]
+    fn close_closes_every_other_row() {
+        let core = core(&[
+            ("G1slp", "sleeping", Some("running")),
+            ("G2drf", "running", Some("draft")),
+            ("G3fai", "running", Some("failed")),
+            ("G4mov", "running", Some("moved")),
+            ("G5loc", "running", None),
+        ]);
+        for session_id in ["G1slp", "G2drf", "G3fai", "G4mov", "G5loc"] {
+            assert_eq!(close(&core, session_id), None, "{session_id}");
+        }
+        assert_eq!(
+            close_as_claude_cloud_sleep(
+                &core,
+                &json!({ "type": "setSessionSleeping", "sessionId": sidebar_id("G1run"), "sleeping": true }),
+            ),
+            None
+        );
+    }
 }

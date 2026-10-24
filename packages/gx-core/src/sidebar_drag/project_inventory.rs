@@ -3,8 +3,7 @@
 //! CDXC:Sidebar 2026-09-21 WHY:
 //! A DRAWN INDEX IS NOT A STORED INDEX, and for the project moves the list in question is
 //! `sidebarStore`'s `groupOrder`, which is EVERY group the projection built for the machine, in the
-//! order it built them: the Chats collection, then each project followed by its own user-made
-//! groups. It is not the drawn list: a Space, a tag filter or Show Hidden can take a project off
+//! order it built them: each project followed by its own user-made groups. It is not the drawn list: a Space, a tag filter or Show Hidden can take a project off
 //! screen and it keeps its place in this order, so a drag computed against the drawn rows would
 //! insert the project somewhere else entirely and the saved order would not be the order the user
 //! saw. The same defect class has decided the answer four times in this port, so the order is
@@ -12,7 +11,7 @@
 //! plans from rather than read off the view.
 //!
 //! The three lookups are `describeNativeSidebarMachine`'s: `resolveProjectId` (a project or
-//! subgroup group answers its project's id, the Chats collection answers nothing),
+//! subgroup group answers its project's id),
 //! `nativeProjectFamily` (a project, its worktrees, and every user-made group of all of them) and
 //! `nativeCollectionGroups` (every group of one collection).
 //!
@@ -28,14 +27,14 @@ use crate::sidebar_view::membership::project_members;
 use crate::sidebar_view::projects::build_project_meta;
 use crate::sidebar_view::SidebarInputs;
 
-use super::inventory::{chats_group_id, workspace_project_order};
+use super::inventory::workspace_project_order;
 
 /// One row of `groupOrder`, with the three facts every project move reads off `groupsById`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ProjectGroupRow {
     pub(crate) group_id: String,
-    /// `describeNativeSidebarMachine.resolveProjectId`. `None` for the machine's Chats collection,
-    /// which spans projects and carries no `projectContext`.
+    /// `describeNativeSidebarMachine.resolveProjectId`. `None` for a user-made group, which carries
+    /// no `projectContext`.
     ///
     /// CDXC:RemoteMachines 2026-09-21 WHY:
     /// This is the RAW project id on either machine, and on a remote one that is deliberately NOT
@@ -48,7 +47,6 @@ pub(crate) struct ProjectGroupRow {
     /// `groupsById[id].projectContext.worktree.parentProjectId`, which a user-made group carries
     /// too because it is built from the same project row.
     pub(crate) parent_project_id: Option<String>,
-    pub(crate) is_chat_collection: bool,
 }
 
 /// One machine's groups in `groupOrder` order.
@@ -77,7 +75,7 @@ impl ProjectSection {
     /// The items `moveProjectsWithWorktrees` orders, which is `state.groupOrder` mapped.
     ///
     /// A group with no project id takes its OWN id as the project id, which is the TypeScript's
-    /// `?? id` and is what keeps the Chats collection out of every family.
+    /// `?? id` and is what keeps a user-made group out of every family.
     pub(crate) fn order_items(&self) -> Vec<ProjectOrderItem> {
         self.rows
             .iter()
@@ -88,7 +86,6 @@ impl ProjectSection {
                     .clone()
                     .unwrap_or_else(|| row.group_id.clone()),
                 parent_project_id: row.parent_project_id.clone(),
-                is_chat: row.is_chat_collection,
             })
             .collect()
     }
@@ -223,15 +220,7 @@ pub(crate) fn project_section(
         workspace_project_order(core, machine),
         inputs.host.parked_project_ids(machine),
     );
-    // The Chats collection is FIRST, exactly as the group plans build it, and it is in the order
-    // even when the list draws no row for it: `groupOrder` is the projection's list, not the drawn
-    // one, and `moveProjectsWithWorktrees` puts every `isChat` item at the front.
-    let mut rows = vec![ProjectGroupRow {
-        group_id: chats_group_id(machine),
-        project_id: None,
-        parent_project_id: None,
-        is_chat_collection: true,
-    }];
+    let mut rows = Vec::new();
     // Bots after the code projects, as the stored order holds them: each mode drags within its
     // own run, and the order it writes keeps the other mode's rows.
     for project_id in meta.grouped_project_ids() {
@@ -251,9 +240,8 @@ pub(crate) fn project_section(
             group_id: project.to_sidebar_group_id(),
             project_id: Some(resolved_project_id),
             parent_project_id: parent_project_id.clone(),
-            is_chat_collection: false,
         });
-        for subgroup in project_members(store, entry, machine, project_id, true).subgroups {
+        for subgroup in project_members(store, entry, machine, project_id).subgroups {
             // CDXC:Projects 2026-09-21 WHY:
             // A user-made group carries NO `projectContext`, so `resolveProjectId` answers
             // `undefined` for it and every project lookup treats it as its OWN thing: it is not in
@@ -268,7 +256,6 @@ pub(crate) fn project_section(
                 group_id: subgroup.sidebar_group_id,
                 project_id: None,
                 parent_project_id: None,
-                is_chat_collection: false,
             });
         }
     }

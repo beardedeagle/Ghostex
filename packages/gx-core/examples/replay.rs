@@ -293,12 +293,6 @@ fn main() -> ExitCode {
                 .map(|tabs| tabs.len())
                 .sum();
             println!("tab sessions over all project groups: {tabs}");
-            let chat_tabs = core
-                .presentation()
-                .tab_sessions(&ActiveGroup::Chats(machine.clone()))
-                .loaded()
-                .map_or(0, |tabs| tabs.len());
-            println!("tab sessions of the Chats collection: {chat_tabs}");
         }
     }
     println!(

@@ -3,9 +3,10 @@
 /// Returns the top-level `type` string of a JSON object frame, or `None` when the text is not an
 /// object, has no top-level string `type`, or the value needs unescaping.
 ///
-/// A full-stream event socket carries one `apiRequestHandled` frame per HTTP request served to any
-/// client, which is the highest-volume frame by far. This scan allocates nothing and stops at the
-/// first top-level `type` key, so a client can drop those frames before paying for a full parse.
+/// A full-stream event socket from a gxserver of a release before 2026-10-23 carries one
+/// `apiRequestHandled` frame per HTTP request served to any client, its highest-volume frame by far,
+/// and every socket carries chat frames a host may not want. This scan allocates nothing and stops at
+/// the first top-level `type` key, so a client can drop those frames before paying for a full parse.
 /// gxserver serializes keys in sorted order, so `type` sits near the end and the scan walks most
 /// of the text once; that is still far cheaper than building values.
 ///

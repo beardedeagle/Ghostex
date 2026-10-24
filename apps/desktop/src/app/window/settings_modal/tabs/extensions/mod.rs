@@ -236,6 +236,17 @@ impl ExtensionsTab {
         cx.notify();
     }
 
+    /// Undoes a change to a runtime component that waits for the next launch.
+    pub(crate) fn cancel_plugin_change(&mut self, plugin_id: &str, cx: &mut Context<Self>) {
+        self.plugin_status_loading = true;
+        post_store_message(
+            &self.store,
+            json!({ "pluginId": plugin_id, "type": "cancelPluginChange" }),
+            cx,
+        );
+        cx.notify();
+    }
+
     /// `useInstalledAgentClis(OFFICIAL_EXTENSION_AGENT_CLIS)`: reads each CLI through gxserver's
     /// agent detection; only a found CLI is remembered.
     fn read_installed_clis(&mut self, cx: &mut Context<Self>) {

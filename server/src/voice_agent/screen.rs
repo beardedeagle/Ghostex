@@ -19,7 +19,12 @@ use super::loopback;
 use super::sessions::{self, SessionInfo};
 use crate::server::AppState;
 
-pub(super) async fn get_active_session(state: &Arc<AppState>) -> Result<Value, String> {
+/// `client_remote`: the call's client is the app on another computer (`clientRemote=1`), whose
+/// screen this computer's app cannot see.
+pub(super) async fn get_active_session(
+    state: &Arc<AppState>,
+    client_remote: bool,
+) -> Result<Value, String> {
     let all = sessions::list_sessions_async(state).await?;
     let describe = |project_id: &str, session_id: &str| -> Value {
         let reference = format!("{project_id}:{session_id}");
@@ -29,14 +34,18 @@ pub(super) async fn get_active_session(state: &Arc<AppState>) -> Result<Value, S
             .unwrap_or_else(|| json!({"ref": reference}))
     };
     let mut output = json!({"ok": true});
-    match loopback::call(
-        state,
-        "/api/dispatchRendererCommand",
-        json!({"action": "readFocusedSession", "payload": {}}),
-        Duration::from_secs(4),
-    )
-    .await
-    {
+    let screen = if client_remote {
+        Err(String::new())
+    } else {
+        loopback::call(
+            state,
+            "/api/dispatchRendererCommand",
+            json!({"action": "readFocusedSession", "payload": {}}),
+            Duration::from_secs(4),
+        )
+        .await
+    };
+    match screen {
         Ok(screen) => {
             let key = |value: &Value| {
                 Some((
@@ -64,6 +73,11 @@ pub(super) async fn get_active_session(state: &Arc<AppState>) -> Result<Value, S
             if !others.is_empty() {
                 output["desktopAlsoOnScreen"] = json!(others);
             }
+        }
+        Err(_) if client_remote => {
+            output["desktop"] = json!(
+                "The user's Ghostex app is on another computer, so which session it shows is unknown here. Ask which session they mean."
+            );
         }
         Err(error) => {
             output["desktop"] = json!(format!(

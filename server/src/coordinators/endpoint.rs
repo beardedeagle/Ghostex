@@ -33,6 +33,7 @@ pub const COORDINATOR_ENDPOINTS: &[&str] = &[
     "/api/unlinkCoordinatorThread",
     "/api/setCoordinatorThreadResolved",
     "/api/renameCoordinatorThread",
+    "/api/coordinatorThreadTitleReminder",
 ];
 
 fn text(params: &Map<String, Value>, key: &str) -> Option<String> {
@@ -265,6 +266,10 @@ pub fn handle_coordinator_endpoint(
                 changed_sessions: vec![thread_key],
             })
         }
+        "/api/coordinatorThreadTitleReminder" => Ok(CoordinatorEndpointOutput {
+            result: super::rename::read_thread_title_reminder(repository, db, params)?,
+            changed_sessions: Vec::new(),
+        }),
         _ => Err(DomainStateError::not_found(format!(
             "{endpoint_path} is not an orchestrator endpoint."
         ))),

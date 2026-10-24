@@ -157,7 +157,9 @@ pub(crate) fn resolve_session_chat_read_state(
                             && previous.agent_session_path == agent_session_path
                     })
                     .and_then(|previous| previous.transcript_path.clone())
-                    .filter(|path| path.is_file());
+                    .filter(|path| {
+                        path.is_file() && !crate::codex_rollout_archive::is_superseded_mirror(path)
+                    });
                 match cached_path {
                     Some(path) => Some(path),
                     None => crate::session_chat::resolve_session_chat_transcript_path(

@@ -122,6 +122,16 @@ impl AgentModelCatalog {
             .join(" ")
     }
 
+    /// This catalog without its agents: what [`Self::effort_label`] reads.
+    pub fn effort_labels_only(&self) -> AgentModelCatalog {
+        AgentModelCatalog {
+            schema_version: self.schema_version,
+            updated_at: self.updated_at.clone(),
+            effort_labels: self.effort_labels.clone(),
+            agents: BTreeMap::new(),
+        }
+    }
+
     /// `newerAgentModelCatalog`: the newer by `updatedAt`, ties to `candidate`.
     pub fn newer(self, candidate: AgentModelCatalog) -> AgentModelCatalog {
         if candidate.updated_at >= self.updated_at {

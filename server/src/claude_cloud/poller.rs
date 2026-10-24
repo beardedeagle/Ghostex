@@ -46,7 +46,9 @@ fn watched_sessions(state: &AppState) -> Vec<Watched> {
         return Vec::new();
     };
     let repository = DomainRepository::new(&db, state.metadata.server_id.as_str());
-    let Ok(sessions) = repository.list_sessions(None) else {
+    // Only rows with a cloud record can pass `session_cloud_record`.
+    let Ok(sessions) = repository.list_sessions_with_runtime_object(super::record::RECORD_KEY)
+    else {
         return Vec::new();
     };
     let mut watched = Vec::new();

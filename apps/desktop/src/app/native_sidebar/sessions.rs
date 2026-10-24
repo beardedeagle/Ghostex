@@ -67,7 +67,7 @@ impl GhostexGpuiApp {
             == Some(true);
         let drop_position = self.native_sidebar_session_drop_line(&session_id);
         let scale = appearance.scale;
-        let card_height = session_card_height(session);
+        let card_height = session_card_height(session, self.native_session_has_second_line(session));
         // The row's left padding before its icon: the card inset plus its depth in a coordinator's tree.
         let indent = 5.0 + super::threads::thread_depth(session) * super::threads::THREAD_INDENT;
         let hovered = self.native_sidebar.hovered_session.as_deref() == Some(&session_id);
@@ -117,6 +117,9 @@ impl GhostexGpuiApp {
             .unwrap_or(0)
             > 0;
         let question_fill = super::status::pending_question_fill(&hud["settings"], question);
+        let failed = session.model_selection_failed || session.program_status_failed;
+        let folded_dots = (!failed).then(|| super::threads::folded_status_indicator(session, scale, super::status::session_row_ring(appearance, highlighted, visible, question_fill, hovered))).flatten();
+        let question = question && folded_dots.is_none();
         let timer = session.details.get("timerLabel").and_then(Value::as_str);
         let show_time = hud
             .get("settings")
@@ -176,14 +179,18 @@ impl GhostexGpuiApp {
                 .child(self.render_native_session_identity(session, icon, hovered, appearance, cx))
                 .child(div().id(format!("native-session-title-{session_id}")).flex_1().min_w_0().h_full().flex().items_center().child(title_with_rename_shake(div().min_w_0().truncate().child(session.title().to_owned()), &session_id, session.rename_failed_at.as_deref(), scale)).when(self.native_sidebar.pointer_inside && self.native_sidebar.menu.is_none() && !cx.has_active_drag(), |row| row.managed_discrete_tooltip_with_placement(tooltip_span.placement(), appearance.tooltip_delay, move |window, cx| super::tooltips::sidebar_tooltip(tooltip.clone(), tooltip_span, scale, window, cx))))
                 .when(!hovered, |row| row.children(super::threads::coordinator_badge(session, appearance)))
+                .when(!hovered, |row| row.children(self.render_voice_call_badge(&session.session_id, appearance)))
                 .when(!hovered, |row| row.children(super::agentbox::agentbox_badge(session, appearance, tooltip_span, self.native_sidebar.pointer_inside && self.native_sidebar.menu.is_none() && !cx.has_active_drag())))
                 .when(!hovered, |row| row.children(super::claude_cloud::claude_cloud_badge(session, appearance, tooltip_span, self.native_sidebar.pointer_inside && self.native_sidebar.menu.is_none() && !cx.has_active_drag())))
-                .when(!hovered && !question, |row| row.children(super::status::activity_indicator(&session.activity, session.has_background_work, session.model_selection_failed || session.program_status_failed, scale)))
+                .when(!hovered, |row| row.children(self.render_native_session_links_badge(session, appearance)))
+                .when(!hovered && folded_dots.is_none() && !question, |row| row.children(super::status::activity_indicator(&session.activity, session.has_background_work, session.model_selection_failed || session.program_status_failed, scale)))
                 // CDXC:SessionStatus 2026-09-13 DECISION: User: hide Last Active while the question dot is shown so they do not overlap, including when the session is not working.
-                .when(!hovered && !question && !session.model_selection_failed && !session.program_status_failed && (timer.is_some() || (show_time && session.activity != "working" && session.activity != "attention" && !session.has_background_work)), |row| row.child(div().text_size(px(13.55 * scale)).text_color(if sleeping { chrome_color(0x686868, 0x959595) } else { chrome_color(0xa6a6a6, 0x424242) }).child(time)))
+                .when(!hovered && folded_dots.is_none() && !question && !session.model_selection_failed && !session.program_status_failed && (timer.is_some() || (show_time && session.activity != "working" && session.activity != "attention" && !session.has_background_work)), |row| row.child(div().text_size(px(13.55 * scale)).text_color(if sleeping { chrome_color(0x686868, 0x959595) } else { chrome_color(0xa6a6a6, 0x424242) }).child(time)))
                 .when(hovered, |row| row.child(self.render_native_session_hover_actions(group, session, appearance, cx)))
-                .when(question, |row| row.child(super::status::question_indicator(session.activity == "working", scale))))
+                .when(question, |row| row.child(super::status::question_indicator(&session.activity, scale, super::status::session_row_ring(appearance, highlighted, visible, question_fill, hovered))))
+                .children(folded_dots))
                 .children(self.render_native_session_work_chips(session, indent, tooltip_span, appearance, cx))
+                .children(self.render_native_session_link_line(session, indent, tooltip_span, appearance, cx))
                 .when(can_drag && self.native_sidebar.menu.is_none(), |row| row.sidebar_drag_source(dragged, cx))
 .sidebar_drop_target("session", drag_id, Some(drag_group_id), cx)
                 .on_mouse_down(MouseButton::Middle, |_, window, _| {

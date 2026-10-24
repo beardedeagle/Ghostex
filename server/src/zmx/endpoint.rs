@@ -483,7 +483,15 @@ pub fn dispatch_zmx_lifecycle_endpoint(
                     });
                 }
             }
-            let target_lifecycle = if action == "sleep" {
+            // CDXC:ClaudeCloud 2026-10-23: Close on an awake cloud session keeps its row, asleep
+            // (the DECISION is on `close_keeps_session_asleep`); the answer says so in `keptAsleep`.
+            let kept_asleep = action == "close"
+                && repository
+                    .get_session(&lifecycle.project_id, &lifecycle.session_id)?
+                    .is_some_and(|session| {
+                        crate::claude_cloud::close_keeps_session_asleep(&session)
+                    });
+            let target_lifecycle = if action == "sleep" || kept_asleep {
                 "sleeping"
             } else {
                 "stopped"
@@ -492,6 +500,7 @@ pub fn dispatch_zmx_lifecycle_endpoint(
                 kill_and_cache_session_provider(repository, &lifecycle, target_lifecycle)?;
             json!({
                 "action": action,
+                "keptAsleep": kept_asleep,
                 "session": session,
                 "transition": {
                     "kill": kill_to_value(&kill),

@@ -1,0 +1,1 @@
+../../../../desktop/src/app/native_sidebar/session_group_tree.rs

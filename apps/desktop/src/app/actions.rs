@@ -234,6 +234,21 @@ pub(crate) struct SetVoiceAgentCallMode {
     pub(crate) push_to_talk: bool,
 }
 
+/// The header headset arrow's "All sessions": starts the all-sessions call, or widens the open one.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Action)]
+#[action(namespace = ghostex_gpui, no_json)]
+pub(crate) struct VoiceCallAllSessions;
+
+/// The header headset arrow's "This session: <title>": a call about the session the work area
+/// showed when the menu opened (raw ids of its computer; `remote_machine` names a connected one).
+#[derive(Clone, Debug, PartialEq, Eq, Action)]
+#[action(namespace = ghostex_gpui, no_json)]
+pub(crate) struct VoiceCallAboutSession {
+    pub(crate) remote_machine: Option<String>,
+    pub(crate) project_id: String,
+    pub(crate) session_id: String,
+}
+
 /// A row of the voice panel's speed menu: `voiceAgentSpeed` in hundredths (120 is 1.2×).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Action)]
 #[action(namespace = ghostex_gpui, no_json)]

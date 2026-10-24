@@ -311,8 +311,8 @@ fn update_project_drop_membership(
     target_group_id: &str,
     order: &[String],
 ) -> Vec<ProjectWrite> {
-    // `membership.get(resolveProjectId(targetGroupId) ?? '')`: a target with no project (the Chats
-    // collection) asks for the empty string, which no collection holds, so the family is moved OUT
+    // `membership.get(resolveProjectId(targetGroupId) ?? '')`: a target with no project asks for
+    // the empty string, which no collection holds, so the family is moved OUT
     // of every collection rather than left where it was.
     let collection_id = section.collection_of_project(
         collections,

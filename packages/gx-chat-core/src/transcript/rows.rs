@@ -7,6 +7,7 @@
 
 use crate::document::{RowDetails, TranscriptItem};
 use crate::state::{ChatContext, ChatState, ProjectionInputs};
+use crate::transcript::items::TranscriptItems;
 use crate::transcript::presentation;
 
 /// The whole transcript list, from which family a computes the splice against what the host last
@@ -18,18 +19,17 @@ use crate::transcript::presentation;
 /// Pure, so it can be called from `frame_parts` with a shared borrow. [`refresh`] does the same work
 /// once per turn and stores the answer, and this hands that back when it is current.
 pub fn rows(state: &ChatState, context: &ChatContext) -> Vec<TranscriptItem> {
-    rows_shared(state, context).as_ref().clone()
+    rows_shared(state, context).to_vec()
 }
 
 /// [`rows`] without copying the projection's list when it has one.
-pub fn rows_shared(
-    state: &ChatState,
-    context: &ChatContext,
-) -> std::sync::Arc<Vec<TranscriptItem>> {
+pub fn rows_shared(state: &ChatState, context: &ChatContext) -> std::sync::Arc<TranscriptItems> {
     if !state.transcript_view.items.is_empty() {
         return std::sync::Arc::clone(&state.transcript_view.items);
     }
-    std::sync::Arc::new(presentation::build(state, context).items)
+    std::sync::Arc::new(TranscriptItems::from_items(
+        presentation::build(state, context).items,
+    ))
 }
 
 /// Details for the rows the renderer currently draws open, keyed by its own row key.
@@ -102,11 +102,32 @@ pub fn refresh(state: &mut ChatState, context: &ChatContext) {
     // Built against the state's OWN cache, so every message this pass projects is kept for the
     // next one; `presentation::build` works on a copy and is for the pure readers.
     let mut cache = std::mem::take(&mut state.transcript_view.projected);
-    let projection = presentation::build_scope(
-        &presentation::scope(state, &state.transcript_view),
-        context,
-        &mut cache,
-    );
+    // The settled turns are reused when they still stand (`transcript/settled.rs`); otherwise the
+    // list is settled afresh and built on that, which makes the same list as the whole build, and
+    // only a list that cannot be settled is built whole.
+    let reused = state
+        .transcript_view
+        .settled
+        .take()
+        .and_then(|settled| crate::transcript::settled::build(state, settled, context, &mut cache))
+        .or_else(|| {
+            let scope = presentation::scope(state, &state.transcript_view);
+            crate::transcript::settled::settle(state, context, &mut cache, &scope).and_then(
+                |settled| crate::transcript::settled::build(state, settled, context, &mut cache),
+            )
+        });
+    let (projection, settled_rows) = match reused {
+        Some((projection, rows, settled)) => {
+            state.transcript_view.settled = Some(settled);
+            (projection, rows)
+        }
+        None => {
+            let scope = presentation::scope(state, &state.transcript_view);
+            let projection = presentation::build_scope(&scope, context, &mut cache);
+            state.transcript_view.settled = None;
+            (projection, Vec::new())
+        }
+    };
     state.transcript_view.projected = cache;
     // The rail rides in the same result object as the items in `NativeChatPresentation.update`, so
     // it is produced by this pass and stored on its owner's state.
@@ -117,13 +138,17 @@ pub fn refresh(state: &mut ChatState, context: &ChatContext) {
         without_worked_time(&mut items, &id);
         label
     });
-    view.items = std::sync::Arc::new(items);
+    view.items = std::sync::Arc::new(TranscriptItems::with_settled(&settled_rows, items));
     view.final_ids = projection.final_ids;
     view.answered_pages = projection.answered_pages;
     view.question_forms = projection.question_forms;
     view.page_answers = projection.page_answers;
     view.askers = projection.askers;
     view.backfill = projection.backfill;
+    if view.backfill.is_empty() {
+        // The run is over: a row that changes from here on queues again like any other.
+        view.backfilled.clear();
+    }
     view.projection_inputs = Some(inputs);
     // `update` runs INSIDE `publish` in the TypeScript, so a rebuild only becomes a new array the
     // host can see on a turn that publishes. `ChatCore::republish` turns this flag into the
@@ -135,12 +160,19 @@ pub fn refresh(state: &mut ChatState, context: &ChatContext) {
     // from the settle instead waited for the NEXT event's settle, so on every real chat the first
     // transcript shipped its older rows as placeholders one document longer than the TypeScript
     // brain did.
+    // A pass that left nothing queued drops the timer the settle armed before it ran, which
+    // otherwise fired once more on an empty queue and published a whole document for nothing.
     if state.transcript_view.has_pending_backfill() {
         state.core.timers.arm_once(
             crate::transcript::settle::BACKFILL_TIMER,
             context.now_ms,
             0.0,
         );
+    } else {
+        state
+            .core
+            .timers
+            .cancel(crate::transcript::settle::BACKFILL_TIMER);
     }
 }
 
@@ -162,9 +194,11 @@ pub fn advance(state: &mut ChatState, context: &ChatContext) -> bool {
     // a completed turn's work rows come from the `loadWork` reads and are in no list at all. Each
     // is projected NOW and cached, so the refresh below reads whole rows for them.
     let batch: Vec<ghostex_gx_protocol::ChatMessage> = view.backfill.split_off(batch_start);
+    view.backfilled
+        .extend(batch.iter().map(|message| message.id.clone()));
     let mut cache = std::mem::take(&mut state.transcript_view.projected);
     {
-        let scope = presentation::scope(state, &state.transcript_view);
+        let scope = crate::transcript::settled::scope(state, &state.transcript_view);
         for message in &batch {
             presentation::project_cached(&mut cache, &scope, context, message);
         }

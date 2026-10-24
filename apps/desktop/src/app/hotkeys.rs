@@ -399,6 +399,10 @@ pub(crate) const GPUI_DEFAULT_GHOSTEX_HOTKEYS: &[(&str, &str)] = &[
     ("toggleChatComposerMaximized", "ctrl+alt+m"),
     ("toggleChatFilesLinks", "ctrl+alt+l"),
     ("toggleVoiceAgent", "ctrl+alt+v"),
+    // No default key (CDXC:VoiceMode 2026-10-23 DECISION in packages/settings-catalog/src/hotkey_definitions.rs).
+    ("voiceCallAboutSession", ""),
+    // No default key (CDXC:VoiceMode 2026-10-24 DECISION in packages/settings-catalog/src/hotkey_definitions.rs).
+    ("holdToTalk", ""),
     ("toggleDictation", "ctrl+alt+d"),
     // Read aloud's two hotkeys have no default key (packages/settings-catalog/src/hotkey_definitions.rs).
     ("readAloudLastReply", ""),
@@ -777,6 +781,8 @@ pub(crate) fn gpui_keyboard_owner_allows_hotkey(
             | "expandViewPanel"
             | "expandViewPanelFully"
             | "toggleVoiceAgent"
+            | "voiceCallAboutSession"
+            | "holdToTalk"
             | "readAloudStop"
     ) {
         return true;

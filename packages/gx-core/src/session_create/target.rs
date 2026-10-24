@@ -3,7 +3,7 @@
 //! The sidebar names a create by a GROUP id, in one of four shapes: a project's own group on this
 //! computer (`combined-project:<id>`), a project's group on a remote machine
 //! (`remote:<machine>:group:<id>`), a user-made group inside either
-//! (`gpui-wsg:<workspace project id>:<group>`), or the Chats collection, which names no project.
+//! (`gpui-wsg:<workspace project id>:<group>`).
 //! These are the resolutions `session-create.ts` and `workspace-groups-sync.ts` made, kept as one
 //! function each so a create and a browser open cannot disagree about the same id.
 //!
@@ -14,8 +14,8 @@ use crate::keys::{parse_workspace_subgroup_id, MachineId, ProjectKey};
 /// Where a terminal create lands.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CreateTarget {
-    /// A project on this computer, or none at all (the Chats collection, or nothing active), and
-    /// the user-made group the new session joins.
+    /// A project on this computer, or none at all (nothing active), and the user-made group the
+    /// new session joins.
     Local {
         project_id: Option<String>,
         subgroup: Option<String>,
@@ -31,8 +31,8 @@ pub enum CreateTarget {
 /// group, else the active project.
 ///
 /// A blank group id falls through to the active project exactly as the TypeScript's
-/// `groupId ? ... : this.activeProjectId` did, and a group id that names no project (the Chats
-/// collection, an id of another shape) is a create with no project at all, which gxserver answers
+/// `groupId ? ... : this.activeProjectId` did, and a group id that names no project (an id of
+/// another shape) is a create with no project at all, which gxserver answers
 /// by putting the terminal where it puts a projectless one.
 pub fn terminal_create_target(
     group_id: Option<&str>,
@@ -75,7 +75,7 @@ pub fn terminal_create_target(
 }
 
 /// `resolveWorkspaceGroupProjectId`: the project a group belongs to, whichever machine it is on.
-/// `None` for the Chats collection and for anything that is not a group id.
+/// `None` for anything that is not a group id.
 pub fn group_project(group_id: &str) -> Option<ProjectKey> {
     if let Some((project, _)) = parse_workspace_subgroup_id(group_id) {
         return Some(project);

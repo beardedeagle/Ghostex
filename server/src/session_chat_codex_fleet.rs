@@ -52,6 +52,21 @@ pub(crate) fn read_codex_fleet(session: &Value) -> anyhow::Result<Option<Session
     else {
         return Ok(None);
     };
+    // Reads Codex's own SQLite database while Codex writes it, for one session at a time.
+    let subject = format!(
+        "{}/{}",
+        session
+            .get("projectId")
+            .and_then(Value::as_str)
+            .unwrap_or_default(),
+        session
+            .get("sessionId")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+    );
+    let Some(_step) = crate::crash_report::step(&subject, "codexFleetRead") else {
+        anyhow::bail!("Reading this Codex session's subagents crashed gxserver before and is skipped on this build");
+    };
     let rollout = Path::new(rollout);
     let home = rollout
         .ancestors()

@@ -276,6 +276,12 @@ pub(crate) fn project_presentation_session(
         "work",
         crate::work_mode::presentation_session_work(project, session),
     );
+    // CDXC:SessionLinks 2026-10-24 SEE-ALSO: `PresentationSession.links` in packages/gx-protocol/src/presentation.rs; every session, built from caches only (server/src/session_links/).
+    insert_optional_value(
+        &mut output,
+        "links",
+        crate::session_links::presentation_session_links(project, session),
+    );
     output.insert("groupId".to_string(), Value::String(group_id.to_string()));
     /*
     CDXC:SessionSleep 2026-08-22:

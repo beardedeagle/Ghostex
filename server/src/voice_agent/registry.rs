@@ -14,6 +14,8 @@ struct Entry {
     tx: mpsc::UnboundedSender<Input>,
     provider: Provider,
     attached: bool,
+    /// The call's scope as clients see it (`focus.rs`): `null` for all sessions.
+    focus: Value,
 }
 
 fn conversations() -> &'static Mutex<HashMap<String, Entry>> {
@@ -29,6 +31,7 @@ pub(super) fn insert(id: &str, tx: mpsc::UnboundedSender<Input>, provider: Provi
                 tx,
                 provider,
                 attached: false,
+                focus: Value::Null,
             },
         );
     }
@@ -56,6 +59,14 @@ pub(super) fn set_attached(id: &str, attached: bool) {
     }
 }
 
+pub(super) fn set_focus(id: &str, focus: Value) {
+    if let Ok(mut map) = conversations().lock() {
+        if let Some(entry) = map.get_mut(id) {
+            entry.focus = focus;
+        }
+    }
+}
+
 pub(super) fn count() -> usize {
     conversations().lock().map(|map| map.len()).unwrap_or(0)
 }
@@ -78,6 +89,7 @@ pub(super) fn summary() -> Value {
                         "conversationId": id,
                         "provider": entry.provider.id(),
                         "attached": entry.attached,
+                        "focus": entry.focus,
                     })
                 })
                 .collect()

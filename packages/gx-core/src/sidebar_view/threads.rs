@@ -10,7 +10,7 @@ use crate::keys::SessionKey;
 
 use super::inputs::SectionId;
 use super::ordering::{is_snoozed, section_of};
-use super::view::{RowNesting, SessionRow, SessionView, ThreadTally};
+use super::view::{FoldedStatus, RowNesting, SessionRow, SessionView, ThreadTally};
 
 /// How long after its last activity a thread that neither works nor waits is still listed.
 const RECENT_THREAD_MS: i64 = 2 * 60 * 60 * 1000;
@@ -260,6 +260,20 @@ pub(crate) fn nest_threads(
             Some(ancestor)
         });
 
+    // A folded coordinator's stack: its own status and every thread under it.
+    let folded_status: HashMap<usize, FoldedStatus> = (0..sessions.len())
+        .filter(|index| is_collapsed[*index])
+        .map(|index| {
+            let mut status = FoldedStatus::default();
+            let mut stack = vec![index];
+            while let Some(next) = stack.pop() {
+                status.add(&sessions[next].row);
+                stack.extend(children.get(&next).into_iter().flatten().copied());
+            }
+            (index, status)
+        })
+        .collect();
+
     let mut sessions: Vec<Option<SessionView>> = sessions.into_iter().map(Some).collect();
     let mut nested = Vec::with_capacity(order.len());
     let mut sections = Vec::with_capacity(order.len());
@@ -290,10 +304,114 @@ pub(crate) fn nest_threads(
             older_threads_shown: shows_older[index],
             older_hidden,
             contains_active_session: holds_active == Some(index),
+            folded_status: folded_status.get(&index).copied().unwrap_or_default(),
             ..RowNesting::default()
         };
         nested.push(session);
         sections.push(section);
     }
     (nested, sections)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::keys::MachineId;
+
+    fn key(session_id: &str) -> SessionKey {
+        SessionKey {
+            machine: MachineId::Local,
+            project_id: "p1".to_string(),
+            session_id: session_id.to_string(),
+        }
+    }
+
+    fn row(session_id: &str, activity: &str, parent: Option<&str>) -> SessionView {
+        SessionView {
+            row: Arc::new(SessionRow {
+                sidebar_session_id: format!("combined-session:p1:{session_id}"),
+                key: Some(key(session_id)),
+                activity: activity.to_string(),
+                is_coordinator: parent.is_none(),
+                coordinator_parent: parent.map(key),
+                ..SessionRow::default()
+            }),
+            is_focused: false,
+            is_visible: false,
+            is_multi_selected: false,
+            nesting: RowNesting::default(),
+        }
+    }
+
+    fn nest(sessions: Vec<SessionView>, collapsed: &[&str]) -> Vec<SessionView> {
+        let collapsed = collapsed
+            .iter()
+            .map(|id| format!("combined-session:p1:{id}"))
+            .collect();
+        nest_threads(
+            sessions,
+            false,
+            false,
+            &HashSet::new(),
+            &collapsed,
+            &BTreeSet::new(),
+            0,
+        )
+        .0
+    }
+
+    /// A folded coordinator carries the dots of the threads its fold hides (a nested thread's
+    /// too) and its own; unfolded, it carries none and each thread draws its own.
+    #[test]
+    fn folded_coordinator_carries_its_hidden_threads_dots() {
+        let sessions = || {
+            vec![
+                row("lead", "idle", None),
+                row("working", "working", Some("lead")),
+                {
+                    let mut done = row("done", "attention", Some("lead"));
+                    Arc::make_mut(&mut done.row).is_coordinator = true;
+                    done
+                },
+                {
+                    let mut asking = row("asking", "attention", Some("done"));
+                    Arc::make_mut(&mut asking.row).pending_question_count = 1;
+                    asking
+                },
+            ]
+        };
+        let folded = nest(sessions(), &["lead"]);
+        let lead = folded
+            .iter()
+            .find(|session| session.row.sidebar_session_id.ends_with(":lead"))
+            .unwrap();
+        assert_eq!(
+            lead.nesting.folded_status,
+            FoldedStatus {
+                working: true,
+                attention: true,
+                background_work: false,
+                question: true,
+            }
+        );
+        // A thread waiting on the user (gxserver's `waiting`, a permission prompt) is the pink
+        // needs-you dot, not the stack's blue.
+        let mut waiting = sessions();
+        Arc::make_mut(&mut waiting[2].row).thread_state = Some("waiting".to_string());
+        Arc::make_mut(&mut waiting[3].row).pending_question_count = 0;
+        Arc::make_mut(&mut waiting[3].row).activity = "idle".to_string();
+        let waiting = nest(waiting, &["lead"]);
+        assert!(!waiting[0].nesting.folded_status.attention);
+        assert!(waiting[0].nesting.folded_status.question);
+
+        assert!(folded
+            .iter()
+            .filter(|session| session.nesting.depth > 0)
+            .all(|session| session.nesting.folded));
+
+        let open = nest(sessions(), &[]);
+        assert!(open
+            .iter()
+            .all(|session| !session.nesting.folded_status.any()));
+    }
 }

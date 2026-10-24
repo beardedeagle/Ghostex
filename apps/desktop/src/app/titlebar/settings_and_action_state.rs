@@ -80,6 +80,16 @@ impl GhostexGpuiApp {
         window: Option<&mut Window>,
         cx: &mut gpui::Context<Self>,
     ) {
+        self.open_gpui_settings_accounts_page_for_provider(None, window, cx);
+    }
+
+    /// Settings > Accounts, showing `provider`'s (`claude`, `codex`) accounts when one is named.
+    pub(crate) fn open_gpui_settings_accounts_page_for_provider(
+        &mut self,
+        provider: Option<&str>,
+        window: Option<&mut Window>,
+        cx: &mut gpui::Context<Self>,
+    ) {
         let modal = GpuiAppModalKind::Settings;
         let sidebar_state_message = self.gpui_app_modal_sidebar_state_message_for_open(modal, cx);
         let mut open_message = serde_json::json!({
@@ -87,6 +97,9 @@ impl GhostexGpuiApp {
             "modal": modal.modal_id(),
             "type": "open",
         });
+        if let Some(provider) = provider {
+            open_message["initialAccountsProvider"] = serde_json::json!(provider);
+        }
         open_message["latestSidebarStateMessage"] = sidebar_state_message.clone();
         self.open_gpui_app_modal_window(modal, open_message, sidebar_state_message, window, cx);
     }
@@ -241,6 +254,41 @@ impl GhostexGpuiApp {
             return Vec::new();
         }
         self.titlebar_actions_snapshot.clone()
+    }
+
+    /// The settings poll's read of the titlebar's Actions: only when the sidebar HUD moved since
+    /// `seen`, the HUD the last such read went with.
+    ///
+    /// CDXC:AgentLauncher 2026-10-23 WHY:
+    /// The poll used to ask gxserver for `/api/readSidebarHud` every two seconds, forever, to keep
+    /// the Actions current. gxserver announces every Actions change (a project's row for its own
+    /// Actions, `globalSidebarCommandsChanged` for the Global ones) and the store re-reads and
+    /// recomposes the sidebar HUD from it, so a HUD that did not move means Actions that did not
+    /// either. A project switch, a Settings save and a remote reconnect still read them at once.
+    /// The poll keeps the 30-second extensions check those reads used to carry.
+    pub(crate) fn refresh_titlebar_actions_if_hud_moved(
+        &mut self,
+        seen: &mut Option<std::sync::Weak<serde_json::Value>>,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        let hud = self
+            .native_sidebar
+            .snapshot
+            .as_ref()
+            .map(|snapshot| &snapshot.hud);
+        let moved = match (hud, seen.as_ref()) {
+            (Some(hud), Some(seen)) => !std::ptr::eq(std::sync::Arc::as_ptr(hud), seen.as_ptr()),
+            (Some(_), None) => true,
+            (None, _) => false,
+        };
+        if !moved {
+            self.refresh_extensions_if_stale(cx);
+            return;
+        }
+        // A weak handle keeps the old allocation from being reused for a new HUD at the same
+        // address, without keeping the old document alive.
+        *seen = hud.map(std::sync::Arc::downgrade);
+        self.refresh_titlebar_actions_in_background(cx);
     }
 
     pub(crate) fn refresh_titlebar_actions_in_background(&mut self, cx: &mut gpui::Context<Self>) {

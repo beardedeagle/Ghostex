@@ -5,7 +5,10 @@
 //! CDXC:ClaudeCloud 2026-10-23 DECISION:
 //! User picked "the cloud glyph only" for a cloud session's row: no "Claude" label beside it, the
 //! tooltip says where it runs and what it last did. The status line rides the tooltip because the
-//! row has no room for it.
+//! row has no room for it. And "please make the cloud keep shown when that session goes asleep": the
+//! glyph stays in every state the row is listed in (asleep, parked, moved, failed, draft); only the
+//! hover buttons cover it, as they cover every row's trailing marks. The phone's row matches
+//! (apps/mobile/app/src/contract/claudeCloud.ts).
 //!
 //! CDXC:ClaudeCloud 2026-10-23 DECISION:
 //! User picked "hover-only" for the account a cloud session runs on: a plain cloud icon with no account colour or tint; the account's name shows only in the row's tooltip (and in the session's header).

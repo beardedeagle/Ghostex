@@ -169,8 +169,7 @@ pub(crate) fn project_view_spaces(
 ///
 /// CDXC:Extensions 2026-09-18 DECISION:
 /// User: the view scope's Projects grid lists only the projects currently in the sidebar.
-/// The sidebar rows are the authority, so parked Recent Projects, the synthetic Chats collection and
-/// browser groups are all absent, and worktrees appear as their own rows exactly as the sidebar
+/// The sidebar rows are the authority, so parked Recent Projects and browser groups are absent, and worktrees appear as their own rows exactly as the sidebar
 /// shows them. Ids are the same machine-scoped ids the active project reports, so a ticked remote
 /// project matches the project the titlebar is actually rendering for.
 pub(crate) fn project_view_projects(

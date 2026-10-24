@@ -199,7 +199,6 @@ impl Render for SuggestionPanel {
                             .truncate()
                             .flex_shrink_0()
                             .when(!files, |text| text.w(px(spec.label_column_px * s)))
-                            .when(files, |text| text.font_weight(gpui::FontWeight::SEMIBOLD))
                             .child(label),
                     )
                     .child(

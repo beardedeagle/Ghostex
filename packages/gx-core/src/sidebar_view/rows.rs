@@ -332,6 +332,11 @@ pub(crate) fn session_row(
             }),
         claude_cloud: session.claude_cloud.clone(),
         work,
+        links: session
+            .links
+            .as_ref()
+            .map(super::links::SessionLinks::from_presentation)
+            .filter(|links| !links.is_empty()),
         key: Some(key),
     }
 }

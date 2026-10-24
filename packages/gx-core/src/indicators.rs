@@ -5,8 +5,7 @@
 //! over the same rows: every machine's sidebar groups (this computer's, then each saved remote
 //! machine's, live or last seen), unfiltered by Space, tag or collapse, each in its display order.
 //! The host keeps one [`SidebarViewModel`] per machine with neutral list state for that
-//! (`neutral_indicator_inputs`) and hands over each one's `built_groups`, which include the Chats
-//! group the drawn list leaves out.
+//! (`neutral_indicator_inputs`) and hands over each one's `built_groups`.
 //!
 //! CDXC:StatusPet 2026-06-26-04:38:
 //! GPUI status indicators consume the same saved shared Settings object as the

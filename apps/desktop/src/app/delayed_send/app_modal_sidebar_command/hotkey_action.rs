@@ -176,6 +176,16 @@ impl GhostexGpuiApp {
                     self.toggle_voice_agent_conversation(cx);
                     return;
                 }
+                // The headset arrow's "This session" row (CDXC:VoiceMode in voice_agent/header_button.rs).
+                // Hold to Talk: its key coming up ends the hold (voice_agent/hold_to_talk.rs).
+                if action_id == "holdToTalk" {
+                    self.hold_to_talk_hotkey_pressed(cx);
+                    return;
+                }
+                if action_id == "voiceCallAboutSession" {
+                    self.voice_call_about_this_session(window, cx);
+                    return;
+                }
                 if action_id == "expandViewPanel" {
                     self.toggle_view_panel_maximized(cx);
                     return;

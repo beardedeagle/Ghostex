@@ -43,6 +43,44 @@ impl GhostexGpuiApp {
         )
     }
 
+    /// CDXC:Settings 2026-10-23 DECISION:
+    /// User (Q35, "Should saving a setting stop freezing the window while it asks gxserver for fresh data?"): "Yes, read in the background". A settings change used to read this hydrate from gxserver synchronously on the main thread, up to five reads with a 2 s timeout each, in every open window. The open Settings and Git Commit windows now get the new settings at once with the gxserver data held from the last read, and that data again when the background read lands if it moved, so their agent or Actions lists can lag a save until then.
+    pub(crate) fn refresh_open_gpui_app_modals_after_settings_change(
+        &mut self,
+        settings_snapshot: &shared_settings::SharedSidebarSettingsSnapshot,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        let active_project_id = self.gpui_app_modal_hydrate_active_project_id();
+        let held = self
+            .app_modal_gxserver_hydrate
+            .as_ref()
+            .filter(|hydrate| hydrate.active_project_id == active_project_id)
+            .cloned();
+        if let Some(hydrate) = &held {
+            let message = self.with_gpui_command_pane_sidebar_indicators(
+                gpui_app_modal_sidebar_state_message_from_gxserver_hydrate(
+                    settings_snapshot,
+                    hydrate,
+                ),
+            );
+            self.send_gpui_app_modal_sidebar_state(message, cx);
+        }
+        self.app_modal_gxserver_hydrate_resend = GpuiAppModalHydrateResend::Waiting {
+            sent: held,
+            stale: self.app_modal_gxserver_hydrate_refreshing,
+        };
+        self.refresh_gpui_app_modal_gxserver_hydrate(cx);
+    }
+
+    fn send_gpui_app_modal_sidebar_state(
+        &mut self,
+        message: serde_json::Value,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        self.reset_open_git_commit_prompt_agent(&message, cx);
+        self.refresh_open_gpui_app_modal_sidebar_state(message, cx);
+    }
+
     pub(crate) fn refresh_gpui_app_modal_gxserver_hydrate(&mut self, cx: &mut gpui::Context<Self>) {
         if self.app_modal_gxserver_hydrate_refreshing {
             return;
@@ -56,16 +94,37 @@ impl GhostexGpuiApp {
                     gpui_fetch_app_modal_gxserver_hydrate(active_project_id.as_deref())
                 })
                 .await;
-            let _ = this.update(cx, |this, _cx| {
-                this.receive_gpui_app_modal_gxserver_hydrate(hydrate);
+            let _ = this.update(cx, |this, cx| {
+                this.receive_gpui_app_modal_gxserver_hydrate(hydrate, cx);
             });
         })
         .detach();
     }
 
-    fn receive_gpui_app_modal_gxserver_hydrate(&mut self, hydrate: GpuiAppModalGxserverHydrate) {
+    fn receive_gpui_app_modal_gxserver_hydrate(
+        &mut self,
+        hydrate: GpuiAppModalGxserverHydrate,
+        cx: &mut gpui::Context<Self>,
+    ) {
         self.app_modal_gxserver_hydrate_refreshing = false;
-        self.app_modal_gxserver_hydrate = Some(hydrate);
+        self.app_modal_gxserver_hydrate = Some(hydrate.clone());
+        match std::mem::take(&mut self.app_modal_gxserver_hydrate_resend) {
+            GpuiAppModalHydrateResend::Idle => {}
+            GpuiAppModalHydrateResend::Waiting { sent, stale: true } => {
+                self.app_modal_gxserver_hydrate_resend =
+                    GpuiAppModalHydrateResend::Waiting { sent, stale: false };
+                self.refresh_gpui_app_modal_gxserver_hydrate(cx);
+            }
+            GpuiAppModalHydrateResend::Waiting { sent, stale: false } => {
+                // The settings are read again here: a later save may have landed since the change.
+                if sent.as_ref() != Some(&hydrate)
+                    && hydrate.active_project_id == self.gpui_app_modal_hydrate_active_project_id()
+                {
+                    let message = self.gpui_app_modal_sidebar_state_message_for_hydrate(&hydrate);
+                    self.send_gpui_app_modal_sidebar_state(message, cx);
+                }
+            }
+        }
     }
 
     fn gpui_app_modal_hydrate_active_project_id(&self) -> Option<String> {

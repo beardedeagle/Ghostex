@@ -42,10 +42,26 @@ pub fn project_minimap_turns(
     )],
     item_index: &[(String, usize)],
 ) -> Vec<MinimapMarkerRow> {
-    let geometry = geometry();
-    if !minimap_visible(turns.len(), geometry.minimum_turns) {
+    if !minimap_shows(turns.len()) {
         return Vec::new();
     }
+    minimap_rows(turns, item_index)
+}
+
+/// Whether a transcript of `turn_count` turns draws the rail at all.
+pub fn minimap_shows(turn_count: usize) -> bool {
+    minimap_visible(turn_count, geometry().minimum_turns)
+}
+
+/// The rows of [`project_minimap_turns`] for some of the turns, whether or not the rail shows.
+pub fn minimap_rows(
+    turns: &[(
+        &ghostex_gx_protocol::chat::ChatMessage,
+        Option<&ghostex_gx_protocol::chat::ChatMessage>,
+    )],
+    item_index: &[(String, usize)],
+) -> Vec<MinimapMarkerRow> {
+    let geometry = geometry();
     turns
         .iter()
         .map(|(user, reply)| {

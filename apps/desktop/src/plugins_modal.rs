@@ -249,10 +249,17 @@ pub(super) fn plugin_settings_status_message(app: &GhostexGpuiApp) -> serde_json
             } else if error_message.is_some() {
                 row.status = PluginsModalStatus::Failed;
             }
+            // A change to the web runtime waiting for the next launch
+            // (app/helpers/web_runtime_pending.rs): Plugins says so and offers Undo instead.
+            let pending_change = (id == "cef")
+                .then(crate::app::helpers::web_runtime_pending::pending_web_runtime_change)
+                .flatten();
             let can_uninstall = row
                 .actions
                 .contains(&PluginsModalAction::UninstallWebRuntime)
-                && !app.web_runtime_started_in_process();
+                && pending_change.is_none()
+                && (crate::app::helpers::web_runtime_pending::PENDING_CHANGES_SUPPORTED
+                    || !app.web_runtime_started_in_process());
             let can_reinstall = match id {
                 "code" => store
                     .as_ref()
@@ -269,6 +276,7 @@ pub(super) fn plugin_settings_status_message(app: &GhostexGpuiApp) -> serde_json
                 "canReinstall": can_reinstall,
                 "canUninstall": can_uninstall,
                 "errorMessage": error_message,
+                "pendingChange": pending_change.map(|change| change.wire()),
                 "id": id,
                 "sizeBytes": row.size_bytes,
                 "status": status,

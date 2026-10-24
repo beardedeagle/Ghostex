@@ -98,7 +98,7 @@ pub(crate) async fn handle_remote_access_http(
                     };
                     result.insert(
                         "easyConnect".to_string(),
-                        json!({ "payload": encode_easy_connect_code(&code), "code": code }),
+                        json!({ "payload": pairing_link(&encode_easy_connect_code(&code)), "code": code }),
                     );
                 }
                 if let Some((host, ip)) = cached_tailscale_status().reachable_address() {
@@ -112,7 +112,7 @@ pub(crate) async fn handle_remote_access_http(
                     };
                     result.insert(
                         "tailscale".to_string(),
-                        json!({ "payload": encode_tailscale_code(&code), "code": code }),
+                        json!({ "payload": pairing_link(&encode_tailscale_code(&code)), "code": code }),
                     );
                 }
                 Ok(Value::Object(result))

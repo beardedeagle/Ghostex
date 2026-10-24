@@ -15,6 +15,8 @@ use gpui_component::h_flex;
 use gpui_component::v_flex;
 use serde_json::{Value, json};
 use std::{
+    cell::Cell,
+    rc::Rc,
     sync::{Arc, OnceLock},
     time::Duration,
 };
@@ -297,13 +299,45 @@ impl GhostexGpuiApp {
         cx.notify();
     }
 
+    /// CDXC:AgentProviders 2026-10-23 WHY:
+    /// The meters are only seen in a shown window, so a minimized or covered window skips the 30-second refresh (two gxserver reads per machine) and refreshes once as soon as it is shown again.
     pub(crate) fn start_titlebar_account_polling(&mut self, cx: &mut gpui::Context<Self>) {
         self.refresh_titlebar_accounts(cx);
+        let skipped = Rc::new(Cell::new(false));
+        if let Some(main) = self.main_window_handle {
+            let app = cx.weak_entity();
+            let skipped = skipped.clone();
+            // Deferred: the window is still being opened while the app is built.
+            gpui::App::defer(cx, move |cx| {
+                let _ = main.update(cx, |_, window, _| {
+                    window
+                        .observe_window_visibility(move |visibility, _, cx| {
+                            if visibility.is_visible() && skipped.replace(false) {
+                                let _ = app.update(cx, |app, cx| app.refresh_titlebar_accounts(cx));
+                            }
+                        })
+                        .detach();
+                });
+            });
+        }
         cx.spawn(async move |this, cx| {
             loop {
                 cx.background_executor()
                     .timer(Duration::from_secs(30))
                     .await;
+                let Ok(main) = this.read_with(cx, |this, _| this.main_window_handle) else {
+                    break;
+                };
+                let hidden = main
+                    .and_then(|main| {
+                        cx.update_window(main, |_, window, _| !window.is_visible())
+                            .ok()
+                    })
+                    .unwrap_or(false);
+                if hidden {
+                    skipped.set(true);
+                    continue;
+                }
                 if this
                     .update(cx, |this, cx| this.refresh_titlebar_accounts(cx))
                     .is_err()
@@ -347,6 +381,8 @@ impl GhostexGpuiApp {
                         if this.titlebar_accounts_revision != revision {
                             return;
                         }
+                        // Most refreshes return what is already shown; only a change redraws the window.
+                        let previous_accounts = this.titlebar_accounts.clone();
                         match result {
                             Ok(result) => {
                                 this.titlebar_accounts.retain(|a| text(a, "titlebarMachine") != machine);
@@ -370,6 +406,9 @@ impl GhostexGpuiApp {
                         this.titlebar_accounts.sort_by(|a, b| text(a,"titlebarMachine").cmp(text(b,"titlebarMachine"))
                             .then(text(a,"provider").cmp(text(b,"provider")))
                             .then(text(a,"selector").parse::<u64>().unwrap_or(0).cmp(&text(b,"selector").parse::<u64>().unwrap_or(0))));
+                        if this.titlebar_accounts == previous_accounts {
+                            return;
+                        }
                         if let Some(GpuiTitlebarPopupKind::AccountUsage(id)) = this.titlebar_popup_menu.as_ref().map(|state| state.kind) {
                             if this.titlebar_accounts.iter().any(|a| text(a, "titlebarKey") == id.as_str()) {
                                 this.sync_titlebar_account_privacy(cx);

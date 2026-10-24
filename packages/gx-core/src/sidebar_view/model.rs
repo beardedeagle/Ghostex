@@ -10,7 +10,7 @@ use std::sync::Arc;
 
 use crate::change::ChangeSummary;
 use crate::core::Core;
-use crate::keys::{MachineId, ProjectKey, SessionKey, CHATS_GROUP_ID};
+use crate::keys::{MachineId, ProjectKey, SessionKey};
 use crate::presentation_store::PresentationStore;
 
 use super::assemble::{assemble, empty_state_deadline_ms, AssembleInput};
@@ -160,14 +160,14 @@ impl SidebarViewModel {
     }
 
     /// Every group this model built, drawn or not, in the order it planned them, with each one's
-    /// rows before any filter: the Chats group, then each project followed by its user-made groups.
-    /// Quick Access lists the sessions of hidden, filtered and Chats groups too, which is what the
-    /// old runtime's `sessionIdsByGroup` held.
+    /// rows before any filter: each project followed by its user-made groups. Quick Access lists the
+    /// sessions of hidden and filtered groups too, which is what the old runtime's
+    /// `sessionIdsByGroup` held.
     pub fn built_groups(&self) -> Vec<(&super::view::GroupCore, Vec<&super::view::SessionRow>)> {
         let Some(state) = &self.state else {
             return Vec::new();
         };
-        let mut ids: Vec<String> = vec![chats_group_id(&state.machine)];
+        let mut ids: Vec<String> = Vec::new();
         for project_id in state.meta.grouped_project_ids() {
             ids.push(
                 ProjectKey {
@@ -308,7 +308,6 @@ impl SidebarViewModel {
             !changes.projects_changed.is_empty()
                 || !changes.projects_removed.is_empty()
                 || !changes.project_order_changed.is_empty()
-                || !changes.chat_collection_changed.is_empty()
                 || changes.side_state.workspace_groups
                 || previous.inputs.host.recent_project_ids != inputs.host.recent_project_ids
                 || previous.inputs.host.remote_recent_project_ids
@@ -437,12 +436,7 @@ impl SidebarViewModel {
         // 4. Membership, per project.
         let membership_all_dirty = previous.is_none() || meta_dirty;
         let mut membership: BTreeMap<String, Arc<ProjectMembers>> = BTreeMap::new();
-        // A project group's own user-made groups are drawn; a chat project's never are.
-        let listed = meta
-            .grouped_project_ids()
-            .map(|project_id| (project_id, true))
-            .chain(meta.chat_order.iter().map(|project_id| (project_id, false)));
-        for (project_id, emit_subgroups) in listed {
+        for project_id in meta.grouped_project_ids() {
             let reuse = !membership_all_dirty && !dirty_projects.contains(project_id.as_str());
             let members = match (&previous, reuse) {
                 (Some(previous), true) => previous.membership.get(project_id).cloned(),
@@ -450,9 +444,7 @@ impl SidebarViewModel {
             };
             let members = members.unwrap_or_else(|| {
                 Arc::new(match store.machine(&machine) {
-                    Some(entry) => {
-                        project_members(store, entry, &machine, project_id, emit_subgroups)
-                    }
+                    Some(entry) => project_members(store, entry, &machine, project_id),
                     None => ProjectMembers::default(),
                 })
             });
@@ -517,43 +509,6 @@ impl SidebarViewModel {
             })
         };
         let mut plans: Vec<GroupPlan> = Vec::new();
-        let chat_members: Vec<(String, String)> = meta
-            .chat_order
-            .iter()
-            .flat_map(|project_id| {
-                state
-                    .membership
-                    .get(project_id)
-                    .map(|members| members.session_ids.clone())
-                    .unwrap_or_default()
-                    .into_iter()
-                    .map(|session_id| (project_id.clone(), session_id))
-            })
-            .collect();
-        let chat_rows = chat_members
-            .iter()
-            .filter_map(|(project_id, session_id)| {
-                resolve_row(
-                    &mut state,
-                    store,
-                    &machine,
-                    project_id,
-                    session_id,
-                    effective,
-                    &row_context,
-                )
-            })
-            .collect();
-        plans.push(GroupPlan {
-            group_id: chats_group_id(&machine),
-            storage_id: storage_id(&machine, &chats_group_id(&machine)),
-            title: "Chats".to_string(),
-            kind: GroupKind::Chats,
-            rows: chat_rows,
-            project: None,
-            remote_machine: remote_context(None),
-            is_stale,
-        });
         let window_workspace = super::workspaces::window_workspace(store, effective, &machine);
         let loaded = store.loaded(&machine);
         for project_id in meta.grouped_project_ids() {
@@ -1102,7 +1057,6 @@ fn machine_summaries(
         let touched = changes.machines_reloaded.contains(&machine)
             || changes.connection_changed.contains(&machine)
             || changes.project_order_changed.contains(&machine)
-            || changes.chat_collection_changed.contains(&machine)
             || changes
                 .sessions_changed
                 .iter()
@@ -1139,15 +1093,6 @@ fn machine_id(selected_machine_id: &str) -> MachineId {
         MachineId::Local
     } else {
         MachineId::Remote(selected_machine_id.to_string())
-    }
-}
-
-fn chats_group_id(machine: &MachineId) -> String {
-    match machine {
-        MachineId::Local => CHATS_GROUP_ID.to_string(),
-        MachineId::Remote(machine_id) => {
-            ProjectKey::remote(machine_id.as_str(), CHATS_GROUP_ID).to_sidebar_group_id()
-        }
     }
 }
 

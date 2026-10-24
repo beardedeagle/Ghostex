@@ -331,7 +331,7 @@ pub(crate) fn row_of(
             .and_then(Value::as_str)
             .map(str::to_string)
     };
-    let messages_of = |item: &TranscriptItem| -> Vec<Value> {
+    let messages_of = |item: &TranscriptItem| -> Vec<crate::document::ProjectedMessage> {
         match item {
             TranscriptItem::Message { message } => vec![message.clone()],
             TranscriptItem::Summary {

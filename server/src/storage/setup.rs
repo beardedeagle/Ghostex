@@ -106,38 +106,29 @@ pub fn ensure_gxserver_storage_layout(paths: &GxserverPaths) -> Result<()> {
     Ok(())
 }
 
-/// CDXC:ServerDaemon 2026-09-19 DECISION:
+/// CDXC:ServerDaemon 2026-10-23 DECISION:
 /// User: "avoid any unnecessary writes", and accepted synchronous=NORMAL for state.db. In WAL mode this drops the fsync on every commit and syncs at checkpoints instead: an app or gxserver crash still loses nothing and the database cannot corrupt; only a power cut or OS crash can lose the last few commits.
-fn apply_wal_durability(db: &Connection) -> Result<()> {
+/// On 2026-10-23 the user chose the sessions(lifecycleState, updatedAt) index (migration 0046) despite the small write it adds to every session update, so the lifecycle lists stop reading the whole registry; this supersedes reading "no unnecessary writes" as "no new indexes". The same day they chose a second one for the same reason (Q34, "yes, add it"): the partial index of kept stopped rows (migration 0047), so the sidebar's first snapshot stops reading the whole registry too.
+pub(super) fn apply_wal_durability(db: &Connection) -> Result<()> {
     db.pragma_update(None, "synchronous", "NORMAL")?;
     Ok(())
 }
 
-pub fn open_gxserver_database(paths: &GxserverPaths) -> Result<Connection> {
-    let db = Connection::open(&paths.state_db_file)
-        .with_context(|| format!("open {}", paths.state_db_file.display()))?;
-    db.pragma_update(None, "foreign_keys", "ON")?;
-    db.pragma_update(None, "journal_mode", "WAL")?;
-    apply_wal_durability(&db)?;
-    Ok(db)
+/// A state.db connection from the pool (see `GxserverDatabase`); it is returned to the pool when dropped.
+pub fn open_gxserver_database(paths: &GxserverPaths) -> Result<GxserverDatabase> {
+    borrow_gxserver_database(&paths.state_db_file, None)
 }
 
 pub fn open_gxserver_database_with_busy_timeout(
     paths: &GxserverPaths,
     busy_timeout: Duration,
-) -> Result<Connection> {
+) -> Result<GxserverDatabase> {
     /*
     Apply the busy handler before connection PRAGMAs as well as later writes.
     This is intentionally a separate entry point so only operations that are
     designed for concurrent writers opt into lock waiting.
     */
-    let db = Connection::open(&paths.state_db_file)
-        .with_context(|| format!("open {}", paths.state_db_file.display()))?;
-    db.busy_timeout(busy_timeout)?;
-    db.pragma_update(None, "foreign_keys", "ON")?;
-    db.pragma_update(None, "journal_mode", "WAL")?;
-    apply_wal_durability(&db)?;
-    Ok(db)
+    borrow_gxserver_database(&paths.state_db_file, Some(busy_timeout))
 }
 
 pub fn run_gxserver_migrations(db: &mut Connection) -> Result<Vec<String>> {

@@ -5,9 +5,7 @@
 
 use std::time::Instant;
 
-use ghostex_gx_core::{
-    Event, IgnoredReason, Intent, ProjectKey, SessionKey, default_group_for_project,
-};
+use ghostex_gx_core::{ActiveGroup, Event, IgnoredReason, Intent, ProjectKey, SessionKey};
 
 use super::host::{GxStoreHost, now_ms};
 use crate::GhostexGpuiApp;
@@ -225,10 +223,7 @@ impl GxStoreHost {
             },
         };
         let mut focus = self.core.focus().clone();
-        focus.active_group = Some(default_group_for_project(
-            self.core.presentation(),
-            &project,
-        ));
+        focus.active_group = Some(ActiveGroup::Project(project.clone()));
         focus.active_project = Some(project);
         focus.visible_sessions = session.iter().cloned().collect();
         if let Some(session) = &session {
@@ -269,13 +264,10 @@ impl GxStoreHost {
             .active_group
             .clone()
             .filter(|group| match group {
-                ghostex_gx_core::ActiveGroup::Project(owner) => *owner == project,
-                ghostex_gx_core::ActiveGroup::Subgroup { project: owner, .. } => *owner == project,
-                ghostex_gx_core::ActiveGroup::Chats(machine) => {
-                    *machine == project.machine && store.is_chat_project(&project)
-                }
+                ActiveGroup::Project(owner) => *owner == project,
+                ActiveGroup::Subgroup { project: owner, .. } => *owner == project,
             })
-            .unwrap_or_else(|| default_group_for_project(store, &project));
+            .unwrap_or_else(|| ActiveGroup::Project(project.clone()));
         ghostex_gx_core::empty_tab_list_confirmed(store, &group)
     }
 }

@@ -37,7 +37,7 @@ fn internal(message: String) -> DomainStateError {
     }
 }
 
-pub(super) fn open(state: &AppState) -> Result<rusqlite::Connection, DomainStateError> {
+pub(super) fn open(state: &AppState) -> Result<crate::storage::GxserverDatabase, DomainStateError> {
     open_gxserver_database(&state.paths)
         .map_err(|error| internal(format!("SQLite gxserver state error: {error}")))
 }
