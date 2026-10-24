@@ -387,9 +387,10 @@ impl GhostexGpuiApp {
                     .links_list_session
                     .clone()
                     .expect("session chosen before opening its links list");
+                let links = self.session_links_of(&key);
                 GpuiTitlebarPopupContent::SessionLinks(cx.new(|cx| {
                     crate::app::window::session_links_panel::SessionLinksPanel::new(
-                        main_app, key, cx,
+                        main_app, key, links, cx,
                     )
                 }))
             }

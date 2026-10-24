@@ -51,33 +51,44 @@ pub(crate) struct SessionLinksPanel {
     /// The entry whose × was clicked once, waiting for the second click.
     armed: Option<String>,
     scroll: ScrollHandle,
+    /// The list this panel draws, kept here rather than read from the app while drawing.
+    links: Option<SessionLinks>,
     _observe: Option<gpui::Subscription>,
 }
 
 impl SessionLinksPanel {
+    /// `links` is the list as the app has it when the dropdown opens.
+    ///
+    /// CDXC:SessionLinks 2026-10-24 WHY:
+    /// The dropdown opens from a click the app is still handling (`open_session_links_list`), and
+    /// opening its window draws it at once, so a panel that read the app while drawing crashed
+    /// Ghostex ("cannot read GhostexGpuiApp while it is already being updated"). The opener hands
+    /// the list in, and later changes arrive through the observer, which runs after the app's update.
     pub(crate) fn new(
         main_app: gpui::WeakEntity<GhostexGpuiApp>,
         key: SessionKey,
+        links: Option<SessionLinks>,
         cx: &mut gpui::Context<Self>,
     ) -> Self {
         // The list follows the session while it is open: a link the background pass finds, a
         // check that turns red, a removal.
-        let observe = main_app
-            .upgrade()
-            .map(|app| cx.observe(&app, |_, _, cx| cx.notify()));
+        let observe = main_app.upgrade().map(|app| {
+            cx.observe(&app, |panel: &mut Self, app, cx| {
+                let links = app.read(cx).session_links_of(&panel.key);
+                if links != panel.links {
+                    panel.links = links;
+                    cx.notify();
+                }
+            })
+        });
         Self {
             main_app,
             key,
             armed: None,
             scroll: ScrollHandle::new(),
+            links,
             _observe: observe,
         }
-    }
-
-    fn links(&self, cx: &gpui::App) -> Option<SessionLinks> {
-        self.main_app
-            .upgrade()
-            .and_then(|app| app.read(cx).session_links_of(&self.key))
     }
 
     fn close(&self, window: &mut Window, cx: &mut gpui::Context<Self>) {
@@ -266,7 +277,7 @@ impl SessionLinksPanel {
 
 impl Render for SessionLinksPanel {
     fn render(&mut self, _window: &mut Window, cx: &mut gpui::Context<Self>) -> impl IntoElement {
-        let links = self.links(cx).unwrap_or_default();
+        let links = self.links.clone().unwrap_or_default();
         let open = links.items.iter().filter(|item| !item.finished).count();
         let failing = links
             .items
