@@ -9,7 +9,7 @@ use gpui::{
 
 use crate::GhostexGpuiApp;
 use crate::app::native_sidebar::links_list::{
-    SESSION_LINKS_CARD_WIDTH, SessionLinksList, SessionLinksListHost, session_links_list_height,
+    SESSION_LINKS_CARD_WIDTH, SessionLinksList, SessionLinksListHost,
 };
 use ghostex_gx_core::SessionKey;
 
@@ -24,8 +24,18 @@ impl GhostexGpuiApp {
             return;
         };
         let main_app = cx.weak_entity();
+        // Past half the page's height the list scrolls inside the card; the sidebar runs the
+        // page's full height.
+        let max_height = (self.native_sidebar.bounds.size.height.as_f32() / 2.0).max(80.0);
         let list = cx.new(|cx| {
-            SessionLinksList::new(main_app, key, SessionLinksListHost::Card, Some(links), cx)
+            SessionLinksList::new(
+                main_app,
+                key,
+                SessionLinksListHost::Card,
+                Some(links),
+                max_height,
+                cx,
+            )
         });
         self.native_sidebar.links_card_session = Some(session_id);
         self.native_sidebar.links_card_hovered = false;
@@ -68,13 +78,12 @@ impl GhostexGpuiApp {
     /// The card beside the row it belongs to, over the work area.
     pub(crate) fn render_session_links_page_card(
         &self,
-        _cx: &mut Context<Self>,
+        cx: &mut Context<Self>,
     ) -> Option<AnyElement> {
         let list = self.native_sidebar.links_card_list.clone()?;
         let session_id = self.native_sidebar.links_card_session.as_ref()?;
         let row = self.native_sidebar.session_card_bounds.get(session_id)?;
-        let key = SessionKey::parse_sidebar_session_id(session_id)?;
-        let height = session_links_list_height(self.session_links_of(&key).as_ref());
+        let height = list.read(cx).fitted_height();
         let sidebar = self.native_sidebar.bounds;
         let origin = point(sidebar.right() + px(6.0), row.top());
         self.native_sidebar

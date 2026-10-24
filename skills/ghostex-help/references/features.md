@@ -3332,15 +3332,16 @@ to three of them after the session's title, open work first, each with its numbe
 state and checks, then +N for the rest (or a List pill when they all fit), which
 opens the whole list: each link on two lines, its number, title and state, then
 its checks (passing, failing or running, shown only while it is open), its review
-(review requested, approved or changes requested) and where it came from. Each
-section (Pull requests, GitHub issues, Linear, Suggested, Removed) folds with the
+(review requested, approved or changes requested) and where it came from. The list
+leads with Open, the links that still need something, then Merged or closed
+(folded until you open it), Suggested and Removed. Each group folds with the
 chevron on its header and keeps its count; what you fold stays folded in every
 session and after a restart (the phone keeps its own). Click a link to open it; **Open
 session links in** (Settings > General > Browser) opens them in the internal
 browser (the default) or your default browser. Click a link's × and then Remove?
 within three seconds to remove it; a removed link never comes back by itself.
 Right after a removal its row reads Removed · Undo for a few seconds, and every
-removed link stays under a Removed section, folded until you open it, at the bottom of the list
+removed link stays under a Removed group, folded until you open it, at the bottom of the list
 (on the phone's sheet too) with Restore, which puts it back as it was and lets it
 join by itself again. In the sidebar, **Session links in the sidebar**
 (Settings > Session Cards) picks how a card shows them: Always (a line of chips
@@ -3350,8 +3351,9 @@ the most pressing link: red for failing checks or changes asked for, amber for a
 review asked for or checks still running), Open work only (a line of the ones
 still open, none once they are all merged or closed), or Off. Rest the pointer on a
 card that has links and, after the tooltip delay, a card opens beside the sidebar
-listing them all, two lines each, with the same open, ×, Remove? and Link as the
-header's list; it stays while the pointer is on the card or its row (Off shows no
+listing them the same way, with the same open, ×, Remove? and Link as the
+header's list. It is as tall as what it shows and grows or shrinks when you fold a
+group; past half the window's height the list scrolls inside it. It stays while the pointer is on the card or its row (Off shows no
 card). A red dot on +N means a link behind it has failing checks; Ghostex sends no
 notifications for link changes. On the phone, the chat shows the same chips under
 its header: tap one to open it, touch and hold to copy its link, and tap +N or

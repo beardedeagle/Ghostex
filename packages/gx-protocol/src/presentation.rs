@@ -733,6 +733,21 @@ pub struct PresentationSuggestedLink {
     pub url: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
+    /// As on `PresentationSessionLink`; absent until it was read.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub state: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub state_name: Option<String>,
+    /// The second line: "Mentioned in the chat" for a suggestion, where a removed link came from
+    /// (or "Removed").
+    #[serde(default, deserialize_with = "crate::de::null_as_default")]
+    pub source_label: String,
+    #[serde(
+        default,
+        deserialize_with = "crate::de::null_as_default",
+        skip_serializing_if = "is_false"
+    )]
+    pub finished: bool,
 }
 
 /// One session row. Unique only together with `project_id`.

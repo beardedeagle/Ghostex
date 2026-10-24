@@ -28,19 +28,8 @@ impl GhostexGpuiApp {
                 ) else {
                     return true;
                 };
-                let settings = crate::shared_settings::shared_sidebar_settings_snapshot();
-                let mut sections: Vec<String> = match settings
-                    .object()
-                    .get("sessionLinksFoldedSections")
-                    .and_then(Value::as_array)
-                {
-                    Some(sections) => sections
-                        .iter()
-                        .filter_map(Value::as_str)
-                        .map(str::to_string)
-                        .collect(),
-                    None => vec!["removed".to_string()],
-                };
+                let mut sections =
+                    crate::app::native_sidebar::links_list::folded_session_link_groups();
                 sections.retain(|known| known != section);
                 if folded {
                     sections.push(section.to_string());
@@ -49,15 +38,16 @@ impl GhostexGpuiApp {
                 // so its folds live in the page's own copy of the settings until it reloads.
                 #[cfg(target_arch = "wasm32")]
                 {
+                    let settings = crate::shared_settings::shared_sidebar_settings_snapshot();
                     let mut object = settings.object().clone();
-                    object.insert("sessionLinksFoldedSections".to_string(), json!(sections));
+                    object.insert("sessionLinksFoldedGroups".to_string(), json!(sections));
                     crate::shared_settings::install(object);
                     cx.notify();
                 }
                 #[cfg(not(target_arch = "wasm32"))]
                 self.handle_gpui_app_modal_update_settings_patch_message(
                     &json!({
-                        "patch": { "sessionLinksFoldedSections": sections },
+                        "patch": { "sessionLinksFoldedGroups": sections },
                         "source": "sessionLinks:fold",
                     }),
                     cx,

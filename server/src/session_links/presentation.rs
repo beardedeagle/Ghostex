@@ -305,6 +305,32 @@ fn entry_value(
     Value::Object(output)
 }
 
+/// A suggestion or a removed link as clients receive it: drawn like a linked entry (number, title
+/// and state, then its second line), without checks or review.
+///
+/// CDXC:SessionLinks 2026-10-24 DECISION:
+/// User: "make suggested and removed also have the same look as other ones (2 rows)". Suggested and Removed entries carry the same state and second line as linked ones: "Mentioned in the chat" for a suggestion, where a removed link came from (or "Removed") for a removed one.
+fn other_entry_value(
+    entry: &SessionLinkEntry,
+    source: String,
+    cwd: Option<&str>,
+    repo: Option<&str>,
+    linear_key: Option<u64>,
+) -> Value {
+    let mut output = match entry_value(entry, cwd, repo, linear_key) {
+        Value::Object(output) => output,
+        _ => Map::new(),
+    };
+    output.retain(|key, _| {
+        matches!(
+            key.as_str(),
+            "key" | "kind" | "label" | "url" | "title" | "state" | "stateName" | "finished"
+        )
+    });
+    output.insert("sourceLabel".to_string(), json!(source));
+    Value::Object(output)
+}
+
 /// `PresentationSession.links` (packages/gx-protocol/src/presentation.rs); `None` when the session
 /// has no link and nothing to suggest.
 ///
@@ -357,19 +383,21 @@ pub(crate) fn presentation_session_links(project: &Value, session: &Value) -> Op
         })
         .take(MAX_SUGGESTED)
         .map(|link| {
-            let mut output = Map::new();
-            output.insert("key".to_string(), json!(link.key()));
-            output.insert("kind".to_string(), json!(link.kind().as_wire()));
-            output.insert("label".to_string(), json!(link.label(repo.as_deref())));
-            insert_text(&mut output, "url", link.github_url().as_deref());
-            let title = match link.kind() {
-                SessionLinkKind::PullRequest => {
-                    pull_request_info(link, cwd.as_deref()).and_then(|info| info.title)
-                }
-                _ => issue_info(link, cwd.as_deref()).and_then(|info| info.title),
+            let entry = SessionLinkEntry {
+                link: link.clone(),
+                source: SessionLinkSource::Mentioned,
+                current_branch: false,
+                from_ticket: false,
+                via: None,
+                url: None,
             };
-            insert_text(&mut output, "title", title.as_deref());
-            Value::Object(output)
+            other_entry_value(
+                &entry,
+                "Mentioned in the chat".to_string(),
+                cwd.as_deref(),
+                repo.as_deref(),
+                linear_key,
+            )
         })
         .collect();
     // The links a person removed, newest first, for the lists' "Removed (N)" group and its Restore.
@@ -380,38 +408,22 @@ pub(crate) fn presentation_session_links(project: &Value, session: &Value) -> Op
         .take(MAX_REMOVED)
         .filter_map(|key| SessionLinkRef::from_key(key))
         .map(|link| {
-            let mut output = Map::new();
-            output.insert("key".to_string(), json!(link.key()));
-            output.insert("kind".to_string(), json!(link.kind().as_wire()));
-            output.insert("label".to_string(), json!(link.label(repo.as_deref())));
-            let (title, url) = match &link {
-                SessionLinkRef::Linear { identifier } => {
-                    let info = linear_key.and_then(|key| cached_linear_issue(key, identifier));
-                    let stored_url = stored
-                        .removed_items
-                        .iter()
-                        .find(|item| item.link == link)
-                        .and_then(|item| item.url.clone());
-                    (
-                        info.as_ref().and_then(|info| info.title.clone()),
-                        info.and_then(|info| info.url).or(stored_url),
-                    )
-                }
-                SessionLinkRef::Github {
-                    kind: SessionLinkKind::PullRequest,
-                    ..
-                } => (
-                    pull_request_info(&link, cwd.as_deref()).and_then(|info| info.title),
-                    link.github_url(),
-                ),
-                SessionLinkRef::Github { .. } => (
-                    issue_info(&link, cwd.as_deref()).and_then(|info| info.title),
-                    link.github_url(),
-                ),
+            // What it was before the removal says where it came from; a link that was never
+            // stored (the branch's own) just reads "Removed".
+            let stored_item = stored.removed_items.iter().find(|item| item.link == link);
+            let entry = SessionLinkEntry {
+                link: link.clone(),
+                source: stored_item.map_or(SessionLinkSource::User, |item| item.source),
+                current_branch: false,
+                from_ticket: false,
+                via: stored_item.and_then(|item| item.via.clone()),
+                url: stored_item.and_then(|item| item.url.clone()),
             };
-            insert_text(&mut output, "url", url.as_deref());
-            insert_text(&mut output, "title", title.as_deref());
-            Value::Object(output)
+            let source = match stored_item {
+                Some(_) => source_label(&entry),
+                None => "Removed".to_string(),
+            };
+            other_entry_value(&entry, source, cwd.as_deref(), repo.as_deref(), linear_key)
         })
         .collect();
     if items.is_empty() && suggested.is_empty() && removed.is_empty() {

@@ -51,6 +51,11 @@ pub struct SuggestedSessionLink {
     pub label: String,
     pub url: Option<String>,
     pub title: Option<String>,
+    pub state: Option<String>,
+    pub state_name: Option<String>,
+    /// The second line: "Mentioned in the chat", or where a removed link came from.
+    pub source_label: String,
+    pub finished: bool,
 }
 
 /// The icon an entry draws; each renderer maps it to its own SVG.
@@ -103,6 +108,10 @@ fn other_link(
         label: item.label.clone(),
         url: item.url.clone(),
         title: item.title.clone().filter(|title| !title.trim().is_empty()),
+        state: item.state.clone(),
+        state_name: item.state_name.clone(),
+        source_label: item.source_label.clone(),
+        finished: item.finished,
     }
 }
 
@@ -241,11 +250,21 @@ impl SessionLink {
 }
 
 impl SuggestedSessionLink {
-    pub fn glyph(&self) -> (SessionLinkGlyph, SessionLinkTone) {
-        match self.kind {
-            SessionLinkKind::Linear => (SessionLinkGlyph::LinearTodo, SessionLinkTone::Draft),
-            SessionLinkKind::Issue => (SessionLinkGlyph::IssueOpen, SessionLinkTone::Draft),
-            _ => (SessionLinkGlyph::PullRequest, SessionLinkTone::Draft),
+    /// The entry as a linked one, which the lists draw with the same two-line row: its glyph and
+    /// state come from what was read about it, its second line is `source_label`.
+    pub fn as_link(&self) -> SessionLink {
+        SessionLink {
+            key: self.key.clone(),
+            kind: self.kind,
+            label: self.label.clone(),
+            title: self.title.clone(),
+            state: self.state.clone(),
+            state_name: self.state_name.clone(),
+            checks: None,
+            review: None,
+            url: self.url.clone(),
+            source_label: self.source_label.clone(),
+            finished: self.finished,
         }
     }
 }

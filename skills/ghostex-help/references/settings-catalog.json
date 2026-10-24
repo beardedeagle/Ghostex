@@ -3498,8 +3498,8 @@
       "agentWritable": false
     },
     {
-      "key": "sessionLinksFoldedSections",
-      "title": "sessionLinksFoldedSections",
+      "key": "sessionLinksFoldedGroups",
+      "title": "sessionLinksFoldedGroups",
       "subtitle": "App-managed state saved with the settings; not a user preference.",
       "tab": "settings",
       "tabTitle": "General",
@@ -3507,6 +3507,7 @@
       "sectionTitle": "Internal state (not user settings)",
       "type": "json",
       "default": [
+        "finished",
         "removed"
       ],
       "agentWritable": false

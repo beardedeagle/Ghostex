@@ -15,7 +15,8 @@ use gpui::{
 use crate::GhostexGpuiApp;
 use crate::app::helpers::*;
 use crate::app::native_sidebar::links_list::{
-    SESSION_LINKS_CARD_WIDTH, SessionLinksList, SessionLinksListHost, session_links_list_height,
+    SESSION_LINKS_CARD_WIDTH, SessionLinksList, SessionLinksListHost, folded_session_link_groups,
+    session_links_list_height,
 };
 use crate::app::window::GpuiTitlebarPopupKind;
 use ghostex_gx_core::SessionKey;
@@ -68,8 +69,10 @@ impl GhostexGpuiApp {
         let main = window.bounds();
         let sidebar = self.native_sidebar.bounds;
         let width = SESSION_LINKS_CARD_WIDTH;
-        let height = session_links_list_height(Some(&links))
-            .min(main.size.height.as_f32() - 16.0)
+        // Past half the window's height the list scrolls inside the card.
+        let half_window = (main.size.height.as_f32() / 2.0).max(80.0);
+        let height = session_links_list_height(Some(&links), &folded_session_link_groups(), None)
+            .min(half_window)
             .max(80.0);
         // Beside the sidebar, on the work area's side.
         let sidebar_on_right = sidebar.left().as_f32() > main.size.width.as_f32() / 2.0;
@@ -106,6 +109,8 @@ impl GhostexGpuiApp {
             },
             ..Default::default()
         };
+        // The card grows downwards when a group opens, so it stops at the window's bottom too.
+        let max_height = half_window.min(main.size.height.as_f32() - 8.0 - top);
         let main_app = cx.weak_entity();
         let opened = cx.open_window(options, move |card_window, cx| {
             card_window.set_background_corner_radius(px(8.0));
@@ -114,7 +119,14 @@ impl GhostexGpuiApp {
                 card_window,
             );
             let list = cx.new(|cx| {
-                SessionLinksList::new(main_app, key, SessionLinksListHost::Card, Some(links), cx)
+                SessionLinksList::new(
+                    main_app,
+                    key,
+                    SessionLinksListHost::Card,
+                    Some(links),
+                    max_height,
+                    cx,
+                )
             });
             cx.new(|_| SessionLinksCardWindow { list })
         });

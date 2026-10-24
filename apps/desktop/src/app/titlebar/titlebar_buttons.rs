@@ -110,6 +110,8 @@ impl GhostexGpuiApp {
                         .as_ref()
                         .and_then(|key| self.session_links_of(key))
                         .as_ref(),
+                    &crate::app::native_sidebar::links_list::folded_session_link_groups(),
+                    None,
                 )
             }
             GpuiTitlebarPopupKind::Resources

@@ -307,15 +307,23 @@ export interface GxserverPresentationSessionLink {
 /** Every link of a session, open work first, and the PR and issue URLs its chat only mentioned (`PresentationSessionLinks`). */
 export interface GxserverPresentationSessionLinks {
   items: GxserverPresentationSessionLink[];
-  suggested?: Array<{ key: string; kind: 'pullRequest' | 'issue'; label: string; url?: string; title?: string }>;
+  suggested?: GxserverPresentationSuggestedLink[];
   /** Links a person removed, newest first, which the lists offer to restore. */
-  removed?: Array<{
-    key: string;
-    kind: 'pullRequest' | 'issue' | 'linear';
-    label: string;
-    url?: string;
-    title?: string;
-  }>;
+  removed?: GxserverPresentationSuggestedLink[];
+}
+
+/** A suggestion or a removed link (`PresentationSuggestedLink` in gx-protocol), drawn like a linked one. */
+export interface GxserverPresentationSuggestedLink {
+  key: string;
+  kind: 'pullRequest' | 'issue' | 'linear';
+  label: string;
+  url?: string;
+  title?: string;
+  state?: string;
+  stateName?: string;
+  /** "Mentioned in the chat" for a suggestion, where a removed link came from (or "Removed"). */
+  sourceLabel?: string;
+  finished?: true;
 }
 
 /** A Claude cloud session (`PresentationClaudeCloud` in gx-protocol). */
