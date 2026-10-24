@@ -459,6 +459,10 @@ impl GhostexGpuiApp {
                 if !failure_shown {
                     startup_diagnostics.push(format!("+{}ms probe {attempt}: {detail}", startup_started.elapsed().as_millis()));
                 }
+                #[cfg(target_os = "windows")]
+                if !failure_shown {
+                    startup_diagnostics.extend(gpui_take_windows_gxserver_exit_notes(startup_started));
+                }
                 // A start that is moving counts as progress until it has run for the startup patience; the launch every 30 s below is what lets a hung one be replaced.
                 if let GpuiLocalGxserverHealthState::Starting { starting_for, .. } = &health
                     && *starting_for < GPUI_GXSERVER_START_PATIENCE
@@ -590,6 +594,11 @@ impl GhostexGpuiApp {
                     );
                     if let Some(toast) = this.app_toasts.iter_mut().find(|toast| toast.id == GPUI_GXSERVER_DAEMON_TOAST_ID) {
                         toast.copy_text = Some(report);
+                        // The exit status says why it did not become healthy.
+                        #[cfg(target_os = "windows")]
+                        if let Some(detail) = gpui_windows_gxserver_failure_toast_detail() {
+                            toast.description = Some(detail);
+                        }
                     }
                     this.sync_gpui_app_toast_window(cx);
                 });

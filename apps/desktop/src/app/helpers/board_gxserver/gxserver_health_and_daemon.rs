@@ -1078,7 +1078,7 @@ pub(crate) fn gpui_spawn_local_gxserver_daemon(binary: &Path) -> Result<Vec<Stri
     let mut command = std::process::Command::new(binary);
     terminal_environment::apply_color_capable_process_command(&mut command);
     terminal_environment::remove_session_identity_from_process_command(&mut command);
-    command
+    let child = command
         .arg("--foreground")
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::from(stdout))
@@ -1086,6 +1086,7 @@ pub(crate) fn gpui_spawn_local_gxserver_daemon(binary: &Path) -> Result<Vec<Stri
         .creation_flags(CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW)
         .spawn()
         .map_err(|_| "gxserver failed to launch.".to_string())?;
+    gpui_watch_windows_gxserver_exit(child, launch_log);
     Ok(vec![
         "launcher: detached process start accepted".to_string(),
     ])
@@ -1290,6 +1291,7 @@ pub(crate) fn gpui_gxserver_startup_failure_report(probes: &[String]) -> String 
         == windows_terminal_backend::WindowsTerminalBackendPreference::PowerShell
     {
         report.push_str(&gpui_windows_gxserver_runtime_record_report());
+        report.push_str(&gpui_windows_gxserver_crash_evidence_report());
     }
     if let Ok(token) = read_gpui_gxserver_auth_token() {
         report = report.replace(&token, "[redacted token]");
