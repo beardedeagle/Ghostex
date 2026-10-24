@@ -132,7 +132,7 @@ pub(super) fn inline_presentation(
 }
 
 /// A press on a link that belongs to an inline command, answered here: Copy copies the command,
-/// Paste in terminal types it into a new terminal without pressing Enter, and a press on the span's
+/// Paste in terminal types it into a Commands panel terminal without pressing Enter, and a press on the span's
 /// text does nothing, so it can be selected like any code. `false` for every other link.
 pub(super) fn handle_link_press(
     href: &str,

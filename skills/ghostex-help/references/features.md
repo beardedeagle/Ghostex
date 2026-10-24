@@ -1034,19 +1034,24 @@ A long code block shows its first lines and scrolls inside the block; the arrows
 button in the block's header shows the whole block, and again collapses it.
 Run in terminal: when an agent's reply shows a shell command in a code block (a
 bash, sh, zsh, shell or console block, or a block that starts with `!`), the
-block's header has a Run button beside wrap and Copy. Run opens a new plain
-terminal in the session's own folder (its worktree when it has one), types the
-command, presses Enter and shows that terminal so you can answer login prompts
-or menus. A command written as inline code (such as `npm install` or
-`cd my-app && npx vercel login`) shows a small bar above it when you hover it:
-Copy, and Paste in terminal, which opens the same kind of terminal and types the
-command without pressing Enter. Neither ever types into the agent's terminal. A
-leading `!` (the agent's way of asking you to run it) is dropped; a console
-block runs only its `$ ` lines. A session on another computer opens the terminal
-on that computer. On the phone, a code block's Run sits beside its copy button,
-and holding a reply with one inline command offers Copy command and Paste in
-terminal. From a shell: `ghostex run-in-terminal --project-id <id> --session-id
-<id> --command "<command>"` (add `--paste` to type it without running it).
+block's header has a Run button beside wrap and Copy. Run types the command into
+a terminal of the Commands pane and presses Enter: the pane's current terminal
+tab when it is free (not running something and not an Action's tab), otherwise
+a new tab. The pane opens on that tab so you can answer login prompts or menus.
+A command written as inline code (such as `npm install` or
+`cd my-app && npx vercel login`) shows a small bar when you hover it, above the
+command or below it when there is no room above: Copy, and Paste in terminal,
+which types the command into the same kind of Commands pane terminal without
+pressing Enter. Text you had half-typed at that terminal's prompt is cleared
+first. Neither ever types into the agent's terminal. A leading `!` (the agent's
+way of asking you to run it) is dropped; a console block runs only its `$ `
+lines. A session on another computer runs it on that computer. On the phone, a
+code block's Run sits beside its copy button, and holding a reply with one
+inline command offers Copy command and Paste in terminal; the phone types into
+the project's free Commands pane terminal on the computer (or a new terminal
+when there is none) and opens it as a tab. From a shell:
+`ghostex run-in-terminal --project-id <id> --session-id <id> --command
+"<command>"` (add `--paste` to type it without running it).
 A long message you sent (more than 20 lines or 2,000 characters, such as a
 pasted log) shows its first lines with Show more under them; Show less folds it
 again. Copy still copies the whole message.

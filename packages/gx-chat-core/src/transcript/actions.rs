@@ -263,8 +263,8 @@ pub fn handle(state: &mut ChatState, action: &UserAction, context: &ChatContext)
                 params: Box::new(json!({ "projectId": project_id, "sessionId": session_id })),
             }]
         }
-        // A command in a reply goes to a new terminal of the session's own folder, which only the
-        // host can open (`run_command.rs`): Run types it and presses Enter, Paste only types it.
+        // A command in a reply goes to a terminal of the Commands panel, which only the host can
+        // reach (`run_command.rs`): Run types it and presses Enter, Paste only types it.
         ActionKind::RunInTerminal | ActionKind::PasteInTerminal => {
             let command = text(action, "command");
             if command.trim().is_empty() {

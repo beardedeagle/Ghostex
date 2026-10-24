@@ -351,7 +351,7 @@ pub fn usage() -> String {
         ),
         format_help_command(
             "run-in-terminal --project-id id [--session-id id|--cwd path] [--paste] [--json] (--command text | -- command...)",
-            "Open a new terminal in the session's folder and run a command in it; --paste types it without pressing Enter",
+            "Run a command in the project's Commands panel terminal (a new terminal in the session's folder without one); --paste types it without pressing Enter",
         ),
     ]
     .join("\n");

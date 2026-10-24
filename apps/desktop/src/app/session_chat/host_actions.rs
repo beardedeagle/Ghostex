@@ -464,7 +464,7 @@ impl GhostexGpuiApp {
             );
             return;
         }
-        // A command in a reply goes to a new terminal of the session's folder, run or only typed
+        // A command in a reply goes to a terminal of the Commands panel, run or only typed
         // (`run_in_terminal.rs`).
         if action == "runInTerminal" || action == "pasteInTerminal" {
             if let Some(command) = message
@@ -476,6 +476,7 @@ impl GhostexGpuiApp {
                     session_id,
                     command,
                     action == "runInTerminal",
+                    window,
                     cx,
                 );
             }

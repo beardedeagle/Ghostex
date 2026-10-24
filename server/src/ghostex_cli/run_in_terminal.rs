@@ -1,6 +1,6 @@
 //! `ghostex run-in-terminal`: a chat's Run in terminal for the phone (and anyone at a shell).
 //!
-//! CDXC:SessionChat 2026-10-24 WHY: the phone reaches this computer only through the CLI, so its Run in terminal is this verb: a new plain terminal of the project, in the chat session's own folder (its worktree when it has one), that types the command and presses Enter once its shell is up. It never types into the agent's terminal, where the agent would read the command as a prompt. The output names the created session, which the phone then opens.
+//! CDXC:SessionChat 2026-10-24 WHY: the phone reaches this computer only through the CLI, so its Run in terminal is this verb. Like the desktop (User: "please make clicking on the floating terminal button that we added add that command to a terminal in the commands panel not a new terminal session in the sidebar"), it types into the project's Commands panel terminal when one is running and idle, which the phone then opens as its tab. Without one it makes a new plain terminal in the chat session's own folder rather than a Commands panel session, which the desktop's panel, whose layout is its own, would never show. It never types into the agent's terminal, where the agent would read the command as a prompt. The output names the terminal it used.
 //! SEE-ALSO: `command_terminal_create_params` in packages/gx-core/src/session_create/params.rs builds the same create for the desktop; packages/gx-chat-core/src/transcript/run_command.rs decides what runs.
 
 use serde_json::{json, Value};
@@ -87,6 +87,37 @@ fn wait_for_prompt(project_id: &str, session_id: &str, flags: &crate::ghostex_cl
     }
 }
 
+/// The project's Commands panel terminal a command goes to: a running plain terminal of the panel
+/// (not an Action's) that is not busy, the most recently used first. Panel terminals are left out of
+/// the presentation snapshot, so they are read from the session list.
+fn idle_command_panel_terminal(
+    project_id: &str,
+    flags: &crate::ghostex_cli::args::Flags,
+) -> Option<String> {
+    let listed = call_gxserver_rpc(
+        "/api/listSessions",
+        &json!({ "includeStopped": false }),
+        flags,
+    )
+    .ok()?;
+    let text = |session: &Value, key: &str| session[key].as_str().unwrap_or_default().to_string();
+    listed["sessions"]
+        .as_array()?
+        .iter()
+        .filter(|session| {
+            text(session, "projectId") == project_id
+                && text(session, "surface") == "commands"
+                && text(session, "kind") == "terminal"
+                && text(session, "commandId").is_empty()
+                && text(session, "lifecycleState") == "running"
+                && session["runtimeSettings"]["agentActivity"]["activity"].as_str()
+                    != Some("working")
+        })
+        .max_by_key(|session| text(session, "updatedAt"))
+        .map(|session| text(session, "sessionId"))
+        .filter(|session_id| !session_id.is_empty())
+}
+
 pub fn run_in_terminal_command(args: &[String]) -> CliResult<()> {
     let parsed = parse_args(args);
     let flags = &parsed.flags;
@@ -107,6 +138,28 @@ pub fn run_in_terminal_command(args: &[String]) -> CliResult<()> {
         ));
     }
     let paste = flags.truthy("paste");
+    if let Some(session_id) = idle_command_panel_terminal(&project_id, flags) {
+        let ids = json!({ "projectId": project_id, "sessionId": session_id });
+        let mut typed = ids.clone();
+        // Ctrl-U first: the prompt may hold half-typed text (a command pasted earlier and never
+        // run), which the command would otherwise be appended to.
+        typed["text"] = json!(format!("\u{15}{command}"));
+        call_gxserver_rpc("/api/sendSessionText", &typed, flags)?;
+        if !paste {
+            call_gxserver_rpc("/api/sendSessionEnter", &ids, flags)?;
+        }
+        if flags.truthy("json") {
+            print_json(&json!({
+                "ok": true,
+                "projectId": project_id,
+                "sessionId": session_id,
+                "commandsPanel": true,
+            }));
+        } else {
+            println!("Typed into the Commands panel terminal {session_id}: {command}");
+        }
+        return Ok(());
+    }
     let cwd = flags.text("cwd").or_else(|| {
         flags
             .text("sessionId")
